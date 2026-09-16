@@ -97,40 +97,68 @@ Shared CSS with chat.html — siblings in one workflow, not two products.
 
 ## 2 · BACKLOG
 
-### B1 · Mic turn-release model — revisit
+### B1 · Mic turn-release model — SETTLED, build next
 
-Current: 6s silence auto-releases the turn, re-armed per utterance. Accepted
-to unblock testing, not chosen on merit. Options on the table when revisited:
-as-is / exactly like bridge (never auto-releases) / explicit hand-back tap /
-both mics live simultaneously (a switch redesign, not a tweak, if ever
-attempted — the whole premise assumes one owner).
+Mic icon shows muted on both sides by default (matches bridge's visual state).
 
-**Not blocking. Revisit after Turn 22.**
+- **Single tap** → engages: white icon, red circle fill, blue ring. Releases
+  automatically after **3 seconds of actual silence** (mic-sensitivity-gated,
+  not a bare timer — silence means the input level, not just elapsed time) —
+  back to muted.
+- **Long press** → press-once-to-latch. Stays engaged with no timer until
+  either (a) a single tap toggles it back to muted, or (b) the partner
+  requests control and is granted it — same request/grant flow already built
+  for the switch, unchanged.
 
-### B2 · Keyboard dictionary autocomplete — exploration
+This replaces the current 6s-flat-timer placeholder entirely. Build target,
+not exploration — no longer "revisit later."
 
-Word suggestions above the keys as you type, tap to insert. Needs a per-language
-word-frequency list (or an on-device dictionary source) — scope of that source
-is the open question, not the UI.
+### TRACK A · Dictionary-backed input, non-composing languages — build next
 
-### B3 · Swype, dictionary-based — exploration
+**B2 (autocomplete) + B3 (swype) + B5 (keyboard localization) collapse into one
+build for every language that doesn't require candidate composition** — Latin
+script plus flat-character-set scripts (Thai, Vietnamese, Russian, Arabic,
+etc.). All three are downstream of the same mechanism: a downloadable
+per-language word list, assigned per room in chat-admin.
 
-Gesture typing done properly this time. Prior swype attempt (Appendix A) was
-removed for being unreliable; a real attempt needs the same robust dictionary
-as B2 underneath it, which is why they're listed together — **B3 may replace
-B2, extend it, or the two may turn out to be one build sharing one word list.**
-Don't scope either until the shared dependency (the dictionary) is scoped.
+- chat-admin detects whether a room's assigned language's on-device dictionary
+  is already installed; if not, prompts to download it during room setup —
+  not a silent failure discovered later inside chat.html.
+- Once a room has its dictionary, autocomplete (B2), swype (B3), and correct
+  keyboard localization (B5, non-composing half) all read from it. One
+  dependency, three UI outcomes — not three separate builds.
+- Korean and Japanese composition (existing hand-built IME in chat.html) is
+  untouched by this track — already working, not in scope here.
 
-### B4 · Phrasebook via omni-search — exploration
+**Chinese is explicitly excluded from Track A** — see Track B.
+
+### TRACK B · Composed-script input (Chinese first) — after Track A ships
+
+Simplified Chinese (pinyin → ranked candidate selection) is not a bigger
+dictionary — it's a different kind of component, an embedded IME engine, not
+a data file. Real open-source options exist: **rime** or **libgooglepinyin**;
+neither needs to be built from scratch, but integrating either is real
+engineering effort, not a port.
+
+**Explicitly sequenced after Track A**, not parallel to it: Track A builds
+chat-admin's per-room dictionary-assignment mechanism against the simple case
+first. Track B then adds one more asset type (an IME engine, not just a word
+list) to a delivery mechanism that already exists and already works, rather
+than building the mechanism and the hard engine at the same time. Engine
+choice (rime vs libgooglepinyin) is not yet made — open question for when this
+track starts.
+
+Slot is Chinese-first but not Chinese-only — the same mechanism can later take
+on other composed scripts if they come up.
+
+### B4 · Phrasebook via omni-search — exploration, unchanged
 
 The compose input doubles as a search box: typing filters a phrasebook of
 common phrases, shown as tappable suggestions, tap inserts the full phrase.
 Bridge already has a phrasebook subsystem (Appendix A notes duck deliberately
 left it dormant, not ported) — worth a real look at what's reusable there
-before scoping this as new build versus adaptation.
-
-**All three (B2–B4) are exploration, not committed scope. Turn 22 does not
-touch typing/input assistance.**
+before scoping this as new build versus adaptation. Independent of Tracks A/B;
+not resequenced by this update.
 
 ---
 
