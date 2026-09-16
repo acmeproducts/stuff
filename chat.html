@@ -1298,6 +1298,7 @@ function dgLangParam(room) {
        scoring assumes a QWERTY-style single-row-per-letter layout; IME
        languages already have their own composition path and are untouched). */
     var swype={active:false,side:null,pts:[],letters:[]};
+    var swypeWarned={south:false,north:false};
 
     function keyRectsFor(side){
         var el=kbEl(side);if(!el)return[];
@@ -1377,14 +1378,23 @@ function dgLangParam(room) {
             kkeys.setPointerCapture&&kkeys.setPointerCapture(pid);
 
             var k=target.dataset.k;
+            var hasDict=!!getDict(langOf(side));
             var swypeEligible = k.length===1 && /[a-zA-Z]/.test(k) &&
-                !numMode[side] && !(comp[side].ko||comp[side].raw||comp[side].kana) && getDict(langOf(side));
+                !numMode[side] && !(comp[side].ko||comp[side].raw||comp[side].kana) && hasDict;
             if(swypeEligible){
                 rects=keyRectsFor(side);
                 swype.side=side;swype.pts=[{x:e.clientX,y:e.clientY}];swype.letters=[k.toLowerCase()];
                 swype.active=false;
             }else{
                 swype.pts=[];   // not swype-eligible from this key — tap only
+                /* Surface WHY, once per session per side, instead of silently
+                   degrading to tap-only with no visible difference — this was
+                   reported as "can't swipe" with no indication the cause was
+                   simply no dictionary downloaded for this room's language. */
+                if(!hasDict&&!swypeWarned[side]){
+                    swypeWarned[side]=true;
+                    diag('swype disabled — no dictionary for '+langOf(side)+' (download it in chat-admin)',true);
+                }
             }
         },{passive:false});
 
@@ -1783,8 +1793,8 @@ function dgLangParam(room) {
         window.detectByScript=detectByScript;window.applyNorthernThaiMap=applyNorthernThaiMap;
         window.resolveEffectiveLang=resolveEffectiveLang;window.normalizeOutgoing=normalizeOutgoing;
         window.detectLangAsync=detectLangAsync;window.loadFastText=loadFastText;
-        window.sideAsRoom=sideAsRoom;window.ROOM=ROOM;window.translateWithRetry=translateWithRetry;window.press=press;window.cands=cands;window.pickCand=pickCand;window.getDict=getDict;window.updateAutocomplete=updateAutocomplete;window.comp=comp;window.langOf=langOf;window.swype=swype;window.resolveSwype=resolveSwype;window.swypeScore=swypeScore;window.keyRectsFor=keyRectsFor;window.wireKeyboard=wireKeyboard;window.haptic=haptic;
-        window.renderAll=renderAll;window.debugLog=debugLog;window.MIC_IDLE_MS=MIC_IDLE_MS;
+        window.sideAsRoom=sideAsRoom;window.ROOM=ROOM;window.translateWithRetry=translateWithRetry;window.press=press;window.cands=cands;window.pickCand=pickCand;window.getDict=getDict;window.updateAutocomplete=updateAutocomplete;window.comp=comp;window.langOf=langOf;window.swype=swype;window.resolveSwype=resolveSwype;window.swypeScore=swypeScore;window.keyRectsFor=keyRectsFor;window.wireKeyboard=wireKeyboard;window.haptic=haptic;window.swypeWarned=swypeWarned;
+        window.renderAll=renderAll;window.debugLog=debugLog;window.MIC_IDLE_MS=MIC_IDLE_MS;window.getDiagLines=function(){return diagLines};
         window.dgUseDual=dgUseDual;window.dgUseMulti=dgUseMulti;window.dgLangParam=dgLangParam;
         window.dgArbitrateNative=dgArbitrateNative;window.dgArbitrateEnglish=dgArbitrateEnglish;
         window.setFtForTest=function(impl){_ft=impl;_ftFailed=!impl;_ftPromise=Promise.resolve(impl)};
