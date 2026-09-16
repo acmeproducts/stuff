@@ -1,7 +1,7 @@
 # Market Navigator — Graveyard
 
 Status: NEGATIVE SPECIFICATION
-Updated: 2026-09-14
+Updated: 2026-09-16
 
 Historical rejected releases remain evidence only; detailed descriptions remain in git history.
 
@@ -126,3 +126,15 @@ Market Navigator must never:
 - treat merely invoking `window.print()` as sufficient Print implementation or qualification;
 - alter the normal Library screen layout merely to make printing work.
 
+
+
+## Permanent Index Explanation prohibitions
+Market Navigator must never:
+- derive index attribution or component values from chart pixels;
+- allow AI to invent or calculate factual index arithmetic;
+- hardcode illustrative/example component numbers;
+- publish a contribution table that does not reconcile to the governed index calculation, subject only to explicitly reported rounding;
+- estimate, silently substitute, forward-fill or fabricate missing component evidence or horizon endpoints;
+- let explanation open/close refetch evidence or mutate horizon, composition, active series, representation or evidence revision;
+- recompute a saved Library explanation from newer evidence instead of freezing it with the analysis; or
+- treat a source-green derived index as attribution-healthy when required component evidence or reconciliation is unavailable.

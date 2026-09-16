@@ -100,7 +100,7 @@ q=QA.read_text()
 old="window.__qaSpeech=speech;window.__opened=[];window.clean=s=>String(s||'').replace(/\\s+/g,' ').trim();window.open=(u)=>{window.__opened.push(String(u));return null};"
 new="window.__qaSpeech=speech;window.__opened=[];window.__printCount=0;window.print=()=>{window.__printCount++};window.clean=s=>String(s||'').replace(/\\s+/g,' ').trim();window.open=(u)=>{window.__opened.push(String(u));return null};"
 if q.count(old)==1:q=q.replace(old,new,1)
-else:assert q.count(new)==1,('QA print mock',q.count(old),q.count(new))
+else:assert q.count('window.__printCount=0;window.print=()=>{window.__printCount++}')==1,('QA print mock',q.count(old),q.count(new))
 
 old="await p.reload({waitUntil:'networkidle'});await p.locator('[data-view=\"library\"]').click();await p.waitForFunction(()=>document.querySelector('#libTitle')?.value==='QA Browser TTS');"
 new="await p.reload({waitUntil:'networkidle'});if(await p.locator('#rail').evaluate(el=>el.classList.contains('closed')))await p.locator('#toggle').click();await p.locator('[data-view=\"library\"]').click();await p.waitForFunction(()=>document.querySelector('#libTitle')?.value==='QA Browser TTS');if(!(await p.locator('#libListenMode').isVisible())){await p.locator('#libList [data-id]').first().click();await p.waitForFunction(()=>document.querySelector('#libraryWorkspace')?.classList.contains('detailOpen'))}"
@@ -128,10 +128,12 @@ async function printCase(){
   await p.emulateMedia({media:'screen'});await p.evaluate(()=>window.dispatchEvent(new Event('afterprint')));assert.equal(await p.locator('#libraryPrintReport').getAttribute('aria-hidden'),'true','temporary print state cleaned');assert.equal(await p.locator('#libraryPrintTranscript').textContent(),'','temporary transcript cleaned');let persistedAfter=await p.evaluate(()=>JSON.stringify(currentAnalysis()));assert.equal(persistedAfter,persistedBefore,'saved Library analysis unchanged after print');assert.deepEqual(t.errors,[]);assert.deepEqual(t.failed,[]);await t.context.close();
 }
 '''
-anchor='\ntry{\n  await architecture(1280);'
-assert anchor in q,'QA try anchor missing'
-q=q.replace(anchor,print_case+anchor,1)
-q=q.replace('await ttsCase(false);await ttsCase(true);','await ttsCase(false);await ttsCase(true);await printCase();',1)
+if 'async function printCase()' not in q:
+    anchor='\ntry{\n'
+    assert anchor in q,'QA try anchor missing'
+    q=q.replace(anchor,print_case+anchor,1)
+if 'await printCase();' not in q:
+    q=q.replace('await ttsCase(false);await ttsCase(true);','await ttsCase(false);await ttsCase(true);await printCase();',1)
 QA.write_text(q)
 
 print('TURN 25 FINALIZE: PASS')
