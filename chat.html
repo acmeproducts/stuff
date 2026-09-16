@@ -1,1277 +1,1503 @@
 <!DOCTYPE html>
 <html lang="en" translate="no">
 <head>
-    <meta charset="utf-8">
-    <meta content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" name="viewport">
-    <meta name="google" content="notranslate">
-    <meta name="googlebot" content="notranslate">
-    <title>Chat Tabletop</title>
-    <script src="https://cdn.tailwindcss.com"></script>
-    <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@24,400,1,0" rel="stylesheet">
-    <style>
-        :root {
-            --bubble-local-bg: #eff6ff;
-            --bubble-local-text: #1f2937;
-            --bubble-peer-bg: #ffffff;
-            --bubble-peer-text: #0f172a;
-            --bubble-font-size: 14px;
-            --chat-bg-color: #ffffff;
-        }
-        html,
-        body {
-            background: linear-gradient(135deg, #f8fafc 0%, #e2e8f0 100%);
-            min-height: 100dvh;
-            height: 100%;
-            overflow: hidden;
-        }
-        .no-scrollbar::-webkit-scrollbar { display: none; }
-        .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
-        .modal { transition: opacity 0.2s ease, visibility 0.2s ease; }
-        .modal.invisible { opacity: 0; visibility: hidden; pointer-events: none; }
-        .modal.visible { opacity: 1; visibility: visible; pointer-events: auto; }
-        .modal-content { transition: transform 0.2s ease; }
-        .scale-in { transform: scale(1); }
-        .scale-out { transform: scale(0.98); }
-        .tabletop-view {
-            position: fixed;
-            inset: 0;
-            display: grid;
-            grid-template-rows: minmax(0, 1fr) auto minmax(0, 1fr);
-            height: 100dvh;
-            gap: 2px;
-        }
-        .tabletop-half {
-            display: flex;
-            align-items: stretch;
-            justify-content: center;
-            padding: 4px;
-            min-height: 0;
-        }
-        .tabletop-north { transform: rotate(180deg); }
-        .client-shell {
-            width: min(92%, 520px);
-            height: 100%;
-            border-radius: 28px;
-            border: 1px solid rgba(226, 232, 240, 0.9);
-            background: rgba(255, 255, 255, 0.9);
-            box-shadow: 0 18px 30px rgba(15, 23, 42, 0.08);
-            display: flex;
-            flex-direction: column;
-            overflow: hidden;
-        }
-        .tabletop-transcript {
-            flex: 1;
-            overflow-y: auto;
-            padding: 12px;
-            display: flex;
-            flex-direction: column;
-            gap: 12px;
-            background-color: var(--chat-bg-color);
-        }
-        #peer-transcript {
-            background-color: var(--chat-bg-peer, var(--chat-bg-color));
-        }
-        #local-transcript {
-            background-color: var(--chat-bg-local, var(--chat-bg-color));
-        }
-        .tabletop-composer {
-            display: flex;
-            align-items: center;
-            gap: 10px;
-            padding: 10px 12px;
-            border-top: 1px solid rgba(226, 232, 240, 0.9);
-            background: rgba(255, 255, 255, 0.98);
-            position: sticky;
-            bottom: 0;
-            z-index: 10;
-        }
-        .tabletop-input {
-            flex: 1;
-            min-width: 0;
-            padding: 8px 12px;
-            border-radius: 999px;
-            border: 1px solid rgba(226, 232, 240, 0.9);
-            background: white;
-            font-size: 0.95rem;
-        }
-        .tabletop-talk {
-            display: inline-flex;
-            align-items: center;
-            justify-content: center;
-            width: 40px;
-            height: 40px;
-            border-radius: 999px;
-            background: linear-gradient(135deg, rgba(96, 165, 250, 0.95), rgba(59, 130, 246, 0.95));
-            color: white;
-            border: none;
-            box-shadow: 0 8px 20px rgba(37, 99, 235, 0.25);
-        }
-        .tabletop-talk[data-listening="true"] {
-            background: linear-gradient(135deg, rgba(248, 113, 113, 0.95), rgba(239, 68, 68, 0.95));
-            box-shadow: 0 8px 20px rgba(239, 68, 68, 0.35);
-        }
-        .tabletop-talk:active { transform: scale(0.98); }
-        .message-row {
-            display: flex;
-        }
-        .message-row.peer { justify-content: flex-start; }
-        .message-row.local { justify-content: flex-end; }
-        .message-bubble {
-            max-width: 96%;
-            border-radius: 20px;
-            padding: 10px 40px 10px 14px;
-            border: 1px solid rgba(226, 232, 240, 0.9);
-            box-shadow: 0 10px 24px rgba(15, 23, 42, 0.08);
-            display: grid;
-            grid-template-columns: 1fr 1fr;
-            gap: 12px;
-            font-size: var(--bubble-font-size, 0.95rem);
-            position: relative;
-        }
-        .message-bubble.latest-bubble { border-width: 3px; font-weight: 600; }
-        .message-bubble.local {
-            background: var(--bubble-local-bg);
-            color: var(--bubble-local-text);
-            font-size: var(--bubble-font-size-local, var(--bubble-font-size, 0.95rem));
-        }
-        .message-bubble.peer {
-            background: var(--bubble-peer-bg);
-            color: var(--bubble-peer-text);
-            font-size: var(--bubble-font-size-peer, var(--bubble-font-size, 0.95rem));
-        }
-        .message-bubble .bubble-col {
-            min-width: 0;
-            display: flex;
-            flex-direction: column;
-            gap: 6px;
-            word-break: break-word;
-        }
-        .message-bubble .bubble-col + .bubble-col {
-            border-left: 1px solid rgba(226, 232, 240, 0.9);
-            padding-left: 12px;
-        }
-        .speaker-indicator {
-            position: relative;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            pointer-events: none;
-            height: 40px;
-        }
-        .speaker-indicator::before {
-            content: '';
-            position: absolute;
-            left: 18px;
-            right: 18px;
-            top: 50%;
-            height: 2px;
-            background: rgba(148, 163, 184, 0.6);
-        }
-        #speaker-toggle {
-            pointer-events: auto;
-            width: 52px;
-            height: 52px;
-            border-radius: 999px;
-            border: 1px solid rgba(226, 232, 240, 0.8);
-            background: rgba(255, 255, 255, 0.85);
-            box-shadow: 0 12px 25px rgba(148, 163, 184, 0.3);
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            transition: transform 0.25s ease;
-        }
-        #speaker-toggle .speaker-arrow {
-            font-size: 28px;
-            color: rgba(59, 130, 246, 0.9);
-            transition: transform 0.25s ease;
-        }
-        #speaker-toggle[data-active="peer"] .speaker-arrow { transform: rotate(180deg); }
-        .bubble-delete {
-            position: absolute;
-            top: 6px;
-            right: 6px;
-            width: 24px;
-            height: 24px;
-            border-radius: 999px;
-            border: 1px solid rgba(148, 163, 184, 0.6);
-            background: rgba(255, 255, 255, 0.9);
-            color: rgba(71, 85, 105, 0.9);
-            display: inline-flex;
-            align-items: center;
-            justify-content: center;
-            font-size: 16px;
-        }
-        .bubble-delete:hover { color: rgba(239, 68, 68, 0.9); }
-        .tts-toggle {
-            width: 36px;
-            height: 36px;
-            border-radius: 999px;
-            border: 1px solid rgba(148, 163, 184, 0.6);
-            background: rgba(226, 232, 240, 0.6);
-            color: rgba(100, 116, 139, 0.9);
-            display: inline-flex;
-            align-items: center;
-            justify-content: center;
-        }
-        .tts-toggle[data-enabled="true"] {
-            background: rgba(191, 219, 254, 0.8);
-            color: rgba(30, 64, 175, 0.9);
-            border-color: rgba(147, 197, 253, 0.9);
-        }
-        .settings-matrix {
-            display: grid;
-            grid-template-columns: 120px minmax(0, 1fr) minmax(0, 1fr);
-            gap: 10px;
-            align-items: center;
-        }
-        .settings-matrix .matrix-head {
-            font-size: 11px;
-            font-weight: 700;
-            text-transform: uppercase;
-            letter-spacing: 0.08em;
-            color: #94a3b8;
-        }
-        .settings-matrix .matrix-label {
-            font-size: 12px;
-            font-weight: 600;
-            color: #475569;
-        }
-        #gear-fab {
-            cursor: grab;
-            touch-action: none;
-        }
-        #gear-fab.dragging {
-            cursor: grabbing;
-        }
-    </style>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
+<title>Chat Tabletop</title>
+<style>
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{margin:0;padding:0;height:100%;overflow:hidden;
+  font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;background:#e2e8f0}
+body{display:flex;flex-direction:column}
+
+.half{flex:1 1 50%;min-height:0;display:flex;padding:3px}
+.half.north{transform:rotate(180deg)}
+.shell{flex:1;min-width:0;display:flex;flex-direction:column;background:#fff;border-radius:18px;
+  overflow:hidden;box-shadow:0 2px 10px rgba(15,23,42,.10)}
+.half.south .shell{border:2px solid rgba(59,130,246,.45)}
+.half.north .shell{border:2px solid rgba(16,185,129,.45)}
+
+.tx{flex:1;min-height:0;overflow-y:auto;padding:8px 8px 4px;display:flex;flex-direction:column;gap:6px}
+.daysep{align-self:center;font-size:10px;font-weight:700;color:#94a3b8;letter-spacing:.06em;
+  text-transform:uppercase;padding:2px 10px;border-radius:999px;background:rgba(148,163,184,.14)}
+.row{display:flex}
+.row.own{justify-content:flex-end}
+.row.them{justify-content:flex-start}
+.bub{max-width:82%;border-radius:14px;padding:8px 10px;box-shadow:0 1px 3px rgba(15,23,42,.10)}
+.bub.s{background:var(--sbg,#eff6ff);border-left:3px solid rgba(59,130,246,.75)}
+.bub.n{background:var(--nbg,#f0fdf4);border-left:3px solid rgba(16,185,129,.7)}
+.bhdr{display:flex;align-items:center;justify-content:flex-end;gap:6px;
+  padding-bottom:5px;margin-bottom:5px;border-bottom:1px solid rgba(15,23,42,.07)}
+.btime{font-size:10px;opacity:.55;font-variant-numeric:tabular-nums}
+.bdel{width:20px;height:20px;border-radius:999px;border:1px solid rgba(148,163,184,.4);
+  background:rgba(255,255,255,.7);color:#94a3b8;font-size:11px;line-height:1;padding:0;flex-shrink:0}
+.bcols{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.bub.single .bcols{grid-template-columns:1fr}
+.bcol{min-width:0;cursor:pointer}
+.bcol+.bcol{border-left:1px solid rgba(15,23,42,.10);padding-left:8px}
+.btxt{font-size:var(--fsz,15px);line-height:1.35;color:var(--txt,#0f172a);word-wrap:break-word}
+.bacts{display:flex;gap:4px;margin-top:5px}
+.bact{width:26px;height:26px;border-radius:999px;border:1px solid rgba(148,163,184,.4);
+  background:rgba(255,255,255,.85);color:#475569;padding:5px;display:inline-flex;align-items:center;justify-content:center}
+.bact svg{width:100%;height:100%}
+.bact:active{background:#dbeafe;color:#1d4ed8}
+
+.strip{display:flex;align-items:center;gap:5px;padding:6px;border-top:1px solid rgba(226,232,240,.9);background:#fff}
+.ctl{flex:0 0 38px;width:38px;height:38px;border-radius:999px;border:1px solid rgba(226,232,240,.95);
+  background:#fff;color:#475569;display:inline-flex;align-items:center;justify-content:center;padding:8px}
+.ctl svg{width:100%;height:100%}
+.ctl[data-on="true"]{background:linear-gradient(135deg,rgba(248,113,113,.95),rgba(239,68,68,.95));color:#fff;border-color:transparent}
+.ctl[data-owned="true"]{box-shadow:0 0 0 2px rgba(59,130,246,.9)}
+.ctl[data-pending="true"]{animation:pulse 1s ease-in-out infinite}
+@keyframes pulse{50%{opacity:.4}}
+.ctl.tts[data-on="true"]{background:rgba(191,219,254,.95);color:#1e40af;border-color:rgba(147,197,253,.9)}
+.inwrap{flex:1;min-width:20px;position:relative;display:flex;align-items:center}
+.inp{width:100%;height:38px;padding:0 30px 0 12px;border-radius:999px;border:1px solid rgba(226,232,240,.95);
+  background:#fff;font-size:15px;line-height:38px;white-space:nowrap;overflow-x:auto;overflow-y:hidden}
+.inp::-webkit-scrollbar{display:none}
+.clearbtn{position:absolute;right:5px;width:22px;height:22px;border-radius:999px;border:1px solid rgba(203,213,225,.8);
+  background:rgba(241,245,249,.95);color:#64748b;display:none;align-items:center;justify-content:center;font-size:12px;padding:0}
+.clearbtn.show{display:inline-flex}
+.sendbtn{flex:0 0 40px;width:40px;height:40px;background:linear-gradient(135deg,rgba(96,165,250,.95),rgba(59,130,246,.95));
+  color:#fff;border-color:transparent}
+
+/* keyboard — 44px minimum, may take up to 50vh */
+.kb{flex:0 0 auto;max-height:0;overflow:hidden;background:#f1f5f9;transition:max-height .18s ease}
+.kb.open{max-height:50vh;border-top:1px solid rgba(203,213,225,.9)}
+.kbin{padding:4px}
+.klang{font-size:11px;font-weight:700;color:#64748b;padding:2px 4px 4px}
+.kcands{display:none;gap:5px;overflow-x:auto;padding:0 4px 5px}
+.kcands::-webkit-scrollbar{display:none}
+.kcand{flex:0 0 auto;padding:7px 12px;border-radius:9px;border:1px solid rgba(203,213,225,.9);background:#fff;font-size:16px;min-height:36px}
+.kcand.on{background:linear-gradient(135deg,rgba(96,165,250,.95),rgba(59,130,246,.95));color:#fff;border-color:transparent}
+.krow{display:flex;gap:4px;margin-bottom:4px}
+.key{flex:1 1 0;min-width:0;height:44px;border-radius:7px;border:1px solid rgba(203,213,225,.9);
+  background:#fff;box-shadow:0 1px 0 rgba(15,23,42,.10);font-size:17px;color:#0f172a;padding:0;
+  display:inline-flex;align-items:center;justify-content:center}
+.key:active{background:#dbeafe}
+.key.fn{flex:1.3 1 0;font-size:13px;font-weight:600;color:#475569;background:#e2e8f0}
+.key.space{flex:4 1 0;font-size:13px}
+.key.enter{flex:1.7 1 0;background:linear-gradient(135deg,rgba(96,165,250,.95),rgba(59,130,246,.95));
+  color:#fff;border-color:transparent;font-size:13px;font-weight:700}
+
+/* request overlay */
+.ask{position:absolute;inset:0;z-index:60;display:none;align-items:center;justify-content:center;background:rgba(15,23,42,.45)}
+.ask.show{display:flex}
+.askcard{width:min(88%,330px);background:#fff;border-radius:16px;padding:16px;box-shadow:0 18px 40px rgba(15,23,42,.3)}
+.ask-msg{font-size:15px;color:#0f172a;margin-bottom:14px;text-align:center;line-height:1.4}
+.askbtns{display:flex;gap:10px}
+.askbtns button{flex:1;height:46px;border-radius:12px;font-weight:700;font-size:15px;
+  border:1px solid rgba(203,213,225,.9);background:#f1f5f9;color:#334155}
+.askbtns .ask-ok{background:linear-gradient(135deg,rgba(96,165,250,.95),rgba(59,130,246,.95));color:#fff;border-color:transparent}
+
+/* config modal */
+#cfg{position:fixed;inset:0;z-index:80;display:none;align-items:center;justify-content:center;background:rgba(15,23,42,.5);padding:14px}
+#cfg.show{display:flex}
+.cfgcard{width:min(94%,420px);max-height:86vh;overflow-y:auto;background:#fff;border-radius:18px;padding:18px}
+.cfgcard h3{margin:0 0 14px;font-size:17px;color:#0f172a}
+.cfgrow{display:flex;align-items:center;gap:10px;margin-bottom:12px}
+.cfgrow label{flex:1;font-size:13px;color:#475569}
+.cfgrow select,.cfgrow input[type=text],.cfgrow input[type=password]{
+  flex:1;min-width:0;padding:9px 10px;border:1px solid rgba(226,232,240,.95);border-radius:10px;font-size:14px}
+.cfglab{font-size:11px;font-weight:700;color:#94a3b8;text-transform:uppercase;letter-spacing:.06em;margin:16px 0 8px}
+.sw{position:relative;width:44px;height:24px;flex:0 0 44px}
+.sw input{opacity:0;width:0;height:0;position:absolute}
+.swt{position:absolute;inset:0;border-radius:999px;background:#cbd5e1;transition:background .2s}
+.swt::before{content:'';position:absolute;left:3px;top:3px;width:18px;height:18px;border-radius:50%;background:#fff;transition:transform .2s}
+.sw input:checked+.swt{background:#3b82f6}
+.sw input:checked+.swt::before{transform:translateX(20px)}
+.cfgbtn{width:100%;padding:12px;border-radius:12px;border:none;font-weight:700;font-size:15px;margin-top:8px}
+.cfgbtn.primary{background:linear-gradient(135deg,rgba(96,165,250,.95),rgba(59,130,246,.95));color:#fff}
+.cfgbtn.ghost{background:#f1f5f9;color:#475569;border:1px solid rgba(226,232,240,.95)}
+.swatches{display:grid;grid-template-columns:repeat(6,1fr);gap:6px;margin-bottom:12px}
+.swatch{height:34px;border-radius:8px;border:2px solid transparent;padding:0}
+.swatch.on{border-color:#3b82f6}
+
+/* diagnostics */
+#diag-panel{position:fixed;inset:0;z-index:90;display:none;flex-direction:column;background:#0f172a;color:#e2e8f0}
+#diag-panel.show{display:flex}
+.diagtools{display:flex;align-items:center;gap:8px;padding:10px 12px;border-bottom:1px solid rgba(255,255,255,.12);flex-shrink:0}
+.diagtools b{font:600 13px ui-monospace,Menlo,monospace}
+.diagtools button{font-size:12px;padding:7px 11px;border-radius:8px;border:1px solid rgba(255,255,255,.25);
+  background:rgba(255,255,255,.08);color:#e2e8f0}
+#diag-lines{flex:1;overflow:auto;padding:10px 12px;font:11px/1.5 ui-monospace,Menlo,monospace}
+#diag-lines .err{color:#fca5a5}
+
+#toast{position:fixed;left:50%;bottom:20px;transform:translateX(-50%) translateY(20px);z-index:95;
+  background:rgba(15,23,42,.94);color:#fff;padding:11px 18px;border-radius:12px;font-size:14px;
+  opacity:0;pointer-events:none;transition:all .2s}
+#toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
+</style>
 </head>
-<body class="min-h-screen text-slate-800">
-    <main class="tabletop-view">
-        <div class="tabletop-half tabletop-north">
-            <div class="client-shell">
-                <div id="peer-transcript" class="tabletop-transcript no-scrollbar"></div>
-                <div class="tabletop-composer">
-                    <button id="peer-tts-toggle" class="tts-toggle" type="button" aria-label="Toggle peer read aloud">
-                        <span class="material-symbols-outlined text-base">volume_off</span>
-                    </button>
-                    <button id="peer-talk" class="tabletop-talk" type="button" aria-label="Hold to talk" aria-pressed="false">
-                        <span class="material-symbols-outlined text-base">mic</span>
-                    </button>
-                </div>
-            </div>
-        </div>
-        <div class="speaker-indicator">
-            <button id="speaker-toggle" type="button" data-active="local" aria-label="Toggle active speaker">
-                <span class="material-symbols-outlined speaker-arrow">arrow_upward</span>
-            </button>
-        </div>
-        <div class="tabletop-half tabletop-south">
-            <div class="client-shell">
-                <div id="local-transcript" class="tabletop-transcript no-scrollbar"></div>
-                <div class="tabletop-composer">
-                    <button id="local-tts-toggle" class="tts-toggle" type="button" aria-label="Toggle local text to speech">
-                        <span class="material-symbols-outlined text-base">volume_off</span>
-                    </button>
-                    <textarea id="local-input" rows="1" class="tabletop-input" placeholder="Enter local text"></textarea>
-                    <button id="local-send" class="tabletop-talk" type="button" aria-label="Send local message">
-                        <span class="material-symbols-outlined text-base">send</span>
-                    </button>
-                </div>
-            </div>
-        </div>
-    </main>
+<body>
+<div class="half north">
+  <div class="shell" style="position:relative">
+    <div class="tx" id="tx-north"></div>
+    <div class="strip" id="strip-north"></div>
+    <div class="kb" id="kb-north"><div class="kbin"><div class="klang"></div><div class="kcands"></div><div class="kkeys"></div></div></div>
+    <div class="ask" id="ask-north"><div class="askcard">
+      <div class="ask-msg"></div><div class="askbtns"><button type="button" class="ask-no"></button><button type="button" class="ask-ok"></button></div>
+    </div></div>
+  </div>
+</div>
 
-    <button id="gear-fab" class="fixed z-40 w-12 h-12 rounded-full bg-white/90 border border-slate-200 shadow-lg flex items-center justify-center text-slate-600 hover:text-slate-800 hover:bg-white" aria-label="Open controls">
-        <span class="material-symbols-outlined text-[22px]">settings</span>
-    </button>
+<div class="half south">
+  <div class="shell" style="position:relative">
+    <div class="tx" id="tx-south"></div>
+    <div class="strip" id="strip-south"></div>
+    <div class="kb" id="kb-south"><div class="kbin"><div class="klang"></div><div class="kcands"></div><div class="kkeys"></div></div></div>
+    <div class="ask" id="ask-south"><div class="askcard">
+      <div class="ask-msg"></div><div class="askbtns"><button type="button" class="ask-no"></button><button type="button" class="ask-ok"></button></div>
+    </div></div>
+  </div>
+</div>
 
-    <input id="drawer-import-input" type="file" accept="application/json" class="hidden">
+<div id="diag-panel">
+  <div class="diagtools"><b>diagnostics</b><span style="flex:1"></span>
+    <button type="button" id="dg-copy">Copy</button>
+    <button type="button" id="dg-dl">Download</button>
+    <button type="button" id="dg-clear">Clear</button>
+    <button type="button" id="dg-close">✕</button></div>
+  <div id="diag-lines"></div>
+</div>
 
-    <div id="controls-modal" class="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center invisible modal">
-        <div id="controls-content" class="bg-white rounded-2xl shadow-2xl w-11/12 max-w-md p-6 transform scale-out modal-content flex flex-col max-h-[90vh]">
-            <div class="flex justify-between items-center mb-4 border-b pb-2">
-                <h3 class="text-xl font-bold text-gray-800">Controls</h3>
-                <button id="close-controls" class="text-gray-400 hover:text-gray-800 p-2 hover:bg-gray-100 rounded-full transition-colors">
-                    <span class="material-symbols-outlined">close</span>
-                </button>
-            </div>
-            <div class="grid gap-4 text-sm flex-1 overflow-y-auto pr-1">
-                <div class="settings-matrix">
-                    <div></div>
-                    <div class="matrix-head">Local</div>
-                    <div class="matrix-head">Peer</div>
+<div id="toast"></div>
 
-                    <div class="matrix-label">Language</div>
-                    <select id="local-language-select" class="px-3 py-2 text-xs border border-slate-200 rounded-lg focus:ring-2 focus:ring-blue-300 focus:border-blue-300 bg-white">
-                        <option value="en">English</option>
-                        <option value="zh">Chinese</option>
-                        <option value="km">Cambodian</option>
-                        <option value="id">Indonesian</option>
-                        <option value="ja">Japanese</option>
-                        <option value="ko">Korean</option>
-                        <option value="lo">Lao</option>
-                        <option value="ms">Malay</option>
-                        <option value="th">Thai</option>
-                        <option value="vi">Vietnamese</option>
-                    </select>
-                    <select id="peer-language-select" class="px-3 py-2 text-xs border border-slate-200 rounded-lg focus:ring-2 focus:ring-blue-300 focus:border-blue-300 bg-white">
-                        <option value="en">English</option>
-                        <option value="zh">Chinese</option>
-                        <option value="km">Cambodian</option>
-                        <option value="id">Indonesian</option>
-                        <option value="ja">Japanese</option>
-                        <option value="ko">Korean</option>
-                        <option value="lo">Lao</option>
-                        <option value="ms">Malay</option>
-                        <option value="th">Thai</option>
-                        <option value="vi">Vietnamese</option>
-                    </select>
+<script>
+(function duck2(){
+    'use strict';
 
-                    <div class="matrix-label">Bubble color</div>
-                    <input id="style-local-bg" type="color" class="h-8 w-full border border-slate-200 rounded-lg">
-                    <input id="style-peer-bg" type="color" class="h-8 w-full border border-slate-200 rounded-lg">
+    function $(id){return document.getElementById(id)}
 
-                    <div class="matrix-label">Font color</div>
-                    <input id="style-local-text" type="color" class="h-8 w-full border border-slate-200 rounded-lg">
-                    <input id="style-peer-text" type="color" class="h-8 w-full border border-slate-200 rounded-lg">
+/* ######## ENGINE — bridge-turn27-base.html, VERBATIM ######## */
+/* ===== bridge27: norm/uid ===== */
+function norm(s){return(s||'').replace(/\s+/g,' ').trim()}
+function uid(){return Date.now().toString(36)+Math.random().toString(36).slice(2,8)}
+/* ===== bridge27: log ===== */
+var debugLog=[];
+function log(ev,d,lvl){debugLog.push({ts:new Date().toISOString(),ev:ev,d:d||{},lvl:lvl||'info'});if(debugLog.length>400)debugLog.shift()}
+function toast(m,dur){var e=$('toast');e.textContent=m;e.classList.add('show');clearTimeout(toast._t);toast._t=setTimeout(function(){e.classList.remove('show')},dur||2600)}
+function lsGet(k,f){try{var r=localStorage.getItem(k);return r==null?f:JSON.parse(r)}catch(_){return f}}
+/* ===== bridge27: LANGS ===== */
+var LANGS={
+  en:{flag:'🇺🇸',name:'English',tts:'en-US'},th:{flag:'🇹🇭',name:'Thai',tts:'th-TH'},
+  es:{flag:'🇪🇸',name:'Spanish',tts:'es-ES'},ja:{flag:'🇯🇵',name:'Japanese',tts:'ja-JP'},
+  ko:{flag:'🇰🇷',name:'Korean',tts:'ko-KR'},zh:{flag:'🇨🇳',name:'Chinese (Simplified)',tts:'zh-CN'},
+  ar:{flag:'🇸🇦',name:'Arabic',tts:'ar-SA'},hi:{flag:'🇮🇳',name:'Hindi',tts:'hi-IN'},
+  ru:{flag:'🇷🇺',name:'Russian',tts:'ru-RU'},fr:{flag:'🇫🇷',name:'French',tts:'fr-FR'},
+  de:{flag:'🇩🇪',name:'German',tts:'de-DE'},it:{flag:'🇮🇹',name:'Italian',tts:'it-IT'},
+  pt:{flag:'🇧🇷',name:'Portuguese',tts:'pt-BR'},vi:{flag:'🇻🇳',name:'Vietnamese',tts:'vi-VN'},
+  id:{flag:'🇮🇩',name:'Indonesian',tts:'id-ID'},ms:{flag:'🇲🇾',name:'Malay',tts:'ms-MY'},
+  fil:{flag:'🇵🇭',name:'Filipino',tts:'fil-PH'},nl:{flag:'🇳🇱',name:'Dutch',tts:'nl-NL'},
+  sv:{flag:'🇸🇪',name:'Swedish',tts:'sv-SE'},pl:{flag:'🇵🇱',name:'Polish',tts:'pl-PL'},
+  tr:{flag:'🇹🇷',name:'Turkish',tts:'tr-TR'}
+};
+/* ===== bridge27: LANG_ORDER ===== */
+var LANG_ORDER=['en','th','es','ja','ko','zh','ar','hi','ru','fr','de','it','pt','vi','id','ms','fil','nl','sv','pl','tr'];
+/* ===== bridge27: DG_WORKLET_CODE ===== */
+var DG_WORKLET_CODE='class TBAudioCapture extends AudioWorkletProcessor{constructor(){super();this._b=[];this._n=4096;}process(inputs){var ch=inputs[0]&&inputs[0][0];if(ch){for(var i=0;i<ch.length;i++)this._b.push(ch[i]);}while(this._b.length>=this._n){var out=new Float32Array(this._b.splice(0,this._n));this.port.postMessage(out,[out.buffer]);}return true;}}registerProcessor(\'tb-audio-capture\',TBAudioCapture);';
+/* ===== bridge27: gL ===== */
+function gL(c){return LANGS[c]||{flag:'🏳',name:c,tts:c}}
+/* ===== bridge27: trCache ===== */
+var trCache=new Map(),TR_CACHE_MAX=200;
+/* ===== bridge27: cleanTr ===== */
+function cleanTr(t){return norm(String(t||'').replace(/<\/?[a-zA-Z][^>]*>/g,''))}
+/* ===== bridge27: translateWithRetry ===== */
+function translateWithRetry(text,from,to,retries){
+  if(!text||!from||!to||from===to)return Promise.resolve({text:text,ok:true});
+  var k=from+'|'+to+'|'+text;
+  if(trCache.has(k)){var v=trCache.get(k);trCache.delete(k);trCache.set(k,v);return Promise.resolve({text:v,ok:true})}
+  var attempt=function(n){
+    return fetch('https://api.mymemory.translated.net/get?q='+encodeURIComponent(text)+'&langpair='+from+'|'+to)
+      .then(function(r){return r.json()})
+      .then(function(d){
+        if(d&&d.responseStatus===200&&d.responseData){
+          var t=d.responseData.translatedText;
+          if(t&&t.indexOf('MYMEMORY')<0){
+            t=cleanTr(t);
+            if(trCache.size>=TR_CACHE_MAX){var first=trCache.keys().next().value;trCache.delete(first)}
+            trCache.set(k,t);return{text:t,ok:true};
+          }
+        }
+        throw new Error('bad response');
+      })
+      .catch(function(e){
+        if(n>0){log('trans_retry',{left:n},'warn');return new Promise(function(res){setTimeout(res,300+((retries-n)*250))}).then(function(){return attempt(n-1)})}
+        log('trans_fail',{from:from,to:to,e:String(e)},'error');
+        return{text:text,ok:false};
+      });
+  };
+  return attempt(retries||0);
+}
+/* ===== bridge27: speakText ===== */
+function speakText(text,lang){
+  text=norm(text);if(!text||!window.speechSynthesis)return;
+  window.speechSynthesis.cancel();
+  var u=new SpeechSynthesisUtterance(text);u.lang=gL(lang).tts;window.speechSynthesis.speak(u);
+}
+/* ===== bridge27: GEN ===== */
+var GEN = {
+  n: 1,
+  bump: function (reason) {
+    this.n++;
+    try { log('gen_bump', { n: this.n, r: reason }, 'ok'); } catch (_) {}
+    return this.n;
+  },
+  is: function (g) { return g === this.n; }
+};
+/* ===== bridge27: dgGen+DG_MULTI ===== */
+var dgGen = 0;
 
-                    <div class="matrix-label">Font size</div>
-                    <input id="style-local-font-size" type="number" min="10" max="48" step="1" class="w-full px-2 py-1 text-xs border border-slate-200 rounded-lg text-slate-700">
-                    <input id="style-peer-font-size" type="number" min="10" max="48" step="1" class="w-full px-2 py-1 text-xs border border-slate-200 rounded-lg text-slate-700">
+/* Languages the transcription model can code-switch between in one socket.
+   Outside this set a room falls back to single-language transcription, which is
+   the pre-existing behaviour and is correct for pairs like English/Thai where
+   the two scripts are unambiguous anyway. */
+var DG_MULTI_LANGS = ['en', 'es', 'fr', 'de', 'hi', 'it', 'ja', 'nl', 'ru', 'pt'];
 
-                    <div class="matrix-label">Bkrnd color</div>
-                    <input id="style-local-bg-panel" type="color" class="h-8 w-full border border-slate-200 rounded-lg">
-                    <input id="style-peer-bg-panel" type="color" class="h-8 w-full border border-slate-200 rounded-lg">
+/* Languages the model cannot code-switch with English. Someone whose room
+   language is one of these will still speak English some of the time, and a
+   socket pinned to their own language transcribes that English phonetically —
+   English words spelled in Thai letters, which is unusable.
 
-                    <div class="matrix-label">TTS voice</div>
-                    <select id="local-voice-select" class="px-3 py-2 text-xs border border-slate-200 rounded-lg focus:ring-2 focus:ring-blue-300 focus:border-blue-300 bg-white"></select>
-                    <select id="peer-voice-select" class="px-3 py-2 text-xs border border-slate-200 rounded-lg focus:ring-2 focus:ring-blue-300 focus:border-blue-300 bg-white"></select>
-                </div>
-                <label class="flex items-center justify-between gap-3 px-3 py-2 rounded-lg border border-slate-200 text-slate-600">
-                    <span class="flex items-center gap-3">
-                        <span class="material-symbols-outlined text-base">timer</span>
-                        Typing pause (seconds)
-                    </span>
-                    <input id="typing-pause-input" type="number" min="1" max="10" step="0.5" class="w-20 px-2 py-1 text-xs border border-slate-200 rounded-lg text-slate-700">
-                </label>
-                <div class="flex justify-end gap-2">
-                    <button id="style-reset" class="px-3 py-2 bg-slate-100 text-slate-700 text-xs font-semibold rounded-lg hover:bg-slate-200 transition">Reset</button>
-                    <button id="style-save" class="px-3 py-2 bg-blue-600 text-white text-xs font-semibold rounded-lg hover:bg-blue-700 transition">Save</button>
-                </div>
-                <button id="drawer-import" class="flex items-center gap-3 px-3 py-2 rounded-lg border border-slate-200 text-slate-600 hover:text-slate-800 hover:bg-slate-50">
-                    <span class="material-symbols-outlined text-base">upload_file</span>
-                    Import chat
-                </button>
-                <button id="drawer-export" class="flex items-center gap-3 px-3 py-2 rounded-lg border border-slate-200 text-slate-600 hover:text-slate-800 hover:bg-slate-50">
-                    <span class="material-symbols-outlined text-base">download</span>
-                    Export chat
-                </button>
-                <button id="drawer-clear" class="flex items-center gap-3 px-3 py-2 rounded-lg border border-rose-100 text-rose-500 hover:text-rose-600 hover:bg-rose-50">
-                    <span class="material-symbols-outlined text-base">delete_sweep</span>
-                    Export &amp; clear
-                </button>
-            </div>
-        </div>
-    </div>
+/* ===== bridge27: normalization ===== */
+var SCRIPT_TESTS = [
+  { lang: 'th', re: /[\u0E00-\u0E7F]/ },
+  { lang: 'ja', re: /[\u3040-\u30FF]/ },
+  { lang: 'ko', re: /[\uAC00-\uD7AF\u1100-\u11FF]/ },
+  { lang: 'zh', re: /[\u4E00-\u9FFF]/ },
+  { lang: 'ar', re: /[\u0600-\u06FF]/ },
+  { lang: 'ru', re: /[\u0400-\u04FF]/ },
+  { lang: 'hi', re: /[\u0900-\u097F]/ }
+];
 
-    <script>
-        const STORAGE_KEYS = {
-            history: 'tabletop_chat_history',
-            settings: 'tabletop_chat_settings',
-            styles: 'tabletop_chat_styles',
-            background: 'tabletop_chat_background'
+function detectByScript(text) {
+  var s = String(text || '');
+  var letters = s.replace(/[^\p{L}]/gu, '');
+  if (!letters) return null;
+  for (var i = 0; i < SCRIPT_TESTS.length; i++) {
+    var t = SCRIPT_TESTS[i];
+    var hits = (letters.match(new RegExp(t.re.source, 'gu')) || []).length;
+    if (hits / letters.length > 0.2) return t.lang;
+  }
+  return null;
+}
+
+/* ── Language-identification model (Latin script) ───────────────────────────
+   Assets ship in the repo alongside the app. Loading is lazy and failure is
+   never fatal: if the model cannot load, detection degrades to the room's own
+   language rather than to a wrong answer. */
+/* Asset paths must be absolute. The upstream loader resolves a relative model
+   path against its own module URL, not against the page, so a relative string
+   lands a directory too deep, the fetch returns a 404 page, and the runtime
+   aborts on HTML it was handed instead of a model. Resolving against the
+   fastType folder up front removes the ambiguity — this mirrors exactly what
+   the package's own smoke test does, which is the configuration proven to work. */
+var FT_DIR = (typeof location !== 'undefined') ? new URL('fastType/', location.href).href : 'fastType/';
+var FT_WRAPPER = FT_DIR + 'fasttext-wrapper.umd.js';
+var FT_MODEL = FT_DIR + 'model/lid.176.ftz';
+var FT_WASM = FT_DIR + 'core/fasttext.wasm';
+var _ft = null, _ftPromise = null, _ftFailed = false;
+
+/* Only languages this app actually supports are trustworthy answers. Anything
+   the model reports outside this set is treated as "unknown" — a confident
+   wrong answer is worse than no answer, because it drives a wrong translation. */
+function ftAllowed(code) { return LANG_ORDER.indexOf(code) >= 0; }
+
+function loadFastText() {
+  if (_ft || _ftFailed) return Promise.resolve(_ft);
+  if (_ftPromise) return _ftPromise;
+  _ftPromise = new Promise(function (resolve) {
+    function fail(stage, why) {
+      _ftFailed = true;
+      var detail = (why && (why.stack || why.message)) ? (why.message || String(why)) : String(why);
+      try { log('ft_unavailable', { stage: stage, why: detail }, 'error'); } catch (_) {}
+      resolve(null);
+    }
+    try {
+      /* The runtime asks for its own assets by bare filename; point it at the
+         folder they actually live in. Set before the wrapper loads, as the
+         package requires. */
+      var cfg = {
+        locateFile: function (path) {
+          var name = String(path || '').split('/').pop();
+          return /\.wasm$/i.test(name) ? FT_WASM : FT_DIR + name;
+        }
+      };
+      window.Module = cfg;
+      window.FastTextModule = cfg;
+
+      var s = document.createElement('script');
+      s.src = FT_WRAPPER;
+      s.onerror = function () { fail('wrapper', 'script failed to load'); };
+      s.onload = function () {
+        try {
+          var ft = new window.FastText();
+          ft.loadModel(FT_MODEL).then(function () {
+            _ft = ft;
+            try { log('ft_ready', {}, 'ok'); } catch (_) {}
+            resolve(ft);
+          }).catch(function (e) { fail('model', e); });
+        } catch (e) { fail('init', e); }
+      };
+      document.head.appendChild(s);
+    } catch (e) { fail('setup', e); }
+  });
+  return _ftPromise;
+}
+
+/* Short fragments are not reliably identifiable. Below this length the model's
+   answer is discarded rather than trusted — the room language is the safer
+   assumption for a two-word utterance. */
+var FT_MIN_CHARS = 8;
+
+function ftDetect(text) {
+  return loadFastText().then(function (ft) {
+    if (!ft) return null;
+    var s = String(text || '').trim();
+    if (s.replace(/[^\p{L}]/gu, '').length < FT_MIN_CHARS) return null;
+    try {
+      var code = ft.detect(s);
+      if (!code) return null;
+      code = String(code).toLowerCase().split(/[-_]/)[0];
+      return ftAllowed(code) ? code : null;
+    } catch (e) {
+      try { log('ft_detect_err', { e: String(e) }, 'warn'); } catch (_) {}
+      return null;
+    }
+  });
+}
+
+/* The one detection entry point. Returns null when nothing is trustworthy. */
+function detectLangAsync(text) {
+  var byScript = detectByScript(text);
+  if (byScript) return Promise.resolve(byScript);
+  return ftDetect(text);
+}
+
+/* The base calls this synchronously to decide whether it needs to normalize.
+   By the time it runs, normalization has already happened at the entry point,
+   so the honest answer is "nothing to correct" — it declines rather than
+   guessing English and sending correct text back through a pointless round
+   trip. Replacing it is safe: it is a leaf, nothing hangs off it. */
+function detectLang(text) { return null; }
+
+/* Warm the model at boot so the first spoken line isn't the one that pays for
+   loading it. Failure here is silent by design — it retries on first use. */
+if (typeof document !== 'undefined') {
+  setTimeout(function () { try { loadFastText(); } catch (_) {} }, 1200);
+}
+
+/* ── Northern Thai → Central Thai overlay (G4) ──────────────────────────────
+   Lifted verbatim from the pre-amputation engine. Applied before translation:
+   the translation service has no Northern Thai, so dialect input has to be
+   mapped to Central Thai first or it comes back as noise. */
+var NT_PHRASE_MAP = {
+  'ไปไสมาเจ้า': 'ไปไหนมาครับ', 'กิ๋นข้าวแล้วเจ้า': 'กินข้าวแล้วครับ',
+  'สวัสดีเจ้า': 'สวัสดีครับ', 'ลาก่อนเจ้า': 'ลาก่อนครับ',
+  'ขอบใจเจ้า': 'ขอบคุณครับ', 'สบายดีเจ้า': 'สบายดีครับ',
+  'บ่เป็นหยัง': 'ไม่เป็นไร', 'เจ้าเป็นไง': 'คุณเป็นยังไง',
+  'จอยเป็นไง': 'ฉันเป็นยังไง', 'เว้ากันก่อน': 'คุยกันก่อน',
+  'ฮักเจ้า': 'รักคุณ', 'ม่วนหลาย': 'สนุกมาก',
+  'แซ่บหลาย': 'อร่อยมาก', 'เมินแล้ว': 'นานแล้ว',
+  'ก็ได้เจ้า': 'ก็ได้ครับ', 'มื้อนี้ตอนเช้า': 'เช้านี้',
+  'ม่วนใจ๋': 'มีความสุข', 'ดีใจ๋': 'ดีใจ'
+};
+var NT_WORD_MAP = {
+  'ฮู้สึก': 'รู้สึก', 'ฮ้องไห้': 'ร้องไห้',
+  'บ่อยาก': 'ไม่อยาก', 'บ่ชอบ': 'ไม่ชอบ',
+  'บ่เป็น': 'ไม่เป็น', 'บ่รู้': 'ไม่รู้',
+  'บ่มี': 'ไม่มี', 'บ่ได้': 'ไม่ได้', 'บ่ดี': 'ไม่ดี',
+  'จั๋งใด': 'ยังไง', 'เป็นไง': 'เป็นยังไง',
+  'ไปไส': 'ไปไหน', 'ทำหยัง': 'ทำอะไร',
+  'อะหยัง': 'อะไร', 'เป๋นหยัง': 'เป็นอะไร',
+  'มื้อวาน': 'เมื่อวาน', 'มื้อนี้': 'วันนี้', 'มื้ออื่น': 'วันอื่น',
+  'ขอบใจ': 'ขอบคุณ',
+  'จอย': 'ฉัน', 'เปิ้น': 'เขา', 'เฮา': 'เรา',
+  'เน้อ': 'นะ', 'เนาะ': 'นะ', 'ก้อ': 'ก็',
+  'กิ๋น': 'กิน', 'ผ่อ': 'ดู', 'แอ่ว': 'เที่ยว',
+  'กึ๊ด': 'คิด', 'เว้า': 'พูด', 'หื้อ': 'ให้',
+  'หลาย': 'มาก', 'คัก': 'มาก',
+  'ม่วน': 'สนุก', 'แซ่บ': 'อร่อย',
+  'งาม': 'สวย', 'เมิน': 'นาน',
+  'ฮู้': 'รู้', 'ฮัก': 'รัก', 'ฮับ': 'รับ',
+  'ฮ้อน': 'ร้อน', 'ฮอด': 'ถึง', 'ฮ่ม': 'ร่ม',
+  'หั้น': 'นั้น', 'อั้น': 'อัน', 'ตี้': 'ที่',
+  'ใจ๋': 'ใจ', 'มื้อ': 'วัน', 'หยัง': 'อะไร'
+};
+function applyNorthernThaiMap(text) {
+  if (!text) return text;
+  var keys, i;
+  keys = Object.keys(NT_PHRASE_MAP).sort(function (a, b) { return b.length - a.length; });
+  for (i = 0; i < keys.length; i++) if (text.indexOf(keys[i]) >= 0) text = text.split(keys[i]).join(NT_PHRASE_MAP[keys[i]]);
+  keys = Object.keys(NT_WORD_MAP).sort(function (a, b) { return b.length - a.length; });
+  for (i = 0; i < keys.length; i++) if (text.indexOf(keys[i]) >= 0) text = text.split(keys[i]).join(NT_WORD_MAP[keys[i]]);
+  text = text.replace(/บ่([\u0E00-\u0E7F]+)/g, 'ไม่$1');
+  return text;
+}
+
+/* ── Normalization state machine (G1) ───────────────────────────────────────
+   Each side of a room has a language mode. In 'fixed' — the default, and the
+   product's stated law — everything a person produces is shown and sent in
+   their own room language regardless of what they actually spoke, so their
+   partner's experience never changes because they code-switched. In 'auto' the
+   language they actually used becomes the source and normalization is skipped.
+
+   The mode lives on the room, so it survives leaving and rejoining. */
+function langMode(room) { return (room && room.myLangMode === 'auto') ? 'auto' : 'fixed'; }
+
+/* Given what was detected, decide the source language to work from and whether
+   the text must first be normalized into it. */
+function resolveEffectiveLang(room, detected) {
+  var mine = room.myLang;
+  if (!detected || detected === mine) return { srcLang: mine, normalizeFrom: null };
+  if (langMode(room) === 'auto') return { srcLang: detected, normalizeFrom: null };
+  return { srcLang: mine, normalizeFrom: detected };
+}
+
+/* Shared by spoken and typed text — one path, so the two can never drift.
+   Returns the text as it should appear on the speaker's own side, plus the
+   language it is in. */
+async function normalizeOutgoing(room, text, knownLang) {
+  /* When the caller knows what language the text is in — because it arrived on
+     a channel listening for exactly that language — that is used directly.
+     Detection is a fallback for when nothing knows. */
+  var detected = knownLang || await detectLangAsync(text);
+  if (detected === 'th') text = applyNorthernThaiMap(text);
+  var r = resolveEffectiveLang(room, detected);
+  var srcText = text, srcLang = r.srcLang;
+  if (r.normalizeFrom) {
+    var n = await translateWithRetry(text, r.normalizeFrom, srcLang, 2);
+    var out = n && n.text ? norm(n.text) : '';
+    var same = !!out && out.toLowerCase() === norm(text).toLowerCase();
+    if (n.ok && out && !same) {
+      srcText = out;
+    } else {
+      /* Normalization did not produce a rewrite. Two very different causes hide
+         behind that, and they need opposite fixes, so the reason is recorded
+         rather than inferred:
+           failed  — the rewrite call did not come back
+           empty   — it came back with nothing
+           same    — it came back identical, which may mean the text was already
+                     in the room's language and detection was wrong about it */
+      var why = !n.ok ? 'failed' : (!out ? 'empty' : 'same');
+      log('normalize_no_rewrite', {
+        why: why, from: r.normalizeFrom, to: srcLang,
+        inText: String(text).slice(0, 40),
+        outText: String(out).slice(0, 40)
+      }, 'warn');
+      srcLang = r.normalizeFrom;
+    }
+  }
+  return { text: srcText, lang: srcLang, detected: detected };
+}
+/* ===== bridge27: DG_LANGS ===== */
+var DG_LANGS={en:'en-US',th:'th',ja:'ja',ko:'ko',zh:'zh-CN',ar:'ar',hi:'hi',ru:'ru',fr:'fr',de:'de',es:'es',it:'it',pt:'pt-BR',vi:'vi',id:'id',ms:'ms',fil:'fil',nl:'nl',sv:'sv',pl:'pl',tr:'tr'};
+/* ===== bridge27: DG_MULTI_LANGS ===== */
+var DG_MULTI_LANGS = ['en', 'es', 'fr', 'de', 'hi', 'it', 'ja', 'nl', 'ru', 'pt'];
+/* ===== bridge27: dual_arbitration ===== */
+var DG_DUAL_LANGS = ['zh', 'th', 'ko', 'ar'];
+
+/* Arbitration, unchanged from the original. The native result is held briefly
+   rather than fired immediately. If the English channel returns something
+   substantial inside that window, the held native result was phonetic nonsense
+   and is dropped. A native result arriving just after an English one is
+   suppressed outright — same utterance, already handled. */
+var _DG_CROSS_MS = 600;
+var _DG_HOLD_MS = 250;
+var _DG_EN_MIN_CHARS = 10;
+var _dgEnLastFiredAt = 0, _dgPrimHoldTimer = null, _dgPrimHeldText = null;
+
+function dgUseDual(room) {
+  return !!room && !dgUseMulti(room) && DG_DUAL_LANGS.indexOf(room.myLang) >= 0;
+}
+
+/* The arbitration itself, as one decision rather than two copies of it inside
+   socket handlers — so it can be exercised directly instead of only through a
+   live connection. `deliver` is what actually emits the line. */
+function dgArbitrateNative(text, deliver) {
+  if (Date.now() - _dgEnLastFiredAt < _DG_CROSS_MS) {
+    log('dg_cross_suppress', { t: String(text).slice(0, 40) }, 'warn');
+    return 'suppressed';
+  }
+  if (_dgPrimHoldTimer !== null) clearTimeout(_dgPrimHoldTimer);
+  var held = text;
+  _dgPrimHeldText = held;
+  _dgPrimHoldTimer = setTimeout(function () {
+    _dgPrimHoldTimer = null;
+    if (_dgPrimHeldText === held) { _dgPrimHeldText = null; deliver(held); }
+  }, _DG_HOLD_MS);
+  return 'held';
+}
+
+/* What happens to a line that arrives on the English channel, as one callable
+   decision. Kept out of the socket handler so it can be exercised without a
+   live connection — the previous version could be deleted silently because
+   nothing tested it. */
+function dgDeliverEnglish(text, gen) {
+  var verdict = dgArbitrateEnglish(text);
+  /* The language is known by construction: this channel listens only for
+     English. Re-guessing it would mislabel anything too short to detect. */
+  onDGFinal(text, gen, 'en');
+  return verdict;
+}
+
+function dgArbitrateEnglish(text) {
+  if (String(text).trim().length <= _DG_EN_MIN_CHARS) return 'ignored';
+  _dgEnLastFiredAt = Date.now();
+  if (_dgPrimHoldTimer !== null) {
+    clearTimeout(_dgPrimHoldTimer); _dgPrimHoldTimer = null;
+    log('dg_cross_suppress', { held: _dgPrimHeldText && _dgPrimHeldText.slice(0, 40) }, 'warn');
+    _dgPrimHeldText = null;
+    return 'displaced';
+  }
+  return 'won';
+}
+
+function dgUseMulti(room) {
+  if (!room) return false;
+  return DG_MULTI_LANGS.indexOf(room.myLang) >= 0 && DG_MULTI_LANGS.indexOf(room.theirLang) >= 0;
+}
+
+function dgLangParam(room) {
+  if (!room) return 'en-US';
+  if (dgUseMulti(room)) return 'multi';
+  return DG_LANGS[room.myLang] || room.myLang || 'en-US';
+}
+
+
+/* ######## KEYBOARD ######## */
+    var EXTRA_LAYOUTS={
+        es:{rows:[['q','w','e','r','t','y','u','i','o','p'],['a','s','d','f','g','h','j','k','l','ñ'],['SHIFT','z','x','c','v','b','n','m','BKSP'],['á','é','í','ó','ú','ü','¿','¡','ç','·']],
+            shift:[['Q','W','E','R','T','Y','U','I','O','P'],['A','S','D','F','G','H','J','K','L','Ñ'],['SHIFT','Z','X','C','V','B','N','M','BKSP'],['Á','É','Í','Ó','Ú','Ü','¿','¡','Ç','·']]},
+        fr:{rows:[['a','z','e','r','t','y','u','i','o','p'],['q','s','d','f','g','h','j','k','l','m'],['SHIFT','w','x','c','v','b','n','BKSP'],['é','è','ê','à','ù','ç','î','ô','û','œ']],
+            shift:[['A','Z','E','R','T','Y','U','I','O','P'],['Q','S','D','F','G','H','J','K','L','M'],['SHIFT','W','X','C','V','B','N','BKSP'],['É','È','Ê','À','Ù','Ç','Î','Ô','Û','Œ']]},
+        de:{rows:[['q','w','e','r','t','z','u','i','o','p'],['a','s','d','f','g','h','j','k','l','ö'],['SHIFT','y','x','c','v','b','n','m','BKSP'],['ä','ü','ß','€','-','_','?','!',';',':']],
+            shift:[['Q','W','E','R','T','Z','U','I','O','P'],['A','S','D','F','G','H','J','K','L','Ö'],['SHIFT','Y','X','C','V','B','N','M','BKSP'],['Ä','Ü','ẞ','€','-','_','?','!',';',':']]},
+        it:{rows:[['q','w','e','r','t','y','u','i','o','p'],['a','s','d','f','g','h','j','k','l','ò'],['SHIFT','z','x','c','v','b','n','m','BKSP'],['à','è','é','ì','ù','ç','€','?','!','.']],
+            shift:[['Q','W','E','R','T','Y','U','I','O','P'],['A','S','D','F','G','H','J','K','L','Ò'],['SHIFT','Z','X','C','V','B','N','M','BKSP'],['À','È','É','Ì','Ù','Ç','€','?','!','.']]},
+        pt:{rows:[['q','w','e','r','t','y','u','i','o','p'],['a','s','d','f','g','h','j','k','l','ç'],['SHIFT','z','x','c','v','b','n','m','BKSP'],['ã','õ','á','é','í','ó','ú','â','ê','ô']],
+            shift:[['Q','W','E','R','T','Y','U','I','O','P'],['A','S','D','F','G','H','J','K','L','Ç'],['SHIFT','Z','X','C','V','B','N','M','BKSP'],['Ã','Õ','Á','É','Í','Ó','Ú','Â','Ê','Ô']]},
+        sv:{rows:[['q','w','e','r','t','y','u','i','o','p'],['a','s','d','f','g','h','j','k','l','ö'],['SHIFT','z','x','c','v','b','n','m','BKSP'],['å','ä','é','-','?','!',',','.',':',';']],
+            shift:[['Q','W','E','R','T','Y','U','I','O','P'],['A','S','D','F','G','H','J','K','L','Ö'],['SHIFT','Z','X','C','V','B','N','M','BKSP'],['Å','Ä','É','-','?','!',',','.',':',';']]},
+        pl:{rows:[['q','w','e','r','t','y','u','i','o','p'],['a','s','d','f','g','h','j','k','l','ł'],['SHIFT','z','x','c','v','b','n','m','BKSP'],['ą','ć','ę','ń','ó','ś','ź','ż','?','!']],
+            shift:[['Q','W','E','R','T','Y','U','I','O','P'],['A','S','D','F','G','H','J','K','L','Ł'],['SHIFT','Z','X','C','V','B','N','M','BKSP'],['Ą','Ć','Ę','Ń','Ó','Ś','Ź','Ż','?','!']]},
+        tr:{rows:[['q','w','e','r','t','y','u','ı','o','p'],['a','s','d','f','g','h','j','k','l','ş'],['SHIFT','z','x','c','v','b','n','m','BKSP'],['ç','ğ','ö','ü','i','İ','?','!',',','.']],
+            shift:[['Q','W','E','R','T','Y','U','I','O','P'],['A','S','D','F','G','H','J','K','L','Ş'],['SHIFT','Z','X','C','V','B','N','M','BKSP'],['Ç','Ğ','Ö','Ü','İ','ı','?','!',',','.']]},
+        ru:{rows:[['й','ц','у','к','е','н','г','ш','щ','з','х'],['ф','ы','в','а','п','р','о','л','д','ж','э'],['SHIFT','я','ч','с','м','и','т','ь','б','ю','BKSP']],
+            shift:[['Й','Ц','У','К','Е','Н','Г','Ш','Щ','З','Х'],['Ф','Ы','В','А','П','Р','О','Л','Д','Ж','Э'],['SHIFT','Я','Ч','С','М','И','Т','Ь','Б','Ю','BKSP']]},
+        ar:{rows:[['ض','ص','ث','ق','ف','غ','ع','ه','خ','ح','ج'],['ش','س','ي','ب','ل','ا','ت','ن','م','ك','ط'],['SHIFT','ئ','ء','ؤ','ر','لا','ى','ة','و','ز','BKSP']],
+            shift:[['َ','ً','ُ','ٌ','ِ','ٍ','ّ','ْ','إ','أ','آ'],['ذ','ظ','ژ','چ','پ','گ','،','؛','؟','٫','٬'],['SHIFT','١','٢','٣','٤','٥','٦','٧','٨','٩','BKSP']]},
+        hi:{rows:[['ौ','ै','ा','ी','ू','ब','ह','ग','द','ज','ड'],['ो','े','्','ि','ु','प','र','क','त','च','ट'],['SHIFT','ं','म','न','व','ल','स','य','भ','ङ','BKSP'],['अ','आ','इ','ई','उ','ऊ','ए','ओ','ऐ','औ']],
+            shift:[['ऒ','ऑ','ऋ','ॠ','ऌ','भ','ङ','घ','ध','झ','ढ'],['ओ','ऍ','ऽ','ि','ृ','फ','ऱ','ख','थ','छ','ठ'],['SHIFT','ँ','ण','ऩ','ॐ','ळ','श','ञ','ऴ','ॡ','BKSP'],['ॲ','ऄ','ऎ','ऐ','ऑ','ॉ','़','ॄ','ॢ','ॣ']]}
+    };
+    var LAYOUTS={
+        latin:{rows:[['q','w','e','r','t','y','u','i','o','p'],['a','s','d','f','g','h','j','k','l'],['SHIFT','z','x','c','v','b','n','m','BKSP']],
+               shift:[['Q','W','E','R','T','Y','U','I','O','P'],['A','S','D','F','G','H','J','K','L'],['SHIFT','Z','X','C','V','B','N','M','BKSP']]},
+        vi:{rows:[['q','w','e','r','t','y','u','i','o','p'],['a','s','d','f','g','h','j','k','l'],['SHIFT','z','x','c','v','b','n','m','BKSP'],['ă','â','ê','ô','ơ','ư','đ','á','à','ả']],
+            shift:[['Q','W','E','R','T','Y','U','I','O','P'],['A','S','D','F','G','H','J','K','L'],['SHIFT','Z','X','C','V','B','N','M','BKSP'],['Ă','Â','Ê','Ô','Ơ','Ư','Đ','ã','ạ','ầ']]},
+        th:{rows:[['ๆ','ไ','ำ','พ','ะ','ั','ี','ร','น','ย'],['ฟ','ห','ก','ด','เ','้','่','า','ส','ว'],['SHIFT','ผ','ป','แ','อ','ิ','ื','ท','ม','BKSP'],['ใ','ฝ','ล','ง','ข','ช','ต','จ','ค','ษ']],
+            shift:[['๑','๒','๓','๔','๕','๖','๗','๘','๙','๐'],['ฤ','ฆ','ฏ','โ','ฌ','็','๋','ษ','ศ','ซ'],['SHIFT','(',')','ฉ','ฮ','ฺ','์','?','ฒ','BKSP'],['ฬ','ฦ','ฑ','ธ','ณ','ญ','ฐ','ฯ','ฃ','ฅ']]},
+        km:{rows:[['ក','ខ','គ','ឃ','ង','ច','ឆ','ជ','ឈ','ញ'],['ដ','ឋ','ឌ','ឍ','ណ','ត','ថ','ទ','ធ','ន'],['SHIFT','ប','ផ','ព','ភ','ម','យ','រ','ល','BKSP'],['វ','ស','ហ','ឡ','អ','ា','ិ','ី','ុ','ូ']],
+            shift:[['១','២','៣','៤','៥','៦','៧','៨','៩','០'],['េ','ែ','ៃ','ោ','ៅ','ំ','ះ','៉','៊','់'],['SHIFT','៌','៍','៎','៏','័','្','ឲ','ឳ','BKSP'],['ឪ','ឫ','ឬ','ឭ','ឮ','ៗ','។','៕','៖','៙']]},
+        lo:{rows:[['ກ','ຂ','ຄ','ງ','ຈ','ສ','ຊ','ຍ','ດ','ຕ'],['ຖ','ທ','ນ','ບ','ປ','ຜ','ຝ','ພ','ຟ','ມ'],['SHIFT','ຢ','ຣ','ລ','ວ','ຫ','ອ','ຮ','ະ','BKSP'],['ັ','າ','ິ','ີ','ຶ','ື','ຸ','ູ','ເ','ແ']],
+            shift:[['໑','໒','໓','໔','໕','໖','໗','໘','໙','໐'],['ໂ','ໃ','ໄ','ຳ','ົ','ຼ','່','້','໊','໋'],['SHIFT','໌','ໍ','ຯ','ໆ','๚','(',')','?','BKSP'],['ໜ','ໝ','ຫຼ','ຫງ','ຫຍ','ຫນ','ຫມ','ຫລ','ຫວ','ໟ']]},
+        ja:{rows:[['あ','い','う','え','お','か','き','く','け','こ'],['さ','し','す','せ','そ','た','ち','つ','て','と'],['SHIFT','な','に','ぬ','ね','の','は','ひ','ふ','BKSP'],['へ','ほ','ま','み','む','め','も','や','ゆ','よ'],['ら','り','る','れ','ろ','わ','を','ん','ー','、']],
+            shift:[['ア','イ','ウ','エ','オ','カ','キ','ク','ケ','コ'],['サ','シ','ス','セ','ソ','タ','チ','ツ','テ','ト'],['SHIFT','ナ','ニ','ヌ','ネ','ノ','ハ','ヒ','フ','BKSP'],['ヘ','ホ','マ','ミ','ム','メ','モ','ヤ','ユ','ヨ'],['ラ','リ','ル','レ','ロ','ワ','ヲ','ン','゛','゜']]},
+        ko:{rows:[['ㅂ','ㅈ','ㄷ','ㄱ','ㅅ','ㅛ','ㅕ','ㅑ','ㅐ','ㅔ'],['ㅁ','ㄴ','ㅇ','ㄹ','ㅎ','ㅗ','ㅓ','ㅏ','ㅣ'],['SHIFT','ㅋ','ㅌ','ㅊ','ㅍ','ㅠ','ㅜ','ㅡ','BKSP']],
+            shift:[['ㅃ','ㅉ','ㄸ','ㄲ','ㅆ','ㅛ','ㅕ','ㅑ','ㅒ','ㅖ'],['ㅁ','ㄴ','ㅇ','ㄹ','ㅎ','ㅗ','ㅓ','ㅏ','ㅣ'],['SHIFT','ㅋ','ㅌ','ㅊ','ㅍ','ㅠ','ㅜ','ㅡ','BKSP']]},
+        num:{rows:[['1','2','3','4','5','6','7','8','9','0'],['-','/',':',';','(',')','$','&','@','"'],['SHIFT','.',',','?','!',"'",'+','=','BKSP']],
+             shift:[['[',']','{','}','#','%','^','*','+','='],['_','\\','|','~','<','>','€','£','¥','•'],['SHIFT','.',',','?','!',"'",'§','¿','BKSP']]}
+    };
+
+    Object.keys(EXTRA_LAYOUTS).forEach(function(k){LAYOUTS[k]=EXTRA_LAYOUTS[k]});
+    var HG={
+        CHO:['ㄱ','ㄲ','ㄴ','ㄷ','ㄸ','ㄹ','ㅁ','ㅂ','ㅃ','ㅅ','ㅆ','ㅇ','ㅈ','ㅉ','ㅊ','ㅋ','ㅌ','ㅍ','ㅎ'],
+        JUNG:['ㅏ','ㅐ','ㅑ','ㅒ','ㅓ','ㅔ','ㅕ','ㅖ','ㅗ','ㅘ','ㅙ','ㅚ','ㅛ','ㅜ','ㅝ','ㅞ','ㅟ','ㅠ','ㅡ','ㅢ','ㅣ'],
+        JONG:['','ㄱ','ㄲ','ㄳ','ㄴ','ㄵ','ㄶ','ㄷ','ㄹ','ㄺ','ㄻ','ㄼ','ㄽ','ㄾ','ㄿ','ㅀ','ㅁ','ㅂ','ㅄ','ㅅ','ㅆ','ㅇ','ㅈ','ㅊ','ㅋ','ㅌ','ㅍ','ㅎ'],
+        JUNG_COMBO:{'ㅗㅏ':'ㅘ','ㅗㅐ':'ㅙ','ㅗㅣ':'ㅚ','ㅜㅓ':'ㅝ','ㅜㅔ':'ㅞ','ㅜㅣ':'ㅟ','ㅡㅣ':'ㅢ'},
+        JONG_COMBO:{'ㄱㅅ':'ㄳ','ㄴㅈ':'ㄵ','ㄴㅎ':'ㄶ','ㄹㄱ':'ㄺ','ㄹㅁ':'ㄻ','ㄹㅂ':'ㄼ','ㄹㅅ':'ㄽ','ㄹㅌ':'ㄾ','ㄹㅍ':'ㄿ','ㄹㅎ':'ㅀ','ㅂㅅ':'ㅄ'},
+        JONG_SPLIT:{'ㄳ':['ㄱ','ㅅ'],'ㄵ':['ㄴ','ㅈ'],'ㄶ':['ㄴ','ㅎ'],'ㄺ':['ㄹ','ㄱ'],'ㄻ':['ㄹ','ㅁ'],'ㄼ':['ㄹ','ㅂ'],'ㄽ':['ㄹ','ㅅ'],'ㄾ':['ㄹ','ㅌ'],'ㄿ':['ㄹ','ㅍ'],'ㅀ':['ㄹ','ㅎ'],'ㅄ':['ㅂ','ㅅ']}
+    };
+    function isJamoV(j){return HG.JUNG.indexOf(j)>-1}
+    function hgSyll(st){
+        if(st.cho===null)return st.jung!==null?HG.JUNG[st.jung]:'';
+        if(st.jung===null)return HG.CHO[st.cho];
+        return String.fromCharCode(0xAC00+(st.cho*21+st.jung)*28+(st.jong||0));
+    }
+    function newKoState(){return{cho:null,jung:null,jong:0}}
+    // returns {commit:'text flushed', state:newState}
+    function koInput(st,j){
+        var out='';
+        if(isJamoV(j)){
+            var vi=HG.JUNG.indexOf(j);
+            if(st.cho!==null&&st.jung!==null&&st.jong){       // split final: previous syllable keeps first, new syllable starts
+                var jongCh=HG.JONG[st.jong],moved,keep;
+                if(HG.JONG_SPLIT[jongCh]){keep=HG.JONG_SPLIT[jongCh][0];moved=HG.JONG_SPLIT[jongCh][1]}
+                else{keep='';moved=jongCh}
+                st.jong=HG.JONG.indexOf(keep||'');
+                out+=hgSyll(st);
+                return{commit:out,state:{cho:HG.CHO.indexOf(moved),jung:vi,jong:0}};
+            }
+            if(st.cho!==null&&st.jung!==null){                 // vowel combo or new syllable
+                var combo=HG.JUNG_COMBO[HG.JUNG[st.jung]+j];
+                if(combo){st.jung=HG.JUNG.indexOf(combo);return{commit:'',state:st}}
+                out+=hgSyll(st);
+                return{commit:out,state:{cho:null,jung:vi,jong:0}};
+            }
+            if(st.cho!==null){st.jung=vi;return{commit:'',state:st}}
+            if(st.jung!==null){                                 // standalone vowel combo
+                var c2=HG.JUNG_COMBO[HG.JUNG[st.jung]+j];
+                if(c2){st.jung=HG.JUNG.indexOf(c2);return{commit:'',state:st}}
+                out+=hgSyll(st);return{commit:out,state:{cho:null,jung:vi,jong:0}};
+            }
+            return{commit:'',state:{cho:null,jung:vi,jong:0}};
+        }
+        // consonant
+        var ci=HG.CHO.indexOf(j),ji=HG.JONG.indexOf(j);
+        if(st.cho!==null&&st.jung!==null){
+            if(st.jong){
+                var cmb=HG.JONG_COMBO[HG.JONG[st.jong]+j];
+                if(cmb){st.jong=HG.JONG.indexOf(cmb);return{commit:'',state:st}}
+                out+=hgSyll(st);return{commit:out,state:{cho:ci>-1?ci:null,jung:null,jong:0}};
+            }
+            if(ji>0){st.jong=ji;return{commit:'',state:st}}
+            out+=hgSyll(st);return{commit:out,state:{cho:ci>-1?ci:null,jung:null,jong:0}};
+        }
+        if(st.cho!==null||st.jung!==null){out+=hgSyll(st)}
+        return{commit:out,state:{cho:ci>-1?ci:null,jung:null,jong:0}};
+    }
+    function koBackspace(st){
+        if(st.jong){
+            var ch=HG.JONG[st.jong];
+            st.jong=HG.JONG_SPLIT[ch]?HG.JONG.indexOf(HG.JONG_SPLIT[ch][0]):0;
+            return{state:st,ate:true};
+        }
+        if(st.jung!==null){
+            var v=HG.JUNG[st.jung],parts=null;
+            Object.keys(HG.JUNG_COMBO).forEach(function(k){if(HG.JUNG_COMBO[k]===v)parts=k});
+            st.jung=parts?HG.JUNG.indexOf(parts[0]):null;
+            return{state:st,ate:true};
+        }
+        if(st.cho!==null){st.cho=null;return{state:st,ate:true}}
+        return{state:st,ate:false};
+    }
+
+    /* ---- Japanese: romaji → kana ---- */
+    var ROMA=[['kya','きゃ'],['kyu','きゅ'],['kyo','きょ'],['sha','しゃ'],['shu','しゅ'],['sho','しょ'],['shi','し'],['cha','ちゃ'],['chu','ちゅ'],['cho','ちょ'],['chi','ち'],['tsu','つ'],['nya','にゃ'],['nyu','にゅ'],['nyo','にょ'],['hya','ひゃ'],['hyu','ひゅ'],['hyo','ひょ'],['mya','みゃ'],['myu','みゅ'],['myo','みょ'],['rya','りゃ'],['ryu','りゅ'],['ryo','りょ'],['gya','ぎゃ'],['gyu','ぎゅ'],['gyo','ぎょ'],['ja','じゃ'],['ju','じゅ'],['jo','じょ'],['ji','じ'],['bya','びゃ'],['byu','びゅ'],['byo','びょ'],['pya','ぴゃ'],['pyu','ぴゅ'],['pyo','ぴょ'],['fu','ふ'],
+    ['ka','か'],['ki','き'],['ku','く'],['ke','け'],['ko','こ'],['sa','さ'],['su','す'],['se','せ'],['so','そ'],['ta','た'],['te','て'],['to','と'],['na','な'],['ni','に'],['nu','ぬ'],['ne','ね'],['no','の'],['ha','は'],['hi','ひ'],['he','へ'],['ho','ほ'],['ma','ま'],['mi','み'],['mu','む'],['me','め'],['mo','も'],['ya','や'],['yu','ゆ'],['yo','よ'],['ra','ら'],['ri','り'],['ru','る'],['re','れ'],['ro','ろ'],['wa','わ'],['wo','を'],
+    ['ga','が'],['gi','ぎ'],['gu','ぐ'],['ge','げ'],['go','ご'],['za','ざ'],['zu','ず'],['ze','ぜ'],['zo','ぞ'],['da','だ'],['de','で'],['do','ど'],['ba','ば'],['bi','び'],['bu','ぶ'],['be','べ'],['bo','ぼ'],['pa','ぱ'],['pi','ぴ'],['pu','ぷ'],['pe','ぺ'],['po','ぽ'],
+    ['a','あ'],['i','い'],['u','う'],['e','え'],['o','お'],['nn','ん'],['-','ー'],['.','。'],[',','、']];
+    function romajiToKana(raw){
+        var kana='',i=0;
+        while(i<raw.length){
+            if(raw[i]==='n'&&(i+1>=raw.length||!/[aiueoy]/.test(raw[i+1]))){kana+='ん';i++;continue}
+            if(i+1<raw.length&&raw[i]===raw[i+1]&&/[a-z]/.test(raw[i])&&!/[aiueon]/.test(raw[i])){kana+='っ';i++;continue}
+            var hit=null;
+            for(var L=3;L>=1;L--){
+                var seg=raw.substr(i,L);
+                for(var k=0;k<ROMA.length;k++){if(ROMA[k][0]===seg){hit=ROMA[k];break}}
+                if(hit){kana+=hit[1];i+=L;break}
+            }
+            if(!hit){kana+=raw[i];i++}
+        }
+        return kana;
+    }
+    function romajiTail(raw){ // trailing chars that can't resolve to kana yet
+        var m=raw.match(/[a-z]{1,3}$/);
+        if(!m)return '';
+        var t=m[0];
+        for(var L=t.length;L>=1;L--){
+            var seg=t.slice(-L),ok=false;
+            for(var k=0;k<ROMA.length;k++){if(ROMA[k][0].indexOf(seg)===0&&ROMA[k][0]!==seg){ok=true;break}}
+            if(ok)return seg;
+        }
+        return '';
+    }
+    function jaCandidates(kana,cb){ // Google Input Tools; kana always remains the fallback
+        var url='https://inputtools.google.com/request?text='+encodeURIComponent(kana)+'&itc=ja-t-ja-i0-und&num=8&ie=utf-8&oe=utf-8';
+        fetch(url).then(function(r){return r.json()}).then(function(j){
+            var list=[];
+            try{if(j[0]==='SUCCESS')list=j[1][0][1]||[]}catch(e){}
+            cb(list.slice(0,8));
+        }).catch(function(e){cb(null,e.message)});
+    }
+
+/* ######## pipeline + switch ######## */
+    /* Mirror bridge's log() into the diagnostics panel WITHOUT touching its bytes
+       (GATE 2 requires byte-identity). Wrap, never replace. */
+    (function(){
+        var _log=log;
+        log=function(ev,d,lvl){
+            _log(ev,d,lvl);
+            try{if(typeof diag==='function')
+                diag('['+(lvl||'info')+'] '+ev+(d&&Object.keys(d).length?' '+JSON.stringify(d):''),
+                     (lvl==='error'||lvl==='warn'))}catch(_){}
         };
-        const DEFAULT_SETTINGS = {
-            peerLanguage: 'en',
-            localLanguage: 'en',
-            typingPauseMs: 3000,
-            activeSpeaker: 'local',
-            ttsEnabledLocal: false,
-            ttsEnabledPeer: false,
-            localVoice: '',
-            peerVoice: ''
-        };
-        const DEFAULT_STYLES = {
-            localBg: '#eff6ff',
-            localText: '#1f2937',
-            peerBg: '#ffffff',
-            peerText: '#0f172a',
-            localFontSize: 14,
-            peerFontSize: 14
-        };
-        const DEFAULT_BACKGROUND = {
-            localColor: '#ffffff',
-            peerColor: '#ffffff'
-        };
+    })();
 
-        const peerTranscript = document.getElementById('peer-transcript');
-        const localTranscript = document.getElementById('local-transcript');
-        const localInput = document.getElementById('local-input');
-        const peerTalk = document.getElementById('peer-talk');
-        const localSend = document.getElementById('local-send');
-        const peerTtsToggle = document.getElementById('peer-tts-toggle');
-        const localTtsToggle = document.getElementById('local-tts-toggle');
-        const speakerToggle = document.getElementById('speaker-toggle');
-        const gearFab = document.getElementById('gear-fab');
-        const controlsModal = document.getElementById('controls-modal');
-        const controlsContent = document.getElementById('controls-content');
-        const closeControls = document.getElementById('close-controls');
-        const peerLanguageSelect = document.getElementById('peer-language-select');
-        const localLanguageSelect = document.getElementById('local-language-select');
-        const typingPauseInput = document.getElementById('typing-pause-input');
-        const styleLocalBg = document.getElementById('style-local-bg');
-        const styleLocalText = document.getElementById('style-local-text');
-        const stylePeerBg = document.getElementById('style-peer-bg');
-        const stylePeerText = document.getElementById('style-peer-text');
-        const styleLocalFontSize = document.getElementById('style-local-font-size');
-        const stylePeerFontSize = document.getElementById('style-peer-font-size');
-        const styleLocalBgPanel = document.getElementById('style-local-bg-panel');
-        const stylePeerBgPanel = document.getElementById('style-peer-bg-panel');
-        const localVoiceSelect = document.getElementById('local-voice-select');
-        const peerVoiceSelect = document.getElementById('peer-voice-select');
-        const styleReset = document.getElementById('style-reset');
-        const styleSave = document.getElementById('style-save');
-        const drawerImport = document.getElementById('drawer-import');
-        const drawerExport = document.getElementById('drawer-export');
-        const drawerClear = document.getElementById('drawer-clear');
-        const drawerImportInput = document.getElementById('drawer-import-input');
+    /* ============================================================================
+       PER-SIDE DEEPGRAM PIPELINE
+       Mechanical refactor of bridge27's live startDeepgram (line 3341) from a
+       device-wide singleton into an instantiable factory. Every module global
+       becomes an instance property; every guard is preserved exactly:
+         - socket identity check  (a superseded socket can't tear down its successor)
+         - generation guard       (a socket from a previous session produces nothing)
+         - 30s silence watchdog   - 2s reconnect backoff  - 3-strike credential fail
+         - AudioWorklet with ScriptProcessor fallback
+       Bridge's dual-socket English arbitration is NOT included: duck is one
+       language per side, which is bridge's own single-language branch.
+       ============================================================================ */
+    var DG_WATCHDOG_MS=30000, DG_MAX_FAILS=3;
+    function dgKey(){try{return(localStorage.getItem('tb_dg_key')||'').trim()}catch(e){return ''}}
 
-        let chatHistory = [];
-        let settings = { ...DEFAULT_SETTINGS };
-        let styles = { ...DEFAULT_STYLES };
-        let background = { ...DEFAULT_BACKGROUND };
-        let typingTimer = null;
-        const translationCache = new Map();
-        const pendingTranslations = new Map();
-        let availableVoices = [];
-        let gearWasDragged = false;
-        let gearPositionLocked = false;
-        let peerRecognizer = null;
-        let peerListening = false;
-
-        const LANGUAGE_PREFIXES = {
-            en: 'en',
-            zh: 'zh',
-            km: 'km',
-            id: 'id',
-            ja: 'ja',
-            ko: 'ko',
-            lo: 'lo',
-            ms: 'ms',
-            th: 'th',
-            vi: 'vi'
+    function createMicPipeline(side,onFinal){
+        var P={
+            on:false, stream:null,
+            ws:null, enWs:null, active:false, audioCtx:null, src:null, proc:null,
+            failCount:0, lastMsg:0, watchdog:null,
+            gen:{n:1,bump:function(){this.n++;return this.n},is:function(g){return g===this.n}}
         };
 
-        function readStorage(key) {
-            try {
-                return localStorage.getItem(key);
-            } catch (_) {
-                return null;
-            }
+        function stopAudio(){
+            if(P.proc){try{P.proc.disconnect()}catch(e){}P.proc=null}
+            if(P.src){try{P.src.disconnect()}catch(e){}P.src=null}
+            if(P.audioCtx){try{P.audioCtx.close()}catch(e){}P.audioCtx=null}
+        }
+        function stopWatchdog(){if(P.watchdog){clearInterval(P.watchdog);P.watchdog=null}}
+
+        function stopSocket(){
+            P.gen.bump();
+            if(P.ws){try{P.ws.close()}catch(e){}}
+            if(P.enWs){try{P.enWs.close()}catch(e){}}
+            P.ws=null; P.enWs=null; P.active=false;
+            stopAudio(); stopWatchdog();
         }
 
-        function writeStorage(key, value) {
-            try {
-                localStorage.setItem(key, value);
-            } catch (_) {}
-        }
+        function connect(){
+            if(!P.on)return;
+            var key=dgKey();
+            if(!key){diag(side+': Deepgram key missing — add it in Settings → Calling & Sync Keys',true);return}
+            if(P.active||(P.ws&&P.ws.readyState<2))return;
+            var stream=P.stream;
+            if(!stream){diag(side+': no mic stream',true);return}
 
-        function loadSettings() {
-            const raw = readStorage(STORAGE_KEYS.settings);
-            if (!raw) return { ...DEFAULT_SETTINGS };
-            try {
-                return { ...DEFAULT_SETTINGS, ...JSON.parse(raw) };
-            } catch (_) {
-                return { ...DEFAULT_SETTINGS };
-            }
-        }
+            var room=sideAsRoom(side);
+            var lang=dgLangParam(room);
+            var myGen=P.gen.n;
+            var url='wss://api.deepgram.com/v1/listen?model=nova-3&language='+encodeURIComponent(lang)+
+                    '&encoding=linear16&sample_rate=16000&channels=1&interim_results=false&punctuate=false&endpointing=400';
+            P.ws=new WebSocket(url,['token',key]);
+            var mySocket=P.ws;
+            function live(){return P.ws===mySocket&&P.gen.is(myGen)}
 
-        function saveSettings() {
-            writeStorage(STORAGE_KEYS.settings, JSON.stringify(settings));
-        }
+            P.ws.onopen=function(){
+                if(!live()){try{mySocket.close()}catch(e){}return}
+                if(!P.on){try{P.ws.close()}catch(e){}return}
+                P.failCount=0;
+                diag(side+': listening in '+lang);
+                try{
+                    var tracks=(stream?stream.getAudioTracks():[]).filter(function(t){return t.readyState==='live'});
+                    if(!tracks.length){diag(side+': no live audio track',true);P.ws.close();return}
+                    P.audioCtx=new(window.AudioContext||window.webkitAudioContext)({sampleRate:16000});
+                    P.src=P.audioCtx.createMediaStreamSource(new MediaStream(tracks));
+                    var silent=P.audioCtx.createGain();silent.gain.value=0;silent.connect(P.audioCtx.destination);
 
-        function loadHistory() {
-            const raw = readStorage(STORAGE_KEYS.history);
-            if (!raw) return [];
-            try {
-                const parsed = JSON.parse(raw);
-                return Array.isArray(parsed) ? parsed : [];
-            } catch (_) {
-                return [];
-            }
-        }
-
-        function saveHistory() {
-            writeStorage(STORAGE_KEYS.history, JSON.stringify(chatHistory.slice(-200)));
-        }
-
-        function loadStyles() {
-            const raw = readStorage(STORAGE_KEYS.styles);
-            if (!raw) return { ...DEFAULT_STYLES };
-            try {
-                return { ...DEFAULT_STYLES, ...JSON.parse(raw) };
-            } catch (_) {
-                return { ...DEFAULT_STYLES };
-            }
-        }
-
-        function saveStyles() {
-            writeStorage(STORAGE_KEYS.styles, JSON.stringify(styles));
-        }
-
-        function loadBackground() {
-            const raw = readStorage(STORAGE_KEYS.background);
-            if (!raw) return { ...DEFAULT_BACKGROUND };
-            try {
-                return { ...DEFAULT_BACKGROUND, ...JSON.parse(raw) };
-            } catch (_) {
-                return { ...DEFAULT_BACKGROUND };
-            }
-        }
-
-        function saveBackground() {
-            writeStorage(STORAGE_KEYS.background, JSON.stringify(background));
-        }
-
-        function applyStyles() {
-            const root = document.documentElement;
-            root.style.setProperty('--bubble-local-bg', styles.localBg);
-            root.style.setProperty('--bubble-local-text', styles.localText);
-            root.style.setProperty('--bubble-peer-bg', styles.peerBg);
-            root.style.setProperty('--bubble-peer-text', styles.peerText);
-            root.style.setProperty('--bubble-font-size-local', `${styles.localFontSize}px`);
-            root.style.setProperty('--bubble-font-size-peer', `${styles.peerFontSize}px`);
-        }
-
-        function applyBackground() {
-            const root = document.documentElement;
-            root.style.setProperty('--chat-bg-local', background.localColor || DEFAULT_BACKGROUND.localColor);
-            root.style.setProperty('--chat-bg-peer', background.peerColor || DEFAULT_BACKGROUND.peerColor);
-            root.style.setProperty('--chat-bg-color', DEFAULT_BACKGROUND.localColor);
-        }
-
-        function updateControls() {
-            peerLanguageSelect.value = settings.peerLanguage;
-            localLanguageSelect.value = settings.localLanguage;
-            typingPauseInput.value = (settings.typingPauseMs / 1000).toFixed(1).replace(/\.0$/, '');
-            styleLocalBg.value = styles.localBg;
-            styleLocalText.value = styles.localText;
-            stylePeerBg.value = styles.peerBg;
-            stylePeerText.value = styles.peerText;
-            styleLocalFontSize.value = styles.localFontSize;
-            stylePeerFontSize.value = styles.peerFontSize;
-            styleLocalBgPanel.value = background.localColor;
-            stylePeerBgPanel.value = background.peerColor;
-            updateTtsToggle(localTtsToggle, settings.ttsEnabledLocal);
-            updateTtsToggle(peerTtsToggle, settings.ttsEnabledPeer);
-            updateVoiceSelectors();
-            updateSpeakerIndicator();
-        }
-
-        function toggleModal(isOpen) {
-            if (!controlsModal || !controlsContent) return;
-            if (isOpen) {
-                controlsModal.classList.remove('invisible');
-                controlsModal.classList.add('visible');
-                controlsContent.classList.remove('scale-out');
-                controlsContent.classList.add('scale-in');
-            } else {
-                controlsModal.classList.add('invisible');
-                controlsModal.classList.remove('visible');
-                controlsContent.classList.add('scale-out');
-                controlsContent.classList.remove('scale-in');
-            }
-        }
-
-        function updateSpeakerIndicator() {
-            if (!speakerToggle) return;
-            speakerToggle.dataset.active = settings.activeSpeaker;
-        }
-
-        function clearTypingTimer() {
-            if (typingTimer) {
-                clearTimeout(typingTimer);
-            }
-            typingTimer = null;
-        }
-
-        function flipActiveSpeaker() {
-            settings.activeSpeaker = settings.activeSpeaker === 'local' ? 'peer' : 'local';
-            updateSpeakerIndicator();
-            saveSettings();
-            scrollTranscriptsToBottom();
-        }
-
-        function scheduleAutoSubmit(input, speaker) {
-            clearTypingTimer();
-            typingTimer = setTimeout(() => {
-                const value = (input?.value || '').trim();
-                if (!value) return;
-                settings.activeSpeaker = speaker;
-                updateSpeakerIndicator();
-                saveSettings();
-                addChatEntry(value, speaker);
-                if (input) {
-                    input.value = '';
-                }
-                flipActiveSpeaker();
-            }, settings.typingPauseMs);
-        }
-
-        function scrollTranscriptsToBottom() {
-            [peerTranscript, localTranscript].forEach(column => {
-                if (!column) return;
-                if (typeof column.scrollTo === 'function') {
-                    column.scrollTo({ top: column.scrollHeight, behavior: 'smooth' });
-                } else {
-                    column.scrollTop = column.scrollHeight;
-                }
-            });
-        }
-
-        function createEntryId() {
-            return (crypto.randomUUID ? crypto.randomUUID() : `entry_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`);
-        }
-
-        async function translateText(text, target, source = 'auto') {
-            if (!text || !target) return null;
-            const cacheKey = `${source}|${target}|${text}`;
-            if (translationCache.has(cacheKey)) return translationCache.get(cacheKey);
-            if (pendingTranslations.has(cacheKey)) return pendingTranslations.get(cacheKey);
-            const pendingPromise = (async () => {
-                try {
-                    const res = await fetch('https://libretranslate.de/translate', {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ q: text, source, target, format: 'text' })
-                    });
-                    if (!res.ok) throw new Error('Translation failed');
-                    const data = await res.json();
-                    const translated = data?.translatedText || null;
-                    if (translated) {
-                        translationCache.set(cacheKey, translated);
+                    function pump(f){
+                        if(!live()||P.ws.readyState!==1||!P.on)return;
+                        var b=new Int16Array(f.length);
+                        for(var i=0;i<f.length;i++){var s=Math.max(-1,Math.min(1,f[i]));b[i]=s<0?s*0x8000:s*0x7FFF}
+                        P.ws.send(b.buffer);
+                        if(P.enWs&&P.enWs.readyState===1)P.enWs.send(b.buffer);
                     }
-                    return translated;
-                } catch (_) {
-                    try {
-                        const res = await fetch(`https://translate.googleapis.com/translate_a/single?client=gtx&sl=${encodeURIComponent(source)}&tl=${encodeURIComponent(target)}&dt=t&q=${encodeURIComponent(text)}`);
-                        if (!res.ok) throw new Error('Translation fallback failed');
-                        const data = await res.json();
-                        const translated = Array.isArray(data?.[0])
-                            ? data[0].map(part => part?.[0]).filter(Boolean).join('')
-                            : null;
-                        if (translated) {
-                            translationCache.set(cacheKey, translated);
-                        }
-                        return translated;
-                    } catch (_) {
-                        return null;
+                    function scriptProc(){
+                        if(!live())return;
+                        P.proc=P.audioCtx.createScriptProcessor(4096,1,1);
+                        P.proc.onaudioprocess=function(e){pump(e.inputBuffer.getChannelData(0))};
+                        P.src.connect(P.proc);P.proc.connect(silent);
+                        P.active=true;
                     }
-                } finally {
-                    pendingTranslations.delete(cacheKey);
-                }
-            })();
-            pendingTranslations.set(cacheKey, pendingPromise);
-            return pendingPromise;
-        }
+                    if(P.audioCtx.audioWorklet&&typeof AudioWorkletNode!=='undefined'){
+                        var blob=new Blob([DG_WORKLET_CODE],{type:'application/javascript'});
+                        var wurl=URL.createObjectURL(blob);
+                        P.audioCtx.audioWorklet.addModule(wurl).then(function(){
+                            URL.revokeObjectURL(wurl);
+                            if(!live()||P.ws.readyState!==1)return;
+                            var node=new AudioWorkletNode(P.audioCtx,'tb-audio-capture');
+                            node.port.onmessage=function(ev){pump(ev.data)};
+                            P.src.connect(node);node.connect(silent);
+                            P.proc=node;P.active=true;
+                        }).catch(function(e){URL.revokeObjectURL(wurl);scriptProc()});
+                    }else scriptProc();
+                }catch(e){diag(side+': audio setup failed — '+e.message,true);P.active=false}
+            };
 
-        function escapeHtml(text) {
-            return (text || '')
-                .replace(/&/g, '&amp;')
-                .replace(/</g, '&lt;')
-                .replace(/>/g, '&gt;')
-                .replace(/"/g, '&quot;')
-                .replace(/'/g, '&#39;');
-        }
-
-        function renderMarkdown(text) {
-            let html = escapeHtml(text || '');
-            html = html.replace(/```([\s\S]*?)```/g, (_, code) => `<pre class="bg-slate-900 text-slate-100 rounded p-2 text-[11px] overflow-auto"><code>${code}</code></pre>`);
-            html = html.replace(/`([^`]+)`/g, '<code class="bg-slate-100 px-1 rounded">$1</code>');
-            html = html.replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>');
-            html = html.replace(/\*([^*]+)\*/g, '<em>$1</em>');
-            html = html.replace(/_([^_]+)_/g, '<em>$1</em>');
-            html = html.replace(/\[([^\]]+)\]\((https?:\/\/[^\s)]+)\)/g, '<a href="$2" target="_blank" rel="noopener noreferrer">$1</a>');
-            html = html.replace(/\n/g, '<br>');
-            return html;
-        }
-
-        function renderChat() {
-            const transcripts = [peerTranscript, localTranscript].filter(Boolean);
-            transcripts.forEach(column => {
-                column.innerHTML = '';
-            });
-            const lastEntryId = chatHistory.length ? chatHistory[chatHistory.length - 1].id : null;
-            let shouldSaveHistory = false;
-            chatHistory.forEach(entry => {
-                const speaker = entry.speaker;
-                const bubbleClass = speaker === 'local' ? 'local' : 'peer';
-                const defaultSource = speaker === 'local' ? settings.localLanguage : settings.peerLanguage;
-                const defaultTarget = speaker === 'local' ? settings.peerLanguage : settings.localLanguage;
-                const sourceLanguage = entry.sourceLanguage || defaultSource;
-                const targetLanguage = entry.targetLanguage || defaultTarget;
-                if (!entry.sourceLanguage || !entry.targetLanguage) {
-                    entry.sourceLanguage = sourceLanguage;
-                    entry.targetLanguage = targetLanguage;
-                    shouldSaveHistory = true;
-                }
-                const text = entry.message || '';
-                const translationKey = `${sourceLanguage}|${targetLanguage}`;
-                entry.translations = entry.translations || {};
-                const cached = entry.translations[translationKey] || translationCache.get(`${sourceLanguage}|${targetLanguage}|${text}`);
-                const translationCols = [];
-
-                transcripts.forEach(column => {
-                    const row = document.createElement('div');
-                    row.className = `message-row ${bubbleClass}`;
-                    const bubble = document.createElement('div');
-                    bubble.className = `message-bubble ${bubbleClass}${entry.id === lastEntryId ? ' latest-bubble' : ''}`;
-
-                    const sourceCol = document.createElement('div');
-                    sourceCol.className = 'bubble-col';
-                    const translationCol = document.createElement('div');
-                    translationCol.className = 'bubble-col';
-                    const deleteButton = document.createElement('button');
-                    deleteButton.type = 'button';
-                    deleteButton.className = 'bubble-delete material-symbols-outlined';
-                    deleteButton.textContent = 'close';
-                    deleteButton.dataset.entryId = entry.id;
-                    bubble.append(sourceCol, translationCol);
-                    bubble.appendChild(deleteButton);
-                    row.appendChild(bubble);
-
-                    sourceCol.innerHTML = renderMarkdown(text);
-                    if (sourceLanguage === targetLanguage || !targetLanguage) {
-                        translationCol.innerHTML = renderMarkdown(text);
-                    } else if (cached) {
-                        translationCol.innerHTML = renderMarkdown(cached);
-                    } else {
-                        translationCol.textContent = '…';
-                    }
-
-                    translationCols.push(translationCol);
-                    column.appendChild(row);
-                });
-
-                if (sourceLanguage !== targetLanguage && !cached) {
-                    translateText(text, targetLanguage, sourceLanguage).then(translated => {
-                        if (!translated) {
-                            translationCols.forEach(col => {
-                                col.textContent = 'Translation unavailable.';
+            P.ws.onmessage=function(e){
+                if(!live())return;
+                P.lastMsg=Date.now();
+                try{
+                    var d=JSON.parse(e.data);
+                    var alt=d.channel&&d.channel.alternatives&&d.channel.alternatives[0];
+                    if(alt&&alt.transcript&&d.is_final){
+                        var t=String(alt.transcript).trim();
+                        if(!t)return;
+                        if(P.enWs){
+                            /* Dual-channel room (zh/th/ko/ar): hold the native result briefly.
+                               If the English channel returns something substantial inside the
+                               window, the native text was phonetic nonsense and gets dropped. */
+                            dgArbitrateNative(t,function(held){
+                                if(live())onFinal(held,dgUseMulti(room)?null:room.myLang);
                             });
-                            return;
+                        }else{
+                            onFinal(t,dgUseMulti(room)?null:room.myLang);
                         }
-                        entry.translations[translationKey] = translated;
-                        saveHistory();
-                        translationCols.forEach(col => {
-                            col.innerHTML = renderMarkdown(translated);
-                        });
-                    });
-                }
-            });
-            if (shouldSaveHistory) {
-                saveHistory();
-            }
-            scrollTranscriptsToBottom();
-        }
-
-        function addChatEntry(message, speaker) {
-            const trimmed = (message || '').trim();
-            if (!trimmed) return;
-            const sourceLanguage = speaker === 'local' ? settings.localLanguage : settings.peerLanguage;
-            const targetLanguage = speaker === 'local' ? settings.peerLanguage : settings.localLanguage;
-            chatHistory.push({
-                id: createEntryId(),
-                message: trimmed,
-                speaker,
-                ts: Date.now(),
-                translations: {},
-                sourceLanguage,
-                targetLanguage
-            });
-            saveHistory();
-            renderChat();
-            scrollTranscriptsToBottom();
-            speakIfEnabled(trimmed, speaker);
-        }
-
-        function handleSubmit(input, speaker) {
-            const value = input.value || '';
-            if (!value.trim()) return;
-            clearTypingTimer();
-            settings.activeSpeaker = speaker;
-            updateSpeakerIndicator();
-            saveSettings();
-            addChatEntry(value, speaker);
-            input.value = '';
-            flipActiveSpeaker();
-        }
-
-        function handleTyping(input, speaker) {
-            settings.activeSpeaker = speaker;
-            updateSpeakerIndicator();
-            saveSettings();
-            scheduleAutoSubmit(input, speaker);
-        }
-
-        function updatePeerTalkState(isListening) {
-            peerListening = isListening;
-            if (!peerTalk) return;
-            peerTalk.dataset.listening = isListening ? 'true' : 'false';
-            peerTalk.setAttribute('aria-pressed', isListening ? 'true' : 'false');
-            const icon = peerTalk.querySelector('.material-symbols-outlined');
-            if (icon) {
-                icon.textContent = isListening ? 'stop_circle' : 'mic';
-            }
-        }
-
-        function initPeerRecognizer() {
-            if (peerRecognizer || !peerTalk) return;
-            const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
-            if (!SpeechRecognition) {
-                peerTalk.disabled = true;
-                peerTalk.setAttribute('aria-label', 'Voice input not supported');
-                return;
-            }
-            peerRecognizer = new SpeechRecognition();
-            peerRecognizer.interimResults = false;
-            peerRecognizer.maxAlternatives = 1;
-            peerRecognizer.continuous = false;
-            peerRecognizer.addEventListener('start', () => updatePeerTalkState(true));
-            peerRecognizer.addEventListener('end', () => updatePeerTalkState(false));
-            peerRecognizer.addEventListener('error', () => updatePeerTalkState(false));
-            peerRecognizer.addEventListener('result', event => {
-                const transcript = Array.from(event.results || [])
-                    .map(result => result?.[0]?.transcript)
-                    .filter(Boolean)
-                    .join(' ')
-                    .trim();
-                if (!transcript) return;
-                settings.activeSpeaker = 'peer';
-                updateSpeakerIndicator();
-                saveSettings();
-                addChatEntry(transcript, 'peer');
-                flipActiveSpeaker();
-            });
-        }
-
-        function exportChat() {
-            const payload = {
-                history: chatHistory,
-                settings,
-                styles,
-                background
-            };
-            const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' });
-            const link = document.createElement('a');
-            link.href = URL.createObjectURL(blob);
-            link.download = 'tabletop-chat.json';
-            document.body.appendChild(link);
-            link.click();
-            document.body.removeChild(link);
-            URL.revokeObjectURL(link.href);
-        }
-
-        function importChat(file) {
-            const reader = new FileReader();
-            reader.onload = () => {
-                try {
-                    const payload = JSON.parse(reader.result);
-                    if (Array.isArray(payload?.history)) {
-                        chatHistory = payload.history;
-                        saveHistory();
                     }
-                    if (payload?.settings) {
-                        settings = { ...DEFAULT_SETTINGS, ...payload.settings };
-                        saveSettings();
-                    }
-                    if (payload?.styles) {
-                        styles = { ...DEFAULT_STYLES, ...payload.styles };
-                        saveStyles();
-                    }
-                    if (payload?.background) {
-                        background = { ...DEFAULT_BACKGROUND, ...payload.background };
-                        saveBackground();
-                    }
-                    applyStyles();
-                    applyBackground();
-                    updateControls();
-                    renderChat();
-                } catch (_) {}
+                }catch(e2){}
             };
-            reader.readAsText(file);
-        }
-
-        function clearChat() {
-            chatHistory = [];
-            saveHistory();
-            renderChat();
-        }
-
-        function updateTtsToggle(button, enabled) {
-            if (!button) return;
-            button.dataset.enabled = enabled ? 'true' : 'false';
-            const icon = button.querySelector('.material-symbols-outlined');
-            if (icon) {
-                icon.textContent = enabled ? 'volume_up' : 'volume_off';
-            }
-        }
-
-        function loadVoices() {
-            if (!('speechSynthesis' in window)) return;
-            availableVoices = speechSynthesis.getVoices().slice().sort((a, b) => a.name.localeCompare(b.name));
-            updateVoiceSelectors();
-        }
-
-        function updateVoiceSelectors() {
-            if (!localVoiceSelect || !peerVoiceSelect) return;
-            const defaultOption = '<option value="">Default voice</option>';
-            localVoiceSelect.innerHTML = defaultOption;
-            peerVoiceSelect.innerHTML = defaultOption;
-            const localCandidates = filterVoicesByLanguage(settings.localLanguage);
-            const peerCandidates = filterVoicesByLanguage(settings.peerLanguage);
-            populateVoiceOptions(localVoiceSelect, localCandidates);
-            populateVoiceOptions(peerVoiceSelect, peerCandidates);
-            if (settings.localVoice && !localCandidates.some(voice => voice.name === settings.localVoice)) {
-                settings.localVoice = '';
-            }
-            if (settings.peerVoice && !peerCandidates.some(voice => voice.name === settings.peerVoice)) {
-                settings.peerVoice = '';
-            }
-            localVoiceSelect.value = settings.localVoice || '';
-            peerVoiceSelect.value = settings.peerVoice || '';
-            saveSettings();
-        }
-
-        function filterVoicesByLanguage(languageCode) {
-            const prefix = (LANGUAGE_PREFIXES[languageCode] || languageCode || '').toLowerCase();
-            if (!prefix) return [];
-            return availableVoices.filter(voice => (voice.lang || '').toLowerCase().startsWith(prefix));
-        }
-
-        function guessVoiceGender(voice) {
-            const name = (voice.name || '').toLowerCase();
-            if (/(female|woman|girl|zira|susan|kate|samantha|victoria|karen|moira|tessa|veena|aria|jenny|olivia|emily|emma|amy|linda|zoe|serena|luna)/.test(name)) {
-                return 'female';
-            }
-            if (/(male|man|boy|david|mark|alex|daniel|tom|liam|guy|fred|jorge|kiko|matthew|michael|ryan|sean|george|paul|jorge)/.test(name)) {
-                return 'male';
-            }
-            return 'neutral';
-        }
-
-        function populateVoiceOptions(selectEl, voices) {
-            const groups = {
-                female: [],
-                male: [],
-                neutral: []
+            P.ws.onerror=function(){if(live())diag(side+': socket error',true)};
+            P.ws.onclose=function(ev){
+                if(P.ws!==mySocket)return;
+                if(!P.gen.is(myGen))return;
+                var neverOpened=!P.active;
+                P.active=false;stopAudio();stopWatchdog();
+                if(!P.on)return;
+                if(neverOpened){
+                    P.failCount++;
+                    if(P.failCount>=DG_MAX_FAILS){diag(side+': Deepgram rejected the key 3× — check it in Settings',true);return}
+                }
+                setTimeout(function(){if(P.gen.is(myGen)&&P.on&&!P.active)connect()},2000);
             };
-            voices.forEach(voice => {
-                groups[guessVoiceGender(voice)].push(voice);
+
+            /* Second channel listening in English on the same audio — bridge's fix for
+               rooms whose language cannot code-switch with English (zh/th/ko/ar). */
+            if(dgUseDual(room)){
+                var urlEn='wss://api.deepgram.com/v1/listen?model=nova-3&language=en'+
+                          '&encoding=linear16&sample_rate=16000&channels=1&interim_results=false&punctuate=false&endpointing=400';
+                P.enWs=new WebSocket(urlEn,['token',key]);
+                var enSock=P.enWs;
+                P.enWs.onmessage=function(e){
+                    if(P.enWs!==enSock||!P.gen.is(myGen))return;
+                    P.lastMsg=Date.now();
+                    try{
+                        var d=JSON.parse(e.data);
+                        var alt=d.channel&&d.channel.alternatives&&d.channel.alternatives[0];
+                        if(!(alt&&alt.transcript&&d.is_final))return;
+                        var verdict=dgArbitrateEnglish(alt.transcript);
+                        if(verdict==='ignored')return;
+                        /* language known by construction: this channel hears only English */
+                        if(live())onFinal(String(alt.transcript).trim(),'en');
+                    }catch(_){}
+                };
+                P.enWs.onerror=function(){if(P.enWs===enSock)diag(side+': english channel error',true)};
+                P.enWs.onclose=function(){if(P.enWs===enSock)P.enWs=null};
+                log('dg_en_open',{myLang:room.myLang},'ok');
+            }
+
+            P.lastMsg=Date.now();stopWatchdog();
+            P.watchdog=setInterval(function(){
+                if(!P.gen.is(myGen)||!P.active||!P.on){stopWatchdog();return}
+                if(Date.now()-P.lastMsg>DG_WATCHDOG_MS){
+                    diag(side+': watchdog restart (silent '+Math.round((Date.now()-P.lastMsg)/1000)+'s)',true);
+                    stopSocket();
+                    setTimeout(function(){if(P.gen.is(myGen)&&P.on&&!P.active)connect()},1000);
+                }
+            },5000);
+        }
+
+        P.start=function(){
+            if(P.on)return Promise.resolve();
+            return navigator.mediaDevices.getUserMedia({audio:{echoCancellation:true,noiseSuppression:true,channelCount:1}})
+                .then(function(s){P.stream=s;P.on=true;connect()})
+                .catch(function(e){diag(side+': microphone permission needed',true);throw e});
+        };
+        /* hardStop — unconditional, idempotent, leaves nothing running.
+           Safe to call on an already-stopped pipeline; that is required by the
+           ownership switch, which calls it on both sides before every acquire. */
+        P.hardStop=function(){
+            P.on=false;
+            stopSocket();
+            if(P.stream){P.stream.getTracks().forEach(function(t){try{t.stop()}catch(e){}});P.stream=null}
+        };
+        return P;
+    }
+
+    /* ============================================================================
+       OWNERSHIP SWITCH — the one module with no bridge equivalent.
+       ONE rule: every acquisition tears down BOTH sides completely, first,
+       unconditionally. No fast paths. No trusting remembered state.
+       Nothing outside teardown()/acquire() may write INPUT or start a pipeline.
+       ============================================================================ */
+    /* ── Mic idle auto-stop ──────────────────────────────────────────────────
+       DELIBERATE DIVERGENCE FROM BRIDGE, recorded so it is never mistaken for a
+       port. Bridge's CHATMIC has no idle timer: its mic runs until the user taps
+       it off, because bridge is one person on their own device — holding the mic
+       costs nobody anything. duck is two people sharing one device, so an
+       un-released mic blocks the other side's turn indefinitely. The switch
+       therefore releases itself after a genuine silence.
+       Timer is armed on acquire and re-armed on every final transcript, so it
+       measures silence since the last thing you actually said — not since you
+       started talking. */
+    var MIC_IDLE_MS=6000, micIdleTimer=null;
+    function armMicIdle(side){
+        clearTimeout(micIdleTimer);
+        micIdleTimer=setTimeout(function(){
+            if(INPUT.owner===side&&INPUT.mode==='mic'){
+                diag('mic idle '+(MIC_IDLE_MS/1000)+'s → releasing turn');
+                teardown('mic-idle');
+            }
+        },MIC_IDLE_MS);
+    }
+    function clearMicIdle(){clearTimeout(micIdleTimer);micIdleTimer=null}
+
+    var INPUT={owner:null,mode:null};          // owner: null|'south'|'north'   mode: null|'kb'|'mic'
+    var mic={}, pendingReq=null, askTimer=null;
+
+    function teardown(why){
+        clearMicIdle();
+        ['south','north'].forEach(function(s){
+            if(mic[s])mic[s].hardStop();
+            hideKeyboard(s);
+            paintIdle(s);
+        });
+        INPUT.owner=null;INPUT.mode=null;
+        try{if(window.speechSynthesis)speechSynthesis.cancel()}catch(e){}
+        clearAsk();
+        diag('teardown ('+why+')');
+    }
+
+    function acquire(side,mode,why){
+        teardown('acquire:'+side+'/'+mode);
+        INPUT.owner=side;INPUT.mode=mode;
+        if(mode==='mic'){
+            mic[side].start().catch(function(){teardown('mic denied')});
+            armMicIdle(side);
+        }else{
+            showKeyboard(side);
+        }
+        paintActive(side,mode);
+        diag('acquire '+side+'/'+mode+(why?' ('+why+')':''));
+    }
+
+    /* The only entry point any UI control may call. */
+    function requestInput(side,mode){
+        if(INPUT.owner===side&&INPUT.mode===mode){teardown('self-toggle-off');return}
+        if(INPUT.owner===null){acquire(side,mode,'free');return}
+        if(INPUT.owner===side){acquire(side,mode,'switch-mode');return}
+        askFor(side,mode);
+    }
+
+
+/* ######## config/bubbles/send ######## */
+    /* ================= ROOM (Turn 22: read-only, owned by chat-admin.html) ================= */
+    /* This file no longer creates, edits, lists, or deletes rooms — chat-admin.html
+       does all of that. This is a pure reader: find ?room=<id> in duck_rooms_index,
+       load it, render. If it can't, show one line and stop. Gate 1/2/4 in duck.md §1. */
+    var ROOM=null;
+    function readRoomFromUrl(){
+        var params=new URLSearchParams(location.search);
+        var id=params.get('room');
+        if(!id)return null;
+        var idx=[];
+        try{idx=JSON.parse(localStorage.getItem('duck_rooms_index')||'[]')}catch(e){}
+        var rec=idx.filter(function(r){return r.id===id&&!r.trashedAt})[0];
+        return rec||null;
+    }
+    function langOf(side){if(!ROOM)return'en';return side==='south'?ROOM.southLang:ROOM.northLang}
+    function otherSide(s){return s==='south'?'north':'south'}
+    function sideAsRoom(side){
+        return{myLang:langOf(side),theirLang:langOf(otherSide(side)),myLangMode:'fixed'};
+    }
+    function roomKey(){return 'duck_room_'+ROOM.id}
+
+    /* ================= HISTORY ================= */
+    var sessionTts={south:false,north:false};
+    var HIST=[];
+    function loadHist(){try{HIST=JSON.parse(localStorage.getItem(roomKey())||'[]')}catch(e){HIST=[]}}
+    function saveHist(){try{localStorage.setItem(roomKey(),JSON.stringify(HIST.slice(-300)))}catch(e){}}
+
+    /* ================= DIAGNOSTICS ================= */
+    var diagLines=[];
+    function diag(msg,err){
+        diagLines.push((err?'! ':'· ')+new Date().toTimeString().slice(0,8)+' '+msg);
+        if(diagLines.length>300)diagLines=diagLines.slice(-300);
+        var b=document.getElementById('diag-lines');
+        if(b&&document.getElementById('diag-panel').classList.contains('show'))renderDiag();
+    }
+    function renderDiag(){
+        var b=document.getElementById('diag-lines');if(!b)return;
+        b.innerHTML='input: '+(INPUT.owner||'free')+(INPUT.mode?'/'+INPUT.mode:'')+'<br>'+
+            diagLines.slice().reverse().map(function(l){
+                return '<div class="'+(l[0]==='!'?'err':'')+'">'+l.replace(/[&<>]/g,'')+'</div>'}).join('');
+    }
+    function toastMsg(m){
+        var e=document.getElementById('toast');if(!e)return;
+        e.textContent=m;e.classList.add('show');
+        clearTimeout(toastMsg._t);toastMsg._t=setTimeout(function(){e.classList.remove('show')},2200);
+    }
+
+    /* ================= VISUAL STATE — only painters ================= */
+    function paintIdle(side){
+        var m=document.querySelector('#strip-'+side+' .micbtn');
+        if(m){m.dataset.on='false';m.dataset.owned='false';m.dataset.pending='false'}
+    }
+    function paintActive(side,mode){
+        var m=document.querySelector('#strip-'+side+' .micbtn');
+        if(m){m.dataset.owned='true';m.dataset.on=(mode==='mic')?'true':'false'}
+    }
+    function paintPending(side,on){
+        var m=document.querySelector('#strip-'+side+' .micbtn');
+        if(m)m.dataset.pending=on?'true':'false';
+    }
+
+    /* ================= REQUEST / ALLOW / DECLINE ================= */
+    function askFor(side,mode){
+        var target=otherSide(side);
+        pendingReq={from:side,mode:mode};
+        paintPending(side,true);
+        var ov=document.getElementById('ask-'+target);
+        ov.querySelector('.ask-msg').textContent='The other person would like to '+(mode==='mic'?'speak':'type')+'.';
+        ov.querySelector('.ask-ok').textContent='Allow';
+        ov.querySelector('.ask-no').textContent='Decline';
+        ov.classList.add('show');
+        diag('request: '+side+' wants '+mode);
+        clearTimeout(askTimer);
+        askTimer=setTimeout(function(){resolveAsk(false)},20000);
+    }
+    function clearAsk(){
+        clearTimeout(askTimer);
+        ['south','north'].forEach(function(s){
+            var o=document.getElementById('ask-'+s);if(o)o.classList.remove('show');
+            paintPending(s,false);
+        });
+        pendingReq=null;
+    }
+    function resolveAsk(granted){
+        var req=pendingReq;
+        clearAsk();
+        if(!req)return;
+        if(granted)acquire(req.from,req.mode,'granted');
+        else diag('request declined');
+    }
+
+    /* ================= SEND PIPELINE ================= */
+    function sendFrom(side,textOverride,keepMic){
+        var inp=document.getElementById('in-'+side);
+        var text=norm(textOverride!=null?textOverride:(inp?inp.value:''));
+        if(!text)return;
+        /* G8: clear on EVERY path. */
+        if(inp){inp.value='';updateClear(side)}
+        /* G9: a spoken utterance must NOT end the turn. Deepgram endpoints on a
+           natural pause and keeps the socket open; tearing down here turned the
+           mic into push-to-talk. Only a typed/➤ send releases the switch. */
+        if(!keepMic)teardown('sent');
+        /* G7 PARITY: bridge's typed path calls normalizeOutgoing(room,text) with NO
+           third argument, so `knownLang || await detectLangAsync(text)` always runs
+           detection. Passing a knownLang here short-circuits detection and makes
+           typed code-switches undetectable. Do not add a third argument. */
+        normalizeOutgoing(sideAsRoom(side),text).then(function(r){
+            addMessage(side,r.text,r.lang);
+        }).catch(function(e){
+            diag('normalize failed: '+e.message,true);
+            addMessage(side,text,langOf(side));
+        });
+    }
+
+    function addMessage(side,text,srcLang){
+        var tgtLang=langOf(otherSide(side));
+        var entry={id:Date.now()+'-'+Math.random().toString(36).slice(2,7),
+                   side:side,text:text,src:srcLang,tgt:tgtLang,ts:Date.now(),tr:null};
+        HIST.push(entry);saveHist();renderAll();
+        if(srcLang===tgtLang){entry.tr=text;saveHist();renderAll();speakIfOn(side,text,tgtLang);return}
+        translateWithRetry(text,srcLang,tgtLang,2).then(function(res){
+            entry.tr=(res&&res.ok&&res.text)?norm(res.text):null;   // bridge: tgtText=norm(tr.text)
+            saveHist();renderAll();
+            if(entry.tr)speakIfOn(side,entry.tr,tgtLang);
+            else diag('translation failed '+srcLang+'→'+tgtLang,true);
+        });
+    }
+    function speakIfOn(fromSide,text,lang){
+        var listenerWants=(fromSide==='south')?sessionTts.north:sessionTts.south;
+        if(listenerWants&&text)speakText(text,lang);
+    }
+
+    /* ================= BUBBLES ================= */
+    function dayKey(ts){var d=new Date(ts);return d.getFullYear()+'-'+d.getMonth()+'-'+d.getDate()}
+    function dayLabel(ts){
+        var t=Date.now();
+        if(dayKey(ts)===dayKey(t))return 'Today';
+        if(dayKey(ts)===dayKey(t-864e5))return 'Yesterday';
+        return new Date(ts).toLocaleDateString([],{month:'short',day:'numeric'});
+    }
+    function stamp(ts){return new Date(ts).toLocaleString([],{month:'short',day:'numeric',hour:'numeric',minute:'2-digit'})}
+
+    var TTS_SVG='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><path d="M15.54 8.46a5 5 0 0 1 0 7.07"/></svg>';
+    var SEND_SVG='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>';
+
+    function renderAll(){
+        ['south','north'].forEach(function(panel){renderPanel(panel)});
+    }
+    function renderPanel(panel){
+        var host=document.getElementById('tx-'+panel);if(!host)return;
+        var atBottom=host.scrollHeight-host.scrollTop-host.clientHeight<160;
+        host.innerHTML='';
+        var lastDay=null;
+        HIST.forEach(function(e){
+            var dk=dayKey(e.ts);
+            if(dk!==lastDay){lastDay=dk;
+                var sep=document.createElement('div');sep.className='daysep';sep.textContent=dayLabel(e.ts);host.appendChild(sep)}
+            host.appendChild(bubbleFor(e,panel));
+        });
+        if(atBottom)host.scrollTop=host.scrollHeight;
+    }
+    function bubbleFor(e,panel){
+        var row=document.createElement('div');
+        row.className='row '+(e.side===panel?'own':'them');
+        var b=document.createElement('div');
+        b.className='bub '+(e.side==='south'?'s':'n');
+
+        var hdr=document.createElement('div');hdr.className='bhdr';
+        hdr.innerHTML='<span class="btime">'+stamp(e.ts)+'</span>';
+        var del=document.createElement('button');del.type='button';del.className='bdel';del.textContent='✕';
+        del.addEventListener('click',function(ev){ev.stopPropagation();
+            HIST=HIST.filter(function(x){return x.id!==e.id});saveHist();renderAll()});
+        hdr.appendChild(del);
+        b.appendChild(hdr);
+
+        var cols=document.createElement('div');cols.className='bcols';
+        // this panel's own language always sits LEFT for the person reading it
+        var mine={text:e.side===panel?e.text:(e.tr||'…'),lang:e.side===panel?e.src:e.tgt};
+        var theirs={text:e.side===panel?(e.tr||'…'):e.text,lang:e.side===panel?e.tgt:e.src};
+        cols.appendChild(colFor(mine,panel));
+        if(e.src!==e.tgt)cols.appendChild(colFor(theirs,panel));
+        else b.classList.add('single');
+        b.appendChild(cols);
+        row.appendChild(b);
+        return row;
+    }
+    function colFor(d,panel){
+        var c=document.createElement('div');c.className='bcol';
+        var t=document.createElement('div');t.className='btxt';t.textContent=d.text;
+        c.appendChild(t);
+        var acts=document.createElement('div');acts.className='bacts';
+        var spk=document.createElement('button');spk.type='button';spk.className='bact';spk.innerHTML=TTS_SVG;
+        spk.addEventListener('click',function(ev){ev.stopPropagation();if(d.text&&d.text!=='…')speakText(d.text,d.lang)});
+        var snd=document.createElement('button');snd.type='button';snd.className='bact';snd.innerHTML=SEND_SVG;
+        snd.addEventListener('click',function(ev){ev.stopPropagation();
+            if(d.text&&d.text!=='…')sendFrom(panel,d.text)});
+        acts.appendChild(spk);acts.appendChild(snd);
+        c.appendChild(acts);
+        c.addEventListener('click',function(ev){
+            if(ev.target.closest('.bact'))return;
+            if(d.text&&d.text!=='…'){
+                var inp=document.getElementById('in-'+panel);
+                inp.value=d.text;updateClear(panel);
+                requestInput(panel,'kb');
+            }
+        });
+        return c;
+    }
+
+
+/* ######## keyboard ######## */
+    /* ================= KEYBOARD — rebuilt, 44px minimum ================= */
+    var LANG_KB={en:'latin',es:'es',fr:'fr',de:'de',it:'it',pt:'pt',nl:'latin',sv:'sv',pl:'pl',tr:'tr',
+                 ru:'ru',ar:'ar',hi:'hi',th:'th',km:'km',lo:'lo',vi:'vi',id:'latin',ms:'latin',fil:'latin',
+                 ja:'latin',ko:'ko',zh:'latin'};
+    function layoutNameFor(code){return LANG_KB[code]||'latin'}
+
+    var shifted={south:false,north:false},numMode={south:false,north:false};
+    var comp={south:{raw:'',kana:'',ko:null},north:{raw:'',kana:'',ko:null}};
+    var cands={south:[],north:[]},candIdx={south:-1,north:-1};
+
+    function kbEl(side){return document.getElementById('kb-'+side)}
+    function showKeyboard(side){
+        var el=kbEl(side);if(!el)return;
+        renderKeys(side);
+        el.classList.add('open');
+        var inp=document.getElementById('in-'+side);
+        if(inp){try{inp.focus({preventScroll:true})}catch(e){}}
+    }
+    function hideKeyboard(side){
+        var el=kbEl(side);if(!el)return;
+        flushComp(side);
+        el.classList.remove('open');
+    }
+    function layoutFor(side){
+        var name=numMode[side]?'num':layoutNameFor(langOf(side));
+        var L=LAYOUTS[name]||LAYOUTS.latin;
+        return shifted[side]?(L.shift||L.rows):L.rows;
+    }
+    function renderKeys(side){
+        var el=kbEl(side);if(!el)return;
+        var rows=layoutFor(side),html='';
+        rows.forEach(function(r){
+            html+='<div class="krow">';
+            r.forEach(function(k){
+                if(k==='SHIFT')html+='<button type="button" class="key fn" data-k="SHIFT">⇧</button>';
+                else if(k==='BKSP')html+='<button type="button" class="key fn" data-k="BKSP">⌫</button>';
+                else html+='<button type="button" class="key" data-k="'+String(k).replace(/"/g,'&quot;')+'">'+String(k).replace(/[&<>]/g,'')+'</button>';
             });
-            const labels = {
-                female: 'Female',
-                male: 'Male',
-                neutral: 'Neutral'
-            };
-            ['female', 'male', 'neutral'].forEach(group => {
-                groups[group].forEach(voice => {
-                    const option = document.createElement('option');
-                    option.value = voice.name;
-                    option.textContent = `${voice.name} (${voice.lang}, ${labels[group]})`;
-                    selectEl.appendChild(option);
-                });
+            html+='</div>';
+        });
+        html+='<div class="krow">'+
+            '<button type="button" class="key fn" data-k="NUM">'+(numMode[side]?'ABC':'123')+'</button>'+
+            '<button type="button" class="key space" data-k=" ">space</button>'+
+            '<button type="button" class="key enter" data-k="ENTER">Enter</button>'+
+            '<button type="button" class="key fn" data-k="CLOSE">✕</button></div>';
+        el.querySelector('.kkeys').innerHTML=html;
+        el.querySelector('.klang').textContent=(LANG_NAMES[langOf(side)]||langOf(side))+
+            (langOf(side)==='ja'?' · romaji→kana':(langOf(side)==='ko'?' · 두벌식':''));
+        el.querySelectorAll('.key').forEach(function(b){
+            b.addEventListener('pointerdown',function(e){e.preventDefault()});   // never steal caret focus
+            b.addEventListener('click',function(e){e.preventDefault();press(side,b.dataset.k)});
+        });
+        paintCands(side);
+    }
+    function compText(side){
+        var c=comp[side];
+        if(c.ko)return hgSyll(c.ko);
+        if(c.kana||c.raw)return c.kana+romajiTail(c.raw);
+        return '';
+    }
+    function paintCands(side){
+        var bar=kbEl(side)&&kbEl(side).querySelector('.kcands');if(!bar)return;
+        if(!cands[side].length){bar.innerHTML='';bar.style.display='none';return}
+        bar.style.display='flex';
+        bar.innerHTML=cands[side].map(function(c,i){
+            return '<button type="button" class="kcand'+(i===candIdx[side]?' on':'')+'" data-i="'+i+'">'+String(c).replace(/[&<>]/g,'')+'</button>'}).join('');
+        bar.querySelectorAll('.kcand').forEach(function(b){
+            b.addEventListener('pointerdown',function(e){e.preventDefault()});
+            b.addEventListener('click',function(){pickCand(side,+b.dataset.i)});
+        });
+    }
+    function inputEl(side){return document.getElementById('in-'+side)}
+    function insertAt(side,str){
+        var ta=inputEl(side),s=ta.selectionStart,e=ta.selectionEnd;
+        ta.value=ta.value.slice(0,s)+str+ta.value.slice(e);
+        var p=s+str.length;try{ta.setSelectionRange(p,p)}catch(x){}
+        updateClear(side);
+    }
+    function replaceComp(side,oldLen,str){
+        var ta=inputEl(side),s=ta.selectionStart;
+        ta.value=ta.value.slice(0,s-oldLen)+str+ta.value.slice(s);
+        var p=s-oldLen+str.length;try{ta.setSelectionRange(p,p)}catch(x){}
+        updateClear(side);
+    }
+    function backspaceAt(side){
+        var ta=inputEl(side),s=ta.selectionStart,e=ta.selectionEnd;
+        if(s!==e){ta.value=ta.value.slice(0,s)+ta.value.slice(e);try{ta.setSelectionRange(s,s)}catch(x){}}
+        else if(s>0){ta.value=ta.value.slice(0,s-1)+ta.value.slice(s);try{ta.setSelectionRange(s-1,s-1)}catch(x){}}
+        updateClear(side);
+    }
+    function flushComp(side){
+        var t=compText(side);if(!t){comp[side]={raw:'',kana:'',ko:null};return}
+        var c=comp[side];
+        var final=c.ko?hgSyll(c.ko):romajiToKana(c.raw);
+        replaceComp(side,t.length,final);
+        comp[side]={raw:'',kana:'',ko:null};cands[side]=[];candIdx[side]=-1;paintCands(side);
+    }
+    function paintComp(side,prevLen){
+        var t=compText(side);
+        if(prevLen)replaceComp(side,prevLen,t);else if(t)insertAt(side,t);
+    }
+    function press(side,k){
+        var lang=langOf(side),ime=numMode[side]?null:(lang==='ko'?'ko':(lang==='ja'?'ja':null));
+        if(k==='SHIFT'){shifted[side]=!shifted[side];renderKeys(side);return}
+        if(k==='NUM'){flushComp(side);numMode[side]=!numMode[side];shifted[side]=false;renderKeys(side);return}
+        if(k==='CLOSE'){teardown('kb-close');return}
+        if(k==='ENTER'){
+            if(cands[side].length&&candIdx[side]>=0){pickCand(side,candIdx[side]);return}
+            flushComp(side);sendFrom(side);return;
+        }
+        if(k==='BKSP'){
+            var prev=compText(side).length;
+            if(ime==='ko'&&comp[side].ko){
+                var r=koBackspace(comp[side].ko);
+                comp[side].ko=(r.state.cho===null&&r.state.jung===null)?null:r.state;
+                paintComp(side,prev);return;
+            }
+            if(ime==='ja'&&comp[side].raw){
+                comp[side].raw=comp[side].raw.slice(0,-1);
+                comp[side].kana=romajiToKana(comp[side].raw.slice(0,comp[side].raw.length-romajiTail(comp[side].raw).length));
+                cands[side]=[];candIdx[side]=-1;paintCands(side);paintComp(side,prev);return;
+            }
+            backspaceAt(side);return;
+        }
+        if(k===' '){
+            if(ime==='ja'&&(comp[side].raw||comp[side].kana)){convertJa(side);return}
+            flushComp(side);insertAt(side,' ');return;
+        }
+        var prevLen=compText(side).length;
+        if(ime==='ko'){
+            if(!comp[side].ko)comp[side].ko=newKoState();
+            var res=koInput(comp[side].ko,k);
+            if(res.commit){replaceComp(side,prevLen,res.commit);prevLen=0}
+            comp[side].ko=res.state;
+            paintComp(side,prevLen);
+            if(shifted[side]){shifted[side]=false;renderKeys(side)}
+            return;
+        }
+        if(ime==='ja'&&/^[a-zA-Z.,-]$/.test(k)){
+            comp[side].raw+=k.toLowerCase();
+            var tail=romajiTail(comp[side].raw);
+            comp[side].kana=romajiToKana(comp[side].raw.slice(0,comp[side].raw.length-tail.length));
+            cands[side]=[];candIdx[side]=-1;paintCands(side);
+            paintComp(side,prevLen);
+            if(shifted[side]){shifted[side]=false;renderKeys(side)}
+            return;
+        }
+        flushComp(side);
+        insertAt(side,k);
+        if(shifted[side]&&String(k).length===1){shifted[side]=false;renderKeys(side)}
+    }
+    function pickCand(side,i){
+        var c=cands[side][i];if(c==null)return;
+        var cur=compText(side).length;
+        comp[side]={raw:'',kana:'',ko:null};
+        if(cur)replaceComp(side,cur,c);else insertAt(side,c);
+        cands[side]=[];candIdx[side]=-1;paintCands(side);
+    }
+    function convertJa(side){
+        var kana=romajiToKana(comp[side].raw);
+        if(!kana)return;
+        if(cands[side].length){candIdx[side]=(candIdx[side]+1)%cands[side].length;paintCands(side);return}
+        jaCandidates(kana,function(list,err){
+            if(!list||!list.length){cands[side]=[kana];candIdx[side]=0;paintCands(side);return}
+            if(list.indexOf(kana)<0)list.push(kana);
+            cands[side]=list;candIdx[side]=0;paintCands(side);
+        });
+    }
+    function updateClear(side){
+        var inp=inputEl(side);if(!inp)return;
+        var x=document.querySelector('#strip-'+side+' .clearbtn');
+        if(x)x.classList.toggle('show',!!inp.value);
+        inp.scrollLeft=inp.scrollWidth;
+    }
+
+
+/* ######## boot ######## */
+    /* ================= LANGUAGE NAMES ================= */
+    var LANG_NAMES={en:'English',th:'Thai',es:'Spanish',ja:'Japanese',ko:'Korean',zh:'Chinese (Simplified)',
+      ar:'Arabic',hi:'Hindi',ru:'Russian',fr:'French',de:'German',it:'Italian',pt:'Portuguese',
+      vi:'Vietnamese',id:'Indonesian',ms:'Malay',fil:'Filipino',nl:'Dutch',sv:'Swedish',pl:'Polish',
+      tr:'Turkish',km:'Khmer',lo:'Lao'};
+    var LANG_FLAGS={en:'🇺🇸',th:'🇹🇭',es:'🇪🇸',ja:'🇯🇵',ko:'🇰🇷',zh:'🇨🇳',ar:'🇸🇦',hi:'🇮🇳',ru:'🇷🇺',
+      fr:'🇫🇷',de:'🇩🇪',it:'🇮🇹',pt:'🇧🇷',vi:'🇻🇳',id:'🇮🇩',ms:'🇲🇾',fil:'🇵🇭',nl:'🇳🇱',sv:'🇸🇪',
+      pl:'🇵🇱',tr:'🇹🇷',km:'🇰🇭',lo:'🇱🇦'};
+    var SWATCHES=['#eff6ff','#f0fdf4','#fef3c7','#fee2e2','#f3e8ff','#ffffff'];
+
+    var MIC_SVG='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" y1="19" x2="12" y2="23"/></svg>';
+    var SPK_ON='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><path d="M15.54 8.46a5 5 0 0 1 0 7.07"/></svg>';
+    var SPK_OFF='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><line x1="23" y1="9" x2="17" y2="15"/><line x1="17" y1="9" x2="23" y2="15"/></svg>';
+    var GEAR_SVG='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.6a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9v0a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>';
+    var SEND_BIG='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 2L11 13"/><path d="M22 2l-7 20-4-9-9-4z"/></svg>';
+
+    function buildStrip(side){
+        var strip=document.getElementById('strip-'+side);
+        strip.innerHTML=
+            '<button type="button" class="ctl micbtn" data-on="false" data-owned="false" data-pending="false" aria-label="Speak">'+MIC_SVG+'</button>'+
+            '<button type="button" class="ctl tts" data-on="false" aria-label="Read aloud">'+SPK_OFF+'</button>'+
+            
+            '<span class="inwrap"><input type="text" class="inp" id="in-'+side+'" inputmode="none" '+
+              'autocomplete="new-password" role="presentation" placeholder="Message">'+
+              '<button type="button" class="clearbtn" aria-label="Clear">✕</button></span>'+
+            '<button type="button" class="ctl sendbtn" aria-label="Send">'+SEND_BIG+'</button>';
+
+        strip.querySelector('.micbtn').addEventListener('click',function(){requestInput(side,'mic')});
+        strip.querySelector('.sendbtn').addEventListener('click',function(){sendFrom(side)});
+        strip.querySelector('.clearbtn').addEventListener('click',function(){
+            var i=document.getElementById('in-'+side);i.value='';updateClear(side);
+        });
+        var tts=strip.querySelector('.tts');
+        tts.addEventListener('click',function(){
+            sessionTts[side]=!sessionTts[side];
+            saveCfg();paintTts(side);
+        });
+
+
+        var inp=document.getElementById('in-'+side);
+        inp.addEventListener('focus',function(){
+            if(!(INPUT.owner===side&&INPUT.mode==='kb'))requestInput(side,'kb');
+        });
+        inp.addEventListener('input',function(){updateClear(side)});
+        inp.addEventListener('keydown',function(e){
+            if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();sendFrom(side)}
+        });
+        paintTts(side);
+    }
+    function paintTts(side){
+        var b=document.querySelector('#strip-'+side+' .tts');if(!b)return;
+        var on=sessionTts[side];
+        b.dataset.on=on?'true':'false';
+        b.innerHTML=on?SPK_ON:SPK_OFF;
+    }
+
+    /* Gate 1: no room-creation, room-list, or key-entry UI lives in this file. */
+    function applyRoomStyle(){
+        var s=document.documentElement.style;
+        s.setProperty('--sbg',ROOM.southBg||'#eff6ff');
+        s.setProperty('--nbg',ROOM.northBg||'#f0fdf4');
+        s.setProperty('--txt',ROOM.fontColor||'#0f172a');
+        s.setProperty('--fsz',(ROOM.fontSize||15)+'px');
+    }
+
+    /* ================= BOOT ================= */
+    function showNoRoomGate(){
+        document.body.innerHTML =
+            '<div style="height:100%;display:flex;align-items:center;justify-content:center;'+
+            'padding:24px;text-align:center;font:15px -apple-system,sans-serif;color:#475569">'+
+            'Open this from chat-admin.'+
+            '</div>';
+    }
+    function boot(){
+        ROOM=readRoomFromUrl();
+        if(!ROOM){showNoRoomGate();return}   // Gate 2: no standalone mode
+        loadHist();applyRoomStyle();
+
+        ['south','north'].forEach(function(s){
+            buildStrip(s);
+            mic[s]=createMicPipeline(s,function(text,lang){
+                sendFrom(s,text,true);       // keepMic: a pause is not end-of-turn
+                armMicIdle(s);               // but sustained silence IS — re-arm the idle clock
             });
-        }
-
-        function speakIfEnabled(message, speaker) {
-            const enabled = speaker === 'local' ? settings.ttsEnabledLocal : settings.ttsEnabledPeer;
-            if (!enabled || !('speechSynthesis' in window)) return;
-            const receiverLanguage = speaker === 'local' ? settings.peerLanguage : settings.localLanguage;
-            const sourceLanguage = speaker === 'local' ? settings.localLanguage : settings.peerLanguage;
-            const voiceName = speaker === 'local' ? settings.peerVoice : settings.localVoice;
-            const speak = text => {
-                const utterance = new SpeechSynthesisUtterance(text);
-                if (receiverLanguage) {
-                    utterance.lang = receiverLanguage;
-                }
-                if (voiceName) {
-                    const voice = availableVoices.find(item => item.name === voiceName);
-                    if (voice) utterance.voice = voice;
-                }
-                speechSynthesis.speak(utterance);
-            };
-            if (!receiverLanguage || receiverLanguage === sourceLanguage) {
-                speak(message);
-                return;
-            }
-            translateText(message, receiverLanguage, sourceLanguage).then(translated => {
-                if (translated) {
-                    speak(translated);
-                } else {
-                    speak(message);
-                }
-            });
-        }
-
-        function deleteEntryById(entryId) {
-            const next = chatHistory.filter(entry => entry.id !== entryId);
-            if (next.length === chatHistory.length) return;
-            chatHistory = next;
-            saveHistory();
-            renderChat();
-        }
-
-        function restoreGearPosition() {
-            const stored = readStorage('tabletop_chat_gear_position');
-            if (!stored) {
-                positionGearDefault();
-                return;
-            }
-            try {
-                const { left, top } = JSON.parse(stored);
-                if (Number.isFinite(left) && Number.isFinite(top)) {
-                    gearFab.style.left = `${left}px`;
-                    gearFab.style.top = `${top}px`;
-                    gearFab.style.right = 'auto';
-                    gearFab.style.bottom = 'auto';
-                    gearPositionLocked = true;
-                    return;
-                }
-            } catch (_) {}
-            positionGearDefault();
-        }
-
-        function positionGearDefault() {
-            if (!gearFab || !speakerToggle) return;
-            const anchorRect = speakerToggle.getBoundingClientRect();
-            const fabRect = gearFab.getBoundingClientRect();
-            const desiredLeft = anchorRect.right + 12;
-            const desiredTop = anchorRect.top + (anchorRect.height / 2) - (fabRect.height / 2);
-            const clampedLeft = Math.min(window.innerWidth - fabRect.width - 8, Math.max(8, desiredLeft));
-            const clampedTop = Math.min(window.innerHeight - fabRect.height - 8, Math.max(8, desiredTop));
-            gearFab.style.left = `${clampedLeft}px`;
-            gearFab.style.top = `${clampedTop}px`;
-            gearFab.style.right = 'auto';
-            gearFab.style.bottom = 'auto';
-        }
-
-        function enableGearDrag() {
-            if (!gearFab) return;
-            let isDragging = false;
-            let offsetX = 0;
-            let offsetY = 0;
-            let hasMoved = false;
-            let startX = 0;
-            let startY = 0;
-            const onMove = event => {
-                if (!isDragging) return;
-                if (!hasMoved) {
-                    if (Math.hypot(event.clientX - startX, event.clientY - startY) <= 4) {
-                        return;
-                    }
-                    hasMoved = true;
-                }
-                const x = event.clientX - offsetX;
-                const y = event.clientY - offsetY;
-                gearFab.style.left = `${Math.max(8, x)}px`;
-                gearFab.style.top = `${Math.max(8, y)}px`;
-                gearFab.style.right = 'auto';
-                gearFab.style.bottom = 'auto';
-            };
-            const onUp = () => {
-                if (!isDragging) return;
-                isDragging = false;
-                gearFab.classList.remove('dragging');
-                document.removeEventListener('pointermove', onMove);
-                document.removeEventListener('pointerup', onUp);
-                if (hasMoved) {
-                    writeStorage('tabletop_chat_gear_position', JSON.stringify({
-                        left: gearFab.offsetLeft,
-                        top: gearFab.offsetTop
-                    }));
-                    gearPositionLocked = true;
-                    gearWasDragged = true;
-                }
-            };
-            gearFab.addEventListener('pointerdown', event => {
-                if (event.button !== 0) return;
-                isDragging = true;
-                hasMoved = false;
-                gearWasDragged = false;
-                gearFab.classList.add('dragging');
-                const rect = gearFab.getBoundingClientRect();
-                offsetX = event.clientX - rect.left;
-                offsetY = event.clientY - rect.top;
-                startX = event.clientX;
-                startY = event.clientY;
-                document.addEventListener('pointermove', onMove);
-                document.addEventListener('pointerup', onUp);
-            });
-        }
-
-        settings = loadSettings();
-        styles = loadStyles();
-        background = loadBackground();
-        chatHistory = loadHistory();
-        applyStyles();
-        applyBackground();
-        restoreGearPosition();
-        enableGearDrag();
-        window.addEventListener('resize', () => {
-            if (!gearPositionLocked) {
-                positionGearDefault();
-            }
-        });
-        if ('speechSynthesis' in window) {
-            loadVoices();
-            speechSynthesis.addEventListener('voiceschanged', loadVoices);
-        }
-        updateControls();
-        renderChat();
-
-        speakerToggle.addEventListener('click', () => {
-            settings.activeSpeaker = settings.activeSpeaker === 'local' ? 'peer' : 'local';
-            updateSpeakerIndicator();
-            saveSettings();
+            var ov=document.getElementById('ask-'+s);
+            ov.querySelector('.ask-ok').addEventListener('click',function(){resolveAsk(true)});
+            ov.querySelector('.ask-no').addEventListener('click',function(){resolveAsk(false)});
         });
 
-        gearFab.addEventListener('click', () => {
-            if (gearWasDragged) {
-                gearWasDragged = false;
-                return;
-            }
-            toggleModal(true);
+        document.getElementById('dg-close').addEventListener('click',function(){
+            document.getElementById('diag-panel').classList.remove('show')});
+        document.getElementById('dg-copy').addEventListener('click',function(){
+            var b=this;navigator.clipboard.writeText(diagLines.slice().reverse().join('\n'))
+                .then(function(){b.textContent='Copied!';setTimeout(function(){b.textContent='Copy'},1400)}).catch(function(){});
         });
-        closeControls.addEventListener('click', () => toggleModal(false));
-        controlsModal.addEventListener('click', event => {
-            if (event.target === controlsModal) toggleModal(false);
-        });
-
-        localSend.addEventListener('click', () => handleSubmit(localInput, 'local'));
-        localTtsToggle.addEventListener('click', () => {
-            settings.ttsEnabledLocal = !settings.ttsEnabledLocal;
-            updateTtsToggle(localTtsToggle, settings.ttsEnabledLocal);
-            saveSettings();
-        });
-        peerTtsToggle.addEventListener('click', () => {
-            settings.ttsEnabledPeer = !settings.ttsEnabledPeer;
-            updateTtsToggle(peerTtsToggle, settings.ttsEnabledPeer);
-            saveSettings();
+        document.getElementById('dg-clear').addEventListener('click',function(){diagLines=[];renderDiag()});
+        document.getElementById('dg-dl').addEventListener('click',function(){
+            var blob=new Blob([diagLines.slice().reverse().join('\n')],{type:'text/plain'});
+            var a=document.createElement('a');a.href=URL.createObjectURL(blob);
+            a.download='duck-diag-'+new Date().toISOString().slice(0,19).replace(/:/g,'-')+'.txt';
+            a.click();setTimeout(function(){URL.revokeObjectURL(a.href)},3000);
         });
 
-        localInput.addEventListener('keydown', event => {
-            if (event.key === 'Enter' && !event.shiftKey) {
-                event.preventDefault();
-                handleSubmit(localInput, 'local');
-            }
-        });
+        renderAll();
+        setTimeout(function(){try{loadFastText()}catch(e){}},1200);
+        diag('chat.html ready — room='+ROOM.label+' south='+ROOM.southLang+' north='+ROOM.northLang);
+        if(!dgKey())diag('no Deepgram key set — configure it in chat-admin',true);
+    }
+    if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',boot);else boot();
 
-        localInput.addEventListener('input', () => handleTyping(localInput, 'local'));
-
-        initPeerRecognizer();
-        if (peerTalk) {
-            peerTalk.addEventListener('click', () => {
-                if (!peerRecognizer) return;
-                if (peerListening) {
-                    peerRecognizer.stop();
-                    return;
-                }
-                peerRecognizer.lang = settings.peerLanguage || 'en';
-                peerRecognizer.start();
-            });
-        }
-
-        peerLanguageSelect.addEventListener('change', () => {
-            settings.peerLanguage = peerLanguageSelect.value;
-            saveSettings();
-            updateVoiceSelectors();
-            renderChat();
-        });
-        localLanguageSelect.addEventListener('change', () => {
-            settings.localLanguage = localLanguageSelect.value;
-            saveSettings();
-            updateVoiceSelectors();
-            renderChat();
-        });
-
-        typingPauseInput.addEventListener('change', () => {
-            const value = Number(typingPauseInput.value);
-            if (Number.isFinite(value) && value > 0) {
-                settings.typingPauseMs = Math.min(10000, Math.max(1000, Math.round(value * 1000)));
-                saveSettings();
-            }
-        });
-
-        localVoiceSelect.addEventListener('change', () => {
-            settings.localVoice = localVoiceSelect.value;
-            saveSettings();
-        });
-        peerVoiceSelect.addEventListener('change', () => {
-            settings.peerVoice = peerVoiceSelect.value;
-            saveSettings();
-        });
-
-        styleReset.addEventListener('click', () => {
-            styles = { ...DEFAULT_STYLES };
-            background = { ...DEFAULT_BACKGROUND };
-            applyStyles();
-            applyBackground();
-            updateControls();
-            saveStyles();
-            saveBackground();
-        });
-
-        styleSave.addEventListener('click', () => {
-            const clampFontSize = (value, fallback) => {
-                const numberValue = Number(value);
-                if (!Number.isFinite(numberValue)) return fallback;
-                return Math.min(48, Math.max(10, Math.round(numberValue)));
-            };
-            styles = {
-                localBg: styleLocalBg.value,
-                localText: styleLocalText.value,
-                peerBg: stylePeerBg.value,
-                peerText: stylePeerText.value,
-                localFontSize: clampFontSize(styleLocalFontSize.value, DEFAULT_STYLES.localFontSize),
-                peerFontSize: clampFontSize(stylePeerFontSize.value, DEFAULT_STYLES.peerFontSize)
-            };
-            background = {
-                localColor: styleLocalBgPanel.value,
-                peerColor: stylePeerBgPanel.value
-            };
-            applyStyles();
-            applyBackground();
-            updateControls();
-            saveStyles();
-            saveBackground();
-        });
-
-        [peerTranscript, localTranscript].forEach(column => {
-            if (!column) return;
-            column.addEventListener('click', event => {
-                const target = event.target;
-                if (!(target instanceof HTMLElement)) return;
-                if (target.classList.contains('bubble-delete')) {
-                    deleteEntryById(target.dataset.entryId);
-                }
-            });
-        });
-
-        drawerImport.addEventListener('click', () => drawerImportInput.click());
-        drawerImportInput.addEventListener('change', event => {
-            const file = event.target.files?.[0];
-            if (file) {
-                importChat(file);
-                drawerImportInput.value = '';
-            }
-        });
-
-        drawerExport.addEventListener('click', () => exportChat());
-        drawerClear.addEventListener('click', () => {
-            exportChat();
-            clearChat();
-        });
-    </script>
+    if(typeof window!=="undefined"){window.INPUT=INPUT;window.mic=mic;window.requestInput=requestInput;
+        window.teardown=teardown;window.acquire=acquire;window.resolveAsk=resolveAsk;window.sendFrom=sendFrom;
+        Object.defineProperty(window,"pendingReq",{get:function(){return pendingReq}});
+        window.detectByScript=detectByScript;window.applyNorthernThaiMap=applyNorthernThaiMap;
+        window.resolveEffectiveLang=resolveEffectiveLang;window.normalizeOutgoing=normalizeOutgoing;
+        window.detectLangAsync=detectLangAsync;window.loadFastText=loadFastText;
+        window.sideAsRoom=sideAsRoom;window.ROOM=ROOM;window.translateWithRetry=translateWithRetry;
+        window.renderAll=renderAll;window.debugLog=debugLog;window.MIC_IDLE_MS=MIC_IDLE_MS;
+        window.dgUseDual=dgUseDual;window.dgUseMulti=dgUseMulti;window.dgLangParam=dgLangParam;
+        window.dgArbitrateNative=dgArbitrateNative;window.dgArbitrateEnglish=dgArbitrateEnglish;
+        window.setFtForTest=function(impl){_ft=impl;_ftFailed=!impl;_ftPromise=Promise.resolve(impl)};
+        Object.defineProperty(window,"HIST",{get:function(){return HIST}});}
+})();
+</script>
 </body>
 </html>
