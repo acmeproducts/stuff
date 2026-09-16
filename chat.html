@@ -1252,6 +1252,39 @@ function dgLangParam(room) {
         });
         paintCands(side);
     }
+    /* Track A: real autocomplete, reading the SAME asset chat-admin's download
+       button writes (duck_dict_<lang> in localStorage). No dictionary = no
+       suggestions, silently — this must never block typing or throw. */
+    var dictCache={};
+    function getDict(lang){
+        if(dictCache[lang]!==undefined)return dictCache[lang];
+        var raw=null;try{raw=localStorage.getItem('duck_dict_'+lang)}catch(e){}
+        if(!raw){dictCache[lang]=null;return null}
+        try{dictCache[lang]=JSON.parse(raw)}catch(e){dictCache[lang]=null}
+        return dictCache[lang];
+    }
+    function currentWordFragment(side){
+        var ta=inputEl(side);if(!ta)return'';
+        var s=ta.selectionStart,text=ta.value.slice(0,s);
+        var m=text.match(/[^\s]*$/);
+        return m?m[0]:'';
+    }
+    function updateAutocomplete(side){
+        if(comp[side].ko||comp[side].raw||comp[side].kana)return;   // IME composition owns the bar
+        var lang=langOf(side);
+        var dict=getDict(lang);
+        if(!dict){if(cands[side].length){cands[side]=[];candIdx[side]=-1;paintCands(side)}return}
+        var frag=currentWordFragment(side);
+        if(!frag||frag.length<2){if(cands[side].length){cands[side]=[];candIdx[side]=-1;paintCands(side)}return}
+        var lower=frag.toLowerCase();
+        var out=[];
+        for(var i=0;i<dict.length&&out.length<5;i++){
+            if(dict[i].toLowerCase().indexOf(lower)===0)out.push(dict[i]);
+        }
+        cands[side]=out;candIdx[side]=-1;acFragLen[side]=frag.length;paintCands(side);
+    }
+    var acFragLen={south:0,north:0};
+
     function compText(side){
         var c=comp[side];
         if(c.ko)return hgSyll(c.ko);
@@ -1320,11 +1353,11 @@ function dgLangParam(room) {
                 comp[side].kana=romajiToKana(comp[side].raw.slice(0,comp[side].raw.length-romajiTail(comp[side].raw).length));
                 cands[side]=[];candIdx[side]=-1;paintCands(side);paintComp(side,prev);return;
             }
-            backspaceAt(side);return;
+            backspaceAt(side);updateAutocomplete(side);return;
         }
         if(k===' '){
             if(ime==='ja'&&(comp[side].raw||comp[side].kana)){convertJa(side);return}
-            flushComp(side);insertAt(side,' ');return;
+            flushComp(side);insertAt(side,' ');cands[side]=[];candIdx[side]=-1;paintCands(side);return;
         }
         var prevLen=compText(side).length;
         if(ime==='ko'){
@@ -1348,12 +1381,19 @@ function dgLangParam(room) {
         flushComp(side);
         insertAt(side,k);
         if(shifted[side]&&String(k).length===1){shifted[side]=false;renderKeys(side)}
+        updateAutocomplete(side);
     }
     function pickCand(side,i){
         var c=cands[side][i];if(c==null)return;
-        var cur=compText(side).length;
-        comp[side]={raw:'',kana:'',ko:null};
-        if(cur)replaceComp(side,cur,c);else insertAt(side,c);
+        var comping=comp[side].ko||comp[side].raw||comp[side].kana;
+        if(comping){
+            var cur=compText(side).length;
+            comp[side]={raw:'',kana:'',ko:null};
+            if(cur)replaceComp(side,cur,c);else insertAt(side,c);
+        }else{
+            /* Track A autocomplete: replace the fragment being typed, add a space */
+            replaceComp(side,acFragLen[side]||0,c+' ');
+        }
         cands[side]=[];candIdx[side]=-1;paintCands(side);
     }
     function convertJa(side){
@@ -1491,7 +1531,7 @@ function dgLangParam(room) {
         window.detectByScript=detectByScript;window.applyNorthernThaiMap=applyNorthernThaiMap;
         window.resolveEffectiveLang=resolveEffectiveLang;window.normalizeOutgoing=normalizeOutgoing;
         window.detectLangAsync=detectLangAsync;window.loadFastText=loadFastText;
-        window.sideAsRoom=sideAsRoom;window.ROOM=ROOM;window.translateWithRetry=translateWithRetry;
+        window.sideAsRoom=sideAsRoom;window.ROOM=ROOM;window.translateWithRetry=translateWithRetry;window.press=press;window.cands=cands;window.pickCand=pickCand;window.getDict=getDict;window.updateAutocomplete=updateAutocomplete;window.comp=comp;window.langOf=langOf;
         window.renderAll=renderAll;window.debugLog=debugLog;window.MIC_IDLE_MS=MIC_IDLE_MS;
         window.dgUseDual=dgUseDual;window.dgUseMulti=dgUseMulti;window.dgLangParam=dgLangParam;
         window.dgArbitrateNative=dgArbitrateNative;window.dgArbitrateEnglish=dgArbitrateEnglish;
