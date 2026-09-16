@@ -1620,13 +1620,47 @@ function dgLangParam(room) {
        suggestions, silently — this must never block typing or throw. */
     var LEARN_MARK='\u2795';
     var dictCache={};
-    function userDict(lang){try{return JSON.parse(localStorage.getItem('duck_userdict_'+lang)||'[]')}catch(e){return[]}}
+    /* CENTRAL learning dictionary: dict/learned/<lang>.json in the repo.
+       A learned word is written there (read-modify-write via the GitHub API
+       with the PAT chat-admin stores), so it exists for every device and every
+       room. The local copy is a cache of the central file, refreshed on load
+       and after each write; it is not a device-private list. */
+    var LEARNED_API='https://api.github.com/repos/acmeproducts/stuff/contents/dict/learned/';
+    function userDict(lang){try{return JSON.parse(localStorage.getItem('duck_learned_'+lang)||'[]')}catch(e){return[]}}
+    function setUserDict(lang,arr){try{localStorage.setItem('duck_learned_'+lang,JSON.stringify(arr))}catch(e){}delete dictCache[lang]}
+    function ghPat(){try{return localStorage.getItem('duck_gh_pat')||''}catch(e){return ''}}
+    function b64utf8(s){return btoa(unescape(encodeURIComponent(s)))}
+    function utf8b64(s){return decodeURIComponent(escape(atob(s.replace(/\n/g,''))))}
+    function syncLearned(lang){
+        var pat=ghPat();if(!pat)return Promise.resolve(userDict(lang));
+        return fetch(LEARNED_API+lang+'.json',{headers:{'Authorization':'Bearer '+pat}})
+            .then(function(r){return r.ok?r.json():null})
+            .then(function(j){
+                if(!j||!j.content)return userDict(lang);
+                var arr=[];try{arr=JSON.parse(utf8b64(j.content))}catch(e){}
+                if(!Array.isArray(arr))arr=[];
+                setUserDict(lang,arr);return arr;
+            }).catch(function(){return userDict(lang)});
+    }
     function learnWord(lang,word){
-        var u=userDict(lang);word=String(word||'').trim();if(!word)return;
-        if(u.indexOf(word)<0){u.unshift(word);try{localStorage.setItem('duck_userdict_'+lang,JSON.stringify(u.slice(0,2000)))}catch(e){}}
-        delete dictCache[lang];
+        word=String(word||'').trim();if(!word)return;
+        var local=userDict(lang);
+        if(local.indexOf(word)<0){local.unshift(word);setUserDict(lang,local)}   // immediate on this device
         remoteLog('dict_learn',{lang:lang,word:word});
-        toastMsg('Added "'+word+'"');
+        var pat=ghPat();
+        if(!pat){toastMsg('Added locally — set the GitHub PAT in chat-admin to share'); return}
+        var url=LEARNED_API+lang+'.json';
+        fetch(url,{headers:{'Authorization':'Bearer '+pat}})
+            .then(function(r){return r.ok?r.json():null})
+            .then(function(j){
+                var arr=[],sha;
+                if(j&&j.content){try{arr=JSON.parse(utf8b64(j.content))}catch(e){arr=[]}sha=j.sha}
+                if(!Array.isArray(arr))arr=[];
+                if(arr.indexOf(word)<0)arr.unshift(word);
+                var body={message:'learn '+lang+': '+word,content:b64utf8(JSON.stringify(arr))};if(sha)body.sha=sha;
+                return fetch(url,{method:'PUT',headers:{'Authorization':'Bearer '+pat,'Content-Type':'application/json'},body:JSON.stringify(body)})
+                    .then(function(r){if(!r.ok)throw new Error('HTTP '+r.status);setUserDict(lang,arr);toastMsg('Added "'+word+'" to the shared dictionary')});
+            }).catch(function(e){toastMsg('Added locally; shared write failed ('+e.message+')');diag('learned-dict write failed: '+e.message,true)});
     }
     function getDict(lang){
         if(dictCache[lang])return dictCache[lang];
@@ -1912,6 +1946,7 @@ function dgLangParam(room) {
 
         renderAll();
         setTimeout(function(){try{loadFastText()}catch(e){}},1200);
+        [langOf('south'),langOf('north')].forEach(function(l){syncLearned(l)});
         document.addEventListener('visibilitychange',function(){if(document.hidden)flushRemoteLog()});
         window.addEventListener('pagehide',flushRemoteLog);
         window.addEventListener('error',function(e){remoteLog('js_error',{msg:e.message,line:e.lineno,file:e.filename})});
@@ -1926,7 +1961,7 @@ function dgLangParam(room) {
         window.detectByScript=detectByScript;window.applyNorthernThaiMap=applyNorthernThaiMap;
         window.resolveEffectiveLang=resolveEffectiveLang;window.normalizeOutgoing=normalizeOutgoing;
         window.detectLangAsync=detectLangAsync;window.loadFastText=loadFastText;
-        window.sideAsRoom=sideAsRoom;window.ROOM=ROOM;window.translateWithRetry=translateWithRetry;window.press=press;window.cands=cands;window.pickCand=pickCand;window.getDict=getDict;window.updateAutocomplete=updateAutocomplete;window.comp=comp;window.langOf=langOf;window.swype=swype;window.resolveSwype=resolveSwype;window.keyRectsFor=keyRectsFor;window.wireKeyboard=wireKeyboard;window.haptic=haptic;window.swRecognize=swRecognize;window.swResample=swResample;window.swypeWarned=swypeWarned;
+        window.sideAsRoom=sideAsRoom;window.ROOM=ROOM;window.translateWithRetry=translateWithRetry;window.press=press;window.cands=cands;window.pickCand=pickCand;window.getDict=getDict;window.updateAutocomplete=updateAutocomplete;window.comp=comp;window.langOf=langOf;window.swype=swype;window.resolveSwype=resolveSwype;window.keyRectsFor=keyRectsFor;window.wireKeyboard=wireKeyboard;window.haptic=haptic;window.swRecognize=swRecognize;window.syncLearned=syncLearned;window.swResample=swResample;window.swypeWarned=swypeWarned;
         window.renderAll=renderAll;window.debugLog=debugLog;window.MIC_IDLE_MS=MIC_IDLE_MS;window.getDiagLines=function(){return diagLines};
         window.dgUseDual=dgUseDual;window.dgUseMulti=dgUseMulti;window.dgLangParam=dgLangParam;
         window.dgArbitrateNative=dgArbitrateNative;window.dgArbitrateEnglish=dgArbitrateEnglish;
