@@ -64,9 +64,9 @@ body{display:flex;flex-direction:column}
 /* keyboard — 44px minimum, may take up to 50vh */
 .kb{flex:0 0 auto;max-height:0;overflow:hidden;background:#f1f5f9;transition:max-height .18s ease}
 .kb.open{max-height:50vh;border-top:1px solid rgba(203,213,225,.9)}
-.kbin{padding:4px}
+.kbin{padding:4px;max-height:50vh;overflow-y:auto;display:flex;flex-direction:column}
 .klang{font-size:11px;font-weight:700;color:#64748b;padding:2px 4px 4px}
-.kcands{display:none;gap:5px;overflow-x:auto;padding:0 4px 5px}
+.kcands{display:none;gap:5px;overflow-x:auto;padding:0 4px 5px;flex:0 0 auto;min-height:36px;align-items:center}
 .kcands::-webkit-scrollbar{display:none}
 .kcand{flex:0 0 auto;padding:7px 12px;border-radius:9px;border:1px solid rgba(203,213,225,.9);background:#fff;font-size:16px;min-height:36px}
 .kcand.on{background:linear-gradient(135deg,rgba(96,165,250,.95),rgba(59,130,246,.95));color:#fff;border-color:transparent}
@@ -1365,10 +1365,14 @@ function dgLangParam(room) {
        suggestions, silently — this must never block typing or throw. */
     var dictCache={};
     function getDict(lang){
-        if(dictCache[lang]!==undefined)return dictCache[lang];
+        // Only trust the cache for a POSITIVE result. A null/missing result is
+        // re-checked every call — cheap, and fixes the real case where a
+        // dictionary downloads in chat-admin AFTER this tab already checked
+        // once and cached "not found".
+        if(dictCache[lang])return dictCache[lang];
         var raw=null;try{raw=localStorage.getItem('duck_dict_'+lang)}catch(e){}
-        if(!raw){dictCache[lang]=null;return null}
-        try{dictCache[lang]=JSON.parse(raw)}catch(e){dictCache[lang]=null}
+        if(!raw)return null;
+        try{dictCache[lang]=JSON.parse(raw)}catch(e){return null}
         return dictCache[lang];
     }
     function currentWordFragment(side){
