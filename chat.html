@@ -75,8 +75,11 @@ body{display:flex;flex-direction:column}
 .krow{display:flex;gap:4px;margin-bottom:4px}
 .key{flex:1 1 0;min-width:0;height:44px;border-radius:7px;border:1px solid rgba(203,213,225,.9);
   background:#fff;box-shadow:0 1px 0 rgba(15,23,42,.10);font-size:17px;color:#0f172a;padding:0;
-  display:inline-flex;align-items:center;justify-content:center}
-.key:active{background:#dbeafe}
+  display:inline-flex;align-items:center;justify-content:center;
+  touch-action:none;user-select:none;-webkit-user-select:none;
+  transition:transform .04s ease,background .04s ease}
+.key.pressed{background:#dbeafe;transform:scale(0.92);box-shadow:none}
+.key.swyping{background:#bfdbfe}
 .key.fn{flex:1.3 1 0;font-size:13px;font-weight:600;color:#475569;background:#e2e8f0}
 .key.space{flex:4 1 0;font-size:13px}
 .key.enter{flex:1.7 1 0;background:linear-gradient(135deg,rgba(96,165,250,.95),rgba(59,130,246,.95));
@@ -1281,12 +1284,8 @@ function dgLangParam(room) {
         el.querySelector('.kkeys').innerHTML=html+'<svg class="swype-trail" id="trail-'+side+'"></svg>';
         el.querySelector('.klang').textContent=(LANG_NAMES[langOf(side)]||langOf(side))+
             (langOf(side)==='ja'?' · romaji→kana':(langOf(side)==='ko'?' · 두벌식':''));
-        el.querySelectorAll('.key').forEach(function(b){
-            b.addEventListener('pointerdown',function(e){e.preventDefault()});
-            b.addEventListener('click',function(e){e.preventDefault();press(side,b.dataset.k)});
-        });
+        wireKeyboard(side);
         paintCands(side);
-        wireSwype(side);
     }
 
     /* ================= B3: SWYPE — real gesture recognition over the real keys =================
@@ -1329,61 +1328,97 @@ function dgLangParam(room) {
         t.innerHTML='<path d="'+d+'" fill="none" stroke="#3b82f6" stroke-width="5" stroke-linecap="round" stroke-linejoin="round" opacity="0.85"/>'+
             swype.pts.map(function(p){return '<circle cx="'+(p.x-r.left)+'" cy="'+(p.y-r.top)+'" r="3" fill="#3b82f6"/>'}).join('');
     }
-    function wireSwype(side){
+    /* ================= UNIFIED KEYBOARD INPUT =================
+       ONE handler chain per key, pointerdown-driven (not click — click waits
+       for the full release cycle and reads as dead on mobile). Every press
+       gets immediate visual feedback (.pressed class) and haptic feedback
+       (navigator.vibrate) the instant the finger lands, matching how a real
+       device keyboard feels. Swipe is not a bolted-on second system watching
+       the same element — it's the same pointerdown/move/up sequence deciding,
+       per gesture, whether it stayed a tap or became a swipe. */
+    var HAPTIC_TAP=8, HAPTIC_SWYPE_TICK=4;
+    function haptic(ms){try{navigator.vibrate&&navigator.vibrate(ms)}catch(e){}}
+
+    function wireKeyboard(side){
         var el=kbEl(side);if(!el)return;
         var kkeys=el.querySelector('.kkeys');if(!kkeys)return;
         var rects=[];
-        var pid=null;   // the ONE pointerId we track; every other pointer is ignored,
-                         // which is what stops a normal tap from ever entering swipe state
+        var pid=null, downBtn=null, downX=0, downY=0, isSwype=false, lastSwypeKey=null;
 
         kkeys.addEventListener('pointerdown',function(e){
-            var lang=langOf(side);
-            if(!getDict(lang))return;
-            if(numMode[side])return;
-            if(comp[side].ko||comp[side].raw||comp[side].kana)return;
             var target=e.target.closest('.key[data-k]');
             if(!target)return;
+            e.preventDefault();
+            pid=e.pointerId;downBtn=target;downX=e.clientX;downY=e.clientY;isSwype=false;lastSwypeKey=null;
+            target.classList.add('pressed');
+            haptic(HAPTIC_TAP);                          // fires immediately on contact, not on release
+            kkeys.setPointerCapture&&kkeys.setPointerCapture(pid);
+
             var k=target.dataset.k;
-            if(k.length!==1||!/[a-zA-Z]/.test(k))return;
-            rects=keyRectsFor(side);
-            if(rects.length<2)return;
-            // do NOT decide swipe-vs-tap yet — a single tap must still reach press().
-            // Only start tracking; commit to "this was a swipe" in pointerup, based on
-            // whether the finger actually travelled.
-            pid=e.pointerId;
-            swype.side=side;swype.pts=[{x:e.clientX,y:e.clientY}];swype.letters=[k.toLowerCase()];
-            swype.active=false;   // becomes true only once real movement is observed
-        });
+            var swypeEligible = k.length===1 && /[a-zA-Z]/.test(k) &&
+                !numMode[side] && !(comp[side].ko||comp[side].raw||comp[side].kana) && getDict(langOf(side));
+            if(swypeEligible){
+                rects=keyRectsFor(side);
+                swype.side=side;swype.pts=[{x:e.clientX,y:e.clientY}];swype.letters=[k.toLowerCase()];
+                swype.active=false;
+            }else{
+                swype.pts=[];   // not swype-eligible from this key — tap only
+            }
+        },{passive:false});
+
         kkeys.addEventListener('pointermove',function(e){
-            if(e.pointerId!==pid||swype.side!==side)return;
-            var dx=e.clientX-swype.pts[0].x, dy=e.clientY-swype.pts[0].y;
-            if(!swype.active&&(dx*dx+dy*dy)<144)return;   // <12px of movement = still a tap, ignore
+            if(e.pointerId!==pid)return;
+            var dx=e.clientX-downX, dy=e.clientY-downY;
+            var moved=(dx*dx+dy*dy)>=144;   // 12px threshold — matches native keyboard slop
+
+            // live key-to-key visual tracking, tap OR swipe in progress
+            var overEl=document.elementFromPoint(e.clientX,e.clientY);
+            var overKey=overEl&&overEl.closest('.key[data-k]');
+            if(downBtn&&overKey!==downBtn){
+                if(downBtn)downBtn.classList.remove('pressed');
+                downBtn=overKey;
+                if(downBtn)downBtn.classList.add('pressed');
+            }
+
+            if(!moved||!swype.pts.length)return;
             if(!swype.active){
-                swype.active=true;
-                e.preventDefault();                        // NOW claim the gesture from the browser —
-                el.setPointerCapture&&el.setPointerCapture(pid);  // not on every tap, only real swipes
+                swype.active=true;isSwype=true;
+                if(downBtn)downBtn.classList.remove('pressed');
             }
             swype.pts.push({x:e.clientX,y:e.clientY});paintTrail(side);
             var nk=nearestKey(rects,e.clientX,e.clientY);
-            if(nk&&swype.letters[swype.letters.length-1]!==nk.k)swype.letters.push(nk.k);
+            if(nk&&nk.k!==lastSwypeKey){
+                lastSwypeKey=nk.k;
+                swype.letters.push(nk.k);
+                haptic(HAPTIC_SWYPE_TICK);              // small tick per letter crossed, like real gesture typing
+                var kb=el.querySelector('.key[data-k="'+nk.k.toUpperCase()+'"],.key[data-k="'+nk.k+'"]');
+                if(kb){kb.classList.add('swyping');setTimeout(function(){kb.classList.remove('swyping')},120)}
+            }
         },{passive:false});
-        function endSwype(e){
-            if(e.pointerId!==pid||swype.side!==side)return;
-            var wasSwipe=swype.active;
-            pid=null;swype.active=false;
-            if(wasSwipe){
+
+        function finish(e){
+            if(e.pointerId!==pid)return;
+            if(downBtn)downBtn.classList.remove('pressed');
+            var wasSwype=isSwype;
+            pid=null;isSwype=false;
+
+            if(wasSwype){
+                swype.active=false;
                 remoteLog('swype_attempt',{side:side,pts:swype.pts.length,letters:swype.letters.join('')});
-                if(swype.pts.length>=4&&swype.letters.length>=2)resolveSwype(side);
+                if(swype.pts.length>=4&&swype.letters.length>=2){haptic(HAPTIC_TAP);resolveSwype(side)}
                 else remoteLog('swype_too_short',{pts:swype.pts.length,letters:swype.letters.length});
                 swype.pts=[];swype.letters=[];clearTrail(side);
+            }else if(downBtn){
+                press(side,downBtn.dataset.k);           // plain tap — fires on release, same as before
             }
-            // if it was never a swipe, we changed nothing — the browser's own click
-            // event fires normally and press() runs exactly as before
+            downBtn=null;
         }
-        kkeys.addEventListener('pointerup',endSwype);
+        kkeys.addEventListener('pointerup',finish);
         kkeys.addEventListener('pointercancel',function(e){
             if(e.pointerId!==pid)return;
-            pid=null;swype.active=false;swype.pts=[];swype.letters=[];clearTrail(side);
+            if(downBtn)downBtn.classList.remove('pressed');
+            pid=null;isSwype=false;downBtn=null;
+            swype.active=false;swype.pts=[];swype.letters=[];clearTrail(side);
         });
     }
     /* Score every dictionary word against the letter sequence the finger
@@ -1723,7 +1758,7 @@ function dgLangParam(room) {
         window.detectByScript=detectByScript;window.applyNorthernThaiMap=applyNorthernThaiMap;
         window.resolveEffectiveLang=resolveEffectiveLang;window.normalizeOutgoing=normalizeOutgoing;
         window.detectLangAsync=detectLangAsync;window.loadFastText=loadFastText;
-        window.sideAsRoom=sideAsRoom;window.ROOM=ROOM;window.translateWithRetry=translateWithRetry;window.press=press;window.cands=cands;window.pickCand=pickCand;window.getDict=getDict;window.updateAutocomplete=updateAutocomplete;window.comp=comp;window.langOf=langOf;window.swype=swype;window.resolveSwype=resolveSwype;window.swypeScore=swypeScore;window.keyRectsFor=keyRectsFor;
+        window.sideAsRoom=sideAsRoom;window.ROOM=ROOM;window.translateWithRetry=translateWithRetry;window.press=press;window.cands=cands;window.pickCand=pickCand;window.getDict=getDict;window.updateAutocomplete=updateAutocomplete;window.comp=comp;window.langOf=langOf;window.swype=swype;window.resolveSwype=resolveSwype;window.swypeScore=swypeScore;window.keyRectsFor=keyRectsFor;window.wireKeyboard=wireKeyboard;window.haptic=haptic;
         window.renderAll=renderAll;window.debugLog=debugLog;window.MIC_IDLE_MS=MIC_IDLE_MS;
         window.dgUseDual=dgUseDual;window.dgUseMulti=dgUseMulti;window.dgLangParam=dgLangParam;
         window.dgArbitrateNative=dgArbitrateNative;window.dgArbitrateEnglish=dgArbitrateEnglish;
