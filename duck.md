@@ -16,6 +16,7 @@ turn from Turn 22 on: `chat-turnNN-STAGE.html` + `chat-admin-turnNN-STAGE.html`)
 | Turn·Stage | Release | Status | Artifact |
 |---|---|---|---|
 | 20·post-ship | Bridge-core engine (byte-verified) + ownership switch + 44px keyboard + dual-socket arbitration + mic idle release. | **ACCEPTED BASELINE — proven working for both South and North.** | https://acmeproducts.github.io/stuff/duck-turn20-post-ship.html (= `duck.html`) |
+| 23·base | Keyboard engineered rebuild (§3 items 1–21): SHARK2 recognizer, 48px keys, key-preview popup, haptics. | **BUILT — awaiting real-device test** | https://acmeproducts.github.io/stuff/chat-turn23-base.html |
 | 22·pre-base | Two-file split: `chat.html` (stateless shell, `?room=` required) + `chat-admin.html` (room create/edit/delete/restore, keys, font colour+size). All 6 gates pass — engine byte-identical (16/16), switch harness (25/25), no room/key code in chat.html, no-room gate present, never writes rooms_index. | **SHIPPED as pre-base — awaiting real-device test** | https://acmeproducts.github.io/stuff/chat.html · https://acmeproducts.github.io/stuff/chat-admin.html |
 
 Turns 20·base through 20·ship, and the two rejected Turn 21 candidates, are
@@ -188,8 +189,11 @@ not resequenced by this update.
 
 ## 3 · KEYBOARD — ENGINEERED REBUILD SPEC (Turn 23)
 
-Status: **PROPOSED — awaiting owner approval.** Supersedes every prior keyboard,
-swipe, and haptic item in §2 Track A. Nothing below is built yet.
+Status: **APPROVED (items 1–21) and BUILT — Turn 23·base, awaiting real-device test.**
+Artifact: https://acmeproducts.github.io/stuff/chat-turn23-base.html (= `chat.html`).
+Harness: recognizer fixture 22/22 top-1 (gate 18 ≥90% top-4); gates 19–21 pass;
+switch 25/25, autocomplete 5/5, listener-dup 4/4, keyboard 7/7. Items 15–17 are
+hardware-only and unverified by harness, per item 22.
 
 ### 3.1 Findings (facts, verified in code — not theory)
 
