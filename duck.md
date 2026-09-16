@@ -140,6 +140,21 @@ per-language word list, assigned per room in chat-admin.
 
 **Chinese is explicitly excluded from Track A** — see Track B.
 
+**Shipped to chat-admin.html (2026-09-16):** per-room dictionary status UI —
+detects whether this browser has downloaded the word-list asset for each of a
+room's two languages (checked against `localStorage`, not an OS-level query —
+no browser API can truthfully answer "is a dictionary installed on this
+device," so this checks the thing chat.html's autocomplete/swype will actually
+read), shows Ready/Not downloaded per language, Download button on missing
+ones. zh/ko/ja correctly produce no row.
+
+**Real gap, stated plainly: the dictionary asset files themselves
+(`dict/<lang>.json`) do not exist yet.** The download mechanism is real and
+will correctly fail with a Retry button rather than silently succeed — but
+until the files are published, every language shows "Not downloaded" and
+stays that way. Publishing the word lists is the next piece of Track A, not
+yet done.
+
 ### TRACK B · Composed-script input (Chinese first) — after Track A ships
 
 Simplified Chinese (pinyin → ranked candidate selection) is not a bigger
