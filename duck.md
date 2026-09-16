@@ -113,6 +113,14 @@ Mic icon shows muted on both sides by default (matches bridge's visual state).
 This replaces the current 6s-flat-timer placeholder entirely. Build target,
 not exploration — no longer "revisit later."
 
+**Also shipped 2026-09-16 (bundled with Track A per owner instruction):**
+Chrome's save-password prompt on chat-admin's Deepgram/PAT key fields — root
+cause was `type="password"` combined with `autocomplete="new-password"`,
+which is exactly Chrome's own trigger for offering to save a credential.
+Neither field is a login; both are opaque tokens. Fixed with a plain
+text-type field using the readonly-until-focus pattern, the one suppression
+Chrome reliably honors.
+
 ### TRACK A · Dictionary-backed input, non-composing languages — build next
 
 **B2 (autocomplete) + B3 (swype) + B5 (keyboard localization) collapse into one
