@@ -1339,9 +1339,31 @@ function dgLangParam(room) {
     var HAPTIC_TAP=8, HAPTIC_SWYPE_TICK=4;
     function haptic(ms){try{navigator.vibrate&&navigator.vibrate(ms)}catch(e){}}
 
+    /* Update key GLYPHS for a shift-state change without touching listeners.
+       renderKeys()/wireKeyboard() rebuild everything and are for keyboard OPEN,
+       language change, or explicit shift TAP — never for auto-lowercase after
+       a single letter, which happens on nearly every keystroke and must not
+       re-attach input handlers mid-typing. */
+    function relabelKeysOnly(side){
+        var el=kbEl(side);if(!el)return;
+        var rows=layoutFor(side);
+        var flat=[];rows.forEach(function(r){flat=flat.concat(r)});
+        var i=0;
+        el.querySelectorAll('.kkeys .key:not(.fn):not(.space):not(.enter)').forEach(function(btn){
+            if(i>=flat.length)return;
+            var k=flat[i++];
+            btn.dataset.k=String(k);
+            btn.textContent=String(k).replace(/[&<>]/g,'');
+        });
+    }
     function wireKeyboard(side){
         var el=kbEl(side);if(!el)return;
-        var kkeys=el.querySelector('.kkeys');if(!kkeys)return;
+        var oldKkeys=el.querySelector('.kkeys');if(!oldKkeys)return;
+        // idempotent: cloning drops any listeners a previous wireKeyboard call
+        // left attached, so calling this twice can never stack duplicate
+        // pointerdown/move/up handlers on the same element.
+        var kkeys=oldKkeys.cloneNode(true);
+        oldKkeys.parentNode.replaceChild(kkeys,oldKkeys);
         var rects=[];
         var pid=null, downBtn=null, downX=0, downY=0, isSwype=false, lastSwypeKey=null;
 
@@ -1599,12 +1621,15 @@ function dgLangParam(room) {
             comp[side].kana=romajiToKana(comp[side].raw.slice(0,comp[side].raw.length-tail.length));
             cands[side]=[];candIdx[side]=-1;paintCands(side);
             paintComp(side,prevLen);
-            if(shifted[side]){shifted[side]=false;renderKeys(side)}
+            if(shifted[side]){shifted[side]=false;relabelKeysOnly(side)}
             return;
         }
         flushComp(side);
         insertAt(side,k);
-        if(shifted[side]&&String(k).length===1){shifted[side]=false;renderKeys(side)}
+        if(shifted[side]&&String(k).length===1){
+            shifted[side]=false;
+            relabelKeysOnly(side);   // visual-only: no listener re-attachment, no full rebuild
+        }
         updateAutocomplete(side);
     }
     function pickCand(side,i){
