@@ -1322,17 +1322,25 @@ function dgLangParam(room) {
        crossed: the word's letters must appear as a SUBSEQUENCE of the swyped
        path (in order, gaps allowed — this is what makes it gesture typing
        rather than exact spelling). Shorter gap-total among matches wins. */
+    /* FIXED: direction was backwards. A swype path is a SPARSE sample of the
+       word (start, corners, end) — it will almost never contain every letter
+       of the target word. The check must be: does every PATH letter appear in
+       the WORD, in order? Not the reverse (every word letter in the path),
+       which required the path to be as long as the word itself and made
+       "you" from a 2-point path [y,o] fail, since "you" has no way to place
+       its middle "u" inside a 2-letter path. Lower score = tighter fit
+       (fewer word-letters skipped between consecutive path hits). */
     function swypeScore(word,path){
-        var w=word.toLowerCase(),pi=0,gaps=0;
-        for(var wi=0;wi<w.length;wi++){
+        var w=word.toLowerCase(),wi=0,skips=0;
+        for(var pi=0;pi<path.length;pi++){
             var found=false;
-            while(pi<path.length){
-                if(path[pi]===w[wi]){found=true;pi++;break}
-                pi++;gaps++;
+            while(wi<w.length){
+                if(w[wi]===path[pi]){found=true;wi++;break}
+                wi++;skips++;
             }
             if(!found)return null;
         }
-        return gaps;
+        return skips;
     }
     function resolveSwype(side){
         var dict=getDict(langOf(side));if(!dict)return;
