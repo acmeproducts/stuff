@@ -1,7 +1,7 @@
 # Market Navigator — Canonical Master Plan
 
 Status: AUTHORITATIVE PRODUCT / BUILD / QUALIFICATION PLAN
-Updated: 2026-09-14
+Updated: 2026-09-16
 Next release scope: **Turn 25 cumulative consolidation**
 
 This file is the single positive specification for Market Navigator. Do not create a parallel release plan. `MARKET-NAVIGATOR-GRAVEYARD.md` is the binding negative specification.
@@ -683,3 +683,38 @@ Turn 25 qualification must durably prove all of the following on the exact candi
 
 Merely invoking `window.print()` is not Print implementation or qualification. The complete existing Turn 25 qualification suite remains mandatory in addition to these Print gates.
 
+
+
+---
+
+## 27. Index Explanation — binding Turn 25 model-governance contract
+The NOW chart plotting area has a circled information control (`ⓘ`) in its upper-right corner. It opens an **Index Explanation** modal for the currently selected horizon without changing or refetching the current analytical state.
+
+For every applicable displayed derived index (RSK, GRW and MAC), the report is computed from the same governed deterministic index/evidence calculation used by Market Navigator and contains:
+- index name, definition/version, selected horizon and evidence revision;
+- canonical baseline/end observation dates and exact baseline-to-end index movement;
+- every governed component, its inclusion/availability, weight and direction;
+- component baseline/end values and horizon movement;
+- each component's exact contribution to index movement;
+- reconciliation of component contributions to index movement, with any rounding residual explicitly reported;
+- missing or stale component conditions; and
+- a short deterministic, non-technical explanation limited to the calculated facts.
+
+Values may not be inferred from chart pixels, approximated, invented, forward-filled or endpoint-restamped. If canonical evidence cannot support exact attribution, the report explicitly identifies the unavailable/degraded condition rather than estimating or silently substituting observations. Contribution arithmetic reconciles subject only to documented rounding.
+
+The modal top strip contains title/current horizon, **Copy**, **Download MD**, and close `×`. Its body renders the complete Markdown report, including tables. Copy and Download MD use the same complete Markdown source. Closing returns to the exact unchanged NOW state. Opening or closing does not change horizon, chart composition, active series, representation or evidence revision and creates no analytical/evidence fetch.
+
+The exact Markdown and underlying calculation/evidence are included in the frozen AI POV context. Library persistence freezes that same explanation and its evidence revision with the analysis; it is never recomputed from later evidence.
+
+HEALTH reports derived-index attribution health separately from superficial source availability. A derived index is fully explainable/green for a horizon only when required component evidence is available and its governed contribution calculation reconciles. Missing/stale components and reconciliation failure produce explicit degraded attribution health.
+
+### 27.1 Index Explanation semantic qualification
+Turn 25 qualification must prove on the candidate and exact merged artifact that:
+- the `ⓘ` control exists in the plotting area's upper-right location and opens the current horizon report;
+- the report uses actual governed evidence and changing horizon changes it deterministically;
+- contributions reconcile to index movement and illustrative/example values are not hardcoded;
+- missing evidence produces an explicit unavailable/degraded report;
+- Copy and Download MD contain the same complete Markdown rendered by the modal;
+- modal open/close neither mutates analytical state nor fetches evidence;
+- the exact explanation is present in frozen AI POV context and retained unchanged by Library persistence; and
+- HEALTH distinguishes attribution/reconciliation health from source-green status.
