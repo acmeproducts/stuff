@@ -71,6 +71,7 @@ body{display:flex;flex-direction:column}
 .kcands{display:none;gap:5px;overflow-x:auto;padding:0 4px 5px;flex:0 0 auto;min-height:36px;align-items:center}
 .kcands::-webkit-scrollbar{display:none}
 .kcand{flex:0 0 auto;padding:7px 12px;border-radius:9px;border:1px solid rgba(203,213,225,.9);background:#fff;font-size:16px;min-height:36px}
+.kcand.learn{border-style:dashed;color:#1d4ed8}
 .kcand.on{background:linear-gradient(135deg,rgba(96,165,250,.95),rgba(59,130,246,.95));color:#fff;border-color:transparent}
 .krow{display:flex;gap:6px;margin-bottom:6px}
 .key{flex:1 1 0;min-width:0;height:48px;border-radius:8px;border:1px solid rgba(203,213,225,.9);
@@ -1578,8 +1579,8 @@ function dgLangParam(room) {
         var first=points[0],lastP=points[points.length-1],gate=SW_GATE*keyW;
         var scored=[];
         for(var d=0;d<dict.length;d++){
-            var w=dict[d];if(!w||w.length<2)continue;
-            var wl=w.toLowerCase();
+            var w=dict[d];if(!w)continue;
+            var wl=w.toLowerCase().replace(/[^a-z\u00c0-\u024f]/g,'');if(wl.length<2)continue;
             var k0=keyMap[wl[0]],k1=keyMap[wl[wl.length-1]];
             if(!k0||!k1)continue;
             if(Math.hypot(k0.cx-first.x,k0.cy-first.y)>gate)continue;      // item 3
@@ -1617,18 +1618,26 @@ function dgLangParam(room) {
     /* Track A: real autocomplete, reading the SAME asset chat-admin's download
        button writes (duck_dict_<lang> in localStorage). No dictionary = no
        suggestions, silently — this must never block typing or throw. */
+    var LEARN_MARK='\u2795';
     var dictCache={};
+    function userDict(lang){try{return JSON.parse(localStorage.getItem('duck_userdict_'+lang)||'[]')}catch(e){return[]}}
+    function learnWord(lang,word){
+        var u=userDict(lang);word=String(word||'').trim();if(!word)return;
+        if(u.indexOf(word)<0){u.unshift(word);try{localStorage.setItem('duck_userdict_'+lang,JSON.stringify(u.slice(0,2000)))}catch(e){}}
+        delete dictCache[lang];
+        remoteLog('dict_learn',{lang:lang,word:word});
+        toastMsg('Added "'+word+'"');
+    }
     function getDict(lang){
-        // Only trust the cache for a POSITIVE result. A null/missing result is
-        // re-checked every call — cheap, and fixes the real case where a
-        // dictionary downloads in chat-admin AFTER this tab already checked
-        // once and cached "not found".
         if(dictCache[lang])return dictCache[lang];
         var raw=null;try{raw=localStorage.getItem('duck_dict_'+lang)}catch(e){}
         if(!raw)return null;
-        try{dictCache[lang]=JSON.parse(raw)}catch(e){return null}
+        var base;try{base=JSON.parse(raw)}catch(e){return null}
+        var u=userDict(lang);
+        dictCache[lang]=u.length?u.concat(base.filter(function(w){return u.indexOf(w)<0})):base;
         return dictCache[lang];
     }
+    function inDict(lang,word){var d=getDict(lang);if(!d)return false;var w=word.toLowerCase();for(var i=0;i<d.length;i++)if(d[i].toLowerCase()===w)return true;return false}
     function currentWordFragment(side){
         var ta=inputEl(side);if(!ta)return'';
         var s=ta.selectionStart,text=ta.value.slice(0,s);
@@ -1643,11 +1652,17 @@ function dgLangParam(room) {
         var frag=currentWordFragment(side);
         if(!frag||frag.length<2){if(cands[side].length){cands[side]=[];candIdx[side]=-1;paintCands(side)}return}
         var lower=frag.toLowerCase();
-        var out=[];
+        var out=[],exact=false;
         for(var i=0;i<dict.length&&out.length<5;i++){
-            if(dict[i].toLowerCase().indexOf(lower)===0)out.push(dict[i]);
+            var dl=dict[i].toLowerCase();
+            if(dl===lower)exact=true;
+            if(dl.indexOf(lower)===0)out.push(dict[i]);
         }
-        cands[side]=out;candIdx[side]=-1;acFragLen[side]=frag.length;paintCands(side);
+        /* learn offer: first when nothing in the dictionary starts with the
+           fragment (a genuinely new word), last otherwise (still reachable,
+           not in the way while a known word is being completed). */
+        if(!exact){if(!out.length)out.unshift(LEARN_MARK+frag);else{out=out.slice(0,4);out.push(LEARN_MARK+frag)}}
+        cands[side]=out.slice(0,5);candIdx[side]=-1;acFragLen[side]=frag.length;paintCands(side);
     }
     var acFragLen={south:0,north:0};
 
@@ -1662,7 +1677,8 @@ function dgLangParam(room) {
         if(!cands[side].length){bar.innerHTML='';bar.style.display='none';return}
         bar.style.display='flex';
         bar.innerHTML=cands[side].map(function(c,i){
-            return '<button type="button" class="kcand'+(i===candIdx[side]?' on':'')+'" data-i="'+i+'">'+String(c).replace(/[&<>]/g,'')+'</button>'}).join('');
+            var learn=String(c).charAt(0)===LEARN_MARK;
+            return '<button type="button" class="kcand'+(i===candIdx[side]?' on':'')+(learn?' learn':'')+'" data-i="'+i+'">'+String(c).replace(/[&<>]/g,'')+'</button>'}).join('');
         bar.querySelectorAll('.kcand').forEach(function(b){
             b.addEventListener('pointerdown',function(e){e.preventDefault()});
             b.addEventListener('click',function(){pickCand(side,+b.dataset.i)});
@@ -1754,6 +1770,7 @@ function dgLangParam(room) {
     }
     function pickCand(side,i){
         var c=cands[side][i];if(c==null)return;
+        if(String(c).charAt(0)===LEARN_MARK){c=String(c).slice(1);learnWord(langOf(side),c)}
         var comping=comp[side].ko||comp[side].raw||comp[side].kana;
         if(comping){
             var cur=compText(side).length;
@@ -1826,6 +1843,12 @@ function dgLangParam(room) {
         var inp=document.getElementById('in-'+side);
         inp.addEventListener('focus',function(){
             if(!(INPUT.owner===side&&INPUT.mode==='kb'))requestInput(side,'kb');
+        });
+        inp.addEventListener('pointerdown',function(){
+            /* focus does not re-fire on an already-focused input; if the keyboard
+               was retracted, a tap must still bring it back with the draft intact */
+            var open=kbEl(side)&&kbEl(side).classList.contains('open');
+            if(!(INPUT.owner===side&&INPUT.mode==='kb')||!open)requestInput(side,'kb');
         });
         inp.addEventListener('input',function(){updateClear(side)});
         inp.addEventListener('keydown',function(e){
