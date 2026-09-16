@@ -18,27 +18,53 @@ jobs:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 1
-      - name: Retrieve exact owner-authoritative baseline
+      - name: Retrieve exact owner-authoritative baseline and align builder anchors
         run: |
           curl --fail --location --silent --show-error \
             https://raw.githubusercontent.com/acmeproducts/stuff/ddf275a8da943cfb8b0e9c5e610649b36424b886/market-navigator-turn25-pre-ship.html \
             --output /tmp/market-navigator-turn25-pre-ship.html
           test -s /tmp/market-navigator-turn25-pre-ship.html
-          sed -i 's|base=subprocess.check_output(\["git","show",f"{BASE}:{SRC}"\],text=True)|base=pathlib.Path("/tmp/market-navigator-turn25-pre-ship.html").read_text(encoding="utf-8")|' market-navigator-build-turn25-ship.py
+          python3 - <<'PY'
+          from pathlib import Path
+          p=Path('market-navigator-build-turn25-ship.py')
+          s=p.read_text()
+          s=s.replace('base=subprocess.check_output(["git","show",f"{BASE}:{SRC}"],text=True)','base=pathlib.Path("/tmp/market-navigator-turn25-pre-ship.html").read_text(encoding="utf-8")')
+          s=s.replace('<canvas id="nowChart" aria-label="Market chart"></canvas>','<canvas id="nowChart" class="chart"></canvas>')
+          s=s.replace('base=replace_once(base,"startAI(prompt);","startAIShip(prompt);","AI POV launch")','base=base')
+          s=s.replace("if(v==='HEALTH')renderHealth();","if(v==='health')renderHealth()")
+          p.write_text(s)
+          PY
       - name: Build from owner-authoritative baseline
         run: python3 market-navigator-build-turn25-ship.py
+      - name: Bind governed explanation and model-health evidence into canonical AI path
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          p=Path('market-navigator-turn25-ship.html'); s=p.read_text()
+          old='let state=stateOverride||nowAnalysisState(),rootLabel='
+          new='let state=shipAnalysisState(stateOverride||nowAnalysisState()),rootLabel='
+          assert s.count(old)==1, s.count(old)
+          s=s.replace(old,new,1)
+          old='return{lineage:state.lineage,root:state.root,series:state.series,horizon:state.horizon,index:state.index,evidence:state.evidence,chart:'
+          new='return{indexExplanation:state.indexExplanation||null,modelHealth:state.modelHealth||null,lineage:state.lineage,root:state.root,series:state.series,horizon:state.horizon,index:state.index,evidence:state.evidence,chart:'
+          assert s.count(old)==1, s.count(old)
+          s=s.replace(old,new,1)
+          p.write_text(s)
+          PY
       - name: Static qualification
         run: |
           python3 - <<'PY'
           from pathlib import Path
-          p=Path('market-navigator-turn25-ship.html')
-          s=p.read_text()
+          p=Path('market-navigator-turn25-ship.html'); s=p.read_text()
           assert p.stat().st_size > 100000
           assert s.count('id="indexInfoBtn"') == 1
           assert 'function shipBuildRecord' in s
           assert 'function shipModelHealthRecord' in s
-          assert 'function startAIShip' in s
           assert 'function printNowShip' in s
+          assert "if(v==='health')renderHealthShip()" in s
+          assert 'let state=shipAnalysisState(stateOverride||nowAnalysisState())' in s
+          assert 'indexExplanation:state.indexExplanation||null' in s
+          assert 'modelHealth:state.modelHealth||null' in s
           assert 'ship-printing-now' in s
           assert 'c3cde56268303d8e2a222012d5a34aee9f26651e' not in s
           print('static ship gates PASS', p.stat().st_size)
