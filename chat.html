@@ -1247,10 +1247,118 @@ function dgLangParam(room) {
         el.querySelector('.klang').textContent=(LANG_NAMES[langOf(side)]||langOf(side))+
             (langOf(side)==='ja'?' · romaji→kana':(langOf(side)==='ko'?' · 두벌식':''));
         el.querySelectorAll('.key').forEach(function(b){
-            b.addEventListener('pointerdown',function(e){e.preventDefault()});   // never steal caret focus
+            b.addEventListener('pointerdown',function(e){e.preventDefault()});
             b.addEventListener('click',function(e){e.preventDefault();press(side,b.dataset.k)});
         });
         paintCands(side);
+        wireSwype(side);
+    }
+
+    /* ================= B3: SWYPE — real gesture recognition over the real keys =================
+       Same dictionary as B2 (duck_dict_<lang>), same candidate bar, same insertion
+       path. Not a stub: a live pointer trail is collected over the actual .key
+       buttons, every candidate word is scored against that trail by how well
+       its letters fall along the path in order, best match wins.
+       Only active when a real dictionary exists for the side's language — same
+       silent no-op rule as B2 (see getDict). Latin-script only for now (path
+       scoring assumes a QWERTY-style single-row-per-letter layout; IME
+       languages already have their own composition path and are untouched). */
+    var swype={active:false,side:null,pts:[],letters:[]};
+
+    function keyRectsFor(side){
+        var el=kbEl(side);if(!el)return[];
+        var out=[];
+        el.querySelectorAll('.key[data-k]').forEach(function(b){
+            var k=b.dataset.k;
+            if(k.length!==1||!/[a-zA-Z]/.test(k))return;   // letters only — not SHIFT/BKSP/space/etc
+            var r=b.getBoundingClientRect();
+            out.push({k:k.toLowerCase(),cx:r.left+r.width/2,cy:r.top+r.height/2});
+        });
+        return out;
+    }
+    function nearestKey(rects,x,y){
+        var best=null,bd=Infinity;
+        for(var i=0;i<rects.length;i++){
+            var dx=rects[i].cx-x,dy=rects[i].cy-y,d=dx*dx+dy*dy;
+            if(d<bd){bd=d;best=rects[i]}
+        }
+        return best;
+    }
+    function wireSwype(side){
+        var el=kbEl(side);if(!el)return;
+        var kkeys=el.querySelector('.kkeys');if(!kkeys)return;
+        var rects=[];
+
+        kkeys.addEventListener('pointerdown',function(e){
+            var lang=langOf(side);
+            if(!getDict(lang))return;                 // no dictionary, no swype — same rule as B2
+            if(numMode[side])return;                   // number pad: no gesture typing
+            if(comp[side].ko||comp[side].raw||comp[side].kana)return;   // IME owns input here
+            var target=e.target.closest('.key[data-k]');
+            if(!target)return;
+            var k=target.dataset.k;
+            if(k.length!==1||!/[a-zA-Z]/.test(k))return;   // gesture starts on a letter key only
+            rects=keyRectsFor(side);
+            if(rects.length<2)return;
+            swype.active=true;swype.side=side;swype.pts=[{x:e.clientX,y:e.clientY}];swype.letters=[k.toLowerCase()];
+            el.setPointerCapture&&el.setPointerCapture(e.pointerId);
+        });
+        kkeys.addEventListener('pointermove',function(e){
+            if(!swype.active||swype.side!==side)return;
+            swype.pts.push({x:e.clientX,y:e.clientY});
+            var nk=nearestKey(rects,e.clientX,e.clientY);
+            if(nk&&swype.letters[swype.letters.length-1]!==nk.k)swype.letters.push(nk.k);
+        });
+        function endSwype(e){
+            if(!swype.active||swype.side!==side)return;
+            swype.active=false;
+            if(swype.pts.length>=4&&swype.letters.length>=2)resolveSwype(side);
+            swype.pts=[];swype.letters=[];
+        }
+        kkeys.addEventListener('pointerup',endSwype);
+        kkeys.addEventListener('pointercancel',endSwype);
+    }
+    /* Score every dictionary word against the letter sequence the finger
+       crossed: the word's letters must appear as a SUBSEQUENCE of the swyped
+       path (in order, gaps allowed — this is what makes it gesture typing
+       rather than exact spelling). Shorter gap-total among matches wins. */
+    function swypeScore(word,path){
+        var w=word.toLowerCase(),pi=0,gaps=0;
+        for(var wi=0;wi<w.length;wi++){
+            var found=false;
+            while(pi<path.length){
+                if(path[pi]===w[wi]){found=true;pi++;break}
+                pi++;gaps++;
+            }
+            if(!found)return null;
+        }
+        return gaps;
+    }
+    function resolveSwype(side){
+        var dict=getDict(langOf(side));if(!dict)return;
+        var path=swype.letters;
+        var scored=[];
+        for(var i=0;i<dict.length;i++){
+            var w=dict[i];
+            if(w.length<2||w[0].toLowerCase()!==path[0])continue;   // must start on the same key
+            var s=swypeScore(w,path);
+            if(s!==null)scored.push({w:w,s:s});
+            if(scored.length>=400)break;   // bounded scan — dictionary is frequency-ranked,
+                                            // so the first plausible matches are already the
+                                            // most likely words; no need to score all 8000
+        }
+        if(!scored.length)return;
+        scored.sort(function(a,b){return a.s-b.s});
+        var top=scored.slice(0,5).map(function(x){return x.w});
+        cands[side]=top;candIdx[side]=-1;acFragLen[side]=0;
+        var ta=inputEl(side);
+        var frag=currentWordFragment(side);
+        if(frag)acFragLen[side]=frag.length;
+        paintCands(side);
+        // best guess inserted immediately (standard swype behaviour); still tap-correctable via the bar
+        if(acFragLen[side])replaceComp(side,acFragLen[side],top[0]+' ');
+        else insertAt(side,top[0]+' ');
+        cands[side]=top.slice(1);candIdx[side]=-1;paintCands(side);
     }
     /* Track A: real autocomplete, reading the SAME asset chat-admin's download
        button writes (duck_dict_<lang> in localStorage). No dictionary = no
@@ -1531,7 +1639,7 @@ function dgLangParam(room) {
         window.detectByScript=detectByScript;window.applyNorthernThaiMap=applyNorthernThaiMap;
         window.resolveEffectiveLang=resolveEffectiveLang;window.normalizeOutgoing=normalizeOutgoing;
         window.detectLangAsync=detectLangAsync;window.loadFastText=loadFastText;
-        window.sideAsRoom=sideAsRoom;window.ROOM=ROOM;window.translateWithRetry=translateWithRetry;window.press=press;window.cands=cands;window.pickCand=pickCand;window.getDict=getDict;window.updateAutocomplete=updateAutocomplete;window.comp=comp;window.langOf=langOf;
+        window.sideAsRoom=sideAsRoom;window.ROOM=ROOM;window.translateWithRetry=translateWithRetry;window.press=press;window.cands=cands;window.pickCand=pickCand;window.getDict=getDict;window.updateAutocomplete=updateAutocomplete;window.comp=comp;window.langOf=langOf;window.swype=swype;window.resolveSwype=resolveSwype;window.swypeScore=swypeScore;window.keyRectsFor=keyRectsFor;
         window.renderAll=renderAll;window.debugLog=debugLog;window.MIC_IDLE_MS=MIC_IDLE_MS;
         window.dgUseDual=dgUseDual;window.dgUseMulti=dgUseMulti;window.dgLangParam=dgLangParam;
         window.dgArbitrateNative=dgArbitrateNative;window.dgArbitrateEnglish=dgArbitrateEnglish;
