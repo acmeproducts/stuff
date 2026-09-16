@@ -1,140 +1,183 @@
 # Market Navigator — Graveyard
 
-Status: NEGATIVE SPECIFICATION
+Status: BINDING NEGATIVE SPECIFICATION
 Updated: 2026-09-16
+Current execution authority: `MARKET-NAVIGATOR-MASTER-PLAN.md`
 
-Historical rejected releases remain evidence only; detailed descriptions remain in git history.
+Historical rejected releases remain evidence only. Detailed historical implementation evidence remains in git history.
 
-## Permanent recovery rule
-**DO NOT PATCH FORWARD FROM A REJECTED APPLICATION RELEASE.**
+---
 
-When owner testing exposes a material regression, the next recovery starts from the last artifact that actually proved the affected capability. Current `main` remains the integration/data target; rejected application source may be inspected for requirements and failure evidence but is not a successor baseline or donor implementation.
+## 1. Permanent recovery rule
 
-For the current recovery:
-- approved rollback application release: **Turn 18**
-- qualified release commit: `97b8c028778f36380de821591e3d6c8125fb14f9`
-- approved application baseline: `market-navigator-turn18-pre-ship.html`
-- approved application blob: `4a52c7e764513024176aea80cc13c56e05370c11`
-- rejected as application recovery donors: **Turns 19, 20, 21, 22, 23 and 24**
-- execution authority: **`MARKET-NAVIGATOR-MASTER-PLAN.md` only**
+**DO NOT PATCH FORWARD FROM A REJECTED APPLICATION IMPLEMENTATION.**
 
-There is no separate recovery-plan document.
+For Turn 26, the approved application baseline is the qualified Turn 25 application at publication commit:
 
-## Permanent test-integrity rule
+`43e30cd31c4c2d83b49cf2eb532041cf5778006d`
+
+The implementer must pin and record the exact blob SHA of `market-navigator-turn25-pre-ship.html` at that commit before mutation.
+
+The Index Explanation implementation merged in:
+
+`c3cde56268303d8e2a222012d5a34aee9f26651e`
+
+is rejected as an application donor. It may be inspected only as failure evidence. Its owner-visible failure was semantic: tapping the information control produced another circle/focus visual but did not open the required functional explanation surface.
+
+Do not patch that failure. Reimplement the approved objective from the qualified Turn 25 baseline according to the Master Plan.
+
+---
+
+## 2. Permanent test-integrity rule
+
 A test may not claim to cover a capability by asserting only adjacent UI state.
 
 Permanently rejected examples:
-- TTS test that stubs `speechSynthesis.speak()` as a no-op and then checks only that Play changed to Pause;
-- data-source test that checks a green Health label without proving chart/selectability/evidence behavior;
-- AI test that checks navigation without proving provider request/result persistence;
-- resize test that checks width without proving horizon/composition/evidence invariance;
+- information-control test that checks the icon exists, receives focus, changes class, or gains a ring without proving a populated modal opened;
+- Print test that checks only `window.print()` was invoked without proving the chart/report content exists;
+- TTS test that stubs `speechSynthesis.speak()` as a no-op and checks only Play→Pause;
+- source test that checks green Health without proving canonical evidence/chartability;
+- AI test that checks navigation without proving frozen evidence/provider result persistence;
+- resize test that checks width without proving analytical invariants;
 - persistence test that checks a toast without re-reading durable state.
 
-For Library Listen/TTS, qualification must observe a non-empty utterance handed to the speech engine mock and must exercise response/row transport. A cosmetic button-state assertion is insufficient.
+**Never weaken a retained semantic regression test.** A replacement must observe at least the same defining side effect/state transition.
 
-**Never weaken a retained regression test when carrying a capability forward.** A replacement gate must be at least as semantically strong as the gate it supersedes.
+---
 
-## Current retired product patterns
-- numbered V1/V2/V3/V4/V5 terminology in the intended product
-- separate Explore analytical mode in the intended product
-- separate Component analytical page/modal in the intended product
-- duplicated-index breadcrumbs such as `ENV / GRW / GRW`
-- default-selected RSK on ENV load
-- breadcrumb wrapping/displacement of horizons/menu
-- raw-source direction inversion
-- synthetic/fallback chart evidence
-- duplicate chart/discovery/AI state engines
-- clipped mobile Listen controls
-- fake MP3 export from browser speech synthesis
+## 3. Permanent Index Movement Explanation prohibitions
 
-## Retained intended architecture
-The intended reconstructed product remains one NOW chart workspace with neutral ENV and one anchored-index context. Anchored state may be collapsed (`ENV / GRW`) or expanded (`ENV / GRW / COMPONENTS`). `COMPONENTS` is a non-clickable state marker.
+Market Navigator must never:
+- derive index attribution, component values, dates, weights or contributions from chart pixels;
+- allow AI to invent, infer or calculate factual index arithmetic;
+- hardcode illustrative/example component numbers into production/fallback paths;
+- assume `weight × raw percent move` is the production contribution formula without proving it matches the governed derived-index construction;
+- publish a contribution table that does not reconcile to the governed index calculation within explicit rounding tolerance;
+- hide a reconciliation residual;
+- estimate or silently substitute a missing component contribution;
+- forward-fill solely to complete an explanation;
+- restamp an older component observation to a horizon boundary;
+- fabricate same-date component observations where cadence differs;
+- treat source-green as attribution-green when required component evidence or reconciliation is unavailable;
+- refetch evidence merely because the explanation modal opens;
+- analytically rerender NOW merely because the explanation modal opens/closes;
+- mutate horizon, breadcrumb, composition, active series, representation or evidence revision on modal open/close;
+- maintain a second independent arithmetic implementation in the modal, AI prompt, Print path or Library path;
+- recompute a saved Library explanation from newer evidence;
+- let AI POV replace the deterministic explanation with its own arithmetic;
+- claim the feature works because the information icon is visible or focusable;
+- render a second persistent concentric circle/ring as the apparent result of tapping the icon;
+- allow the chart canvas/pointer handler to swallow the icon activation;
+- ship an information icon whose tap/click does not open a populated modal or truthful degraded-state modal.
 
-ENV has RSK, GRW and MAC visible with no default selected chip. In anchored context the anchor cannot be removed; component/comparison chips are removable; Add is available; Add discovery replaces Explore.
+A truthful **Attribution unavailable/degraded** report is acceptable. A fabricated complete report is prohibited.
 
-Library owns a frozen chart, transcript, continuation composer and Listen/Chat modes. The Listen strip contains centered progress plus exactly five transport controls and no duplicate analysis title.
+---
 
-Browser TTS remains playback-only. Downloadable MP3 remains backlog until a real file-producing TTS provider exists.
+## 4. Permanent NOW Print prohibitions
 
-## Retained analytical rules
-Raw/source Indexed 100 is plain relative rebasing. Derived-composite direction affects composite construction only and never source display.
+Market Navigator must never:
+- treat `… → Print` as a header-only printout;
+- print the interactive NOW viewport directly as the Chart Report;
+- omit the current frozen chart from a NOW Chart Report;
+- create a Library analysis merely as an intermediate step to print NOW;
+- refetch evidence for printing;
+- alter horizon/composition/active series/representation/evidence revision for printing;
+- substitute a newly reconstructed chart based on newer evidence;
+- include rail navigation, context menus, Add picker, Config, tooltips, crosshair overlays or other interactive chrome in the report;
+- leave report content clipped by application viewport/fixed-height/max-height/overflow constraints;
+- impose application-owned paper size, page count, page range, orientation or print destination;
+- count `window.print()` invocation alone as qualification;
+- break the already-working Library Analysis Report while repairing NOW Print.
 
-Display density remains native for 1D/5D/MTD, weekly for YTD/1YR, and monthly for 3YR/5YR without altering canonical evidence or full-resolution inspection/Data/AI/export.
+The accepted implementation pattern is the qualified Turn 25 Library/AI POV print-report architecture: dedicated temporary report surface, exact frozen chart, document-oriented content, print-media visibility, one native print invocation, and cleanup.
 
-No fabricated intraday evidence, forward fill, horizon-end restamping, or proxy substitution.
+---
 
-## Turn 19 qualification regression — permanent lesson
-Turn 18 qualification imported the complete Turn 17 regression matrix, including an observable TTS mock and the assertion that `window.__qaSpeech.last.text` contains spoken content after Play.
+## 5. Permanent Library Print prohibitions
 
-Turn 19 replaced that protection with a speech mock whose `speak()` performed no observable action. Subsequent tests could pass by seeing only the UI enter a playing state. That weakening propagated into later retained matrices and allowed Turn 24 to be declared green even though owner/device TTS was broken.
+Market Navigator must never:
+- print the interactive Library viewport as the Analysis Report;
+- leave analysis/transcript clipped, scrollable, fixed-height, max-height or viewport-height constrained in printed output;
+- include Library list/search, editing controls, Chat/Listen/TTS/player controls, attachments, composer/Send controls, sticky UI or tooltips;
+- recompute, refetch, substitute or change the frozen saved chart/evidence for printing;
+- treat merely invoking `window.print()` as sufficient implementation or qualification;
+- alter ordinary Library screen behavior merely to make printing work.
+
+Library Print must continue to render the exact frozen chart and complete saved transcript as normal printable document content.
+
+---
+
+## 6. Retired product patterns
+
+Permanently retired:
+- V1/V2/V3/V4/V5 terminology in the intended product;
+- separate Explore analytical mode;
+- separate Component analytical page/modal;
+- duplicated-index breadcrumbs such as `ENV / GRW / GRW`;
+- default-selected RSK on ENV load;
+- breadcrumb wrapping/displacement of horizons/menu;
+- raw-source direction inversion;
+- synthetic/fallback chart evidence;
+- duplicate chart/discovery/AI state engines;
+- clipped mobile Listen controls;
+- fake MP3 export from browser speech synthesis.
+
+---
+
+## 7. Retained analytical prohibitions
+
+Never:
+- fabricate intraday evidence for daily/NAV sources;
+- forward-fill or horizon-end-restamp chart evidence;
+- silently substitute a proxy or similarly named security;
+- switch economic identity by horizon/provider;
+- treat price, total return, index level and NAV as interchangeable;
+- invert raw/source Indexed 100 because a component has negative derived-index direction;
+- let a geometry event invoke a full analytical render or evidence fetch;
+- let stale async work overwrite newer horizon/composition state.
+
+Raw/source Indexed 100 remains plain relative rebasing. Derived-component direction affects composite construction only.
+
+---
+
+## 8. Retained architecture prohibitions
+
+Never:
+- create a second NOW analytical state for explanation or printing;
+- create a second Component state machine;
+- let one view manipulate another view's private DOM as navigation;
+- retain live references to retired DOM IDs;
+- repopulate saved provider secrets into ordinary editable password fields;
+- create local-only custom ticker evidence that bypasses canonical evidence/Health/revisions/Library reproducibility;
+- make browser static Pages own a repository write credential.
+
+---
+
+## 9. TTS permanent lesson
+
+Turn 19 weakened the semantic TTS gate by replacing observable `speechSynthesis.speak()` handoff with a no-op mock and cosmetic playing-state assertion. That weakening propagated and allowed a broken capability to appear green.
 
 Permanently prohibited:
 - replacing a semantic capability assertion with a cosmetic assertion;
-- claiming a retained-product matrix when retained gates were silently weakened;
-- treating a green CI run as evidence for behavior the harness never observed;
-- promoting a release to last-known-good for a capability that was not actually qualified.
+- treating a green CI run as proof of behavior the harness never observed;
+- promoting a release to last-known-good for a capability not actually qualified.
 
-## Turn 23 implementation patterns permanently rejected
-- rail handlers that guess canvas size or rely on fixed delays;
-- NOW layouts that recenter vertically or leave dead top/bottom space during rail changes;
-- ResizeObserver/rail/orientation/viewport events invoking full analytical render or evidence fetch;
-- geometry changes mutating horizon, composition, active series, breadcrumb, representation or frozen evidence;
-- one view manipulating another view's private DOM as navigation;
-- live references to retired DOM IDs;
-- AI provider preflight that throws because retired Config/modal DOM is missing;
-- AI happy-path-only qualification;
-- resize qualification without horizon changes, repeated transitions and analytical invariants;
-- repopulating saved provider secrets into ordinary editable password fields;
-- local-only custom tickers bypassing canonical evidence/Health/revisions/Library reproducibility;
-- provider-per-horizon economic identity switching;
-- silent symbol/proxy substitution, including ambiguous DOW;
-- treating price, total return, index level and NAV as interchangeable;
-- fabricated intraday points for daily/NAV-only sources;
-- declaring qualification from static markers and successful paths while owner-visible failure paths remain untested.
+For TTS, tests must observe a non-empty utterance handed to the speech engine and exercise response/row transport. Android-family playback state must remain truthful.
 
-## Turn 24 status
-Turn 24 is rejected as the active application successor because owner testing found broken TTS after the release had passed its automated gates.
+---
 
-Turn 24's accepted written requirements remain requirements only: unified NOW, geometry-only resizing, AI transition recovery, credential-safe Config, canonical Sources, DOW→DJIA identity, and Config-created source handling. Those requirements may be reconstructed from the Master Plan after Turn 18 rollback qualification and owner/device confirmation.
+## 10. Turn 26 release discipline
 
-Turn 24 application HTML/JS/CSS is not a donor for that reconstruction.
-
-## Current recovery sequence
-**exact Turn 18 artifact → exact blob proof → full Turn 17 + Turn 18 semantic qualification → Pages rollback URL → owner/device test → clean reconstruction from written requirements only**.
-
-Do not begin successor application mutation before the rollback baseline is proved.
-
-## Turn 25 permanent cumulative-release rule
-Rollback changes the executable baseline; it does not roll back approved product requirements.
+Turn 26 is one cumulative successor from the pinned qualified Turn 25 baseline. Do not publish partial owner-facing rungs.
 
 Permanently rejected:
-- recovering one broken capability by publishing a baseline that silently drops other approved capabilities;
-- reintroducing approved improvements over a sequence of owner-facing releases where each step can regress previously accepted behavior;
-- using a rejected application release as a code donor merely because it contains a desired feature;
-- declaring a retained capability green without carrying forward its strongest semantic regression gate;
-- publishing an intermediate reconstruction candidate that is knowingly missing items from the cumulative acceptance ledger.
+- fixing the information icon by patching the rejected Codex implementation;
+- introducing Objective A before proving the Turn 25 baseline;
+- implementing modal UI before understanding/proving the production derived-index arithmetic;
+- writing a UI-local attribution formula because it is easier than exposing governed calculation data;
+- implementing NOW Print with a new unrelated print architecture when the qualified Library Print mechanism already supplies the accepted pattern;
+- passing new gates while silently dropping retained Turn 25 gates;
+- publishing before exact merged-main requalification and live Pages smoke testing.
 
-The next owner-facing successor after a rollback must be one cumulative candidate: proven baseline behavior plus every still-approved later requirement, qualified together. If one cumulative gate fails, correct the same candidate; do not create a new partial rung in the release ladder.
-
-## Permanent Library Print prohibitions
-Market Navigator must never:
-- print the interactive Library viewport as the Analysis Report;
-- leave analysis/transcript content clipped, scrollable, fixed-height, max-height or viewport-height constrained in printed output;
-- include application navigation, menus, Library list/search, editing controls, Chat/Listen controls, TTS/player controls, attachments, composer/Send controls, sticky UI or tooltips in the printed report;
-- recompute, refetch, substitute or otherwise change the frozen saved chart/evidence merely for printing;
-- impose application-owned page count, page range, paper size, orientation or destination instead of native browser/device print controls;
-- treat merely invoking `window.print()` as sufficient Print implementation or qualification;
-- alter the normal Library screen layout merely to make printing work.
-
-
-
-## Permanent Index Explanation prohibitions
-Market Navigator must never:
-- derive index attribution or component values from chart pixels;
-- allow AI to invent or calculate factual index arithmetic;
-- hardcode illustrative/example component numbers;
-- publish a contribution table that does not reconcile to the governed index calculation, subject only to explicitly reported rounding;
-- estimate, silently substitute, forward-fill or fabricate missing component evidence or horizon endpoints;
-- let explanation open/close refetch evidence or mutate horizon, composition, active series, representation or evidence revision;
-- recompute a saved Library explanation from newer evidence instead of freezing it with the analysis; or
-- treat a source-green derived index as attribution-healthy when required component evidence or reconciliation is unavailable.
+If a Turn 26 gate fails, correct the same candidate. Do not redefine the gate to match the implementation.
