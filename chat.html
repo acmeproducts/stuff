@@ -1018,11 +1018,38 @@ function dgLangParam(room) {
 
     /* ================= DIAGNOSTICS ================= */
     var diagLines=[];
+    var remoteLogBuf=[];
+    var REMOTE_LOG_PATH='logs/'+(ROOM?ROOM.id:'unknown')+'.jsonl';
+    function remoteLog(kind,data){
+        remoteLogBuf.push({t:Date.now(),k:kind,d:data});
+        if(remoteLogBuf.length>=5)flushRemoteLog();
+    }
+    function flushRemoteLog(){
+        if(!remoteLogBuf.length)return;
+        var pat=null;try{pat=localStorage.getItem('duck_gh_pat')}catch(e){}
+        if(!pat){remoteLogBuf=[];return}
+        var batch=remoteLogBuf.slice();remoteLogBuf=[];
+        var lines=batch.map(function(e){return JSON.stringify(e)}).join('\n')+'\n';
+        var apiUrl='https://api.github.com/repos/acmeproducts/stuff/contents/'+REMOTE_LOG_PATH;
+        fetch(apiUrl,{headers:{'Authorization':'Bearer '+pat}})
+            .then(function(r){return r.ok?r.json():null})
+            .then(function(existing){
+                var content,sha;
+                if(existing&&existing.content){
+                    content=atob(existing.content.replace(/\n/g,''))+lines;
+                    sha=existing.sha;
+                }else{content=lines;sha=undefined}
+                var body={message:'log '+batch.length+' events',content:btoa(unescape(encodeURIComponent(content)))};
+                if(sha)body.sha=sha;
+                return fetch(apiUrl,{method:'PUT',headers:{'Authorization':'Bearer '+pat,'Content-Type':'application/json'},body:JSON.stringify(body)});
+            }).catch(function(){});
+    }
     function diag(msg,err){
         diagLines.push((err?'! ':'· ')+new Date().toTimeString().slice(0,8)+' '+msg);
         if(diagLines.length>300)diagLines=diagLines.slice(-300);
         var b=document.getElementById('diag-lines');
         if(b&&document.getElementById('diag-panel').classList.contains('show'))renderDiag();
+        remoteLog(err?'error':'info',msg);
     }
     function renderDiag(){
         var b=document.getElementById('diag-lines');if(!b)return;
@@ -1339,7 +1366,9 @@ function dgLangParam(room) {
             var wasSwipe=swype.active;
             pid=null;swype.active=false;
             if(wasSwipe){
+                remoteLog('swype_attempt',{side:side,pts:swype.pts.length,letters:swype.letters.join('')});
                 if(swype.pts.length>=4&&swype.letters.length>=2)resolveSwype(side);
+                else remoteLog('swype_too_short',{pts:swype.pts.length,letters:swype.letters.length});
                 swype.pts=[];swype.letters=[];clearTrail(side);
             }
             // if it was never a swipe, we changed nothing — the browser's own click
@@ -1376,7 +1405,7 @@ function dgLangParam(room) {
         return skips;
     }
     function resolveSwype(side){
-        var dict=getDict(langOf(side));if(!dict)return;
+        var dict=getDict(langOf(side));if(!dict){remoteLog('swype_no_dict',{side:side,lang:langOf(side)});return}
         var path=swype.letters;
         var scored=[];
         for(var i=0;i<dict.length;i++){
@@ -1388,9 +1417,10 @@ function dgLangParam(room) {
                                             // so the first plausible matches are already the
                                             // most likely words; no need to score all 8000
         }
-        if(!scored.length)return;
+        if(!scored.length){remoteLog('swype_no_match',{path:path.join(''),dictSize:dict.length});return}
         scored.sort(function(a,b){return a.s-b.s});
         var top=scored.slice(0,5).map(function(x){return x.w});
+        remoteLog('swype_resolved',{path:path.join(''),top:top});
         cands[side]=top;candIdx[side]=-1;acFragLen[side]=0;
         var ta=inputEl(side);
         var frag=currentWordFragment(side);
@@ -1673,6 +1703,9 @@ function dgLangParam(room) {
 
         renderAll();
         setTimeout(function(){try{loadFastText()}catch(e){}},1200);
+        document.addEventListener('visibilitychange',function(){if(document.hidden)flushRemoteLog()});
+        window.addEventListener('pagehide',flushRemoteLog);
+        window.addEventListener('error',function(e){remoteLog('js_error',{msg:e.message,line:e.lineno,file:e.filename})});
         diag('chat.html ready — room='+ROOM.label+' south='+ROOM.southLang+' north='+ROOM.northLang);
         if(!dgKey())diag('no Deepgram key set — configure it in chat-admin',true);
     }
