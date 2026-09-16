@@ -5,166 +5,159 @@
 **Date:** 2026-09-15
 
 ## 1. Product objective
+SOT is a global persistent single source of truth for a storage estate. Its Turn 02 product boundary is analysis and an evidence-backed recommended consolidation plan:
 
-SOT is a global, persistent single source of truth for a storage estate spanning local volumes, external volumes, cloud-synchronised folders, WSL-visible storage, and device folders reachable through the owner's network/storage topology.
+`Discover → Fingerprint → Cross-reference → Infer → Plan`
 
-The product is not a fingerprint browser and indexing is not the outcome. The required outcome is:
-
-`Discover → Fingerprint → Infer → Propose → Verify → Consolidate`
-
-SOT must answer what unique content exists, every known placement, canonical and protection placement, proven redundancy, unresolved cases, reclaimable bytes, and the proposed resulting estate.
+Turn 02 does **not** copy, move, rename, quarantine, delete, purge, or otherwise mutate owner files. `REMOVE` means recommended removal only. How a plan is actioned is explicitly deferred.
 
 ## 2. Clean-lineage and failure rule
-
 Historical failed code, databases, generated HTML, installers and runtime artifacts are research evidence only. A rejected candidate never becomes the ancestor of its correction.
 
 Failed gate sequence: stop → preserve evidence → record rejected assumption in Graveyard → update this Plan when the contract changes → rebuild from the last governed clean baseline → rerun the complete gate.
 
-The currently published Turn 02 real-storage surface is rejected as a product baseline because it advanced real-estate/UI work before the governed inference/operations contract was complete and then required patch-forward corrections. It remains evidence only.
+The prior Turn 02 clean-3 candidate is rejected because it reused an incompatible historical SQLite database without a schema/version boundary and failed at startup (`no such column: job_id`). It is evidence only.
 
 ## 3. Runtime architecture
-
-- **WSL/private tailnet:** persistent engine, durable SQLite evidence/job/event state, storage adapters, fingerprinting, inference, verification and later execution.
+- **WSL/private tailnet:** persistent engine, versioned SQLite evidence/job/event state, storage adapters, fingerprinting, cross-reference and inference.
 - **GitHub Pages:** static presentation/control client only.
-- **Tailscale:** private network path between client and WSL service.
 - **Browser:** never owns authoritative job state. Closing, refreshing, navigating or inspecting data must not interrupt backend work.
+- **No filesystem mutation:** the engine is read-only with respect to registered owner storage throughout Turn 02.
 
-## 4. Domain and safety contract
+## 4. Frozen evidence schema contract
+### 4.1 Placement/file observation
+Every observed file placement records at minimum:
+- `placement_id` — stable identity for this observed placement;
+- `content_id` — identity shared by byte-identical content after hashing;
+- `source_id` and storage authority/volume;
+- failure domain;
+- full filename including extension;
+- normalized extension;
+- full path;
+- created/birth time where the filesystem exposes it;
+- modified time;
+- exact size in bytes;
+- scanned date/time;
+- fingerprint (SHA-256 initially);
+- lifecycle status;
+- plan recommendation;
+- disposition;
+- evidence/scan revision;
+- last verified date/time;
+- availability/evidence state;
+- error state/detail;
+- duplicate group ID and duplicate cardinality after post-processing;
+- role where explicitly governed;
+- plan/decision rationale.
 
-### Content object
-Immutable logical content identity established initially by strong cryptographic byte fingerprint. Path and filename are not identity.
+### 4.2 Lifecycle status
+Status is strictly the analysis lifecycle:
 
-### Placement
-One observed instance of content with storage authority, path, size, availability/evidence revision, role and failure-domain/protection attributes.
+`NONE → IN_PROCESS → HASHED → PLANNED → COMPLETED`
 
-### Decision
-Every placement resolves to **KEEP**, **PROTECT**, **REMOVE**, or **REVIEW**. REMOVE is a proposal only and never deletion authorization.
+Errors and availability are orthogonal evidence fields and do not become lifecycle states. `COMPLETED` means SOT completed analysis/planning for the record; it never means a filesystem recommendation was executed.
 
-### Canonical and protection
-Discovery order, row order, filename and path ordering may never choose canonical content. Canonical selection requires explicit policy/evidence. Required independent protection copies are PROTECT, never duplicate waste. No REMOVE decision is permitted unless required independent protection remains established. Uncertainty becomes REVIEW.
+### 4.3 Plan
+Plan is the recommended action only:
+- `KEEP`
+- `PROTECT`
+- `REMOVE`
+- `REVIEW`
 
-## 5. Controlled inference gate
+`REMOVE` is never deletion authorization.
 
-Before real-estate qualification, the clean engine must pass a predetermined synthetic estate of roughly 20–30 placements across at least three storage authorities containing unique files, 2-copy and 3+-copy duplicates, canonical/protection/redundant copies, same-name/different-content, same-content/different-path, stale/unavailable evidence and deliberate ambiguity.
+### 4.4 Disposition
+Disposition is retained as a separate field for future action accounting. In Turn 02 it remains `NONE`/unresolved because plan execution is out of scope.
 
-Expected content identities, placements, decisions and reclaimable-byte arithmetic are declared before execution. Pass requires exact agreement, deterministic repeat results, complete rationale and zero filesystem mutation. A fingerprint dump or self-referential expected output is failure.
+### 4.5 Content object
+A content object represents immutable byte identity. One file existing in six locations is one content object with six placements. Filename/path are not content identity.
 
-## 6. Storage selection contract
+### 4.6 Evidence history
+Observations are revisioned rather than destructively overwritten. A later scan seeing four placements after an earlier scan saw five must remain distinguishable from never having observed the fifth placement.
 
-The owner-facing storage selector is a single canonical three-panel component:
+## 5. Duplicate cross-reference — required post-processing
+After fingerprints are available, SOT builds a derived duplicate cross-reference for every content object with cardinality greater than one. It is not redundantly embedded as a serialized list in each placement row.
+
+Each duplicate group exposes:
+- stable duplicate group ID;
+- fingerprint/content ID;
+- cardinality;
+- content size;
+- total physical bytes represented by all placements;
+- excess duplicate placement bytes;
+- every placement ID;
+- every filename and complete path;
+- source/volume and failure domain for every placement;
+- role where defined;
+- per-placement plan and rationale once inference completes;
+- evidence revision.
+
+Selecting any placement must allow immediate traversal to all byte-identical filenames/paths. Selecting a duplicate group must expose the complete placement xref. Historical group membership remains attributable to its evidence revision.
+
+## 6. Canonical/protection inference contract
+Discovery order, row order, filename and path ordering may never silently choose canonical content. Required independent protection copies are `PROTECT`, never duplicate waste. If policy/evidence cannot establish a safe recommendation, use `REVIEW`.
+
+Turn 02 inference produces recommendations only. It performs no action against owner files.
+
+## 7. Controlled inference gate
+Before real-estate qualification, the engine must pass a predetermined synthetic estate of roughly 20–30 placements across at least three storage authorities containing unique files, 2-copy and 3+-copy duplicates, same-name/different-content, same-content/different-path, changed versions, stale/unavailable evidence and deliberate ambiguity.
+
+Expected content identities, xrefs, lifecycle states, recommendations and byte arithmetic are declared independently before execution. Pass requires exact agreement, deterministic repeat results, complete rationale and zero filesystem mutation.
+
+## 8. Storage selection contract
+The owner-facing selector is one canonical three-panel component:
 
 **Available Volumes | Folders | Selected Folders**
 
-It is used consistently for storage roles. Selection uses true Available ↔ Selected semantics. Available-volume discovery is shared and cached; ordinary selection/save does not trigger storage rescans. Folder assignment is metadata-only. Invalid assignments are rejected when assigned; actual availability is revalidated at the operation boundary.
+Selection uses true Available ↔ Selected semantics. Available-volume discovery is shared/cached; ordinary selection/save does not trigger storage rescans.
 
-## 7. Durable non-blocking job architecture
+## 9. Durable non-blocking analysis jobs
+Analysis is backend-owned and durable. Required controls are Start, Pause, Resume, Stop and Restart. Restart creates a new evidence revision. Browser reload/disconnect does not terminate work. Independent storage sources may scan concurrently; shared database mutation is transactional.
 
-Analysis is a backend-owned durable job, not a browser request lifecycle. The UI remains fully usable during discovery, enumeration, hashing and inference.
+## 10. Live telemetry
+Analyze exposes total/scanned/remaining files and bytes, unique content count/bytes, duplicate-group count and duplicate excess bytes, REVIEW count/bytes, recommended reclaimable bytes, elapsed/throughput, current source/folder/file, warnings/errors/skipped/unreadable counts, plus per-source state/progress.
 
-Required controls:
+`Reclaimable` means bytes currently recommended `REMOVE`; it is not a deletion count or executed savings.
 
-- Start
-- Pause
-- Resume
-- Stop
-- Restart
+## 11. Connection and logging
+Connection is automatic from the persisted backend endpoint with continuously visible GREEN/YELLOW/RED health. Failures never disappear silently.
 
-Pause and stop are cooperative and explicit. Restart creates a new evidence/job revision; it does not silently overwrite or corrupt the last completed evidence set. A browser reload or disconnect does not terminate work.
+Every meaningful positive or negative backend operation creates a durable structured SQLite event with timestamp, severity, event type, job/source identity where applicable, message and structured detail. Exceptions may not be swallowed.
 
-Independent storage sources may be scanned concurrently. Shared database mutation must be coordinated transactionally so parallel workers cannot create contradictory evidence or UI state.
+## 12. Database/evidence browser
+The database remains inspectable while analysis runs. Omnisearch and filters cover filename, extension, path, source, fingerprint/content ID, duplicate group/cardinality, lifecycle status, plan, size, evidence revision, availability and errors. Content/group drill-down exposes all placements and rationale.
 
-## 8. Live analysis telemetry
-
-The Analyze surface must expose continuously updated estate and per-source state. At minimum show:
-
-- total files and bytes discovered/expected where knowable;
-- scanned files and bytes;
-- remaining files and bytes where knowable;
-- percentage/progress;
-- unique content count/bytes;
-- duplicate-group count and duplicate bytes;
-- REVIEW count/bytes;
-- safely reclaimable bytes;
-- elapsed time and throughput;
-- current source/folder/file activity;
-- warnings/errors/skipped/unreadable counts.
-
-The primary owner visual is a compact proportional estate-analysis strip rather than large disconnected metric cards. Per-source rows show their own state and progress.
-
-Activity must be visually unmistakable: queued, enumerating, hashing, inferring, paused, stopping, stopped, complete and failed are distinct explicit states.
-
-## 9. Connection contract
-
-Connection is automatic using the persisted backend endpoint. A manual Connect button is not part of the normal workflow.
-
-A continuously visible health indicator uses:
-
-- **GREEN** — backend reachable and healthy with current heartbeat;
-- **YELLOW** — degraded, stale heartbeat, reconnecting, or backend reports warning state;
-- **RED** — disconnected or backend health failure.
-
-The client retries automatically with bounded backoff and updates the indicator immediately. Connection failures never disappear silently.
-
-## 10. Persistent event logging — no silent failures
-
-Logging is a product requirement and part of qualification. Every meaningful operation produces a durable structured event in SQLite, including positive and negative outcomes.
-
-Required events include backend startup, connection/heartbeat state, job creation/start/pause/resume/stop/restart/completion/failure, source scan start/progress/completion, folder enumeration, file hashing outcomes, unreadable/skipped files, retries, storage availability changes, database commits/rollbacks, inference start/completion and decision-summary creation.
-
-Every event records at minimum timestamp, severity, event type, job/source identity where applicable, human-readable message and structured detail where useful.
-
-Exceptions may not be swallowed. Every caught operational failure must either be surfaced as an API error and/or written to the durable event log. There are no silent failures.
-
-The UI provides a searchable/filterable Activity Log with severity, time, job, source and message. Positive INFO events and WARNING/ERROR events are both visible.
-
-## 11. Database/evidence browser
-
-The database remains inspectable while background analysis runs. The Database surface provides Omnisearch and filters over content objects/placements/evidence without blocking the scanner.
-
-At minimum the owner can search/filter by storage source, path, content hash, duplicate group/cardinality, decision, size and evidence/scan state. Selecting a content object shows all known placements and the evidence/rationale behind its classification.
-
-Reads must use short-lived/read-safe database access so inspection cannot block worker progress for material periods.
-
-## 12. Owner-facing information architecture
-
-Top-level application surfaces:
-
-1. **Estate** — registered storage, capacity/index state and governed three-panel storage selector.
-2. **Analyze** — background job controls, live estate telemetry and per-source activity.
-3. **Database** — searchable evidence/content/placement browser.
-4. **Plan** — consolidation proposal with KEEP/PROTECT/REMOVE/REVIEW rationale.
+## 13. Owner-facing information architecture
+1. **Estate** — registered storage and canonical three-panel selector.
+2. **Analyze** — controls, telemetry and live activity.
+3. **Database** — searchable placement/content/evidence browser.
+4. **Plan** — recommended KEEP/PROTECT/REMOVE/REVIEW proposal and rationale.
 5. **Activity** — durable positive/negative event log.
 
-The header contains compact global status and the red/yellow/green backend health indicator. Navigation and database inspection remain usable during all analysis states.
+## 14. Schema/version boundary
+Every database has explicit schema metadata and version. A clean-lineage schema may not silently open an incompatible historical database. Startup must either open the exact supported schema or create a new versioned database while preserving the incompatible predecessor as evidence. `CREATE TABLE IF NOT EXISTS` is not a migration strategy.
 
-## 13. Required first useful consolidation output
+The installer must never destroy an older database to make a new candidate start.
 
-At minimum report total observed bytes/placements, unique content bytes/count, redundant bytes/duplicate groups, safely reclaimable bytes, REVIEW bytes/items, proposed canonical/protection estate, required actions and rationale/evidence for every decision.
+## 15. Qualification sequence
+1. Create the versioned schema from this frozen contract.
+2. Prove startup against both a fresh environment and the known incompatible historical Turn 02 database without modifying that historical database.
+3. Prove the controlled inference fixture including duplicate xref and lifecycle transitions.
+4. Prove durable pause/resume/stop/restart and evidence revisions.
+5. Prove concurrent source workers cannot corrupt evidence/job state.
+6. Prove telemetry arithmetic.
+7. Prove injected failures become visible durable events.
+8. Prove database reads remain usable during analysis.
+9. Prove bounded real-storage read-only adapters and the three-panel selector.
+10. Expose the qualified backend through the static Pages client with automatic health/reconnect.
+11. Only then hand the owner the application test URL.
 
-## 14. Qualification sequence
+Internal qualification surfaces are not owner deliverables.
 
-1. Rebuild the clean inference fixture and prove the decision/safety contract.
-2. Add durable job/event schema and prove pause/resume/stop/restart semantics against bounded synthetic work.
-3. Prove concurrent source workers cannot corrupt evidence/job state.
-4. Prove telemetry arithmetic against known fixture totals.
-5. Prove every injected operational failure creates visible API/job state plus a durable log event.
-6. Prove database/evidence reads remain usable while analysis runs.
-7. Add bounded real-storage adapters and the canonical three-panel selector.
-8. Expose the qualified backend through the static Pages client with automatic health/reconnect.
-9. Only after these gates pass, hand the owner the application test URL.
+## 16. Deferred
+Deferred beyond Turn 02: all plan execution; copying; moving; renaming; quarantine; deletion/purge; disposition semantics beyond `NONE`; AI/LLM recommendations; semantic/near-duplicate detection; unrelated tagging.
 
-Internal fixture/qualification pages are not owner deliverables. The owner tests the application.
+## 17. Governance
+Stage chain remains `pre-base → base → pre-ship → ship → post-ship`.
 
-## 15. Deferred
-
-Until the deterministic consolidation and operations path is qualified, defer AI/LLM recommendations, semantic/near-duplicate detection, tags unrelated to consolidation, bulk destructive operations and certification/reporting beyond qualification needs.
-
-## 16. Governance
-
-Stage chain remains:
-
-`pre-base → base → pre-ship → ship → post-ship`
-
-Before every repository write, fetch current `main` and the current target blob SHA. Preserve unrelated work. Plan is binding positive specification; Graveyard is binding negative specification.
-
-The next implementation action is a clean rebuild satisfying Sections 5–14. Do not patch the rejected current Pages/backend candidate forward.
+Before every repository write, fetch current `main` and current target blob SHA. Preserve unrelated work. Plan is binding positive specification; Graveyard is binding negative specification. Failed generated artifacts remain evidence only and are never patched forward.
