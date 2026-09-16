@@ -1300,35 +1300,56 @@ function dgLangParam(room) {
         var el=kbEl(side);if(!el)return;
         var kkeys=el.querySelector('.kkeys');if(!kkeys)return;
         var rects=[];
+        var pid=null;   // the ONE pointerId we track; every other pointer is ignored,
+                         // which is what stops a normal tap from ever entering swipe state
 
         kkeys.addEventListener('pointerdown',function(e){
             var lang=langOf(side);
-            if(!getDict(lang))return;                 // no dictionary, no swype — same rule as B2
-            if(numMode[side])return;                   // number pad: no gesture typing
-            if(comp[side].ko||comp[side].raw||comp[side].kana)return;   // IME owns input here
+            if(!getDict(lang))return;
+            if(numMode[side])return;
+            if(comp[side].ko||comp[side].raw||comp[side].kana)return;
             var target=e.target.closest('.key[data-k]');
             if(!target)return;
             var k=target.dataset.k;
-            if(k.length!==1||!/[a-zA-Z]/.test(k))return;   // gesture starts on a letter key only
+            if(k.length!==1||!/[a-zA-Z]/.test(k))return;
             rects=keyRectsFor(side);
             if(rects.length<2)return;
-            swype.active=true;swype.side=side;swype.pts=[{x:e.clientX,y:e.clientY}];swype.letters=[k.toLowerCase()];paintTrail(side);
-            el.setPointerCapture&&el.setPointerCapture(e.pointerId);
+            // do NOT decide swipe-vs-tap yet — a single tap must still reach press().
+            // Only start tracking; commit to "this was a swipe" in pointerup, based on
+            // whether the finger actually travelled.
+            pid=e.pointerId;
+            swype.side=side;swype.pts=[{x:e.clientX,y:e.clientY}];swype.letters=[k.toLowerCase()];
+            swype.active=false;   // becomes true only once real movement is observed
         });
         kkeys.addEventListener('pointermove',function(e){
-            if(!swype.active||swype.side!==side)return;
+            if(e.pointerId!==pid||swype.side!==side)return;
+            var dx=e.clientX-swype.pts[0].x, dy=e.clientY-swype.pts[0].y;
+            if(!swype.active&&(dx*dx+dy*dy)<144)return;   // <12px of movement = still a tap, ignore
+            if(!swype.active){
+                swype.active=true;
+                e.preventDefault();                        // NOW claim the gesture from the browser —
+                el.setPointerCapture&&el.setPointerCapture(pid);  // not on every tap, only real swipes
+            }
             swype.pts.push({x:e.clientX,y:e.clientY});paintTrail(side);
             var nk=nearestKey(rects,e.clientX,e.clientY);
             if(nk&&swype.letters[swype.letters.length-1]!==nk.k)swype.letters.push(nk.k);
-        });
+        },{passive:false});
         function endSwype(e){
-            if(!swype.active||swype.side!==side)return;
-            swype.active=false;
-            if(swype.pts.length>=4&&swype.letters.length>=2)resolveSwype(side);
-            swype.pts=[];swype.letters=[];clearTrail(side);
+            if(e.pointerId!==pid||swype.side!==side)return;
+            var wasSwipe=swype.active;
+            pid=null;swype.active=false;
+            if(wasSwipe){
+                if(swype.pts.length>=4&&swype.letters.length>=2)resolveSwype(side);
+                swype.pts=[];swype.letters=[];clearTrail(side);
+            }
+            // if it was never a swipe, we changed nothing — the browser's own click
+            // event fires normally and press() runs exactly as before
         }
         kkeys.addEventListener('pointerup',endSwype);
-        kkeys.addEventListener('pointercancel',endSwype);
+        kkeys.addEventListener('pointercancel',function(e){
+            if(e.pointerId!==pid)return;
+            pid=null;swype.active=false;swype.pts=[];swype.letters=[];clearTrail(side);
+        });
     }
     /* Score every dictionary word against the letter sequence the finger
        crossed: the word's letters must appear as a SUBSEQUENCE of the swyped
