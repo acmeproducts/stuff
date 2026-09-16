@@ -5,6 +5,14 @@ APP="$HOME/.sot-turn02"; mkdir -p "$APP"
 BASE='https://raw.githubusercontent.com/acmeproducts/stuff/main'
 SRC="$APP/server-v4-1.py"
 curl -fsSL "$BASE/SOT/sot-turn02-pre-base-v4-1-server.py" -o "$SRC"
+# Correct the v4.1 source-added event call before qualification.
+python3 - "$SRC" <<'PY'
+import sys
+p=sys.argv[1]
+s=open(p).read()
+s=s.replace("event('INFO','source.added','Storage source added',source=sid if False else None,detail={'path':path,'role':role})","event('INFO','source.added','Storage source added',None,sid,{'path':path,'role':role})")
+open(p,'w').write(s)
+PY
 python3 -m py_compile "$SRC"
 command -v tailscale >/dev/null || { echo 'Tailscale CLI is required.' >&2; exit 1; }
 pkill -f "$APP/server-v4.py" 2>/dev/null || true
