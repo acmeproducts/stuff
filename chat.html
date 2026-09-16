@@ -1036,7 +1036,13 @@ function dgLangParam(room) {
             .then(function(existing){
                 var content,sha;
                 if(existing&&existing.content){
-                    content=atob(existing.content.replace(/\n/g,''))+lines;
+                    /* FIX: atob() alone returns a raw byte string (one char per byte).
+                       The write side encodes with encodeURIComponent+unescape+btoa
+                       (UTF-8-safe). Decoding must use the exact inverse
+                       (escape+decodeURIComponent) or every non-ASCII byte gets
+                       reinterpreted and mangled a little more on each append —
+                       which is why the log got progressively more corrupted. */
+                    content=decodeURIComponent(escape(atob(existing.content.replace(/\n/g,''))))+lines;
                     sha=existing.sha;
                 }else{content=lines;sha=undefined}
                 var body={message:'log '+batch.length+' events',content:btoa(unescape(encodeURIComponent(content)))};
