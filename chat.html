@@ -46,8 +46,6 @@ body{display:flex;flex-direction:column}
 .ctl{flex:0 0 38px;width:38px;height:38px;border-radius:999px;border:1px solid rgba(226,232,240,.95);
   background:#fff;color:#475569;display:inline-flex;align-items:center;justify-content:center;padding:8px}
 .ctl svg{width:100%;height:100%}
-.micbtn{width:44px;height:44px;border-radius:999px;padding:2px;background:none;border:none;flex:0 0 44px;display:inline-flex;align-items:center;justify-content:center}
-.mic-svg{width:40px;height:40px}
 .ctl[data-on="true"]{background:linear-gradient(135deg,rgba(248,113,113,.95),rgba(239,68,68,.95));color:#fff;border-color:transparent}
 .ctl[data-owned="true"]{box-shadow:0 0 0 2px rgba(59,130,246,.9)}
 .ctl[data-pending="true"]{animation:pulse 1s ease-in-out infinite}
@@ -73,7 +71,6 @@ body{display:flex;flex-direction:column}
 .kcands{display:none;gap:5px;overflow-x:auto;padding:0 4px 5px;flex:0 0 auto;min-height:36px;align-items:center}
 .kcands::-webkit-scrollbar{display:none}
 .kcand{flex:0 0 auto;padding:7px 12px;border-radius:9px;border:1px solid rgba(203,213,225,.9);background:#fff;font-size:16px;min-height:36px}
-.kcand.learn{border-style:dashed;color:#1d4ed8}
 .kcand.on{background:linear-gradient(135deg,rgba(96,165,250,.95),rgba(59,130,246,.95));color:#fff;border-color:transparent}
 .krow{display:flex;gap:6px;margin-bottom:6px}
 .key{flex:1 1 0;min-width:0;height:48px;border-radius:8px;border:1px solid rgba(203,213,225,.9);
@@ -765,13 +762,12 @@ function dgLangParam(room) {
     function createMicPipeline(side,onFinal){
         var P={
             on:false, stream:null,
-            ws:null, enWs:null, active:false, audioCtx:null, src:null, proc:null, analyser:null,
+            ws:null, enWs:null, active:false, audioCtx:null, src:null, proc:null,
             failCount:0, lastMsg:0, watchdog:null,
             gen:{n:1,bump:function(){this.n++;return this.n},is:function(g){return g===this.n}}
         };
 
         function stopAudio(){
-            if(P.analyser){try{P.analyser.disconnect()}catch(e){}P.analyser=null}
             if(P.proc){try{P.proc.disconnect()}catch(e){}P.proc=null}
             if(P.src){try{P.src.disconnect()}catch(e){}P.src=null}
             if(P.audioCtx){try{P.audioCtx.close()}catch(e){}P.audioCtx=null}
@@ -814,9 +810,6 @@ function dgLangParam(room) {
                     P.audioCtx=new(window.AudioContext||window.webkitAudioContext)({sampleRate:16000});
                     P.src=P.audioCtx.createMediaStreamSource(new MediaStream(tracks));
                     var silent=P.audioCtx.createGain();silent.gain.value=0;silent.connect(P.audioCtx.destination);
-                    P.analyser=P.audioCtx.createAnalyser();P.analyser.fftSize=256;P.analyser.smoothingTimeConstant=0.7;
-                    P.src.connect(P.analyser);   // tap: src -> analyser -> pump chain; analyser is read-only here
-                    paintMic(side,'timed',P.analyser);   // ring + level now live
 
                     function pump(f){
                         if(!live()||P.ws.readyState!==1||!P.on)return;
@@ -1084,138 +1077,17 @@ function dgLangParam(room) {
     }
 
     /* ================= VISUAL STATE — only painters ================= */
-    /* ── MIC VISUAL ENGINE ──────────────────────────────────────────────────
-       Three states:
-         idle    — white disc, grey border, grey glyph, ring hidden
-         timed   — red disc, white glyph, blue ring at full, level glow active
-                   after 3s silence: ring sweeps clockwise blue→red in 3s
-         latch   — red disc, white glyph, ring FULLY red, level glow active,
-                   no countdown ever
-       All writes go through paintMic(). Nothing else touches the SVG elements.  */
-    var RING_C=Math.round(2*Math.PI*17);   // circumference of ring (r=17)
-    var MIC_SILENCE_MS=3000, MIC_COUNTDOWN_MS=3000;
-    var micState={};   // per-side: {mode:'idle'|'timed'|'latch', silenceSince:null, countdownRaf:null, analyser:null, levelRaf:null}
-    function msEl(side,id){return document.getElementById(id+'-'+side)}
-
-    function paintMicRing(side,fraction,color){
-        /* fraction 0=full ring shown, 1=ring fully consumed */
-        var ring=msEl(side,'mic-ring');if(!ring)return;
-        ring.setAttribute('stroke',color);
-        ring.setAttribute('opacity','1');
-        ring.setAttribute('stroke-dashoffset',String(Math.round(RING_C*fraction)));
-    }
-    function paintMicDisc(side,active,latch){
-        var bg=msEl(side,'mic-bg');var glyph=msEl(side,'mic-glyph');if(!bg||!glyph)return;
-        if(active){bg.setAttribute('fill','#ef4444');bg.setAttribute('stroke','transparent');
-            glyph.setAttribute('stroke','#fff');}
-        else{bg.setAttribute('fill','#fff');bg.setAttribute('stroke','rgba(226,232,240,.95)');
-            glyph.setAttribute('stroke','#475569');}
-    }
-    function paintMicLevel(side,level){
-        /* Bridge-style: an inner white disc that pulses with audio level,
-           giving a visual "breath" inside the mic icon */
-        var lv=msEl(side,'mic-level');if(!lv)return;
-        var r=Math.round((6+level*10)*10)/10;   // 6–16px radius pulsing
-        lv.setAttribute('r',String(r));
-        lv.setAttribute('fill','rgba(255,255,255,0.55)');
-        lv.setAttribute('opacity',String(Math.round((0.15+level*0.7)*100)/100));
-    }
-
-    function stopCountdown(side){
-        var s=micState[side];if(!s)return;
-        if(s.countdownRaf){cancelAnimationFrame(s.countdownRaf);s.countdownRaf=null}
-        s.silenceSince=null;
-    }
-    function stopLevelLoop(side){
-        var s=micState[side];if(!s)return;
-        if(s.levelRaf){cancelAnimationFrame(s.levelRaf);s.levelRaf=null}
-    }
-    function startLevelLoop(side){
-        var s=micState[side];if(!s||!s.analyser)return;
-        var buf=new Uint8Array(s.analyser.fftSize);
-        s.silenceSince=null;   // BUG 1 FIX: reset clock here, not at paintMic time, so it
-                                // never starts counting from before audio is actually flowing
-        function tick(){
-            if(!s.levelRaf)return;
-            s.analyser.getByteTimeDomainData(buf);
-            var rms=0;for(var i=0;i<buf.length;i++){var v=(buf[i]-128)/128;rms+=v*v}
-            rms=Math.sqrt(rms/buf.length);
-            /* BUG 3 FIX: level indicator drives SVG radius and glow opacity,
-               not stroke-width on a fill element */
-            paintMicLevel(side,Math.min(1,rms*6));
-            if(s.mode==='timed'){
-                if(rms<0.015){
-                    /* silence detected — start or continue countdown */
-                    if(!s.silenceSince)s.silenceSince=performance.now();
-                } else {
-                    /* speech detected — reset countdown and ring immediately */
-                    if(s.silenceSince){
-                        s.silenceSince=null;
-                        /* BUG 2 FIX: actively repaint the ring back to full blue on resume,
-                           not just clear the clock (the ring fraction stayed wherever the
-                           sweep had reached) */
-                        paintMicRing(side,0,'#3b82f6');
-                    }
-                }
-                if(s.silenceSince){
-                    var elapsed=performance.now()-s.silenceSince;
-                    var fraction=Math.min(1,elapsed/MIC_COUNTDOWN_MS);
-                    var r=Math.round(59+fraction*(239-59)),g=Math.round(130+fraction*(68-130)),bl=Math.round(246+fraction*(68-246));
-                    paintMicRing(side,fraction,'rgb('+r+','+g+','+bl+')');
-                    if(fraction>=1){
-                        stopLevelLoop(side);
-                        teardown('mic-silence-countdown');
-                        return;
-                    }
-                }
-            }
-            s.levelRaf=requestAnimationFrame(tick);
-        }
-        s.levelRaf=requestAnimationFrame(tick);
-    }
-
-    function paintMic(side,state,analyser){
-        /* state: 'idle' | 'timed' | 'latch' */
-        if(!micState[side])micState[side]={mode:'idle',silenceSince:null,countdownRaf:null,analyser:null,levelRaf:null};
-        var s=micState[side];
-        stopCountdown(side);stopLevelLoop(side);
-        paintMicLevel(side,0);
-        var ring=msEl(side,'mic-ring');if(ring)ring.setAttribute('opacity','0');
-        s.mode=state;s.silenceSince=null;if(analyser)s.analyser=analyser;
-        if(state==='idle'){
-            paintMicDisc(side,false,false);
-        }else if(state==='timed'){
-            paintMicDisc(side,true,false);
-            paintMicRing(side,0,'#3b82f6');   // full blue ring
-            startLevelLoop(side);
-        }else if(state==='latch'){
-            paintMicDisc(side,true,true);
-            paintMicRing(side,0,'#ef4444');   // full red ring immediately
-            startLevelLoop(side);
-        }
-    }
-
     function paintIdle(side){
-        paintMic(side,'idle');
-        var ring=msEl(side,'mic-ring');if(ring)ring.setAttribute('opacity','0');
+        var m=document.querySelector('#strip-'+side+' .micbtn');
+        if(m){m.dataset.on='false';m.dataset.owned='false';m.dataset.pending='false'}
     }
     function paintActive(side,mode){
-        if(mode==='mic'){
-            /* set ring immediately on acquire (synchronous, before analyser is ready);
-               the level loop starts later from inside the audio graph setup. */
-            paintMicDisc(side,true,false);
-            var ring=msEl(side,'mic-ring');if(ring)ring.setAttribute('opacity','1');
-            paintMicRing(side,0,'#3b82f6');
-            if(!micState[side])micState[side]={mode:'idle',silenceSince:null,countdownRaf:null,analyser:null,levelRaf:null};
-            micState[side].mode='timed';micState[side].silenceSince=null;
-        }else{
-            paintMicDisc(side,false,false);
-        }
+        var m=document.querySelector('#strip-'+side+' .micbtn');
+        if(m){m.dataset.owned='true';m.dataset.on=(mode==='mic')?'true':'false'}
     }
     function paintPending(side,on){
-        var svg=document.getElementById('mic-svg-'+side);if(!svg)return;
-        svg.style.opacity=on?'0.45':'1';
-        svg.style.transition=on?'opacity .5s ease-in-out':'';
+        var m=document.querySelector('#strip-'+side+' .micbtn');
+        if(m)m.dataset.pending=on?'true':'false';
     }
 
     /* ================= REQUEST / ALLOW / DECLINE ================= */
@@ -1439,7 +1311,7 @@ function dgLangParam(room) {
             var k=b.dataset.k;
             if(k.length!==1||!/[a-zA-Z]/.test(k))return;   // letters only — not SHIFT/BKSP/space/etc
             var r=b.getBoundingClientRect();
-            out.push({k:k.toLowerCase(),cx:r.left+r.width/2,cy:r.top+r.height/2,w:r.width});
+            out.push({k:k.toLowerCase(),cx:r.left+r.width/2,cy:r.top+r.height/2});
         });
         return out;
     }
@@ -1597,11 +1469,7 @@ function dgLangParam(room) {
 
             if(wasSwype){
                 swype.active=false;
-                (function(){var rs=swResample(swype.pts,24),o=rects[0]||{cx:0,cy:0};
-                    remoteLog('swype_attempt',{side:side,pts:swype.pts.length,letters:swype.letters.join(''),
-                        keyW:(rects[0]&&rects[0].w)||0,
-                        p:rs.map(function(q){return[Math.round(q.x-o.cx),Math.round(q.y-o.cy)]}),
-                        k0:[Math.round(o.cx),Math.round(o.cy)]})})();
+                remoteLog('swype_attempt',{side:side,pts:swype.pts.length,letters:swype.letters.join('')});
                 if(swype.pts.length>=4&&swype.letters.length>=2){haptic(HAPTIC_TAP);resolveSwype(side)}
                 else remoteLog('swype_too_short',{pts:swype.pts.length,letters:swype.letters.length});
                 swype.pts=[];swype.letters=[];clearTrail(side);
@@ -1657,28 +1525,12 @@ function dgLangParam(room) {
         var s=Math.max(maxx-minx,maxy-miny)||1;
         return p.map(function(q){return{x:(q.x-cx)/s,y:(q.y-cy)/s}});
     }
-    /* DTW: aligns gesture and template allowing local stretching, so a
-       detour or a slow segment does not shift every later point out of
-       alignment the way index-locked comparison does. Sakoe-Chiba band
-       keeps it cheap. */
-    function swDTW(a,b,tun){
-        var n=a.length,m=b.length,band=Math.max(6,Math.floor(n*0.25)),INF=1e18;
-        var prev=new Array(m+1).fill(INF),cur=new Array(m+1).fill(INF);prev[0]=0;
-        for(var i=1;i<=n;i++){
-            cur.fill(INF);
-            var lo=Math.max(1,i-band),hi=Math.min(m,i+band);
-            for(var j=lo;j<=hi;j++){
-                var d=Math.hypot(a[i-1].x-b[j-1].x,a[i-1].y-b[j-1].y);
-                if(tun)d=Math.max(0,d-tun);
-                var best=prev[j-1];if(prev[j]<best)best=prev[j];if(cur[j-1]<best)best=cur[j-1];
-                cur[j]=d+best;
-            }
-            var tmp=prev;prev=cur;cur=tmp;
-        }
-        return prev[m]/(n+m);
+    function swMeanDist(a,b){var t=0;for(var i=0;i<a.length;i++)t+=Math.hypot(a[i].x-b[i].x,a[i].y-b[i].y);return t/a.length}
+    function swLocDist(a,b,keyW){
+        var t=0,tun=keyW/2;
+        for(var i=0;i<a.length;i++){var d=Math.hypot(a[i].x-b[i].x,a[i].y-b[i].y);t+=Math.max(0,d-tun)}
+        return t/a.length/keyW;
     }
-    function swMeanDist(a,b){return swDTW(a,b,0)}
-    function swLocDist(a,b,keyW){return swDTW(a,b,keyW/2)/keyW}
     function swTemplate(word,keyMap){
         var pts=[],last=null;
         for(var i=0;i<word.length;i++){
@@ -1695,19 +1547,15 @@ function dgLangParam(room) {
         if(points.length<2||!rects.length||!dict||!dict.length)return[];
         var keyMap={},keyW=0;
         rects.forEach(function(r){keyMap[r.k]=r});
-        /* keyW = median actual key width. The previous estimate (median gap
-           between sorted x-centers) was roughly HALF the true pitch on a
-           staggered QWERTY, which made the start/end gate ~23px and the
-           location tunnel ~9px on a phone — nearly every real gesture was
-           rejected or mis-scored. */
-        var ws=rects.map(function(r){return r.w||0}).filter(function(v){return v>0}).sort(function(a,b){return a-b});
-        keyW=ws.length?ws[Math.floor(ws.length/2)]:36;
+        var xs=rects.map(function(r){return r.cx}).sort(function(a,b){return a-b});
+        var gaps=[];for(var i=1;i<xs.length;i++){var g=xs[i]-xs[i-1];if(g>2)gaps.push(g)}
+        gaps.sort(function(a,b){return a-b});keyW=gaps.length?gaps[Math.floor(gaps.length/2)]:40;
         var g=swResample(points,SW_N),gn=swNormalize(g);
         var first=points[0],lastP=points[points.length-1],gate=SW_GATE*keyW;
         var scored=[];
         for(var d=0;d<dict.length;d++){
-            var w=dict[d];if(!w)continue;
-            var wl=w.toLowerCase().replace(/[^a-z\u00c0-\u024f]/g,'');if(wl.length<2)continue;
+            var w=dict[d];if(!w||w.length<2)continue;
+            var wl=w.toLowerCase();
             var k0=keyMap[wl[0]],k1=keyMap[wl[wl.length-1]];
             if(!k0||!k1)continue;
             if(Math.hypot(k0.cx-first.x,k0.cy-first.y)>gate)continue;      // item 3
@@ -1745,60 +1593,18 @@ function dgLangParam(room) {
     /* Track A: real autocomplete, reading the SAME asset chat-admin's download
        button writes (duck_dict_<lang> in localStorage). No dictionary = no
        suggestions, silently — this must never block typing or throw. */
-    var LEARN_MARK='\u2795';
     var dictCache={};
-    /* CENTRAL learning dictionary: dict/learned/<lang>.json in the repo.
-       A learned word is written there (read-modify-write via the GitHub API
-       with the PAT chat-admin stores), so it exists for every device and every
-       room. The local copy is a cache of the central file, refreshed on load
-       and after each write; it is not a device-private list. */
-    var LEARNED_API='https://api.github.com/repos/acmeproducts/stuff/contents/dict/learned/';
-    function userDict(lang){try{return JSON.parse(localStorage.getItem('duck_learned_'+lang)||'[]')}catch(e){return[]}}
-    function setUserDict(lang,arr){try{localStorage.setItem('duck_learned_'+lang,JSON.stringify(arr))}catch(e){}delete dictCache[lang]}
-    function ghPat(){try{return localStorage.getItem('duck_gh_pat')||''}catch(e){return ''}}
-    function b64utf8(s){return btoa(unescape(encodeURIComponent(s)))}
-    function utf8b64(s){return decodeURIComponent(escape(atob(s.replace(/\n/g,''))))}
-    function syncLearned(lang){
-        var pat=ghPat();if(!pat)return Promise.resolve(userDict(lang));
-        return fetch(LEARNED_API+lang+'.json',{headers:{'Authorization':'Bearer '+pat}})
-            .then(function(r){return r.ok?r.json():null})
-            .then(function(j){
-                if(!j||!j.content)return userDict(lang);
-                var arr=[];try{arr=JSON.parse(utf8b64(j.content))}catch(e){}
-                if(!Array.isArray(arr))arr=[];
-                setUserDict(lang,arr);return arr;
-            }).catch(function(){return userDict(lang)});
-    }
-    function learnWord(lang,word){
-        word=String(word||'').trim();if(!word)return;
-        var local=userDict(lang);
-        if(local.indexOf(word)<0){local.unshift(word);setUserDict(lang,local)}   // immediate on this device
-        remoteLog('dict_learn',{lang:lang,word:word});
-        var pat=ghPat();
-        if(!pat){toastMsg('Added locally — set the GitHub PAT in chat-admin to share'); return}
-        var url=LEARNED_API+lang+'.json';
-        fetch(url,{headers:{'Authorization':'Bearer '+pat}})
-            .then(function(r){return r.ok?r.json():null})
-            .then(function(j){
-                var arr=[],sha;
-                if(j&&j.content){try{arr=JSON.parse(utf8b64(j.content))}catch(e){arr=[]}sha=j.sha}
-                if(!Array.isArray(arr))arr=[];
-                if(arr.indexOf(word)<0)arr.unshift(word);
-                var body={message:'learn '+lang+': '+word,content:b64utf8(JSON.stringify(arr))};if(sha)body.sha=sha;
-                return fetch(url,{method:'PUT',headers:{'Authorization':'Bearer '+pat,'Content-Type':'application/json'},body:JSON.stringify(body)})
-                    .then(function(r){if(!r.ok)throw new Error('HTTP '+r.status);setUserDict(lang,arr);toastMsg('Added "'+word+'" to the shared dictionary')});
-            }).catch(function(e){toastMsg('Added locally; shared write failed ('+e.message+')');diag('learned-dict write failed: '+e.message,true)});
-    }
     function getDict(lang){
+        // Only trust the cache for a POSITIVE result. A null/missing result is
+        // re-checked every call — cheap, and fixes the real case where a
+        // dictionary downloads in chat-admin AFTER this tab already checked
+        // once and cached "not found".
         if(dictCache[lang])return dictCache[lang];
         var raw=null;try{raw=localStorage.getItem('duck_dict_'+lang)}catch(e){}
         if(!raw)return null;
-        var base;try{base=JSON.parse(raw)}catch(e){return null}
-        var u=userDict(lang);
-        dictCache[lang]=u.length?u.concat(base.filter(function(w){return u.indexOf(w)<0})):base;
+        try{dictCache[lang]=JSON.parse(raw)}catch(e){return null}
         return dictCache[lang];
     }
-    function inDict(lang,word){var d=getDict(lang);if(!d)return false;var w=word.toLowerCase();for(var i=0;i<d.length;i++)if(d[i].toLowerCase()===w)return true;return false}
     function currentWordFragment(side){
         var ta=inputEl(side);if(!ta)return'';
         var s=ta.selectionStart,text=ta.value.slice(0,s);
@@ -1813,17 +1619,11 @@ function dgLangParam(room) {
         var frag=currentWordFragment(side);
         if(!frag||frag.length<2){if(cands[side].length){cands[side]=[];candIdx[side]=-1;paintCands(side)}return}
         var lower=frag.toLowerCase();
-        var out=[],exact=false;
+        var out=[];
         for(var i=0;i<dict.length&&out.length<5;i++){
-            var dl=dict[i].toLowerCase();
-            if(dl===lower)exact=true;
-            if(dl.indexOf(lower)===0)out.push(dict[i]);
+            if(dict[i].toLowerCase().indexOf(lower)===0)out.push(dict[i]);
         }
-        /* learn offer: first when nothing in the dictionary starts with the
-           fragment (a genuinely new word), last otherwise (still reachable,
-           not in the way while a known word is being completed). */
-        if(!exact){if(!out.length)out.unshift(LEARN_MARK+frag);else{out=out.slice(0,4);out.push(LEARN_MARK+frag)}}
-        cands[side]=out.slice(0,5);candIdx[side]=-1;acFragLen[side]=frag.length;paintCands(side);
+        cands[side]=out;candIdx[side]=-1;acFragLen[side]=frag.length;paintCands(side);
     }
     var acFragLen={south:0,north:0};
 
@@ -1838,8 +1638,7 @@ function dgLangParam(room) {
         if(!cands[side].length){bar.innerHTML='';bar.style.display='none';return}
         bar.style.display='flex';
         bar.innerHTML=cands[side].map(function(c,i){
-            var learn=String(c).charAt(0)===LEARN_MARK;
-            return '<button type="button" class="kcand'+(i===candIdx[side]?' on':'')+(learn?' learn':'')+'" data-i="'+i+'">'+String(c).replace(/[&<>]/g,'')+'</button>'}).join('');
+            return '<button type="button" class="kcand'+(i===candIdx[side]?' on':'')+'" data-i="'+i+'">'+String(c).replace(/[&<>]/g,'')+'</button>'}).join('');
         bar.querySelectorAll('.kcand').forEach(function(b){
             b.addEventListener('pointerdown',function(e){e.preventDefault()});
             b.addEventListener('click',function(){pickCand(side,+b.dataset.i)});
@@ -1931,7 +1730,6 @@ function dgLangParam(room) {
     }
     function pickCand(side,i){
         var c=cands[side][i];if(c==null)return;
-        if(String(c).charAt(0)===LEARN_MARK){c=String(c).slice(1);learnWord(langOf(side),c)}
         var comping=comp[side].ko||comp[side].raw||comp[side].kana;
         if(comping){
             var cur=compText(side).length;
@@ -1972,10 +1770,7 @@ function dgLangParam(room) {
       pl:'🇵🇱',tr:'🇹🇷',km:'🇰🇭',lo:'🇱🇦'};
     var SWATCHES=['#eff6ff','#f0fdf4','#fef3c7','#fee2e2','#f3e8ff','#ffffff'];
 
-    /* The mic button is now a self-contained SVG; it carries the ring,
-       the fill disc, the level indicator, and the glyph — no separate CSS
-       classes for color, just attribute changes via paintMic(). */
-    var MIC_SVG=null;   // unused — mic button built in buildStrip below
+    var MIC_SVG='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" y1="19" x2="12" y2="23"/></svg>';
     var SPK_ON='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><path d="M15.54 8.46a5 5 0 0 1 0 7.07"/></svg>';
     var SPK_OFF='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><line x1="23" y1="9" x2="17" y2="15"/><line x1="17" y1="9" x2="23" y2="15"/></svg>';
     var GEAR_SVG='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.6a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9v0a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>';
@@ -1984,24 +1779,7 @@ function dgLangParam(room) {
     function buildStrip(side){
         var strip=document.getElementById('strip-'+side);
         strip.innerHTML=
-            '<button type="button" class="micbtn" aria-label="Speak">'+
-            '<svg id="mic-svg-'+side+'" class="mic-svg" viewBox="0 0 44 44" xmlns="http://www.w3.org/2000/svg">'+
-              /* bg disc */
-              '<circle cx="22" cy="22" r="21" fill="#fff" stroke="rgba(226,232,240,.95)" stroke-width="1.5" id="mic-bg-'+side+'"/>'+
-              /* sound level inner pulse (starts invisible, r animated by paintMicLevel) */
-              '<circle cx="22" cy="22" r="6" fill="rgba(255,255,255,0)" id="mic-level-'+side+'" opacity="0"/>'+
-              /* countdown/status ring */
-              '<circle cx="22" cy="22" r="17" fill="none" stroke-width="4" stroke-linecap="round"'+
-                ' stroke-dasharray="'+Math.round(2*Math.PI*17)+'" stroke-dashoffset="'+Math.round(2*Math.PI*17)+'"'+
-                ' transform="rotate(-90 22 22)" id="mic-ring-'+side+'" stroke="#3b82f6" opacity="0"/>'+
-              /* mic glyph */
-              '<g stroke="#475569" fill="none" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" id="mic-glyph-'+side+'">'+
-                '<path d="M22 10a3 3 0 0 0-3 3v6a3 3 0 0 0 6 0v-6a3 3 0 0 0-3-3z"/>'+
-                '<path d="M16 19v1a6 6 0 0 0 12 0v-1"/>'+
-                '<line x1="22" y1="26" x2="22" y2="29"/>'+
-              '</g>'+
-            '</svg>'+
-            '</button>'+
+            '<button type="button" class="ctl micbtn" data-on="false" data-owned="false" data-pending="false" aria-label="Speak">'+MIC_SVG+'</button>'+
             '<button type="button" class="ctl tts" data-on="false" aria-label="Read aloud">'+SPK_OFF+'</button>'+
             
             '<span class="inwrap"><input type="text" class="inp" id="in-'+side+'" inputmode="none" '+
@@ -2009,36 +1787,7 @@ function dgLangParam(room) {
               '<button type="button" class="clearbtn" aria-label="Clear">✕</button></span>'+
             '<button type="button" class="ctl sendbtn" aria-label="Send">'+SEND_BIG+'</button>';
 
-        (function(){
-            var mb=strip.querySelector('.micbtn');
-            var pressTimer=null,isLatch=false;
-            mb.addEventListener('pointerdown',function(e){e.preventDefault();
-                isLatch=false;
-                pressTimer=setTimeout(function(){isLatch=true},400);
-            });
-            mb.addEventListener('pointerup',function(e){
-                clearTimeout(pressTimer);
-                if(INPUT.owner===side&&INPUT.mode==='mic'){
-                    /* toggling off — self-stop */
-                    teardown('mic-toggle-off');
-                }else{
-                    requestInput(side,'mic');
-                    if(isLatch){
-                        /* upgrade to latch after acquire settles */
-                        setTimeout(function(){
-                            if(INPUT.owner===side&&INPUT.mode==='mic'){
-                                if(!micState[side])micState[side]={mode:'idle',silenceSince:null,levelRaf:null,analyser:null};
-                                paintMic(side,'latch',micState[side].analyser);
-                                /* suppress the idle timer for latch */
-                                clearMicIdle();
-                            }
-                        },50);
-                    }
-                }
-            });
-            mb.addEventListener('pointercancel',function(){clearTimeout(pressTimer)});
-            mb.addEventListener('click',function(e){e.preventDefault()});   // block click now that pointerup handles it
-        })();
+        strip.querySelector('.micbtn').addEventListener('click',function(){requestInput(side,'mic')});
         strip.querySelector('.sendbtn').addEventListener('click',function(){sendFrom(side)});
         strip.querySelector('.clearbtn').addEventListener('click',function(){
             var i=document.getElementById('in-'+side);i.value='';updateClear(side);
@@ -2053,12 +1802,6 @@ function dgLangParam(room) {
         var inp=document.getElementById('in-'+side);
         inp.addEventListener('focus',function(){
             if(!(INPUT.owner===side&&INPUT.mode==='kb'))requestInput(side,'kb');
-        });
-        inp.addEventListener('pointerdown',function(){
-            /* focus does not re-fire on an already-focused input; if the keyboard
-               was retracted, a tap must still bring it back with the draft intact */
-            var open=kbEl(side)&&kbEl(side).classList.contains('open');
-            if(!(INPUT.owner===side&&INPUT.mode==='kb')||!open)requestInput(side,'kb');
         });
         inp.addEventListener('input',function(){updateClear(side)});
         inp.addEventListener('keydown',function(e){
@@ -2122,7 +1865,6 @@ function dgLangParam(room) {
 
         renderAll();
         setTimeout(function(){try{loadFastText()}catch(e){}},1200);
-        [langOf('south'),langOf('north')].forEach(function(l){syncLearned(l)});
         document.addEventListener('visibilitychange',function(){if(document.hidden)flushRemoteLog()});
         window.addEventListener('pagehide',flushRemoteLog);
         window.addEventListener('error',function(e){remoteLog('js_error',{msg:e.message,line:e.lineno,file:e.filename})});
@@ -2137,7 +1879,7 @@ function dgLangParam(room) {
         window.detectByScript=detectByScript;window.applyNorthernThaiMap=applyNorthernThaiMap;
         window.resolveEffectiveLang=resolveEffectiveLang;window.normalizeOutgoing=normalizeOutgoing;
         window.detectLangAsync=detectLangAsync;window.loadFastText=loadFastText;
-        window.sideAsRoom=sideAsRoom;window.ROOM=ROOM;window.translateWithRetry=translateWithRetry;window.press=press;window.cands=cands;window.pickCand=pickCand;window.getDict=getDict;window.updateAutocomplete=updateAutocomplete;window.comp=comp;window.langOf=langOf;window.swype=swype;window.resolveSwype=resolveSwype;window.keyRectsFor=keyRectsFor;window.wireKeyboard=wireKeyboard;window.haptic=haptic;window.swRecognize=swRecognize;window.syncLearned=syncLearned;window.swResample=swResample;window.swypeWarned=swypeWarned;
+        window.sideAsRoom=sideAsRoom;window.ROOM=ROOM;window.translateWithRetry=translateWithRetry;window.press=press;window.cands=cands;window.pickCand=pickCand;window.getDict=getDict;window.updateAutocomplete=updateAutocomplete;window.comp=comp;window.langOf=langOf;window.swype=swype;window.resolveSwype=resolveSwype;window.keyRectsFor=keyRectsFor;window.wireKeyboard=wireKeyboard;window.haptic=haptic;window.swRecognize=swRecognize;window.swResample=swResample;window.swypeWarned=swypeWarned;
         window.renderAll=renderAll;window.debugLog=debugLog;window.MIC_IDLE_MS=MIC_IDLE_MS;window.getDiagLines=function(){return diagLines};
         window.dgUseDual=dgUseDual;window.dgUseMulti=dgUseMulti;window.dgLangParam=dgLangParam;
         window.dgArbitrateNative=dgArbitrateNative;window.dgArbitrateEnglish=dgArbitrateEnglish;
