@@ -2,7 +2,7 @@
 
 **Stage:** `pre-base`  
 **Status:** ACTIVE GOVERNING PLAN — CLEAN LINEAGE — STREAMING OBSERVABLE ESTATE ANALYSIS  
-**Date:** 2026-09-16
+**Date:** 2026-09-17
 
 ## 1. Product objective
 SOT is a global persistent single source of truth for a storage estate. Turn 02 ends at an evidence-backed recommended consolidation plan:
@@ -50,25 +50,33 @@ The canonical selector remains:
 
 Each pane scrolls independently. A folder transferred to Selected immediately disappears from Available/Folders; removing it makes it available again. Transfer controls are single-tap mobile targets. Inventory is shared/cached; selection does not trigger a rescan.
 
-## 9. Streaming analysis architecture — binding
-The batch model “enumerate an entire source, then begin fingerprinting” is prohibited.
+## 9. Streaming multi-queue scheduler architecture — binding
+The batch model “enumerate an entire source, then begin fingerprinting” and a single opaque global FIFO are prohibited.
 
-Each enabled source owns a producer that walks its tree and emits file observations into a **bounded queue**. Fingerprint workers consume that queue concurrently while enumeration continues. This provides backpressure and bounded memory. Independent sources may enumerate concurrently and the fingerprint pool may process work from all active sources.
+Each enabled source owns a producer and its own **bounded, independently observable queue**. Producers walk their source trees and durably emit file observations into their respective queues while fingerprinting is already underway. One backend scheduler/manager coordinates all source queues and a shared pool of multiple fingerprint workers.
 
-Required behavior:
+Scheduler requirements:
+- fair queue selection prevents one busy/slow source from monopolizing the worker pool;
+- at least two nonempty source queues can make forward fingerprint progress concurrently when worker capacity permits;
+- spare worker capacity may be reassigned dynamically to queues that have work;
+- blocking, backpressure, disconnect or slow I/O on one source cannot stop independent queues;
+- queue depth/capacity, producer state and worker allocation are observable per source;
+- the scheduler/manager owns durable job lifecycle, source scheduling, worker allocation, backpressure, pause/resume/stop, restart recovery and stall detection;
+- browser code never schedules filesystem work.
+
+Required processing behavior:
 - a file is durably observed as `NONE`, transitions to `IN_PROCESS` when fingerprint work begins, then `HASHED` on success;
 - unreadable/stat/hash failures remain durable observations with explicit evidence/error state rather than disappearing;
-- queue depth/capacity is observable;
 - enumeration completion for one source does not wait for other sources;
-- hashing begins as soon as the first file is discovered;
-- inference begins only after all producers are finished and the fingerprint queue/workers are drained;
+- hashing begins as soon as the first source queue contains work;
+- inference begins only after all producers are finished and all source queues/workers are drained;
 - database writes are transactional and must not serialize filesystem reading unnecessarily;
 - Pause/Resume/Stop/Restart are durable backend control intent, not browser or memory-only control;
 - Restart creates a new evidence revision and may not overlap mutation of the prior revision;
 - backend startup explicitly resolves stale active jobs and records the recovery event.
 
 ## 10. Durable job/source/worker telemetry — binding
-SQLite contains durable global job state plus per-source progress (`job_sources`) and sufficient worker/heartbeat state to diagnose a running job after browser reconnect.
+SQLite contains durable global job state plus per-source progress (`job_sources`) and sufficient scheduler/worker/heartbeat state to diagnose a running job after browser reconnect.
 
 Analyze must continuously expose, without opening Activity:
 - stage and substage;
@@ -76,14 +84,14 @@ Analyze must continuously expose, without opening Activity:
 - elapsed time and last-progress age;
 - discovered files/bytes;
 - hashed files/bytes;
-- remaining known queue/work;
-- files/sec and MB/sec (recent and/or clearly labeled aggregate);
-- queue depth/capacity;
-- active/idle worker count;
+- remaining known queued work;
+- files/sec and MB/sec;
+- total queue depth/capacity plus **per-source queue depth/capacity**;
+- active/idle worker count and worker/source allocation;
 - unique content, duplicate groups/excess bytes, REVIEW and reclaimable bytes as available;
 - warnings, errors, skipped/unreadable;
 - current source, folder and file;
-- **one row per source** with state, current folder/file, discovered/hashed files and bytes, elapsed, rate, warnings/errors and last-progress age.
+- **one row per source** with state, producer state, queue depth, active workers, current folder/file, discovered/hashed files and bytes, elapsed, rate, warnings/errors and last-progress age.
 
 A running state with no progress must never look healthy indefinitely. If no progress event occurs for a defined threshold while work remains, Analyze shows **STALLED** with the age and last known operation. This is diagnostic state, not an invented lifecycle value.
 
@@ -95,7 +103,7 @@ Analyze contains a compact **Live Activity** stream showing the most recent oper
 Minimum event families:
 - job created/started/stage/pause/resume/stop/complete/fail/recovered;
 - source enumeration start/progress/complete/disconnect/reconnect/fail;
-- queue/backpressure/stall/recovery;
+- scheduler allocation/fairness, queue/backpressure/stall/recovery;
 - fingerprint worker start/progress/error/stop;
 - placement observation/lifecycle failure summaries;
 - database transaction/rollback failures;
@@ -114,7 +122,7 @@ Database remains usable while analysis runs. Omnisearch and filters cover filena
 
 ## 14. Owner-facing information architecture
 1. **Estate** — registered storage and canonical three-panel selector.
-2. **Analyze** — controls, global telemetry, per-source progress, worker/queue state and Live Activity.
+2. **Analyze** — controls, global telemetry, per-source progress, scheduler/worker/queue state and Live Activity.
 3. **Database** — searchable placement/content/evidence browser.
 4. **Plan** — recommended KEEP/PROTECT/REMOVE/REVIEW proposal and rationale.
 5. **Activity** — complete durable event log.
@@ -126,18 +134,20 @@ Every database has explicit schema metadata/version. A new clean candidate uses 
 1. Create the new versioned schema from this contract.
 2. Prove fresh startup and coexistence with historical databases without modifying them.
 3. Prove controlled inference fixture and exact lifecycle/xref/arithmetic.
-4. Prove streaming producer→bounded-queue→fingerprint processing: hashing starts before enumeration finishes.
-5. Prove multiple source producers and fingerprint workers make concurrent forward progress without corrupting evidence.
-6. Prove durable pause/resume/stop/restart and non-overlapping revisions.
-7. Prove backend restart recovery of stale active work with durable event evidence.
-8. Prove every discovered file becomes a durable observation, including injected stat/read/hash failures.
-9. Prove global/per-source counters, bytes, rates, queue depth and worker counts reconcile with fixture truth.
-10. Inject a deliberately blocked/slow worker and prove STALLED/last-progress diagnostics become visible, then recovery is recorded.
-11. Prove Analyze Live Activity and Activity log expose positive progress and injected failures; no silent catch paths.
-12. Prove Database reads remain usable during active analysis.
-13. Prove bounded real-storage read-only adapters and the three-panel selector.
-14. Prove HTTPS automatic reconnect from a second browser tab restores the same active job and telemetry.
-15. Only then hand the owner the application test URL.
+4. Prove streaming producer→per-source bounded queues→fingerprint processing: hashing starts before enumeration finishes.
+5. Prove at least two source queues make simultaneous forward fingerprint progress under scheduler control.
+6. Deliberately block/slow one source and prove another independent source continues to enumerate and fingerprint.
+7. Prove scheduler fairness and dynamic spare-capacity allocation without corrupting evidence.
+8. Prove durable pause/resume/stop/restart and non-overlapping revisions.
+9. Prove backend restart recovery of stale active work with durable event evidence.
+10. Prove every discovered file becomes a durable observation, including injected stat/read/hash failures.
+11. Prove global/per-source counters, bytes, rates, per-source queue depths and worker allocations reconcile with fixture truth.
+12. Inject a deliberately blocked/slow worker and prove STALLED/last-progress diagnostics become visible, then recovery is recorded.
+13. Prove Analyze Live Activity and Activity log expose positive progress and injected failures; no silent catch paths.
+14. Prove Database reads remain usable during active analysis.
+15. Prove bounded real-storage read-only adapters and the three-panel selector.
+16. Prove HTTPS automatic reconnect from a second browser tab restores the same active job and telemetry.
+17. Only then hand the owner the application test URL.
 
 Internal qualification surfaces are engineering evidence, not owner deliverables.
 
