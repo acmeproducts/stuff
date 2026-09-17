@@ -1,80 +1,72 @@
-name: Build Market Navigator Turn 25 Ship
+name: Verify Market Navigator Turn 25 Ship
+
+# Supersedes the earlier temporary build automation, which rewrote the builder's own source at run time
+# to compensate for anchors taken from non-baseline markup. The builder now carries the correct
+# baseline anchors, so this job only proves reproducibility: rebuild from a clean checkout and require
+# the committed candidate to be byte-identical. It never edits the builder and never pushes.
 
 on:
   push:
     branches: [main]
     paths:
       - market-navigator-build-turn25-ship.py
+      - market-navigator-turn25-ship-parts/**
+      - market-navigator-turn25-ship.html
       - .github/workflows/build-market-navigator-turn25-ship.yml
   workflow_dispatch:
 
 permissions:
-  contents: write
+  contents: read
 
 jobs:
-  build:
+  verify:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
         with:
-          fetch-depth: 1
-      - name: Retrieve exact owner-authoritative baseline and align builder anchors
+          fetch-depth: 0
+      - name: Reproduce the candidate from the owner-authoritative baseline
         run: |
-          curl --fail --location --silent --show-error \
-            https://raw.githubusercontent.com/acmeproducts/stuff/ddf275a8da943cfb8b0e9c5e610649b36424b886/market-navigator-turn25-pre-ship.html \
-            --output /tmp/market-navigator-turn25-pre-ship.html
-          test -s /tmp/market-navigator-turn25-pre-ship.html
-          python3 - <<'PY'
-          from pathlib import Path
-          p=Path('market-navigator-build-turn25-ship.py')
-          s=p.read_text()
-          s=s.replace('base=subprocess.check_output(["git","show",f"{BASE}:{SRC}"],text=True)','base=pathlib.Path("/tmp/market-navigator-turn25-pre-ship.html").read_text(encoding="utf-8")')
-          s=s.replace('<canvas id="nowChart" aria-label="Market chart"></canvas>','<canvas id="nowChart" class="chart"></canvas>')
-          s=s.replace('base=replace_once(base,"startAI(prompt);","startAIShip(prompt);","AI POV launch")','base=base')
-          s=s.replace("if(v==='HEALTH')renderHealth();","if(v==='health')renderHealth()")
-          p.write_text(s)
-          PY
-      - name: Build from owner-authoritative baseline
-        run: python3 market-navigator-build-turn25-ship.py
-      - name: Bind governed explanation and model-health evidence into canonical AI path
+          set -euo pipefail
+          cp market-navigator-turn25-ship.html /tmp/committed.html
+          python3 market-navigator-build-turn25-ship.py
+          if ! cmp -s /tmp/committed.html market-navigator-turn25-ship.html; then
+            echo "::error::committed candidate is not reproducible from the pinned baseline"
+            diff <(head -c 4000 /tmp/committed.html) <(head -c 4000 market-navigator-turn25-ship.html) || true
+            exit 1
+          fi
+          echo "candidate is byte-identical to a clean rebuild"
+      - name: Provenance and static ship gates
         run: |
           python3 - <<'PY'
-          from pathlib import Path
-          p=Path('market-navigator-turn25-ship.html'); s=p.read_text()
-          old='let state=stateOverride||nowAnalysisState(),rootLabel='
-          new='let state=shipAnalysisState(stateOverride||nowAnalysisState()),rootLabel='
-          assert s.count(old)==1, s.count(old)
-          s=s.replace(old,new,1)
-          old='return{lineage:state.lineage,root:state.root,series:state.series,horizon:state.horizon,index:state.index,evidence:state.evidence,chart:'
-          new='return{indexExplanation:state.indexExplanation||null,modelHealth:state.modelHealth||null,lineage:state.lineage,root:state.root,series:state.series,horizon:state.horizon,index:state.index,evidence:state.evidence,chart:'
-          assert s.count(old)==1, s.count(old)
-          s=s.replace(old,new,1)
-          p.write_text(s)
-          PY
-      - name: Static qualification
-        run: |
-          python3 - <<'PY'
-          from pathlib import Path
-          p=Path('market-navigator-turn25-ship.html'); s=p.read_text()
-          assert p.stat().st_size > 100000
-          assert s.count('id="indexInfoBtn"') == 1
-          assert 'function shipBuildRecord' in s
-          assert 'function shipModelHealthRecord' in s
-          assert 'function printNowShip' in s
-          assert "if(v==='health')renderHealthShip()" in s
-          assert 'let state=shipAnalysisState(stateOverride||nowAnalysisState())' in s
-          assert 'indexExplanation:state.indexExplanation||null' in s
-          assert 'modelHealth:state.modelHealth||null' in s
-          assert 'ship-printing-now' in s
+          import hashlib, pathlib, subprocess
+          BASE='ddf275a8da943cfb8b0e9c5e610649b36424b886'
+          BLOB='89095a52e02b06db2b26192099846a5f0015a42d'
+          SIZE=127374
+          SHA='84eb47caade89ca89ccb92281d888f9c6eb6fd3b1415dc18d170dddb46a155ba'
+          blob=subprocess.check_output(['git','rev-parse',f'{BASE}:market-navigator-turn25-pre-ship.html'],text=True).strip()
+          raw=subprocess.check_output(['git','cat-file','blob',BLOB])
+          assert blob==BLOB, blob
+          assert len(raw)==SIZE, len(raw)
+          assert hashlib.sha256(raw).hexdigest()==SHA
+          s=pathlib.Path('market-navigator-turn25-ship.html').read_text(encoding='utf-8')
+          assert s.count('id="indexInfoBtn"')==1
+          assert s.count('aria-label="Explain index movement"')==1
+          for t in ['id="mnxModal"','id="nowPrintReport"','function mnxRecord(','function mnxModelHealth(',
+                    'function mnxPrintNow(','function mnxRenderHealth(','window.__mnShip25',
+                    'governedIndexExplanation:state.indexExplanation','data-mnx-health="models"']:
+              assert t in s, t
           assert 'c3cde56268303d8e2a222012d5a34aee9f26651e' not in s
-          print('static ship gates PASS', p.stat().st_size)
+          print('provenance + static ship gates PASS', len(s.encode()))
           PY
-      - name: Commit candidate artifact
+      - name: JavaScript parse
         run: |
-          git checkout -- market-navigator-build-turn25-ship.py
-          git config user.name github-actions[bot]
-          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
-          git add market-navigator-turn25-ship.html
-          git diff --cached --quiet && exit 0
-          git commit -m "Build Market Navigator Turn 25 Ship candidate from ddf275a"
-          git push
+          python3 - <<'PY'
+          import pathlib, re
+          s=pathlib.Path('market-navigator-turn25-ship.html').read_text(encoding='utf-8')
+          m=re.findall(r'<script(?![^>]*\bsrc=)[^>]*>(.*?)</script>', s, re.S)
+          assert len(m)==1, len(m)
+          pathlib.Path('/tmp/candidate.js').write_text(m[0], encoding='utf-8')
+          PY
+          node --check /tmp/candidate.js
+          echo "javascript parse PASS"
