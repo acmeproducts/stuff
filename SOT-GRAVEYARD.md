@@ -1,7 +1,7 @@
 # SOT Graveyard
 
 **Status:** AUTHORITATIVE REJECTED-APPROACH RECORD  
-**Updated:** 2026-09-15
+**Updated:** 2026-09-16
 **Repository:** `acmeproducts/stuff`
 
 This document records architectural and implementation approaches that have been rejected so they are not silently reintroduced in later SOT work.
@@ -244,3 +244,36 @@ Turn 02 ends at the evidence-backed recommended plan. It does not copy, move, re
 **Decision date:** 2026-09-15
 
 Duplicate membership is derived post-processing. Build a revisioned duplicate-group/content xref from fingerprints to placement IDs, filenames, paths, sources, failure domains and later per-placement recommendations. Do not serialize mutable copies of the same duplicate path list into every file row.
+
+---
+
+## GY-059 — Batch enumerate-everything before fingerprinting
+
+**Status:** REJECTED SCAN ARCHITECTURE  
+**Decision date:** 2026-09-16  
+**Evidence:** Turn 02 v4/v4.1 owner test
+
+Do not fully enumerate registered storage and retain the resulting file list before fingerprint work begins. On large estates this creates long opaque phases, delays useful evidence, consumes unbounded memory and prevents the owner from distinguishing forward progress from a hung scan.
+
+**Required replacement:** per-source producers stream durable file observations into a bounded queue consumed concurrently by fingerprint workers. Hashing starts as soon as work exists; queue depth and producer/worker progress are observable.
+
+---
+
+## GY-060 — A single current-path label as scan observability
+
+**Status:** REJECTED OBSERVABILITY MODEL  
+**Decision date:** 2026-09-16  
+**Evidence:** Turn 02 v4.1 owner screenshots: connected job remained operationally opaque while enumerating
+
+A stage label plus one current path is not sufficient evidence that analysis is healthy. Do not require the owner to infer activity from an occasionally changing filename.
+
+**Required replacement:** Analyze continuously shows global and per-source discovered/hashed files and bytes, current folder/file, elapsed/rate, queue depth, worker counts, warnings/errors, last-progress age and recent durable operational events. Work with no progress while work remains becomes visibly STALLED with diagnostic context.
+
+---
+
+## GY-061 — High-frequency work with no owner-visible live event stream
+
+**Status:** REJECTED UX / OPERATIONS MODEL  
+**Decision date:** 2026-09-16
+
+A separate Activity page is not sufficient while a long-running analysis is being watched. Analyze requires a compact recent-event stream backed by the same durable event ledger. Event volume may be throttled/coalesced, but progress and failures may not disappear into silent intervals.
