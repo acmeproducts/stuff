@@ -819,3 +819,63 @@ alongside §16).
 
 **Hold: no further building until translation/normalization is confirmed working
 on a real device against this exact commit.** See graveyard G13.
+
+
+---
+
+## 4 · MIC VISUAL STATE SPEC (Turn 24)
+
+Status: **PROPOSED — awaiting owner answers to 2 open questions before build.**
+
+### 4.1 Single tap (timed mode)
+
+1. White mic glyph, red circle fill, blue ring — active listening state.
+2. Sound level indicator animates INSIDE the mic icon, driven by the live
+   audio pipeline (same AudioWorklet/ScriptProcessor already running in the
+   Deepgram pipeline — reading from it, not a separate analyser).
+3. When silence is detected (level below threshold for 3 continuous seconds),
+   the blue ring begins a **clockwise countdown** from 0° to 360°, transitioning
+   from blue to red as it sweeps. The user sees the countdown start.
+4. When the ring is fully red (countdown complete), the mic disengages
+   (teardown, as per the existing switch rules).
+5. Sound level indicator remains animated throughout the countdown — the mic
+   is still live and still picking up.
+6. If speech resumes before the ring completes, the countdown resets to blue.
+
+**Open question A:** Does the 3-second countdown begin at the first moment of
+silence (the ring itself IS the countdown), or does silence have to persist
+for a threshold before the ring starts? Default choice if not answered: ring
+starts at first silence, takes 3 seconds to complete — the countdown is the
+timeout.
+
+### 4.2 Long press (latch mode)
+
+7. White glyph, red fill, ring is **fully red** immediately on engagement —
+   no countdown, no timeout.
+8. Same sound level indicator as 4.1.
+9. Stays engaged until (a) user taps to toggle off, or (b) partner requests
+   control and the user grants it — full teardown per the existing switch
+   rules.
+10. No ring animation while in latch mode — the fully red ring IS the visual
+    signal that latch is active.
+
+**Open question B:** The live audio pipeline in the existing Deepgram factory
+reads from the AudioWorklet/ScriptProcessor already in `createMicPipeline`.
+Plan is to expose the analyser from there. Confirm or override.
+
+### 4.3 Implementation notes (not visible to user)
+
+11. SVG-based ring: `stroke-dasharray` / `stroke-dashoffset` on a circle path,
+    animated with `requestAnimationFrame` during countdown.
+12. Sound level: an AnalyserNode inserted into the existing audio graph inside
+    `createMicPipeline`, exposing a float average level (0–1) via a callback.
+    The mic icon renders a set of concentric opacity rings or a pulsing glow
+    driven by that level.
+13. Latch vs timed: controlled by `requestInput` entry point —
+    `pointerdown` of ≥400ms fires latch mode; tap fires timed mode.
+    Both go through `acquire(side,'mic')` — latch just sets a flag that
+    suppresses the silence timer.
+
+### 4.4 Ledger
+
+Will appear as Turn 24·base once approved and built.
