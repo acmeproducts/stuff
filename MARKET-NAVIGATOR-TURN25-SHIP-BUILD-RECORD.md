@@ -110,3 +110,27 @@ individually rather than accepting that the modal opened.
 
 CI green, merge, deployment and this qualification record do **not** constitute owner acceptance. The
 candidate remains a candidate until the owner tests it and says otherwise.
+
+## 8. Publication and live verification
+
+| Field | Value |
+|---|---|
+| Candidate commit | `4819e770` (branch `claude/market-navigator-turn25-ship-1j4vsu`) |
+| Merge commit | `51127fae0daa7244bcef26f3f17374d270d3fec4` (PR #684) |
+| Deployed Pages commit | `8da138de2de4fe3f5a9ab1d840e46090016d999a` |
+| Artifact blob on `main` | `508ba48e2540414ff1009416194b73950533bc20` |
+| Artifact SHA-256 | `c3a90905fc6efa88547ca44ccbed7830c65a17d016a5c826dc1d610a309c7f4f` (181969 bytes) |
+| Pages URL | `https://acmeproducts.github.io/stuff/market-navigator-turn25-ship.html` |
+| Pages deploy | `Deploy static content to Pages` and `pages build and deployment` — success |
+| Verification workflow | `Verify Market Navigator Turn 25 Ship` — success (clean rebuild byte-identical) |
+
+The complete qualification matrix was re-run a third time against the **published bytes**, fetched back
+from `raw.githubusercontent.com` at the deployed commit and confirmed byte-identical to the qualified
+candidate: 17/17 gates, 387 checks. The five canonical evidence files the artifact loads were also
+fetched at the deployed commit and confirmed identical to the versions the matrix ran against.
+
+**Limitation on live smoke.** The build environment's egress policy denies
+`acmeproducts.github.io:443` (`connect_rejected`, gateway 403 to CONNECT), so the smoke could not be
+executed against the Pages origin itself. Semantic verification of the deployed *bytes* is complete;
+verification against the Pages *origin* (TLS, redirect, caching, CDN headers) is outstanding and must
+be performed by the owner or from a host with egress to `*.github.io`.
