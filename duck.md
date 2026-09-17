@@ -863,19 +863,44 @@ timeout.
 reads from the AudioWorklet/ScriptProcessor already in `createMicPipeline`.
 Plan is to expose the analyser from there. Confirm or override.
 
-### 4.3 Implementation notes (not visible to user)
+### 4.3 Implementation notes — REVISED after two failed releases
 
-11. SVG-based ring: `stroke-dasharray` / `stroke-dashoffset` on a circle path,
-    animated with `requestAnimationFrame` during countdown.
-12. Sound level: an AnalyserNode inserted into the existing audio graph inside
-    `createMicPipeline`, exposing a float average level (0–1) via a callback.
-    The mic icon renders a set of concentric opacity rings or a pulsing glow
-    driven by that level.
-13. Latch vs timed: controlled by `requestInput` entry point —
-    `pointerdown` of ≥400ms fires latch mode; tap fires timed mode.
-    Both go through `acquire(side,'mic')` — latch just sets a flag that
-    suppresses the silence timer.
+Root cause of both failures (documented in graveyard): the AnalyserNode is created
+inside `ws.onopen`, 300–800ms after `acquire` fires on a real device. `paintActive`
+is called synchronously by `acquire`, so the analyser is always `null` when the
+level loop is started from there. The loop returns immediately; nothing runs.
+
+Correct architecture — all items below are mandatory before any build attempt:
+
+11. **SVG ring**: `stroke-dasharray`/`stroke-dashoffset` on a `<circle>` path,
+    driven by a RAF loop. Set synchronously to full-blue on acquire (opacity:1,
+    dashoffset=0). Countdown and level loop start only from the audio-ready
+    callback (item 13 below) — never from `paintActive`.
+12. **Level indicator**: AnalyserNode inserted into the audio graph immediately
+    after `P.src` is created inside `ws.onopen`. Inner SVG disc (r 6–16px, opacity
+    0.15–0.85) pulsing with RMS level — Bridge-style breath inside the glyph.
+    Active in both timed and latch mode.
+13. **Audio-ready callback**: `createMicPipeline` accepts an `onAudioReady(analyser)`
+    callback, fired once from inside `ws.onopen` after `P.analyser` is assigned.
+    The level loop and silence detection start exclusively from this callback.
+    `paintActive` sets the ring immediately (synchronous); everything audio-dependent
+    waits for `onAudioReady`.
+14. **Silence detection**: RMS < 0.015 sustained — clock starts at first silence
+    sample inside the RAF loop (not at acquire time). Speech resumes → clock clears
+    AND ring actively repaints to full blue (not just clears the clock variable).
+15. **Latch**: `pointerdown` ≥400ms → latch flag. After acquire, `onAudioReady`
+    fires normally; the RAF loop runs but the silence clock is never started.
+    Ring stays fully red. Level indicator active.
+16. **Test harness gate** (mandatory before ship): assert (a) `onAudioReady` callback
+    fires; (b) RAF loop runs at least one tick; (c) a synthetic RMS>0.015 input
+    resets `silenceSince` and repaints the ring to full blue; (d) a sustained
+    RMS<0.015 input sweeps the ring to fully red and calls teardown. These must
+    pass before any device test.
 
 ### 4.4 Ledger
 
-Will appear as Turn 24·base once approved and built.
+| Build | Description | Status |
+|---|---|---|
+| Turn 24·attempt 1 | SVG mic, AnalyserNode, countdown, latch | REJECTED — countdown ran immediately, no level indicator, no reset on speech |
+| Turn 24·attempt 2 | Bug fixes to attempt 1 | REJECTED — same root cause, wrong call site patched |
+| Turn 24·base | Rebuilt per items 11–16 above | **NOT YET BUILT** |
