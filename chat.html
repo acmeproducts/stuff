@@ -46,6 +46,8 @@ body{display:flex;flex-direction:column}
 .ctl{flex:0 0 38px;width:38px;height:38px;border-radius:999px;border:1px solid rgba(226,232,240,.95);
   background:#fff;color:#475569;display:inline-flex;align-items:center;justify-content:center;padding:8px}
 .ctl svg{width:100%;height:100%}
+.micbtn{width:44px;height:44px;border-radius:999px;padding:2px;background:none;border:none;flex:0 0 44px;display:inline-flex;align-items:center;justify-content:center}
+.mic-svg{width:40px;height:40px}
 .ctl[data-on="true"]{background:linear-gradient(135deg,rgba(248,113,113,.95),rgba(239,68,68,.95));color:#fff;border-color:transparent}
 .ctl[data-owned="true"]{box-shadow:0 0 0 2px rgba(59,130,246,.9)}
 .ctl[data-pending="true"]{animation:pulse 1s ease-in-out infinite}
@@ -763,12 +765,13 @@ function dgLangParam(room) {
     function createMicPipeline(side,onFinal){
         var P={
             on:false, stream:null,
-            ws:null, enWs:null, active:false, audioCtx:null, src:null, proc:null,
+            ws:null, enWs:null, active:false, audioCtx:null, src:null, proc:null, analyser:null,
             failCount:0, lastMsg:0, watchdog:null,
             gen:{n:1,bump:function(){this.n++;return this.n},is:function(g){return g===this.n}}
         };
 
         function stopAudio(){
+            if(P.analyser){try{P.analyser.disconnect()}catch(e){}P.analyser=null}
             if(P.proc){try{P.proc.disconnect()}catch(e){}P.proc=null}
             if(P.src){try{P.src.disconnect()}catch(e){}P.src=null}
             if(P.audioCtx){try{P.audioCtx.close()}catch(e){}P.audioCtx=null}
@@ -811,6 +814,9 @@ function dgLangParam(room) {
                     P.audioCtx=new(window.AudioContext||window.webkitAudioContext)({sampleRate:16000});
                     P.src=P.audioCtx.createMediaStreamSource(new MediaStream(tracks));
                     var silent=P.audioCtx.createGain();silent.gain.value=0;silent.connect(P.audioCtx.destination);
+                    P.analyser=P.audioCtx.createAnalyser();P.analyser.fftSize=256;P.analyser.smoothingTimeConstant=0.7;
+                    P.src.connect(P.analyser);   // tap: src -> analyser -> pump chain; analyser is read-only here
+                    paintMic(side,'timed',P.analyser);   // ring + level now live
 
                     function pump(f){
                         if(!live()||P.ws.readyState!==1||!P.on)return;
@@ -1078,17 +1084,125 @@ function dgLangParam(room) {
     }
 
     /* ================= VISUAL STATE — only painters ================= */
+    /* ── MIC VISUAL ENGINE ──────────────────────────────────────────────────
+       Three states:
+         idle    — white disc, grey border, grey glyph, ring hidden
+         timed   — red disc, white glyph, blue ring at full, level glow active
+                   after 3s silence: ring sweeps clockwise blue→red in 3s
+         latch   — red disc, white glyph, ring FULLY red, level glow active,
+                   no countdown ever
+       All writes go through paintMic(). Nothing else touches the SVG elements.  */
+    var RING_C=Math.round(2*Math.PI*17);   // circumference of ring (r=17)
+    var MIC_SILENCE_MS=3000, MIC_COUNTDOWN_MS=3000;
+    var micState={};   // per-side: {mode:'idle'|'timed'|'latch', silenceSince:null, countdownRaf:null, analyser:null, levelRaf:null}
+    function msEl(side,id){return document.getElementById(id+'-'+side)}
+
+    function paintMicRing(side,fraction,color){
+        /* fraction 0=full ring shown, 1=ring fully consumed */
+        var ring=msEl(side,'mic-ring');if(!ring)return;
+        ring.setAttribute('stroke',color);
+        ring.setAttribute('opacity','1');
+        ring.setAttribute('stroke-dashoffset',String(Math.round(RING_C*fraction)));
+    }
+    function paintMicDisc(side,active,latch){
+        var bg=msEl(side,'mic-bg');var glyph=msEl(side,'mic-glyph');if(!bg||!glyph)return;
+        if(active){bg.setAttribute('fill','#ef4444');bg.setAttribute('stroke','transparent');
+            glyph.setAttribute('stroke','#fff');}
+        else{bg.setAttribute('fill','#fff');bg.setAttribute('stroke','rgba(226,232,240,.95)');
+            glyph.setAttribute('stroke','#475569');}
+    }
+    function paintMicLevel(side,level){
+        /* level 0–1 : opacity of a red glow ring outside the disc */
+        var lv=msEl(side,'mic-level');if(!lv)return;
+        lv.setAttribute('opacity',String(Math.round(level*0.55*100)/100));
+        lv.setAttribute('stroke','#ef4444');lv.setAttribute('stroke-width',String(Math.round(level*10)));
+    }
+
+    function stopCountdown(side){
+        var s=micState[side];if(!s)return;
+        if(s.countdownRaf){cancelAnimationFrame(s.countdownRaf);s.countdownRaf=null}
+        s.silenceSince=null;
+    }
+    function stopLevelLoop(side){
+        var s=micState[side];if(!s)return;
+        if(s.levelRaf){cancelAnimationFrame(s.levelRaf);s.levelRaf=null}
+    }
+    function startLevelLoop(side){
+        var s=micState[side];if(!s||!s.analyser)return;
+        var buf=new Uint8Array(s.analyser.fftSize);
+        function tick(){
+            if(!s.levelRaf)return;
+            s.analyser.getByteTimeDomainData(buf);
+            var rms=0;for(var i=0;i<buf.length;i++){var v=(buf[i]-128)/128;rms+=v*v}
+            rms=Math.sqrt(rms/buf.length);
+            paintMicLevel(side,Math.min(1,rms*4));
+            /* silence detection for timed mode */
+            if(s.mode==='timed'){
+                if(rms<0.015){
+                    if(!s.silenceSince)s.silenceSince=performance.now();
+                }else{
+                    if(s.silenceSince){s.silenceSince=null;/* speech resumed — reset ring */paintMicRing(side,0,'#3b82f6')}
+                }
+                if(s.silenceSince){
+                    var elapsed=performance.now()-s.silenceSince;
+                    var fraction=Math.min(1,elapsed/MIC_COUNTDOWN_MS);
+                    /* interpolate blue→red during the sweep */
+                    var r=Math.round(59+fraction*(239-59)),g=Math.round(130+fraction*(68-130)),bl=Math.round(246+fraction*(68-246));
+                    paintMicRing(side,fraction,'rgb('+r+','+g+','+bl+')');
+                    if(fraction>=1){
+                        stopLevelLoop(side);
+                        teardown('mic-silence-countdown');
+                        return;
+                    }
+                }
+            }
+            s.levelRaf=requestAnimationFrame(tick);
+        }
+        s.levelRaf=requestAnimationFrame(tick);
+    }
+
+    function paintMic(side,state,analyser){
+        /* state: 'idle' | 'timed' | 'latch' */
+        if(!micState[side])micState[side]={mode:'idle',silenceSince:null,countdownRaf:null,analyser:null,levelRaf:null};
+        var s=micState[side];
+        stopCountdown(side);stopLevelLoop(side);
+        paintMicLevel(side,0);
+        var ring=msEl(side,'mic-ring');if(ring)ring.setAttribute('opacity','0');
+        s.mode=state;s.silenceSince=null;if(analyser)s.analyser=analyser;
+        if(state==='idle'){
+            paintMicDisc(side,false,false);
+        }else if(state==='timed'){
+            paintMicDisc(side,true,false);
+            paintMicRing(side,0,'#3b82f6');   // full blue ring
+            startLevelLoop(side);
+        }else if(state==='latch'){
+            paintMicDisc(side,true,true);
+            paintMicRing(side,0,'#ef4444');   // full red ring immediately
+            startLevelLoop(side);
+        }
+    }
+
     function paintIdle(side){
-        var m=document.querySelector('#strip-'+side+' .micbtn');
-        if(m){m.dataset.on='false';m.dataset.owned='false';m.dataset.pending='false'}
+        paintMic(side,'idle');
+        var ring=msEl(side,'mic-ring');if(ring)ring.setAttribute('opacity','0');
     }
     function paintActive(side,mode){
-        var m=document.querySelector('#strip-'+side+' .micbtn');
-        if(m){m.dataset.owned='true';m.dataset.on=(mode==='mic')?'true':'false'}
+        if(mode==='mic'){
+            /* set ring immediately on acquire (synchronous, before analyser is ready);
+               the level loop starts later from inside the audio graph setup. */
+            paintMicDisc(side,true,false);
+            var ring=msEl(side,'mic-ring');if(ring)ring.setAttribute('opacity','1');
+            paintMicRing(side,0,'#3b82f6');
+            if(!micState[side])micState[side]={mode:'idle',silenceSince:null,countdownRaf:null,analyser:null,levelRaf:null};
+            micState[side].mode='timed';micState[side].silenceSince=null;
+        }else{
+            paintMicDisc(side,false,false);
+        }
     }
     function paintPending(side,on){
-        var m=document.querySelector('#strip-'+side+' .micbtn');
-        if(m)m.dataset.pending=on?'true':'false';
+        var svg=document.getElementById('mic-svg-'+side);if(!svg)return;
+        svg.style.opacity=on?'0.45':'1';
+        svg.style.transition=on?'opacity .5s ease-in-out':'';
     }
 
     /* ================= REQUEST / ALLOW / DECLINE ================= */
@@ -1845,7 +1959,10 @@ function dgLangParam(room) {
       pl:'🇵🇱',tr:'🇹🇷',km:'🇰🇭',lo:'🇱🇦'};
     var SWATCHES=['#eff6ff','#f0fdf4','#fef3c7','#fee2e2','#f3e8ff','#ffffff'];
 
-    var MIC_SVG='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" y1="19" x2="12" y2="23"/></svg>';
+    /* The mic button is now a self-contained SVG; it carries the ring,
+       the fill disc, the level indicator, and the glyph — no separate CSS
+       classes for color, just attribute changes via paintMic(). */
+    var MIC_SVG=null;   // unused — mic button built in buildStrip below
     var SPK_ON='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><path d="M15.54 8.46a5 5 0 0 1 0 7.07"/></svg>';
     var SPK_OFF='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><line x1="23" y1="9" x2="17" y2="15"/><line x1="17" y1="9" x2="23" y2="15"/></svg>';
     var GEAR_SVG='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.6a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9v0a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>';
@@ -1854,7 +1971,24 @@ function dgLangParam(room) {
     function buildStrip(side){
         var strip=document.getElementById('strip-'+side);
         strip.innerHTML=
-            '<button type="button" class="ctl micbtn" data-on="false" data-owned="false" data-pending="false" aria-label="Speak">'+MIC_SVG+'</button>'+
+            '<button type="button" class="micbtn" aria-label="Speak">'+
+            '<svg id="mic-svg-'+side+'" class="mic-svg" viewBox="0 0 44 44" xmlns="http://www.w3.org/2000/svg">'+
+              /* bg disc */
+              '<circle cx="22" cy="22" r="21" fill="#fff" stroke="rgba(226,232,240,.95)" stroke-width="1.5" id="mic-bg-'+side+'"/>'+
+              /* sound level glow */
+              '<circle cx="22" cy="22" r="21" fill="transparent" id="mic-level-'+side+'" opacity="0"/>'+
+              /* countdown/status ring */
+              '<circle cx="22" cy="22" r="17" fill="none" stroke-width="4" stroke-linecap="round"'+
+                ' stroke-dasharray="'+Math.round(2*Math.PI*17)+'" stroke-dashoffset="'+Math.round(2*Math.PI*17)+'"'+
+                ' transform="rotate(-90 22 22)" id="mic-ring-'+side+'" stroke="#3b82f6" opacity="0"/>'+
+              /* mic glyph */
+              '<g stroke="#475569" fill="none" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" id="mic-glyph-'+side+'">'+
+                '<path d="M22 10a3 3 0 0 0-3 3v6a3 3 0 0 0 6 0v-6a3 3 0 0 0-3-3z"/>'+
+                '<path d="M16 19v1a6 6 0 0 0 12 0v-1"/>'+
+                '<line x1="22" y1="26" x2="22" y2="29"/>'+
+              '</g>'+
+            '</svg>'+
+            '</button>'+
             '<button type="button" class="ctl tts" data-on="false" aria-label="Read aloud">'+SPK_OFF+'</button>'+
             
             '<span class="inwrap"><input type="text" class="inp" id="in-'+side+'" inputmode="none" '+
@@ -1862,7 +1996,36 @@ function dgLangParam(room) {
               '<button type="button" class="clearbtn" aria-label="Clear">✕</button></span>'+
             '<button type="button" class="ctl sendbtn" aria-label="Send">'+SEND_BIG+'</button>';
 
-        strip.querySelector('.micbtn').addEventListener('click',function(){requestInput(side,'mic')});
+        (function(){
+            var mb=strip.querySelector('.micbtn');
+            var pressTimer=null,isLatch=false;
+            mb.addEventListener('pointerdown',function(e){e.preventDefault();
+                isLatch=false;
+                pressTimer=setTimeout(function(){isLatch=true},400);
+            });
+            mb.addEventListener('pointerup',function(e){
+                clearTimeout(pressTimer);
+                if(INPUT.owner===side&&INPUT.mode==='mic'){
+                    /* toggling off — self-stop */
+                    teardown('mic-toggle-off');
+                }else{
+                    requestInput(side,'mic');
+                    if(isLatch){
+                        /* upgrade to latch after acquire settles */
+                        setTimeout(function(){
+                            if(INPUT.owner===side&&INPUT.mode==='mic'){
+                                if(!micState[side])micState[side]={mode:'idle',silenceSince:null,levelRaf:null,analyser:null};
+                                paintMic(side,'latch',micState[side].analyser);
+                                /* suppress the idle timer for latch */
+                                clearMicIdle();
+                            }
+                        },50);
+                    }
+                }
+            });
+            mb.addEventListener('pointercancel',function(){clearTimeout(pressTimer)});
+            mb.addEventListener('click',function(e){e.preventDefault()});   // block click now that pointerup handles it
+        })();
         strip.querySelector('.sendbtn').addEventListener('click',function(){sendFrom(side)});
         strip.querySelector('.clearbtn').addEventListener('click',function(){
             var i=document.getElementById('in-'+side);i.value='';updateClear(side);
