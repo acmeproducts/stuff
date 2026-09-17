@@ -14,6 +14,7 @@
 | 2026-09-15 | 8 | BUILD | 🔨 active | **Performance fix:** Owner reports lag/black flash during zoom-out due to runtime bitmap creation. Adding eager pre-bake of all levels; render loop becomes strictly synchronous. |
 | 2026-09-15 | 9 | BUILD | 🔨 active | **Build command issued:** Owner commanded "Build it" — proceeding to generate the-quilt.html with eager pre-baking, square canvas capture, configurable neighbor hues, tour mode, and smooth pan/zoom. |
 | 2026-09-16 | 10 | BUILD | 🔨 active | **Transition fix:** Eliminating black interstitial frames between level switches. Rebinds must occur at exact 1/3 and 3.0 thresholds with scale compensation (×3 or ÷3) to maintain pixel-perfect continuity. Tour mode logic aligned to these thresholds. Navigation clamped to `stack.length` to prevent accessing unbaked levels. |
+| 2026-09-17 | 11 | DEFINE | 🔄 pivot | **Owner request:** "Discuss before more development." Issues identified: (1) Horizontal black bars during zoom-out on wide screens (parent tile coverage insufficient); (2) Requirement for seamless endless zoom loop (currently linear stack terminates). |
 
 ## 1. RELEASES
 | # | Goal | Target |
@@ -24,39 +25,61 @@
 
 ## 2. PER-RELEASE SECTIONS
 
-### R2 — Sierpinski Tapestry (Pure Canvas2D) — 🔨 ACTIVE (Turn 10)
-**Status:** Implementing pixel-perfect level transitions and cache safety guards.
+### R2 — Sierpinski Tapestry (Pure Canvas2D) — 🔄 PENDING DESIGN CONFIRMATION (Turn 11)
 
-**Core Mechanism**
-- **Grid:** 3×3 arrangement of Sierpinski carpets (center + 8 neighbors).
-- **Eager Bitmap Stack:** On initialization and parameter changes, the engine asynchronously generates `state.stack[]` — an array of `ImageBitmap` objects representing levels 0 to `maxLevels-1`.
-  - Each bitmap is **strictly square** (e.g., 2048×2048px offscreen) to eliminate rectangular warping.
-  - Level 0: Renders 9 carpets (center + 8 unique neighbors) into a 3×3 grid on the square canvas.
-  - Level n (n>0): Renders level n-1 bitmap into center third; draws 8 fresh neighbor carpets around it.
-- **Synchronous Render Loop:** `requestAnimationFrame` loop simply draws `stack[level]` (if cached) and the 8 live neighbor carpets. No `createImageBitmap`, no `await`, no offscreen canvas creation during animation.
-- **Rebasing (Zoom Out / Ascend):** When `scale < 1/3` (threshold 0.333...), increment `level` and multiply `scale` by exactly `3.0`. This ensures the center tile of the new level (which contains the previous bitmap at 1/3 size) aligns perfectly with the previous view.
-- **Rebasing (Zoom In / Descend):** When `scale > 3.0`, decrement `level` and divide `scale` by exactly `3.0`.
-- **No Black Frames:** The render loop clamps `level` to `[0, stack.length-1]`. If `level` exceeds cached bounds (e.g., during rapid parameter change), the view snaps to the highest available cached level rather than showing empty/black background.
-- **Panning:** Offset state (`ox`, `oy`) dragged via pointer events; applied to center calculation.
-- **Tour Mode:** Automatically animates from `maxLevels-1` down to `0` (zooming in) then back out (zooming out).
-  - Descending: `scale` increases by 2% per frame; at `scale >= 3.0`, rebases down (`level--`, `scale /= 3`).
-  - Ascending: `scale` decreases by 2% per frame; at `scale <= 1/3`, rebases up (`level++`, `scale *= 3`).
-  - Scale continuity is maintained by using the inverse of the trigger threshold for the reset value (e.g., trigger at 3.0, reset to 1.0; trigger at 0.333, reset to 1.0).
+**Status:** Awaiting owner confirmation on cyclic baking architecture and screen-coverage math fix.
 
-**Configuration UI**
-- **Center Color:** Hex color picker for the central carpet.
-- **Neighbor Editors:** 3×3 grid selector; selecting a neighbor reveals a hex color picker and depth slider unique to that position.
-- **Base Recursion:** Global default recursion depth.
-- **Max Hierarchy:** Determines how many bitmaps to pre-bake (stack size).
-- **Start Level / Jump:** Instantly jump to a specific level clamped to `[0, stack.length-1]`.
-- **Tour Button:** Toggles auto-pilot zoom animation using same rebasing math as manual.
+---
 
-**Build Gates (R2 Acceptance)**
-- Zero visual discontinuity (black frames or size jumps) when crossing rebasing thresholds during zoom.
-- Rebase triggers at exact `1/3` (0.333...) and `3.0` with scale compensation to maintain 1:1 pixel mapping.
-- Tour mode uses identical rebasing math to manual zoom; no divergence.
-- Navigation clamped to available cache; never attempts to render unbaked levels.
-- Single-file HTML5, zero dependencies, runs offline.
+#### 2.1 Problem Analysis (Turn 11 Owner Feedback)
+
+**A. Black Bars on Left/Right (Aspect Ratio Coverage Failure)**
+- **Symptom:** At scale 0.68–0.36 (between REBASE_OUT and 1.0), black bars appear on screen sides but not top/bottom on landscape displays.
+- **Root Cause:** The parent bitmap (level+1) is drawn at size `currentTileSize × 3`. `currentTileSize` is derived from `min(screenWidth, screenHeight) × 0.9 × scale`. On a 16:9 landscape display, `minDim` equals height. When scale = 0.5, `tile = 0.45 × height`, so `parentTile = 1.35 × height`. Screen width = `1.78 × height`. Since `1.35 < 1.78`, the parent bitmap does not cover the full width, revealing black.
+- **Why intermittent:** At scale ≈0.97 (near 1.0), the current level nearly fills the screen, masking the issue. At scale ≈0.36 (near REBASE_OUT), the rebase triggers and switches to the parent as the new current level (now at scale ≈1.0), which again fills the screen. The gap only exists in the mid-range where `tile × 3 < max(screenWidth, screenHeight)`.
+
+**B. Endless Seamless Loop Requirement**
+- **Current Behavior:** Linear stack `0 … maxLevels-1`. Zooming-in stops at 0; zooming-out stops at maxLevels-1 (or clamps).
+- **Desired Behavior:** Infinite, seamless zoom. When descending past level 0, the view should transition to level maxLevels-1 (or deeper) without visual pop, creating a **Droste effect** (fractal zoom loop).
+- **Technical Requirement:** The hierarchy must become cyclic. Level 0’s center tile must contain a scaled-down copy of Level maxLevels-1, so that zooming into Level 0’s center reveals Level maxLevels-1, whose center contains Level maxLevels-2, …, whose center eventually contains Level 0 again.
+
+---
+
+#### 2.2 Proposed Solutions (Pending Confirmation)
+
+**Solution A: Cyclic Bitmap Stack (Recommended)**
+Instead of a linear hierarchy where Level n contains Level n-1, create a **cycle**:
+1. Bake levels in ascending index order: `0, 1, 2, …, N-1`.
+2. When baking Level 0, instead of drawing a fresh carpet in the center, draw the already-baked Level N-1 bitmap scaled to 1/3 size into the center tile.
+3. This creates a closed loop: L0 contains L(N-1) contains L(N-2) … contains L1 contains L0.
+
+**Zoom Logic Adaptation:**
+- **Descend (zoom in):** When `scale ≥ REBASE_IN` and `level === 0`, instead of clamping, wrap to `level = N-1`. Compensate scale by `scale /= REBASE_IN` (maintaining visual continuity because L0’s center pixel is exactly L(N-1)’s full image).
+- **Ascend (zoom out):** When `scale ≤ REBASE_OUT` and `level === N-1`, wrap to `level = 0`. Compensate scale by `scale *= 3`.
+
+**Outcome:** The zoom is infinite and seamless; the pre-baked stack acts as a cyclic animation strip.
+
+**Solution B: Extended Parent Coverage (Fix for Black Bars)**
+- **Approach:** When drawing the parent bitmap (level+1) behind the current level, ensure it covers the entire viewport regardless of aspect ratio.
+- **Implementation:** Compute `coverSize = max(screenWidth, screenHeight) × 1.1` (10% safety margin). Draw the parent bitmap centered at `(cx, cy)` with size `coverSize`. Since the parent bitmap is square and contains the current level’s bitmap in its exact center 1/3 region, scaling it up uniformly preserves the alignment (the current level drawn on top will perfectly obscure the center of the parent).
+- **Risk:** If `coverSize` is much larger than `tile × 3`, we may expose the edges of the parent bitmap (which contains neighbor tiles). However, since the parent bitmap represents a 3×3 grid and we only ever look at its center when zooming out, and we rebase at 1/3 scale (when the current tile shrinks to 1/3, matching the parent’s center tile size), the exposed edges will actually be the correct neighbor tiles emerging from the sides, not black. This is the desired behavior.
+
+**Combined Architecture:**
+- Pre-bake cyclic stack of N levels (e.g., N=6).
+- Render loop:
+  1. Draw parent (level+1) at size sufficient to cover screen (using `maxDim` logic), centered.
+  2. Draw current (level) at size `baseTile × scale`, centered.
+  3. Handle wrapping at boundaries for infinite loop.
+
+---
+
+#### 2.3 Build Gates (R2 Acceptance — Updated Turn 11)
+- [ ] **Coverage:** No black bars appear at any zoom level on any screen aspect ratio (16:9, 9:16, 21:9, etc.). The parent bitmap (or wrapping logic) always fills the viewport.
+- [ ] **Seamless Loop:** Zooming in past depth 0 continues seamlessly from depth N-1, and vice versa, with no visual discontinuity (pixel-perfect rebasing at wrap points).
+- [ ] **Cyclic Validity:** The center of Level 0 must visually match the entirety of Level N-1 at 1/3 scale, ensuring the loop is undetectable.
+- [ ] **Performance:** Render loop remains 60fps; no runtime canvas creation.
+
+---
 
 ## 3. IMMUTABLE WORKING RULES
 - The PLAN is the sole memory; code changes are guided by ledger entries.
