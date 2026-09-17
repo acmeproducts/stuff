@@ -1935,6 +1935,21 @@ function dgLangParam(room) {
         window.addEventListener('error',function(e){remoteLog('js_error',{msg:e.message,line:e.lineno,file:e.filename})});
         var sDict=getDict(langOf('south'));var nDict=getDict(langOf('north'));
         diag('chat.html ready — room='+ROOM.label+' south='+ROOM.southLang+'(dict:'+(sDict?sDict.length:'NONE')+') north='+ROOM.northLang+'(dict:'+(nDict?nDict.length:'NONE')+')');
+        /* Always re-download dictionaries at room load — ensures fresh data
+           without requiring the user to open chat-admin first */
+        var DICT_BASE='https://raw.githubusercontent.com/acmeproducts/stuff/main/dict/';
+        [langOf('south'),langOf('north')].forEach(function(lang){
+            fetch(DICT_BASE+lang+'.json?v='+Date.now())
+                .then(function(r){if(!r.ok)throw new Error(r.status);return r.text()})
+                .then(function(text){
+                    var words;try{words=JSON.parse(text)}catch(e){return}
+                    if(!Array.isArray(words)||words.length<100)return;
+                    try{localStorage.setItem('duck_dict_'+lang,text)}catch(e){return}
+                    delete dictCache[lang];
+                    diag('dict '+lang+' updated: '+words.length+' words');
+                    toastMsg((LANG_NAMES[lang]||lang)+' dictionary: '+words.length+' words');
+                }).catch(function(e){diag('dict '+lang+' fetch failed: '+e.message,true)});
+        });
         if(!dgKey())diag('no Deepgram key set — configure it in chat-admin',true);
     }
     if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',boot);else boot();
