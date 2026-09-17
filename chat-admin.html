@@ -219,22 +219,27 @@ header p{margin:2px 0 0;font-size:12px;color:#94a3b8}
         lab.style.display='';
         host.innerHTML='';
         eligible.forEach(function(lang){
-            var have=dictInstalled(lang);
             var row=document.createElement('div');
-            row.className='dictrow '+(have?'ok':'missing');
+            row.className='dictrow missing';
             row.innerHTML='<span class="dlbl">'+(LANG_FLAGS[lang]||'')+' '+LANG_NAMES[lang]+'</span>'+
-                '<span class="dstate">'+(have?'Ready':'Not downloaded')+'</span>';
-            (function(l){
-                var btn=document.createElement('button');btn.type='button';btn.className='dictbtn';
-                btn.textContent=have?'Re-download':'Download';
-                btn.addEventListener('click',function(){
-                    try{localStorage.removeItem('duck_dict_'+l)}catch(e){}
-                    btn.disabled=true;btn.textContent='Downloading…';
-                    downloadDict(l,btn);
-                });
-                row.appendChild(btn);
-            })(lang);
+                '<span class="dstate" id="dstate-'+lang+'">Updating…</span>';
             host.appendChild(row);
+            /* Always fetch fresh — no ready/cache check */
+            try{localStorage.removeItem('duck_dict_'+lang)}catch(e){}
+            fetch(DICT_SOURCES[lang]).then(function(r){
+                if(!r.ok)throw new Error('HTTP '+r.status);
+                return r.text();
+            }).then(function(text){
+                try{localStorage.setItem('duck_dict_'+lang,text)}catch(e){throw e}
+                row.className='dictrow ok';
+                var s=document.getElementById('dstate-'+lang);
+                if(s)s.textContent='Updated ✓';
+                toastMsg((LANG_NAMES[lang]||lang)+' dictionary updated');
+            }).catch(function(e){
+                row.className='dictrow missing';
+                var s=document.getElementById('dstate-'+lang);
+                if(s)s.textContent='Failed — check connection';
+            });
         });
     }
 
