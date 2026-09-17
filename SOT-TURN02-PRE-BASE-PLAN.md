@@ -1,163 +1,148 @@
 # SOT Turn 02 Pre-Base Plan
 
 **Stage:** `pre-base`  
-**Status:** ACTIVE GOVERNING PLAN — CLEAN LINEAGE — OBSERVABLE ESTATE ANALYSIS  
-**Date:** 2026-09-15
+**Status:** ACTIVE GOVERNING PLAN — CLEAN LINEAGE — STREAMING OBSERVABLE ESTATE ANALYSIS  
+**Date:** 2026-09-16
 
 ## 1. Product objective
-SOT is a global persistent single source of truth for a storage estate. Its Turn 02 product boundary is analysis and an evidence-backed recommended consolidation plan:
+SOT is a global persistent single source of truth for a storage estate. Turn 02 ends at an evidence-backed recommended consolidation plan:
 
 `Discover → Fingerprint → Cross-reference → Infer → Plan`
 
-Turn 02 does **not** copy, move, rename, quarantine, delete, purge, or otherwise mutate owner files. `REMOVE` means recommended removal only. How a plan is actioned is explicitly deferred.
+Turn 02 never copies, moves, renames, quarantines, deletes, purges, or otherwise mutates owner files. `REMOVE` means recommended removal only. Execution is deferred.
 
 ## 2. Clean-lineage and failure rule
 Historical failed code, databases, generated HTML, installers and runtime artifacts are research evidence only. A rejected candidate never becomes the ancestor of its correction.
 
 Failed gate sequence: stop → preserve evidence → record rejected assumption in Graveyard → update this Plan when the contract changes → rebuild from the last governed clean baseline → rerun the complete gate.
 
-The prior Turn 02 clean-3 candidate is rejected because it reused an incompatible historical SQLite database without a schema/version boundary and failed at startup (`no such column: job_id`). It is evidence only.
+Turn 02 clean-3 is rejected for incompatible SQLite reuse. Turn 02 v4/v4.1 are also rejected owner candidates: they demonstrated the picker and HTTPS reconnection approach, but their batch enumeration-before-hashing architecture and insufficient live worker observability made real scans operationally opaque. Their source may be consulted as evidence but is not a patch-forward ancestor.
 
 ## 3. Runtime architecture
 - **WSL/private tailnet:** persistent engine, versioned SQLite evidence/job/event state, storage adapters, fingerprinting, cross-reference and inference.
 - **GitHub Pages:** static presentation/control client only.
-- **Browser:** never owns authoritative job state. Closing, refreshing, navigating or inspecting data must not interrupt backend work.
-- **No filesystem mutation:** the engine is read-only with respect to registered owner storage throughout Turn 02.
+- **Browser:** never owns authoritative job state. Closing, refreshing or navigating does not interrupt backend work.
+- **Transport:** owner browser connects to the private backend through a browser-safe HTTPS tailnet endpoint. The endpoint is persisted and automatically reconnected.
+- **No filesystem mutation:** registered owner storage is read-only throughout Turn 02.
 
 ## 4. Frozen evidence schema contract
-### 4.1 Placement/file observation
-Every observed file placement records at minimum:
-- `placement_id` — stable identity for this observed placement;
-- `content_id` — identity shared by byte-identical content after hashing;
-- `source_id` and storage authority/volume;
-- failure domain;
-- full filename including extension;
-- normalized extension;
-- full path;
-- created/birth time where the filesystem exposes it;
-- modified time;
-- exact size in bytes;
-- scanned date/time;
-- fingerprint (SHA-256 initially);
-- lifecycle status;
-- plan recommendation;
-- disposition;
-- evidence/scan revision;
-- last verified date/time;
-- availability/evidence state;
-- error state/detail;
-- duplicate group ID and duplicate cardinality after post-processing;
-- role where explicitly governed;
-- plan/decision rationale.
+Every observed placement records stable placement identity, content identity after hashing, source/volume, failure domain, filename, extension, full path, created/birth time where exposed, modified time, exact size, scanned time, SHA-256, lifecycle, plan, disposition, evidence revision, last verified, availability/error state, duplicate group/cardinality, role and decision rationale.
 
-### 4.2 Lifecycle status
-Status is strictly the analysis lifecycle:
+Lifecycle is strictly:
 
 `NONE → IN_PROCESS → HASHED → PLANNED → COMPLETED`
 
-Errors and availability are orthogonal evidence fields and do not become lifecycle states. `COMPLETED` means SOT completed analysis/planning for the record; it never means a filesystem recommendation was executed.
+Availability/errors are orthogonal. Plan is exactly `KEEP | PROTECT | REMOVE | REVIEW`. Disposition remains `NONE` in Turn 02. Evidence is revisioned, not destructively overwritten.
 
-### 4.3 Plan
-Plan is the recommended action only:
-- `KEEP`
-- `PROTECT`
-- `REMOVE`
-- `REVIEW`
+## 5. Content and duplicate cross-reference
+Content identity is immutable byte identity; filename/path are not identity. After hashes become available SOT derives a revisioned duplicate xref for every content object with cardinality >1. Each group exposes content/fingerprint, cardinality, content size, physical bytes, excess bytes, every placement ID/name/path/source/failure-domain/role and later plan/rationale. Duplicate path lists are not serialized redundantly into every placement row.
 
-`REMOVE` is never deletion authorization.
-
-### 4.4 Disposition
-Disposition is retained as a separate field for future action accounting. In Turn 02 it remains `NONE`/unresolved because plan execution is out of scope.
-
-### 4.5 Content object
-A content object represents immutable byte identity. One file existing in six locations is one content object with six placements. Filename/path are not content identity.
-
-### 4.6 Evidence history
-Observations are revisioned rather than destructively overwritten. A later scan seeing four placements after an earlier scan saw five must remain distinguishable from never having observed the fifth placement.
-
-## 5. Duplicate cross-reference — required post-processing
-After fingerprints are available, SOT builds a derived duplicate cross-reference for every content object with cardinality greater than one. It is not redundantly embedded as a serialized list in each placement row.
-
-Each duplicate group exposes:
-- stable duplicate group ID;
-- fingerprint/content ID;
-- cardinality;
-- content size;
-- total physical bytes represented by all placements;
-- excess duplicate placement bytes;
-- every placement ID;
-- every filename and complete path;
-- source/volume and failure domain for every placement;
-- role where defined;
-- per-placement plan and rationale once inference completes;
-- evidence revision.
-
-Selecting any placement must allow immediate traversal to all byte-identical filenames/paths. Selecting a duplicate group must expose the complete placement xref. Historical group membership remains attributable to its evidence revision.
-
-## 6. Canonical/protection inference contract
-Discovery order, row order, filename and path ordering may never silently choose canonical content. Required independent protection copies are `PROTECT`, never duplicate waste. If policy/evidence cannot establish a safe recommendation, use `REVIEW`.
-
-Turn 02 inference produces recommendations only. It performs no action against owner files.
+## 6. Canonical/protection inference
+Discovery order, row order, filename and path ordering may never silently choose canonical content. Required independent protection copies are `PROTECT`, never waste. If policy/evidence cannot establish a safe recommendation, use `REVIEW`.
 
 ## 7. Controlled inference gate
-Before real-estate qualification, the engine must pass a predetermined synthetic estate of roughly 20–30 placements across at least three storage authorities containing unique files, 2-copy and 3+-copy duplicates, same-name/different-content, same-content/different-path, changed versions, stale/unavailable evidence and deliberate ambiguity.
+Before owner-storage qualification, a predetermined synthetic estate of roughly 20–30 placements across at least three storage authorities must prove exact content identities, xrefs, lifecycle states, recommendations, protection semantics and byte arithmetic. Expected truth is declared independently. Repeat results are deterministic and owner files are never mutated.
 
-Expected content identities, xrefs, lifecycle states, recommendations and byte arithmetic are declared independently before execution. Pass requires exact agreement, deterministic repeat results, complete rationale and zero filesystem mutation.
-
-## 8. Storage selection contract
-The owner-facing selector is one canonical three-panel component:
+## 8. Storage selector
+The canonical selector remains:
 
 **Available Volumes | Folders | Selected Folders**
 
-Selection uses true Available ↔ Selected semantics. Available-volume discovery is shared/cached; ordinary selection/save does not trigger storage rescans.
+Each pane scrolls independently. A folder transferred to Selected immediately disappears from Available/Folders; removing it makes it available again. Transfer controls are single-tap mobile targets. Inventory is shared/cached; selection does not trigger a rescan.
 
-## 9. Durable non-blocking analysis jobs
-Analysis is backend-owned and durable. Required controls are Start, Pause, Resume, Stop and Restart. Restart creates a new evidence revision. Browser reload/disconnect does not terminate work. Independent storage sources may scan concurrently; shared database mutation is transactional.
+## 9. Streaming analysis architecture — binding
+The batch model “enumerate an entire source, then begin fingerprinting” is prohibited.
 
-## 10. Live telemetry
-Analyze exposes total/scanned/remaining files and bytes, unique content count/bytes, duplicate-group count and duplicate excess bytes, REVIEW count/bytes, recommended reclaimable bytes, elapsed/throughput, current source/folder/file, warnings/errors/skipped/unreadable counts, plus per-source state/progress.
+Each enabled source owns a producer that walks its tree and emits file observations into a **bounded queue**. Fingerprint workers consume that queue concurrently while enumeration continues. This provides backpressure and bounded memory. Independent sources may enumerate concurrently and the fingerprint pool may process work from all active sources.
 
-`Reclaimable` means bytes currently recommended `REMOVE`; it is not a deletion count or executed savings.
+Required behavior:
+- a file is durably observed as `NONE`, transitions to `IN_PROCESS` when fingerprint work begins, then `HASHED` on success;
+- unreadable/stat/hash failures remain durable observations with explicit evidence/error state rather than disappearing;
+- queue depth/capacity is observable;
+- enumeration completion for one source does not wait for other sources;
+- hashing begins as soon as the first file is discovered;
+- inference begins only after all producers are finished and the fingerprint queue/workers are drained;
+- database writes are transactional and must not serialize filesystem reading unnecessarily;
+- Pause/Resume/Stop/Restart are durable backend control intent, not browser or memory-only control;
+- Restart creates a new evidence revision and may not overlap mutation of the prior revision;
+- backend startup explicitly resolves stale active jobs and records the recovery event.
 
-## 11. Connection and logging
-Connection is automatic from the persisted backend endpoint with continuously visible GREEN/YELLOW/RED health. Failures never disappear silently.
+## 10. Durable job/source/worker telemetry — binding
+SQLite contains durable global job state plus per-source progress (`job_sources`) and sufficient worker/heartbeat state to diagnose a running job after browser reconnect.
 
-Every meaningful positive or negative backend operation creates a durable structured SQLite event with timestamp, severity, event type, job/source identity where applicable, message and structured detail. Exceptions may not be swallowed.
+Analyze must continuously expose, without opening Activity:
+- stage and substage;
+- job ID/revision;
+- elapsed time and last-progress age;
+- discovered files/bytes;
+- hashed files/bytes;
+- remaining known queue/work;
+- files/sec and MB/sec (recent and/or clearly labeled aggregate);
+- queue depth/capacity;
+- active/idle worker count;
+- unique content, duplicate groups/excess bytes, REVIEW and reclaimable bytes as available;
+- warnings, errors, skipped/unreadable;
+- current source, folder and file;
+- **one row per source** with state, current folder/file, discovered/hashed files and bytes, elapsed, rate, warnings/errors and last-progress age.
 
-## 12. Database/evidence browser
-The database remains inspectable while analysis runs. Omnisearch and filters cover filename, extension, path, source, fingerprint/content ID, duplicate group/cardinality, lifecycle status, plan, size, evidence revision, availability and errors. Content/group drill-down exposes all placements and rationale.
+A running state with no progress must never look healthy indefinitely. If no progress event occurs for a defined threshold while work remains, Analyze shows **STALLED** with the age and last known operation. This is diagnostic state, not an invented lifecycle value.
 
-## 13. Owner-facing information architecture
+## 11. Live Analyze event stream and durable Activity log
+Every meaningful positive and negative backend operation creates a structured SQLite event with timestamp, severity, event type, job/source identity, message and structured detail. No swallowed exceptions or empty catches.
+
+Analyze contains a compact **Live Activity** stream showing the most recent operational events while a job runs. Activity contains the complete searchable/filterable durable history.
+
+Minimum event families:
+- job created/started/stage/pause/resume/stop/complete/fail/recovered;
+- source enumeration start/progress/complete/disconnect/reconnect/fail;
+- queue/backpressure/stall/recovery;
+- fingerprint worker start/progress/error/stop;
+- placement observation/lifecycle failure summaries;
+- database transaction/rollback failures;
+- inference start/progress/complete/fail;
+- connection/reconnect failures where backend evidence is available.
+
+High-frequency file progress may be coalesced/throttled for event volume, but current file/folder/source telemetry must remain live. Coalescing may never create a silent interval that hides whether work is advancing.
+
+## 12. Connection contract
+Connection is automatic from persisted HTTPS backend configuration with continuously visible GREEN/YELLOW/RED health. GREEN requires recent successful heartbeat. YELLOW means connecting/reconnecting/stale heartbeat/degraded. RED means disconnected or backend error. The UI shows the actual failure/retry state; failures never disappear silently.
+
+Opening another browser tab reconnects to the same backend, latest active job, per-source telemetry and recent events without restarting analysis.
+
+## 13. Database/evidence browser
+Database remains usable while analysis runs. Omnisearch and filters cover filename, extension, path, source, fingerprint/content ID, duplicate group/cardinality, lifecycle, plan, size, revision, availability and errors. Selecting content/group exposes all placements and rationale.
+
+## 14. Owner-facing information architecture
 1. **Estate** — registered storage and canonical three-panel selector.
-2. **Analyze** — controls, telemetry and live activity.
+2. **Analyze** — controls, global telemetry, per-source progress, worker/queue state and Live Activity.
 3. **Database** — searchable placement/content/evidence browser.
 4. **Plan** — recommended KEEP/PROTECT/REMOVE/REVIEW proposal and rationale.
-5. **Activity** — durable positive/negative event log.
+5. **Activity** — complete durable event log.
 
-## 14. Schema/version boundary
-Every database has explicit schema metadata and version. A clean-lineage schema may not silently open an incompatible historical database. Startup must either open the exact supported schema or create a new versioned database while preserving the incompatible predecessor as evidence. `CREATE TABLE IF NOT EXISTS` is not a migration strategy.
+## 15. Schema/version boundary
+Every database has explicit schema metadata/version. A new clean candidate uses a new versioned database and preserves incompatible predecessors. `CREATE TABLE IF NOT EXISTS` is not migration. Installer never destroys an older database.
 
-The installer must never destroy an older database to make a new candidate start.
+## 16. Qualification sequence — release blocking
+1. Create the new versioned schema from this contract.
+2. Prove fresh startup and coexistence with historical databases without modifying them.
+3. Prove controlled inference fixture and exact lifecycle/xref/arithmetic.
+4. Prove streaming producer→bounded-queue→fingerprint processing: hashing starts before enumeration finishes.
+5. Prove multiple source producers and fingerprint workers make concurrent forward progress without corrupting evidence.
+6. Prove durable pause/resume/stop/restart and non-overlapping revisions.
+7. Prove backend restart recovery of stale active work with durable event evidence.
+8. Prove every discovered file becomes a durable observation, including injected stat/read/hash failures.
+9. Prove global/per-source counters, bytes, rates, queue depth and worker counts reconcile with fixture truth.
+10. Inject a deliberately blocked/slow worker and prove STALLED/last-progress diagnostics become visible, then recovery is recorded.
+11. Prove Analyze Live Activity and Activity log expose positive progress and injected failures; no silent catch paths.
+12. Prove Database reads remain usable during active analysis.
+13. Prove bounded real-storage read-only adapters and the three-panel selector.
+14. Prove HTTPS automatic reconnect from a second browser tab restores the same active job and telemetry.
+15. Only then hand the owner the application test URL.
 
-## 15. Qualification sequence
-1. Create the versioned schema from this frozen contract.
-2. Prove startup against both a fresh environment and the known incompatible historical Turn 02 database without modifying that historical database.
-3. Prove the controlled inference fixture including duplicate xref and lifecycle transitions.
-4. Prove durable pause/resume/stop/restart and evidence revisions.
-5. Prove concurrent source workers cannot corrupt evidence/job state.
-6. Prove telemetry arithmetic.
-7. Prove injected failures become visible durable events.
-8. Prove database reads remain usable during analysis.
-9. Prove bounded real-storage read-only adapters and the three-panel selector.
-10. Expose the qualified backend through the static Pages client with automatic health/reconnect.
-11. Only then hand the owner the application test URL.
+Internal qualification surfaces are engineering evidence, not owner deliverables.
 
-Internal qualification surfaces are not owner deliverables.
+## 17. Deferred
+Deferred beyond Turn 02: plan execution; copying; moving; renaming; quarantine; deletion/purge; disposition beyond `NONE`; AI/LLM recommendations; semantic/near-duplicate detection; unrelated tagging.
 
-## 16. Deferred
-Deferred beyond Turn 02: all plan execution; copying; moving; renaming; quarantine; deletion/purge; disposition semantics beyond `NONE`; AI/LLM recommendations; semantic/near-duplicate detection; unrelated tagging.
-
-## 17. Governance
-Stage chain remains `pre-base → base → pre-ship → ship → post-ship`.
-
-Before every repository write, fetch current `main` and current target blob SHA. Preserve unrelated work. Plan is binding positive specification; Graveyard is binding negative specification. Failed generated artifacts remain evidence only and are never patched forward.
+## 18. Governance
+Stage chain remains `pre-base → base → pre-ship → ship → post-ship`. Before every repository write fetch current `main` and current target blob SHA. Preserve unrelated work. Plan is binding positive specification; Graveyard is binding negative specification. Failed artifacts remain evidence only and are never patched forward.
