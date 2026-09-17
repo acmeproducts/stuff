@@ -1112,10 +1112,13 @@ function dgLangParam(room) {
             glyph.setAttribute('stroke','#475569');}
     }
     function paintMicLevel(side,level){
-        /* level 0–1 : opacity of a red glow ring outside the disc */
+        /* Bridge-style: an inner white disc that pulses with audio level,
+           giving a visual "breath" inside the mic icon */
         var lv=msEl(side,'mic-level');if(!lv)return;
-        lv.setAttribute('opacity',String(Math.round(level*0.55*100)/100));
-        lv.setAttribute('stroke','#ef4444');lv.setAttribute('stroke-width',String(Math.round(level*10)));
+        var r=Math.round((6+level*10)*10)/10;   // 6–16px radius pulsing
+        lv.setAttribute('r',String(r));
+        lv.setAttribute('fill','rgba(255,255,255,0.55)');
+        lv.setAttribute('opacity',String(Math.round((0.15+level*0.7)*100)/100));
     }
 
     function stopCountdown(side){
@@ -1130,23 +1133,33 @@ function dgLangParam(room) {
     function startLevelLoop(side){
         var s=micState[side];if(!s||!s.analyser)return;
         var buf=new Uint8Array(s.analyser.fftSize);
+        s.silenceSince=null;   // BUG 1 FIX: reset clock here, not at paintMic time, so it
+                                // never starts counting from before audio is actually flowing
         function tick(){
             if(!s.levelRaf)return;
             s.analyser.getByteTimeDomainData(buf);
             var rms=0;for(var i=0;i<buf.length;i++){var v=(buf[i]-128)/128;rms+=v*v}
             rms=Math.sqrt(rms/buf.length);
-            paintMicLevel(side,Math.min(1,rms*4));
-            /* silence detection for timed mode */
+            /* BUG 3 FIX: level indicator drives SVG radius and glow opacity,
+               not stroke-width on a fill element */
+            paintMicLevel(side,Math.min(1,rms*6));
             if(s.mode==='timed'){
                 if(rms<0.015){
+                    /* silence detected — start or continue countdown */
                     if(!s.silenceSince)s.silenceSince=performance.now();
-                }else{
-                    if(s.silenceSince){s.silenceSince=null;/* speech resumed — reset ring */paintMicRing(side,0,'#3b82f6')}
+                } else {
+                    /* speech detected — reset countdown and ring immediately */
+                    if(s.silenceSince){
+                        s.silenceSince=null;
+                        /* BUG 2 FIX: actively repaint the ring back to full blue on resume,
+                           not just clear the clock (the ring fraction stayed wherever the
+                           sweep had reached) */
+                        paintMicRing(side,0,'#3b82f6');
+                    }
                 }
                 if(s.silenceSince){
                     var elapsed=performance.now()-s.silenceSince;
                     var fraction=Math.min(1,elapsed/MIC_COUNTDOWN_MS);
-                    /* interpolate blue→red during the sweep */
                     var r=Math.round(59+fraction*(239-59)),g=Math.round(130+fraction*(68-130)),bl=Math.round(246+fraction*(68-246));
                     paintMicRing(side,fraction,'rgb('+r+','+g+','+bl+')');
                     if(fraction>=1){
@@ -1975,8 +1988,8 @@ function dgLangParam(room) {
             '<svg id="mic-svg-'+side+'" class="mic-svg" viewBox="0 0 44 44" xmlns="http://www.w3.org/2000/svg">'+
               /* bg disc */
               '<circle cx="22" cy="22" r="21" fill="#fff" stroke="rgba(226,232,240,.95)" stroke-width="1.5" id="mic-bg-'+side+'"/>'+
-              /* sound level glow */
-              '<circle cx="22" cy="22" r="21" fill="transparent" id="mic-level-'+side+'" opacity="0"/>'+
+              /* sound level inner pulse (starts invisible, r animated by paintMicLevel) */
+              '<circle cx="22" cy="22" r="6" fill="rgba(255,255,255,0)" id="mic-level-'+side+'" opacity="0"/>'+
               /* countdown/status ring */
               '<circle cx="22" cy="22" r="17" fill="none" stroke-width="4" stroke-linecap="round"'+
                 ' stroke-dasharray="'+Math.round(2*Math.PI*17)+'" stroke-dashoffset="'+Math.round(2*Math.PI*17)+'"'+
