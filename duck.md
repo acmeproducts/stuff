@@ -823,20 +823,50 @@ on a real device against this exact commit.** See graveyard G13.
 
 ---
 
-## 4 · MIC VISUAL STATE (Turn 24) — SIMPLIFIED
+## 4 · MIC VISUAL STATE (Turn 24) — EXACT BRIDGE25 PORT
 
-Status: **BUILT and DEPLOYED.** Turn 24 complex SVG animation approach rejected ×3.
-Replaced with direct port of bridge's mic glyph and muted/unmuted state.
+Status: **IN BUILD** (rejected ×4 for not matching bridge25; now building by exact extraction).
 
-### What was built (Turn 24·final)
+### Exact source: bridge-turn25-pre-ship.html
 
-- Same SVG mic glyph as bridge (with stand line).
-- Muted (idle): grey ring button, grey glyph — same as bridge muted state.
-- Active (mic owned): red filled button, white glyph — same as bridge unmuted/live state.
-- Pending (awaiting grant): pulsing red-tint ring — same visual language.
-- Single tap toggles: tap to engage, tap again to release.
-- No countdown ring, no level indicator — dropped per owner instruction to
-  stop overcomplicating and match bridge exactly.
+All four items below are verbatim copy-paste from bridge25, not reimplemented:
+
+1. **SVG markup** — `#rb-mic` button with class `meter-btn off`:
+   - `mic-fill`: rect with `clip-path="url(#micClip)"` that animates height 0→11px
+     upward from y=13 inside the mic body, fill `#2E8B8B` (teal) when Deepgram is
+     healthy, `#C9860B` (amber) when audio flows but transcription isn't landing.
+   - `mic-slash`: diagonal line x1=3,y1=3 x2=21,y2=21 in `#A32D2D`, visible only
+     when muted (`.off` class present).
+   - Standard mic path + stand arc + stand line — identical to bridge25.
+
+2. **CSS** — verbatim from bridge25:
+   - `.meter-btn` base style
+   - `.meter-btn:not(.off) .mic-slash { display:none }` — slash hidden when active
+   - `.meter-btn.off .mic-fill { display:none }` — fill hidden when muted
+
+3. **MicMeter object** — verbatim from bridge25:
+   - `attach(stream)`: creates AudioContext, MediaStreamSource, AnalyserNode (fftSize=512)
+   - `tick()`: log-scale RMS (comfortable speech ≈ half), fast-attack 0.9 / ~200ms
+     release 0.18, animates `mic-fill` height and y. Called once by `attach`, then
+     self-schedules via `requestAnimationFrame`.
+   - `detach()`: cancels RAF, disconnects and closes AudioContext, resets fill.
+
+4. **Wiring into chat.html**:
+   - `paintIdle(side)`: calls `MicMeter.detach()`, adds `.off` class to micbtn.
+   - `paintActive(side,'mic')`: calls `MicMeter.attach(stream)`, removes `.off`.
+   - `paintPending(side,on)`: opacity pulse only, does not change `.off` state.
+   - `MicMeter` is per-side (two instances, keyed by side, or reset on side switch).
+   - `stream` comes from `P.stream` inside `createMicPipeline` — same stream the
+     Deepgram WS reads. `MicMeter.attach` called from inside `P.ws.onopen` AFTER
+     `P.stream` is confirmed live (lessons from the three prior failures).
+
+### Ledger
+
+| Attempt | Status |
+|---|---|
+| Turn 24 SVG animation ×3 | REJECTED — analyser not ready at paintActive time |
+| Turn 24 simple CSS toggle | REJECTED — wrong pattern, no level indicator |
+| **Turn 24·final (this)** | **IN BUILD** |
 
 ### 4.1 Single tap (timed mode)
 
