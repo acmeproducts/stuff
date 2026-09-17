@@ -823,9 +823,20 @@ on a real device against this exact commit.** See graveyard G13.
 
 ---
 
-## 4 · MIC VISUAL STATE SPEC (Turn 24)
+## 4 · MIC VISUAL STATE (Turn 24) — SIMPLIFIED
 
-Status: **PROPOSED — awaiting owner answers to 2 open questions before build.**
+Status: **BUILT and DEPLOYED.** Turn 24 complex SVG animation approach rejected ×3.
+Replaced with direct port of bridge's mic glyph and muted/unmuted state.
+
+### What was built (Turn 24·final)
+
+- Same SVG mic glyph as bridge (with stand line).
+- Muted (idle): grey ring button, grey glyph — same as bridge muted state.
+- Active (mic owned): red filled button, white glyph — same as bridge unmuted/live state.
+- Pending (awaiting grant): pulsing red-tint ring — same visual language.
+- Single tap toggles: tap to engage, tap again to release.
+- No countdown ring, no level indicator — dropped per owner instruction to
+  stop overcomplicating and match bridge exactly.
 
 ### 4.1 Single tap (timed mode)
 
