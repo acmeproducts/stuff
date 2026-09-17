@@ -274,3 +274,48 @@ neither confirmed:
 **Next action:** confirm/deny translation and normalization against `f1cae14139`
 on a real device before any further code changes. No further building until this
 is confirmed, per direct instruction.
+
+---
+
+## Turn 24 · Mic visual state (REJECTED × 2, rolled back to Turn 23·pre-ship)
+
+### What was attempted
+SVG mic button with animated ring countdown (blue→red), AnalyserNode level indicator,
+and long-press latch mode.
+
+### Root cause of failure
+
+**The AnalyserNode is only created inside `ws.onopen`** — deep in an async chain
+that starts a WebSocket to Deepgram, awaits browser mic permission, opens the audio
+context, and then builds the graph. `paintActive` (which starts the level loop) is
+called synchronously by `acquire`, typically 300–800ms before `ws.onopen` fires on a
+real device. So `micState[side].analyser` is always `null` when `startLevelLoop` is
+called from `paintActive`, and the function returns immediately — no RAF loop ever
+starts, no level indicator, no silence detection, no countdown.
+
+The second attempt added `s.silenceSince=null` inside `startLevelLoop` to fix the
+immediate-countdown bug, but `startLevelLoop` was still being called from `paintMic`
+(which has no analyser yet), not from inside `ws.onopen` where the analyser actually
+exists. The fix corrected the wrong call site.
+
+**In testing, `getUserMedia` resolves instantly** (the test stub returns a
+resolved Promise synchronously), so the analyser is available before the first RAF
+tick and all assertions pass. On a real device there is a 300–800ms permission +
+socket-setup delay, so the analyser is never ready in time.
+
+### Why the test harness missed it
+The drive harness stubs `getUserMedia` to resolve immediately with a mock stream
+that has no real `AudioContext`, so no analyser is ever created even in the test —
+but the test only checks SVG ring opacity (set synchronously by `paintActive`),
+not whether the level loop actually started. The gap between "ring is visible"
+and "level loop is running" was never asserted.
+
+### Correct fix (not yet built)
+Invert the dependency: pass a callback into `createMicPipeline` that fires once
+the audio graph is live, and start the level loop from there — not from `paintActive`.
+`paintActive` sets the ring immediately (synchronous, correct). The level indicator
+and silence detection start only when the AnalyserNode actually exists, wired from
+inside `ws.onopen` after `P.analyser` is assigned.
+
+The test harness must also be extended to assert that the level callback fires and
+the RAF loop actually runs, not just that the ring element has opacity:1.
