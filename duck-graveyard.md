@@ -319,3 +319,27 @@ inside `ws.onopen` after `P.analyser` is assigned.
 
 The test harness must also be extended to assert that the level callback fires and
 the RAF loop actually runs, not just that the ring element has opacity:1.
+
+
+---
+
+## Turn 24·attempt 4 (second simplified attempt — REJECTED)
+
+### What was attempted
+Bridge's mic glyph (SVG path + stand line) + CSS `.active`/`.pending` classes for
+muted/unmuted. No level indicator, no countdown.
+
+### Why rejected
+Still not what bridge25 does. Bridge25 has a `mic-fill` rect inside the SVG glyph
+that animates upward with audio level (the actual sound indicator), plus a `mic-slash`
+diagonal line that appears when muted. The `.off` class controls both: slash visible +
+fill hidden = muted; slash hidden + fill animating = active. The previous attempt used
+a completely different pattern (`.active` class swapping disc colour) that doesn't
+match bridge25's visual at all — it looked like a coloured circle, not the level-filled
+mic glyph bridge users are familiar with.
+
+### Correct fix (now in plan and being built)
+Port bridge25's exact SVG markup (including `mic-fill` rect with `clip-path` and
+`mic-slash` line), exact CSS (`.meter-btn`, `.meter-btn.off`, `.mic-fill`, `.mic-slash`
+display rules), and exact `MicMeter` object (AnalyserNode, log-scale RMS, fast-attack
+release, fill height animation). No new logic invented. Pure extraction.
