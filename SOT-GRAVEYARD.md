@@ -1,7 +1,7 @@
 # SOT Graveyard
 
 **Status:** AUTHORITATIVE REJECTED-APPROACH RECORD  
-**Updated:** 2026-09-16
+**Updated:** 2026-09-17
 **Repository:** `acmeproducts/stuff`
 
 This document records architectural and implementation approaches that have been rejected so they are not silently reintroduced in later SOT work.
@@ -277,3 +277,15 @@ A stage label plus one current path is not sufficient evidence that analysis is 
 **Decision date:** 2026-09-16
 
 A separate Activity page is not sufficient while a long-running analysis is being watched. Analyze requires a compact recent-event stream backed by the same durable event ledger. Event volume may be throttled/coalesced, but progress and failures may not disappear into silent intervals.
+
+
+---
+
+## GY-062 — Single shared FIFO or uncoordinated source queues
+
+**Status:** REJECTED SCHEDULER ARCHITECTURE  
+**Decision date:** 2026-09-17
+
+Do not collapse all storage sources into one opaque FIFO and do not create multiple queues without a coordinating fairness policy. A busy, slow, blocked or backpressured source must not monopolize fingerprint capacity or prevent independent sources from advancing.
+
+**Required replacement:** each active source owns a bounded independently observable queue. One backend job manager/scheduler fairly and work-conservingly allocates a shared fingerprint-worker pool across nonempty queues, exposes per-source queue/worker telemetry, prevents starvation, shifts spare capacity to available work, and preserves forward progress on independent sources when another source blocks.
