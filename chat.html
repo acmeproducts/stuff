@@ -47,6 +47,12 @@ body{display:flex;flex-direction:column}
   background:#fff;color:#475569;display:inline-flex;align-items:center;justify-content:center;padding:8px}
 .ctl svg{width:100%;height:100%}
 .ctl[data-on="true"]{background:linear-gradient(135deg,rgba(248,113,113,.95),rgba(239,68,68,.95));color:#fff;border-color:transparent}
+/* bridge-style mic: muted=grey, active=red, same glyph as bridge */
+.micbtn{width:44px;height:44px;border-radius:50%;border:none;background:rgba(15,23,42,.08);color:#64748b;
+  display:inline-flex;align-items:center;justify-content:center;flex:0 0 44px;transition:background .15s,color .15s}
+.micbtn svg{width:20px;height:20px;stroke:currentColor}
+.micbtn.active{background:#ef4444;color:#fff}
+.micbtn.pending{background:rgba(239,68,68,.2);color:#ef4444}
 .ctl[data-owned="true"]{box-shadow:0 0 0 2px rgba(59,130,246,.9)}
 .ctl[data-pending="true"]{animation:pulse 1s ease-in-out infinite}
 @keyframes pulse{50%{opacity:.4}}
@@ -759,6 +765,42 @@ function dgLangParam(room) {
     var DG_WATCHDOG_MS=30000, DG_MAX_FAILS=3;
     function dgKey(){try{return(localStorage.getItem('tb_dg_key')||'').trim()}catch(e){return ''}}
 
+    var MicMeter={
+        _i:{},
+        forSide:function(s){if(!this._i[s])this._i[s]={ctx:null,src:null,analyser:null,data:null,raf:null,level:0};return this._i[s]},
+        attach:function(side,stream){
+            var m=this.forSide(side);this.detach(side);
+            if(!stream||!stream.getAudioTracks().length)return;
+            try{
+                m.ctx=new(window.AudioContext||window.webkitAudioContext)();
+                m.src=m.ctx.createMediaStreamSource(stream);
+                m.analyser=m.ctx.createAnalyser();m.analyser.fftSize=512;
+                m.data=new Uint8Array(m.analyser.frequencyBinCount);
+                m.src.connect(m.analyser);
+                m.level=0;MicMeter.tick(side);
+            }catch(e){diag(side+': MicMeter attach failed — '+e.message,true)}
+        },
+        detach:function(side){
+            var m=this._i[side];if(!m)return;
+            if(m.raf)cancelAnimationFrame(m.raf);m.raf=null;
+            if(m.src)try{m.src.disconnect()}catch(_){}m.src=null;
+            if(m.ctx)try{m.ctx.close()}catch(_){}m.ctx=null;m.analyser=null;
+            var fill=document.getElementById('mic-fill-'+side);
+            if(fill){fill.setAttribute('height','0');fill.setAttribute('y','13')}
+        },
+        tick:function(side){
+            var self=this,m=this._i[side];if(!m||!m.analyser)return;
+            m.analyser.getByteTimeDomainData(m.data);
+            var sum=0;for(var i=0;i<m.data.length;i++){var v=(m.data[i]-128)/128;sum+=v*v}
+            var rms=Math.sqrt(sum/m.data.length);
+            var logv=Math.log10(1+rms*9);
+            var target=Math.max(0,Math.min(1,logv));
+            m.level+=(target-m.level)*(target>m.level?0.9:0.18);
+            var fill=document.getElementById('mic-fill-'+side);
+            if(fill){var h=m.level*11,y=13-h;fill.setAttribute('height',String(h));fill.setAttribute('y',String(y));fill.setAttribute('fill','#2E8B8B')}
+            m.raf=requestAnimationFrame(function(){self.tick(side)});
+        }
+    };
     function createMicPipeline(side,onFinal){
         var P={
             on:false, stream:null,
@@ -768,6 +810,7 @@ function dgLangParam(room) {
         };
 
         function stopAudio(){
+            MicMeter.detach(side);
             if(P.proc){try{P.proc.disconnect()}catch(e){}P.proc=null}
             if(P.src){try{P.src.disconnect()}catch(e){}P.src=null}
             if(P.audioCtx){try{P.audioCtx.close()}catch(e){}P.audioCtx=null}
@@ -1078,16 +1121,21 @@ function dgLangParam(room) {
 
     /* ================= VISUAL STATE — only painters ================= */
     function paintIdle(side){
+        MicMeter.detach(side);
         var m=document.querySelector('#strip-'+side+' .micbtn');
-        if(m){m.dataset.on='false';m.dataset.owned='false';m.dataset.pending='false'}
+        if(m){m.classList.add('off');m.dataset.on='false';m.dataset.owned='false';m.dataset.pending='false';m.style.opacity='1'}
     }
     function paintActive(side,mode){
         var m=document.querySelector('#strip-'+side+' .micbtn');
-        if(m){m.dataset.owned='true';m.dataset.on=(mode==='mic')?'true':'false'}
+        if(!m)return;
+        m.dataset.owned='true';m.dataset.on=(mode==='mic')?'true':'false';
+        if(mode==='mic'){m.classList.remove('off')}else{MicMeter.detach(side);m.classList.add('off')}
     }
     function paintPending(side,on){
         var m=document.querySelector('#strip-'+side+' .micbtn');
-        if(m)m.dataset.pending=on?'true':'false';
+        if(!m)return;
+        m.dataset.pending=on?'true':'false';
+        m.style.opacity=on?'0.45':'1';
     }
 
     /* ================= REQUEST / ALLOW / DECLINE ================= */
@@ -1770,7 +1818,7 @@ function dgLangParam(room) {
       pl:'🇵🇱',tr:'🇹🇷',km:'🇰🇭',lo:'🇱🇦'};
     var SWATCHES=['#eff6ff','#f0fdf4','#fef3c7','#fee2e2','#f3e8ff','#ffffff'];
 
-    var MIC_SVG='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" y1="19" x2="12" y2="23"/></svg>';
+    var MIC_SVG='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" y1="19" x2="12" y2="23"/><line x1="8" y1="23" x2="16" y2="23"/></svg>';
     var SPK_ON='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><path d="M15.54 8.46a5 5 0 0 1 0 7.07"/></svg>';
     var SPK_OFF='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><line x1="23" y1="9" x2="17" y2="15"/><line x1="17" y1="9" x2="23" y2="15"/></svg>';
     var GEAR_SVG='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.6a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9v0a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>';
@@ -1779,7 +1827,7 @@ function dgLangParam(room) {
     function buildStrip(side){
         var strip=document.getElementById('strip-'+side);
         strip.innerHTML=
-            '<button type="button" class="ctl micbtn" data-on="false" data-owned="false" data-pending="false" aria-label="Speak">'+MIC_SVG+'</button>'+
+            '<button type="button" class="micbtn" data-side="'+side+'" aria-label="Speak">'+MIC_SVG+'</button>'+
             '<button type="button" class="ctl tts" data-on="false" aria-label="Read aloud">'+SPK_OFF+'</button>'+
             
             '<span class="inwrap"><input type="text" class="inp" id="in-'+side+'" inputmode="none" '+
@@ -1787,7 +1835,10 @@ function dgLangParam(room) {
               '<button type="button" class="clearbtn" aria-label="Clear">✕</button></span>'+
             '<button type="button" class="ctl sendbtn" aria-label="Send">'+SEND_BIG+'</button>';
 
-        strip.querySelector('.micbtn').addEventListener('click',function(){requestInput(side,'mic')});
+        strip.querySelector('.micbtn').addEventListener('click',function(){
+            if(INPUT.owner===side&&INPUT.mode==='mic')teardown('mic-toggle-off');
+            else requestInput(side,'mic');
+        });
         strip.querySelector('.sendbtn').addEventListener('click',function(){sendFrom(side)});
         strip.querySelector('.clearbtn').addEventListener('click',function(){
             var i=document.getElementById('in-'+side);i.value='';updateClear(side);
