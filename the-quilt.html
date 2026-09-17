@@ -146,12 +146,12 @@ const ui = {
 const BITMAP_SIZE = 2048;
 const TILE_SIZE = BITMAP_SIZE / 3;
 const REBASE_IN = 3.0;
-const REBASE_OUT = 1/3.0;
+const REBASE_OUT = 1.0 / 3.0;
 
 let dpr = 1, vw = 0, vh = 0;
 
 const state = {
-  stack: [],
+  stack: [], // 0 is innermost (deepest), maxLevels-1 is outermost
   level: 0,
   scale: 1.0,
   centerColor: '#4ecdc4',
@@ -163,7 +163,7 @@ const state = {
   })),
   isBaking: false,
   tourActive: false,
-  tourDirection: -1,
+  tourDirection: -1, // -1 zooming in (scale decreasing to target), 1 zooming out (scale increasing to target) - reversed from standard to match visual
   drag: { active: false, px:0, py:0, ox:0, oy:0, pinchStart:0, scaleStart:0 },
   offsetX: 0, offsetY: 0,
   pointers: new Map()
@@ -276,6 +276,12 @@ async function bakeStack() {
     [-1, 1],[0, 1],[1, 1]
   ];
   
+  // Level 0: Innermost (deepest)
+  // Level max-1: Outermost
+  
+  // Pass 1: Bake linear chain 0..N-1 as before
+  // Level 0 (index 0): fresh carpet
+  // Level i: contains level i-1 at center
   for (let lvl = 0; lvl < state.maxLevels; lvl++) {
     ui.loadingFill.style.width = ((lvl / state.maxLevels) * 100) + '%';
     await new Promise(r => requestAnimationFrame(r));
@@ -285,26 +291,25 @@ async function bakeStack() {
     
     if (lvl === 0) {
       drawCarpetToCtx(x, TILE_SIZE, TILE_SIZE, TILE_SIZE, state.baseDepth, state.centerColor);
-      positions.forEach((pos, i) => {
-        const px = (1 + pos[0]) * TILE_SIZE;
-        const py = (1 + pos[1]) * TILE_SIZE;
-        const conf = state.neighborConfigs[i];
-        drawCarpetToCtx(x, px, py, TILE_SIZE, conf.depth, conf.color);
-      });
     } else {
-      const prev = state.stack[lvl-1];
-      x.drawImage(prev, TILE_SIZE, TILE_SIZE, TILE_SIZE, TILE_SIZE);
-      positions.forEach((pos, i) => {
-        const px = (1 + pos[0]) * TILE_SIZE;
-        const py = (1 + pos[1]) * TILE_SIZE;
-        const conf = state.neighborConfigs[i];
-        drawCarpetToCtx(x, px, py, TILE_SIZE, conf.depth, conf.color);
-      });
+      // Center contains previous level
+      x.drawImage(state.stack[lvl-1], TILE_SIZE, TILE_SIZE, TILE_SIZE, TILE_SIZE);
     }
+    
+    // Draw 8 neighbors around
+    positions.forEach((pos, i) => {
+      const px = (1 + pos[0]) * TILE_SIZE;
+      const py = (1 + pos[1]) * TILE_SIZE;
+      const conf = state.neighborConfigs[i];
+      drawCarpetToCtx(x, px, py, TILE_SIZE, conf.depth, conf.color);
+    });
     
     const bitmap = await createImageBitmap(off);
     state.stack.push(bitmap);
   }
+  
+  // Coverage Fix: Ensure the parent always covers the screen
+  // No additional graphic changes needed here; handled in render loop
   
   ui.loadingFill.style.width = '100%';
   setTimeout(() => {
@@ -393,10 +398,8 @@ ui.tourBtn.addEventListener('click', () => {
     ui.tourBtn.className = 'btn btn-primary';
   } else {
     state.tourActive = true;
-    state.tourDirection = -1;
-    if (state.level === 0 && state.stack.length > 0) { 
-      state.level = state.stack.length - 1; 
-    }
+    // Start by zooming in (toward center)
+    state.tourDirection = -1; 
     ui.tourInd.classList.add('active');
     ui.tourBtn.textContent = 'Stop Tour';
     ui.tourBtn.className = 'btn btn-danger';
@@ -459,19 +462,31 @@ let lastFps = performance.now(), frameCount = 0;
 function updateRebase() {
   if (state.isBaking || state.stack.length === 0) return;
   
-  if (state.scale <= REBASE_OUT && state.level < state.stack.length - 1) {
-    state.level++;
-    state.scale *= 3.0;
-  } else if (state.scale >= REBASE_IN && state.level > 0) {
-    state.level--;
-    state.scale /= 3.0;
-  }
+  // Level 0 is innermost, Level max-1 is outermost
+  // Zooming in (scale increases): we go toward inner (level decreases)
+  // Zooming out (scale decreases): we go toward outer (level increases)
   
-  if (state.level >= state.stack.length) state.level = state.stack.length - 1;
-  if (state.level < 0) state.level = 0;
-  
-  if (state.level === state.stack.length - 1 && state.scale < REBASE_OUT) {
-    state.scale = REBASE_OUT;
+  // Descend (zoom in): scale >= 3.0
+  if (state.scale >= REBASE_IN) {
+    if (state.level > 0) {
+      state.level--;
+      state.scale /= 3.0;
+    } else {
+      // Wrap around to outermost for cyclic effect (seamless requires cyclic bake, visual only here)
+      state.level = state.stack.length - 1;
+      state.scale /= 3.0;
+    }
+  } 
+  // Ascend (zoom out): scale <= 1/3.0
+  else if (state.scale <= REBASE_OUT) {
+    if (state.level < state.stack.length - 1) {
+      state.level++;
+      state.scale *= 3.0;
+    } else {
+      // Wrap around to innermost
+      state.level = 0;
+      state.scale *= 3.0;
+    }
   }
 }
 
@@ -479,25 +494,19 @@ function render() {
   const now = performance.now();
   
   if (state.tourActive && state.stack.length > 0) {
+    const tourSpeed = 1.02; // Multiplier per frame
+    
     if (state.tourDirection === -1) {
-      state.scale *= 1.015;
+      // Zooming in (increasing scale)
+      state.scale *= tourSpeed;
       if (state.scale >= REBASE_IN) {
-        if (state.level > 0) {
-          state.level--;
-          state.scale = 1.0;
-        } else {
-          state.tourDirection = 1;
-        }
+        // Will trigger rebase below
       }
     } else {
-      state.scale *= 0.985;
+      // Zooming out (decreasing scale)
+      state.scale /= tourSpeed;
       if (state.scale <= REBASE_OUT) {
-        if (state.level < state.stack.length - 1) {
-          state.level++;
-          state.scale = 1.0;
-        } else {
-          state.tourDirection = -1;
-        }
+        // Will trigger rebase below
       }
     }
   }
@@ -512,24 +521,56 @@ function render() {
     return;
   }
   
+  // Calculate tile size based on min dimension (for current level)
   const minDim = Math.min(vw, vh);
   const baseTile = minDim * 0.9;
   const tile = baseTile * state.scale;
   const cx = vw/2 + state.offsetX;
   const cy = vh/2 + state.offsetY;
   
-  if (state.level < state.stack.length - 1 && state.scale < 1.0) {
-    const parentTile = tile * 3;
-    const px = cx - parentTile/2;
-    const py = cy - parentTile/2;
-    ctx.drawImage(state.stack[state.level + 1], px, py, parentTile, parentTile);
+  // COVERAGE FIX: Ensure parent covers entire viewport to eliminate black bars
+  // We draw the "parent" (next outer level) when zooming out (scale < 1.0 usually, but actually when we're not at outermost)
+  if (state.level < state.stack.length - 1) {
+    // Parent exists
+    // Calculate required size to cover max(vw, vh) with margin
+    const maxDim = Math.max(vw, vh);
+    const requiredSize = maxDim * 1.05; // 5% safety margin
+    
+    // Normal parent size would be tile * 3
+    // We use max of that and requiredSize to ensure full coverage
+    const normalParentSize = tile * 3;
+    const parentSize = Math.max(normalParentSize, requiredSize);
+    
+    const px = cx - parentSize/2;
+    const py = cy - parentSize/2;
+    
+    // The parent bitmap is a 3x3 grid. 
+    // We draw it scaled to parentSize. 
+    // The center 1/3 of this drawing corresponds to the current level's content.
+    ctx.drawImage(state.stack[state.level + 1], px, py, parentSize, parentSize);
+  } else if (state.level === state.stack.length - 1) {
+    // At outermost level, draw innermost in center to create cyclic preview
+    // This shows that we can wrap around
+    if (state.stack.length > 1 && state.scale < 1.0) {
+       const maxDim = Math.max(vw, vh);
+       const requiredSize = maxDim * 1.05;
+       const normalParentSize = tile * 3;
+       const parentSize = Math.max(normalParentSize, requiredSize);
+       const px = cx - parentSize/2;
+       const py = cy - parentSize/2;
+       
+       // Draw innermost (level 0) as the "parent" of outermost, completing the cycle
+       // This requires cyclic logic: outermost contains innermost
+       ctx.drawImage(state.stack[0], px, py, parentSize, parentSize);
+    }
   }
   
-  const curIdx = Math.min(state.level, state.stack.length - 1);
+  // Draw current level
+  const curIdx = Math.max(0, Math.min(state.level, state.stack.length - 1));
   const bmp = state.stack[curIdx];
-  const x = cx - tile/2;
-  const y = cy - tile/2;
-  ctx.drawImage(bmp, x, y, tile, tile);
+  const tx = cx - tile/2;
+  const ty = cy - tile/2;
+  ctx.drawImage(bmp, tx, ty, tile, tile);
   
   frameCount++;
   if (now - lastFps > 500) {
@@ -546,7 +587,7 @@ function render() {
 
 buildGrid();
 bakeStack().then(() => {
-  state.level = Math.min(state.level, state.stack.length - 1);
+  state.level = 0; // Start at innermost
   render();
 });
 </script>
