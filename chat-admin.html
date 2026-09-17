@@ -221,8 +221,9 @@ header p{margin:2px 0 0;font-size:12px;color:#94a3b8}
         eligible.forEach(function(lang){
             var row=document.createElement('div');
             row.className='dictrow missing';
+            var existingTs='';try{existingTs=localStorage.getItem('duck_dict_ts_'+lang)||''}catch(e){}
             row.innerHTML='<span class="dlbl">'+(LANG_FLAGS[lang]||'')+' '+LANG_NAMES[lang]+'</span>'+
-                '<span class="dstate" id="dstate-'+lang+'">Updating…</span>';
+                '<span class="dstate" id="dstate-'+lang+'">'+(existingTs?existingTs+' → ':'')+'Updating…</span>';
             host.appendChild(row);
             /* Always fetch fresh — no ready/cache check */
             try{localStorage.removeItem('duck_dict_'+lang)}catch(e){}
@@ -231,10 +232,13 @@ header p{margin:2px 0 0;font-size:12px;color:#94a3b8}
                 return r.text();
             }).then(function(text){
                 try{localStorage.setItem('duck_dict_'+lang,text)}catch(e){throw e}
+                var ts=new Date().toLocaleString();
+                var count=0;try{count=JSON.parse(text).length}catch(e){}
+                try{localStorage.setItem('duck_dict_ts_'+lang,ts+' · '+count+' words')}catch(e){}
                 row.className='dictrow ok';
                 var s=document.getElementById('dstate-'+lang);
-                if(s)s.textContent='Updated ✓';
-                toastMsg((LANG_NAMES[lang]||lang)+' dictionary updated');
+                if(s)s.textContent=count+' words · '+ts;
+                toastMsg((LANG_NAMES[lang]||lang)+' ready — '+count+' words');
             }).catch(function(e){
                 row.className='dictrow missing';
                 var s=document.getElementById('dstate-'+lang);
