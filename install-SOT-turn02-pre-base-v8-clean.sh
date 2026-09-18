@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 set -euo pipefail
-REF="8160d6a15df03d717a994cf9aad28860ea2816f1"
+REF="0ce4a392787e77c0f2d4530050551e0c0fbee357"
 ROOT="$HOME/.sot-turn02/v8-clean"
 BASE="https://raw.githubusercontent.com/acmeproducts/stuff/$REF"
 mkdir -p "$ROOT/SOT" "$HOME/.config/systemd/user" "$HOME/.sot-turn02"
@@ -41,12 +41,16 @@ src=engine.read_text()
 assert "source_id,estate,path,filename,extension,size" in src
 assert "source_id,estate,path,filename,extension,scanned_at" in src
 assert src.count("src['estate']")>=2
-print("PASS normal+error placement Estate write-contract audit")\nassert "self.db=sqlite3.connect" in src and "def ping(self)" in src\nassert src.count("sqlite3.connect")==1\nprint("PASS long-lived SQLite Store static gate")
+print("PASS normal+error placement Estate write-contract audit")
+assert "self.db=sqlite3.connect" in src and "def ping(self)" in src
+assert src.count("sqlite3.connect")==1
+print("PASS long-lived SQLite Store static gate")
 PY
 systemctl --user disable --now sot-turn02-v8-recovery.service 2>/dev/null || true
 systemctl --user disable --now sot-turn02-v8.service 2>/dev/null || true
 systemctl --user disable --now sot-turn02-v7.service 2>/dev/null || true
 pkill -f 'sot-turn02-.*server.py' 2>/dev/null || true
+echo '=== RESTORING OPENCLAW ROOT / ISOLATING SOT ==='
 systemctl --user daemon-reload
 systemctl --user enable --now sot-turn02-v8-clean.service
 for _ in $(seq 1 60); do curl -fsS http://127.0.0.1:8765/api/health >/tmp/sot-v8-health.json 2>/dev/null && break; sleep .25; done
@@ -55,12 +59,13 @@ import json
 x=json.load(open('/tmp/sot-v8-health.json'));assert x['ok'] and x['schema']==8 and x['version']=='turn02-pre-base-v8',x
 print('PASS backend',x['version'],'schema',x['schema'])
 PY
-tailscale serve --bg --https=443 http://127.0.0.1:8765 >/dev/null
+tailscale serve --bg --https=443 / http://127.0.0.1:18789 >/dev/null
+tailscale serve --bg --https=8443 http://127.0.0.1:8765 >/dev/null
 DNS="$(tailscale status --json | python3 -c 'import json,sys;print(json.load(sys.stdin)["Self"]["DNSName"].rstrip("."))')"
-for _ in $(seq 1 40); do curl -fsS "https://$DNS/api/health" >/tmp/sot-v8-https.json 2>/dev/null && break; sleep .25; done
+for _ in $(seq 1 40); do curl -fsS "https://$DNS:8443/api/health" >/tmp/sot-v8-https.json 2>/dev/null && break; sleep .25; done
 python3 - <<'PY'
 import json
 x=json.load(open('/tmp/sot-v8-https.json'));assert x['ok'] and x['schema']==8 and x['version']=='turn02-pre-base-v8',x
-print('PASS HTTPS backend',x['version'],'schema',x['schema'])
+print('PASS isolated HTTPS backend',x['version'],'schema',x['schema'])
 PY
 printf 'APP https://acmeproducts.github.io/stuff/SOT/sot-turn02-pre-base-v8.html?v=%s&api=https%%3A%%2F%%2F%s\n' "$REF" "$DNS"
