@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 set -euo pipefail
-REF="0f73379920cc9d35db96ccfd31485abc567bc0f5"
+REF="c64313a34c279f7a3ecf5c28a3669ddfbfa7b93c"
 ROOT="$HOME/.sot-turn02/v8-clean"
 BASE="https://raw.githubusercontent.com/acmeproducts/stuff/$REF"
 mkdir -p "$ROOT/SOT" "$HOME/.config/systemd/user" "$HOME/.sot-turn02"
@@ -41,7 +41,7 @@ src=engine.read_text()
 assert "source_id,estate,path,filename,extension,size" in src
 assert "source_id,estate,path,filename,extension,scanned_at" in src
 assert src.count("src['estate']")>=2
-print("PASS normal+error placement Estate write-contract audit")
+print("PASS normal+error placement Estate write-contract audit")\nassert "self.db=sqlite3.connect" in src and "def ping(self)" in src\nassert src.count("sqlite3.connect")==1\nprint("PASS long-lived SQLite Store static gate")
 PY
 systemctl --user disable --now sot-turn02-v8-recovery.service 2>/dev/null || true
 systemctl --user disable --now sot-turn02-v8.service 2>/dev/null || true
