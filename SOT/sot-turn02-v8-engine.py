@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # SOT Turn 02 v5 — clean lineage engine. Read-only owner storage.
-from __future__ import annotations
+from __future__ import sys,annotations
 import hashlib, json, os, queue, sqlite3, threading, time, uuid
 from dataclasses import dataclass
 from pathlib import Path
@@ -18,25 +18,46 @@ CREATE TABLE IF NOT EXISTS events(event_id INTEGER PRIMARY KEY AUTOINCREMENT,ts 
 @dataclass(frozen=True)
 class Work: source_id:str;placement_id:str;path:str;size:int
 class Store:
- def __init__(self,path:Path=DB_DEFAULT):self.path=Path(path);self.path.parent.mkdir(parents=True,exist_ok=True);self.lock=threading.RLock();self._init()
- def con(self):
-  c=sqlite3.connect(self.path,timeout=30,check_same_thread=False);c.row_factory=sqlite3.Row;c.execute("PRAGMA foreign_keys=ON");c.execute("PRAGMA busy_timeout=30000");return c
- def _init(self):
-  new=not self.path.exists()
-  with self.con() as c:
-   c.executescript(DDL);row=c.execute("SELECT value FROM meta WHERE key='schema'").fetchone()
-   if row and int(row[0])!=SCHEMA:raise RuntimeError(f"unsupported schema {row[0]}, expected {SCHEMA}")
-   c.execute("INSERT OR REPLACE INTO meta(key,value) VALUES('schema',?),('version',?)",(str(SCHEMA),VERSION))
-  if new:self.event('INFO','database_created',None,None,f'Created schema {SCHEMA}')
-  self.recover()
- def execute(self,sql,args=()):
-  with self.lock,self.con() as c:return c.execute(sql,args).rowcount
+ def __init__(self,path=DB_DEFAULT):
+  self.path=Path(path);self.path.parent.mkdir(parents=True,exist_ok=True);self.lock=threading.RLock();self.db=None
+  self._open();self.init();self._probe()
+ def _open(self):
+  self.db=sqlite3.connect(str(self.path),timeout=30,check_same_thread=False);self.db.row_factory=sqlite3.Row
+  self.db.execute("PRAGMA foreign_keys=ON");self.db.execute("PRAGMA busy_timeout=30000");self.db.execute("PRAGMA journal_mode=WAL");self.db.execute("PRAGMA synchronous=NORMAL")
+ def _probe(self):
+  with self.lock:
+   self.db.execute("CREATE TABLE IF NOT EXISTS store_probe(id INTEGER PRIMARY KEY,ts REAL NOT NULL)")
+   self.db.execute("INSERT OR REPLACE INTO store_probe(id,ts) VALUES(1,?)",(time.time(),));self.db.commit()
+   if not self.db.execute("SELECT ts FROM store_probe WHERE id=1").fetchone():raise RuntimeError("SQLite startup probe failed")
+ def init(self):
+  with self.lock:
+   c=self.db
+   c.executescript("""CREATE TABLE IF NOT EXISTS meta(k TEXT PRIMARY KEY,v TEXT NOT NULL);
+CREATE TABLE IF NOT EXISTS sources(source_id TEXT PRIMARY KEY,estate TEXT NOT NULL UNIQUE,label TEXT NOT NULL,root TEXT NOT NULL UNIQUE,failure_domain TEXT NOT NULL,role TEXT NOT NULL,enabled INTEGER NOT NULL DEFAULT 1,created REAL NOT NULL);
+CREATE TABLE IF NOT EXISTS jobs(job_id TEXT PRIMARY KEY,revision INTEGER NOT NULL,state TEXT NOT NULL,stage TEXT NOT NULL,control TEXT NOT NULL DEFAULT 'RUN',created REAL NOT NULL,started REAL,finished REAL,last_progress REAL);
+CREATE TABLE IF NOT EXISTS job_sources(job_id TEXT NOT NULL,source_id TEXT NOT NULL,state TEXT NOT NULL,producer_state TEXT NOT NULL,queue_depth INTEGER NOT NULL DEFAULT 0,queue_capacity INTEGER NOT NULL,active_workers INTEGER NOT NULL DEFAULT 0,discovered_files INTEGER NOT NULL DEFAULT 0,discovered_bytes INTEGER NOT NULL DEFAULT 0,hashed_files INTEGER NOT NULL DEFAULT 0,hashed_bytes INTEGER NOT NULL DEFAULT 0,current_folder TEXT,current_file TEXT,errors INTEGER NOT NULL DEFAULT 0,warnings INTEGER NOT NULL DEFAULT 0,started REAL,finished REAL,last_progress REAL,PRIMARY KEY(job_id,source_id));
+CREATE TABLE IF NOT EXISTS placements(placement_id TEXT PRIMARY KEY,job_id TEXT NOT NULL,revision INTEGER NOT NULL,source_id TEXT NOT NULL,estate TEXT NOT NULL,path TEXT NOT NULL,filename TEXT NOT NULL,extension TEXT,size INTEGER,created REAL,modified REAL,scanned_at REAL NOT NULL,fingerprint TEXT,content_id TEXT,lifecycle TEXT NOT NULL DEFAULT 'NONE',plan TEXT,disposition TEXT NOT NULL DEFAULT 'NONE',availability TEXT NOT NULL DEFAULT 'AVAILABLE',error_detail TEXT,duplicate_group TEXT,duplicate_cardinality INTEGER,role TEXT,rationale TEXT,last_verified REAL);
+CREATE TABLE IF NOT EXISTS duplicate_groups(job_id TEXT NOT NULL,group_id TEXT NOT NULL,content_id TEXT NOT NULL,cardinality INTEGER NOT NULL,content_size INTEGER NOT NULL,total_bytes INTEGER NOT NULL,excess_bytes INTEGER NOT NULL,PRIMARY KEY(job_id,group_id));
+CREATE TABLE IF NOT EXISTS events(event_id INTEGER PRIMARY KEY AUTOINCREMENT,ts REAL NOT NULL,severity TEXT NOT NULL,event_type TEXT NOT NULL,job_id TEXT,source_id TEXT,message TEXT NOT NULL,detail_json TEXT);""")
+   c.execute("INSERT OR REPLACE INTO meta VALUES('schema',?)",(str(SCHEMA),));c.commit()
+ def _tx(self,sql,args=()):
+  with self.lock:
+   try:
+    cur=self.db.execute(sql,args);self.db.commit();return cur.rowcount
+   except Exception:
+    self.db.rollback();raise
+ def execute(self,sql,args=()):return self._tx(sql,args)
  def rows(self,sql,args=()):
-  with self.con() as c:return [dict(x) for x in c.execute(sql,args).fetchall()]
- def event(self,severity,typ,job,source,msg,detail=None):self.execute("INSERT INTO events(ts,severity,event_type,job_id,source_id,message,detail) VALUES(?,?,?,?,?,?,?)",(time.time(),severity,typ,job,source,msg,json.dumps(detail,separators=(',',':')) if detail is not None else None))
- def recover(self):
-  marks=','.join('?'*len(ACTIVE));jobs=self.rows(f"SELECT job_id,state FROM jobs WHERE state IN ({marks})",tuple(ACTIVE));now=time.time()
-  for j in jobs:self.execute("UPDATE jobs SET state='FAILED',stage='RECOVERED',finished=?,error='backend_restart' WHERE job_id=?",(now,j['job_id']));self.event('ERROR','job_recovered',j['job_id'],None,'Prior active job closed after backend restart',{'prior_state':j['state']})
+  with self.lock:
+   try:return [dict(r) for r in self.db.execute(sql,args).fetchall()]
+   except Exception:self.db.rollback();raise
+ def ping(self):
+  with self.lock:return self.db.execute("SELECT 1").fetchone()[0]==1
+ def event(self,severity,typ,jid=None,sid=None,msg='',detail=None):
+  try:self.execute("INSERT INTO events(ts,severity,event_type,job_id,source_id,message,detail_json) VALUES(?,?,?,?,?,?,?)",(time.time(),severity,typ,jid,sid,msg,json.dumps(detail or {},sort_keys=True)))
+  except Exception as ex:
+   print(f"SOT_EVENT_FALLBACK {severity} {typ} job={jid} source={sid} message={msg} db_error={ex}",file=sys.stderr,flush=True)
+
 class Manager:
  def __init__(self,store,workers=4,queue_capacity=128,stall_seconds=20):self.s=store;self.worker_count=max(2,workers);self.capacity=max(4,queue_capacity);self.stall_seconds=stall_seconds;self.lock=threading.RLock();self.runtime={}
  def add_source(self,label,root,failure_domain,role='primary',estate=None):
