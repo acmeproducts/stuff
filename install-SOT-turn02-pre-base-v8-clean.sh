@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 set -euo pipefail
-REF="4721e89c1003d4fc2a151d10c9fe1dc5171e7417"
+REF="0f73379920cc9d35db96ccfd31485abc567bc0f5"
 ROOT="$HOME/.sot-turn02/v8-clean"
 BASE="https://raw.githubusercontent.com/acmeproducts/stuff/$REF"
 mkdir -p "$ROOT/SOT" "$HOME/.config/systemd/user" "$HOME/.sot-turn02"
@@ -12,9 +12,10 @@ python3 - "$ROOT/SOT/sot-turn02-pre-base-v8.html" <<'PY'
 import re,sys
 s=open(sys.argv[1],encoding="utf-8").read()
 assert not re.search(r"\b(?:alert|confirm|prompt)\s*\(",s), "native browser dialog prohibited"
-for token in ["subtabs","beginResize","localStorage.sotDbWidths","updateSuggest","atomMatch","overflow:hidden"]:
+for token in ["subtabs","beginResize","localStorage.sotDbWidths","updateSuggest","atomMatch","overflow:hidden","treeRows","Selected Estate Roots","toggleNode","selectRoot"]:
  assert token in s,token
-print("PASS client modal/toast sub-tabs viewport grid resize Omnisearch static gate")
+assert "Refresh to load volumes" not in s
+print("PASS client modal/toast sub-tabs viewport grid resize Omnisearch hierarchical Estate static gate")
 PY
 python3 - "$ROOT/SOT/sot-turn02-v8-engine.py" <<'PY'
 import importlib.util,sys,tempfile,time
