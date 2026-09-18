@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 set -euo pipefail
-REF="0ce4a392787e77c0f2d4530050551e0c0fbee357"
+REF="22da4e27886d7d758e4c5346e0a73d1c264048cb"
 ROOT="$HOME/.sot-turn02/v8-clean"
 BASE="https://raw.githubusercontent.com/acmeproducts/stuff/$REF"
 mkdir -p "$ROOT/SOT" "$HOME/.config/systemd/user" "$HOME/.sot-turn02"
@@ -68,4 +68,4 @@ import json
 x=json.load(open('/tmp/sot-v8-https.json'));assert x['ok'] and x['schema']==8 and x['version']=='turn02-pre-base-v8',x
 print('PASS isolated HTTPS backend',x['version'],'schema',x['schema'])
 PY
-printf 'APP https://acmeproducts.github.io/stuff/SOT/sot-turn02-pre-base-v8.html?v=%s&api=https%%3A%%2F%%2F%s\n' "$REF" "$DNS"
+printf 'APP https://acmeproducts.github.io/stuff/SOT/sot-turn02-pre-base-v8.html?v=%s&api=https%%3A%%2F%%2F%s%%3A8443\\n' "$REF" "$DNS"
