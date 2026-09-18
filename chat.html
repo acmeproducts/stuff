@@ -82,6 +82,10 @@ body{display:flex;flex-direction:column}
   touch-action:none;user-select:none;-webkit-user-select:none;
   transition:transform .04s ease,background .04s ease}
 .key.pressed{background:#dbeafe;transform:scale(0.92);box-shadow:none}
+.key{transition:transform .04s ease-out,background .04s ease-out}
+.kdiag{display:none;font:11px/1.35 ui-monospace,SFMono-Regular,Menlo,monospace;color:#64748b;
+  background:rgba(241,245,249,.92);border-radius:6px;padding:3px 6px;margin:0 4px 3px;
+  white-space:nowrap;overflow-x:auto;flex:0 0 auto}
 .key.swyping{background:#bfdbfe}
 .kpop{position:absolute;z-index:6;pointer-events:none;display:none;min-width:44px;height:54px;padding:0 10px;
   border-radius:10px;background:#fff;border:1px solid rgba(148,163,184,.6);box-shadow:0 4px 14px rgba(15,23,42,.22);
@@ -146,7 +150,7 @@ body{display:flex;flex-direction:column}
   <div class="shell" style="position:relative">
     <div class="tx" id="tx-north"></div>
     <div class="strip" id="strip-north"></div>
-    <div class="kb" id="kb-north"><div class="kbin"><div class="klang"></div><div class="kcands"></div><div class="kkeys"><svg class="swype-trail" id="trail-north"></svg></div></div></div>
+    <div class="kb" id="kb-north"><div class="kbin"><div class="klang"></div><div class="kdiag" id="kdiag-north"></div><div class="kcands"></div><div class="kkeys"><svg class="swype-trail" id="trail-north"></svg></div></div></div>
     <div class="ask" id="ask-north"><div class="askcard">
       <div class="ask-msg"></div><div class="askbtns"><button type="button" class="ask-no"></button><button type="button" class="ask-ok"></button></div>
     </div></div>
@@ -157,7 +161,7 @@ body{display:flex;flex-direction:column}
   <div class="shell" style="position:relative">
     <div class="tx" id="tx-south"></div>
     <div class="strip" id="strip-south"></div>
-    <div class="kb" id="kb-south"><div class="kbin"><div class="klang"></div><div class="kcands"></div><div class="kkeys"><svg class="swype-trail" id="trail-south"></svg></div></div></div>
+    <div class="kb" id="kb-south"><div class="kbin"><div class="klang"></div><div class="kdiag" id="kdiag-south"></div><div class="kcands"></div><div class="kkeys"><svg class="swype-trail" id="trail-south"></svg></div></div></div>
     <div class="ask" id="ask-south"><div class="askcard">
       <div class="ask-msg"></div><div class="askbtns"><button type="button" class="ask-no"></button><button type="button" class="ask-ok"></button></div>
     </div></div>
@@ -1308,6 +1312,10 @@ function dgLangParam(room) {
         el.classList.add('open');
         var inp=document.getElementById('in-'+side);
         if(inp){try{inp.focus({preventScroll:true})}catch(e){}}
+        /* open with a prediction already showing rather than a dead bar — at
+           the start of a message that is the sentence-opener list, mid-message
+           it is the next word after whatever was last committed. */
+        try{updateAutocomplete(side)}catch(e){}
     }
     function hideKeyboard(side){
         var el=kbEl(side);if(!el)return;
@@ -1362,7 +1370,7 @@ function dgLangParam(room) {
             var k=b.dataset.k;
             if(k.length!==1||!/[a-zA-Z]/.test(k))return;   // letters only — not SHIFT/BKSP/space/etc
             var r=b.getBoundingClientRect();
-            out.push({k:k.toLowerCase(),cx:r.left+r.width/2,cy:r.top+r.height/2});
+            out.push({k:k.toLowerCase(),cx:r.left+r.width/2,cy:r.top+r.height/2,w:r.width,h:r.height});
         });
         return out;
     }
@@ -1450,15 +1458,15 @@ function dgLangParam(room) {
         var kkeys=oldKkeys.cloneNode(true);
         oldKkeys.parentNode.replaceChild(kkeys,oldKkeys);
         var rects=[];
-        var pid=null, downBtn=null, downX=0, downY=0, isSwype=false, lastSwypeKey=null, keyW=36;
+        var pid=null, downBtn=null, downX=0, downY=0, curX=0, curY=0, isSwype=false, lastSwypeKey=null, keyW=36;
 
         kkeys.addEventListener('pointerdown',function(e){
             var target=e.target.closest('.key[data-k]');
             if(!target)return;
             e.preventDefault();
-            pid=e.pointerId;downBtn=target;downX=e.clientX;downY=e.clientY;isSwype=false;lastSwypeKey=null;
+            pid=e.pointerId;downBtn=target;downX=e.clientX;downY=e.clientY;curX=e.clientX;curY=e.clientY;isSwype=false;lastSwypeKey=null;
             target.classList.add('pressed');showKeyPop(side,target);
-            haptic(HAPTIC_TAP);                          // fires immediately on contact, not on release
+            haptic(HAPTIC_TAP);clickSound();   // iOS has no vibration API — the click is the feedback                          // fires immediately on contact, not on release
             kkeys.setPointerCapture&&kkeys.setPointerCapture(pid);
 
             var k=target.dataset.k;
@@ -1487,6 +1495,7 @@ function dgLangParam(room) {
         kkeys.addEventListener('pointermove',function(e){
             if(e.pointerId!==pid)return;
             var dx=e.clientX-downX, dy=e.clientY-downY;
+            curX=e.clientX;curY=e.clientY;
             var moved=(dx*dx+dy*dy)>=144;   // 12px threshold — matches native keyboard slop
 
             // live key-to-key visual tracking, tap OR swipe in progress
@@ -1516,7 +1525,7 @@ function dgLangParam(room) {
                     var liveDict=getDict(langOf(side));
                     if(liveDict&&swype.pts.length>=4){
                         var livePts=swype.pts.slice();
-                        var liveTop=swRecognize(livePts,rects,liveDict);
+                        var liveTop=swRecognize(livePts,rects,liveDict,lmMap(langOf(side),prevWord[side]));
                         if(liveTop.length){cands[side]=liveTop.slice(0,4);candIdx[side]=-1;paintCands(side)}
                     }
                 }
@@ -1537,7 +1546,7 @@ function dgLangParam(room) {
                 else remoteLog('swype_too_short',{pts:swype.pts.length,letters:swype.letters.length});
                 swype.pts=[];swype.letters=[];clearTrail(side);
             }else if(downBtn){
-                press(side,downBtn.dataset.k);           // plain tap — fires on release, same as before
+                press(side,downBtn.dataset.k,{x:curX,y:curY});   // the touch point is what the spatial model scores
             }
             downBtn=null;
         }
@@ -1563,6 +1572,7 @@ function dgLangParam(room) {
     var SW_TOPK=8;             // frequency re-rank window (item 7)
     var SW_FREQ_W=0.20;        // weight of frequency rank in final score
     var SW_END_W=0.4;          // weight of start/end key distance
+    var SW_LM_W=0.55;          // weight of the language-model prior on a gesture
 
     function swPathLen(p){var t=0;for(var i=1;i<p.length;i++)t+=Math.hypot(p[i].x-p[i-1].x,p[i].y-p[i-1].y);return t}
     function swResample(pts,N){
@@ -1606,7 +1616,7 @@ function dgLangParam(room) {
     }
     /* Core: gesture points + key geometry + dictionary -> ranked candidates.
        Pure function so the fixture (item 9) can drive it without a DOM. */
-    function swRecognize(points,rects,dict){
+    function swRecognize(points,rects,dict,lm){
         if(points.length<2||!rects.length||!dict||!dict.length)return[];
         var keyMap={},keyW=0;
         rects.forEach(function(r){keyMap[r.k]=r});
@@ -1637,21 +1647,30 @@ function dgLangParam(room) {
         if(!scored.length)return[];
         scored.sort(function(a,b){return a.s-b.s});
         var top=scored.slice(0,SW_TOPK),maxRank=Math.max(1,dict.length);
-        top.forEach(function(c){c.f=c.s+SW_FREQ_W*(c.rank/maxRank)});         // item 7
+        /* lower is better here, so the language-model prior SUBTRACTS. A shape
+           matcher with no idea what word is likely next is half an engine —
+           this is the half that was missing. */
+        top.forEach(function(c){
+            c.f=c.s+SW_FREQ_W*(c.rank/maxRank);
+            var p=lm&&lm[c.w.toLowerCase()];
+            if(p!==undefined)c.f-=SW_LM_W*(1-p/LM_DEPTH);
+        });
         top.sort(function(a,b){return a.f-b.f});
         return top.map(function(c){return c.w});
     }
     function resolveSwype(side){
         var dict=getDict(langOf(side));if(!dict){remoteLog('swype_no_dict',{side:side,lang:langOf(side)});return}
         var rects=keyRectsFor(side);
-        var top=swRecognize(swype.pts,rects,dict);
+        var top=swRecognize(swype.pts,rects,dict,lmMap(langOf(side),prevWord[side]));
         if(!top.length){remoteLog('swype_no_match',{pts:swype.pts.length,letters:swype.letters.join('')});return}
         remoteLog('swype_resolved',{letters:swype.letters.join(''),top:top.slice(0,5)});
         haptic(HAPTIC_RESOLVE);
         var frag=currentWordFragment(side);
         if(frag)replaceComp(side,frag.length,top[0]+' ');
         else insertAt(side,top[0]+' ');
-        cands[side]=top.slice(1,5);candIdx[side]=-1;acFragLen[side]=0;paintCands(side);   // item 8
+        prevWord[side]=String(top[0]).toLowerCase();tapBuf[side]=[];
+        cands[side]=top.slice(1,5);candIdx[side]=-1;acFragLen[side]=0;paintCands(side);
+        kbDiag(side,'swype -> '+top.slice(0,4).join(' '));
     }
     /* Track A: real autocomplete, reading the SAME asset chat-admin's download
        button writes (duck_dict_<lang> in localStorage). No dictionary = no
@@ -1668,6 +1687,183 @@ function dgLangParam(room) {
         try{dictCache[lang]=JSON.parse(raw)}catch(e){return null}
         return dictCache[lang];
     }
+
+    /* ================= §3.5 INPUT ENGINE ==============================
+       One scorer behind every input method.
+
+       A touch is not a letter. It is a probability distribution over the
+       keys near it (Gaussian, sigma ~= 0.45 key widths). A candidate word
+       is scored by how well the whole tap sequence explains it (spatial)
+       AND by how likely it is to follow the word just committed (language
+       model, dict/bigram-<lang>.json). Tap completion, auto-correct on
+       space, next-word prediction and swipe all call this same ranker.
+
+       That shared prior is the thing that was missing: a shape matcher with
+       no language model can only ever guess. It is also why a mis-tap now
+       self-corrects, and why "what" + "t" surfaces "time". */
+    var TAP_SIGMA=0.45;      // touch spread, in key widths
+    var LM_W=2.6;            // language-model weight
+    var UNI_W=1.1;           // unigram frequency weight
+    var LM_DEPTH=64;         // successors stored per common head word
+    var LEN_PEN=0.04;        // mild penalty per unTyped trailing letter
+
+    var tapBuf={south:[],north:[]};    // touch point per letter of the current word
+    var prevWord={south:'',north:''};  // last committed word = bigram context
+
+    var bgCache={};
+    function getBigram(lang){
+        if(bgCache[lang])return bgCache[lang];
+        var raw=null;try{raw=localStorage.getItem('duck_bg_'+lang)}catch(e){}
+        if(!raw)return null;
+        try{bgCache[lang]=JSON.parse(raw)}catch(e){return null}
+        return bgCache[lang];
+    }
+    var dictSetCache={};
+    function dictSet(lang){
+        if(dictSetCache[lang])return dictSetCache[lang];
+        var d=getDict(lang);if(!d)return null;
+        var m=Object.create(null);
+        for(var i=0;i<d.length;i++)m[d[i].toLowerCase()]=1;
+        dictSetCache[lang]=m;return m;
+    }
+    /* successors are stored as base36 indices into the SAME dict/<lang>.json
+       the recognizer already uses — 3 chars per word instead of ~8 bytes,
+       which is what makes a 64-deep table small enough to ship. */
+    var B36='0123456789abcdefghijklmnopqrstuvwxyz';
+    function b36(t){return B36.indexOf(t[0])*1296+B36.indexOf(t[1])*36+B36.indexOf(t[2])}
+    var lmMemo={};
+    function lmMap(lang,prev){
+        var key=lang+'|'+(prev||'_');
+        if(lmMemo[key])return lmMemo[key];
+        var bg=getBigram(lang),dict=getDict(lang),m=Object.create(null);
+        if(bg&&dict){
+            var s=bg[(prev||'_').toLowerCase()];
+            if(s)for(var i=0;i+3<=s.length;i+=3){
+                var w=dict[b36(s.substr(i,3))];
+                if(w&&m[w.toLowerCase()]===undefined)m[w.toLowerCase()]=i/3;
+            }
+        }
+        lmMemo[key]=m;return m;
+    }
+    function lmSuccessors(lang,prev,n){
+        var bg=getBigram(lang),dict=getDict(lang);
+        if(!bg||!dict)return[];
+        var s=bg[(prev||'_').toLowerCase()];
+        if(!s)s=bg['_'];
+        if(!s)return[];
+        var out=[];
+        for(var i=0;i+3<=s.length&&out.length<n;i+=3){
+            var w=dict[b36(s.substr(i,3))];if(w)out.push(w);
+        }
+        return out;
+    }
+    var _geomOverride=null;
+    function keyGeom(side){
+        if(_geomOverride)return _geomOverride;
+        var rects=keyRectsFor(side),map=Object.create(null),ws=[];
+        rects.forEach(function(r){map[r.k]=r;if(r.w>0)ws.push(r.w)});
+        ws.sort(function(a,b){return a-b});
+        return{map:map,rects:rects,keyW:ws.length?ws[Math.floor(ws.length/2)]:36};
+    }
+    /* cost of explaining touch `pt` as letter `ch`, in units of sigma^2 */
+    function tapCost(geom,ch,pt){
+        var k=geom.map[ch];if(!k)return null;
+        var dx=(k.cx-pt.x)/geom.keyW, dy=(k.cy-pt.y)/geom.keyW;
+        return (dx*dx+dy*dy)/(2*TAP_SIGMA*TAP_SIGMA);
+    }
+    var FIRST_GATE=2.2;   // first letter must be plausibly under the first touch
+    /* Rank dictionary words against a tap sequence. Words may be longer than
+       the taps (completion); the extra letters cost a little. Returns
+       [{w,s,spatial,lm}] best first — the score fields are what the on-device
+       diagnostics strip prints, so a wrong pick is explainable, not a mystery. */
+    function rankTaps(side,taps,limit){
+        var lang=langOf(side),dict=getDict(lang);
+        if(!dict||!taps||!taps.length)return[];
+        var geom=keyGeom(side);if(!geom.rects.length)return[];
+        var lm=lmMap(lang,prevWord[side]);
+        var n=taps.length,out=[],maxRank=dict.length||1;
+        for(var d=0;d<dict.length;d++){
+            var w=dict[d],wl=w.toLowerCase();
+            if(wl.length<n)continue;
+            var c0=tapCost(geom,wl.charAt(0),taps[0]);
+            if(c0===null||c0>FIRST_GATE)continue;
+            var cost=c0,ok=true;
+            for(var i=1;i<n;i++){
+                var c=tapCost(geom,wl.charAt(i),taps[i]);
+                if(c===null){ok=false;break}
+                cost+=c;
+            }
+            if(!ok)continue;
+            cost/=n;
+            var lmp=lm[wl], lmb=(lmp===undefined?0:LM_W*(1-lmp/LM_DEPTH));
+            var sc=-cost+UNI_W*(1-d/maxRank)+lmb-LEN_PEN*(wl.length-n);
+            out.push({w:w,s:sc,spatial:-cost,lm:lmb,rank:d});
+        }
+        out.sort(function(a,b){return b.s-a.s});
+        return out.slice(0,limit||6);
+    }
+    function showNextWord(side){
+        var sug=lmSuccessors(langOf(side),prevWord[side],5);
+        cands[side]=sug;candIdx[side]=-1;acFragLen[side]=0;paintCands(side);
+        kbDiag(side,'next after "'+(prevWord[side]||'^')+'": '+(sug.join(' ')||'(none)'));
+    }
+    /* Space commits. If what was typed is not a real word and the bar has a
+       better explanation of those same touches, the bar wins — silently, the
+       way every phone keyboard has worked for a decade. A word that IS in the
+       dictionary is never "corrected". */
+    function commitWord(side){
+        var lang=langOf(side),frag=currentWordFragment(side),committed='';
+        if(frag){
+            var set=dictSet(lang),fl=frag.toLowerCase();
+            var known=set?!!set[fl]:true;
+            var top=cands[side][0];
+            if(!known&&top&&tapBuf[side].length===frag.length&&acFragLen[side]===frag.length){
+                replaceComp(side,frag.length,String(top));
+                committed=String(top).toLowerCase();
+                kbDiag(side,'autocorrect '+fl+' -> '+committed);
+            }else committed=fl;
+        }
+        insertAt(side,' ');
+        prevWord[side]=committed;tapBuf[side]=[];acFragLen[side]=0;
+        showNextWord(side);
+    }
+    function resetInputCtx(side){
+        tapBuf[side]=[];prevWord[side]='';acFragLen[side]=0;
+        cands[side]=[];candIdx[side]=-1;paintCands(side);
+    }
+    /* ---- on-device instrumentation -------------------------------------
+       There is no DevTools on this device, so the engine has to be able to
+       explain itself on screen or every fix is a guess. */
+    function kbDiagOn(){try{return localStorage.getItem('duck_kbdiag')!=='0'}catch(e){return true}}
+    function kbDiag(side,msg){
+        var el=document.getElementById('kdiag-'+side);if(!el)return;
+        if(!kbDiagOn()){el.style.display='none';return}
+        el.style.display='block';
+        el.textContent=msg;
+    }
+    function kbDiagRank(side,taps,ranked){
+        if(!kbDiagOn())return;
+        var g=keyGeom(side);
+        kbDiag(side,'taps'+taps.length+' kw'+Math.round(g.keyW)+' | '+
+            ranked.slice(0,4).map(function(c){return c.w+' '+c.s.toFixed(2)}).join('  '));
+    }
+    /* ---- feel: a real click. iOS Safari has no vibration API at all, so on
+       iPhone this is the only physical-feeling feedback available. --------- */
+    var _ac=null;
+    function clickOn(){try{return localStorage.getItem('duck_click')!=='0'}catch(e){return true}}
+    function clickSound(){
+        if(!clickOn())return;
+        try{
+            if(!_ac){var C=window.AudioContext||window.webkitAudioContext;if(!C)return;_ac=new C()}
+            if(_ac.state==='suspended')_ac.resume();
+            var t=_ac.currentTime,o=_ac.createOscillator(),g=_ac.createGain();
+            o.type='square';o.frequency.setValueAtTime(2100,t);
+            g.gain.setValueAtTime(0.0001,t);
+            g.gain.exponentialRampToValueAtTime(0.07,t+0.002);
+            g.gain.exponentialRampToValueAtTime(0.0001,t+0.026);
+            o.connect(g);g.connect(_ac.destination);o.start(t);o.stop(t+0.03);
+        }catch(e){}
+    }
     function currentWordFragment(side){
         var ta=inputEl(side);if(!ta)return'';
         var s=ta.selectionStart,text=ta.value.slice(0,s);
@@ -1680,11 +1876,20 @@ function dgLangParam(room) {
         var dict=getDict(lang);
         if(!dict){if(cands[side].length){cands[side]=[];candIdx[side]=-1;paintCands(side)}return}
         var frag=currentWordFragment(side);
-        if(!frag||frag.length<2){if(cands[side].length){cands[side]=[];candIdx[side]=-1;paintCands(side)}return}
-        var lower=frag.toLowerCase();
-        var out=[];
-        for(var i=0;i<dict.length&&out.length<5;i++){
-            if(dict[i].toLowerCase().indexOf(lower)===0)out.push(dict[i]);
+        /* nothing being typed -> the bar predicts the NEXT word instead of
+           sitting empty. This is where most of the speed comes from. */
+        if(!frag){showNextWord(side);return}
+        var out;
+        if(tapBuf[side].length===frag.length&&frag.length>0){
+            var ranked=rankTaps(side,tapBuf[side],5);
+            kbDiagRank(side,tapBuf[side],ranked);
+            out=ranked.map(function(c){return c.w});
+        }else{
+            /* no touch data for this fragment (STT, paste, edit) — fall back to
+               a plain prefix match so the bar never goes dead */
+            var lower=frag.toLowerCase();out=[];
+            for(var i=0;i<dict.length&&out.length<5;i++)
+                if(dict[i].toLowerCase().indexOf(lower)===0)out.push(dict[i]);
         }
         cands[side]=out;candIdx[side]=-1;acFragLen[side]=frag.length;paintCands(side);
     }
@@ -1737,14 +1942,14 @@ function dgLangParam(room) {
         var t=compText(side);
         if(prevLen)replaceComp(side,prevLen,t);else if(t)insertAt(side,t);
     }
-    function press(side,k){
+    function press(side,k,pt){
         var lang=langOf(side),ime=numMode[side]?null:(lang==='ko'?'ko':(lang==='ja'?'ja':null));
         if(k==='SHIFT'){shifted[side]=!shifted[side];renderKeys(side);return}
         if(k==='NUM'){flushComp(side);numMode[side]=!numMode[side];shifted[side]=false;renderKeys(side);return}
         if(k==='CLOSE'){teardown('kb-close');return}
         if(k==='ENTER'){
             if(cands[side].length&&candIdx[side]>=0){pickCand(side,candIdx[side]);return}
-            flushComp(side);sendFrom(side);return;
+            flushComp(side);resetInputCtx(side);sendFrom(side);return;
         }
         if(k==='BKSP'){
             var prev=compText(side).length;
@@ -1758,11 +1963,11 @@ function dgLangParam(room) {
                 comp[side].kana=romajiToKana(comp[side].raw.slice(0,comp[side].raw.length-romajiTail(comp[side].raw).length));
                 cands[side]=[];candIdx[side]=-1;paintCands(side);paintComp(side,prev);return;
             }
-            backspaceAt(side);updateAutocomplete(side);return;
+            backspaceAt(side);if(tapBuf[side].length)tapBuf[side].pop();updateAutocomplete(side);return;
         }
         if(k===' '){
             if(ime==='ja'&&(comp[side].raw||comp[side].kana)){convertJa(side);return}
-            flushComp(side);insertAt(side,' ');cands[side]=[];candIdx[side]=-1;paintCands(side);return;
+            flushComp(side);commitWord(side);return;
         }
         var prevLen=compText(side).length;
         if(ime==='ko'){
@@ -1784,6 +1989,7 @@ function dgLangParam(room) {
             return;
         }
         flushComp(side);
+        if(pt&&String(k).length===1&&/[a-zA-Z]/.test(k))tapBuf[side].push({x:pt.x,y:pt.y});
         insertAt(side,k);
         if(shifted[side]&&String(k).length===1){
             shifted[side]=false;
@@ -1801,6 +2007,8 @@ function dgLangParam(room) {
         }else{
             /* Track A autocomplete: replace the fragment being typed, add a space */
             replaceComp(side,acFragLen[side]||0,c+' ');
+            prevWord[side]=String(c).toLowerCase();tapBuf[side]=[];acFragLen[side]=0;
+            showNextWord(side);return;
         }
         cands[side]=[];candIdx[side]=-1;paintCands(side);
     }
@@ -1957,11 +2165,22 @@ function dgLangParam(room) {
                     var words;try{words=JSON.parse(text)}catch(e){return}
                     if(!Array.isArray(words)||words.length<100)return;
                     try{localStorage.setItem('duck_dict_'+lang,text)}catch(e){return}
-                    delete dictCache[lang];
+                    delete dictCache[lang];delete dictSetCache[lang];
                     diag('dict '+lang+' updated: '+words.length+' words');
                     var sideLabel=langOf('south')===lang?'South':'North';
                     toastMsg(sideLabel+' ('+lang+'): '+words.length+' words loaded');
                 }).catch(function(e){diag('dict '+lang+' fetch failed: '+e.message,true)});
+            /* the bigram table is what makes prediction and auto-correct work;
+               absent, the engine degrades to spatial-only rather than breaking */
+            fetch(DICT_BASE+'bigram-'+lang+'.json?v='+Date.now())
+                .then(function(r){if(!r.ok)throw new Error(r.status);return r.text()})
+                .then(function(text){
+                    var bg;try{bg=JSON.parse(text)}catch(e){return}
+                    if(!bg||typeof bg!=='object')return;
+                    try{localStorage.setItem('duck_bg_'+lang,text)}catch(e){return}
+                    delete bgCache[lang];lmMemo={};
+                    diag('prediction '+lang+' updated: '+Object.keys(bg).length+' contexts');
+                }).catch(function(e){diag('prediction '+lang+' unavailable: '+e.message)});
         });
         if(!dgKey())diag('no Deepgram key set — configure it in chat-admin',true);
     }
@@ -1973,7 +2192,7 @@ function dgLangParam(room) {
         window.detectByScript=detectByScript;window.applyNorthernThaiMap=applyNorthernThaiMap;
         window.resolveEffectiveLang=resolveEffectiveLang;window.normalizeOutgoing=normalizeOutgoing;
         window.detectLangAsync=detectLangAsync;window.loadFastText=loadFastText;
-        window.sideAsRoom=sideAsRoom;window.ROOM=ROOM;window.translateWithRetry=translateWithRetry;window.press=press;window.cands=cands;window.pickCand=pickCand;window.getDict=getDict;window.updateAutocomplete=updateAutocomplete;window.comp=comp;window.langOf=langOf;window.swype=swype;window.resolveSwype=resolveSwype;window.keyRectsFor=keyRectsFor;window.wireKeyboard=wireKeyboard;window.haptic=haptic;window.swRecognize=swRecognize;window.swResample=swResample;window.swypeWarned=swypeWarned;
+        window.sideAsRoom=sideAsRoom;window.ROOM=ROOM;window.translateWithRetry=translateWithRetry;window.press=press;window.cands=cands;window.pickCand=pickCand;window.getDict=getDict;window.updateAutocomplete=updateAutocomplete;window.comp=comp;window.langOf=langOf;window.swype=swype;window.resolveSwype=resolveSwype;window.keyRectsFor=keyRectsFor;window.wireKeyboard=wireKeyboard;window.haptic=haptic;window.swRecognize=swRecognize;window.swResample=swResample;window.swypeWarned=swypeWarned;window.rankTaps=rankTaps;window.commitWord=commitWord;window.tapBuf=tapBuf;window.prevWord=prevWord;window.lmSuccessors=lmSuccessors;window.lmMap=lmMap;window.getBigram=getBigram;window.keyGeom=keyGeom;window.showNextWord=showNextWord;window.resetInputCtx=resetInputCtx;window.dictSet=dictSet;window.setGeomOverride=function(g){_geomOverride=g};
         window.renderAll=renderAll;window.debugLog=debugLog;window.getDiagLines=function(){return diagLines};
         window.dgUseDual=dgUseDual;window.dgUseMulti=dgUseMulti;window.dgLangParam=dgLangParam;
         window.dgArbitrateNative=dgArbitrateNative;window.dgArbitrateEnglish=dgArbitrateEnglish;
