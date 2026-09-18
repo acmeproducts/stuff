@@ -164,3 +164,11 @@ Stage chain remains `pre-base → base → pre-ship → ship → post-ship`. Bef
 - Every Database cell is copyable by tap/click and confirms the copied value with a non-blocking toast.
 - OMNISEARCH is operational on Database evidence and searches the displayed evidence fields, including placement key, filename, extension, path, timestamps, fingerprint, lifecycle, plan, group and availability.
 - Browser/backend transport must survive backend process failure: the WSL service is supervised/restarted, health state distinguishes reconnecting from disconnected, and API responses retain CORS headers. Repeated failed polling must not create an opaque failure loop.
+
+
+## 19. Estate identity and overlap prevention — binding (2026-09-18)
+- WSL itself is a selectable storage authority: the Estate picker exposes the WSL root filesystem `/` and permits navigation through the complete readable WSL directory tree, while mounted Windows/external volumes remain separately visible.
+- Evidence has a first-class `ESTATE` field. ESTATE identifies the registered estate/source root; PATH remains the complete placement path including all subfolders. Estate catalog/filtering is therefore independent of path depth.
+- The Estate surface includes a catalog of registered estate roots.
+- Registration overlap is prevented upstream. Any candidate folder equal to, inside, or containing an already registered estate root is marked as already/overlapping Estate and is non-selectable. The backend independently rejects an overlapping registration even if the client is bypassed.
+- Placement identity is revision/job scoped. Re-analysis of the same source/path must create a distinct placement observation and may never raise a placement primary-key UNIQUE error.

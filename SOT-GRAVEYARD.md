@@ -302,3 +302,12 @@ Do not collapse all storage sources into one opaque FIFO and do not create multi
 Do not present a /mnt or /media directory as an available volume without proving the mount is currently usable. Do not collapse filename/extension/path or omit placement key and filesystem timestamps from the Evidence Database. Do not ship Database cells that cannot be copied or an OMNISEARCH surface that fails to operate on the evidence table. Do not rely on an unsupervised nohup backend whose disappearance turns polling into repeated 502/CORS failures.
 
 **Required replacement:** usable-volume probing with visible selection state; complete separated evidence columns and stable row key; tap-to-copy cells with toast; operational evidence search; and a supervised WSL backend with explicit reconnect state.
+
+
+## GY-064 — Path-only placement identity and overlapping estate registration
+**Status:** REJECTED OWNER-TEST PATTERN  
+**Decision date:** 2026-09-18
+
+Reject placement IDs derived only from source+path across revisioned jobs: the second observation collides with the first. Reject client-only duplicate prevention and selectors that hide the WSL root filesystem. Reject deriving estate membership from arbitrary path parsing.
+
+**Required replacement:** job/revision-scoped placement IDs; first-class ESTATE evidence; complete WSL-root navigation; overlap annotation in picker plus backend overlap rejection; registered Estate catalog.
