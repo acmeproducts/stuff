@@ -463,3 +463,8 @@ When implementation is later authorized and fully qualified, return:
 5. concise gate results for retained behavior, model arithmetic/health, `ⓘ` explainability, AI/Library freeze, ENV/index/component Print, Library Print regression, responsive/device, race/state integrity, and live smoke.
 
 The candidate remains a candidate until owner disposition. If rejected, record the failure and return to the accepted baseline/stage under `MARKET-NAVIGATOR-BUILD-PROTOCOL.md`; do not patch the rejected candidate forward.
+## Turn 25 post-ship crosshair regression correction — owner authorized 2026-09-18
+
+The completed Turn 25 Ship remains the implementation baseline for this bounded correction. This authorization does not permit patch-forward from the rejected `c3cde56268303d8e2a222012d5a34aee9f26651e` donor.
+
+Retained chart-inspection contract: pointer movement immediately inspects the active series; inspection resolves against the full real observation set rather than display-density representatives; the vertical guide, point marker and readout remain pinned when the pointer leaves the plot; the pinned readout has an operable explicit × close control; dismissal removes the inspection and restores the ordinary chart; raw/source Indexed 100 remains plain relative rebasing; inspection must not introduce a second arithmetic/data path. These inherited semantics must be qualified with real browser interaction and retained in future cumulative release gates.
