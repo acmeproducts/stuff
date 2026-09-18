@@ -42,7 +42,9 @@ class H(BaseHTTPRequestHandler):
     for x in root.iterdir():
      if x.is_dir() and not x.is_symlink() and os.access(x,os.R_OK|os.X_OK):
       xp=str(x.resolve());hits=[r for r in regs if ov(xp,r['root'])]
-      items.append({'name':x.name,'path':xp,'estate_overlap':bool(hits),'estate':hits[0]['label'] if hits else None})
+      covered=next((r for r in hits if os.path.commonpath((xp,r['root']))==r['root']),None)
+      contains=[r for r in hits if os.path.commonpath((xp,r['root']))==xp and xp!=r['root']]
+      items.append({'name':x.name,'path':xp,'estate_overlap':bool(hits),'estate':hits[0]['label'] if hits else None,'covered_by':covered['label'] if covered else None,'contains_estate':bool(contains),'selectable':not bool(hits)})
     return self._send({'ok':True,'path':str(root),'folders':sorted(items,key=lambda z:z['name'].lower())})
    self._send({'ok':False,'error':'not found'},404)
   except Exception as e:S.event('ERROR','api_get_error',None,None,str(e),{'path':self.path});self._send({'ok':False,'error':str(e)},500)
