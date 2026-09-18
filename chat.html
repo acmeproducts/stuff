@@ -911,11 +911,23 @@ function dgLangParam(room) {
                     }
                 }catch(e2){}
             };
-            P.ws.onerror=function(){if(live())diag(side+': socket error',true)};
+            P.ws.onerror=function(){if(live())diag(side+': socket error (see close code below)',true)};
             P.ws.onclose=function(ev){
                 if(P.ws!==mySocket)return;
                 if(!P.gen.is(myGen))return;
                 var neverOpened=!P.active;
+                /* "socket error" hid whether this was auth, quota or network.
+                   Deepgram uses distinct close codes; print them. */
+                var code=ev&&ev.code, why=(ev&&ev.reason)||'';
+                var named=({1000:'normal',1006:'network dropped / unreachable',
+                    1008:'REJECTED — bad or unauthorized API key',1011:'Deepgram server error',
+                    4001:'REJECTED — invalid API key',4008:'REJECTED — quota or payment',
+                    4009:'REJECTED — key lacks permission'})[code]||'';
+                diag(side+': deepgram closed '+code+(named?' — '+named:'')+(why?' ('+why+')':''),
+                     code!==1000);
+                if(neverOpened&&(code===1008||code===4001||code===4008||code===4009)){
+                    toastMsg('STT key rejected by Deepgram ('+code+(named?': '+named:'')+')');
+                }
                 P.active=false;stopAudio();stopWatchdog();
                 if(!P.on)return;
                 if(neverOpened){
@@ -1723,9 +1735,16 @@ function dgLangParam(room) {
        predictions, which must append. */
     var replaceLen={south:0,north:0};
 
+    /* MEMORY ONLY. Persisting this cost 1.78 MB of localStorage — more than
+       both dictionaries combined — against a per-origin cap that is commonly
+       5 MB. Over the cap every setItem throws, and this app swallows those
+       errors, so unrelated features fail with no visible cause. The
+       dictionaries are already re-fetched on every room load, so holding the
+       table in memory matches existing behaviour and costs nothing extra. */
     var bgCache={};
     function getBigram(lang){
         if(bgCache[lang])return bgCache[lang];
+        /* read-only fallback for devices that stored it under the old build */
         var raw=null;try{raw=localStorage.getItem('duck_bg_'+lang)}catch(e){}
         if(!raw)return null;
         try{bgCache[lang]=JSON.parse(raw)}catch(e){return null}
@@ -2197,8 +2216,8 @@ function dgLangParam(room) {
                 .then(function(text){
                     var bg;try{bg=JSON.parse(text)}catch(e){return}
                     if(!bg||typeof bg!=='object')return;
-                    try{localStorage.setItem('duck_bg_'+lang,text)}catch(e){return}
-                    delete bgCache[lang];lmMemo={};
+                    bgCache[lang]=bg;lmMemo={};            // memory only — see getBigram
+                    try{localStorage.removeItem('duck_bg_'+lang)}catch(e){}   // reclaim from older builds
                     diag('prediction '+lang+' updated: '+Object.keys(bg).length+' contexts');
                 }).catch(function(e){diag('prediction '+lang+' unavailable: '+e.message)});
         });
