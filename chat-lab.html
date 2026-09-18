@@ -1569,7 +1569,10 @@ function dgLangParam(room) {
        word's key centers. Standard approach behind every serious gesture
        keyboard. */
     var SW_N=48;               // resample count (item 2)
-    var SW_GATE=1.3;           // start/end gate in key-widths (item 3)
+    var SW_GATE=2.0;           // start/end gate in key-widths. 1.3 rejected nearly
+                               // every real gesture (logs: swype_no_match on a
+                               // 48-point path) — a thumb does not start or stop
+                               // within 1.3 key-widths of a key centre.
     var SW_TOPK=8;             // frequency re-rank window (item 7)
     var SW_FREQ_W=0.15;        // weight of frequency rank in final score
     var SW_END_W=0.6;          // weight of start/end key distance
@@ -1604,6 +1607,37 @@ function dgLangParam(room) {
         for(var i=0;i<a.length;i++){var d=Math.hypot(a[i].x-b[i].x,a[i].y-b[i].y);t+=Math.max(0,d-tun)}
         return t/a.length/keyW;
     }
+    /* ---- language model, used ONLY by swipe scoring in this build ----------
+       A shape matcher with no idea which word is likely next can only guess.
+       dict/bigram-<lang>.json holds, per head word, its successors as base36
+       indices into dict/<lang>.json. Held in memory, never localStorage. */
+    var bgCache={},lmMemo={};
+    function getBigram(lang){return bgCache[lang]||null}
+    var B36='0123456789abcdefghijklmnopqrstuvwxyz';
+    function b36(t){return B36.indexOf(t[0])*1296+B36.indexOf(t[1])*36+B36.indexOf(t[2])}
+    function lmMap(lang,prev){
+        var key=lang+'|'+(prev||'_');
+        if(lmMemo[key])return lmMemo[key];
+        var bg=getBigram(lang),dict=getDict(lang),m=Object.create(null);
+        if(bg&&dict){
+            var str=bg[(prev||'_').toLowerCase()];
+            if(str)for(var i=0;i+3<=str.length;i+=3){
+                var w=dict[b36(str.substr(i,3))];
+                if(w&&m[w.toLowerCase()]===undefined)m[w.toLowerCase()]=i/3;
+            }
+        }
+        lmMemo[key]=m;return m;
+    }
+    /* context = the last completed word before the cursor. Derived from the
+       field rather than kept as state, so this adds no new state machine. */
+    function prevWordFor(side){
+        var ta=inputEl(side);if(!ta)return'';
+        var t=ta.value.slice(0,ta.selectionStart).replace(/[^\s]*$/,'');
+        var m=t.match(/([^\s]+)\s+$/);
+        return m?m[1].toLowerCase():'';
+    }
+    var SW_LM_W=0.55;          // weight of the language-model prior on a gesture
+    var LM_DEPTH=64;           // successors stored per common head word
     function swTemplate(word,keyMap){
         var pts=[],last=null;
         for(var i=0;i<word.length;i++){
@@ -1616,7 +1650,7 @@ function dgLangParam(room) {
     }
     /* Core: gesture points + key geometry + dictionary -> ranked candidates.
        Pure function so the fixture (item 9) can drive it without a DOM. */
-    function swRecognize(points,rects,dict){
+    function swRecognize(points,rects,dict,lm){
         if(points.length<2||!rects.length||!dict||!dict.length)return[];
         var keyMap={},keyW=0;
         rects.forEach(function(r){keyMap[r.k]=r});
@@ -1647,16 +1681,23 @@ function dgLangParam(room) {
         if(!scored.length)return[];
         scored.sort(function(a,b){return a.s-b.s});
         var top=scored.slice(0,SW_TOPK),maxRank=Math.max(1,dict.length);
-        top.forEach(function(c){c.f=c.s+SW_FREQ_W*(c.rank/maxRank)});         // item 7
+        /* lower is better here, so a likely next word SUBTRACTS from the cost */
+        top.forEach(function(c){
+            c.f=c.s+SW_FREQ_W*(c.rank/maxRank);
+            var p=lm&&lm[c.w.toLowerCase()];
+            if(p!==undefined)c.f-=SW_LM_W*(1-p/LM_DEPTH);
+        });
         top.sort(function(a,b){return a.f-b.f});
         return top.map(function(c){return c.w});
     }
     function resolveSwype(side){
         var dict=getDict(langOf(side));if(!dict){remoteLog('swype_no_dict',{side:side,lang:langOf(side)});return}
         var rects=keyRectsFor(side);
-        var top=swRecognize(swype.pts,rects,dict);
-        if(!top.length){remoteLog('swype_no_match',{pts:swype.pts.length,letters:swype.letters.join('')});return}
-        remoteLog('swype_resolved',{letters:swype.letters.join(''),top:top.slice(0,5)});
+        var top=swRecognize(swype.pts,rects,dict,lmMap(langOf(side),prevWordFor(side)));
+        if(!top.length){remoteLog('swype_no_match',{pts:swype.pts.length,letters:swype.letters.join(''),
+            prev:prevWordFor(side),gate:SW_GATE,dict:dict.length,lm:!!getBigram(langOf(side))});return}
+        remoteLog('swype_resolved',{letters:swype.letters.join(''),top:top.slice(0,5),
+            prev:prevWordFor(side),lm:!!getBigram(langOf(side))});
         haptic(HAPTIC_RESOLVE);
         var frag=currentWordFragment(side);
         if(frag)replaceComp(side,frag.length,top[0]+' ');
@@ -1971,6 +2012,15 @@ function dgLangParam(room) {
                     diag('dict '+lang+' updated: '+words.length+' words');
                     toastMsg((LANG_NAMES[lang]||lang)+' dictionary: '+words.length+' words');
                 }).catch(function(e){diag('dict '+lang+' fetch failed: '+e.message,true)});
+            /* swipe scoring prior. Absent, swipe degrades to shape-only rather
+               than breaking. Memory only — never localStorage. */
+            fetch(DICT_BASE+'bigram-'+lang+'.json?v='+Date.now())
+                .then(function(r){if(!r.ok)throw new Error(r.status);return r.json()})
+                .then(function(bg){
+                    if(!bg||typeof bg!=='object')return;
+                    bgCache[lang]=bg;lmMemo={};
+                    diag('swipe prior '+lang+': '+Object.keys(bg).length+' contexts');
+                }).catch(function(e){diag('swipe prior '+lang+' unavailable ('+e.message+') — shape only')});
         });
         if(!dgKey())diag('no Deepgram key set — configure it in chat-admin',true);
     }
