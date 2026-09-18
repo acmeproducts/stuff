@@ -228,3 +228,15 @@ Stage chain remains `pre-base → base → pre-ship → ship → post-ship`. Bef
 - Before deployment, qualification must create a temporary registered Estate containing at least one readable file, start analysis, and prove: placement row inserted; Estate non-null and correct; fingerprint non-null; lifecycle advances; discovered/hashed counters advance; no `source_file_error` caused by schema/write mismatch.
 - Qualification must also exercise an error-placement write path or an equivalent direct schema-contract test proving Estate is supplied there.
 - Startup/health/HTTPS checks alone are never sufficient after an evidence-schema change.
+
+
+## 25. Mobile-first interaction shell, Database grid, and Omnisearch — binding (2026-09-18)
+- The application shell is viewport-bound and does not page-scroll. Header, primary navigation, and active workspace remain above the fold. Long content scrolls only inside explicitly bounded workspace components such as the Database grid or Activity ledger.
+- Estate and Analyze each have sub-tabs. Estate separates at minimum Picker and Catalog. Analyze separates at minimum Overview, Sources/Queues, and Live Activity. Switching sub-tabs never changes backend job state or rebuilds unrelated picker state.
+- Browser-native `alert()`, `confirm()`, and `prompt()` are prohibited in shipped SOT UI. Routine status/success/error feedback uses SOT toasts. User decisions, configuration, and detailed failures use an application modal. Durable operational errors remain in Activity.
+- Database is a viewport-contained full-record evidence grid. The complete governed placement record is represented by columns rather than silently dropping evidence to fit the viewport. Horizontal/vertical movement belongs to the grid, not the page.
+- Database columns are user-resizable. Widths persist locally across reloads and are restored by stable field/column identity. Resizing one column may not destroy neighboring widths or evidence.
+- OMNISEARCH is a Database query composer with type-ahead/autocomplete for governed column names and available values/operators. Field syntax includes e.g. `created:<query>`, `modified:<query>`, `estate:<query>`, `path:<query>`, `filename:<query>`, `plan:<query>`, `status:<query>` and all displayed evidence columns.
+- Bare terms search all searchable evidence fields. A leading minus excludes: `-Beach` means records containing Beach anywhere are excluded; field-qualified negatives such as `-modified:<query>` exclude matches in that field. Whitespace composes AND; explicit uppercase/lowercase `OR` composes alternatives. Query parsing is deterministic and never mutates evidence.
+- Type-ahead must help populate valid field prefixes and, after a field prefix, matching values from loaded evidence. Selecting a suggestion updates the query without immediately destroying the rest of the expression.
+- Release gates statically reject `alert(`, `confirm(`, and `prompt(` in shipped client JavaScript; verify no page-level overflow at target mobile viewports; verify Estate/Analyze sub-tabs; verify persistent column resize; verify positive, negative, field-qualified and OR Omnisearch behavior.

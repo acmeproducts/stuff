@@ -385,3 +385,15 @@ V7 added required `placements.estate` but retained V6 placement INSERT statement
 **Do not repeat:** a schema change is incomplete until every INSERT/UPDATE/read projection that owns the new field is audited and exercised. Never promote a storage-analysis candidate after only compile, startup, health, or HTTPS gates. Any evidence-schema change requires a real placement-write gate through discovery → durable row → fingerprint plus coverage of the error-evidence write contract.
 
 **Required replacement:** scan-engine rollback to the pre-Estate V6 write baseline, then cleanly reapply Estate as a complete schema/write/read contract with a fresh database and fixture qualification before owner deployment.
+
+
+---
+
+## GY-070 — Browser-native dialogs, page-scroll UI, fixed evidence columns, and plain-text-only Omnisearch
+
+**Status:** REJECTED OWNER UX PATTERN  
+**Decision date:** 2026-09-18
+
+Do not ship browser `alert`, `confirm`, or `prompt` surfaces as application UX. Do not solve dense Estate/Analyze content by making the mobile application page vertically scroll. Do not make Database evidence fit by dropping record fields or using non-persistent fixed columns. Do not treat OMNISEARCH as an undifferentiated substring box when the evidence schema is fielded.
+
+**Required replacement:** SOT toast/modal feedback; viewport-bound mobile-first shell with Estate/Analyze sub-tabs and bounded internal workspaces; complete evidence grid with persistent user-resizable columns; field-aware type-ahead query composer supporting bare terms, field qualifiers, negative terms, and explicit OR.
