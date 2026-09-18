@@ -191,3 +191,11 @@ Stage chain remains `pre-base → base → pre-ship → ship → post-ship`. Bef
 - Job/sources/events use a separate data channel with bounded retries. Failure leaves last-good UI state visible and marks data retrying; it does not change connection health.
 - Placements use a separate heavy Database channel, lower cadence, longer timeout and bounded retry. Failure reports Database retrying/stale while preserving last-good rows.
 - Poll loops are non-overlapping per channel. Slow work may not accumulate concurrent duplicate requests.
+
+
+## 22. V9 connection recovery correction — binding (2026-09-18)
+- The rejected V8 retry patch is not an ancestor. V9 is rebuilt from the last owner-observed initially connecting V8 client at commit 0f633de218406aa78e7f599f0f98dbf259c5efba.
+- There is exactly one non-overlapping browser poll cycle. It establishes lightweight health first. A successful health response immediately establishes GREEN even if a later operational-data request fails.
+- Job/events/sources failures preserve last-good state and report data retrying without changing transport health.
+- Placements are not part of ordinary Estate/Analyze/Activity polling. Heavy placement retrieval occurs only while Database or Plan is active, with a longer timeout, and failure preserves last-good rows.
+- Retry is cadence-based and bounded by the single poll lock; no nested retry storm or overlapping health probes is permitted.

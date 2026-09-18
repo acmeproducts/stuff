@@ -346,3 +346,15 @@ Do not expose an API that accepts an arbitrary owner filesystem path from the br
 Do not serialize health, job, events, sources, and thousands of placement rows into one high-frequency poll whose single exception declares the backend disconnected. Do not let a slow evidence query or client timeout masquerade as loss of WSL/Tailscale/backend connectivity.
 
 **Required replacement:** independent lightweight health channel with bounded retry/backoff; separate non-overlapping operational-data polling; lazy/lower-frequency heavy placement retrieval; preserve last-good data and report data/database retry state independently of transport health.
+
+
+---
+
+## GY-067 — V8 parallel retry-channel patch
+
+**Status:** REJECTED OWNER-TEST CANDIDATE  
+**Decision date:** 2026-09-18
+
+The V8 retry patch that introduced independent interval-driven health/data/database loops is rejected. Owner test: unlike the prior V8 baseline, it never established a connection. It is evidence only and may not be a development ancestor.
+
+**Required replacement:** rebuild from the last owner-observed initially connecting V8 baseline (0f633de218406aa78e7f599f0f98dbf259c5efba); retain one guarded poll cycle, establish health first, isolate later data failures from connection state, and omit heavy placements from ordinary polling.
