@@ -2,7 +2,7 @@
 import importlib.util,json,os,sys,time
 from http.server import ThreadingHTTPServer,BaseHTTPRequestHandler
 from pathlib import Path
-HERE=Path(__file__).resolve().parent;spec=importlib.util.spec_from_file_location('sotv5',HERE/'sot-turn02-v5-engine.py');m=importlib.util.module_from_spec(spec);sys.modules[spec.name]=m;spec.loader.exec_module(m)
+HERE=Path(__file__).resolve().parent;spec=importlib.util.spec_from_file_location('sotv5',HERE/'sot-turn02-v7-engine.py');m=importlib.util.module_from_spec(spec);sys.modules[spec.name]=m;spec.loader.exec_module(m)
 S=m.Store();M=m.Manager(S,workers=max(2,min(8,(os.cpu_count() or 4))),queue_capacity=128)
 API_VERSION='turn02-pre-base-v7'
 def latest():
