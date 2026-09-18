@@ -21,6 +21,28 @@ class H(BaseHTTPRequestHandler):
    if p=='/api/sources':return self._send({'ok':True,'sources':S.rows('SELECT * FROM sources ORDER BY estate,label')})
    if p=='/api/events':return self._send({'ok':True,'events':S.rows('SELECT * FROM events ORDER BY event_id DESC LIMIT 500')})
    if p=='/api/placements':return self._send({'ok':True,'placements':S.rows('SELECT * FROM placements ORDER BY scanned_at DESC LIMIT 5000')})
+   if p=='/api/file':
+    from urllib.parse import urlparse,parse_qs,quote
+    pid=parse_qs(urlparse(self.path).query).get('id',[''])[0]
+    rows=S.rows("SELECT p.path,p.filename,s.root FROM placements p JOIN sources s USING(source_id) WHERE p.placement_id=? AND s.enabled=1",(pid,))
+    if not rows:return self._send({'ok':False,'error':'placement not found'},404)
+    r=rows[0];fp=Path(r['path']).resolve();root=Path(r['root']).resolve()
+    try:inside=os.path.commonpath([str(fp),str(root)])==str(root)
+    except ValueError:inside=False
+    if not inside or not fp.is_file():return self._send({'ok':False,'error':'placement unavailable'},404)
+    size=fp.stat().st_size;ctype=mimetypes.guess_type(r['filename'])[0] or 'application/octet-stream';start=0;end=size-1;status=200;rh=self.headers.get('Range')
+    if rh and rh.startswith('bytes='):
+     z=rh[6:].split('-',1);start=int(z[0] or 0);end=min(int(z[1]) if z[1] else end,end);status=206
+    self.send_response(status);self.send_header('Content-Type',ctype);self.send_header('Content-Length',str(end-start+1));self.send_header('Accept-Ranges','bytes');self.send_header('Access-Control-Allow-Origin','*');self.send_header('Cache-Control','no-store');self.send_header('Content-Disposition',"inline; filename*=UTF-8''"+quote(r['filename']))
+    if status==206:self.send_header('Content-Range',f'bytes {start}-{end}/{size}')
+    self.end_headers()
+    with open(fp,'rb') as f:
+     f.seek(start);remaining=end-start+1
+     while remaining:
+      chunk=f.read(min(1048576,remaining))
+      if not chunk:break
+      self.wfile.write(chunk);remaining-=len(chunk)
+    return
    if p=='/api/volumes':
     vols=[{'label':'WSL','path':'/'}]
     for base in ('/mnt','/media'):
