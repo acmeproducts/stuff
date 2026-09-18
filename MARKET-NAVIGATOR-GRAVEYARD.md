@@ -181,3 +181,9 @@ Permanently rejected:
 - publishing before exact merged-main requalification and live Pages smoke testing.
 
 If a Turn 26 gate fails, correct the same candidate. Do not redefine the gate to match the implementation.
+
+## 11. Crosshair / chart-inspection permanent prohibitions
+
+Never regress the accepted chart-inspection contract by: hiding the inspection on pointer leave; removing or disabling the explicit close control; applying `pointer-events:none` so the close control cannot operate; limiting inspection to display-density-reduced points instead of full real observations; fabricating/interpolating/restamping inspection observations; changing the active series merely because the pointer moved; using crosshair-specific arithmetic that diverges from canonical Data/export values; or qualifying the feature only through markup/dataset assertions rather than real pointer/touch interaction.
+
+Owner authorization on 2026-09-18 permits a bounded patch-forward correction to the completed Turn 25 Ship for this inherited crosshair regression. It does not authorize use of the rejected `c3cde56268303d8e2a222012d5a34aee9f26651e` implementation as a donor.
