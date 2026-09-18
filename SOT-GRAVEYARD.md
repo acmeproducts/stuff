@@ -289,3 +289,16 @@ A separate Activity page is not sufficient while a long-running analysis is bein
 Do not collapse all storage sources into one opaque FIFO and do not create multiple queues without a coordinating fairness policy. A busy, slow, blocked or backpressured source must not monopolize fingerprint capacity or prevent independent sources from advancing.
 
 **Required replacement:** each active source owns a bounded independently observable queue. One backend job manager/scheduler fairly and work-conservingly allocates a shared fingerprint-worker pool across nonempty queues, exposes per-source queue/worker telemetry, prevents starvation, shifts spare capacity to available work, and preserves forward progress on independent sources when another source blocks.
+
+
+---
+
+## GY-063 — Directory-presence volume discovery, incomplete evidence table, and unsupervised backend
+
+**Status:** REJECTED OWNER-TEST PATTERN  
+**Decision date:** 2026-09-18  
+**Evidence:** Turn 02 v5 owner test
+
+Do not present a /mnt or /media directory as an available volume without proving the mount is currently usable. Do not collapse filename/extension/path or omit placement key and filesystem timestamps from the Evidence Database. Do not ship Database cells that cannot be copied or an OMNISEARCH surface that fails to operate on the evidence table. Do not rely on an unsupervised nohup backend whose disappearance turns polling into repeated 502/CORS failures.
+
+**Required replacement:** usable-volume probing with visible selection state; complete separated evidence columns and stable row key; tap-to-copy cells with toast; operational evidence search; and a supervised WSL backend with explicit reconnect state.
