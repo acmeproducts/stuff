@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 # SOT Turn 02 v5 — clean lineage engine. Read-only owner storage.
-from __future__ import sys,annotations
+from __future__ import annotations
+import sys
 import hashlib, json, os, queue, sqlite3, threading, time, uuid
 from dataclasses import dataclass
 from pathlib import Path
