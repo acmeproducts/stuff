@@ -27,6 +27,7 @@ class H(BaseHTTPRequestHandler):
      q=Path(base)
      if q.exists():
       for x in q.iterdir():
+       if base=='/mnt' and x.name.lower() in ('wsl','wslg'): continue
        if x.is_dir() and os.path.ismount(x) and os.access(x,os.R_OK|os.X_OK):
         try:
          os.statvfs(x); next(os.scandir(x),None); vols.append({'label':x.name,'path':str(x)})
@@ -37,7 +38,7 @@ class H(BaseHTTPRequestHandler):
     q=parse_qs(urlparse(self.path).query);root=Path(q.get('path',['/'])[0]).resolve();items=[]; registered=S.rows('SELECT estate,root FROM sources WHERE enabled=1')
     for x in root.iterdir():
      if x.is_dir() and not x.is_symlink():
-      xp=str(x.resolve()); overlaps=[r for r in registered if os.path.commonpath([xp,r['root']]) in (xp,r['root'])];items.append({'name':x.name,'path':xp,'registered':bool(overlaps),'estate':overlaps[0]['estate'] if overlaps else None})
+      xp=str(x.resolve()); exact=[r for r in registered if xp==r['root']]; ancestors=[r for r in registered if r['root']!=xp and os.path.commonpath([xp,r['root']])==r['root']]; descendants=[r for r in registered if r['root']!=xp and os.path.commonpath([xp,r['root']])==xp];items.append({'name':x.name,'path':xp,'registered':bool(exact),'covered':bool(exact or ancestors),'contains_registered':bool(descendants),'estate':(exact or ancestors or descendants or [{}])[0].get('estate')})
     return self._send({'ok':True,'path':str(root),'folders':sorted(items,key=lambda z:z['name'].lower())})
    self._send({'ok':False,'error':'not found'},404)
   except Exception as e:S.event('ERROR','api_get_error',None,None,str(e),{'path':self.path});self._send({'ok':False,'error':str(e)},500)
