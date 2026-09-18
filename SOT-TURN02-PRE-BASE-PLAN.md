@@ -183,3 +183,11 @@ Stage chain remains `pre-base → base → pre-ship → ship → post-ship`. Bef
 - Pause/Continue and interrupted-job recovery are same-revision continuation. Durable HASHED/COMPLETED placements are skipped. Enumeration may revisit paths to reconstruct unfinished work, but existing observations are reused rather than duplicated, counters are not double-counted, and only unfinished/unhashed observations are requeued.
 - Backend restart may mark an interrupted job recoverable, but must retain sufficient durable evidence for explicit Continue. Continue reconstructs queues/workers from that revision without creating a new revision.
 - Client request timeouts are endpoint-appropriate and must not surface self-induced AbortController failures as backend disconnects during healthy but slower evidence queries.
+
+
+## 21. Transport health isolation and retry policy — binding (2026-09-18)
+- Connection GREEN/YELLOW/RED is determined only by the lightweight /api/health channel. Database, event, source, or snapshot latency may not declare the backend disconnected.
+- Health probes use a short endpoint-specific timeout and bounded retry with backoff. Three consecutive health polling failures are required for RED; recovery to GREEN is automatic on the first successful health cycle.
+- Job/sources/events use a separate data channel with bounded retries. Failure leaves last-good UI state visible and marks data retrying; it does not change connection health.
+- Placements use a separate heavy Database channel, lower cadence, longer timeout and bounded retry. Failure reports Database retrying/stale while preserving last-good rows.
+- Poll loops are non-overlapping per channel. Slow work may not accumulate concurrent duplicate requests.

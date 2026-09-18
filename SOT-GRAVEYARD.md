@@ -334,3 +334,15 @@ Do not rerender an actively scrolled picker because unrelated polling completed.
 Do not expose an API that accepts an arbitrary owner filesystem path from the browser. Do not execute owner HTML/Markdown scripts with SOT backend privileges.
 
 **Required replacement:** placement-ID lookup against registered evidence, read-only streaming, sandboxed HTML preview, and explicit external/native open action.
+
+
+---
+
+## GY-066 — Monolithic polling and data-timeout-as-disconnect
+
+**Status:** REJECTED OWNER-TEST PATTERN  
+**Decision date:** 2026-09-18
+
+Do not serialize health, job, events, sources, and thousands of placement rows into one high-frequency poll whose single exception declares the backend disconnected. Do not let a slow evidence query or client timeout masquerade as loss of WSL/Tailscale/backend connectivity.
+
+**Required replacement:** independent lightweight health channel with bounded retry/backoff; separate non-overlapping operational-data polling; lazy/lower-frequency heavy placement retrieval; preserve last-good data and report data/database retry state independently of transport health.
