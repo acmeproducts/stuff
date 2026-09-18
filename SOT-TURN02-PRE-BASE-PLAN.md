@@ -263,3 +263,11 @@ Stage chain remains `pre-base → base → pre-ship → ship → post-ship`. Bef
 - Producer, worker, supervisor, and API paths contain database failures so a dead worker cannot leave a job indefinitely RUNNING.
 - Health proves Store responsiveness.
 - Qualification includes sustained concurrent hashing/writes plus health, snapshot, source, event, and placement reads; any DB-open error, dead worker, timeout, counter mismatch, or stuck RUNNING state fails the candidate.
+
+
+## 28. Shared Tailscale ownership and SOT endpoint isolation — binding (2026-09-18)
+- SOT does not own or modify the existing Tailscale HTTPS 443 root route. OpenClaw remains the owner of the existing root endpoint on this host.
+- SOT is exposed on its own Tailscale HTTPS listener, port 8443, proxying only to the SOT backend on localhost 8765. The browser persists the complete SOT API origin including port 8443.
+- Install, upgrade, rollback, qualification, and restart must preserve all pre-existing Tailscale Serve routes. No SOT installer may issue an unscoped HTTPS 443 Serve command.
+- Qualification records Serve state before and after installation and fails if any pre-existing 443 route changes.
+- Host recovery for the known damaged configuration restores HTTPS 443 root to the OpenClaw gateway on localhost 18789, then creates the isolated SOT 8443 listener. Recovery must verify both OpenClaw root routing and SOT health independently.

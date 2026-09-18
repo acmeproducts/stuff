@@ -421,3 +421,15 @@ Do not require Refresh Volumes to initialize the Estate inventory. Do not presen
 Reject opening a new SQLite connection for every rows/execute/event operation. Runtime analysis showed this architecture can lose database availability while leaving the supervised process alive and the job apparently RUNNING. Reject error handlers that attempt an unguarded second write through the same failed database.
 
 **Required replacement:** startup-validated long-lived Store connection, serialized transactions, non-throwing stderr fallback, thread failure containment, and sustained concurrent database/API responsiveness qualification.
+
+
+---
+
+## GY-073 — SOT claiming shared Tailscale HTTPS root
+
+**Status:** REJECTED HOST-DESTRUCTIVE INSTALLER PATTERN  
+**Decision date:** 2026-09-18
+
+Reject any SOT installer command that assigns Tailscale HTTPS 443 root to the SOT backend. This displaced the existing OpenClaw gateway route on the owner's host while leaving OpenClaw itself running locally.
+
+**Required replacement:** preserve existing Serve configuration; expose SOT independently on Tailscale HTTPS 8443 to localhost 8765; verify existing 443 routes are unchanged. The one-time known-host repair restores 443 root to OpenClaw localhost 18789 before isolated SOT deployment.
