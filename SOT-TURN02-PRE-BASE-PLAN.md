@@ -240,3 +240,16 @@ Stage chain remains `pre-base → base → pre-ship → ship → post-ship`. Bef
 - Bare terms search all searchable evidence fields. A leading minus excludes: `-Beach` means records containing Beach anywhere are excluded; field-qualified negatives such as `-modified:<query>` exclude matches in that field. Whitespace composes AND; explicit uppercase/lowercase `OR` composes alternatives. Query parsing is deterministic and never mutates evidence.
 - Type-ahead must help populate valid field prefixes and, after a field prefix, matching values from loaded evidence. Selecting a suggestion updates the query without immediately destroying the rest of the expression.
 - Release gates statically reject `alert(`, `confirm(`, and `prompt(` in shipped client JavaScript; verify no page-level overflow at target mobile viewports; verify Estate/Analyze sub-tabs; verify persistent column resize; verify positive, negative, field-qualified and OR Omnisearch behavior.
+
+
+## 26. Estate friction-free hierarchical picker — binding (2026-09-18)
+- Available Volumes populates automatically when Estate first opens and after backend reconnection. Refresh Volumes remains a manual recovery control only; it is never required for normal initialization.
+- Volume discovery exposes actual storage authorities only. WSL itself is represented once by root `/`. WSL infrastructure pseudo-mounts such as `/mnt/wsl`, `/mnt/wslg` and equivalent implementation plumbing are excluded. Readable mounted Windows/external volumes remain separate authorities.
+- Estate Picker remains three panes: **Available Volumes | Folder Tree | Selected Estate Roots**.
+- Folder Tree is hierarchical and expands/collapses in place. Left disclosure control is `▸` collapsed / `▾` expanded. Folder-name tap may also toggle disclosure. Expansion never selects the folder.
+- Right-side membership control is independent of navigation: `>` means this exact folder can be selected as an Estate root; `<>` means this row is covered by an explicitly selected or already-registered ancestor (including itself); `<` means this folder contains an explicitly selected/registered descendant but the parent itself is not selected.
+- Selecting a nested folder requires no destructive navigation and no selection of its parent. The right pane contains only explicitly selected roots, never inherited descendants.
+- Selecting a parent makes descendants inherited/covered, not additional registrations. Existing backend overlap prevention remains authoritative and rejects equal/ancestor/descendant overlap if client state is bypassed.
+- Expansion and scroll state persist independently per volume/root while the page remains open. Switching volumes and returning restores the prior tree state. Background polling/re-rendering may not collapse, reposition, or clear the user's tree.
+- Folder enumeration is lazy per expanded node. The client does not recursively enumerate an entire volume merely to draw the tree.
+- Qualification proves automatic volume load; exclusion of WSL pseudo-mounts; exact nested-only selection; parent-selected inherited child state; descendant-selected parent indicator; independent expand/select controls; overlap rejection; and per-volume expansion/scroll restoration.

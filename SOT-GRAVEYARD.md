@@ -397,3 +397,15 @@ V7 added required `placements.estate` but retained V6 placement INSERT statement
 Do not ship browser `alert`, `confirm`, or `prompt` surfaces as application UX. Do not solve dense Estate/Analyze content by making the mobile application page vertically scroll. Do not make Database evidence fit by dropping record fields or using non-persistent fixed columns. Do not treat OMNISEARCH as an undifferentiated substring box when the evidence schema is fielded.
 
 **Required replacement:** SOT toast/modal feedback; viewport-bound mobile-first shell with Estate/Analyze sub-tabs and bounded internal workspaces; complete evidence grid with persistent user-resizable columns; field-aware type-ahead query composer supporting bare terms, field qualifiers, negative terms, and explicit OR.
+
+
+---
+
+## GY-071 — Flat folder picker, refresh-dependent volume inventory, and WSL pseudo-volumes
+
+**Status:** REJECTED OWNER UX / INVENTORY PATTERN  
+**Decision date:** 2026-09-18
+
+Do not require Refresh Volumes to initialize the Estate inventory. Do not present WSL infrastructure paths such as `/mnt/wsl` or `/mnt/wslg` as owner storage authorities. Do not make folder navigation synonymous with Estate selection, and do not force destructive one-level navigation merely to select a nested folder.
+
+**Required replacement:** automatic usable-volume inventory; one WSL root plus real mounted storage authorities; lazy hierarchical Folder Tree with independent left disclosure and right membership controls; `>` available, `<>` covered/selected, `<` selected descendant below; right pane contains explicit roots only; expansion/scroll state is user-owned and restored per volume.
