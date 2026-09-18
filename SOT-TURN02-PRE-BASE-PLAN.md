@@ -172,3 +172,14 @@ Stage chain remains `pre-base → base → pre-ship → ship → post-ship`. Bef
 - The Estate surface includes a catalog of registered estate roots.
 - Registration overlap is prevented upstream. Any candidate folder equal to, inside, or containing an already registered estate root is marked as already/overlapping Estate and is non-selectable. The backend independently rejects an overlapping registration even if the client is bypassed.
 - Placement identity is revision/job scoped. Re-analysis of the same source/path must create a distinct placement observation and may never raise a placement primary-key UNIQUE error.
+
+
+## 20. Owner interaction, preview, and durable continuation — binding (2026-09-18)
+- Estate folder-list scroll position is user-owned UI state. Background health/job/source polling may not rebuild the picker or reset its scroll. Navigation may change it; returning to a previously visited folder restores its remembered scroll position.
+- Database Filename includes a read-only preview action. Supported inline preview types are PDF, HTML, Markdown, MP4, PNG, JPG/JPEG and TXT. HTML preview is sandboxed; source content is never executed with SOT privileges. Preview modal includes Open externally, which streams the exact registered placement read-only and lets the browser/OS choose its native viewer. Unsupported types retain Open externally.
+- File-serving is placement-ID based. The backend resolves the path from evidence; clients may not submit arbitrary filesystem paths to the file endpoint. Only a placement belonging to registered Estate evidence may be served.
+- Analyze exposes authoritative backend job state continuously and independently of elapsed-time decoration. RUNNING remains RUNNING across page refresh/tab changes; transport loss reports connection loss without implying the backend job stopped.
+- Analyze controls are Start | Pause/Continue | Stop. The control corresponding to authoritative state is visibly active. Start creates a new evidence revision only when no resumable interrupted revision is being continued.
+- Pause/Continue and interrupted-job recovery are same-revision continuation. Durable HASHED/COMPLETED placements are skipped. Enumeration may revisit paths to reconstruct unfinished work, but existing observations are reused rather than duplicated, counters are not double-counted, and only unfinished/unhashed observations are requeued.
+- Backend restart may mark an interrupted job recoverable, but must retain sufficient durable evidence for explicit Continue. Continue reconstructs queues/workers from that revision without creating a new revision.
+- Client request timeouts are endpoint-appropriate and must not surface self-induced AbortController failures as backend disconnects during healthy but slower evidence queries.

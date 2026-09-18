@@ -311,3 +311,26 @@ Do not present a /mnt or /media directory as an available volume without proving
 Reject placement IDs derived only from source+path across revisioned jobs: the second observation collides with the first. Reject client-only duplicate prevention and selectors that hide the WSL root filesystem. Reject deriving estate membership from arbitrary path parsing.
 
 **Required replacement:** job/revision-scoped placement IDs; first-class ESTATE evidence; complete WSL-root navigation; overlap annotation in picker plus backend overlap rejection; registered Estate catalog.
+
+
+---
+
+## GY-064 — Poll-driven picker rerender, fire-and-forget state, and restart-as-rescan
+
+**Status:** REJECTED OWNER-TEST PATTERN  
+**Decision date:** 2026-09-18
+
+Do not rerender an actively scrolled picker because unrelated polling completed. Do not use an elapsed timer as the primary proof that analysis is running. Do not equate transport loss with backend job termination. Do not make restart/recovery blindly create duplicate observations or rehash already durable evidence.
+
+**Required replacement:** preserve picker scroll/DOM interaction state; render backend-owned job state; same-revision durable Continue/recovery that reuses existing observations and queues only unfinished work; new Start only for a genuinely new revision.
+
+---
+
+## GY-065 — Arbitrary-path file serving or privileged HTML preview
+
+**Status:** PROHIBITED  
+**Decision date:** 2026-09-18
+
+Do not expose an API that accepts an arbitrary owner filesystem path from the browser. Do not execute owner HTML/Markdown scripts with SOT backend privileges.
+
+**Required replacement:** placement-ID lookup against registered evidence, read-only streaming, sandboxed HTML preview, and explicit external/native open action.
