@@ -2,7 +2,7 @@
 import importlib.util,json,os,sys,time
 from http.server import ThreadingHTTPServer,BaseHTTPRequestHandler
 from pathlib import Path
-HERE=Path(__file__).resolve().parent;spec=importlib.util.spec_from_file_location('sotv5',HERE/'sot-turn02-v7-engine.py');m=importlib.util.module_from_spec(spec);sys.modules[spec.name]=m;spec.loader.exec_module(m)
+HERE=Path(__file__).resolve().parent;spec=importlib.util.spec_from_file_location('sotv5',HERE/'sot-turn02-v5-engine.py');m=importlib.util.module_from_spec(spec);sys.modules[spec.name]=m;spec.loader.exec_module(m)
 S=m.Store();M=m.Manager(S,workers=max(2,min(8,(os.cpu_count() or 4))),queue_capacity=128)
 API_VERSION='turn02-pre-base-v7'
 def latest():
@@ -18,33 +18,26 @@ class H(BaseHTTPRequestHandler):
    p=self.path.split('?',1)[0]
    if p=='/api/health':return self._send({'ok':True,'version':API_VERSION,'schema':m.SCHEMA,'time':time.time(),'active_jobs':len(M.runtime)})
    if p=='/api/job/latest':return self._send({'ok':True,'snapshot':latest()})
-   if p=='/api/sources':return self._send({'ok':True,'sources':S.rows('SELECT * FROM sources ORDER BY label')})
-   if p=='/api/estates':return self._send({'ok':True,'estates':S.rows('SELECT source_id,label,root,failure_domain,role,enabled FROM sources WHERE enabled=1 ORDER BY label')})
+   if p=='/api/sources':return self._send({'ok':True,'sources':S.rows('SELECT * FROM sources ORDER BY estate,label')})
    if p=='/api/events':return self._send({'ok':True,'events':S.rows('SELECT * FROM events ORDER BY event_id DESC LIMIT 500')})
-   if p=='/api/placements':return self._send({'ok':True,'placements':S.rows('SELECT * FROM placements ORDER BY scanned_at DESC LIMIT 1000')})
+   if p=='/api/placements':return self._send({'ok':True,'placements':S.rows('SELECT * FROM placements ORDER BY scanned_at DESC LIMIT 5000')})
    if p=='/api/volumes':
-    vols=[{'label':'WSL filesystem','path':'/','kind':'wsl'}]
+    vols=[{'label':'WSL','path':'/'}]
     for base in ('/mnt','/media'):
      q=Path(base)
      if q.exists():
       for x in q.iterdir():
        if x.is_dir() and os.path.ismount(x) and os.access(x,os.R_OK|os.X_OK):
         try:
-         os.statvfs(x); next(os.scandir(x),None); vols.append({'label':x.name,'path':str(x),'kind':'mount'})
+         os.statvfs(x); next(os.scandir(x),None); vols.append({'label':x.name,'path':str(x)})
         except OSError: pass
     return self._send({'ok':True,'volumes':vols})
    if p.startswith('/api/folders'):
     from urllib.parse import urlparse,parse_qs
-    q=parse_qs(urlparse(self.path).query);root=Path(q.get('path',['/'])[0]).resolve();items=[];regs=S.rows("SELECT source_id,label,root FROM sources WHERE enabled=1")
-    def ov(a,b):
-     try:return os.path.commonpath((a,b)) in (a,b)
-     except ValueError:return False
+    q=parse_qs(urlparse(self.path).query);root=Path(q.get('path',['/'])[0]).resolve();items=[]; registered=S.rows('SELECT estate,root FROM sources WHERE enabled=1')
     for x in root.iterdir():
-     if x.is_dir() and not x.is_symlink() and os.access(x,os.R_OK|os.X_OK):
-      xp=str(x.resolve());hits=[r for r in regs if ov(xp,r['root'])]
-      covered=next((r for r in hits if os.path.commonpath((xp,r['root']))==r['root']),None)
-      contains=[r for r in hits if os.path.commonpath((xp,r['root']))==xp and xp!=r['root']]
-      items.append({'name':x.name,'path':xp,'estate_overlap':bool(hits),'estate':hits[0]['label'] if hits else None,'covered_by':covered['label'] if covered else None,'contains_estate':bool(contains),'selectable':not bool(hits)})
+     if x.is_dir() and not x.is_symlink():
+      xp=str(x.resolve()); overlaps=[r for r in registered if os.path.commonpath([xp,r['root']]) in (xp,r['root'])];items.append({'name':x.name,'path':xp,'registered':bool(overlaps),'estate':overlaps[0]['estate'] if overlaps else None})
     return self._send({'ok':True,'path':str(root),'folders':sorted(items,key=lambda z:z['name'].lower())})
    self._send({'ok':False,'error':'not found'},404)
   except Exception as e:S.event('ERROR','api_get_error',None,None,str(e),{'path':self.path});self._send({'ok':False,'error':str(e)},500)
@@ -52,14 +45,7 @@ class H(BaseHTTPRequestHandler):
   try:
    p=self.path.split('?',1)[0];b=self.body()
    if p=='/api/sources':
-    root=str(Path(b['root']).resolve())
-    regs=S.rows("SELECT label,root FROM sources WHERE enabled=1")
-    def ov(a,c):
-     try:return os.path.commonpath((a,c)) in (a,c)
-     except ValueError:return False
-    hit=next((r for r in regs if ov(root,r['root'])),None)
-    if hit:raise RuntimeError(f"overlaps registered estate: {hit['label']} ({hit['root']})")
-    sid=M.add_source(b['label'],b['root'],b.get('failure_domain',b['root']),b.get('role','primary'));return self._send({'ok':True,'source_id':sid})
+    sid=M.add_source(b['label'],b['root'],b.get('failure_domain',b['root']),b.get('role','primary'),b.get('estate'));return self._send({'ok':True,'source_id':sid})
    if p=='/api/job/start':return self._send({'ok':True,'job_id':M.start(b.get('source_ids'))})
    if p.startswith('/api/job/') and p.rsplit('/',1)[-1] in ('pause','resume','stop'):
     snap=latest();

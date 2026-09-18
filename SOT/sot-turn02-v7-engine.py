@@ -9,7 +9,7 @@ VERSION="turn02-pre-base-v7";SCHEMA=6;DB_DEFAULT=Path.home()/".sot-turn02"/"sot-
 DDL="""PRAGMA journal_mode=WAL; PRAGMA foreign_keys=ON;
 CREATE TABLE IF NOT EXISTS meta(key TEXT PRIMARY KEY,value TEXT NOT NULL);
 CREATE TABLE IF NOT EXISTS jobs(job_id TEXT PRIMARY KEY,revision INTEGER NOT NULL,state TEXT NOT NULL,stage TEXT NOT NULL,control TEXT NOT NULL DEFAULT 'RUN',created REAL NOT NULL,started REAL,finished REAL,last_progress REAL,error TEXT);
-CREATE TABLE IF NOT EXISTS sources(source_id TEXT PRIMARY KEY,label TEXT NOT NULL,root TEXT NOT NULL UNIQUE,failure_domain TEXT NOT NULL,role TEXT NOT NULL DEFAULT 'primary',enabled INTEGER NOT NULL DEFAULT 1);
+CREATE TABLE IF NOT EXISTS sources(source_id TEXT PRIMARY KEY,estate TEXT NOT NULL UNIQUE,label TEXT NOT NULL,root TEXT NOT NULL UNIQUE,failure_domain TEXT NOT NULL,role TEXT NOT NULL DEFAULT 'primary',enabled INTEGER NOT NULL DEFAULT 1);
 CREATE TABLE IF NOT EXISTS job_sources(job_id TEXT NOT NULL,source_id TEXT NOT NULL,state TEXT NOT NULL DEFAULT 'PENDING',producer_state TEXT NOT NULL DEFAULT 'PENDING',queue_depth INTEGER NOT NULL DEFAULT 0,queue_capacity INTEGER NOT NULL DEFAULT 0,active_workers INTEGER NOT NULL DEFAULT 0,discovered_files INTEGER NOT NULL DEFAULT 0,discovered_bytes INTEGER NOT NULL DEFAULT 0,hashed_files INTEGER NOT NULL DEFAULT 0,hashed_bytes INTEGER NOT NULL DEFAULT 0,warnings INTEGER NOT NULL DEFAULT 0,errors INTEGER NOT NULL DEFAULT 0,current_folder TEXT,current_file TEXT,started REAL,last_progress REAL,finished REAL,PRIMARY KEY(job_id,source_id));
 CREATE TABLE IF NOT EXISTS placements(placement_id TEXT PRIMARY KEY,job_id TEXT NOT NULL,revision INTEGER NOT NULL,source_id TEXT NOT NULL,estate TEXT NOT NULL,path TEXT NOT NULL,filename TEXT NOT NULL,extension TEXT NOT NULL,size INTEGER,created REAL,modified REAL,scanned_at REAL NOT NULL,fingerprint TEXT,content_id TEXT,lifecycle TEXT NOT NULL DEFAULT 'NONE',plan TEXT,disposition TEXT NOT NULL DEFAULT 'NONE',availability TEXT NOT NULL DEFAULT 'AVAILABLE',error_detail TEXT,duplicate_group TEXT,duplicate_cardinality INTEGER,role TEXT,rationale TEXT,last_verified REAL,UNIQUE(job_id,source_id,path));
 CREATE INDEX IF NOT EXISTS ix_place_job_hash ON placements(job_id,fingerprint);
@@ -39,14 +39,15 @@ class Store:
   for j in jobs:self.execute("UPDATE jobs SET state='FAILED',stage='RECOVERED',finished=?,error='backend_restart' WHERE job_id=?",(now,j['job_id']));self.event('ERROR','job_recovered',j['job_id'],None,'Prior active job closed after backend restart',{'prior_state':j['state']})
 class Manager:
  def __init__(self,store,workers=4,queue_capacity=128,stall_seconds=20):self.s=store;self.worker_count=max(2,workers);self.capacity=max(4,queue_capacity);self.stall_seconds=stall_seconds;self.lock=threading.RLock();self.runtime={}
- def add_source(self,label,root,failure_domain,role='primary'):
-  root=str(Path(root).resolve())
+ def add_source(self,label,root,failure_domain,role='primary',estate=None):
+  root=str(Path(root).resolve()); existing=self.s.rows("SELECT source_id,estate,root FROM sources WHERE enabled=1")
   def overlap(a,b):
-   try:return os.path.commonpath((a,b)) in (a,b)
+   try:return os.path.commonpath([a,b]) in (a,b)
    except ValueError:return False
-  for x in self.s.rows("SELECT source_id,label,root FROM sources WHERE enabled=1"):
-   if overlap(root,x['root']):raise RuntimeError(f"overlaps registered estate: {x['label']} ({x['root']})")
-  sid=hashlib.sha256(root.encode()).hexdigest()[:16];self.s.execute("INSERT INTO sources(source_id,label,root,failure_domain,role,enabled) VALUES(?,?,?,?,?,1) ON CONFLICT(root) DO UPDATE SET label=excluded.label,failure_domain=excluded.failure_domain,role=excluded.role,enabled=1",(sid,label,root,failure_domain,role));return sid
+  hit=next((x for x in existing if overlap(root,x['root'])),None)
+  if hit:raise RuntimeError(f"estate overlap: {root} conflicts with {hit['estate']} ({hit['root']})")
+  estate=(estate or label or Path(root).name or 'WSL').strip();sid=hashlib.sha256(root.encode()).hexdigest()[:16]
+  self.s.execute("INSERT INTO sources(source_id,estate,label,root,failure_domain,role,enabled) VALUES(?,?,?,?,?,?,1)",(sid,estate,label,root,failure_domain,role));return sid
  def start(self,source_ids:Optional[list[str]]=None):
   active=self.s.rows("SELECT job_id FROM jobs WHERE state IN ('STARTING','RUNNING','PAUSING','PAUSED','STOPPING','INFERENCING')")
   if active:raise RuntimeError(f"active job {active[0]['job_id']}")
@@ -82,13 +83,13 @@ class Manager:
      if not self._wait(rt):break
      p=os.path.join(base,name);pid=hashlib.sha256((jid+'\0'+sid+'\0'+p).encode()).hexdigest()
      try:
-      st=os.stat(p,follow_symlinks=False);size=int(st.st_size);created=getattr(st,'st_birthtime',None);now=time.time();self.s.execute("INSERT INTO placements(placement_id,job_id,revision,source_id,estate,path,filename,extension,size,created,modified,scanned_at,lifecycle,role,last_verified) SELECT ?,?,revision,?,?,?,?,?,?,?,?, 'NONE',?,? FROM jobs WHERE job_id=?",(pid,jid,sid,src['label'],p,name,Path(name).suffix.lower(),size,created,st.st_mtime,now,src['role'],now,jid));self.s.execute("UPDATE job_sources SET discovered_files=discovered_files+1,discovered_bytes=discovered_bytes+?,current_folder=?,current_file=?,last_progress=? WHERE job_id=? AND source_id=?",(size,base,name,now,jid,sid));self.s.execute("UPDATE jobs SET last_progress=? WHERE job_id=?",(now,jid))
+      st=os.stat(p,follow_symlinks=False);size=int(st.st_size);created=getattr(st,'st_birthtime',None);now=time.time();self.s.execute("INSERT INTO placements(placement_id,job_id,revision,source_id,path,filename,extension,size,created,modified,scanned_at,lifecycle,role,last_verified) SELECT ?,?,revision,?,?,?,?,?,?,?,?, 'NONE',?,? FROM jobs WHERE job_id=?",(pid,jid,sid,p,name,Path(name).suffix.lower(),size,created,st.st_mtime,now,src['role'],now,jid));self.s.execute("UPDATE job_sources SET discovered_files=discovered_files+1,discovered_bytes=discovered_bytes+?,current_folder=?,current_file=?,last_progress=? WHERE job_id=? AND source_id=?",(size,base,name,now,jid,sid));self.s.execute("UPDATE jobs SET last_progress=? WHERE job_id=?",(now,jid))
       while self._wait(rt):
        try:q.put(Work(sid,pid,p,size),timeout=.25);break
        except queue.Full:self._sync(jid,sid,q)
       self._sync(jid,sid,q)
      except Exception as e:
-      now=time.time();self.s.execute("INSERT OR IGNORE INTO placements(placement_id,job_id,revision,source_id,estate,path,filename,extension,scanned_at,lifecycle,availability,error_detail,role,last_verified) SELECT ?,?,revision,?,?,?,?,?,?,'NONE','ERROR',?,?,? FROM jobs WHERE job_id=?",(pid,jid,sid,src['label'],p,name,Path(name).suffix.lower(),now,str(e),src['role'],now,jid));self.s.execute("UPDATE job_sources SET errors=errors+1,last_progress=? WHERE job_id=? AND source_id=?",(now,jid,sid));self.s.event('ERROR','source_file_error',jid,sid,str(e),{'path':p})
+      now=time.time();self.s.execute("INSERT OR IGNORE INTO placements(placement_id,job_id,revision,source_id,path,filename,extension,scanned_at,lifecycle,availability,error_detail,role,last_verified) SELECT ?,?,revision,?,?,?,?,?,'NONE','ERROR',?,?,? FROM jobs WHERE job_id=?",(pid,jid,sid,p,name,Path(name).suffix.lower(),now,str(e),src['role'],now,jid));self.s.execute("UPDATE job_sources SET errors=errors+1,last_progress=? WHERE job_id=? AND source_id=?",(now,jid,sid));self.s.event('ERROR','source_file_error',jid,sid,str(e),{'path':p})
   except Exception as e:self.s.execute("UPDATE job_sources SET errors=errors+1,state='FAILED',producer_state='FAILED' WHERE job_id=? AND source_id=?",(jid,sid));self.s.event('ERROR','source_failed',jid,sid,str(e))
   finally:rt['done'].add(sid);self.s.execute("UPDATE job_sources SET producer_state='DONE',last_progress=? WHERE job_id=? AND source_id=?",(time.time(),jid,sid));self.s.event('INFO','source_enumeration_complete',jid,sid,'Enumeration complete')
  def _sync(self,jid,sid,q):self.s.execute("UPDATE job_sources SET queue_depth=? WHERE job_id=? AND source_id=?",(q.qsize(),jid,sid))
