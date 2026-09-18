@@ -1046,6 +1046,7 @@ function dgLangParam(room) {
 
          ?s=<lang>&n=<lang>   set the two sides (default en / th)
          ?dg=<key>            store the Deepgram key once, then drop it from the URL
+         ?pat=<token>         store the GitHub token once (remote diagnostics)
 
        Nothing else is changed. The STT path, the socket setup, the audio graph
        and the keyboard are byte-identical to chat.html. Re-integration with
@@ -1054,6 +1055,8 @@ function dgLangParam(room) {
         var params=new URLSearchParams(location.search);
         var seedKey=params.get('dg');
         if(seedKey){try{localStorage.setItem('tb_dg_key',seedKey.trim())}catch(e){}}
+        var seedPat=params.get('pat');
+        if(seedPat){try{localStorage.setItem('duck_gh_pat',seedPat.trim())}catch(e){}}
         var id=params.get('room');
         var seeded={id:id||'lab',label:'Lab',
                     southLang:(params.get('s')||'en'),
@@ -1080,7 +1083,9 @@ function dgLangParam(room) {
     /* ================= DIAGNOSTICS ================= */
     var diagLines=[];
     var remoteLogBuf=[];
-    var REMOTE_LOG_PATH='logs/'+(ROOM?ROOM.id:'unknown')+'.jsonl';
+    /* was computed here at script-init, before boot() assigns ROOM, so every
+       room logged to logs/unknown.jsonl. Resolve it at flush time instead. */
+    function remoteLogPath(){return 'logs/'+((ROOM&&ROOM.id)?ROOM.id:'unknown')+'.jsonl'}
     function remoteLog(kind,data){
         remoteLogBuf.push({t:Date.now(),k:kind,d:data});
         if(remoteLogBuf.length>=5)flushRemoteLog();
@@ -1091,7 +1096,7 @@ function dgLangParam(room) {
         if(!pat){remoteLogBuf=[];return}
         var batch=remoteLogBuf.slice();remoteLogBuf=[];
         var lines=batch.map(function(e){return JSON.stringify(e)}).join('\n')+'\n';
-        var apiUrl='https://api.github.com/repos/acmeproducts/stuff/contents/'+REMOTE_LOG_PATH;
+        var apiUrl='https://api.github.com/repos/acmeproducts/stuff/contents/'+remoteLogPath();
         fetch(apiUrl,{headers:{'Authorization':'Bearer '+pat}})
             .then(function(r){return r.ok?r.json():null})
             .then(function(existing){
