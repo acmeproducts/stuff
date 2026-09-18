@@ -343,3 +343,71 @@ Port bridge25's exact SVG markup (including `mic-fill` rect with `clip-path` and
 `mic-slash` line), exact CSS (`.meter-btn`, `.meter-btn.off`, `.mic-fill`, `.mic-slash`
 display rules), and exact `MicMeter` object (AnalyserNode, log-scale RMS, fast-attack
 release, fill height animation). No new logic invented. Pure extraction.
+
+
+---
+
+## Sep 17 · input engine (R1/R2/R3) — REVERTED, cause of STT regression UNKNOWN
+
+### What was attempted
+A unified input engine in chat.html: spatial tap model (each touch scored as a
+Gaussian distribution over nearby keys rather than resolving to one letter), a
+bigram language model built from 305k lines of movie dialogue, next-word
+prediction, auto-correct on space, an audio keypress click, and swipe re-scored
+through the same ranker. Commits 3660b256, 5a409db6, dc5a95be, 58c4a241, 9a229f3c.
+
+### Why reverted
+STT stopped working during the session. Reverted chat.html to 78e582a3, the last
+build with confirmed working STT. Owner's call, and the right one: a working app
+beats an unshipped engine.
+
+### Cause: NOT FOUND
+
+This is the important entry. **The cause was never identified.** What is proven:
+
+- `git diff 78e582a3 dc5a95be -- chat.html` touches NO line between 700 and 1010.
+  The Deepgram socket setup, getUserMedia call, MicMeter, and audio pump are
+  BYTE-IDENTICAL between the working build and the build reported broken.
+- A Playwright trace of the mic path on both builds (fake media device, fake key)
+  produced identical results: 1 getUserMedia call, same two Deepgram socket URLs,
+  same INPUT state, same close behaviour.
+
+Two causes were asserted and shipped as fixes. **Both were later disproven:**
+
+1. **"The keypress click's AudioContext blocked Deepgram's 16kHz context."**
+   Tested directly: creating a default-rate (44100) AudioContext and then
+   `new AudioContext({sampleRate:16000})` — both succeed and run. Disproven.
+2. **"The 1.78MB bigram in localStorage hit quota and broke unrelated writes."**
+   Tested directly: ceiling measured at ~9MB; with storage full, small writes
+   still succeed and reads still work. Disproven.
+
+Not ruled out, and untestable from the build container:
+- Android Chrome may differ from desktop Chromium on both mechanisms above.
+- The fix in 58c4a241 may never have been tested: it was pushed at 20:40 and
+  reported still broken at 20:41, inside GitHub Pages' 1–3 minute rebuild window.
+- Deepgram account/key state could have changed independently of any code.
+
+### Process failures that made this expensive
+
+1. **Validated the wrong metric and called it a pass.** The harness checked whether
+   the intended word appeared ANYWHERE in five candidates (7/7 "pass"). What
+   matters is whether it is FIRST. Measured properly: 17% at zero letters, 43%
+   after one, 80% after three. Tapping slot 1 early is a coin flip, which in the
+   field turned "what time will you arrive" into "weary tilt whom your assurance".
+2. **Proved the algorithm, reported it as proving the delivery.** Headless Chromium
+   at 412x915 is not the target device and never was.
+3. **Asserted a root cause twice without reproducing the failure**, and shipped a
+   "fix" against each. Neither survived a direct test that took minutes to write.
+4. **Handed the owner a file to paste** when the push route failed. Owner does not
+   handle code; that is not a delivery.
+
+### Rules for re-approach
+- STT is a release gate. Any change to chat.html is verified against a live STT
+  round trip on the real device BEFORE the next change is written.
+- One mechanism per release. The reverted work bundled spatial model, language
+  model, click audio, and swipe rescoring into one commit; when something broke
+  there was no way to bisect it on-device.
+- No cause is stated as fact until it has been reproduced. "I don't know yet" is
+  the correct report when nothing has been reproduced.
+- Accuracy claims name the metric and the device. Top-1 on a phone, or it does
+  not count.

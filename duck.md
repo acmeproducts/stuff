@@ -945,3 +945,92 @@ Correct architecture — all items below are mandatory before any build attempt:
 | Turn 24·attempt 1 | SVG mic, AnalyserNode, countdown, latch | REJECTED — countdown ran immediately, no level indicator, no reset on speech |
 | Turn 24·attempt 2 | Bug fixes to attempt 1 | REJECTED — same root cause, wrong call site patched |
 | Turn 24·base | Rebuilt per items 11–16 above | **NOT YET BUILT** |
+
+
+---
+
+## 20. INPUT — R1/R2/R3 PLAN (2026-09-17, after revert)
+
+### Status
+chat.html is reverted to 78e582a3, the last build with confirmed working STT.
+No input-engine code is live. The reverted work is on branch `input-engine-wip`.
+See duck-graveyard.md for why it was reverted and what was never explained.
+
+### The product gap this serves
+Google Translate already has a conversation mode. What it does not have is two
+private keyboards on one device, so two people can hold a typed conversation
+face to face without either of them speaking. That gap is the reason duck
+exists. If typing is not fast enough to use, there is no product — the honest
+fallback is Google Translate and duck should be retired.
+
+### The bar
+Composing "what time will you arrive" on the South keyboard in under 20 seconds
+with no backspaces, on the owner's actual phone. Thai equivalent for the Thai
+side. Measured on device, never in a headless browser.
+
+### What was learned that changes the design
+
+Measured, at 25% tap slop, on the reverted engine — the intended word is FIRST
+in the candidate bar:
+
+| letters typed | top-1 | top-3 |
+|---|---|---|
+| 0 (pure prediction) | 17% | 29% |
+| 1 | 43% | 57% |
+| 2 | 53% | 77% |
+| 3 | 80% | 96% |
+| 4 | 89% | 100% |
+
+Consequences, which invert the original ordering:
+
+1. **Tapping the first candidate blind can never carry a sentence.** Even at 80%
+   per word, five words compound to ~33%. A completion bar is something you
+   glance at, never something you trust. Offering confident-looking chips on a
+   43% guess is the UI lying, and it is what produced "weary tilt whom your
+   assurance" in the field.
+2. **Completion cannot deliver the speed.** For a 4-letter word, typing 3 letters
+   and tapping a chip is 4 actions against 5 — no saving. Completion only pays
+   on long words.
+3. **Swipe is the speed mechanism, not a bonus.** One gesture per word regardless
+   of length: 5 gestures against 25 taps. In the reverted build swipe measured
+   10/10 on curved, overshooting synthetic paths once it was scored against a
+   language model rather than shape alone. That result is from a headless browser
+   and is NOT device-confirmed.
+4. **Auto-correct is the reliability mechanism.** Typing a word and pressing space
+   was correct at 25%, 40% and 48% tap slop. Also headless-only.
+
+### Release sequence — one mechanism per release, STT verified after each
+
+Each release is ONE mechanism. Before the next release is written, the owner
+confirms on device: STT starts, transcribes, and sends on both sides. If STT
+fails, that release is reverted immediately and the cause is found before
+anything else is built. No bundling — the reverted work combined four mechanisms
+in one commit, so when STT broke there was no way to bisect it on the device.
+
+- **R1 — spatial tap model + auto-correct on space.** No candidate bar changes, no
+  prediction, no audio, no swipe changes. Gate: type the test sentence with
+  deliberately sloppy taps and press space between words; it comes out correct.
+  Plus: STT round trip on both sides.
+- **R2 — swipe re-scored through the language model.** This is the speed release.
+  Gate: 8 of 10 common words resolve on the first gesture, on device. Plus STT.
+- **R3 — candidate bar.** Completions only from 3 letters, where top-1 is 80%.
+  Tapping an alternative replaces the word rather than appending. Gate: no tap on
+  the bar can silently replace a correct word with a wrong one. Plus STT.
+
+R4 (Thai) and R5 (remaining languages) are explicitly out of scope until R1–R3
+are accepted on device.
+
+### Carried forward from the reverted work (already built, re-usable)
+- `dict/bigram-en.json` — 15,632 contexts, 931KB, base36 indices into dict/en.json.
+  Built from Cornell movie dialogue + OpenSubtitles sentences + Google Books
+  2-grams. Held in MEMORY, never localStorage.
+- The measurement harness: top-1-by-letters-typed, tap-slop tolerance, swipe on
+  curved paths, and the A/B mic trace that proved the mic path unchanged.
+- Fix worth keeping independently: `keyRectsFor` never returned a key width, so
+  every consumer fell back to a hardcoded 36px regardless of real key size.
+
+### Standing rules
+- STT is a release gate, checked on device, every release.
+- Accuracy claims name the metric and the device. Top-1 on a phone or it does not count.
+- No root cause is stated as fact until it has been reproduced. "Not known yet"
+  is the correct report otherwise.
