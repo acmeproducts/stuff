@@ -1669,6 +1669,7 @@ function dgLangParam(room) {
         if(frag)replaceComp(side,frag.length,top[0]+' ');
         else insertAt(side,top[0]+' ');
         prevWord[side]=String(top[0]).toLowerCase();tapBuf[side]=[];
+        replaceLen[side]=String(top[0]).length+1;   // bar now holds alternatives to THIS word
         cands[side]=top.slice(1,5);candIdx[side]=-1;acFragLen[side]=0;paintCands(side);
         kbDiag(side,'swype -> '+top.slice(0,4).join(' '));
     }
@@ -1716,6 +1717,11 @@ function dgLangParam(room) {
 
     var tapBuf={south:[],north:[]};    // touch point per letter of the current word
     var prevWord={south:'',north:''};  // last committed word = bigram context
+    /* chars to remove when a bar tap should REPLACE what was just inserted
+       rather than append to it. Set after a swipe, where the bar holds
+       alternatives to the resolved word; zero when the bar holds next-word
+       predictions, which must append. */
+    var replaceLen={south:0,north:0};
 
     var bgCache={};
     function getBigram(lang){
@@ -1833,11 +1839,11 @@ function dgLangParam(room) {
             }else committed=fl;
         }
         insertAt(side,' ');
-        prevWord[side]=committed;tapBuf[side]=[];acFragLen[side]=0;
+        prevWord[side]=committed;tapBuf[side]=[];acFragLen[side]=0;replaceLen[side]=0;
         showNextWord(side);
     }
     function resetInputCtx(side){
-        tapBuf[side]=[];prevWord[side]='';acFragLen[side]=0;
+        tapBuf[side]=[];prevWord[side]='';acFragLen[side]=0;replaceLen[side]=0;
         cands[side]=[];candIdx[side]=-1;paintCands(side);
     }
     /* ---- on-device instrumentation -------------------------------------
@@ -1858,19 +1864,18 @@ function dgLangParam(room) {
     }
     /* ---- feel: a real click. iOS Safari has no vibration API at all, so on
        iPhone this is the only physical-feeling feedback available. --------- */
-    var _ac=null;
+    /* REGRESSION FIX: this used to open its own AudioContext per keypress.
+       Deepgram capture asks for new AudioContext({sampleRate:16000}); once a
+       default-rate context exists the device can refuse that second rate, and
+       STT dies. An <audio> element never creates a context, so it cannot
+       collide with capture. Do not reintroduce Web Audio here. */
+    var _click=null;
     function clickOn(){try{return localStorage.getItem('duck_click')!=='0'}catch(e){return true}}
     function clickSound(){
         if(!clickOn())return;
         try{
-            if(!_ac){var C=window.AudioContext||window.webkitAudioContext;if(!C)return;_ac=new C()}
-            if(_ac.state==='suspended')_ac.resume();
-            var t=_ac.currentTime,o=_ac.createOscillator(),g=_ac.createGain();
-            o.type='square';o.frequency.setValueAtTime(2100,t);
-            g.gain.setValueAtTime(0.0001,t);
-            g.gain.exponentialRampToValueAtTime(0.07,t+0.002);
-            g.gain.exponentialRampToValueAtTime(0.0001,t+0.026);
-            o.connect(g);g.connect(_ac.destination);o.start(t);o.stop(t+0.03);
+            if(!_click){_click=new Audio('data:audio/wav;base64,UklGRnwAAABXQVZFZm10IBAAAAABAAEAQB8AAIA+AAACABAAZGF0YVgAAAAoI8Id0Oau6gwSRw8S8w71RAnYB135YvrCBAcEmPwe/XECEQJA/oX+QQEPARr/Pv+kAIsAiv+d/1QARwDE/83/KwAkAOH/5v8WABIA8f/z/wsACQD4//r/');_click.volume=0.35;_click.preload='auto'}
+            _click.currentTime=0;var pr=_click.play();if(pr&&pr.catch)pr.catch(function(){});
         }catch(e){}
     }
     function currentWordFragment(side){
@@ -2002,7 +2007,7 @@ function dgLangParam(room) {
             return;
         }
         flushComp(side);
-        if(pt&&String(k).length===1&&/[a-zA-Z]/.test(k))tapBuf[side].push({x:pt.x,y:pt.y});
+        if(pt&&String(k).length===1&&/[a-zA-Z]/.test(k)){tapBuf[side].push({x:pt.x,y:pt.y});replaceLen[side]=0}
         insertAt(side,k);
         if(shifted[side]&&String(k).length===1){
             shifted[side]=false;
@@ -2019,8 +2024,10 @@ function dgLangParam(room) {
             if(cur)replaceComp(side,cur,c);else insertAt(side,c);
         }else{
             /* Track A autocomplete: replace the fragment being typed, add a space */
-            replaceComp(side,acFragLen[side]||0,c+' ');
-            prevWord[side]=String(c).toLowerCase();tapBuf[side]=[];acFragLen[side]=0;
+            if(acFragLen[side]>0)replaceComp(side,acFragLen[side],c+' ');
+            else if(replaceLen[side]>0)replaceComp(side,replaceLen[side],c+' ');  // swap the swiped word out
+            else insertAt(side,c+' ');
+            prevWord[side]=String(c).toLowerCase();tapBuf[side]=[];acFragLen[side]=0;replaceLen[side]=0;
             showNextWord(side);return;
         }
         cands[side]=[];candIdx[side]=-1;paintCands(side);
