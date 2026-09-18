@@ -16,7 +16,7 @@ class H(BaseHTTPRequestHandler):
  def do_GET(self):
   try:
    p=self.path.split('?',1)[0]
-   if p=='/api/health':return self._send({'ok':True,'version':API_VERSION,'schema':m.SCHEMA,'time':time.time(),'active_jobs':len(M.runtime)})
+   if p=='/api/health':return self._send({'ok':bool(S.ping()),'version':API_VERSION,'schema':m.SCHEMA,'time':time.time(),'active_jobs':len(M.runtime)})
    if p=='/api/job/latest':return self._send({'ok':True,'snapshot':latest()})
    if p=='/api/sources':return self._send({'ok':True,'sources':S.rows('SELECT * FROM sources ORDER BY estate,label')})
    if p=='/api/events':return self._send({'ok':True,'events':S.rows('SELECT * FROM events ORDER BY event_id DESC LIMIT 500')})
@@ -41,7 +41,8 @@ class H(BaseHTTPRequestHandler):
       xp=str(x.resolve()); exact=[r for r in registered if xp==r['root']]; ancestors=[r for r in registered if r['root']!=xp and os.path.commonpath([xp,r['root']])==r['root']]; descendants=[r for r in registered if r['root']!=xp and os.path.commonpath([xp,r['root']])==xp];items.append({'name':x.name,'path':xp,'registered':bool(exact),'covered':bool(exact or ancestors),'contains_registered':bool(descendants),'estate':(exact or ancestors or descendants or [{}])[0].get('estate')})
     return self._send({'ok':True,'path':str(root),'folders':sorted(items,key=lambda z:z['name'].lower())})
    self._send({'ok':False,'error':'not found'},404)
-  except Exception as e:S.event('ERROR','api_get_error',None,None,str(e),{'path':self.path});self._send({'ok':False,'error':str(e)},500)
+  except Exception as e:
+   S.event('ERROR','api_get_error',None,None,str(e),{'path':self.path});self._send({'ok':False,'error':str(e)},500)
  def do_POST(self):
   try:
    p=self.path.split('?',1)[0];b=self.body()
@@ -53,6 +54,7 @@ class H(BaseHTTPRequestHandler):
     if not snap:raise RuntimeError('no job')
     a=p.rsplit('/',1)[-1];M.control(snap['job']['job_id'],a);return self._send({'ok':True})
    self._send({'ok':False,'error':'not found'},404)
-  except Exception as e:S.event('ERROR','api_post_error',None,None,str(e),{'path':self.path});self._send({'ok':False,'error':str(e)},400)
+  except Exception as e:
+   S.event('ERROR','api_post_error',None,None,str(e),{'path':self.path});self._send({'ok':False,'error':str(e)},400)
  def log_message(self,fmt,*args):pass
 if __name__=='__main__':ThreadingHTTPServer(('0.0.0.0',int(os.environ.get('SOT_PORT','8765'))),H).serve_forever()
