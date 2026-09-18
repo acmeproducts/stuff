@@ -358,3 +358,15 @@ Do not serialize health, job, events, sources, and thousands of placement rows i
 The V8 retry patch that introduced independent interval-driven health/data/database loops is rejected. Owner test: unlike the prior V8 baseline, it never established a connection. It is evidence only and may not be a development ancestor.
 
 **Required replacement:** rebuild from the last owner-observed initially connecting V8 baseline (0f633de218406aa78e7f599f0f98dbf259c5efba); retain one guarded poll cycle, establish health first, isolate later data failures from connection state, and omit heavy placements from ordinary polling.
+
+
+---
+
+## GY-068 — V8/V9 used as recovery baseline after owner rejection
+
+**Status:** REJECTED / DEFUNCT  
+**Decision date:** 2026-09-18
+
+Owner clarified that V7, not V8, is the accepted baseline. V8 is broken and V9 is defunct. Neither may be used as an implementation ancestor for recovery.
+
+**Required replacement:** rebuild the V8 owner candidate directly from V7 source commit 3d614c258b9352c7a907acb43ac0ab20ce0fb441; preserve rejected V8/V9 only as evidence; do not patch them forward.

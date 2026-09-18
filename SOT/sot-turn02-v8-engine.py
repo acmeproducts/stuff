@@ -5,7 +5,7 @@ import hashlib, json, os, queue, sqlite3, threading, time, uuid
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Optional
-VERSION="turn02-pre-base-v8";SCHEMA=7;DB_DEFAULT=Path.home()/".sot-turn02"/"sot-v8.db";ACTIVE={"STARTING","RUNNING","PAUSING","PAUSED","STOPPING","INFERENCING"}
+VERSION="turn02-pre-base-v8";SCHEMA=7;DB_DEFAULT=Path.home()/".sot-turn02"/"sot-v8r.db";ACTIVE={"STARTING","RUNNING","PAUSING","PAUSED","STOPPING","INFERENCING"}
 DDL="""PRAGMA journal_mode=WAL; PRAGMA foreign_keys=ON;
 CREATE TABLE IF NOT EXISTS meta(key TEXT PRIMARY KEY,value TEXT NOT NULL);
 CREATE TABLE IF NOT EXISTS jobs(job_id TEXT PRIMARY KEY,revision INTEGER NOT NULL,state TEXT NOT NULL,stage TEXT NOT NULL,control TEXT NOT NULL DEFAULT 'RUN',created REAL NOT NULL,started REAL,finished REAL,last_progress REAL,error TEXT);
@@ -36,7 +36,7 @@ class Store:
  def event(self,severity,typ,job,source,msg,detail=None):self.execute("INSERT INTO events(ts,severity,event_type,job_id,source_id,message,detail) VALUES(?,?,?,?,?,?,?)",(time.time(),severity,typ,job,source,msg,json.dumps(detail,separators=(',',':')) if detail is not None else None))
  def recover(self):
   marks=','.join('?'*len(ACTIVE));jobs=self.rows(f"SELECT job_id,state FROM jobs WHERE state IN ({marks})",tuple(ACTIVE));now=time.time()
-  for j in jobs:self.execute("UPDATE jobs SET state='INTERRUPTED',stage='RECOVERABLE',finished=?,control='PAUSE',error='backend_restart' WHERE job_id=?",(now,j['job_id']));self.event('WARN','job_interrupted',j['job_id'],None,'Prior active job is recoverable after backend restart',{'prior_state':j['state']})
+  for j in jobs:self.execute("UPDATE jobs SET state='FAILED',stage='RECOVERED',finished=?,error='backend_restart' WHERE job_id=?",(now,j['job_id']));self.event('ERROR','job_recovered',j['job_id'],None,'Prior active job closed after backend restart',{'prior_state':j['state']})
 class Manager:
  def __init__(self,store,workers=4,queue_capacity=128,stall_seconds=20):self.s=store;self.worker_count=max(2,workers);self.capacity=max(4,queue_capacity);self.stall_seconds=stall_seconds;self.lock=threading.RLock();self.runtime={}
  def add_source(self,label,root,failure_domain,role='primary',estate=None):
@@ -48,18 +48,6 @@ class Manager:
   if hit:raise RuntimeError(f"estate overlap: {root} conflicts with {hit['estate']} ({hit['root']})")
   estate=(estate or label or Path(root).name or 'WSL').strip();sid=hashlib.sha256(root.encode()).hexdigest()[:16]
   self.s.execute("INSERT INTO sources(source_id,estate,label,root,failure_domain,role,enabled) VALUES(?,?,?,?,?,?,1)",(sid,estate,label,root,failure_domain,role));return sid
- def _launch(self,jid,src,resume=False):
-  now=time.time()
-  if resume:
-   self.s.execute("UPDATE jobs SET state='RUNNING',stage='DISCOVER+HASH',control='RUN',finished=NULL,error=NULL,last_progress=? WHERE job_id=?",(now,jid))
-   for x in src:self.s.execute("UPDATE job_sources SET state='RUNNING',producer_state='PENDING',queue_depth=0,active_workers=0,finished=NULL,last_progress=? WHERE job_id=? AND source_id=?",(now,jid,x['source_id']))
-  rt={'queues':{x['source_id']:queue.Queue(self.capacity) for x in src},'done':set(),'stop':threading.Event(),'pause':threading.Event(),'sources':{x['source_id']:x for x in src},'workers':[],'producer_threads':[],'rr':0};self.runtime[jid]=rt
-  self.s.event('INFO','job_continued' if resume else 'job_started',jid,None,'Recoverable analysis continued' if resume else 'Multi-queue analysis started',{'sources':len(src),'workers':self.worker_count,'queue_capacity_each':self.capacity})
-  for x in src:
-   t=threading.Thread(target=self._produce,args=(jid,x),daemon=True);rt['producer_threads'].append(t);t.start()
-  for n in range(self.worker_count):
-   t=threading.Thread(target=self._worker,args=(jid,n),daemon=True);rt['workers'].append(t);t.start()
-  threading.Thread(target=self._supervise,args=(jid,),daemon=True).start();return jid
  def start(self,source_ids:Optional[list[str]]=None):
   active=self.s.rows("SELECT job_id FROM jobs WHERE state IN ('STARTING','RUNNING','PAUSING','PAUSED','STOPPING','INFERENCING')")
   if active:raise RuntimeError(f"active job {active[0]['job_id']}")
@@ -69,18 +57,12 @@ class Manager:
   if not src:raise RuntimeError('no enabled sources')
   rev=self.s.rows("SELECT COALESCE(MAX(revision),0)+1 n FROM jobs")[0]['n'];jid=uuid.uuid4().hex;now=time.time();self.s.execute("INSERT INTO jobs(job_id,revision,state,stage,created,started,last_progress) VALUES(?,?,'STARTING','DISCOVER+HASH',?,?,?)",(jid,rev,now,now,now))
   for x in src:self.s.execute("INSERT INTO job_sources(job_id,source_id,queue_capacity) VALUES(?,?,?)",(jid,x['source_id'],self.capacity))
-  return self._launch(jid,src,False)
- def continue_job(self,jid=None):
-  if self.runtime:raise RuntimeError('an analysis is already active')
-  if jid is None:
-   r=self.s.rows("SELECT job_id FROM jobs WHERE state IN ('INTERRUPTED','STOPPED','PAUSED') ORDER BY created DESC LIMIT 1")
-   if not r:raise RuntimeError('no resumable job')
-   jid=r[0]['job_id']
-  job=self.s.rows("SELECT * FROM jobs WHERE job_id=?",(jid,))
-  if not job or job[0]['state'] not in ('INTERRUPTED','STOPPED','PAUSED'):raise RuntimeError('job is not resumable')
-  src=self.s.rows("SELECT s.* FROM job_sources js JOIN sources s USING(source_id) WHERE js.job_id=? AND s.enabled=1",(jid,))
-  if not src:raise RuntimeError('no enabled sources for resumable job')
-  return self._launch(jid,src,True)
+  rt={'queues':{x['source_id']:queue.Queue(self.capacity) for x in src},'done':set(),'stop':threading.Event(),'pause':threading.Event(),'sources':{x['source_id']:x for x in src},'workers':[],'producer_threads':[],'rr':0};self.runtime[jid]=rt;self.s.event('INFO','job_started',jid,None,'Multi-queue analysis started',{'sources':len(src),'workers':self.worker_count,'queue_capacity_each':self.capacity});self.s.execute("UPDATE jobs SET state='RUNNING' WHERE job_id=?",(jid,))
+  for x in src:
+   t=threading.Thread(target=self._produce,args=(jid,x),daemon=True);rt['producer_threads'].append(t);t.start()
+  for n in range(self.worker_count):
+   t=threading.Thread(target=self._worker,args=(jid,n),daemon=True);rt['workers'].append(t);t.start()
+  threading.Thread(target=self._supervise,args=(jid,),daemon=True).start();return jid
  def control(self,jid,action):
   a=action.upper();rt=self.runtime.get(jid)
   if a not in {'PAUSE','RESUME','STOP'}:raise ValueError(action)
@@ -93,7 +75,7 @@ class Manager:
   while rt['pause'].is_set() and not rt['stop'].is_set():time.sleep(.1)
   return not rt['stop'].is_set()
  def _produce(self,jid,src):
-  sid=src['source_id'];rt=self.runtime[jid];q=rt['queues'][sid];now=time.time();self.s.execute("UPDATE job_sources SET state='RUNNING',producer_state='ENUMERATING',started=COALESCE(started,?),last_progress=? WHERE job_id=? AND source_id=?",(now,now,jid,sid));self.s.event('INFO','source_started',jid,sid,'Enumeration started',{'root':src['root']})
+  sid=src['source_id'];rt=self.runtime[jid];q=rt['queues'][sid];now=time.time();self.s.execute("UPDATE job_sources SET state='RUNNING',producer_state='ENUMERATING',started=?,last_progress=? WHERE job_id=? AND source_id=?",(now,now,jid,sid));self.s.event('INFO','source_started',jid,sid,'Enumeration started',{'root':src['root']})
   try:
    for base,dirs,files in os.walk(src['root'],topdown=True,followlinks=False):
     if not self._wait(rt):break
@@ -101,22 +83,14 @@ class Manager:
      if not self._wait(rt):break
      p=os.path.join(base,name);pid=hashlib.sha256((jid+'\0'+sid+'\0'+p).encode()).hexdigest()
      try:
-      st=os.stat(p,follow_symlinks=False);size=int(st.st_size);created=getattr(st,'st_birthtime',None);now=time.time()
-      inserted=self.s.execute("INSERT OR IGNORE INTO placements(placement_id,job_id,revision,source_id,estate,path,filename,extension,size,created,modified,scanned_at,lifecycle,role,last_verified) SELECT ?,?,revision,?,?,?,?,?,?,?,?,?,'NONE',?,? FROM jobs WHERE job_id=?",(pid,jid,sid,src['estate'],p,name,Path(name).suffix.lower(),size,created,st.st_mtime,now,src['role'],now,jid))
-      row=self.s.rows("SELECT fingerprint,lifecycle FROM placements WHERE placement_id=?",(pid,))[0]
-      if inserted:self.s.execute("UPDATE job_sources SET discovered_files=discovered_files+1,discovered_bytes=discovered_bytes+?,current_folder=?,current_file=?,last_progress=? WHERE job_id=? AND source_id=?",(size,base,name,now,jid,sid))
-      else:self.s.execute("UPDATE job_sources SET current_folder=?,current_file=?,last_progress=? WHERE job_id=? AND source_id=?",(base,name,now,jid,sid))
-      self.s.execute("UPDATE jobs SET last_progress=? WHERE job_id=?",(now,jid))
-      if row['fingerprint'] is not None or row['lifecycle'] in ('HASHED','PLANNED','COMPLETED'):continue
-      self.s.execute("UPDATE placements SET availability='AVAILABLE',error_detail=NULL,size=?,modified=?,last_verified=? WHERE placement_id=?",(size,st.st_mtime,now,pid))
+      st=os.stat(p,follow_symlinks=False);size=int(st.st_size);created=getattr(st,'st_birthtime',None);now=time.time();self.s.execute("INSERT INTO placements(placement_id,job_id,revision,source_id,path,filename,extension,size,created,modified,scanned_at,lifecycle,role,last_verified) SELECT ?,?,revision,?,?,?,?,?,?,?,?, 'NONE',?,? FROM jobs WHERE job_id=?",(pid,jid,sid,p,name,Path(name).suffix.lower(),size,created,st.st_mtime,now,src['role'],now,jid));self.s.execute("UPDATE job_sources SET discovered_files=discovered_files+1,discovered_bytes=discovered_bytes+?,current_folder=?,current_file=?,last_progress=? WHERE job_id=? AND source_id=?",(size,base,name,now,jid,sid));self.s.execute("UPDATE jobs SET last_progress=? WHERE job_id=?",(now,jid))
       while self._wait(rt):
        try:q.put(Work(sid,pid,p,size),timeout=.25);break
        except queue.Full:self._sync(jid,sid,q)
       self._sync(jid,sid,q)
-     except Exception as ex:
-      now=time.time();inserted=self.s.execute("INSERT OR IGNORE INTO placements(placement_id,job_id,revision,source_id,estate,path,filename,extension,scanned_at,lifecycle,availability,error_detail,role,last_verified) SELECT ?,?,revision,?,?,?,?,?,?,'NONE','ERROR',?,?,? FROM jobs WHERE job_id=?",(pid,jid,sid,src['estate'],p,name,Path(name).suffix.lower(),now,str(ex),src['role'],now,jid))
-      self.s.execute("UPDATE job_sources SET errors=errors+1,last_progress=? WHERE job_id=? AND source_id=?",(now,jid,sid));self.s.event('ERROR','source_file_error',jid,sid,str(ex),{'path':p,'new_observation':bool(inserted)})
-  except Exception as ex:self.s.execute("UPDATE job_sources SET errors=errors+1,state='FAILED',producer_state='FAILED' WHERE job_id=? AND source_id=?",(jid,sid));self.s.event('ERROR','source_failed',jid,sid,str(ex))
+     except Exception as e:
+      now=time.time();self.s.execute("INSERT OR IGNORE INTO placements(placement_id,job_id,revision,source_id,path,filename,extension,scanned_at,lifecycle,availability,error_detail,role,last_verified) SELECT ?,?,revision,?,?,?,?,?,'NONE','ERROR',?,?,? FROM jobs WHERE job_id=?",(pid,jid,sid,p,name,Path(name).suffix.lower(),now,str(e),src['role'],now,jid));self.s.execute("UPDATE job_sources SET errors=errors+1,last_progress=? WHERE job_id=? AND source_id=?",(now,jid,sid));self.s.event('ERROR','source_file_error',jid,sid,str(e),{'path':p})
+  except Exception as e:self.s.execute("UPDATE job_sources SET errors=errors+1,state='FAILED',producer_state='FAILED' WHERE job_id=? AND source_id=?",(jid,sid));self.s.event('ERROR','source_failed',jid,sid,str(e))
   finally:rt['done'].add(sid);self.s.execute("UPDATE job_sources SET producer_state='DONE',last_progress=? WHERE job_id=? AND source_id=?",(time.time(),jid,sid));self.s.event('INFO','source_enumeration_complete',jid,sid,'Enumeration complete')
  def _sync(self,jid,sid,q):self.s.execute("UPDATE job_sources SET queue_depth=? WHERE job_id=? AND source_id=?",(q.qsize(),jid,sid))
  def _next(self,rt):
@@ -179,4 +153,4 @@ class Manager:
  def snapshot(self,jid):
   job=self.s.rows("SELECT * FROM jobs WHERE job_id=?",(jid,));
   if not job:return None
-  src=self.s.rows("SELECT js.*,s.estate,s.label,s.root,s.failure_domain,s.role FROM job_sources js JOIN sources s USING(source_id) WHERE job_id=? ORDER BY s.label",(jid,));metrics=self.s.rows("SELECT COUNT(*) discovered_files,COALESCE(SUM(size),0) discovered_bytes,SUM(CASE WHEN fingerprint IS NOT NULL THEN 1 ELSE 0 END) hashed_files,COALESCE(SUM(CASE WHEN fingerprint IS NOT NULL THEN size ELSE 0 END),0) hashed_bytes,SUM(CASE WHEN plan='REVIEW' THEN 1 ELSE 0 END) review_count,COALESCE(SUM(CASE WHEN plan='REMOVE' THEN size ELSE 0 END),0) reclaimable_bytes FROM placements WHERE job_id=?",(jid,))[0];events=self.s.rows("SELECT * FROM events WHERE job_id=? ORDER BY event_id DESC LIMIT 30",(jid,));return {'version':VERSION,'schema':SCHEMA,'job':job[0],'sources':src,'metrics':metrics,'events':events}
+  src=self.s.rows("SELECT js.*,s.label,s.root,s.failure_domain,s.role FROM job_sources js JOIN sources s USING(source_id) WHERE job_id=? ORDER BY s.label",(jid,));metrics=self.s.rows("SELECT COUNT(*) discovered_files,COALESCE(SUM(size),0) discovered_bytes,SUM(CASE WHEN fingerprint IS NOT NULL THEN 1 ELSE 0 END) hashed_files,COALESCE(SUM(CASE WHEN fingerprint IS NOT NULL THEN size ELSE 0 END),0) hashed_bytes,SUM(CASE WHEN plan='REVIEW' THEN 1 ELSE 0 END) review_count,COALESCE(SUM(CASE WHEN plan='REMOVE' THEN size ELSE 0 END),0) reclaimable_bytes FROM placements WHERE job_id=?",(jid,))[0];events=self.s.rows("SELECT * FROM events WHERE job_id=? ORDER BY event_id DESC LIMIT 30",(jid,));return {'version':VERSION,'schema':SCHEMA,'job':job[0],'sources':src,'metrics':metrics,'events':events}

@@ -199,3 +199,10 @@ Stage chain remains `pre-base → base → pre-ship → ship → post-ship`. Bef
 - Job/events/sources failures preserve last-good state and report data retrying without changing transport health.
 - Placements are not part of ordinary Estate/Analyze/Activity polling. Heavy placement retrieval occurs only while Database or Plan is active, with a longer timeout, and failure preserves last-good rows.
 - Retry is cadence-based and bounded by the single poll lock; no nested retry storm or overlapping health probes is permitted.
+
+
+## 23. Turn 02 V8 redeployment lineage correction — binding (2026-09-18)
+- Owner correction: V7 is the last accepted implementation baseline. V8 and V9 are rejected/defunct and may not be implementation ancestors.
+- The next owner candidate retains the V8 product name but is a clean redeployment built directly from V7 source commit 3d614c258b9352c7a907acb43ac0ab20ce0fb441.
+- This redeployment first restores the V7 connection/scan behavior without importing V8/V9 polling, continuation, preview, or retry implementation code. Those requirements remain product requirements for later governed implementation only after the V7-derived candidate is stable.
+- Use a fresh schema-7 database path so rejected V8 runtime state cannot contaminate qualification. Preserve all predecessor databases as evidence.
