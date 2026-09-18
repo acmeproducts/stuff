@@ -253,3 +253,13 @@ Stage chain remains `pre-base → base → pre-ship → ship → post-ship`. Bef
 - Expansion and scroll state persist independently per volume/root while the page remains open. Switching volumes and returning restores the prior tree state. Background polling/re-rendering may not collapse, reposition, or clear the user's tree.
 - Folder enumeration is lazy per expanded node. The client does not recursively enumerate an entire volume merely to draw the tree.
 - Qualification proves automatic volume load; exclusion of WSL pseudo-mounts; exact nested-only selection; parent-selected inherited child state; descendant-selected parent indicator; independent expand/select controls; overlap rejection; and per-volume expansion/scroll restoration.
+
+
+## 27. SQLite availability and failure isolation — binding (2026-09-18)
+- Runtime evidence showed the backend process stayed alive while localhost/HTTPS health timed out and scheduler/worker database access raised SQLite unable-to-open errors against the existing configured DB. Transport failure was downstream of evidence-store failure.
+- Store owns one startup-opened long-lived SQLite connection instead of opening a connection per operation. Store serializes access and commits/rolls back before releasing its lock.
+- Startup validates the DB parent and performs a DB write/read probe before accepting work.
+- Database failure is never handled by an unguarded attempt to log through the same failed database. Logging has a non-throwing stderr fallback.
+- Producer, worker, supervisor, and API paths contain database failures so a dead worker cannot leave a job indefinitely RUNNING.
+- Health proves Store responsiveness.
+- Qualification includes sustained concurrent hashing/writes plus health, snapshot, source, event, and placement reads; any DB-open error, dead worker, timeout, counter mismatch, or stuck RUNNING state fails the candidate.

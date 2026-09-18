@@ -409,3 +409,15 @@ Do not ship browser `alert`, `confirm`, or `prompt` surfaces as application UX. 
 Do not require Refresh Volumes to initialize the Estate inventory. Do not present WSL infrastructure paths such as `/mnt/wsl` or `/mnt/wslg` as owner storage authorities. Do not make folder navigation synonymous with Estate selection, and do not force destructive one-level navigation merely to select a nested folder.
 
 **Required replacement:** automatic usable-volume inventory; one WSL root plus real mounted storage authorities; lazy hierarchical Folder Tree with independent left disclosure and right membership controls; `>` available, `<>` covered/selected, `<` selected descendant below; right pane contains explicit roots only; expansion/scroll state is user-owned and restored per volume.
+
+
+---
+
+## GY-072 — Per-operation SQLite connection churn and recursive DB error logging
+
+**Status:** REJECTED RUNTIME ARCHITECTURE  
+**Decision date:** 2026-09-18
+
+Reject opening a new SQLite connection for every rows/execute/event operation. Runtime analysis showed this architecture can lose database availability while leaving the supervised process alive and the job apparently RUNNING. Reject error handlers that attempt an unguarded second write through the same failed database.
+
+**Required replacement:** startup-validated long-lived Store connection, serialized transactions, non-throwing stderr fallback, thread failure containment, and sustained concurrent database/API responsiveness qualification.
