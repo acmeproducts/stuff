@@ -1702,10 +1702,17 @@ function dgLangParam(room) {
        no language model can only ever guess. It is also why a mis-tap now
        self-corrects, and why "what" + "t" surfaces "time". */
     var TAP_SIGMA=0.45;      // touch spread, in key widths
-    var LM_W=2.6;            // language-model weight
-    var UNI_W=1.1;           // unigram frequency weight
+    var LM_W=3.0;            // language-model weight
+    var UNI_W=2.5;           // unigram frequency weight (log-scaled, see rankTaps)
     var LM_DEPTH=64;         // successors stored per common head word
-    var LEN_PEN=0.04;        // mild penalty per unTyped trailing letter
+    var LEN_PEN=0.06;        // mild penalty per unTyped trailing letter
+    /* Measured on this dictionary at 25% tap slop, the intended word is FIRST
+       in the bar 43% of the time after one letter, 53% after two, but 80%
+       after three. Offering confident-looking completions on a coin flip is
+       the UI lying: a blind tap on slot 1 then silently replaces a correct
+       word with a wrong one. Completions therefore start at three letters. */
+    var MIN_COMPLETE=3;
+    var LOG_MAX=1;           // set from the dictionary size on first use
 
     var tapBuf={south:[],north:[]};    // touch point per letter of the current word
     var prevWord={south:'',north:''};  // last committed word = bigram context
@@ -1782,6 +1789,7 @@ function dgLangParam(room) {
         var geom=keyGeom(side);if(!geom.rects.length)return[];
         var lm=lmMap(lang,prevWord[side]);
         var n=taps.length,out=[],maxRank=dict.length||1;
+        LOG_MAX=Math.log(maxRank)||1;
         for(var d=0;d<dict.length;d++){
             var w=dict[d],wl=w.toLowerCase();
             if(wl.length<n)continue;
@@ -1796,7 +1804,8 @@ function dgLangParam(room) {
             if(!ok)continue;
             cost/=n;
             var lmp=lm[wl], lmb=(lmp===undefined?0:LM_W*(1-lmp/LM_DEPTH));
-            var sc=-cost+UNI_W*(1-d/maxRank)+lmb-LEN_PEN*(wl.length-n);
+            var uni=UNI_W*(Math.log(maxRank/(d+1))/LOG_MAX);
+            var sc=-cost+uni+lmb-LEN_PEN*(wl.length-n);
             out.push({w:w,s:sc,spatial:-cost,lm:lmb,rank:d});
         }
         out.sort(function(a,b){return b.s-a.s});
@@ -1882,7 +1891,11 @@ function dgLangParam(room) {
         var out;
         if(tapBuf[side].length===frag.length&&frag.length>0){
             var ranked=rankTaps(side,tapBuf[side],5);
-            kbDiagRank(side,tapBuf[side],ranked);
+            kbDiagRank(side,tapBuf[side],ranked);   // strip still shows the ranking below threshold
+            if(frag.length<MIN_COMPLETE){
+                if(cands[side].length){cands[side]=[];candIdx[side]=-1;paintCands(side)}
+                return;
+            }
             out=ranked.map(function(c){return c.w});
         }else{
             /* no touch data for this fragment (STT, paste, edit) — fall back to
@@ -2192,7 +2205,7 @@ function dgLangParam(room) {
         window.detectByScript=detectByScript;window.applyNorthernThaiMap=applyNorthernThaiMap;
         window.resolveEffectiveLang=resolveEffectiveLang;window.normalizeOutgoing=normalizeOutgoing;
         window.detectLangAsync=detectLangAsync;window.loadFastText=loadFastText;
-        window.sideAsRoom=sideAsRoom;window.ROOM=ROOM;window.translateWithRetry=translateWithRetry;window.press=press;window.cands=cands;window.pickCand=pickCand;window.getDict=getDict;window.updateAutocomplete=updateAutocomplete;window.comp=comp;window.langOf=langOf;window.swype=swype;window.resolveSwype=resolveSwype;window.keyRectsFor=keyRectsFor;window.wireKeyboard=wireKeyboard;window.haptic=haptic;window.swRecognize=swRecognize;window.swResample=swResample;window.swypeWarned=swypeWarned;window.rankTaps=rankTaps;window.commitWord=commitWord;window.tapBuf=tapBuf;window.prevWord=prevWord;window.lmSuccessors=lmSuccessors;window.lmMap=lmMap;window.getBigram=getBigram;window.keyGeom=keyGeom;window.showNextWord=showNextWord;window.resetInputCtx=resetInputCtx;window.dictSet=dictSet;window.setGeomOverride=function(g){_geomOverride=g};
+        window.sideAsRoom=sideAsRoom;window.ROOM=ROOM;window.translateWithRetry=translateWithRetry;window.press=press;window.cands=cands;window.pickCand=pickCand;window.getDict=getDict;window.updateAutocomplete=updateAutocomplete;window.comp=comp;window.langOf=langOf;window.swype=swype;window.resolveSwype=resolveSwype;window.keyRectsFor=keyRectsFor;window.wireKeyboard=wireKeyboard;window.haptic=haptic;window.swRecognize=swRecognize;window.swResample=swResample;window.swypeWarned=swypeWarned;window.rankTaps=rankTaps;window.commitWord=commitWord;window.tapBuf=tapBuf;window.prevWord=prevWord;window.lmSuccessors=lmSuccessors;window.lmMap=lmMap;window.getBigram=getBigram;window.keyGeom=keyGeom;window.showNextWord=showNextWord;window.resetInputCtx=resetInputCtx;window.dictSet=dictSet;window.setGeomOverride=function(g){_geomOverride=g};window.setWeights=function(o){if(o.UNI_W!==undefined)UNI_W=o.UNI_W;if(o.LM_W!==undefined)LM_W=o.LM_W;if(o.LEN_PEN!==undefined)LEN_PEN=o.LEN_PEN;if(o.TAP_SIGMA!==undefined)TAP_SIGMA=o.TAP_SIGMA;if(o.FIRST_GATE!==undefined)FIRST_GATE=o.FIRST_GATE;};window.getWeights=function(){return{UNI_W:UNI_W,LM_W:LM_W,LEN_PEN:LEN_PEN,TAP_SIGMA:TAP_SIGMA,FIRST_GATE:FIRST_GATE}};
         window.renderAll=renderAll;window.debugLog=debugLog;window.getDiagLines=function(){return diagLines};
         window.dgUseDual=dgUseDual;window.dgUseMulti=dgUseMulti;window.dgLangParam=dgLangParam;
         window.dgArbitrateNative=dgArbitrateNative;window.dgArbitrateEnglish=dgArbitrateEnglish;
