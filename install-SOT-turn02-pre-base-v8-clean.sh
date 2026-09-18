@@ -1,12 +1,21 @@
 #!/usr/bin/env bash
 set -euo pipefail
-REF="ffa2c8b4dcdde6b86643f5e672598a54b82b6537"
+REF="4721e89c1003d4fc2a151d10c9fe1dc5171e7417"
 ROOT="$HOME/.sot-turn02/v8-clean"
 BASE="https://raw.githubusercontent.com/acmeproducts/stuff/$REF"
 mkdir -p "$ROOT/SOT" "$HOME/.config/systemd/user" "$HOME/.sot-turn02"
 for f in sot-turn02-v8-engine.py sot-turn02-pre-base-v8-server.py; do curl -fsSL "$BASE/SOT/$f" -o "$ROOT/SOT/$f"; done
 curl -fsSL "$BASE/SOT/sot-turn02-v8-clean.service" -o "$HOME/.config/systemd/user/sot-turn02-v8-clean.service"
+curl -fsSL "$BASE/SOT/sot-turn02-pre-base-v8.html" -o "$ROOT/SOT/sot-turn02-pre-base-v8.html"
 python3 -m py_compile "$ROOT/SOT/sot-turn02-v8-engine.py" "$ROOT/SOT/sot-turn02-pre-base-v8-server.py"
+python3 - "$ROOT/SOT/sot-turn02-pre-base-v8.html" <<'PY'
+import re,sys
+s=open(sys.argv[1],encoding="utf-8").read()
+assert not re.search(r"\b(?:alert|confirm|prompt)\s*\(",s), "native browser dialog prohibited"
+for token in ["subtabs","beginResize","localStorage.sotDbWidths","updateSuggest","atomMatch","overflow:hidden"]:
+ assert token in s,token
+print("PASS client modal/toast sub-tabs viewport grid resize Omnisearch static gate")
+PY
 python3 - "$ROOT/SOT/sot-turn02-v8-engine.py" <<'PY'
 import importlib.util,sys,tempfile,time
 from pathlib import Path
