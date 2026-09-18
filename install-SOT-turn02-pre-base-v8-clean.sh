@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 set -euo pipefail
-REF="5e7ad1bf4f0ff9aa6112c15a2cc1a0b55996bdb4"
+REF="6dd110c0b9048809e7dc3c1352b612c252d3a0b2"
 ROOT="$HOME/.sot-turn02/v8-clean"
 BASE="https://raw.githubusercontent.com/acmeproducts/stuff/$REF"
 mkdir -p "$ROOT/SOT" "$HOME/.config/systemd/user" "$HOME/.sot-turn02"
