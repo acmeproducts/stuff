@@ -59,7 +59,7 @@ import json
 x=json.load(open('/tmp/sot-v8-health.json'));assert x['ok'] and x['schema']==8 and x['version']=='turn02-pre-base-v8',x
 print('PASS backend',x['version'],'schema',x['schema'])
 PY
-tailscale serve --bg --https=443 / http://127.0.0.1:18789 >/dev/null
+tailscale serve --bg --https=443 http://127.0.0.1:18789 >/dev/null
 tailscale serve --bg --https=8443 http://127.0.0.1:8765 >/dev/null
 DNS="$(tailscale status --json | python3 -c 'import json,sys;print(json.load(sys.stdin)["Self"]["DNSName"].rstrip("."))')"
 for _ in $(seq 1 40); do curl -fsS "https://$DNS:8443/api/health" >/tmp/sot-v8-https.json 2>/dev/null && break; sleep .25; done
