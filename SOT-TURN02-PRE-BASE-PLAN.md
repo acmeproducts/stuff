@@ -206,3 +206,25 @@ Stage chain remains `pre-base → base → pre-ship → ship → post-ship`. Bef
 - The next owner candidate retains the V8 product name but is a clean redeployment built directly from V7 source commit 3d614c258b9352c7a907acb43ac0ab20ce0fb441.
 - This redeployment first restores the V7 connection/scan behavior without importing V8/V9 polling, continuation, preview, or retry implementation code. Those requirements remain product requirements for later governed implementation only after the V7-derived candidate is stable.
 - Use a fresh schema-7 database path so rejected V8 runtime state cannot contaminate qualification. Preserve all predecessor databases as evidence.
+
+
+## 24. V7 latent schema/write failure recovery — binding (2026-09-18)
+### Root cause established from source and owner runtime evidence
+- V7 added `placements.estate TEXT NOT NULL` to the schema but did not add `estate` to either placement INSERT path in `_produce()`: the normal observation INSERT and the error-observation INSERT both retained the pre-Estate V6 column/value contract.
+- Therefore every enumerated file reaches SQLite with no value for a required column and fails with `NOT NULL constraint failed: placements.estate`. The producer catches that first failure, attempts the second INSERT which has the same omission, and records repeated `source_file_error` events. No placement can enter the fingerprint queues, so Discovered/Scanned remain zero while the job misleadingly remains RUNNING/ENUMERATING.
+- The V7 source was transport/startup qualified but not qualified through a real placement-write/fingerprint path after the Estate schema change. Treating V7 as a fully accepted engine baseline was incorrect.
+
+### Rollback boundary
+- V8/V9/recovery-V8 are rejected and not ancestors.
+- For the scan engine, roll back to the last pre-Estate write contract: V6 engine source at commit 09880afc339998408e293fcf341102c23b402773. Reapply the governed V7 Estate requirements as a complete schema+write+read delta, not by copying the defective V7 engine.
+- V7 presentation/server behavior may be used only as requirement/reference evidence; defective V7 engine code is not an implementation ancestor.
+
+### Required clean V8 rebuild
+- Fresh V8 database; preserve all rejected databases.
+- `sources.estate` and `placements.estate` remain required first-class evidence.
+- Every placement INSERT, including error evidence, explicitly supplies `src['estate']`.
+- Placement identity is job scoped: SHA-256(job_id + NUL + source_id + NUL + path).
+- Source snapshot/API includes Estate explicitly.
+- Before deployment, qualification must create a temporary registered Estate containing at least one readable file, start analysis, and prove: placement row inserted; Estate non-null and correct; fingerprint non-null; lifecycle advances; discovered/hashed counters advance; no `source_file_error` caused by schema/write mismatch.
+- Qualification must also exercise an error-placement write path or an equivalent direct schema-contract test proving Estate is supplied there.
+- Startup/health/HTTPS checks alone are never sufficient after an evidence-schema change.

@@ -370,3 +370,18 @@ The V8 retry patch that introduced independent interval-driven health/data/datab
 Owner clarified that V7, not V8, is the accepted baseline. V8 is broken and V9 is defunct. Neither may be used as an implementation ancestor for recovery.
 
 **Required replacement:** rebuild the V8 owner candidate directly from V7 source commit 3d614c258b9352c7a907acb43ac0ab20ce0fb441; preserve rejected V8/V9 only as evidence; do not patch them forward.
+
+
+---
+
+## GY-069 — Adding a NOT NULL evidence column without updating every write path
+
+**Status:** REJECTED ROOT CAUSE  
+**Decision date:** 2026-09-18  
+**Evidence:** owner V7-derived V8 runtime: repeated `source_file_error · NOT NULL constraint failed: placements.estate`, zero discovered/scanned rows.
+
+V7 added required `placements.estate` but retained V6 placement INSERT statements that omitted Estate in both the normal and error-observation paths. The resulting schema/write mismatch made every file observation fail before fingerprinting. The later V7-derived recovery inherited the latent defect because V7 had been treated as a fully accepted baseline based on startup/transport behavior.
+
+**Do not repeat:** a schema change is incomplete until every INSERT/UPDATE/read projection that owns the new field is audited and exercised. Never promote a storage-analysis candidate after only compile, startup, health, or HTTPS gates. Any evidence-schema change requires a real placement-write gate through discovery → durable row → fingerprint plus coverage of the error-evidence write contract.
+
+**Required replacement:** scan-engine rollback to the pre-Estate V6 write baseline, then cleanly reapply Estate as a complete schema/write/read contract with a fresh database and fixture qualification before owner deployment.
