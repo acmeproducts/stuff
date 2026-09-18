@@ -744,6 +744,41 @@ async function gateResponsive(browser, origin) {
   }
 }
 
+
+async function gateCrosshairRegression(page, origin) {
+  gate('retained crosshair interaction');
+  await boot(page, origin);
+  await page.click('#legend [data-id="risk"]');
+  await page.waitForFunction(() => document.querySelector('#legend [data-id="hyg"]'));
+  const activeBefore = await page.evaluate(() => document.querySelector('#legend .active')?.dataset.id || null);
+  const box = await page.locator('#nowChart').boundingBox();
+  ok('NOW chart has inspectable geometry', !!box && box.width > 100 && box.height > 100);
+  await page.mouse.move(box.x + box.width * .55, box.y + box.height * .52);
+  await page.waitForFunction(() => getComputedStyle(document.getElementById('nowTip')).display !== 'none');
+  eq('pointer inspection does not silently change active series', await page.evaluate(() => document.querySelector('#legend .active')?.dataset.id || null), activeBefore);
+  eq('inspection exposes one explicit close control', await page.locator('#nowTip [data-tip-close]').count(), 1);
+  ok('inspection close control receives pointer events', await page.locator('#nowTip [data-tip-close]').evaluate(el => getComputedStyle(el).pointerEvents !== 'none'));
+  const pinned = await page.locator('#nowTip').innerText();
+  await page.mouse.move(box.x + 5, Math.max(1, box.y - 20));
+  await page.waitForTimeout(80);
+  eq('inspection remains pinned after pointer leaves plot', await page.locator('#nowTip').isVisible(), true);
+  eq('pinned inspection retains the same observation', await page.locator('#nowTip').innerText(), pinned);
+  await page.locator('#nowTip [data-tip-close]').click();
+  eq('explicit close dismisses inspection', await page.locator('#nowTip').isVisible(), false);
+  await page.mouse.move(box.x + box.width * .62, box.y + box.height * .48);
+  await page.waitForFunction(() => getComputedStyle(document.getElementById('nowTip')).display !== 'none');
+  eq('inspection reopens immediately after dismissal', await page.locator('#nowTip').isVisible(), true);
+  const density = await page.evaluate(() => ({source:+document.getElementById('nowChart').dataset.sourcePoints,rendered:+document.getElementById('nowChart').dataset.renderedPoints}));
+  await page.click('#hzs [data-h="1YR"]');
+  await page.waitForFunction(() => document.querySelector('#hzs [data-h="1YR"]')?.classList.contains('on'));
+  const d1 = await page.evaluate(() => ({source:+document.getElementById('nowChart').dataset.sourcePoints,rendered:+document.getElementById('nowChart').dataset.renderedPoints,density:document.getElementById('nowChart').dataset.renderDensity}));
+  ok('1YR remains display-reduced while canonical source observations are retained', d1.density==='weekly' && d1.source>d1.rendered, JSON.stringify(d1));
+  await page.click('#hzs [data-h="5YR"]');
+  await page.waitForFunction(() => document.querySelector('#hzs [data-h="5YR"]')?.classList.contains('on'));
+  const d5 = await page.evaluate(() => ({source:+document.getElementById('nowChart').dataset.sourcePoints,rendered:+document.getElementById('nowChart').dataset.renderedPoints,density:document.getElementById('nowChart').dataset.renderDensity}));
+  ok('5YR remains display-reduced while canonical source observations are retained', d5.density==='monthly' && d5.source>d5.rendered, JSON.stringify(d5));
+}
+
 /* ------------------------------------------------------------------ main */
 (async () => {
   const srv = await serve();
@@ -753,6 +788,7 @@ async function gateResponsive(browser, origin) {
     gateProvenance();
     const page = await newPage(browser);
     await gateRuntimeAndBaseline(page, origin);
+    await gateCrosshairRegression(page, origin);
     await gateModelArithmetic(page);
     await gateHorizonTruth(page);
     await gateModelHealth(page);

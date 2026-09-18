@@ -161,7 +161,7 @@ def build():
         "boot health render",
     )
 
-    # 9. Build identity.
+    # 9. Restore the accepted Turn 19 crosshair inspection contract without changing chart arithmetic.\n    crosshair_old = "tip.innerHTML=`<strong>${esc(sel.label)}</strong><br>${full(q.sourceT||q.t)} · ${valueLine}`;tip.style.display='block';tip.style.left=Math.min(model.W-180,Math.max(6,xx+8))+'px';tip.style.top=Math.max(6,yy-48)+'px'}c.onpointermove=e=>{if(e.pointerType!=='touch')inspect(e,false)};c.onpointerdown=e=>inspect(e,true);c.onpointerleave=()=>{tip.style.display='none';model=paint()};c.ontouchstart=e=>{e.preventDefault();inspect(e,true)};c.ontouchmove=e=>{e.preventDefault();inspect(e,false)}}"\n    crosshair_new = "tip.innerHTML=`<button class=\"tipClose\" data-tip-close aria-label=\"Close inspection\">×</button><strong>${esc(sel.label)}</strong><br>${full(q.sourceT||q.t)} · ${valueLine}`;tip.style.display='block';tip.style.left=Math.min(model.W-180,Math.max(6,xx+8))+'px';tip.style.top=Math.max(6,yy-48)+'px';let tc=tip.querySelector('[data-tip-close]');if(tc)tc.onclick=e=>{e.stopPropagation();tip.style.display='none';model=paint()}}c.onpointermove=e=>{if(e.pointerType!=='touch')inspect(e,false)};c.onpointerdown=e=>inspect(e,true);c.onpointerleave=()=>{};c.ontouchstart=e=>{e.preventDefault();inspect(e,true)};c.ontouchmove=e=>{e.preventDefault();inspect(e,false)}}"\n    base = replace_once(base, crosshair_old, crosshair_new, "crosshair pinned inspection")\n\n    # 10. Build identity.
     base = replace_once(
         base,
         "Market Navigator · Turn 25</strong>",
