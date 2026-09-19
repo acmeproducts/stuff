@@ -281,3 +281,14 @@ Stage chain remains `pre-base → base → pre-ship → ship → post-ship`. Bef
 - The replacement engine is rebuilt from the governed pre-Estate engine baseline `09880afc339998408e293fcf341102c23b402773`, not from the rejected schema-8 engine.
 - Reapply Estate as a complete schema/write/read contract, use a fresh schema/database, serialize SQLite access through one startup-validated long-lived Store connection, and protect shared scheduler round-robin/done state from worker races.
 - Before owner deployment, a sustained multi-source fixture must prove hundreds of placement writes and hashes, progress on every source, multiple workers, repeated concurrent snapshot/database reads, final counter reconciliation, zero ERROR events, and responsive Store health.
+
+
+## 30. Control-plane isolation and DB-writer architecture — binding (2026-09-18)
+- The schema-9 clean2 candidate is rejected after owner evidence showed transport RED during a real Estate scan despite passing the 360-file concurrency fixture.
+- The replacement is a fresh clean rebuild from the governed pre-Estate baseline `09880afc339998408e293fcf341102c23b402773`; clean2 is evidence only and is not an implementation ancestor.
+- Filesystem producers and fingerprint workers do not execute SQLite writes. They emit bounded result/update messages to one dedicated database-writer thread owning the sole write connection. The writer coalesces telemetry and commits placement/lifecycle/hash/counter/event updates in bounded batches.
+- SQLite remains WAL. HTTP/API reads use independent read-only/read connections and never acquire the writer's application mutex. Database writer congestion may not block health, controls, or ordinary evidence reads.
+- `/api/health` is control-plane health: HTTP/process responsiveness is returned immediately. Database status is a separately bounded probe and is reported as healthy/busy/failed without turning writer contention into transport RED.
+- Browser polling is split by responsibility. Lightweight health is independent. Job/source/event polling is non-overlapping and preserves last-good state on failure. Placements are never fetched by ordinary Estate/Analyze/Activity polling; they load only when Database or Plan is active.
+- Write amplification is bounded: per-file progress/queue telemetry is coalesced; database commits are batched by record count and/or short time interval rather than one transaction per telemetry mutation.
+- Release qualification must include a deliberately sustained/throttled multi-source scan lasting long enough to exercise queue backpressure while concurrent clients continuously request health/job/sources/events. It must prove bounded health/control latency, continued progress on independent sources, exact final evidence/counter reconciliation, zero lost placements, and zero database errors.

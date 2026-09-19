@@ -446,3 +446,17 @@ Reject SOT taking HTTPS root, creating a separate `:8443` exposure, resetting Se
 Owner evidence showed the schema-8 V8 backend remained GREEN and reachable while the real analysis job stopped producing durable progress after source/worker startup. A one-file fixture plus HTTP health does not qualify the scheduler, database, or sustained multi-source runtime.
 
 **Required replacement:** rebuild the engine from the governed pre-Estate baseline rather than patching the stalled candidate; use a fresh schema/database; qualify sustained multi-source discovery/fingerprinting with hundreds of files, multiple workers, progress on every source, concurrent database reads, exact reconciled counters, zero error events, and responsive health before owner deployment.
+
+
+---
+
+## GY-075 — Global SQLite lock coupling scan workload to HTTP health
+
+**Status:** REJECTED RUNTIME ARCHITECTURE  
+**Decision date:** 2026-09-18
+
+Reject a shared SQLite connection/global application lock used by producers, fingerprint workers, API readers and `/api/health`. The pattern can pass a small concurrency fixture yet make a live backend appear disconnected when real Estate writes and polling contend for the same lock.
+
+Also reject ordinary polling that retrieves the full placements collection while analysis is running, and reject qualification that proves only eventual completion without continuously measuring API/control-plane responsiveness under sustained backpressure.
+
+**Required replacement:** dedicated bounded DB-writer queue/thread with batched transactions; independent WAL readers; health independent of writer lock with bounded DB status probe; placements on-demand only; sustained throttled multi-source qualification with concurrent API probes and explicit latency/progress/reconciliation gates.
