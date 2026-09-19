@@ -16,7 +16,7 @@
     pointer-events:none;color:#fff;text-shadow:0 2px 6px rgba(0,0,0,.65);z-index:5;}
   #hud .score{font-size:28px;font-weight:800;letter-spacing:1px;}
   #hud .best{font-size:13px;font-weight:600;opacity:.85;}
-  #hint{position:fixed;bottom:calc(env(safe-area-inset-bottom,0px) + 14px);left:12px;right:12px;
+  #hint{position:fixed;bottom:calc(env(safe-area-inset-bottom,0px) + 110px);left:12px;right:12px;
     text-align:center;pointer-events:none;color:#eaf6ff;font-size:15px;
     text-shadow:0 2px 6px rgba(0,0,0,.75);z-index:5;}
   #diag{position:fixed;left:6px;bottom:calc(env(safe-area-inset-bottom,0px) + 6px);z-index:6;
@@ -31,6 +31,14 @@
   #overlay p{margin:4px 0;opacity:.9;}
   #overlay .cta{margin-top:16px;font-size:18px;font-weight:700;animation:pulse 1.2s infinite;}
   @keyframes pulse{0%,100%{opacity:1}50%{opacity:.35}}
+  #controls{position:fixed;bottom:calc(env(safe-area-inset-bottom,0px) + 18px);left:0;right:0;
+    display:none;justify-content:space-between;padding:0 18px;pointer-events:none;z-index:10;}
+  .act-btn{pointer-events:auto;width:88px;height:88px;border-radius:50%;border:3px solid rgba(255,255,255,.9);
+    font-weight:900;font-size:12px;color:#fff;text-shadow:0 1px 3px rgba(0,0,0,.7);
+    box-shadow:0 6px 24px rgba(0,0,0,.45);display:flex;align-items:center;justify-content:center;text-align:center;line-height:1.1;}
+  .act-btn.rescue{background:linear-gradient(180deg,#00eaff,#0088aa);}
+  .act-btn.flip{background:linear-gradient(180deg,#ffd700,#ff8c00);}
+  .act-btn:disabled{opacity:.4;transform:scale(.95);}
 </style>
 </head>
 <body>
@@ -45,6 +53,10 @@
   <p id="finalBest"></p>
   <div class="cta">TAP TO RIDE AGAIN</div>
 </div>
+<div id="controls" aria-label="air actions">
+  <button id="btn-rescue" class="act-btn rescue">BOOST<br>RESCUE</button>
+  <button id="btn-flip" class="act-btn flip">360°<br>FLIP</button>
+</div>
 <script>
 (function(){
 "use strict";
@@ -53,7 +65,10 @@ var cvs=document.getElementById('game'),ctx=cvs.getContext('2d');
 var elScore=document.getElementById('score'),elBest=document.getElementById('best'),
     elHint=document.getElementById('hint'),elDiag=document.getElementById('diag'),
     elErr=document.getElementById('err'),elOverlay=document.getElementById('overlay'),
-    elFinal=document.getElementById('finalScore'),elFinalBest=document.getElementById('finalBest');
+    elFinal=document.getElementById('finalScore'),elFinalBest=document.getElementById('finalBest'),
+    elControls=document.getElementById('controls'),
+    btnRescue=document.getElementById('btn-rescue'),
+    btnFlip=document.getElementById('btn-flip');
 
 var W=0,H=0,DPR=1;
 var stars=[],flakes=[];
@@ -70,7 +85,6 @@ var camX=0,camY=0;
 var score=0,best=0,maxPage=0,pageW=800;
 var floaters=[];
 var stuckT=0,diagT=0,diagExtra='',fpsEMA=60,lastT=0,errShown=0;
-var lastTapTime=0;
 var pendingSwitch=null;
 
 var G=900,DRAG=0.10,ROLL=4,VMAX=1400;
@@ -154,15 +168,16 @@ function reset(){
   cart.track=0;cart.s=0;cart.v=0;cart.flip=0;cart.flipAng=0;
   var p=pointAt(0,0);cart.x=p.x;cart.y=p.y;cart.ang=p.ang;
   score=0;maxPage=0;pageW=Math.max(280,W);floaters.length=0;stuckT=0;fall.t=0;pendingSwitch=null;
+  elControls.style.display='none';
   snapCamera();
   elOverlay.style.display='none';
-  setHint('Draw to extend & angle • Tap ON track to release ⛄🛒\nDouble-tap mid-air = 360° flip • Single-tap mid-air = Rescue boost');
+  setHint('Draw to extend & bend • Tap ON track to release ⛄🛒');
 }
 function release(s,trackIdx){
   if(state!==ST.READY)return;
   state=ST.RUN;cart.track=trackIdx||0;cart.s=s;cart.v=2;cart.flip=0;cart.flipAng=0;
   var p=pointAt(cart.track,cart.s);cart.x=p.x;cart.y=p.y;cart.ang=p.ang;
-  setHint('Draw ahead — don\'t run out!');
+  setHint('Draw ahead — keep the cart alive!');
   beep(520);
 }
 function startFallOffTrack(){
@@ -173,29 +188,27 @@ function startFallOffTrack(){
   fall.vx=Math.cos(cart.ang)*cart.v;fall.vy=Math.sin(cart.ang)*cart.v;
   fall.rot=cart.ang;fall.spin=fall.vx>=0?9:-9;fall.t=0;
   hole.x=p.x+(fall.vx>=0?240:-240);hole.y=p.y+130;
-  state=ST.FALL;setHint('DOUBLE = 360 flip • SINGLE = Rescue boost');
+  state=ST.FALL;
+  elControls.style.display='flex';
+  setHint('Tap controls or buttons!');
   beep(160);
 }
 function triggerFlip(){
-  if(cart.flip!==0)return;
+  if(state!==ST.FALL||cart.flip!==0)return;
   cart.flip=1;cart.flipAng=0;diagExtra='360!';
+  beep(420);
 }
 function doAirRescue(){
-  // Big upward boost
+  if(state!==ST.FALL)return;
   fall.vy-=650;
-  // Ensure some forward momentum
   if(Math.abs(fall.vx)<60)fall.vx=80*(Math.random()>0.5?1:-1);
-  // Trigger flip visual
   if(cart.flip===0){cart.flip=1;cart.flipAng=0;}
-  // Create neon cyan rescue track below cart
   var idx=tracks.length;
   var rt=mkTrack();rt.color='#00ffff';rt.rescue=true;tracks.push(rt);
-  // Two points to form a small landing strip angled slightly with velocity
   var ang=Math.atan2(fall.vy,fall.vx);
   var rx=cart.x,ry=cart.y+90;
   addPoint(idx,rx,ry);
   addPoint(idx,rx+Math.cos(ang)*70,ry+Math.sin(ang)*70+30);
-  // Make this the active edit track so user can extend immediately on next drag
   editTrack=idx;
   setHint('RESCUE LINE! Drag to extend it!');
   diagExtra='rescue!';
@@ -207,7 +220,7 @@ function landOnTrack(ti,s){
   cart.track=ti;cart.s=s;cart.x=p.x;cart.y=p.y;cart.ang=p.ang;
   var dot=oldVx*Math.cos(p.ang)+oldVy*Math.sin(p.ang);
   cart.v=Math.min(VMAX,Math.max(-VMAX,dot));
-  state=ST.RUN;stuckT=0;
+  state=ST.RUN;stuckT=0;elControls.style.display='none';
   if(cart.flip===2){
     var bonus=tracks[ti]&&tracks[ti].rescue?500:1000;
     addFloater(cart.x,cart.y-60,'+'+bonus+(tracks[ti]&&tracks[ti].rescue?' RESCUE':' FLIP'),'#ffd700');
@@ -216,7 +229,7 @@ function landOnTrack(ti,s){
   cart.flip=0;cart.flipAng=0;
 }
 function die(){
-  state=ST.SUCK;suck.t=0;suck.scale=1;suck.rot=cart.ang;
+  state=ST.SUCK;suck.t=0;suck.scale=1;suck.rot=cart.ang;elControls.style.display='none';
   beep(140);
 }
 function gameOver(){
@@ -376,7 +389,11 @@ var drawing=false,moved=false,downX=0,downY=0;
 function toWorld(cx,cy){return{x:cx+camX,y:cy+camY};}
 function setHint(s){elHint.textContent=s;}
 
+btnRescue.addEventListener('pointerdown',function(e){e.preventDefault();e.stopPropagation();doAirRescue();});
+btnFlip.addEventListener('pointerdown',function(e){e.preventDefault();e.stopPropagation();triggerFlip();});
+
 window.addEventListener('pointerdown',function(e){
+  if(e.target===btnRescue||e.target===btnFlip)return;
   e.preventDefault(); downX=e.clientX;downY=e.clientY;moved=false;
   if(state===ST.OVER){reset();return;}
   if(state===ST.READY||state===ST.RUN||state===ST.FALL){
@@ -415,17 +432,10 @@ window.addEventListener('pointermove',function(e){
 },{passive:false});
 
 window.addEventListener('pointerup',function(e){
+  if(e.target===btnRescue||e.target===btnFlip)return;
   if(!drawing && state!==ST.FALL)return;
   var wasDrawing=drawing; drawing=false;
-  var now=performance.now();
-  if(state===ST.FALL && !moved){
-    if(now-lastTapTime<300){
-      triggerFlip(); // double tap = 360 for points
-    }else{
-      doAirRescue(); // single tap = rescue boost + cyan line
-    }
-    lastTapTime=now;
-  }else if(state===ST.READY && wasDrawing && !moved){
+  if(state===ST.READY && wasDrawing && !moved){
     var w=toWorld(e.clientX,e.clientY);
     var best=nearestOnAnyTrack(w.x,w.y);
     if(best.d<44){release(best.s,best.track);}
