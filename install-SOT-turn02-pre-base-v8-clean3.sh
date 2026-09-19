@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 set -euo pipefail
-REF="92f582c0382fe7c2d34372a0baed09b7f87235e0"
+REF="627173227b20afe7ee0e061d71c2ce8409b4257c"
 ROOT="$HOME/.sot-turn02/v8-clean3"; BASE="https://raw.githubusercontent.com/acmeproducts/stuff/$REF"
 mkdir -p "$ROOT/SOT" "$HOME/.config/systemd/user" "$HOME/.sot-turn02"
 for f in sot-turn02-v8-clean3-engine.py sot-turn02-v8-clean3-server.py sot-turn02-v8-clean3.service sot-turn02-pre-base-v8.html; do
@@ -11,7 +11,7 @@ python3 - "$ROOT/SOT/sot-turn02-v8-clean3-engine.py" <<'PY'
 import importlib.util,sys,tempfile,time,threading,builtins
 from pathlib import Path
 p=Path(sys.argv[1]);sp=importlib.util.spec_from_file_location("q",p);m=importlib.util.module_from_spec(sp);sys.modules[sp.name]=m;sp.loader.exec_module(m)
-assert m.SCHEMA==10 and m.VERSION=="turn02-pre-base-v8-clean3"
+assert m.SCHEMA==11 and m.VERSION=="turn02-pre-base-v8-clean3"
 real_open=builtins.open
 class Slow:
  def __init__(self,f):self.f=f
@@ -61,8 +61,9 @@ with tempfile.TemporaryDirectory() as td:
  assert lat and max(lat)<.75,(max(lat),len(lat))
  assert not st.writer_error,st.writer_error
  assert not st.rows("SELECT * FROM events WHERE job_id=? AND severity='ERROR'",(jid,))
- assert len(st.rows("SELECT placement_id FROM placements WHERE job_id=?",(jid,)))==1800
+ rows=st.rows("SELECT placement_no,created,modified FROM placements WHERE job_id=? ORDER BY placement_no",(jid,));assert len(rows)==1800;nums=[r["placement_no"] for r in rows];assert len(nums)==len(set(nums)) and nums==sorted(nums);assert all(r["modified"] is not None for r in rows)
  print("PASS saturation 3-source / 1800-file / 6-worker / 4-reader gate")
+ print("PASS immutable unique placement numbers + filesystem timestamps gate")
  print("PASS max concurrent DB read/probe latency %.3fs" % max(lat))
  st.close()
 PY
@@ -70,11 +71,12 @@ install -m 0644 "$ROOT/SOT/sot-turn02-v8-clean3.service" "$HOME/.config/systemd/
 systemctl --user disable --now sot-turn02-v8-clean2.service 2>/dev/null || true
 systemctl --user disable --now sot-turn02-v8-clean.service 2>/dev/null || true
 systemctl --user daemon-reload
-systemctl --user enable --now sot-turn02-v8-clean3.service
+systemctl --user enable sot-turn02-v8-clean3.service >/dev/null
+systemctl --user restart sot-turn02-v8-clean3.service
 for _ in $(seq 1 80); do curl -fsS http://127.0.0.1:8765/api/health >/tmp/sot-health.json 2>/dev/null && break; sleep .25; done
 python3 - <<'PY'
 import json
-x=json.load(open("/tmp/sot-health.json"));assert x["ok"] and x["schema"]==10 and x["process"]=="healthy",x
+x=json.load(open("/tmp/sot-health.json"));assert x["ok"] and x["schema"]==11 and x["process"]=="healthy",x
 print("PASS independent local health",x["version"],"schema",x["schema"],"db",x["db"]["state"])
 PY
 tailscale serve --bg --https=443 --set-path=/sot http://127.0.0.1:8765 >/dev/null
@@ -88,7 +90,7 @@ printf "%s\n" "$SERVE" | grep -F "127.0.0.1:18080" >/dev/null
 printf "%s\n" "$SERVE" | grep -F "127.0.0.1:8765" >/dev/null
 python3 - <<'PY'
 import json
-x=json.load(open("/tmp/sot-https.json"));assert x["ok"] and x["schema"]==10,x
+x=json.load(open("/tmp/sot-https.json"));assert x["ok"] and x["schema"]==11,x
 print("PASS shared-origin /sot HTTPS health")
 PY
 printf 'APP https://acmeproducts.github.io/stuff/SOT/sot-turn02-pre-base-v8.html?v=%s&api=https%%3A%%2F%%2F%s%%2Fsot\n' "$REF" "$DNS"
