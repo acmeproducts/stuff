@@ -21,7 +21,7 @@
     text-shadow:0 2px 6px rgba(0,0,0,.75);z-index:5;}
   #diag{position:fixed;left:6px;bottom:calc(env(safe-area-inset-bottom,0px) + 6px);z-index:6;
     pointer-events:none;font:10px/1.5 ui-monospace,Menlo,monospace;color:#9fd8ff;
-    background:rgba(4,16,32,.55);padding:3px 7px;border-radius:6px;max-width:72vw;white-space:pre;}
+    background:rgba(4,16,32,.55);padding:3px 7px;border-radius:6px;max-width:82vw;white-space:pre;}
   #err{position:fixed;top:0;left:0;right:0;z-index:9;display:none;background:#7a0e0e;color:#fff;
     font:12px/1.4 ui-monospace,monospace;padding:6px 10px;white-space:pre-wrap;}
   #overlay{position:fixed;inset:0;display:none;align-items:center;justify-content:center;
@@ -49,39 +49,33 @@
 (function(){
 "use strict";
 
-// ---- Snowman Coal-Cart Line Rider (per wsl.md Define) ----
-var cvs=document.getElementById('game');
-var ctx=cvs.getContext('2d');
-var elScore=document.getElementById('score'),
-    elBest=document.getElementById('best'),
-    elHint=document.getElementById('hint'),
-    elDiag=document.getElementById('diag'),
-    elErr=document.getElementById('err'),
-    elOverlay=document.getElementById('overlay'),
-    elFinal=document.getElementById('finalScore'),
-    elFinalBest=document.getElementById('finalBest');
+var cvs=document.getElementById('game'),ctx=cvs.getContext('2d');
+var elScore=document.getElementById('score'),elBest=document.getElementById('best'),
+    elHint=document.getElementById('hint'),elDiag=document.getElementById('diag'),
+    elErr=document.getElementById('err'),elOverlay=document.getElementById('overlay'),
+    elFinal=document.getElementById('finalScore'),elFinalBest=document.getElementById('finalBest');
 
 var W=0,H=0,DPR=1;
 var stars=[],flakes=[];
-
 var ST={READY:0,RUN:1,FALL:2,SUCK:3,OVER:4};
 var STNAME=['READY','RUN','FALL','SUCK','OVER'];
 var state=ST.READY;
 
-var pts=[],cum=[],totalLen=0;                 // track polyline + arc lengths
-var cart={s:0,v:0,x:0,y:0,ang:0};            // cart on track (arc-length param)
-var fall={x:0,y:0,vx:0,vy:0,rot:0,spin:0,t:0};
+var tracks=[],editTrack=0; // each track: {pts,cum,totalLen,color}
+var cart={track:0,s:0,v:0,x:0,y:0,ang:0,flip:0,flipAng:0}; // flip:0=none,1=active,2=landed
+var fall={vx:0,vy:0,rot:0,spin:0,t:0};
 var hole={x:0,y:0};
 var suck={t:0,scale:1,rot:0};
 var camX=0,camY=0;
 var score=0,best=0,maxPage=0,pageW=800;
 var floaters=[];
 var stuckT=0,diagT=0,diagExtra='',fpsEMA=60,lastT=0,errShown=0;
+var lastTapTime=0;
+var pendingSwitch=null; // {track,px,py}
 
-var G=900,DRAG=0.10,ROLL=4,VMAX=1400;        // physics constants
+var G=900,DRAG=0.10,ROLL=4,VMAX=1400;
 var AC=null;
 
-// ---------- setup ----------
 function resize(){
   DPR=Math.min(window.devicePixelRatio||1,2);
   W=window.innerWidth;H=window.innerHeight;
@@ -104,88 +98,102 @@ function stepFlakes(dt){
   }
 }
 
-// ---------- track ----------
-function resetTrack(){pts=[];cum=[];totalLen=0;}
-function addPoint(x,y){
-  var n=pts.length;
-  if(n===0){pts.push({x:x,y:y});cum.push(0);return;}
-  var dx=x-pts[n-1].x,dy=y-pts[n-1].y,d=Math.hypot(dx,dy);
-  if(d<8)return;
-  pts.push({x:x,y:y});totalLen+=d;cum.push(totalLen);
+// ---------- track (multi-track) ----------
+function mkTrack(){return{pts:[],cum:[],totalLen:0,color:'#caa06a'};}
+function addPoint(ti,x,y){
+  var tr=tracks[ti]; if(!tr)return;
+  if(tr.pts.length===0){tr.pts.push({x:x,y:y});tr.cum.push(0);return;}
+  var last=tr.pts[tr.pts.length-1],dx=x-last.x,dy=y-last.y,d=Math.hypot(dx,dy);
+  if(d<6)return;
+  tr.pts.push({x:x,y:y});tr.totalLen+=d;tr.cum.push(tr.totalLen);
 }
-function pointAt(s){
-  if(pts.length===0)return{x:0,y:0,ang:0};
-  if(pts.length===1)return{x:pts[0].x,y:pts[0].y,ang:0};
-  var a,b;
-  if(s<=0){a=pts[0];b=pts[1];return{x:a.x,y:a.y,ang:Math.atan2(b.y-a.y,b.x-a.x)};}
-  if(s>=totalLen){a=pts[pts.length-2];b=pts[pts.length-1];return{x:b.x,y:b.y,ang:Math.atan2(b.y-a.y,b.x-a.x)};}
-  var lo=0,hi=cum.length-1;
-  while(lo<hi){var mid=(lo+hi)>>1;if(cum[mid]<s)lo=mid+1;else hi=mid;}
-  var i=Math.max(1,lo),s0=cum[i-1],s1=cum[i];
+function pointAt(ti,s){
+  var tr=tracks[ti]; if(!tr||tr.pts.length===0)return{x:0,y:0,ang:0};
+  if(tr.pts.length===1)return{x:tr.pts[0].x,y:tr.pts[0].y,ang:0};
+  if(s<=0){var a=tr.pts[0],b=tr.pts[1]; return{x:a.x,y:a.y,ang:Math.atan2(b.y-a.y,b.x-a.x)};}
+  if(s>=tr.totalLen){var n=tr.pts.length,a=tr.pts[n-2],b=tr.pts[n-1]; return{x:b.x,y:b.y,ang:Math.atan2(b.y-a.y,b.x-a.x)};}
+  var lo=0,hi=tr.cum.length-1;
+  while(lo<hi){var mid=(lo+hi)>>1;if(tr.cum[mid]<s)lo=mid+1;else hi=mid;}
+  var i=Math.max(1,lo),s0=tr.cum[i-1],s1=tr.cum[i];
   var t=(s-s0)/Math.max(1e-6,s1-s0);
-  var p0=pts[i-1],p1=pts[i];
+  var p0=tr.pts[i-1],p1=tr.pts[i];
   return{x:p0.x+(p1.x-p0.x)*t,y:p0.y+(p1.y-p0.y)*t,ang:Math.atan2(p1.y-p0.y,p1.x-p0.x)};
 }
-function nearestOnTrack(x,y){
-  var bestS=0,bestD=1e9;
-  for(var i=1;i<pts.length;i++){
-    var ax=pts[i-1].x,ay=pts[i-1].y,bx=pts[i].x,by=pts[i].y;
+function nearestOnTrack(ti,x,y){
+  var tr=tracks[ti],bestS=0,bestD=1e9;
+  if(!tr||tr.pts.length<2)return{s:0,d:1e9};
+  for(var i=1;i<tr.pts.length;i++){
+    var ax=tr.pts[i-1].x,ay=tr.pts[i-1].y,bx=tr.pts[i].x,by=tr.pts[i].y;
     var abx=bx-ax,aby=by-ay,len2=abx*abx+aby*aby||1e-9;
     var t=((x-ax)*abx+(y-ay)*aby)/len2;t=Math.max(0,Math.min(1,t));
     var px=ax+abx*t,py=ay+aby*t,d=Math.hypot(x-px,y-py);
-    if(d<bestD){bestD=d;bestS=cum[i-1]+Math.sqrt(len2)*t;}
+    if(d<bestD){bestD=d;bestS=tr.cum[i-1]+Math.sqrt(len2)*t;}
   }
   return{s:bestS,d:bestD};
+}
+function nearestOnAnyTrack(x,y){
+  var best={track:0,s:0,d:1e9},d;
+  for(var i=0;i<tracks.length;i++){
+    var r=nearestOnTrack(i,x,y);
+    if(r.d<best.d){best.track=i;best.s=r.s;best.d=r.d;}
+  }
+  return best;
 }
 
 // ---------- game flow ----------
 function snapCamera(){
-  var e=pts[pts.length-1];
+  var tr=tracks[editTrack],e=tr?tr.pts[tr.pts.length-1]:{x:0,y:0};
   camX=Math.max(-10,e.x-W*0.62);
   camY=e.y-H*0.55;
 }
 function reset(){
-  resetTrack();
+  tracks=[mkTrack()]; editTrack=0;
   var y0=H*0.38;
-  addPoint(70,y0);
-  addPoint(W*0.30,y0+34);
-  addPoint(W*0.50,y0+84);
-  addPoint(W*0.66,y0+104);
+  addPoint(0,70,y0);addPoint(0,W*0.30,y0+34);addPoint(0,W*0.50,y0+84);addPoint(0,W*0.66,y0+104);
   state=ST.READY;
-  cart.s=0;cart.v=0;
-  var p=pointAt(0);cart.x=p.x;cart.y=p.y;cart.ang=p.ang;
-  score=0;maxPage=0;pageW=Math.max(280,W);
-  floaters.length=0;stuckT=0;fall.t=0;
+  cart.track=0;cart.s=0;cart.v=0;cart.flip=0;cart.flipAng=0;
+  var p=pointAt(0,0);cart.x=p.x;cart.y=p.y;cart.ang=p.ang;
+  score=0;maxPage=0;pageW=Math.max(280,W);floaters.length=0;stuckT=0;fall.t=0;pendingSwitch=null;
   snapCamera();
   elOverlay.style.display='none';
-  setHint('Drag to draw & angle the track • Tap ON the track to release ⛄🛒');
+  setHint('Draw to extend & angle • Tap ON the track to release ⛄🛒\nDouble-tap mid-air to 360° flip (1000 pts)');
 }
-function release(s){
-  state=ST.RUN;
-  cart.s=s;cart.v=2;
-  var p=pointAt(s);cart.x=p.x;cart.y=p.y;cart.ang=p.ang;
-  setHint('Draw ahead of the cart — don\'t run out of track!');
+function release(s,trackIdx){
+  if(state!==ST.READY)return;
+  state=ST.RUN;cart.track=trackIdx||0;cart.s=s;cart.v=2;cart.flip=0;cart.flipAng=0;
+  var p=pointAt(cart.track,cart.s);cart.x=p.x;cart.y=p.y;cart.ang=p.ang;
+  setHint('Draw ahead — don\'t run out of track!');
   beep(520);
 }
-function startFall(dir){
-  var p,tx,ty;
-  if(dir===0){                                  // stalled: hole opens below
-    fall.x=cart.x;fall.y=cart.y;fall.vx=0;fall.vy=0;
-  }else{
-    p=pointAt(dir<0?0:totalLen);
-    tx=Math.cos(p.ang);ty=Math.sin(p.ang);
-    fall.x=p.x;fall.y=p.y;
-    fall.vx=tx*cart.v;fall.vy=ty*cart.v;
-    if(dir<0)fall.vx=-Math.abs(fall.vx)-60;
-  }
-  fall.rot=cart.ang;
-  fall.spin=fall.vx>=0?9:-9;
-  fall.t=0;
-  if(dir===0){hole.x=fall.x;hole.y=fall.y+160;}
-  else{hole.x=fall.x+(fall.vx>=0?1:-1)*240;hole.y=fall.y+130;}
-  state=ST.FALL;
-  setHint('');
+function startFallOffTrack(){
+  var p,tr=tracks[cart.track];if(!tr)return;
+  if(cart.s>=tr.totalLen-0.5){p=pointAt(cart.track,tr.totalLen);}
+  else if(cart.s<=0.5){p=pointAt(cart.track,0);}
+  else{p={x:cart.x,y:cart.y,ang:cart.ang};}
+  fall.vx=Math.cos(cart.ang)*cart.v;fall.vy=Math.sin(cart.ang)*cart.v;
+  fall.rot=cart.ang;fall.spin=fall.vx>=0?9:-9;fall.t=0;
+  hole.x=p.x+(fall.vx>=0?240:-240);hole.y=p.y+130;
+  state=ST.FALL;setHint('Double-tap to flip!');
   beep(160);
+}
+function triggerFlip(){
+  if(state!==ST.FALL||cart.flip!==0)return;
+  cart.flip=1;cart.flipAng=0;diagExtra='flip!';
+}
+function landOnTrack(ti,s){
+  var oldVx=fall.vx,oldVy=fall.vy;
+  var p=pointAt(ti,s);
+  cart.track=ti;cart.s=s;cart.x=p.x;cart.y=p.y;cart.ang=p.ang;
+  var dot=oldVx*Math.cos(p.ang)+oldVy*Math.sin(p.ang);
+  cart.v=Math.min(VMAX,Math.max(-VMAX,dot));
+  state=ST.RUN;stuckT=0;
+  // Award flip bonus
+  if(cart.flip===2){addFloater(cart.x,cart.y-60,'+1000 FLIP','#ffd700');score+=1000;beep(1100);}
+  cart.flip=0;cart.flipAng=0;
+}
+function die(){
+  state=ST.SUCK;suck.t=0;suck.scale=1;suck.rot=cart.ang;
+  beep(140);
 }
 function gameOver(){
   state=ST.OVER;
@@ -196,46 +204,58 @@ function gameOver(){
   setHint('');
 }
 
-// ---------- update ----------
+// ---------- physics ----------
 function update(dt){
-  if(state===ST.RUN){
-    var p0=pointAt(cart.s);
-    var acc=G*Math.sin(p0.ang)-DRAG*cart.v-(cart.v>0?ROLL:(cart.v<0?-ROLL:0));
-    cart.v+=acc*dt;
-    if(cart.v>VMAX)cart.v=VMAX;else if(cart.v<-900)cart.v=-900;
-    cart.s+=cart.v*dt;
-    var p=pointAt(cart.s);
-    cart.x=p.x;cart.y=p.y;cart.ang=p.ang;
-    var page=Math.floor(cart.x/pageW);
-    if(page>maxPage){maxPage=page;score+=100;addFloater(cart.x,cart.y-46,'+100','#8cff5a');beep(880);}
-    if(cart.s>=totalLen-0.5&&cart.v>0)startFall(1);
-    else if(cart.s<=0.5&&cart.v<0)startFall(-1);
-    else if(Math.abs(cart.v)<4&&Math.abs(G*Math.sin(p.ang))<40){stuckT+=dt;if(stuckT>1.4)startFall(0);}
-    else stuckT=0;
-  }else if(state===ST.FALL){
-    fall.t+=dt;fall.vy+=G*dt;
-    fall.x+=fall.vx*dt;fall.y+=fall.vy*dt;fall.rot+=fall.spin*dt;
-    cart.x=fall.x;cart.y=fall.y;cart.ang=fall.rot;
-    if(fall.t>0.9||Math.hypot(hole.x-fall.x,hole.y-fall.y)<70){state=ST.SUCK;suck.t=0;suck.scale=1;suck.rot=fall.rot;}
-  }else if(state===ST.SUCK){
-    suck.t+=dt;
-    var dx=hole.x-cart.x,dy=hole.y-cart.y,d=Math.hypot(dx,dy)||1;
-    var pull=280+suck.t*1000;
-    cart.x+=dx/d*pull*dt;cart.y+=dy/d*pull*dt;
-    suck.rot+=13*dt;cart.ang=suck.rot;
-    suck.scale=Math.max(0,1-suck.t*1.6);
-    if(suck.t>0.7||suck.scale<=0.02)gameOver();
-  }
-  // camera
+  // Camera target calc
   var tx,ty;
   if(state===ST.READY){
-    var e=pts.length?pts[pts.length-1]:{x:0,y:0};
+    var tr=tracks[editTrack];var e=tr?tr.pts[tr.pts.length-1]:{x:0,y:0};
     tx=Math.max(-10,e.x-W*0.62);ty=e.y-H*0.55;
   }else{
     tx=cart.x-W*0.32;ty=cart.y-H*0.55;
   }
-  var k=Math.min(1,dt*4);
-  camX+=(tx-camX)*k;camY+=(ty-camY)*k;
+  var k=Math.min(1,dt*4); camX+=(tx-camX)*k; camY+=(ty-camY)*k;
+
+  if(state===ST.RUN){
+    var tr=tracks[cart.track];
+    if(!tr||tr.pts.length<2){startFallOffTrack();return;}
+    var p0=pointAt(cart.track,cart.s);
+    var acc=G*Math.sin(p0.ang)-DRAG*cart.v-(cart.v>0?ROLL:(cart.v<0?-ROLL:0));
+    cart.v+=acc*dt;
+    if(cart.v>VMAX)cart.v=VMAX; else if(cart.v<-VMAX)cart.v=-VMAX;
+    cart.s+=cart.v*dt;
+    // Check off end
+    if(cart.s>=tr.totalLen-0.5&&cart.v>0){startFallOffTrack();return;}
+    if(cart.s<=0.5&&cart.v<0){startFallOffTrack();return;}
+    var p=pointAt(cart.track,cart.s);cart.x=p.x;cart.y=p.y;cart.ang=p.ang;
+    // Pages
+    var page=Math.floor(cart.x/pageW);
+    if(page>maxPage){maxPage=page;score+=100;addFloater(cart.x,cart.y-46,'+100','#8cff5a');beep(880);}
+    // Stuck detection
+    if(Math.abs(cart.v)<4&&Math.abs(G*Math.sin(p.ang))<40){stuckT+=dt;if(stuckT>1.4)startFallOffTrack();}
+    else stuckT=0;
+  }else if(state===ST.FALL){
+    fall.t+=dt;
+    // Flip rotation
+    if(cart.flip===1){cart.flipAng+=(Math.PI*2)/0.4*dt; if(cart.flipAng>=Math.PI*2){cart.flip=2;cart.flipAng=Math.PI*2;}}
+    // Physics
+    fall.vy+=G*dt; fall.vx*=0.999;
+    cart.x+=fall.vx*dt; cart.y+=fall.vy*dt;
+    cart.ang+=fall.spin*dt;
+    // Land on any track
+    var land=nearestOnAnyTrack(cart.x,cart.y);
+    if(land.d<22 && land.d<Math.abs(fall.vy)*0.05+8){landOnTrack(land.track,land.s);return;}
+    // Death by floor (y too low) or timeout
+    if(cart.y>Math.max(H,camY+H)+200||fall.t>5.0){hole.x=cart.x;hole.y=cart.y+160;die();}
+  }else if(state===ST.SUCK){
+    suck.t+=dt;
+    var dx=hole.x-cart.x,dy=hole.y-cart.y,d=Math.hypot(dx,dy)||1;
+    var pull=280+suck.t*1000;
+    cart.x+=dx/d*pull*dt; cart.y+=dy/d*pull*dt;
+    suck.rot+=13*dt; cart.ang=suck.rot;
+    suck.scale=Math.max(0,1-suck.t*1.6);
+    if(suck.t>0.7||suck.scale<=0.02)gameOver();
+  }
 }
 
 // ---------- draw ----------
@@ -251,41 +271,47 @@ function draw(){
   }
   ctx.globalAlpha=1;
   ctx.save();ctx.translate(-camX,-camY);
-  drawTrack();
+  // Tracks
+  for(var ti=0;ti<tracks.length;ti++)drawTrack(ti);
   drawEndMarker();
   if(state===ST.READY)drawTapHint();
-  if(state===ST.RUN||state===ST.FALL||state===ST.SUCK)
-    drawCart(cart.x,cart.y,cart.ang,state===ST.SUCK?suck.scale:1);
+  // Cart
+  var scl=(state===ST.SUCK)?suck.scale:1;
+  var flipOffset=(state===ST.FALL&&cart.flip>0)?cart.flipAng:0;
+  drawCart(cart.x,cart.y,cart.ang+flipOffset,scl);
+  // Hole
   if(state===ST.FALL||state===ST.SUCK||state===ST.OVER)drawHole();
+  // Floaters
   for(i=0;i<floaters.length;i++){var f=floaters[i];
     ctx.globalAlpha=Math.max(0,1-f.t/1.4);
     ctx.fillStyle=f.color;ctx.font='bold 22px system-ui,sans-serif';
     ctx.textAlign='center';ctx.textBaseline='middle';
     ctx.fillText(f.text,f.x,f.y-34*f.t);
   }
-  ctx.globalAlpha=1;
-  ctx.restore();
+  ctx.globalAlpha=1;ctx.restore();
+  // Snow
   ctx.fillStyle='rgba(255,255,255,.85)';
   for(i=0;i<flakes.length;i++){ctx.beginPath();ctx.arc(flakes[i].x,flakes[i].y,1.6,0,7);ctx.fill();}
 }
-function drawTrack(){
-  if(pts.length<2)return;
+function drawTrack(ti){
+  var tr=tracks[ti];if(!tr||tr.pts.length<2)return;
   ctx.lineCap='round';ctx.lineJoin='round';
-  ctx.beginPath();ctx.moveTo(pts[0].x,pts[0].y);
-  for(var i=1;i<pts.length;i++)ctx.lineTo(pts[i].x,pts[i].y);
+  ctx.beginPath();ctx.moveTo(tr.pts[0].x,tr.pts[0].y);
+  for(var i=1;i<tr.pts.length;i++)ctx.lineTo(tr.pts[i].x,tr.pts[i].y);
   ctx.strokeStyle='#5b3a1a';ctx.lineWidth=7;ctx.stroke();
-  ctx.strokeStyle='#caa06a';ctx.lineWidth=3;ctx.stroke();
+  ctx.strokeStyle=tr.color;ctx.lineWidth=3;ctx.stroke();
 }
 function drawEndMarker(){
   if(state!==ST.READY&&state!==ST.RUN)return;
-  var e=pts[pts.length-1],t=performance.now()/300;
+  var tr=tracks[editTrack];if(!tr||!tr.pts.length)return;
+  var e=tr.pts[tr.pts.length-1],t=performance.now()/300;
   ctx.beginPath();ctx.arc(e.x,e.y,6+Math.sin(t)*2,0,7);
   ctx.fillStyle='rgba(255,220,120,.9)';ctx.fill();
 }
 function drawTapHint(){
-  if(pts.length<2)return;
-  var p=pointAt(Math.min(totalLen*0.2,120));
-  var b=Math.sin(performance.now()/280)*5;
+  var tr=tracks[0];if(!tr||tr.pts.length<2)return;
+  var s=Math.min(tr.totalLen*0.2,120);
+  var p=pointAt(0,s),b=Math.sin(performance.now()/280)*5;
   ctx.font='26px system-ui,sans-serif';ctx.textAlign='center';ctx.textBaseline='bottom';
   ctx.globalAlpha=0.9;ctx.fillText('👆',p.x,p.y-26+b);ctx.globalAlpha=1;
 }
@@ -305,19 +331,19 @@ function drawCart(x,y,ang,scale){
   ctx.restore();
 }
 function drawHole(){
-  var t=performance.now()/1000,i,a0;
+  var t=performance.now()/1000;
   var grd=ctx.createRadialGradient(hole.x,hole.y,4,hole.x,hole.y,60);
   grd.addColorStop(0,'rgba(0,0,0,1)');
   grd.addColorStop(0.55,'rgba(40,0,60,.9)');
   grd.addColorStop(1,'rgba(120,60,255,0)');
   ctx.fillStyle=grd;ctx.beginPath();ctx.arc(hole.x,hole.y,60,0,7);ctx.fill();
   ctx.strokeStyle='rgba(170,110,255,.85)';ctx.lineWidth=3;
-  for(i=0;i<3;i++){a0=t*3+i*2.1;ctx.beginPath();ctx.arc(hole.x,hole.y,30+i*9,a0,a0+2.2);ctx.stroke();}
+  for(var i=0;i<3;i++){var a0=t*3+i*2.1;ctx.beginPath();ctx.arc(hole.x,hole.y,30+i*9,a0,a0+2.2);ctx.stroke();}
   ctx.fillStyle='#000';ctx.beginPath();ctx.arc(hole.x,hole.y,20,0,7);ctx.fill();
 }
 function addFloater(x,y,text,color){floaters.push({x:x,y:y,text:text,color:color||'#fff',t:0});}
 
-// ---------- audio (tiny, non-fatal) ----------
+// ---------- audio ----------
 function beep(f){
   try{
     if(!AC){var Ctx=window.AudioContext||window.webkitAudioContext;if(!Ctx)return;AC=new Ctx();}
@@ -328,7 +354,7 @@ function beep(f){
     g.gain.exponentialRampToValueAtTime(0.001,AC.currentTime+0.18);
     o.connect(g);g.connect(AC.destination);
     o.start();o.stop(AC.currentTime+0.2);
-  }catch(e){diagExtra='audio-off';}
+  }catch(e){}
 }
 
 // ---------- input ----------
@@ -337,43 +363,85 @@ function toWorld(cx,cy){return{x:cx+camX,y:cy+camY};}
 function setHint(s){elHint.textContent=s;}
 
 window.addEventListener('pointerdown',function(e){
-  e.preventDefault();
-  downX=e.clientX;downY=e.clientY;moved=false;
+  e.preventDefault(); downX=e.clientX;downY=e.clientY;moved=false;
   if(state===ST.OVER){reset();return;}
-  if(state===ST.READY||state===ST.RUN)drawing=true;
+  // Double-tap detection handled in pointerup
+  if(state===ST.READY||state===ST.RUN||state===ST.FALL){
+    var w=toWorld(e.clientX,e.clientY);
+    // Rollback line switch: if rolling back, click below cart => start new track
+    if(state===ST.RUN&&cart.v<-5&&w.y>cart.y+30){
+      tracks.push(mkTrack());
+      editTrack=tracks.length-1;
+      addPoint(editTrack,w.x,w.y);
+      // Remember for auto-switch once segment has direction
+      pendingSwitch={track:editTrack,px:w.x,py:w.y};
+      drawing=true;return;
+    }
+    // Normal draw (extend current editTrack)
+    // If clicking near endpoint of current editTrack, continue it; otherwise start new?
+    // For simplicity, always extend editTrack unless we just created one above.
+    if(!pendingSwitch){
+      // If click far from current endpoint, maybe start fresh track? Keep simple: always edit current.
+    }
+    drawing=true;
+  }
 },{passive:false});
+
 window.addEventListener('pointermove',function(e){
-  if(!drawing)return;
-  e.preventDefault();
+  if(!drawing)return;e.preventDefault();
   if(!moved&&Math.hypot(e.clientX-downX,e.clientY-downY)>12)moved=true;
-  if(moved){var w=toWorld(e.clientX,e.clientY);addPoint(w.x,w.y);}
+  if(moved){
+    var w=toWorld(e.clientX,e.clientY);
+    addPoint(editTrack,w.x,w.y);
+    // Auto-switch if pending and now have direction
+    if(pendingSwitch&&tracks[pendingSwitch.track].pts.length>=2){
+      var tr=tracks[pendingSwitch.track];
+      var dx=cart.x-pendingSwitch.px,dy=cart.y-pendingSwitch.py;
+      if(Math.hypot(dx,dy)<80){
+        // Project current world velocity onto new track tangent
+        var vx0=Math.cos(cart.ang)*cart.v, vy0=Math.sin(cart.ang)*cart.v;
+        var ang1=Math.atan2(tr.pts[1].y-tr.pts[0].y,tr.pts[1].x-tr.pts[0].x);
+        var dot=vx0*Math.cos(ang1)+vy0*Math.sin(ang1);
+        cart.track=pendingSwitch.track;cart.s=0;cart.ang=ang1;cart.v=Math.min(VMAX,Math.max(-VMAX,dot));
+        var p=pointAt(cart.track,0);cart.x=p.x;cart.y=p.y;
+        tr.color='#8cff5a'; // highlight switched track
+      }
+      pendingSwitch=null;
+    }
+  }
 },{passive:false});
+
 window.addEventListener('pointerup',function(e){
-  if(!drawing)return;
-  drawing=false;
+  if(!drawing)return; drawing=false;
+  var now=performance.now();
+  if(state===ST.FALL&&!moved){
+    if(now-lastTapTime<300){triggerFlip();}
+    lastTapTime=now;
+  }
   if(state===ST.READY&&!moved){
     var w=toWorld(e.clientX,e.clientY);
-    var r=nearestOnTrack(w.x,w.y);
-    if(r.d<44)release(r.s);
-    else addFloater(w.x,w.y,'tap ON the line to release','#ffd76a');
+    var best=nearestOnAnyTrack(w.x,w.y);
+    if(best.d<44){release(best.s,best.track);}
+    else{addFloater(w.x,w.y,'tap ON the line','#ffd76a');}
   }
 });
 window.addEventListener('pointercancel',function(){drawing=false;});
 document.addEventListener('gesturestart',function(e){e.preventDefault();});
 
-// ---------- diagnostics (in-app only) ----------
-window.addEventListener('error',function(e){
+// ---------- diag ----------
+window.addEventListener('error',function(ev){
   elErr.style.display='block';
-  elErr.textContent='ERROR: '+(e.message||e.type)+(e.lineno?(' @'+e.lineno):'');
+  elErr.textContent='ERROR: '+(ev.message||ev.type)+(ev.lineno?(' @'+ev.lineno):'');
 });
 function updateDiag(dt){
-  diagT+=dt;if(diagT<0.2)return;diagT=0;
+  diagT+=dt;if(diagT<0.25)return;diagT=0;
+  var cinfo='track '+cart.track+'/'+tracks.length;
   elDiag.textContent='state '+STNAME[state]+' | fps '+Math.round(fpsEMA)+
-    ' | v '+Math.round(cart.v)+'px/s | pts '+pts.length+' | len '+Math.round(totalLen)+
-    ' | page '+maxPage+(diagExtra?' | '+diagExtra:'');
+    ' | v '+Math.round(cart.v)+' | '+cinfo+
+    ' | page '+maxPage+(cart.flip===1?' | FLIPPING':'')+(diagExtra?' | '+diagExtra:'');
 }
 
-// ---------- main loop ----------
+// ---------- loop ----------
 function frame(t){
   requestAnimationFrame(frame);
   try{
@@ -382,24 +450,18 @@ function frame(t){
     fpsEMA=fpsEMA*0.95+(1/dt)*0.05;
     stepFlakes(dt);
     for(var i=floaters.length-1;i>=0;i--){floaters[i].t+=dt;if(floaters[i].t>1.4)floaters.splice(i,1);}
-    update(dt);
-    draw();
-    elScore.textContent=score;
-    elBest.textContent='BEST '+best;
+    update(dt); draw();
+    elScore.textContent=score; elBest.textContent='BEST '+best;
     updateDiag(dt);
   }catch(err){
-    var now=performance.now();
-    if(now-errShown>1000){errShown=now;elErr.style.display='block';
-      elErr.textContent='ERROR: '+(err&&err.message?err.message:err);}
+    var n=performance.now();
+    if(n-errShown>1000){errShown=n;elErr.style.display='block';elErr.textContent='ERROR: '+(err&&err.message?err.message:err);}
   }
 }
-
-try{best=parseInt(localStorage.getItem('scl_best')||'0',10)||0;}catch(e){diagExtra='no-storage';}
+try{best=parseInt(localStorage.getItem('scl_best')||'0',10)||0;}catch(e){}
 window.addEventListener('resize',resize);
 window.addEventListener('orientationchange',function(){setTimeout(resize,200);});
-resize();
-reset();
-requestAnimationFrame(frame);
+resize();reset();requestAnimationFrame(frame);
 })();
 </script>
 </body>
