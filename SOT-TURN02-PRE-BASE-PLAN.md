@@ -298,3 +298,13 @@ Stage chain remains `pre-base → base → pre-ship → ship → post-ship`. Bef
 The owner explicitly authorizes a narrow exception to Turn 02 read-only scope for a manually selected Database viewer file. The viewer may offer Trash. The backend must resolve only a placement ID already present in SOT evidence; arbitrary paths remain prohibited. First attempt the device/host Trash or Recycle Bin. Only when trash is unavailable may permanent deletion be offered, and it requires a second explicit in-app warning/confirmation stating that the file will be permanently deleted. After successful filesystem removal, remove that placement from the active SOT evidence database and record a durable deletion event. No bulk, automatic, inferred, plan-driven, or background deletion is authorized by this exception.
 
 Database Omnisearch is a local cached interaction after placement retrieval: wildcard/filter keystrokes must not round-trip to GitHub or the WSL backend. The Database tab and all subtabs must have unmistakable selected state. Omnisearch includes a visible × clear control and high-contrast white query text. File viewer uses × close, centered previous/next navigation, persistent draggable/resizable geometry, and the explicit Trash action above.
+
+
+## 32. Database local evidence workbench and future tags contract — binding (2026-09-19)
+- Database placement evidence is cached persistently in browser local storage after retrieval. Ordinary query, sort, column resize, viewer navigation and tab navigation do not fetch GitHub or round-trip to the WSL backend. Backend refresh is explicit/controlled; the cache survives reloads.
+- Omnisearch has draft text distinct from the applied query. A query executes only with Go or Enter. The draft/applied term remains visible after execution. × clears both and restores the unfiltered cached result set immediately.
+- A # helper beside Go opens a column selector. Each entry is prefixed # and inserts the corresponding field qualifier into Omnisearch, following the established search-helper interaction used in the referenced UI pattern.
+- Every Database column header is both a persistent resize target and a primary sort toggle. Header click sorts ascending/descending and shows a caret. Resize interaction must not trigger sort.
+- Filename text copies the filename to clipboard. Filename is not the viewer hyperlink. The separate diagonal-arrow control launches the SOT viewer.
+- Viewer position and size persist across close/open and reload, constrained back into the current viewport when necessary.
+- Placement evidence includes a JSON-array-compatible `tags` field initialized to `[]`. Tags are schema groundwork only in this release; tag editing/filter UX is deferred to the next governed release.

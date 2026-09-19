@@ -471,3 +471,14 @@ Also reject ordinary polling that retrieves the full placements collection while
 Do not perform a network/GitHub round trip per Omnisearch keystroke, rerender thousands of rows per keystroke without a display bound, use low-contrast query text, omit a clear-search control, or leave active tabs visually ambiguous. Do not expose arbitrary-path, bulk, automatic, one-click permanent, or plan-driven file deletion.
 
 **Required replacement:** cache placement evidence in the browser session and filter locally; bound rendered search rows while retaining the complete match set for export; provide visible × clear and strong active-tab state. A viewer Trash action is placement-ID-only, attempts device Trash/Recycle Bin first, requires a second explicit warning before permanent deletion fallback, removes the placement from SOT only after filesystem success, and logs the action durably.
+
+
+---
+
+## GY-077 — Ephemeral evidence cache, live-keystroke query execution, and overloaded filename action
+**Status:** REJECTED OWNER UX PATTERN  
+**Decision date:** 2026-09-19
+
+Reject session-only evidence caching, automatic query execution/rerender on every keystroke, disappearing query text, non-sortable/non-resizable evidence headers, filename-as-viewer-link behavior, and viewer geometry that resets.
+
+**Required replacement:** persistent browser-local placement cache; explicit Go/Enter query execution with stable draft/applied query and × reset; # field-selector helper; persistent resize plus ascending/descending primary sort on every visible Database column; filename click copies and separate ↗ launches viewer; viewer geometry persists. Add the dormant per-placement tags array contract now, with tag UX deferred to the next release.

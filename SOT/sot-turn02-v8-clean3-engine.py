@@ -15,7 +15,9 @@ CREATE TABLE IF NOT EXISTS events(event_id INTEGER PRIMARY KEY AUTOINCREMENT,ts 
 class Store:
  def __init__(self,path=DB_DEFAULT,batch_size=200,batch_ms=.20):
   self.path=Path(path);self.path.parent.mkdir(parents=True,exist_ok=True);self.batch_size=batch_size;self.batch_ms=batch_ms
-  c=sqlite3.connect(self.path,timeout=30);c.executescript(DDL);c.execute("INSERT OR REPLACE INTO meta(k,v) VALUES('schema',?)",(str(SCHEMA),));c.commit();c.close()
+  c=sqlite3.connect(self.path,timeout=30);c.executescript(DDL);cols={r[1] for r in c.execute("PRAGMA table_info(placements)")};
+  if "tags" not in cols:c.execute("ALTER TABLE placements ADD COLUMN tags TEXT NOT NULL DEFAULT '[]'")
+  c.execute("INSERT OR REPLACE INTO meta(k,v) VALUES('schema',?)",(str(SCHEMA),));c.commit();c.close()
   self.q=queue.Queue(maxsize=8192);self.stop=threading.Event();self.writer_error=None
   self.t=threading.Thread(target=self._writer,name="sot-db-writer",daemon=True);self.t.start()
  def _connect(self,ro=False):
