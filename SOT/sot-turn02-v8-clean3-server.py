@@ -76,6 +76,26 @@ class H(BaseHTTPRequestHandler):
    p=self.path.split("?",1)[0];b=self.body()
    if p=="/api/sources":return self.sendj({"ok":True,"source_id":M.add_source(b["label"],b["root"],b.get("failure_domain",b["root"]),b.get("role","primary"),b.get("estate"))})
    if p=="/api/job/start":return self.sendj({"ok":True,"job_id":M.start(b.get("source_ids"))})
+   if p=="/api/file/delete":
+    pid=b.get("id","");mode=b.get("mode","trash");r=S.rows("SELECT placement_id,path,filename,availability FROM placements WHERE placement_id=?",(pid,))
+    if not r:return self.sendj({"ok":False,"error":"placement not found"},404)
+    z=r[0];fp=Path(z["path"]).resolve()
+    if z["availability"]!="AVAILABLE" or not fp.is_file():return self.sendj({"ok":False,"error":"file unavailable"},404)
+    trashed=False
+    if mode=="trash":
+     try:
+      if "microsoft" in os.uname().release.lower() and str(fp).startswith("/mnt/"):
+       wp=subprocess.check_output(["wslpath","-w",str(fp)],text=True).strip();ps="/mnt/c/Windows/System32/WindowsPowerShell/v1.0/powershell.exe"
+       cmd="Add-Type -AssemblyName Microsoft.VisualBasic; [Microsoft.VisualBasic.FileIO.FileSystem]::DeleteFile($args[0],'OnlyErrorDialogs','SendToRecycleBin')"
+       subprocess.check_call([ps,"-NoProfile","-Command",cmd,wp],stdout=subprocess.DEVNULL,stderr=subprocess.DEVNULL);trashed=True
+      elif subprocess.call(["sh","-lc","command -v gio >/dev/null 2>&1"])==0:
+       subprocess.check_call(["gio","trash",str(fp)],stdout=subprocess.DEVNULL,stderr=subprocess.DEVNULL);trashed=True
+     except Exception:trashed=False
+     if not trashed:return self.sendj({"ok":True,"needs_permanent":True})
+    elif mode=="permanent":fp.unlink()
+    else:return self.sendj({"ok":False,"error":"bad delete mode"},400)
+    S.submit("DELETE FROM placements WHERE placement_id=?",(pid,),True);M.event("placement_deleted",("Moved to trash: " if mode=="trash" else "Permanently deleted: ")+z["filename"],None,None,"INFO",{"placement_id":pid,"mode":mode})
+    return self.sendj({"ok":True,"message":"Moved to trash and removed from SOT" if mode=="trash" else "Permanently deleted and removed from SOT"})
    if p=="/api/file/open":
     pid=b.get("id","");r=S.rows("SELECT path,availability FROM placements WHERE placement_id=?",(pid,))
     if not r:return self.sendj({"ok":False,"error":"placement not found"},404)

@@ -460,3 +460,14 @@ Reject a shared SQLite connection/global application lock used by producers, fin
 Also reject ordinary polling that retrieves the full placements collection while analysis is running, and reject qualification that proves only eventual completion without continuously measuring API/control-plane responsiveness under sustained backpressure.
 
 **Required replacement:** dedicated bounded DB-writer queue/thread with batched transactions; independent WAL readers; health independent of writer lock with bounded DB status probe; placements on-demand only; sustained throttled multi-source qualification with concurrent API probes and explicit latency/progress/reconciliation gates.
+
+
+---
+
+## GY-076 — Remote-per-keystroke evidence search, ambiguous selected tabs, and unguarded file deletion
+**Status:** REJECTED OWNER UX / FILE-ACTION PATTERN  
+**Decision date:** 2026-09-19
+
+Do not perform a network/GitHub round trip per Omnisearch keystroke, rerender thousands of rows per keystroke without a display bound, use low-contrast query text, omit a clear-search control, or leave active tabs visually ambiguous. Do not expose arbitrary-path, bulk, automatic, one-click permanent, or plan-driven file deletion.
+
+**Required replacement:** cache placement evidence in the browser session and filter locally; bound rendered search rows while retaining the complete match set for export; provide visible × clear and strong active-tab state. A viewer Trash action is placement-ID-only, attempts device Trash/Recycle Bin first, requires a second explicit warning before permanent deletion fallback, removes the placement from SOT only after filesystem success, and logs the action durably.
