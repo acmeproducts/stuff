@@ -83,7 +83,8 @@ class Store:
 class Manager:
  def __init__(self,store,workers=8,queue_capacity=128,stall_seconds=30):
   self.s=store;self.workers=workers;self.capacity=queue_capacity;self.stall=stall_seconds;self.runs={};self.lock=threading.RLock();
-  now=time.time();self.s.submit("UPDATE jobs SET state='INTERRUPTED',ended=?,control='INTERRUPTED' WHERE state IN ('RUNNING','PAUSED','STOPPING')",(now,),True);self.s.submit("UPDATE job_sources SET state='INTERRUPTED',active_workers=0,queue_depth=0 WHERE state IN ('RUNNING','PAUSED','STOPPING')",(),True)self.seq_lock=threading.Lock();self.next_no=(self.s.rows("SELECT COALESCE(MAX(placement_no),0)+1 n FROM placements")[0]["n"])
+  now=time.time();self.s.submit("UPDATE jobs SET state='INTERRUPTED',ended=?,control='INTERRUPTED' WHERE state IN ('RUNNING','PAUSED','STOPPING')",(now,),True);self.s.submit("UPDATE job_sources SET state='INTERRUPTED',active_workers=0,queue_depth=0 WHERE state IN ('RUNNING','PAUSED','STOPPING')",(),True)
+  self.seq_lock=threading.Lock();self.next_no=(self.s.rows("SELECT COALESCE(MAX(placement_no),0)+1 n FROM placements")[0]["n"])
  def alloc_no(self):
   with self.seq_lock:
    n=self.next_no;self.next_no+=1;return n
