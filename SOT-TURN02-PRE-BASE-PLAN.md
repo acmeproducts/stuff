@@ -323,3 +323,19 @@ TARGET means the authoritative live Single Source of Truth repository. Once TARG
 This Turn 02 candidate does not copy or land files and does not configure TARGET. Its Plan surface therefore shows current unique-content/byte totals, source placements grouped by Estate, all current source material as IN PLAY, TARGET as NOT CONFIGURED, and the next-phase lifecycle contract. It must not emit thousands of meaningless KEEP rows.
 
 TARGET backup/replication is deliberately outside this landing contract for now. A future ancillary SSOT Backup Manager may consume the SSOT catalog to manage backup policy, replicas, failure domains and protection health without coupling those concerns to source→TARGET consolidation.
+
+
+## 35. Configuration-owned TARGET and staged AI capability — binding (2026-09-19)
+TARGET is infrastructure configuration, not a top-level workflow tab. TARGET configuration lives behind the gear with backend/connection settings. It identifies the intended authoritative SSOT repository root. Configuring TARGET does not authorize landing, movement, deletion, archival, or retention actions. Future TARGET browsing/creation must use the same governed storage-authority semantics as Estate selection and must reject overlap/unsafe roots where applicable.
+
+The gear also owns AI provider configuration. Follow the established Devstream configuration pattern: provider credentials and model selection are configuration concerns, not Plan controls. Initial supported provider configuration is Venice.ai, OpenRouter, and optional Anthropic; model lists for Venice/OpenRouter are loaded from their provider APIs and the selected model is persisted with the credential configuration. No AI inference is activated merely by storing configuration.
+
+### Future governed AI enhancement
+AI is advisory and evidence-bound. It may consume read-only SOT catalog, duplicate/xref, Estate composition, TARGET landing/verification state, disposition policy, tags and Activity evidence to produce:
+- a concise Plan analysis explaining what is currently in play, what is landed and verified, and what remains;
+- current-vs-landed summaries by Estate, content type, size, age, duplicate group and disposition state;
+- Estate composition insights, concentrations, anomalies and high-value review candidates;
+- suggested tags and tag groupings for placements/content objects;
+- explanations of proposed source dispositions and retention implications.
+
+AI output never changes fingerprints, evidence, TARGET verification, placement identity, tags, retention, disposition, or files automatically. Suggested tags remain proposals until owner acceptance. AI may summarize and recommend, but deterministic evidence/policy gates remain authoritative for whether content is landed/verified and whether destructive action is eligible. Every AI analysis records provider/model, evidence revision/snapshot, prompt contract, timestamp and resulting Markdown so conclusions remain reproducible/auditable against the evidence used.
