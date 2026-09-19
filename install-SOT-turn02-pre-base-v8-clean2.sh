@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 set -euo pipefail
-REF="3da8cbd03cd37467143ba8bc7753413687b2c0d8"
+REF="f6550a9efaefe7b43da95115b4f233335d30f541"
 ROOT="$HOME/.sot-turn02/v8-clean2"; BASE="https://raw.githubusercontent.com/acmeproducts/stuff/$REF"
 mkdir -p "$ROOT/SOT" "$HOME/.config/systemd/user" "$HOME/.sot-turn02"
 for f in sot-turn02-v8-clean2-engine.py sot-turn02-v8-clean2-server.py; do curl -fsSL "$BASE/SOT/$f" -o "$ROOT/SOT/$f"; done
