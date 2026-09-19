@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 set -euo pipefail
-REF="6dd110c0b9048809e7dc3c1352b612c252d3a0b2"
+REF="4bfcb6b71d394990ed00ef665cef321264d453f2"
 ROOT="$HOME/.sot-turn02/v8-clean"
 BASE="https://raw.githubusercontent.com/acmeproducts/stuff/$REF"
 mkdir -p "$ROOT/SOT" "$HOME/.config/systemd/user" "$HOME/.sot-turn02"
@@ -50,7 +50,7 @@ systemctl --user disable --now sot-turn02-v8-recovery.service 2>/dev/null || tru
 systemctl --user disable --now sot-turn02-v8.service 2>/dev/null || true
 systemctl --user disable --now sot-turn02-v7.service 2>/dev/null || true
 pkill -f 'sot-turn02-.*server.py' 2>/dev/null || true
-echo '=== RESTORING OPENCLAW ROOT / ISOLATING SOT ==='
+echo '=== PRESERVING OPENCLAW ACCESS PLANE / ADDING SOT PATH ==='
 systemctl --user daemon-reload
 systemctl --user enable --now sot-turn02-v8-clean.service
 for _ in $(seq 1 60); do curl -fsS http://127.0.0.1:8765/api/health >/tmp/sot-v8-health.json 2>/dev/null && break; sleep .25; done
@@ -59,13 +59,19 @@ import json
 x=json.load(open('/tmp/sot-v8-health.json'));assert x['ok'] and x['schema']==8 and x['version']=='turn02-pre-base-v8',x
 print('PASS backend',x['version'],'schema',x['schema'])
 PY
-tailscale serve --bg --https=443 http://127.0.0.1:18789 >/dev/null
-tailscale serve --bg --https=8443 http://127.0.0.1:8765 >/dev/null
+BEFORE_SERVE="$(tailscale serve status 2>&1 || true)"
+tailscale serve --bg --https=443 /sot http://127.0.0.1:8765 >/dev/null
 DNS="$(tailscale status --json | python3 -c 'import json,sys;print(json.load(sys.stdin)["Self"]["DNSName"].rstrip("."))')"
-for _ in $(seq 1 40); do curl -fsS "https://$DNS:8443/api/health" >/tmp/sot-v8-https.json 2>/dev/null && break; sleep .25; done
+for _ in $(seq 1 40); do curl -fsS "https://$DNS/sot/api/health" >/tmp/sot-v8-https.json 2>/dev/null && break; sleep .25; done
+curl -fsS --max-time 8 "https://$DNS/" >/dev/null
+curl -fsS --max-time 8 "https://$DNS/report/" >/dev/null
+AFTER_SERVE="$(tailscale serve status 2>&1 || true)"
+printf "%s\n" "$AFTER_SERVE" | grep -F "127.0.0.1:18789" >/dev/null
+printf "%s\n" "$AFTER_SERVE" | grep -F "127.0.0.1:18080" >/dev/null
+printf "%s\n" "$AFTER_SERVE" | grep -F "127.0.0.1:8765" >/dev/null
 python3 - <<'PY'
 import json
 x=json.load(open('/tmp/sot-v8-https.json'));assert x['ok'] and x['schema']==8 and x['version']=='turn02-pre-base-v8',x
-print('PASS isolated HTTPS backend',x['version'],'schema',x['schema'])
+print('PASS shared-origin /sot HTTPS backend',x['version'],'schema',x['schema'])
 PY
-printf 'APP https://acmeproducts.github.io/stuff/SOT/sot-turn02-pre-base-v8.html?v=%s&api=https%%3A%%2F%%2F%s%%3A8443\\n' "$REF" "$DNS"
+printf 'APP https://acmeproducts.github.io/stuff/SOT/sot-turn02-pre-base-v8.html?v=%s&api=https%%3A%%2F%%2F%s%%2Fsot\n' "$REF" "$DNS"
