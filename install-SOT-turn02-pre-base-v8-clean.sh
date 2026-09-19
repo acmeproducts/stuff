@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 set -euo pipefail
-REF="a20919866d36a38e81359016a0b27c05dcb127ef"
+REF="826fa5ed747dc3aee27cd235be229ab2e95c0670"
 ROOT="$HOME/.sot-turn02/v8-clean"
 BASE="https://raw.githubusercontent.com/acmeproducts/stuff/$REF"
 mkdir -p "$ROOT/SOT" "$HOME/.config/systemd/user" "$HOME/.sot-turn02"
@@ -60,7 +60,7 @@ x=json.load(open('/tmp/sot-v8-health.json'));assert x['ok'] and x['schema']==8 a
 print('PASS backend',x['version'],'schema',x['schema'])
 PY
 BEFORE_SERVE="$(tailscale serve status 2>&1 || true)"
-tailscale serve --bg --https=443 /sot http://127.0.0.1:8765 >/dev/null
+tailscale serve --bg --https=443 --set-path=/sot http://127.0.0.1:8765 >/dev/null
 DNS="$(tailscale status --json | python3 -c 'import json,sys;print(json.load(sys.stdin)["Self"]["DNSName"].rstrip("."))')"
 for _ in $(seq 1 40); do curl -fsS "https://$DNS/sot/api/health" >/tmp/sot-v8-https.json 2>/dev/null && break; sleep .25; done
 curl -fsS --max-time 8 "https://$DNS/" >/dev/null
