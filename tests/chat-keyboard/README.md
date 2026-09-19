@@ -32,14 +32,14 @@ to exercise the correction flow, not to measure real-finger recognition accuracy
 - Discard obsolete suggestions after editing, clearing, sending, closing, or handoff.
 - Commit visible composition before typed Send; prevent cleared text reappearing.
 - Ignore obsolete asynchronous Japanese conversions.
-- Identify the candidate build as `keyboard-r1-20260919` in diagnostics and
+- Identify the candidate build as `english-swipe-20260919` in diagnostics and
   `document.documentElement.dataset.chatBuild`.
 
 Production `chat.html`, admin, recognition scoring, and speech implementation are
-unchanged. This release does not claim next-word prediction, Thai swipe support,
-or a completed multilingual keyboard. Those remain subsequent plan stages.
+unchanged. English next-word prediction uses the existing bigram model in a separate row.
+Thai swipe support and the complete multilingual rollout remain subsequent stages.
 
-## Device acceptance before promotion
+## Maintainer device coverage
 
 Run on the exact candidate build after it is made available for device testing:
 
@@ -56,3 +56,7 @@ Run on the exact candidate build after it is made available for device testing:
 
 Record build ID, device/browser, side, and failures. Do not call speech/device
 acceptance complete based on this automated suite.
+
+## English gesture and prediction tests
+
+Run `node tests/chat-keyboard/english.cjs` from the repository root after installing Playwright. Uses the real dict/en.json and dict/bigram-en.json assets. Drives actual pointer handlers on North and South through 20 words each, checks chained predictions and stale prediction rejection. Deterministic gestures are a regression sample, not a claim of real-world accuracy. Screenshot output is ignored by git.

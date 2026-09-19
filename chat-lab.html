@@ -73,6 +73,8 @@ body{display:flex;flex-direction:column}
 .klang{font-size:11px;font-weight:700;color:#64748b;padding:2px 4px 4px}
 .kcands{display:none;gap:5px;overflow-x:auto;padding:0 4px 5px;flex:0 0 auto;min-height:36px;align-items:center}
 .kcands::-webkit-scrollbar{display:none}
+.kpredictions{display:none;gap:5px;padding:0 4px 5px;flex:0 0 auto;min-height:36px}
+.kpredictions .kcand{flex:1;min-width:0;text-align:center;border-color:#3b82f6}
 .kcand{flex:0 0 auto;padding:7px 12px;border-radius:9px;border:1px solid rgba(203,213,225,.9);background:#fff;font-size:16px;min-height:36px}
 .kcand.on{background:linear-gradient(135deg,rgba(96,165,250,.95),rgba(59,130,246,.95));color:#fff;border-color:transparent}
 .krow{display:flex;gap:6px;margin-bottom:6px}
@@ -1327,7 +1329,8 @@ function dgLangParam(room) {
     var editRev={south:0,north:0},conversionRev={south:0,north:0};
     var candidateTxn={south:null,north:null},compAnchor={south:null,north:null};
     var pendingConversion={south:null,north:null},undoEdit={south:null,north:null};
-    var CHAT_BUILD='keyboard-r1-20260919';
+    var predictionTxn={south:null,north:null};
+    var CHAT_BUILD='english-swipe-20260919';
     var UNDO_LABEL={en:'Undo',th:'เลิกทำ',es:'Deshacer',fr:'Annuler',de:'Rückgängig',
         it:'Annulla',pt:'Desfazer',nl:'Ongedaan maken',sv:'Ångra',pl:'Cofnij',tr:'Geri al',
         ru:'Отменить',ar:'تراجع',hi:'पूर्ववत करें',vi:'Hoàn tác',id:'Urungkan',ms:'Buat asal',
@@ -1347,6 +1350,7 @@ function dgLangParam(room) {
     function invalidateCandidates(side){
         conversionRev[side]++;pendingConversion[side]=null;
         candidateTxn[side]=null;cands[side]=[];candIdx[side]=-1;
+        predictionTxn[side]=null;paintPredictions(side);
         paintCands(side);
     }
     function changedDraft(side){
@@ -1378,6 +1382,9 @@ function dgLangParam(room) {
         if(compAnchor[side]&&!compositionMatches(side))resetComposition(side);
         var transaction=candidateTxn[side];
         if(transaction&&!snapshotMatches(side,transaction.snapshot))invalidateCandidates(side);
+        if(predictionTxn[side]&&!snapshotMatches(side,predictionTxn[side].snapshot)){
+            predictionTxn[side]=null;paintPredictions(side);
+        }
         if(pendingConversion[side]&&!snapshotMatches(side,pendingConversion[side]))invalidateCandidates(side);
         if(undoEdit[side]&&!snapshotMatches(side,undoEdit[side].after)){
             undoEdit[side]=null;paintCands(side);
@@ -1397,6 +1404,7 @@ function dgLangParam(room) {
         var el=kbEl(side);if(!el)return;
         renderKeys(side);
         el.classList.add('open');
+        updateAutocomplete(side);
         var inp=document.getElementById('in-'+side);
         if(inp){try{inp.focus({preventScroll:true})}catch(e){}}
     }
@@ -1612,9 +1620,9 @@ function dgLangParam(room) {
 
             if(wasSwype){
                 swype.active=false;
-                remoteLog('swype_attempt',{side:side,pts:swype.pts.length,letters:swype.letters.join('')});
+                remoteLog('swype_attempt',{side:side,pts:swype.pts.length});
                 if(swype.pts.length>=4&&swype.letters.length>=2){haptic(HAPTIC_TAP);resolveSwype(side)}
-                else remoteLog('swype_too_short',{pts:swype.pts.length,letters:swype.letters.length});
+                else remoteLog('swype_too_short',{pts:swype.pts.length});
                 swype.pts=[];swype.letters=[];clearTrail(side);
             }else if(downBtn){
                 press(side,downBtn.dataset.k);           // plain tap — fires on release, same as before
@@ -1765,10 +1773,9 @@ function dgLangParam(room) {
         var dict=getDict(langOf(side));if(!dict){remoteLog('swype_no_dict',{side:side,lang:langOf(side)});return}
         var rects=keyRectsFor(side);
         var top=swRecognize(swype.pts,rects,dict,lmMap(langOf(side),prevWordFor(side)));
-        if(!top.length){remoteLog('swype_no_match',{pts:swype.pts.length,letters:swype.letters.join(''),
-            prev:prevWordFor(side),gate:SW_GATE,dict:dict.length,lm:!!getBigram(langOf(side))});return}
-        remoteLog('swype_resolved',{letters:swype.letters.join(''),top:top.slice(0,5),
-            prev:prevWordFor(side),lm:!!getBigram(langOf(side))});
+        if(!top.length){remoteLog('swype_no_match',{pts:swype.pts.length,
+            gate:SW_GATE,dict:dict.length,lm:!!getBigram(langOf(side))});return}
+        remoteLog('swype_resolved',{candidates:top.length,lm:!!getBigram(langOf(side))});
         haptic(HAPTIC_RESOLVE);
         var ta=inputEl(side),start=ta.selectionStart,end=ta.selectionEnd;
         if(start===end){
@@ -1779,6 +1786,7 @@ function dgLangParam(room) {
         if(ta.value.charAt(end)===' ')end++;
         ta.setSelectionRange(start,end);insertAt(side,top[0]+' ');
         offerCandidates(side,top.slice(1,5),'swipe',start,inputEl(side).selectionStart);
+        updatePredictions(side);
     }
     /* Track A: real autocomplete, reading the SAME asset chat-admin's download
        button writes (duck_dict_<lang> in localStorage). No dictionary = no
@@ -1808,8 +1816,9 @@ function dgLangParam(room) {
         if(!dict){invalidateCandidates(side);return}
         var ta=inputEl(side);
         var frag=currentWordFragment(side);
+        if(!frag){invalidateCandidates(side);updatePredictions(side);return}
         // A completion must not leave the unselected suffix of a word behind.
-        if(!frag||frag.length<2||ta.selectionStart!==ta.selectionEnd||/^\S/.test(ta.value.slice(ta.selectionEnd))){invalidateCandidates(side);return}
+        if(frag.length<(lang==='en'?1:2)||ta.selectionStart!==ta.selectionEnd||/^\S/.test(ta.value.slice(ta.selectionEnd))){invalidateCandidates(side);return}
         var lower=frag.toLowerCase();
         var out=[];
         for(var i=0;i<dict.length&&out.length<5;i++){
@@ -1823,6 +1832,44 @@ function dgLangParam(room) {
         if(c.ko)return hgSyll(c.ko);
         if(c.kana||c.raw)return c.kana+romajiTail(c.raw);
         return '';
+    }
+    // Next words are separate from swipe alternatives: one inserts, the other replaces.
+    function updatePredictions(side){
+        var ta=inputEl(side);
+        predictionTxn[side]=null;
+        if(langOf(side)==='en'&&getBigram('en')&&INPUT.owner===side&&INPUT.mode==='kb'&&
+            ta.selectionStart===ta.selectionEnd&&!currentWordFragment(side)&&
+            !/^\S/.test(ta.value.slice(ta.selectionEnd))){
+            var before=ta.value.slice(0,ta.selectionStart),sentence=!before.trim()||/[.!?]\s*$/.test(before);
+            var words=before.toLowerCase().match(/[a-z]+(?:'[a-z]+)?/g)||[];
+            var prior=lmMap('en',sentence?'':words[words.length-1]);
+            if(!Object.keys(prior).length)prior=lmMap('en','');
+            var next=Object.keys(prior).sort(function(a,b){return prior[a]-prior[b]});
+            predictionTxn[side]={snapshot:editorSnapshot(side),words:next.slice(0,3).map(function(w){
+                return sentence?w.charAt(0).toUpperCase()+w.slice(1):w==='i'?'I':w;
+            })};
+        }
+        paintPredictions(side);
+    }
+    function paintPredictions(side){
+        var kb=kbEl(side);if(!kb)return;
+        var bar=kb.querySelector('.kpredictions');
+        if(!bar){bar=document.createElement('div');bar.className='kpredictions';
+            bar.setAttribute('aria-label','Next word predictions');
+            kb.querySelector('.kcands').after(bar);}
+        bar.replaceChildren();var transaction=predictionTxn[side];
+        bar.style.display=transaction&&transaction.words.length?'flex':'none';
+        if(!transaction)return;
+        transaction.words.forEach(function(word){
+            var button=document.createElement('button');button.type='button';button.className='kcand';
+            button.textContent=word;button.setAttribute('aria-label','Next word: '+word);
+            button.addEventListener('pointerdown',function(e){e.preventDefault()});
+            button.addEventListener('click',function(){
+                if(predictionTxn[side]!==transaction||INPUT.owner!==side||INPUT.mode!=='kb'||
+                    !snapshotMatches(side,transaction.snapshot))return;
+                insertAt(side,word+' ');updatePredictions(side);
+            });bar.appendChild(button);
+        });
     }
     function paintCands(side){
         var bar=kbEl(side)&&kbEl(side).querySelector('.kcands');if(!bar)return;
@@ -1912,6 +1959,7 @@ function dgLangParam(room) {
                 snapshotMatches(side,candidateTxn[side].snapshot);
             flushComp(side);
             if(!acceptedSwipe)insertAt(side,' ');
+            updateAutocomplete(side);
             return;
         }
         var prevLen=compText(side).length;
@@ -1956,7 +2004,7 @@ function dgLangParam(room) {
         resetComposition(side);
         ta.setSelectionRange(transaction.start,end);
         insertAt(side,c+separator);
-        undoEdit[side]={before:before,after:editorSnapshot(side)};paintCands(side);
+        undoEdit[side]={before:before,after:editorSnapshot(side)};paintCands(side);updatePredictions(side);
     }
     function convertJa(side){
         var kana=romajiToKana(comp[side].raw);
@@ -2127,6 +2175,8 @@ function dgLangParam(room) {
                     if(!Array.isArray(words)||words.length<100)return;
                     try{localStorage.setItem('duck_dict_'+lang,text)}catch(e){return}
                     delete dictCache[lang];
+                    lmMemo={};
+                    if(INPUT.owner&&INPUT.mode==='kb')updateAutocomplete(INPUT.owner);
                     diag('dict '+lang+' updated: '+words.length+' words');
                     toastMsg((LANG_NAMES[lang]||lang)+' dictionary: '+words.length+' words');
                 }).catch(function(e){diag('dict '+lang+' fetch failed: '+e.message,true)});
@@ -2137,6 +2187,7 @@ function dgLangParam(room) {
                 .then(function(bg){
                     if(!bg||typeof bg!=='object')return;
                     bgCache[lang]=bg;lmMemo={};
+                    if(INPUT.owner&&INPUT.mode==='kb')updatePredictions(INPUT.owner);
                     diag('swipe prior '+lang+': '+Object.keys(bg).length+' contexts');
                 }).catch(function(e){diag('swipe prior '+lang+' unavailable ('+e.message+') — shape only')});
         });
