@@ -37,7 +37,20 @@ class H(BaseHTTPRequestHandler):
     if not r:return self.sendj({"ok":False,"error":"placement not found"},404)
     fp=Path(r[0]["path"]).resolve()
     if r[0]["availability"]!="AVAILABLE" or not fp.is_file():return self.sendj({"ok":False,"error":"file unavailable"},404)
-    mime=mimetypes.guess_type(str(fp))[0] or "application/octet-stream";data=fp.read_bytes();self.send_response(200);self.send_header("Content-Type",mime);self.send_header("Content-Length",str(len(data)));self.send_header("Content-Disposition","inline");self.send_header("Access-Control-Allow-Origin","*");self.send_header("Cache-Control","no-store");self.end_headers();self.wfile.write(data);return
+    mime=mimetypes.guess_type(str(fp))[0] or "application/octet-stream";size=fp.stat().st_size;start=0;end=size-1;status=200
+    rh=self.headers.get("Range")
+    if rh and rh.startswith("bytes="):
+     a,b=rh[6:].split("-",1);start=int(a or 0);end=min(int(b) if b else end,end);status=206
+    length=end-start+1;self.send_response(status);self.send_header("Content-Type",mime);self.send_header("Accept-Ranges","bytes");self.send_header("Content-Length",str(length));self.send_header("Content-Disposition","inline");self.send_header("Access-Control-Allow-Origin","*");self.send_header("Cache-Control","no-store")
+    if status==206:self.send_header("Content-Range",f"bytes {start}-{end}/{size}")
+    self.end_headers()
+    with fp.open("rb") as f:
+     f.seek(start);left=length
+     while left:
+      chunk=f.read(min(1048576,left))
+      if not chunk:break
+      self.wfile.write(chunk);left-=len(chunk)
+    return
    if p=="/api/volumes":
     vols=[{"label":"WSL","path":"/"}]
     for base in ("/mnt","/media"):
@@ -69,7 +82,9 @@ class H(BaseHTTPRequestHandler):
     fp=Path(r[0]["path"]).resolve()
     if r[0]["availability"]!="AVAILABLE" or not fp.is_file():return self.sendj({"ok":False,"error":"file unavailable"},404)
     if os.name=="nt":os.startfile(str(fp))
-    elif "microsoft" in os.uname().release.lower() and Path("/mnt/c/Windows/explorer.exe").exists():subprocess.Popen(["/mnt/c/Windows/explorer.exe",str(fp)])
+    elif "microsoft" in os.uname().release.lower():
+     wp=subprocess.check_output(["wslpath","-w",str(fp)],text=True).strip()
+     subprocess.Popen(["/mnt/c/Windows/System32/cmd.exe","/c","start","",wp],stdout=subprocess.DEVNULL,stderr=subprocess.DEVNULL)
     else:subprocess.Popen(["xdg-open",str(fp)],stdout=subprocess.DEVNULL,stderr=subprocess.DEVNULL)
     return self.sendj({"ok":True,"message":"Open requested"})
    if p.startswith("/api/job/") and p.rsplit("/",1)[-1] in ("pause","resume","stop"):
