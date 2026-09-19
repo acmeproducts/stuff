@@ -103,7 +103,7 @@ class Manager:
   if old:raise RuntimeError("job already active")
   rev=(self.s.rows("SELECT COALESCE(MAX(revision),0)+1 n FROM jobs")[0]["n"]);jid=uuid.uuid4().hex;now=time.time()
   self.s.submit("INSERT INTO jobs(job_id,revision,state,created,started,last_progress) VALUES(?,?,'RUNNING',?,?,?)",(jid,rev,now,now,now),True)
-  rt={"queues":{x["source_id"]:queue.Queue(self.capacity) for x in src},"done":set(),"stop":threading.Event(),"pause":threading.Event(),"rr":0,"sched":threading.Lock(),"src":{x["source_id"]:x for x in src}}
+  rt={"queues":{x["source_id"]:queue.Queue(self.capacity) for x in src},"done":set(),"stop":threading.Event(),"pause":threading.Event(),"rr":0,"sched":threading.Lock(),"src":{x["source_id"]:x for x in src},"activity":{}}
   self.runs[jid]=rt
   for x in src:self.s.submit("INSERT INTO job_sources(job_id,source_id,state,producer_state,queue_capacity,last_progress) VALUES(?,?,'RUNNING','RUNNING',?,?)",(jid,x["source_id"],self.capacity,now))
   self.event("job_started","Analysis started",jid)
@@ -153,7 +153,7 @@ class Manager:
     with rt["sched"]:finished=len(rt["done"])==len(rt["queues"])
     if finished and all(x.empty() for x in rt["queues"].values()):break
     time.sleep(.01);continue
-   pid,p,size=w;now=time.time()
+   pid,p,size=w;now=time.time();rt["activity"][n]={"worker":n,"placement_id":pid,"path":p,"filename":Path(p).name,"size":size,"bytes":0,"source_id":sid,"updated":now}
    try:
     self.s.submit("UPDATE placements SET lifecycle='IN_PROCESS' WHERE placement_id=?",(pid,))
     self.s.submit("UPDATE job_sources SET active_workers=active_workers+1,current_file=?,last_progress=? WHERE job_id=? AND source_id=?",(Path(p).name,now,jid,sid))
@@ -162,13 +162,13 @@ class Manager:
      while True:
       b=f.read(1024*1024)
       if not b:break
-      h.update(b)
-    fp=h.hexdigest();now=time.time()
+      h.update(b);a=rt["activity"].get(n);a and a.update(bytes=min(size,a["bytes"]+len(b)),updated=time.time())
+    fp=h.hexdigest();now=time.time();rt["activity"].pop(n,None)
     self.s.submit("UPDATE placements SET fingerprint=?,content_id=?,lifecycle='HASHED',last_verified=? WHERE placement_id=?",(fp,fp,now,pid))
     self.s.submit("UPDATE job_sources SET hashed_files=hashed_files+1,hashed_bytes=hashed_bytes+?,active_workers=MAX(active_workers-1,0),last_progress=? WHERE job_id=? AND source_id=?",(size,now,jid,sid))
     self.s.submit("UPDATE jobs SET last_progress=? WHERE job_id=?",(now,jid))
    except Exception as e:
-    now=time.time();self.s.submit("UPDATE placements SET availability='ERROR',error_detail=?,last_verified=? WHERE placement_id=?",(str(e),now,pid));self.s.submit("UPDATE job_sources SET errors=errors+1,active_workers=MAX(active_workers-1,0),last_progress=? WHERE job_id=? AND source_id=?",(now,jid,sid));self.event("fingerprint_error",str(e),jid,sid,"ERROR")
+    rt["activity"].pop(n,None);now=time.time();self.s.submit("UPDATE placements SET availability='ERROR',error_detail=?,last_verified=? WHERE placement_id=?",(str(e),now,pid));self.s.submit("UPDATE job_sources SET errors=errors+1,active_workers=MAX(active_workers-1,0),last_progress=? WHERE job_id=? AND source_id=?",(now,jid,sid));self.event("fingerprint_error",str(e),jid,sid,"ERROR")
    finally:q.task_done()
   self.event("worker_stopped",f"Fingerprint worker {n} stopped",jid)
  def _supervise(self,jid,rev,rt):
@@ -203,4 +203,4 @@ class Manager:
   ss=self.s.rows("SELECT js.*,s.label,s.root,s.estate,s.failure_domain,s.role FROM job_sources js JOIN sources s USING(source_id) WHERE js.job_id=? ORDER BY s.label",(jid,))
   m=self.s.rows("SELECT COUNT(*) discovered_files,COALESCE(SUM(size),0) discovered_bytes,SUM(CASE WHEN fingerprint IS NOT NULL THEN 1 ELSE 0 END) hashed_files,COALESCE(SUM(CASE WHEN fingerprint IS NOT NULL THEN size ELSE 0 END),0) hashed_bytes,SUM(CASE WHEN plan='REVIEW' THEN 1 ELSE 0 END) review_count,0 reclaimable_bytes FROM placements WHERE job_id=?",(jid,))[0]
   ev=self.s.rows("SELECT * FROM events WHERE job_id=? ORDER BY event_id DESC LIMIT 100",(jid,))
-  return {"job":j[0],"sources":ss,"metrics":m,"events":ev}
+  return {"job":j[0],"sources":ss,"metrics":m,"events":ev,"activity":list(self.runs.get(jid,{}).get("activity",{}).values())}
