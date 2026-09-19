@@ -308,3 +308,18 @@ Database Omnisearch is a local cached interaction after placement retrieval: wil
 - Filename text copies the filename to clipboard. Filename is not the viewer hyperlink. The separate diagonal-arrow control launches the SOT viewer.
 - Viewer position and size persist across close/open and reload, constrained back into the current viewport when necessary.
 - Placement evidence includes a JSON-array-compatible `tags` field initialized to `[]`. Tags are schema groundwork only in this release; tag editing/filter UX is deferred to the next governed release.
+
+
+## 33. Authoritative current placement catalog — binding (2026-09-19)
+Placement identity is no longer job/revision scoped. The durable physical placement identity is deterministic from source identity + full path. A subsequent scan of the same physical placement updates the same catalog row and preserves its immutable placement number. Job/revision remains scan-history evidence, not placement identity. Existing historical duplicate observations are collapsed in place to the newest observation per source/path during migration. If size and modified timestamp are unchanged and a valid fingerprint already exists, the fingerprint is reused and counted as verified evidence for the new scan; changed or incomplete evidence is rehashed. Database exposes the authoritative current placement catalog, not stacked historical revision rows.
+
+This section supersedes the conflicting sentence in §19 that declared placement identity job/revision scoped.
+
+## 34. SSOT landing-plan model — binding (2026-09-19)
+The former row-by-row KEEP/REVIEW consolidation list is retired. Plan now represents readiness for the next phase: SOURCE → IN PLAY → LAND IN TARGET → VERIFY TARGET → SOURCE DISPOSITION. Until a content object has been physically landed in TARGET and independently fingerprint-verified there, every source placement remains IN PLAY and is ineligible for destructive disposition.
+
+TARGET means the authoritative live Single Source of Truth repository. Once TARGET is independently verified byte-identical, each source placement may later receive one explicit disposition: KEEP, COLD STORAGE, ARCHIVE, or DELETE. ARCHIVE carries retention policy and may optionally allow auto-delete at expiry, but expiry alone can never authorize deletion: a currently verified TARGET placement remains a prerequisite. If TARGET later becomes missing or fingerprint-invalid, pending destructive source disposition becomes ineligible and the source returns to IN PLAY.
+
+This Turn 02 candidate does not copy or land files and does not configure TARGET. Its Plan surface therefore shows current unique-content/byte totals, source placements grouped by Estate, all current source material as IN PLAY, TARGET as NOT CONFIGURED, and the next-phase lifecycle contract. It must not emit thousands of meaningless KEEP rows.
+
+TARGET backup/replication is deliberately outside this landing contract for now. A future ancillary SSOT Backup Manager may consume the SSOT catalog to manage backup policy, replicas, failure domains and protection health without coupling those concerns to source→TARGET consolidation.

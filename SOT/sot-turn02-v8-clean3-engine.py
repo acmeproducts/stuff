@@ -17,6 +17,17 @@ class Store:
   self.path=Path(path);self.path.parent.mkdir(parents=True,exist_ok=True);self.batch_size=batch_size;self.batch_ms=batch_ms
   c=sqlite3.connect(self.path,timeout=30);c.executescript(DDL);cols={r[1] for r in c.execute("PRAGMA table_info(placements)")};
   if "tags" not in cols:c.execute("ALTER TABLE placements ADD COLUMN tags TEXT NOT NULL DEFAULT '[]'")
+  # One current placement per physical source/path. Collapse historical job-scoped observations in place.
+  rows=c.execute("SELECT placement_id,placement_no,source_id,path,revision,fingerprint,lifecycle FROM placements ORDER BY source_id,path,revision DESC,placement_no DESC").fetchall()
+  seen=set()
+  for old_id,pno,sid,path,rev,fp,life in rows:
+   key=(sid,path)
+   if key in seen:c.execute("DELETE FROM placements WHERE placement_id=?",(old_id,));continue
+   seen.add(key);stable=hashlib.sha256((sid+"\\0"+path).encode()).hexdigest()
+   if stable!=old_id:
+    c.execute("DELETE FROM placements WHERE placement_id=? AND placement_id<>?",(stable,old_id))
+    c.execute("UPDATE placements SET placement_id=? WHERE placement_id=?",(stable,old_id))
+  c.execute("CREATE UNIQUE INDEX IF NOT EXISTS idx_place_source_path ON placements(source_id,path)")
   c.execute("INSERT OR REPLACE INTO meta(k,v) VALUES('schema',?)",(str(SCHEMA),));c.commit();c.close()
   self.q=queue.Queue(maxsize=8192);self.stop=threading.Event();self.writer_error=None
   self.t=threading.Thread(target=self._writer,name="sot-db-writer",daemon=True);self.t.start()
@@ -138,13 +149,22 @@ class Manager:
      try:
       st=os.stat(p,follow_symlinks=False)
       if not os.path.isfile(p):continue
-      pid=hashlib.sha256((jid+"\0"+sid+"\0"+p).encode()).hexdigest();pno=self.alloc_no();now=time.time();created=self.created_time(p,st)
-      self.s.submit("INSERT INTO placements(placement_id,placement_no,job_id,revision,source_id,estate,path,filename,extension,size,created,modified,scanned_at,lifecycle,role,last_verified) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?, 'NONE',?,?)",(pid,pno,jid,rev,sid,src["estate"],p,name,Path(name).suffix.lower(),st.st_size,created,st.st_mtime,now,src["role"],now))
-      self.s.submit("UPDATE job_sources SET discovered_files=discovered_files+1,discovered_bytes=discovered_bytes+?,current_folder=?,current_file=?,last_progress=? WHERE job_id=? AND source_id=?",(st.st_size,root,name,now,jid,sid))
-      q.put((pid,p,st.st_size));self.s.submit("UPDATE jobs SET last_progress=? WHERE job_id=?",(now,jid))
+      pid=hashlib.sha256((sid+"\0"+p).encode()).hexdigest();now=time.time();created=self.created_time(p,st)
+      old=self.s.rows("SELECT placement_no,size,modified,fingerprint,content_id FROM placements WHERE placement_id=?",(pid,))
+      unchanged=bool(old and old[0]["fingerprint"] and old[0]["size"]==st.st_size and old[0]["modified"]==st.st_mtime)
+      if old:
+       self.s.submit("UPDATE placements SET job_id=?,revision=?,estate=?,filename=?,extension=?,size=?,created=COALESCE(?,created),modified=?,scanned_at=?,lifecycle=?,plan=NULL,rationale=NULL,availability='AVAILABLE',error_detail=NULL,role=?,last_verified=? WHERE placement_id=?",(jid,rev,src["estate"],name,Path(name).suffix.lower(),st.st_size,created,st.st_mtime,now,'HASHED' if unchanged else 'NONE',src["role"],now,pid))
+       if not unchanged:self.s.submit("UPDATE placements SET fingerprint=NULL,content_id=NULL,duplicate_group=NULL,duplicate_cardinality=NULL WHERE placement_id=?",(pid,))
+      else:
+       pno=self.alloc_no();self.s.submit("INSERT INTO placements(placement_id,placement_no,job_id,revision,source_id,estate,path,filename,extension,size,created,modified,scanned_at,lifecycle,role,last_verified) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?, 'NONE',?,?)",(pid,pno,jid,rev,sid,src["estate"],p,name,Path(name).suffix.lower(),st.st_size,created,st.st_mtime,now,src["role"],now))
+      self.s.submit("UPDATE job_sources SET discovered_files=discovered_files+1,discovered_bytes=discovered_bytes+?,hashed_files=hashed_files+?,hashed_bytes=hashed_bytes+?,current_folder=?,current_file=?,last_progress=? WHERE job_id=? AND source_id=?",(st.st_size,1 if unchanged else 0,st.st_size if unchanged else 0,root,name,now,jid,sid))
+      if not unchanged:q.put((pid,p,st.st_size))
+      self.s.submit("UPDATE jobs SET last_progress=? WHERE job_id=?",(now,jid))
      except Exception as e:
-      now=time.time();pid=hashlib.sha256((jid+"\0"+sid+"\0"+p).encode()).hexdigest();pno=self.alloc_no()
-      self.s.submit("INSERT OR IGNORE INTO placements(placement_id,placement_no,job_id,revision,source_id,estate,path,filename,extension,scanned_at,lifecycle,availability,error_detail,role,last_verified) VALUES(?,?,?,?,?,?,?,?,?,?,'NONE','ERROR',?,?,?)",(pid,pno,jid,rev,sid,src["estate"],p,name,Path(name).suffix.lower(),now,str(e),src["role"],now))
+      now=time.time();pid=hashlib.sha256((sid+"\0"+p).encode()).hexdigest();old=self.s.rows("SELECT placement_no FROM placements WHERE placement_id=?",(pid,))
+      if old:self.s.submit("UPDATE placements SET job_id=?,revision=?,estate=?,filename=?,extension=?,scanned_at=?,lifecycle='NONE',availability='ERROR',error_detail=?,role=?,last_verified=? WHERE placement_id=?",(jid,rev,src["estate"],name,Path(name).suffix.lower(),now,str(e),src["role"],now,pid))
+      else:
+       pno=self.alloc_no();self.s.submit("INSERT INTO placements(placement_id,placement_no,job_id,revision,source_id,estate,path,filename,extension,scanned_at,lifecycle,availability,error_detail,role,last_verified) VALUES(?,?,?,?,?,?,?,?,?,?,'NONE','ERROR',?,?,?)",(pid,pno,jid,rev,sid,src["estate"],p,name,Path(name).suffix.lower(),now,str(e),src["role"],now))
       self.s.submit("UPDATE job_sources SET errors=errors+1,last_progress=? WHERE job_id=? AND source_id=?",(now,jid,sid));self.event("source_file_error",str(e),jid,sid,"ERROR")
   except Exception as e:self.event("source_failed",str(e),jid,sid,"ERROR")
   finally:
@@ -201,7 +221,7 @@ class Manager:
   for g in groups:
    fp,n,size=g["fingerprint"],g["n"],g["size"]
    if n>1:self.s.submit("UPDATE placements SET duplicate_group=?,duplicate_cardinality=? WHERE job_id=? AND fingerprint=?",(fp[:16],n,jid,fp))
-   self.s.submit("UPDATE placements SET plan=CASE WHEN availability='ERROR' THEN 'REVIEW' WHEN ?=1 THEN 'KEEP' ELSE 'REVIEW' END,rationale=CASE WHEN ?=1 THEN 'Unique content' ELSE 'Duplicate content requires protection/canonical policy' END,lifecycle='COMPLETED' WHERE job_id=? AND fingerprint=?",(n,n,jid,fp))
+   self.s.submit("UPDATE placements SET plan=CASE WHEN availability='ERROR' THEN 'REVIEW' ELSE 'IN_PLAY' END,rationale=CASE WHEN ?=1 THEN 'Unique content awaiting TARGET landing' ELSE 'Content has multiple source placements; remains in play until TARGET is landed and verified' END,lifecycle='COMPLETED' WHERE job_id=? AND fingerprint=?",(n,jid,fp))
  def control(self,jid,action):
   rt=self.runs.get(jid)
   if not rt:raise RuntimeError("job not active in this process")

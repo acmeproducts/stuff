@@ -482,3 +482,18 @@ Do not perform a network/GitHub round trip per Omnisearch keystroke, rerender th
 Reject session-only evidence caching, automatic query execution/rerender on every keystroke, disappearing query text, non-sortable/non-resizable evidence headers, filename-as-viewer-link behavior, and viewer geometry that resets.
 
 **Required replacement:** persistent browser-local placement cache; explicit Go/Enter query execution with stable draft/applied query and × reset; # field-selector helper; persistent resize plus ascending/descending primary sort on every visible Database column; filename click copies and separate ↗ launches viewer; viewer geometry persists. Add the dormant per-placement tags array contract now, with tag UX deferred to the next release.
+
+
+---
+
+## GY-078 — Job-scoped placement identity and historical observations presented as current Database rows
+**Status:** REJECTED DATA-MODEL PATTERN  
+**Decision date:** 2026-09-19
+
+Reject placement IDs derived from job/revision. Re-scanning the same source/path must not create another current Database row, another durable #, or stale IN_PROCESS evidence beside a completed current observation. Job/revision is history; physical placement identity is stable source + path. Preserve immutable placement number, update the current placement record, and reuse a valid fingerprint when size/modified evidence proves the placement unchanged.
+
+## GY-079 — KEEP/REVIEW fingerprint dump masquerading as a consolidation plan
+**Status:** REJECTED PRODUCT PATTERN  
+**Decision date:** 2026-09-19
+
+Reject a Plan surface that simply lists every file as KEEP/REVIEW. Until TARGET exists and has an independently verified byte-identical landing, source material is IN PLAY. Plan must summarize landing readiness and source groups, then support the governed SOURCE → TARGET → VERIFY → DISPOSITION lifecycle in the next phase. Backup management is not silently folded into TARGET landing.
