@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 set -euo pipefail
-REF="fcfd95c8625301461402941af20a6d7981215d27"
+REF="b10d4f5d386f84997dab9d5e33e222a430933e1d"
 ROOT="$HOME/.sot-turn02/v8-clean3"; BASE="https://raw.githubusercontent.com/acmeproducts/stuff/$REF"
 mkdir -p "$ROOT/SOT" "$HOME/.config/systemd/user" "$HOME/.sot-turn02"
 for f in sot-turn02-v8-clean3-engine.py sot-turn02-v8-clean3-server.py sot-turn02-v8-clean3.service sot-turn02-pre-base-v8.html; do
@@ -92,6 +92,9 @@ python3 - <<'PY'
 import json
 x=json.load(open("/tmp/sot-health.json"));assert x["ok"] and x["schema"]==11 and x["process"]=="healthy",x
 print("PASS independent local health",x["version"],"schema",x["schema"],"db",x["db"]["state"])
+import urllib.request
+z=json.load(urllib.request.urlopen("http://127.0.0.1:8765/api/target"));assert z["ok"] and "configured" in z["target"],z
+print("PASS TARGET backend configuration endpoint")
 PY
 tailscale serve --bg --https=443 --set-path=/sot http://127.0.0.1:8765 >/dev/null
 DNS="$(tailscale status --json | python3 -c 'import json,sys;print(json.load(sys.stdin)["Self"]["DNSName"].rstrip("."))')"
