@@ -1,96 +1,100 @@
-<plan>
 # quilt.md — Master Plan
 
 ## 0. TURN/STAGE LEDGER
 | Date | Turn | Stage | Status | Notes |
 |------|------|-------|--------|-------|
-| 2025-08-26 | 1 | DEFINE | ✅ done | Plan created from existing quilt.html v3; owner intent captured |
-| 2026-09-12 | 2 | DEFINE | ✅ done | Added build request to backlog and updated ledger |
-| 2026-09-12 | 3 | DEFINE | ✅ closed | DEFINE phase completed; ready to proceed to BUILD |
-| 2026-09-12 | 4 | BUILD | ⏸️ halted | R2 build opened, then owner issued "stop" |
-| 2026-09-12 | 5 | PAUSED | ⏸️ active | Work suspended pending owner direction |
-| 2026-09-13 | 6 | BUILD | 🔨 active | Owner "build it" resumed R2; initial implementation attempted |
-| 2026-09-13 | 7 | BUILD | 🔨 active | **Correction logged:** Owner clarified neighbors must be Sierpinski carpets (not mixed stripes/dots), forming a contiguous tapestry of fractal squares. Scope updated below. |
-| 2026-09-15 | 8 | BUILD | 🔨 active | **Performance fix:** Owner reports lag/black flash during zoom-out due to runtime bitmap creation. Adding eager pre-bake of all levels; render loop becomes strictly synchronous. |
-| 2026-09-15 | 9 | BUILD | 🔨 active | **Build command issued:** Owner commanded "Build it" — proceeding to generate the-quilt.html with eager pre-baking, square canvas capture, configurable neighbor hues, tour mode, and smooth pan/zoom. |
-| 2026-09-16 | 10 | BUILD | 🔨 active | **Transition fix:** Eliminating black interstitial frames between level switches. Rebinds must occur at exact 1/3 and 3.0 thresholds with scale compensation (×3 or ÷3) to maintain pixel-perfect continuity. Tour mode logic aligned to these thresholds. Navigation clamped to `stack.length` to prevent accessing unbaked levels. |
-| 2026-09-17 | 11 | DEFINE | 🔄 pivot | **Owner request:** "Discuss before more development." Issues identified: (1) Horizontal black bars during zoom-out on wide screens (parent tile coverage insufficient); (2) Requirement for seamless endless zoom loop (currently linear stack terminates). |
+| 2025-08-26 | 1 | DEFINE | ✅ done | Plan seeded from existing quilt.html v3 (Three.js instanced cube wave field); owner intent captured. |
+| 2026-09-12 | 2 | DEFINE | ✅ done | Build request added to backlog; ledger updated. |
+| 2026-09-12 | 3 | DEFINE | ✅ closed | DEFINE phase completed; ready for BUILD. |
+| 2026-09-12 | 4 | BUILD | ⏸️ halted | R2 build opened, then owner issued "stop". |
+| 2026-09-12 | 5 | PAUSED | ⏸️ active | Work suspended pending owner direction. |
+| 2026-09-13 | 6 | BUILD | 🔨 active | Owner "build it" resumed R2; initial implementation attempted. |
+| 2026-09-13 | 7 | BUILD | 🔨 active | Owner clarified neighbors must be Sierpinski carpets — contiguous tapestry of fractal squares. |
+| 2026-09-15 | 8 | BUILD | 🔨 active | Performance fix: eager pre-bake of all levels; render loop synchronous. |
+| 2026-09-15 | 9 | BUILD | 🔨 active | Build command reissued; proceeding with eager pre-baking, square capture, neighbor hues, tour mode, smooth pan/zoom. |
+| 2026-09-16 | 10 | BUILD | 🔨 active | Transition fix: rebind at exact 1/3 and 3.0 thresholds with ×3 / ÷3 scale compensation. |
+| 2026-09-17 | 11 | DEFINE | 🔄 pivot | Owner: "Discuss before more development." Issues: black bars on wide screens; no seamless endless loop. |
+| 2026-09-17 | 12 | DEFINE | 🔄 active | Owner: "cache everything up front so it's smooth" → promoted to R2 acceptance requirement. No code written this turn. |
 
 ## 1. RELEASES
-| # | Goal | Target |
+| # | Goal | Status |
 |---|------|--------|
-| R1 | Stabilize current Three.js instanced quilt (v3) | 2025-08-26 |
-| R2 | **Procedural Sierpinski Tapestry** — infinite zoom via hierarchical 3×3 rebasing; all tiles are recursive carpets with eager pre-baked ImageBitmap stack | 2026-09-16 (Turn 10) |
-| R3 | Unified toggle between Wave Field and Tapestry modes | TBD |
+| R1 | Keep existing Three.js instanced wave-field quilt stable while R2 is built. | ✅ Live in quilt.html |
+| R2 | **Sierpinski Tapestry** — a regressive quilt of Sierpinski-carpet squares with infinite, seamless zoom, all levels cached up front. | 🔄 Pending design confirmation |
+| R3 | Unified mode toggle between the wave field and the tapestry. | TBD |
 
 ## 2. PER-RELEASE SECTIONS
 
-### R2 — Sierpinski Tapestry (Pure Canvas2D) — 🔄 PENDING DESIGN CONFIRMATION (Turn 11)
+### R1 — Existing Instanced Wave Field
+- **Scope in:** Current Three.js wave of instanced cubes, orbit controls, parameter drawer, in-app readout.
+- **Scope out:** Any new rendering path, visual redesign, or behavior changes outside bug fixes.
+- **Build gates:** Existing app opens on current mobile Chrome/Safari; all current controls still work; no console errors.
+- **Backlog:** None until R2 is accepted.
 
-**Status:** Awaiting owner confirmation on cyclic baking architecture and screen-coverage math fix.
+### R2 — Sierpinski Tapestry (Cache-Everything-Up-Front)
+**Status:** 🔄 PENDING OWNER CONFIRMATION
 
----
+#### Scope — In
+- Pre-bake a cyclic stack of N Sierpinski-carpet levels **completely before first frame**.
+- Render loop is synchronous; zero canvas/texture creation during animation.
+- Seamless infinite zoom via cyclic wrap: Level 0 contains Level N−1 in its center, so zooming in wraps around with no pop.
+- Parent bitmap always covers the full viewport on any aspect ratio.
+- Keep the mobile drawer/control pattern; diagnostics stay in-app.
 
-#### 2.1 Problem Analysis (Turn 11 Owner Feedback)
+#### Scope — Out
+- No lazy baking, no on-the-fly tiling, no runtime bitmap generation.
+- No stubs, placeholder textures, or fake data.
+- No new network assets beyond the existing CDN import map.
+- No DevTools-based debugging; all state visible in the app.
 
-**A. Black Bars on Left/Right (Aspect Ratio Coverage Failure)**
-- **Symptom:** At scale 0.68–0.36 (between REBASE_OUT and 1.0), black bars appear on screen sides but not top/bottom on landscape displays.
-- **Root Cause:** The parent bitmap (level+1) is drawn at size `currentTileSize × 3`. `currentTileSize` is derived from `min(screenWidth, screenHeight) × 0.9 × scale`. On a 16:9 landscape display, `minDim` equals height. When scale = 0.5, `tile = 0.45 × height`, so `parentTile = 1.35 × height`. Screen width = `1.78 × height`. Since `1.35 < 1.78`, the parent bitmap does not cover the full width, revealing black.
-- **Why intermittent:** At scale ≈0.97 (near 1.0), the current level nearly fills the screen, masking the issue. At scale ≈0.36 (near REBASE_OUT), the rebase triggers and switches to the parent as the new current level (now at scale ≈1.0), which again fills the screen. The gap only exists in the mid-range where `tile × 3 < max(screenWidth, screenHeight)`.
+#### Proposed Mechanics
+- Bake levels: `0 → 1 → … → N−1`, then make level 0's center tile contain a 1/3-scale copy of level N−1.
+- Ascend / zoom out: when current level is N−1 and scale reaches `1/3`, wrap to level 0 and multiply scale by 3.
+- Descend / zoom in: when current level is 0 and scale reaches `3.0`, wrap to level N−1 and divide scale by 3.
+- Coverage fix: parent bitmap drawn at `max(viewportWidth, viewportHeight) × 1.1`, centered — no more side bars on 16:9/21:9 screens.
 
-**B. Endless Seamless Loop Requirement**
-- **Current Behavior:** Linear stack `0 … maxLevels-1`. Zooming-in stops at 0; zooming-out stops at maxLevels-1 (or clamps).
-- **Desired Behavior:** Infinite, seamless zoom. When descending past level 0, the view should transition to level maxLevels-1 (or deeper) without visual pop, creating a **Droste effect** (fractal zoom loop).
-- **Technical Requirement:** The hierarchy must become cyclic. Level 0’s center tile must contain a scaled-down copy of Level maxLevels-1, so that zooming into Level 0’s center reveals Level maxLevels-1, whose center contains Level maxLevels-2, …, whose center eventually contains Level 0 again.
+#### Build Gates
+- [ ] **No black bars** at any zoom level on 16:9, 9:16, 21:9, and square viewports.
+- [ ] **Seamless loop:** zooming past level 0 wraps to level N−1 with zero visual discontinuity; same in reverse.
+- [ ] **Cache up front:** all levels are created before first paint; animation frame performs no allocations.
+- [ ] **60fps** on a mid-range phone with 2x DPR.
+- [ ] **On-device verification** on iOS Safari and Android Chrome; no DevTools required.
 
----
+#### Backlog / Deferred
+- [ ] Tour mode polish.
+- [ ] Configurable neighbor hues.
+- [ ] Wave-field mode toggle (moves to R3).
+- [ ] Shareable preset URL.
 
-#### 2.2 Proposed Solutions (Pending Confirmation)
+## 3. FUTURE IDEAS
+- Export current quilt frame as PNG or seamless loop GIF.
+- Audio-reactive amplitude.
+- Multi-touch direct pan/zoom gestures.
+- Saved parameter presets.
+- WebGPU renderer for larger stacks.
+- "Sparkle" / shimmer effect on square edges (owner's "sparkly" intent).
 
-**Solution A: Cyclic Bitmap Stack (Recommended)**
-Instead of a linear hierarchy where Level n contains Level n-1, create a **cycle**:
-1. Bake levels in ascending index order: `0, 1, 2, …, N-1`.
-2. When baking Level 0, instead of drawing a fresh carpet in the center, draw the already-baked Level N-1 bitmap scaled to 1/3 size into the center tile.
-3. This creates a closed loop: L0 contains L(N-1) contains L(N-2) … contains L1 contains L0.
+## 4. IMMUTABLE WORKING RULES
+1. **Mobile-first** — touch targets ≥44px, safe-area aware, DPR capped.
+2. **All diagnostics in-app** — never rely on DevTools for primary feedback.
+3. **Update the plan before code** — append a ledger row before touching any file.
+4. **Read-back verification after every push** — reread the pushed diff and confirm it matches the plan.
+5. **No stubs or fake data** — every control is wired to a real, working effect.
+6. **Single-file HTML** — CDN module imports allowed; no binary assets.
+7. **Cache everything up front for R2** — no expensive work after the first frame.
 
-**Zoom Logic Adaptation:**
-- **Descend (zoom in):** When `scale ≥ REBASE_IN` and `level === 0`, instead of clamping, wrap to `level = N-1`. Compensate scale by `scale /= REBASE_IN` (maintaining visual continuity because L0’s center pixel is exactly L(N-1)’s full image).
-- **Ascend (zoom out):** When `scale ≤ REBASE_OUT` and `level === N-1`, wrap to `level = 0`. Compensate scale by `scale *= 3`.
+## 5. DECISION LOG
+| Date | Decision |
+|------|----------|
+| 2026-09-15 | Owner chose eager pre-baking to prevent lag/black flash. |
+| 2026-09-16 | Rebase thresholds fixed at 1/3 and 3.0 with inverse scale compensation. |
+| 2026-09-17 | Owner paused development to discuss black-bar coverage and seamless infinite zoom. |
+| 2026-09-17 | Owner: "cache everything up front so it's smooth" — mandatory R2 acceptance gate. |
 
-**Outcome:** The zoom is infinite and seamless; the pre-baked stack acts as a cyclic animation strip.
-
-**Solution B: Extended Parent Coverage (Fix for Black Bars)**
-- **Approach:** When drawing the parent bitmap (level+1) behind the current level, ensure it covers the entire viewport regardless of aspect ratio.
-- **Implementation:** Compute `coverSize = max(screenWidth, screenHeight) × 1.1` (10% safety margin). Draw the parent bitmap centered at `(cx, cy)` with size `coverSize`. Since the parent bitmap is square and contains the current level’s bitmap in its exact center 1/3 region, scaling it up uniformly preserves the alignment (the current level drawn on top will perfectly obscure the center of the parent).
-- **Risk:** If `coverSize` is much larger than `tile × 3`, we may expose the edges of the parent bitmap (which contains neighbor tiles). However, since the parent bitmap represents a 3×3 grid and we only ever look at its center when zooming out, and we rebase at 1/3 scale (when the current tile shrinks to 1/3, matching the parent’s center tile size), the exposed edges will actually be the correct neighbor tiles emerging from the sides, not black. This is the desired behavior.
-
-**Combined Architecture:**
-- Pre-bake cyclic stack of N levels (e.g., N=6).
-- Render loop:
-  1. Draw parent (level+1) at size sufficient to cover screen (using `maxDim` logic), centered.
-  2. Draw current (level) at size `baseTile × scale`, centered.
-  3. Handle wrapping at boundaries for infinite loop.
-
----
-
-#### 2.3 Build Gates (R2 Acceptance — Updated Turn 11)
-- [ ] **Coverage:** No black bars appear at any zoom level on any screen aspect ratio (16:9, 9:16, 21:9, etc.). The parent bitmap (or wrapping logic) always fills the viewport.
-- [ ] **Seamless Loop:** Zooming in past depth 0 continues seamlessly from depth N-1, and vice versa, with no visual discontinuity (pixel-perfect rebasing at wrap points).
-- [ ] **Cyclic Validity:** The center of Level 0 must visually match the entirety of Level N-1 at 1/3 scale, ensuring the loop is undetectable.
-- [ ] **Performance:** Render loop remains 60fps; no runtime canvas creation.
-
----
-
-## 3. IMMUTABLE WORKING RULES
-- The PLAN is the sole memory; code changes are guided by ledger entries.
-- No external assets; single-file HTML only.
-- Render loop must be synchronous (no async/await per frame).
-- Cache rebuild is async but strictly separated from animation frames.
-- Rebasing math must be inverse operations: scale ×3 on ascend, scale ÷3 on descend.
-
-## 4. APPENDIX — AUTHORITY ORDER
+## 6. APPENDIX — AUTHORITY ORDER
 1. Owner feedback (latest turn)
 2. This PLAN document
-3. Reference files (if provided)
+3. Reference files, if provided
 4. Working CODE file
-</plan>
+
+> Chat history is not authoritative; this PLAN is the sole memory that persists between runs.
