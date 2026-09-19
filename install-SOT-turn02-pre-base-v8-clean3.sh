@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 set -euo pipefail
-REF="be441b4fe3b588932658f70702612d865aba9887"
+REF="c34b9a6989b1433ad94aab97bf6a37c78d9dd9c9"
 ROOT="$HOME/.sot-turn02/v8-clean3"; BASE="https://raw.githubusercontent.com/acmeproducts/stuff/$REF"
 mkdir -p "$ROOT/SOT" "$HOME/.config/systemd/user" "$HOME/.sot-turn02"
 for f in sot-turn02-v8-clean3-engine.py sot-turn02-v8-clean3-server.py sot-turn02-v8-clean3.service sot-turn02-pre-base-v8.html; do
@@ -64,6 +64,20 @@ with tempfile.TemporaryDirectory() as td:
  rows=st.rows("SELECT placement_no,created,modified FROM placements WHERE job_id=? ORDER BY placement_no",(jid,));assert len(rows)==1800;nums=[r["placement_no"] for r in rows];assert len(nums)==len(set(nums)) and nums==sorted(nums);assert all(r["modified"] is not None for r in rows)
  print("PASS saturation 3-source / 1800-file / 6-worker / 4-reader gate")
  print("PASS immutable unique placement numbers + filesystem timestamps gate")
+ first_nums={r["placement_no"] for r in st.rows("SELECT placement_no FROM placements")}
+ jid2=mg.start(ids);deadline=time.time()+30
+ while time.time()<deadline:
+  z2=mg.snapshot(jid2)
+  if z2["job"]["state"] in ("COMPLETED","FAILED","STOPPED"):break
+  time.sleep(.03)
+ st.drain(10);z2=mg.snapshot(jid2);rows2=st.rows("SELECT placement_no,source_id,path,fingerprint FROM placements")
+ assert z2["job"]["state"]=="COMPLETED",z2["job"]
+ assert z2["metrics"]["discovered_files"]==1800 and z2["metrics"]["hashed_files"]==1800,z2["metrics"]
+ assert len(rows2)==1800,len(rows2)
+ assert {r["placement_no"] for r in rows2}==first_nums
+ assert len({(r["source_id"],r["path"]) for r in rows2})==1800
+ assert all(r["fingerprint"] for r in rows2)
+ print("PASS repeat scan stable 1800-placement catalog + immutable numbers + fingerprint reuse gate")
  print("PASS max concurrent DB read/probe latency %.3fs" % max(lat))
  st.close()
 PY
