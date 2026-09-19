@@ -194,7 +194,6 @@ class Manager:
   else:raise RuntimeError("bad action")
   self.s.submit("UPDATE jobs SET state=?,control=?,last_progress=? WHERE job_id=?",(state,action.upper(),time.time(),jid),True);self.event("job_"+action,action.title(),jid)
  def snapshot(self,jid):
-  self.s.drain(2)
   j=self.s.rows("SELECT * FROM jobs WHERE job_id=?",(jid,))
   if not j:return None
   ss=self.s.rows("SELECT js.*,s.label,s.root,s.estate,s.failure_domain,s.role FROM job_sources js JOIN sources s USING(source_id) WHERE js.job_id=? ORDER BY s.label",(jid,))
