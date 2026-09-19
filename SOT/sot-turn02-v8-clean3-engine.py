@@ -18,7 +18,7 @@ class Store:
   c=sqlite3.connect(self.path,timeout=30);c.executescript(DDL);cols={r[1] for r in c.execute("PRAGMA table_info(placements)")};
   if "tags" not in cols:c.execute("ALTER TABLE placements ADD COLUMN tags TEXT NOT NULL DEFAULT '[]'")
   # One current placement per physical source/path. Collapse historical job-scoped observations in place.
-  rows=c.execute("SELECT placement_id,placement_no,source_id,path,revision,fingerprint,lifecycle FROM placements ORDER BY source_id,path,revision DESC,placement_no DESC").fetchall()
+  rows=c.execute("SELECT placement_id,placement_no,source_id,path,revision,fingerprint,lifecycle FROM placements ORDER BY source_id,path,(fingerprint IS NOT NULL) DESC,revision DESC,placement_no DESC").fetchall()
   seen=set()
   for old_id,pno,sid,path,rev,fp,life in rows:
    key=(sid,path)
