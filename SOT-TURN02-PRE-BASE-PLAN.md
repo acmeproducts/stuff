@@ -273,3 +273,11 @@ Stage chain remains `pre-base → base → pre-ship → ship → post-ship`. Bef
 - Installer/upgrade must snapshot Serve state, add only the SOT path, and verify protected routes remain present. It must not reset or replace the Serve configuration.
 - Qualification must prove OpenClaw root, report route, and SOT health after the route addition.
 
+
+
+## 29. Sustained-runtime correction — binding (2026-09-18)
+- The deployed schema-8 V8 candidate is rejected after owner evidence showed a job remaining at startup/enumeration events for hours while transport health stayed GREEN.
+- Network health and analysis forward progress are separate gates. A healthy /api/health response may not qualify scheduler/database execution.
+- The replacement engine is rebuilt from the governed pre-Estate engine baseline `09880afc339998408e293fcf341102c23b402773`, not from the rejected schema-8 engine.
+- Reapply Estate as a complete schema/write/read contract, use a fresh schema/database, serialize SQLite access through one startup-validated long-lived Store connection, and protect shared scheduler round-robin/done state from worker races.
+- Before owner deployment, a sustained multi-source fixture must prove hundreds of placement writes and hashes, progress on every source, multiple workers, repeated concurrent snapshot/database reads, final counter reconciliation, zero ERROR events, and responsive Store health.

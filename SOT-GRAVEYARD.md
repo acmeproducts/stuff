@@ -434,3 +434,15 @@ Reject SOT taking HTTPS root, creating a separate `:8443` exposure, resetting Se
 
 **Required replacement:** preserve the established single HTTPS origin and protected routes; add only `/sot` → `127.0.0.1:8765`; verify OpenClaw root and the Python report server remain reachable.
 
+
+
+---
+
+## GY-074 — Startup/health success accepted as sustained analysis qualification
+
+**Status:** REJECTED RUNTIME QUALIFICATION PATTERN  
+**Decision date:** 2026-09-18
+
+Owner evidence showed the schema-8 V8 backend remained GREEN and reachable while the real analysis job stopped producing durable progress after source/worker startup. A one-file fixture plus HTTP health does not qualify the scheduler, database, or sustained multi-source runtime.
+
+**Required replacement:** rebuild the engine from the governed pre-Estate baseline rather than patching the stalled candidate; use a fresh schema/database; qualify sustained multi-source discovery/fingerprinting with hundreds of files, multiple workers, progress on every source, concurrent database reads, exact reconciled counters, zero error events, and responsive health before owner deployment.
