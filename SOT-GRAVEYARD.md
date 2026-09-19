@@ -497,3 +497,10 @@ Reject placement IDs derived from job/revision. Re-scanning the same source/path
 **Decision date:** 2026-09-19
 
 Reject a Plan surface that simply lists every file as KEEP/REVIEW. Until TARGET exists and has an independently verified byte-identical landing, source material is IN PLAY. Plan must summarize landing readiness and source groups, then support the governed SOURCE → TARGET → VERIFY → DISPOSITION lifecycle in the next phase. Backup management is not silently folded into TARGET landing.
+
+
+## GY-080 — Browser-only/free-form TARGET path masquerading as TARGET configuration
+**Status:** REJECTED IMPLEMENTATION PATTERN  
+**Decision date:** 2026-09-19
+
+Reject a free-form TARGET path stored only in browser localStorage. TARGET is infrastructure state owned by the SOT backend. It must be selected from real available volumes/folders, may create a destination folder through the governed backend, must be validated for existence/read-write access/storage authority and SOURCE overlap, and must persist on the SOT host with durable activity evidence. Configuration does not itself authorize landing or destructive source disposition.

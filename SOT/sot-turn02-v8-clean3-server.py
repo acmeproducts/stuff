@@ -4,6 +4,36 @@ from http.server import ThreadingHTTPServer,BaseHTTPRequestHandler
 from pathlib import Path
 HERE=Path(__file__).resolve().parent;sp=importlib.util.spec_from_file_location("sotclean3",HERE/"sot-turn02-v8-clean3-engine.py");m=importlib.util.module_from_spec(sp);sys.modules[sp.name]=m;sp.loader.exec_module(m)
 S=m.Store();M=m.Manager(S,workers=max(2,min(8,os.cpu_count() or 4)),queue_capacity=128)
+TARGET_FILE=Path.home()/".sot-turn02"/"target.json"
+def volume_roots():
+ out=[Path("/").resolve()]
+ for base in ("/mnt","/media"):
+  q=Path(base)
+  if q.exists():
+   for z in q.iterdir():
+    if base=="/mnt" and z.name.lower() in ("wsl","wslg"):continue
+    try:
+     if z.is_dir() and os.path.ismount(z) and os.access(z,os.R_OK|os.W_OK|os.X_OK):out.append(z.resolve())
+    except OSError:pass
+ return out
+def target_get():
+ try:
+  z=json.loads(TARGET_FILE.read_text());p=Path(z["path"]).resolve()
+  if not p.is_dir():return {"configured":True,"path":str(p),"label":z.get("label",p.name or str(p)),"available":False}
+  st=os.statvfs(p);return {"configured":True,"path":str(p),"label":z.get("label",p.name or str(p)),"available":os.access(p,os.R_OK|os.W_OK|os.X_OK),"free_bytes":st.f_bavail*st.f_frsize,"total_bytes":st.f_blocks*st.f_frsize}
+ except Exception:return {"configured":False}
+def target_set(path,label=""):
+ p=Path(path).resolve()
+ if not p.is_dir():raise RuntimeError("TARGET folder does not exist")
+ roots=volume_roots()
+ if not any(p==r or str(p).startswith(str(r).rstrip("/")+"/") for r in roots):raise RuntimeError("TARGET is not on an available volume")
+ if not os.access(p,os.R_OK|os.W_OK|os.X_OK):raise RuntimeError("TARGET requires read/write access")
+ for z in S.rows("SELECT root FROM sources"):
+  r=Path(z["root"]).resolve()
+  if p==r or str(p).startswith(str(r).rstrip("/")+"/") or str(r).startswith(str(p).rstrip("/")+"/"):raise RuntimeError("TARGET must not overlap a registered SOURCE Estate root")
+ st=os.statvfs(p);cfg={"path":str(p),"label":label or p.name or str(p),"configured_at":time.time()};TARGET_FILE.parent.mkdir(parents=True,exist_ok=True);tmp=TARGET_FILE.with_suffix(".tmp");tmp.write_text(json.dumps(cfg));tmp.replace(TARGET_FILE)
+ M.event("target_configured","TARGET configured: "+str(p),None,None,"INFO",{"path":str(p)})
+ return {**cfg,"configured":True,"available":True,"free_bytes":st.f_bavail*st.f_frsize,"total_bytes":st.f_blocks*st.f_frsize}
 def latest():
  r=S.rows("SELECT job_id FROM jobs ORDER BY created DESC LIMIT 1");return M.snapshot(r[0]["job_id"]) if r else None
 class H(BaseHTTPRequestHandler):
@@ -23,6 +53,7 @@ class H(BaseHTTPRequestHandler):
    if p=="/api/job/latest":return self.sendj({"ok":True,"snapshot":latest()})
    if p=="/api/sources":return self.sendj({"ok":True,"sources":S.rows("SELECT * FROM sources ORDER BY estate,label")})
    if p=="/api/events":return self.sendj({"ok":True,"events":S.rows("SELECT * FROM events ORDER BY event_id DESC LIMIT 500")})
+   if p=="/api/target":return self.sendj({"ok":True,"target":target_get()})
    if p=="/api/placements":return self.sendj({"ok":True,"placements":S.rows("SELECT * FROM placements ORDER BY scanned_at DESC LIMIT 5000")})
    if p=="/api/file/info":
     pid=parse_qs(u.query).get("id",[""])[0];r=S.rows("SELECT placement_id,path,filename,size,availability FROM placements WHERE placement_id=?",(pid,))
@@ -75,6 +106,12 @@ class H(BaseHTTPRequestHandler):
   try:
    p=self.path.split("?",1)[0];b=self.body()
    if p=="/api/sources":return self.sendj({"ok":True,"source_id":M.add_source(b["label"],b["root"],b.get("failure_domain",b["root"]),b.get("role","primary"),b.get("estate"))})
+   if p=="/api/target":return self.sendj({"ok":True,"target":target_set(b["path"],b.get("label",""))})
+   if p=="/api/folders/create":
+    parent=Path(b["parent"]).resolve();name=str(b["name"]).strip()
+    if not name or name in (".","..") or "/" in name or "\\" in name:raise RuntimeError("Invalid folder name")
+    if not any(parent==r or str(parent).startswith(str(r).rstrip("/")+"/") for r in volume_roots()):raise RuntimeError("Parent is not on an available volume")
+    child=parent/name;child.mkdir(exist_ok=False);return self.sendj({"ok":True,"folder":{"name":child.name,"path":str(child.resolve())}})
    if p=="/api/job/start":return self.sendj({"ok":True,"job_id":M.start(b.get("source_ids"))})
    if p=="/api/file/delete":
     pid=b.get("id","");mode=b.get("mode","trash");r=S.rows("SELECT placement_id,path,filename,availability FROM placements WHERE placement_id=?",(pid,))

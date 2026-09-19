@@ -339,3 +339,9 @@ AI is advisory and evidence-bound. It may consume read-only SOT catalog, duplica
 - explanations of proposed source dispositions and retention implications.
 
 AI output never changes fingerprints, evidence, TARGET verification, placement identity, tags, retention, disposition, or files automatically. Suggested tags remain proposals until owner acceptance. AI may summarize and recommend, but deterministic evidence/policy gates remain authoritative for whether content is landed/verified and whether destructive action is eligible. Every AI analysis records provider/model, evidence revision/snapshot, prompt contract, timestamp and resulting Markdown so conclusions remain reproducible/auditable against the evidence used.
+
+
+## 36. Real TARGET registration behind Configuration — binding (2026-09-19)
+TARGET configuration is authoritative backend state, not a browser-only text preference. The gear opens TARGET selection using backend-discovered available volumes and browsable folders. The owner selects an existing folder or creates a new folder from the picker. Registration resolves the path on the WSL host, requires the directory to exist and be readable/writable, verifies it resides on an available storage authority, records capacity/free-space evidence, rejects overlap in either direction with every registered SOURCE Estate root, persists the registration on the SOT host, and logs a durable target_configured event. Browser state is only a UI cache of that backend registration.
+
+TARGET registration alone does not authorize copying, moving, deleting, archiving or retention execution. The subsequent SSOT landing phase consumes this registered TARGET and must independently fingerprint-verify landed content before source disposition becomes eligible.
