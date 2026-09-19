@@ -1,14 +1,14 @@
 #!/usr/bin/env python3
 import hashlib,json,os,queue,sqlite3,threading,time,uuid
 from pathlib import Path
-VERSION="turn02-pre-base-v8-clean3";SCHEMA=10;DB_DEFAULT=Path.home()/".sot-turn02"/"sot-v10-clean.db"
+VERSION="turn02-pre-base-v8-clean3";SCHEMA=11;DB_DEFAULT=Path.home()/".sot-turn02"/"sot-v11-clean.db"
 DDL="""
 PRAGMA foreign_keys=ON;
 CREATE TABLE IF NOT EXISTS meta(k TEXT PRIMARY KEY,v TEXT NOT NULL);
 CREATE TABLE IF NOT EXISTS sources(source_id TEXT PRIMARY KEY,label TEXT NOT NULL,root TEXT NOT NULL UNIQUE,estate TEXT NOT NULL UNIQUE,failure_domain TEXT NOT NULL,role TEXT NOT NULL DEFAULT 'primary',enabled INTEGER NOT NULL DEFAULT 1);
 CREATE TABLE IF NOT EXISTS jobs(job_id TEXT PRIMARY KEY,revision INTEGER NOT NULL,state TEXT NOT NULL,created REAL NOT NULL,started REAL,last_progress REAL,ended REAL,control TEXT NOT NULL DEFAULT 'RUN');
 CREATE TABLE IF NOT EXISTS job_sources(job_id TEXT NOT NULL,source_id TEXT NOT NULL,state TEXT NOT NULL DEFAULT 'PENDING',producer_state TEXT NOT NULL DEFAULT 'PENDING',queue_depth INTEGER NOT NULL DEFAULT 0,queue_capacity INTEGER NOT NULL DEFAULT 0,active_workers INTEGER NOT NULL DEFAULT 0,current_folder TEXT,current_file TEXT,discovered_files INTEGER NOT NULL DEFAULT 0,discovered_bytes INTEGER NOT NULL DEFAULT 0,hashed_files INTEGER NOT NULL DEFAULT 0,hashed_bytes INTEGER NOT NULL DEFAULT 0,warnings INTEGER NOT NULL DEFAULT 0,errors INTEGER NOT NULL DEFAULT 0,last_progress REAL,PRIMARY KEY(job_id,source_id));
-CREATE TABLE IF NOT EXISTS placements(placement_id TEXT PRIMARY KEY,job_id TEXT NOT NULL,revision INTEGER NOT NULL,source_id TEXT NOT NULL,estate TEXT NOT NULL,path TEXT NOT NULL,filename TEXT NOT NULL,extension TEXT,size INTEGER,created REAL,modified REAL,scanned_at REAL NOT NULL,fingerprint TEXT,content_id TEXT,lifecycle TEXT NOT NULL DEFAULT 'NONE',plan TEXT,disposition TEXT NOT NULL DEFAULT 'NONE',availability TEXT NOT NULL DEFAULT 'AVAILABLE',error_detail TEXT,duplicate_group TEXT,duplicate_cardinality INTEGER,role TEXT,rationale TEXT,last_verified REAL);
+CREATE TABLE IF NOT EXISTS placements(placement_id TEXT PRIMARY KEY,placement_no INTEGER NOT NULL UNIQUE,job_id TEXT NOT NULL,revision INTEGER NOT NULL,source_id TEXT NOT NULL,estate TEXT NOT NULL,path TEXT NOT NULL,filename TEXT NOT NULL,extension TEXT,size INTEGER,created REAL,modified REAL,scanned_at REAL NOT NULL,fingerprint TEXT,content_id TEXT,lifecycle TEXT NOT NULL DEFAULT 'NONE',plan TEXT,disposition TEXT NOT NULL DEFAULT 'NONE',availability TEXT NOT NULL DEFAULT 'AVAILABLE',error_detail TEXT,duplicate_group TEXT,duplicate_cardinality INTEGER,role TEXT,rationale TEXT,last_verified REAL);
 CREATE INDEX IF NOT EXISTS idx_place_job ON placements(job_id);CREATE INDEX IF NOT EXISTS idx_place_fp ON placements(job_id,fingerprint);
 CREATE TABLE IF NOT EXISTS events(event_id INTEGER PRIMARY KEY AUTOINCREMENT,ts REAL NOT NULL,severity TEXT NOT NULL,event_type TEXT NOT NULL,job_id TEXT,source_id TEXT,message TEXT NOT NULL,detail_json TEXT);
 """
@@ -82,7 +82,10 @@ class Store:
  def close(self):self.drain();self.stop.set();self.t.join(2)
 class Manager:
  def __init__(self,store,workers=8,queue_capacity=128,stall_seconds=30):
-  self.s=store;self.workers=workers;self.capacity=queue_capacity;self.stall=stall_seconds;self.runs={};self.lock=threading.RLock()
+  self.s=store;self.workers=workers;self.capacity=queue_capacity;self.stall=stall_seconds;self.runs={};self.lock=threading.RLock();self.seq_lock=threading.Lock();self.next_no=(self.s.rows("SELECT COALESCE(MAX(placement_no),0)+1 n FROM placements")[0]["n"])
+ def alloc_no(self):
+  with self.seq_lock:
+   n=self.next_no;self.next_no+=1;return n
  def event(self,typ,msg,jid=None,sid=None,severity="INFO",detail=None):
   self.s.submit("INSERT INTO events(ts,severity,event_type,job_id,source_id,message,detail_json) VALUES(?,?,?,?,?,?,?)",(time.time(),severity,typ,jid,sid,msg,json.dumps(detail or {})))
  def add_source(self,label,root,failure_domain,role="primary",estate=None):
@@ -120,13 +123,14 @@ class Manager:
      try:
       st=os.stat(p,follow_symlinks=False)
       if not os.path.isfile(p):continue
-      pid=hashlib.sha256((jid+"\0"+sid+"\0"+p).encode()).hexdigest();now=time.time()
-      self.s.submit("INSERT INTO placements(placement_id,job_id,revision,source_id,estate,path,filename,extension,size,created,modified,scanned_at,lifecycle,role,last_verified) VALUES(?,?,?,?,?,?,?,?,?,?,?,?, 'NONE',?,?)",(pid,jid,rev,sid,src["estate"],p,name,Path(name).suffix.lower(),st.st_size,getattr(st,"st_birthtime",None),st.st_mtime,now,src["role"],now))
+      pid=hashlib.sha256((jid+"\0"+sid+"\0"+p).encode()).hexdigest();pno=self.alloc_no();now=time.time();created=getattr(st,"st_birthtime",None)
+      if created is None and os.name=="nt":created=getattr(st,"st_ctime",None)
+      self.s.submit("INSERT INTO placements(placement_id,placement_no,job_id,revision,source_id,estate,path,filename,extension,size,created,modified,scanned_at,lifecycle,role,last_verified) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?, 'NONE',?,?)",(pid,pno,jid,rev,sid,src["estate"],p,name,Path(name).suffix.lower(),st.st_size,created,st.st_mtime,now,src["role"],now))
       self.s.submit("UPDATE job_sources SET discovered_files=discovered_files+1,discovered_bytes=discovered_bytes+?,current_folder=?,current_file=?,last_progress=? WHERE job_id=? AND source_id=?",(st.st_size,root,name,now,jid,sid))
       q.put((pid,p,st.st_size));self.s.submit("UPDATE jobs SET last_progress=? WHERE job_id=?",(now,jid))
      except Exception as e:
-      now=time.time();pid=hashlib.sha256((jid+"\0"+sid+"\0"+p).encode()).hexdigest()
-      self.s.submit("INSERT OR IGNORE INTO placements(placement_id,job_id,revision,source_id,estate,path,filename,extension,scanned_at,lifecycle,availability,error_detail,role,last_verified) VALUES(?,?,?,?,?,?,?,?,?,'NONE','ERROR',?,?,?)",(pid,jid,rev,sid,src["estate"],p,name,Path(name).suffix.lower(),now,str(e),src["role"],now))
+      now=time.time();pid=hashlib.sha256((jid+"\0"+sid+"\0"+p).encode()).hexdigest();pno=self.alloc_no()
+      self.s.submit("INSERT OR IGNORE INTO placements(placement_id,placement_no,job_id,revision,source_id,estate,path,filename,extension,scanned_at,lifecycle,availability,error_detail,role,last_verified) VALUES(?,?,?,?,?,?,?,?,?,?,'NONE','ERROR',?,?,?)",(pid,pno,jid,rev,sid,src["estate"],p,name,Path(name).suffix.lower(),now,str(e),src["role"],now))
       self.s.submit("UPDATE job_sources SET errors=errors+1,last_progress=? WHERE job_id=? AND source_id=?",(now,jid,sid));self.event("source_file_error",str(e),jid,sid,"ERROR")
   except Exception as e:self.event("source_failed",str(e),jid,sid,"ERROR")
   finally:
