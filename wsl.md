@@ -31,9 +31,10 @@ Single-file mobile-first HTML app (wsl.html). This plan is the sole authority an
 ## Backlog
 - BUILD REQUEST (2026-09-19): implement the game above into wsl.html. HELD — project is in Define; build on owner's go-ahead.
 - Confirm visual style with owner (v3.png was text-only here): emoji (⛄🛒🕳️) vs drawn canvas art.
-- Owner earlier referenced "label.md" — unresolved; check if it contains requirements to fold in.
+- Owner earlier referenced "label.md" — unresolved; check if it contains requirements to fold in. Owner was given the WSL lookup command `sudo find / -type f -iname "*.md" 2>/dev/null` to locate it; awaiting paste of its contents.
 
 ## Turn/Stage Ledger
 | Date | Stage | What happened |
 |---|---|---|
 | 2026-09-19 | DEFINE | Owner gave game instructions + v3.png (text-only): extendable/angle-adjustable line, tap-to-release snowman coal cart, momentum downhill, draw-ahead track, auto-scroll right, 100 pts per page, black-hole fail spin. Captured into Define; build request logged in backlog (held per Define phase). |
+| 2026-09-19 | DEFINE | Owner re-sent the same instructions (context re-sync) and mentioned a "label.md" file exists. Supplied WSL command to locate all MD files from root (`sudo find / -type f -iname "*.md" 2>/dev/null`). Awaiting label.md contents to fold into Define; no code written (Define phase). |
