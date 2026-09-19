@@ -425,11 +425,12 @@ Reject opening a new SQLite connection for every rows/execute/event operation. R
 
 ---
 
-## GY-073 — SOT claiming shared Tailscale HTTPS root
+## GY-073 — SOT changing the established OpenClaw/Tailscale access plane
 
 **Status:** REJECTED HOST-DESTRUCTIVE INSTALLER PATTERN  
 **Decision date:** 2026-09-18
 
-Reject any SOT installer command that assigns Tailscale HTTPS 443 root to the SOT backend. This displaced the existing OpenClaw gateway route on the owner's host while leaving OpenClaw itself running locally.
+Reject SOT taking HTTPS root, creating a separate `:8443` exposure, resetting Serve state, or replacing existing OpenClaw/report routing.
 
-**Required replacement:** preserve existing Serve configuration; expose SOT independently on Tailscale HTTPS 8443 to localhost 8765; verify existing 443 routes are unchanged. The one-time known-host repair restores 443 root to OpenClaw localhost 18789 before isolated SOT deployment.
+**Required replacement:** preserve the established single HTTPS origin and protected routes; add only `/sot` → `127.0.0.1:8765`; verify OpenClaw root and the Python report server remain reachable.
+
