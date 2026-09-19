@@ -90,6 +90,11 @@ var pendingSwitch=null;
 var G=900,DRAG=0.10,ROLL=4,VMAX=1400;
 var AC=null;
 
+// Anti-juggle: track forward progress
+var lastProgressX=0,noProgressT=0;
+var PROGRESS_THRESHOLD=80; // must advance 80px
+var PROGRESS_LIMIT=4.0;    // within 4 seconds
+
 function resize(){
   DPR=Math.min(window.devicePixelRatio||1,2);
   W=window.innerWidth;H=window.innerHeight;
@@ -168,6 +173,7 @@ function reset(){
   cart.track=0;cart.s=0;cart.v=0;cart.flip=0;cart.flipAng=0;
   var p=pointAt(0,0);cart.x=p.x;cart.y=p.y;cart.ang=p.ang;
   score=0;maxPage=0;pageW=Math.max(280,W);floaters.length=0;stuckT=0;fall.t=0;pendingSwitch=null;
+  lastProgressX=cart.x;noProgressT=0;
   elControls.style.display='none';
   snapCamera();
   elOverlay.style.display='none';
@@ -177,6 +183,7 @@ function release(s,trackIdx){
   if(state!==ST.READY)return;
   state=ST.RUN;cart.track=trackIdx||0;cart.s=s;cart.v=2;cart.flip=0;cart.flipAng=0;
   var p=pointAt(cart.track,cart.s);cart.x=p.x;cart.y=p.y;cart.ang=p.ang;
+  lastProgressX=cart.x;noProgressT=0;
   setHint('Draw ahead — keep the cart alive!');
   beep(520);
 }
@@ -220,7 +227,8 @@ function landOnTrack(ti,s){
   cart.track=ti;cart.s=s;cart.x=p.x;cart.y=p.y;cart.ang=p.ang;
   var dot=oldVx*Math.cos(p.ang)+oldVy*Math.sin(p.ang);
   cart.v=Math.min(VMAX,Math.max(-VMAX,dot));
-  state=ST.RUN;stuckT=0;elControls.style.display='none';
+  state=ST.RUN;stuckT=0;noProgressT=0;elControls.style.display='none';
+  if(cart.x>lastProgressX)lastProgressX=cart.x;
   if(cart.flip===2){
     var bonus=tracks[ti]&&tracks[ti].rescue?500:1000;
     addFloater(cart.x,cart.y-60,'+'+bonus+(tracks[ti]&&tracks[ti].rescue?' RESCUE':' FLIP'),'#ffd700');
@@ -263,8 +271,18 @@ function update(dt){
     if(cart.s>=tr.totalLen-0.5&&cart.v>0){startFallOffTrack();return;}
     if(cart.s<=0.5&&cart.v<0){startFallOffTrack();return;}
     var p=pointAt(cart.track,cart.s);cart.x=p.x;cart.y=p.y;cart.ang=p.ang;
+    
+    // Progress tracking
+    if(cart.x>lastProgressX+PROGRESS_THRESHOLD){lastProgressX=cart.x;noProgressT=0;}
+    else noProgressT+=dt;
+    
     var page=Math.floor(cart.x/pageW);
     if(page>maxPage){maxPage=page;score+=100;addFloater(cart.x,cart.y-46,'+100','#8cff5a');beep(880);}
+    
+    // Anti-exploit: must make forward progress periodically
+    if(noProgressT>PROGRESS_LIMIT){startFallOffTrack();diagExtra='deadpool';return;}
+    
+    // Stuck detection (very slow movement on flat)
     if(Math.abs(cart.v)<4&&Math.abs(G*Math.sin(p.ang))<40){stuckT+=dt;if(stuckT>1.4)startFallOffTrack();}
     else stuckT=0;
   }else if(state===ST.FALL){
@@ -453,9 +471,11 @@ window.addEventListener('error',function(ev){
 function updateDiag(dt){
   diagT+=dt;if(diagT<0.25)return;diagT=0;
   var cinfo='t'+cart.track+'/'+tracks.length;
+  var progInfo='np'+noProgressT.toFixed(1);
   elDiag.textContent='st '+STNAME[state]+' | fps '+Math.round(fpsEMA)+
-    ' | v '+Math.round(cart.v)+' | '+cinfo+
+    ' | v '+Math.round(cart.v)+' | '+cinfo+' | '+progInfo+
     ' | pg '+maxPage+(cart.flip===1?' | FLIP':'')+(diagExtra?' | '+diagExtra:'');
+  diagExtra='';
 }
 
 // ---------- loop ----------
