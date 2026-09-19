@@ -61,8 +61,8 @@ var ST={READY:0,RUN:1,FALL:2,SUCK:3,OVER:4};
 var STNAME=['READY','RUN','FALL','SUCK','OVER'];
 var state=ST.READY;
 
-var tracks=[],editTrack=0; // each track: {pts,cum,totalLen,color}
-var cart={track:0,s:0,v:0,x:0,y:0,ang:0,flip:0,flipAng:0}; // flip:0=none,1=active,2=landed
+var tracks=[],editTrack=0;
+var cart={track:0,s:0,v:0,x:0,y:0,ang:0,flip:0,flipAng:0};
 var fall={vx:0,vy:0,rot:0,spin:0,t:0};
 var hole={x:0,y:0};
 var suck={t:0,scale:1,rot:0};
@@ -71,7 +71,7 @@ var score=0,best=0,maxPage=0,pageW=800;
 var floaters=[];
 var stuckT=0,diagT=0,diagExtra='',fpsEMA=60,lastT=0,errShown=0;
 var lastTapTime=0;
-var pendingSwitch=null; // {track,px,py}
+var pendingSwitch=null;
 
 var G=900,DRAG=0.10,ROLL=4,VMAX=1400;
 var AC=null;
@@ -99,7 +99,7 @@ function stepFlakes(dt){
 }
 
 // ---------- track (multi-track) ----------
-function mkTrack(){return{pts:[],cum:[],totalLen:0,color:'#caa06a'};}
+function mkTrack(){return{pts:[],cum:[],totalLen:0,color:'#caa06a',rescue:false};}
 function addPoint(ti,x,y){
   var tr=tracks[ti]; if(!tr)return;
   if(tr.pts.length===0){tr.pts.push({x:x,y:y});tr.cum.push(0);return;}
@@ -156,13 +156,13 @@ function reset(){
   score=0;maxPage=0;pageW=Math.max(280,W);floaters.length=0;stuckT=0;fall.t=0;pendingSwitch=null;
   snapCamera();
   elOverlay.style.display='none';
-  setHint('Draw to extend & angle • Tap ON the track to release ⛄🛒\nDouble-tap mid-air to 360° flip (1000 pts)');
+  setHint('Draw to extend & angle • Tap ON track to release ⛄🛒\nDouble-tap mid-air = 360° flip • Single-tap mid-air = Rescue boost');
 }
 function release(s,trackIdx){
   if(state!==ST.READY)return;
   state=ST.RUN;cart.track=trackIdx||0;cart.s=s;cart.v=2;cart.flip=0;cart.flipAng=0;
   var p=pointAt(cart.track,cart.s);cart.x=p.x;cart.y=p.y;cart.ang=p.ang;
-  setHint('Draw ahead — don\'t run out of track!');
+  setHint('Draw ahead — don\'t run out!');
   beep(520);
 }
 function startFallOffTrack(){
@@ -173,12 +173,33 @@ function startFallOffTrack(){
   fall.vx=Math.cos(cart.ang)*cart.v;fall.vy=Math.sin(cart.ang)*cart.v;
   fall.rot=cart.ang;fall.spin=fall.vx>=0?9:-9;fall.t=0;
   hole.x=p.x+(fall.vx>=0?240:-240);hole.y=p.y+130;
-  state=ST.FALL;setHint('Double-tap to flip!');
+  state=ST.FALL;setHint('DOUBLE = 360 flip • SINGLE = Rescue boost');
   beep(160);
 }
 function triggerFlip(){
-  if(state!==ST.FALL||cart.flip!==0)return;
-  cart.flip=1;cart.flipAng=0;diagExtra='flip!';
+  if(cart.flip!==0)return;
+  cart.flip=1;cart.flipAng=0;diagExtra='360!';
+}
+function doAirRescue(){
+  // Big upward boost
+  fall.vy-=650;
+  // Ensure some forward momentum
+  if(Math.abs(fall.vx)<60)fall.vx=80*(Math.random()>0.5?1:-1);
+  // Trigger flip visual
+  if(cart.flip===0){cart.flip=1;cart.flipAng=0;}
+  // Create neon cyan rescue track below cart
+  var idx=tracks.length;
+  var rt=mkTrack();rt.color='#00ffff';rt.rescue=true;tracks.push(rt);
+  // Two points to form a small landing strip angled slightly with velocity
+  var ang=Math.atan2(fall.vy,fall.vx);
+  var rx=cart.x,ry=cart.y+90;
+  addPoint(idx,rx,ry);
+  addPoint(idx,rx+Math.cos(ang)*70,ry+Math.sin(ang)*70+30);
+  // Make this the active edit track so user can extend immediately on next drag
+  editTrack=idx;
+  setHint('RESCUE LINE! Drag to extend it!');
+  diagExtra='rescue!';
+  beep(880);
 }
 function landOnTrack(ti,s){
   var oldVx=fall.vx,oldVy=fall.vy;
@@ -187,8 +208,11 @@ function landOnTrack(ti,s){
   var dot=oldVx*Math.cos(p.ang)+oldVy*Math.sin(p.ang);
   cart.v=Math.min(VMAX,Math.max(-VMAX,dot));
   state=ST.RUN;stuckT=0;
-  // Award flip bonus
-  if(cart.flip===2){addFloater(cart.x,cart.y-60,'+1000 FLIP','#ffd700');score+=1000;beep(1100);}
+  if(cart.flip===2){
+    var bonus=tracks[ti]&&tracks[ti].rescue?500:1000;
+    addFloater(cart.x,cart.y-60,'+'+bonus+(tracks[ti]&&tracks[ti].rescue?' RESCUE':' FLIP'),'#ffd700');
+    score+=bonus;beep(1100);
+  }
   cart.flip=0;cart.flipAng=0;
 }
 function die(){
@@ -206,15 +230,14 @@ function gameOver(){
 
 // ---------- physics ----------
 function update(dt){
-  // Camera target calc
-  var tx,ty;
+  var tx,ty,k;
   if(state===ST.READY){
     var tr=tracks[editTrack];var e=tr?tr.pts[tr.pts.length-1]:{x:0,y:0};
     tx=Math.max(-10,e.x-W*0.62);ty=e.y-H*0.55;
   }else{
     tx=cart.x-W*0.32;ty=cart.y-H*0.55;
   }
-  var k=Math.min(1,dt*4); camX+=(tx-camX)*k; camY+=(ty-camY)*k;
+  k=Math.min(1,dt*4); camX+=(tx-camX)*k; camY+=(ty-camY)*k;
 
   if(state===ST.RUN){
     var tr=tracks[cart.track];
@@ -224,29 +247,22 @@ function update(dt){
     cart.v+=acc*dt;
     if(cart.v>VMAX)cart.v=VMAX; else if(cart.v<-VMAX)cart.v=-VMAX;
     cart.s+=cart.v*dt;
-    // Check off end
     if(cart.s>=tr.totalLen-0.5&&cart.v>0){startFallOffTrack();return;}
     if(cart.s<=0.5&&cart.v<0){startFallOffTrack();return;}
     var p=pointAt(cart.track,cart.s);cart.x=p.x;cart.y=p.y;cart.ang=p.ang;
-    // Pages
     var page=Math.floor(cart.x/pageW);
     if(page>maxPage){maxPage=page;score+=100;addFloater(cart.x,cart.y-46,'+100','#8cff5a');beep(880);}
-    // Stuck detection
     if(Math.abs(cart.v)<4&&Math.abs(G*Math.sin(p.ang))<40){stuckT+=dt;if(stuckT>1.4)startFallOffTrack();}
     else stuckT=0;
   }else if(state===ST.FALL){
     fall.t+=dt;
-    // Flip rotation
     if(cart.flip===1){cart.flipAng+=(Math.PI*2)/0.4*dt; if(cart.flipAng>=Math.PI*2){cart.flip=2;cart.flipAng=Math.PI*2;}}
-    // Physics
     fall.vy+=G*dt; fall.vx*=0.999;
     cart.x+=fall.vx*dt; cart.y+=fall.vy*dt;
     cart.ang+=fall.spin*dt;
-    // Land on any track
     var land=nearestOnAnyTrack(cart.x,cart.y);
     if(land.d<22 && land.d<Math.abs(fall.vy)*0.05+8){landOnTrack(land.track,land.s);return;}
-    // Death by floor (y too low) or timeout
-    if(cart.y>Math.max(H,camY+H)+200||fall.t>5.0){hole.x=cart.x;hole.y=cart.y+160;die();}
+    if(cart.y>Math.max(H,camY+H)+200||fall.t>5.5){hole.x=cart.x;hole.y=cart.y+160;die();}
   }else if(state===ST.SUCK){
     suck.t+=dt;
     var dx=hole.x-cart.x,dy=hole.y-cart.y,d=Math.hypot(dx,dy)||1;
@@ -271,17 +287,13 @@ function draw(){
   }
   ctx.globalAlpha=1;
   ctx.save();ctx.translate(-camX,-camY);
-  // Tracks
   for(var ti=0;ti<tracks.length;ti++)drawTrack(ti);
   drawEndMarker();
   if(state===ST.READY)drawTapHint();
-  // Cart
   var scl=(state===ST.SUCK)?suck.scale:1;
   var flipOffset=(state===ST.FALL&&cart.flip>0)?cart.flipAng:0;
   drawCart(cart.x,cart.y,cart.ang+flipOffset,scl);
-  // Hole
   if(state===ST.FALL||state===ST.SUCK||state===ST.OVER)drawHole();
-  // Floaters
   for(i=0;i<floaters.length;i++){var f=floaters[i];
     ctx.globalAlpha=Math.max(0,1-f.t/1.4);
     ctx.fillStyle=f.color;ctx.font='bold 22px system-ui,sans-serif';
@@ -289,7 +301,6 @@ function draw(){
     ctx.fillText(f.text,f.x,f.y-34*f.t);
   }
   ctx.globalAlpha=1;ctx.restore();
-  // Snow
   ctx.fillStyle='rgba(255,255,255,.85)';
   for(i=0;i<flakes.length;i++){ctx.beginPath();ctx.arc(flakes[i].x,flakes[i].y,1.6,0,7);ctx.fill();}
 }
@@ -300,6 +311,9 @@ function drawTrack(ti){
   for(var i=1;i<tr.pts.length;i++)ctx.lineTo(tr.pts[i].x,tr.pts[i].y);
   ctx.strokeStyle='#5b3a1a';ctx.lineWidth=7;ctx.stroke();
   ctx.strokeStyle=tr.color;ctx.lineWidth=3;ctx.stroke();
+  if(tr.rescue){
+    ctx.strokeStyle='rgba(0,255,255,0.4)';ctx.lineWidth=6;ctx.stroke();
+  }
 }
 function drawEndMarker(){
   if(state!==ST.READY&&state!==ST.RUN)return;
@@ -365,23 +379,14 @@ function setHint(s){elHint.textContent=s;}
 window.addEventListener('pointerdown',function(e){
   e.preventDefault(); downX=e.clientX;downY=e.clientY;moved=false;
   if(state===ST.OVER){reset();return;}
-  // Double-tap detection handled in pointerup
   if(state===ST.READY||state===ST.RUN||state===ST.FALL){
     var w=toWorld(e.clientX,e.clientY);
-    // Rollback line switch: if rolling back, click below cart => start new track
     if(state===ST.RUN&&cart.v<-5&&w.y>cart.y+30){
       tracks.push(mkTrack());
       editTrack=tracks.length-1;
       addPoint(editTrack,w.x,w.y);
-      // Remember for auto-switch once segment has direction
       pendingSwitch={track:editTrack,px:w.x,py:w.y};
       drawing=true;return;
-    }
-    // Normal draw (extend current editTrack)
-    // If clicking near endpoint of current editTrack, continue it; otherwise start new?
-    // For simplicity, always extend editTrack unless we just created one above.
-    if(!pendingSwitch){
-      // If click far from current endpoint, maybe start fresh track? Keep simple: always edit current.
     }
     drawing=true;
   }
@@ -393,18 +398,16 @@ window.addEventListener('pointermove',function(e){
   if(moved){
     var w=toWorld(e.clientX,e.clientY);
     addPoint(editTrack,w.x,w.y);
-    // Auto-switch if pending and now have direction
     if(pendingSwitch&&tracks[pendingSwitch.track].pts.length>=2){
       var tr=tracks[pendingSwitch.track];
       var dx=cart.x-pendingSwitch.px,dy=cart.y-pendingSwitch.py;
       if(Math.hypot(dx,dy)<80){
-        // Project current world velocity onto new track tangent
         var vx0=Math.cos(cart.ang)*cart.v, vy0=Math.sin(cart.ang)*cart.v;
         var ang1=Math.atan2(tr.pts[1].y-tr.pts[0].y,tr.pts[1].x-tr.pts[0].x);
         var dot=vx0*Math.cos(ang1)+vy0*Math.sin(ang1);
         cart.track=pendingSwitch.track;cart.s=0;cart.ang=ang1;cart.v=Math.min(VMAX,Math.max(-VMAX,dot));
         var p=pointAt(cart.track,0);cart.x=p.x;cart.y=p.y;
-        tr.color='#8cff5a'; // highlight switched track
+        tr.color='#8cff5a';
       }
       pendingSwitch=null;
     }
@@ -412,13 +415,17 @@ window.addEventListener('pointermove',function(e){
 },{passive:false});
 
 window.addEventListener('pointerup',function(e){
-  if(!drawing)return; drawing=false;
+  if(!drawing && state!==ST.FALL)return;
+  var wasDrawing=drawing; drawing=false;
   var now=performance.now();
-  if(state===ST.FALL&&!moved){
-    if(now-lastTapTime<300){triggerFlip();}
+  if(state===ST.FALL && !moved){
+    if(now-lastTapTime<300){
+      triggerFlip(); // double tap = 360 for points
+    }else{
+      doAirRescue(); // single tap = rescue boost + cyan line
+    }
     lastTapTime=now;
-  }
-  if(state===ST.READY&&!moved){
+  }else if(state===ST.READY && wasDrawing && !moved){
     var w=toWorld(e.clientX,e.clientY);
     var best=nearestOnAnyTrack(w.x,w.y);
     if(best.d<44){release(best.s,best.track);}
@@ -435,10 +442,10 @@ window.addEventListener('error',function(ev){
 });
 function updateDiag(dt){
   diagT+=dt;if(diagT<0.25)return;diagT=0;
-  var cinfo='track '+cart.track+'/'+tracks.length;
-  elDiag.textContent='state '+STNAME[state]+' | fps '+Math.round(fpsEMA)+
+  var cinfo='t'+cart.track+'/'+tracks.length;
+  elDiag.textContent='st '+STNAME[state]+' | fps '+Math.round(fpsEMA)+
     ' | v '+Math.round(cart.v)+' | '+cinfo+
-    ' | page '+maxPage+(cart.flip===1?' | FLIPPING':'')+(diagExtra?' | '+diagExtra:'');
+    ' | pg '+maxPage+(cart.flip===1?' | FLIP':'')+(diagExtra?' | '+diagExtra:'');
 }
 
 // ---------- loop ----------
