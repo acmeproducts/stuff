@@ -105,13 +105,25 @@ class Manager:
   if old:raise RuntimeError("job already active")
   rev=(self.s.rows("SELECT COALESCE(MAX(revision),0)+1 n FROM jobs")[0]["n"]);jid=uuid.uuid4().hex;now=time.time()
   self.s.submit("INSERT INTO jobs(job_id,revision,state,created,started,last_progress) VALUES(?,?,'RUNNING',?,?,?)",(jid,rev,now,now,now),True)
-  rt={"queues":{x["source_id"]:queue.Queue(self.capacity) for x in src},"done":set(),"stop":threading.Event(),"pause":threading.Event(),"rr":0,"sched":threading.Lock(),"src":{x["source_id"]:x for x in src},"activity":{}}
+  rt={"queues":{x["source_id"]:queue.Queue(self.capacity) for x in src},"done":set(),"stop":threading.Event(),"rr":0,"sched":threading.Lock(),"src":{x["source_id"]:x for x in src},"activity":{}}
   self.runs[jid]=rt
   for x in src:self.s.submit("INSERT INTO job_sources(job_id,source_id,state,producer_state,queue_capacity,last_progress) VALUES(?,?,'RUNNING','RUNNING',?,?)",(jid,x["source_id"],self.capacity,now))
   self.event("job_started","Analysis started",jid)
   for x in src:threading.Thread(target=self._produce,args=(jid,rev,x,rt),daemon=True).start()
   for n in range(self.workers):threading.Thread(target=self._worker,args=(jid,rev,rt,n),daemon=True).start()
   threading.Thread(target=self._supervise,args=(jid,rev,rt),daemon=True).start();return jid
+ def created_time(self,p,st):
+  v=getattr(st,"st_birthtime",None)
+  if v is not None:return v
+  if str(p).startswith("/mnt/") and len(str(p))>6:
+   try:
+    import subprocess,datetime
+    wp=subprocess.check_output(["wslpath","-w",str(p)],text=True,timeout=2).strip()
+    ps="/mnt/c/Windows/System32/WindowsPowerShell/v1.0/powershell.exe"
+    out=subprocess.check_output([ps,"-NoProfile","-Command","(Get-Item -LiteralPath $args[0]).CreationTimeUtc.ToString('o')",wp],text=True,timeout=3).strip()
+    return datetime.datetime.fromisoformat(out.replace("Z","+00:00")).timestamp()
+   except Exception:return None
+  return None
  def _produce(self,jid,rev,src,rt):
   sid=src["source_id"];q=rt["queues"][sid];self.event("source_started","Enumeration started",jid,sid)
   try:
@@ -119,14 +131,12 @@ class Manager:
     if rt["stop"].is_set():break
     dirs[:]=[d for d in dirs if not Path(root,d).is_symlink()]
     for name in files:
-     while rt["pause"].is_set() and not rt["stop"].is_set():time.sleep(.05)
      if rt["stop"].is_set():break
      p=str(Path(root,name))
      try:
       st=os.stat(p,follow_symlinks=False)
       if not os.path.isfile(p):continue
-      pid=hashlib.sha256((jid+"\0"+sid+"\0"+p).encode()).hexdigest();pno=self.alloc_no();now=time.time();created=getattr(st,"st_birthtime",None)
-      if created is None and os.name=="nt":created=getattr(st,"st_ctime",None)
+      pid=hashlib.sha256((jid+"\0"+sid+"\0"+p).encode()).hexdigest();pno=self.alloc_no();now=time.time();created=self.created_time(p,st)
       self.s.submit("INSERT INTO placements(placement_id,placement_no,job_id,revision,source_id,estate,path,filename,extension,size,created,modified,scanned_at,lifecycle,role,last_verified) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?, 'NONE',?,?)",(pid,pno,jid,rev,sid,src["estate"],p,name,Path(name).suffix.lower(),st.st_size,created,st.st_mtime,now,src["role"],now))
       self.s.submit("UPDATE job_sources SET discovered_files=discovered_files+1,discovered_bytes=discovered_bytes+?,current_folder=?,current_file=?,last_progress=? WHERE job_id=? AND source_id=?",(st.st_size,root,name,now,jid,sid))
       q.put((pid,p,st.st_size));self.s.submit("UPDATE jobs SET last_progress=? WHERE job_id=?",(now,jid))
@@ -149,13 +159,12 @@ class Manager:
  def _worker(self,jid,rev,rt,n):
   self.event("worker_started",f"Fingerprint worker {n} started",jid)
   while not rt["stop"].is_set():
-   if rt["pause"].is_set():time.sleep(.05);continue
    sid,q,w=self._next(rt)
    if w is None:
     with rt["sched"]:finished=len(rt["done"])==len(rt["queues"])
     if finished and all(x.empty() for x in rt["queues"].values()):break
     time.sleep(.01);continue
-   pid,p,size=w;now=time.time();rt["activity"][n]={"worker":n,"placement_id":pid,"path":p,"filename":Path(p).name,"size":size,"bytes":0,"source_id":sid,"updated":now}
+   pid,p,size=w;now=time.time();rt["activity"][n]={"worker":n,"placement_id":pid,"path":p,"filename":Path(p).name,"size":size,"bytes":0,"source_id":sid,"started":now,"updated":now}
    try:
     self.s.submit("UPDATE placements SET lifecycle='IN_PROCESS' WHERE placement_id=?",(pid,))
     self.s.submit("UPDATE job_sources SET active_workers=active_workers+1,current_file=?,last_progress=? WHERE job_id=? AND source_id=?",(Path(p).name,now,jid,sid))
@@ -164,7 +173,7 @@ class Manager:
      while True:
       b=f.read(1024*1024)
       if not b:break
-      h.update(b);a=rt["activity"].get(n);a and a.update(bytes=min(size,a["bytes"]+len(b)),updated=time.time())
+      h.update(b);a=rt["activity"].get(n);a and a.update(bytes=min(size,a["bytes"]+len(b)),updated=time.time(),mbps=(min(size,a["bytes"]+len(b))/1048576/max(.001,time.time()-a["started"])))
     fp=h.hexdigest();now=time.time();rt["activity"].pop(n,None)
     self.s.submit("UPDATE placements SET fingerprint=?,content_id=?,lifecycle='HASHED',last_verified=? WHERE placement_id=?",(fp,fp,now,pid))
     self.s.submit("UPDATE job_sources SET hashed_files=hashed_files+1,hashed_bytes=hashed_bytes+?,active_workers=MAX(active_workers-1,0),last_progress=? WHERE job_id=? AND source_id=?",(size,now,jid,sid))
@@ -194,9 +203,7 @@ class Manager:
  def control(self,jid,action):
   rt=self.runs.get(jid)
   if not rt:raise RuntimeError("job not active in this process")
-  if action=="pause":rt["pause"].set();state="PAUSED"
-  elif action=="resume":rt["pause"].clear();state="RUNNING"
-  elif action=="stop":rt["stop"].set();state="STOPPING"
+  if action=="stop":rt["stop"].set();state="STOPPING"
   else:raise RuntimeError("bad action")
   self.s.submit("UPDATE jobs SET state=?,control=?,last_progress=? WHERE job_id=?",(state,action.upper(),time.time(),jid),True);self.event("job_"+action,action.title(),jid)
  def snapshot(self,jid):
