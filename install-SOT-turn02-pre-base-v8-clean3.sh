@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 set -euo pipefail
-REF="d1009376e871ab3b822ab19c9fd091ac3839def5"
+REF="5b40be5fc7ef51c668433e11d5055ec50ad6c0ac"
 ROOT="$HOME/.sot-turn02/v8-clean3"; BASE="https://raw.githubusercontent.com/acmeproducts/stuff/$REF"
 mkdir -p "$ROOT/SOT" "$HOME/.config/systemd/user" "$HOME/.sot-turn02"
 for f in sot-turn02-v8-clean3-engine.py sot-turn02-v8-clean3-server.py sot-turn02-v8-clean3.service sot-turn02-pre-base-v8.html; do
@@ -104,7 +104,7 @@ python3 - <<'PY'
 import json,urllib.request
 req=urllib.request.Request("http://127.0.0.1:8765/api/creation/backfill",data=b"{}",headers={"Content-Type":"application/json"},method="POST")
 try:
- z=json.load(urllib.request.urlopen(req,timeout=1800));r=z["result"];print("PASS one-time Created backfill",r["updated"],"updated",r["unavailable"],"unavailable")
+ z=json.load(urllib.request.urlopen(req,timeout=1800));r=z["result"];assert "lookup_failed" in r and "conversion_failed" in r and "revision" in r,r;print("PASS one-time Created backfill",r["updated"],"updated",r["unavailable"],"unresolved",r["conversion_failed"],"conversion failures",r["lookup_failed"],"lookup failures")
 except Exception as e:print("WARN one-time Created backfill",e)
 PY
 tailscale serve --bg --https=443 --set-path=/sot http://127.0.0.1:8765 >/dev/null
