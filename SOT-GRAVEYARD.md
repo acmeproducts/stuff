@@ -466,11 +466,11 @@ Also reject ordinary polling that retrieves the full placements collection while
 
 ## GY-076 — Remote-per-keystroke evidence search, ambiguous selected tabs, and unguarded file deletion
 **Status:** REJECTED OWNER UX / FILE-ACTION PATTERN  
-**Decision date:** 2026-09-19
+**Decision date:** 2026-09-20
 
-Do not perform a network/GitHub round trip per Omnisearch keystroke, rerender thousands of rows per keystroke without a display bound, use low-contrast query text, omit a clear-search control, or leave active tabs visually ambiguous. Do not expose arbitrary-path, bulk, automatic, one-click permanent, or plan-driven file deletion.
+Do not perform a network/GitHub round trip per Omnisearch keystroke, rerender thousands of rows per keystroke without a display bound, use low-contrast query text, omit a clear-search control, or leave active tabs visually ambiguous. Do not expose arbitrary-path, automatic, inferred, query-only, one-click permanent, AI-driven, or Plan-driven file deletion. Do not allow bulk deletion whose scope is implicit or unreviewable.
 
-**Required replacement:** cache placement evidence in the browser session and filter locally; bound rendered search rows while retaining the complete match set for export; provide visible × clear and strong active-tab state. A viewer Trash action is placement-ID-only, attempts device Trash/Recycle Bin first, requires a second explicit warning before permanent deletion fallback, removes the placement from SOT only after filesystem success, and logs the action durably.
+**Required replacement:** cache placement evidence in the browser session and filter locally; bound rendered search rows while retaining the complete match set for export; provide visible × clear and strong active-tab state. Viewer Trash and Grid bulk Delete are placement-ID-only. Grid bulk Delete is authorized only for explicitly selected visible placement IDs, attempts device Trash/Recycle Bin first, requires a second explicit warning before permanent deletion fallback for the failed-trash subset, preserves per-placement success/failure evidence, and updates authoritative Database/status/classification/Plan/cache/Activity state before reporting completion.
 
 
 ---
@@ -559,7 +559,7 @@ Reject Plan surfaces that repeat the same fact in metric cards, legends, bars, l
 
 Reject Plan tables whose rows do not read as explicit arithmetic; reject REVIEW as a Plan composition row; reject treating all distinct fingerprints as UNIQUE when repeated fingerprints require one explicit KEEP placement; reject DUPLICATE as an additive peer of its own KEEP/EXCESS children; and reject low-contrast blue-only duplicate composition.
 
-**Required replacement:** Analysis is UNIQUE + KEEP + EXCESS = ESTATE, with DUPLICATE as the parent of KEEP and EXCESS; Capacity is ESTATE + OPEN = TARGET; Operations is IN PLAY - LANDED = ESTATE. Total/result rows appear last. Analysis stacked bar uses blue UNIQUE, yellow KEEP, red EXCESS; Capacity and Operations use high-contrast blue plus white/grey. No unapproved extra Plan metrics or rows.
+**Required replacement:** Analysis is UNIQUE + KEEP + EXCESS = ESTATE, with DUPLICATE as the parent of KEEP and EXCESS; Capacity is ESTATE + OPEN = TARGET; Operations is IN PLAY + LANDED = ESTATE. All owner-facing Plan equations are additive `X + Y = Z`; subtraction is not displayed. Total/result rows appear last. Analysis stacked bar uses blue UNIQUE, yellow KEEP, red EXCESS; Capacity and Operations use high-contrast blue plus white/grey. No unapproved extra Plan metrics or rows.
 
 
 ---
@@ -593,3 +593,14 @@ Reject a Plan surface that vertically stacks ANALYSIS RESULTS, BASIC CAPACITY CH
 Reject assigning a legend-color swatch to the bottom total/result row of a Plan table or drawing that total/result as an additional stacked-bar component. This makes the legend imply a plotted segment that does not exist and obscures the arithmetic relationship between component rows and their total.
 
 **Required replacement:** legend swatches belong only to colored bar components. The bottom row is the total/result and has no swatch. Analysis is UNIQUE + KEEP + EXCESS = ESTATE; Capacity is ESTATE + OPEN = TARGET; Operations is IN PLAY + LANDED = ESTATE, with IN PLAY blue and LANDED white/grey.
+
+
+---
+
+## GY-090 — Filesystem mutation treated as complete before SOT reconciliation
+**Status:** REJECTED DATA-INTEGRITY / OPERATIONS PATTERN  
+**Decision date:** 2026-09-20
+
+Reject Folder or Delete implementations that report success solely because the underlying filesystem call succeeded. Reject optimistic UI removal/path changes that leave Database rows, current placement/status evidence, duplicate/system classification, Plan arithmetic, persistent browser caches, or Activity inconsistent with the filesystem.
+
+**Required replacement:** every explicit owner-initiated Grid mutation is a governed operation with per-placement durable results. Folder updates authoritative current placement/path evidence and preserves history; cross-filesystem moves verify destination byte identity before source removal. Delete retires current placement evidence only after filesystem success. Every committed mutation advances the evidence/cache revision, recomputes affected duplicate/system classification and Plan inputs/results, records Activity, and refreshes Grid/Database/Plan from backend-authoritative state before the operation is reported complete. Partial success remains explicit per placement.
