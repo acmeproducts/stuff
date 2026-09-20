@@ -36,7 +36,7 @@ function planScale(){return '<div class="planscale">'+[0,10,20,30,40,50,60,70,80
 function closeBarCall(){document.getElementById('barcall')?.remove()}
 function barCall(ev,title,rows){closeBarCall();let d=document.createElement('div');d.id='barcall';d.className='barcall';d.innerHTML='<div class="barcallhead"><b>'+esc(title)+'</b><button class="barcallclose" onclick="closeBarCall()">×</button></div>'+rows.map(r=>'<div class="barcallrow"><span>'+esc(r[0])+'</span><b>'+esc(r[1])+'</b></div>').join('');document.body.appendChild(d);let x=Math.min(innerWidth-d.offsetWidth-12,Math.max(12,ev.clientX+10)),y=Math.min(innerHeight-d.offsetHeight-12,Math.max(12,ev.clientY+10));d.style.left=x+'px';d.style.top=y+'px'}
 function seg(w,cls,title,rows){if(w<=0)return '';return '<div class="stackseg '+cls+'" style="width:'+Math.max(0,Math.min(100,w))+'%" onclick=\'barCall(event,'+JSON.stringify(title)+','+JSON.stringify(rows)+')\'></div>'}
-function planTable(rows){return '<div class="plantable"><table><thead><tr><th>Item</th><th>Files</th><th>Size</th><th>Percent</th></tr></thead><tbody>'+rows.map(r=>'<tr class="'+(r.row||'')+'"><td><i class="swatch '+(r.cls||'')+'"></i>'+esc(r.name)+'</td><td>'+esc(r.files)+'</td><td>'+esc(r.size)+'</td><td>'+esc(r.percent)+'</td></tr>').join('')+'</tbody></table></div>'}
+function planTable(rows){return '<div class="plantable"><table><thead><tr><th>Item</th><th>Files</th><th>Size</th><th>Percent</th></tr></thead><tbody>'+rows.map(r=>'<tr class="'+(r.row||'')+'"><td>'+(r.row==='total'?'':'<i class="swatch '+(r.cls||'')+'"></i>')+esc(r.name)+'</td><td>'+esc(r.files)+'</td><td>'+esc(r.size)+'</td><td>'+esc(r.percent)+'</td></tr>').join('')+'</tbody></table></div>'}
 function renderPlan(){
  let a=placements.filter(v=>v.availability!=='ERROR'&&v.fingerprint),byfp=new Map(),totalBytes=0;
  for(const r of a){let sz=Number(r.size)||0;totalBytes+=sz;let z=byfp.get(r.fingerprint)||{size:sz,rows:[]};z.rows.push(r);byfp.set(r.fingerprint,z)}
@@ -48,7 +48,7 @@ function renderPlan(){
  let estateFiles=uniqueFiles+keepFiles+excessFiles,estateBytes=uniqueBytes+keepBytes+excessBytes;
  let retainedFiles=uniqueFiles+keepFiles,retainedBytes=uniqueBytes+keepBytes;
  let t=targetState||{},target=Number(t.free_bytes||t.registered_free_bytes||0),open=Math.max(0,target-retainedBytes),capacityGreen=!!t.configured&&target>=retainedBytes;
- let landedFiles=0,landedBytes=0,inPlayFiles=retainedFiles,inPlayBytes=retainedBytes,remainingFiles=Math.max(0,inPlayFiles-landedFiles),remainingBytes=Math.max(0,inPlayBytes-landedBytes);
+ let landedFiles=0,landedBytes=0,opEstateFiles=retainedFiles,opEstateBytes=retainedBytes,inPlayFiles=Math.max(0,opEstateFiles-landedFiles),inPlayBytes=Math.max(0,opEstateBytes-landedBytes);
  let analysisRows=[
   {name:'UNIQUE',files:uniqueFiles.toLocaleString(),size:gb(uniqueBytes),percent:pct(uniqueBytes,estateBytes).toFixed(1)+'%',cls:'unique'},
   {name:'DUPLICATE',files:dupFiles.toLocaleString(),size:gb(dupBytes),percent:pct(dupBytes,estateBytes).toFixed(1)+'%',cls:'dup',row:'parent'},
@@ -59,9 +59,9 @@ function renderPlan(){
  let capEstatePct=pct(retainedBytes,target),openPct=pct(open,target);
  let capRows=[{name:'ESTATE',files:retainedFiles.toLocaleString(),size:gb(retainedBytes),percent:capEstatePct.toFixed(1)+'%',cls:'estate'},{name:'OPEN',files:'—',size:gb(open),percent:openPct.toFixed(1)+'%',cls:'open'},{name:'TARGET',files:'—',size:gb(target),percent:'100.0%',cls:'total',row:'total'}];
  let capBar=t.configured?seg(capEstatePct,'estate','ESTATE',[['Files',capRows[0].files],['Size',capRows[0].size],['TARGET share',capRows[0].percent]])+seg(openPct,'open','OPEN',[['Size',capRows[1].size],['TARGET share',capRows[1].percent]]):'';
- let landedPct=pct(landedBytes,inPlayBytes),remainingPct=pct(remainingBytes,inPlayBytes);
- let opRows=[{name:'IN PLAY',files:inPlayFiles.toLocaleString(),size:gb(inPlayBytes),percent:'100.0%',cls:'total'},{name:'LANDED',files:landedFiles.toLocaleString(),size:gb(landedBytes),percent:landedPct.toFixed(1)+'%',cls:'landed'},{name:'ESTATE',files:remainingFiles.toLocaleString(),size:gb(remainingBytes),percent:remainingPct.toFixed(1)+'%',cls:'estate',row:'total'}];
- let opBar=seg(remainingPct,'estate','ESTATE',[['Files',opRows[2].files],['Size',opRows[2].size],['IN PLAY remaining',opRows[2].percent]])+seg(landedPct,'landed','LANDED',[['Files',opRows[1].files],['Size',opRows[1].size],['IN PLAY share',opRows[1].percent]]);
+ let inPlayPct=pct(inPlayBytes,opEstateBytes),landedPct=pct(landedBytes,opEstateBytes);
+ let opRows=[{name:'IN PLAY',files:inPlayFiles.toLocaleString(),size:gb(inPlayBytes),percent:inPlayPct.toFixed(1)+'%',cls:'estate'},{name:'LANDED',files:landedFiles.toLocaleString(),size:gb(landedBytes),percent:landedPct.toFixed(1)+'%',cls:'landed'},{name:'ESTATE',files:opEstateFiles.toLocaleString(),size:gb(opEstateBytes),percent:'100.0%',row:'total'}];
+ let opBar=seg(inPlayPct,'estate','IN PLAY',[['Files',opRows[0].files],['Size',opRows[0].size],['ESTATE share',opRows[0].percent]])+seg(landedPct,'landed','LANDED',[['Files',opRows[1].files],['Size',opRows[1].size],['ESTATE share',opRows[1].percent]]);
  let planSections={
   Analysis:'<div class="plansec card"><div class="plantitle"><b>1. ANALYSIS RESULTS</b></div><div class="stackbar">'+analysisBar+'</div>'+planScale()+planTable(analysisRows)+'</div>',
   Capacity:'<div class="plansec card"><div class="plantitle"><b>2. BASIC CAPACITY CHECK:</b><span class="'+(capacityGreen?'good':'bad')+'">TARGET IS '+(capacityGreen?'GREEN':'INSUFFICIENT')+'</span></div>'+(t.configured?'<div class="stackbar">'+capBar+'</div>'+planScale()+planTable(capRows):'<div class="bad">TARGET NOT CONFIGURED</div>')+'</div>',
