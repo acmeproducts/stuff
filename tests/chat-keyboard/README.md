@@ -32,7 +32,7 @@ to exercise the correction flow, not to measure real-finger recognition accuracy
 - Discard obsolete suggestions after editing, clearing, sending, closing, or handoff.
 - Commit visible composition before typed Send; prevent cleared text reappearing.
 - Ignore obsolete asynchronous Japanese conversions.
-- Identify the candidate build as `english-swipe-20260919` in diagnostics and
+- Identify the candidate build as `lab-keyboard-patch-20260919` in diagnostics and
   `document.documentElement.dataset.chatBuild`.
 
 Production `chat.html`, admin, recognition scoring, and speech implementation are
@@ -60,3 +60,9 @@ acceptance complete based on this automated suite.
 ## English gesture and prediction tests
 
 Run `node tests/chat-keyboard/english.cjs` from the repository root after installing Playwright. Uses the real dict/en.json and dict/bigram-en.json assets. Drives actual pointer handlers on North and South through 20 words each, checks chained predictions and stale prediction rejection. Deterministic gestures are a regression sample, not a claim of real-world accuracy. Screenshot output is ignored by git.
+
+## Standalone lab integration protection
+
+The original lab fixture is pinned to 5fcd8cbc1cda41b2a36a499d019eef25b9a8bc02. integration.cjs asserts that the engine, speech/ownership, and config/bubbles/send sections exactly match this original. It runs the base and patched versions with no admin room data, verifies default English/Thai, typed translation, Northern Thai normalization, English-to-Thai code-switch normalization, PCM transport from a synthetic browser microphone, final speech callbacks, Thai dual sockets, and retained microphone ownership. Translation and STT responses are intercepted; this does not certify external service availability or real microphone recognition.
+
+Open chat-lab.html without s/n overrides for the original English/Thai defaults. An en/en URL intentionally does not translate between sides. Use the browser in which the original lab was configured: the existing Deepgram key belongs to that browser's local storage. No credentials are copied into tests or source.
