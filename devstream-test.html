@@ -47,6 +47,14 @@ select.input{appearance:auto}
 .badge.err{background:rgba(248,81,73,.18);color:var(--err)}
 .planlink{font-size:12px;color:var(--accent);padding:5px 6px;margin-left:auto}
 .planlink.off{color:var(--idle)}
+.ibtn{display:inline-flex;align-items:center;justify-content:center;width:34px;height:34px;flex-shrink:0;border-radius:8px;color:var(--dim);background:none;border:none}
+.ibtn svg{width:18px;height:18px;pointer-events:none}
+.ibtn:active{background:var(--panel);color:var(--text)}
+.ibtn.doc:not(.off){color:var(--accent)}
+.ibtn.off{color:var(--idle);opacity:.55}
+.ibtn.trash:active{color:var(--err)}
+.pchev{display:inline-flex;align-items:center;justify-content:center;width:28px;height:28px;flex-shrink:0;color:var(--dim);background:none;border:none;font-size:12px;transition:transform .15s}
+.pchev.open{transform:rotate(90deg)}
 
 #main{flex:1;display:flex;flex-direction:column;min-width:0}
 .mainbar{justify-content:flex-start}
@@ -123,8 +131,8 @@ select.input{appearance:auto}
 .trow .tt{font-size:11px;color:var(--dim)}
 .trow .terr{font-size:11px;color:var(--err);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .trow .terr.x{white-space:normal}
-.notes textarea{min-height:52px;font-size:13px}
-.notesave{font-size:12px;color:var(--accent);padding:7px 4px}
+.notes textarea{min-height:44px;font-size:13px}
+.notes .nhint{font-size:11px;color:var(--dim);margin-top:2px}
 
 #tabContext{position:fixed;background:var(--panel2);border:1px solid var(--line);border-radius:10px;z-index:95;display:none;min-width:190px;overflow:hidden}
 #tabContext button{display:block;width:100%;text-align:left;padding:12px 15px;font-size:13px;border-bottom:1px solid var(--line)}
@@ -268,6 +276,8 @@ let cfg=JSON.parse(localStorage.getItem(LS)||'null');
 let sot={threads:{},projects:{}}, sotSha=null;
 let threads={}, activeProject=localStorage.getItem('ds_activeproj')||null, activeKey=null;
 let debug=JSON.parse(sessionStorage.getItem('ds_debug')||'[]'),debugTab='log',treeCache=null, dashFilter='all', dashSort='last', pollTimer=null, dashTimer=null, npSelectedExisting=false, delOpen=false, view='empty';
+let secOpen=JSON.parse(localStorage.getItem('ds_secopen')||'{}');
+function saveSecOpen(){try{localStorage.setItem('ds_secopen',JSON.stringify(secOpen))}catch(e){}}
 
 const $=id=>document.getElementById(id);
 const enc=s=>btoa(unescape(encodeURIComponent(s)));
@@ -286,6 +296,20 @@ const tpath=(p,f)=>'devstream/threads/'+encodeURIComponent(p).replace(/%/g,'_')+
 const planOf=f=>f.replace(/\.[^.]+$/,'')+'.md';
 const slug=s=>(s||'').toLowerCase().replace(/[^a-z0-9]+/g,'-').replace(/^-+|-+$/g,'').slice(0,40)||'tab';
 const tabName=t=>t&&(t.name||t.file)||'';
+const ICON_TRASH='<svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>';
+const ICON_DOC='<svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>';
+function projState(p){
+  const ts=Object.values(sot.threads).filter(t=>t.project===p&&!t.deleted);
+  if(ts.some(t=>t.state==='executing'&&!isStalled(t)))return'executing';
+  if(ts.some(t=>t.state==='error'||isStalled(t)))return'error';
+  if(ts.some(t=>t.state==='ok'))return'ok';
+  return'idle';
+}
+function openPlan(p){
+  const pr=sot.projects[p]||{};
+  if(pr.planFile&&pr.planExists)window.open('https://github.com/'+repoFull()+'/blob/'+cfg.branch+'/'+pr.planFile,'_blank');
+  else toast('No plan file yet — the first run writes it');
+}
 const projPlan=p=>(sot.projects[p]||{}).planFile||'';
 const projMain=p=>(sot.projects[p]||{}).mainFile||'';
 /* ---- outbox: anything you typed stays in the transcript until the repo copy has it ---- */
@@ -448,17 +472,13 @@ function renderSidebar(){
     const pr=sot.projects[p];
     const d=document.createElement('div');d.className='card'+(p===activeProject?' active':'');
     const plan=pr.planFile;
-    d.innerHTML='<div class="cttl">'+esc(p)+'<span class="grow"></span><button class="planlink '+(plan&&pr.planExists?'':'off')+'">'+(plan?'Plan ↗':'')+'</button></div><div class="csub">'+th.length+' thread'+(th.length===1?'':'s')+' · '+rel(pr.lastTouched)+'</div>';
-    const pb=d.querySelector('.planlink');
-    pb.onclick=e=>{e.stopPropagation();
-      if(plan&&pr.planExists)window.open('https://github.com/'+repoFull()+'/blob/'+cfg.branch+'/'+plan,'_blank');
-      else toast('Plan not created yet — the project thread builds it')};
+    d.innerHTML='<div class="cttl"><span class="dot '+projState(p)+'"></span><span class="grow" style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+esc(p)+'</span>'+
+      '<button class="ibtn doc '+(plan&&pr.planExists?'':'off')+'" title="Open plan">'+ICON_DOC+'</button>'+
+      '<button class="ibtn trash" title="Delete project">'+ICON_TRASH+'</button></div>'+
+      '<div class="csub">'+th.length+' tab'+(th.length===1?'':'s')+' · '+rel(pr.lastTouched)+'</div>';
+    d.querySelector('.ibtn.doc').onclick=e=>{e.stopPropagation();openPlan(p)};
+    d.querySelector('.ibtn.trash').onclick=e=>{e.stopPropagation();softDeleteProject(p)};
     d.onclick=()=>{openProject(p);sideOpen(false)};
-    let lpT=null;
-    d.addEventListener('touchstart',()=>{lpT=setTimeout(()=>{lpT=null;softDeleteProject(p)},650)});
-    d.addEventListener('touchend',()=>{if(lpT)clearTimeout(lpT)});
-    d.addEventListener('touchmove',()=>{if(lpT)clearTimeout(lpT)});
-    d.addEventListener('contextmenu',e=>{e.preventDefault();softDeleteProject(p)});
     pl.appendChild(d);
   });
 }
@@ -562,17 +582,17 @@ function renderChat(force){
 async function softDeleteThread(key){
   await guard(async()=>{
     sot.threads[key].deleted=true;sot.threads[key].deletedAt=now();
-    if(activeKey===key){activeKey=null;showView('empty')}
+    if(activeKey===key){activeKey=null;if(view!=='dash')showView('empty')}
     await saveSOT('devstream: soft delete '+key);
     renderTabs();renderSidebar();if(view==='dash')renderDash();toast('Moved to deleted');
   });
 }
 async function softDeleteProject(p){
-  if(!confirm('Soft delete project "'+p+'" and its threads? (Recoverable from Recycle Bin)'))return;
+  if(!confirm('Delete project "'+p+'" and its tabs? It moves to Deleted on the dashboard and can be restored.'))return;
   await guard(async()=>{
     sot.projects[p].deleted=true;sot.projects[p].deletedAt=now();
     Object.keys(sot.threads).forEach(k=>{if(sot.threads[k].project===p){sot.threads[k].deleted=true;sot.threads[k].deletedAt=now()}});
-    if(activeProject===p){activeProject=null;localStorage.removeItem('ds_activeproj');activeKey=null;showView('empty')}
+    if(activeProject===p){activeProject=null;localStorage.removeItem('ds_activeproj');activeKey=null;if(view!=='dash')showView('empty')}
     await saveSOT('devstream: soft delete project '+p);
     renderTabs();renderSidebar();if(view==='dash')renderDash();toast('Project moved to deleted');
   });
@@ -605,13 +625,13 @@ async function hardDeleteProject(p){
   });
 }
 async function deleteThread(key){
-  if(!confirm('Delete thread '+key+'? Repo files are NOT deleted.'))return;
+  if(!confirm('Delete tab '+key+'? Repo files are NOT deleted.'))return;
   await guard(async()=>{
     const t=sot.threads[key];const p=tpath(t.project,t.tid||t.file);
     const f=await getFile(p);
     if(f)await gh('contents/'+p,{method:'DELETE',body:JSON.stringify({message:'devstream: delete thread '+key,sha:f.sha,branch:cfg.branch})});
     delete sot.threads[key];delete threads[key];delete outbox[key];saveOutbox();
-    if(activeKey===key){activeKey=null;showView('empty')}
+    if(activeKey===key){activeKey=null;if(view!=='dash')showView('empty')}
     await saveSOT('devstream: remove thread '+key);renderTabs();renderSidebar();
   });
 }
@@ -1236,12 +1256,21 @@ function renderDash(){
     if(dashFilter!=='all')rows=rows.filter(([k,t])=>(t.state||'idle')===dashFilter);
     const sec=document.createElement('div');sec.className='dsec';
     const runs=rows.filter(([k,t])=>t.state==='executing'&&!isStalled(t)).length;
-    sec.innerHTML='<div class="dpttl">'+esc(p)+
-      (runs?' <span class="badge run">'+runs+' running</span>':'')+
-      (pr.planFile&&pr.planExists?' <button class="planlink">Plan ↗</button>':'')+'</div>'+
-      '<div class="dpsub">Last touched '+rel(pr.lastTouched)+' · '+rows.length+' thread'+(rows.length===1?'':'s')+'</div>';
-    const pl=sec.querySelector('.planlink');
-    if(pl)pl.onclick=()=>window.open('https://github.com/'+repoFull()+'/blob/'+cfg.branch+'/'+pr.planFile,'_blank');
+    const open=secOpen[p]===true;
+    sec.innerHTML='<div class="dpttl"><button class="pchev'+(open?' open':'')+'">▶</button>'+
+      '<span class="dot '+projState(p)+'"></span><span class="grow" style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+esc(p)+'</span>'+
+      (runs?'<span class="badge run">'+runs+' running</span>':'')+
+      '<button class="ibtn doc '+(pr.planFile&&pr.planExists?'':'off')+'" title="Open plan">'+ICON_DOC+'</button>'+
+      '<button class="ibtn trash" title="Delete project">'+ICON_TRASH+'</button></div>'+
+      '<div class="dpsub">Last touched '+rel(pr.lastTouched)+' · '+rows.length+' tab'+(rows.length===1?'':'s')+'</div>';
+    sec.querySelector('.ibtn.doc').onclick=e=>{e.stopPropagation();openPlan(p)};
+    sec.querySelector('.ibtn.trash').onclick=e=>{e.stopPropagation();softDeleteProject(p)};
+    const tabWrap=document.createElement('div');tabWrap.style.display=open?'block':'none';
+    const chev=sec.querySelector('.pchev');
+    const toggle=()=>{const on=tabWrap.style.display==='none';tabWrap.style.display=on?'block':'none';
+      chev.classList.toggle('open',on);secOpen[p]=on;saveSecOpen()};
+    chev.onclick=e=>{e.stopPropagation();toggle()};
+    sec.querySelector('.dpttl .grow').onclick=toggle;
     const sorters={last:(a,b)=>(b[1].finishedAt||b[1].startedAt||'').localeCompare(a[1].finishedAt||a[1].startedAt||''),
       state:(a,b)=>(a[1].state||'').localeCompare(b[1].state||''),file:(a,b)=>a[1].file.localeCompare(b[1].file)};
     rows.sort(sorters[dashSort]);
@@ -1251,7 +1280,7 @@ function renderDash(){
       if(corrupt){
         r.innerHTML='<span class="dot error"></span><div class="ti"><div class="tf mono">[corrupt legacy thread] '+esc(t.file)+'</div><div class="tt">bad metadata from an early build</div></div><button class="recBtn danger">Purge</button>';
         r.querySelector('button').onclick=e=>{e.stopPropagation();hardDeleteThread(k)};
-        sec.appendChild(r);return;
+        tabWrap.appendChild(r);return;
       }
       const stalled=isStalled(t);
       r.innerHTML='<span class="dot '+(stalled?'error':(t.state||'idle'))+'"></span><div class="ti">'+
@@ -1265,17 +1294,26 @@ function renderDash(){
       const ee=r.querySelector('.terr');
       if(ee)ee.onclick=e=>{e.stopPropagation();ee.classList.toggle('x')};
       r.onclick=()=>openProject(t.project,k);
-      sec.appendChild(r);
+      tabWrap.appendChild(r);
     });
     if(!rows.length){
       const cta=document.createElement('button');cta.className='btn';cta.textContent='+ start a thread in '+p;
       cta.style.marginBottom='8px';
       cta.onclick=()=>{openProject(p);newThreadForProject()};
-      sec.appendChild(cta);
+      tabWrap.appendChild(cta);
     }
+    sec.appendChild(tabWrap);
     const nd=document.createElement('div');nd.className='notes';
-    nd.innerHTML='<textarea class="input" placeholder="Notes for '+esc(p)+'…">'+esc(pr.notes||'')+'</textarea><button class="notesave">Save notes</button>';
-    nd.querySelector('button').onclick=()=>guard(async()=>{pr.notes=nd.querySelector('textarea').value;await saveSOT('devstream: notes '+p);toast('Saved')});
+    nd.innerHTML='<textarea class="input" placeholder="Notes for '+esc(p)+'… (Enter saves, Shift+Enter newline)">'+esc(pr.notes||'')+'</textarea><div class="nhint"></div>';
+    const ta=nd.querySelector('textarea'),hint=nd.querySelector('.nhint');
+    const saveNotes=()=>{
+      if(ta.value===(pr.notes||''))return;
+      pr.notes=ta.value;hint.textContent='saving…';
+      guard(async()=>{await saveSOT('devstream: notes '+p)}).then(ok=>{hint.textContent=ok?'saved '+new Date().toLocaleTimeString():'not saved';
+        setTimeout(()=>{if(hint.textContent.indexOf('saved')===0)hint.textContent=''},2500)});
+    };
+    ta.addEventListener('keydown',e=>{if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();ta.blur()}});
+    ta.addEventListener('blur',saveNotes);
     sec.appendChild(nd);
     body.appendChild(sec);
   });
