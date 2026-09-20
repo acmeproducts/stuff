@@ -149,13 +149,13 @@ function mnxModelHash(k){
 }
 function mnxManifest(k){
   let d=mnxDefIndex(k),dc=(S.def&&S.def.display_contract)||{},
-      elig=(S.derived&&S.derived.ratioEligibility)||{},
+      elig=(S.derived&&S.derived.ratioEligibility)||{},transforms=(S.derived&&S.derived.componentTransforms)||{},
       blocks=(S.derived&&S.derived.indices&&S.derived.indices[k]&&S.derived.indices[k].horizons)||{},
       comps=((d&&d.components)||[]).map(c=>{
-        let e=elig[c.id]||{};
-        return{id:c.id,name:mnxCompName(c.id),role:c.role||'',direction:c.direction,
+        let e=elig[c.id]||{},t=transforms[c.id]||{},kind=c.transform||t.kind||'ratio';
+        return{id:c.id,name:mnxCompName(c.id),role:c.role||'',direction:c.direction,transform:kind,transformScale:t.scale??null,transformScaleRule:t.scaleRule||'',
                expectedCadence:mnxCompCadence(c.id),dataHealth:mnxCompHealth(c.id),
-               ratioEligible:e.eligible!==false,ratioIneligibleReason:e.eligible===false?(e.reason||''):null};
+               ratioEligible:kind==='ratio'&&e.eligible!==false,ratioIneligibleReason:kind!=='ratio'?`not applicable — governed ${kind} transform`:e.eligible===false?(e.reason||''):null};
       });
   return{schema:'market-navigator-model-manifest-v1',modelId:k,modelName:(d&&d.name)||k,shortName:AB[k]||k,
     purpose:'DESCRIPTIVE',purposeBasis:dc.interpretation_rule||'',
@@ -164,7 +164,7 @@ function mnxManifest(k){
     higherMeans:(d&&d.higher_means)||'',
     componentFormula:dc.component_formula||'',indexFormula:dc.index_formula||'',weightingRule:dc.weighting||'',
     renormalizationRule:'Each available component carries weight 1/n where n is the number of components available at the horizon; components excluded by the governed ratio-eligibility rule are omitted and the remaining weights renormalise through the arithmetic mean.',
-    missingStaleRule:dc.mixed_frequency_rule||'',ratioEligibilityRule:dc.ratio_eligibility_rule||'',
+    missingStaleRule:dc.mixed_frequency_rule||'',ratioEligibilityRule:dc.ratio_eligibility_rule||'',signedSeriesRule:dc.signed_series_rule||'',
     nonpositiveBaselineRule:dc.nonpositive_baseline_rule||'',
     components:comps,componentsDefined:comps.length,excludedComponents:(d&&d.excluded_components)||[],
     methodologyHistory:[{effectiveDate:(S.def&&S.def.effective_date)||'',definitionVersion:(S.def&&S.def.version)||'',definitionStatus:(S.def&&S.def.status)||'',note:(d&&d.construction_detail)||'Accepted governed definition.'}],
@@ -194,15 +194,15 @@ function mnxRecord(k,h){
   if(!n)return Object.assign({},head,{status:'UNAVAILABLE',statusReason:`No governed component attribution is available for ${man.shortName} at horizon ${h}.`,missingPrerequisite:'eligible component observations',componentsUsed:0,components:[],omitted:omitted,replication:null,reconciliation:null});
   let w=1/n,anchorNow=b.commonNow||'',anchorT0=b.commonT0||'',
       components=raw.map(c=>{
-        let dm=defMap[c.id]||{},contribution=(+c.moveFrom100)*w;
+        let dm=defMap[c.id]||{},contribution=(+c.moveFrom100)*w,kind=c.transform||dm.transform||'ratio';
         return{componentId:c.id,displayName:dm.name||mnxCompName(c.id),role:dm.role||'',
           direction:+c.direction,weight:w,weightRule:`1/${n} equal weight over components available at this horizon`,
-          transform:man.componentFormula,
+          transform:kind,transformScale:Number.isFinite(+c.transformScale)?+c.transformScale:null,transformScaleRule:c.transformScaleRule||'',
           baselineObservationDate:c.sourceT0Date||'',baselineValue:+c.t0Value,
           endObservationDate:c.sourceNowDate||'',endValue:+c.nowValue,
           horizonBaselineDate:c.commonT0||anchorT0,horizonEndDate:c.commonNow||anchorNow,
           observationAlignedToAnchor:(c.sourceNowDate||'')===(c.commonNow||anchorNow),
-          rawMovementPercent:(((+c.nowValue)/(+c.t0Value))-1)*100,
+          rawMovement:+c.nowValue-(+c.t0Value),rawMovementPercent:Number.isFinite(+c.rawMovementPercent)?+c.rawMovementPercent:((+c.t0Value)!==0?(((+c.nowValue)/(+c.t0Value))-1)*100:null),
           orientedIndex:+c.orientedIndex,orientedMovementPercent:+c.moveFrom100,
           indexContributionPercentPoints:contribution,
           dataHealth:c.health||mnxCompHealth(c.id),
@@ -210,7 +210,7 @@ function mnxRecord(k,h){
           expectedCadence:dm.expectedCadence||mnxCompCadence(c.id),
           sourceRevision:man.evidenceRevision,estimated:false};
       }),
-      replicatedOriented=raw.map(c=>100+(+c.direction)*((((+c.nowValue)/(+c.t0Value)))-1)*100),
+      replicatedOriented=raw.map(c=>{let kind=c.transform||(defMap[c.id]&&defMap[c.id].transform)||'ratio';return kind==='signed_level_sd'?100+(+c.direction)*(((+c.nowValue)-(+c.t0Value))/(+c.transformScale)):100+(+c.direction)*((((+c.nowValue)/(+c.t0Value)))-1)*100}),
       maxComponentError=replicatedOriented.reduce((a,v,i)=>Math.max(a,Math.abs(v-(+raw[i].orientedIndex))),0),
       recomputedIndex=replicatedOriented.reduce((a,x)=>a+x,0)/n,
       publishedIndex=+b.value,
@@ -266,99 +266,7 @@ function mnxPlain(r){
   let degrade=r.status==='RECONCILED'?'':` ${r.statusReason}`;
   return lead+body+cover+degrade;
 }
-function mnxRecordMarkdown(r){
-  let s=`## ${r.shortName} — ${r.horizon}\n\n`;
-  if(r.status==='UNAVAILABLE'){
-    s+=`**Attribution unavailable**\n\n${r.statusReason}\n\nMissing prerequisite: \`${r.missingPrerequisite||'governed component evidence'}\`.\n\nNo contribution values have been estimated, forward-filled or inferred.\n\nModel definition ${r.modelDefinitionVersion||'—'} (${r.modelHash}) · evidence revision ${r.evidenceRevision||'—'}\n`;
-    return s;
-  }
-  s+=`**Index movement: ${mnxPct(r.indexMovementPercent)}**\n\n`;
-  s+=`${r.shortName} (${r.indexName}) moved from **${mnxNum(r.baselineIndexValue)} → ${mnxNum(r.endIndexValue)}** over the selected ${r.horizon} horizon (${r.baselineDate} → ${r.endDate}).\n\n`;
-  s+=`| Component | Weight | Direction | Observation dates | Component movement | ${r.shortName} impact |\n|---|---:|---:|---|---:|---:|\n`;
-  r.components.forEach(c=>{
-    s+=`| ${c.displayName} | ${mnxNum(c.weight*100,1)}% | ${c.direction>0?'+1':'−1'} | ${c.baselineObservationDate||'—'} → ${c.endObservationDate||'—'} | ${mnxNum(c.baselineValue,4)} → ${mnxNum(c.endValue,4)} · ${mnxPct(c.rawMovementPercent)} | ${mnxPp(c.indexContributionPercentPoints)} |\n`;
-  });
-  s+=`| **${r.shortName} total** | **100.0%** | | | | **${mnxPp(r.reconciliation.summedContribution)}** |\n\n`;
-  if(r.omitted&&r.omitted.length){
-    s+=`**Omitted components (${r.componentsDefined-r.componentsUsed} of ${r.componentsDefined}) — excluded by governed rule, not estimated:**\n\n`;
-    r.omitted.forEach(o=>{s+=`- **${o.displayName}** — ${o.reason}\n`});
-    s+=`\n`;
-  }
-  let stale=(r.components||[]).filter(c=>c.noNewReleaseInHorizon||!c.observationAlignedToAnchor);
-  if(stale.length){
-    s+=`**Observation alignment:** the following components carry their most recent real observation at or before the common anchor; no synthetic observation was written and nothing was restamped to the horizon boundary:\n\n`;
-    stale.forEach(c=>{s+=`- ${c.displayName} — latest real observation ${c.endObservationDate||'—'} against common anchor ${c.horizonEndDate||'—'}${c.noNewReleaseInHorizon?' (no new release in horizon)':''}\n`});
-    s+=`\n`;
-  }
-  s+=`**In simple terms:** ${mnxPlain(r)}\n\n`;
-  s+=`Calculation status: **${r.status}** · coverage ${r.componentsUsed}/${r.componentsDefined} (${r.coverageStatus}) · formula replication ${r.replication.result} (max component error ${r.replication.maxComponentError.toExponential(2)}, index error ${r.replication.indexError.toExponential(2)}) · reconciliation residual ${mnxPp(r.reconciliation.residual,6)} against tolerance ±${r.reconciliation.tolerance} pp · evidence revision ${r.evidenceRevision||'—'} · model definition ${r.modelDefinitionVersion||'—'} (${r.modelHash})\n\n`;
-  s+=`Weighting rule: ${r.weightingRule}. ${r.renormalizationRule}\n\nComponent transform: \`${r.componentFormula}\`\n\nIndex: \`${r.indexFormula}\`\n`;
-  if(r.status!=='RECONCILED')s+=`\n${r.statusReason}\n`;
-  return s;
-}
-function mnxExplain(state){
-  let ids=mnxScopeIndices(state),horizon=(state&&state.horizon)||S.h,
-      records=ids.map(k=>{let r=mnxRecord(k,horizon);r.fingerprint=mnxRecordFingerprint(r);return r}),
-      markdown=records.length?records.map(mnxRecordMarkdown).join('\n---\n\n'):'';
-  return{schema:'market-navigator-index-explanation-set-v1',horizon:horizon,scope:ids,
-    lineage:(state&&state.lineage)||'',applicable:records.length>0,
-    records:records,markdown:markdown,
-    fingerprint:mnxHash(JSON.stringify([horizon,(state&&state.lineage)||'',records.map(r=>r.fingerprint)])),
-    evidenceRevision:(S.derived&&S.derived.revision)||'',
-    modelDefinitionVersion:(S.def&&S.def.version)||'',
-    computedAt:new Date().toISOString(),
-    provenance:'Deterministic governed arithmetic computed from canonical derived-index evidence. Not generated, estimated or altered by AI.',
-    note:records.length?'':'No governed composite index is within the frozen analytical scope. No index explanation is applicable and none has been fabricated.'};
-}
-function mnxRenderMarkdown(md){
-  if(!md)return '';
-  try{return DOMPurify.sanitize(marked.parse(md))}catch(e){return `<pre>${esc(md)}</pre>`}
-}
-function mnxSetModalStatus(t){let el=$('mnxStatus');if(el)el.textContent=t||''}
-function mnxOpenExplanation(){
-  let state=S.nowChartState?nowAnalysisState():null,snap=mnxExplain(state);
-  mnxExplanationFrozen=snap;
-  let modal=$('mnxModal'),body=$('mnxBody'),btn=$('indexInfoBtn');
-  $('mnxHorizon').textContent=snap.horizon;
-  if(snap.applicable){
-    body.innerHTML=`<div class="mnxTableWrap">${mnxRenderMarkdown(snap.markdown)}</div>`;
-  }else{
-    body.innerHTML=`<h2>Attribution not applicable</h2><p>${esc(snap.note)}</p><p class="mnxNote">Current analytical scope: ${esc((state&&state.lineage)||'—')}. Raw and component series are shown as plain relative rebasing; no composite index explanation has been fabricated for them.</p>`;
-  }
-  mnxSetModalStatus(snap.applicable?`${snap.records.length} governed index record${snap.records.length===1?'':'s'} · fingerprint ${snap.fingerprint}`:'No governed composite index in scope.');
-  mnxLastFocus=document.activeElement;
-  modal.hidden=false;
-  if(btn)btn.setAttribute('aria-expanded','true');
-  let close=$('mnxClose');if(close)close.focus();
-  return snap;
-}
-function mnxCloseExplanation(){
-  let modal=$('mnxModal'),btn=$('indexInfoBtn');
-  if(!modal||modal.hidden)return;
-  modal.hidden=true;
-  if(btn)btn.setAttribute('aria-expanded','false');
-  let back=(mnxLastFocus&&document.contains(mnxLastFocus))?mnxLastFocus:btn;
-  if(back&&back.focus)back.focus();
-  mnxLastFocus=null;
-}
-function mnxCurrentMarkdown(){return mnxExplanationFrozen?mnxExplanationFrozen.markdown:''}
-function mnxCopyExplanation(){
-  let md=mnxCurrentMarkdown();
-  if(!md){mnxSetModalStatus('No governed explanation is in scope to copy.');return Promise.resolve(false)}
-  let done=ok=>{mnxSetModalStatus(ok?'Markdown copied to clipboard.':'Clipboard unavailable — use Download MD.');return ok};
-  try{
-    if(navigator.clipboard&&navigator.clipboard.writeText)return navigator.clipboard.writeText(md).then(()=>done(true),()=>done(false));
-  }catch(e){}
-  return Promise.resolve(done(false));
-}
-function mnxDownloadExplanation(){
-  let md=mnxCurrentMarkdown();
-  if(!md){mnxSetModalStatus('No governed explanation is in scope to download.');return false}
-  let hz=(mnxExplanationFrozen&&mnxExplanationFrozen.horizon||S.h||'').toLowerCase();
-  downloadBlob(`market-navigator-index-explanation-${hz}.md`,'text/markdown',md+'\n');
-  mnxSetModalStatus('Markdown downloaded.');
-  return true;
-}
+
 
 /* ===================== Turn 25 Ship — deterministic Derived Model Health =====================
    Model Health answers "how stable/concentrated/reproducible is this governed composite", and is kept
@@ -382,7 +290,7 @@ function mnxSeriesStats(id){
 function mnxModelHealth(k,h){
   let man=mnxManifest(k),r=mnxRecord(k,h);
   r.fingerprint=mnxRecordFingerprint(r);
-  let dataHealth=man.components.map(c=>({componentId:c.id,displayName:c.name,classification:c.dataHealth,expectedCadence:c.expectedCadence,ratioEligible:c.ratioEligible,ratioIneligibleReason:c.ratioIneligibleReason})),
+  let dataHealth=man.components.map(c=>({componentId:c.id,displayName:c.name,classification:c.dataHealth,expectedCadence:c.expectedCadence,transform:c.transform,transformScale:c.transformScale,transformScaleRule:c.transformScaleRule,role:c.role,direction:c.direction,ratioEligible:c.ratioEligible,ratioIneligibleReason:c.ratioIneligibleReason})),
       dataHealthCurrent=dataHealth.filter(c=>c.classification==='current').length,
       base={schema:'market-navigator-model-health-v1',modelId:k,shortName:man.shortName,modelName:man.modelName,
         horizon:h,purpose:man.purpose,definitionVersion:man.definitionVersion,modelHash:man.modelHash,
@@ -436,11 +344,11 @@ function mnxModelHealth(k,h){
         if(!st)return{componentId:c.componentId,displayName:c.displayName,available:false,
           reason:'Canonical component history is not loaded; standardized sensitivity is not estimated.',
           oneSdShockPercent:null,oneSdIndexImpactPercentPoints:null,p95ShockPercent:null,p95IndexImpactPercentPoints:null};
-        let unit=(c.direction*(c.endValue/c.baselineValue)*100)/n; /* index pp per 1.0 proportional shock to end value */
+        let unit=c.transform==='signed_level_sd'?(c.direction/((Number.isFinite(c.transformScale)&&c.transformScale>0)?c.transformScale:1))/n:(c.direction*(c.endValue/c.baselineValue)*100)/n; /* governed transform response */
         return{componentId:c.componentId,displayName:c.displayName,available:true,
           historyObservations:st.observationCount,historyFrom:st.firstObservation,historyTo:st.lastObservation,
-          oneSdShockPercent:st.sd*100,oneSdIndexImpactPercentPoints:unit*st.sd,
-          p95ShockPercent:st.p95*100,p95IndexImpactPercentPoints:unit*st.p95,
+          oneSdShockPercent:st.sd*100,oneSdIndexImpactPercentPoints:c.transform==='signed_level_sd'?null:unit*st.sd,
+          p95ShockPercent:st.p95*100,p95IndexImpactPercentPoints:c.transform==='signed_level_sd'?null:unit*st.p95,
           shockDefinition:'End-value multiplicative shock of +1 historical standard deviation (and historical 95th-percentile absolute move) of the component own observation-to-observation returns, recomputed through the governed composite.'};
       }),
       sensAvailable=sens.filter(x=>x.available),
@@ -499,6 +407,7 @@ function mnxModelHealthSnapshot(state){
     note:'Derived Model Health is computed from governed arithmetic and is independent of Sources / Data Health.'};
 }
 
+
 /* ===================== Turn 25 Ship — HEALTH: Sources | Derived Models ===================== */
 function mnxLifeColor(l){return l==='ACTIVE'?'var(--good)':l==='SUSPENDED'?'var(--bad)':l==='DEGRADED'?'var(--bad)':'var(--accent)'}
 function mnxEnsureHealthTabs(){
@@ -506,12 +415,29 @@ function mnxEnsureHealthTabs(){
   let bar=$('mnxHealthTabs');
   if(!bar){
     bar=document.createElement('div');bar.id='mnxHealthTabs';bar.className='mnxHealthTabs';bar.setAttribute('role','tablist');
-    bar.innerHTML=`<button class="btn" type="button" role="tab" data-mnx-health="sources">Sources</button><button class="btn" type="button" role="tab" data-mnx-health="models">Derived Models</button>`;
+    bar.innerHTML=`<button class="btn" type="button" role="tab" data-mnx-health="sources">Sources</button><button class="btn" type="button" role="tab" data-mnx-health="models">Derived Models</button><button class="btn" type="button" role="tab" data-mnx-health="glossary">Glossary</button>`;
     host.parentNode.insertBefore(bar,host);
     bar.addEventListener('click',e=>{let b=e.target.closest('[data-mnx-health]');if(!b)return;mnxHealthTab=b.dataset.mnxHealth;mnxRenderHealth()});
   }
   bar.querySelectorAll('[data-mnx-health]').forEach(b=>b.setAttribute('aria-selected',String(b.dataset.mnxHealth===mnxHealthTab)));
   return bar;
+}
+function mnxGlossaryHtml(){
+ const terms=[
+  ['Formula replication','Can Market Navigator independently reproduce the published derived-index value from the governed component arithmetic?','A failure means the model calculation cannot be trusted and is suspended.'],
+  ['Components available','How many defined model components can participate truthfully at the selected horizon.','Missing components reduce coverage. Governed fallback renormalizes remaining eligible components; Health remains WATCH/DEGRADED as appropriate.'],
+  ['Reconciliation residual','Difference between the index movement and the sum of component contributions.','Near zero means the explanation accounts for the index movement. A material residual suspends the model.'],
+  ['Concentration share','Share of absolute index movement attributable to the largest component (and top two).','High concentration means the current index move is being driven by very few factors even if all components are present.'],
+  ['Effective components','Diversification implied by current contribution shares (inverse Herfindahl concentration).','A value near 1 means the index currently behaves like roughly one dominant factor; larger values indicate broader participation.'],
+  ['Leave-one-out impact','How much the index changes when one component is removed and the remaining governed weights are renormalized.','Large impact means the result depends heavily on that component.'],
+  ['Direction stability','Fraction of leave-one-out tests that preserve the sign of the canonical index move.','Below 100% means the directional conclusion depends on component inclusion.'],
+  ['Specification robustness','Fraction of governed nearby weighting diagnostics that preserve the direction of the canonical move.','It tests fragility only; it never replaces or changes the canonical model.'],
+  ['Standardized sensitivity','Model response to component-scaled historical shocks.','Large values identify components to which the index is unusually sensitive. Missing sensitivity is never estimated.'],
+  ['Data Health','Whether canonical source observations are current and usable.','Good Data Health does not prove the derived model is healthy; model construction is assessed separately.'],
+  ['ACTIVE / WATCH / DEGRADED / SUSPENDED','Derived-model lifecycle from governed tests.','ACTIVE is healthy; WATCH flags material diagnostics; DEGRADED means the model remains calculable but incomplete/compromised; SUSPENDED means it should not be treated as a valid model output.']
+ ];
+ let models=IDX.map(k=>mnxManifest(k));
+ return '<div class="mnxGlossary"><h3>Health terminology</h3><div class="mnxTableWrap"><table><thead><tr><th>Term</th><th>What it is</th><th>Why it matters</th></tr></thead><tbody>'+terms.map(x=>'<tr><td><strong>'+esc(x[0])+'</strong></td><td>'+esc(x[1])+'</td><td>'+esc(x[2])+'</td></tr>').join('')+'</tbody></table></div><h3>Model components</h3>'+models.map(m=>'<h4>'+esc(m.shortName)+' — '+esc(m.modelName)+'</h4><div class="mnxTableWrap"><table><thead><tr><th>Component</th><th>What / relevance</th><th>Direction</th><th>Transform</th><th>Current implication</th><th>Acquisition</th></tr></thead><tbody>'+m.components.map(c=>{let current=c.dataHealth==='current'?'Source current. ':('Source '+c.dataHealth+'. '),participates=c.transform==='signed_level_sd'?'Zero-crossing safe: additive change standardized by canonical historical level SD; remains eligible across inversion/uninversion.':(c.ratioEligible?'Ratio-rebased when horizon evidence is available.':'Currently structurally excluded: '+(c.ratioIneligibleReason||'ratio transform unavailable')+'. Remaining eligible weights renormalize automatically; model coverage falls.');let provider='';try{let z=cat(c.id);provider=(z.provider||'')+(z.provider==='FRED'?' · public CSV · authentication none':'')}catch(e){}return '<tr><td><strong>'+esc(c.name)+'</strong><br><span class="mnxNote">'+esc(c.expectedCadence||'—')+'</span></td><td>'+esc(c.role||'Governed component')+'</td><td>'+(c.direction>0?'+1':'−1')+'</td><td>'+esc(c.transform||'ratio')+(c.transformScale?'<br><span class="mnxNote">scale '+mnxNum(c.transformScale,4)+'</span>':'')+'</td><td>'+esc(current+participates)+'</td><td>'+esc(provider||'canonical provider')+'</td></tr>'}).join('')+'</tbody></table></div>').join('')+'<p class="mnxNote">FRED macro series are currently collected through FRED public chart CSV endpoints; Market Navigator does not require a FRED API key for this acquisition path.</p></div>';
 }
 function mnxSensitivityCell(m){
   let s=m.sensitivity;
@@ -526,7 +452,7 @@ function mnxModelCardHtml(m){
   <p class="mnxNote">${esc(m.lifecycleReason)}</p>
   <div class="mnxGrid">
    <div class="mnxMetric">Formula replication<b>${esc(m.replication?m.replication.result:'—')}</b></div>
-   <div class="mnxMetric">Components available<b>${esc(cov)} (${esc(m.coverageStatus||'—')})</b></div>
+   <button class="mnxMetric mnxMetricButton" type="button" data-mnx-coverage="${esc(m.modelId)}">Components available<b>${esc(cov)} (${esc(m.coverageStatus||'—')})</b></button>
    <div class="mnxMetric">Weight total<b>${m.weightTotalValid?'1.000 valid':'invalid'}</b></div>
    <div class="mnxMetric">Reconciliation residual<b>${m.reconciliation?mnxPp(m.reconciliation.residual,6):'—'}</b></div>
    <div class="mnxMetric">Largest contribution<b>${m.concentration?esc(m.concentration.largestComponentName)+' '+mnxPp(m.concentration.largestContributionPercentPoints):'—'}</b></div>
@@ -538,7 +464,7 @@ function mnxModelCardHtml(m){
    <div class="mnxMetric">Standardized sensitivity<b>${esc(mnxSensitivityCell(m))}</b></div>
    <div class="mnxMetric">Data Health (separate)<b>${m.dataHealth.currentCount}/${m.dataHealth.definedCount} sources current</b></div>
   </div>
-  <details data-mnx-section="components"><summary>Components</summary><div class="mnxTableWrap"><table><thead><tr><th>Component</th><th>Direction</th><th>Cadence</th><th>Ratio eligible</th><th>Data health</th></tr></thead><tbody>${m.dataHealth.components.map(c=>`<tr><td>${esc(c.displayName)}</td><td>${c.direction>0?'+1':'−1'}</td><td>${esc(c.expectedCadence||'—')}</td><td>${c.ratioEligible?'yes':'no — '+esc(c.ratioIneligibleReason||'')}</td><td>${esc(c.classification)}</td></tr>`).join('')}</tbody></table></div><p class="mnxNote">Source availability above is Data Health. It is not evidence that the derived model is healthy.</p></details>
+  <details data-mnx-section="components"><summary>Components</summary><div class="mnxTableWrap"><table><thead><tr><th>Component</th><th>Direction</th><th>Cadence</th><th>Governed transform</th><th>Data health</th></tr></thead><tbody>${m.dataHealth.components.map(c=>`<tr><td>${esc(c.displayName)}</td><td>${c.direction>0?'+1':'−1'}</td><td>${esc(c.expectedCadence||'—')}</td><td>${esc(c.transform||'ratio')}${c.transform==='ratio'&&!c.ratioEligible?' — excluded: '+esc(c.ratioIneligibleReason||''):c.transform==='signed_level_sd'?' — zero-crossing safe':''}</td><td>${esc(c.classification)}</td></tr>`).join('')}</tbody></table></div><p class="mnxNote">Source availability above is Data Health. It is not evidence that the derived model is healthy.</p></details>
   <details data-mnx-section="contribution"><summary>Contribution</summary><div class="mnxTableWrap"><table><thead><tr><th>Component</th><th>Weight</th><th>Observation dates</th><th>Movement</th><th>Impact</th></tr></thead><tbody>${(r.components||[]).map(c=>`<tr><td>${esc(c.displayName)}</td><td>${mnxNum(c.weight*100,1)}%</td><td>${esc(c.baselineObservationDate||'—')} → ${esc(c.endObservationDate||'—')}</td><td>${mnxPct(c.rawMovementPercent)}</td><td>${mnxPp(c.indexContributionPercentPoints)}</td></tr>`).join('')}</tbody></table></div>${(m.omitted&&m.omitted.length)?`<p class="mnxNote">Omitted, not estimated: ${m.omitted.map(o=>esc(o.displayName)+' — '+esc(o.reason)).join('; ')}</p>`:''}<p class="mnxNote">Σ contributions ${m.reconciliation?mnxPp(m.reconciliation.summedContribution):'—'} vs governed index movement ${m.reconciliation?mnxPp(m.reconciliation.indexMovement):'—'} · residual ${m.reconciliation?mnxPp(m.reconciliation.residual,6):'—'}</p></details>
   <details data-mnx-section="sensitivity"><summary>Sensitivity</summary>${(m.sensitivity&&m.sensitivity.available)?`<div class="mnxTableWrap"><table><thead><tr><th>Component</th><th>±1 SD shock</th><th>Index impact</th><th>p95 shock</th><th>Index impact</th></tr></thead><tbody>${m.sensitivity.components.map(c=>c.available?`<tr><td>${esc(c.displayName)}</td><td>${mnxNum(c.oneSdShockPercent,3)}%</td><td>${mnxPp(c.oneSdIndexImpactPercentPoints)}</td><td>${mnxNum(c.p95ShockPercent,3)}%</td><td>${mnxPp(c.p95IndexImpactPercentPoints)}</td></tr>`:`<tr><td>${esc(c.displayName)}</td><td colspan="4">${esc(c.reason)}</td></tr>`).join('')}</tbody></table></div>`:'<p class="mnxNote">Standardized sensitivity requires canonical component history. It has not been estimated.</p>'}<p class="mnxNote">Shocks are component-scaled (±1 historical standard deviation and historical 95th-percentile absolute move of each component own returns), never a uniform percentage shock across heterogeneous series.</p><button class="btn" type="button" id="mnxLoadSensitivity">Load standardized sensitivity evidence</button></details>
   <details data-mnx-section="robustness"><summary>Robustness</summary><div class="mnxTableWrap"><table><thead><tr><th>Nearby specification</th><th>Recomputed index</th><th>Movement</th><th>Direction preserved</th></tr></thead><tbody>${(m.specifications||[]).map(s=>`<tr><td>${esc(s.specification)}</td><td>${mnxNum(s.recomputedIndexValue)}</td><td>${mnxPct(s.recomputedMovementPercent)}</td><td>${s.directionPreserved?'yes':'no'}</td></tr>`).join('')}</tbody></table></div><p class="mnxNote">Nearby specifications are diagnostics only. The canonical index is never replaced and no model-risk haircut is applied to it.</p></details>
@@ -555,9 +481,11 @@ async function mnxLoadSensitivityEvidence(){
 function mnxRenderHealth(){
   mnxEnsureHealthTabs();
   let host=$('healthRows');if(!host)return;
-  if(mnxHealthTab!=='models'){renderHealth();return}
+  if(mnxHealthTab==='sources'){renderHealth();return}
+  if(mnxHealthTab==='glossary'){host.innerHTML=mnxGlossaryHtml();return}
   let h=S.h,models=IDX.map(k=>mnxModelHealth(k,h));
   host.innerHTML=`<p class="mnxNote" id="mnxModelsIntro">Derived Model Health — horizon ${esc(h)} · definition ${esc((S.def&&S.def.version)||'—')} · evidence ${esc((S.derived&&S.derived.revision)||'—')}. This surface measures composite integrity, concentration, sensitivity and stability. It is separate from Sources / Data Health.</p>`+models.map(mnxModelCardHtml).join('');
+  host.querySelectorAll('[data-mnx-coverage]').forEach(b=>b.onclick=()=>{let m=models.find(x=>x.modelId===b.dataset.mnxCoverage);if(!m)return;let omitted=(m.omitted||[]).map(o=>o.displayName+' — '+o.reason).join('; ');alert(m.shortName+' uses '+m.componentsAvailable+' of '+m.componentsRequired+' defined components at '+m.horizon+'. '+(omitted?('Excluded: '+omitted+'. '):'No components are excluded. ')+'Remaining eligible components are renormalized to 100%. Current lifecycle: '+m.lifecycle+'. '+m.lifecycleReason)});
   let load=$('mnxLoadSensitivity');
   if(load)host.querySelectorAll('#mnxLoadSensitivity').forEach(b=>{b.onclick=()=>{b.disabled=true;b.textContent='Loading canonical component history…';mnxLoadSensitivityEvidence()}});
 }
@@ -644,6 +572,7 @@ async function mnxPrintNow(stateOverride){
   window.__mnNowPrintInvariant25.after=S.nowChartState?JSON.stringify(S.nowChartState):null;
   return window.__mnNowPrintInvariant25;
 }
+
 
 /* ===================== Turn 25 Ship — wiring and qualification hooks =====================
    The explanation modal and the NOW report surface are parsed after this script (they sit beside the
