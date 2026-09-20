@@ -92,7 +92,7 @@ var state=ST.READY;
 
 var tracks=[],editTrack=0;
 var cart={track:0,s:0,v:0,x:0,y:0,ang:0,flip:0,flipAng:0};
-var fall={vx:0,vy:0,rot:0,spin:0,t:0};
+var fall={vx:0,vy:0,rot:0,spin:0,t:0,grace:0};
 var hole={x:0,y:0};
 var suck={t:0,scale:1,rot:0};
 var camX=0,camY=0;
@@ -101,11 +101,9 @@ var floaters=[];
 var lastT=0;
 var pointers=new Map();
 
-// Game systems
 var G=1050,DRAG=0.1,ROLL=5,VMAX=2000;
 var AC=null;
 
-// Rescue & Timer & Score
 var rescueCharges=3;
 var survivalSeconds=0;
 var runStartTime=0;
@@ -202,7 +200,7 @@ function reset(){
   state=ST.READY;
   cart={track:0,s:0,v:0,x:0,y:0,ang:0,flip:0,flipAng:0};
   var p=pointAt(0,0);cart.x=p.x;cart.y=p.y;cart.ang=p.ang;
-  baseScore=0;maxPage=0;floaters=[];fall.t=0;
+  baseScore=0;maxPage=0;floaters=[];fall.t=0;fall.grace=0;
   rescueCharges=3;rescueEditTrackIndex=-1;
   survivalSeconds=0;isTiming=false;runStartTime=0;
   zoom=1;resize();snapCamera();
@@ -232,7 +230,7 @@ function startFallOffTrack(reason){
   fall.vy=Math.sin(cart.ang)*cart.v*0.5;
   fall.rot=cart.ang;
   fall.spin=fall.vx>=0?8:-8;
-  fall.t=0;
+  fall.t=0;fall.grace=0;
   hole.x=p.x+(fall.vx>=0?300:-300);
   hole.y=p.y+180;
   state=ST.FALL;
@@ -251,7 +249,7 @@ function landOnTrack(ti,s){
     addFloater(cart.x,cart.y-60,(cart.flip===2?'TRICK!':'+')+bonus,'#ffd700');
     beep(1100,120);
   }
-  cart.flip=0;cart.flipAng=0;
+  cart.flip=0;cart.flipAng=0;fall.grace=0;
 }
 function doRescue(){
   if(rescueCharges<=0){
@@ -282,7 +280,8 @@ function doJump(){
     fall.vy=-1400;
     fall.rot=cart.ang;
     fall.spin=0;
-    fall.t=0;
+    fall.t=0;fall.grace=0;
+    cart.flip=0;cart.flipAng=0;
     state=ST.FALL;
     beep(520,140);
     addFloater(cart.x,cart.y-50,'JUMP','#8cff5a');
@@ -298,16 +297,18 @@ function doJump(){
 }
 function triggerFlip(isFront){
   if(state!==ST.FALL)return;
-  cart.flip=1;cart.flipAng=0;
+  cart.flip=1;cart.flipAng=0;fall.grace=0.25;
+  var push=isFront?3500:2200;
   if(isFront){
-    fall.vx+=Math.cos(cart.ang)*1800;
-    fall.vy-=650;
+    fall.vx=Math.abs(fall.vx)*0.8 + push;
+    fall.vy-=1200;
+    fall.spin=18;
     beep(500,120);beep(800,120);
     addFloater(cart.x,cart.y-60,'FLIP >','#ff6666');
   }else{
-    fall.vy-=1400;
-    fall.vx-=Math.cos(cart.ang)*600;
-    fall.spin+=10;
+    fall.vx= -Math.abs(fall.vx)*0.5 - 800;
+    fall.vy-=2500;
+    fall.spin=-14;
     beep(400,140);beep(300,140);
     addFloater(cart.x,cart.y-60,'< FLIP','#66ccff');
   }
@@ -360,7 +361,6 @@ function update(dt){
     if(cart.v>VMAX)cart.v=VMAX;else if(cart.v<-VMAX)cart.v=-VMAX;
     cart.s+=cart.v*dt;
     
-    // earlier threshold for jumping off the end (10px buffer)
     if(cart.s>=tr.totalLen-10&&cart.v>0){startFallOffTrack('end');return;}
     if(cart.s<=0&&cart.v<0){startFallOffTrack('start');return;}
     
@@ -369,6 +369,7 @@ function update(dt){
     if(page>maxPage){maxPage=page;baseScore+=100;addFloater(cart.x,cart.y-50,'+100','#8cff5a');beep(880,100);}
   }else if(state===ST.FALL){
     fall.t+=dt;
+    if(fall.grace>0)fall.grace-=dt;
     if(cart.flip===1){
       cart.flipAng+= (Math.PI*2)/0.42 * dt;
       if(cart.flipAng>=Math.PI*2){cart.flip=2;cart.flipAng=Math.PI*2;}
@@ -379,10 +380,9 @@ function update(dt){
     cart.ang+=fall.spin*dt;
     
     var land=nearestOnAnyTrack(cart.x,cart.y);
-    if(land.d<32 && land.d < Math.abs(fall.vy)*0.05+14 && fall.vy>0){
+    if(fall.grace<=0 && land.d<32 && land.d < Math.abs(fall.vy)*0.05+14 && fall.vy>0){
       landOnTrack(land.track,land.s);return;
     }
-    // die only if far below screen or timeout
     if(cart.y > Math.max(H/zoom,camY+H/zoom)+400 || fall.t>10){
       hole.x=cart.x;hole.y=cart.y+200;die();
     }
