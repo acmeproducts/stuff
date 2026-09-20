@@ -308,6 +308,7 @@ Database Omnisearch is a local cached interaction after placement retrieval: wil
 - Filename text copies the filename to clipboard. Filename is not the viewer hyperlink. The separate diagonal-arrow control launches the SOT viewer.
 - Viewer position and size persist across close/open and reload, constrained back into the current viewport when necessary.
 - Placement evidence includes a JSON-array-compatible `tags` field initialized to `[]`. Tags are schema groundwork only in this release; tag editing/filter UX is deferred to the next governed release.
+- Database table rows use persistent alternating row backgrounds for scanability. Tapping/clicking a row selects it and overrides the zebra striping for that row with a **white background and black text** across the full row so the active record is unmistakable and easier to read. Selection must survive ordinary cell interaction/sort/resize until another row is selected or selection is explicitly cleared; it is presentation state only and must not mutate evidence.
 
 
 ## 33. Authoritative current placement catalog — binding (2026-09-19)
@@ -841,7 +842,7 @@ Grid and Ask AI are separate surfaces, separate state machines, and separate own
 1. Freeze/record the accepted SOT baseline and donor SHAs.
 2. Implement Grid schema + backend contracts, including authoritative mutation reconciliation.
 3. Implement donor-faithful Grid UI.
-4. Qualify metadata behavior, filesystem Folder/Delete on disposable fixtures, Database/status/classification/Plan reconciliation, cache revisioning, concurrency and the full existing SOT regression suite.
+4. Qualify metadata behavior, filesystem Folder/Delete on disposable fixtures, Database/status/classification/Plan reconciliation, Database alternating-row readability + white/black selected-row behavior, cache revisioning, concurrency and the full existing SOT regression suite.
 5. Publish one bumped Grid comparison artifact while preserving the accepted baseline byte-for-byte.
 6. Release A contains no Ask AI implementation or provider execution.
 
