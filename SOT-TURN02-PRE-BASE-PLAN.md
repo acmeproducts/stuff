@@ -423,3 +423,19 @@ The subtab control is navigation only. Switching subtabs must not alter evidence
 On mobile, the Plan surface must not require vertical page scrolling merely to reach another Plan section. The three compact subtab controls remain directly accessible at the top of the Plan surface; if an unusually narrow viewport cannot fit them, only the subtab strip may scroll horizontally. Content overflow, when genuinely required, belongs inside the active subtab pane rather than in a vertically stacked multi-section Plan page.
 
 Preserve all §42 arithmetic, row ordering, bar composition, colors, segment-callout behavior, and exact values unchanged. This is a presentation/navigation correction only. Build the implementation from the accepted v8 artifact, preserve v8 unchanged, do not inherit rejected v9 Grid code, and publish the comparison candidate under the next available bumped artifact name.
+
+
+---
+
+## 45. Plan total-row and Operations legend rule — binding (2026-09-20)
+This section supersedes §42 only where §42 conflicts with the rules below.
+
+Every Plan subtab follows one visual rule: **the bottom row is the total/result for the relevant component rows and therefore never receives a legend-color swatch.** A legend swatch is reserved for a value represented as a colored component of that subtab's stacked bar.
+
+ANALYSIS remains UNIQUE + KEEP + EXCESS = ESTATE. UNIQUE, KEEP, and EXCESS are bar components and retain their blue/yellow/red swatches. ESTATE is the bottom total row, has no swatch, and is not drawn as an additional bar segment. DUPLICATE remains the governed parent/reporting row from §42.
+
+BASIC CAPACITY remains ESTATE + OPEN = TARGET. ESTATE and OPEN are the two bar components. TARGET is the bottom total row, has no swatch, and is not drawn as an additional bar segment.
+
+OPERATIONS is corrected to **IN PLAY + LANDED = ESTATE**. IN PLAY means the current unique SSOT workload not yet landed and is blue. LANDED means the portion physically present on TARGET and independently fingerprint verified and is white/grey. ESTATE is the bottom total workload row, has no swatch, and is not drawn as a bar segment. Until verified landing evidence exists, LANDED remains zero and IN PLAY therefore equals ESTATE.
+
+Do not add a swatch merely because a row is emphasized as a total/result. The table remains the exact-data surface and the bar remains a visualization of component parts only.
