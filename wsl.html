@@ -16,7 +16,7 @@
   #hud .score{font-size:28px;font-weight:800;letter-spacing:1px;}
   #hud .best{font-size:13px;font-weight:600;opacity:.85;}
   #hud .timer{font-size:22px;font-weight:700;color:#8cff5a;min-width:64px;text-align:center;}
-  #hint{position:fixed;bottom:calc(env(safe-area-inset-bottom,0px) + 120px);left:12px;right:12px;
+  #hint{position:fixed;bottom:calc(env(safe-area-inset-bottom,0px) + 140px);left:12px;right:12px;
     text-align:center;pointer-events:none;color:#eaf6ff;font-size:15px;
     text-shadow:0 2px 6px rgba(0,0,0,.75);z-index:5;}
   #overlay{position:fixed;inset:0;display:none;align-items:center;justify-content:center;
@@ -29,23 +29,25 @@
 
   #ctrlRow{
     position:fixed;bottom:calc(env(safe-area-inset-bottom,0px) + 18px);
-    left:0;right:0;display:flex;justify-content:center;align-items:center;gap:12px;
+    left:0;right:0;display:flex;justify-content:center;align-items:center;gap:10px;
     padding:0 12px;z-index:10;pointer-events:none;
   }
   .ctrl-btn{
-    height:64px;min-width:100px;padding:0 16px;border-radius:16px;border:none;
-    font-weight:900;font-size:15px;letter-spacing:0.5px;color:#fff;
+    height:64px;min-width:80px;flex:1 1 auto;max-width:160px;
+    padding:0 10px;border-radius:16px;border:none;
+    font-weight:900;font-size:14px;letter-spacing:0.5px;color:#fff;
     text-shadow:0 1px 3px rgba(0,0,0,.6);
     box-shadow:0 6px 18px rgba(0,0,0,.45), inset 0 0 0 2px rgba(255,255,255,.25);
     pointer-events:auto;display:flex;align-items:center;justify-content:center;
     -webkit-tap-highlight-color:transparent;touch-action:manipulation;
-    transition:transform .06s ease, filter .15s ease;user-select:none;
+    transition:transform .06s ease;user-select:none;
     background:linear-gradient(180deg,#444,#222);
   }
   .ctrl-btn:active{transform:scale(0.92);}
-  #btnRescue{background:linear-gradient(180deg,#ffaa00,#cc7700);} /* orange-ish default, will vary per state if desired, but static ok */
-  #btnBack{background:linear-gradient(180deg,#00aaff,#0077aa);} /* blue for back? user didnt specify colors for buttons, keeping distinct */
-  #btnFront{background:linear-gradient(180deg,#ff4444,#cc0000);} /* red for front? or swap */
+  #btnRescue{background:linear-gradient(180deg,#f5a623,#d78a00);}
+  #btnBack{background:linear-gradient(180deg,#00aaff,#0077aa);}
+  #btnJump{background:linear-gradient(180deg,#39b54a,#2a8a36);}
+  #btnFront{background:linear-gradient(180deg,#ff4444,#cc0000);}
 </style>
 </head>
 <body>
@@ -65,8 +67,9 @@
 </div>
 
 <div id="ctrlRow">
-  <button id="btnBack" class="ctrl-btn" aria-label="Back Flip">BACK &lt;</button>
   <button id="btnRescue" class="ctrl-btn" aria-label="Rescue">RESCUE x3</button>
+  <button id="btnBack" class="ctrl-btn" aria-label="Back Flip">BACK &lt;</button>
+  <button id="btnJump" class="ctrl-btn" aria-label="Jump">JUMP</button>
   <button id="btnFront" class="ctrl-btn" aria-label="Front Flip">FRONT &gt;</button>
 </div>
 
@@ -79,7 +82,8 @@ var elScore=document.getElementById('score'),elBest=document.getElementById('bes
     elTimer=document.getElementById('timer'),elHint=document.getElementById('hint'),
     elOverlay=document.getElementById('overlay'),elFinal=document.getElementById('finalScore'),
     elBreak=document.getElementById('finalBreakdown'),
-    btnRescue=document.getElementById('btnRescue'),btnBack=document.getElementById('btnBack'),btnFront=document.getElementById('btnFront');
+    btnRescue=document.getElementById('btnRescue'),btnBack=document.getElementById('btnBack'),
+    btnJump=document.getElementById('btnJump'),btnFront=document.getElementById('btnFront');
 
 var W=0,H=0,DPR=1,zoom=1;
 var stars=[],flakes=[];
@@ -106,7 +110,7 @@ var rescueCharges=3;
 var survivalSeconds=0;
 var runStartTime=0;
 var isTiming=false;
-var baseScore=0; // points from pages and flips
+var baseScore=0;
 var rescueEditTrackIndex=-1;
 
 function beep(f,dur){
@@ -183,12 +187,12 @@ function nearestOnAnyTrack(x,y){
 }
 
 function toWorld(cx,cy){return{x:cx/zoom+camX,y:cy/zoom+camY};}
-function updateButtonText(){
-  btnRescue.textContent='RESCUE x'+Math.max(0,rescueCharges);
-}
 function formatTime(sec){
   var m=Math.floor(sec/60),s=Math.floor(sec%60);
   return m+':'+(s<10?'0':'')+s;
+}
+function updateButtonText(){
+  btnRescue.textContent='RESCUE x'+Math.max(0,rescueCharges);
 }
 
 function reset(){
@@ -217,7 +221,7 @@ function release(s,trackIdx){
   state=ST.RUN;cart.track=trackIdx||0;cart.s=s;cart.v=Math.max(400,Math.abs(cart.v));cart.flip=0;cart.flipAng=0;
   var p=pointAt(cart.track,cart.s);cart.x=p.x;cart.y=p.y;cart.ang=p.ang;
   if(!isTiming){runStartTime=performance.now();isTiming=true;}
-  elHint.textContent='Draw ahead to stay alive. Rescue when falling!';
+  elHint.textContent='Draw ahead • JUMP to fly • Flip if falling • RESCUE anytime';
   if(oldState===ST.RESCUE_EDIT){
     beep(520,100);beep(660,100);
   }else{
@@ -228,12 +232,15 @@ function release(s,trackIdx){
 function startFallOffTrack(reason){
   if(state!==ST.RUN)return;
   var p=pointAt(cart.track,Math.max(0,Math.min(tracks[cart.track].totalLen,cart.s)));
-  fall.vx=Math.cos(cart.ang)*cart.v;fall.vy=Math.sin(cart.ang)*cart.v;
-  fall.rot=cart.ang;fall.spin=fall.vx>=0?10:-10;fall.t=0;
-  hole.x=p.x+(fall.vx>=0?260:-260);hole.y=p.y+140;
+  fall.vx=Math.cos(cart.ang)*cart.v;
+  fall.vy=Math.sin(cart.ang)*cart.v;
+  fall.rot=cart.ang;
+  fall.spin=fall.vx>=0?10:-10;
+  fall.t=0;
+  hole.x=p.x+(fall.vx>=0?260:-260);
+  hole.y=p.y+140;
   state=ST.FALL;
   beep(160,200);
-  updateButtonText();
 }
 function landOnTrack(ti,s){
   var p=pointAt(ti,s);
@@ -249,21 +256,14 @@ function landOnTrack(ti,s){
     beep(1100,120);
   }
   cart.flip=0;cart.flipAng=0;
-  updateButtonText();
 }
 function doRescue(){
-  // Only during FALL
-  if(state!==ST.FALL){
-    beep(200,100);beep(200,100);
-    return;
-  }
   if(rescueCharges<=0){
     addFloater(cart.x,cart.y,'NO CHARGES','#ff4444');
     beep(150,100);beep(150,100);
     return;
   }
   rescueCharges--;
-  // Determine color by charges remaining (after decrement): 2->orange, 1->blue, 0->red
   var col='#ffaa00';
   if(rescueCharges===1)col='#00aaff';
   if(rescueCharges===0)col='#ff3333';
@@ -271,11 +271,30 @@ function doRescue(){
   var tr=mkTrack(col);tr.rescue=true;tracks.push(tr);
   rescueEditTrackIndex=idx;
   editTrack=idx;
-  // Freeze: enter RESCUE_EDIT
   state=ST.RESCUE_EDIT;
-  elHint.textContent='Rescue mode! Draw a line, then tap the cart to go.';
+  elHint.textContent='Rescue freeze! Draw a line, then tap the cart to ride.';
   beep(900,160);
   updateButtonText();
+}
+function doJump(){
+  if(state===ST.RUN){
+    fall.vx=Math.cos(cart.ang)*cart.v;
+    fall.vy=-900; // strong initial jump
+    fall.rot=cart.ang;
+    fall.spin=cart.v>200?8:-8;
+    fall.t=0;
+    state=ST.FALL;
+    beep(500,120);
+    addFloater(cart.x,cart.y-40,'JUMP','#8cff5a');
+  }else if(state===ST.FALL){
+    fall.vy-=500; // boost higher
+    if(fall.vy<-2400)fall.vy=-2400; // ceiling cap
+    fall.spin+=(fall.vx>=0?2:-2);
+    beep(700,90);
+    addFloater(cart.x,cart.y-60,'BOOST','#ffd700');
+  }else{
+    beep(200,50);
+  }
 }
 function triggerFlip(isFront){
   if(state!==ST.FALL)return;
@@ -292,12 +311,10 @@ function triggerFlip(isFront){
     fall.spin=-10;
     beep(330,140);beep(250,140);
   }
-  updateButtonText();
 }
 function die(){
   if(isTiming){survivalSeconds+=(performance.now()-runStartTime)/1000;isTiming=false;}
   state=ST.SUCK;suck.t=0;suck.scale=1;suck.rot=cart.ang;
-  updateButtonText();
   beep(140,300);
 }
 function gameOver(){
@@ -318,12 +335,11 @@ function update(dt){
     var now=performance.now();
     var current=survivalSeconds+(now-runStartTime)/1000;
     elTimer.textContent=formatTime(Math.floor(current));
-  }else if(!isTiming){
+  }else{
     elTimer.textContent=formatTime(Math.floor(survivalSeconds));
   }
 
   if(state===ST.RESCUE_EDIT){
-    // Camera follows cart position but freezes physics
     camX+=(cart.x-W*0.35/zoom - camX)*Math.min(1,dt*5);
     camY+=(cart.y-H*0.55/zoom - camY)*Math.min(1,dt*5);
     return;
@@ -440,8 +456,9 @@ function drawHole(){
 var drawing=false,moved=false,downX=0,downY=0,pinchStartDist=0,startZoom=1;
 
 btnRescue.addEventListener('pointerdown',function(e){e.preventDefault();e.stopPropagation();doRescue();});
-btnFront.addEventListener('pointerdown',function(e){e.preventDefault();e.stopPropagation();triggerFlip(true);});
 btnBack.addEventListener('pointerdown',function(e){e.preventDefault();e.stopPropagation();triggerFlip(false);});
+btnFront.addEventListener('pointerdown',function(e){e.preventDefault();e.stopPropagation();triggerFlip(true);});
+btnJump.addEventListener('pointerdown',function(e){e.preventDefault();e.stopPropagation();doJump();});
 
 window.addEventListener('pointerdown',function(e){
   if(e.target.closest('.ctrl-btn'))return;
@@ -481,21 +498,15 @@ window.addEventListener('pointerup',function(e){
     if(best.d<50)release(best.s,best.track);
     else addFloater(w.x,w.y,'Tap the track','#ffd76a');
   }else if(state===ST.RESCUE_EDIT&&wasDrawing&&!moved){
-    // Check if tapped near cart to resume
     var w=toWorld(e.clientX,e.clientY);
-    if(Math.hypot(w.x-cart.x,w.y-cart.y)<60){
-      // Place cart at start of rescue track or nearest point on it
+    if(Math.hypot(w.x-cart.x,w.y-cart.y)<90){
       var rt=tracks[rescueEditTrackIndex];
       if(rt&&rt.pts.length>=2){
-        var p0=rt.pts[0],p1=rt.pts[1];
-        var ang=Math.atan2(p1.y-p0.y,p1.x-p0.x);
         release(0,rescueEditTrackIndex);
       }else{
-        addFloater(cart.x,cart.y,'Draw a line first!','#ffaa00');
+        addFloater(cart.x,cart.y,'Draw the rescue line','#ffaa00');
       }
     }else{
-      // Just add point if moved false but we are in drawing mode? Actually if not moved and not tapping cart, ignore or add single point?
-      // To support single dot lines, treat as addPoint:
       addPoint(editTrack,w.x,w.y);
     }
   }
