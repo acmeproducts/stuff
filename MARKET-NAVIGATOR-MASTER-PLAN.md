@@ -476,3 +476,11 @@ MAC retains all seven governed components when truthful evidence exists. Treasur
 Fallback remains deterministic: if a component's governed transform cannot be computed from canonical evidence, omit it without estimation, renormalize the remaining eligible equal weights, reconcile contributions, and expose WATCH/DEGRADED/SUSPENDED lifecycle according to governed thresholds. The system may self-heal through predefined transforms/fallbacks but may never invent weights or transformations at runtime.
 
 HEALTH navigation is `Sources | Derived Models | Glossary`. Glossary defines every Model Health metric and every RSK/GRW/MAC component in plain language, including role/relevance, direction, cadence, governed transform, current implication of exclusion, and acquisition method. FRED sources disclose `public CSV · authentication none`; no FRED API-key UI is required while this acquisition path remains in use. Components-available status is directly actionable and explains current omissions, renormalization and lifecycle.
+
+## MAC Yield Curve first-class factor — owner authorized 2026-09-20
+
+The Treasury yield curve is a first-class MAC factor, not two visually anonymous rows. The governed factor consists of 10Y−2Y and 10Y−3M. Under the current seven-component equal-weight MAC arithmetic the pair already carries 2/7 = 28.5714% of canonical MAC weight when both are eligible; this weight is now explicitly named and surfaced rather than silently increasing it without evidence.
+
+Health and Index Explanation must expose: factor name; canonical aggregate weight; each spread current level; state (INVERTED when either governed spread is below zero, POSITIVE when both are above zero, FLAT when a spread is exactly zero); inversion depth; latest inversion episode dates/duration from real observations; factor contribution to the selected-horizon MAC movement; and transform/provenance. The current state must never be called inverted merely because an earlier observation was inverted.
+
+This change does not alter the canonical MAC arithmetic. Any future increase/decrease from the existing 28.5714% aggregate curve weight requires an explicit versioned model-weight study and owner disposition. Visibility and state diagnostics may not be used as an implicit adaptive weight.
