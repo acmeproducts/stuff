@@ -60,16 +60,17 @@ def main():
         if x['id'] in required: x['required']=True; x['enabled']=True
     write(CATALOG,c)
     d={
-      'schema':'market-navigator-derived-index-definition-v1','version':'2.2.0','status':'canonical-r7-reconciled','effective_date':'2026-09-01',
-      'purpose':'Accepted Market Navigator Risk/Growth/Macro definitions. Equal-weight, direction-adjusted, rebased 100 where ratio rebasing is mathematically meaningful.',
+      'schema':'market-navigator-derived-index-definition-v1','version':'2.3.0','status':'canonical-r7-reconciled-turn25-signed-series','effective_date':'2026-09-20',
+      'purpose':'Accepted Market Navigator Risk/Growth/Macro definitions. Equal-weight, direction-adjusted baseline-100 composites. Positive/non-zero series use ratio rebasing; governed signed/zero-crossing series use additive movement standardized by canonical historical level standard deviation.',
       'display_contract':{
         'v1':'Risk, Growth and Macro are displayed together in NOW from a common baseline of 100.',
         'v2':'The selected index reference plus all components are displayed below V1 from a common baseline of 100.',
         'baseline':100,'weighting':'equal',
-        'component_formula':'oriented_index_t = 100 + direction * ((value_t / value_t0) - 1) * 100',
+        'component_formula':'ratio component: oriented_index_t = 100 + direction * ((value_t / value_t0) - 1) * 100; signed component: oriented_index_t = 100 + direction * ((value_t - value_t0) / historical_level_sd)',
         'index_formula':'index_t = arithmetic mean of available oriented_index_t component values',
-        'ratio_eligibility_rule':'Ratio rebasing is structurally invalid for a canonical series whose observed history spans zero or contains zero. Such a component is omitted consistently from ratio-derived composites and the omission is exposed; it is never conditionally included merely because one selected horizon happens to start positive.',
-        'nonpositive_baseline_rule':'A zero or negative baseline is not ratio-rebased. No substitute transformation is invented inside the derived-index pipeline.',
+        'ratio_eligibility_rule':'Ratio rebasing is structurally invalid for a canonical series whose observed history spans zero or contains zero. Such a component may participate only when its governed definition explicitly selects the signed_level_sd transform; otherwise it is omitted and the omission is exposed.',
+        'signed_series_rule':'A governed series that structurally crosses zero uses additive movement divided by the sample standard deviation of its finite canonical historical levels. One historical level SD therefore equals one index point. The scale is computed from the same canonical evidence snapshot and persisted with the derived record.',
+        'nonpositive_baseline_rule':'A zero or negative baseline is never ratio-rebased. A component may remain eligible only through an explicitly governed non-ratio transform in its model definition.',
         'mixed_frequency_rule':'Derived composites may carry each component most recent real observation internally; source observation dates remain traceable and no synthetic source observation is written.',
         'interpretation_rule':'Derived indices are transparent comparative analytical products, not causal or predictive verdicts.'},
       'indices':{
@@ -78,7 +79,7 @@ def main():
         'growth':{'name':'Growth','higher_means':'stronger growth momentum','construction_detail':'Growth explicitly excludes ISM Manufacturing PMI because no permissible free source exists. Federal Reserve IPMAN manufacturing production is the owner-approved open replacement and is not PMI.','excluded_components':[{'id':'pmi','name':'ISM Manufacturing PMI','excluded_on':'2026-09-01','reason':'No permissible free historical/current source; owner approved replacement.','replacement_id':'manufacturingProduction','replacement_name':'Industrial Production: Manufacturing (NAICS)','distinction':'IPMAN is a real-output index, not a PMI diffusion index.'}],'components':[
           {'id':'qqq','direction':1,'role':'Nasdaq/growth leadership'},{'id':'copper','direction':1,'role':'industrial/cyclical demand'},{'id':'smallCaps','direction':1,'role':'small-cap growth/risk appetite'},{'id':'manufacturingProduction','direction':1,'role':'Federal Reserve manufacturing output; owner-approved open replacement for explicitly excluded ISM PMI'},{'id':'wti','direction':1,'role':'cyclical demand context'},{'id':'unemployment','direction':-1,'role':'labor deterioration'},{'id':'payrolls','direction':1,'role':'employment activity'}]},
         'macro':{'name':'Macro','higher_means':'greater inflation and monetary-policy pressure','components':[
-          {'id':'tenYear','direction':1,'role':'10-year nominal rate'},{'id':'twoYear','direction':1,'role':'2-year nominal rate'},{'id':'curve10y2y','direction':1,'role':'10Y-2Y curve'},{'id':'curve10y3m','direction':1,'role':'10Y-3M curve'},{'id':'cpi','direction':1,'role':'headline inflation'},{'id':'corePce','direction':1,'role':'core PCE inflation'},{'id':'fedFunds','direction':1,'role':'policy rate'}]}}
+          {'id':'tenYear','direction':1,'role':'10-year nominal rate','transform':'ratio'},{'id':'twoYear','direction':1,'role':'2-year nominal rate','transform':'ratio'},{'id':'curve10y2y','direction':1,'role':'10Y-2Y curve','transform':'signed_level_sd','transform_reason':'Treasury spread structurally crosses zero; additive movement is standardized by canonical historical level SD.'},{'id':'curve10y3m','direction':1,'role':'10Y-3M curve','transform':'signed_level_sd','transform_reason':'Treasury spread structurally crosses zero; additive movement is standardized by canonical historical level SD.'},{'id':'cpi','direction':1,'role':'headline inflation','transform':'ratio'},{'id':'corePce','direction':1,'role':'core PCE inflation','transform':'ratio'},{'id':'fedFunds','direction':1,'role':'policy rate','transform':'ratio'}]}}
     }
     write(DERIVED,d)
     print('Reconciled catalog',c['version'],'series',len(c['series']))
