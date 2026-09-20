@@ -582,3 +582,14 @@ Reject the v9 Grid attempt that rendered empty/skeleton-like tiles, omitted the 
 Reject a Plan surface that vertically stacks ANALYSIS RESULTS, BASIC CAPACITY CHECK, and OPERATIONS STATUS so the user must scroll the page to move between the three primary Plan questions, especially on mobile.
 
 **Required replacement:** each governed Plan bar and its related exact-data table is one mutually exclusive Plan subtab. Keep all three subtabs directly accessible at the top of Plan, preserve the active subtab through rerenders, confine any necessary overflow to the active subtab content, and do not change the underlying §42 arithmetic or Plan state when switching sections.
+
+
+---
+
+## GY-089 — Coloring total rows or plotting totals as bar components
+**Status:** REJECTED OWNER UX / PLAN-VISUALIZATION PATTERN  
+**Decision date:** 2026-09-20
+
+Reject assigning a legend-color swatch to the bottom total/result row of a Plan table or drawing that total/result as an additional stacked-bar component. This makes the legend imply a plotted segment that does not exist and obscures the arithmetic relationship between component rows and their total.
+
+**Required replacement:** legend swatches belong only to colored bar components. The bottom row is the total/result and has no swatch. Analysis is UNIQUE + KEEP + EXCESS = ESTATE; Capacity is ESTATE + OPEN = TARGET; Operations is IN PLAY + LANDED = ESTATE, with IN PLAY blue and LANDED white/grey.
