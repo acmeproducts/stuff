@@ -564,10 +564,10 @@ Reject Plan tables whose rows do not read as explicit arithmetic; reject REVIEW 
 
 ---
 
-## GY-087 — Grid without durable classification, implicit bulk scope, stack Move, or unguarded bulk destruction
-**Status:** REJECTED GRID / BULK-OPERATION PATTERN  
+## GY-087 — Approximate donor Grid recreation without donor-spec extraction
+**Status:** REJECTED OWNER UX / IMPLEMENTATION PATTERN  
 **Decision date:** 2026-09-20
 
-Reject a Grid that invents search semantics separate from SOT Omnisearch, hides returned counts, performs actions against an implicit query rather than explicit selection, treats KEEP/EXCESS/UNIQUE as disposable user tags, introduces UI-V2 stack Move into SOT, overwrites destination collisions, or turns bulk Delete into automatic/permanent deletion.
+Reject the v9 Grid attempt that rendered empty/skeleton-like tiles, omitted the donor thumbnail-size slider, crowded system-classification chips into the search/header line, and replaced the donor Tag and Notes experiences with generic one-field prompts. Functional button names are not sufficient donor fidelity.
 
-**Required replacement:** UI-V2-derived Grid mechanics; explicit current-result counts and selection; durable deterministic UNIQUE/KEEP/EXCESS system classification; bulk operations limited to Tag, Notes, Folder and Delete; folder moves remain inside the selected Estate root and never overwrite; Trash/Recycle Bin first with a second explicit permanent-deletion warning for failures. Preserve the v8 HTML artifact when introducing v9 so owner comparison remains possible.
+**Required replacement:** keep v8 as the accepted baseline; inspect the actual `acmeproducts/perf/ui-v2.html` implementation and owner screenshots first; specify slider/tile geometry, selection, Tag, Notes + Quality Rating + Content Rating, Folder, and Delete behavior before coding; then implement only in a bumped comparison artifact. Do not modify the v8 artifact.
