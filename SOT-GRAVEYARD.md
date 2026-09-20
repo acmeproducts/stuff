@@ -560,3 +560,14 @@ Reject Plan surfaces that repeat the same fact in metric cards, legends, bars, l
 Reject Plan tables whose rows do not read as explicit arithmetic; reject REVIEW as a Plan composition row; reject treating all distinct fingerprints as UNIQUE when repeated fingerprints require one explicit KEEP placement; reject DUPLICATE as an additive peer of its own KEEP/EXCESS children; and reject low-contrast blue-only duplicate composition.
 
 **Required replacement:** Analysis is UNIQUE + KEEP + EXCESS = ESTATE, with DUPLICATE as the parent of KEEP and EXCESS; Capacity is ESTATE + OPEN = TARGET; Operations is IN PLAY - LANDED = ESTATE. Total/result rows appear last. Analysis stacked bar uses blue UNIQUE, yellow KEEP, red EXCESS; Capacity and Operations use high-contrast blue plus white/grey. No unapproved extra Plan metrics or rows.
+
+
+---
+
+## GY-087 — Grid without durable classification, implicit bulk scope, stack Move, or unguarded bulk destruction
+**Status:** REJECTED GRID / BULK-OPERATION PATTERN  
+**Decision date:** 2026-09-20
+
+Reject a Grid that invents search semantics separate from SOT Omnisearch, hides returned counts, performs actions against an implicit query rather than explicit selection, treats KEEP/EXCESS/UNIQUE as disposable user tags, introduces UI-V2 stack Move into SOT, overwrites destination collisions, or turns bulk Delete into automatic/permanent deletion.
+
+**Required replacement:** UI-V2-derived Grid mechanics; explicit current-result counts and selection; durable deterministic UNIQUE/KEEP/EXCESS system classification; bulk operations limited to Tag, Notes, Folder and Delete; folder moves remain inside the selected Estate root and never overwrite; Trash/Recycle Bin first with a second explicit permanent-deletion warning for failures. Preserve the v8 HTML artifact when introducing v9 so owner comparison remains possible.

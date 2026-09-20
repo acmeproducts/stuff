@@ -17,6 +17,9 @@ class Store:
   self.path=Path(path);self.path.parent.mkdir(parents=True,exist_ok=True);self.batch_size=batch_size;self.batch_ms=batch_ms
   c=sqlite3.connect(self.path,timeout=30);c.executescript(DDL);cols={r[1] for r in c.execute("PRAGMA table_info(placements)")};
   if "tags" not in cols:c.execute("ALTER TABLE placements ADD COLUMN tags TEXT NOT NULL DEFAULT '[]'")
+  if "notes" not in cols:c.execute("ALTER TABLE placements ADD COLUMN notes TEXT NOT NULL DEFAULT ''")
+  if "system_tag" not in cols:c.execute("ALTER TABLE placements ADD COLUMN system_tag TEXT")
+  if "folder_group" not in cols:c.execute("ALTER TABLE placements ADD COLUMN folder_group TEXT")
   # One current placement per physical source/path. Collapse historical job-scoped observations in place.
   rows=c.execute("SELECT placement_id,placement_no,source_id,path,revision,fingerprint,lifecycle FROM placements ORDER BY source_id,path,(fingerprint IS NOT NULL) DESC,revision DESC,placement_no DESC").fetchall()
   seen=set()
@@ -28,6 +31,12 @@ class Store:
     c.execute("DELETE FROM placements WHERE placement_id=? AND placement_id<>?",(stable,old_id))
     c.execute("UPDATE placements SET placement_id=? WHERE placement_id=?",(stable,old_id))
   c.execute("CREATE UNIQUE INDEX IF NOT EXISTS idx_place_source_path ON placements(source_id,path)")
+  fps=c.execute("SELECT fingerprint FROM placements WHERE fingerprint IS NOT NULL GROUP BY fingerprint").fetchall()
+  for (fp,) in fps:
+   ps=c.execute("SELECT placement_id FROM placements WHERE fingerprint=? ORDER BY placement_no",(fp,)).fetchall()
+   if len(ps)==1:c.execute("UPDATE placements SET system_tag='UNIQUE',duplicate_cardinality=1 WHERE placement_id=?",(ps[0][0],))
+   else:
+    c.execute("UPDATE placements SET system_tag='EXCESS',duplicate_group=?,duplicate_cardinality=? WHERE fingerprint=?",(fp[:16],len(ps),fp));c.execute("UPDATE placements SET system_tag='KEEP' WHERE placement_id=?",(ps[0][0],))
   c.execute("INSERT OR REPLACE INTO meta(k,v) VALUES('schema',?)",(str(SCHEMA),));c.commit();c.close()
   self.q=queue.Queue(maxsize=8192);self.stop=threading.Event();self.writer_error=None
   self.t=threading.Thread(target=self._writer,name="sot-db-writer",daemon=True);self.t.start()
@@ -208,11 +217,13 @@ class Manager:
    self._infer(jid);self.s.drain(60);state="COMPLETED"
   now=time.time();self.s.submit("UPDATE jobs SET state=?,ended=?,last_progress=? WHERE job_id=?",(state,now,now,jid));self.s.submit("UPDATE job_sources SET state=?,queue_depth=0,active_workers=0 WHERE job_id=?",(state,jid));self.event("job_"+state.lower(),state.title(),jid);self.s.drain(30)
  def _infer(self,jid):
-  groups=self.s.rows("SELECT fingerprint,COUNT(*) n,MAX(size) size FROM placements WHERE job_id=? AND fingerprint IS NOT NULL GROUP BY fingerprint",(jid,))
+  groups=self.s.rows("SELECT fingerprint,COUNT(*) n FROM placements WHERE job_id=? AND fingerprint IS NOT NULL GROUP BY fingerprint",(jid,))
   for g in groups:
-   fp,n,size=g["fingerprint"],g["n"],g["size"]
-   if n>1:self.s.submit("UPDATE placements SET duplicate_group=?,duplicate_cardinality=? WHERE job_id=? AND fingerprint=?",(fp[:16],n,jid,fp))
-   self.s.submit("UPDATE placements SET plan=CASE WHEN availability='ERROR' THEN 'REVIEW' ELSE 'IN_PLAY' END,rationale=CASE WHEN ?=1 THEN 'Unique content awaiting TARGET landing' ELSE 'Content has multiple source placements; remains in play until TARGET is landed and verified' END,lifecycle='COMPLETED' WHERE job_id=? AND fingerprint=?",(n,jid,fp))
+   fp,n=g["fingerprint"],g["n"]
+   ps=self.s.rows("SELECT placement_id,placement_no FROM placements WHERE job_id=? AND fingerprint=? ORDER BY placement_no",(jid,fp))
+   if n==1:self.s.submit("UPDATE placements SET duplicate_group=NULL,duplicate_cardinality=1,system_tag='UNIQUE',plan='IN_PLAY',rationale='Unique content awaiting TARGET landing',lifecycle='COMPLETED' WHERE placement_id=?",(ps[0]["placement_id"],))
+   else:
+    gid=fp[:16];keep=ps[0]["placement_id"];self.s.submit("UPDATE placements SET duplicate_group=?,duplicate_cardinality=?,system_tag=CASE WHEN placement_id=? THEN 'KEEP' ELSE 'EXCESS' END,plan='IN_PLAY',rationale='Repeated fingerprint; one deterministic KEEP placement and remaining placements EXCESS',lifecycle='COMPLETED' WHERE job_id=? AND fingerprint=?",(gid,n,keep,jid,fp))
  def control(self,jid,action):
   rt=self.runs.get(jid)
   if not rt:raise RuntimeError("job not active in this process")

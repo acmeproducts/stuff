@@ -397,3 +397,13 @@ BASIC CAPACITY CHECK uses the retained Estate requirement from Analysis: UNIQUE 
 OPERATIONS STATUS table order is IN PLAY, LANDED, ESTATE, with ESTATE last. The arithmetic is IN PLAY - LANDED = ESTATE. The stacked progress bar represents the IN PLAY workload as remaining ESTATE (blue) plus LANDED (white/grey). Until a landing engine supplies verified landing evidence, LANDED remains zero; do not fabricate progress.
 
 The table remains the legend and exact-data surface. Tapping a bar segment opens its exact-value callout with × close. High-contrast approved palette is blue/white/grey generally, with yellow reserved for duplicate KEEP and red reserved for duplicate EXCESS.
+
+
+## 43. Grid bulk-operations surface — binding (2026-09-20)
+Create a new top-level Grid surface between Database and Plan while preserving the approved v8 artifact unchanged for direct comparison. The new artifact filename is `sot-turn02-pre-base-v9.html`. Grid follows the established UI-V2 Grid/bulk interaction model: Omnisearch determines the returned population, count chips show returned classification counts, selection is explicit, Select All applies to the current returned population, and removing/changing Grid filters recomputes the presentation population/order without changing durable placement identity.
+
+Grid bulk operations are exactly Tag, Notes, Delete, and Folder. There is no stack Move operation because SOT has no stacks. Tag and Notes are placement metadata operations. Folder follows UI-V2 folder semantics: selected physical files move to the chosen folder and SOT updates their current placement paths/identities after filesystem success. Destination must remain within each selected placement's registered Estate root; collisions fail rather than overwrite.
+
+Every fingerprinted placement has exactly one system classification tag: UNIQUE for a fingerprint with one placement; for every repeated fingerprint, exactly one deterministic placement is KEEP and every remaining placement is EXCESS. KEEP is selected by immutable placement-number order. These system classifications are separate from owner/user tags and must not be removed by bulk user-tag editing. Grid exposes UNIQUE, KEEP, and EXCESS as immediate count/filter chips.
+
+Bulk Delete expands the previously single-file authorization only for explicitly selected Grid placements. It attempts device Trash/Recycle Bin first for every selected placement. Any subset that cannot be trashed requires a second explicit in-app permanent-deletion warning before permanent deletion. Successful filesystem removal precedes SOT placement removal and durable activity evidence. No automatic, inferred, Plan-driven, background, or query-without-explicit-selection deletion is authorized.

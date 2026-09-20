@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-import importlib.util,json,os,sys,time,mimetypes,subprocess
+import importlib.util,json,os,sys,time,mimetypes,subprocess,hashlib,shutil
 from http.server import ThreadingHTTPServer,BaseHTTPRequestHandler
 from pathlib import Path
 HERE=Path(__file__).resolve().parent;sp=importlib.util.spec_from_file_location("sotclean3",HERE/"sot-turn02-v8-clean3-engine.py");m=importlib.util.module_from_spec(sp);sys.modules[sp.name]=m;sp.loader.exec_module(m)
@@ -155,6 +155,55 @@ class H(BaseHTTPRequestHandler):
     if not any(parent==r or str(parent).startswith(str(r).rstrip("/")+"/") for r in volume_roots()):raise RuntimeError("Parent is not on an available volume")
     child=parent/name;child.mkdir(exist_ok=False);return self.sendj({"ok":True,"folder":{"name":child.name,"path":str(child.resolve())}})
    if p=="/api/job/start":return self.sendj({"ok":True,"job_id":M.start(b.get("source_ids"))})
+   if p=="/api/bulk/meta":
+    ids=list(dict.fromkeys(b.get("ids") or []));action=b.get("action")
+    if not ids:return self.sendj({"ok":False,"error":"no placements selected"},400)
+    q=",".join("?" for _ in ids);rows=S.rows("SELECT placement_id,tags,notes FROM placements WHERE placement_id IN ("+q+")",tuple(ids))
+    if len(rows)!=len(ids):return self.sendj({"ok":False,"error":"one or more placements no longer exist"},409)
+    if action=="tag":
+     tag=str(b.get("tag","")).strip()
+     if not tag:return self.sendj({"ok":False,"error":"tag required"},400)
+     for r in rows:
+      try:tags=json.loads(r.get("tags") or "[]")
+      except Exception:tags=[]
+      if tag not in tags:tags.append(tag)
+      S.submit("UPDATE placements SET tags=? WHERE placement_id=?",(json.dumps(tags),r["placement_id"]))
+    elif action=="notes":
+     for r in rows:S.submit("UPDATE placements SET notes=? WHERE placement_id=?",(str(b.get("notes","")),r["placement_id"]))
+    else:return self.sendj({"ok":False,"error":"bad bulk metadata action"},400)
+    S.drain(30);M.event("bulk_"+action,"Bulk "+action+" updated",None,None,"INFO",{"count":len(ids)});return self.sendj({"ok":True,"count":len(ids)})
+   if p=="/api/bulk/delete":
+    ids=list(dict.fromkeys(b.get("ids") or []));mode=b.get("mode","trash")
+    if not ids:return self.sendj({"ok":False,"error":"no placements selected"},400)
+    q=",".join("?" for _ in ids);rows=S.rows("SELECT placement_id,path,filename,availability FROM placements WHERE placement_id IN ("+q+")",tuple(ids));done=[];need=[];failed=[]
+    for z in rows:
+     fp=Path(z["path"]).resolve()
+     if z["availability"]!="AVAILABLE" or not fp.is_file():failed.append({"id":z["placement_id"],"error":"file unavailable"});continue
+     trashed=False
+     if mode=="trash":
+      try:
+       if "microsoft" in os.uname().release.lower() and str(fp).startswith("/mnt/"):
+        wp=subprocess.check_output(["wslpath","-w",str(fp)],text=True).strip();ps="/mnt/c/Windows/System32/WindowsPowerShell/v1.0/powershell.exe";cmd="Add-Type -AssemblyName Microsoft.VisualBasic; [Microsoft.VisualBasic.FileIO.FileSystem]::DeleteFile($args[0],'OnlyErrorDialogs','SendToRecycleBin')";subprocess.check_call([ps,"-NoProfile","-Command",cmd,wp],stdout=subprocess.DEVNULL,stderr=subprocess.DEVNULL);trashed=True
+       elif subprocess.call(["sh","-lc","command -v gio >/dev/null 2>&1"])==0:subprocess.check_call(["gio","trash",str(fp)],stdout=subprocess.DEVNULL,stderr=subprocess.DEVNULL);trashed=True
+      except Exception:trashed=False
+      if not trashed:need.append(z["placement_id"]);continue
+     elif mode=="permanent":fp.unlink()
+     else:return self.sendj({"ok":False,"error":"bad delete mode"},400)
+     S.submit("DELETE FROM placements WHERE placement_id=?",(z["placement_id"],));done.append(z["placement_id"])
+    S.drain(30);M.event("bulk_deleted","Bulk delete completed",None,None,"INFO",{"mode":mode,"deleted":len(done),"needs_permanent":len(need),"failed":len(failed)});return self.sendj({"ok":True,"deleted":done,"needs_permanent":need,"failed":failed})
+   if p=="/api/bulk/folder":
+    ids=list(dict.fromkeys(b.get("ids") or []));dest=Path(str(b.get("folder",""))).resolve()
+    if not ids or not dest.is_dir():return self.sendj({"ok":False,"error":"valid selection and destination folder required"},400)
+    q=",".join("?" for _ in ids);rows=S.rows("SELECT p.placement_id,p.path,p.filename,p.source_id,s.root FROM placements p JOIN sources s USING(source_id) WHERE p.placement_id IN ("+q+")",tuple(ids))
+    if len(rows)!=len(ids):return self.sendj({"ok":False,"error":"one or more placements no longer exist"},409)
+    for z in rows:
+     root=Path(z["root"]).resolve()
+     if not (dest==root or str(dest).startswith(str(root).rstrip("/")+"/")):return self.sendj({"ok":False,"error":"destination must remain inside each selected placement Estate root"},400)
+     if (dest/z["filename"]).exists():return self.sendj({"ok":False,"error":"destination already contains "+z["filename"]},409)
+    moved=[]
+    for z in rows:
+     src=Path(z["path"]).resolve();dst=dest/z["filename"];shutil.move(str(src),str(dst));newid=hashlib.sha256((z["source_id"]+"\\0"+str(dst)).encode()).hexdigest();S.submit("UPDATE placements SET placement_id=?,path=?,folder_group=? WHERE placement_id=?",(newid,str(dst),str(dest),z["placement_id"]));moved.append({"old_id":z["placement_id"],"id":newid,"path":str(dst)})
+    S.drain(30);M.event("bulk_folder","Bulk folder move completed",None,None,"INFO",{"count":len(moved),"folder":str(dest)});return self.sendj({"ok":True,"moved":moved})
    if p=="/api/file/delete":
     pid=b.get("id","");mode=b.get("mode","trash");r=S.rows("SELECT placement_id,path,filename,availability FROM placements WHERE placement_id=?",(pid,))
     if not r:return self.sendj({"ok":False,"error":"placement not found"},404)
