@@ -1,3 +1,4 @@
+<plan>
 # WSL — Master Plan
 
 Single-file mobile-first HTML app (wsl.html). This plan is the sole authority and the only memory that persists between runs. Chat history may be partial or missing.
@@ -14,15 +15,31 @@ Single-file mobile-first HTML app (wsl.html). This plan is the sole authority an
 3. Momentum: the cart accelerates along the line's slope; speed carries onto connected/drawn segments.
 4. Draw-as-you-go: the player draws new lines ahead of the moving cart to keep it alive.
 5. Auto-scroll: the camera scrolls right, following the cart.
-6. Scoring: +100 points per complete page to the right traversed before failing.
-7. Fail animation: cart off track end → spins → disappears into a black hole; run ends, score shown.
+6. Scoring (per-page): +100 points per complete page to the right traversed before failing.
 
-**UI/Control Scheme (REFINED 2026-09-20):**
-- **Always-visible Controls**: Two distinct on-screen buttons persist at all times (never hidden, never dimmed to invisibility). Position: bottom-left (RESCUE) and bottom-right (360° FLIP) for two-thumb ergonomics, or centered if preferred by user.
-- **Visual Affordance**: Buttons show clear text labels ("RESCUE", "360°") not just icons; bright opaque backgrounds (Rescue: cyan/teal; Flip: gold/orange) so they read as clickable immediately.
-- **Contextual State**: If an action is unavailable (e.g., Flip already used, not in air), the button shows "ghosted" styling (lower opacity or grayscale) but remains visible so the player learns the layout.
-- **Interaction**: Tap Rescue to trigger air-rescue boost and spawn cyan landing line. Tap Flip to trigger 360° spin for bonus points. No double-tap, no swipe gestures required.
-- **Drawing Surface**: Canvas occupies full screen behind controls; drawing uses touch points that fall outside button bounding boxes (pointer-target detection excludes UI layer).
+**Refined Rescue System (2026-09-20):**
+- Player receives exactly 3 rescue charges per run (displayed on HUD).
+- When the cart is falling (airborne), tapping RESCUE consumes one charge and immediately spawns a short rescue track segment directly underneath the cart's current position (cyan color, distinct from gold/brown standard tracks).
+- The cart immediately lands on this rescue track and resumes RUN state; player can extend it by drawing.
+- No automatic "deadpool" or stuck-detection timers — oscillation exploits are moot because the player must manually intervene with limited resources.
+
+**Refined Flip System (2026-09-20):**
+- While falling, the 360° button becomes active.
+- Single tap performs a **Forward Flip** (boosts cart velocity along its facing direction, carries ~2× horizontal distance).
+- Double-tap (or alternate button zone) performs a **Backward Flip** (shorter boost, opposite direction, useful for catching behind-track).
+- Physics: forward flip adds horizontal impulse aligned with current angle; backward flip adds reversed impulse.
+- Successful landing after any flip awards bonus points (forward = +1000, backward = +500).
+
+**Timer & Composite Scoring (2026-09-20):**
+- Survival timer starts counting on cart release (RUN state) and stops at death (SUCK/OVER).
+- Final score formula: `total_points + (survival_seconds × 10)` — longer survival increases score, encouraging risk/reward on using rescues vs letting cart fall.
+- HUD displays: score, best, rescue charges (battery icons), and elapsed time mm:ss.
+
+**UI/Control Scheme:**
+- **Always-visible Controls**: Two distinct on-screen buttons persist at all times (never hidden, never dimmed to invisibility). Position: bottom-left (RESCUE) and bottom-right (360° FLIP) for two-thumb ergonomics.
+- **Rescue button**: shows remaining charges (e.g., "x3", "x2", "x1", "x0" disabled). Ghosted when charges exhausted or cart not falling.
+- **Flip button**: shows "360°" label; differentiate forward (tap) vs backward (double-tap or hold).
+- **Drawing Surface**: Canvas occupies full screen behind controls; drawing uses touch points outside button bounding boxes.
 
 **Users:** Casual mobile players; short sessions; one-thumb/two-thumb play.
 
@@ -33,16 +50,15 @@ Single-file mobile-first HTML app (wsl.html). This plan is the sole authority an
 - Clear per-page score feedback (+100) and a satisfying black-hole game-over.
 - All diagnostics surfaced in the app itself, never console-only.
 - Controls are **always visible**; user never hunts for UI.
+- Rescue charges are limited (3), forcing strategic use rather than infinite recovery.
 
-**Asset decision (owner directive 2026-09-19):** If any assets are missing, create them — do not block on missing material. Default visual style: emoji + simple canvas shapes (⛄ snowman, coal cart, 🕳️ black hole). v3.png visual specifics will be interpreted freely; owner can restyle later.
-
-**Source material:** image attachment v3.png was provided but this engine is text-only — per the asset decision above, visuals are interpreted with emoji/simple canvas shapes without further confirmation.
+**Asset decision (owner directive 2026-09-19):** If any assets are missing, create them — do not block on missing material. Default visual style: emoji + simple canvas shapes (⛄ snowman, coal cart, 🕳️ black hole).
 
 ## Backlog
-- BUILD REQUEST (2026-09-20): implement always-visible Rescue and Flip buttons per refined UI spec; ensure pinch/wheel zoom remains functional; remove "keypad" opacity state management; keep camera, physics, and progress failsafe from previous iteration. Project is currently in DEFINE; build on owner's "build it".
-- RESOLVED (2026-09-19): visual style — owner directive: create missing assets; default = emoji/simple canvas shapes (⛄🛒🕳️).
-- RESOLVED (2026-09-19): "label.md" — non-blocking per owner directive.
-- PENDING (2026-09-20): Control placement decision — bottom corners vs centered; awaiting owner preference or proceed with bottom-left/right split.
+- BUILD REQUEST (2026-09-20): implement 3-charge rescue system (spawns colored track under cart); remove deadpool detection; directional flips (forward/backward physics); survival timer; composite scoring; timer HUD display.
+- DONE (2026-09-20): refined flip mechanics defined (forward = long, backward = short).
+- DONE (2026-09-20): rescue limited to 3 charges, manual activation only.
+- DONE (2026-09-20): timer + composite scoring formula documented.
 
 ## Turn/Stage Ledger
 | Date | Stage | What happened |
@@ -56,3 +72,6 @@ Single-file mobile-first HTML app (wsl.html). This plan is the sole authority an
 | 2026-09-19 | REFINE | User reported UI exploit: cart can oscillate in place avoiding deadpool trigger. Added no-forward-progress failsafe (4 seconds without 80px rightward gain triggers death). |
 | 2026-09-20 | REFINE | User reported keypad feels "inert" and requested zoom control. Plan: make keypad tactile (scale-press feedback, immediate audio) and add pinch/wheel zoom for camera (0.5×–2.0×) while keeping mobile-first single-file constraints. |
 | 2026-09-20 | DEFINE | User feedback: "there's no controls let's just show the controls" — interpreted as keypad not visible/accessible. Requirement refined in Define: controls must be **always visible**, never hidden via opacity; positioned for immediate thumb access (bottom-left/right split); clear text labels ("RESCUE", "360°"); ghosted state only dims interaction, not visibility. Build held pending explicit go-ahead. |
+| 2026-09-20 | BUILD | Built wsl.html with always-visible buttons, pinch/wheel zoom, rescued track color, 360 flip. |
+| 2026-09-20 | DEFINE | Owner feedback: velocity oscillation (-1,0,1) breaks deadpool timer; rescue should be limited (3 charges) rather than automatic; flip should be directional (forward/backward) with forward reaching much farther; add survival timer; composite scoring (points + time). Deadpool detection removed. Requirements updated in Define. |
+</plan>
