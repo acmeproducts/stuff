@@ -411,3 +411,15 @@ Tag must follow the donor Edit Tags interaction: modal title, ASSIGNED TAGS area
 Notes must follow the donor Edit Notes & Ratings interaction rather than a bare textarea prompt. The modal contains Notes plus Quality Rating and Content Rating, each five-star capable, with Cancel and Save. This requires durable placement metadata for notes, quality_rating, and content_rating. Bulk multi-selection must define mixed/current values explicitly before implementation; it must never silently overwrite ratings merely by opening the editor.
 
 Before implementation, the donor source must be inspected for the actual slider ranges/defaults, tile sizing rules, selection behavior, tag editor semantics, notes/rating persistence behavior, and folder/delete modal behavior. Screenshots are acceptance references, not permission to substitute generic controls.
+
+
+---
+
+## 44. Plan section subtabs — binding (2026-09-20)
+Plan must present its three governed arithmetic sections as mutually exclusive subtabs inside the existing Plan top-level tab: (1) ANALYSIS RESULTS, (2) BASIC CAPACITY CHECK, and (3) OPERATIONS STATUS. Only one governed bar and its related exact-data table are visible at a time.
+
+The subtab control is navigation only. Switching subtabs must not alter evidence, arithmetic, TARGET state, selections, background work, Plan data, or any other application state. The selected Plan subtab must survive normal Plan rerenders and polling refreshes. Bar-segment callouts remain transient and must close when changing Plan subtabs.
+
+On mobile, the Plan surface must not require vertical page scrolling merely to reach another Plan section. The three compact subtab controls remain directly accessible at the top of the Plan surface; if an unusually narrow viewport cannot fit them, only the subtab strip may scroll horizontally. Content overflow, when genuinely required, belongs inside the active subtab pane rather than in a vertically stacked multi-section Plan page.
+
+Preserve all §42 arithmetic, row ordering, bar composition, colors, segment-callout behavior, and exact values unchanged. This is a presentation/navigation correction only. Build the implementation from the accepted v8 artifact, preserve v8 unchanged, do not inherit rejected v9 Grid code, and publish the comparison candidate under the next available bumped artifact name.
