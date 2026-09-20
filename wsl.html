@@ -33,7 +33,7 @@
     padding:0 12px;z-index:10;pointer-events:none;
   }
   .ctrl-btn{
-    height:64px;min-width:80px;flex:1 1 auto;max-width:160px;
+    height:64px;min-width:72px;flex:1 1 auto;max-width:160px;
     padding:0 10px;border-radius:16px;border:none;
     font-weight:900;font-size:14px;letter-spacing:0.5px;color:#fff;
     text-shadow:0 1px 3px rgba(0,0,0,.6);
@@ -67,10 +67,10 @@
 </div>
 
 <div id="ctrlRow">
-  <button id="btnRescue" class="ctrl-btn" aria-label="Rescue">RESCUE x3</button>
-  <button id="btnBack" class="ctrl-btn" aria-label="Back Flip">BACK &lt;</button>
-  <button id="btnJump" class="ctrl-btn" aria-label="Jump">JUMP</button>
-  <button id="btnFront" class="ctrl-btn" aria-label="Front Flip">FRONT &gt;</button>
+  <button id="btnRescue" class="ctrl-btn">RESCUE x3</button>
+  <button id="btnBack" class="ctrl-btn">BACK &lt;</button>
+  <button id="btnJump" class="ctrl-btn">JUMP</button>
+  <button id="btnFront" class="ctrl-btn">FRONT &gt;</button>
 </div>
 
 <script>
@@ -243,13 +243,9 @@ function landOnTrack(ti,s){
   cart.v=Math.min(VMAX,Math.max(-VMAX,dot));
   state=ST.RUN;
   if(!isTiming){runStartTime=performance.now();isTiming=true;}
-  if(cart.flip>0){
-    var bonus=tracks[ti]&&tracks[ti].rescue?500:1000;
-    baseScore+=bonus;
-    addFloater(cart.x,cart.y-60,(cart.flip===2?'TRICK!':'+')+bonus,'#ffd700');
-    beep(1100,120);
-  }
   cart.flip=0;cart.flipAng=0;fall.grace=0;
+  addFloater(cart.x,cart.y-50,'LAND','#8cff5a');
+  beep(880,120);
 }
 function doRescue(){
   if(rescueCharges<=0){
@@ -277,7 +273,7 @@ function doRescue(){
 function doJump(){
   if(state===ST.RUN){
     fall.vx=Math.cos(cart.ang)*Math.abs(cart.v);
-    fall.vy=-1400;
+    fall.vy=-1800;
     fall.rot=cart.ang;
     fall.spin=0;
     fall.t=0;fall.grace=0;
@@ -286,30 +282,44 @@ function doJump(){
     beep(520,140);
     addFloater(cart.x,cart.y-50,'JUMP','#8cff5a');
   }else if(state===ST.FALL){
-    fall.vy-=900;
-    if(fall.vy<-3000)fall.vy=-3000;
-    fall.spin+=(fall.vx>=0?3:-3);
-    beep(760,100);
+    fall.vy-=1100;
+    if(fall.vy<-4000)fall.vy=-4000;
+    fall.spin+=(fall.vx>=0?4:-4);
+    beep(800,100);
     addFloater(cart.x,cart.y-70,'BOOST','#ffd700');
   }else{
     beep(200,60);
   }
 }
 function triggerFlip(isFront){
-  if(state!==ST.FALL)return;
-  cart.flip=1;cart.flipAng=0;fall.grace=0.25;
-  var push=isFront?3500:2200;
+  var launchedFromRun=false;
+  if(state===ST.RUN){
+    launchedFromRun=true;
+    fall.vx=Math.cos(cart.ang)*Math.abs(cart.v);
+    fall.vy=-1600;
+    fall.rot=cart.ang;
+    fall.spin=0;
+    fall.t=0;fall.grace=0;
+    cart.flip=1;cart.flipAng=0;
+    state=ST.FALL;
+    beep(520,100);
+  }else if(state===ST.FALL){
+    cart.flip=1;cart.flipAng=0;fall.grace=0.3;
+  }else{
+    return;
+  }
+
   if(isFront){
-    fall.vx=Math.abs(fall.vx)*0.8 + push;
-    fall.vy-=1200;
-    fall.spin=18;
-    beep(500,120);beep(800,120);
+    fall.vx=Math.abs(fall.vx)*0.55 + 5200;
+    fall.vy-=2000;
+    fall.spin=28;
+    beep(600,100);beep(950,130);
     addFloater(cart.x,cart.y-60,'FLIP >','#ff6666');
   }else{
-    fall.vx= -Math.abs(fall.vx)*0.5 - 800;
-    fall.vy-=2500;
-    fall.spin=-14;
-    beep(400,140);beep(300,140);
+    fall.vx= -Math.abs(fall.vx)*0.55 - 1800;
+    fall.vy-=3200;
+    fall.spin=-24;
+    beep(450,130);beep(700,160);
     addFloater(cart.x,cart.y-60,'< FLIP','#66ccff');
   }
 }
@@ -361,8 +371,7 @@ function update(dt){
     if(cart.v>VMAX)cart.v=VMAX;else if(cart.v<-VMAX)cart.v=-VMAX;
     cart.s+=cart.v*dt;
     
-    if(cart.s>=tr.totalLen-10&&cart.v>0){startFallOffTrack('end');return;}
-    if(cart.s<=0&&cart.v<0){startFallOffTrack('start');return;}
+    if(cart.s>tr.totalLen&&cart.v>0){startFallOffTrack('end');return;}
     
     var p=pointAt(cart.track,cart.s);cart.x=p.x;cart.y=p.y;cart.ang=p.ang;
     var page=Math.floor(cart.x/pageW);
@@ -371,7 +380,7 @@ function update(dt){
     fall.t+=dt;
     if(fall.grace>0)fall.grace-=dt;
     if(cart.flip===1){
-      cart.flipAng+= (Math.PI*2)/0.42 * dt;
+      cart.flipAng+= (Math.PI*2)/0.35 * dt;
       if(cart.flipAng>=Math.PI*2){cart.flip=2;cart.flipAng=Math.PI*2;}
     }
     fall.vy+=G*dt;
@@ -380,10 +389,10 @@ function update(dt){
     cart.ang+=fall.spin*dt;
     
     var land=nearestOnAnyTrack(cart.x,cart.y);
-    if(fall.grace<=0 && land.d<32 && land.d < Math.abs(fall.vy)*0.05+14 && fall.vy>0){
+    if(fall.grace<=0 && land.d<38 && land.d < Math.abs(fall.vy)*0.06+16 && fall.vy>0){
       landOnTrack(land.track,land.s);return;
     }
-    if(cart.y > Math.max(H/zoom,camY+H/zoom)+400 || fall.t>10){
+    if(cart.y > Math.max(H/zoom,camY+H/zoom)+500 || fall.t>10){
       hole.x=cart.x;hole.y=cart.y+200;die();
     }
   }else if(state===ST.SUCK){
