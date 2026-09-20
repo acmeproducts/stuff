@@ -399,43 +399,436 @@ OPERATIONS STATUS table order is IN PLAY, LANDED, ESTATE, with ESTATE last. The 
 The table remains the legend and exact-data surface. Tapping a bar segment opens its exact-value callout with × close. High-contrast approved palette is blue/white/grey generally, with yellow reserved for duplicate KEEP and red reserved for duplicate EXCESS.
 
 
-## 43. Grid donor-faithful specification hold — binding (2026-09-20)
-The rejected v9 Grid implementation is evidence only. The accepted application baseline remains v8 while Grid is specified from the actual donor `acmeproducts/perf/ui-v2.html` and owner screenshots before another implementation attempt. A future Grid must use a bumped filename and must not replace or modify the v8 comparison artifact.
+## 43. Grid bulk-operations implementation plan — binding (2026-09-20)
 
-The donor visual/interaction contract to preserve is: a dedicated Grid workspace with a compact header; selected-count pill; thumbnail-size slider at upper right that changes tile density/size without changing result membership or selection; one search/filter strip; a single bulk-action strip immediately below it; responsive thumbnail cards with real image previews; per-tile selection/menu affordance and external/open affordance; and Grid scrolling confined to the content surface.
+### 43.1 Purpose and lineage
+Grid is a new top-level SOT work surface between Database and Plan for visual review, search-driven selection, and explicit bulk operations against placement evidence. The accepted application baseline remains `sot-turn02-pre-base-v8.html`. The rejected v9 Grid is evidence only and must never be patched forward. Grid implementation begins from the accepted v8 baseline and ships only under a new bumped comparison filename; v8 remains byte-for-byte available for owner comparison.
 
-The SOT action strip maps donor actions deliberately rather than approximately. Required SOT actions are Tag, Notes, Delete, and Folder. Do not add UI-V2 Move because SOT has no stacks. Export is not part of this Grid scope unless separately approved. Search remains SOT Omnisearch semantics and system classification filtering remains available, but classification controls must not crowd or replace the donor header/action geometry.
+The visual and interaction donor is `acmeproducts/perf/ui-v2.html`. Donor behavior is to be transplanted deliberately, not approximated from screenshots. SOT semantics remain authoritative where the products differ.
 
-Tag must follow the donor Edit Tags interaction: modal title, ASSIGNED TAGS area, comma-separated tag editor, display of currently assigned user tags, and explicit close/save behavior appropriate to SOT persistence. System tags/classifications are visually separate and read-only in this editor; owner tag edits cannot remove UNIQUE/KEEP/EXCESS.
+### 43.2 Donor elements that must be extracted before application coding
+Read the current donor source and document the exact implementation of:
+1. Grid shell/header geometry and responsive/mobile behavior.
+2. Selected-count pill and selection state transitions.
+3. Thumbnail-size slider: minimum, maximum, step, default, persisted value, and the formula/rules that translate slider value into column/tile geometry.
+4. Search row and search-helper behavior.
+5. Bulk-action row spacing, enabled/disabled states, and action ordering.
+6. Grid container sizing, gap, square-card geometry, image `object-fit`, lazy loading, and scroll ownership.
+7. Single selection, multi-selection, Select All/current-result behavior, selection clearing, and selection preservation when density changes.
+8. Per-tile controls, including donor open/focus affordance. Drag/stack controls are not imported unless they directly support an approved SOT operation.
+9. Edit Tags modal structure, assigned/recent tag chips, comma-separated entry, add/remove behavior, keyboard behavior, and persistence timing.
+10. Edit Notes & Ratings modal structure, Notes field, five-star Quality Rating, five-star Content Rating, current-value hydration, Cancel, Save, and rating interaction.
+11. Folder chooser and Delete confirmation flow.
+12. Loading, unavailable-preview, non-image, empty-result, error, and stale-evidence states.
 
-Notes must follow the donor Edit Notes & Ratings interaction rather than a bare textarea prompt. The modal contains Notes plus Quality Rating and Content Rating, each five-star capable, with Cancel and Save. This requires durable placement metadata for notes, quality_rating, and content_rating. Bulk multi-selection must define mixed/current values explicitly before implementation; it must never silently overwrite ratings merely by opening the editor.
+No Grid implementation candidate may be published until this extraction is reflected in the implementation checklist/gates below.
 
-Before implementation, the donor source must be inspected for the actual slider ranges/defaults, tile sizing rules, selection behavior, tag editor semantics, notes/rating persistence behavior, and folder/delete modal behavior. Screenshots are acceptance references, not permission to substitute generic controls.
+### 43.3 SOT Grid shell
+The top-level order becomes:
+`Estate | Analyze | Database | Grid | Plan | Ask AI | Activity`.
+
+Grid uses the donor's compact workspace shape:
+- compact Grid header;
+- selected-count pill;
+- thumbnail-density slider at upper right;
+- one Omnisearch/filter row;
+- one bulk-action row immediately below;
+- thumbnail grid occupying the remaining viewport;
+- internal Grid scrolling only.
+
+Do not place UNIQUE/KEEP/EXCESS chips inline in the search row as the rejected v9 did. Classification filtering must be available without making the donor header busy. Use the existing SOT Omnisearch/filter semantics, including field-qualified terms, negatives, wildcarding, and explicit execution behavior.
+
+### 43.4 Grid result set and selection model
+Grid consumes the same placement evidence/cache as Database. It does not create a second evidence model.
+
+Definitions:
+- **returned set** = placements matching the currently applied SOT Omnisearch/filter expression;
+- **selected set** = explicit placement IDs selected by the owner from the returned set;
+- the selected-count pill always reports the actual selected placement count;
+- bulk actions operate only on explicit selected placement IDs, never implicitly on the query.
+
+Changing slider density must not change membership, order, filters, or selection. Applying/changing a search/filter recomputes the returned set. The exact donor rule for what happens to selection when a filter/search changes must be extracted and then used unless it would create an unsafe hidden bulk scope; hidden/non-returned placements may never be bulk-mutated without remaining visibly represented as selected.
+
+### 43.5 System classifications: UNIQUE / KEEP / EXCESS
+These are durable SOT system classifications, not ordinary owner tags:
+- **UNIQUE** — fingerprint occurs once in current authoritative evidence.
+- **KEEP** — exactly one deterministic retained placement for a repeated fingerprint.
+- **EXCESS** — every additional placement of that repeated fingerprint.
+
+For each fingerprint:
+- cardinality 1 ⇒ one UNIQUE;
+- cardinality N > 1 ⇒ exactly one KEEP + N−1 EXCESS.
+
+KEEP selection must be deterministic from stable evidence, not DOM order or current Grid order. Use immutable placement sequence/order unless a later governed canonical-placement rule supersedes it.
+
+System classifications are:
+- queryable/filterable in Grid and Database;
+- visible on tile/detail context without crowding the primary Grid controls;
+- read-only in Tag editing;
+- recalculated when authoritative fingerprint/placement evidence changes;
+- never removed or overwritten by user tag operations.
+
+### 43.6 Thumbnail/media contract
+Image placements supported by the existing safe preview endpoint render real thumbnails. Do not render hundreds of empty skeleton lines/cards as in rejected v9.
+
+For non-image files, use a compact type representation derived from extension/MIME while preserving the square donor card geometry. Failed/unavailable previews show a clear unavailable state without breaking layout.
+
+Requirements:
+- lazy-load media;
+- do not fetch full file bytes unnecessarily when a bounded thumbnail representation can be supplied;
+- maintain placement-ID-based path security;
+- no arbitrary client-submitted filesystem paths;
+- density changes reuse loaded media where practical;
+- thumbnail failures do not affect transport health;
+- tile count may scale to the estate without creating an unbounded DOM/main-thread freeze; use bounded rendering/virtualization or equivalent if required by qualification.
+
+### 43.7 Thumbnail-density slider
+The slider is a first-class donor behavior, not optional decoration. Extract and preserve the donor min/max/step/default and tile-size mapping. It changes only presentation density.
+
+Persist the owner's density locally so reopening Grid restores it. Density state is presentation-only and never written into SOT evidence. Test at minimum, default, maximum, narrow mobile width, and desktop width.
+
+### 43.8 Bulk action strip
+Approved Grid actions are exactly:
+`Tag | Notes | Delete | Folder`.
+
+Do not import UI-V2 Move because SOT has no stacks. Do not add Export or other actions without separate owner approval. Actions are disabled with zero selection and become active with one or more explicit selections.
+
+### 43.9 Tag implementation
+Tag uses the donor Edit Tags interaction, not a generic prompt.
+
+The modal must include:
+- title **Edit Tags**;
+- **ASSIGNED TAGS** section showing user-assigned tags for the current selection;
+- donor-style chips/removal behavior;
+- comma-separated tag input;
+- donor keyboard/focus behavior;
+- explicit completion control consistent with donor semantics.
+
+SOT must maintain two namespaces:
+1. immutable/recomputed system classification: UNIQUE/KEEP/EXCESS;
+2. owner tags: arbitrary durable tags.
+
+Bulk-tag behavior must be explicit:
+- tags added by the owner are applied to every selected placement;
+- removal must distinguish tags common to all selected placements from mixed tags and must never silently remove a tag from placements where the owner did not explicitly request removal;
+- system classifications are displayed separately/read-only and cannot be edited from Tag;
+- persistence is transactional enough that partial bulk success is reported, not hidden.
+
+### 43.10 Notes + ratings implementation
+Notes follows donor **Edit Notes & Ratings**, not a bare textarea.
+
+Durable placement metadata must include:
+- `notes`;
+- `quality_rating` integer/null, allowed 1–5;
+- `content_rating` integer/null, allowed 1–5.
+
+The modal contains:
+- selected-item/selection context;
+- Notes textarea;
+- five-star Quality Rating;
+- five-star Content Rating;
+- Cancel;
+- Save.
+
+Single-selection opens current values exactly. Multi-selection must show mixed state when values differ. Opening or cancelling may never modify evidence. Saving changes only fields the owner explicitly changed in a mixed bulk edit; unchanged mixed fields remain untouched. Ratings must be keyboard/touch accessible and durable after reload/reconnect.
+
+### 43.11 Folder operation
+Folder is the approved SOT physical grouping operation. It is not UI-V2 stack Move.
+
+For explicit selected placements:
+- open donor-shaped Folder chooser;
+- browse only backend-discovered/registered Estate storage;
+- choose a destination folder;
+- destination must be legal for every selected placement under the governed Estate constraints;
+- preflight all destination collisions and permissions before mutation;
+- never overwrite an existing file;
+- execute filesystem moves with per-file durable results;
+- after each successful move, update canonical placement path/identity and relevant metadata;
+- failed moves remain represented at their original placement;
+- log durable Activity evidence;
+- refresh Grid/Database evidence from backend result, not optimistic fiction.
+
+A mixed selection that cannot share a legal destination must be rejected before mutation with an intelligible reason.
+
+### 43.12 Bulk Delete
+Bulk Delete is destructive and therefore stricter than ordinary metadata actions:
+- scope is explicit selected placement IDs only;
+- show count and enough context to make scope clear;
+- attempt OS/device Trash/Recycle Bin first;
+- successful trash precedes removal of the active placement from SOT evidence;
+- files that cannot be trashed remain untouched and are returned as a failure subset;
+- permanent deletion for that subset requires a second explicit in-app warning/confirmation;
+- no query-only delete, inferred delete, Plan-driven delete, background delete, or automatic EXCESS delete;
+- every result is durably logged;
+- after placement removal, duplicate/system classifications are recomputed so a former KEEP/EXCESS group cannot remain logically stale.
+
+### 43.13 Persistence/schema work
+Implement additive governed schema support rather than browser-only state:
+- owner tags;
+- notes;
+- quality_rating;
+- content_rating;
+- system classification if not already represented by a governed derived relation/field;
+- folder-operation evidence as needed;
+- durable bulk-operation events.
+
+Schema migration must be explicit/version-aware and preserve existing evidence. Do not silently repurpose existing columns. Browser state is limited to presentation preferences such as Grid density and non-authoritative UI state.
+
+### 43.14 Grid performance/concurrency
+Grid must remain usable while Analyze is running. Metadata reads and thumbnail reads use bounded independent read paths and may not block fingerprint workers or the database writer.
+
+Qualification must prove:
+- scrolling remains responsive with the real 2,254-placement estate scale and a larger synthetic scale;
+- density changes do not refetch/recompute authoritative evidence;
+- thumbnail failures do not stall the grid;
+- bulk metadata operations do not freeze Analyze;
+- Folder/Delete serialize the affected placement mutations safely while unrelated sources/jobs remain observable;
+- health polling remains independent.
+
+### 43.15 Grid implementation sequence
+1. Freeze v8 artifact and record its SHA.
+2. Extract donor Grid behavior from `ui-v2.html`.
+3. Add schema/migration for notes/ratings/system classification/user tags.
+4. Add read APIs required for bounded Grid media/metadata.
+5. Add transactional bulk metadata API.
+6. Add Folder preflight + execution API.
+7. Add guarded bulk Delete API.
+8. Build Grid shell in a new bumped HTML artifact.
+9. Transplant donor slider/tile geometry.
+10. Wire SOT Omnisearch returned set.
+11. Wire explicit selection and selected-count pill.
+12. Implement real thumbnails/non-image states.
+13. Implement Tag donor modal.
+14. Implement Notes & Ratings donor modal.
+15. Implement Folder donor flow.
+16. Implement Delete two-stage flow.
+17. Add system classification filtering/context without crowding donor geometry.
+18. Run mechanical, synthetic, real-estate, mobile, and destructive disposable-file gates.
+19. Only after all gates pass publish the bumped owner test URL.
+
+### 43.16 Grid release-blocking gates
+A candidate fails if any item below fails:
+1. v8 baseline artifact unchanged.
+2. New bumped filename only.
+3. Grid appears between Database and Plan.
+4. Donor slider min/default/max behavior matches extracted source.
+5. Slider changes density only.
+6. Real image thumbnails render; non-images/unavailable files have coherent cards.
+7. Grid owns scrolling and does not expand into an unbounded page.
+8. Omnisearch returns exactly the same matching placement population as Database for the same expression.
+9. Selected count is exact.
+10. Bulk actions disabled at zero selection.
+11. No bulk action can affect an unselected/hidden placement.
+12. UNIQUE/KEEP/EXCESS arithmetic is exact for controlled duplicate fixtures.
+13. System classifications survive user-tag edits and recompute after placement changes.
+14. Tag modal matches donor structure and persists after reload.
+15. Mixed bulk tag semantics are explicit and tested.
+16. Notes + both ratings hydrate and persist for single selection.
+17. Mixed multi-selection does not overwrite unchanged values.
+18. Folder collision preflight prevents overwrite.
+19. Folder move updates filesystem + SOT placement evidence coherently.
+20. Trash-first bulk Delete works on disposable fixtures.
+21. Permanent fallback requires second confirmation and affects only the failed-trash subset.
+22. Classification recomputes after deletion.
+23. Activity records every bulk operation/result.
+24. Analyze remains responsive during Grid reads/metadata writes.
+25. Mobile layout remains operable without horizontal-scroll fighting.
+26. Reconnect/reload restores durable metadata and presentation density.
+27. No browser alert/confirm/prompt is introduced.
+28. Full existing SOT qualification suite remains green.
 
 
----
+## 44. Ask AI surface — binding design and implementation plan (2026-09-20)
 
-## 44. Plan section subtabs — binding (2026-09-20)
-Plan must present its three governed arithmetic sections as mutually exclusive subtabs inside the existing Plan top-level tab: (1) ANALYSIS RESULTS, (2) BASIC CAPACITY CHECK, and (3) OPERATIONS STATUS. Only one governed bar and its related exact-data table are visible at a time.
+### 44.1 Purpose
+Add a new top-level **Ask AI** surface between Plan and Activity. Ask AI is the conversational/research layer over the SOT evidence estate. It must answer questions about SOT evidence, duplicates, classifications, capacity, paths, tags/notes/ratings, Plan/landing state, and operational history without silently mutating owner files or SOT decisions.
 
-The subtab control is navigation only. Switching subtabs must not alter evidence, arithmetic, TARGET state, selections, background work, Plan data, or any other application state. The selected Plan subtab must survive normal Plan rerenders and polling refreshes. Bar-segment callouts remain transient and must close when changing Plan subtabs.
+Its shape is deliberately based on the Library surface in `prism/prism-turn01-ship-r27.html`, not on PRISM's Map or AI side drawer.
 
-On mobile, the Plan surface must not require vertical page scrolling merely to reach another Plan section. The three compact subtab controls remain directly accessible at the top of the Plan surface; if an unusually narrow viewport cannot fit them, only the subtab strip may scroll horizontally. Content overflow, when genuinely required, belongs inside the active subtab pane rather than in a vertically stacked multi-section Plan page.
+### 44.2 PRISM Library donor shape to transplant
+The PRISM R27 Library donor uses a two-column full-height workspace:
+- left rail approximately `min(276px,31vw)`, collapsible to 44px;
+- rail header;
+- rail Omnisearch;
+- scrollable card list;
+- right stage occupying remaining width;
+- right detail header;
+- independently scrollable transcript;
+- sticky/bottom compose strip;
+- empty state when nothing is selected.
 
-Preserve all §42 arithmetic, row ordering, bar composition, colors, segment-callout behavior, and exact values unchanged. This is a presentation/navigation correction only. Build the implementation from the accepted v8 artifact, preserve v8 unchanged, do not inherit rejected v9 Grid code, and publish the comparison candidate under the next available bumped artifact name.
+SOT Ask AI must adopt this information architecture and interaction shape while using SOT styling and data semantics.
+
+### 44.3 Ask AI left rail
+Left rail contains:
+- **Ask AI** heading and collapse control;
+- Omnisearch for saved AI conversations/analyses;
+- count;
+- persistent conversation cards.
+
+Each card contains:
+- generated/default conversation title, inline editable;
+- created/updated timestamp;
+- concise status: processing / ready / failed;
+- optional compact scope summary (Estate/all evidence/current selection/etc.);
+- delete control with in-app confirmation.
+
+Selecting a card opens its complete durable transcript. New conversation creates an empty selected conversation and focuses compose.
+
+### 44.4 Ask AI right stage
+Header contains:
+- editable conversation title;
+- saved scope/evidence context summary;
+- transcript search/Omnisearch modeled on PRISM analysis Omnisearch where useful;
+- no redundant provider/key controls.
+
+Transcript is normal rendered document/chat content, not a viewport-inside-a-card. It must support Markdown rendering for headings, paragraphs, lists, tables, blockquotes, code, links, and evidence references. User turns and AI turns remain clearly distinguishable. The transcript scrolls independently; compose remains available at the bottom.
+
+### 44.5 Compose strip
+Sticky bottom compose follows PRISM Library shape:
+- attachment/context control only where it maps to governed SOT evidence;
+- expanding textarea;
+- Send/Run control;
+- visible running state;
+- cancellation if the selected provider supports it.
+
+The prompt can be scoped to:
+- entire SOT;
+- current Estate;
+- current Database/Grid query/result set;
+- explicit selected placements;
+- Plan/operations state;
+- Activity/time range.
+
+Scope must be visible before sending and stored with the turn. The AI may not silently broaden an explicit selection into the whole estate.
+
+### 44.6 Evidence grounding
+Every Ask AI request builds a governed evidence packet from current SOT database state. It must not scrape the rendered UI.
+
+Evidence retrieval may include:
+- placement metadata/fingerprints;
+- duplicate groups and UNIQUE/KEEP/EXCESS;
+- tags, notes, ratings;
+- Estate/source/path/size/date metadata;
+- TARGET/capacity and landing verification state;
+- Plan arithmetic;
+- durable Activity events.
+
+The packet records evidence revision/query/scope and enough placement/group identifiers to reproduce what the model saw. Large scopes require deterministic retrieval/aggregation rather than dumping the whole database into a prompt.
+
+AI answers must distinguish database evidence from model interpretation. Where an answer refers to specific files/groups, the UI should provide navigable SOT evidence references rather than fabricated paths.
+
+### 44.7 AI authority boundary
+Ask AI is advisory/read-only unless a future separately governed action is explicitly approved. It may:
+- explain;
+- summarize;
+- compare;
+- identify patterns;
+- propose searches/tags;
+- explain duplicate groups;
+- analyze capacity/landing state;
+- answer questions from Activity/evidence.
+
+It may not directly:
+- delete;
+- move;
+- land;
+- retag;
+- edit notes/ratings;
+- alter KEEP/EXCESS/UNIQUE;
+- alter Plan decisions;
+- execute filesystem operations.
+
+If the model proposes an action, it is text only. Owner action remains through the governed SOT surfaces.
+
+### 44.8 Provider/configuration boundary
+Provider/model/API-key configuration remains Configuration/gear, not duplicated in Ask AI. Ask AI reads the active configured provider/model. Missing/invalid configuration produces a clear setup state with a route to Configuration, not an embedded second credential form.
+
+Existing staged Venice.ai/OpenRouter/Anthropic configuration may be used only after its actual current contract is verified. Do not invent provider availability or model IDs.
+
+### 44.9 Durable AI data model
+Persist server-side:
+- conversation ID;
+- title;
+- created/updated;
+- status;
+- turns in order;
+- user prompt;
+- rendered/raw assistant response;
+- provider/model metadata;
+- evidence revision;
+- scope/query/selected placement IDs or durable scope descriptor;
+- evidence-reference manifest;
+- errors/cancellation;
+- attachments/context references if later approved.
+
+Browser localStorage is not the authoritative conversation store.
+
+### 44.10 Concurrency and failure behavior
+Multiple saved conversations may exist and a running analysis must not block SOT Analyze. AI calls are independent jobs with visible processing/ready/failed status. Navigating away does not lose a submitted request. Reopening Ask AI restores durable state.
+
+Provider/network failure:
+- preserves the user turn and evidence manifest;
+- records failure visibly;
+- does not fabricate an answer;
+- allows explicit retry;
+- does not change SOT connection health.
+
+### 44.11 Ask AI implementation sequence
+1. Freeze/record accepted SOT baseline.
+2. Extract PRISM R27 Library DOM/CSS/state/persistence patterns relevant to rail/cards/detail/transcript/compose.
+3. Define SOT AI conversation/turn/evidence-manifest schema.
+4. Verify current configured AI provider contracts.
+5. Implement server conversation CRUD.
+6. Implement deterministic evidence-packet builder and scope limits.
+7. Implement asynchronous AI job execution/status.
+8. Build Ask AI donor-shaped shell.
+9. Implement conversation rail/Omnisearch/cards.
+10. Implement detail header/transcript Markdown renderer.
+11. Implement sticky compose and visible scope selector.
+12. Implement evidence references/navigation.
+13. Implement title editing/delete/retry/cancel.
+14. Prove persistence/reconnect/concurrency.
+15. Security-test rendered Markdown/links and evidence references.
+16. Publish only in a bumped candidate after all Ask AI and existing SOT gates pass.
+
+### 44.12 Ask AI release-blocking gates
+1. Surface appears between Plan and Activity.
+2. Shape materially matches PRISM R27 Library: collapsible left conversation rail + right transcript stage + bottom compose.
+3. Conversation cards persist server-side and survive browser reload.
+4. Titles are editable and durable.
+5. Rail Omnisearch filters saved conversations without altering transcripts.
+6. Selecting a card restores exact ordered transcript.
+7. Compose remains visible while transcript scrolls.
+8. Scope is visible and stored per turn.
+9. Explicit placement/query scope is not silently broadened.
+10. Evidence packet is built from backend SOT evidence, not DOM text.
+11. Evidence revision/scope manifest is durable.
+12. Markdown renders safely; untrusted HTML/script cannot execute.
+13. Specific evidence references resolve to real SOT records or are omitted.
+14. Provider/model/key controls are not duplicated in Ask AI.
+15. Missing provider configuration produces a clear non-destructive setup state.
+16. Provider failure leaves durable failed turn and retry path.
+17. AI work does not change SOT transport health.
+18. AI work does not block Analyze/Grid/Database reads.
+19. Ask AI has no direct filesystem or metadata mutation authority.
+20. Reload/navigation during a running request does not lose the job.
+21. Existing SOT gates remain green.
 
 
----
+## 45. Combined implementation order and release boundary — binding
+Grid and Ask AI are separate surfaces and separate state machines. Neither may be implemented as a modal inside the other.
 
-## 45. Plan total-row and Operations legend rule — binding (2026-09-20)
-This section supersedes §42 only where §42 conflicts with the rules below.
+Recommended governed build order:
+1. Grid schema + backend contracts.
+2. Grid donor-faithful UI.
+3. Grid qualification, including disposable destructive fixtures.
+4. Ask AI durable conversation/evidence schema.
+5. Ask AI backend retrieval/provider execution.
+6. Ask AI PRISM-Library-shaped UI.
+7. Ask AI qualification.
+8. Full SOT regression suite.
+9. Publish a bumped comparison artifact while preserving v8.
 
-Every Plan subtab follows one visual rule: **the bottom row is the total/result for the relevant component rows and therefore never receives a legend-color swatch.** A legend swatch is reserved for a value represented as a colored component of that subtab's stacked bar.
+Do not combine unqualified Grid filesystem mutation with AI execution in one debugging step. AI remains read-only even after Grid mutation is enabled.
 
-ANALYSIS remains UNIQUE + KEEP + EXCESS = ESTATE. UNIQUE, KEEP, and EXCESS are bar components and retain their blue/yellow/red swatches. ESTATE is the bottom total row, has no swatch, and is not drawn as an additional bar segment. DUPLICATE remains the governed parent/reporting row from §42.
-
-BASIC CAPACITY remains ESTATE + OPEN = TARGET. ESTATE and OPEN are the two bar components. TARGET is the bottom total row, has no swatch, and is not drawn as an additional bar segment.
-
-OPERATIONS is corrected to **IN PLAY + LANDED = ESTATE**. IN PLAY means the current unique SSOT workload not yet landed and is blue. LANDED means the portion physically present on TARGET and independently fingerprint verified and is white/grey. ESTATE is the bottom total workload row, has no swatch, and is not drawn as a bar segment. Until verified landing evidence exists, LANDED remains zero and IN PLAY therefore equals ESTATE.
-
-Do not add a swatch merely because a row is emphasized as a total/result. The table remains the exact-data surface and the bar remains a visualization of component parts only.
