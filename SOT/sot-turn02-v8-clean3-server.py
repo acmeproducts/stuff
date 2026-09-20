@@ -20,7 +20,7 @@ def target_get():
  try:
   z=json.loads(TARGET_FILE.read_text());p=Path(z["path"]).resolve()
   if not p.is_dir():return {"configured":True,"path":str(p),"label":z.get("label",p.name or str(p)),"available":False}
-  st=os.statvfs(p);return {"configured":True,"path":str(p),"label":z.get("label",p.name or str(p)),"available":os.access(p,os.R_OK|os.W_OK|os.X_OK),"free_bytes":st.f_bavail*st.f_frsize,"total_bytes":st.f_blocks*st.f_frsize}
+  st=os.statvfs(p);return {"configured":True,"path":str(p),"label":z.get("label",p.name or str(p)),"configured_at":z.get("configured_at"),"available":os.access(p,os.R_OK|os.W_OK|os.X_OK),"registered_free_bytes":z.get("registered_free_bytes"),"registered_total_bytes":z.get("registered_total_bytes"),"free_bytes":st.f_bavail*st.f_frsize,"total_bytes":st.f_blocks*st.f_frsize}
  except Exception:return {"configured":False}
 def target_set(path,label=""):
  p=Path(path).resolve()
@@ -31,9 +31,9 @@ def target_set(path,label=""):
  for z in S.rows("SELECT root FROM sources"):
   r=Path(z["root"]).resolve()
   if p==r or str(p).startswith(str(r).rstrip("/")+"/") or str(r).startswith(str(p).rstrip("/")+"/"):raise RuntimeError("TARGET must not overlap a registered SOURCE Estate root")
- st=os.statvfs(p);cfg={"path":str(p),"label":label or p.name or str(p),"configured_at":time.time()};TARGET_FILE.parent.mkdir(parents=True,exist_ok=True);tmp=TARGET_FILE.with_suffix(".tmp");tmp.write_text(json.dumps(cfg));tmp.replace(TARGET_FILE)
- M.event("target_configured","TARGET configured: "+str(p),None,None,"INFO",{"path":str(p)})
- return {**cfg,"configured":True,"available":True,"free_bytes":st.f_bavail*st.f_frsize,"total_bytes":st.f_blocks*st.f_frsize}
+ st=os.statvfs(p);free_bytes=st.f_bavail*st.f_frsize;total_bytes=st.f_blocks*st.f_frsize;cfg={"path":str(p),"label":label or p.name or str(p),"configured_at":time.time(),"registered_free_bytes":free_bytes,"registered_total_bytes":total_bytes};TARGET_FILE.parent.mkdir(parents=True,exist_ok=True);tmp=TARGET_FILE.with_suffix(".tmp");tmp.write_text(json.dumps(cfg));tmp.replace(TARGET_FILE)
+ M.event("target_configured","TARGET configured: "+str(p),None,None,"INFO",{"path":str(p),"registered_free_bytes":free_bytes,"registered_total_bytes":total_bytes})
+ return {**cfg,"configured":True,"available":True,"free_bytes":free_bytes,"total_bytes":total_bytes}
 def latest():
  r=S.rows("SELECT job_id FROM jobs ORDER BY created DESC LIMIT 1");return M.snapshot(r[0]["job_id"]) if r else None
 class H(BaseHTTPRequestHandler):

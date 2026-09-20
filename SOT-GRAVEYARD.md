@@ -511,3 +511,10 @@ Reject a free-form TARGET path stored only in browser localStorage. TARGET is in
 **Decision date:** 2026-09-19
 
 Reject field-helper behavior tied to transient focus/type-ahead state, auto-dismiss timers, or menu items that fail to populate Omnisearch. The # helper is persistent while used and inserts explicit #field: qualifiers independent of prior focus. Also reject displaying the filename again in the Path column. Preserve the canonical full path internally, but project Path as parent directory in Database/search presentation.
+
+
+## GY-082 — TARGET registration without a capacity snapshot, or future fit based on raw Estate bytes
+**Status:** REJECTED STORAGE-PLANNING PATTERN  
+**Decision date:** 2026-09-19
+
+Reject TARGET registration that records only a path. Capture registration-time available and total bytes and retain them as evidence while also exposing current capacity. For future landing-fit analysis, reject comparing TARGET free space to gross Estate size: reconcile TARGET fingerprints to SOT first, then compare current free space only to the unique not-yet-landed content delta.
