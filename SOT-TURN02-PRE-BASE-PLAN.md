@@ -2,14 +2,14 @@
 
 **Stage:** `pre-base`  
 **Status:** ACTIVE GOVERNING PLAN — CLEAN LINEAGE — STREAMING OBSERVABLE ESTATE ANALYSIS  
-**Date:** 2026-09-17
+**Date:** 2026-09-20
 
 ## 1. Product objective
-SOT is a global persistent single source of truth for a storage estate. Turn 02 ends at an evidence-backed recommended consolidation plan:
+SOT is a global persistent single source of truth for a storage estate. Turn 02 establishes an evidence-backed recommended consolidation plan and, beginning with the governed Grid release in §43, permits only the explicit owner-initiated filesystem actions defined there:
 
-`Discover → Fingerprint → Cross-reference → Infer → Plan`
+`Discover → Fingerprint → Cross-reference → Infer → Plan → explicit owner Grid action`
 
-Turn 02 never copies, moves, renames, quarantines, deletes, purges, or otherwise mutates owner files. `REMOVE` means recommended removal only. Execution is deferred.
+`REMOVE` remains a recommendation only and never authorizes execution. Filesystem mutation is prohibited except for placement-ID-scoped actions explicitly initiated by the owner through the governed Database viewer Trash action or Grid `Folder` / `Delete` flows. No query-only, automatic, inferred, background, AI-driven, or Plan-driven mutation is authorized. Every successful mutation must reconcile authoritative Database evidence, current placement/status evidence, duplicate/system classification, Plan arithmetic, browser caches, and durable Activity before the operation is reported complete.
 
 ## 2. Clean-lineage and failure rule
 Historical failed code, databases, generated HTML, installers and runtime artifacts are research evidence only. A rejected candidate never becomes the ancestor of its correction.
@@ -23,7 +23,7 @@ Turn 02 clean-3 is rejected for incompatible SQLite reuse. Turn 02 v4/v4.1 are a
 - **GitHub Pages:** static presentation/control client only.
 - **Browser:** never owns authoritative job state. Closing, refreshing or navigating does not interrupt backend work.
 - **Transport:** owner browser connects to the private backend through a browser-safe HTTPS tailnet endpoint. The endpoint is persisted and automatically reconnected.
-- **No filesystem mutation:** registered owner storage is read-only throughout Turn 02.
+- **Filesystem mutation boundary:** analysis, inference, Plan, Ask AI, preview, search and ordinary evidence browsing remain read-only. Mutation authority exists only for explicit owner-initiated placement-ID-scoped Database viewer Trash and Grid `Folder` / `Delete` operations governed by §31 and §43. The backend owns execution, verification and authoritative evidence reconciliation.
 
 ## 4. Frozen evidence schema contract
 Every observed placement records stable placement identity, content identity after hashing, source/volume, failure domain, filename, extension, full path, created/birth time where exposed, modified time, exact size, scanned time, SHA-256, lifecycle, plan, disposition, evidence revision, last verified, availability/error state, duplicate group/cardinality, role and decision rationale.
@@ -32,7 +32,7 @@ Lifecycle is strictly:
 
 `NONE → IN_PROCESS → HASHED → PLANNED → COMPLETED`
 
-Availability/errors are orthogonal. Plan is exactly `KEEP | PROTECT | REMOVE | REVIEW`. Disposition remains `NONE` in Turn 02. Evidence is revisioned, not destructively overwritten.
+Availability/errors are orthogonal. Plan is exactly `KEEP | PROTECT | REMOVE | REVIEW`. `REMOVE` is recommendation evidence, not execution authority. Disposition is not repurposed to represent Grid actions; explicit filesystem operations have separate durable operation/current-placement evidence. Evidence is revisioned, and mutation history is preserved rather than silently overwritten.
 
 ## 5. Content and duplicate cross-reference
 Content identity is immutable byte identity; filename/path are not identity. After hashes become available SOT derives a revisioned duplicate xref for every content object with cardinality >1. Each group exposes content/fingerprint, cardinality, content size, physical bytes, excess bytes, every placement ID/name/path/source/failure-domain/role and later plan/rationale. Duplicate path lists are not serialized redundantly into every placement row.
@@ -152,7 +152,7 @@ Every database has explicit schema metadata/version. A new clean candidate uses 
 Internal qualification surfaces are engineering evidence, not owner deliverables.
 
 ## 17. Deferred
-Deferred beyond Turn 02: plan execution; copying; moving; renaming; quarantine; deletion/purge; disposition beyond `NONE`; AI/LLM recommendations; semantic/near-duplicate detection; unrelated tagging.
+Deferred beyond the governed Grid release: automatic or Plan-driven execution; TARGET landing/copy orchestration; renaming; quarantine; autonomous disposition; semantic/near-duplicate detection; and any mutation not explicitly authorized by §31 or §43. Ask AI is intentionally split into the subsequent Turn 02 release governed by §44/§45 and remains read-only/advisory. Grid owner tags, notes and ratings are in scope under §43.
 
 ## 18. Governance
 Stage chain remains `pre-base → base → pre-ship → ship → post-ship`. Before every repository write fetch current `main` and current target blob SHA. Preserve unrelated work. Plan is binding positive specification; Graveyard is binding negative specification. Failed artifacts remain evidence only and are never patched forward.
@@ -294,8 +294,8 @@ Stage chain remains `pre-base → base → pre-ship → ship → post-ship`. Bef
 - Release qualification must include a deliberately sustained/throttled multi-source scan lasting long enough to exercise queue backpressure while concurrent clients continuously request health/job/sources/events. It must prove bounded health/control latency, continued progress on independent sources, exact final evidence/counter reconciliation, zero lost placements, and zero database errors.
 
 
-## 31. Owner-authorized single-file viewer action — binding (2026-09-19)
-The owner explicitly authorizes a narrow exception to Turn 02 read-only scope for a manually selected Database viewer file. The viewer may offer Trash. The backend must resolve only a placement ID already present in SOT evidence; arbitrary paths remain prohibited. First attempt the device/host Trash or Recycle Bin. Only when trash is unavailable may permanent deletion be offered, and it requires a second explicit in-app warning/confirmation stating that the file will be permanently deleted. After successful filesystem removal, remove that placement from the active SOT evidence database and record a durable deletion event. No bulk, automatic, inferred, plan-driven, or background deletion is authorized by this exception.
+## 31. Owner-authorized explicit filesystem actions — binding (2026-09-20)
+The owner authorizes placement-ID-scoped filesystem actions only through the governed Database viewer Trash flow and Grid `Folder` / `Delete` flows in §43. Arbitrary paths remain prohibited. Database viewer Trash retains its trash-first behavior; permanent deletion is offered only when trash is unavailable and requires a second explicit in-app warning/confirmation. Grid bulk actions require explicit selected placement IDs and may never derive mutation scope from a query alone. Automatic, inferred, background, AI-driven, and Plan-driven mutation remain prohibited. A filesystem call is not sufficient completion: every successful or failed action must durably reconcile Database/current-placement evidence, authoritative status, duplicate/system classifications, Plan arithmetic where affected, cache/evidence revision, and Activity before the UI reports the final result.
 
 Database Omnisearch is a local cached interaction after placement retrieval: wildcard/filter keystrokes must not round-trip to GitHub or the WSL backend. The Database tab and all subtabs must have unmistakable selected state. Omnisearch includes a visible × clear control and high-contrast white query text. File viewer uses × close, centered previous/next navigation, persistent draggable/resizable geometry, and the explicit Trash action above.
 
@@ -388,16 +388,17 @@ Operations: show IN PLAY and LANDED against the current unique SSOT workload. LA
 ## 42. Plan arithmetic hierarchy and approved visual semantics — binding (2026-09-20)
 This section supersedes §41 wherever §41 conflicts with the rules below. Do not add metrics, explanatory rows, notes, or visual elements beyond this approved structure without owner agreement.
 
-Plan section order is: (1) ANALYSIS RESULTS, (2) BASIC CAPACITY CHECK, (3) OPERATIONS STATUS.
+Plan is mobile-first and uses three mutually exclusive subtabs in this order: (1) ANALYSIS RESULTS, (2) BASIC CAPACITY CHECK, (3) OPERATIONS STATUS. Each subtab contains exactly its governed bar plus related exact-data table. Switching subtabs changes presentation only; it never changes evidence or Plan state. Necessary overflow is confined to the active subtab rather than requiring page scrolling between the three Plan questions.
 
-ANALYSIS RESULTS is arithmetic. UNIQUE means fingerprint groups with exactly one placement. DUPLICATE is a parent reporting all placements in repeated-fingerprint groups and is not an additive stacked segment. Its child rows are KEEP = exactly one retained placement per distinct repeated fingerprint, and EXCESS = every additional placement beyond that retained copy. The total row is last and must satisfy UNIQUE + KEEP + EXCESS = ESTATE for both files and bytes. There is no REVIEW row in this Plan table. The stacked bar contains only the mutually exclusive UNIQUE (blue), KEEP (yellow), and EXCESS (red) segments. DUPLICATE is represented as the parent row in the table, not as a fourth bar segment.
+All displayed Plan arithmetic is additive and must read `X + Y = Z` (or `X + Y + … = Z`). Do not display subtraction as Plan arithmetic. The bottom row is always the total/result `Z`; it never receives a legend swatch and is never plotted as an additional bar segment.
 
-BASIC CAPACITY CHECK uses the retained Estate requirement from Analysis: UNIQUE + KEEP. TARGET means current free capacity at the registered TARGET location and is the 100% denominator. OPEN = TARGET - ESTATE. Table order is ESTATE, OPEN, TARGET, with TARGET last so the table reads ESTATE + OPEN = TARGET. The stacked bar is ESTATE (blue) + OPEN (grey/white).
+ANALYSIS RESULTS is arithmetic. UNIQUE means fingerprint groups with exactly one placement. DUPLICATE is a parent reporting all placements in repeated-fingerprint groups and is not an additive stacked segment. Its child rows are KEEP = exactly one retained placement per distinct repeated fingerprint, and EXCESS = every additional placement beyond that retained copy. The total row is last and must satisfy UNIQUE + KEEP + EXCESS = ESTATE for both files and bytes. There is no REVIEW row in this Plan table. The stacked bar contains only the mutually exclusive UNIQUE (blue), KEEP (yellow), and EXCESS (red) segments. ESTATE is the uncolored/unplotted total row. DUPLICATE is represented as the parent row in the table, not as a fourth bar segment.
 
-OPERATIONS STATUS table order is IN PLAY, LANDED, ESTATE, with ESTATE last. The arithmetic is IN PLAY - LANDED = ESTATE. The stacked progress bar represents the IN PLAY workload as remaining ESTATE (blue) plus LANDED (white/grey). Until a landing engine supplies verified landing evidence, LANDED remains zero; do not fabricate progress.
+BASIC CAPACITY CHECK is displayed only as ESTATE + OPEN = TARGET. Table order is ESTATE, OPEN, TARGET, with TARGET last. The stacked bar contains only ESTATE (blue) + OPEN (grey/white). TARGET is the uncolored/unplotted total row. TARGET means current free capacity at the registered TARGET location and is the 100% denominator. Any internal computation needed to derive OPEN may use ordinary arithmetic, but the owner-facing Plan equation and visualization are additive only.
 
-The table remains the legend and exact-data surface. Tapping a bar segment opens its exact-value callout with × close. High-contrast approved palette is blue/white/grey generally, with yellow reserved for duplicate KEEP and red reserved for duplicate EXCESS.
+OPERATIONS STATUS is displayed only as IN PLAY + LANDED = ESTATE. Table order is IN PLAY, LANDED, ESTATE, with ESTATE last. The stacked bar contains only IN PLAY (blue) + LANDED (white/grey). ESTATE is the uncolored/unplotted total row. Until a landing engine supplies verified landing evidence, LANDED remains zero and IN PLAY equals ESTATE; do not fabricate progress.
 
+The exact-data table is the legend. Only rows represented as colored bar components receive swatches. Tapping a bar segment opens its exact-value callout with × close. High-contrast approved palette is blue/white/grey generally, with yellow reserved for duplicate KEEP and red reserved for duplicate EXCESS.
 
 ## 43. Grid bulk-operations implementation plan — binding (2026-09-20)
 
@@ -540,27 +541,36 @@ For explicit selected placements:
 - browse only backend-discovered/registered Estate storage;
 - choose a destination folder;
 - destination must be legal for every selected placement under the governed Estate constraints;
-- preflight all destination collisions and permissions before mutation;
+- preflight all destination collisions, permissions, source availability and destination capacity before mutation;
 - never overwrite an existing file;
 - execute filesystem moves with per-file durable results;
-- after each successful move, update canonical placement path/identity and relevant metadata;
-- failed moves remain represented at their original placement;
+- same-filesystem moves may use an atomic rename where supported; cross-filesystem moves must copy to destination, verify byte identity, and only then remove the source;
+- after each successful move, update the authoritative current placement path/identity and relevant metadata while preserving immutable placement/history linkage;
+- successful moved placements remain current/active at the destination; durable operation/status evidence records the move outcome and prior path;
+- failed moves remain represented at their original placement and retain truthful failure status/result evidence;
+- advance the authoritative evidence/cache revision for every committed result;
+- recompute any duplicate group/system classification affected by the placement change;
+- recompute Plan inputs/results affected by the placement change before reporting completion;
 - log durable Activity evidence;
-- refresh Grid/Database evidence from backend result, not optimistic fiction.
+- invalidate/reload Grid, Database and Plan from backend-authoritative results, never optimistic fiction.
 
-A mixed selection that cannot share a legal destination must be rejected before mutation with an intelligible reason.
+A mixed selection that cannot share a legal destination must be rejected before mutation with an intelligible reason. A move is not complete merely because filesystem I/O returned success; Database, status, classification, Plan and Activity reconciliation are part of the same governed operation outcome.
 
 ### 43.12 Bulk Delete
 Bulk Delete is destructive and therefore stricter than ordinary metadata actions:
 - scope is explicit selected placement IDs only;
 - show count and enough context to make scope clear;
 - attempt OS/device Trash/Recycle Bin first;
-- successful trash precedes removal of the active placement from SOT evidence;
-- files that cannot be trashed remain untouched and are returned as a failure subset;
+- successful trash or permanent deletion retires the placement from the authoritative current Database result set only after filesystem success is proven; historical operation/evidence linkage is preserved;
+- files that cannot be trashed remain untouched and are returned as a failure subset with truthful status/result evidence;
 - permanent deletion for that subset requires a second explicit in-app warning/confirmation;
-- no query-only delete, inferred delete, Plan-driven delete, background delete, or automatic EXCESS delete;
-- every result is durably logged;
-- after placement removal, duplicate/system classifications are recomputed so a former KEEP/EXCESS group cannot remain logically stale.
+- no query-only delete, inferred delete, Plan-driven delete, background delete, AI-driven delete, or automatic EXCESS delete;
+- every success/failure result is durably logged and advances the authoritative evidence/cache revision;
+- after each successful placement removal, duplicate groups and UNIQUE/KEEP/EXCESS are recomputed before completion;
+- Plan counts/bytes and Operations/Analysis results are recomputed from the resulting authoritative placement population before completion;
+- Grid, Database and Plan invalidate/reload from backend-authoritative state; deleted/trash-success placements may not remain visible as current active evidence.
+
+Delete is not complete merely because filesystem I/O returned success; Database, status, classification, Plan and Activity reconciliation are part of the governed operation outcome.
 
 ### 43.13 Persistence/schema work
 Implement additive governed schema support rather than browser-only state:
@@ -569,10 +579,12 @@ Implement additive governed schema support rather than browser-only state:
 - quality_rating;
 - content_rating;
 - system classification if not already represented by a governed derived relation/field;
+- authoritative current-placement/filesystem state needed to distinguish current active evidence from trashed/deleted/missing evidence without overloading lifecycle or Plan;
+- durable operation records containing operation ID/type, placement ID, prior/new path where applicable, requested/result timestamps, success/failure, error detail, verification result and evidence revision;
 - folder-operation evidence as needed;
 - durable bulk-operation events.
 
-Schema migration must be explicit/version-aware and preserve existing evidence. Do not silently repurpose existing columns. Browser state is limited to presentation preferences such as Grid density and non-authoritative UI state.
+Lifecycle, Plan, filesystem/current-placement state and operation outcome remain orthogonal; do not overload one field with all meanings. Schema migration must be explicit/version-aware and preserve existing evidence/history. Do not silently repurpose existing columns. Browser state is limited to presentation preferences such as Grid density and non-authoritative UI state.
 
 ### 43.14 Grid performance/concurrency
 Grid must remain usable while Analyze is running. Metadata reads and thumbnail reads use bounded independent read paths and may not block fingerprint workers or the database writer.
@@ -625,17 +637,23 @@ A candidate fails if any item below fails:
 15. Mixed bulk tag semantics are explicit and tested.
 16. Notes + both ratings hydrate and persist for single selection.
 17. Mixed multi-selection does not overwrite unchanged values.
-18. Folder collision preflight prevents overwrite.
-19. Folder move updates filesystem + SOT placement evidence coherently.
-20. Trash-first bulk Delete works on disposable fixtures.
-21. Permanent fallback requires second confirmation and affects only the failed-trash subset.
-22. Classification recomputes after deletion.
-23. Activity records every bulk operation/result.
-24. Analyze remains responsive during Grid reads/metadata writes.
-25. Mobile layout remains operable without horizontal-scroll fighting.
-26. Reconnect/reload restores durable metadata and presentation density.
-27. No browser alert/confirm/prompt is introduced.
-28. Full existing SOT qualification suite remains green.
+18. Folder collision/capacity/permission preflight prevents unsafe mutation or overwrite.
+19. Folder move updates filesystem + authoritative Database/current-placement/status evidence coherently and preserves history linkage.
+20. Cross-filesystem Folder move proves destination byte identity before source removal.
+21. Folder success advances evidence revision and refreshes Grid/Database/Plan from backend truth.
+22. Trash-first bulk Delete works on disposable fixtures.
+23. Permanent fallback requires second confirmation and affects only the failed-trash subset.
+24. Delete success retires the current placement only after filesystem success while preserving historical operation evidence.
+25. Classification recomputes after move/delete wherever the authoritative placement population changes.
+26. Plan arithmetic/counts/bytes recompute after every successful mutation and remain additive `X + Y = Z`.
+27. Database, authoritative status, Grid and Plan show no stale pre-mutation current state after refresh/reconnect.
+28. Partial bulk success is represented per placement; failures never masquerade as success or disappear.
+29. Activity records every bulk operation/result.
+30. Analyze remains responsive during Grid reads/metadata writes/mutations.
+31. Mobile layout remains operable without horizontal-scroll fighting.
+32. Reconnect/reload restores durable metadata, operation results and presentation density.
+33. No browser alert/confirm/prompt is introduced.
+34. Full existing SOT qualification suite remains green.
 
 
 ## 44. Ask AI surface — binding design and implementation plan (2026-09-20)
@@ -816,19 +834,24 @@ Provider/network failure:
 21. Existing SOT gates remain green.
 
 
-## 45. Combined implementation order and release boundary — binding
-Grid and Ask AI are separate surfaces and separate state machines. Neither may be implemented as a modal inside the other.
+## 45. Split implementation and release boundary — binding (2026-09-20)
+Grid and Ask AI are separate surfaces, separate state machines, and separate owner releases. Neither may be implemented as a modal inside the other. The Grid release must be fully qualified and owner-testable before Ask AI application work begins.
 
-Recommended governed build order:
-1. Grid schema + backend contracts.
-2. Grid donor-faithful UI.
-3. Grid qualification, including disposable destructive fixtures.
-4. Ask AI durable conversation/evidence schema.
-5. Ask AI backend retrieval/provider execution.
-6. Ask AI PRISM-Library-shaped UI.
-7. Ask AI qualification.
-8. Full SOT regression suite.
-9. Publish a bumped comparison artifact while preserving v8.
+### Release A — Grid
+1. Freeze/record the accepted SOT baseline and donor SHAs.
+2. Implement Grid schema + backend contracts, including authoritative mutation reconciliation.
+3. Implement donor-faithful Grid UI.
+4. Qualify metadata behavior, filesystem Folder/Delete on disposable fixtures, Database/status/classification/Plan reconciliation, cache revisioning, concurrency and the full existing SOT regression suite.
+5. Publish one bumped Grid comparison artifact while preserving the accepted baseline byte-for-byte.
+6. Release A contains no Ask AI implementation or provider execution.
 
-Do not combine unqualified Grid filesystem mutation with AI execution in one debugging step. AI remains read-only even after Grid mutation is enabled.
+### Release B — Ask AI
+1. Begin only from the accepted/qualified Grid Release A baseline; a failed Grid candidate is not an Ask AI ancestor.
+2. Implement Ask AI durable conversation/evidence schema.
+3. Implement backend evidence retrieval/provider execution.
+4. Implement PRISM-Library-shaped Ask AI UI.
+5. Qualify Ask AI independently, including persistence, evidence grounding, provider failure, concurrency and security.
+6. Rerun the full SOT regression suite, including all Grid mutation/reconciliation gates.
+7. Publish a separately bumped Ask AI comparison artifact.
 
+Do not combine unqualified Grid filesystem mutation with AI execution in one candidate or debugging step. Ask AI remains read-only/advisory even after Grid mutation is enabled.
