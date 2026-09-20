@@ -518,3 +518,12 @@ Reject field-helper behavior tied to transient focus/type-ahead state, auto-dism
 **Decision date:** 2026-09-19
 
 Reject TARGET registration that records only a path. Capture registration-time available and total bytes and retain them as evidence while also exposing current capacity. For future landing-fit analysis, reject comparing TARGET free space to gross Estate size: reconcile TARGET fingerprints to SOT first, then compare current free space only to the unique not-yet-landed content delta.
+
+
+## GY-083 — Per-file PowerShell creation lookup in the fingerprint hot path; opaque TARGET registration
+**Status:** REJECTED PERFORMANCE / EVIDENCE UX PATTERN  
+**Decision date:** 2026-09-19
+
+Reject spawning PowerShell once per file during discovery/fingerprinting to obtain NTFS CreationTime. It can dominate scan runtime. Capture native birth time inline where available; otherwise batch Windows CreationTime acquisition as a post-processing evidence pass that updates only missing Created values without rehashing.
+
+Reject a TARGET that is technically registered but visually indistinguishable from NOT CONFIGURED. Plan must expose registered TARGET identity and visual capacity: GB and percentages for used/free space with proportional bars. Do not falsely call gross unique Estate bytes TARGET-consumed or the final landing delta before TARGET fingerprint reconciliation.

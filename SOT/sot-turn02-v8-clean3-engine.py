@@ -127,16 +127,7 @@ class Manager:
   threading.Thread(target=self._supervise,args=(jid,rev,rt),daemon=True).start();return jid
  def created_time(self,p,st):
   v=getattr(st,"st_birthtime",None)
-  if v is not None:return v
-  if str(p).startswith("/mnt/") and len(str(p))>6:
-   try:
-    import subprocess,datetime
-    wp=subprocess.check_output(["wslpath","-w",str(p)],text=True,timeout=2).strip()
-    ps="/mnt/c/Windows/System32/WindowsPowerShell/v1.0/powershell.exe"
-    out=subprocess.check_output([ps,"-NoProfile","-Command","(Get-Item -LiteralPath $args[0]).CreationTimeUtc.ToString('o')",wp],text=True,timeout=3).strip()
-    return datetime.datetime.fromisoformat(out.replace("Z","+00:00")).timestamp()
-   except Exception:return None
-  return None
+  return v if v is not None else None
  def _produce(self,jid,rev,src,rt):
   sid=src["source_id"];q=rt["queues"][sid];self.event("source_started","Enumeration started",jid,sid)
   try:

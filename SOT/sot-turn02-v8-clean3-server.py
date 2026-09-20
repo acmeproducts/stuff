@@ -34,6 +34,27 @@ def target_set(path,label=""):
  st=os.statvfs(p);free_bytes=st.f_bavail*st.f_frsize;total_bytes=st.f_blocks*st.f_frsize;cfg={"path":str(p),"label":label or p.name or str(p),"configured_at":time.time(),"registered_free_bytes":free_bytes,"registered_total_bytes":total_bytes};TARGET_FILE.parent.mkdir(parents=True,exist_ok=True);tmp=TARGET_FILE.with_suffix(".tmp");tmp.write_text(json.dumps(cfg));tmp.replace(TARGET_FILE)
  M.event("target_configured","TARGET configured: "+str(p),None,None,"INFO",{"path":str(p),"registered_free_bytes":free_bytes,"registered_total_bytes":total_bytes})
  return {**cfg,"configured":True,"available":True,"free_bytes":free_bytes,"total_bytes":total_bytes}
+def creation_backfill():
+ rows=S.rows("SELECT placement_id,path FROM placements WHERE created IS NULL AND availability='AVAILABLE' AND path LIKE '/mnt/%'")
+ if not rows:return {"eligible":0,"updated":0,"unavailable":0}
+ ps="/mnt/c/Windows/System32/WindowsPowerShell/v1.0/powershell.exe";payload=[];bywin={}
+ for r in rows:
+  try:
+   wp=subprocess.check_output(["wslpath","-w",r["path"]],text=True,timeout=2).strip();payload.append(wp);bywin[wp.lower()]=r["placement_id"]
+  except Exception:pass
+ script="$input | ForEach-Object { try { $i=Get-Item -LiteralPath $_ -ErrorAction Stop; $_ + [char]9 + $i.CreationTimeUtc.ToString('o') } catch { $_ + [char]9 } }"
+ out=subprocess.run([ps,"-NoProfile","-Command",script],input="\n".join(payload),text=True,capture_output=True,timeout=max(30,min(1800,len(payload)//10+30)))
+ updated=0
+ if out.returncode!=0:raise RuntimeError("Creation-time backfill failed: "+out.stderr.strip()[:500])
+ import datetime
+ for line in out.stdout.splitlines():
+  wp,sep,iso=line.partition("\t");pid=bywin.get(wp.lower())
+  if not pid or not iso:continue
+  try:
+   ts=datetime.datetime.fromisoformat(iso.replace("Z","+00:00")).timestamp();S.submit("UPDATE placements SET created=? WHERE placement_id=? AND created IS NULL",(ts,pid));updated+=1
+  except Exception:pass
+ S.drain(60);M.event("creation_backfill","Creation timestamps backfilled",None,None,"INFO",{"eligible":len(rows),"updated":updated,"unavailable":len(rows)-updated})
+ return {"eligible":len(rows),"updated":updated,"unavailable":len(rows)-updated}
 def latest():
  r=S.rows("SELECT job_id FROM jobs ORDER BY created DESC LIMIT 1");return M.snapshot(r[0]["job_id"]) if r else None
 class H(BaseHTTPRequestHandler):
@@ -107,6 +128,7 @@ class H(BaseHTTPRequestHandler):
    p=self.path.split("?",1)[0];b=self.body()
    if p=="/api/sources":return self.sendj({"ok":True,"source_id":M.add_source(b["label"],b["root"],b.get("failure_domain",b["root"]),b.get("role","primary"),b.get("estate"))})
    if p=="/api/target":return self.sendj({"ok":True,"target":target_set(b["path"],b.get("label",""))})
+   if p=="/api/creation/backfill":return self.sendj({"ok":True,"result":creation_backfill()})
    if p=="/api/folders/create":
     parent=Path(b["parent"]).resolve();name=str(b["name"]).strip()
     if not name or name in (".","..") or "/" in name or "\\" in name:raise RuntimeError("Invalid folder name")
