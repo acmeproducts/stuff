@@ -571,3 +571,14 @@ Reject Plan tables whose rows do not read as explicit arithmetic; reject REVIEW 
 Reject the v9 Grid attempt that rendered empty/skeleton-like tiles, omitted the donor thumbnail-size slider, crowded system-classification chips into the search/header line, and replaced the donor Tag and Notes experiences with generic one-field prompts. Functional button names are not sufficient donor fidelity.
 
 **Required replacement:** keep v8 as the accepted baseline; inspect the actual `acmeproducts/perf/ui-v2.html` implementation and owner screenshots first; specify slider/tile geometry, selection, Tag, Notes + Quality Rating + Content Rating, Folder, and Delete behavior before coding; then implement only in a bumped comparison artifact. Do not modify the v8 artifact.
+
+
+---
+
+## GY-088 — Vertically stacked Plan sections requiring mobile page scrolling
+**Status:** REJECTED OWNER UX / MOBILE NAVIGATION PATTERN  
+**Decision date:** 2026-09-20
+
+Reject a Plan surface that vertically stacks ANALYSIS RESULTS, BASIC CAPACITY CHECK, and OPERATIONS STATUS so the user must scroll the page to move between the three primary Plan questions, especially on mobile.
+
+**Required replacement:** each governed Plan bar and its related exact-data table is one mutually exclusive Plan subtab. Keep all three subtabs directly accessible at the top of Plan, preserve the active subtab through rerenders, confine any necessary overflow to the active subtab content, and do not change the underlying §42 arithmetic or Plan state when switching sections.
