@@ -538,3 +538,14 @@ Reject a TARGET that is technically registered but visually indistinguishable fr
 Reject treating PowerShell $input as a reliable redirected-stdin contract for batch CreationTime acquisition, correlating returned evidence by echoed path text, collapsing retrieval failures into genuine timestamp unavailability, or leaving persistent Database placement cache stale after backend evidence changes.
 
 **Required replacement:** explicitly read redirected stdin, correlate each request/result by index, classify and log unresolved stages, advance a durable creation-evidence revision after successful updates, and have Database automatically invalidate/reload its placement cache when that revision changes.
+
+
+---
+
+## GY-085 — Redundant Plan metrics, volume-usage visualization, and non-additive stacked segments
+**Status:** REJECTED OWNER UX / DATA-VISUALIZATION PATTERN  
+**Decision date:** 2026-09-20
+
+Reject Plan surfaces that repeat the same fact in metric cards, legends, bars, labels and tables; reject showing underlying TARGET-volume used/total as though the TARGET owns the volume; reject separate legends when the exact-data table can serve as the legend; and reject stacking overlapping DUP and EXCESS values as if they were mutually exclusive.
+
+**Required replacement:** exactly three primary blue-family stacked bars with one compact exact-data table beneath each. The table is the legend. Segment tap opens a dismissible × callout. TARGET capacity means current free capacity at the registered TARGET location. Analysis reports exact DUP and EXCESS counts/bytes while keeping stacked segments mathematically additive.

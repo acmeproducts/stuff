@@ -371,3 +371,15 @@ When TARGET is registered, Plan must visibly identify the authoritative TARGET p
 Windows-backed /mnt creation-time backfill must read redirected process stdin explicitly and correlate PowerShell results by stable request index, not by echoed/normalized path text or implicit $input pipeline semantics. Every unresolved lookup must be classified by stage (WSL-path conversion, Windows Get-Item lookup, parse/update, or missing result) with bounded diagnostic samples in durable activity evidence. A Windows CreationTime that exists is not Unavailable merely because SOT failed to retrieve it.
 
 Successful Created updates advance a durable creation-evidence revision. Database persistent placement cache stores that revision and automatically reloads placement evidence when the backend revision changes. Manual browser cache clearing is never required after evidence backfill. Only after retrieval is proven genuinely unsupported may a Modified fallback be considered, and any such fallback must preserve explicit provenance rather than masquerade as actual Created evidence.
+
+
+## 41. Plan visual compression — binding (2026-09-20)
+Plan is a three-question operational surface with exactly three primary stacked bars: BASIC CAPACITY CHECK, ANALYSIS RESULTS, and OPERATIONS STATUS. Use the established blue family only; do not assign semantic rainbow colors to individual metrics. Each bar has a compact table immediately below it, and that table is the legend and exact-data surface. Do not add a separate legend, metric-card strip, duplicate detail button, or repeated numeric labels inside the bar.
+
+Tapping a bar segment opens a small anchored statistics callout for that segment with an explicit × close control. The callout is transient detail, not another permanent copy of the dashboard.
+
+Capacity: current free space at the registered TARGET is the 100% denominator. Show ESTATE unique requirement and OPEN remainder. Do not visualize underlying volume used/total because TARGET may share a volume with unrelated content.
+
+Analysis table must show ESTATE, UNIQUE, DUP, EXCESS, and REVIEW. DUP includes the exact number of all placements participating in repeated-fingerprint groups. EXCESS is exactly the number and bytes of duplicate placements after retaining one copy for each distinct repeated fingerprint. DUP and EXCESS overlap and therefore must not both be additive stacked segments. The composition bar may use mutually exclusive UNIQUE / EXCESS / unresolved-other segments while the table reports all five exact metrics.
+
+Operations: show IN PLAY and LANDED against the current unique SSOT workload. LANDED means physically present on TARGET and independently fingerprint verified. No source is removed from IN PLAY merely because an equivalent fingerprint exists somewhere else.
