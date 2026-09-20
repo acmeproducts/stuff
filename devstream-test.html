@@ -168,7 +168,7 @@ select.input{appearance:auto}
   <div class="bar mainbar"><div class="titlewrap"><div id="chatTitle">Select a thread</div><div id="chatInfo">devstream orchestrator</div></div><span id="pill">idle</span><button class="btn" id="runPending" style="display:none">▶</button></div>
   <div id="projectTabs"></div>
   <div id="error"></div>
-  <div id="emptyState"><div><b>devstream</b><div style="margin-top:6px">+ New starts a project: pick or name its file,<br>and its plan is born with it.</div></div></div>
+  <div id="emptyState"><div><b>devstream</b><div style="margin-top:6px">+ New starts a project: pick or name its file once —<br>that file and its plan are the project. Tabs are yours to name.</div></div></div>
   <div id="chatArea">
     <div id="messages"></div>
     <div id="pendingBar" style="display:none;padding:8px 14px;background:rgba(227,160,8,.14);border-top:1px solid var(--run);color:var(--run);font-size:12px;align-items:center;gap:8px"><span id="pendingBarText"></span><button class="btn" id="pendingRun" style="margin-left:auto;min-height:32px">▶ run now</button></div>
@@ -224,7 +224,7 @@ select.input{appearance:auto}
     <div class="frow"><label>Project label</label><input id="npLabel" class="input" placeholder="e.g. Orbital8"></div>
     <div class="frow"><label>File — type a partial and tap to select, or type a new name and press Enter</label>
       <div class="omni-wrap"><input id="npFile" class="input mono" autocomplete="off" placeholder="myapp.html"><div class="omni-list" id="npOmni"></div></div>
-      <div class="hint" id="npHint">Selecting an existing file adopts it as the codebase. A new name starts from scratch. The plan lives beside it as the same name with .md.</div></div>
+      <div class="hint" id="npHint">Named once, here: this is the project’s code file and the only place builds land. Its plan (same name, .md) is the sole authority on plan, backlog and bugs. Tabs you add later are just named workspaces — they never carry a filename.</div></div>
     <div class="frow"><label>Engine</label><select id="npEngine" class="input">
       <option value="venice">Venice.ai</option>
       <option value="openrouter">OpenRouter</option>
@@ -285,6 +285,25 @@ document.addEventListener('click',e=>{const a=e.target.closest('a[data-url]');if
 const tkey=(p,f)=>p+'/'+f;
 const tpath=(p,f)=>'devstream/threads/'+encodeURIComponent(p).replace(/%/g,'_')+'__'+encodeURIComponent(f.replace(/\//g,'_'))+'.json';
 const planOf=f=>f.replace(/\.[^.]+$/,'')+'.md';
+const slug=s=>(s||'').toLowerCase().replace(/[^a-z0-9]+/g,'-').replace(/^-+|-+$/g,'').slice(0,40)||'tab';
+const tabName=t=>t&&(t.name||t.file)||'';
+const projPlan=p=>(sot.projects[p]||{}).planFile||'';
+const projMain=p=>(sot.projects[p]||{}).mainFile||'';
+/* ---- outbox: anything you typed stays in the transcript until the repo copy has it ---- */
+const OUTBOX_LS='ds_outbox_v1';
+let outbox=JSON.parse(localStorage.getItem(OUTBOX_LS)||'{}');
+function saveOutbox(){try{localStorage.setItem(OUTBOX_LS,JSON.stringify(outbox))}catch(e){}}
+const msgSig=m=>(m.role||'')+'|'+(m.ts||'')+'|'+((m.text||'').slice(0,120));
+function outboxAdd(key,m){const a=(outbox[key]=outbox[key]||[]);a.push(m);if(a.length>50)outbox[key]=a.slice(-50);saveOutbox()}
+function mergeMessages(key,remote){
+  const list=(remote||[]).slice();
+  const seen={};list.forEach(m=>seen[msgSig(m)]=1);
+  const keep=(outbox[key]||[]).filter(m=>!seen[msgSig(m)]);
+  if(keep.length!==(outbox[key]||[]).length){if(keep.length)outbox[key]=keep;else delete outbox[key];saveOutbox()}
+  keep.forEach(m=>list.push(m));
+  list.sort((a,b)=>String(a.ts||'').localeCompare(String(b.ts||'')));
+  return list;
+}
 
 /* ---- github ---- */
 async function gh(path,opts={}){
@@ -416,7 +435,7 @@ function renderSidebar(){
   dc.onclick=()=>{sideOpen(false);openDash()};pl.appendChild(dc);
   Object.keys(sot.projects).filter(p=>!sot.projects[p].deleted).sort().forEach(p=>{
     const th=Object.entries(sot.threads).filter(([k,t])=>t.project===p&&!t.deleted);
-    if(q&&!(p.toLowerCase().includes(q)||th.some(([k,t])=>t.file.toLowerCase().includes(q))))return;
+    if(q&&!(p.toLowerCase().includes(q)||th.some(([k,t])=>(tabName(t)+' '+(t.file||'')).toLowerCase().includes(q))))return;
     const pr=sot.projects[p];
     const d=document.createElement('div');d.className='card'+(p===activeProject?' active':'');
     const plan=pr.planFile;
@@ -426,12 +445,7 @@ function renderSidebar(){
     pb.onclick=e=>{e.stopPropagation();
       if(plan&&pr.planExists)window.open('https://github.com/'+repoFull()+'/blob/'+cfg.branch+'/'+plan,'_blank');
       else toast('Plan not created yet — the project thread builds it')};
-    d.onclick=()=>{activeProject=p;localStorage.setItem('ds_activeproj',p);activeKey=null;
-      $('chatArea').style.display='none';$('emptyState').style.display='flex';
-      $('chatTitle').textContent=p+' — '+(sot.projects[p].phase||'Define');
-      $('chatInfo').textContent=(Object.keys(sot.threads).filter(k=>sot.threads[k].project===p&&!sot.threads[k].deleted).length)+' threads · '+repoFull();
-      $('pill').textContent='';$('pill').className='';
-      renderSidebar();renderTabs();sideOpen(false)};
+    d.onclick=()=>{openProject(p);sideOpen(false)};
     let lpT=null;
     d.addEventListener('touchstart',()=>{lpT=setTimeout(()=>{lpT=null;softDeleteProject(p)},650)});
     d.addEventListener('touchend',()=>{if(lpT)clearTimeout(lpT)});
@@ -447,6 +461,18 @@ function renderSidebar(){
     rc.onclick=()=>{sideOpen(false);openRecycle()};
     pl.appendChild(rc);
   }
+}
+function firstThreadOf(p){return Object.keys(sot.threads).filter(k=>sot.threads[k].project===p&&!sot.threads[k].deleted)[0]||null}
+function openProject(p,preferKey){
+  activeProject=p;localStorage.setItem('ds_activeproj',p);
+  const k=(preferKey&&sot.threads[preferKey]&&!sot.threads[preferKey].deleted)?preferKey:firstThreadOf(p);
+  renderSidebar();renderTabs();
+  if(k){openThread(k);return}
+  activeKey=null;renderTabs();
+  $('chatArea').style.display='none';$('emptyState').style.display='flex';
+  $('chatTitle').textContent=p+' — '+((sot.projects[p]||{}).phase||'Define');
+  $('chatInfo').textContent='no tabs yet · '+repoFull();
+  $('pill').textContent='';$('pill').className='';
 }
 function openRecycle(){openModal('recycleModal');renderRecycle()}
 function renderRecycle(){
@@ -478,7 +504,7 @@ function renderTabs(){
   projectThreads().filter(k=>!sot.threads[k].deleted).forEach(k=>{
     const t=sot.threads[k];
     const el=document.createElement('div');el.className='tab'+(k===activeKey?' active':'');
-    el.innerHTML='<span class="dot '+(t.state||'idle')+'"></span><span class="tname mono">'+esc(t.file)+'</span><button class="tabClose" title="Soft delete → Recycle Bin">×</button>';
+    el.innerHTML='<span class="dot '+(t.state||'idle')+'"></span><span class="tname">'+esc(tabName(t))+'</span><button class="tabClose" title="Soft delete → Recycle Bin">×</button>';
     el.querySelector('.tabClose').onclick=e=>{e.stopPropagation();softDeleteThread(k)};
     el.onclick=()=>openThread(k);
     let lt=0;
@@ -506,8 +532,10 @@ function showCtx(tabEl,key){
 async function loadThread(key){
   const t=sot.threads[key];
   const f=await getFile(tpath(t.project,t.tid||t.file));
-  if(!f)throw new Error('Thread file missing: '+t.file);
-  threads[key]={data:JSON.parse(f.content),sha:f.sha};return threads[key];
+  if(!f)throw new Error('Thread file missing: '+tabName(t));
+  const data=JSON.parse(f.content);
+  data.messages=mergeMessages(key,data.messages);
+  threads[key]={data,sha:f.sha};return threads[key];
 }
 async function openThread(key){
   activeKey=key;renderTabs();
@@ -517,11 +545,11 @@ async function openThread(key){
   if(ok){renderChat();schedulePoll()}
 }
 let chatSig='';
-function renderChat(){
+function renderChat(force){
   const key=activeKey;if(!key||!threads[key])return;
   const t=sot.threads[key],d=threads[key].data;
-  $('chatTitle').textContent=t.project+' ['+(sot.projects[t.project]&&sot.projects[t.project].phase||'Define')+'] · '+t.file;
-  $('chatInfo').textContent=d.lastState?d.lastState:(repoFull()+' · plan: '+(d.planFile||'—'));
+  $('chatTitle').textContent=t.project+' ['+(sot.projects[t.project]&&sot.projects[t.project].phase||'Define')+'] · '+tabName(t);
+  $('chatInfo').textContent=d.lastState?d.lastState:(repoFull()+' · builds: '+(d.outputFile||projMain(t.project)||'—')+' · plan: '+(projPlan(t.project)||d.planFile||'—'));
   $('pill').textContent=t.state||'idle';$('pill').className=t.state||'';
   $('engineFoot').textContent=(t.engine||'venice')+(t.model?' · '+t.model:'')+' ▾';
   const wb=$('webToggle');
@@ -534,9 +562,9 @@ function renderChat(){
   else pb.style.display='none';
   $('typing').style.display=(t.state==='executing'&&!isStalled(t))?'flex':'none';
   const c=$('messages');
-  const sig=key+'|'+d.messages.length+'|'+(d.messages.length?d.messages[d.messages.length-1].ts+(d.messages[d.messages.length-1].status||''):'');
+  const sig=key+'|'+d.messages.length+'|'+pendN+'|'+(d.messages.length?d.messages[d.messages.length-1].ts+(d.messages[d.messages.length-1].status||''):'');
   const atBottom=c.scrollHeight-c.scrollTop-c.clientHeight<80;
-  if(sig===chatSig)return; chatSig=sig;
+  if(sig===chatSig&&!force)return; chatSig=sig;
   const keepScroll=c.scrollTop;
   c.innerHTML='';
   d.messages.forEach(m=>{
@@ -578,7 +606,7 @@ async function hardDeleteThread(key){
     const t=sot.threads[key];const p=tpath(t.project,t.tid||t.file);
     const f=await getFile(p);
     if(f)await gh('contents/'+p,{method:'DELETE',body:JSON.stringify({message:'devstream: hard delete '+key,sha:f.sha,branch:cfg.branch})});
-    delete sot.threads[key];delete threads[key];
+    delete sot.threads[key];delete threads[key];delete outbox[key];saveOutbox();
     await saveSOT('devstream: hard delete '+key);
     renderSidebar();renderTabs();renderRecycle();
   });
@@ -603,7 +631,7 @@ async function deleteThread(key){
     const t=sot.threads[key];const p=tpath(t.project,t.tid||t.file);
     const f=await getFile(p);
     if(f)await gh('contents/'+p,{method:'DELETE',body:JSON.stringify({message:'devstream: delete thread '+key,sha:f.sha,branch:cfg.branch})});
-    delete sot.threads[key];delete threads[key];
+    delete sot.threads[key];delete threads[key];delete outbox[key];saveOutbox();
     if(activeKey===key){activeKey=null;$('chatArea').style.display='none';$('emptyState').style.display='flex'}
     await saveSOT('devstream: remove thread '+key);renderTabs();renderSidebar();
   });
@@ -630,7 +658,7 @@ function npFilter(){
     L.style.display='block';
   }).catch(()=>L.style.display='none');
 }
-$('npFile').addEventListener('input',()=>{npSelectedExisting=false;$('npHint').textContent='Selecting an existing file adopts it as the codebase. A new name starts from scratch. The plan lives beside it as the same name with .md.';npFilter()});
+$('npFile').addEventListener('input',()=>{npSelectedExisting=false;$('npHint').textContent='Named once, here: this is the project’s code file and the only place builds land. Its plan (same name, .md) is the sole authority on plan, backlog and bugs. Tabs you add later are just named workspaces — they never carry a filename.';npFilter()});
 $('npFile').addEventListener('keydown',e=>{if(e.key==='Enter'){e.preventDefault();$('npOmni').style.display='none';$('npCreate').click()}});
 $('npCreate').onclick=()=>guard(async()=>{
   const label=$('npLabel').value.trim(), file=$('npFile').value.trim(), engine=$('npEngine').value;
@@ -641,42 +669,40 @@ $('npCreate').onclick=()=>guard(async()=>{
   const tree=await repoTree(true);
   const fileExists=tree.includes(file), planExists=tree.includes(plan);
   sot.projects[label]={notes:'',lastTouched:now(),planFile:plan,planExists,mainFile:file};
-  // first tab = the project thread
-  const key=tkey(label,file);
+  // first tab = the project thread; tabs are named, the project owns the filename
+  const tid='main',key=tkey(label,tid);
   const msgs=[];
   if(!planExists){
     msgs.push({role:'user',text:PLAN_PROMPT(file)+(fileExists?'\n\n[codebase exists: '+file+' — read it and seed the plan from what it already does]':''),ts:now(),status:'pending',forcedTarget:plan});
   }else{
     msgs.push({role:'agent',text:'Plan found: '+plan+' — referencing it for all work in this thread.',ts:now()});
   }
-  const data={project:label,outputFile:file,planFile:plan,inputFile:fileExists?file:null,repo:repoFull(),engine,created:now(),messages:msgs};
-  const sha=await putFileSafe(tpath(label,file),JSON.stringify(data,null,1),'devstream: new project '+label);
+  const data={project:label,outputFile:file,tid,name:'Main',planFile:plan,inputFile:fileExists?file:null,repo:repoFull(),engine,created:now(),messages:msgs};
+  const sha=await putFileSafe(tpath(label,tid),JSON.stringify(data,null,1),'devstream: new project '+label);
   threads[key]={data,sha};
-  sot.threads[key]={project:label,file,repo:repoFull(),engine,state:'idle',startedAt:'',finishedAt:'',lastCommit:'',testUrl:'',error:''};
+  sot.threads[key]={project:label,file,tid,name:'Main',repo:repoFull(),engine,state:'idle',startedAt:'',finishedAt:'',lastCommit:'',testUrl:'',error:''};
   await saveSOT('devstream: new project '+label);
-  activeProject=label;localStorage.setItem('ds_activeproj',label);
-  closeModals();renderSidebar();renderTabs();openThread(key);
+  closeModals();openProject(label,key);
   if(!planExists){toast('Creating the plan…');dispatch(key)}
 });
 /* ---- additional thread on a project (+ tab) ---- */
 async function newThreadForProject(){
   const p=sot.projects[activeProject];if(!p)return;
-  const name=prompt('Thread output file (blank = work on '+p.mainFile+' in a new thread):','');
-  let file=(name||'').trim()||p.mainFile;
-  let key=tkey(activeProject,file);
-  if(sot.threads[key]){ // uniquify thread on same file
-    let i=2;while(sot.threads[key+'-t'+i])i++;key=key+'-t'+i;
-  }
+  const raw=prompt('Name this tab (e.g. Bugs, Design, Release 2) — it is a workspace, not a file. All tabs build '+p.mainFile+'.','');
+  if(raw===null)return;
+  const name=(raw||'').trim()||'Tab '+(projectThreads().filter(k=>!sot.threads[k].deleted).length+1);
+  const file=p.mainFile;
+  let tid=slug(name),key=tkey(activeProject,tid);
+  if(sot.threads[key]){let i=2;while(sot.threads[tkey(activeProject,tid+'-'+i)])i++;tid=tid+'-'+i;key=tkey(activeProject,tid)}
   await guard(async()=>{
     const tree=await repoTree(true);
-    const tid=file+(key.includes('-t')&&/-t\d+$/.test(key)?key.match(/-t\d+$/)[0]:'');
-    const data={project:activeProject,outputFile:file,tid,planFile:p.planFile,inputFile:tree.includes(file)?file:null,repo:repoFull(),engine:cfg.engine||'venice',created:now(),
-      messages:[{role:'agent',text:'This thread references the plan ('+p.planFile+'). Ask questions, add ideas or feedback — they update the plan. Say "build it" (or give build instructions) and the build happens here against '+file+'.',ts:now()}]};
-    const sha=await putFileSafe(tpath(activeProject,tid),JSON.stringify(data,null,1),'devstream: new thread '+key);
+    const data={project:activeProject,outputFile:file,tid,name,planFile:p.planFile,inputFile:tree.includes(file)?file:null,repo:repoFull(),engine:cfg.engine||'venice',created:now(),
+      messages:[{role:'agent',text:'Tab "'+name+'" — same project, same plan ('+p.planFile+'). Builds land in '+file+' unless you tell me to write somewhere else. Ask questions, add ideas or feedback and the plan gets updated; say "build it" and the build happens here.',ts:now()}]};
+    const sha=await putFileSafe(tpath(activeProject,tid),JSON.stringify(data,null,1),'devstream: new tab '+key);
     threads[key]={data,sha};
-    sot.threads[key]={project:activeProject,file,tid,repo:repoFull(),engine:cfg.engine||'claude',state:'idle',startedAt:'',finishedAt:'',lastCommit:'',testUrl:'',error:''};
+    sot.threads[key]={project:activeProject,file,tid,name,repo:repoFull(),engine:cfg.engine||'venice',state:'idle',startedAt:'',finishedAt:'',lastCommit:'',testUrl:'',error:''};
     p.lastTouched=now();
-    await saveSOT('devstream: new thread '+key);
+    await saveSOT('devstream: new tab '+key);
     renderTabs();openThread(key);
   });
 }
@@ -716,36 +742,36 @@ async function storeAttachments(t,atts){
   return out;
 }
 /* ---- send / dispatch ---- */
-async function sendMessage(){
+function sendMessage(){
   const key=activeKey;const txt=$('message').value.trim();
   if(!key||(!txt&&!pendingAtt.length))return;
-  $('send').disabled=true;
   const t=sot.threads[key],th=threads[key];
+  if(!t||!th)return;
   const draft={role:'user',text:txt,ts:now(),status:'pending'};
-  th.data.messages.push(draft);
+  th.data.messages.push(draft);outboxAdd(key,draft);
   $('message').value='';$('message').style.height='44px';
+  const atts=pendingAtt;pendingAtt=[];renderAttList();
   t.state='executing';t.startedAt=now();t.error='';
   progress[key]={line:'saving your message…',at:Date.now(),started:Date.now()};
-  renderChat();renderTabs();renderSidebar();renderProgress();
-  const ok=await guard(async()=>{
-    const atts=pendingAtt.length?await storeAttachments(t,pendingAtt):[];
-    pendingAtt=[];renderAttList();
-    if(atts.length)draft.attachments=atts;
+  renderChat(true);renderTabs();renderSidebar();renderProgress();
+  guard(async()=>{
+    const stored=atts.length?await storeAttachments(t,atts):[];
+    if(stored.length){draft.attachments=stored;saveOutbox();if(activeKey===key)renderChat(true)}
     th.sha=await putFileSafe(threadPath(key),JSON.stringify(th.data,null,1),'devstream: message '+key);
     sot.projects[t.project].lastTouched=now();
     await saveSOT('devstream: touch '+key);
     dispatch(key,true);
-  });
-  if(!ok){
+  }).then(ok=>{
+    if(ok)return;
     t.state='error';t.finishedAt=now();delete progress[key];
-    renderChat();renderTabs();renderSidebar();
-  }
-  $('send').disabled=false;
+    if(activeKey===key)renderChat(true);
+    renderTabs();renderSidebar();renderProgress();
+  });
 }
 $('send').onclick=sendMessage;
 $('message').addEventListener('keydown',e=>{if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();sendMessage()}});
 $('message').addEventListener('input',function(){this.style.height='44px';this.style.height=Math.min(this.scrollHeight,130)+'px'});
-function threadPath(key){const th=threads[key];return tpath(th.data.project,th.data.tid||th.data.outputFile)}
+function threadPath(key){const th=threads[key];const t=sot.threads[key]||{};return tpath(th.data.project,th.data.tid||t.tid||th.data.outputFile)}
 function dispatch(key,premarked){runAgent(key,!!premarked)}
 $('runPending').onclick=()=>{if(activeKey)dispatch(activeKey)};
 $('pendingRun').onclick=()=>{if(activeKey)dispatch(activeKey)};
@@ -757,7 +783,7 @@ function agentSystem(codeFile,planFile,phase,patchMode){
     Design:'Current phase: DESIGN. Focus on HOW: architecture, UI model, data/persistence, constraints, release slicing. Write these into the plan\'s Design section. Code only as small spikes if explicitly demanded.',
     Build:'Current phase: BUILD. Execution cycles: implement per the plan into the CODE file, plan-before-code, one release slice at a time.',
     Ship:'Current phase: SHIP. Stabilize only: fixes, polish, docs. No new scope — new ideas go to the plan\'s Future Ideas.'}[phase]||'';
-  return 'You are the devstream build agent for a project with two artifacts: the CODE file "'+codeFile+'" (a single-file mobile-first HTML app) and the PLAN file "'+planFile+'" (the master plan, sole authority, and the ONLY memory that persists between runs — chat history may be partial or missing). '+phaseGuide+' You may be given REFERENCED FILE blocks (code pulled from GitHub URLs the owner pasted) — treat them as authoritative source material. CRITICAL: if a REFERENCED FILE block is present, its full contents ARE already in front of you — never reply that you cannot access GitHub, fetch URLs, or read the file; just use the contents given. If web search is enabled you can look up current docs, APIs and error messages to unblock yourself; cite what you found in the SUMMARY. ALWAYS read the plan context first and continue from its ledger; you are picking up where the previous run left off. Rules: questions/ideas/feedback update the PLAN (or are just answered); update-plan-before-code; at most ONE file write per response. When you write the PLAN, append a dated row to its TURN/STAGE LEDGER describing this run. All diagnostics in the app itself, never console-only. Preserve existing functionality not mentioned. Respond in EXACTLY this format:\nSUMMARY: <one or two sentences>\nTARGET: <'+codeFile+' or '+planFile+' or NONE>\nSTATE: <phase> | open: <top open items, terse> | next: <the single next step>\n<blank line>\n<if TARGET is a file: '+(patchMode?'SEARCH/REPLACE edit blocks as specified below':'the COMPLETE new file content, no fences, nothing after it')+'. If TARGET is NONE: your answer text.>'+(patchMode?'\n\nOUTPUT MODE: PATCH. The file is too large to reprint within your output limit — do NOT output the whole file. Emit one or more edit blocks, each exactly:\n<<<<<<< SEARCH\n(text copied character-for-character from the current file, appearing EXACTLY ONCE)\n=======\n(replacement text)\n>>>>>>> REPLACE\nKeep SEARCH blocks small but unique. Never invent text that is not in the file. To add code near the end, SEARCH a unique closing fragment and repeat it in the replacement. Output nothing after the final block.':'');
+  return 'You are the devstream build agent for a project with two artifacts: the CODE file "'+codeFile+'" (a single-file mobile-first HTML app) and the PLAN file "'+planFile+'" (the master plan, sole authority, and the ONLY memory that persists between runs — chat history may be partial or missing). '+phaseGuide+' You may be given REFERENCED FILE blocks (code pulled from GitHub URLs the owner pasted) — treat them as authoritative source material. CRITICAL: if a REFERENCED FILE block is present, its full contents ARE already in front of you — never reply that you cannot access GitHub, fetch URLs, or read the file; just use the contents given. If web search is enabled you can look up current docs, APIs and error messages to unblock yourself; cite what you found in the SUMMARY. ALWAYS read the plan context first and continue from its ledger; you are picking up where the previous run left off. Rules: questions/ideas/feedback update the PLAN (or are just answered); update-plan-before-code; at most ONE file write per response. The PLAN path never changes — it is the project\'s sole authority for plan, open tasks/backlog and bug tracking. The CODE path is "'+codeFile+'" unless the owner explicitly tells you in this request to land the build in a different filename; if they do, use that exact path as TARGET and it becomes the project\'s code file from then on. When you write the PLAN, append a dated row to its TURN/STAGE LEDGER describing this run. All diagnostics in the app itself, never console-only. Preserve existing functionality not mentioned. Respond in EXACTLY this format:\nSUMMARY: <one or two sentences>\nTARGET: <'+codeFile+' or '+planFile+' or, ONLY if the owner explicitly named a different file to write to in this request, that path — or NONE>\nSTATE: <phase> | open: <top open items, terse> | next: <the single next step>\n<blank line>\n<if TARGET is a file: '+(patchMode?'SEARCH/REPLACE edit blocks as specified below':'the COMPLETE new file content, no fences, nothing after it')+'. If TARGET is NONE: your answer text.>'+(patchMode?'\n\nOUTPUT MODE: PATCH. The file is too large to reprint within your output limit — do NOT output the whole file. Emit one or more edit blocks, each exactly:\n<<<<<<< SEARCH\n(text copied character-for-character from the current file, appearing EXACTLY ONCE)\n=======\n(replacement text)\n>>>>>>> REPLACE\nKeep SEARCH blocks small but unique. Never invent text that is not in the file. To add code near the end, SEARCH a unique closing fragment and repeat it in the replacement. Output nothing after the final block.':'');
 }
 function parseAgent(text){
   let summary='Done.',target='NONE';
@@ -830,7 +856,7 @@ async function runAgent(key,premarked){
   try{
     await setState(key,{state:'executing',startedAt:now(),error:''});
     if(interrupted.has(key))throw new Error('Interrupted by user');
-    const codeFile=th.data.outputFile,planFile=th.data.planFile||planOf(codeFile);
+    const codeFile=th.data.outputFile||projMain(t.project),planFile=projPlan(t.project)||th.data.planFile||planOf(codeFile);
     const history=th.data.messages.filter(m=>m.status!=='pending').map(m=>({role:m.role==='user'?'user':'assistant',content:m.summary||m.text})).slice(-14);
     const forced=pend.find(m=>m.forcedTarget);
     const instr=pend.map(m=>m.text+(m.attachments||[]).filter(a=>a.kind==='text').map(a=>'\n\n<attachment name="'+a.name+'">\n'+a.text+'\n</attachment>').join('')).join('\n\n')+(forced?'\n\n(Required TARGET for this response: '+forced.forcedTarget+')':'');
@@ -861,13 +887,20 @@ async function runAgent(key,premarked){
         body=pr.text;
         reply+='\n🩹 Patch mode: '+pr.applied+' edit block(s) applied';
         dlog('patch: '+pr.applied+'/'+pr.total+' blocks applied to '+target);
-      } else if(body.length<80)throw new Error('agent returned no usable file content for '+target);
+      } else if(/^<{7} SEARCH$/m.test(body))throw new Error('engine returned SEARCH/REPLACE blocks for '+target+', which is not the patched file — nothing written');
+      else if(body.length<80)throw new Error('agent returned no usable file content for '+target);
       if(interrupted.has(key))throw new Error('Interrupted by user');
       progress[key]={line:'committing '+target+' ('+Math.round(body.length/1000)+'k)',at:Date.now(),started:(progress[key]||{}).started};renderProgress();
       commit=await putFileSafe(target,body,'devstream agent: '+key+' — '+summary.slice(0,60));
       reply+='\n✅ Wrote '+target+' — '+Math.round(body.length/1000)+'k chars'+(prevLen?' (was '+Math.round(prevLen/1000)+'k)':' (new file)')+'\nDiff: https://github.com/'+repoFull()+'/commit/'+commit;
       if(target===planFile){sot.projects[t.project].planExists=true;reply+='\nPlan: https://github.com/'+repoFull()+'/blob/'+cfg.branch+'/'+planFile}
-      else{testUrl='https://'+cfg.owner+'.github.io/'+cfg.repo+'/'+target+'?cb='+Date.now();reply+='\nTest: '+testUrl}
+      else{
+        if(target!==codeFile){ // owner redirected the build to a different filename
+          th.data.outputFile=target;t.file=target;sot.projects[t.project].mainFile=target;
+          reply+='\n📍 Builds now land in '+target+' (plan stays '+planFile+')';
+          dlog('target moved: '+codeFile+' → '+target);
+        }
+        testUrl='https://'+cfg.owner+'.github.io/'+cfg.repo+'/'+target+'?cb='+Date.now();reply+='\nTest: '+testUrl}
     }else{
       reply=(body||reply)+'\nℹ️ No file written — answer only.';
       if(!followedContract)reply+='\n⚠️ Engine ignored the build contract (no SUMMARY/TARGET markers) — consider a stronger model for this thread (tap the engine chip).';
@@ -878,7 +911,8 @@ async function runAgent(key,premarked){
       reply+='\n⚠️ The engine claimed it cannot access GitHub, but '+ing.length+' file(s) WERE supplied in its context — that is a model failure, not a fetch failure. Switch this thread to a stronger model via the engine chip.';
     if(state)reply+='\n— '+state;
     if(interrupted.has(key))throw new Error('Interrupted by user');
-    th.data.messages.push({role:'agent',text:reply,summary,ts:now(),commit:commit||undefined,target:target!=='NONE'?target:undefined,state:state||undefined});
+    const amsg={role:'agent',text:reply,summary,ts:now(),commit:commit||undefined,target:target!=='NONE'?target:undefined,state:state||undefined};
+    th.data.messages.push(amsg);outboxAdd(key,amsg);
     th.data.lastState=state||th.data.lastState;
     progress[key]={line:'saving reply',at:Date.now(),started:(progress[key]||{}).started};renderProgress();
     th.sha=await putFileSafe(threadPath(key),JSON.stringify(th.data,null,1),'devstream: agent reply '+key);
@@ -892,7 +926,8 @@ async function runAgent(key,premarked){
       toast(key+' interrupted — message left queued');
       return;
     }
-    th.data.messages.push({role:'agent',text:'Failed: '+e.message,ts:now()});
+    const emsg={role:'agent',text:'Failed: '+e.message,ts:now()};
+    th.data.messages.push(emsg);outboxAdd(key,emsg);
     try{th.sha=await putFileSafe(threadPath(key),JSON.stringify(th.data,null,1),'devstream: agent error '+key)}catch(e2){}
     delete progress[key];
     await setState(key,{state:'error',finishedAt:now(),error:e.message});
@@ -1251,7 +1286,7 @@ function renderDash(){
       }
       const stalled=isStalled(t);
       r.innerHTML='<span class="dot '+(stalled?'error':(t.state||'idle'))+'"></span><div class="ti">'+
-        '<div class="tf mono">'+esc(t.file)+'</div>'+
+        '<div class="tf">'+esc(tabName(t))+' <span class="mono" style="opacity:.6;font-weight:400">'+esc(t.file||'')+'</span></div>'+
         '<div class="tt">'+(stalled?'STALLED '+stallAge(t)+' (was executing)':(t.state||'idle')+' · '+(t.engine||'venice')+' · '+rel(t.finishedAt||t.startedAt))+'</div>'+
         (t.error?'<div class="terr">'+esc(t.error)+'</div>':'')+'</div>'+
         (stalled?'<button class="recBtn">Reset</button>':'');
@@ -1260,13 +1295,13 @@ function renderDash(){
         await saveSOT('devstream: reset stalled '+k);renderDash();renderSidebar();toast('Reset — open the thread and ▶ to retry')})};
       const ee=r.querySelector('.terr');
       if(ee)ee.onclick=e=>{e.stopPropagation();ee.classList.toggle('x')};
-      r.onclick=()=>{activeProject=t.project;localStorage.setItem('ds_activeproj',t.project);closeModals();renderSidebar();renderTabs();openThread(k)};
+      r.onclick=()=>{closeModals();openProject(t.project,k)};
       sec.appendChild(r);
     });
     if(!rows.length){
       const cta=document.createElement('button');cta.className='btn';cta.textContent='+ start a thread in '+p;
       cta.style.marginBottom='8px';
-      cta.onclick=()=>{activeProject=p;localStorage.setItem('ds_activeproj',p);closeModals();renderSidebar();renderTabs();newThreadForProject()};
+      cta.onclick=()=>{closeModals();openProject(p);newThreadForProject()};
       sec.appendChild(cta);
     }
     const nd=document.createElement('div');nd.className='notes';
@@ -1409,7 +1444,9 @@ applyAppearance();
     if(healed){dlog('healed '+healed+' stalled thread(s)');saveSOT('devstream: heal stalled').catch(()=>{})}
     if(sot.config){cfg.vmodel=cfg.vmodel||sot.config.vmodel||'';cfg.ormodel=cfg.ormodel||sot.config.ormodel||'';cfg.engine=cfg.engine||sot.config.engine||'venice';localStorage.setItem(LS,JSON.stringify(cfg));
       if(!localStorage.getItem('ds_appearance')&&sot.config.appearance){appearance=sot.config.appearance;saveAppearance();applyAppearance()}}
-    $('dot').classList.add('on');renderSidebar();renderTabs();
+    $('dot').classList.add('on');
+    if(activeProject&&sot.projects[activeProject]&&!sot.projects[activeProject].deleted)openProject(activeProject);
+    else{renderSidebar();renderTabs()}
     dlog('boot ok · '+Object.keys(sot.threads).length+' threads');
   }
 })();
