@@ -504,3 +504,10 @@ Reject a Plan surface that simply lists every file as KEEP/REVIEW. Until TARGET 
 **Decision date:** 2026-09-19
 
 Reject a free-form TARGET path stored only in browser localStorage. TARGET is infrastructure state owned by the SOT backend. It must be selected from real available volumes/folders, may create a destination folder through the governed backend, must be validated for existence/read-write access/storage authority and SOURCE overlap, and must persist on the SOT host with durable activity evidence. Configuration does not itself authorize landing or destructive source disposition.
+
+
+## GY-081 — Ephemeral/non-populating # helper and redundant filename in displayed Path
+**Status:** REJECTED OWNER UX PATTERN  
+**Decision date:** 2026-09-19
+
+Reject field-helper behavior tied to transient focus/type-ahead state, auto-dismiss timers, or menu items that fail to populate Omnisearch. The # helper is persistent while used and inserts explicit #field: qualifiers independent of prior focus. Also reject displaying the filename again in the Path column. Preserve the canonical full path internally, but project Path as parent directory in Database/search presentation.
