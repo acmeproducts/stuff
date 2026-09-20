@@ -99,11 +99,21 @@ select.input{appearance:auto}
 .omni-new{color:var(--accent)}
 .hint{font-size:11px;color:var(--dim);margin-top:5px}
 
-#dashModal .panel{max-height:92vh}
 .chips{display:flex;gap:6px;overflow-x:auto;overflow-y:visible;padding:10px 14px;scrollbar-width:none;flex-shrink:0;min-height:52px;align-items:center;border-bottom:1px solid var(--line)}
 .chip{flex-shrink:0;height:34px;padding:0 14px;border:1px solid var(--line);border-radius:17px;font-size:12px;color:var(--dim);display:flex;align-items:center;line-height:1}
 .chip.on{color:var(--accent);border-color:var(--accent)}
 .dsec{margin-bottom:16px}
+#dashView{flex:1;min-height:0;display:none;flex-direction:column}
+#dashBody{flex:1;min-height:0;overflow-y:auto;padding:12px 14px}
+.dtoggle{display:flex;align-items:center;gap:8px;width:100%;min-height:44px;padding:8px 10px;border:1px solid var(--line);border-radius:10px;background:var(--panel2);color:var(--text);font-size:13px;font-weight:600;text-align:left}
+.dtoggle .chev{display:inline-block;transition:transform .15s;color:var(--dim)}
+.dtoggle.open .chev{transform:rotate(90deg)}
+.delCard{border:1px solid var(--line);border-radius:10px;padding:10px;margin:8px 0;background:var(--panel2)}
+.delCard .dcttl{font-weight:600;font-size:14px;display:flex;align-items:center;gap:8px}
+.delCard .dcsub{font-size:12px;color:var(--dim);margin:2px 0 8px}
+.delCard .dcbtns{display:flex;gap:8px;flex-wrap:wrap}
+.delCard .dcbtns .recBtn{border:1px solid var(--line);border-radius:8px;padding:8px 12px;min-height:38px;background:var(--panel)}
+.delCard .dcbtns .recBtn.danger{border-color:var(--err)}
 .dpttl{display:flex;align-items:center;gap:8px;font-weight:600}
 .dpsub{font-size:12px;color:var(--dim);margin:2px 0 8px}
 .trow{display:flex;align-items:center;gap:10px;min-height:48px;padding:8px 10px;border:1px solid var(--line);border-radius:10px;margin-bottom:8px;background:var(--panel2)}
@@ -147,8 +157,6 @@ select.input{appearance:auto}
 .recRow .grow{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .recBtn{font-size:12px;color:var(--accent);padding:7px 8px}
 .recBtn.danger{color:var(--err)}
-.phase{font-size:10px;padding:2px 8px;border-radius:999px;border:1px solid var(--accent);color:var(--accent);font-weight:700;letter-spacing:.3px}
-.phaseBtn{font-size:11px;color:var(--accent);padding:6px 8px}
 .attChip{font-size:11px;padding:4px 9px;border:1px solid var(--line);border-radius:12px;background:var(--panel2);display:flex;gap:6px;align-items:center}
 .attChip button{color:var(--err)}
 .msg img.att{max-width:220px;max-height:220px;border-radius:8px;display:block;margin-top:6px;border:1px solid var(--line)}
@@ -165,10 +173,14 @@ select.input{appearance:auto}
   <div id="projList"></div>
 </aside>
 <main id="main">
-  <div class="bar mainbar"><div class="titlewrap"><div id="chatTitle">Select a thread</div><div id="chatInfo">devstream orchestrator</div></div><span id="pill">idle</span><button class="btn" id="runPending" style="display:none">▶</button></div>
+  <div class="bar mainbar"><div class="titlewrap"><div id="chatTitle">Select a thread</div><div id="chatInfo">devstream orchestrator</div></div><span id="pill">idle</span><button class="btn" id="dashRefresh" style="display:none">↻</button><button class="btn" id="runPending" style="display:none">▶</button></div>
   <div id="projectTabs"></div>
   <div id="error"></div>
   <div id="emptyState"><div><b>devstream</b><div style="margin-top:6px">+ New starts a project: pick or name its file once —<br>that file and its plan are the project. Tabs are yours to name.</div></div></div>
+  <div id="dashView">
+    <div class="chips" id="dashChips"></div>
+    <div id="dashBody"></div>
+  </div>
   <div id="chatArea">
     <div id="messages"></div>
     <div id="pendingBar" style="display:none;padding:8px 14px;background:rgba(227,160,8,.14);border-top:1px solid var(--run);color:var(--run);font-size:12px;align-items:center;gap:8px"><span id="pendingBarText"></span><button class="btn" id="pendingRun" style="margin-left:auto;min-height:32px">▶ run now</button></div>
@@ -248,18 +260,6 @@ select.input{appearance:auto}
   </div>
 </div></div>
 
-<!-- Recycle Bin modal -->
-<div class="modal" id="recycleModal"><div class="panel">
-  <header>Recycle Bin<button class="btn" data-close="recycleModal">✕</button></header>
-  <div class="pbody" id="recycleBody"></div>
-</div></div>
-
-<!-- Dashboard modal -->
-<div class="modal" id="dashModal"><div class="panel">
-  <header>Dashboard<span class="grow"></span><button class="btn" id="dashRefresh">↻</button><button class="btn" data-close="dashModal">✕</button></header>
-  <div class="chips" id="dashChips"></div>
-  <div class="pbody" id="dashBody"></div>
-</div></div>
 
 <script>
 'use strict';
@@ -267,9 +267,8 @@ const LS='ds_cfg_v2';
 let cfg=JSON.parse(localStorage.getItem(LS)||'null');
 let sot={threads:{},projects:{}}, sotSha=null;
 let threads={}, activeProject=localStorage.getItem('ds_activeproj')||null, activeKey=null;
-let debug=JSON.parse(sessionStorage.getItem('ds_debug')||'[]'),debugTab='log',treeCache=null, dashFilter='all', dashSort='last', pollTimer=null, dashTimer=null, npSelectedExisting=false;
+let debug=JSON.parse(sessionStorage.getItem('ds_debug')||'[]'),debugTab='log',treeCache=null, dashFilter='all', dashSort='last', pollTimer=null, dashTimer=null, npSelectedExisting=false, delOpen=false, view='empty';
 
-const PHASES=['Define','Design','Build','Ship'];
 const $=id=>document.getElementById(id);
 const enc=s=>btoa(unescape(encodeURIComponent(s)));
 const dec=s=>decodeURIComponent(escape(atob(s.replace(/\n/g,''))));
@@ -423,6 +422,16 @@ function stallAge(t){const m=Math.round((Date.now()-new Date(t.startedAt))/60000
 async function guard(fn){try{errbar(null);await(typeof fn==='function'?fn():fn);return true}catch(e){errbar(e.message);toast(e.message);return false}}
 /* ---- sidebar / projects ---- */
 function sideOpen(o){$('sidebar').classList.toggle('open',o);$('scrim').classList.toggle('open',o)}
+function showView(v){
+  view=v;
+  $('emptyState').style.display=v==='empty'?'flex':'none';
+  $('chatArea').style.display=v==='chat'?'flex':'none';
+  $('dashView').style.display=v==='dash'?'flex':'none';
+  $('projectTabs').style.display=v==='chat'?'':'none';
+  $('pill').style.display=v==='chat'?'':'none';
+  $('dashRefresh').style.display=v==='dash'?'':'none';
+  if(v!=='chat')$('runPending').style.display='none';
+}
 $('menu').onclick=()=>sideOpen(true);$('scrim').onclick=()=>sideOpen(false);
 function renderSidebar(){
   const q=($('search').value||'').toLowerCase();
@@ -439,8 +448,7 @@ function renderSidebar(){
     const pr=sot.projects[p];
     const d=document.createElement('div');d.className='card'+(p===activeProject?' active':'');
     const plan=pr.planFile;
-    const ph=pr.phase||'Define';
-    d.innerHTML='<div class="cttl">'+esc(p)+' <span class="phase">'+ph+'</span><button class="planlink '+(plan&&pr.planExists?'':'off')+'">'+(plan?'Plan ↗':'')+'</button></div><div class="csub">'+th.length+' thread'+(th.length===1?'':'s')+' · '+rel(pr.lastTouched)+'</div>';
+    d.innerHTML='<div class="cttl">'+esc(p)+'<span class="grow"></span><button class="planlink '+(plan&&pr.planExists?'':'off')+'">'+(plan?'Plan ↗':'')+'</button></div><div class="csub">'+th.length+' thread'+(th.length===1?'':'s')+' · '+rel(pr.lastTouched)+'</div>';
     const pb=d.querySelector('.planlink');
     pb.onclick=e=>{e.stopPropagation();
       if(plan&&pr.planExists)window.open('https://github.com/'+repoFull()+'/blob/'+cfg.branch+'/'+plan,'_blank');
@@ -453,14 +461,6 @@ function renderSidebar(){
     d.addEventListener('contextmenu',e=>{e.preventDefault();softDeleteProject(p)});
     pl.appendChild(d);
   });
-  const delP=Object.keys(sot.projects).filter(p=>sot.projects[p].deleted).length;
-  const delT=Object.keys(sot.threads).filter(k=>sot.threads[k].deleted&&!(sot.projects[sot.threads[k].project]||{}).deleted).length;
-  if(delP+delT>0){
-    const rc=document.createElement('div');rc.className='card';rc.id='recycleCard';
-    rc.innerHTML='<div class="cttl">♻ Recycle Bin</div><div class="csub">'+delP+' project'+(delP===1?'':'s')+' · '+delT+' thread'+(delT===1?'':'s')+'</div>';
-    rc.onclick=()=>{sideOpen(false);openRecycle()};
-    pl.appendChild(rc);
-  }
 }
 function firstThreadOf(p){return Object.keys(sot.threads).filter(k=>sot.threads[k].project===p&&!sot.threads[k].deleted)[0]||null}
 function openProject(p,preferKey){
@@ -468,30 +468,10 @@ function openProject(p,preferKey){
   const k=(preferKey&&sot.threads[preferKey]&&!sot.threads[preferKey].deleted)?preferKey:firstThreadOf(p);
   renderSidebar();renderTabs();
   if(k){openThread(k);return}
-  activeKey=null;renderTabs();
-  $('chatArea').style.display='none';$('emptyState').style.display='flex';
-  $('chatTitle').textContent=p+' — '+((sot.projects[p]||{}).phase||'Define');
+  activeKey=null;renderTabs();showView('empty');
+  $('chatTitle').textContent=p;
   $('chatInfo').textContent='no tabs yet · '+repoFull();
   $('pill').textContent='';$('pill').className='';
-}
-function openRecycle(){openModal('recycleModal');renderRecycle()}
-function renderRecycle(){
-  const b=$('recycleBody');b.innerHTML='';
-  const dp=Object.keys(sot.projects).filter(p=>sot.projects[p].deleted);
-  const dt=Object.keys(sot.threads).filter(k=>sot.threads[k].deleted&&!(sot.projects[sot.threads[k].project]||{}).deleted);
-  if(!dp.length&&!dt.length){b.innerHTML='<div class="csub">Recycle Bin is empty.</div>';return}
-  dp.forEach(p=>{
-    const r=document.createElement('div');r.className='recRow';
-    r.innerHTML='<span class="grow"><b>'+esc(p)+'</b> (project)</span><button class="recBtn">Restore</button><button class="recBtn danger">Forever</button>';
-    const[rb,fb]=r.querySelectorAll('button');rb.onclick=()=>restoreProject(p);fb.onclick=()=>hardDeleteProject(p);
-    b.appendChild(r);
-  });
-  dt.forEach(k=>{
-    const r=document.createElement('div');r.className='recRow';
-    r.innerHTML='<span class="grow mono">'+esc(k)+'</span><button class="recBtn">Restore</button><button class="recBtn danger">Forever</button>';
-    const[rb,fb]=r.querySelectorAll('button');rb.onclick=()=>restoreThread(k);fb.onclick=()=>hardDeleteThread(k);
-    b.appendChild(r);
-  });
 }
 $('search').addEventListener('input',renderSidebar);
 $('refresh').onclick=()=>guard(async()=>{await loadSOT();if(activeKey)await loadThread(activeKey).then(renderChat).catch(()=>{});renderSidebar();renderTabs();toast('Refreshed')});
@@ -538,8 +518,7 @@ async function loadThread(key){
   threads[key]={data,sha:f.sha};return threads[key];
 }
 async function openThread(key){
-  activeKey=key;renderTabs();
-  $('emptyState').style.display='none';$('chatArea').style.display='flex';
+  activeKey=key;renderTabs();showView('chat');
   $('messages').innerHTML='<div class="msg agent">Loading…</div>';
   const ok=await guard(()=>loadThread(key));
   if(ok){renderChat();schedulePoll()}
@@ -548,7 +527,7 @@ let chatSig='';
 function renderChat(force){
   const key=activeKey;if(!key||!threads[key])return;
   const t=sot.threads[key],d=threads[key].data;
-  $('chatTitle').textContent=t.project+' ['+(sot.projects[t.project]&&sot.projects[t.project].phase||'Define')+'] · '+tabName(t);
+  $('chatTitle').textContent=t.project+' · '+tabName(t);
   $('chatInfo').textContent=d.lastState?d.lastState:(repoFull()+' · builds: '+(d.outputFile||projMain(t.project)||'—')+' · plan: '+(projPlan(t.project)||d.planFile||'—'));
   $('pill').textContent=t.state||'idle';$('pill').className=t.state||'';
   $('engineFoot').textContent=(t.engine||'venice')+(t.model?' · '+t.model:'')+' ▾';
@@ -583,9 +562,9 @@ function renderChat(force){
 async function softDeleteThread(key){
   await guard(async()=>{
     sot.threads[key].deleted=true;sot.threads[key].deletedAt=now();
-    if(activeKey===key){activeKey=null;$('chatArea').style.display='none';$('emptyState').style.display='flex'}
+    if(activeKey===key){activeKey=null;showView('empty')}
     await saveSOT('devstream: soft delete '+key);
-    renderTabs();renderSidebar();toast('Moved to Recycle Bin');
+    renderTabs();renderSidebar();if(view==='dash')renderDash();toast('Moved to deleted');
   });
 }
 async function softDeleteProject(p){
@@ -593,13 +572,13 @@ async function softDeleteProject(p){
   await guard(async()=>{
     sot.projects[p].deleted=true;sot.projects[p].deletedAt=now();
     Object.keys(sot.threads).forEach(k=>{if(sot.threads[k].project===p){sot.threads[k].deleted=true;sot.threads[k].deletedAt=now()}});
-    if(activeProject===p){activeProject=null;localStorage.removeItem('ds_activeproj');activeKey=null;$('chatArea').style.display='none';$('emptyState').style.display='flex'}
+    if(activeProject===p){activeProject=null;localStorage.removeItem('ds_activeproj');activeKey=null;showView('empty')}
     await saveSOT('devstream: soft delete project '+p);
-    renderTabs();renderSidebar();toast('Project moved to Recycle Bin');
+    renderTabs();renderSidebar();if(view==='dash')renderDash();toast('Project moved to deleted');
   });
 }
-async function restoreThread(key){sot.threads[key].deleted=false;delete sot.threads[key].deletedAt;const p=sot.threads[key].project;if(sot.projects[p]&&sot.projects[p].deleted){sot.projects[p].deleted=false}await guard(saveSOT('devstream: restore '+key));renderSidebar();renderTabs();renderRecycle()}
-async function restoreProject(p){sot.projects[p].deleted=false;delete sot.projects[p].deletedAt;Object.keys(sot.threads).forEach(k=>{if(sot.threads[k].project===p)sot.threads[k].deleted=false});await guard(saveSOT('devstream: restore project '+p));renderSidebar();renderTabs();renderRecycle()}
+async function restoreThread(key){sot.threads[key].deleted=false;delete sot.threads[key].deletedAt;const p=sot.threads[key].project;if(sot.projects[p]&&sot.projects[p].deleted){sot.projects[p].deleted=false}await guard(saveSOT('devstream: restore '+key));renderSidebar();renderTabs();if(view==='dash')renderDash()}
+async function restoreProject(p){sot.projects[p].deleted=false;delete sot.projects[p].deletedAt;Object.keys(sot.threads).forEach(k=>{if(sot.threads[k].project===p)sot.threads[k].deleted=false});await guard(saveSOT('devstream: restore project '+p));renderSidebar();renderTabs();if(view==='dash')renderDash()}
 async function hardDeleteThread(key){
   if(!confirm('PERMANENTLY delete thread '+key+'? Chat history is destroyed. Repo code files are NOT touched.'))return;
   await guard(async()=>{
@@ -608,7 +587,7 @@ async function hardDeleteThread(key){
     if(f)await gh('contents/'+p,{method:'DELETE',body:JSON.stringify({message:'devstream: hard delete '+key,sha:f.sha,branch:cfg.branch})});
     delete sot.threads[key];delete threads[key];delete outbox[key];saveOutbox();
     await saveSOT('devstream: hard delete '+key);
-    renderSidebar();renderTabs();renderRecycle();
+    renderSidebar();renderTabs();if(view==='dash')renderDash();
   });
 }
 async function hardDeleteProject(p){
@@ -622,7 +601,7 @@ async function hardDeleteProject(p){
     }
     delete sot.projects[p];
     await saveSOT('devstream: hard delete project '+p);
-    renderSidebar();renderTabs();renderRecycle();
+    renderSidebar();renderTabs();if(view==='dash')renderDash();
   });
 }
 async function deleteThread(key){
@@ -632,7 +611,7 @@ async function deleteThread(key){
     const f=await getFile(p);
     if(f)await gh('contents/'+p,{method:'DELETE',body:JSON.stringify({message:'devstream: delete thread '+key,sha:f.sha,branch:cfg.branch})});
     delete sot.threads[key];delete threads[key];delete outbox[key];saveOutbox();
-    if(activeKey===key){activeKey=null;$('chatArea').style.display='none';$('emptyState').style.display='flex'}
+    if(activeKey===key){activeKey=null;showView('empty')}
     await saveSOT('devstream: remove thread '+key);renderTabs();renderSidebar();
   });
 }
@@ -777,13 +756,8 @@ $('runPending').onclick=()=>{if(activeKey)dispatch(activeKey)};
 $('pendingRun').onclick=()=>{if(activeKey)dispatch(activeKey)};
 
 /* ---- in-app agent (anthropic-direct) ---- */
-function agentSystem(codeFile,planFile,phase,patchMode){
-  const phaseGuide={
-    Define:'Current phase: DEFINE. Focus on WHAT and WHY: purpose, users, outcomes, success criteria. Write these into the plan\'s Define section. Do NOT write code in this phase; if asked to build, note it in the plan backlog and say the project is in Define.',
-    Design:'Current phase: DESIGN. Focus on HOW: architecture, UI model, data/persistence, constraints, release slicing. Write these into the plan\'s Design section. Code only as small spikes if explicitly demanded.',
-    Build:'Current phase: BUILD. Execution cycles: implement per the plan into the CODE file, plan-before-code, one release slice at a time.',
-    Ship:'Current phase: SHIP. Stabilize only: fixes, polish, docs. No new scope — new ideas go to the plan\'s Future Ideas.'}[phase]||'';
-  return 'You are the devstream build agent for a project with two artifacts: the CODE file "'+codeFile+'" (a single-file mobile-first HTML app) and the PLAN file "'+planFile+'" (the master plan, sole authority, and the ONLY memory that persists between runs — chat history may be partial or missing). '+phaseGuide+' You may be given REFERENCED FILE blocks (code pulled from GitHub URLs the owner pasted) — treat them as authoritative source material. CRITICAL: if a REFERENCED FILE block is present, its full contents ARE already in front of you — never reply that you cannot access GitHub, fetch URLs, or read the file; just use the contents given. If web search is enabled you can look up current docs, APIs and error messages to unblock yourself; cite what you found in the SUMMARY. ALWAYS read the plan context first and continue from its ledger; you are picking up where the previous run left off. Rules: questions/ideas/feedback update the PLAN (or are just answered); update-plan-before-code; at most ONE file write per response. The PLAN path never changes — it is the project\'s sole authority for plan, open tasks/backlog and bug tracking. The CODE path is "'+codeFile+'" unless the owner explicitly tells you in this request to land the build in a different filename; if they do, use that exact path as TARGET and it becomes the project\'s code file from then on. When you write the PLAN, append a dated row to its TURN/STAGE LEDGER describing this run. All diagnostics in the app itself, never console-only. Preserve existing functionality not mentioned. Respond in EXACTLY this format:\nSUMMARY: <one or two sentences>\nTARGET: <'+codeFile+' or '+planFile+' or, ONLY if the owner explicitly named a different file to write to in this request, that path — or NONE>\nSTATE: <phase> | open: <top open items, terse> | next: <the single next step>\n<blank line>\n<if TARGET is a file: '+(patchMode?'SEARCH/REPLACE edit blocks as specified below':'the COMPLETE new file content, no fences, nothing after it')+'. If TARGET is NONE: your answer text.>'+(patchMode?'\n\nOUTPUT MODE: PATCH. The file is too large to reprint within your output limit — do NOT output the whole file. Emit one or more edit blocks, each exactly:\n<<<<<<< SEARCH\n(text copied character-for-character from the current file, appearing EXACTLY ONCE)\n=======\n(replacement text)\n>>>>>>> REPLACE\nKeep SEARCH blocks small but unique. Never invent text that is not in the file. To add code near the end, SEARCH a unique closing fragment and repeat it in the replacement. Output nothing after the final block.':'');
+function agentSystem(codeFile,planFile,patchMode){
+  return 'You are the devstream build agent for a project with two artifacts: the CODE file "'+codeFile+'" (a single-file mobile-first HTML app) and the PLAN file "'+planFile+'" (the master plan, sole authority, and the ONLY memory that persists between runs — chat history may be partial or missing). The plan carries the work: goals, open tasks/backlog and bug tracking. The owner drives the pace — when they ask you to execute the plan, do the next thing the plan says; there are no project phases or stage gates to check. You may be given REFERENCED FILE blocks (code pulled from GitHub URLs the owner pasted) — treat them as authoritative source material. CRITICAL: if a REFERENCED FILE block is present, its full contents ARE already in front of you — never reply that you cannot access GitHub, fetch URLs, or read the file; just use the contents given. If web search is enabled you can look up current docs, APIs and error messages to unblock yourself; cite what you found in the SUMMARY. ALWAYS read the plan context first and continue from its ledger; you are picking up where the previous run left off. Rules: questions/ideas/feedback update the PLAN (or are just answered); update-plan-before-code; at most ONE file write per response. The PLAN path never changes — it is the project\'s sole authority for plan, open tasks/backlog and bug tracking. The CODE path is "'+codeFile+'" unless the owner explicitly tells you in this request to land the build in a different filename; if they do, use that exact path as TARGET and it becomes the project\'s code file from then on. When you write the PLAN, append a dated row to its TURN/STAGE LEDGER describing this run. All diagnostics in the app itself, never console-only. Preserve existing functionality not mentioned. Respond in EXACTLY this format:\nSUMMARY: <one or two sentences>\nTARGET: <'+codeFile+' or '+planFile+' or, ONLY if the owner explicitly named a different file to write to in this request, that path — or NONE>\nSTATE: open: <top open items, terse> | next: <the single next step>\n<blank line>\n<if TARGET is a file: '+(patchMode?'SEARCH/REPLACE edit blocks as specified below':'the COMPLETE new file content, no fences, nothing after it')+'. If TARGET is NONE: your answer text.>'+(patchMode?'\n\nOUTPUT MODE: PATCH. The file is too large to reprint within your output limit — do NOT output the whole file. Emit one or more edit blocks, each exactly:\n<<<<<<< SEARCH\n(text copied character-for-character from the current file, appearing EXACTLY ONCE)\n=======\n(replacement text)\n>>>>>>> REPLACE\nKeep SEARCH blocks small but unique. Never invent text that is not in the file. To add code near the end, SEARCH a unique closing fragment and repeat it in the replacement. Output nothing after the final block.':'');
 }
 function parseAgent(text){
   let summary='Done.',target='NONE';
@@ -869,7 +843,7 @@ async function runAgent(key,premarked){
     const patchMode=baseChars>0&&needTok>cap*0.85;
     if(patchMode)dlog('preflight: '+codeFile+' needs ~'+Math.round(needTok/1000)+'k output tokens vs '+eng+' cap '+Math.round(cap/1000)+'k → PATCH MODE');
     const res=await runJob(key,{cfg:{...cfg},codeFile,planFile,inputFile:th.data.inputFile||null,images,ghRefs,webSearch:!!t.web,patchMode,
-      system:agentSystem(codeFile,planFile,(sot.projects[t.project]||{}).phase||'Define',patchMode),history,instr,chain,threadModel:t.model||null,threadEngine:eng});
+      system:agentSystem(codeFile,planFile,patchMode),history,instr,chain,threadModel:t.model||null,threadEngine:eng});
     if(interrupted.has(key))throw new Error('Interrupted by user');
     let{summary,target,body,state,usedEng}=res;
     let commit=null,testUrl=t.testUrl||'',reply=summary;
@@ -1234,10 +1208,14 @@ document.querySelectorAll('.keyfield').forEach(f=>{
   f.insertAdjacentElement('afterend',eye);
 });
 document.querySelectorAll('[data-close]').forEach(b=>b.onclick=()=>$(b.dataset.close).classList.remove('open'));
-function openDash(){openModal('dashModal');renderDash();
+function openDash(){
+  activeKey=null;showView('dash');
+  $('chatTitle').textContent='Dashboard';
+  $('chatInfo').textContent=Object.keys(sot.projects).filter(p=>!sot.projects[p].deleted).length+' projects · '+repoFull();
+  renderDash();
   clearInterval(dashTimer);
   dashTimer=setInterval(async()=>{
-    if(!$('dashModal').classList.contains('open')){clearInterval(dashTimer);return}
+    if(view!=='dash'){clearInterval(dashTimer);return}
     if(document.hidden||pollBusy)return;
     if(Object.values(sot.threads).some(t=>t.state==='executing'&&!isStalled(t))){pollBusy=true;try{await loadSOT();renderDash();renderSidebar()}catch(e){}finally{pollBusy=false}}
   },30000);
@@ -1249,30 +1227,21 @@ function renderDash(){
   [['all','All'],['executing','Running'],['error','Errors'],['ok','OK'],['idle','Idle']].forEach(([v,l])=>ch.appendChild(chip(l,dashFilter===v,()=>{dashFilter=v;renderDash()})));
   ch.appendChild(chip('Sort: '+({last:'last run',state:'state',file:'file'})[dashSort],true,()=>{dashSort={last:'state',state:'file',file:'last'}[dashSort];renderDash()}));
   const body=$('dashBody');body.innerHTML='';
+  renderDeleted(body);
   const projs=Object.keys(sot.projects).filter(p=>!sot.projects[p].deleted).sort();
-  if(!projs.length){body.innerHTML='<div class="csub">No projects yet.</div>';return}
+  if(!projs.length){const e=document.createElement('div');e.className='csub';e.textContent='No projects yet.';body.appendChild(e);return}
   projs.forEach(p=>{
     const pr=sot.projects[p];
     let rows=Object.entries(sot.threads).filter(([k,t])=>t.project===p&&!t.deleted);
     if(dashFilter!=='all')rows=rows.filter(([k,t])=>(t.state||'idle')===dashFilter);
     const sec=document.createElement('div');sec.className='dsec';
     const runs=rows.filter(([k,t])=>t.state==='executing'&&!isStalled(t)).length;
-    const ph=pr.phase||'Define';
-    sec.innerHTML='<div class="dpttl">'+esc(p)+' <span class="phase">'+ph+'</span>'+
-      (PHASES.indexOf(ph)<PHASES.length-1?'<button class="phaseBtn">advance → '+PHASES[PHASES.indexOf(ph)+1]+'</button>':'')+
+    sec.innerHTML='<div class="dpttl">'+esc(p)+
       (runs?' <span class="badge run">'+runs+' running</span>':'')+
       (pr.planFile&&pr.planExists?' <button class="planlink">Plan ↗</button>':'')+'</div>'+
       '<div class="dpsub">Last touched '+rel(pr.lastTouched)+' · '+rows.length+' thread'+(rows.length===1?'':'s')+'</div>';
     const pl=sec.querySelector('.planlink');
     if(pl)pl.onclick=()=>window.open('https://github.com/'+repoFull()+'/blob/'+cfg.branch+'/'+pr.planFile,'_blank');
-    const pbtn=sec.querySelector('.phaseBtn');
-    if(pbtn)pbtn.onclick=()=>guard(async()=>{
-      const nx=PHASES[PHASES.indexOf(ph)+1];
-      if(!confirm('Advance '+p+' from '+ph+' to '+nx+'? The agent will be told and will log it in the plan ledger on its next run.'))return;
-      pr.phase=nx;pr.phaseChangedAt=now();
-      await saveSOT('devstream: '+p+' phase -> '+nx);
-      renderDash();renderSidebar();toast(p+' → '+nx);
-    });
     const sorters={last:(a,b)=>(b[1].finishedAt||b[1].startedAt||'').localeCompare(a[1].finishedAt||a[1].startedAt||''),
       state:(a,b)=>(a[1].state||'').localeCompare(b[1].state||''),file:(a,b)=>a[1].file.localeCompare(b[1].file)};
     rows.sort(sorters[dashSort]);
@@ -1295,13 +1264,13 @@ function renderDash(){
         await saveSOT('devstream: reset stalled '+k);renderDash();renderSidebar();toast('Reset — open the thread and ▶ to retry')})};
       const ee=r.querySelector('.terr');
       if(ee)ee.onclick=e=>{e.stopPropagation();ee.classList.toggle('x')};
-      r.onclick=()=>{closeModals();openProject(t.project,k)};
+      r.onclick=()=>openProject(t.project,k);
       sec.appendChild(r);
     });
     if(!rows.length){
       const cta=document.createElement('button');cta.className='btn';cta.textContent='+ start a thread in '+p;
       cta.style.marginBottom='8px';
-      cta.onclick=()=>{closeModals();openProject(p);newThreadForProject()};
+      cta.onclick=()=>{openProject(p);newThreadForProject()};
       sec.appendChild(cta);
     }
     const nd=document.createElement('div');nd.className='notes';
@@ -1310,6 +1279,41 @@ function renderDash(){
     sec.appendChild(nd);
     body.appendChild(sec);
   });
+}
+
+function renderDeleted(body){
+  const dp=Object.keys(sot.projects).filter(p=>sot.projects[p].deleted).sort();
+  const dt=Object.keys(sot.threads).filter(k=>sot.threads[k].deleted&&!(sot.projects[sot.threads[k].project]||{}).deleted);
+  if(!dp.length&&!dt.length)return;
+  const sec=document.createElement('div');sec.className='dsec';
+  const tog=document.createElement('button');tog.className='dtoggle'+(delOpen?' open':'');
+  tog.innerHTML='<span class="chev">▸</span><span>Deleted</span><span class="csub" style="margin-left:auto">'+
+    (dp.length?dp.length+' project'+(dp.length===1?'':'s'):'')+(dp.length&&dt.length?' · ':'')+
+    (dt.length?dt.length+' tab'+(dt.length===1?'':'s'):'')+'</span>';
+  const wrap=document.createElement('div');wrap.style.display=delOpen?'block':'none';wrap.style.marginTop='8px';
+  tog.onclick=()=>{delOpen=!delOpen;tog.classList.toggle('open',delOpen);wrap.style.display=delOpen?'block':'none'};
+  dp.forEach(p=>{
+    const pr=sot.projects[p];
+    const n=Object.keys(sot.threads).filter(k=>sot.threads[k].project===p).length;
+    const c=document.createElement('div');c.className='delCard';
+    c.innerHTML='<div class="dcttl">'+esc(p)+'</div><div class="dcsub">'+n+' tab'+(n===1?'':'s')+
+      ' · '+esc(pr.mainFile||'—')+' · deleted '+rel(pr.deletedAt)+'</div>'+
+      '<div class="dcbtns"><button class="recBtn">Restore project</button><button class="recBtn danger">Delete forever</button></div>';
+    const[rb,fb]=c.querySelectorAll('button');
+    rb.onclick=()=>restoreProject(p);fb.onclick=()=>hardDeleteProject(p);
+    wrap.appendChild(c);
+  });
+  dt.forEach(k=>{
+    const t=sot.threads[k];
+    const c=document.createElement('div');c.className='delCard';
+    c.innerHTML='<div class="dcttl">'+esc(tabName(t))+' <span class="csub" style="font-weight:400">tab in '+esc(t.project)+'</span></div>'+
+      '<div class="dcsub">'+esc(t.file||'')+' · deleted '+rel(t.deletedAt)+'</div>'+
+      '<div class="dcbtns"><button class="recBtn">Restore tab</button><button class="recBtn danger">Delete forever</button></div>';
+    const[rb,fb]=c.querySelectorAll('button');
+    rb.onclick=()=>restoreThread(k);fb.onclick=()=>hardDeleteThread(k);
+    wrap.appendChild(c);
+  });
+  sec.appendChild(tog);sec.appendChild(wrap);body.appendChild(sec);
 }
 
 /* ---- settings / boot ---- */
@@ -1446,7 +1450,7 @@ applyAppearance();
       if(!localStorage.getItem('ds_appearance')&&sot.config.appearance){appearance=sot.config.appearance;saveAppearance();applyAppearance()}}
     $('dot').classList.add('on');
     if(activeProject&&sot.projects[activeProject]&&!sot.projects[activeProject].deleted)openProject(activeProject);
-    else{renderSidebar();renderTabs()}
+    else{renderSidebar();renderTabs();showView('empty')}
     dlog('boot ok · '+Object.keys(sot.threads).length+' threads');
   }
 })();
