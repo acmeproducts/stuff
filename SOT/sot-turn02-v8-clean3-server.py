@@ -5,6 +5,12 @@ from pathlib import Path
 HERE=Path(__file__).resolve().parent;sp=importlib.util.spec_from_file_location("sotclean3",HERE/"sot-turn02-v8-clean3-engine.py");m=importlib.util.module_from_spec(sp);sys.modules[sp.name]=m;sp.loader.exec_module(m)
 S=m.Store();M=m.Manager(S,workers=max(2,min(8,os.cpu_count() or 4)),queue_capacity=128)
 TARGET_FILE=Path.home()/".sot-turn02"/"target.json"
+CREATION_REV_FILE=Path.home()/".sot-turn02"/"creation-revision.json"
+def creation_revision():
+ try:return json.loads(CREATION_REV_FILE.read_text()).get("revision",0)
+ except Exception:return 0
+def bump_creation_revision():
+ r=int(time.time()*1000);CREATION_REV_FILE.parent.mkdir(parents=True,exist_ok=True);tmp=CREATION_REV_FILE.with_suffix(".tmp");tmp.write_text(json.dumps({"revision":r}));tmp.replace(CREATION_REV_FILE);return r
 def volume_roots():
  out=[Path("/").resolve()]
  for base in ("/mnt","/media"):
@@ -36,25 +42,39 @@ def target_set(path,label=""):
  return {**cfg,"configured":True,"available":True,"free_bytes":free_bytes,"total_bytes":total_bytes}
 def creation_backfill():
  rows=S.rows("SELECT placement_id,path FROM placements WHERE created IS NULL AND availability='AVAILABLE' AND path LIKE '/mnt/%'")
- if not rows:return {"eligible":0,"updated":0,"unavailable":0}
- ps="/mnt/c/Windows/System32/WindowsPowerShell/v1.0/powershell.exe";payload=[];bywin={}
+ if not rows:return {"eligible":0,"attempted":0,"updated":0,"unavailable":0,"conversion_failed":0,"lookup_failed":0,"revision":creation_revision(),"failures":[]}
+ ps="/mnt/c/Windows/System32/WindowsPowerShell/v1.0/powershell.exe";payload=[];pids=[];srcpaths=[];failures=[];conversion_failed=0
  for r in rows:
   try:
-   wp=subprocess.check_output(["wslpath","-w",r["path"]],text=True,timeout=2).strip();payload.append(wp);bywin[wp.lower()]=r["placement_id"]
-  except Exception:pass
- script="$input | ForEach-Object { try { $i=Get-Item -LiteralPath $_ -ErrorAction Stop; $_ + [char]9 + $i.CreationTimeUtc.ToString('o') } catch { $_ + [char]9 } }"
+   wp=subprocess.check_output(["wslpath","-w",r["path"]],text=True,timeout=2).strip();payload.append(wp);pids.append(r["placement_id"]);srcpaths.append(r["path"])
+  except Exception as e:
+   conversion_failed+=1
+   if len(failures)<100:failures.append({"path":r["path"],"stage":"wslpath","error":str(e)[:240]})
+ script="$raw=[Console]::In.ReadToEnd(); $lines=$raw -split '\\r?\\n'; for($n=0;$n -lt $lines.Length;$n++){ if([string]::IsNullOrWhiteSpace($lines[$n])){continue}; try{$i=Get-Item -LiteralPath $lines[$n] -ErrorAction Stop; [Console]::Out.WriteLine(('{0}{1}{2}{1}' -f $n,[char]9,$i.CreationTimeUtc.ToString('o')))}catch{[Console]::Out.WriteLine(('{0}{1}{1}{2}' -f $n,[char]9,$_.Exception.Message.Replace([Environment]::NewLine,' ')))}}"
  out=subprocess.run([ps,"-NoProfile","-Command",script],input="\n".join(payload),text=True,capture_output=True,timeout=max(30,min(1800,len(payload)//10+30)))
- updated=0
  if out.returncode!=0:raise RuntimeError("Creation-time backfill failed: "+out.stderr.strip()[:500])
  import datetime
+ updated=0;lookup_failed=0;seen=set()
  for line in out.stdout.splitlines():
-  wp,sep,iso=line.partition("\t");pid=bywin.get(wp.lower())
-  if not pid or not iso:continue
+  parts=line.split("\t",2)
+  try:idx=int(parts[0])
+  except Exception:continue
+  if idx<0 or idx>=len(pids):continue
+  seen.add(idx);iso=parts[1].strip() if len(parts)>1 else "";err=parts[2].strip() if len(parts)>2 else ""
+  if not iso:
+   lookup_failed+=1
+   if len(failures)<100:failures.append({"path":srcpaths[idx],"stage":"Get-Item","error":err or "no CreationTime returned"})
+   continue
   try:
-   ts=datetime.datetime.fromisoformat(iso.replace("Z","+00:00")).timestamp();S.submit("UPDATE placements SET created=? WHERE placement_id=? AND created IS NULL",(ts,pid));updated+=1
-  except Exception:pass
- S.drain(60);M.event("creation_backfill","Creation timestamps backfilled",None,None,"INFO",{"eligible":len(rows),"updated":updated,"unavailable":len(rows)-updated})
- return {"eligible":len(rows),"updated":updated,"unavailable":len(rows)-updated}
+   ts=datetime.datetime.fromisoformat(iso.replace("Z","+00:00")).timestamp();S.submit("UPDATE placements SET created=? WHERE placement_id=? AND created IS NULL",(ts,pids[idx]));updated+=1
+  except Exception as e:
+   lookup_failed+=1
+   if len(failures)<100:failures.append({"path":srcpaths[idx],"stage":"parse/update","error":str(e)[:240]})
+ missing=max(0,len(payload)-len(seen));lookup_failed+=missing
+ S.drain(60);rev=bump_creation_revision() if updated else creation_revision();unavailable=len(rows)-updated
+ M.event("creation_backfill","Creation timestamps backfilled",None,None,"INFO",{"eligible":len(rows),"attempted":len(payload),"updated":updated,"unavailable":unavailable,"conversion_failed":conversion_failed,"lookup_failed":lookup_failed,"revision":rev,"failure_samples":failures[:20]})
+ return {"eligible":len(rows),"attempted":len(payload),"updated":updated,"unavailable":unavailable,"conversion_failed":conversion_failed,"lookup_failed":lookup_failed,"revision":rev,"failures":failures[:100]}
+
 def latest():
  r=S.rows("SELECT job_id FROM jobs ORDER BY created DESC LIMIT 1");return M.snapshot(r[0]["job_id"]) if r else None
 class H(BaseHTTPRequestHandler):
@@ -70,7 +90,7 @@ class H(BaseHTTPRequestHandler):
   try:
    u=urlparse(self.path);p=u.path
    if p=="/api/health":
-    return self.sendj({"ok":True,"version":m.VERSION,"schema":m.SCHEMA,"process":"healthy","db":S.db_probe(.10),"writer_queue":S.q.qsize(),"writer_error":S.writer_error,"time":time.time()})
+    return self.sendj({"ok":True,"version":m.VERSION,"schema":m.SCHEMA,"process":"healthy","db":S.db_probe(.10),"writer_queue":S.q.qsize(),"writer_error":S.writer_error,"creation_revision":creation_revision(),"time":time.time()})
    if p=="/api/job/latest":return self.sendj({"ok":True,"snapshot":latest()})
    if p=="/api/sources":return self.sendj({"ok":True,"sources":S.rows("SELECT * FROM sources ORDER BY estate,label")})
    if p=="/api/events":return self.sendj({"ok":True,"events":S.rows("SELECT * FROM events ORDER BY event_id DESC LIMIT 500")})

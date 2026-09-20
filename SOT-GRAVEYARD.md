@@ -527,3 +527,14 @@ Reject TARGET registration that records only a path. Capture registration-time a
 Reject spawning PowerShell once per file during discovery/fingerprinting to obtain NTFS CreationTime. It can dominate scan runtime. Capture native birth time inline where available; otherwise batch Windows CreationTime acquisition as a post-processing evidence pass that updates only missing Created values without rehashing.
 
 Reject a TARGET that is technically registered but visually indistinguishable from NOT CONFIGURED. Plan must expose registered TARGET identity and visual capacity: GB and percentages for used/free space with proportional bars. Do not falsely call gross unique Estate bytes TARGET-consumed or the final landing delta before TARGET fingerprint reconciliation.
+
+
+---
+
+## GY-084 — Implicit PowerShell $input, path-echo correlation, and stale Created cache
+**Status:** REJECTED EVIDENCE RETRIEVAL / CACHE PATTERN  
+**Decision date:** 2026-09-20
+
+Reject treating PowerShell $input as a reliable redirected-stdin contract for batch CreationTime acquisition, correlating returned evidence by echoed path text, collapsing retrieval failures into genuine timestamp unavailability, or leaving persistent Database placement cache stale after backend evidence changes.
+
+**Required replacement:** explicitly read redirected stdin, correlate each request/result by index, classify and log unresolved stages, advance a durable creation-evidence revision after successful updates, and have Database automatically invalidate/reload its placement cache when that revision changes.
