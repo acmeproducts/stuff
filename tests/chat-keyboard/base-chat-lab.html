@@ -73,8 +73,6 @@ body{display:flex;flex-direction:column}
 .klang{font-size:11px;font-weight:700;color:#64748b;padding:2px 4px 4px}
 .kcands{display:none;gap:5px;overflow-x:auto;padding:0 4px 5px;flex:0 0 auto;min-height:36px;align-items:center}
 .kcands::-webkit-scrollbar{display:none}
-.kpredictions{display:none;gap:5px;padding:0 4px 5px;flex:0 0 auto;min-height:36px}
-.kpredictions .kcand{flex:1;min-width:0;text-align:center;border-color:#3b82f6}
 .kcand{flex:0 0 auto;padding:7px 12px;border-radius:9px;border:1px solid rgba(203,213,225,.9);background:#fff;font-size:16px;min-height:36px}
 .kcand.on{background:linear-gradient(135deg,rgba(96,165,250,.95),rgba(59,130,246,.95));color:#fff;border-color:transparent}
 .krow{display:flex;gap:6px;margin-bottom:6px}
@@ -1324,92 +1322,18 @@ function dgLangParam(room) {
     var shifted={south:false,north:false},numMode={south:false,north:false};
     var comp={south:{raw:'',kana:'',ko:null},north:{raw:'',kana:'',ko:null}};
     var cands={south:[],north:[]},candIdx={south:-1,north:-1};
-    var editRev={south:0,north:0},conversionRev={south:0,north:0};
-    var candidateTxn={south:null,north:null},compAnchor={south:null,north:null};
-    var pendingConversion={south:null,north:null},undoEdit={south:null,north:null};
-    var predictionTxn={south:null,north:null};
-    var CHAT_BUILD='lab-keyboard-patch-20260919';
-    var UNDO_LABEL={en:'Undo',th:'เลิกทำ',es:'Deshacer',fr:'Annuler',de:'Rückgängig',
-        it:'Annulla',pt:'Desfazer',nl:'Ongedaan maken',sv:'Ångra',pl:'Cofnij',tr:'Geri al',
-        ru:'Отменить',ar:'تراجع',hi:'पूर्ववत करें',vi:'Hoàn tác',id:'Urungkan',ms:'Buat asal',
-        fil:'I-undo',ja:'元に戻す',ko:'실행 취소',km:'មិនធ្វើវិញ',lo:'ຍົກເລີກ',zh:'撤销'};
-
-    function editorSnapshot(side){
-        var ta=inputEl(side);
-        return{value:ta.value,start:ta.selectionStart,end:ta.selectionEnd,
-            lang:langOf(side),revision:editRev[side]};
-    }
-    function snapshotMatches(side,snapshot){
-        if(!snapshot)return false;
-        var ta=inputEl(side);
-        return snapshot.lang===langOf(side)&&snapshot.revision===editRev[side]&&
-            snapshot.value===ta.value&&snapshot.start===ta.selectionStart&&snapshot.end===ta.selectionEnd;
-    }
-    function invalidateCandidates(side){
-        conversionRev[side]++;pendingConversion[side]=null;
-        candidateTxn[side]=null;cands[side]=[];candIdx[side]=-1;
-        predictionTxn[side]=null;paintPredictions(side);
-        paintCands(side);
-    }
-    function changedDraft(side){
-        editRev[side]++;undoEdit[side]=null;invalidateCandidates(side);
-    }
-    function resetComposition(side){
-        comp[side]={raw:'',kana:'',ko:null};compAnchor[side]=null;
-        invalidateCandidates(side);
-    }
-    function clearDraft(side){
-        resetComposition(side);
-        var ta=inputEl(side);ta.value='';ta.setSelectionRange(0,0);
-        changedDraft(side);updateClear(side);
-    }
-    function offerCandidates(side,words,kind,start,end){
-        invalidateCandidates(side);
-        cands[side]=words;
-        candidateTxn[side]={kind:kind,start:start,end:end,snapshot:editorSnapshot(side)};
-        candIdx[side]=-1;paintCands(side);
-    }
-    function compositionMatches(side){
-        var a=compAnchor[side],ta=inputEl(side);
-        return !!a&&a.lang===langOf(side)&&a.value===ta.value&&
-            ta.selectionStart===a.end&&ta.selectionEnd===a.end;
-    }
-    function syncEditorSelection(side){
-        // A native cursor move commits the displayed characters in place.
-        // Never apply a relative composition replacement at the new cursor.
-        if(compAnchor[side]&&!compositionMatches(side))resetComposition(side);
-        var transaction=candidateTxn[side];
-        if(transaction&&!snapshotMatches(side,transaction.snapshot))invalidateCandidates(side);
-        if(predictionTxn[side]&&!snapshotMatches(side,predictionTxn[side].snapshot)){
-            predictionTxn[side]=null;paintPredictions(side);
-        }
-        if(pendingConversion[side]&&!snapshotMatches(side,pendingConversion[side]))invalidateCandidates(side);
-        if(undoEdit[side]&&!snapshotMatches(side,undoEdit[side].after)){
-            undoEdit[side]=null;paintCands(side);
-        }
-    }
-    function undoCorrection(side,expectedEdit){
-        var edit=undoEdit[side];
-        if(INPUT.owner!==side||INPUT.mode!=='kb'||!edit||edit!==expectedEdit||!snapshotMatches(side,edit.after))return;
-        resetComposition(side);
-        var ta=inputEl(side);ta.value=edit.before.value;
-        ta.setSelectionRange(edit.before.start,edit.before.end);
-        changedDraft(side);updateClear(side);
-    }
 
     function kbEl(side){return document.getElementById('kb-'+side)}
     function showKeyboard(side){
         var el=kbEl(side);if(!el)return;
         renderKeys(side);
         el.classList.add('open');
-        updateAutocomplete(side);
         var inp=document.getElementById('in-'+side);
         if(inp){try{inp.focus({preventScroll:true})}catch(e){}}
     }
     function hideKeyboard(side){
         var el=kbEl(side);if(!el)return;
         flushComp(side);
-        undoEdit[side]=null;paintCands(side);
         el.classList.remove('open');
     }
     function layoutFor(side){
@@ -1618,9 +1542,9 @@ function dgLangParam(room) {
 
             if(wasSwype){
                 swype.active=false;
-                remoteLog('swype_attempt',{side:side,pts:swype.pts.length});
+                remoteLog('swype_attempt',{side:side,pts:swype.pts.length,letters:swype.letters.join('')});
                 if(swype.pts.length>=4&&swype.letters.length>=2){haptic(HAPTIC_TAP);resolveSwype(side)}
-                else remoteLog('swype_too_short',{pts:swype.pts.length});
+                else remoteLog('swype_too_short',{pts:swype.pts.length,letters:swype.letters.length});
                 swype.pts=[];swype.letters=[];clearTrail(side);
             }else if(downBtn){
                 press(side,downBtn.dataset.k);           // plain tap — fires on release, same as before
@@ -1767,24 +1691,18 @@ function dgLangParam(room) {
         return top.map(function(c){return c.w});
     }
     function resolveSwype(side){
-        syncEditorSelection(side);
         var dict=getDict(langOf(side));if(!dict){remoteLog('swype_no_dict',{side:side,lang:langOf(side)});return}
         var rects=keyRectsFor(side);
         var top=swRecognize(swype.pts,rects,dict,lmMap(langOf(side),prevWordFor(side)));
-        if(!top.length){remoteLog('swype_no_match',{pts:swype.pts.length,
-            gate:SW_GATE,dict:dict.length,lm:!!getBigram(langOf(side))});return}
-        remoteLog('swype_resolved',{candidates:top.length,lm:!!getBigram(langOf(side))});
+        if(!top.length){remoteLog('swype_no_match',{pts:swype.pts.length,letters:swype.letters.join(''),
+            prev:prevWordFor(side),gate:SW_GATE,dict:dict.length,lm:!!getBigram(langOf(side))});return}
+        remoteLog('swype_resolved',{letters:swype.letters.join(''),top:top.slice(0,5),
+            prev:prevWordFor(side),lm:!!getBigram(langOf(side))});
         haptic(HAPTIC_RESOLVE);
-        var ta=inputEl(side),start=ta.selectionStart,end=ta.selectionEnd;
-        if(start===end){
-            start-=currentWordFragment(side).length;
-            var suffix=ta.value.slice(end).match(/^\S*/);
-            end+=suffix?suffix[0].length:0;
-        }
-        if(ta.value.charAt(end)===' ')end++;
-        ta.setSelectionRange(start,end);insertAt(side,top[0]+' ');
-        offerCandidates(side,top.slice(1,5),'swipe',start,inputEl(side).selectionStart);
-        updatePredictions(side);
+        var frag=currentWordFragment(side);
+        if(frag)replaceComp(side,frag.length,top[0]+' ');
+        else insertAt(side,top[0]+' ');
+        cands[side]=top.slice(1,5);candIdx[side]=-1;acFragLen[side]=0;paintCands(side);   // item 8
     }
     /* Track A: real autocomplete, reading the SAME asset chat-admin's download
        button writes (duck_dict_<lang> in localStorage). No dictionary = no
@@ -1811,19 +1729,17 @@ function dgLangParam(room) {
         if(comp[side].ko||comp[side].raw||comp[side].kana)return;   // IME composition owns the bar
         var lang=langOf(side);
         var dict=getDict(lang);
-        if(!dict){invalidateCandidates(side);return}
-        var ta=inputEl(side);
+        if(!dict){if(cands[side].length){cands[side]=[];candIdx[side]=-1;paintCands(side)}return}
         var frag=currentWordFragment(side);
-        if(!frag){invalidateCandidates(side);updatePredictions(side);return}
-        // A completion must not leave the unselected suffix of a word behind.
-        if(frag.length<(lang==='en'?1:2)||ta.selectionStart!==ta.selectionEnd||/^\S/.test(ta.value.slice(ta.selectionEnd))){invalidateCandidates(side);return}
+        if(!frag||frag.length<2){if(cands[side].length){cands[side]=[];candIdx[side]=-1;paintCands(side)}return}
         var lower=frag.toLowerCase();
         var out=[];
         for(var i=0;i<dict.length&&out.length<5;i++){
             if(dict[i].toLowerCase().indexOf(lower)===0)out.push(dict[i]);
         }
-        offerCandidates(side,out,'completion',ta.selectionStart-frag.length,ta.selectionEnd);
+        cands[side]=out;candIdx[side]=-1;acFragLen[side]=frag.length;paintCands(side);
     }
+    var acFragLen={south:0,north:0};
 
     function compText(side){
         var c=comp[side];
@@ -1831,111 +1747,55 @@ function dgLangParam(room) {
         if(c.kana||c.raw)return c.kana+romajiTail(c.raw);
         return '';
     }
-    // Next words are separate from swipe alternatives: one inserts, the other replaces.
-    function updatePredictions(side){
-        var ta=inputEl(side);
-        predictionTxn[side]=null;
-        if(langOf(side)==='en'&&getBigram('en')&&INPUT.owner===side&&INPUT.mode==='kb'&&
-            ta.selectionStart===ta.selectionEnd&&!currentWordFragment(side)&&
-            !/^\S/.test(ta.value.slice(ta.selectionEnd))){
-            var before=ta.value.slice(0,ta.selectionStart),sentence=!before.trim()||/[.!?]\s*$/.test(before);
-            var words=before.toLowerCase().match(/[a-z]+(?:'[a-z]+)?/g)||[];
-            var prior=lmMap('en',sentence?'':words[words.length-1]);
-            if(!Object.keys(prior).length)prior=lmMap('en','');
-            var next=Object.keys(prior).sort(function(a,b){return prior[a]-prior[b]});
-            predictionTxn[side]={snapshot:editorSnapshot(side),words:next.slice(0,3).map(function(w){
-                return sentence?w.charAt(0).toUpperCase()+w.slice(1):w==='i'?'I':w;
-            })};
-        }
-        paintPredictions(side);
-    }
-    function paintPredictions(side){
-        var kb=kbEl(side);if(!kb)return;
-        var bar=kb.querySelector('.kpredictions');
-        if(!bar){bar=document.createElement('div');bar.className='kpredictions';
-            bar.setAttribute('aria-label','Next word predictions');
-            kb.querySelector('.kcands').after(bar);}
-        bar.replaceChildren();var transaction=predictionTxn[side];
-        bar.style.display=transaction&&transaction.words.length?'flex':'none';
-        if(!transaction)return;
-        transaction.words.forEach(function(word){
-            var button=document.createElement('button');button.type='button';button.className='kcand';
-            button.textContent=word;button.setAttribute('aria-label','Next word: '+word);
-            button.addEventListener('pointerdown',function(e){e.preventDefault()});
-            button.addEventListener('click',function(){
-                if(predictionTxn[side]!==transaction||INPUT.owner!==side||INPUT.mode!=='kb'||
-                    !snapshotMatches(side,transaction.snapshot))return;
-                insertAt(side,word+' ');updatePredictions(side);
-            });bar.appendChild(button);
-        });
-    }
     function paintCands(side){
         var bar=kbEl(side)&&kbEl(side).querySelector('.kcands');if(!bar)return;
-        var undo=undoEdit[side]&&snapshotMatches(side,undoEdit[side].after);
-        if(!cands[side].length&&!undo){bar.innerHTML='';bar.style.display='none';return}
+        if(!cands[side].length){bar.innerHTML='';bar.style.display='none';return}
         bar.style.display='flex';
         bar.innerHTML=cands[side].map(function(c,i){
             return '<button type="button" class="kcand'+(i===candIdx[side]?' on':'')+'" data-i="'+i+'">'+String(c).replace(/[&<>]/g,'')+'</button>'}).join('');
-        var transaction=candidateTxn[side];
         bar.querySelectorAll('.kcand').forEach(function(b){
             b.addEventListener('pointerdown',function(e){e.preventDefault()});
-            b.addEventListener('click',function(){pickCand(side,+b.dataset.i,transaction)});
+            b.addEventListener('click',function(){pickCand(side,+b.dataset.i)});
         });
-        if(undo){
-            var edit=undoEdit[side];
-            var b=document.createElement('button');b.type='button';b.className='kcand';
-            b.dataset.undo='true';b.textContent='↶';
-            b.setAttribute('aria-label',UNDO_LABEL[langOf(side)]||UNDO_LABEL.en);
-            b.title=UNDO_LABEL[langOf(side)]||UNDO_LABEL.en;
-            b.addEventListener('pointerdown',function(e){e.preventDefault()});
-            b.addEventListener('click',function(){undoCorrection(side,edit)});bar.appendChild(b);
-        }
     }
     function inputEl(side){return document.getElementById('in-'+side)}
     function insertAt(side,str){
         var ta=inputEl(side),s=ta.selectionStart,e=ta.selectionEnd;
         ta.value=ta.value.slice(0,s)+str+ta.value.slice(e);
         var p=s+str.length;try{ta.setSelectionRange(p,p)}catch(x){}
-        changedDraft(side);
         updateClear(side);
     }
     function replaceComp(side,oldLen,str){
         var ta=inputEl(side),s=ta.selectionStart;
         ta.value=ta.value.slice(0,s-oldLen)+str+ta.value.slice(s);
         var p=s-oldLen+str.length;try{ta.setSelectionRange(p,p)}catch(x){}
-        changedDraft(side);
         updateClear(side);
     }
     function backspaceAt(side){
         var ta=inputEl(side),s=ta.selectionStart,e=ta.selectionEnd;
         if(s!==e){ta.value=ta.value.slice(0,s)+ta.value.slice(e);try{ta.setSelectionRange(s,s)}catch(x){}}
         else if(s>0){ta.value=ta.value.slice(0,s-1)+ta.value.slice(s);try{ta.setSelectionRange(s-1,s-1)}catch(x){}}
-        changedDraft(side);
         updateClear(side);
     }
     function flushComp(side){
-        var t=compText(side);
-        if(!t||!compositionMatches(side)){resetComposition(side);return}
+        var t=compText(side);if(!t){comp[side]={raw:'',kana:'',ko:null};return}
         var c=comp[side];
         var final=c.ko?hgSyll(c.ko):romajiToKana(c.raw);
         replaceComp(side,t.length,final);
-        resetComposition(side);
+        comp[side]={raw:'',kana:'',ko:null};cands[side]=[];candIdx[side]=-1;paintCands(side);
     }
     function paintComp(side,prevLen){
         var t=compText(side);
         if(prevLen)replaceComp(side,prevLen,t);else if(t)insertAt(side,t);
-        var ta=inputEl(side);
-        compAnchor[side]=t?{value:ta.value,end:ta.selectionStart,lang:langOf(side)}:null;
     }
     function press(side,k){
-        syncEditorSelection(side);
         var lang=langOf(side),ime=numMode[side]?null:(lang==='ko'?'ko':(lang==='ja'?'ja':null));
         if(k==='SHIFT'){shifted[side]=!shifted[side];renderKeys(side);return}
         if(k==='NUM'){flushComp(side);numMode[side]=!numMode[side];shifted[side]=false;renderKeys(side);return}
         if(k==='CLOSE'){teardown('kb-close');return}
         if(k==='ENTER'){
             if(cands[side].length&&candIdx[side]>=0){pickCand(side,candIdx[side]);return}
-            sendTyped(side);return;
+            flushComp(side);sendFrom(side);return;
         }
         if(k==='BKSP'){
             var prev=compText(side).length;
@@ -1947,18 +1807,13 @@ function dgLangParam(room) {
             if(ime==='ja'&&comp[side].raw){
                 comp[side].raw=comp[side].raw.slice(0,-1);
                 comp[side].kana=romajiToKana(comp[side].raw.slice(0,comp[side].raw.length-romajiTail(comp[side].raw).length));
-                invalidateCandidates(side);paintComp(side,prev);return;
+                cands[side]=[];candIdx[side]=-1;paintCands(side);paintComp(side,prev);return;
             }
             backspaceAt(side);updateAutocomplete(side);return;
         }
         if(k===' '){
             if(ime==='ja'&&(comp[side].raw||comp[side].kana)){convertJa(side);return}
-            var acceptedSwipe=candidateTxn[side]&&candidateTxn[side].kind==='swipe'&&
-                snapshotMatches(side,candidateTxn[side].snapshot);
-            flushComp(side);
-            if(!acceptedSwipe)insertAt(side,' ');
-            updateAutocomplete(side);
-            return;
+            flushComp(side);insertAt(side,' ');cands[side]=[];candIdx[side]=-1;paintCands(side);return;
         }
         var prevLen=compText(side).length;
         if(ime==='ko'){
@@ -1974,7 +1829,7 @@ function dgLangParam(room) {
             comp[side].raw+=k.toLowerCase();
             var tail=romajiTail(comp[side].raw);
             comp[side].kana=romajiToKana(comp[side].raw.slice(0,comp[side].raw.length-tail.length));
-            invalidateCandidates(side);
+            cands[side]=[];candIdx[side]=-1;paintCands(side);
             paintComp(side,prevLen);
             if(shifted[side]){shifted[side]=false;relabelKeysOnly(side)}
             return;
@@ -1987,46 +1842,27 @@ function dgLangParam(room) {
         }
         updateAutocomplete(side);
     }
-    function pickCand(side,i,expectedTransaction){
-        var transaction=candidateTxn[side];
-        if(INPUT.owner!==side||INPUT.mode!=='kb'||!transaction||
-            (expectedTransaction&&transaction!==expectedTransaction)||!snapshotMatches(side,transaction.snapshot)){
-            if(!expectedTransaction||transaction===expectedTransaction)invalidateCandidates(side);
-            return;
-        }
+    function pickCand(side,i){
         var c=cands[side][i];if(c==null)return;
-        var before=editorSnapshot(side),ta=inputEl(side),end=transaction.end;
-        var separator=transaction.kind==='composition'?'':' ';
-        // Reuse an existing separator instead of introducing a double space.
-        if(separator&&ta.value.charAt(end)===' ')end++;
-        resetComposition(side);
-        ta.setSelectionRange(transaction.start,end);
-        insertAt(side,c+separator);
-        undoEdit[side]={before:before,after:editorSnapshot(side)};paintCands(side);updatePredictions(side);
-    }
-    // Keyboard boundary only. The original shared speech/send pipeline stays intact.
-    function sendTyped(side){
-        flushComp(side);
-        resetComposition(side);
-        undoEdit[side]=null;
-        sendFrom(side);
+        var comping=comp[side].ko||comp[side].raw||comp[side].kana;
+        if(comping){
+            var cur=compText(side).length;
+            comp[side]={raw:'',kana:'',ko:null};
+            if(cur)replaceComp(side,cur,c);else insertAt(side,c);
+        }else{
+            /* Track A autocomplete: replace the fragment being typed, add a space */
+            replaceComp(side,acFragLen[side]||0,c+' ');
+        }
+        cands[side]=[];candIdx[side]=-1;paintCands(side);
     }
     function convertJa(side){
         var kana=romajiToKana(comp[side].raw);
         if(!kana)return;
-        if(cands[side].length&&candidateTxn[side]&&candidateTxn[side].kind==='composition'&&
-            snapshotMatches(side,candidateTxn[side].snapshot)){
-            candIdx[side]=(candIdx[side]+1)%cands[side].length;paintCands(side);return;
-        }
-        invalidateCandidates(side);
-        var request=conversionRev[side],snapshot=editorSnapshot(side),length=compText(side).length;
-        pendingConversion[side]=snapshot;
+        if(cands[side].length){candIdx[side]=(candIdx[side]+1)%cands[side].length;paintCands(side);return}
         jaCandidates(kana,function(list,err){
-            if(request!==conversionRev[side]||!snapshotMatches(side,snapshot)||!compositionMatches(side))return;
-            if(!list||!list.length)list=[kana];
+            if(!list||!list.length){cands[side]=[kana];candIdx[side]=0;paintCands(side);return}
             if(list.indexOf(kana)<0)list.push(kana);
-            offerCandidates(side,list,'composition',snapshot.start-length,snapshot.end);
-            candIdx[side]=0;paintCands(side);
+            cands[side]=list;candIdx[side]=0;paintCands(side);
         });
     }
     function updateClear(side){
@@ -2077,9 +1913,9 @@ function dgLangParam(room) {
             if(INPUT.owner===side&&INPUT.mode==='mic')teardown('mic-toggle-off');
             else requestInput(side,'mic');
         });
-        strip.querySelector('.sendbtn').addEventListener('click',function(){sendTyped(side)});
+        strip.querySelector('.sendbtn').addEventListener('click',function(){sendFrom(side)});
         strip.querySelector('.clearbtn').addEventListener('click',function(){
-            clearDraft(side);
+            var i=document.getElementById('in-'+side);i.value='';updateClear(side);
         });
         /* TTS button wired directly here — no querySelector, no failure mode */
         strip.querySelectorAll('.tts').forEach(function(btn){
@@ -2095,15 +1931,9 @@ function dgLangParam(room) {
         inp.addEventListener('focus',function(){
             if(!(INPUT.owner===side&&INPUT.mode==='kb'))requestInput(side,'kb');
         });
-        inp.addEventListener('input',function(){
-            resetComposition(side);changedDraft(side);updateClear(side);updateAutocomplete(side);
-        });
-        inp.addEventListener('select',function(){syncEditorSelection(side)});
-        document.addEventListener('selectionchange',function(){
-            if(document.activeElement===inp)syncEditorSelection(side);
-        });
+        inp.addEventListener('input',function(){updateClear(side)});
         inp.addEventListener('keydown',function(e){
-            if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();sendTyped(side)}
+            if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();sendFrom(side)}
         });
         paintTts(side);
     }
@@ -2167,8 +1997,7 @@ function dgLangParam(room) {
         window.addEventListener('pagehide',flushRemoteLog);
         window.addEventListener('error',function(e){remoteLog('js_error',{msg:e.message,line:e.lineno,file:e.filename})});
         var sDict=getDict(langOf('south'));var nDict=getDict(langOf('north'));
-        document.documentElement.dataset.chatBuild=CHAT_BUILD;
-        diag(CHAT_BUILD+' ready — room='+ROOM.label+' south='+ROOM.southLang+'(dict:'+(sDict?sDict.length:'NONE')+') north='+ROOM.northLang+'(dict:'+(nDict?nDict.length:'NONE')+')');
+        diag('chat.html ready — room='+ROOM.label+' south='+ROOM.southLang+'(dict:'+(sDict?sDict.length:'NONE')+') north='+ROOM.northLang+'(dict:'+(nDict?nDict.length:'NONE')+')');
         /* Always re-download dictionaries at room load — ensures fresh data
            without requiring the user to open chat-admin first */
         var DICT_BASE='https://raw.githubusercontent.com/acmeproducts/stuff/main/dict/';
@@ -2180,8 +2009,6 @@ function dgLangParam(room) {
                     if(!Array.isArray(words)||words.length<100)return;
                     try{localStorage.setItem('duck_dict_'+lang,text)}catch(e){return}
                     delete dictCache[lang];
-                    lmMemo={};
-                    if(INPUT.owner&&INPUT.mode==='kb')updateAutocomplete(INPUT.owner);
                     diag('dict '+lang+' updated: '+words.length+' words');
                     toastMsg((LANG_NAMES[lang]||lang)+' dictionary: '+words.length+' words');
                 }).catch(function(e){diag('dict '+lang+' fetch failed: '+e.message,true)});
@@ -2192,7 +2019,6 @@ function dgLangParam(room) {
                 .then(function(bg){
                     if(!bg||typeof bg!=='object')return;
                     bgCache[lang]=bg;lmMemo={};
-                    if(INPUT.owner&&INPUT.mode==='kb')updatePredictions(INPUT.owner);
                     diag('swipe prior '+lang+': '+Object.keys(bg).length+' contexts');
                 }).catch(function(e){diag('swipe prior '+lang+' unavailable ('+e.message+') — shape only')});
         });
@@ -2216,3 +2042,4 @@ function dgLangParam(room) {
 </script>
 </body>
 </html>
+
