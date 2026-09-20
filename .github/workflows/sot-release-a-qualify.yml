@@ -1,0 +1,99 @@
+name: SOT Release A Qualification
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - 'SOT/sot-turn02-release-a-engine.py'
+      - 'SOT/sot-turn02-release-a-server.py'
+      - 'SOT/sot-turn02-pre-base-release-a.html'
+      - 'SOT/sot-turn02-release-a.service'
+      - 'SOT/qualify-release-a.py'
+      - 'install-SOT-turn02-release-a.sh'
+      - '.github/workflows/sot-release-a-qualify.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  qualify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Preserve accepted v8
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git hash-object SOT/sot-turn02-pre-base-v8.html)" = "3828d457d486bd62f015454ab0044bf23e585342"
+          echo "PASS accepted v8 remains byte-for-byte Git blob"
+
+      - name: Python syntax
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 -m py_compile             SOT/sot-turn02-release-a-engine.py             SOT/sot-turn02-release-a-server.py             SOT/qualify-release-a.py
+          echo "PASS Python compile"
+
+      - name: Browser JavaScript syntax and governed UI markers
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+          s=Path("SOT/sot-turn02-pre-base-release-a.html").read_text()
+          assert "<script>" in s and "</script>" in s
+          js=s.rsplit("<script>",1)[1].split("</script>",1)[0]
+          Path("/tmp/sot-release-a.js").write_text(js)
+          required=[
+            "SOT Turn 02 Release A",
+            "const names=['Estate','Analyze','Database','Grid','Plan','Activity']",
+            'type="range" min="1" max="10" step="1"',
+            "Grid View",
+            "Edit Tags",
+            "Assigned Tags",
+            "Edit Notes & Ratings",
+            "Quality Rating",
+            "Content Rating",
+            "Move to Different Folder",
+            "Confirm Delete",
+            "PERMANENT DELETE — SECOND CONFIRMATION",
+            "db-selected",
+            "alternating rows",
+            "subnav(['Analysis','Capacity','Operations']",
+            "IN PLAY",
+            "LANDED",
+            "ESTATE",
+          ]
+          missing=[x for x in required if x not in s]
+          assert not missing,missing
+          assert "IN PLAY - LANDED" not in s
+          assert "window.alert(" not in s and "window.confirm(" not in s and "window.prompt(" not in s
+          assert "Ask AI" not in "const names=['Estate','Analyze','Database','Grid','Plan','Activity']"
+          print("PASS governed Release A UI markers")
+          PY
+          node --check /tmp/sot-release-a.js
+          echo "PASS browser JavaScript syntax"
+
+      - name: Backend safety markers
+        shell: bash
+        run: |
+          set -euo pipefail
+          grep -F 'SCHEMA=12' SOT/sot-turn02-release-a-engine.py
+          grep -F 'placement_state' SOT/sot-turn02-release-a-engine.py
+          grep -F 'system_classification' SOT/sot-turn02-release-a-engine.py
+          grep -F 'delete_authorizations' SOT/sot-turn02-release-a-engine.py
+          grep -F 'ConvertFrom-Json' SOT/sot-turn02-release-a-server.py
+          grep -F '/api/grid/folder/preflight' SOT/sot-turn02-release-a-server.py
+          grep -F '/api/grid/metadata' SOT/sot-turn02-release-a-server.py
+          grep -F '/api/grid/delete' SOT/sot-turn02-release-a-server.py
+          ! grep -F '$args[0]' SOT/sot-turn02-release-a-server.py
+          echo "PASS backend safety contract"
+
+      - name: Destructive disposable-file qualification
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 SOT/qualify-release-a.py
