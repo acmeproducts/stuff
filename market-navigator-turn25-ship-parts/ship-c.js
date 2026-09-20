@@ -71,6 +71,7 @@ function mnxModelHealth(k,h){
   /* Standardised sensitivity: component-scaled shocks (±1 historical SD and historical p95 absolute move),
      never a uniform +-10% raw shock across heterogeneous series. Requires canonical component history. */
   let sens=comps.map(c=>{
+        if(c.transform==='signed_level_sd')return{componentId:c.componentId,displayName:c.displayName,available:false,reason:'Signed-series sensitivity requires level-difference volatility diagnostics; return-based sensitivity is intentionally not substituted.',oneSdShockPercent:null,oneSdIndexImpactPercentPoints:null,p95ShockPercent:null,p95IndexImpactPercentPoints:null};
         let st=mnxSeriesStats(c.componentId);
         if(!st)return{componentId:c.componentId,displayName:c.displayName,available:false,
           reason:'Canonical component history is not loaded; standardized sensitivity is not estimated.',
