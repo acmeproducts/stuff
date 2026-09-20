@@ -383,3 +383,17 @@ Capacity: current free space at the registered TARGET is the 100% denominator. S
 Analysis table must show ESTATE, UNIQUE, DUP, EXCESS, and REVIEW. DUP includes the exact number of all placements participating in repeated-fingerprint groups. EXCESS is exactly the number and bytes of duplicate placements after retaining one copy for each distinct repeated fingerprint. DUP and EXCESS overlap and therefore must not both be additive stacked segments. The composition bar may use mutually exclusive UNIQUE / EXCESS / unresolved-other segments while the table reports all five exact metrics.
 
 Operations: show IN PLAY and LANDED against the current unique SSOT workload. LANDED means physically present on TARGET and independently fingerprint verified. No source is removed from IN PLAY merely because an equivalent fingerprint exists somewhere else.
+
+
+## 42. Plan arithmetic hierarchy and approved visual semantics — binding (2026-09-20)
+This section supersedes §41 wherever §41 conflicts with the rules below. Do not add metrics, explanatory rows, notes, or visual elements beyond this approved structure without owner agreement.
+
+Plan section order is: (1) ANALYSIS RESULTS, (2) BASIC CAPACITY CHECK, (3) OPERATIONS STATUS.
+
+ANALYSIS RESULTS is arithmetic. UNIQUE means fingerprint groups with exactly one placement. DUPLICATE is a parent reporting all placements in repeated-fingerprint groups and is not an additive stacked segment. Its child rows are KEEP = exactly one retained placement per distinct repeated fingerprint, and EXCESS = every additional placement beyond that retained copy. The total row is last and must satisfy UNIQUE + KEEP + EXCESS = ESTATE for both files and bytes. There is no REVIEW row in this Plan table. The stacked bar contains only the mutually exclusive UNIQUE (blue), KEEP (yellow), and EXCESS (red) segments. DUPLICATE is represented as the parent row in the table, not as a fourth bar segment.
+
+BASIC CAPACITY CHECK uses the retained Estate requirement from Analysis: UNIQUE + KEEP. TARGET means current free capacity at the registered TARGET location and is the 100% denominator. OPEN = TARGET - ESTATE. Table order is ESTATE, OPEN, TARGET, with TARGET last so the table reads ESTATE + OPEN = TARGET. The stacked bar is ESTATE (blue) + OPEN (grey/white).
+
+OPERATIONS STATUS table order is IN PLAY, LANDED, ESTATE, with ESTATE last. The arithmetic is IN PLAY - LANDED = ESTATE. The stacked progress bar represents the IN PLAY workload as remaining ESTATE (blue) plus LANDED (white/grey). Until a landing engine supplies verified landing evidence, LANDED remains zero; do not fabricate progress.
+
+The table remains the legend and exact-data surface. Tapping a bar segment opens its exact-value callout with × close. High-contrast approved palette is blue/white/grey generally, with yellow reserved for duplicate KEEP and red reserved for duplicate EXCESS.

@@ -549,3 +549,14 @@ Reject treating PowerShell $input as a reliable redirected-stdin contract for ba
 Reject Plan surfaces that repeat the same fact in metric cards, legends, bars, labels and tables; reject showing underlying TARGET-volume used/total as though the TARGET owns the volume; reject separate legends when the exact-data table can serve as the legend; and reject stacking overlapping DUP and EXCESS values as if they were mutually exclusive.
 
 **Required replacement:** exactly three primary blue-family stacked bars with one compact exact-data table beneath each. The table is the legend. Segment tap opens a dismissible × callout. TARGET capacity means current free capacity at the registered TARGET location. Analysis reports exact DUP and EXCESS counts/bytes while keeping stacked segments mathematically additive.
+
+
+---
+
+## GY-086 — Non-arithmetic Plan tables, REVIEW row, and low-contrast duplicate visualization
+**Status:** REJECTED OWNER UX / PLAN-SEMANTICS PATTERN  
+**Decision date:** 2026-09-20
+
+Reject Plan tables whose rows do not read as explicit arithmetic; reject REVIEW as a Plan composition row; reject treating all distinct fingerprints as UNIQUE when repeated fingerprints require one explicit KEEP placement; reject DUPLICATE as an additive peer of its own KEEP/EXCESS children; and reject low-contrast blue-only duplicate composition.
+
+**Required replacement:** Analysis is UNIQUE + KEEP + EXCESS = ESTATE, with DUPLICATE as the parent of KEEP and EXCESS; Capacity is ESTATE + OPEN = TARGET; Operations is IN PLAY - LANDED = ESTATE. Total/result rows appear last. Analysis stacked bar uses blue UNIQUE, yellow KEEP, red EXCESS; Capacity and Operations use high-contrast blue plus white/grey. No unapproved extra Plan metrics or rows.
