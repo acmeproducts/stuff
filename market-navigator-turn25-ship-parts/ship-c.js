@@ -21,7 +21,7 @@ function mnxSeriesStats(id){
 function mnxModelHealth(k,h){
   let man=mnxManifest(k),r=mnxRecord(k,h);
   r.fingerprint=mnxRecordFingerprint(r);
-  let dataHealth=man.components.map(c=>({componentId:c.id,displayName:c.name,classification:c.dataHealth,expectedCadence:c.expectedCadence,ratioEligible:c.ratioEligible,ratioIneligibleReason:c.ratioIneligibleReason})),
+  let dataHealth=man.components.map(c=>({componentId:c.id,displayName:c.name,classification:c.dataHealth,expectedCadence:c.expectedCadence,transform:c.transform,transformScale:c.transformScale,transformScaleRule:c.transformScaleRule,role:c.role,direction:c.direction,ratioEligible:c.ratioEligible,ratioIneligibleReason:c.ratioIneligibleReason})),
       dataHealthCurrent=dataHealth.filter(c=>c.classification==='current').length,
       base={schema:'market-navigator-model-health-v1',modelId:k,shortName:man.shortName,modelName:man.modelName,
         horizon:h,purpose:man.purpose,definitionVersion:man.definitionVersion,modelHash:man.modelHash,
@@ -75,11 +75,11 @@ function mnxModelHealth(k,h){
         if(!st)return{componentId:c.componentId,displayName:c.displayName,available:false,
           reason:'Canonical component history is not loaded; standardized sensitivity is not estimated.',
           oneSdShockPercent:null,oneSdIndexImpactPercentPoints:null,p95ShockPercent:null,p95IndexImpactPercentPoints:null};
-        let unit=(c.direction*(c.endValue/c.baselineValue)*100)/n; /* index pp per 1.0 proportional shock to end value */
+        let unit=c.transform==='signed_level_sd'?(c.direction/((Number.isFinite(c.transformScale)&&c.transformScale>0)?c.transformScale:1))/n:(c.direction*(c.endValue/c.baselineValue)*100)/n; /* governed transform response */
         return{componentId:c.componentId,displayName:c.displayName,available:true,
           historyObservations:st.observationCount,historyFrom:st.firstObservation,historyTo:st.lastObservation,
-          oneSdShockPercent:st.sd*100,oneSdIndexImpactPercentPoints:unit*st.sd,
-          p95ShockPercent:st.p95*100,p95IndexImpactPercentPoints:unit*st.p95,
+          oneSdShockPercent:st.sd*100,oneSdIndexImpactPercentPoints:c.transform==='signed_level_sd'?null:unit*st.sd,
+          p95ShockPercent:st.p95*100,p95IndexImpactPercentPoints:c.transform==='signed_level_sd'?null:unit*st.p95,
           shockDefinition:'End-value multiplicative shock of +1 historical standard deviation (and historical 95th-percentile absolute move) of the component own observation-to-observation returns, recomputed through the governed composite.'};
       }),
       sensAvailable=sens.filter(x=>x.available),
