@@ -685,6 +685,32 @@ async function gateLibraryPrint(page, origin) {
   await page.click('.nav[data-view="now"]');
 }
 
+async function gateHealthGlossary(page, origin) {
+  gate('Health glossary / MAC self-healing contract');
+  await boot(page, origin);
+  await page.click('.nav[data-view="health"]');
+  await page.waitForSelector('#mnxHealthTabs');
+  eq('Health exposes Sources, Derived Models, Glossary tabs', await page.locator('#mnxHealthTabs [data-mnx-health]').count(), 3);
+  await page.click('#mnxHealthTabs [data-mnx-health="glossary"]');
+  await page.waitForSelector('.mnxGlossary');
+  const txt=await page.locator('.mnxGlossary').innerText();
+  ok('glossary explains effective components', /Effective components/.test(txt));
+  ok('glossary explains lifecycle', /ACTIVE \/ WATCH \/ DEGRADED \/ SUSPENDED/.test(txt));
+  ok('glossary explains FRED acquisition without API key', /public CSV.*authentication none/i.test(txt));
+  ok('glossary identifies zero-crossing-safe MAC transforms', /zero-crossing safe/i.test(txt));
+  const defs=await page.evaluate(()=>({v:S.def.version,macro:S.def.indices.macro.components.map(c=>[c.id,c.transform])}));
+  eq('model definition version advanced for signed-series change', defs.v, '2.3.0');
+  ok('10Y-2Y uses governed signed transform', defs.macro.some(x=>x[0]==='curve10y2y'&&x[1]==='signed_level_sd'));
+  ok('10Y-3M uses governed signed transform', defs.macro.some(x=>x[0]==='curve10y3m'&&x[1]==='signed_level_sd'));
+  const derived=await page.evaluate(()=>S.derived);
+  if(derived.definitionVersion==='2.3.0'){
+    const m=await page.evaluate(()=>window.__mnShip25.modelHealth('macro','5D'));
+    eq('refreshed MAC has all seven governed components', m.componentsAvailable, 7);
+    ok('refreshed signed spreads are not omitted', !(m.omitted||[]).some(o=>o.componentId==='curve10y2y'||o.componentId==='curve10y3m'));
+    ok('refreshed derived evidence persists transform metadata', derived.componentTransforms&&derived.componentTransforms.curve10y2y?.kind==='signed_level_sd'&&derived.componentTransforms.curve10y3m?.kind==='signed_level_sd');
+  }
+}
+
 async function gateRace(page, origin) {
   gate('race / state integrity');
   await boot(page, origin);
@@ -793,6 +819,7 @@ async function gateCrosshairRegression(page, origin) {
     await gateHorizonTruth(page);
     await gateModelHealth(page);
     await gateHealthUI(page);
+    await gateHealthGlossary(page, origin);
     await gateRace(page, origin);
     await gateNowPrint(page, origin);
     await page.__ctx.close();

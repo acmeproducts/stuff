@@ -34,13 +34,13 @@ function mnxModelHash(k){
 }
 function mnxManifest(k){
   let d=mnxDefIndex(k),dc=(S.def&&S.def.display_contract)||{},
-      elig=(S.derived&&S.derived.ratioEligibility)||{},
+      elig=(S.derived&&S.derived.ratioEligibility)||{},transforms=(S.derived&&S.derived.componentTransforms)||{},
       blocks=(S.derived&&S.derived.indices&&S.derived.indices[k]&&S.derived.indices[k].horizons)||{},
       comps=((d&&d.components)||[]).map(c=>{
-        let e=elig[c.id]||{};
-        return{id:c.id,name:mnxCompName(c.id),role:c.role||'',direction:c.direction,
+        let e=elig[c.id]||{},t=transforms[c.id]||{},kind=c.transform||t.kind||'ratio';
+        return{id:c.id,name:mnxCompName(c.id),role:c.role||'',direction:c.direction,transform:kind,transformScale:t.scale??null,transformScaleRule:t.scaleRule||'',
                expectedCadence:mnxCompCadence(c.id),dataHealth:mnxCompHealth(c.id),
-               ratioEligible:e.eligible!==false,ratioIneligibleReason:e.eligible===false?(e.reason||''):null};
+               ratioEligible:kind==='ratio'&&e.eligible!==false,ratioIneligibleReason:kind!=='ratio'?`not applicable — governed ${kind} transform`:e.eligible===false?(e.reason||''):null};
       });
   return{schema:'market-navigator-model-manifest-v1',modelId:k,modelName:(d&&d.name)||k,shortName:AB[k]||k,
     purpose:'DESCRIPTIVE',purposeBasis:dc.interpretation_rule||'',
@@ -49,7 +49,7 @@ function mnxManifest(k){
     higherMeans:(d&&d.higher_means)||'',
     componentFormula:dc.component_formula||'',indexFormula:dc.index_formula||'',weightingRule:dc.weighting||'',
     renormalizationRule:'Each available component carries weight 1/n where n is the number of components available at the horizon; components excluded by the governed ratio-eligibility rule are omitted and the remaining weights renormalise through the arithmetic mean.',
-    missingStaleRule:dc.mixed_frequency_rule||'',ratioEligibilityRule:dc.ratio_eligibility_rule||'',
+    missingStaleRule:dc.mixed_frequency_rule||'',ratioEligibilityRule:dc.ratio_eligibility_rule||'',signedSeriesRule:dc.signed_series_rule||'',
     nonpositiveBaselineRule:dc.nonpositive_baseline_rule||'',
     components:comps,componentsDefined:comps.length,excludedComponents:(d&&d.excluded_components)||[],
     methodologyHistory:[{effectiveDate:(S.def&&S.def.effective_date)||'',definitionVersion:(S.def&&S.def.version)||'',definitionStatus:(S.def&&S.def.status)||'',note:(d&&d.construction_detail)||'Accepted governed definition.'}],
@@ -79,15 +79,15 @@ function mnxRecord(k,h){
   if(!n)return Object.assign({},head,{status:'UNAVAILABLE',statusReason:`No governed component attribution is available for ${man.shortName} at horizon ${h}.`,missingPrerequisite:'eligible component observations',componentsUsed:0,components:[],omitted:omitted,replication:null,reconciliation:null});
   let w=1/n,anchorNow=b.commonNow||'',anchorT0=b.commonT0||'',
       components=raw.map(c=>{
-        let dm=defMap[c.id]||{},contribution=(+c.moveFrom100)*w;
+        let dm=defMap[c.id]||{},contribution=(+c.moveFrom100)*w,kind=c.transform||dm.transform||'ratio';
         return{componentId:c.id,displayName:dm.name||mnxCompName(c.id),role:dm.role||'',
           direction:+c.direction,weight:w,weightRule:`1/${n} equal weight over components available at this horizon`,
-          transform:man.componentFormula,
+          transform:kind,transformScale:Number.isFinite(+c.transformScale)?+c.transformScale:null,transformScaleRule:c.transformScaleRule||'',
           baselineObservationDate:c.sourceT0Date||'',baselineValue:+c.t0Value,
           endObservationDate:c.sourceNowDate||'',endValue:+c.nowValue,
           horizonBaselineDate:c.commonT0||anchorT0,horizonEndDate:c.commonNow||anchorNow,
           observationAlignedToAnchor:(c.sourceNowDate||'')===(c.commonNow||anchorNow),
-          rawMovementPercent:(((+c.nowValue)/(+c.t0Value))-1)*100,
+          rawMovement:+c.nowValue-(+c.t0Value),rawMovementPercent:Number.isFinite(+c.rawMovementPercent)?+c.rawMovementPercent:((+c.t0Value)!==0?(((+c.nowValue)/(+c.t0Value))-1)*100:null),
           orientedIndex:+c.orientedIndex,orientedMovementPercent:+c.moveFrom100,
           indexContributionPercentPoints:contribution,
           dataHealth:c.health||mnxCompHealth(c.id),
@@ -95,7 +95,7 @@ function mnxRecord(k,h){
           expectedCadence:dm.expectedCadence||mnxCompCadence(c.id),
           sourceRevision:man.evidenceRevision,estimated:false};
       }),
-      replicatedOriented=raw.map(c=>100+(+c.direction)*((((+c.nowValue)/(+c.t0Value)))-1)*100),
+      replicatedOriented=raw.map(c=>{let kind=c.transform||(defMap[c.id]&&defMap[c.id].transform)||'ratio';return kind==='signed_level_sd'?100+(+c.direction)*(((+c.nowValue)-(+c.t0Value))/(+c.transformScale)):100+(+c.direction)*((((+c.nowValue)/(+c.t0Value)))-1)*100}),
       maxComponentError=replicatedOriented.reduce((a,v,i)=>Math.max(a,Math.abs(v-(+raw[i].orientedIndex))),0),
       recomputedIndex=replicatedOriented.reduce((a,x)=>a+x,0)/n,
       publishedIndex=+b.value,
