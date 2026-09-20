@@ -3,7 +3,6 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
-<meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="theme-color" content="#0b1e3a">
 <title>Snowman Coal-Cart Line Rider</title>
 <style>
@@ -17,7 +16,7 @@
   #hud .score{font-size:28px;font-weight:800;letter-spacing:1px;}
   #hud .best{font-size:13px;font-weight:600;opacity:.85;}
   #hud .timer{font-size:22px;font-weight:700;color:#8cff5a;min-width:64px;text-align:center;}
-  #hint{position:fixed;bottom:calc(env(safe-area-inset-bottom,0px) + 100px);left:12px;right:12px;
+  #hint{position:fixed;bottom:calc(env(safe-area-inset-bottom,0px) + 120px);left:12px;right:12px;
     text-align:center;pointer-events:none;color:#eaf6ff;font-size:15px;
     text-shadow:0 2px 6px rgba(0,0,0,.75);z-index:5;}
   #overlay{position:fixed;inset:0;display:none;align-items:center;justify-content:center;
@@ -28,29 +27,25 @@
   #overlay .cta{margin-top:18px;font-size:18px;font-weight:800;animation:pulse 1.2s infinite;}
   @keyframes pulse{0%,100%{opacity:1}50%{opacity:.35}}
 
+  #ctrlRow{
+    position:fixed;bottom:calc(env(safe-area-inset-bottom,0px) + 18px);
+    left:0;right:0;display:flex;justify-content:center;align-items:center;gap:12px;
+    padding:0 12px;z-index:10;pointer-events:none;
+  }
   .ctrl-btn{
-    position:fixed;bottom:calc(env(safe-area-inset-bottom,0px) + 24px);
-    height:64px;z-index:10;
-    border:none;border-radius:16px;font-weight:900;font-size:14px;letter-spacing:0.5px;
-    color:#fff;text-shadow:0 1px 3px rgba(0,0,0,.6);
+    height:64px;min-width:100px;padding:0 16px;border-radius:16px;border:none;
+    font-weight:900;font-size:15px;letter-spacing:0.5px;color:#fff;
+    text-shadow:0 1px 3px rgba(0,0,0,.6);
     box-shadow:0 6px 18px rgba(0,0,0,.45), inset 0 0 0 2px rgba(255,255,255,.25);
-    display:flex;align-items:center;justify-content:center;pointer-events:auto;
+    pointer-events:auto;display:flex;align-items:center;justify-content:center;
     -webkit-tap-highlight-color:transparent;touch-action:manipulation;
-    transition:transform .06s ease, opacity .15s ease;
-    user-select:none;min-width:110px;padding:0 16px;
-    opacity:1;filter:none;
+    transition:transform .06s ease, filter .15s ease;user-select:none;
+    background:linear-gradient(180deg,#444,#222);
   }
   .ctrl-btn:active{transform:scale(0.92);}
-  /* never grey out: .disabled rule removed per user request */
-
-  #btn-rescue{
-    left:max(16px, env(safe-area-inset-left, 0px));
-    background:linear-gradient(180deg,#00eaff,#0077aa);
-  }
-  #btn-flip{
-    right:max(16px, env(safe-area-inset-right, 0px));
-    background:linear-gradient(180deg,#ffd700,#ff8c00);
-  }
+  #btnRescue{background:linear-gradient(180deg,#ffaa00,#cc7700);} /* orange-ish default, will vary per state if desired, but static ok */
+  #btnBack{background:linear-gradient(180deg,#00aaff,#0077aa);} /* blue for back? user didnt specify colors for buttons, keeping distinct */
+  #btnFront{background:linear-gradient(180deg,#ff4444,#cc0000);} /* red for front? or swap */
 </style>
 </head>
 <body>
@@ -69,8 +64,11 @@
   <div class="cta">TAP TO RIDE AGAIN</div>
 </div>
 
-<button id="btn-rescue" class="ctrl-btn" aria-label="Rescue">RESCUE x3</button>
-<button id="btn-flip" class="ctrl-btn" aria-label="360 Flip">FLIP</button>
+<div id="ctrlRow">
+  <button id="btnBack" class="ctrl-btn" aria-label="Back Flip">BACK &lt;</button>
+  <button id="btnRescue" class="ctrl-btn" aria-label="Rescue">RESCUE x3</button>
+  <button id="btnFront" class="ctrl-btn" aria-label="Front Flip">FRONT &gt;</button>
+</div>
 
 <script>
 (function(){
@@ -81,11 +79,11 @@ var elScore=document.getElementById('score'),elBest=document.getElementById('bes
     elTimer=document.getElementById('timer'),elHint=document.getElementById('hint'),
     elOverlay=document.getElementById('overlay'),elFinal=document.getElementById('finalScore'),
     elBreak=document.getElementById('finalBreakdown'),
-    btnRescue=document.getElementById('btn-rescue'),btnFlip=document.getElementById('btn-flip');
+    btnRescue=document.getElementById('btnRescue'),btnBack=document.getElementById('btnBack'),btnFront=document.getElementById('btnFront');
 
 var W=0,H=0,DPR=1,zoom=1;
 var stars=[],flakes=[];
-var ST={READY:0,RUN:1,FALL:2,SUCK:3,OVER:4};
+var ST={READY:0,RUN:1,FALL:2,RESCUE_EDIT:3,SUCK:4,OVER:5};
 var state=ST.READY;
 
 var tracks=[],editTrack=0;
@@ -109,10 +107,7 @@ var survivalSeconds=0;
 var runStartTime=0;
 var isTiming=false;
 var baseScore=0; // points from pages and flips
-
-// Flip double-tap detection
-var lastFlipTap=0;
-var flipTapTimer=null;
+var rescueEditTrackIndex=-1;
 
 function beep(f,dur){
   dur=dur||140;
@@ -151,7 +146,7 @@ function stepFlakes(dt){
   }
 }
 
-function mkTrack(){return{pts:[],cum:[0],totalLen:0,color:'#caa06a',rescue:false};}
+function mkTrack(col){return{pts:[],cum:[0],totalLen:0,color:col||'#caa06a',rescue:false};}
 function addPoint(ti,x,y){
   var tr=tracks[ti];if(!tr)return;
   if(tr.pts.length===0){tr.pts.push({x:x,y:y});return;}
@@ -190,7 +185,6 @@ function nearestOnAnyTrack(x,y){
 function toWorld(cx,cy){return{x:cx/zoom+camX,y:cy/zoom+camY};}
 function updateButtonText(){
   btnRescue.textContent='RESCUE x'+Math.max(0,rescueCharges);
-  btnFlip.textContent=(state===ST.FALL&&cart.flip)?'FLIPPING':'FLIP';
 }
 function formatTime(sec){
   var m=Math.floor(sec/60),s=Math.floor(sec%60);
@@ -205,7 +199,7 @@ function reset(){
   cart={track:0,s:0,v:0,x:0,y:0,ang:0,flip:0,flipAng:0};
   var p=pointAt(0,0);cart.x=p.x;cart.y=p.y;cart.ang=p.ang;
   baseScore=0;maxPage=0;floaters=[];fall.t=0;
-  rescueCharges=3;
+  rescueCharges=3;rescueEditTrackIndex=-1;
   survivalSeconds=0;isTiming=false;runStartTime=0;
   zoom=1;resize();snapCamera();
   elOverlay.style.display='none';
@@ -218,12 +212,17 @@ function snapCamera(){
   camX=Math.max(-10,e.x-W*0.58/zoom);camY=e.y-H*0.55/zoom;
 }
 function release(s,trackIdx){
-  if(state!==ST.READY)return;
-  state=ST.RUN;cart.track=trackIdx||0;cart.s=s;cart.v=2;cart.flip=0;cart.flipAng=0;
+  if(state!==ST.READY && state!==ST.RESCUE_EDIT)return;
+  var oldState=state;
+  state=ST.RUN;cart.track=trackIdx||0;cart.s=s;cart.v=Math.max(400,Math.abs(cart.v));cart.flip=0;cart.flipAng=0;
   var p=pointAt(cart.track,cart.s);cart.x=p.x;cart.y=p.y;cart.ang=p.ang;
-  runStartTime=performance.now();isTiming=true;
-  elHint.textContent='Go! Draw ahead to survive • Rescue x3 • Flip when falling';
-  beep(520,100);
+  if(!isTiming){runStartTime=performance.now();isTiming=true;}
+  elHint.textContent='Draw ahead to stay alive. Rescue when falling!';
+  if(oldState===ST.RESCUE_EDIT){
+    beep(520,100);beep(660,100);
+  }else{
+    beep(520,100);
+  }
   updateButtonText();
 }
 function startFallOffTrack(reason){
@@ -241,7 +240,7 @@ function landOnTrack(ti,s){
   cart.track=ti;cart.s=s;cart.x=p.x;cart.y=p.y;cart.ang=p.ang;
   var dot=fall.vx*Math.cos(p.ang)+fall.vy*Math.sin(p.ang);
   cart.v=Math.min(VMAX,Math.max(-VMAX,dot));
-  state=ST.RUN;stuckT=0;
+  state=ST.RUN;
   if(!isTiming){runStartTime=performance.now();isTiming=true;}
   if(cart.flip===2){
     var bonus=tracks[ti]&&tracks[ti].rescue?500:1000;
@@ -253,43 +252,45 @@ function landOnTrack(ti,s){
   updateButtonText();
 }
 function doRescue(){
-  // Always works (consumes charge if available)
+  // Only during FALL
+  if(state!==ST.FALL){
+    beep(200,100);beep(200,100);
+    return;
+  }
   if(rescueCharges<=0){
     addFloater(cart.x,cart.y,'NO CHARGES','#ff4444');
     beep(150,100);beep(150,100);
     return;
   }
   rescueCharges--;
+  // Determine color by charges remaining (after decrement): 2->orange, 1->blue, 0->red
+  var col='#ffaa00';
+  if(rescueCharges===1)col='#00aaff';
+  if(rescueCharges===0)col='#ff3333';
   var idx=tracks.length;
-  var rt=mkTrack();rt.color='#00eaff';rt.rescue=true;tracks.push(rt);
-  var yOffset=state===ST.FALL?80:20;
-  addPoint(idx,cart.x-30,cart.y+yOffset);
-  addPoint(idx,cart.x+30,cart.y+yOffset);
-  if(state===ST.FALL){
-    landOnTrack(idx,15);
-    cart.v=Math.max(200,Math.abs(cart.v));
-  }else{
-    cart.track=idx;cart.s=15;cart.v=0;
-    var p=pointAt(idx,15);cart.x=p.x;cart.y=p.y;cart.ang=p.ang;
-    state=ST.READY;
-    elHint.textContent='Rescue track! Extend it, then tap cart to go.';
-  }
-  beep(900,160);beep(1200,120);
+  var tr=mkTrack(col);tr.rescue=true;tracks.push(tr);
+  rescueEditTrackIndex=idx;
+  editTrack=idx;
+  // Freeze: enter RESCUE_EDIT
+  state=ST.RESCUE_EDIT;
+  elHint.textContent='Rescue mode! Draw a line, then tap the cart to go.';
+  beep(900,160);
   updateButtonText();
 }
-function triggerFlip(isBackward){
-  if(cart.flip!==0)return; // already flipping
+function triggerFlip(isFront){
+  if(state!==ST.FALL)return;
   cart.flip=1;cart.flipAng=0;
-  if(isBackward){
-    var boost=450;
-    fall.vx=-Math.cos(cart.ang)*boost;
-    fall.vy=-Math.abs(Math.sin(cart.ang))*boost-150;
-    beep(330,140);beep(250,140);
-  }else{
-    var boost=1100;
-    fall.vx=Math.cos(cart.ang)*boost;
-    fall.vy=-Math.abs(Math.sin(cart.ang))*boost-400;
+  if(isFront){
+    var boost=1400;
+    fall.vx+=Math.cos(cart.ang)*boost;
+    fall.vy-=Math.abs(Math.sin(cart.ang))*boost*0.35+300;
     beep(440,120);beep(660,120);
+  }else{
+    var boostUp=900, boostBack=300;
+    fall.vy-=boostUp;
+    fall.vx-=Math.cos(cart.ang)*boostBack;
+    fall.spin=-10;
+    beep(330,140);beep(250,140);
   }
   updateButtonText();
 }
@@ -312,9 +313,8 @@ function gameOver(){
 
 function addFloater(x,y,text,color){floaters.push({x:x,y:y,text:text,color:color||'#fff',t:0});}
 
-var stuckT=0;
 function update(dt){
-  if(isTiming&&state===ST.RUN){
+  if(isTiming&&(state===ST.RUN||state===ST.FALL)){
     var now=performance.now();
     var current=survivalSeconds+(now-runStartTime)/1000;
     elTimer.textContent=formatTime(Math.floor(current));
@@ -322,9 +322,17 @@ function update(dt){
     elTimer.textContent=formatTime(Math.floor(survivalSeconds));
   }
 
+  if(state===ST.RESCUE_EDIT){
+    // Camera follows cart position but freezes physics
+    camX+=(cart.x-W*0.35/zoom - camX)*Math.min(1,dt*5);
+    camY+=(cart.y-H*0.55/zoom - camY)*Math.min(1,dt*5);
+    return;
+  }
+
   var tx,ty;
   if(state===ST.READY){var e=tracks[editTrack].pts[tracks[editTrack].pts.length-1];tx=e.x-W*0.58/zoom;ty=e.y-H*0.55/zoom;}
-  else{tx=cart.x-W*0.35/zoom;ty=cart.y-H*0.55/zoom;}
+  else if(state===ST.RUN||state===ST.FALL){tx=cart.x-W*0.35/zoom;ty=cart.y-H*0.55/zoom;}
+  else if(state===ST.SUCK||state===ST.OVER){tx=camX;ty=camY;}
   var k=Math.min(1,dt*5);camX+=(tx-camX)*k;camY+=(ty-camY)*k;
 
   if(state===ST.RUN){
@@ -340,7 +348,6 @@ function update(dt){
     var p=pointAt(cart.track,cart.s);cart.x=p.x;cart.y=p.y;cart.ang=p.ang;
     var page=Math.floor(cart.x/pageW);
     if(page>maxPage){maxPage=page;baseScore+=100;addFloater(cart.x,cart.y-50,'+100','#8cff5a');beep(880,100);}
-    if(Math.abs(cart.v)<3&&Math.abs(G*Math.sin(p0.ang))<30){stuckT+=dt;if(stuckT>2){elHint.textContent='Stuck? Hit RESCUE!';}}else{stuckT=0;}
   }else if(state===ST.FALL){
     fall.t+=dt;
     if(cart.flip===1){
@@ -353,7 +360,6 @@ function update(dt){
     var land=nearestOnAnyTrack(cart.x,cart.y);
     if(land.d<28&&land.d<Math.abs(fall.vy)*0.06+12){landOnTrack(land.track,land.s);return;}
     if(cart.y>Math.max(H/zoom,camY+H/zoom)+280||fall.t>8){hole.x=cart.x;hole.y=cart.y+180;die();}
-    updateButtonText();
   }else if(state===ST.SUCK){
     suck.t+=dt;
     var dx=hole.x-cart.x,dy=hole.y-cart.y,d=Math.hypot(dx,dy)||1;
@@ -381,11 +387,11 @@ function draw(){
     for(var j=1;j<tr.pts.length;j++)ctx.lineTo(tr.pts[j].x,tr.pts[j].y);
     ctx.strokeStyle='#5b3a1a';ctx.lineWidth=8/zoom;ctx.stroke();
     ctx.strokeStyle=tr.color;ctx.lineWidth=3/zoom;ctx.stroke();
-    if(tr.rescue){ctx.strokeStyle='rgba(0,255,255,0.4)';ctx.lineWidth=7/zoom;ctx.stroke();}
+    if(tr.rescue){ctx.strokeStyle='rgba(255,255,255,0.4)';ctx.lineWidth=7/zoom;ctx.stroke();}
   }
-  if(state===ST.READY){
-    var tr=tracks[editTrack];if(tr&&tr.pts.length){
-      var e=tr.pts[tr.pts.length-1],t=performance.now()/250;
+  if(state===ST.READY||state===ST.RESCUE_EDIT){
+    var et=tracks[editTrack];if(et&&et.pts.length){
+      var e=et.pts[et.pts.length-1],t=performance.now()/250;
       ctx.beginPath();ctx.arc(e.x,e.y,7+Math.sin(t)*3,0,7);
       ctx.fillStyle='rgba(255,220,120,.9)';ctx.fill();
     }
@@ -434,17 +440,8 @@ function drawHole(){
 var drawing=false,moved=false,downX=0,downY=0,pinchStartDist=0,startZoom=1;
 
 btnRescue.addEventListener('pointerdown',function(e){e.preventDefault();e.stopPropagation();doRescue();});
-btnFlip.addEventListener('pointerdown',function(e){
-  e.preventDefault();e.stopPropagation();
-  var now=performance.now(),dt=now-lastFlipTap;
-  if(dt<280){
-    if(flipTapTimer){clearTimeout(flipTapTimer);flipTapTimer=null;}
-    triggerFlip(true);
-  }else{
-    flipTapTimer=setTimeout(function(){triggerFlip(false);},260);
-  }
-  lastFlipTap=now;
-});
+btnFront.addEventListener('pointerdown',function(e){e.preventDefault();e.stopPropagation();triggerFlip(true);});
+btnBack.addEventListener('pointerdown',function(e){e.preventDefault();e.stopPropagation();triggerFlip(false);});
 
 window.addEventListener('pointerdown',function(e){
   if(e.target.closest('.ctrl-btn'))return;
@@ -455,7 +452,7 @@ window.addEventListener('pointerdown',function(e){
   }
   downX=e.clientX;downY=e.clientY;moved=false;
   if(state===ST.OVER){reset();return;}
-  if(state===ST.READY||state===ST.RUN||state===ST.FALL){
+  if(state===ST.READY||state===ST.RUN||state===ST.RESCUE_EDIT){
     drawing=true;
   }
 },{passive:false});
@@ -478,10 +475,29 @@ window.addEventListener('pointerup',function(e){
   pointers.delete(e.pointerId);if(pointers.size<2)pinchStartDist=0;
   if(e.target.closest('.ctrl-btn'))return;
   var wasDrawing=drawing;drawing=false;
+  if(state===ST.OVER)return;
   if(state===ST.READY&&wasDrawing&&!moved){
     var w=toWorld(e.clientX,e.clientY),best=nearestOnAnyTrack(w.x,w.y);
     if(best.d<50)release(best.s,best.track);
     else addFloater(w.x,w.y,'Tap the track','#ffd76a');
+  }else if(state===ST.RESCUE_EDIT&&wasDrawing&&!moved){
+    // Check if tapped near cart to resume
+    var w=toWorld(e.clientX,e.clientY);
+    if(Math.hypot(w.x-cart.x,w.y-cart.y)<60){
+      // Place cart at start of rescue track or nearest point on it
+      var rt=tracks[rescueEditTrackIndex];
+      if(rt&&rt.pts.length>=2){
+        var p0=rt.pts[0],p1=rt.pts[1];
+        var ang=Math.atan2(p1.y-p0.y,p1.x-p0.x);
+        release(0,rescueEditTrackIndex);
+      }else{
+        addFloater(cart.x,cart.y,'Draw a line first!','#ffaa00');
+      }
+    }else{
+      // Just add point if moved false but we are in drawing mode? Actually if not moved and not tapping cart, ignore or add single point?
+      // To support single dot lines, treat as addPoint:
+      addPoint(editTrack,w.x,w.y);
+    }
   }
 });
 window.addEventListener('pointercancel',function(){drawing=false;pointers.clear();pinchStartDist=0;});
