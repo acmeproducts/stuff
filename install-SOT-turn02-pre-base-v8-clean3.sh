@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 set -euo pipefail
-REF="1554ce97149a279b5c05608e8a8fa8e3201cff72"
+REF="d1009376e871ab3b822ab19c9fd091ac3839def5"
 ROOT="$HOME/.sot-turn02/v8-clean3"; BASE="https://raw.githubusercontent.com/acmeproducts/stuff/$REF"
 mkdir -p "$ROOT/SOT" "$HOME/.config/systemd/user" "$HOME/.sot-turn02"
 for f in sot-turn02-v8-clean3-engine.py sot-turn02-v8-clean3-server.py sot-turn02-v8-clean3.service sot-turn02-pre-base-v8.html; do
@@ -95,6 +95,17 @@ print("PASS independent local health",x["version"],"schema",x["schema"],"db",x["
 import urllib.request
 z=json.load(urllib.request.urlopen("http://127.0.0.1:8765/api/target"));assert z["ok"] and "configured" in z["target"],z
 print("PASS TARGET backend configuration endpoint")
+if z["target"].get("configured"):
+ t=z["target"];assert t.get("free_bytes") is not None and t.get("total_bytes") is not None,(t)
+ print("PASS TARGET current capacity evidence",t["free_bytes"],t["total_bytes"])
+PY
+# One-time/idempotent Created backfill for existing Windows-backed placements. New missing values can be backfilled from Analyze.
+python3 - <<'PY'
+import json,urllib.request
+req=urllib.request.Request("http://127.0.0.1:8765/api/creation/backfill",data=b"{}",headers={"Content-Type":"application/json"},method="POST")
+try:
+ z=json.load(urllib.request.urlopen(req,timeout=1800));r=z["result"];print("PASS one-time Created backfill",r["updated"],"updated",r["unavailable"],"unavailable")
+except Exception as e:print("WARN one-time Created backfill",e)
 PY
 tailscale serve --bg --https=443 --set-path=/sot http://127.0.0.1:8765 >/dev/null
 DNS="$(tailscale status --json | python3 -c 'import json,sys;print(json.load(sys.stdin)["Self"]["DNSName"].rstrip("."))')"
