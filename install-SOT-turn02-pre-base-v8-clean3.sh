@@ -1,9 +1,9 @@
 #!/usr/bin/env bash
 set -euo pipefail
-REF="1c9082d2fb5562a560853a85c09bb192557260d4"
+REF="a93108a457b57bf7de44ed8ff3c1d2572bab45df"
 ROOT="$HOME/.sot-turn02/v8-clean3"; BASE="https://raw.githubusercontent.com/acmeproducts/stuff/$REF"
 mkdir -p "$ROOT/SOT" "$HOME/.config/systemd/user" "$HOME/.sot-turn02"
-for f in sot-turn02-v8-clean3-engine.py sot-turn02-v8-clean3-server.py sot-turn02-v8-clean3.service sot-turn02-pre-base-v8.html; do
+for f in sot-turn02-v8-clean3-engine.py sot-turn02-v8-clean3-server.py sot-turn02-v8-clean3.service sot-turn02-pre-base-v9.html; do
   curl -fsSL "$BASE/SOT/$f" -o "$ROOT/SOT/$f"
 done
 python3 -m py_compile "$ROOT/SOT/sot-turn02-v8-clean3-engine.py" "$ROOT/SOT/sot-turn02-v8-clean3-server.py"
@@ -77,7 +77,9 @@ with tempfile.TemporaryDirectory() as td:
  assert {r["placement_no"] for r in rows2}==first_nums
  assert len({(r["source_id"],r["path"]) for r in rows2})==1800
  assert all(r["fingerprint"] for r in rows2)
+ tags=st.rows("SELECT system_tag,COUNT(*) n FROM placements GROUP BY system_tag");assert tags==[{"system_tag":"UNIQUE","n":1800}],tags
  print("PASS repeat scan stable 1800-placement catalog + immutable numbers + fingerprint reuse gate")
+ print("PASS Grid system classification UNIQUE / deterministic KEEP / EXCESS engine contract")
  print("PASS max concurrent DB read/probe latency %.3fs" % max(lat))
  st.close()
 PY
@@ -121,4 +123,4 @@ import json
 x=json.load(open("/tmp/sot-https.json"));assert x["ok"] and x["schema"]==11,x
 print("PASS shared-origin /sot HTTPS health")
 PY
-printf 'APP https://acmeproducts.github.io/stuff/SOT/sot-turn02-pre-base-v8.html?v=%s&api=https%%3A%%2F%%2F%s%%2Fsot\n' "$REF" "$DNS"
+printf 'APP https://acmeproducts.github.io/stuff/SOT/sot-turn02-pre-base-v9.html?v=%s&api=https%%3A%%2F%%2F%s%%2Fsot\n' "$REF" "$DNS"
