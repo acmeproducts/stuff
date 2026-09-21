@@ -657,6 +657,18 @@ A candidate fails if any item below fails:
 34. Full existing SOT qualification suite remains green.
 
 
+### 43.17 Release A owner correction — binding (2026-09-20)
+Owner test of Release A establishes the following correction contract. These are scoped Release A presentation/interaction fixes and do not authorize Ask AI work or other product changes.
+
+1. **Tag commit timing:** the Grid Edit Tags input commits non-empty comma-separated tags on either Enter or input blur. Enter and blur share one idempotent commit path so one edit cannot be submitted twice. Successful commit refreshes Assigned Tags/Recently Used Tags from backend truth.
+2. **Tag modal close affordance:** Edit Tags has no footer Close button. It uses a single × close affordance at the upper-right of the modal. Closing does not invent or discard an already-triggered tag commit.
+3. **Plan mobile width:** each Plan subtab table must fit the available mobile content width without the old fixed/minimum-width expansion or unused whitespace. Item / Files / Size / Percent columns use compact fixed proportions and remain readable without horizontal page/table fighting.
+4. **Database Path projection:** Database displays/copies/exports Path as the parent directory only; filename remains exclusively in Filename. The authoritative full physical path remains internal evidence.
+5. **Database horizontal position:** Database rerenders caused by row selection, sorting, polling, or other local state changes preserve the current horizontal and vertical table scroll position. Rerender must not snap the evidence grid back to the left edge.
+6. Publish this correction in a new bumped artifact; preserve Release A and the accepted v8 baseline byte-for-byte.
+7. Qualification must prove browser JavaScript syntax plus static contract checks for Enter+blur tag commit, upper-right × without Tag footer Close, compact Plan table geometry, parent-directory Path projection, and Database scroll restoration.
+
+
 ## 44. Ask AI surface — binding design and implementation plan (2026-09-20)
 
 ### 44.1 Purpose
