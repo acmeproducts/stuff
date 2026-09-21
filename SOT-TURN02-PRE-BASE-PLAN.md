@@ -1296,3 +1296,16 @@ Release B qualification must verify:
 10. Task Card/task stage visibly records the query criteria;
 11. compose receives a task-specific editable default prompt; and
 12. AI polling does not replace the full active surface on every poll.
+
+
+## 2026-09-21 — PLAN / REPORT COMPACT COLUMN LAYOUT — BINDING
+
+The Plan/report tables must use content-sized columns rather than stretching columns across the available card width.
+
+- Item / Files / Size / Percent columns collapse to the width required by their visible content.
+- Do not force the Plan/report table to 100% width.
+- Do not impose a mobile minimum table width.
+- Do not insert artificial blank space between report columns.
+- Keep normal compact cell padding so values remain readable/tappable.
+- Horizontal scrolling is allowed only when the actual content width exceeds the viewport.
+- This is presentation-only; Plan arithmetic, row order, labels, bars, totals, and subtab behavior remain unchanged.

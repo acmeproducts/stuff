@@ -718,3 +718,14 @@ Rejected and must not return:
 - Task Cards that omit the search criteria used for their evidence scope.
 
 Required replacement: stable Database DOM/scroll behavior; darker charcoal zebra; left-side viewer launch + 25-character filename presentation with full-name copy; one shared Database/Grid OMNISEARCH; AI scope equals current shared search, with blank search meaning Entire SOT; Task Cards persist the criteria; task-specific prompt is prefilled and editable; AI polling updates only running task state without full-surface flicker.
+
+
+## 2026-09-21 — PLAN / REPORT COLUMN LAYOUT NEGATIVE RULES
+
+Rejected and must not return:
+
+- Plan/report tables stretched to 100% width when their content does not require it.
+- Mobile-only minimum widths that create avoidable horizontal whitespace.
+- Artificially wide gaps between Item / Files / Size / Percent columns.
+
+Required replacement: content-sized compact report columns with only normal cell padding; horizontal scrolling only when the actual content requires it.
