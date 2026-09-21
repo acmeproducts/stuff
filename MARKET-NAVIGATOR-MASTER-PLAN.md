@@ -2,7 +2,7 @@
 
 Status: AUTHORITATIVE PRODUCT / BUILD / QUALIFICATION PLAN
 Updated: 2026-09-21
-Planning state: **PLAN ONLY — NO APPLICATION CODE AUTHORIZED BY THIS UPDATE**
+Planning state: **TURN 26 IMPLEMENTATION AUTHORIZED — 2026-09-21**
 Target artifact: **`market-navigator-turn26-ship.html`**
 
 Next cumulative application artifact: **`market-navigator-turn26-ship.html`**
@@ -10,6 +10,25 @@ Next cumulative application artifact: **`market-navigator-turn26-ship.html`**
 This file is the single positive specification for Market Navigator. `MARKET-NAVIGATOR-GRAVEYARD.md` remains the binding negative specification. `MARKET-NAVIGATOR-BUILD-PROTOCOL.md` governs stage advancement. Do not create a parallel plan.
 
 ---
+
+## 0A. Turn 26 cumulative construction baseline — owner execution authorization 2026-09-21
+
+Turn 26 must preserve the complete accepted cumulative Turn 25 runtime, not reconstruct from the earlier Turn 25 pre-ship ancestor alone.
+
+Authoritative Turn 26 construction baseline:
+
+- commit: `7241de67db1558b9223fb608fa26443dcb98a3b2`;
+- artifact: `market-navigator-turn25-ship.html`;
+- blob SHA: `8ebd766774d6e70011cdac0e40c2759eba8f5fc5`;
+- this artifact includes the accepted Turn 25 Ship runtime plus retained crosshair correction, Health Glossary/MAC signed-series self-healing, and first-class MAC Yield Curve factor work.
+
+The historical `ddf275a` / `market-navigator-turn25-pre-ship.html` construction ancestor remains provenance for Turn 25 itself, but it is **not** the direct Turn 26 application baseline because using it alone would regress accepted cumulative Turn 25 capabilities.
+
+Turn 26 protocol:
+
+`ACCEPTED cumulative Turn 25 Ship → defined Turn 26 live-Library delta → candidate → full retained + Turn 26 qualification → owner disposition`
+
+Do not drop any accepted Turn 25 runtime surface while adding Turn 26.
 
 ## 1. Owner-authoritative baseline
 
