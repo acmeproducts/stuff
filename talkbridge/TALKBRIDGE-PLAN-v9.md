@@ -1,5 +1,5 @@
-<!-- TALKBRIDGE-PLAN v21.52.0 -->
-# TALKBRIDGE MASTER PLAN v21.52.0
+<!-- TALKBRIDGE-PLAN v21.53.0 -->
+# TALKBRIDGE MASTER PLAN v21.53.0
 
 **Location:** `talkbridge/TALKBRIDGE-PLAN-v9.md` in `acmeproducts/stuff`.
 **Owner:** Confi — sole decision-maker, runs every device gate.
@@ -25,6 +25,27 @@ checked against the accepted-baseline file list; a match aborts the push.
 First application: commit fb7ed76 overwrote the accepted turn24-post-ship in
 place, replaced the shared root manifest, and broke the live join flow (G25).
 It was reverted byte-exact the same day.
+
+**0c-1 · FLATTENING EXCEPTION — PROPOSED 2026-09-21, NOT IN FORCE until the
+owner approves it in writing (one word in chat is enough; the builder records
+the words and the date here).** A stage the ledger names a FLATTENING stage
+may produce new bytes for the functions its spec lists — a wrapper chain
+replaced by one function that does what the whole chain did — on five
+conditions, each a red gate on its own:
+(a) EQUIVALENCE, NOT INTENT. A differential harness runs the accepted build
+    and the candidate side by side, same fake phones, same scripted inputs,
+    and requires the same log event sequence and the same screen state.
+    Any difference is red. "It should behave the same" is not evidence.
+(b) NOTHING NEW. No behaviour, marker, message field, or UI is added or
+    removed. The set of log markers in the candidate equals the set in the
+    accepted build. A flattening release that fixes a bug it found has
+    broken this rule — the bug is recorded, not fixed, and fixed in its own
+    later release.
+(c) ONE CLUSTER PER RELEASE, as §7.16 names them.
+(d) THE ACCEPTED FILE IS UNTOUCHED. The flattened output is a new candidate
+    at the stage's own address; the accepted bytes remain the rollback.
+(e) THE OWNER'S DEVICE GATE closes each cluster, as always.
+Everything else in 0c stands. Approval: ______ (owner's words, date).
 
 ## 0b · STANDING RULE — TESTING IS EXPENSIVE; CLAUDE OWNS PRE-FLIGHT (owner, 2026-08-24)
 
@@ -93,12 +114,14 @@ ck that is now null, so the new camera never reaches the connection. Fixed addit
 | 27·post-ship | **Technical debt & concurrency — BUILT** (pulled forward from 28·base, owner ruling 2026-09-20; GO 2026-09-21: "go, yes delete both"). Accepted c5 bytes + the six 27·ship transport/surface parts CARRIED byte-for-byte from accepted c8 (V-1, V-2, V-3, V-4, S-2, F-1) + six new parts, every one a wrapper that calls through: **K-1** ids namespaced by device (`uid()` → first 8 chars of the device id + `-` + the old id; caller prefixes `cm-`/`sp-` untouched; `k1_ids` logged once); **K-2** phrasebook compare-and-swap completed (the frozen PUT already carries the expected sha; on `put 409/422` the file is pulled — the frozen pull’s same-version short-cut is bypassed because the other phone wrote the SAME version number — merged by card id with the later `updatedAt`/`deletedAt` winning per card and one-sided cards kept, `pb_merge {kept,took,added}` logged, and pushed once more with the fresh sha through the FROZEN function, so one write merges at most once; a failed pull restores local state and re-pushes nothing); **K-4** concurrent rename converges (the rename pill’s `ts` is stamped at send and remembered as `room.titleTs`; a rename older than the room’s own stamp is ignored with `k4_rename_stale`, equal stamps break the tie on the name text the same way on both phones; the pill still renders; no hello change — proven: hello carries the person’s name only, never the room title); **T-1** render coalescing (`renderTranscript`, `renderPanel`, `renderHome`: first call in a burst renders synchronously, further calls in the same frame collapse into ONE trailing render of the latest state; `t1_coalesced {fn,n}` — named `t1_` not `c3_` so it cannot be read as the joiner-restart part); **T-2** log hygiene (one allowlist of seven chatter markers, one line per 5 s each, the rest counted and carried as `dropped` on the next line; nothing silenced; every other marker untouched); **T-3** wrap map (`wrap_map` logged once at boot and `TB_WRAP_MAP` global: every top-level function re-bound by a part, innermost first — 62 symbols; locals sharing a name are not counted; read-only). **ONE DECLARED REMOVAL: the D1 instrument.** The assembler refuses to run unless accepted c8 === c5 + D1 + the six carried parts, byte for byte, so D1 is provably the only thing removed. **F-4 purge (owner-named list):** `bridge-turn26-ship2.html` and `bridge-turn27-ship-diag1.html` deleted from the tree. **F-5:** graveyard index generated at the top of the graveyard by `build/graveyard-index.mjs` (`--check` in the gate). **Debt swept alongside:** `package.json` stale scripts removed (r105, cr3, r11-0 — the r11-0 harness did not exist); `gate:worker` kept (7/7 green); the r10-cr3 relay harness is NOT kept as a script — it pins relay 6.2 and the relay is 6.6, a stale gate recorded here as open debt, not widened into this release; `TALKBRIDGE-MASTER-PLAN.md` pointer corrected to this plan (it pointed at v6); `HANDOFF.md` bannered STALE; governance self-test cases 13 and 15 formally QUARANTINED (`skip` with reason: they need `git show` of the R10.2 rollback merge commit, which is not in this repository since the history import — the frozen pair exists nowhere in the tree; restore when the pair is banked as fixture files). | Specs §7.9 (K1, K2, K4) + §7.10 (F1–F5) | **BUILT 2026-09-21, awaiting the owner’s device gate.** sha256 `10dfe94b3399`. Harness 50/50 (two live phones renaming inside 700 ms and at the identical millisecond both converge; a third phone’s first rename lands; 409 → pull → merge → one re-push with the fresh sha, a second 409 stops, a 500 never merges, a failed pull re-pushes nothing; six merge fixtures; 5000 ids × 2 devices, zero collisions; burst of 5 transcript renders → 1 sync + 1 trailing with the latest state; 10 chatter lines → 1 written, next carries `dropped: 9`); checks 4/4 self-verified (D1 proven absent at runtime); mutations 36/36 caught on the named test, including the spec’s own ‘remove expected-sha → fails’ and ‘smuggle D1 back → fails’. Governance tests 14 pass / 2 quarantined / 0 fail. 27·ship gate 57/57 still green on the unchanged c8 file. **DEVICE GATE (owner):** one normal chat session, zero regressions, `wrap_map` present in the device log; **K-G1** both phones edit the same phrasebook card then sync → one card survives, `pb_merge` in the log, no duplicates; **K-G2** both phones rename the room within 2 s → the same title on both, `k4_rename_stale` on the phone that yielded. PASS = all. | https://acmeproducts.github.io/stuff/bridge-turn27-post-ship.html |
 | 27·ship · DIAGNOSTIC D1 (not a stage, never a baseline) | **Read-only call instrument** built on the accepted 27·ship bytes to find out why video freezes roughly twenty seconds into a call and never returns while chat and the transcript keep working. Adds ICE/connection/signalling/gathering transition logging, a 2-second getStats sample (inbound video bytes and frames decoded, selected candidate pair resolved to host/srflx/**relay**, RTT, packet loss), an independent picture-stopped detector that does not depend on `connectionState`, live readings of the existing keepalive channel, video watchdog, connect timeout and recovery step, a TURN reachability probe that reuses the live connection’s own iceServers (no new endpoint, no new credential path — G19/G20), and network/visibility events during a call. Replaces nothing, wraps nothing, changes no behaviour, adds no UI. | Owner instruction 2026-09-20; scope: visibility only, no fix | **DEVICE-RUN 2026-09-20 (owner, both phones, both roles) — evidence read, findings in §7.14 and D-7. Instrument did its job. The standalone file `bridge-turn27-ship-diag1.html` was DEAD (built on the rejected c5 bytes) and was DELETED at 27·post-ship (owner: "yes delete both"); the D1 part itself rides inside 27·ship c6 for the gate and is removed at 27·post-ship.** Machine gates M1–M6 36/36; four structural checks green, each self-verified; mutations 13/13 caught. Output = accepted 27·ship bytes verbatim + one appended part, byte-checked. | https://acmeproducts.github.io/stuff/bridge-turn27-ship-diag1.html |
 | 28·pre-base | Byte-identical snapshot of accepted 27·post-ship | — | queued | — |
-| 28·base | **Multi-user, relay leg** — relay v6.4 alone: fan-out N≤4, cap enforcement, per-device call addressing; app untouched; gated by the 3-socket harness before any app change | Spec §7.8 R-parts | queued — ringfence: relay regressions isolated from app | — |
-| 28·pre-ship | **Multi-user, app leg** — named bubbles for N, presence count, receipts count, room-full UX | Spec §7.8 A-parts | queued | — |
-| 28·ship | **D-2 + D-6 — the directory release (un-hijack done right)** — the app moves to `/stuff/talkbridge-app/` per §7.5 with the PROVEN Chrome-installability recipe from §7.12 (start_url, id, additive fetch handler), old-worker retirement, complete path-impact map per G44. Owner ruling 2026-09-12 stands: one release, isolated, never shares a gate with anything else. Restored to the chain by owner ruling 2026-09-20 (an unreliable un-hijack is a beta-visible defect on any phone that also runs PRISM) and moved AHEAD of IndexedDB by owner ruling the same night. Everything after it builds at the final address. | Spec §7.5 + §7.12 recipe (intact); /stuff/tb-skeleton/ stays the working reference | queued — input: accepted 28·pre-ship | — |
-| 28·post-ship | **IndexedDB capacity** — BLOCKED until (1) a standalone POC harness, no app code, no live users, proves the async transcript pattern, and (2) a painfully detailed spec is written from what the POC proves. G56 stands. **Owner is on the fence whether this ships before beta (2026-09-20); if it is deferred, beta readiness simply follows 28·ship and this stage is re-sequenced after beta.** | POC first, then a §7.11-successor spec | queued behind its POC — may be deferred past beta | — |
-| 29·pre-base | Byte-identical snapshot of the last accepted stage, at the new address | — | queued | — |
-| 29·base | **Beta readiness** — the last release before beta testers: every dead candidate address purged or redirected to the new folder, the graveyard indexed, the plan’s open-defect table reconciled, one clean install per platform proven at the final address. Closes the feature set. | to be written | queued | — |
+| 28·base | **FLATTENING, cluster 1 — the relay path.** `handleRelay` (5 layers), `LISTEN.handle` (4), `relaySend` (3), `relayConnect` (3), `LISTEN.open`, `reconnectRelayNow`, `log` (3): each chain replaced by ONE function that does what the stack did, nothing more, nothing less. Proven by the differential harness (accepted build vs candidate, same inputs → same log sequence, same screen) and by the marker-set equality check. No behaviour change of any kind; anything found wrong is recorded for a later release. | Spec §7.16 · REQUIRES the §0c-1 ruling | queued — BLOCKED on the owner's written approval of 0c-1; ringfence: any behaviour difference at all | — |
+| 28·pre-ship | **FLATTENING, cluster 2 — the call.** Every `CALL.*` chain (`teardown` 4, `start`, `accept`, `setupPC`, `onSignal`, `runRecovery`, `startVideoWatchdog`/`stopVideoWatchdog`, `mount`, `hangUp`, `toggleMic`, `toggleCam`, `onIncoming`, `onAccepted`, `keys`) plus `camSenders` and `replaceSenderTrack`. Same proof, same ringfence. After this, multi-user edits one function per concern instead of a stack. | Spec §7.16 · REQUIRES the §0c-1 ruling | queued — BLOCKED on 0c-1 | — |
+| 29·base | **Multi-user, relay leg** (was 28·base; moved by the 2026-09-21 flattening ruling) — — relay v6.4 alone: fan-out N≤4, cap enforcement, per-device call addressing; app untouched; gated by the 3-socket harness before any app change | Spec §7.8 R-parts | queued — ringfence: relay regressions isolated from app | — |
+| 29·pre-ship | **Multi-user, app leg** — named bubbles for N, presence count, receipts count, room-full UX | Spec §7.8 A-parts | queued | — |
+| 29·ship | **D-2 + D-6 — the directory release (un-hijack done right)** — the app moves to `/stuff/talkbridge-app/` per §7.5 with the PROVEN Chrome-installability recipe from §7.12 (start_url, id, additive fetch handler), old-worker retirement, complete path-impact map per G44. Owner ruling 2026-09-12 stands: one release, isolated, never shares a gate with anything else. Restored to the chain by owner ruling 2026-09-20 (an unreliable un-hijack is a beta-visible defect on any phone that also runs PRISM) and moved AHEAD of IndexedDB by owner ruling the same night. Everything after it builds at the final address. | Spec §7.5 + §7.12 recipe (intact); /stuff/tb-skeleton/ stays the working reference | queued — input: accepted 28·pre-ship | — |
+| 29·post-ship | **IndexedDB capacity** — BLOCKED until (1) a standalone POC harness, no app code, no live users, proves the async transcript pattern, and (2) a painfully detailed spec is written from what the POC proves. G56 stands. **Owner is on the fence whether this ships before beta (2026-09-20); if it is deferred, beta readiness simply follows 28·ship and this stage is re-sequenced after beta.** | POC first, then a §7.11-successor spec | queued behind its POC — may be deferred past beta | — |
+| 30·pre-base | Byte-identical snapshot of the last accepted stage, at the new address | — | queued | — |
+| 30·base | **Beta readiness** — the last release before beta testers: every dead candidate address purged or redirected to the new folder, the graveyard indexed, the plan’s open-defect table reconciled, one clean install per platform proven at the final address. Closes the feature set. | to be written | queued | — |
 | — backlog (not on the chain to beta, owner ruling 2026-09-20) | D-1 Android lock-screen ringing (one bounded attempt, spec unwritten); the video wants parked in §7.15 (tap-swap, camera flip, draggable small video, screen share, BL-V1/V2/V3, backgrounded-call resume) | — | backlog | — |
 | 27·pre-base + 27·base | IndexedDB mirror per §7.3 (DB1 kv store, DB2 dual-write + evict-restore, DB3 parity surface); cutover and multi-user are turn 28+ | Spec complete §7.3 — builds only after §7.2 accepted | — |
 
@@ -1962,6 +1985,8 @@ Green means allowed to push. It never means done.
 ---
 
 ## 10 · CHANGE LOG
+
+**v21.53.0 · 2026-09-21.** Owner: "so what would it take to flatten the layer cake" → "go". §7.16 written: flattening = one function per wrapper chain, proven equivalent by a differential harness (accepted build vs candidate, same inputs → same log sequence, same screen), nothing new allowed in. Turn 28 becomes the flattening turn: 28·base relay cluster, 28·pre-ship call cluster — the two chains multi-user must rewrite. Multi-user, directory and IndexedDB shift one turn to 29; beta readiness to 30. §0c-1 flattening exception PROPOSED, not in force: both flattening stages are BLOCKED until the owner approves it in writing. Room lifecycle, render and the shallow sweep are deferred past beta. Spec cross-references that still say "28·base" for multi-user (§7.8, §7.9 heading) mean the multi-user stage, now 29·base; the ledger is the truth.
 
 **v21.52.0 · 2026-09-21.** 27·post-ship BUILT (technical debt & concurrency), owner GO “go, yes delete both”. Six carried parts proven byte-identical to accepted c8; six new wrappers (K-1 device ids, K-2 phrasebook merge on 409, K-4 rename convergence, T-1 render coalescing, T-2 log hygiene, T-3 wrap map); the D1 instrument is the one declared removal, proven by bytes in the assembler. Dead files `bridge-turn26-ship2.html` and `bridge-turn27-ship-diag1.html` deleted at owner order. Graveyard index generated. Stale scripts, pointer and handoff cleaned; governance cases 13/15 quarantined with reason. Open debt recorded, not built: the relay harness pins 6.2 (relay is 6.6). Two design facts established while building: the frozen phrasebook pull skips the fetch when the version number matches, so a same-version conflict needs the version forgotten before the pull (K-2 does this); hello never carried the room title, so rename convergence cannot ride hello (K-4 converges on the rename message itself).
 
@@ -5011,3 +5036,95 @@ no client change removes it.
 ### Explicitly out of scope for c7
 Any change to the c5 surface beyond S-2, the ICE
 configuration, the TURN URLs, the credential path, the relay, the worker.
+
+────────────────────────────────────────────────────────────────────────
+## §7.16 BUILDER SPEC — FLATTENING THE LAYER CAKE (turn 28, two clusters; the rest after beta)
+────────────────────────────────────────────────────────────────────────
+### Why
+The app is one file. Every release since August was bolted on as a wrapper
+around what was there. T-3's `wrap_map` (27·post-ship) shows 62 functions
+re-bound by parts; the deep ones: `enterRoom` 6 layers, `handleRelay` 5,
+`CALL.teardown` / `renderPanel` / `LISTEN.handle` 4, `relaySend` /
+`relayConnect` / `log` / `joinRoom` 3. Every read of those functions is a
+read of the whole stack; every device-log line could have come from any
+layer. That is the debt. Multi-user (§7.8) must rewrite exactly the relay
+and call chains — doing it on a five-deep stack is where the next month
+goes. So two clusters are flattened first; room lifecycle, render, and the
+53 shallow symbols wait until after beta.
+
+### What flattening IS
+For each function in the cluster: read every layer, innermost out, in the
+order `wrap_map` gives; write ONE function that does what the composed stack
+did — same order of effects, same log lines, same early returns — and bind
+it once. The parts that made the layers are removed from the assembly for
+that symbol only; a part that also wraps a symbol outside the cluster keeps
+that other wrap (split the part, do not edit its remaining half).
+
+### What flattening is NOT
+- Not a rewrite from the spec. The spec is not the source of truth; the
+  accepted bytes are. (G1, G28, R10 post-ship: every "rebuild it clean" is
+  in the graveyard. This differs in one way only: nothing new is allowed in.)
+- Not a fix. A bug found while reading the layers is written into 0d as an
+  open defect, with the layer and line, and left in place. The flattened
+  function reproduces the bug. (0c-1 b.)
+- Not a cleanup of names, comments, or dead code outside the listed symbols.
+
+### Method (THE-METHOD applies unchanged)
+1. Before the first line: `wrap_map` from the accepted build is the
+   authority for which parts touch which symbol; the assembler lists the
+   parts. Both are pasted into the spec's build record.
+2. Per symbol: the composed source (every layer, in call order) is written
+   out as a fixture file under `talkbridge/fixtures/flatten/<symbol>.layers.js`
+   — the reader's evidence, checked in, never edited.
+3. The flattened function is a new part `fl-<cluster>-<symbol>.js` with a
+   contract block `replaces: <symbol>` (the first and only legal use of
+   `replaces` for a baseline symbol; 0c-1 is the licence).
+4. The build = accepted 27·post-ship bytes + the carried parts MINUS the
+   removed layers + the `fl-` parts. The assembler proves: accepted build
+   === base + all carried parts (as 27·post-ship's assembler does today).
+
+### Gates
+M1 additive-with-declared-removals: every removed layer named; the
+   assembler refuses an undeclared difference.
+M2 contract: `fl-` parts replace only their listed symbol; nothing else in
+   the file assigns it; no new marker string appears anywhere (the marker
+   set of the candidate's source equals the accepted build's — checked by
+   regex over `log('…'` / `rmLog('…'` / `cr3Log('…'` calls).
+M3 DIFFERENTIAL HARNESS (new, `harness-diff.mjs`): boots the accepted build
+   and the candidate in the same jsdom rig (the 27·post-ship harness rig:
+   fake sockets, fake peer connections, two or three phones), drives the
+   SAME script against both — join, hello, chat both ways, receipts, call
+   start/accept/teardown, relay drop and recovery, rename, phrasebook sync
+   with a 409 — and compares: (i) the full ordered list of log events per
+   phone, timestamps stripped, data compared field by field; (ii) the room
+   state (`S.rooms`, transcript, `PB.cards`); (iii) the rendered DOM of the
+   room view. Any difference is red, printed as a diff. The script is the
+   union of every scripted scenario in `harness-27s8` and `harness-27ps`
+   plus §7.8's three-phone joins, so the flattened relay path is exercised
+   for N=3 before multi-user builds on it.
+M4 structural checks with `--selftest`, as today.
+M5 mutation gate: (1) drop one layer's log line from a flattened function →
+   M3 red on that phone's event list; (2) reorder two effects inside a
+   flattened function → M3 red; (3) leave one removed layer in the assembly
+   (double effect) → M3 red; (4) add one new marker → M2 red; (5) undeclared
+   removal → M1 red. Each on the NAMED test.
+M6 the existing 27·post-ship gate suite (50/50) must stay green on the
+   candidate, unchanged.
+
+### Device gate (owner, both phones, once per cluster)
+One normal session, zero regressions, and — because it is the point — the
+device log reads the same as before. Cluster 1 adds: pull the relay for 5 s
+mid-chat, both phones, chat continues after. Cluster 2 adds: one full video
+call with swap, flip, back-press absorbed, hang-up, on both phones.
+
+### Rollback
+The accepted 27·post-ship bytes, always. A red device gate on a cluster buries
+that cluster's candidate whole (no patching forward); the fixture layer files
+survive for the next attempt.
+
+### Explicitly deferred (after beta)
+Cluster 3 room lifecycle (`enterRoom` 6, `joinRoom` 3, `leaveRoomInternals`,
+`openS3`, `invUrl`). Cluster 4 render (`renderPanel` 4, `renderHome`,
+`renderTranscript`, `renderRoomHead`, `appendMsgDom`, `msgHtml`,
+`roomCardHtml`, `wireRoomCards`). Cluster 5 the shallow sweep (everything
+else in `wrap_map`).
