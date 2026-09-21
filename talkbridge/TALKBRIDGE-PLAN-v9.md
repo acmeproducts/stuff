@@ -1,5 +1,5 @@
-<!-- TALKBRIDGE-PLAN v21.46.0 -->
-# TALKBRIDGE MASTER PLAN v21.46.0
+<!-- TALKBRIDGE-PLAN v21.47.0 -->
+# TALKBRIDGE MASTER PLAN v21.47.0
 
 **Location:** `talkbridge/TALKBRIDGE-PLAN-v9.md` in `acmeproducts/stuff`.
 **Owner:** Confi — sole decision-maker, runs every device gate.
@@ -94,8 +94,10 @@ built yet.
 | 28·base | **Multi-user, relay leg** — relay v6.4 alone: fan-out N≤4, cap enforcement, per-device call addressing; app untouched; gated by the 3-socket harness before any app change | Spec §7.8 R-parts | queued — ringfence: relay regressions isolated from app | — |
 | 28·pre-ship | **Multi-user, app leg** — named bubbles for N, presence count, receipts count, room-full UX | Spec §7.8 A-parts | queued | — |
 | 28·ship | **IndexedDB capacity** — BLOCKED until (1) a standalone POC harness, no app code, no live users, proves the async transcript pattern, and (2) a painfully detailed spec is written from what the POC proves. G56 stands. | POC first, then a §7.11-successor spec | queued behind its POC | — |
-| 28·post-ship | **Beta readiness** — the last release before beta testers: every dead candidate address purged or redirected, the graveyard indexed, the plan’s open-defect table reconciled, one clean install per platform proven. Closes the feature set. | to be written | queued | — |
-| — backlog (not on the chain to beta, owner ruling 2026-09-20) | D-6 desktop install + D-2 PRISM folder move (§7.5 + §7.12, recipe intact); D-1 Android lock-screen ringing (one bounded attempt, spec unwritten); the video wants parked in §7.15 (tap-swap, camera flip, draggable small video, screen share, BL-V1/V2/V3, backgrounded-call resume) | — | backlog | — |
+| 28·post-ship | **D-2 + D-6 — the directory release (un-hijack done right)** — the app moves to `/stuff/talkbridge-app/` per §7.5 with the PROVEN Chrome-installability recipe from §7.12 (start_url, id, additive fetch handler), old-worker retirement, complete path-impact map per G44. Owner ruling 2026-09-12 stands: one release, isolated, never shares a gate with anything else. Sequenced LAST before beta readiness because it moves every URL — testers install once, from the final address. Restored to the chain by owner ruling 2026-09-20: an unreliable un-hijack is a beta-visible defect on any phone that also runs PRISM. | Spec §7.5 + §7.12 recipe (intact); /stuff/tb-skeleton/ stays the working reference | queued — input: accepted 28·ship | — |
+| 29·pre-base | Byte-identical snapshot of accepted 28·post-ship, at the new address | — | queued | — |
+| 29·base | **Beta readiness** — the last release before beta testers: every dead candidate address purged or redirected to the new folder, the graveyard indexed, the plan’s open-defect table reconciled, one clean install per platform proven at the final address. Closes the feature set. | to be written | queued | — |
+| — backlog (not on the chain to beta, owner ruling 2026-09-20) | D-1 Android lock-screen ringing (one bounded attempt, spec unwritten); the video wants parked in §7.15 (tap-swap, camera flip, draggable small video, screen share, BL-V1/V2/V3, backgrounded-call resume) | — | backlog | — |
 | 27·pre-base + 27·base | IndexedDB mirror per §7.3 (DB1 kv store, DB2 dual-write + evict-restore, DB3 parity surface); cutover and multi-user are turn 28+ | Spec complete §7.3 — builds only after §7.2 accepted | — |
 
 The D1 row above is an INSTRUMENT, not a stage. It consumes no stage name, it will
@@ -122,7 +124,7 @@ they are never counted as progress.
 | # | Defect | State |
 |---|---|---|
 | D-1 | Android does not ring on the lock screen. Two real causes found and fixed (G30 relay withheld the push on the handset's stale self-report; G34 push subscription reused under an old signing key). Both are live. **Neither changed the device behaviour.** The remaining cause is UNKNOWN — it has not been narrowed to relay-not-sending, push-service-rejecting, or Android-not-alerting, because nothing reports the relay's push result to the owner. | OPEN — cause unknown. The always-push change and the liveness ack gate are BURIED (G36): they did not change device behaviour and they broke a passing contract check. Relay is back on the accepted pair. |
-| D-2 | **CLOSED 2026-09-04 (26·pre-ship accepted)** — was: — PRISM is captured by TalkBridge's PWA scope. The app's manifest declares no folder of its own and its worker is registered at the root of `/stuff/`, so TalkBridge claims the whole path. Built once (N2), rolled back with the reset, **never rebuilt — it is in no live artifact.** | FIXED — rebuilt, gated, live at /stuff/talkbridge/ |
+| D-2 | **CLOSED 2026-09-04 (26·pre-ship accepted)** — was: — PRISM is captured by TalkBridge's PWA scope. The app's manifest declares no folder of its own and its worker is registered at the root of `/stuff/`, so TalkBridge claims the whole path. Built once (N2), rolled back with the reset, **never rebuilt — it is in no live artifact.** | HALF-FIXED — worker retirement and the narrow scope are live since 26·pre-ship; REOPENED 2026-09-06 (scope without a trailing slash is invalid in some browsers → capture protection unreliable, desktop install blocked). The directory release is scheduled at 28·post-ship (owner ruling 2026-09-20). |
 | D-3 | iPhone behaviour on returning to a call after leaving the app is unknown. Never tested on device; no claim should be made about it. | UNKNOWN, untested |
 | D-4 | **CLOSED 2026-09-13 (27·base accepted)** — was: Presence indicator does not work. Owner traced it back through turn 23 and found no working version — it PREDATES this cycle and was never caught. | ATTEMPTED (N17) — presence now comes from the relay, which is the only party that knows who is attached |
 | D-5 | Call timers do not match between the two sides. | ATTEMPTED (N18) — the anchor moved but the on-screen clock was never restarted, so the display kept its original start; both sides now anchor AND restart at the answer |
@@ -1957,6 +1959,8 @@ Green means allowed to push. It never means done.
 ---
 
 ## 10 · CHANGE LOG
+
+**v21.47.0 · 2026-09-20.** Owner ruling: the D-2/D-6 directory release (§7.5 + §7.12) is restored to the chain at 28·post-ship — an unreliable un-hijack is a beta-visible defect on any phone that also runs PRISM. Placed last before beta readiness because it moves every URL. Beta readiness moves to 29·base. Four releases to beta, not three: technical debt, multi-user, IndexedDB, the folder release. D-1 stays in backlog.
 
 **v21.46.0 · 2026-09-20.** Owner ruling: close video out. 27·ship candidate 5 (swap / flip / drag) is REJECTED after acceptance and buried G57 — the diff shows the back-button-to-PiP absorber was removed with nothing in its place, so back now exits the app mid-call and freezes the far side; the new flip button can blank the outgoing track. The owner had it right and the builder’s reproduction (network blips) tested the wrong failure. Address rolled back to 27·pre-ship bytes and REBUILT as candidate 6: the working corner-band surface + V-1..V-4 transport fixes (§7.15, everything video in one spec). The lag is cellular-only (wifi instant, owner-verified) and pre-existing in every build; G58 records the withdrawn "remove TCP TURN" idea. Chain to beta resequenced per owner: 27·post-ship technical debt → 28 multi-user (relay, app) → IndexedDB behind its POC → beta readiness. D-6, D-1 and the video wants go to backlog. Gates on c6: 47/47, 4/4, 20/20.
 
@@ -4022,7 +4026,7 @@ renders exactly as today (guard). PASS = all five.
 ## MD-1 — kanban markdown in chat: spec complete §7.4, unsequenced (owner slots it into the release chain).
 
 ────────────────────────────────────────────────────────────────────────
-## §7.5 [BACKLOGGED 2026-09-12 by owner ruling: mobile-first; desktop install (D-6) and the PRISM folder move (D-2) are not worth bending the turn/stage naming convention or the working app. Spec and the PROVEN recipe below are kept intact and ready — /stuff/tb-skeleton/ stays hosted as the working reference. Resume only on explicit owner GO.] — D-2 DONE RIGHT: the directory release
+## §7.5 [RESTORED TO THE CHAIN 2026-09-20 by owner ruling, scheduled 28·post-ship — was backlogged 2026-09-12 as mobile-first. Spec and the PROVEN recipe below are the build authority; /stuff/tb-skeleton/ stays hosted as the working reference.] — D-2 DONE RIGHT: the directory release
 ────────────────────────────────────────────────────────────────────────
 The one arrangement both the standard and Chrome honor: TalkBridge lives in
 `/stuff/talkbridge-app/` with a slash-terminated scope. Executed alone, with
