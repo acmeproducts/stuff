@@ -1,11 +1,11 @@
-<!-- PRISM-PLAN v6.0.9 -->
-# PRISM MASTER PLAN v6.0.9
+<!-- PRISM-PLAN v6.1.0 -->
+# PRISM MASTER PLAN v6.1.0
 
 ## Governing objective
 Complete PRISM R27 as one clean standalone release and provide the approved standalone Library companion over the same durable Analysis records. R27 remains the authorized full-product release. No R28.
 
 ## Two-tab product architecture — 2026-09-09
-- The full PRISM product has exactly two top-level navigation tabs: `Map` and `Library`. A side portal rail, a third product tab, and separate top-level Explore, Feed, AI, or Config destinations are not authorized.
+- The full PRISM product has exactly two top-level destinations: `Map` and `Library`. A third product, a separate top-level Explore, AI or Config destination, and any second UI for a different screen size are not authorized. *Amended 2026-09-21:* the two destinations, the Map modes and Settings are reached from one left navigation drawer (see "Owner amendment: one mobile-first shell"); product tabs and the Map mode dropdown are retired.
 - `Map` is the intelligence-discovery product surface. Its subordinate surface selector contains `NewsMap`, `OG` and `Feed`; these modes share the same filtered event corpus, dimensions, selection, reader, and Analysis handoff.
 - `Explore` is removed from the shipped selector, DOM, restorable view state, rendering path, and acceptance sequence. It is parked for possible later development and may return only as a separately qualified, explicitly authorized surface. `Feed` remains the linear view of the Map corpus.
 - `Library` is a first-class same-origin application page, reached by the top-level Library tab. It is the approved complete Library surface and reads/writes the same `prism/analyses` records as Map; it is not an alternate product, database, wrapper, or iframe.
@@ -133,8 +133,8 @@ Diagnostics must be visible and copyable from Config and remain customer-safe: i
 ## Deterministic pre-publication gates
 A candidate cannot be published until all applicable gates pass:
 1. Complete HTML structure and embedded JavaScript syntax parse.
-2. Exactly two top-level product tabs labeled Map and Library; Map contains one subordinate selector with only NewsMap and Feed. No Explore option/view/route, side portal rail, or top-level Feed control exists.
-3. NewsMap/Feed → Library → Map restores the exact prior Map mode and does not clear dimensions, filters, time window, query, or selected evidence; a historical saved Explore value resolves to NewsMap.
+2. One navigation drawer holds exactly NewsMap, OG, Feed, Library and Settings; there is no product tab row, no Map mode dropdown, no time-window dropdown and no Explore option/view/route (amended 2026-09-21).
+3. NewsMap/OG/Feed → Library → Map restores the exact prior Map mode and does not clear dimensions, filters, query, or selected evidence; a historical saved Explore value resolves to NewsMap.
 4. Exactly one `runAI`, one Analysis persistence path, and one view controller.
 5. No iframe, wrapper, runtime baseline fetch, sidecar patch, injected overlay, Worker, alternate state machine, or destructive persistence migration.
 6. Map uses squarified geometry and all five size classes; deterministic geometry test must reject extreme aspect-ratio slivers (target maximum ≤5:1 under the qualification fixture, with normal tiles substantially closer to square).
@@ -207,3 +207,13 @@ Selecting stories and pressing Analyze must open the R13-governed AI POV workspa
 - Omnisearch carries source-group tags. A `#` control beside the field lists `#active` first, then every saved group as `#slug`, and toggles that tag in the query. Tags stack: several tags widen the match to the union of their sources. Tags are stripped from the free-text search, so a tag is never matched literally against headlines. `#active` resolves to whatever is enabled at that moment, so it composes with the source-group picker rather than duplicating it.
 - Ribbon dividers are visible rules, and the one between the dimension selectors and the filter triggers is drawn heavier still. The ribbon carries no source-group control; `#tags` are the only way to apply a group.
 - A source group is a named set of sources chosen by hand, stored in `prism_source_groups_v1`. A group is a definition only: it never enables or disables a source, and the only way to apply one is its `#tag` in omnisearch. Each group is created and edited in a modal opened by its Edit key, listing every known source with its membership, a filter, and add/remove for the filtered subset. Defining a group from whatever happened to be enabled is not supported: the enabled set includes every publisher seen incidentally inside aggregated coverage, so it could not express a deliberate group. Seeded groups cover the shipped feed inventory only; groups for subjects the inventory does not carry are the owner's to create once matching sources exist.
+
+## Owner amendment: one mobile-first shell — 2026-09-21
+This amendment supersedes the tab row, surface dropdown, window dropdown, header status and the two-row ribbon described above. Everything else in the Map and Library contracts stands.
+- There is exactly one UI. It is designed for a phone in portrait first and is the same UI at every width; no breakpoint changes the controls, only their proportions.
+- Navigation is a left drawer that overlays the content. Closed, it has zero width: nothing but a hamburger toggle remains, fixed in the top-left corner, visible whether the drawer is open or closed, and the whole viewport belongs to the content. Open, it lists NewsMap, OG, Feed and Library, with Settings (the gear) at the bottom. Choosing any entry closes the drawer. Tapping outside it or pressing Escape closes it.
+- The header is one row: the omnisearch, the `#` group-tag control, and the results badge inside the search field. The badge reads `N` when nothing narrows the corpus and `M/N` when the search, the enabled sources or an active filter do. The presence indicator, build stamp, product tabs, surface dropdown and window dropdown are gone from the header; the presence line and build stamp live in Settings → Diagnostics.
+- The ribbon is two rows, so the shell is exactly three rows above the content. Row two carries the three dimension dropdowns under small-caps captions `GROUP`, `COLOR`, `SIZE`. A caption is the filter trigger for its dimension: tapping it opens the same filter drawer as before, where values are toggled on and off exactly as before; a caption shows `n/N` while its dimension is narrowed. Row three is the colour dimension's active values as chips, scrolling sideways when they do not fit. Tapping a chip zooms in to that value alone, the way tapping a group does; its `×` removes that value. While one value is isolated the row shows a single chip whose `×` zooms back out to all values.
+- Recency and the time window are one control. The corpus horizon is fixed at seven days and Recency, as a dimension, is the only time control. The 24h/3d/7d dropdown is removed and saved window state is ignored.
+- Analyze is a floating button in the bottom-right corner that exists only while at least one story is selected and never on the Library page. It carries the selection count as a badge; tapping it opens the AI POV modal. There is no Analyze control in the ribbon.
+- Nothing beyond the controls named here is added to the shell. The legend lanes, filter-trigger row, ribbon dividers and ribbon Analyze described in the 2026-09-20 amendment are superseded by rows two and three above.
