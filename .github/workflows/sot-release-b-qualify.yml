@@ -1,0 +1,105 @@
+name: SOT Release B Qualification
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - 'SOT/sot-turn02-release-b-engine.py'
+      - 'SOT/sot-turn02-release-b-ai.py'
+      - 'SOT/sot-turn02-release-b-server.py'
+      - 'SOT/sot-turn02-release-b.html'
+      - 'SOT/sot-turn02-release-b.service'
+      - 'SOT/qualify-release-b.py'
+      - 'install-SOT-turn02-release-b.sh'
+      - '.github/workflows/sot-release-b-qualify.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  qualify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Preserve qualified Release A ancestor
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git hash-object SOT/sot-turn02-pre-base-release-a.html)" = "92810933977e4dfd7d8defcd346b60af29a97954"
+          echo "PASS Release A UI ancestor preserved byte-for-byte"
+
+      - name: Python syntax
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 -m py_compile             SOT/sot-turn02-release-b-engine.py             SOT/sot-turn02-release-b-ai.py             SOT/sot-turn02-release-b-server.py             SOT/qualify-release-b.py
+          echo "PASS Release B Python compile"
+
+      - name: Release B browser syntax and governed UI
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+          s=Path("SOT/sot-turn02-release-b.html").read_text()
+          js=s.rsplit("<script>",1)[1].split("</script>",1)[0]
+          Path("/tmp/sot-release-b.js").write_text(js)
+          required=[
+            "SOT Turn 02 Release B",
+            "const names=['Estate','Analyze','Database','Grid','Plan','AI','Activity']",
+            "AI Tasks",
+            "const AI_CATALOG=[",
+            "auto_tag",
+            "analyze_estate",
+            "explain_duplicates",
+            "find_review_candidates",
+            "propose_target_structure",
+            "plan_target_landing",
+            "Apply approved tags",
+            "function activeAiConfig()",
+            "function renderAI()",
+            "function buildAiScope()",
+            "function confirmApplyAutoTag()",
+            "Task is running independently; you can navigate away.",
+            "DOMPurify.sanitize(marked.parse",
+            "['path','Folder']",
+            "if(f==='path')return val(p,'folder')",
+            ".dbgrid tbody tr:nth-child(odd) td{background:#343a40;color:#fff}",
+            ".dbgrid tbody tr:nth-child(even) td{background:#fff;color:#343a40}",
+            "font-weight:800",
+          ]
+          missing=[x for x in required if x not in s]
+          assert not missing,missing
+          assert "AI — available next release" not in s
+          assert 'class="ai-inert"' not in s
+          assert "['path','Path']" not in s
+          assert "return p[f]}" not in s[s.index("function disp("):s.index("function beginResize")]
+          print("PASS task-centric AI + Folder-only path + strong zebra UI contract")
+          PY
+          node --check /tmp/sot-release-b.js
+          echo "PASS Release B browser JavaScript syntax"
+
+      - name: Backend task authority contract
+        shell: bash
+        run: |
+          set -euo pipefail
+          grep -F 'SCHEMA=13' SOT/sot-turn02-release-b-engine.py
+          grep -F 'CREATE TABLE IF NOT EXISTS ai_tasks' SOT/sot-turn02-release-b-engine.py
+          grep -F 'CREATE TABLE IF NOT EXISTS ai_turns' SOT/sot-turn02-release-b-engine.py
+          grep -F 'https://api.venice.ai/api/v1/chat/completions' SOT/sot-turn02-release-b-ai.py
+          grep -F 'https://openrouter.ai/api/v1/chat/completions' SOT/sot-turn02-release-b-ai.py
+          grep -F 'Auto Tag proposal is stale' SOT/sot-turn02-release-b-ai.py
+          grep -F 'self.metadata_update' SOT/sot-turn02-release-b-ai.py
+          grep -F '/api/ai/task/apply' SOT/sot-turn02-release-b-server.py
+          ! grep -F 'os.remove' SOT/sot-turn02-release-b-ai.py
+          ! grep -F 'shutil.move' SOT/sot-turn02-release-b-ai.py
+          echo "PASS task-specific AI authority boundary"
+
+      - name: Disposable Release B qualification
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 SOT/qualify-release-b.py
