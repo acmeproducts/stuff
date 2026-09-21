@@ -883,3 +883,37 @@ Grid and Ask AI are separate surfaces, separate state machines, and separate own
 7. Publish a separately bumped Ask AI comparison artifact.
 
 Do not combine unqualified Grid filesystem mutation with AI execution in one candidate or debugging step. Ask AI remains read-only/advisory even after Grid mutation is enabled.
+
+
+## 2026-09-20 — RELEASE A DATABASE / TAG COMPACTION PATCH — BINDING
+
+This patch is part of Release A and is explicitly mobile-first. It changes presentation and tag normalization only; it does not change Database result membership, sorting semantics, immutable placement identity, Grid selection safety, system classification ownership, or Plan arithmetic.
+
+### Database surface
+
+- Database rows must use clearly visible zebra striping.
+- Pointer hover over any unselected Database row must render the entire row with a white background and black foreground text. Existing row focus/selection may remain white/black.
+- Remove the redundant **Evidence Database** heading from inside the Database pane.
+- Remove the Database-pane job-status strip such as **COMPLETED · Analysis complete**. Job state remains available on Analyze/Activity and in the global connection state.
+- OMNISEARCH executes on **Enter** and on input **blur**. There is no dedicated **Go** button on the Database surface.
+- Export occupies one compact icon button in the Database toolbar. Activating it opens a small menu/popover with exactly **CSV** and **JSON** choices rather than two permanent text buttons.
+- Preserve the field helper and clear-search affordances while minimizing toolbar height and horizontal consumption on small screens.
+
+### Tag editor
+
+- **Edit Tags** has no bottom Close button. It closes with a top-right **×**.
+- Owner tags are canonical lowercase. All newly entered or reused tags are forced to lowercase before persistence, including the leading `#`.
+- Backend normalization is authoritative so mixed-case input cannot bypass lowercase storage.
+- Existing selected-placement tags are normalized to lowercase whenever a tag mutation is persisted for that placement.
+- UNIQUE / KEEP / EXCESS remain immutable system classifications and are never converted into owner tags.
+
+### Qualification additions
+
+Release A qualification must mechanically verify:
+- Database zebra CSS;
+- white-background / black-text hover behavior;
+- absence of Database **Evidence Database**, live status strip, and **Go** button;
+- Enter + blur execution for Database OMNISEARCH;
+- one compact Export trigger with CSV/JSON choices;
+- Edit Tags top-right × with no bottom Close action; and
+- lowercase tag normalization at both UI input and backend persistence boundaries.
