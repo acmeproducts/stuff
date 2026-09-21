@@ -30,7 +30,7 @@ const code = (s) => s.replace(/\/\*[\s\S]*?\*\//g, '');   /* judge the code, not
 console.log('M1 · additive over the accepted c5 baseline; D1 is the only removal');
 const prefix = base.slice(0, base.length - TAIL.length);
 T('M1.1 built begins with the accepted c5 bytes, byte for byte', () => assert(built.startsWith(prefix), 'baseline prefix altered'));
-T('M1.2 built === c5 + six carried parts + K-1 K-2 K-4 T-1 T-2 T-3 + tail, nothing else', () => assert(built === prefix + parts.map((p) => '\n\n' + p).join('') + TAIL, 'output is not base + parts + tail'));
+T('M1.2 built === c5 + six carried parts + K-1 K-2 K-4 T-1 T-2 T-3 D-10 + tail, nothing else', () => assert(built === prefix + parts.map((p) => '\n\n' + p).join('') + TAIL, 'output is not base + parts + tail'));
 T('M1.3 accepted c8 === c5 + D1 + the same six carried parts — so D1 is the ONLY thing removed', () => {
   assert(c8 === prefix + [d1, ...parts.slice(0, CARRIED.length)].map((p) => '\n\n' + p).join('') + TAIL, 'c8 is not c5 + D1 + carried parts: a carried part drifted from accepted bytes');
 });
@@ -38,19 +38,20 @@ T('M1.4 the D1 instrument is gone from the built file', () => assert(built.index
 
 /* ── M2 · CONTRACT ───────────────────────────────────────────────────────── */
 console.log('M2 · contract: wraps only, calls through, no takeover');
-const [k1, k2, k4, t1, t2, t3] = parts.slice(CARRIED.length);
+const [k1, k2, k4, t1, t2, t3, d10] = parts.slice(CARRIED.length);
 const contractOf = (s) => s.slice(s.indexOf('@contract'), s.indexOf('*/', s.indexOf('@contract')));
-T('M2.1 every new part declares replaces: (none)', () => { for (const p of [k1, k2, k4, t1, t2, t3]) assert(/replaces:\s*\(none\)/.test(contractOf(p)), 'a part declares a replacement'); });
+T('M2.1 every new part declares replaces: (none)', () => { for (const p of [k1, k2, k4, t1, t2, t3, d10]) assert(/replaces:\s*\(none\)/.test(contractOf(p)), 'a part declares a replacement'); });
 T('M2.2 every declared wrap calls through', () => {
   assert(/_uid\.apply\(this, arguments\)/.test(k1), 'K-1 does not call through uid');
   assert(/_pbWriteBack\.apply\(self, args\)/.test(k2) && /_log\.apply\(this, arguments\)/.test(k2), 'K-2 does not call through');
   assert(/_relaySend\.apply\(this, arguments\)/.test(k4) && /_onRoomNameSignal\.apply\(this, arguments\)/.test(k4), 'K-4 does not call through');
   assert(/orig\.apply\(self, args\)/.test(t1), 'T-1 does not call through the renderer');
   assert(/_log\.apply\(this, arguments\)/.test(t2), 'T-2 does not call through log');
+  assert(/_pbAddTagTo\.apply\(this, arguments\)/.test(d10) && /_pbRerenderCard\.apply\(this, arguments\)/.test(d10) && /_renderPbList\.apply\(this, arguments\)/.test(d10), 'D-10 does not call through');
 });
 const PROTECTED = ['CALL.setupPC', 'CALL.teardown', 'CALL.hangUp', 'CALL.runRecovery', 'CALL.onSignal', 'handleRelay', 'relayConnect', 'relaySendWhenOpen', 'pbPull', 'renameRoom', 'addSysPill', 'tbSwapTap', 'tbFlipCamera', 'camSenders', 'replaceSenderTrack', 'BUILD_INFO', 'VERSION'];
 T('M2.3 no new part assigns to anything the baseline owns outside its declared wraps', () => {
-  for (const p of [k1, k2, k4, t1, t2, t3]) for (const name of PROTECTED) {
+  for (const p of [k1, k2, k4, t1, t2, t3, d10]) for (const name of PROTECTED) {
     const re = new RegExp('(^|[^\\w.])' + name.replace('.', '\\s*\\.\\s*') + '\\s*=(?!=)', 'm');
     assert(!re.test(code(p)), 'a part assigns to ' + name);
   }
@@ -65,11 +66,11 @@ T('M2.4 T-3 is read-only: it never calls, assigns or writes anything it finds', 
 });
 T('M2.5 no new relay message TYPE — K-4 rides the proven sys-pill carrier', () => {
   const types = new Set(); let m; const re = /type\s*(?:===|:)\s*'([a-z-]+)'/g;
-  while ((m = re.exec(code(k1 + k2 + k4 + t1 + t2 + t3)))) types.add(m[1]);
+  while ((m = re.exec(code(k1 + k2 + k4 + t1 + t2 + t3 + d10)))) types.add(m[1]);
   assert([...types].every((t) => t === 'sys-pill'), 'a new relay message type appeared: ' + [...types].join(','));
 });
 T('M2.6 no credential endpoint, no TURN URL, no PAT handling (G19/G20)', () => {
-  for (const p of [k1, k2, k4, t1, t2, t3]) assert(!/credentials\/generate|iceServers|transport=tcp|turns?:|tb_gh_pat|Authorization/.test(code(p)), 'a part touches ICE config or credentials');
+  for (const p of [k1, k2, k4, t1, t2, t3, d10]) assert(!/credentials\/generate|iceServers|transport=tcp|turns?:|tb_gh_pat|Authorization/.test(code(p)), 'a part touches ICE config or credentials');
 });
 T('M2.7 T-2 silences nothing: every limited marker still passes with a count, and the list is one object', () => {
   const c = code(t2);
@@ -370,6 +371,89 @@ T('M3g.3 every symbol in the map resolves to a live top-level function — local
   assert(bad.length === 0, 'noise: ' + bad.join(','));
 });
 R.dom.window.close();
+
+
+console.log('M3h · D-10 Enter in the phrasebook tag field adds the tag and stays put');
+const PBW = makeWindow(built, 'Pat', 'eeee5555-0000-4000-8000-000000000005'); await sleep(1300);
+enterRoom(PBW, 'creator');
+{
+  const w = PBW.w, d = w.document;
+  w.PB.pk = 'en-th'; w.PB.cards = []; w.PB.version = 1000;
+  w.pbAddCard({ source: 'hello', target: 'sawasdee', sourceLang: 'en', targetLang: 'th' });
+  w.pbAddCard({ source: 'thanks', target: 'khop khun', sourceLang: 'en', targetLang: 'th' });
+  w.openPb('');
+  const ids = [...d.querySelectorAll('#pb-ov-cards [id^="pbb-"]')].map((e) => e.id.slice(4));
+  const cid = ids[0], nextId = ids[1];
+  const open = () => { w._pbCS(cid).tagsOpen = true; w.pbRerenderCard(cid); const ti = d.querySelector('[data-taginp][data-cid="' + cid + '"]'); ti.focus(); return ti; };
+  const key = (el, type, init) => { const ev = new w.KeyboardEvent(type, Object.assign({ bubbles: true, cancelable: true }, init)); if (init.keyCode != null) { Object.defineProperty(ev, 'keyCode', { value: init.keyCode }); Object.defineProperty(ev, 'which', { value: init.keyCode }); } el.dispatchEvent(ev); return ev; };
+  const focusIs = () => { const a = d.activeElement; return a && a.hasAttribute('data-taginp') ? 'taginp:' + a.getAttribute('data-cid') : a && a.dataset && a.dataset.pbedit ? a.dataset.pbedit + ':' + a.dataset.cid : (a && a.tagName); };
+  const tags = () => w.pbCardById(cid).tags.slice();
+  const via = () => dl(PBW, 'd10_tag_enter').map((l) => l.d.via);
+
+  let ti = open();
+  T('M3h.1 the tag input is dressed: one-field form around it, enterkeyhint=enter, the frozen keydown Enter path still adds the tag and keeps focus', () => {
+    assert(ti.parentNode.tagName === 'FORM' && ti.parentNode.getAttribute('data-tagform') === cid, 'no form around the tag input');
+    assert(ti.getAttribute('enterkeyhint') === 'enter', 'enterkeyhint missing');
+    ti.value = 'food';
+    const ev = key(ti, 'keydown', { key: 'Enter', keyCode: 13 });
+    assert(ev.defaultPrevented && tags().join() === 'food' && focusIs() === 'taginp:' + cid, 'frozen path broken: tags=' + tags() + ' focus=' + focusIs());
+    assert(via().length === 0, 'D-10 must not double-handle a key the frozen handler took');
+  });
+  ti = d.querySelector('[data-taginp][data-cid="' + cid + '"]'); ti.focus();
+  T('M3h.2 composing keyboard: keydown arrives as Unidentified/229, the keyboard submits the form → tag added, focus stays', () => {
+    ti.value = 'drink';
+    key(ti, 'keydown', { key: 'Unidentified', keyCode: 229 });
+    assert(tags().join() === 'food', 'a 229 keydown must not add');
+    const sub = new w.Event('submit', { bubbles: true, cancelable: true });
+    ti.parentNode.dispatchEvent(sub);
+    assert(sub.defaultPrevented, 'submit not prevented — the page would navigate');
+    assert(tags().join() === 'food,drink' && focusIs() === 'taginp:' + cid && via().slice(-1)[0] === 'submit', 'submit path: tags=' + tags() + ' focus=' + focusIs() + ' via=' + via());
+  });
+  ti = d.querySelector('[data-taginp][data-cid="' + cid + '"]'); ti.focus();
+  T('M3h.3 keyCode 13 without key=Enter → tag added via keycode', () => {
+    ti.value = 'spicy';
+    const ev = key(ti, 'keydown', { key: 'Unidentified', keyCode: 13 });
+    assert(ev.defaultPrevented && tags().join() === 'food,drink,spicy' && via().slice(-1)[0] === 'keycode', 'keycode path: tags=' + tags() + ' via=' + via());
+  });
+  ti = d.querySelector('[data-taginp][data-cid="' + cid + '"]'); ti.focus();
+  T('M3h.4 keyup Enter after a 229 keydown → tag added via keyup; a keyup after a keydown-handled add adds nothing twice', () => {
+    ti.value = 'sweet';
+    key(ti, 'keydown', { key: 'Process', keyCode: 229 });
+    key(ti, 'keyup', { key: 'Enter', keyCode: 13 });
+    assert(tags().join() === 'food,drink,spicy,sweet' && via().slice(-1)[0] === 'keyup', 'keyup path: tags=' + tags() + ' via=' + via());
+    const n = via().length;
+    ti = d.querySelector('[data-taginp][data-cid="' + cid + '"]'); ti.focus(); ti.value = 'sour';
+    key(ti, 'keydown', { key: 'Enter', keyCode: 13 });
+    const after = d.querySelector('[data-taginp][data-cid="' + cid + '"]');
+    key(after, 'keyup', { key: 'Enter', keyCode: 13 });
+    assert(tags().join() === 'food,drink,spicy,sweet,sour' && via().length === n, 'double handling: tags=' + tags() + ' via=' + via());
+  });
+  ti = d.querySelector('[data-taginp][data-cid="' + cid + '"]'); ti.focus();
+  ti.value = 'hot';
+  key(ti, 'keydown', { key: 'Enter', keyCode: 13 });
+  /* the keyboard's own "next field" action lands focus on the next card */
+  d.querySelector('#pbb-' + nextId + ' [data-pbedit]').focus();
+  const stolen = focusIs();
+  await sleep(120);
+  T('M3h.5 the phone moves focus to the next card after the add → it is put back in the tag field', () => {
+    assert(stolen !== 'taginp:' + cid, 'the steal did not happen in the rig: ' + stolen);
+    assert(focusIs() === 'taginp:' + cid, 'focus not restored: ' + focusIs());
+    assert(dl(PBW, 'd10_refocus').length >= 1, 'no d10_refocus line');
+  });
+  T('M3h.6 an empty field never adds: submit and keyup with nothing typed are ignored', () => {
+    const before = tags().length, n = via().length;
+    ti = d.querySelector('[data-taginp][data-cid="' + cid + '"]'); ti.value = '   ';
+    ti.parentNode.dispatchEvent(new w.Event('submit', { bubbles: true, cancelable: true }));
+    key(ti, 'keyup', { key: 'Enter', keyCode: 13 });
+    assert(tags().length === before && via().length === n, 'empty field added something');
+  });
+  T('M3h.7 a full list render dresses every card\'s tag input, and re-dressing never nests forms', () => {
+    w._pbCS(nextId).tagsOpen = true; w.renderPbList();
+    const all = [...d.querySelectorAll('[data-taginp]')];
+    assert(all.length >= 2 && all.every((x) => x.parentNode.tagName === 'FORM' && x.parentNode.parentNode.tagName !== 'FORM'), 'not every tag input is dressed exactly once');
+  });
+}
+PBW.dom.window.close();
 
 /* ── M4 · CARRIED PARTS STILL LIVE ───────────────────────────────────────── */
 console.log('M4 · the carried 27·ship parts are still installed and working');

@@ -12,7 +12,7 @@ import { tmpdir } from 'os';
 import path from 'path';
 import { assemble, PARTS, REMOVED_PART } from './assemble-27ps.mjs';
 
-const P = { c1: 0, v2: 1, c3: 2, c2: 3, s2: 4, f1: 5, k1: 6, k2: 7, k4: 8, t1: 9, t2: 10, t3: 11 };
+const P = { c1: 0, v2: 1, c3: 2, c2: 3, s2: 4, f1: 5, k1: 6, k2: 7, k4: 8, t1: 9, t2: 10, t3: 11, d10: 12 };
 const src = PARTS.map((p) => readFileSync(p, 'utf8'));
 const d1 = readFileSync(REMOVED_PART, 'utf8');
 
@@ -58,16 +58,29 @@ const MUTATIONS = [
   { part: P.t3, catches: 'M3g.2', name: 'T-3 only sees `= function` wraps, misses `= latch(...)`', apply: (s) => s.replace("var assignRe = /(^|[^\\w$.])((?:[A-Za-z_$][\\w$]*)(?:\\.[A-Za-z_$][\\w$]*)?)\\s*=(?!=)/g;", "var assignRe = /(^|[^\\w$.])((?:[A-Za-z_$][\\w$]*)(?:\\.[A-Za-z_$][\\w$]*)?)\\s*=\\s*(?:async\\s+)?function\\b/g;") },
   { part: P.t3, catches: 'M3g.3', name: 'T-3 counts any `function x(` anywhere and any `var x =` — locals flood the map', apply: (s) => s.replace("re = /^(?:async\\s+)?function\\s+([A-Za-z_$][\\w$]*)\\s*\\(/gm;", "re = /(?:async\\s+)?function\\s+([A-Za-z_$][\\w$]*)\\s*\\(/g;").replace("if (/(?:var|let|const)\\s*$/.test(chunk.slice(Math.max(0, m.index - 6), m.index + m[1].length))) continue;  /* a local of the same name */", '') },
   { part: P.t3, catches: 'M2.4', name: 'T-3 calls what it finds', apply: (s) => s.replace('(map[sym] = map[sym] || []).push(bounds[b].name);', '(map[sym] = map[sym] || []).push(bounds[b].name); try { window[sym](); } catch (_) {}') },
+  /* D-10 */
+  { part: P.d10, catches: 'M3h.1', name: 'D-10 forgets the enterkeyhint', apply: (s) => s.replace("ti.setAttribute('enterkeyhint', 'enter');", '') },
+  { part: P.d10, catches: 'M3h.2', name: 'D-10 never wraps the input in a form → the keyboard\'s submit has nowhere to go', apply: (s) => s.replace("if (!(p && p.tagName === 'FORM' && p.hasAttribute('data-tagform'))) {", 'if (false) {') },
+  { part: P.d10, catches: 'M3h.2', name: 'D-10 lets the submit through → the page navigates', apply: (s) => s.replace("    if (!(f && f.hasAttribute && f.hasAttribute('data-tagform'))) return;\n    ev.preventDefault();", "    if (!(f && f.hasAttribute && f.hasAttribute('data-tagform'))) return;").replace("  function commit(ti, via, ev) {\n    ev.preventDefault();", '  function commit(ti, via, ev) {') },
+  { part: P.d10, catches: 'M3h.3', name: 'D-10 drops the keyCode-13 ear', apply: (s) => s.replace("if ((ev.keyCode === 13 || ev.which === 13) && ti.value && ti.value.trim()) commit(ti, 'keycode', ev);", '') },
+  { part: P.d10, catches: 'M3h.4', name: 'D-10 drops the keyup ear', apply: (s) => s.replace("if ((ev.key === 'Enter' || ev.keyCode === 13 || ev.which === 13) && ti.value && ti.value.trim()) commit(ti, 'keyup', ev);", '') },
+  { part: P.d10, catches: 'M3h.4', name: 'D-10 keyup adds without the text guard → double handling', apply: (s) => s.replace("if ((ev.key === 'Enter' || ev.keyCode === 13 || ev.which === 13) && ti.value && ti.value.trim()) commit(ti, 'keyup', ev);", "if (ev.key === 'Enter' || ev.keyCode === 13 || ev.which === 13) commit(ti, 'keyup', ev);") },
+  { part: P.d10, catches: 'M3h.5', name: 'D-10 never puts focus back', apply: (s) => s.replace("    setTimeout(function () { refocus(id, 0); }, 0);\n    setTimeout(function () { refocus(id, 60); }, 60);", '') },
+  { part: P.d10, catches: 'M3h.6', name: 'D-10 submit adds on an empty field', apply: (s) => s.replace("if (ti && ti.value && ti.value.trim()) commit(ti, 'submit', ev);", "if (ti) commit(ti, 'submit', ev);") },
+  { part: P.d10, catches: 'M3h.7', name: 'D-10 dresses only the one re-rendered card, never the full list render', apply: (s) => s.replace("  var _renderPbList = renderPbList;\n  renderPbList = function () { var r = _renderPbList.apply(this, arguments); try { dress(); } catch (_) {} return r; };\n", '') },
+  { part: P.d10, catches: 'M2.2', name: 'D-10 replaces pbAddTagTo outright', apply: (s) => s.replace('var r = _pbAddTagTo.apply(this, arguments);', 'var r; PB.byId(id).tags.push(arguments[1]);') },
   /* fences */
   { part: P.k2, catches: 'M2.6', name: 'a part reads the PAT', apply: (s) => s + "\nvar _k2pat = localStorage.getItem('tb_gh_pat');\n" },
   { part: P.k4, catches: 'M2.5', name: 'K-4 invents a relay message type of its own', apply: (s) => s.replace("if (m && m.type === 'sys-pill' && typeof m.newRoomName === 'string') {", "if (m && (m.type === 'sys-pill' || m.type === 'room-name') && typeof m.newRoomName === 'string') {") },
   { part: P.t1, catches: 'M6.1', name: 'a part retunes the baseline connect timeout', apply: (s) => s + '\nCALL.CONNECT_TIMEOUT_MS = 9000;\n' }
 ];
 
+const ONLY = process.env.TB_MUT_ONLY ? process.env.TB_MUT_ONLY.split(',') : null;   /* run a subset while iterating: TB_MUT_ONLY=M3h.7 */
 const dir = mkdtempSync(path.join(tmpdir(), 'tb-27ps-mut-'));
 let caught = 0, missed = 0;
 for (let i = 0; i < MUTATIONS.length; i++) {
   const m = MUTATIONS[i];
+  if (ONLY && !ONLY.includes(m.catches)) continue;
   const mutated = m.apply(src[m.part]);
   if (!m.mangleBuild && mutated === src[m.part]) { console.log('MISS  ' + m.catches + ' — mutation did not apply (source moved?): ' + m.name); missed++; continue; }
   const overrides = src.slice(); overrides[m.part] = mutated;
@@ -83,5 +96,5 @@ for (let i = 0; i < MUTATIONS.length; i++) {
   else { console.log('MISS  ' + m.catches + ' did NOT catch: ' + m.name + (exit === 0 ? ' (suite stayed green)' : ' (wrong test failed)')); missed++; }
 }
 rmSync(dir, { recursive: true, force: true });
-console.log('\nmutations ' + caught + '/' + MUTATIONS.length + ' caught, ' + missed + ' missed');
+console.log('\nmutations ' + caught + '/' + (ONLY ? caught + missed : MUTATIONS.length) + ' caught, ' + missed + ' missed' + (ONLY ? ' (subset)' : ''));
 process.exit(missed ? 1 : 0);
