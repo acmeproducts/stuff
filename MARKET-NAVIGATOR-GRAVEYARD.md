@@ -212,3 +212,7 @@ For Turn 26, the direct application construction baseline is the complete accept
 The earlier rule naming `market-navigator-turn25-pre-ship.html` as the Turn 26 mutation source is superseded for Turn 26 because that pre-ship blob does not contain the accepted Index Explanation, Derived Model Health, NOW Print, crosshair, Health Glossary/MAC self-healing, and Yield Curve runtime. It remains historical Turn 25 provenance only.
 
 Never ship Turn 26 from a source that omits accepted cumulative Turn 25 functionality.
+
+## 16. Turn 26 wrong-baseline candidate — 2026-09-21
+
+Candidate commit `2934e9e5335ef9a362efa96407e68f52a311bcef` is rejected and must not be used as an implementation donor. It was built from the historical Turn 25 pre-ship blob rather than the complete accepted cumulative Turn 25 Ship runtime and therefore would have regressed accepted Index Explanation, Derived Model Health, NOW Print and subsequent Turn 25 corrections. The direct Turn 26 baseline remains commit `7241de67db1558b9223fb608fa26443dcb98a3b2`, artifact `market-navigator-turn25-ship.html`, blob `8ebd766774d6e70011cdac0e40c2759eba8f5fc5`.
