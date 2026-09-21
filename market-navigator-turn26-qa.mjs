@@ -97,7 +97,7 @@ const AI='# Current governed read\\n\\n## Observed\\nThe governed evidence is th
    await page.click('#mnxHealthTabs [data-mnx-health="glossary"]');
    await page.waitForSelector('.mnxGlossary');
    const gt=await page.locator('.mnxGlossary').innerText();
-   check('Glossary adds timing classification',/Timing \\/ why/.test(gt)&&/(LEADING|LAGGING|COINCIDENT|MIXED)/.test(gt));
+   check('Glossary adds timing classification',gt.includes('Timing / why')&&/(LEADING|LAGGING|COINCIDENT|MIXED)/.test(gt));
    check('Glossary retains Yield Curve governance',/Yield Curve factor/.test(gt)&&/28.6%/.test(gt));
    check('no page-level horizontal overflow',await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+1),await page.evaluate(()=>document.documentElement.scrollWidth+' > '+innerWidth));
    check('no application console/page errors',errors.length===0,errors.slice(0,4).join(' | '));
