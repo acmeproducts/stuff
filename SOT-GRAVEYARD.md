@@ -633,3 +633,18 @@ Also reject retrying a rolled-back Release A cutover against the schema-12 datab
 
 **Required replacement:** finish pre-cutover qualification first; stop the old supervised service; validate and hash the stabilized predecessor database only after stop/checkpoint; archive any existing failed-attempt schema-12 database; recreate schema-12 from stabilized v11; verify predecessor checksum after migration; and archive the new schema-12 attempt on any subsequent rollback before restoring the old service.
 
+
+
+## 2026-09-20 — RELEASE A DATABASE / TAG UI NEGATIVE RULES
+
+The following are rejected for Release A and must not return:
+
+- Redundant **Evidence Database** heading inside the Database pane.
+- Database-local **COMPLETED · Analysis complete** or equivalent job-status strip consuming vertical space.
+- Dedicated Database **Go** button for OMNISEARCH.
+- Separate persistent **Export CSV** and **Export JSON** toolbar buttons.
+- Weak hover treatment that merely changes brightness; Database row hover must be white background with black text.
+- Non-zebra Database rows.
+- Bottom **Close** action in Edit Tags.
+- Mixed-case owner tags persisted by either UI or backend.
+- Any tag normalization that changes immutable UNIQUE / KEEP / EXCESS system classifications.
