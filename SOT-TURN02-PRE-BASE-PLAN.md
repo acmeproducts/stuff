@@ -944,3 +944,101 @@ Release A qualification must verify:
 - no `AI` pane is added to the Release A `names` state-machine array;
 - the AI control cannot call `show()`, provider APIs, or another action; and
 - mobile ribbon CSS does not depend on horizontal scrolling.
+
+
+## 2026-09-21 — OMNISEARCH COLUMN AUTOCOMPLETE / REMOVE # BUTTON — BINDING
+
+This patch replaces the permanent Database/Grid `#` helper button with in-field OMNISEARCH autocomplete. Database and Grid must share the same search language and autocomplete behavior.
+
+### Permanent toolbar control
+
+- Remove the permanent standalone `#` button from Database.
+- Remove the permanent standalone `#` button from Grid.
+- Do not replace it with another persistent field-picker button.
+- Column discovery lives inside OMNISEARCH itself so mobile toolbar space is preserved.
+
+### Column autocomplete trigger
+
+- Typing `#` inside OMNISEARCH enters column-autocomplete mode.
+- The first character typed after `#` immediately filters the available searchable Database columns.
+- Additional characters continue narrowing the column list.
+- Matching is case-insensitive.
+- Suggestions are based on the governed searchable column set, not arbitrary object keys.
+- Examples:
+  - `#c` may suggest `created`, `class`, and `content_rating`.
+  - `#cl` narrows to `class`.
+  - `#l` suggests `lifecycle`.
+  - `#f` may suggest `filename`, `folder`, and `fingerprint`.
+- Tapping a suggested column inserts the canonical query token followed by a colon, e.g. `#created:`.
+
+### Human-facing aliases
+
+The search language may expose concise user-facing aliases while preserving the existing schema:
+
+- `#class:` maps to `system_classification`.
+- `#folder:` maps to the parent directory derived from the canonical full `path`.
+- `#lifecycle:` remains the real ingestion/processing lifecycle field.
+- `#filename:`, `#created:`, `#modified:`, `#extension:`, `#fingerprint:`, `#tags:`, `#quality_rating:`, `#content_rating:`, and other governed searchable fields remain available.
+
+The underlying Database schema is not renamed merely to support a clearer query language.
+
+### Distinct-value autocomplete
+
+After a column is selected, OMNISEARCH enters value-autocomplete mode:
+
+- Present the distinct existing values for that selected field from the current authoritative placement population.
+- Values are sorted ascending using type-appropriate ordering.
+- Tapping a value completes the field expression.
+- For enum-like fields, examples include:
+  - `#class:` → `EXCESS`, `KEEP`, `UNIQUE`.
+  - `#lifecycle:` → the actual lifecycle values present in the Database.
+  - `#extension:` → distinct extensions present.
+- For Created and Modified, distinct suggestions are calendar dates rather than every full timestamp:
+  - format `YYYY-MM-DD`;
+  - sorted ascending;
+  - the underlying timestamp remains unchanged in evidence.
+- Distinct-value suggestions are assistance only and never restrict valid manual search input.
+
+### Manual typing / wildcard override
+
+- The user may continue typing instead of tapping a suggestion.
+- Manual text overrides the current autocomplete suggestions.
+- Wildcards remain first-class and bypass dependence on a finite distinct-value list.
+- Examples that must remain valid:
+  - `#filename:*DJI*`
+  - `#folder:*archive*`
+  - `#created:2024-*`
+  - `#class:excess`
+- Existing negative terms and `OR` semantics remain supported.
+- Autocomplete must never silently rewrite or broaden a user-entered expression.
+
+### Execution behavior
+
+- Enter executes the OMNISEARCH expression.
+- Blur executes when the expression has changed.
+- Search remains non-destructive.
+- Search result membership never implicitly selects files for mutation.
+- Bulk mutation continues to require explicit owner selection after filtering.
+
+### Database and Grid parity
+
+- Database and Grid use the same parser, aliases, autocomplete rules, wildcard semantics, negative semantics, and `OR` behavior.
+- Do not maintain separate query grammars for the two surfaces.
+- Query execution may reuse one shared implementation with presentation-specific result rendering.
+
+### Qualification additions
+
+Release A qualification must verify:
+
+1. no permanent `#` helper button exists in Database or Grid;
+2. typing `#` enters field-autocomplete mode;
+3. first-letter and subsequent-letter filtering of column suggestions works;
+4. `class` resolves to `system_classification`;
+5. `folder` resolves to parent-directory search without changing canonical stored `path`;
+6. selecting a field produces distinct-value suggestions;
+7. Created/Modified distinct suggestions are normalized to ascending `YYYY-MM-DD` values;
+8. direct manual typing overrides autocomplete;
+9. wildcard field expressions execute correctly;
+10. Enter and blur execute;
+11. Database and Grid produce the same result set for the same query against the same placement snapshot; and
+12. filtered results never become an implicit bulk-selection scope.
