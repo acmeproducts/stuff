@@ -1,7 +1,7 @@
 # Market Navigator — Canonical Master Plan
 
 Status: AUTHORITATIVE PRODUCT / BUILD / QUALIFICATION PLAN
-Updated: 2026-09-16
+Updated: 2026-09-21
 Planning state: **PLAN ONLY — NO APPLICATION CODE AUTHORIZED BY THIS UPDATE**
 Target artifact: **`market-navigator-turn25-ship.html`**
 
@@ -484,3 +484,399 @@ The Treasury yield curve is a first-class MAC factor, not two visually anonymous
 Health and Index Explanation must expose: factor name; canonical aggregate weight; each spread current level; state (INVERTED when either governed spread is below zero, POSITIVE when both are above zero, FLAT when a spread is exactly zero); inversion depth; latest inversion episode dates/duration from real observations; factor contribution to the selected-horizon MAC movement; and transform/provenance. The current state must never be called inverted merely because an earlier observation was inverted.
 
 This change does not alter the canonical MAC arithmetic. Any future increase/decrease from the existing 28.5714% aggregate curve weight requires an explicit versioned model-weight study and owner disposition. Visibility and state diagnostics may not be used as an implicit adaptive weight.
+
+---
+
+# POST-SHIP CAPABILITY — Live Library Investigation, Context Evidence, and Indicator Timing
+Owner authorized: 2026-09-21
+Planning state: **PLAN / GOVERNANCE UPDATE ONLY — NO APPLICATION CODE AUTHORIZED BY THIS UPDATE**
+
+This capability extends the accepted frozen-Library model without weakening reproducibility. The governing product principle is:
+
+**Library analyses are immutable evidence; live AI queries are governed investigative extensions of that evidence.**
+
+A Library analysis remains one durable analytical subject/card. Its original frozen state never changes. Live investigation may append additional explicitly saved frozen checkpoints inside that same analysis/thread; it must not create a second Library card unless the user deliberately creates a genuinely separate analysis.
+
+## 23. One-card analytical lineage
+
+A Library analysis card owns an ordered lineage of immutable states:
+
+- original analysis state;
+- zero or more explicitly saved live-query checkpoints;
+- each checkpoint has its own timestamp, data/evidence revision, model/catalog versions, chart state, AI response/transcript segment, query specification, and contextual evidence;
+- the original state remains addressable and reproducible after later checkpoints are added.
+
+Required semantics:
+
+- **Save in Analysis** appends the current live result as a new frozen checkpoint inside the existing analysis card/thread.
+- **Discard** removes the temporary live analytical state and does not alter the original analysis or prior saved checkpoints.
+- Saving a refresh/extension must **not** spawn a second Library analysis card.
+- **Create New Analysis** is a distinct explicit action reserved for a genuinely separate analytical subject; it is not the default save behavior for live refreshes.
+- Later checkpoints may reference their parent checkpoint, but lineage never rewrites or collapses prior states.
+- A saved checkpoint may be reopened, printed, copied, exported, discussed, or compared with any other checkpoint in the same analysis without recomputing its frozen evidence.
+
+Conceptual example:
+
+```text
+Growth Index — MTD        ← one Library card
+  ├─ Original — Sep 1
+  ├─ Refreshed through Sep 21
+  ├─ Extended to 1YR — Sep 21
+  └─ Refreshed — Oct 5
+```
+
+## 24. Governed live-query service
+
+AI must not receive direct SQL/database access. Implement a narrow read-only Market Navigator query service over the governed catalog/evidence layer.
+
+Conceptual architecture:
+
+```text
+Frozen Library state
+      ↓
+AI request / seeded question
+      ↓
+Market Navigator Query Service
+      ├─ validates canonical series/model IDs
+      ├─ resolves governed definitions/transforms
+      ├─ queries canonical evidence
+      ├─ applies existing governed calculation rules
+      ├─ reports freshness/revisions/availability
+      └─ returns structured observations + provenance
+      ↓
+AI interpretation / comparison
+      ↓
+Temporary live result
+      ├─ Save in Analysis
+      └─ Discard
+```
+
+The service is read-only and must:
+
+- accept only canonical governed series/model identifiers and approved query operations;
+- reject arbitrary SQL and arbitrary table/column access;
+- reuse the same canonical evidence, transformations, direction rules, model manifests, index arithmetic, Health semantics, and provenance used elsewhere in Market Navigator;
+- preserve source identity and economic identity across horizons;
+- enforce bounded query windows/observation counts;
+- report unavailable, stale, missing, or degraded evidence truthfully rather than synthesizing completion;
+- return deterministic query metadata sufficient to reproduce the request;
+- never mutate Library, NOW, Health, Config, provider credentials, model definitions, or source evidence.
+
+Minimum conceptual request contract:
+
+```text
+analysis_id
+parent_state_id
+series_ids[]
+index_ids[]
+start_date
+end_date
+horizon
+representation
+transform
+revision_mode
+as_of
+```
+
+Minimum conceptual response contract:
+
+```text
+query_id
+query_timestamp
+parent_state_id
+series/model definitions + versions
+observations
+actual first/last observation dates
+latest observation date
+source/provenance
+data/evidence revision
+model/catalog revision
+freshness
+availability/degraded status
+revision information
+governed calculated values/contributions where applicable
+```
+
+The API/HTTPS transport is an implementation detail; the contract and governance semantics are mandatory.
+
+## 25. Supported investigative operations
+
+The live-query layer must support at minimum:
+
+1. **Bring current** — retrieve observations available after the saved checkpoint through the current governed evidence cut.
+2. **Extend horizon** — keep the same analytical composition while expanding or changing the requested date range, e.g. MTD → 3M → 1Y.
+3. **Compare checkpoints** — identify what materially changed between the frozen original/saved state and a later live or saved state.
+4. **Component drill-through** — retrieve governed underlying observations/contributions for the existing analytical subject without silently changing composition.
+5. **Freshness / revision check** — identify which series are current, stale, newly released, revised, unavailable, or degraded.
+6. **Trend persistence** — use the same composition over a longer governed window to test whether the current direction persists.
+7. **Leading/coincident/lagging interpretation** — use glossary timing metadata as explanatory context without changing model arithmetic.
+
+The AI may request these operations through the service. It may not create a second arithmetic path, infer missing observations, or silently substitute different series.
+
+## 26. Revision semantics are explicit
+
+Economic releases may be revised. “Refresh” therefore has two analytically different meanings and Market Navigator must keep them separate:
+
+### 26.1 Extend from frozen cut
+Preserve the frozen checkpoint exactly for its historical interval and append subsequently available governed observations. This answers: **“What happened after this analysis?”**
+
+### 26.2 Current-vintage restatement
+Rebuild the requested interval using the current governed evidence revision, explicitly identifying historical observations that differ from the frozen checkpoint. This answers: **“What does the same period look like using what we know now?”**
+
+Requirements:
+
+- never mix the two modes without labeling the distinction;
+- identify the revision mode in the live result and every saved checkpoint;
+- where current data differ from the frozen state, expose the changed observations/revisions rather than silently replacing history;
+- AI may discuss the analytical effect of revisions but may not imply that revised values were known at the earlier checkpoint.
+
+## 27. Live-result interaction and persistence
+
+A live query produces a temporary analytical state in the current Library thread.
+
+After the answer is rendered, provide:
+
+**Save in Analysis | Discard**
+
+Semantics:
+
+- **Save in Analysis** freezes the exact live result into the existing Library card as a new checkpoint.
+- **Discard** removes only the temporary live analytical state.
+- Do not label the post-result action “Cancel”; the query has already completed.
+- Ordinary follow-up questions do not automatically create checkpoints.
+- Multiple exploratory live questions may occur before anything is saved.
+- Saving freezes the exact chart/data cut, query specification, model/evidence revisions, AI answer/transcript, contextual evidence, and retrieval timestamps used for that result.
+- Saving must be durable and survive reread/reload before qualification can pass.
+
+## 28. Context-aware seeded questions (`?`)
+
+Library/AI analysis surfaces include a `?` control that exposes seeded questions generated from the actual frozen/live analytical context.
+
+Seed generation must be context-aware, not a fixed prompt list. Inputs include at minimum:
+
+- current horizon/date range;
+- original checkpoint date;
+- latest available observation date;
+- current series/index composition;
+- whether a live refresh has occurred;
+- model/Health state;
+- data freshness/revision state;
+- leading/coincident/lagging metadata;
+- available component contribution evidence.
+
+Examples of eligible contextual questions:
+
+- What has changed since this analysis was created?
+- Which components are driving the current move?
+- Is the direction broad-based or concentrated?
+- Extend this to 3 months. Does the trend persist?
+- Extend this to 1 year. Is the current move unusual?
+- Which indicators are leading the change and which are merely confirming it?
+- Have any underlying observations been revised since this checkpoint?
+- What contemporaneous releases or reporting help explain the period?
+
+Requirements:
+
+- changing the horizon/context must change the relevant seeds;
+- a seed is an ordinary governed query/AI request, not a privileged alternate data path;
+- seeds may not imply data capability that the service cannot truthfully satisfy.
+
+## 29. Context & Further Reading evidence enrichment
+
+AI POV and live analytical answers should include contextual external evidence so numerical interpretation is not isolated from relevant current events and releases.
+
+This is an evidence-enrichment layer, not a causal-inference shortcut.
+
+### 29.1 Presentation
+
+Include a visually subordinate, collapsed-by-default section:
+
+**Context & Further Reading ▸**
+`N relevant sources`
+
+Each item includes at minimum:
+
+- publication/release date;
+- source/publisher;
+- headline/title;
+- working URL;
+- short explanation of why it is relevant to the observed analysis;
+- retrieval timestamp;
+- source category.
+
+A newspaper-style action may be provided as **Refresh Context**. Its purpose is to rerun contextual evidence retrieval against the current live state. It does not replace the automatically available Context & Further Reading section.
+
+### 29.2 Source classes
+
+Maintain two distinct evidence classes even if presented under one UI heading:
+
+**Data & Releases**
+- FRED/Federal Reserve;
+- BLS;
+- BEA;
+- EIA;
+- U.S. Treasury;
+- SEC/company filings;
+- other authoritative primary sources appropriate to the governed series.
+
+**Related Reporting**
+- Reuters;
+- AP;
+- Bloomberg;
+- Financial Times;
+- WSJ;
+- other established high-quality reporting sources where relevant.
+
+Primary data/release sources are evidence, not “news,” and should be labeled accordingly.
+
+### 29.3 Relevance and causality discipline
+
+The system must distinguish:
+
+- **Observed:** what the governed Market Navigator data actually did.
+- **Contemporaneous context:** releases/events/reporting that occurred during or near the movement.
+- **Possible relationship:** a clearly qualified interpretation where evidence supports discussing a relationship.
+
+Never convert temporal coincidence into an unsupported causal claim.
+
+For example, acceptable structure is:
+
+```text
+Observed: RSK increased over the selected period.
+Contemporaneous context: [source] reported/released X during the same interval.
+Interpretation: X is consistent with higher risk sensitivity, but the evidence does not establish that X caused the index move.
+```
+
+Requirements:
+
+- do not invent headlines, dates, quotations, URLs, or source claims;
+- links must be functional when persisted/rendered;
+- prefer direct source material for releases and high-quality reporting for current events;
+- context search must be bounded to the analysis subject and time window, with reasonable adjacent-time allowance;
+- do not treat source popularity/ranking as analytical evidence;
+- where no credible relevant context exists, say so rather than padding the section.
+
+### 29.4 Frozen contextual evidence
+
+When a live result is saved in the existing analysis:
+
+- freeze the contextual source set used by that checkpoint;
+- persist headline/title, publisher/source, date, URL, retrieval timestamp, category, and relevance note;
+- later **Refresh Context** may discover newer/different sources but must not rewrite prior saved checkpoints;
+- reopening an old checkpoint shows the exact contextual evidence that belonged to that saved state.
+
+## 30. Glossary timing classification
+
+Extend the governed HEALTH Glossary for every economic/market indicator and RSK/GRW/MAC component with explicit timing metadata.
+
+Required fields:
+
+- **Indicator timing:** `LEADING | COINCIDENT | LAGGING | MIXED/CONTEXT-DEPENDENT`
+- **Why:** concise plain-language reason for the classification.
+- **Leads/lags what:** the economic/market phenomenon the indicator tends to precede, coincide with, or confirm.
+- **Typical relationship / timing:** qualitative timing description where defensible.
+- **Caveat:** circumstances in which the classification may weaken, vary, or reverse.
+
+Do not force every indicator into leading or lagging when coincident or mixed is more truthful.
+
+The metadata is explanatory evidence only. It does not alter canonical index weights, transformations, arithmetic, Health lifecycle, or source status.
+
+AI may use these governed glossary fields to explain patterns such as leading indicators weakening while lagging indicators remain strong, but it must not invent timing classifications or present variable lead times as deterministic forecasts.
+
+## 31. Implementation sequence for this capability
+
+When separately authorized for application implementation, execute in this order:
+
+### Stage L1 — Current-state/library schema audit
+Map the exact existing Library card/state/transcript persistence model, frozen evidence identity, chart serialization, Print behavior, and AI POV context path. Prove how one card can own multiple immutable checkpoints without breaking existing Library reread/Print/TTS/export behavior.
+
+### Stage L2 — Query contract and read-only service
+Define and implement the bounded canonical query contract over existing governed evidence/catalog/model arithmetic. Prove no arbitrary SQL or write path exists.
+
+### Stage L3 — Revision semantics
+Implement and qualify `extend from frozen cut` versus `current-vintage restatement`, including explicit revision reporting.
+
+### Stage L4 — Temporary live analytical state
+Add live query execution inside the current Library thread. Prove original and prior checkpoints remain byte/logically unchanged while live state is temporary.
+
+### Stage L5 — In-card checkpoint save/discard
+Implement **Save in Analysis | Discard**. Prove Save appends a durable checkpoint to the same analysis card and Discard leaves no durable mutation.
+
+### Stage L6 — Context-aware `?` seeds
+Generate prompts from actual analytical context/horizon/freshness/timing metadata and route them through the same governed query/AI path.
+
+### Stage L7 — Context & Further Reading
+Implement primary-release and reputable-reporting retrieval, relevance filtering, link persistence, causality-safe AI presentation, collapsed section, and explicit **Refresh Context** action.
+
+### Stage L8 — Glossary timing metadata
+Populate and validate leading/coincident/lagging/mixed classification fields and integrate them into Health Glossary and AI context.
+
+### Stage L9 — Cumulative qualification
+Run retained Market Navigator gates plus the new live-query, lineage, revision, context, seeded-question, glossary, persistence, responsive, Print, TTS, export, race/state, and live deployment gates on the exact merged artifact.
+
+## 32. Release-blocking qualification additions
+
+A candidate implementing this capability must additionally pass:
+
+**Single-card lineage:** saving a refreshed/extended result produces no second Library card; exactly one new immutable checkpoint appears under the existing card.
+
+**Original immutability:** original chart/evidence/transcript/context hashes or equivalent frozen identities remain unchanged after any number of live queries and saved checkpoints.
+
+**Temporary-state truth:** an unsaved live result disappears on Discard/reload as designed and cannot masquerade as a frozen Library checkpoint.
+
+**Durable save:** Save in Analysis survives durable reread/reload with exact query specification, chart/data state, transcript, revisions, and contextual evidence.
+
+**Read-only query boundary:** live AI queries cannot execute arbitrary SQL, write source/model/Library state, mutate provider credentials, or bypass canonical series/model resolution.
+
+**Canonical arithmetic:** indices/components returned through live query reconcile to the same governed arithmetic/evidence path used by NOW/Health/Index Explanation.
+
+**Revision modes:** extend-from-frozen and current-vintage-restatement produce correctly labeled, reproducible, different behavior where revisions exist.
+
+**Horizon extension:** MTD → 3M/1Y retains intended analytical composition and does not silently substitute series or economic identity.
+
+**Freshness/degradation:** stale/unavailable/degraded series are reported truthfully and never filled merely to complete a live answer.
+
+**Seeded questions:** `?` seeds demonstrably change with relevant horizon/context and execute through the ordinary governed path.
+
+**Context evidence:** persisted links resolve to the intended source; dates/source classes/relevance are present; primary releases and related reporting remain distinguishable.
+
+**Causality discipline:** test cases containing strong temporal coincidence do not yield unsupported factual causal claims.
+
+**Context freeze:** Refresh Context on a later state does not mutate contextual evidence saved with earlier checkpoints.
+
+**Glossary timing:** every governed component/indicator has a validated timing classification or truthful mixed/context-dependent status plus Why / Leads-lags-what / Caveat fields.
+
+**No arithmetic contamination:** leading/lagging metadata and external context cannot change canonical index arithmetic, weights, transforms, model lifecycle, or source Health.
+
+**Library regressions:** existing Library Print, TTS/Listen, Markdown rendering, links, export/import, title editing, navigation, and transcript persistence remain functional.
+
+**Responsive/mobile:** live-result actions, seeded-question surface, Context & Further Reading, and checkpoint navigation are usable on Android/mobile layouts without page-level overflow.
+
+**Race/state integrity:** stale live-query/context responses cannot overwrite a newer checkpoint/horizon/question state.
+
+## 33. Permanent prohibitions for live investigation
+
+Do not:
+
+- turn a saved Library analysis into a moving target;
+- overwrite the original frozen analysis when refreshing;
+- create a new Library card merely because a live result was saved;
+- save every AI follow-up automatically;
+- give AI raw/unbounded SQL access;
+- expose arbitrary database tables/columns through the AI query surface;
+- create a second model/index arithmetic engine for live queries;
+- silently use current revised history when the requested semantics are “what happened after the saved cut”;
+- silently preserve stale historical values when the requested semantics are current-vintage restatement;
+- mix frozen and current-vintage observations without explicit labeling;
+- fabricate or interpolate unavailable evidence to satisfy a query;
+- infer causation from contemporaneous news/release timing;
+- invent or persist unsupported headlines, source claims, dates, or links;
+- let external reporting override deterministic Market Navigator evidence;
+- mutate an older checkpoint when contextual evidence is refreshed;
+- force all indicators into leading/lagging when coincident or mixed is more accurate;
+- use timing classification as a deterministic forecast;
+- let glossary timing metadata change model weights/arithmetic;
+- weaken existing Library reproducibility, Print, TTS, Markdown, export, Health, Index Explanation, or retained semantic gates.
+
+This capability remains planning-only until separately authorized for implementation.
+
