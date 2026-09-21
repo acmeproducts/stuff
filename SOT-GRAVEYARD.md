@@ -679,3 +679,23 @@ The following are rejected and must not return:
 - Field autocomplete driven by arbitrary object keys rather than the governed searchable-column set.
 
 Required replacement: typing `#` in OMNISEARCH invokes in-field column autocomplete; the first letter narrows matching governed fields; selecting a field produces ascending distinct-value suggestions; manual typing and wildcards override suggestion use; `class` maps to `system_classification`; `folder` maps to the parent directory of canonical `path`; Database and Grid share the same parser and semantics.
+
+
+## 2026-09-21 — RELEASE B AI / DATABASE NEGATIVE RULES
+
+The following are rejected and must not return:
+
+- Conversation-only AI left rail as the primary object.
+- Treating all Release B AI as permanently advisory when a governed Auto Tag Apply path is approved.
+- Allowing AI to write tags without a reviewable proposal and explicit owner approval.
+- Allowing AI to alter UNIQUE / KEEP / EXCESS.
+- Allowing AI to directly edit SQLite or call arbitrary filesystem operations.
+- Allowing proposed TARGET folder structures or landing plans to execute in Release B without a separately governed landing/migration engine.
+- Hiding task scope/evidence revision from the owner.
+- Applying a stale AI proposal without revalidation.
+- Losing task state/transcript because the browser reloads or the user navigates away.
+- A visible Database Path column that repeats the filename.
+- Subtle dark-on-dark Database zebra striping.
+- Hover/selected Database rows that are not white with black bold text.
+
+Required replacement: task-centric AI with durable Task Cards, right-side task workspace and sticky compose; Auto Tag is proposal → review → explicit Apply through the governed metadata API; analysis tasks remain read-only; TARGET structure/landing tasks remain proposal-only in Release B; visible Database Folder excludes filename; zebra rows alternate dark grey/white with the governed text colors.
