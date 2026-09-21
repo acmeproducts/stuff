@@ -204,3 +204,11 @@ The accepted current MAC arithmetic remains seven equal eligible components. The
 ## 14. Turn 26 live-Library candidate failure — 2026-09-21
 
 Candidate commit `efecde9596af7233b26ee8410f898cd9c8e44cda` is rejected and must not be used as an implementation donor. The generated `market-navigator-turn26-ship.html` lost the Turn 26 helper block during source replacement, leaving the intended live-query/checkpoint functions absent. Rebuild the candidate directly from the pinned qualified Turn 25 baseline blob `89095a52e02b06db2b26192099846a5f0015a42d`; do not patch this failed candidate forward.
+
+## 15. Turn 26 baseline correction — 2026-09-21
+
+For Turn 26, the direct application construction baseline is the complete accepted cumulative Turn 25 Ship artifact at commit `7241de67db1558b9223fb608fa26443dcb98a3b2`, file `market-navigator-turn25-ship.html`, blob `8ebd766774d6e70011cdac0e40c2759eba8f5fc5`.
+
+The earlier rule naming `market-navigator-turn25-pre-ship.html` as the Turn 26 mutation source is superseded for Turn 26 because that pre-ship blob does not contain the accepted Index Explanation, Derived Model Health, NOW Print, crosshair, Health Glossary/MAC self-healing, and Yield Curve runtime. It remains historical Turn 25 provenance only.
+
+Never ship Turn 26 from a source that omits accepted cumulative Turn 25 functionality.
