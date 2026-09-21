@@ -98,7 +98,7 @@ def sha256_file(path):
    h.update(b)
  return h.hexdigest()
 def normalize_tag(x):
- x=str(x or "").strip()
+ x=str(x or "").strip().lower()
  if not x:return ""
  if not x.startswith("#"):x="#"+x
  return x
@@ -266,9 +266,12 @@ def metadata_update(body):
  for r in rows:
   sets=[];args=[]
   if add or remove:
-   tags=parse_tags(r.get("tags"));by={x.lower():x for x in tags}
+   tags=parse_tags(r.get("tags"));by={}
+   for x in tags:
+    n=normalize_tag(x)
+    if n:by.setdefault(n,n)
    for x in add:
-    if x:by.setdefault(x.lower(),x)
+    if x:by.setdefault(x,x)
    for x in remove:by.pop(x,None)
    sets.append("tags=?");args.append(json.dumps(list(by.values())))
   for k in ("notes","quality_rating","content_rating"):
