@@ -89,7 +89,6 @@ systemctl --user stop "$SERVICE_NEW" >/dev/null 2>&1 || true
 systemctl --user stop "$SERVICE_A" >/dev/null 2>&1 || true
 
 test -f "$DB12"
-DB12_SUM="$(sha256sum "$DB12" | awk '{print $1}')"
 echo "PASS stabilized Release A database found"
 
 if [[ -f "$DB13" ]]; then
@@ -107,6 +106,28 @@ PY
     echo "PASS prior inactive schema-13 attempt archived"
   fi
 fi
+
+# For a fresh/inactive Release B cutover, materialize schema-13 from a SQLite
+# backup of v12 before Release B starts. This prevents Release B startup from
+# opening the live predecessor as its migration source.
+if [[ "$B_ACTIVE" -eq 0 ]]; then
+  rm -f "$DB13"
+  python3 - "$DB12" "$DB13" <<'PY'
+import sqlite3,sys
+src,dst=sys.argv[1:3]
+a=sqlite3.connect(src,timeout=30);b=sqlite3.connect(dst,timeout=30)
+try:
+    a.backup(b);b.commit()
+finally:
+    b.close();a.close()
+print("PASS Release A migration snapshot materialized as schema-13 seed")
+PY
+fi
+
+# Hash only after the migration snapshot is complete. Nothing in Release B
+# startup may touch v12 after this point.
+DB12_SUM="$(sha256sum "$DB12" | awk '{print $1}')"
+echo "PASS Release A predecessor frozen for cutover"
 
 mkdir -p "$ROOT"
 if [[ -d "$ROOT/SOT" ]]; then PREV_DIR="$ROOT/SOT.previous.$(date +%s)"; mv "$ROOT/SOT" "$PREV_DIR"; fi
