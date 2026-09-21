@@ -6,7 +6,8 @@
    Output: bridge-turn27-post-ship.html = c5 bytes + the six transport /
            surface parts CARRIED from accepted c8, byte for byte, + six new
            parts: K-1 device-namespaced ids, K-2 phrasebook merge, K-4 rename
-           convergence, T-1 render coalescing, T-2 log hygiene, T-3 wrap map.
+           convergence, T-1 render coalescing, T-2 log hygiene, T-3 wrap map;
+           candidate 2 adds D-10 (Enter in the phrasebook tag field).
 
    ONE DECLARED REMOVAL: the D1 read-only instrument (d1-call-diagnostics.js)
    is not carried — it existed to read the 27·ship gates, not to ship to
@@ -40,7 +41,8 @@ export const NEW = [
   'talkbridge/parts/k4-rename-lww.js',
   'talkbridge/parts/t1-render-coalesce.js',
   'talkbridge/parts/t2-log-hygiene.js',
-  'talkbridge/parts/t3-wrap-map.js'
+  'talkbridge/parts/t3-wrap-map.js',
+  'talkbridge/parts/d10-tag-enter.js'
 ];
 export const PARTS = CARRIED.concat(NEW);
 export const OUT_FILE = 'bridge-turn27-post-ship.html';
