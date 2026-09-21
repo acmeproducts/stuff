@@ -901,3 +901,74 @@ Do not:
 
 This capability remains planning-only until separately authorized for implementation.
 
+
+
+## 34. Turn 26 correction — compact ribbon, direct Health-source links, standalone Analyze modal
+
+Owner clarification: 2026-09-21.
+
+### 34.1 Compact components breadcrumb
+When the NOW index view is expanded to components, the visible breadcrumb token must be `*` rather than the word `COMPONENTS`. Its accessible label/title remains “Components.” The purpose is to preserve horizontal space for all horizon controls and the `…` menu on mobile. The breadcrumb may not wrap or push horizon/menu controls out of view.
+
+### 34.2 Direct source links from the long-press information card
+The long-press information card must expose a **Source** link for both raw series and governed indices.
+
+- The link opens in a **new browser tab**.
+- It must deep-link to the exact matching HEALTH entry, not merely navigate to the generic HEALTH page.
+- Raw series link to their exact Sources/Data Health row.
+- Governed indices link to their exact Derived Model Health entry.
+- The target HEALTH entry must have a stable addressable anchor and be scrolled/highlighted when opened directly.
+
+### 34.3 Standalone Analyze modal
+The long-press information card must also expose a chart-style **Analyze** icon.
+
+Interaction contract:
+
+- hover/title: `Analyze`;
+- tap opens a **fresh standalone modal analysis surface**;
+- this modal is not a breadcrumb/drill-down route and must not mutate NOW breadcrumb/navigation state;
+- the modal can be exited only by its explicit upper-right `×`, except AI POV handoff described below;
+- clicking/tapping outside the modal must not dismiss it;
+- Escape is not a substitute for the explicit `×`.
+
+The selected component/index becomes the modal’s **primary series** and initial rebasing reference at Indexed 100. The modal contains:
+
+- full horizon selector;
+- primary-series identity;
+- Indexed 100 chart;
+- series chips;
+- `+ Add` capability using the governed catalog and availability rules;
+- remove capability for comparison series, but never for the primary series;
+- ability to make an added series the primary/rebase reference;
+- normal crosshair/inspection behavior;
+- Data;
+- Print;
+- Download Markdown;
+- CSV/JSON chart-data download;
+- AI POV.
+
+The modal is independent of the NOW drill-down path. A user may therefore launch a fresh comparison rooted in crude oil, gold, QQQ, or any other available governed series without engineering a NOW breadcrumb route.
+
+### 34.4 AI POV handoff
+AI POV from the standalone Analyze modal freezes the exact modal chart state and passes that state to the existing governed AI/Library path. Starting AI POV:
+
+1. freezes the modal state;
+2. closes the standalone modal;
+3. creates the Library analysis from that exact frozen state;
+4. opens Library to the new analysis.
+
+No parallel Library or AI engine is authorized.
+
+### 34.5 Qualification
+Release blocking:
+
+- `*` breadcrumb does not hide any horizon or the `…` control at 412px mobile width;
+- source link opens a new tab at the exact raw-series or derived-model HEALTH entry;
+- Analyze opens a modal without changing NOW breadcrumb/horizon/composition;
+- outside click does not close modal;
+- explicit `×` closes modal and restores the unchanged NOW state;
+- selected series is the primary Indexed-100 reference;
+- `+ Add` adds an available governed series;
+- selecting another modal series as primary changes the comparison/rebase reference without changing NOW;
+- modal AI POV closes modal, opens Library, and persists the exact modal state;
+- retained Turn 26 QA remains green.
