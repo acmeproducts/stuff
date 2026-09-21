@@ -1,0 +1,80 @@
+name: SOT Release A Cutover2 Qualification
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - 'install-SOT-turn02-release-a-cutover2.sh'
+      - 'SOT/sot-turn02-release-a-engine.py'
+      - 'SOT/sot-turn02-release-a-server.py'
+      - 'SOT/qualify-release-a.py'
+      - '.github/workflows/sot-release-a-cutover2-qualify.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  qualify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Preserve failed installer as evidence
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git hash-object install-SOT-turn02-release-a.sh)" = "11c2bce8bea81c7f34b167374ca2657e51b28198"
+          echo "PASS failed first installer preserved byte-for-byte"
+
+      - name: Shell syntax
+        shell: bash
+        run: |
+          set -euo pipefail
+          bash -n install-SOT-turn02-release-a-cutover2.sh
+          echo "PASS cutover2 shell syntax"
+
+      - name: Cutover ordering and stale-schema protection
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+          s=Path("install-SOT-turn02-release-a-cutover2.sh").read_text()
+          required=[
+            'RUNTIME_REF="3f1be97fe9fa425a6263c3f291bd4037e1497b95"',
+            'UI_REF="62c7b01a6f2b33acd9dce0915ab393903518af75"',
+            'systemctl --user stop "$SERVICE_OLD"',
+            'DB11_SUM="$(sha256sum "$DB11"',
+            'archive_db12 "pre-retry"',
+            'systemctl --user restart "$SERVICE_NEW"',
+            'archive_db12 "rollback"',
+            'stabilized predecessor v11 remained byte-for-byte unchanged during migration',
+            'existing OpenClaw/report/SOT Tailscale routes preserved',
+          ]
+          missing=[x for x in required if x not in s]
+          assert not missing,missing
+          stop=s.index('systemctl --user stop "$SERVICE_OLD"')
+          checksum=s.index('DB11_SUM="$(sha256sum "$DB11"')
+          archive=s.index('archive_db12 "pre-retry"')
+          start=s.index('systemctl --user restart "$SERVICE_NEW"')
+          assert stop < checksum < archive < start,(stop,checksum,archive,start)
+          assert 'tailscale serve --bg' not in s
+          assert 'tailscale serve --set-path' not in s
+          assert 'trap \'rc=$?; if [[ "$ROLLBACK_ARMED" -eq 1 ]]; then rollback "$rc"; else exit "$rc"; fi\' ERR' in s
+          print("PASS post-stop checksum + archive-before-retry + rollback sequencing")
+          PY
+
+      - name: Runtime Python syntax
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 -m py_compile             SOT/sot-turn02-release-a-engine.py             SOT/sot-turn02-release-a-server.py             SOT/qualify-release-a.py
+          echo "PASS runtime Python compile"
+
+      - name: Destructive disposable-file regression
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 SOT/qualify-release-a.py
