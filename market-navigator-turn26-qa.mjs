@@ -44,7 +44,7 @@ const AI='# Current governed read\\n\\n## Observed\\nThe governed evidence is th
 
    await page.evaluate(()=>window.__mnShip25.startAI());
    await page.waitForFunction(()=>window.__mnCurrentAnalysis&&window.__mnCurrentAnalysis()&&window.__mnCurrentAnalysis().status==='ready',{timeout:20000});
-   await page.waitForSelector('#libList .row');
+   await page.waitForFunction(()=>document.querySelectorAll('#libList .row').length>0);
    const cardCount=await page.locator('#libList .row').count();
    const original=await page.evaluate(()=>JSON.stringify(window.__mnCurrentAnalysis().state));
    check('initial AI context collapsed',await page.locator('#transcript details.contextDetails26').count()>=1);
