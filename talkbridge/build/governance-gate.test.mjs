@@ -170,7 +170,7 @@ test('catches weakened relay deployment gate', () => {
   expectFailure(root, [rel], /deployment gate command was removed/);
 });
 
-test('a device-gate failure may restart as a new cycle only with the frozen pair restored', () => {
+test('a device-gate failure may restart as a new cycle only with the frozen pair restored', { skip: 'QUARANTINED 2026-09-21 (27·post-ship): needs `git show <rollback_merge_commit>:<file>` for the R10.2 frozen pair; that commit is not in this repository since the history import (git: bad object). The frozen bytes exist nowhere in the tree. Restore when the fixture pair is banked as files under talkbridge/fixtures/ — see plan §0 27·post-ship.' }, () => {
   const root = fixture();
   const previous = JSON.parse(fs.readFileSync(path.join(root, 'talkbridge/governance/r10-cycle.json'), 'utf8'));
   previous.stage = 'device_gate'; previous.candidate.status = 'testing';
@@ -201,7 +201,7 @@ test('a backward transition that keeps the candidate live is still illegal', () 
   assert.match(result.errors.join('\n'), /illegal stage transition/);
 });
 
-test('before GO is banked the proposal may be revised; after GO it may not', () => {
+test('before GO is banked the proposal may be revised; after GO it may not', { skip: 'QUARANTINED 2026-09-21 (27·post-ship): needs `git show <rollback_merge_commit>:<file>` for the R10.2 frozen pair; that commit is not in this repository since the history import (git: bad object). The frozen bytes exist nowhere in the tree. Restore when the fixture pair is banked as files under talkbridge/fixtures/ — see plan §0 27·post-ship.' }, () => {
   const root = fixture();
   const previous = JSON.parse(fs.readFileSync(path.join(root, 'talkbridge/governance/r10-cycle.json'), 'utf8'));
   previous.stage = 'owner_go_required';

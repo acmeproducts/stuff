@@ -1,6 +1,5 @@
-<!-- v6.0.0 pointer -->
+<!-- pointer, corrected 2026-09-21 -->
 # TALKBRIDGE MASTER PLAN — moved
-Current plan: **TALKBRIDGE-MASTER-PLAN-v6.html** (this folder), v6.0.0, 2026-07-05.
-v5.8.2.29 and earlier: repo history of this file.
-Graveyard remains: TALKBRIDGE-GRAVEYARD.md.
-Plan v6 sha256: c78630b7b79e7eb691f528d3f1246f81826b7d3da5e825b32c06684801c306f9
+Current plan: **`talkbridge/TALKBRIDGE-PLAN-v9.md`** (this folder) — the §0 Turn/Stage Ledger is the one schedule.
+Graveyard: **`talkbridge/TALKBRIDGE-GRAVEYARD.md`**. Method: **`talkbridge/THE-METHOD.md`**.
+History: `TALKBRIDGE-MASTER-PLAN-v6.html` (v6.0.0, 2026-07-05) and earlier revisions live in this file's git history. Nothing in them is current.
