@@ -195,7 +195,7 @@ async function gateModelArithmetic(page) {
       const b = derived.indices[k].horizons[h];
       const comps = b.components.filter(c => Number.isFinite(c.orientedIndex));
       const n = comps.length;
-      const expectOriented = comps.map(c => 100 + c.direction * ((c.nowValue / c.t0Value) - 1) * 100);
+      const expectOriented = comps.map(c => c.transform === 'signed_level_sd' ? 100 + c.direction * ((c.nowValue - c.t0Value) / c.transformScale) : 100 + c.direction * ((c.nowValue / c.t0Value) - 1) * 100);
       const expectIndex = expectOriented.reduce((a, x) => a + x, 0) / n;
       const rec = await page.evaluate(([kk, hh]) => window.__mnShip25.record(kk, hh), [k, h]);
       maxDelta = Math.max(maxDelta, Math.abs(rec.endIndexValue - expectIndex));
@@ -230,10 +230,11 @@ async function gateModelArithmetic(page) {
 
   /* stale/omitted evidence must be disclosed, never forward-filled */
   const macro = await page.evaluate(() => window.__mnShip25.record('macro', '1YR'));
-  ok('structurally ineligible components are omitted and disclosed', macro.omitted.length === 2 && macro.omitted.every(o => o.reason && !o.estimated));
-  eq('partial coverage is labelled', macro.coverageStatus, 'PARTIAL');
+  eq('MAC retains all seven governed components with signed zero-crossing transforms', macro.componentsUsed, 7);
+  eq('MAC coverage is complete', macro.coverageStatus, 'COMPLETE');
+  eq('MAC has no structural spread omissions', macro.omitted.length, 0);
   const md = await page.evaluate(() => window.__mnShip25.explain({ series: ['macro'], root: 'macro', horizon: '1YR' }).markdown);
-  ok('markdown discloses omitted components', md.includes('Omitted components') && md.includes('not estimated'));
+  ok('markdown retains governed arithmetic disclosure', md.includes('arithmetic mean'));
   ok('markdown exposes the reconciliation residual', /reconciliation residual/.test(md));
   ok('markdown states the governed formulas', md.includes('oriented_index_t') && md.includes('arithmetic mean'));
 
@@ -711,6 +712,24 @@ async function gateHealthGlossary(page, origin) {
   }
 }
 
+async function gateYieldCurveFactor(page, origin) {
+  gate('MAC Yield Curve first-class factor');
+  await boot(page, origin);
+  const rec=await page.evaluate(()=>window.__mnShip25.record('macro','5D'));
+  const yc=rec.factorDiagnostics&&rec.factorDiagnostics.yieldCurve;
+  ok('canonical explanation carries Yield Curve diagnostics', !!yc);
+  eq('Yield Curve aggregate canonical weight is 2/7 when complete', Math.round(yc.canonicalWeight*1e6), Math.round((2/7)*1e6));
+  ok('Yield Curve state is explicit', ['INVERTED','FLAT','POSITIVE'].includes(yc.state));
+  ok('both governed spread levels are exposed', Number.isFinite(yc.levels.curve10y2y)&&Number.isFinite(yc.levels.curve10y3m));
+  ok('Yield Curve contribution is canonical numeric evidence', Number.isFinite(yc.contributionPercentPoints));
+  await page.click('.nav[data-view="health"]');
+  await page.click('#mnxHealthTabs [data-mnx-health="models"]');
+  await page.waitForSelector('[data-mnx-model="macro"] [data-mnx-yield-curve]');
+  const txt=await page.locator('[data-mnx-model="macro"] [data-mnx-yield-curve]').innerText();
+  ok('Health gives Yield Curve prominent first-class visibility', /Yield Curve/.test(txt)&&/Canonical MAC weight/.test(txt)&&/10Y−2Y/.test(txt)&&/10Y−3M/.test(txt));
+  await page.click('#mnxHealthTabs [data-mnx-health="glossary"]');
+  ok('Glossary explains Yield Curve factor and 28.6% weight', /Yield Curve factor/.test(await page.locator('.mnxGlossary').innerText())&&/28.6%/.test(await page.locator('.mnxGlossary').innerText()));
+}
 async function gateRace(page, origin) {
   gate('race / state integrity');
   await boot(page, origin);
@@ -820,6 +839,7 @@ async function gateCrosshairRegression(page, origin) {
     await gateModelHealth(page);
     await gateHealthUI(page);
     await gateHealthGlossary(page, origin);
+    await gateYieldCurveFactor(page, origin);
     await gateRace(page, origin);
     await gateNowPrint(page, origin);
     await page.__ctx.close();
