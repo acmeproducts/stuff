@@ -1,7 +1,7 @@
 <!-- v5.8.2.42 -->
 # TALKBRIDGE — THE GRAVEYARD (living; keep in project knowledge)
 ## Approaches PROVEN to fail. Scanned before every change and at every exit condition. Never resurrect.
-**Version: 2.15 | 2026-08-31 | Maintained in GitHub by the build process (raw.githubusercontent.com/acmeproducts/stuff/main/talkbridge/TALKBRIDGE-GRAVEYARD.md). Updated on every exit-condition burial.**
+**Version: 2.16 | 2026-09-20 | Maintained in GitHub by the build process (raw.githubusercontent.com/acmeproducts/stuff/main/talkbridge/TALKBRIDGE-GRAVEYARD.md). Updated on every exit-condition burial.**
 
 
 Each entry: the approach, its failure signature, what replaces it. A change matching a signature is forbidden BEFORE it is attempted — not rediscovered as if new.
@@ -1907,3 +1907,59 @@ until IndexedDB is specced in painful detail and proven in a standalone
 proof-of-concept harness first — never directly against the working
 codebase again. Address rolled back byte-exact to accepted 27·ship
 (956ceb381585).
+
+## G57 — 2026-09-20 — 27·ship candidate 5 (video surface: swap / flip / drag), rejected by owner after acceptance
+
+Buried: app sha 956ceb381585, accepted 2026-09-14, un-accepted by owner
+ruling 2026-09-20. Owner's report, verbatim in substance: "I never had any
+video call issues until we tried to start having a swap and a difference in
+the back button behavior." The diff from 26·post-ship to 27·ship confirms it
+— 129 lines removed from the accepted body, two of which are the cause:
+
+    < window.addEventListener('popstate',function(){if(CALL.active&&!CALL.pip)CALL.enterPip()});
+    < $('call-videos').addEventListener('click',function(){if(CALL.pip)CALL.exitPip()});
+    > /* popstate: intentionally NOT wired to any call behavior — V2 dropped. */
+
+(1) BACK BUTTON. Before: back during a video call shrank it to the corner
+band and re-armed; the call kept running. After: the call still pushes one
+history entry but nothing listens; the first press is eaten, the second
+leaves the app. Android suspends the page. The other party's video freezes
+and never returns (no resume path — G55 note 3, which this very release had
+been masking). On return the page reloads, the relay reconnects, chat and
+captions resume, the call is gone from memory and the peer was never told.
+That is "video freezes and never recovers, chat keeps working", exactly.
+(2) CAMERA FLIP. A new flip button on the same surface the owner taps to
+swap. `tbFlipCamera` releases the outgoing track FIRST, then requests the
+new camera; a failed request (G55 said likely on Android; R17 unconfirmed
+on device) leaves the sender empty — the other party freezes instantly with
+every connection indicator healthy.
+
+Process failure, recorded not argued: the builder instrumented the call
+path (D1), reproduced with deliberate network blips as instructed, found
+real pre-existing transport defects (D-7, G-none — they are being fixed),
+and declared them the cause. The owner's actual usage — the back button —
+was never reproduced. Their history beat the builder's inference, again.
+
+Buried whole: tap-swap, camera flip, draggable small video, the flip
+overlay, the removal of the corner-band/back-button absorber. The wants are
+NOT buried — they are parked in §7.15 with the reason each failed. Address
+rolled back byte-exact to accepted 27·pre-ship (69ec6482db24); rebuilt as
+candidate 6 = 27·pre-ship + the transport fixes only (§7.15).
+
+Rule from this burial: no video-surface change ships without the device
+gate exercising the BACK BUTTON and the HOME BUTTON mid-call, on both
+phones, with the far side's picture as the pass criterion.
+
+## G58 — 2026-09-20 — "Remove the TCP/TLS TURN URLs to fix the lag" (proposed, not built)
+
+The builder's first read of the Android D1 log blamed the `701 Failed to
+establish connection` errors on `turn:…?transport=tcp` / `turns:…:5349`
+for the 4-second call-setup lag and proposed removing those URLs. Wrong on
+both counts, caught before a line was written by reading the relay code:
+the errors are the same interface flap seen from ICE (`Address not
+associated with the desired network interface`), and those URLs are the
+only path for a user behind a UDP-blocking network. The lag is the
+signalling socket dropping at call start on cellular (wifi: instant, owner-
+verified) plus the app's flat 2 s reconnect and dropped candidates — fixed
+by §7.15 V-1/V-2 without touching ICE config. Never remove a TURN transport
+on evidence from one phone on one network.
