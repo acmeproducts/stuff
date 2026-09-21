@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-/* The four pre-push structural checks for 27·ship candidate 6: syntax, HTML
+/* The four pre-push structural checks for 27·ship candidate 7: syntax, HTML
    structure, wire, runtime. `--selftest` feeds every check a deliberately
    broken copy and fails unless the check rejects it. */
 import { readFileSync } from 'fs';
@@ -9,7 +9,7 @@ import { JSDOM, VirtualConsole } from 'jsdom';
 const builtP = process.argv[2] && !process.argv[2].startsWith('--') ? process.argv[2] : 'bridge-turn27-ship.html';
 const selftest = process.argv.includes('--selftest');
 const built = readFileSync(builtP, 'utf8');
-const MARKERS = ['GAP PART · D1-call-diagnostics.js', 'GAP PART · C1-signal-queue.js', 'GAP PART · V2-relay-retry.js', 'GAP PART · C3-joiner-restart.js', 'GAP PART · C2-stall-frames.js'];
+const MARKERS = ['GAP PART · D1-call-diagnostics.js', 'GAP PART · C1-signal-queue.js', 'GAP PART · V2-relay-retry.js', 'GAP PART · C3-joiner-restart.js', 'GAP PART · C2-stall-frames.js', 'GAP PART · S2-back-absorb.js'];
 
 function scripts(html) { const out = []; const re = /<script(?![^>]*\bsrc=)[^>]*>([\s\S]*?)<\/script>/gi; let m; while ((m = re.exec(html))) out.push(m[1]); return out; }
 function checkSyntax(html) { const b = scripts(html); if (!b.length) throw new Error('no inline script'); b.forEach((c, i) => { try { new vm.Script(c, { filename: 'inline-' + i + '.js' }); } catch (e) { throw new Error('inline script ' + i + ' does not parse: ' + e.message); } }); return b.length + ' inline script block(s) parse'; }
@@ -18,7 +18,7 @@ function checkStructure(html) {
   if (!/<\/script>\s*<\/body>\s*<\/html>\s*$/.test(html)) throw new Error('document does not end cleanly');
   const idx = MARKERS.map((mk) => html.indexOf(mk));
   idx.forEach((i, k) => { if (i === -1) throw new Error('part missing: ' + MARKERS[k]); if (k && i < idx[k - 1]) throw new Error('parts out of order at ' + MARKERS[k]); });
-  return 'tags balanced, five parts present in order (D1, V-1, V-2, V-3, V-4)';
+  return 'tags balanced, six parts present in order (D1, V-1, V-2, V-3, V-4, S-2)';
 }
 function checkWire(html) {
   const tail = '\n</script>\n</body>\n</html>'; const start = html.indexOf('/* ═══════════ ' + MARKERS[0]);
@@ -26,8 +26,8 @@ function checkWire(html) {
   const region = html.slice(start, html.length - tail.length); const ids = new Set(); let m; const re = /(?:getElementById|\$)\(\s*'([a-z0-9-]+)'\s*\)/gi;
   while ((m = re.exec(region))) ids.add(m[1]);
   for (const id of ids) if (!new RegExp('id=["\']' + id + '["\']').test(html)) throw new Error('appended part references #' + id + ', which does not exist');
-  for (const sym of ['function relaySend(', 'function relaySendWhenOpen(', 'function relayConnect(', 'CALL.runRecovery = function', 'CALL.startVideoWatchdog = function', 'CALL.stopVideoWatchdog = function', 'onSignal:async function', "addEventListener('popstate'"]) if (html.slice(0, start).indexOf(sym) === -1) throw new Error('baseline symbol missing: ' + sym);
-  return ids.size + ' element reference(s) resolve; all wrap targets and the back-button absorber exist in the baseline';
+  for (const sym of ['function relaySend(', 'function relaySendWhenOpen(', 'function relayConnect(', 'CALL.runRecovery = function', 'CALL.startVideoWatchdog = function', 'CALL.stopVideoWatchdog = function', 'onSignal:async function', 'function tbSwapTap', 'function tbFlipCamera', 'history.pushState({tbCall:1}']) if (html.slice(0, start).indexOf(sym) === -1) throw new Error('baseline symbol missing: ' + sym);
+  return ids.size + ' element reference(s) resolve; all wrap targets, swap, flip and the call history push exist in the baseline';
 }
 async function checkRuntime(html) {
   const errors = []; const vc = new VirtualConsole(); vc.on('jsdomError', () => {});
@@ -53,9 +53,9 @@ async function checkRuntime(html) {
   if (!/_relayConnect\.apply/.test(String(w.relayConnect))) throw new Error('relayConnect is not the V-2 wrapper');
   if (!/_runRecovery/.test(String(w.CALL.runRecovery))) throw new Error('CALL.runRecovery is not the V-3 wrapper');
   if (!/_start\.apply/.test(String(w.CALL.startVideoWatchdog))) throw new Error('CALL.startVideoWatchdog is not the V-4 wrapper');
-  if (typeof w.CALL.enterPip !== 'function') throw new Error('corner-band video surface missing');
+  if (typeof w.tbSwapTap !== 'function' || typeof w.tbFlipCamera !== 'function') throw new Error('c5 video surface missing');
   dom.window.close();
-  return 'boots clean; V-1..V-4 wrappers installed; corner-band surface live';
+  return 'boots clean; V-1..V-4 wrappers installed; c5 swap/flip surface live';
 }
 const CHECKS = [
   { id: '1 syntax', run: checkSyntax, break: (h) => h.replace('var C1_TRIES = 40;', 'var C1_TRIES = 40; {{{') },

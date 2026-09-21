@@ -1,7 +1,7 @@
 <!-- v5.8.2.42 -->
 # TALKBRIDGE — THE GRAVEYARD (living; keep in project knowledge)
 ## Approaches PROVEN to fail. Scanned before every change and at every exit condition. Never resurrect.
-**Version: 2.16 | 2026-09-20 | Maintained in GitHub by the build process (raw.githubusercontent.com/acmeproducts/stuff/main/talkbridge/TALKBRIDGE-GRAVEYARD.md). Updated on every exit-condition burial.**
+**Version: 2.17 | 2026-09-20 | Maintained in GitHub by the build process (raw.githubusercontent.com/acmeproducts/stuff/main/talkbridge/TALKBRIDGE-GRAVEYARD.md). Updated on every exit-condition burial.**
 
 
 Each entry: the approach, its failure signature, what replaces it. A change matching a signature is forbidden BEFORE it is attempted — not rediscovered as if new.
@@ -1908,47 +1908,35 @@ proof-of-concept harness first — never directly against the working
 codebase again. Address rolled back byte-exact to accepted 27·ship
 (956ceb381585).
 
-## G57 — 2026-09-20 — 27·ship candidate 5 (video surface: swap / flip / drag), rejected by owner after acceptance
+## G57 — 2026-09-20 — 27·ship candidate 5: the BACK BUTTON, not the surface (corrected the same night)
 
-Buried: app sha 956ceb381585, accepted 2026-09-14, un-accepted by owner
-ruling 2026-09-20. Owner's report, verbatim in substance: "I never had any
-video call issues until we tried to start having a swap and a difference in
-the back button behavior." The diff from 26·post-ship to 27·ship confirms it
-— 129 lines removed from the accepted body, two of which are the cause:
+What is buried: c5's back-button behaviour. c5 pushes one history entry
+when a call mounts and — having dropped the corner band (V2) — listens for
+nothing, so the first back press is eaten and the second leaves the app;
+Android suspends the page; the far side freezes for good (G55, no resume
+path); on return the page reloads and the call is gone with the peer never
+told. Owner's report and the diff from 26·post-ship agree on this.
 
-    < window.addEventListener('popstate',function(){if(CALL.active&&!CALL.pip)CALL.enterPip()});
-    < $('call-videos').addEventListener('click',function(){if(CALL.pip)CALL.exitPip()});
-    > /* popstate: intentionally NOT wired to any call behavior — V2 dropped. */
+What is NOT buried, and was wrongly buried for about an hour: c5's swap,
+flip and drag. Owner ruling 2026-09-20, verbatim in substance: "back arrow
+should have been disabled, and you should be able to flip back and forth
+the streams between small and large and change the camera from front to
+back — that was all working." The builder had read the earlier report ("no
+issues until swap and a difference in the back button") as a wish for the
+old corner-band surface, rolled the address back to 27·pre-ship and rebuilt
+on it (c6). Wrong surface; see G59. c5's bytes are re-affirmed as the video
+surface and become the input to candidate 7.
 
-(1) BACK BUTTON. Before: back during a video call shrank it to the corner
-band and re-armed; the call kept running. After: the call still pushes one
-history entry but nothing listens; the first press is eaten, the second
-leaves the app. Android suspends the page. The other party's video freezes
-and never returns (no resume path — G55 note 3, which this very release had
-been masking). On return the page reloads, the relay reconnects, chat and
-captions resume, the call is gone from memory and the peer was never told.
-That is "video freezes and never recovers, chat keeps working", exactly.
-(2) CAMERA FLIP. A new flip button on the same surface the owner taps to
-swap. `tbFlipCamera` releases the outgoing track FIRST, then requests the
-new camera; a failed request (G55 said likely on Android; R17 unconfirmed
-on device) leaves the sender empty — the other party freezes instantly with
-every connection indicator healthy.
+Rule from this burial: when the owner names TWO changes and one problem,
+ask which change is the problem before burying both. A rollback on an
+inference is still a guess.
 
-Process failure, recorded not argued: the builder instrumented the call
-path (D1), reproduced with deliberate network blips as instructed, found
-real pre-existing transport defects (D-7, G-none — they are being fixed),
-and declared them the cause. The owner's actual usage — the back button —
-was never reproduced. Their history beat the builder's inference, again.
-
-Buried whole: tap-swap, camera flip, draggable small video, the flip
-overlay, the removal of the corner-band/back-button absorber. The wants are
-NOT buried — they are parked in §7.15 with the reason each failed. Address
-rolled back byte-exact to accepted 27·pre-ship (69ec6482db24); rebuilt as
-candidate 6 = 27·pre-ship + the transport fixes only (§7.15).
-
-Rule from this burial: no video-surface change ships without the device
-gate exercising the BACK BUTTON and the HOME BUTTON mid-call, on both
-phones, with the far side's picture as the pass criterion.
+Two process failures, recorded not argued: (1) the builder's D1
+reproduction (deliberate network blips) tested a different failure from
+the one the owner was living with (back button), and declared the transport
+findings the cause; (2) the builder then over-corrected in the other
+direction. Both cost a device gate each. The transport findings themselves
+stand — the owner reports the lag gone on cellular and wifi with V-1/V-2.
 
 ## G58 — 2026-09-20 — "Remove the TCP/TLS TURN URLs to fix the lag" (proposed, not built)
 
@@ -1963,3 +1951,14 @@ signalling socket dropping at call start on cellular (wifi: instant, owner-
 verified) plus the app's flat 2 s reconnect and dropped candidates — fixed
 by §7.15 V-1/V-2 without touching ICE config. Never remove a TURN transport
 on evidence from one phone on one network.
+
+## G59 — 2026-09-20 — 27·ship candidate 6: right transport, wrong surface
+
+Buried: app sha 0fc47e5bfe45 = accepted 27·pre-ship bytes + D1 + V-1..V-4.
+Device gate, owner, cellular AND wifi: the setup lag is "completely gone"
+— better than the ~2 s the builder predicted. G3/G4 PASS. The surface
+FAILED the owner on sight: it is the old corner band; the owner wants
+tap-swap, camera flip, and the back button disabled during a call (G57,
+corrected). The transport parts are carried unchanged into candidate 7 on
+c5's bytes with S-2 (back absorbed). Nothing from c6 is thrown away except
+the choice of base. Address rebuilt as c7.

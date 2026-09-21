@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-/* 27·ship candidate 6 mutation gate (§7.15 M5). Each mutation reintroduces,
+/* 27·ship candidate 7 mutation gate (§7.15 M5). Each mutation reintroduces,
    in one part's source, exactly the defect one harness test claims to catch.
    The harness must fail on the NAMED test. Nothing on disk is modified.
 
@@ -9,9 +9,9 @@ import { readFileSync, writeFileSync, mkdtempSync, rmSync } from 'fs';
 import { execFileSync } from 'child_process';
 import { tmpdir } from 'os';
 import path from 'path';
-import { assemble, PARTS } from './assemble-27s6.mjs';
+import { assemble, PARTS } from './assemble-27s7.mjs';
 
-const P = { d1: 0, c1: 1, v2: 2, c3: 3, c2: 4 };
+const P = { d1: 0, c1: 1, v2: 2, c3: 3, c2: 4, s2: 5 };
 const src = PARTS.map((p) => readFileSync(p, 'utf8'));
 
 const MUTATIONS = [
@@ -32,12 +32,15 @@ const MUTATIONS = [
   { part: P.c2, catches: 'M3c.1', name: 'V-4 stall threshold is one sample', apply: (s) => s.replace('var C2_STILL = 3;', 'var C2_STILL = 1;') },
   { part: P.c2, catches: 'M3c.4', name: 'V-4 fires while already disconnected', apply: (s) => s.replace("if (pc.connectionState !== 'connected') { still = 0; return; }", '') },
   { part: P.c2, catches: 'M3c.5', name: 'V-4 sampler survives stopVideoWatchdog', apply: (s) => s.replace('clearInterval(this.c2Timer); this.c2Timer = null;\n    return _stop.apply(this, arguments);', 'return _stop.apply(this, arguments);') },
-  { part: P.v2, catches: 'M2.4', name: 'a part touches the back-button surface', apply: (s) => s + "\nwindow.addEventListener('popstate', function () {});\n" },
+  { part: P.v2, catches: 'M2.4', name: 'a transport part touches the back-button surface', apply: (s) => s + "\nwindow.addEventListener('popstate', function () {});\n" },
+  { part: P.s2, catches: 'M3g.1', name: 'S-2 listens but never re-pushes → second back leaves the app', apply: (s) => s.replace("history.pushState({ tbCall: 1 }, '', location.href);", '') },
+  { part: P.s2, catches: 'M3g.3', name: 'S-2 absorbs back even outside a call', apply: (s) => s.replace('if (!CALL.active) return;', '') },
+  { part: P.s2, catches: 'M2.4', name: 'S-2 reaches into the swap surface', apply: (s) => s + '\ntry { tbSwapTap(); } catch (_) {}\n' },
   { part: P.c2, catches: 'M6.1', name: 'a part retunes the baseline connect timeout', apply: (s) => s + '\nCALL.CONNECT_TIMEOUT_MS = 9000;\n' },
   { part: P.c3, catches: 'M1.2', name: 'the baseline is edited instead of appended to', apply: (s) => s, mangleBuild: (html) => html.replace('CALL.CONNECT_TIMEOUT_MS = 20000;', 'CALL.CONNECT_TIMEOUT_MS = 20001;') }
 ];
 
-const dir = mkdtempSync(path.join(tmpdir(), 'tb-27s6-mut-'));
+const dir = mkdtempSync(path.join(tmpdir(), 'tb-27s7-mut-'));
 let caught = 0, missed = 0;
 for (let i = 0; i < MUTATIONS.length; i++) {
   const m = MUTATIONS[i];
@@ -49,7 +52,7 @@ for (let i = 0; i < MUTATIONS.length; i++) {
   if (m.mangleBuild) html = m.mangleBuild(html);
   const builtPath = path.join(dir, 'built-' + i + '.html'); writeFileSync(builtPath, html);
   let out = '', exit = 0;
-  try { out = execFileSync('node', ['talkbridge/build/harness-27s6.mjs', builtPath], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'], env: { ...process.env, TB_PART_OVERRIDE: JSON.stringify(partPaths) } }); }
+  try { out = execFileSync('node', ['talkbridge/build/harness-27s7.mjs', builtPath], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'], env: { ...process.env, TB_PART_OVERRIDE: JSON.stringify(partPaths) } }); }
   catch (e) { exit = e.status || 1; out = (e.stdout || '') + (e.stderr || ''); }
   const named = new RegExp('FAIL\\s+' + m.catches.replace(/\./g, '\\.') + '(?![\\w.])').test(out);
   if (exit !== 0 && named) { console.log('  ok  ' + m.catches + ' catches: ' + m.name); caught++; }
