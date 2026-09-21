@@ -1042,3 +1042,182 @@ Release A qualification must verify:
 10. Enter and blur execute;
 11. Database and Grid produce the same result set for the same query against the same placement snapshot; and
 12. filtered results never become an implicit bulk-selection scope.
+
+
+## 2026-09-21 — RELEASE B TASK-CENTRIC AI + DATABASE PRESENTATION OVERRIDE — BINDING
+
+This section supersedes any earlier Release B language in §44 that treats saved conversations as the primary left-rail object or makes all AI-originated actions permanently advisory-only. The approved product direction is task-centric: durable AI tasks may include conversation, evidence, proposed changes, review, and governed execution according to task authority.
+
+### Database Path presentation
+
+- The authoritative Database continues to store the canonical full file path.
+- The visible Database **Path** presentation must never repeat the filename already shown in the Filename column.
+- The visible column is therefore presented as **Folder** and displays only the parent directory.
+- OMNISEARCH `#folder:` searches this derived parent-directory value.
+- Canonical full path remains available to backend operations, evidence manifests, and file viewers where exact identity is required.
+- Export may include canonical path under the governed export schema, but the on-screen Database column must not repeat the filename.
+
+### Database zebra / hover treatment
+
+Database rows use an intentionally high-contrast alternating pattern:
+- zebra A: dark grey background + white text;
+- zebra B: white background + dark grey text;
+- hover or selected/focused row: white background + black **bold** text across the entire row.
+This is a readability requirement, not a cosmetic preference. Subtle dark-on-dark zebra striping is rejected.
+
+### Release B AI information architecture
+
+The top-level AI surface uses the already approved PRISM-Library-shaped layout:
+- collapsible left rail;
+- scrollable persistent card list;
+- right task workspace;
+- independently scrollable task result/transcript area;
+- sticky bottom compose strip.
+
+The primary persistent object in the left rail is a **Task Card**, not a generic conversation card.
+
+Each Task Card persists:
+- task ID and task type;
+- generated/default editable title;
+- created/updated timestamps;
+- scope and evidence revision;
+- status: draft / analyzing / proposal-ready / awaiting-approval / applying / complete / failed / cancelled;
+- concise task summary;
+- durable transcript/conversation;
+- evidence manifest;
+- proposed changes/plan where applicable;
+- approval record where execution is allowed;
+- execution result manifest where execution is allowed.
+
+A task may contain a free-form conversation, but the conversation is subordinate to the durable task.
+
+### Release B initial task catalog
+
+Release B initially exposes the following governed task types:
+
+1. **Auto Tag**
+   - analyzes selected/current-scope placements;
+   - proposes owner-tag additions/removals;
+   - presents a reviewable diff before mutation;
+   - after explicit owner approval, may Apply through the existing governed metadata update machinery;
+   - may not change UNIQUE / KEEP / EXCESS system classification.
+
+2. **Analyze Estate**
+   - read-only;
+   - summarizes composition, concentrations, age/type/size patterns, anomalies, and other evidence-backed characteristics.
+
+3. **Explain Duplicates**
+   - read-only;
+   - explains duplicate groups, KEEP / EXCESS classification, byte impact, paths/sources, and useful review patterns.
+
+4. **Find Review Candidates**
+   - read-only;
+   - identifies evidence-backed files/groups that warrant owner attention and explains why.
+
+5. **Propose TARGET Folder Structure**
+   - creates a concrete proposed TARGET hierarchy and placement-to-destination mapping;
+   - may reason from filenames, dates, media type, tags, Estate/source, existing folders, and other governed evidence;
+   - proposal must be inspectable and revisable;
+   - Release B does **not** execute these moves.
+
+6. **Plan Landing to TARGET**
+   - creates a concrete landing proposal for current IN PLAY content;
+   - includes source placement, intended TARGET destination, capacity implications, collision considerations, verification requirements, and resulting Plan implications;
+   - Release B does **not** execute landing unless a separately governed landing engine is later added and qualified.
+
+### Release B authority boundary
+
+AI does not receive arbitrary filesystem or Database authority.
+
+Release B authority is task-specific:
+- Auto Tag may execute owner-tag changes **only after explicit owner review and approval**, using the deterministic governed metadata API.
+- Analyze Estate, Explain Duplicates, and Find Review Candidates are read-only.
+- Propose TARGET Folder Structure and Plan Landing to TARGET are proposal/planning tasks only in Release B.
+- Reorganizing TARGET, moving files into a proposed hierarchy, copying/landing IN PLAY content, deleting files, changing system classification, and changing Plan arithmetic remain outside Release B execution authority unless separately governed.
+
+Every executable AI task must use the same deterministic backend path already used by the non-AI SOT surface. The model proposes; the governed SOT engine validates and executes. The model never directly edits SQLite or the filesystem.
+
+### Right-side task workspace
+
+The right side remains conversational and must support free-form follow-up beneath the active task.
+
+It contains:
+- task title and type;
+- task status/progress;
+- visible scope and evidence revision;
+- evidence-backed result/proposal;
+- review/diff UI where the task can apply changes;
+- task-specific approval/apply controls only when authorized;
+- complete durable transcript;
+- sticky compose box for follow-up questions, refinements, exclusions, or reruns.
+
+Examples:
+- “Only tag videos.”
+- “Exclude screenshots.”
+- “Group this proposed structure by year before device.”
+- “Why did you classify these as review candidates?”
+- “Show me only EXCESS items above 1 GB.”
+
+Follow-up instructions modify the task/proposal; they do not silently broaden scope or execute changes.
+
+### Auto Tag approval contract
+
+Before Apply, Auto Tag must display:
+- exact placement count;
+- current tags;
+- proposed additions/removals per placement or deterministic grouped equivalent;
+- evidence revision;
+- any excluded/failed placements;
+- total mutation scope.
+
+Apply requires an explicit owner action. After approval:
+1. backend validates that referenced placements still exist/current revision is valid;
+2. changes execute through the governed metadata update API;
+3. catalog revision advances;
+4. Database/Grid/Plan/report surfaces refresh from backend truth;
+5. Activity records the task application;
+6. the Task Card stores the applied result and any partial failures.
+
+A stale proposal may not be silently applied against a materially changed evidence revision.
+
+### Future landing / reorganization boundary
+
+The Release B UI may include task cards for proposed landing and proposed TARGET reorganization, but execution controls remain absent/disabled until a separately governed landing/migration engine exists.
+
+That later engine must prove at minimum:
+- capacity preflight;
+- collision handling;
+- copy/move semantics;
+- destination byte-identity verification;
+- source-retention policy;
+- partial-failure recovery;
+- Database/current-placement reconciliation;
+- Plan/revision updates;
+- Activity logging;
+- restart/recovery behavior.
+
+### Release B qualification additions
+
+Release B is blocked unless all of the following pass:
+
+1. AI top-ribbon control activates the task surface.
+2. Left rail contains durable Task Cards, not conversation-only cards.
+3. Rail collapses on mobile without losing the active task.
+4. Initial task catalog contains exactly the governed initial task types unless the Plan is updated.
+5. Right workspace contains task result/proposal + durable transcript + sticky compose.
+6. Auto Tag proposal is reviewable before Apply.
+7. Auto Tag cannot alter system classification.
+8. Auto Tag Apply requires explicit owner approval.
+9. Auto Tag Apply uses the existing governed backend metadata path and records results.
+10. Stale Auto Tag proposals are rejected or revalidated before application.
+11. Read-only tasks expose no mutation controls.
+12. Folder-structure and landing tasks expose proposal/review only; no filesystem execution control exists.
+13. Task/conversation state persists server-side across reload.
+14. Evidence revision/scope is stored with every run.
+15. Scope cannot silently expand.
+16. AI provider failures preserve the task and user turn without fabricated output.
+17. Running tasks do not block Analyze, Grid, Database, or normal filesystem operations.
+18. Existing Release A gates remain green.
+19. Database visible Folder column excludes filename.
+20. Database zebra rows are dark-grey/white alternating with the governed text colors.
+21. Hover/selected Database rows are white with black bold text.
