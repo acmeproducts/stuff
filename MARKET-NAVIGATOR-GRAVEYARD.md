@@ -199,3 +199,8 @@ The only approved zero-crossing repair is the versioned governed `signed_level_s
 Never hide the two governed Treasury spreads as anonymous equal-weight rows in MAC Health/Explanation; describe a currently positive curve as inverted because of historical inversion; infer inversion from chart pixels; fabricate missing episode dates; dynamically increase MAC weight because the curve is inverted; or change the canonical 2/7 aggregate Yield Curve weight without a separately versioned weight study and owner disposition.
 
 The accepted current MAC arithmetic remains seven equal eligible components. The Yield Curve factor therefore has an explicit aggregate canonical weight of 28.5714% when both spreads are eligible. Visibility is first-class; weighting remains governed rather than event-driven.
+
+
+## 14. Turn 26 live-Library candidate failure — 2026-09-21
+
+Candidate commit `efecde9596af7233b26ee8410f898cd9c8e44cda` is rejected and must not be used as an implementation donor. The generated `market-navigator-turn26-ship.html` lost the Turn 26 helper block during source replacement, leaving the intended live-query/checkpoint functions absent. Rebuild the candidate directly from the pinned qualified Turn 25 baseline blob `89095a52e02b06db2b26192099846a5f0015a42d`; do not patch this failed candidate forward.
