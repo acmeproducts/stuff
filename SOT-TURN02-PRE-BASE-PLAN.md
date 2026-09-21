@@ -1221,3 +1221,78 @@ Release B is blocked unless all of the following pass:
 19. Database visible Folder column excludes filename.
 20. Database zebra rows are dark-grey/white alternating with the governed text colors.
 21. Hover/selected Database rows are white with black bold text.
+
+
+## 2026-09-21 — RELEASE B MOBILE STABILITY / SHARED SEARCH / AI SCOPE SIMPLIFICATION — BINDING
+
+This patch is a corrective refinement to the accepted Release B task surface and Database/Grid presentation.
+
+### Database horizontal stability
+
+- Background polling must not rebuild the active Database DOM merely because job/event/source state refreshed.
+- Horizontal and vertical Database scroll positions remain owner-controlled and stable until the owner scrolls, changes query/sort, or navigates away.
+- Selecting/deselecting a Database row must update row selection styling in place and must not rebuild the table or force horizontal scroll back to the left.
+- Catalog-revision changes may refresh Database evidence, but the current scroll position must be preserved across that authoritative refresh.
+
+### Database zebra adjustment
+
+- Keep the approved alternating dark-row / white-row design.
+- Dark zebra rows use a materially darker charcoal than the prior #343a40 treatment.
+- Dark row: dark charcoal background + white text.
+- White row: white background + dark grey text.
+- Hover/selected remains white background + black bold text.
+
+### Filename cell
+
+- Viewer-launch control appears on the **left** side of the Filename cell.
+- Visible filename text is truncated after 25 characters with an ellipsis when longer.
+- Tapping/clicking the visible filename copies the **complete canonical filename**, not the truncated presentation.
+- Full filename remains available to the viewer/evidence model.
+
+### Shared Database/Grid OMNISEARCH
+
+- Database and Grid use one shared OMNISEARCH expression and one shared executed query state.
+- A query entered/executed on Database appears identically when switching to Grid.
+- A query entered/executed on Grid appears identically when switching to Database.
+- Clearing search on either surface clears the shared search on both.
+- Result semantics remain identical because both surfaces already share the governed parser.
+
+### AI scope simplification
+
+The Release B AI surface no longer presents a scope selector.
+
+- Every new/run task uses the current shared Database/Grid OMNISEARCH expression as its scope.
+- If OMNISEARCH is non-empty, the task scope is the exact current query result set.
+- If OMNISEARCH is empty, the task scope is **Entire SOT**.
+- Explicit-selection and Plan/operations scope choices are removed from the Release B task UI.
+- Task Cards persist and display:
+  - task title;
+  - task type;
+  - search criteria used for the task (or **Entire SOT**);
+  - status;
+  - durable transcript/result.
+- The task compose box is pre-populated with an appropriate default instruction for the chosen task and remains editable before Run.
+- Scope/query is captured when the task is run and stored with the evidence manifest. It may not silently broaden after submission.
+
+### AI flicker / polling
+
+- Background SOT polling must not rebuild the active AI surface.
+- AI polling occurs only when a task is actually running or when the owner explicitly refreshes/opens the AI surface.
+- While a task is running, polling updates only task state that changed; it must not repeatedly replace the complete rail/stage DOM.
+- Typing in the compose field, editing a card title, scrolling the transcript, or inspecting a proposal must not be disrupted by periodic rerenders.
+
+### Qualification additions
+
+Release B qualification must verify:
+1. background data polling excludes active Database and AI DOM rerender;
+2. Database row selection does not call full `renderDatabase()`;
+3. dark zebra is darker than the superseded #343a40 treatment;
+4. viewer-launch button precedes filename text;
+5. visible filenames truncate at 25 characters while copy uses full filename;
+6. Database/Grid share query draft and executed query state;
+7. AI scope selector is absent;
+8. blank shared query resolves to Entire SOT;
+9. non-empty shared query resolves to exact current query results;
+10. Task Card/task stage visibly records the query criteria;
+11. compose receives a task-specific editable default prompt; and
+12. AI polling does not replace the full active surface on every poll.
