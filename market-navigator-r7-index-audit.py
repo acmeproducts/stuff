@@ -82,7 +82,30 @@ def main():
    horizons[h]={'status':status,'value':value,'baseline':100,'commonT0':iso_ms(t0_anchor),'commonNow':iso_ms(anchor),'componentsUsed':n,'componentsDefined':len(comps),'componentCoverage':n/len(comps),'absoluteMoveConcentration':concentration,'concentrationDiagnostic':concentration_note,'noNewReleaseComponents':no_release,'components':rows,'omitted':omitted,'reasons':reasons,'curve':curve}; usable.append(status!='unavailable')
   results[ik]={'name':idef['name'],'higherMeans':idef.get('higher_means'),'horizons':horizons}
  ratio={sid:{'eligible':(tm['kind']=='ratio' and tm['eligible']),'reason':(None if tm['kind']=='ratio' and tm['eligible'] else ('governed non-ratio transform: '+tm['kind'] if tm['kind']!='ratio' else tm['reason']))} for sid,tm in transforms.items()}
- out={'schema':'market-navigator-derived-indices-v1','version':'1.6.0-r7','generatedAt':dt.datetime.now(UTC).replace(microsecond=0).isoformat().replace('+00:00','Z'),'definitionVersion':d.get('version'),'commonMarketAnchor':iso_ms(anchor),'formula':d.get('display_contract',{}).get('index_formula'),'ratioEligibility':ratio,'componentTransforms':transforms,'indices':results}
+ 
+ # First-class MAC Yield Curve diagnostics use real canonical observations and do not alter index arithmetic.
+ macro=results.get('macro',{}).get('horizons',{})
+ curve_ids=('curve10y2y','curve10y3m')
+ for hh,blk in macro.items():
+  by={x['id']:x for x in blk.get('components',[])}; present=[by[x] for x in curve_ids if x in by]
+  if not present: blk['factorDiagnostics']={'yieldCurve':{'status':'UNAVAILABLE','canonicalWeight':0,'componentIds':list(curve_ids),'reason':'governed spread evidence unavailable'}}; continue
+  levels={x['id']:x['nowValue'] for x in present}; neg=[k for k,v in levels.items() if v<0]; flat=[k for k,v in levels.items() if v==0]
+  state='INVERTED' if neg else ('FLAT' if flat else 'POSITIVE')
+  weight=len(present)/max(1,blk.get('componentsUsed',0)); contribution=sum(x['moveFrom100'] for x in present)/max(1,blk.get('componentsUsed',0))
+  episodes={}
+  for sid in curve_ids:
+   if sid not in cache: continue
+   obs=cache[sid].get('observations') or []; last=None; start=None; end=None
+   for p in obs:
+    if p['t']>anchor: break
+    inv=float(p['v'])<0
+    if inv and start is None:start=p['t']
+    if not inv and start is not None:end=last['t'] if last else p['t']; start=None
+    last=p
+   if start is not None:end=last['t'] if last else start
+   episodes[sid]={'latestInversionStart':iso_ms(start) if start else None,'latestInversionEnd':iso_ms(end) if start else None,'currentlyInverted':levels.get(sid,0)<0}
+  blk['factorDiagnostics']={'yieldCurve':{'status':'CURRENT','state':state,'componentIds':list(curve_ids),'levels':levels,'invertedComponents':neg,'canonicalWeight':weight,'contributionPercentPoints':contribution,'episodes':episodes,'weightRule':'sum of governed equal component weights; no adaptive inversion weighting'}}
+out={'schema':'market-navigator-derived-indices-v1','version':'1.6.0-r7','generatedAt':dt.datetime.now(UTC).replace(microsecond=0).isoformat().replace('+00:00','Z'),'definitionVersion':d.get('version'),'commonMarketAnchor':iso_ms(anchor),'formula':d.get('display_contract',{}).get('index_formula'),'ratioEligibility':ratio,'componentTransforms':transforms,'indices':results}
  out['coherence']={'allIndexHorizonsComputable':all(usable),'rule':'Every index uses one common market anchor/start. Ratio components use relative rebasing. Explicit signed_level_sd components use additive movement standardized by persisted canonical historical level SD. Low-frequency components use their most recent real observation at or before each anchor without synthetic source observations.'}; out['revision']=sha(out); write(OUT,out)
  if not out['coherence']['allIndexHorizonsComputable']: raise SystemExit('Derived index coherence failed')
  print(json.dumps({'ok':True,'revision':out['revision'],'anchor':out['commonMarketAnchor'],'curvePoints':{i:{h:len(x['curve']) for h,x in v['horizons'].items()} for i,v in results.items()},'transforms':{k:v['kind'] for k,v in transforms.items()}},indent=2))
