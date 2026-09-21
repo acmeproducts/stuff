@@ -1,0 +1,81 @@
+name: SOT Release A1 Qualification
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - 'SOT/sot-turn02-pre-base-release-a1.html'
+      - 'SOT/sot-turn02-release-a-engine.py'
+      - 'SOT/sot-turn02-release-a-server.py'
+      - 'SOT/qualify-release-a.py'
+      - '.github/workflows/sot-release-a1-qualify.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  qualify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Preserve accepted baselines
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git hash-object SOT/sot-turn02-pre-base-v8.html)" = "3828d457d486bd62f015454ab0044bf23e585342"
+          test "$(git hash-object SOT/sot-turn02-pre-base-release-a.html)" = "89f40a27ef5ca8451a2faba152687c77213c0a9d"
+          echo "PASS v8 and Release A preserved byte-for-byte"
+
+      - name: Python syntax
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 -m py_compile             SOT/sot-turn02-release-a-engine.py             SOT/sot-turn02-release-a-server.py             SOT/qualify-release-a.py
+          echo "PASS Python compile"
+
+      - name: Release A1 browser syntax and owner-test contracts
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+          s=Path("SOT/sot-turn02-pre-base-release-a1.html").read_text()
+          assert "SOT Turn 02 Release A1" in s
+          assert "async function commitGridTagInput" in s
+          assert "if(e.key==='Enter')" in s
+          assert "addEventListener('blur'" in s
+          assert "{hideOk:true,hideCancel:true,xClose:true}" in s
+          assert "id=\"modalx\"" in s and "class=\"modalx\"" in s
+          assert ".planbody .plantable table{width:100%;min-width:0!important;table-layout:fixed}" in s
+          assert ".planbody .plantable th:nth-child(1)" in s
+          assert "function dbValue(p,f){return f==='path'?val(p,'path'):p[f]}" in s
+          assert "cell(dbValue(p,f),disp(p,f))" in s
+          assert "csvValue(dbValue(p,f))" in s
+          assert "grid.scrollLeft=keep.left" in s and "grid.scrollTop=keep.top" in s
+          assert 'onscroll="dbScroll={left:this.scrollLeft,top:this.scrollTop}"' not in s
+          tag=s[s.index("function openGridTags()"):s.index("async function removeGridTag")]
+          assert "ok:'Close'" not in tag and "hideOk:true" in tag and "xClose:true" in tag
+          js=s.rsplit("<script>",1)[1].split("</script>",1)[0]
+          Path("/tmp/sot-release-a1.js").write_text(js)
+          print("PASS A1 static owner-test contracts")
+          PY
+          node --check /tmp/sot-release-a1.js
+          echo "PASS A1 browser JavaScript syntax"
+
+      - name: Backend safety markers
+        shell: bash
+        run: |
+          set -euo pipefail
+          grep -F 'SCHEMA=12' SOT/sot-turn02-release-a-engine.py
+          grep -F '/api/grid/metadata' SOT/sot-turn02-release-a-server.py
+          grep -F '/api/grid/delete' SOT/sot-turn02-release-a-server.py
+          echo "PASS existing Release A backend contract"
+
+      - name: Destructive disposable-file regression qualification
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 SOT/qualify-release-a.py
