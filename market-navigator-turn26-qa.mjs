@@ -57,6 +57,47 @@ The timing is consistent with the observed move, but does not establish causatio
    check('retained Index Explanation',await page.locator('[aria-label="Explain index movement"]').count()===1);
    check('retained governed arithmetic',await page.evaluate(()=>window.__mnShip25.record('risk','1YR').status==='RECONCILED'));
    check('Turn26 API present',await page.evaluate(()=>window.__mnTurn26.version==='turn26-live-library-1'));
+   // Turn 26 standalone Analyze correction.
+   const nowBeforeStandalone=await page.evaluate(()=>JSON.stringify(window.__mnShip25.nowState?window.__mnShip25.nowState():null)).catch(()=>null);
+   await page.locator('#legend [data-id="risk"]').click();
+   await page.waitForFunction(()=>document.querySelector('#nowCrumb')?.textContent?.includes('*'));
+   check('compact components breadcrumb uses star',await page.locator('#nowCrumb').textContent().then(t=>t.includes('*')&&!/COMPONENTS/.test(t)));
+   check('all horizons remain visible with menu',await page.evaluate(()=>{
+     const hs=[...document.querySelectorAll('#hzs .hz')],m=document.getElementById('nowMoreBtn');
+     if(!hs.length||!m)return false;
+     const mr=m.getBoundingClientRect();
+     return hs.every(h=>{const r=h.getBoundingClientRect();return r.left>=0&&r.right<=innerWidth})&&mr.left>=0&&mr.right<=innerWidth;
+   }));
+   const componentId=await page.evaluate(()=>[...document.querySelectorAll('#legend [data-id]')].map(x=>x.dataset.id).find(x=>!['risk','growth','macro'].includes(x)));
+   check('component available for info-card test',!!componentId);
+   await page.locator('#legend [data-id="'+componentId+'"]').dispatchEvent('contextmenu');
+   await page.waitForSelector('#nowSeriesAbout:not(.hidden)');
+   const sourceHref=await page.locator('#nowSeriesAbout a[target="_blank"]').getAttribute('href');
+   check('info card Source deep-links exact Health entry',sourceHref&&sourceHref.includes('#health-source-'+componentId),sourceHref||'');
+   check('info card exposes Analyze icon',await page.locator('#analyzeNowSeries26[title="Analyze"]').count()===1);
+   const nowStateBeforeModal=await page.evaluate(()=>JSON.stringify(window.__mnShip25.nowState?window.__mnShip25.nowState():null)).catch(()=>null);
+   await page.click('#analyzeNowSeries26');
+   await page.waitForSelector('#standaloneAnalysis26:not(.hidden)');
+   check('Analyze opens standalone modal',await page.locator('#standaloneAnalysis26[aria-modal="true"]').count()===1);
+   check('modal primary starts from selected component',await page.evaluate(id=>window.__mnStandalone26&&window.__mnStandalone26.state().active===id,componentId));
+   await page.locator('#standaloneAnalysis26').click({position:{x:2,y:2}});
+   check('outside click does not dismiss standalone modal',await page.locator('#standaloneAnalysis26:not(.hidden)').count()===1);
+   check('opening modal leaves NOW state unchanged',await page.evaluate(b=>JSON.stringify(window.__mnShip25.nowState?window.__mnShip25.nowState():null)===b,nowStateBeforeModal));
+   await page.click('#analysisAdd26');
+   await page.waitForSelector('#analysisPicker26:not(.hidden)');
+   const addButton=page.locator('#analysisPickerList26 [data-analysis-add]:not([disabled])').first();
+   if(await addButton.count()){
+     const added=await addButton.getAttribute('data-analysis-add');
+     await addButton.click();
+     await page.waitForFunction(id=>document.querySelector('#seriesBar [data-analysis-id="'+id+'"]'),added);
+     await page.locator('#seriesBar [data-analysis-id="'+added+'"]').click();
+     check('added series can become primary',await page.evaluate(id=>window.__mnStandalone26.state().active===id,added));
+   }
+   await page.click('#analysisClose26');
+   await page.waitForFunction(()=>document.getElementById('standaloneAnalysis26').classList.contains('hidden'));
+   check('explicit X closes standalone modal',await page.locator('#standaloneAnalysis26.hidden').count()===1);
+   check('closing modal restores unchanged NOW state',await page.evaluate(b=>JSON.stringify(window.__mnShip25.nowState?window.__mnShip25.nowState():null)===b,nowStateBeforeModal));
+
 
    await page.evaluate(()=>window.__mnShip25.startAI());
    await page.waitForFunction(()=>window.__mnCurrentAnalysis&&window.__mnCurrentAnalysis()&&window.__mnCurrentAnalysis().status==='ready',{timeout:20000});
