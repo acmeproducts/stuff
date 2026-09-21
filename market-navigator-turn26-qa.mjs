@@ -11,6 +11,7 @@ function check(name,cond,detail=''){results.push({name,ok:!!cond,detail});if(!co
 function server(){
   const s=http.createServer((req,res)=>{
     const p=decodeURIComponent(req.url.split('?')[0]);
+    if(p==='/favicon.ico'){res.writeHead(204);res.end();return}
     const f=path.join(ROOT,p==='/'?ARTIFACT:p.slice(1));
     if(!f.startsWith(ROOT)||!fs.existsSync(f)||fs.statSync(f).isDirectory()){res.writeHead(404);res.end('nf');return}
     const ext=path.extname(f),mime={'.html':'text/html','.json':'application/json','.js':'text/javascript','.css':'text/css'}[ext]||'application/octet-stream';
@@ -47,6 +48,7 @@ The timing is consistent with the observed move, but does not establish causatio
  });
  await page.route('https://cdn.jsdelivr.net/npm/marked/marked.min.js',r=>r.fulfill({status:200,contentType:'text/javascript',body:fs.readFileSync(path.join(ROOT,'node_modules/marked/marked.min.js'),'utf8')}));
  await page.route('https://cdn.jsdelivr.net/npm/dompurify@3.1.6/dist/purify.min.js',r=>r.fulfill({status:200,contentType:'text/javascript',body:fs.readFileSync(path.join(ROOT,'node_modules/dompurify/dist/purify.min.js'),'utf8')}));
+ await page.route('https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js',r=>r.fulfill({status:200,contentType:'text/javascript',body:'window.XLSX=window.XLSX||{};'}));
  await page.route('https://api.venice.ai/**',r=>r.fulfill({status:200,contentType:'application/json',body:JSON.stringify({choices:[{message:{content:AI}}]})}));
  try{
    await page.goto(origin+'/'+ARTIFACT,{waitUntil:'load'});
