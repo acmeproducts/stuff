@@ -1,17 +1,17 @@
 #!/usr/bin/env node
-/* 27·ship candidate 6 harness (§7.15).
+/* 27·ship candidate 7 harness (§7.15).
 
    Two instances of the real artifact boot in jsdom — one creator, one joiner —
    wired through a fake relay that can be switched off and on, each with a
    scripted peer connection; a third instance drives the real relayConnect
    against a controllable fake WebSocket. Every assertion is a downstream
-   effect. Every gate here is mutation-tested by build/mutate-27s6.mjs.
+   effect. Every gate here is mutation-tested by build/mutate-27s7.mjs.
 
    Usage: node harness-27s6.mjs [built.html]   (TB_PART_OVERRIDE for mutations) */
 
 import { readFileSync } from 'fs';
 import { JSDOM, VirtualConsole } from 'jsdom';
-import { BASE_FILE, PARTS, TAIL } from './assemble-27s6.mjs';
+import { BASE_FILE, PARTS, TAIL } from './assemble-27s7.mjs';
 
 const builtP = process.argv[2] || 'bridge-turn27-ship.html';
 const built = readFileSync(builtP, 'utf8');
@@ -25,20 +25,21 @@ const assert = (c, m) => { if (!c) throw new Error(m); };
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
 /* ── M1 · ADDITIVE ───────────────────────────────────────────────────────── */
-console.log('M1 · additive over the accepted 27·pre-ship baseline');
+console.log('M1 · additive over the accepted 27·ship c5 baseline');
 const prefix = base.slice(0, base.length - TAIL.length);
-T('M1.1 built begins with the accepted 27·pre-ship bytes, byte for byte', () => assert(built.startsWith(prefix), 'baseline prefix altered'));
-T('M1.2 built === baseline + D1 + V-1 + V-2 + V-3 + V-4 + tail, nothing else', () => assert(built === prefix + parts.map((p) => '\n\n' + p).join('') + TAIL, 'output is not base + parts + tail'));
-T('M1.3 the baseline still carries the corner-band video and the back-button absorber', () => {
-  assert(/addEventListener\('popstate',function\(\)\{if\(CALL\.active&&!CALL\.pip\)CALL\.enterPip\(\)\}\)/.test(prefix), 'popstate → enterPip missing from the base');
-  assert(prefix.indexOf('btn-flip-overlay') === -1, 'the rejected flip button is in the base');
+T('M1.1 built begins with the accepted c5 bytes, byte for byte', () => assert(built.startsWith(prefix), 'baseline prefix altered'));
+T('M1.2 built === baseline + D1 + V-1 + V-2 + V-3 + V-4 + S-2 + tail, nothing else', () => assert(built === prefix + parts.map((p) => '\n\n' + p).join('') + TAIL, 'output is not base + parts + tail'));
+T('M1.3 the baseline is c5: tap-swap and camera flip present, corner band gone, no popstate listener of its own', () => {
+  assert(/function tbSwapTap/.test(prefix) && /function tbFlipCamera/.test(prefix) && prefix.indexOf('btn-flip-overlay') !== -1, 'c5 surface missing from the base');
+  assert(prefix.indexOf("addEventListener('popstate'") === -1, 'the base has a popstate listener — S-2 would double up');
+  assert(/history\.pushState\(\{tbCall:1\}/.test(prefix), 'the base no longer pushes the call history entry S-2 relies on');
 });
 
 /* ── M2 · CONTRACT ───────────────────────────────────────────────────────── */
 console.log('M2 · contract: wraps only, calls through, no takeover');
-const [d1, c1, v2, c3, c2] = parts;
+const [d1, c1, v2, c3, c2, pS2] = parts;
 const contractOf = (s) => s.slice(s.indexOf('@contract'), s.indexOf('*/', s.indexOf('@contract')));
-T('M2.1 every part declares replaces: (none)', () => { for (const p of [c1, v2, c3, c2]) assert(/replaces:\s*\(none\)/.test(contractOf(p)), 'a part declares a replacement'); });
+T('M2.1 every part declares replaces: (none)', () => { for (const p of [c1, v2, c3, c2, pS2]) assert(/replaces:\s*\(none\)/.test(contractOf(p)), 'a part declares a replacement'); });
 T('M2.2 every declared wrap calls through', () => {
   assert(/_relaySend\.apply\(this, arguments\)/.test(c1), 'V-1 does not call through relaySend');
   assert(/_relayConnect\.apply\(this, arguments\)/.test(v2), 'V-2 does not call through relayConnect');
@@ -54,20 +55,22 @@ T('M2.3 no part assigns to anything the baseline owns outside its declared wraps
   assert(!/(^|[^\w.])relayConnect\s*=(?!=)/m.test(c1 + c3 + c2), 'a part other than V-2 assigns relayConnect');
   assert(!/(^|[^\w.])relaySend\s*=(?!=)/m.test(v2 + c3 + c2), 'a part other than V-1 assigns relaySend');
 });
-T('M2.4 no onxxx handler installed; no DOM writes; no popstate touched', () => {
+T('M2.4 no onxxx handler installed; no DOM writes; transport parts never touch popstate; S-2 only absorbs back', () => {
   for (const p of [c1, v2, c3, c2]) {
     assert(!/\.\s*on(connectionstatechange|iceconnectionstatechange|icecandidate|track|negotiationneeded|datachannel|signalingstatechange|open|close|message|error)\s*=/.test(p), 'onxxx handler installed');
     assert(!/createElement|innerHTML|textContent\s*=|appendChild|classList\.(add|remove|toggle)|style\./.test(p), 'a part writes the DOM');
-    assert(!/popstate|pushState|enterPip|exitPip/.test(p), 'a part touches the back-button / PiP surface');
+    assert(!/popstate|pushState|enterPip|exitPip/.test(p), 'a transport part touches the back-button surface');
   }
+  assert(!/enterPip|exitPip|tbSwapTap|tbFlipCamera|replaceSenderTrack/.test(pS2), 'S-2 touches swap / flip / PiP — it only absorbs back');
+  assert((pS2.match(/addEventListener\('popstate'/g) || []).length === 1, 'S-2 must add exactly one popstate listener');
 });
 T('M2.5 no new message TYPE — restart is a key on the proven webrtc-signal carrier', () => {
   const types = new Set(); let m; const re = /type:\s*'([a-z-]+)'/g;
-  while ((m = re.exec(c1 + v2 + c3 + c2))) types.add(m[1]);
+  while ((m = re.exec(c1 + v2 + c3 + c2 + pS2))) types.add(m[1]);
   assert([...types].every((t) => t === 'webrtc-signal'), 'a new relay message type appeared: ' + [...types].join(','));
 });
 T('M2.6 no credential endpoint, no TURN URL removed (G19/G20; §7.15 non-scope)', () => {
-  for (const p of [c1, v2, c3, c2]) assert(!/credentials\/generate|iceServers|transport=tcp|turns?:/.test(p), 'a part touches ICE config or credentials');
+  for (const p of [c1, v2, c3, c2, pS2]) assert(!/credentials\/generate|iceServers|transport=tcp|turns?:/.test(p), 'a part touches ICE config or credentials');
 });
 
 /* ── M3 · TWO INSTANCES ──────────────────────────────────────────────────── */
@@ -330,6 +333,33 @@ T('M3f.8b …no retry outside a room (no v2_retry, no socket)', () => {
   assert(socks().length === n0 + 5, 'socket built outside a room');
 });
 
+
+/* ── M3g · S-2 THE BACK BUTTON DOES NOTHING DURING A CALL ────────────────── */
+console.log('M3g · S-2 back button absorbed during a call');
+const K = makeWindow(built, 'Back');
+await sleep(1200);
+const CK = enterRoom(K, 'creator');
+const pushes = [];
+const _ps = K.w.history.pushState.bind(K.w.history);
+K.w.history.pushState = function (st, t, u) { pushes.push(st); return _ps(st, t, u); };
+CK.active = true;
+K.w.dispatchEvent(new K.w.PopStateEvent('popstate', { state: null }));
+T('M3g.1 back during a call re-pushes the call entry (nothing leaves) and logs it', () => {
+  assert(pushes.length === 1 && pushes[0] && pushes[0].tbCall === 1, 'no re-push on back during a call: ' + JSON.stringify(pushes));
+  assert(saw(K, 's2_back_absorbed').length === 1, 's2_back_absorbed not logged');
+});
+K.w.dispatchEvent(new K.w.PopStateEvent('popstate', { state: null }));
+T('M3g.2 …and again on the next press — there is always one more entry', () => assert(pushes.length === 2, 'second back not absorbed'));
+CK.active = false;
+K.w.dispatchEvent(new K.w.PopStateEvent('popstate', { state: null }));
+T('M3g.3 outside a call, back is left alone', () => assert(pushes.length === 2 && saw(K, 's2_back_absorbed').length === 2, 'S-2 acted outside a call'));
+T('M3g.4 the c5 surface is intact in the built artifact: swap and flip are live functions, corner band is not', () => {
+  assert(typeof K.w.tbSwapTap === 'function' && typeof K.w.tbFlipCamera === 'function', 'swap/flip missing');
+  assert(typeof K.w.wirePipSwap !== 'function', 'corner-band code came back');
+  assert(K.w.document.getElementById('btn-flip-overlay'), 'flip button missing');
+});
+K.dom.window.close();
+
 /* ── M6 · BASELINE UNDISTURBED ───────────────────────────────────────────── */
 console.log('M6 · the baseline is still itself');
 T('M6.1 CONNECT_TIMEOUT_MS and keepalive untouched', () => assert(A.w.CALL.CONNECT_TIMEOUT_MS === 20000 && /3000/.test(String(A.w.CALL.startKeepalive)), 'baseline constants changed'));
@@ -339,7 +369,7 @@ CA.recoveryStep = 2; CA.recoveryLock = false;
 CA.runRecovery('failed');
 await sleep(1500);
 T('M6.1b creator step 3 still tears down and rebuilds', () => assert(pcBefore.__closed === true && built3 >= 1, 'creator step 3 changed'));
-T('M6.2 the back-button absorber is live in the built artifact', () => assert(typeof A.w.CALL.enterPip === 'function' && typeof A.w.wirePipSwap === 'function', 'corner-band surface missing'));
+T('M6.2 c5 video surface live: tap-swap wired on the video host', () => assert(typeof A.w.tbSwapTap === 'function' && A.w.document.getElementById('call-videos'), 'c5 surface missing'));
 T('M6.3 no uncaught errors across the whole run', () => assert(A.errors.length === 0 && B.errors.length === 0 && R.errors.length === 0, [...A.errors, ...B.errors, ...R.errors].join(' | ')));
 
 A.dom.window.close(); B.dom.window.close(); OLD.dom.window.close(); R.dom.window.close();
