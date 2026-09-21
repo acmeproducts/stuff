@@ -1,5 +1,5 @@
-<!-- TALKBRIDGE-PLAN v21.43.0 -->
-# TALKBRIDGE MASTER PLAN v21.43.0
+<!-- TALKBRIDGE-PLAN v21.48.0 -->
+# TALKBRIDGE MASTER PLAN v21.48.0
 
 **Location:** `talkbridge/TALKBRIDGE-PLAN-v9.md` in `acmeproducts/stuff`.
 **Owner:** Confi — sole decision-maker, runs every device gate.
@@ -86,16 +86,18 @@ built yet.
 | 27·base | **BLOCKED 2026-09-12 (owner).** Both candidates buried (G50): candidate 1 included a presence timer never agreed; candidate 2 was an in-place edit of a released artifact — a process violation. Address rolled back byte-exact to accepted 26·post-ship. Nothing builds until (a) presence is root-caused against the historical build where it worked, (b) a single spec covering notifications AND presence is agreed in writing, (c) owner GO. | 27·base | **Presence, traced end to end** — the word (visible + inRoom) is now declared on room entry, every view change, hide, show, blur, focus and page close, in browser tabs as well as the installed app (the accepted build declared only on lane open, on a 30s heartbeat, and — instant announcements only — inside the installed app; nothing ever declared on entering or leaving a room, so both parties read wrong in both directions). Relay v6.5 reads presence from the declared word keyed by device; ghost cleanup on last socket close. One owner of the dot: the legacy traffic-lighting and 75s countdown and the socket-close darkening are retired without editing a single frozen line. | Spec §7.13 as amended by the three-pass review | **ACCEPTED 2026-09-13 (owner: pass).** D-4 CLOSED — presence works for the first time in this project's history: steady green with both parties in the room, instant gray on lock / list / force-quit, instant green on return, no wink. Legacy presence engine and the superseded P1 block DELETED from the body (36 lines removed, nothing wrapped, nothing dormant) per owner ruling: in a file this size, wrapped dead code is a trap, not a safety measure. The file now contains one setPresence definition and exactly one caller. 16/16 two-party trace (entrance, exit, lock, unlock, list, re-attach, force-quit, relaunch, heartbeat); mutations 3/3. | https://acmeproducts.github.io/stuff/bridge-turn27-base.html |
 | 27·pre-ship | **N-1 notification lifecycle** — relay v6.6 sends a terminal retraction push to any recipient NOT currently connected when their call record resolves without their own action (caller hung up or cancelled, answered by no one, etc.); a foreground device never holds an OS card in the first place (`_decide`: visible+connected → in_app, no push requested), so no client-side close path was needed. K1 (tb-sw2.js) closes the card, or on a missed outcome replaces it with "Missed call". The room-transcript half of the owner's "both" ruling was ALREADY WORKING via existing CR3 reconciliation (`cr3PillMissed`) — verified, not built. Ring-tone selection DROPPED from this release: no chosen value was ever given, and a knob with nothing to turn to is not a feature. | Built directly from evidence found in the code, correcting the original §9 guess | **ACCEPTED 2026-09-13 (owner: pass).** Gates pass; mutations 3/3 (push-to-connected, double-push-on-retry, accepted-worker-touched). Known limitation, not fixed here: if the caller's own device also backgrounds or closes right after dialing, no side ever sends call-end and the callee's card can linger — a pre-existing gap in the call model, not caused by or fixed by N-1. | https://acmeproducts.github.io/stuff/bridge-turn27-pre-ship.html |
 | ~~27·pre-ship (old)~~ | ~~Notifications & steadiness~~ — TalkBridge icon on alerts + strongest legal call alert (D-1/#652) in the folder worker; presence 60-s damping; render coalescing | Spec §7.2 (paths updated to folder) | queued — ringfence: worker swap + push continuity | — |
-| 27·ship | **Video call surface, candidate 5** — tap-swap (kept); camera-flip stops the old track before requesting the new one (matches this codebase's own established pattern, everywhere else already does this); drag gets `touch-action:none` on the video elements. Screen share still dropped, V2 still dropped. | Spec §7.6 + R17 (stop-before-acquire) + R18 (touch-action:none) | **ACCEPTED 2026-09-14 (owner).** Tap-swap confirmed working. Drag: PARTIAL PASS, accepted with a known issue — the small video can now be moved (R18 fixed the gesture), but a z-index/stacking bug still confines it visually within the large video pane instead of the full screen; backlogged, not blocking. Camera flip (R17): status unconfirmed, owner chose not to chase further — backlogged alongside the drag z-index issue. 27·ship CLOSED. | https://acmeproducts.github.io/stuff/bridge-turn27-ship.html |
-| 27·post-ship | **IndexedDB capacity fix** — ROLLED BACK 2026-09-14 (buried G56): the mirror-everything design solved resilience, not capacity; transcripts (the only data under real growth pressure) still wrote through the same localStorage-capped path. Owner ruling: BLOCKED on the real app until (1) a standalone POC harness — no app code, no live users — proves the async transcript pattern (room-entry load timing, concurrent read-modify-write races on sys-pill/missed-call/live-message appends) actually works, and (2) a painfully detailed spec is written from what the POC proves, not from assumption. | POC required before any §7.11-successor spec is written | **BLOCKED — POC harness not started** | — |
-| 27·ship · DIAGNOSTIC D1 (not a stage, never a baseline) | **Read-only call instrument** built on the accepted 27·ship bytes to find out why video freezes roughly twenty seconds into a call and never returns while chat and the transcript keep working. Adds ICE/connection/signalling/gathering transition logging, a 2-second getStats sample (inbound video bytes and frames decoded, selected candidate pair resolved to host/srflx/**relay**, RTT, packet loss), an independent picture-stopped detector that does not depend on `connectionState`, live readings of the existing keepalive channel, video watchdog, connect timeout and recovery step, a TURN reachability probe that reuses the live connection’s own iceServers (no new endpoint, no new credential path — G19/G20), and network/visibility events during a call. Replaces nothing, wraps nothing, changes no behaviour, adds no UI. | Owner instruction 2026-09-20; scope: visibility only, no fix | **BUILT 2026-09-20 — device gate pending.** Machine gates M1–M6 36/36; four structural checks green, each self-verified; mutations 13/13 caught. Output = accepted 27·ship bytes verbatim + one appended part, byte-checked. | https://acmeproducts.github.io/stuff/bridge-turn27-ship-diag1.html |
-| 28·pre-base | Snapshot | — | queued | — |
-| 28·base | **Refactor & technical debt** — collisions & concurrency folded in per owner ruling (device-namespaced message ids, phrasebook compare-and-swap three-way merge, concurrent-rename convergence) + full render coalescing, log hygiene, wrapper-chain audit, dead-candidate purge, graveyard index. Sequenced BEFORE multi-user because id-namespacing and PB merge are its prerequisites | Specs §7.9+§7.10 merged | queued — ringfence: silent behavior drift; gate = zero-regression session | — |
-| 28·pre-ship | **Multi-user, relay leg** — relay v6.4 alone: fan-out N≤4, cap enforcement, per-device call addressing; app untouched; gated by the 3-socket harness before any app change | Spec §7.8 R-parts | queued — ringfence: relay regressions isolated from app | — |
-| 28·ship | **Multi-user, app leg** — named bubbles for N, presence count, receipts count, room-full UX; closes turn 28 | Spec §7.8 A-parts | queued | — |
-| 28·post-ship | **D-6 desktop install + D-2 PRISM un-hijack** — folder release ("/stuff/talkbridge-app/"), the proven Chrome-installability recipe (start_url, id, additive fetch handler), old-worker retirement. One release, isolated, per owner ruling 2026-09-12 that this never shares a gate with anything else. | Spec §7.5 + §7.12 recipe | queued (was backlog, now scheduled) | — |
-| 29·pre-base | Snapshot | — | queued | — |
-| 29·base | **D-1 Android lock-screen ringing — one attempt, bounded** — try the strongest legal presentation (requireInteraction, vibrate pattern, full-screen-capable notification where the platform allows); NOT a native ringer, web push cannot produce one. Gate = the attempt is made and the result is recorded, pass or fail; no open-ended chase. | Spec to be written before build (not yet §7-graded) | queued | — |
+| 27·ship (candidate 5, rejected) | **Video call surface, candidate 5** — tap-swap (kept); camera-flip stops the old track before requesting the new one (matches this codebase's own established pattern, everywhere else already does this); drag gets `touch-action:none` on the video elements. Screen share still dropped, V2 still dropped. | Spec §7.6 + R17 (stop-before-acquire) + R18 (touch-action:none) | **ACCEPTED 2026-09-14, then REJECTED 2026-09-20 (owner: "I never had any video call issues until we tried to start having a swap and a difference in the back button behavior") → buried G57. Address rolled back byte-exact to accepted 27·pre-ship (`69ec6482db24`) and rebuilt as candidate 6 below.** Was: Tap-swap confirmed working. Drag: PARTIAL PASS, accepted with a known issue — the small video can now be moved (R18 fixed the gesture), but a z-index/stacking bug still confines it visually within the large video pane instead of the full screen; backlogged, not blocking. Camera flip (R17): status unconfirmed, owner chose not to chase further — backlogged alongside the drag z-index issue. | (address now holds candidate 6) |
+| 27·ship (candidate 6) | **Video: the working surface, made reliable** — 27·pre-ship bytes verbatim (corner-band PiP, back button shrinks the call, no swap, no flip, no drag) + D1 instrument + V-1 signalling queue (dropped ICE candidates retried through the existing `relaySendWhenOpen`) + V-2 relay retry ramp (300/600/1200/2000 ms instead of a flat 2 s, twice) + V-3 the joiner can request and ANSWER an ICE restart on its existing connection + V-4 stall detection by decoded frames. Every part is a wrapper that calls through; nothing replaced; no message type added; no TURN URL touched; the back-button/PiP surface untouched by any part (gated). | Spec §7.15 — everything video, in one place | **BUILT 2026-09-20 on owner ruling — device gate pending.** sha256 `0fc47e5bfe45`. Three-instance harness (creator + joiner + real relayConnect on a driven WebSocket) 47/47; structural checks 4/4 self-verified; mutations 20/20 caught on the named test. Relay v6.6 untouched. | https://acmeproducts.github.io/stuff/bridge-turn27-ship.html |
+| 27·post-ship | **Technical debt & refactor** (pulled forward from 28·base, owner ruling 2026-09-20: "then we only have technical debt, multi user, and IndexedDB to close out before beta") — collisions & concurrency (device-namespaced message ids, phrasebook compare-and-swap three-way merge, concurrent-rename convergence), render coalescing, log hygiene, wrapper-chain audit, dead-candidate purge (the D1 instrument comes OUT here — it exists to read gates, not to ship to beta), graveyard index. Sequenced before multi-user because id-namespacing and PB merge are its prerequisites. | Specs §7.9 + §7.10 merged | queued — input: accepted 27·ship c6; ringfence: silent behaviour drift; gate = zero-regression session | — |
+| 27·ship · DIAGNOSTIC D1 (not a stage, never a baseline) | **Read-only call instrument** built on the accepted 27·ship bytes to find out why video freezes roughly twenty seconds into a call and never returns while chat and the transcript keep working. Adds ICE/connection/signalling/gathering transition logging, a 2-second getStats sample (inbound video bytes and frames decoded, selected candidate pair resolved to host/srflx/**relay**, RTT, packet loss), an independent picture-stopped detector that does not depend on `connectionState`, live readings of the existing keepalive channel, video watchdog, connect timeout and recovery step, a TURN reachability probe that reuses the live connection’s own iceServers (no new endpoint, no new credential path — G19/G20), and network/visibility events during a call. Replaces nothing, wraps nothing, changes no behaviour, adds no UI. | Owner instruction 2026-09-20; scope: visibility only, no fix | **DEVICE-RUN 2026-09-20 (owner, both phones, both roles) — evidence read, findings in §7.14 and D-7. Instrument did its job. The standalone file `bridge-turn27-ship-diag1.html` is DEAD (built on the rejected c5 bytes; stays hosted, never to be used); the D1 part itself rides inside 27·ship c6 for the gate and is removed at 27·post-ship.** Machine gates M1–M6 36/36; four structural checks green, each self-verified; mutations 13/13 caught. Output = accepted 27·ship bytes verbatim + one appended part, byte-checked. | https://acmeproducts.github.io/stuff/bridge-turn27-ship-diag1.html |
+| 28·pre-base | Byte-identical snapshot of accepted 27·post-ship | — | queued | — |
+| 28·base | **Multi-user, relay leg** — relay v6.4 alone: fan-out N≤4, cap enforcement, per-device call addressing; app untouched; gated by the 3-socket harness before any app change | Spec §7.8 R-parts | queued — ringfence: relay regressions isolated from app | — |
+| 28·pre-ship | **Multi-user, app leg** — named bubbles for N, presence count, receipts count, room-full UX | Spec §7.8 A-parts | queued | — |
+| 28·ship | **D-2 + D-6 — the directory release (un-hijack done right)** — the app moves to `/stuff/talkbridge-app/` per §7.5 with the PROVEN Chrome-installability recipe from §7.12 (start_url, id, additive fetch handler), old-worker retirement, complete path-impact map per G44. Owner ruling 2026-09-12 stands: one release, isolated, never shares a gate with anything else. Restored to the chain by owner ruling 2026-09-20 (an unreliable un-hijack is a beta-visible defect on any phone that also runs PRISM) and moved AHEAD of IndexedDB by owner ruling the same night. Everything after it builds at the final address. | Spec §7.5 + §7.12 recipe (intact); /stuff/tb-skeleton/ stays the working reference | queued — input: accepted 28·pre-ship | — |
+| 28·post-ship | **IndexedDB capacity** — BLOCKED until (1) a standalone POC harness, no app code, no live users, proves the async transcript pattern, and (2) a painfully detailed spec is written from what the POC proves. G56 stands. **Owner is on the fence whether this ships before beta (2026-09-20); if it is deferred, beta readiness simply follows 28·ship and this stage is re-sequenced after beta.** | POC first, then a §7.11-successor spec | queued behind its POC — may be deferred past beta | — |
+| 29·pre-base | Byte-identical snapshot of the last accepted stage, at the new address | — | queued | — |
+| 29·base | **Beta readiness** — the last release before beta testers: every dead candidate address purged or redirected to the new folder, the graveyard indexed, the plan’s open-defect table reconciled, one clean install per platform proven at the final address. Closes the feature set. | to be written | queued | — |
+| — backlog (not on the chain to beta, owner ruling 2026-09-20) | D-1 Android lock-screen ringing (one bounded attempt, spec unwritten); the video wants parked in §7.15 (tap-swap, camera flip, draggable small video, screen share, BL-V1/V2/V3, backgrounded-call resume) | — | backlog | — |
 | 27·pre-base + 27·base | IndexedDB mirror per §7.3 (DB1 kv store, DB2 dual-write + evict-restore, DB3 parity surface); cutover and multi-user are turn 28+ | Spec complete §7.3 — builds only after §7.2 accepted | — |
 
 The D1 row above is an INSTRUMENT, not a stage. It consumes no stage name, it will
@@ -122,12 +124,13 @@ they are never counted as progress.
 | # | Defect | State |
 |---|---|---|
 | D-1 | Android does not ring on the lock screen. Two real causes found and fixed (G30 relay withheld the push on the handset's stale self-report; G34 push subscription reused under an old signing key). Both are live. **Neither changed the device behaviour.** The remaining cause is UNKNOWN — it has not been narrowed to relay-not-sending, push-service-rejecting, or Android-not-alerting, because nothing reports the relay's push result to the owner. | OPEN — cause unknown. The always-push change and the liveness ack gate are BURIED (G36): they did not change device behaviour and they broke a passing contract check. Relay is back on the accepted pair. |
-| D-2 | **CLOSED 2026-09-04 (26·pre-ship accepted)** — was: — PRISM is captured by TalkBridge's PWA scope. The app's manifest declares no folder of its own and its worker is registered at the root of `/stuff/`, so TalkBridge claims the whole path. Built once (N2), rolled back with the reset, **never rebuilt — it is in no live artifact.** | FIXED — rebuilt, gated, live at /stuff/talkbridge/ |
+| D-2 | **HALF-FIXED — reopened 2026-09-06, directory release scheduled 28·ship (owner ruling 2026-09-20).** Was: — PRISM is captured by TalkBridge's PWA scope. The app's manifest declares no folder of its own and its worker is registered at the root of `/stuff/`, so TalkBridge claims the whole path. Built once (N2), rolled back with the reset, **never rebuilt — it is in no live artifact.** | HALF-FIXED — worker retirement and the narrow scope are live since 26·pre-ship; REOPENED 2026-09-06 (scope without a trailing slash is invalid in some browsers → capture protection unreliable, desktop install blocked). The directory release is scheduled at 28·ship (owner ruling 2026-09-20). |
 | D-3 | iPhone behaviour on returning to a call after leaving the app is unknown. Never tested on device; no claim should be made about it. | UNKNOWN, untested |
 | D-4 | **CLOSED 2026-09-13 (27·base accepted)** — was: Presence indicator does not work. Owner traced it back through turn 23 and found no working version — it PREDATES this cycle and was never caught. | ATTEMPTED (N17) — presence now comes from the relay, which is the only party that knows who is attached |
 | D-5 | Call timers do not match between the two sides. | ATTEMPTED (N18) — the anchor moved but the on-screen clock was never restarted, so the display kept its original start; both sides now anchor AND restart at the answer |
 | D-6 | Call screen reported not working by the owner on the base address — which does not contain the video build (G38). Needs re-testing on the single address before any cause is claimed. | UNVERIFIED |
-| D-7 | **Video freezes roughly 20 s into a call and never recovers**, while chat and the transcript keep working (they ride the relay socket and reconnect on their own). Two device logs this cycle. Cause NOT proven. Owner’s working theory: the TURN relay is not kept alive or checked during the call. Recorded against that theory, not as an argument: the accepted build ALREADY carries a 3-second keepalive data channel, a remote-video watchdog and a three-step recovery ladder — so "no keepalive at all" is not the gap; "nothing ever checks whether TURN is still answering, and nothing measures the picture" is. Also unexplained and unresolved: 20 s is exactly `CALL.CONNECT_TIMEOUT_MS`. Instrumented by D1; no fix attempted until the log says which it is. | OPEN — instrumented, awaiting a two-device reproduction |
+| D-7 | **Cellular call-setup lag (~4 s to first picture) and one-way video death that nothing detects.** PROVEN 2026-09-20 from D1 device logs and owner A/B: on wifi the connection is instant; on cellular the carrier bounces the link the moment media starts (every socket on the phone dies together — not the app, verified against every reconnect path), the app then waits a flat 2 s twice and drops every ICE candidate in between. Not TURN (27/28 probes ~100 ms; the one failure was DNS during the flap). The joiner’s repair ladder destroys its own connection at step 2 and can neither request nor answer an ICE restart; the shipped watchdog watches `currentTime` and never fired across 18 s of zero frames. All pre-existing since turn 24. | FIX BUILT — 27·ship c6 V-1..V-4 (§7.15), device gate pending. Expected on cellular: ~4 s → ~2 s (the first second or two is the carrier’s); wifi already instant. |
+| D-8 | **27·ship c5 video surface broke calls in ordinary use.** Back button during a video call no longer shrinks to PiP — the absorber was removed and nothing replaced it — so the second press leaves the app, Android suspends the page, the far side freezes for good (no resume path, G55). A flip-camera button on the tap surface releases the outgoing track before acquiring; a failed flip blanks the far side instantly. Owner’s report; confirmed by diff. | CLOSED by rollback — c5 buried G57, address holds c6 on the 27·pre-ship surface. Rule: no video-surface change ships without back-button and home-button mid-call in the device gate. |
 
 **Why these exist:** D-1 is a regression introduced in the R10 candidate work
 and not caught. D-2 is a fix that was built, broken, rolled back and then not
@@ -1956,6 +1959,16 @@ Green means allowed to push. It never means done.
 ---
 
 ## 10 · CHANGE LOG
+
+**v21.48.0 · 2026-09-20.** Owner ruling: the directory release moves ahead of IndexedDB — 28·ship is D-2 + D-6, 28·post-ship is IndexedDB. Owner is on the fence whether IndexedDB ships before beta; if deferred, beta readiness follows 28·ship directly. Chain to beta: technical debt → multi-user (relay, app) → folder release → IndexedDB (maybe) → beta readiness.
+
+**v21.47.0 · 2026-09-20.** Owner ruling: the D-2/D-6 directory release (§7.5 + §7.12) is restored to the chain at 28·post-ship — an unreliable un-hijack is a beta-visible defect on any phone that also runs PRISM. Placed last before beta readiness because it moves every URL. Beta readiness moves to 29·base. Four releases to beta, not three: technical debt, multi-user, IndexedDB, the folder release. D-1 stays in backlog.
+
+**v21.46.0 · 2026-09-20.** Owner ruling: close video out. 27·ship candidate 5 (swap / flip / drag) is REJECTED after acceptance and buried G57 — the diff shows the back-button-to-PiP absorber was removed with nothing in its place, so back now exits the app mid-call and freezes the far side; the new flip button can blank the outgoing track. The owner had it right and the builder’s reproduction (network blips) tested the wrong failure. Address rolled back to 27·pre-ship bytes and REBUILT as candidate 6: the working corner-band surface + V-1..V-4 transport fixes (§7.15, everything video in one spec). The lag is cellular-only (wifi instant, owner-verified) and pre-existing in every build; G58 records the withdrawn "remove TCP TURN" idea. Chain to beta resequenced per owner: 27·post-ship technical debt → 28 multi-user (relay, app) → IndexedDB behind its POC → beta readiness. D-6, D-1 and the video wants go to backlog. Gates on c6: 47/47, 4/4, 20/20.
+
+**v21.45.0 · 2026-09-20.** 27·post-ship BUILT on owner GO: `bridge-turn27-post-ship.html` = accepted 27·ship bytes + D1 + C-1 + C-3 + C-2, sha256 `96c9777ee65d`. Two-instance harness 34/34, structural checks 4/4 self-verified, mutations 13/13. Found during build (§7.14 addendum): the joiner could never answer an ICE restart — the frozen offer handler skips or rebuilds, never restarts — so C-3 also answers a restart on the same pc, and the creator’s pre-existing step 2 now lands. Device gate G1–G4 pending.
+
+**v21.44.0 · 2026-09-20.** D-7 root-caused from the D1 device run — both phones, both roles — and the cause is not the TURN relay. The 4-second lag is the signalling socket dying at call start, a fixed 2 s reconnect backoff that fails once, and `relaySend` silently dropping every ICE candidate in between. The freeze is one-way path death that the shipped watchdog cannot see because it watches `currentTime` instead of decoded frames. The "never recovers" is the joiner’s repair ladder destroying its own connection with no way to ask for a new offer. 27·post-ship is REASSIGNED from IndexedDB (blocked indefinitely on a POC that has not started) to these three fixes; IndexedDB moves to 29·pre-ship with its ruling intact. Spec §7.14 written from the printouts. Not built; awaiting GO. A correction on the record: the builder’s first read of the Android log blamed the TCP/TLS TURN endpoints for the lag and proposed removing them — wrong on both counts. Those failures are a symptom of the same interface flap, and removing them would strip the only path for a user on a UDP-blocked network. Caught by reading the relay code before writing the spec, which is the rule.
 
 **v21.43.0 · 2026-09-20.** D-7 opened: video freezes ~20 s into a call and never recovers while chat and the transcript keep working. Cause unknown and deliberately not guessed at. A read-only diagnostic build (D1) is declared in the ledger and built on the accepted 27·ship bytes: every ICE and connection transition, a 2-second media sample that says whether the path is going through TURN and whether frames are still arriving, a picture-stopped detector independent of `connectionState`, live readings of the keepalive channel, watchdog, connect timeout and recovery step, and a TURN reachability probe built from the live connection’s own iceServers. Nothing is replaced, wrapped or made visible; this build fixes nothing and will never be a baseline. The accepted 27·ship artifact is untouched (§0c).
 
@@ -4015,7 +4028,7 @@ renders exactly as today (guard). PASS = all five.
 ## MD-1 — kanban markdown in chat: spec complete §7.4, unsequenced (owner slots it into the release chain).
 
 ────────────────────────────────────────────────────────────────────────
-## §7.5 [BACKLOGGED 2026-09-12 by owner ruling: mobile-first; desktop install (D-6) and the PRISM folder move (D-2) are not worth bending the turn/stage naming convention or the working app. Spec and the PROVEN recipe below are kept intact and ready — /stuff/tb-skeleton/ stays hosted as the working reference. Resume only on explicit owner GO.] — D-2 DONE RIGHT: the directory release
+## §7.5 [RESTORED TO THE CHAIN 2026-09-20 by owner ruling, scheduled 28·ship — was backlogged 2026-09-12 as mobile-first. Spec and the PROVEN recipe below are the build authority; /stuff/tb-skeleton/ stays hosted as the working reference.] — D-2 DONE RIGHT: the directory release
 ────────────────────────────────────────────────────────────────────────
 The one arrangement both the standard and Chrome honor: TalkBridge lives in
 `/stuff/talkbridge-app/` with a slash-terminated scope. Executed alone, with
@@ -4614,3 +4627,353 @@ loss and telling both parties the call ended, rather than one side being
 silently stuck. Not attempted inside 27·ship. Unscheduled pending a
 proper spec — this supersedes the earlier, smaller V2-backlog note as
 the real underlying problem.
+
+
+────────────────────────────────────────────────────────────────────────
+## §7.14 BUILDER SPEC — 27·post-ship: "Call recovery" (C-1, C-3, C-2)
+────────────────────────────────────────────────────────────────────────
+
+FILE: `bridge-turn27-post-ship.html` = bytes of ACCEPTED `bridge-turn27-ship.html`
+(sha256 956ceb381585…) + appended parts, in this order: the D1 instrument part
+(unchanged, so the device gate can be READ), then C-1, then C-3, then C-2.
+RELAY: v6.6, UNTOUCHED — state this in the commit message. `tb-sw.js`,
+`tb-sw2.js`, both manifests: untouched. Rollback target: 27·ship.
+
+This is NOT built on the diagnostic file. It is assembled from the accepted
+bytes plus parts; D1 is simply one of the parts. Whether D1 stays after
+acceptance is an owner call at the gate (it logs one stats line every 2 s
+during a call and nothing outside one).
+
+### The evidence this is written from (D1 run, 2026-09-20, both phones, both roles)
+
+The lag — Android, creator, every call:
+    02:52:34.131  rtc_offer
+    02:52:34.680  net_relay_closed {code:1006, livedMs:12394}   ← signalling socket dies
+    02:52:34.735  dg_close 1006                                 ← Deepgram socket dies too
+    02:52:34.751  d1_netinfo {down:1.5 → 0.4, rtt:150 → 400}    ← the phone's radio flapped
+    02:52:36.717  relay_err / net_relay_closed {livedMs:36}     ← 2 s later: retry, dies in 36 ms
+    02:52:38.583  d1_ice checking→connected                     ← 2 s later: candidates finally cross
+    02:52:39.047  relay_open
+Three calls, three times, 4.1–4.3 s each. The creator's candidates were sent
+into a closed socket by `relaySend`, which returns false and drops them;
+they reached the joiner only when `hello-ack` triggered `CALL.resendOffer()`
+after the reconnect. The joiner's own candidates sent in that window are
+never resent by anyone. The TURN TCP/TLS `701` errors in the same window
+("Address not associated with the desired network interface") are the same
+flap seen from ICE, not a cause — do NOT remove those URLs; they are the only
+path for a user behind a UDP-blocking network.
+
+The freeze — iPhone, joiner, pc5:
+    d1_stats  inB 46403 inF 18            ← video arriving
+    d1_stats  inB 65422 inF 18
+    d1_stats  inB 0     inF 0   conn connected  ice connected  rtt 50  ka open  wd true
+    … eight more samples, 18 s, inB 0, conn "connected", outB climbing 840k → 3.9M
+    d1_ice connected→disconnected  (+16 s)
+Inbound dies; outbound keeps streaming; the connection reports healthy; the
+watchdog is armed (`wd:true`) and never fires — `remote-video.currentTime`
+keeps advancing on a stalled MediaStream, so "four still samples" never
+happens. D1's decoded-frame counter caught every one of these.
+
+The dead end — iPhone, joiner, pc3:
+    rtc_recovery {step:2, reason:"ice_failed"}
+    d1_ice → "closed"   d1_ka {rs:"closed"}   d1_watchdog {armed:false}
+    (nothing sent; nothing rebuilt; owner hung up 2 s later)
+`runRecovery` (line ~3966; step-2 branch ~3998) is creator-only at step 2; a joiner falls through to
+the step-3 body, closes its pc, nulls the saved offer/candidates, stops the
+keepalive and watchdog, and — the rebuild being creator-only too — waits.
+Proved headlessly the same day, both roles (see session record).
+
+TURN: 27 of 28 probes `ok:true` in 93–196 ms, including at every freeze. The
+one `ok:false` is `701:STUN host lookup received error` — DNS, during the
+flap. The media path is `host/prflx` ↔ `prflx/host` on every call, never
+relay; Android gathers 1–2 relay candidates, iPhone gathered 0 in the one
+connection D1 saw from birth. Not in scope here; recorded.
+
+### Part C-1 — signalling survives a relay outage
+1. `relaySend(m)` (frozen, line ~975) returns `false` and drops the message
+   when `_relayWs` is missing or not open. `relaySendWhenOpen(m, tries)`
+   (frozen, line ~2868) already exists — 25 tries × 200 ms — and is used
+   today for `call-accept` and `mic-state`. Prefer what exists.
+2. WRAP `relaySend`: call through; if it returns `false` AND
+   `m.type === 'webrtc-signal'` AND `!m._q`, set `m._q = 1` and hand `m` to
+   `relaySendWhenOpen(m, 40)` (8 s, covers the observed 4 s twice). The
+   `_q` flag is what stops the retry loop re-entering the wrapper — without
+   it every retry spawns another retry chain. Return the original result.
+3. Nothing else changes: heartbeat, hello, chat, history untouched. The 2 s
+   reconnect backoff is left alone — with the queue it no longer costs the
+   call anything, and it is not this release's concern.
+4. Log `c1_queued {type, kind}` once per queued message (kind = offer /
+   answer / candidate), `c1_flushed {ms}` when it finally sends.
+
+### Part C-3 — the joiner can ask for an ICE restart
+1. Today the joiner's step 2 is the step-3 teardown. Do NOT edit
+   `runRecovery`. WRAP it: before calling through, if
+   `activeRoom().role !== 'creator'` AND `this.recoveryStep + 1 === 2` AND
+   `this.pc` exists, send `{type:'webrtc-signal', transient:true,
+   signal:{restart:true}}` via `relaySend` (C-1 makes this survive an
+   outage), log `c3_restart_requested {}`, set `this.recoveryStep = 2`,
+   `this.recoveryLock = true`, arm a release timer of 8000 ms (mirror of the
+   creator's step-2 release, same body: unlock; if connected, step → 0 and
+   log `rtc_recovered`), and RETURN without calling through. The joiner
+   keeps its pc, tracks and keepalive. Step 3 on the joiner is unchanged
+   (teardown) — if the restart does not take, the next detector still gets
+   there, and by then the creator's own detectors have fired too.
+2. Transport: `webrtc-signal` already crosses the relay (proven carrier);
+   `signal.restart` is a new KEY, not a new type. `CALL.onSignal` (frozen,
+   line ~2699, wrapped by GAP C) returns early on `!d.signal`, then looks
+   only at `.description` and `.candidate` — an unknown key falls through
+   harmlessly on any client that lacks C-3.
+3. WRAP `CALL.onSignal`: if `d.signal && d.signal.restart` AND
+   `activeRoom().role === 'creator'` AND `this.active` AND `this.pc`: run
+   the creator's step-2 body verbatim — `createOffer({iceRestart:true})`,
+   `setLocalDescription`, `relaySend` the offer, `savedOffer = offer`, log
+   `c3_restart_served {}` — guarded by `GEN.is(gen)` like the original. If
+   `this.pc` is null, do nothing (the creator's own ladder is already
+   rebuilding). Then call through (the original ignores the message).
+4. Rate limit: ignore a `restart` request within 8 s of the last one served
+   (log `c3_restart_ignored {sinceMs}`), so two detectors cannot double-fire.
+
+### Part C-2 — stall detection by decoded frames
+1. Do NOT edit `startVideoWatchdog`. WRAP it: call through (the currentTime
+   watchdog stays; it is harmless), then start a second sampler, 2000 ms,
+   same `gen` guard, same `stopVideoWatchdog` teardown (wrap that too so it
+   clears both). Each tick: `pc.getStats()` → the `inbound-rtp` row with
+   `kind === 'video'` → `framesDecoded`.
+2. Arm only after the first sample with `framesDecoded > 0` — D1 showed
+   zero frames for 2–4 s after `connected` on every call while the first
+   frame is still in flight; that is not a stall.
+3. Stall = `framesDecoded` unchanged for 3 consecutive samples (6 s) while
+   `pc.connectionState === 'connected'`. On stall: log `c2_stalled {frames,
+   ms}` and call `this.runRecovery('video_stalled')` — the existing ladder,
+   which C-3 has made survivable on the joiner. Reset the counter when
+   frames advance again; log `c2_resumed {ms}`.
+4. C-2 does not go in without C-3. On the accepted build, a working stall
+   detector on the joiner would turn a frozen picture into a dead call
+   (detect → step 1 no-op → step 2 teardown). Build order and gate order
+   are C-1, C-3, C-2 for that reason.
+
+### Machine gates (all must PASS before push)
+M1 candidate begins with the accepted 27·ship bytes verbatim; output ===
+prefix + parts + tail. M2 contract: each part declares `wraps` only —
+`relaySend`, `CALL.runRecovery`, `CALL.onSignal`, `CALL.startVideoWatchdog`,
+`CALL.stopVideoWatchdog`; no `replaces`; no assignment to any other baseline
+symbol; no `onxxx` handler installed. M3 two-instance harness (creator +
+joiner windows, fake relay between them, fake pc per side):
+  (a) relay closed → creator sends 3 candidates → all three `c1_queued` →
+      relay opens → all three arrive at the joiner in order;
+  (b) joiner `runRecovery('disconnected')` twice → `c3_restart_requested`
+      crosses → creator calls `createOffer` with `{iceRestart:true}` →
+      joiner's `pc` is STILL the same object (not closed);
+  (c) joiner stats: frames 10,20,30 then 30,30,30 with conn 'connected' →
+      `c2_stalled` → `runRecovery('video_stalled')` called once;
+  (d) frames 0,0,0 right after connect → NO stall (arming rule);
+  (e) old client: a `signal:{restart:true}` delivered to a window WITHOUT
+      C-3 → no throw, no log, no state change (compat).
+M4 syntax / structure / wire / runtime, each self-verified. M5 mutations,
+each must fail its NAMED test: drop `_q` guard (M3a must fail on retry
+storm or hang); make C-3 call through instead of returning (M3b: pc closed);
+arm C-2 without the first-frame rule (M3d fails); C-2 stall threshold 1
+sample (M3d fails); C-3 on creator too (M3b: creator sends a restart to
+itself); wrapper assigns `CALL.runRecovery = ` a fresh function that does
+not call through (M2 fails).
+
+### Device gate (owner, both phones; footer names the build first)
+G1 LAG: place a video call each way. Time from tapping answer to seeing the
+other person's picture — target under 3 s on both phones (was 5–11 s). Log
+proof: `c1_queued` lines exist AND `d1_ice checking→connected` lands before
+`relay_open`, not after it. G2 JOINER BLIP: with the joiner's phone, turn
+wifi off for 5 s mid-call, then on. Picture returns within 15 s without
+hanging up. Log proof: `c2_stalled` → `c3_restart_requested` on the joiner,
+`c3_restart_served` on the creator, `c2_resumed` after. G3 CREATOR BLIP:
+same on the creator's phone; picture returns; creator's own step 2 (existing
+`rtc_ice_restart`) handles it. G4 NO REGRESSION: a normal 3-minute call with
+no interruption — zero `c2_stalled`, zero `c3_*`, chat and captions as
+before. PASS = all four. Any miss = candidate dies, G-entry, rollback to
+27·ship, rebuild.
+
+### Explicitly out of scope
+iPhone gathering zero relay candidates (recorded, not understood, not
+touched). The 2 s reconnect backoff. Removing any TURN URL. The backgrounded-
+call resume gap (G55 note 3). Anything in the relay or worker.
+
+### §7.14 addendum — found during build, 2026-09-20 (harness, not device)
+
+The joiner's frozen offer handler (line ~2712) does one of two things with
+ANY incoming offer: if its connection reads `connected` it logs
+`rtc_offer_skip` and drops it; otherwise it closes its pc, nulls its state,
+and rebuilds from scratch. Neither path answers an ICE-restart offer on the
+existing connection. So the spec as written — "the joiner can ask" — would
+have produced a restart offer the joiner then threw away. Consequences:
+
+1. C-3 grew a third hook: on the joiner, an offer whose `a=ice-ufrag` differs
+   from the current remote description is an ICE restart and is answered on
+   the SAME pc (setRemoteDescription → flushCands → createAnswer →
+   setLocalDescription → send). No close, no rebuild, tracks survive.
+2. This also makes the creator's own, pre-existing step-2 ICE restart land
+   for the first time in this codebase — it had the same joiner-side problem
+   and had never fired on device, so nobody had seen it fail. Gated as M3b.9.
+3. Harness M3b.8/M3b.9 added; mutation "C-3 fires on the creator too"
+   retargeted to M3b.8 (M3b.7 only exercised step 1 and could not see it).
+4. Mutation run also exposed that the C-1 once-guard removal is caught at
+   M3a.1 (11,423 queued messages, synchronous fan-out) not M3a.4; retargeted.
+   The storm is real and the guard is load-bearing.
+
+Contract after the addendum — C-3 wraps: `CALL.runRecovery`, `CALL.onSignal`;
+adds: `CALL._c3LastServed`, `CALL._c3Pending`. Nothing replaced.
+
+
+────────────────────────────────────────────────────────────────────────
+## §7.15 BUILDER SPEC — 27·ship candidate 6: VIDEO, CLOSED OUT (everything video, one place)
+────────────────────────────────────────────────────────────────────────
+
+Supersedes §7.6 (all addenda), §7.14 and the video backlog notes. Owner
+ruling 2026-09-20: "write everything video related into the next spec …
+then we only have technical debt, multi user, and IndexedDB to close out
+this entire feature set before beta testing."
+
+FILE: `bridge-turn27-ship.html` = bytes of ACCEPTED `bridge-turn27-pre-ship.html`
+(sha256 69ec6482db24…) + five appended parts in this order: D1 instrument
+(`d1-call-diagnostics.js`, unchanged), V-1 (`c1-signal-queue.js`), V-2
+(`v2-relay-retry.js`), V-3 (`c3-joiner-restart.js`), V-4 (`c2-stall-frames.js`).
+RELAY: v6.6, UNTOUCHED. `tb-sw.js`, `tb-sw2.js`, manifests: untouched.
+Rollback target: 27·pre-ship. Candidate sha256 0fc47e5bfe45….
+
+### 1 · The surface: what ships, and why it is the OLD one
+The corner-band system from R8b, exactly as accepted through 27·pre-ship:
+remote video big, local video fixed bottom-right, tap the big video →
+call shrinks to a draggable corner band, tap the band → back to full,
+BACK BUTTON → band (the call keeps running, back is re-armed), ✕ on the
+band hangs up. No swap, no flip, no free drag, no screen share.
+Evidence for keeping it: the owner had no video-call trouble until c5
+changed the back button and added swap; the diff (G57) shows c5 removed
+the `popstate → enterPip` absorber with nothing in its place. Every part
+below is gated NOT to touch popstate / pushState / enterPip / exitPip.
+
+### 2 · The transport: what was actually wrong (D1 device run, both phones, both roles, owner wifi A/B)
+· Wifi: instant. Cellular: the carrier bounces the link the moment media
+  starts; every socket on the phone dies together (radio event, not app —
+  every reconnect path in the code was checked). The app then adds a flat
+  2 s wait, one retry that fails in 36 ms, another flat 2 s, and drops every
+  ICE candidate sent in between (`relaySend` returns false, nothing keeps
+  the message). That is the ~4 s to first picture. Three calls, 4.1–4.3 s.
+· TURN is fine: 27/28 probes ~100 ms; the one miss was DNS during the flap.
+  The `701` errors on the TCP/TLS TURN URLs are the same flap seen from ICE
+  (G58: never remove them on this evidence).
+· One-way death: inbound frames → 0 while `connectionState` reads
+  `connected`, RTT healthy, outbound climbing. The shipped watchdog samples
+  `currentTime`, which keeps ticking on a dead stream; armed 18 s, never
+  fired.
+· The joiner cannot repair: step 1 is a no-op, step 2 destroys its own pc
+  and waits for an offer only the creator can send; and its offer handler
+  could never answer an ICE restart anyway (skips when "connected", rebuilds
+  when not). The creator’s own step-2 restart therefore never landed either.
+All four pre-existing since turn 24. None caused by c5. c5’s damage is §1.
+
+### Part V-1 — signalling survives the outage (`c1-signal-queue.js`)
+WRAP `relaySend`: call through; if it returns false AND `m.type ===
+'webrtc-signal'` AND the message is not already marked, mark it (non-
+enumerable, never serialised) and hand it to the EXISTING
+`relaySendWhenOpen(m, 40)` (8 s of 200 ms retries; used today for
+`call-accept`). The mark is load-bearing: without it three sends fan out to
+11,423 queued messages synchronously (mutation-proven). Logs `c1_queued
+{kind}`, `c1_flushed {kind, ms}`.
+
+### Part V-2 — the socket comes back as fast as the network does (`v2-relay-retry.js`)
+WRAP `relayConnect`: call through; on the socket it built, add (never
+replace) an `open` listener that resets the ramp and a `close` listener
+that — only if this socket is still `_relayWs` and we are in a room —
+clears the frozen 2 s timer (`wsReconnectTimer`) and schedules the next
+`relayConnect` at 300 → 600 → 1200 → 2000 ms, capped. The frozen `onclose`
+fires first (registered first) and arms its 2 s timer; V-2 takes it over so
+exactly one retry is pending. Logs `v2_retry {n, ms}`. Cannot shorten the
+carrier’s own outage; only stops the app adding two seconds, twice.
+
+### Part V-3 — the joiner can ask for, and answer, an ICE restart (`c3-joiner-restart.js`)
+WRAP `CALL.runRecovery`: on the joiner, about to take step 2, with a live
+pc: send `signal:{restart:true}` (a KEY on the proven `webrtc-signal`
+carrier — old clients ignore it, gated), hold step 2 with the creator’s 8 s
+release, keep the pc; return without calling through. Everything else calls
+through. WRAP `CALL.onSignal`: (a) creator receiving `restart` with a live
+pc → the creator’s own step-2 body verbatim, `createOffer({iceRestart:true})`,
+rate-limited to one per 8 s; (b) joiner receiving an OFFER whose
+`a=ice-ufrag` differs from its current remote description → answer it on
+the SAME pc (setRemote → flushCands → createAnswer → setLocal → send); no
+close, no rebuild. (b) also makes the creator’s pre-existing step-2 restart
+land for the first time. Logs `c3_restart_requested / served / answered /
+ignored`.
+
+### Part V-4 — stall detection by decoded frames (`c2-stall-frames.js`)
+WRAP `CALL.startVideoWatchdog` / `stopVideoWatchdog`: leave the old
+sampler, add a second one at the same cadence reading `inbound-rtp` video
+`framesDecoded`. Arm only after the first sample with frames > 0 (2–4 s of
+zero frames after `connected` is the first frame in flight, not a stall).
+Three unchanged samples (6 s) while `connected` → `c2_stalled` →
+`runRecovery('video_stalled')` — the existing ladder, which V-3 has made
+survivable on the joiner. V-4 does not ship without V-3.
+
+### D1 stays in this candidate, comes out at 27·post-ship
+It is the only way to read the device gate. It logs one stats line every
+2 s during a call and nothing outside one. Purged in the debt release.
+
+### Machine gates (all PASS on c6, 2026-09-20)
+M1 built === accepted 27·pre-ship bytes + the five parts + tail, and the
+base still carries `popstate → enterPip` and no `btn-flip-overlay`.
+M2 contract: replaces (none) in every part; each declared wrap calls
+through; no assignment to any other baseline symbol; no `onxxx` handler;
+no DOM write; no popstate/pushState/enterPip/exitPip anywhere in the parts;
+no new message type; no ICE config or credential touch.
+M3 three instances — creator, joiner, fake relay that can go down, scripted
+peer connections; plus a third window driving the REAL `relayConnect`
+against a driven fake WebSocket: (a) V-1 queue/flush/order/once; (b) V-3
+request → serve → answer on the same pc, rate limit, creator’s own ladder
+untouched, creator-initiated restart answered; (c)(d) V-4 arming, threshold,
+disconnected-is-not-ours, stop clears; (e) old client ignores `restart`;
+(f) V-2 takes over the 2 s timer, retries at 300, ramps to 600, resets on
+open, never retries a replaced socket, stops outside a room.
+M4 syntax / structure / wire / runtime, each self-verified.
+M5 mutations 20/20, each failing its named test.
+
+### Device gate (owner, both phones; footer names the build first)
+G1 BACK BUTTON. Mid video call, press back on each phone in turn: the call
+shrinks to the corner band and KEEPS RUNNING; the far side’s picture
+never freezes; tap the band to return. This is the gate c5 never had.
+G2 HOME BUTTON. Mid video call, press home, wait 10 s, return. Record what
+happens to the far side; a freeze here is the known G55 gap, NOT a c6
+failure — record it, do not fail the candidate on it.
+G3 LAG, cellular. Answer → other person’s picture. Expect ~2 s (was ~4 s).
+Log: `v2_retry` lines with ms 300/600, `c1_queued` then `c1_flushed`.
+G4 LAG, wifi. Still instant; zero `v2_retry`, zero `c1_queued`.
+G5 JOINER BLIP. Joiner’s wifi off 5 s mid-call, on. Picture back within
+15 s, nobody hangs up. Log: `c2_stalled` → `c3_restart_requested`
+(joiner), `c3_restart_served` (creator), `c3_restart_answered` (joiner),
+`c2_resumed`.
+G6 CREATOR BLIP. Same on the creator; `rtc_ice_restart` on the creator,
+`c3_restart_answered` on the joiner.
+G7 NO REGRESSION. A normal 3-minute call, no interruptions: zero `c2_*`,
+zero `c3_*`, chat and captions as before, presence steady.
+PASS = G1, G3, G4, G5, G6, G7 (G2 is recorded only). Any other miss →
+candidate dies, G-entry, rollback to 27·pre-ship, rebuild.
+
+### Parked — the video wants (owner may schedule; none is on the chain to beta)
+W-1 tap-swap (big ↔ small). Worked on device (G54/G55). Rebuild only with
+the corner band and the back-button absorber KEPT, and G1 in the gate.
+W-2 camera flip. Must acquire the new camera BEFORE releasing the old
+track, or fall back to the old track on failure; never blank the sender.
+Never on the tap surface.
+W-3 draggable small video anywhere. c5’s drag was confined by a z-index/
+stacking bug; unsolved.
+W-4 screen share. Never built.
+W-5 backgrounded-call resume (G55 note 3): after the OS suspends or reloads
+a page mid-call, reconnect to the in-progress call or at least tell both
+parties it ended. Larger than video; own spec.
+W-6 BL-V1/V2/V3 (PiP experience, forward-facing default, home keeps the
+call): W-1/W-2/W-5 respectively.
+W-7 iPhone gathered zero relay candidates in the one connection D1 saw
+from birth; Android gathers 1–2. Not understood. Media never used relay on
+either. Record; do not touch ICE config on this evidence (G58).
+W-8 the remaining ~1–2 s of cellular setup lag is the carrier’s bounce;
+no client change removes it.
+
+### Explicitly out of scope for c6
+Any change to the video surface, the back button, the PiP band, the ICE
+configuration, the TURN URLs, the credential path, the relay, the worker.

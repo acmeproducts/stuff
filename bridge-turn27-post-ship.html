@@ -1,4 +1,4 @@
-<!-- 27·ship candidate 5 · bridge-turn27-ship.html · accepted 27·pre-ship bytes 69ec6482db24 · V2 dropped (unchanged from candidate 4) · V1 tap-swap kept unchanged (proven correct) · R17: camera flip now stops the old track BEFORE requesting the new one (matches this codebase's own established stop-before-acquire pattern) · R18: touch-action:none added to the draggable video elements (the only prior working drag in this codebase, R8B_CSS, always had this; the video elements never did) · screen share still dropped · pair: relay v6.6 unchanged, accepted workers unchanged -->
+<!-- 27·pre-ship · bridge-turn27-pre-ship.html · accepted 27·base bytes e1cefd955b55 + N-1 (terminal notification retraction: relay v6.6 pushes a retraction to recipients not connected when a call resolves without their action; K1 registers onto tb-sw2.js which closes/replaces the tagged card) · missed calls already reach the room transcript via existing CR3 reconciliation (cr3PillMissed) — no change needed there · pair: relay v6.6, accepted tb-sw.js and manifests untouched -->
 <!DOCTYPE html>
 <!-- TALKBRIDGE APP · plan-first final app per TALKBRIDGE-MASTER-PLAN-v7.html (v8.4.8)
      Release 5 · 2026-08-01 · Clean-up (b): Ear/TTS/Mute rebuilt as icon buttons (slash convention
@@ -295,12 +295,11 @@ textarea::placeholder,input::placeholder{color:var(--ink-dim)}
 .meter-btn.off .mic-fill,.meter-btn.off .cam-fill{display:none}
 .talking-to{font-size:12px;color:var(--ink-dim);margin:-2px 0 10px}
 .talking-to b{color:var(--ink-mid);font-weight:600}
-.videos.swapped #remote-video{width:82px;height:110px;right:10px;bottom:10px;left:auto;top:auto;position:absolute;border-radius:10px;z-index:3}
-.videos.swapped #local-video{position:absolute;inset:0;width:100%;height:100%;border-radius:0;z-index:1}
-#btn-flip-overlay{display:none;position:absolute;bottom:10px;left:10px;z-index:6;width:34px;height:34px;border-radius:50%;background:rgba(0,0,0,.55);color:#fff;border:none;align-items:center;justify-content:center}
-#scr-room.st-video #btn-flip-overlay{display:flex}
-#local-video-handle{display:none;position:fixed;z-index:59;width:16px;height:16px;border-radius:8px;background:rgba(255,255,255,.85);box-shadow:0 1px 4px rgba(0,0,0,.3)}
-#remote-video,#local-video{touch-action:none}
+#scr-room.pip #call-band{position:absolute;right:10px;top:64px;width:118px;z-index:45;border-radius:12px;overflow:hidden;box-shadow:var(--shadow)}
+#scr-room.pip #call-band .videos{height:198px}
+#scr-room.pip #subtitle-area,#scr-room.pip #local-video{display:none}
+#pip-x{display:none;position:absolute;top:4px;right:4px;z-index:5;width:24px;height:24px;border-radius:50%;background:rgba(0,0,0,.62);color:#fff;border:none;line-height:0;cursor:pointer;font-size:14px}
+#scr-room.pip #pip-x{display:flex;align-items:center;justify-content:center}
 #ring-overlay{position:absolute;inset:0;background:rgba(14,17,18,.97);z-index:80;display:none;flex-direction:column;align-items:center;justify-content:center;color:#fff;text-align:center;padding:30px}
 #ring-overlay.show{display:flex}
 #ring-name{font-size:24px;font-weight:700;margin:16px 0 4px}
@@ -386,10 +385,8 @@ textarea::placeholder,input::placeholder{color:var(--ink-dim)}
       <button id="dg-fail-x" aria-label="Dismiss"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
     </div>
     <div id="call-band">
-      <div id="local-video-handle"></div>
-      <button id="pip-x" style="display:none" tabindex="-1" aria-hidden="true"></button>
+      <button id="pip-x">✕</button>
       <div class="videos" id="call-videos">
-        <button id="btn-flip-overlay" aria-label="Flip camera"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 2l4 4-4 4"/><path d="M3 11V9a4 4 0 0 1 4-4h14"/><path d="M7 22l-4-4 4-4"/><path d="M21 13v2a4 4 0 0 1-4 4H3"/></svg></button>
         <div id="remote-ph"><svg width="46" height="46" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="12" cy="8" r="4"/><path d="M4 21c0-4 3.6-7 8-7s8 3 8 7"/></svg></div>
         <video id="remote-video" autoplay playsinline></video>
         <video id="local-video" autoplay playsinline muted></video>
@@ -2341,10 +2338,10 @@ function wire(){
   $('rb-hangup').addEventListener('click',function(){CALL.hangUp(true)});
   $('dg-fail-x').addEventListener('click',function(){dgHideFailBanner()});
   $('pip-x').addEventListener('click',function(ev){ev.stopPropagation();CALL.hangUp(true)});
-  $('call-videos').addEventListener('click',function(ev){ tbSwapTap(ev); });
+  $('call-videos').addEventListener('click',function(){if(CALL.pip)CALL.exitPip()});
   $('ring-acc').addEventListener('click',function(){CALL.accept()});
   $('ring-dec').addEventListener('click',function(){CALL.decline()});
-  /* popstate: intentionally NOT wired to any call behavior — V2 dropped. */
+  window.addEventListener('popstate',function(){if(CALL.active&&!CALL.pip)CALL.enterPip()});
 }
 function closeDrawer(){commitRoomName();$('drawer-s4b').classList.remove('open');document.querySelectorAll('.info-pop.show').forEach(function(p){p.classList.remove('show')})}
 function populateLangSelects(){
@@ -2759,11 +2756,9 @@ var CALL={
   },
   remoteMic:function(on){_remoteMicOn=!!on;renderPartnerState()},
   remoteCam:function(on){$('remote-ph').style.display=on?'none':''},
-  /* V2 dropped (owner ruling, see plan): a CSS-only reduced view cannot
-     survive real backgrounding, which was the whole point. */
-  pip:false,
-  enterPip:function(){},
+  enterPip:function(){if(!this.active||this.kind!=='video')return;this.pip=true;this.pushed=false;$('scr-room').classList.add('pip');log('call_pip',{},'ok')},
   exitPip:function(){
+    this.pip=false;$('scr-room').classList.remove('pip');
     if(!this.pushed){try{history.pushState({tbCall:1},'',location.href)}catch(_){}this.pushed=true}
   },
   endPill:function(){
@@ -6862,8 +6857,123 @@ var R8B_CSS =
   '.r8-typing{display:none;padding:4px 14px;font-size:12.5px;color:var(--ink-dim);font-style:italic}' +
   '.r8-typing.on{display:block}';
 
-/* 8.8/8.9 (corner-band) REMOVED. V2 dropped, not reimplemented. */
+/* ── 8.8 tap video → PIP ───────────────────────────────────────────────────────
+   Tapping the PIP already exits it. The other half was missing: tapping the
+   full-size video to enter PIP. Bound on the video surface rather than the
+   band so a tap on the controls does not trigger it. */
+function wirePipSwap() {
+  try {
+    var host = $('call-videos');
+    if (!host || !host.addEventListener) return false;
+    if (host.dataset && host.dataset.r8Pip) return true;
 
+    host.addEventListener('click', function (ev) {
+      try {
+        /* Exiting is already handled by the base's own listener; this adds the
+           entering half only, and only for a video call where a PIP means
+           something. */
+        if (CALL.pip) return;
+        if (!CALL.active || CALL.kind !== 'video') return;
+        if (ev && ev.target && ev.target.closest && ev.target.closest('button')) return;
+        CALL.enterPip();
+        r8Log('pip_entered_by_tap', {}, 'ok');
+      } catch (e) { r8Log('pip_tap_failed', { e: String(e && e.message || e) }, 'error'); }
+    });
+
+    if (host.dataset) host.dataset.r8Pip = '1';
+    return true;
+  } catch (e) { r8Log('pip_swap_failed', { e: String(e && e.message || e) }, 'error'); return false; }
+}
+
+/* ── 8.9 draggable PIP ─────────────────────────────────────────────────────
+   The band is pinned to a fixed corner, so it can cover whatever is beneath
+   it with no way to move it. Dragging sets explicit coordinates; a drag is
+   distinguished from a tap by distance, so tap-to-exit keeps working.
+   Clamped to the viewport, or it could be dragged off-screen and lost. */
+var PIP_DRAG = { on: false, moved: false, sx: 0, sy: 0, ox: 0, oy: 0 };
+
+function wirePipDrag() {
+  try {
+    var band = $('call-band');
+    if (!band || !band.addEventListener) return false;
+    if (band.dataset && band.dataset.r8Drag) return true;
+
+    var point = function (ev) {
+      var t = (ev.touches && ev.touches[0]) || (ev.changedTouches && ev.changedTouches[0]) || ev;
+      return { x: t.clientX || 0, y: t.clientY || 0 };
+    };
+
+    var start = function (ev) {
+      if (!CALL.pip) return;
+      var p = point(ev);
+      PIP_DRAG.on = true;
+      PIP_DRAG.moved = false;
+      PIP_DRAG.sx = p.x;
+      PIP_DRAG.sy = p.y;
+      var r = band.getBoundingClientRect ? band.getBoundingClientRect() : { left: 0, top: 0 };
+      PIP_DRAG.ox = r.left;
+      PIP_DRAG.oy = r.top;
+    };
+
+    var move = function (ev) {
+      if (!PIP_DRAG.on) return;
+      var p = point(ev);
+      var dx = p.x - PIP_DRAG.sx, dy = p.y - PIP_DRAG.sy;
+      /* Below this, it is a tap. Without the threshold every tap would count
+         as a drag and tap-to-exit would stop working. */
+      if (!PIP_DRAG.moved && Math.abs(dx) + Math.abs(dy) < 6) return;
+      PIP_DRAG.moved = true;
+      if (ev.preventDefault) ev.preventDefault();
+
+      var w = band.offsetWidth || 118, h = band.offsetHeight || 198;
+      var vw = (window.innerWidth || 390), vh = (window.innerHeight || 700);
+      var nx = Math.max(4, Math.min(vw - w - 4, PIP_DRAG.ox + dx));
+      var ny = Math.max(4, Math.min(vh - h - 4, PIP_DRAG.oy + dy));
+      band.style.left = nx + 'px';
+      band.style.top = ny + 'px';
+      band.style.right = 'auto';
+      band.style.bottom = 'auto';
+    };
+
+    var end = function () {
+      if (!PIP_DRAG.on) return;
+      PIP_DRAG.on = false;
+      if (PIP_DRAG.moved) r8Log('pip_dragged', {}, 'ok');
+    };
+
+    band.addEventListener('mousedown', start);
+    band.addEventListener('touchstart', start);
+    band.addEventListener('mousemove', move);
+    band.addEventListener('touchmove', move);
+    band.addEventListener('mouseup', end);
+    band.addEventListener('touchend', end);
+    band.addEventListener('mouseleave', end);
+
+    /* A tap that turned into a drag must not also exit the PIP. */
+    band.addEventListener('click', function (ev) {
+      if (PIP_DRAG.moved) { ev.stopPropagation(); PIP_DRAG.moved = false; }
+    }, true);
+
+    if (band.dataset) band.dataset.r8Drag = '1';
+    return true;
+  } catch (e) { r8Log('pip_drag_failed', { e: String(e && e.message || e) }, 'error'); return false; }
+}
+
+/* Leaving PIP returns the band to its styled corner, so a dragged position
+   does not persist into the next call. */
+(function () {
+  var _r8ExitPip = CALL.exitPip;
+  CALL.exitPip = function () {
+    try {
+      var band = $('call-band');
+      if (band && band.style) {
+        band.style.left = ''; band.style.top = '';
+        band.style.right = ''; band.style.bottom = '';
+      }
+    } catch (_) {}
+    return _r8ExitPip.apply(this, arguments);
+  };
+})();
 
 /* ── 8.10 call timer, both sides ─────────────────────────────────────────────────
    The duration was already computed on both sides, and both sides lost it: any
@@ -7140,6 +7250,8 @@ setTimeout(function () {
     st.id = 'r8b-css';
     st.textContent = R8B_CSS;
     document.head.appendChild(st);
+    wirePipSwap();
+    wirePipDrag();
     wireTyping();
     /* Added alongside the base's own handler rather than replacing it — the
        base only acts on return, so leaving was never handled at all. */
@@ -8903,173 +9015,6 @@ function tbmdSpeechStrip(text) {
   setTimeout(retireOld, 30000);
 })();
 
-
-
-/* ===== 27·ship additions — video call surface, candidate 5 (R17/R18) ===== */
-(function(){ try { if (typeof log==='function') log('build', { c:'turn27-ship-video-c5', file:'bridge-turn27-ship.html', built:'2026-09-15 00:31 UTC' }, 'ok'); } catch(_){} })();
-
-var TB_HANDLE = 16;
-function tbClearPos(el) { if (!el) return; el.style.left = ''; el.style.top = ''; el.style.right = ''; el.style.bottom = ''; }
-function tbWireDrag(el, opts) {
-  if (!el || !el.addEventListener) return;
-  opts = opts || {};
-  var st = { on: false, moved: false, sx: 0, sy: 0, ox: 0, oy: 0 };
-  function point(ev) { var t = (ev.touches && ev.touches[0]) || (ev.changedTouches && ev.changedTouches[0]) || ev; return { x: t.clientX || 0, y: t.clientY || 0 }; }
-  function start(ev) {
-    if (opts.enabled && !opts.enabled()) return;
-    var p = point(ev);
-    st.on = true; st.moved = false; st.sx = p.x; st.sy = p.y;
-    var r = el.getBoundingClientRect ? el.getBoundingClientRect() : { left: 0, top: 0 };
-    st.ox = r.left; st.oy = r.top;
-  }
-  function move(ev) {
-    if (!st.on) return;
-    var p = point(ev); var dx = p.x - st.sx, dy = p.y - st.sy;
-    if (!st.moved && Math.abs(dx) + Math.abs(dy) < 11) return;
-    st.moved = true;
-    if (ev.preventDefault) ev.preventDefault();
-    var w = el.offsetWidth || 100, h = el.offsetHeight || 100;
-    var vw = window.innerWidth || 390, vh = window.innerHeight || 700;
-    var minX = opts.allowOffscreen ? (TB_HANDLE - w) : 4;
-    var maxX = opts.allowOffscreen ? (vw - TB_HANDLE) : (vw - w - 4);
-    var minY = opts.allowOffscreen ? (TB_HANDLE - h) : 4;
-    var maxY = opts.allowOffscreen ? (vh - TB_HANDLE) : (vh - h - 4);
-    var nx = Math.max(minX, Math.min(maxX, st.ox + dx));
-    var ny = Math.max(minY, Math.min(maxY, st.oy + dy));
-    el.style.left = nx + 'px'; el.style.top = ny + 'px'; el.style.right = 'auto'; el.style.bottom = 'auto';
-    if (opts.onMove) opts.onMove();
-  }
-  function end() { st.on = false; if (opts.onDragEnd) opts.onDragEnd(); }
-  el.addEventListener('mousedown', start); el.addEventListener('touchstart', start, { passive: true });
-  el.addEventListener('mousemove', move); el.addEventListener('touchmove', move, { passive: false });
-  el.addEventListener('mouseup', end); el.addEventListener('touchend', end); el.addEventListener('mouseleave', end);
-  el.addEventListener('click', function (ev) { if (st.moved) { ev.stopPropagation(); st.moved = false; } }, true);
-  el.__tbDragState = st;
-}
-
-var TB_SWAP = false;
-function tbSwapTap(ev) {
-  try {
-    if (ev && ev.target && ev.target.closest && ev.target.closest('button')) return;
-    if (!CALL.active || CALL.kind !== 'video') return;
-    TB_SWAP = !TB_SWAP;
-    var host = $('call-videos');
-    if (host) host.classList.toggle('swapped', TB_SWAP);
-    tbClearPos(document.getElementById('remote-video'));
-    tbClearPos(document.getElementById('local-video'));
-    try { if (typeof log === 'function') log('v1_swap', { swapped: TB_SWAP }, 'ok'); } catch (_) {}
-  } catch (_) {}
-}
-
-/* R18: touch-action:none is set in CSS on both video elements (declared
-   edit, static). This drag wiring is otherwise unchanged from candidate 4
-   except touchstart is passive (harmless, no preventDefault needed there)
-   and touchmove stays non-passive (preventDefault is called once past the
-   threshold, requires non-passive). */
-(function () {
-  var handle = document.getElementById('local-video-handle');
-  function edgeFor(el) {
-    var r = el.getBoundingClientRect();
-    var vw = window.innerWidth, vh = window.innerHeight;
-    var distances = { left: r.left, right: vw - r.right, top: r.top, bottom: vh - r.bottom };
-    var edge = 'left'; var min = distances.left;
-    for (var k in distances) { if (distances[k] < min) { min = distances[k]; edge = k; } }
-    return { edge: edge, r: r };
-  }
-  function placeHandle(el) {
-    if (!handle) return;
-    var info = edgeFor(el);
-    if (info.r.left > -TB_HANDLE && info.r.right < (window.innerWidth + TB_HANDLE) &&
-        info.r.top > -TB_HANDLE && info.r.bottom < (window.innerHeight + TB_HANDLE)) {
-      handle.style.display = 'none'; return;
-    }
-    handle.style.display = 'block';
-    if (info.edge === 'left') { handle.style.left = '2px'; handle.style.top = (info.r.top + info.r.height / 2 - 8) + 'px'; }
-    if (info.edge === 'right') { handle.style.left = (window.innerWidth - 18) + 'px'; handle.style.top = (info.r.top + info.r.height / 2 - 8) + 'px'; }
-    if (info.edge === 'top') { handle.style.top = '2px'; handle.style.left = (info.r.left + info.r.width / 2 - 8) + 'px'; }
-    if (info.edge === 'bottom') { handle.style.top = (window.innerHeight - 18) + 'px'; handle.style.left = (info.r.left + info.r.width / 2 - 8) + 'px'; }
-  }
-  ['remote-video', 'local-video'].forEach(function (id) {
-    var el = document.getElementById(id);
-    if (!el) return;
-    tbWireDrag(el, {
-      allowOffscreen: true,
-      enabled: function () {
-        if (!CALL.active || CALL.kind !== 'video') return false;
-        var isSmall = TB_SWAP ? (id === 'remote-video') : (id === 'local-video');
-        return isSmall;
-      },
-      onMove: function () { placeHandle(el); },
-      onDragEnd: function () { placeHandle(el); }
-    });
-  });
-})();
-
-(function () {
-  if (typeof CALL === 'undefined' || typeof CALL.hangUp !== 'function') return;
-  var _hangUp = CALL.hangUp;
-  CALL.hangUp = function () {
-    try {
-      ['remote-video', 'local-video'].forEach(function (id) {
-        var el = document.getElementById(id);
-        if (el && el.__tbDragState) el.__tbDragState.on = false;
-        tbClearPos(el);
-      });
-      var h = document.getElementById('local-video-handle'); if (h) h.style.display = 'none';
-    } catch (_) {}
-    TB_SWAP = false;
-    try { var host = $('call-videos'); if (host) host.classList.remove('swapped'); } catch (_) {}
-    return _hangUp.apply(this, arguments);
-  };
-})();
-
-/* V4 + R17 — camera flip. FIX: the old track is stopped and removed from
-   the sender FIRST, then the new stream is requested. Matches this
-   codebase's own established pattern (every other camera-touching path
-   already stops old tracks before acquiring new ones); flip was the one
-   place that didn't, very likely causing a device-busy getUserMedia
-   rejection swallowed by the catch below. */
-var TB_FACING = 'user';
-function tbFlipCamera() {
-  if (!CALL.active || CALL.kind !== 'video') return;
-  var next = TB_FACING === 'user' ? 'environment' : 'user';
-  var old = (CALL.stream && CALL.stream.getVideoTracks) ? CALL.stream.getVideoTracks()[0] : null;
-  camSenders().forEach(function (sender) { replaceSenderTrack(sender, null); });   /* R17: release first */
-  try { if (old) { CALL.stream.removeTrack(old); old.stop(); } } catch (_) {}
-  navigator.mediaDevices.getUserMedia({ video: { facingMode: next }, audio: false }).then(function (s) {
-    var track = s.getVideoTracks()[0];
-    if (!track) return;
-    camSenders().forEach(function (sender) { replaceSenderTrack(sender, track); });
-    try { CALL.stream.addTrack(track); } catch (_) {}
-    try { $('local-video').srcObject = CALL.stream; } catch (_) {}
-    TB_FACING = next;
-    try { if (typeof log === 'function') log('v4_camera_flip', { to: next }, 'ok'); } catch (_) {}
-  }).catch(function (e) { try { if (typeof log === 'function') log('v4_flip_failed', { e: String(e && e.name || e) }, 'warn'); } catch (_) {} });
-}
-(function () {
-  function add() {
-    var btn = document.getElementById('btn-flip-overlay');
-    if (!btn) return;
-    btn.addEventListener('click', function (ev) { ev.stopPropagation(); tbFlipCamera(); });
-  }
-  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', add); else add();
-})();
-
-(function () {
-  var BUILD = { c: 'turn27-ship-video-c5', file: 'bridge-turn27-ship.html', built: '2026-09-15 00:31 UTC' };
-  function paint() {
-    try {
-      var m = document.getElementById('m-s13'); if (!m) return;
-      var modal = m.querySelector('.modal'); if (!modal) return;
-      var f = document.getElementById('s13-build');
-      if (!f) { f = document.createElement('div'); f.id = 's13-build'; f.style.cssText = 'margin-top:12px;font-size:10.5px;color:var(--ink-dim);text-align:center'; modal.appendChild(f); }
-      f.textContent = BUILD.c + ' \u00b7 built ' + BUILD.built;
-    } catch (_) {}
-  }
-  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', paint); else paint();
-  var mo = null;
-  try { mo = new MutationObserver(function () { paint(); }); var target = document.getElementById('m-s13'); if (target) mo.observe(target, { attributes: true, attributeFilter: ['class'] }); } catch (_) {}
-})();
 
 </script>
 </body>
