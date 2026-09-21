@@ -662,3 +662,20 @@ The following are rejected for Release A and must not return:
 - Any Release A AI click/navigation/provider/backend behavior. The AI icon is present but inert until Release B.
 - Icon-only controls without accessible `title` / `aria-label` names.
 - Reordering the governed top-level sequence away from Estate → Analyze → Database → Grid → Plan → AI → Activity.
+
+
+## 2026-09-21 — OMNISEARCH FIELD-DISCOVERY NEGATIVE RULES
+
+The following are rejected and must not return:
+
+- A permanent standalone `#` field-picker button on Database or Grid.
+- Separate Database and Grid query grammars.
+- Requiring the user to know or type `system_classification` when the user-facing alias `class` is available.
+- Hiding `lifecycle` merely because `class` exists; they are separate searchable concepts.
+- Distinct-value autocomplete that blocks or constrains manual text/wildcard input.
+- Full timestamp spam for Created/Modified value suggestions when a calendar-date list is sufficient.
+- Autocomplete that silently changes a user-entered query.
+- Search results that automatically become selected mutation scope.
+- Field autocomplete driven by arbitrary object keys rather than the governed searchable-column set.
+
+Required replacement: typing `#` in OMNISEARCH invokes in-field column autocomplete; the first letter narrows matching governed fields; selecting a field produces ascending distinct-value suggestions; manual typing and wildcards override suggestion use; `class` maps to `system_classification`; `folder` maps to the parent directory of canonical `path`; Database and Grid share the same parser and semantics.
