@@ -917,3 +917,30 @@ Release A qualification must mechanically verify:
 - one compact Export trigger with CSV/JSON choices;
 - Edit Tags top-right × with no bottom Close action; and
 - lowercase tag normalization at both UI input and backend persistence boundaries.
+
+
+## 2026-09-21 — RELEASE A MOBILE ICON RIBBON PATCH — BINDING
+
+This patch is part of Release A and changes top-ribbon presentation only. It does not activate Ask AI, alter pane state machines, change backend behavior, or modify the Release B Ask AI scope.
+
+### Top ribbon
+
+- Keep the release identity exactly once in the header brand: **SOT Turn 02 Release A**.
+- Connection status shows only the connection state such as **Connected**, **Reconnecting**, or **Disconnected**. Do not repeat `turn02-release-a` or another release/version string beside it.
+- Convert the six active top-level tabs to compact icon-only buttons: Estate, Analyze, Database, Grid, Plan, Activity.
+- Add a seventh **AI** icon button in the top ribbon.
+- Release A AI is intentionally inert: it has no pane, no provider execution, no navigation side effect, no state transition, and no backend request. It is visibly disabled and its accessible label/title states that AI is available in the next release.
+- Every icon button must have an accessible name and tooltip/title identifying its surface.
+- The active surface retains the existing high-contrast selected treatment.
+- On mobile, all seven surface/AI icons must fit in the ribbon without horizontal scrolling. The settings gear remains in the compact header row.
+- The icon ribbon must preserve the existing top-level order as: Estate, Analyze, Database, Grid, Plan, AI, Activity.
+
+### Qualification additions
+
+Release A qualification must verify:
+- the health display no longer appends the backend version;
+- active top-level buttons are icon-only while retaining title/ARIA labels;
+- exactly one inert AI button exists between Plan and Activity;
+- no `AI` pane is added to the Release A `names` state-machine array;
+- the AI control cannot call `show()`, provider APIs, or another action; and
+- mobile ribbon CSS does not depend on horizontal scrolling.
