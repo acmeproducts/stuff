@@ -699,3 +699,22 @@ The following are rejected and must not return:
 - Hover/selected Database rows that are not white with black bold text.
 
 Required replacement: task-centric AI with durable Task Cards, right-side task workspace and sticky compose; Auto Tag is proposal → review → explicit Apply through the governed metadata API; analysis tasks remain read-only; TARGET structure/landing tasks remain proposal-only in Release B; visible Database Folder excludes filename; zebra rows alternate dark grey/white with the governed text colors.
+
+
+## 2026-09-21 — RELEASE B MOBILE STABILITY / AI SCOPE NEGATIVE RULES
+
+Rejected and must not return:
+
+- Background polling that rebuilds Database and snaps horizontal scroll left.
+- Database row selection implemented by rebuilding the complete table.
+- The superseded light charcoal zebra treatment (#343a40) when a darker row is required.
+- Viewer-launch control to the right of a long Filename.
+- Rendering the complete long filename in the Database cell when 25-character truncation is governed.
+- Copying only the truncated filename.
+- Separate Database and Grid search state.
+- AI scope dropdowns for Entire SOT / query / explicit selection / Plan.
+- AI tasks silently using a scope different from the shared OMNISEARCH.
+- Periodic AI polling that repeatedly reconstructs the complete AI rail/stage and causes flicker or disrupts typing/scroll position.
+- Task Cards that omit the search criteria used for their evidence scope.
+
+Required replacement: stable Database DOM/scroll behavior; darker charcoal zebra; left-side viewer launch + 25-character filename presentation with full-name copy; one shared Database/Grid OMNISEARCH; AI scope equals current shared search, with blank search meaning Entire SOT; Task Cards persist the criteria; task-specific prompt is prefilled and editable; AI polling updates only running task state without full-surface flicker.
