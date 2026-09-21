@@ -62,12 +62,12 @@ The timing is consistent with the observed move, but does not establish causatio
    await page.locator('#legend [data-id="risk"]').click();
    await page.waitForFunction(()=>document.querySelector('#nowCrumb')?.textContent?.includes('*'));
    check('compact components breadcrumb uses star',await page.locator('#nowCrumb').textContent().then(t=>t.includes('*')&&!/COMPONENTS/.test(t)));
-   check('all horizons remain visible with menu',await page.evaluate(()=>{
-     const hs=[...document.querySelectorAll('#hzs .hz')],m=document.getElementById('nowMoreBtn');
-     if(!hs.length||!m)return false;
-     const mr=m.getBoundingClientRect();
-     return hs.every(h=>{const r=h.getBoundingClientRect();return r.left>=0&&r.right<=innerWidth})&&mr.left>=0&&mr.right<=innerWidth;
-   }));
+   const ribbonGeo=await page.evaluate(()=>{
+     const hs=[...document.querySelectorAll('#hzs .hz')],m=document.getElementById('nowMoreBtn'),row=document.getElementById('nowChrome');
+     const pack=r=>({left:+r.left.toFixed(1),right:+r.right.toFixed(1),width:+r.width.toFixed(1)});
+     return{innerWidth,row:pack(row.getBoundingClientRect()),menu:pack(m.getBoundingClientRect()),horizons:hs.map(h=>({t:h.textContent,...pack(h.getBoundingClientRect())}))};
+   });
+   check('all horizons remain visible with menu',ribbonGeo.horizons.every(r=>r.left>=0&&r.right<=ribbonGeo.innerWidth)&&ribbonGeo.menu.left>=0&&ribbonGeo.menu.right<=ribbonGeo.innerWidth,JSON.stringify(ribbonGeo));
    const componentId=await page.evaluate(()=>[...document.querySelectorAll('#legend [data-id]')].map(x=>x.dataset.id).find(x=>!['risk','growth','macro'].includes(x)));
    check('component available for info-card test',!!componentId);
    await page.locator('#legend [data-id="'+componentId+'"]').dispatchEvent('contextmenu');
