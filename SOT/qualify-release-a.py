@@ -57,14 +57,19 @@ with tempfile.TemporaryDirectory() as td:
   print("PASS additive Plan arithmetic X + Y = Z")
 
   chosen=[rows[0]["placement_id"],rows[1]["placement_id"]]
+  s.submit("UPDATE placements SET tags=? WHERE placement_id=?",(json.dumps(["#LegacyTag"]),chosen[0]),True)
   rev0=srv.catalog_revision()
-  md=srv.metadata_update({"ids":chosen,"updates":{"add_tags":["alpha","project-x"],"notes":"fixture note","quality_rating":4,"content_rating":5}})
+  md=srv.metadata_update({"ids":chosen,"updates":{"add_tags":["Alpha","PROJECT-X"],"notes":"fixture note","quality_rating":4,"content_rating":5}})
   assert md["catalog_revision"]>rev0
   changed=s.rows("SELECT tags,notes,quality_rating,content_rating,system_classification FROM placements WHERE placement_id IN (?,?)",tuple(chosen))
-  assert all("#alpha" in json.loads(x["tags"]) and "#project-x" in json.loads(x["tags"]) for x in changed)
+  for x in changed:
+   tags=json.loads(x["tags"])
+   assert all(t==t.lower() for t in tags),tags
+   assert "#alpha" in tags and "#project-x" in tags,tags
+  assert "#legacytag" in json.loads(changed[0]["tags"]) or "#legacytag" in json.loads(changed[1]["tags"])
   assert all(x["notes"]=="fixture note" and x["quality_rating"]==4 and x["content_rating"]==5 for x in changed)
   assert all(x["system_classification"] in ("UNIQUE","KEEP","EXCESS") for x in changed)
-  print("PASS owner metadata persistence separate from system classification")
+  print("PASS lowercase owner tags + metadata persistence separate from system classification")
 
   before=s.rows("SELECT * FROM placements WHERE filename='unique-a.txt' AND placement_state='ACTIVE'")[0]
   old_no=before["placement_no"];dest=e2/"grouped";dest.mkdir()
