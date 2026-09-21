@@ -3,7 +3,9 @@
 Status: AUTHORITATIVE PRODUCT / BUILD / QUALIFICATION PLAN
 Updated: 2026-09-21
 Planning state: **PLAN ONLY — NO APPLICATION CODE AUTHORIZED BY THIS UPDATE**
-Target artifact: **`market-navigator-turn25-ship.html`**
+Target artifact: **`market-navigator-turn26-ship.html`**
+
+Next cumulative application artifact: **`market-navigator-turn26-ship.html`**
 
 This file is the single positive specification for Market Navigator. `MARKET-NAVIGATOR-GRAVEYARD.md` remains the binding negative specification. `MARKET-NAVIGATOR-BUILD-PROTOCOL.md` governs stage advancement. Do not create a parallel plan.
 
