@@ -117,7 +117,7 @@ function mnxRecord(k,h){
     components:components,omitted:omitted,
     replication:{result:replicationResult,recomputedIndexValue:recomputedIndex,publishedIndexValue:publishedIndex,maxComponentError:maxComponentError,indexError:indexError,tolerance:MNX_REPLICATION_TOL},
     reconciliation:{summedContribution:summed,indexMovement:movement,residual:residual,tolerance:MNX_RECONCILE_TOL},
-    evidenceStatus:b.status||'',evidenceReasons:b.reasons||[],
+    evidenceStatus:b.status||'',evidenceReasons:b.reasons||[],factorDiagnostics:b.factorDiagnostics||{},
     noNewReleaseComponents:b.noNewReleaseComponents||[],
     status:status,statusReason:statusReason});
 }
@@ -126,7 +126,7 @@ function mnxRecordFingerprint(r){
     r.baselineDate,r.endDate,r.baselineIndexValue,r.endIndexValue,r.indexMovementPercent,r.componentsUsed,r.componentsDefined,
     (r.components||[]).map(c=>[c.componentId,c.direction,c.weight,c.baselineObservationDate,c.baselineValue,c.endObservationDate,c.endValue,c.orientedIndex,c.indexContributionPercentPoints]),
     (r.omitted||[]).map(o=>[o.componentId,o.reason]),
-    r.reconciliation?[r.reconciliation.summedContribution,r.reconciliation.residual]:null]));
+    r.reconciliation?[r.reconciliation.summedContribution,r.reconciliation.residual]:null,r.factorDiagnostics||{}]));
 }
 function mnxScopeIndices(state){
   let out=[],seen={};
