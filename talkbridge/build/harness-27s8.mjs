@@ -1,17 +1,17 @@
 #!/usr/bin/env node
-/* 27·ship candidate 7 harness (§7.15).
+/* 27·ship candidate 8 harness (§7.15).
 
    Two instances of the real artifact boot in jsdom — one creator, one joiner —
    wired through a fake relay that can be switched off and on, each with a
    scripted peer connection; a third instance drives the real relayConnect
    against a controllable fake WebSocket. Every assertion is a downstream
-   effect. Every gate here is mutation-tested by build/mutate-27s7.mjs.
+   effect. Every gate here is mutation-tested by build/mutate-27s8.mjs.
 
    Usage: node harness-27s6.mjs [built.html]   (TB_PART_OVERRIDE for mutations) */
 
 import { readFileSync } from 'fs';
 import { JSDOM, VirtualConsole } from 'jsdom';
-import { BASE_FILE, PARTS, TAIL } from './assemble-27s7.mjs';
+import { BASE_FILE, PARTS, TAIL } from './assemble-27s8.mjs';
 
 const builtP = process.argv[2] || 'bridge-turn27-ship.html';
 const built = readFileSync(builtP, 'utf8');
@@ -28,7 +28,7 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 console.log('M1 · additive over the accepted 27·ship c5 baseline');
 const prefix = base.slice(0, base.length - TAIL.length);
 T('M1.1 built begins with the accepted c5 bytes, byte for byte', () => assert(built.startsWith(prefix), 'baseline prefix altered'));
-T('M1.2 built === baseline + D1 + V-1 + V-2 + V-3 + V-4 + S-2 + tail, nothing else', () => assert(built === prefix + parts.map((p) => '\n\n' + p).join('') + TAIL, 'output is not base + parts + tail'));
+T('M1.2 built === baseline + D1 + V-1 + V-2 + V-3 + V-4 + S-2 + F-1 + tail, nothing else', () => assert(built === prefix + parts.map((p) => '\n\n' + p).join('') + TAIL, 'output is not base + parts + tail'));
 T('M1.3 the baseline is c5: tap-swap and camera flip present, corner band gone, no popstate listener of its own', () => {
   assert(/function tbSwapTap/.test(prefix) && /function tbFlipCamera/.test(prefix) && prefix.indexOf('btn-flip-overlay') !== -1, 'c5 surface missing from the base');
   assert(prefix.indexOf("addEventListener('popstate'") === -1, 'the base has a popstate listener — S-2 would double up');
@@ -37,14 +37,15 @@ T('M1.3 the baseline is c5: tap-swap and camera flip present, corner band gone, 
 
 /* ── M2 · CONTRACT ───────────────────────────────────────────────────────── */
 console.log('M2 · contract: wraps only, calls through, no takeover');
-const [d1, c1, v2, c3, c2, pS2] = parts;
+const [d1, c1, v2, c3, c2, pS2, f1] = parts;
 const contractOf = (s) => s.slice(s.indexOf('@contract'), s.indexOf('*/', s.indexOf('@contract')));
-T('M2.1 every part declares replaces: (none)', () => { for (const p of [c1, v2, c3, c2, pS2]) assert(/replaces:\s*\(none\)/.test(contractOf(p)), 'a part declares a replacement'); });
+T('M2.1 every part declares replaces: (none)', () => { for (const p of [c1, v2, c3, c2, pS2, f1]) assert(/replaces:\s*\(none\)/.test(contractOf(p)), 'a part declares a replacement'); });
 T('M2.2 every declared wrap calls through', () => {
   assert(/_relaySend\.apply\(this, arguments\)/.test(c1), 'V-1 does not call through relaySend');
   assert(/_relayConnect\.apply\(this, arguments\)/.test(v2), 'V-2 does not call through relayConnect');
   assert(/_runRecovery\.apply\(this, arguments\)/.test(c3) && /_onSignal\.apply\(this, arguments\)/.test(c3), 'V-3 does not call through');
   assert(/_start\.apply\(this, arguments\)/.test(c2) && /_stop\.apply\(this, arguments\)/.test(c2), 'V-4 does not call through the watchdog');
+  assert(/_replaceSenderTrack\.apply\(this, arguments\)/.test(f1) && /_camSenders\.apply\(this, arguments\)/.test(f1), 'F-1 does not call through');
 });
 const PROTECTED = ['CALL.setupPC', 'CALL.teardown', 'CALL.hangUp', 'CALL.mount', 'CALL.acquire', 'CALL.flushCands', 'CALL.startKeepalive', 'CALL.stopKeepalive', 'CALL.armConnectTimeout', 'CALL.resetRecoveryState', 'CALL.enterPip', 'CALL.exitPip', 'log', 'relaySendWhenOpen', 'handleRelay', 'relayDisconnect', 'startDeepgram', 'toast', 'GEN.bump', 'BUILD_INFO', 'VERSION', 'wirePipSwap', 'wirePipDrag'];
 T('M2.3 no part assigns to anything the baseline owns outside its declared wraps', () => {
@@ -62,15 +63,17 @@ T('M2.4 no onxxx handler installed; no DOM writes; transport parts never touch p
     assert(!/popstate|pushState|enterPip|exitPip/.test(p), 'a transport part touches the back-button surface');
   }
   assert(!/enterPip|exitPip|tbSwapTap|tbFlipCamera|replaceSenderTrack/.test(pS2), 'S-2 touches swap / flip / PiP — it only absorbs back');
+  const f1code = f1.replace(/\/\*[\s\S]*?\*\//g, '');   /* judge the code, not its own explanation */
+  assert(!/tbFlipCamera\s*=|tbSwapTap\s*=|getUserMedia/.test(f1code), 'F-1 must not rewrite the flip or touch the camera itself');
   assert((pS2.match(/addEventListener\('popstate'/g) || []).length === 1, 'S-2 must add exactly one popstate listener');
 });
 T('M2.5 no new message TYPE — restart is a key on the proven webrtc-signal carrier', () => {
   const types = new Set(); let m; const re = /type:\s*'([a-z-]+)'/g;
-  while ((m = re.exec(c1 + v2 + c3 + c2 + pS2))) types.add(m[1]);
+  while ((m = re.exec(c1 + v2 + c3 + c2 + pS2 + f1))) types.add(m[1]);
   assert([...types].every((t) => t === 'webrtc-signal'), 'a new relay message type appeared: ' + [...types].join(','));
 });
 T('M2.6 no credential endpoint, no TURN URL removed (G19/G20; §7.15 non-scope)', () => {
-  for (const p of [c1, v2, c3, c2, pS2]) assert(!/credentials\/generate|iceServers|transport=tcp|turns?:/.test(p), 'a part touches ICE config or credentials');
+  for (const p of [c1, v2, c3, c2, pS2, f1]) assert(!/credentials\/generate|iceServers|transport=tcp|turns?:/.test(p), 'a part touches ICE config or credentials');
 });
 
 /* ── M3 · TWO INSTANCES ──────────────────────────────────────────────────── */
@@ -102,8 +105,9 @@ function makeWindow(html, tag) {
       class FakePC {
         constructor() {
           this.connectionState = 'connected'; this.iceConnectionState = 'connected'; this.signalingState = 'stable'; this.iceGatheringState = 'complete';
-          this.remoteDescription = null; this.localDescription = null; this.__closed = false; this.__offers = []; this.__answers = 0; this.__stats = []; this.__cands = [];
+          this.remoteDescription = null; this.localDescription = null; this.__closed = false; this.__offers = []; this.__answers = 0; this.__stats = []; this.__cands = []; this.__senders = [];
         }
+        getSenders() { return this.__senders; }
         addEventListener() {} removeEventListener() {} getConfiguration() { return {}; }
         createDataChannel() { return { readyState: 'open', send() {}, close() {}, addEventListener() {} }; }
         addTrack() { return {}; }
@@ -359,6 +363,51 @@ T('M3g.4 the c5 surface is intact in the built artifact: swap and flip are live 
   assert(K.w.document.getElementById('btn-flip-overlay'), 'flip button missing');
 });
 K.dom.window.close();
+
+
+/* ── M3h · F-1 A CAMERA FLIP KEEPS THE FAR SIDE'S PICTURE ────────────────── */
+console.log('M3h · F-1 flip keeps the sender');
+const FL = makeWindow(built, 'Flip');
+await sleep(1200);
+const CF = enterRoom(FL, 'creator');
+const mkTrack = (kind, id) => ({ kind, id, stop() { this.__stopped = true; } });
+const oldCam = mkTrack('video', 'cam-front'), mic = mkTrack('audio', 'mic');
+const vSender = { track: oldCam, replaceTrack(t) { this.track = t; return Promise.resolve(); } };
+const aSender = { track: mic, replaceTrack(t) { this.track = t; return Promise.resolve(); } };
+CF.pc.__senders = [aSender, vSender];
+CF.stream = { getVideoTracks() { return [oldCam]; }, getAudioTracks() { return [mic]; }, removeTrack() {}, addTrack() {} };
+const newCam = mkTrack('video', 'cam-back');
+FL.w.navigator.mediaDevices.getUserMedia = () => Promise.resolve({ getVideoTracks() { return [newCam]; }, getTracks() { return [newCam]; } });
+CF.active = true; CF.kind = 'video';
+FL.w.tbFlipCamera();
+await sleep(80);
+T('M3h.1 after a flip the connection\'s video sender carries the NEW camera — not null', () => {
+  assert(saw(FL, 'v4_camera_flip').length === 1, 'flip did not complete: ' + JSON.stringify(FL.logs.slice(-3).map((l) => l.ev)));
+  assert(vSender.track === newCam, 'video sender after flip: ' + (vSender.track ? vSender.track.id : 'NULL — the far side is frozen'));
+  assert(oldCam.__stopped === true, 'old camera not released');
+});
+T('M3h.2 the audio sender is untouched by the flip', () => assert(aSender.track === mic, 'audio sender changed'));
+T('M3h.3 the rescue is visible in the log', () => assert(saw(FL, 'f1_sender_kept').length >= 1, 'no f1_sender_kept line'));
+const backCam = mkTrack('video', 'cam-front-2');
+FL.w.navigator.mediaDevices.getUserMedia = () => Promise.resolve({ getVideoTracks() { return [backCam]; }, getTracks() { return [backCam]; } });
+FL.w.tbFlipCamera();
+await sleep(80);
+T('M3h.4 flipping back works too — the sender follows every flip', () => assert(vSender.track === backCam, 'second flip lost the sender'));
+/* Mute releases the AUDIO sender the same way. A flip after that must not
+   put the camera on the muted microphone's slot. */
+FL.w.replaceSenderTrack(aSender, null);
+const thirdCam = mkTrack('video', 'cam-back-2');
+FL.w.navigator.mediaDevices.getUserMedia = () => Promise.resolve({ getVideoTracks() { return [thirdCam]; }, getTracks() { return [thirdCam]; } });
+FL.w.tbFlipCamera();
+await sleep(80);
+T('M3h.6 a flip while muted leaves the muted audio sender alone and still lands the camera on the video sender', () => {
+  assert(aSender.track === null, 'the camera was put on the muted audio sender: ' + (aSender.track && aSender.track.id));
+  assert(vSender.track === thirdCam, 'video sender after flip-while-muted: ' + (vSender.track ? vSender.track.id : 'NULL'));
+});
+T('M3h.5 F-1 wraps and calls through: the baseline filter still runs first', () => {
+  assert(/_camSenders\.apply/.test(String(FL.w.camSenders)) && /_replaceSenderTrack\.apply/.test(String(FL.w.replaceSenderTrack)), 'F-1 not installed as a wrapper');
+});
+FL.dom.window.close();
 
 /* ── M6 · BASELINE UNDISTURBED ───────────────────────────────────────────── */
 console.log('M6 · the baseline is still itself');

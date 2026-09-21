@@ -1,5 +1,5 @@
-<!-- TALKBRIDGE-PLAN v21.49.0 -->
-# TALKBRIDGE MASTER PLAN v21.49.0
+<!-- TALKBRIDGE-PLAN v21.50.0 -->
+# TALKBRIDGE MASTER PLAN v21.50.0
 
 **Location:** `talkbridge/TALKBRIDGE-PLAN-v9.md` in `acmeproducts/stuff`.
 **Owner:** Confi — sole decision-maker, runs every device gate.
@@ -87,7 +87,8 @@ built yet.
 | 27·pre-ship | **N-1 notification lifecycle** — relay v6.6 sends a terminal retraction push to any recipient NOT currently connected when their call record resolves without their own action (caller hung up or cancelled, answered by no one, etc.); a foreground device never holds an OS card in the first place (`_decide`: visible+connected → in_app, no push requested), so no client-side close path was needed. K1 (tb-sw2.js) closes the card, or on a missed outcome replaces it with "Missed call". The room-transcript half of the owner's "both" ruling was ALREADY WORKING via existing CR3 reconciliation (`cr3PillMissed`) — verified, not built. Ring-tone selection DROPPED from this release: no chosen value was ever given, and a knob with nothing to turn to is not a feature. | Built directly from evidence found in the code, correcting the original §9 guess | **ACCEPTED 2026-09-13 (owner: pass).** Gates pass; mutations 3/3 (push-to-connected, double-push-on-retry, accepted-worker-touched). Known limitation, not fixed here: if the caller's own device also backgrounds or closes right after dialing, no side ever sends call-end and the callee's card can linger — a pre-existing gap in the call model, not caused by or fixed by N-1. | https://acmeproducts.github.io/stuff/bridge-turn27-pre-ship.html |
 | ~~27·pre-ship (old)~~ | ~~Notifications & steadiness~~ — TalkBridge icon on alerts + strongest legal call alert (D-1/#652) in the folder worker; presence 60-s damping; render coalescing | Spec §7.2 (paths updated to folder) | queued — ringfence: worker swap + push continuity | — |
 | 27·ship (candidate 5) | **Video call surface, candidate 5** — tap-swap (kept); camera-flip stops the old track before requesting the new one (matches this codebase's own established pattern, everywhere else already does this); drag gets `touch-action:none` on the video elements. Screen share still dropped, V2 still dropped. | Spec §7.6 + R17 (stop-before-acquire) + R18 (touch-action:none) | **ACCEPTED 2026-09-14, then its BACK BUTTON rejected 2026-09-20 (G57, corrected the same night: swap and flip stay — owner: "that was all working"; back should be DISABLED during a call). c5 bytes `956ceb381585` banked as fixture and re-affirmed as the video surface; input to candidate 7.** Was: Tap-swap confirmed working. Drag: PARTIAL PASS, accepted with a known issue — the small video can now be moved (R18 fixed the gesture), but a z-index/stacking bug still confines it visually within the large video pane instead of the full screen; backlogged, not blocking. Camera flip (R17): status unconfirmed, owner chose not to chase further — backlogged alongside the drag z-index issue. | (address now holds candidate 6) |
-| 27·ship (candidate 6) | **Video: the working surface, made reliable** — 27·pre-ship bytes verbatim (corner-band PiP, back button shrinks the call, no swap, no flip, no drag) + D1 instrument + V-1 signalling queue (dropped ICE candidates retried through the existing `relaySendWhenOpen`) + V-2 relay retry ramp (300/600/1200/2000 ms instead of a flat 2 s, twice) + V-3 the joiner can request and ANSWER an ICE restart on its existing connection + V-4 stall detection by decoded frames. Every part is a wrapper that calls through; nothing replaced; no message type added; no TURN URL touched; the back-button/PiP surface untouched by any part (gated). | Spec §7.15 — everything video, in one place | **DEVICE GATE 2026-09-20: transport PASS — owner: lag "completely gone", cellular and wifi (G3/G4). Surface REJECTED on sight: the old corner band is not what the owner wants → buried G59. Transport parts carried unchanged into c7.** sha256 `0fc47e5bfe45`. Three-instance harness (creator + joiner + real relayConnect on a driven WebSocket)| 27·ship (candidate 7) | **Video, closed out: c5 surface + proven transport + back disabled** — accepted c5 bytes verbatim (tap-swap, camera flip, draggable small video, no corner band) + D1 + V-1 signalling queue + V-2 relay retry ramp + V-3 joiner ICE restart (request and answer) + V-4 stall by decoded frames + **S-2 back button absorbed during a call** (re-pushes the call history entry on every back press while `CALL.active`; nothing outside a call). Every part wraps and calls through or only adds a listener; nothing replaced; transport parts gated never to touch popstate/PiP; S-2 gated never to touch swap/flip. | Spec §7.15 (§1 rewritten 2026-09-20) | **BUILT 2026-09-20 on owner ruling — device gate pending.** sha256 `16364a597cbb`. Harness 51/51 (three instances + real relayConnect on a driven WebSocket + back-button absorber driven with real popstate events); structural checks 4/4 self-verified; mutations 23/23 on the named test. Relay v6.6 untouched. | https://acmeproducts.github.io/stuff/bridge-turn27-ship.html |
+| 27·ship (candidate 6) | **Video: the working surface, made reliable** — 27·pre-ship bytes verbatim (corner-band PiP, back button shrinks the call, no swap, no flip, no drag) + D1 instrument + V-1 signalling queue (dropped ICE candidates retried through the existing `relaySendWhenOpen`) + V-2 relay retry ramp (300/600/1200/2000 ms instead of a flat 2 s, twice) + V-3 the joiner can request and ANSWER an ICE restart on its existing connection + V-4 stall detection by decoded frames. Every part is a wrapper that calls through; nothing replaced; no message type added; no TURN URL touched; the back-button/PiP surface untouched by any part (gated). | Spec §7.15 — everything video, in one place | **DEVICE GATE 2026-09-20: transport PASS — owner: lag "completely gone", cellular and wifi (G3/G4). Surface REJECTED on sight: the old corner band is not what the owner wants → buried G59. Transport parts carried unchanged into c7.** sha256 `0fc47e5bfe45`. Three-instance harness (creator + joiner + real relayConnect on a driven WebSocket)| 27·ship (candidate 7) | **Video, closed out: c5 surface + proven transport + back disabled** — accepted c5 bytes verbatim (tap-swap, camera flip, draggable small video, no corner band) + D1 + V-1 signalling queue + V-2 relay retry ramp + V-3 joiner ICE restart (request and answer) + V-4 stall by decoded frames + **S-2 back button absorbed during a call** (re-pushes the call history entry on every back press while `CALL.active`; nothing outside a call). Every part wraps and calls through or only adds a listener; nothing replaced; transport parts gated never to touch popstate/PiP; S-2 gated never to touch swap/flip. | Spec §7.15 (§1 rewritten 2026-09-20) | **DEVICE GATE 2026-09-21 (owner, both phones): back disabled PASS, swap PASS, flip PASS locally — but the FAR side’s picture freezes at the first flip on both phones. D1 proved it: outbound video bytes stop at `v4_camera_flip` and never move again. Cause in c5’s flip (G60): the sender is released before the new camera is acquired, and the sender lookup filters on the tra| 27·ship (candidate 8) | **c7 + F-1: a camera flip keeps the far side’s picture** — wraps `replaceSenderTrack` (tags a video sender when it is released) and `camSenders` (returns tagged senders the kind-filter dropped), so the second pass of `tbFlipCamera` finds its sender and the new camera reaches the connection. Also repairs camera-off → on (same lookup). Nothing replaced; the flip code itself untouched. | Spec §7.15 §1 + F-1 | **BUILT 2026-09-21 — device gate pending.** sha256 `8f017cf47b64`. Harness 57/57 (flip driven end to end on a fake connection: sender carries the new camera, audio sender untouched, flip-while-muted lands on the right sender); checks 4/4 self-verified; mutations 27/27. Relay v6.6 untouched. | https://acmeproducts.github.io/stuff/bridge-turn27-ship.html |
+ck that is now null, so the new camera never reaches the connection. Fixed additively in c8; everything else carried.** sha256 `16364a597cbb`. Harness 51/51 (three instances + real relayConnect on a driven WebSocket + back-button absorber driven with real popstate events); structural checks 4/4 self-verified; mutations 23/23 on the named test. Relay v6.6 untouched. | (address now holds c8) |
  47/47; structural checks 4/4 self-verified; mutations 20/20 caught on the named test. Relay v6.6 untouched. | (address now holds c7) |
 | 27·post-ship | **Technical debt & refactor** (pulled forward from 28·base, owner ruling 2026-09-20: "then we only have technical debt, multi user, and IndexedDB to close out before beta") — collisions & concurrency (device-namespaced message ids, phrasebook compare-and-swap three-way merge, concurrent-rename convergence), render coalescing, log hygiene, wrapper-chain audit, dead-candidate purge (the D1 instrument comes OUT here — it exists to read gates, not to ship to beta), graveyard index. Sequenced before multi-user because id-namespacing and PB merge are its prerequisites. | Specs §7.9 + §7.10 merged | queued — input: accepted 27·ship c6; ringfence: silent behaviour drift; gate = zero-regression session | — |
 | 27·ship · DIAGNOSTIC D1 (not a stage, never a baseline) | **Read-only call instrument** built on the accepted 27·ship bytes to find out why video freezes roughly twenty seconds into a call and never returns while chat and the transcript keep working. Adds ICE/connection/signalling/gathering transition logging, a 2-second getStats sample (inbound video bytes and frames decoded, selected candidate pair resolved to host/srflx/**relay**, RTT, packet loss), an independent picture-stopped detector that does not depend on `connectionState`, live readings of the existing keepalive channel, video watchdog, connect timeout and recovery step, a TURN reachability probe that reuses the live connection’s own iceServers (no new endpoint, no new credential path — G19/G20), and network/visibility events during a call. Replaces nothing, wraps nothing, changes no behaviour, adds no UI. | Owner instruction 2026-09-20; scope: visibility only, no fix | **DEVICE-RUN 2026-09-20 (owner, both phones, both roles) — evidence read, findings in §7.14 and D-7. Instrument did its job. The standalone file `bridge-turn27-ship-diag1.html` is DEAD (built on the rejected c5 bytes; stays hosted, never to be used); the D1 part itself rides inside 27·ship c6 for the gate and is removed at 27·post-ship.** Machine gates M1–M6 36/36; four structural checks green, each self-verified; mutations 13/13 caught. Output = accepted 27·ship bytes verbatim + one appended part, byte-checked. | https://acmeproducts.github.io/stuff/bridge-turn27-ship-diag1.html |
@@ -132,6 +133,7 @@ they are never counted as progress.
 | D-6 | Call screen reported not working by the owner on the base address — which does not contain the video build (G38). Needs re-testing on the single address before any cause is claimed. | UNVERIFIED |
 | D-7 | **Cellular call-setup lag (~4 s to first picture) and one-way video death that nothing detects.** PROVEN 2026-09-20 from D1 device logs and owner A/B: on wifi the connection is instant; on cellular the carrier bounces the link the moment media starts (every socket on the phone dies together — not the app, verified against every reconnect path), the app then waits a flat 2 s twice and drops every ICE candidate in between. Not TURN (27/28 probes ~100 ms; the one failure was DNS during the flap). The joiner’s repair ladder destroys its own connection at step 2 and can neither request nor answer an ICE restart; the shipped watchdog watches `currentTime` and never fired across 18 s of zero frames. All pre-existing since turn 24. | FIX BUILT — 27·ship c6 V-1..V-4 (§7.15), device gate pending. Expected on cellular: ~4 s → ~2 s (the first second or two is the carrier’s); wifi already instant. |
 | D-8 | **c5’s back button leaves the app mid-call** (one history entry pushed, nothing listening → second press exits → far side frozen, G55). Owner ruling: back is DISABLED during a call. Swap and flip were never the defect (builder misread; G57 corrected). | FIX BUILT — S-2 in 27·ship c7; device gate G1 = press back repeatedly mid-call, nothing happens, far side never freezes. |
+| D-9 | **Camera flip freezes the other person’s picture** (both phones, c5/c7): outbound video bytes stop at `v4_camera_flip` and never resume; the flip looks perfect locally. `tbFlipCamera` releases the sender, then `camSenders()` cannot find it (filters on the now-null track), so the new camera never reaches the connection. G60. | FIX BUILT — F-1 in 27·ship c8; device gate G1c = flip on phone A, phone B’s picture of A keeps moving; log `f1_sender_kept` and `outB` still climbing. |
 
 **Why these exist:** D-1 is a regression introduced in the R10 candidate work
 and not caught. D-2 is a fix that was built, broken, rolled back and then not
@@ -1960,6 +1962,8 @@ Green means allowed to push. It never means done.
 ---
 
 ## 10 · CHANGE LOG
+
+**v21.50.0 · 2026-09-21.** c7 device gate: back disabled PASS, swap PASS, flip PASS locally — the far side’s picture freezes at the first flip on both phones. D1 pinned it to the sample: outbound video stops at `v4_camera_flip` and never resumes. Cause (G60, D-9): c5’s flip releases the video sender, then looks it up by the track it no longer has, so the new camera never reaches the connection. c8 = c7 + F-1 (tag the released sender; let `camSenders()` return it). Harness 57/57, checks 4/4, mutations 27/27. Device gate G1c now judges a flip on the OTHER phone.
 
 **v21.49.0 · 2026-09-20.** c6 device gate: transport PASS — owner reports the lag completely gone on cellular and wifi (better than predicted). Surface rejected on sight: the owner wants c5’s swap and flip kept and the back button DISABLED, not the old corner band; the builder had misread the earlier report (G57 corrected, G59 for c6). c7 built: c5 bytes (banked as a fixture, byte-checked) + D1 + V-1..V-4 unchanged + S-2 back absorbed during a call. Harness 51/51, checks 4/4, mutations 23/23. §7.15 §1 rewritten; device gate G1 is now "press back three times, nothing happens".
 
@@ -4838,9 +4842,9 @@ FILE: `bridge-turn27-ship.html` = bytes of ACCEPTED 27·ship candidate 5
 (sha256 956ceb381585…, banked in `talkbridge/fixtures/`) + six appended parts
 in this order: D1 instrument (`d1-call-diagnostics.js`, unchanged), V-1
 (`c1-signal-queue.js`), V-2 (`v2-relay-retry.js`), V-3 (`c3-joiner-restart.js`),
-V-4 (`c2-stall-frames.js`), S-2 (`s2-back-absorb.js`).
+V-4 (`c2-stall-frames.js`), S-2 (`s2-back-absorb.js`), F-1 (`f1-flip-keeps-sender.js`).
 RELAY: v6.6, UNTOUCHED. `tb-sw.js`, `tb-sw2.js`, manifests: untouched.
-Rollback target: 27·pre-ship (last accepted stage). Candidate 7 sha256 16364a597cbb….
+Rollback target: 27·pre-ship (last accepted stage). Candidate 8 sha256 8f017cf47b64….
 
 ### 1 · The surface: candidate 5, with the back button disabled (owner ruling 2026-09-20)
 Candidate 5's surface, exactly as accepted 2026-09-14: `#remote-video` and
@@ -4849,7 +4853,12 @@ Candidate 5's surface, exactly as accepted 2026-09-14: `#remote-video` and
 (`#btn-flip-overlay` → `tbFlipCamera`, R17 release-then-acquire); the small
 video draggable with an edge handle (R18 `touch-action:none`; the z-index
 confinement bug stays backlogged, W-3). No corner band, no PiP (V2 dropped
-stands). Owner, on device: "you should be able to flip back and forth the
+stands). PLUS F-1 (`f1-flip-keeps-sender.js`, c8): c5's flip released the
+video sender and then looked it up by the track it no longer had, so the new
+camera never reached the connection and the far side froze (G60, D-9). F-1
+tags a video sender on release and lets `camSenders()` return it. Wraps
+`replaceSenderTrack` and `camSenders`; calls through; the flip code is not
+touched. Owner, on device: "you should be able to flip back and forth the
 streams between small and large and change the camera from front to back —
 that was all working."
 The one defect in c5 was the BACK BUTTON: one history entry pushed at
@@ -4929,7 +4938,7 @@ survivable on the joiner. V-4 does not ship without V-3.
 It is the only way to read the device gate. It logs one stats line every
 2 s during a call and nothing outside one. Purged in the debt release.
 
-### Machine gates (all PASS on c7, 2026-09-20)
+### Machine gates (all PASS on c8, 2026-09-21)
 M1 built === accepted c5 bytes + the six parts + tail; the base carries
 `tbSwapTap`, `tbFlipCamera`, `#btn-flip-overlay`, the call history push, and
 no popstate listener of its own.
@@ -4948,15 +4957,18 @@ open, never retries a replaced socket, stops outside a room; (g) S-2: real
 popstate events during a call re-push the entry every time and log; outside
 a call nothing; swap/flip functions live in the built artifact, corner band not.
 M4 syntax / structure / wire / runtime, each self-verified.
-M5 mutations 23/23, each failing its named test.
+M5 mutations 27/27, each failing its named test (four cover F-1: never tags; tags but ignores; tags audio too; replaces camSenders).
 
 ### Device gate (owner, both phones; footer names the build first)
 G1 BACK BUTTON. Mid video call, press back THREE times on each phone in
 turn: nothing happens — the call stays full-screen and running, the far
 side’s picture never freezes. Log: `s2_back_absorbed` ×3 per phone. This
 is the gate c5 never had.
-G1b SWAP and FLIP still work: tap the big video → streams swap; flip
-button → camera changes; far side keeps its picture through both.
+G1b SWAP: tap the big video → streams swap; far side keeps its picture.
+G1c FLIP, judged on the OTHER phone: flip on A; B's picture of A keeps
+moving (not frozen), and A's log shows `f1_sender_kept` and `outB` still
+climbing on the samples after `v4_camera_flip`. Flip back; same. Then the
+same from B. This is the gate c5 and c7 never had.
 G2 HOME BUTTON. Mid video call, press home, wait 10 s, return. Record what
 happens to the far side; a freeze here is the known G55 gap, NOT a c6
 failure — record it, do not fail the candidate on it.
@@ -4975,9 +4987,9 @@ PASS = G1, G3, G4, G5, G6, G7 (G2 is recorded only). Any other miss →
 candidate dies, G-entry, rollback to 27·pre-ship, rebuild.
 
 ### Parked — the video wants (owner may schedule; none is on the chain to beta)
-W-1 tap-swap — SHIPPED in c7 (c5 surface). W-2 camera flip — SHIPPED in c7
-(c5's R17); owner reports it working; the release-then-acquire order stays
-on the watch list: if a flip ever blanks the far side, fix is acquire-first.
+W-1 tap-swap — SHIPPED (c5 surface). W-2 camera flip — SHIPPED, repaired
+in c8 by F-1 (G60): it did blank the far side, exactly as feared, for a
+different reason than feared — the sender lookup, not the acquire order.
 W-3 draggable small video anywhere. c5’s drag was confined by a z-index/
 stacking bug; unsolved.
 W-4 screen share. Never built.

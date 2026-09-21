@@ -1,7 +1,7 @@
 <!-- v5.8.2.42 -->
 # TALKBRIDGE — THE GRAVEYARD (living; keep in project knowledge)
 ## Approaches PROVEN to fail. Scanned before every change and at every exit condition. Never resurrect.
-**Version: 2.17 | 2026-09-20 | Maintained in GitHub by the build process (raw.githubusercontent.com/acmeproducts/stuff/main/talkbridge/TALKBRIDGE-GRAVEYARD.md). Updated on every exit-condition burial.**
+**Version: 2.18 | 2026-09-21 | Maintained in GitHub by the build process (raw.githubusercontent.com/acmeproducts/stuff/main/talkbridge/TALKBRIDGE-GRAVEYARD.md). Updated on every exit-condition burial.**
 
 
 Each entry: the approach, its failure signature, what replaces it. A change matching a signature is forbidden BEFORE it is attempted — not rediscovered as if new.
@@ -1962,3 +1962,25 @@ tap-swap, camera flip, and the back button disabled during a call (G57,
 corrected). The transport parts are carried unchanged into candidate 7 on
 c5's bytes with S-2 (back absorbed). Nothing from c6 is thrown away except
 the choice of base. Address rebuilt as c7.
+
+## G60 — 2026-09-21 — R17 "release first" with a kind-filtered sender lookup: the flip that freezes the far side
+
+Buried: the camera-flip sequence as shipped in 27·ship c5 (and carried into
+c7). `tbFlipCamera` released the video sender (`replaceTrack(null)`) before
+acquiring the new camera — correct, that was R17's point — and then asked
+`camSenders()` for the senders to hand the new track to. `camSenders()`
+keeps only senders whose CURRENT track is video; a released sender has none,
+so it returned nothing. The new camera reached `CALL.stream` and the local
+preview (the flip looked perfect to the person flipping) and never reached
+the connection. Device log, creator, 2026-09-21: `v4_camera_flip` at
+10:03:04.777; outbound video bytes 5746832 at every sample thereafter,
+through two more flips. The far side's picture froze at the first flip on
+both phones, since both flipped.
+
+Why it survived a whole release: c5's own gate looked at the flipping phone.
+Nobody watched the OTHER phone's picture after a flip. D1 made it a number.
+
+Replacement: F-1 — tag a video sender when it is released, and let
+`camSenders()` return tagged senders the filter dropped. Wraps, calls
+through, replaces nothing. Rule: any release that touches a sender is gated
+on the FAR side's picture, and on `outB` still climbing in the log.

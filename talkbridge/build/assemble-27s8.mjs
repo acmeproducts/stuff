@@ -1,14 +1,14 @@
 #!/usr/bin/env node
-/* 27·ship candidate 7 assembler (§7.15).
+/* 27·ship candidate 8 assembler (§7.15).
 
    Input : the accepted 27·ship candidate 5 bytes (swap, flip, drag — accepted
            2026-09-14, re-affirmed by owner 2026-09-20 as the surface they want),
            banked as a fixture and byte-checked against the ledger sha256.
-   Output: bridge-turn27-ship.html = those exact bytes + six appended parts,
+   Output: bridge-turn27-ship.html = those exact bytes + seven appended parts,
            in this order: D1 (instrument), V-1 (signalling queue, file c1),
            V-2 (relay retry ramp), V-3 (joiner restart, file c3),
            V-4 (stall by decoded frames, file c2), S-2 (back button absorbed
-           during a call).
+           during a call), F-1 (a camera flip keeps the sender).
 
    The baseline is never edited. Refuses to run if the input hash moves. */
 import crypto from 'node:crypto';
@@ -26,7 +26,8 @@ export const PARTS = [
   'talkbridge/parts/v2-relay-retry.js',
   'talkbridge/parts/c3-joiner-restart.js',
   'talkbridge/parts/c2-stall-frames.js',
-  'talkbridge/parts/s2-back-absorb.js'
+  'talkbridge/parts/s2-back-absorb.js',
+  'talkbridge/parts/f1-flip-keeps-sender.js'
 ];
 export const OUT_FILE = 'bridge-turn27-ship.html';
 export const TAIL = '\n</script>\n</body>\n</html>';
@@ -43,7 +44,7 @@ export function assemble(partOverrides) {
   return prefix + parts.map((p) => '\n\n' + p).join('') + TAIL;
 }
 
-if (process.argv[1] && process.argv[1].endsWith('assemble-27s7.mjs')) {
+if (process.argv[1] && process.argv[1].endsWith('assemble-27s8.mjs')) {
   let out;
   try { out = assemble(); } catch (e) { console.error(e.message); process.exit(1); }
   const dest = path.join(root, OUT_FILE);
