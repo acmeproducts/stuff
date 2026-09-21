@@ -18,7 +18,21 @@ function server(){
   });
   return new Promise(r=>s.listen(0,'127.0.0.1',()=>r(s)));
 }
-const AI='# Current governed read\\n\\n## Observed\\nThe governed evidence is the basis for this response.\\n\\n## Contemporaneous context\\nA current release and reputable reporting provide context without proving causation.\\n\\n## Possible relationship\\nThe timing is consistent with the observed move, but does not establish causation.\\n\\n## Context & Further Reading\\n- **Data & Releases · 2026-09-18 · Federal Reserve:** [Federal Reserve release](https://www.federalreserve.gov/) — primary release context.\\n- **Related Reporting · 2026-09-18 · Reuters:** [Reuters Markets](https://www.reuters.com/markets/) — contemporaneous reporting context.\\n';
+const AI=`# Current governed read
+
+## Observed
+The governed evidence is the basis for this response.
+
+## Contemporaneous context
+A current release and reputable reporting provide context without proving causation.
+
+## Possible relationship
+The timing is consistent with the observed move, but does not establish causation.
+
+## Context & Further Reading
+- **Data & Releases · 2026-09-18 · Federal Reserve:** [Federal Reserve release](https://www.federalreserve.gov/) — primary release context.
+- **Related Reporting · 2026-09-18 · Reuters:** [Reuters Markets](https://www.reuters.com/markets/) — contemporaneous reporting context.
+`;
 
 (async()=>{
  const srv=await server(),origin='http://127.0.0.1:'+srv.address().port;
