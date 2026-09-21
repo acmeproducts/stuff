@@ -1,3 +1,7 @@
+> **STALE — 2026-08-04 snapshot, kept for history only (banner added 2026-09-21).**
+> Nothing below is current. The live state is the §0 ledger in `talkbridge/TALKBRIDGE-PLAN-v9.md`;
+> the working rules are `talkbridge/THE-METHOD.md`; buried approaches are in `talkbridge/TALKBRIDGE-GRAVEYARD.md`.
+
 # TalkBridge — Session Handoff (2026-08-04)
 
 Read this fully before doing anything. Do NOT re-derive, re-decide, or "get up to speed" by re-reading everything and re-explaining it back. The scope below is settled.
