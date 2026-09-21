@@ -669,6 +669,21 @@ Owner test of Release A establishes the following correction contract. These are
 7. Qualification must prove browser JavaScript syntax plus static contract checks for Enter+blur tag commit, upper-right × without Tag footer Close, compact Plan table geometry, parent-directory Path projection, and Database scroll restoration.
 
 
+### 43.18 Release A host cutover correction — binding (2026-09-20)
+Owner host cutover exposed a rollback-safe installer sequencing defect after all application/runtime gates had passed. The installer captured the predecessor v11 SQLite file checksum **before** stopping the old supervised service. A clean service stop may checkpoint WAL state into the main SQLite file, legitimately changing that file hash without changing logical evidence. The post-start byte-hash assertion therefore rejected a valid cutover and rolled back.
+
+The corrected cutover contract is:
+1. Complete all download, compile, disposable-fixture and browser/static qualification before touching the running service.
+2. Arm rollback, then stop the old service.
+3. After the old service is fully stopped, validate the predecessor v11 database read-only and capture its preservation checksum. That post-stop/checkpoint state is the immutable migration source for this cutover attempt.
+4. Any schema-12 database produced by a prior failed/rolled-back Release A attempt is **not authoritative**. Preserve it in a timestamped archive and remove it from the active schema-12 path before retry so the new service must migrate again from the latest stabilized v11 predecessor.
+5. Start the new service and require health, placements and additive Plan checks.
+6. Confirm the stabilized v11 predecessor checksum remains unchanged after the new service creates/opens schema-12.
+7. Preserve existing Tailscale/OpenClaw/report routing and verify shared-origin `/sot` health.
+8. On any failure after cutover begins, stop/disable the new service, archive the failed schema-12 attempt, and restore the previously active service. Never silently reuse the failed schema-12 database on a later retry.
+9. The failed first Release A installer is evidence only. Publish the correction under a new installer filename and qualify its sequencing mechanically before owner rerun.
+
+
 ## 44. Ask AI surface — binding design and implementation plan (2026-09-20)
 
 ### 44.1 Purpose
