@@ -648,3 +648,17 @@ The following are rejected for Release A and must not return:
 - Bottom **Close** action in Edit Tags.
 - Mixed-case owner tags persisted by either UI or backend.
 - Any tag normalization that changes immutable UNIQUE / KEEP / EXCESS system classifications.
+
+
+## 2026-09-21 — RELEASE A TOP-RIBBON NEGATIVE RULES
+
+The following are rejected for Release A and must not return:
+
+- Repeating the Release A/version name both in the brand and in the connection-health text.
+- Full text labels for Estate / Analyze / Database / Grid / Plan / Activity consuming the mobile top ribbon.
+- A horizontally scrolling top-level navigation ribbon on ordinary phone widths.
+- An AI control that is absent from the ribbon even though Release B is reserved for AI activation.
+- An apparently active AI control in Release A.
+- Any Release A AI click/navigation/provider/backend behavior. The AI icon is present but inert until Release B.
+- Icon-only controls without accessible `title` / `aria-label` names.
+- Reordering the governed top-level sequence away from Estate → Analyze → Database → Grid → Plan → AI → Activity.
