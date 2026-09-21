@@ -604,3 +604,19 @@ Reject assigning a legend-color swatch to the bottom total/result row of a Plan 
 Reject Folder or Delete implementations that report success solely because the underlying filesystem call succeeded. Reject optimistic UI removal/path changes that leave Database rows, current placement/status evidence, duplicate/system classification, Plan arithmetic, persistent browser caches, or Activity inconsistent with the filesystem.
 
 **Required replacement:** every explicit owner-initiated Grid mutation is a governed operation with per-placement durable results. Folder updates authoritative current placement/path evidence and preserves history; cross-filesystem moves verify destination byte identity before source removal. Delete retires current placement evidence only after filesystem success. Every committed mutation advances the evidence/cache revision, recomputes affected duplicate/system classification and Plan inputs/results, records Activity, and refreshes Grid/Database/Plan from backend-authoritative state before the operation is reported complete. Partial success remains explicit per placement.
+
+---
+
+## GY-091 — Enter-only tag commit, footer Close in Edit Tags, oversized Plan tables, redundant Database filename path, and horizontal scroll reset
+
+**Status:** REJECTED OWNER-TEST UX PATTERN  
+**Decision date:** 2026-09-20
+
+Reject Grid tag entry that persists only on Enter; blur must commit the same pending non-empty tag input through the same idempotent path. Reject a footer **Close** button in Edit Tags; use an upper-right × close affordance.
+
+Reject Plan subtab tables that retain a fixed/minimum width on mobile and therefore waste horizontal space or require horizontal fighting. Use compact proportional columns that fit the available content width.
+
+Reject displaying or exporting the filename redundantly inside Database **Path**. Path is projected as parent directory while the full physical path remains authoritative internal evidence.
+
+Reject Database rerenders that reset the evidence table horizontal position to the left edge. Selection, sort, polling and local rerender must preserve the user's current horizontal and vertical table scroll position.
+
