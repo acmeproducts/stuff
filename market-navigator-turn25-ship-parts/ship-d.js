@@ -24,6 +24,7 @@ function mnxGlossaryHtml(){
   ['Direction stability','Fraction of leave-one-out tests that preserve the sign of the canonical index move.','Below 100% means the directional conclusion depends on component inclusion.'],
   ['Specification robustness','Fraction of governed nearby weighting diagnostics that preserve the direction of the canonical move.','It tests fragility only; it never replaces or changes the canonical model.'],
   ['Standardized sensitivity','Model response to component-scaled historical shocks.','Large values identify components to which the index is unusually sensitive. Missing sensitivity is never estimated.'],
+  ['Yield Curve factor','MAC first-class factor combining the governed 10Y−2Y and 10Y−3M Treasury spreads.','When both are eligible it carries 2/7 (28.6%) of canonical MAC weight. INVERTED means at least one current spread is below zero; visibility does not dynamically change weight.'],
   ['Data Health','Whether canonical source observations are current and usable.','Good Data Health does not prove the derived model is healthy; model construction is assessed separately.'],
   ['ACTIVE / WATCH / DEGRADED / SUSPENDED','Derived-model lifecycle from governed tests.','ACTIVE is healthy; WATCH flags material diagnostics; DEGRADED means the model remains calculable but incomplete/compromised; SUSPENDED means it should not be treated as a valid model output.']
  ];
@@ -36,11 +37,12 @@ function mnxSensitivityCell(m){
   return `${mnxPp(s.maxOneSdIndexImpactPercentPoints)} (max, ±1 SD)`;
 }
 function mnxModelCardHtml(m){
-  let r=m.record,cov=`${m.componentsAvailable}/${m.componentsRequired}`;
+  let r=m.record,cov=`${m.componentsAvailable}/${m.componentsRequired}`,yc=r.factorDiagnostics&&r.factorDiagnostics.yieldCurve;
   return `<article class="mnxModelCard" data-mnx-model="${esc(m.modelId)}">
   <h3>${esc(m.shortName)} — ${esc(m.modelName)}<span class="mnxLife" style="color:${mnxLifeColor(m.lifecycle)}">${esc(m.lifecycle)}</span></h3>
   <div class="mnxModelMeta">${esc(m.purpose)} · definition ${esc(m.definitionVersion)} (${esc(m.modelHash)}) · evidence ${esc(m.evidenceRevision)} · validated ${esc(m.validationTimestamp||'—')} · horizon ${esc(m.horizon)}</div>
   <p class="mnxNote">${esc(m.lifecycleReason)}</p>
+  ${m.modelId==='macro'&&yc?`<section class="mnxYieldCurve" data-mnx-yield-curve><h4>Yield Curve — ${esc(yc.state||yc.status)}</h4><div class="mnxGrid"><div class="mnxMetric">Canonical MAC weight<b>${mnxNum((yc.canonicalWeight||0)*100,1)}%</b></div><div class="mnxMetric">10Y−2Y<b>${Number.isFinite(yc.levels&&yc.levels.curve10y2y)?mnxNum(yc.levels.curve10y2y,2)+' pp':'—'}</b></div><div class="mnxMetric">10Y−3M<b>${Number.isFinite(yc.levels&&yc.levels.curve10y3m)?mnxNum(yc.levels.curve10y3m,2)+' pp':'—'}</b></div><div class="mnxMetric">MAC contribution<b>${Number.isFinite(yc.contributionPercentPoints)?mnxPp(yc.contributionPercentPoints):'—'}</b></div></div><p class="mnxNote">INVERTED means at least one governed spread is below zero. Weight is governed and does not increase dynamically during inversion.</p></section>`:''}
   <div class="mnxGrid">
    <div class="mnxMetric">Formula replication<b>${esc(m.replication?m.replication.result:'—')}</b></div>
    <button class="mnxMetric mnxMetricButton" type="button" data-mnx-coverage="${esc(m.modelId)}">Components available<b>${esc(cov)} (${esc(m.coverageStatus||'—')})</b></button>
