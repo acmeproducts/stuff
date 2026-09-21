@@ -1,5 +1,5 @@
-<!-- TALKBRIDGE-PLAN v21.53.0 -->
-# TALKBRIDGE MASTER PLAN v21.53.0
+<!-- TALKBRIDGE-PLAN v21.53.1 -->
+# TALKBRIDGE MASTER PLAN v21.53.1
 
 **Location:** `talkbridge/TALKBRIDGE-PLAN-v9.md` in `acmeproducts/stuff`.
 **Owner:** Confi — sole decision-maker, runs every device gate.
@@ -157,6 +157,7 @@ they are never counted as progress.
 | D-7 | **Cellular call-setup lag (~4 s to first picture) and one-way video death that nothing detects.** PROVEN 2026-09-20 from D1 device logs and owner A/B: on wifi the connection is instant; on cellular the carrier bounces the link the moment media starts (every socket on the phone dies together — not the app, verified against every reconnect path), the app then waits a flat 2 s twice and drops every ICE candidate in between. Not TURN (27/28 probes ~100 ms; the one failure was DNS during the flap). The joiner’s repair ladder destroys its own connection at step 2 and can neither request nor answer an ICE restart; the shipped watchdog watches `currentTime` and never fired across 18 s of zero frames. All pre-existing since turn 24. | FIX ACCEPTED 2026-09-21 in 27·ship c8 — lag gone on cellular and wifi (owner). CLOSED. |
 | D-8 | **c5’s back button leaves the app mid-call** (one history entry pushed, nothing listening → second press exits → far side frozen, G55). Owner ruling: back is DISABLED during a call. Swap and flip were never the defect (builder misread; G57 corrected). | CLOSED 2026-09-21 — S-2 accepted in 27·ship c8; back does nothing during a call. |
 | D-9 | **Camera flip freezes the other person’s picture** (both phones, c5/c7): outbound video bytes stop at `v4_camera_flip` and never resume; the flip looks perfect locally. `tbFlipCamera` releases the sender, then `camSenders()` cannot find it (filters on the now-null track), so the new camera never reaches the connection. G60. | CLOSED 2026-09-21 — F-1 accepted in 27·ship c8; far side keeps its picture through flips. |
+| D-10 | **Phrasebook: Enter in a card's tag field moves focus to the NEXT card's source field instead of adding the tag and staying in the tag field** (owner, 2026-09-21). **Not a 27·post-ship regression — proven by A/B on the same phone: identical at the accepted c8 address (`bridge-turn27-ship.html`).** Pre-existing. What is known: the handler (`body` keydown → `pbAddTagTo` → `pbTouch` → `pbRerenderCard` → refocus the new tag input, G9) touches none of the 27·post-ship parts; the same scripted action in the jsdom rig on BOTH builds adds the tag and leaves focus in the tag field. So the cause is on-device only: either the keyboard's Enter does not arrive as `key === 'Enter'` on keydown (the handler then never runs and the keyboard's own “next field” action moves focus), or focus is lost when the card is redrawn (the focused input is removed from the DOM by `replaceWith`) and the phone lands it elsewhere. The app logs nothing on this path and does not log uncaught errors, so no device log can decide it. Which phone(s) is not yet recorded. | OPEN — next step is an instrument, not a fix: a read-only part on 27·post-ship that logs, for the tag input only, the keydown `key`/`keyCode`/`isComposing`, whether the handler ran, and `document.activeElement` before and 50 ms after the redraw. Fix follows the printout, as its own release. |
 
 **Why these exist:** D-1 is a regression introduced in the R10 candidate work
 and not caught. D-2 is a fix that was built, broken, rolled back and then not
@@ -1985,6 +1986,8 @@ Green means allowed to push. It never means done.
 ---
 
 ## 10 · CHANGE LOG
+
+**v21.53.1 · 2026-09-21.** D-10 recorded: Enter in a phrasebook tag field moves focus to the next card's source field on the phone. Owner A/B on the same phone: identical at the accepted c8 address → not a post-ship regression, pre-existing. Machine rig reproduces the CORRECT behaviour on both builds, so the cause is on-device (key event shape or focus after the card redraw). Next step is an instrument, then a fix as its own release. 27·post-ship device gate still open.
 
 **v21.53.0 · 2026-09-21.** Owner: "so what would it take to flatten the layer cake" → "go". §7.16 written: flattening = one function per wrapper chain, proven equivalent by a differential harness (accepted build vs candidate, same inputs → same log sequence, same screen), nothing new allowed in. Turn 28 becomes the flattening turn: 28·base relay cluster, 28·pre-ship call cluster — the two chains multi-user must rewrite. Multi-user, directory and IndexedDB shift one turn to 29; beta readiness to 30. §0c-1 flattening exception PROPOSED, not in force: both flattening stages are BLOCKED until the owner approves it in writing. Room lifecycle, render and the shallow sweep are deferred past beta. Spec cross-references that still say "28·base" for multi-user (§7.8, §7.9 heading) mean the multi-user stage, now 29·base; the ledger is the truth.
 
