@@ -1,4 +1,4 @@
-<!-- 27·pre-ship · bridge-turn27-pre-ship.html · accepted 27·base bytes e1cefd955b55 + N-1 (terminal notification retraction: relay v6.6 pushes a retraction to recipients not connected when a call resolves without their action; K1 registers onto tb-sw2.js which closes/replaces the tagged card) · missed calls already reach the room transcript via existing CR3 reconciliation (cr3PillMissed) — no change needed there · pair: relay v6.6, accepted tb-sw.js and manifests untouched -->
+<!-- 27·ship candidate 5 · bridge-turn27-ship.html · accepted 27·pre-ship bytes 69ec6482db24 · V2 dropped (unchanged from candidate 4) · V1 tap-swap kept unchanged (proven correct) · R17: camera flip now stops the old track BEFORE requesting the new one (matches this codebase's own established stop-before-acquire pattern) · R18: touch-action:none added to the draggable video elements (the only prior working drag in this codebase, R8B_CSS, always had this; the video elements never did) · screen share still dropped · pair: relay v6.6 unchanged, accepted workers unchanged -->
 <!DOCTYPE html>
 <!-- TALKBRIDGE APP · plan-first final app per TALKBRIDGE-MASTER-PLAN-v7.html (v8.4.8)
      Release 5 · 2026-08-01 · Clean-up (b): Ear/TTS/Mute rebuilt as icon buttons (slash convention
@@ -295,11 +295,12 @@ textarea::placeholder,input::placeholder{color:var(--ink-dim)}
 .meter-btn.off .mic-fill,.meter-btn.off .cam-fill{display:none}
 .talking-to{font-size:12px;color:var(--ink-dim);margin:-2px 0 10px}
 .talking-to b{color:var(--ink-mid);font-weight:600}
-#scr-room.pip #call-band{position:absolute;right:10px;top:64px;width:118px;z-index:45;border-radius:12px;overflow:hidden;box-shadow:var(--shadow)}
-#scr-room.pip #call-band .videos{height:198px}
-#scr-room.pip #subtitle-area,#scr-room.pip #local-video{display:none}
-#pip-x{display:none;position:absolute;top:4px;right:4px;z-index:5;width:24px;height:24px;border-radius:50%;background:rgba(0,0,0,.62);color:#fff;border:none;line-height:0;cursor:pointer;font-size:14px}
-#scr-room.pip #pip-x{display:flex;align-items:center;justify-content:center}
+.videos.swapped #remote-video{width:82px;height:110px;right:10px;bottom:10px;left:auto;top:auto;position:absolute;border-radius:10px;z-index:3}
+.videos.swapped #local-video{position:absolute;inset:0;width:100%;height:100%;border-radius:0;z-index:1}
+#btn-flip-overlay{display:none;position:absolute;bottom:10px;left:10px;z-index:6;width:34px;height:34px;border-radius:50%;background:rgba(0,0,0,.55);color:#fff;border:none;align-items:center;justify-content:center}
+#scr-room.st-video #btn-flip-overlay{display:flex}
+#local-video-handle{display:none;position:fixed;z-index:59;width:16px;height:16px;border-radius:8px;background:rgba(255,255,255,.85);box-shadow:0 1px 4px rgba(0,0,0,.3)}
+#remote-video,#local-video{touch-action:none}
 #ring-overlay{position:absolute;inset:0;background:rgba(14,17,18,.97);z-index:80;display:none;flex-direction:column;align-items:center;justify-content:center;color:#fff;text-align:center;padding:30px}
 #ring-overlay.show{display:flex}
 #ring-name{font-size:24px;font-weight:700;margin:16px 0 4px}
@@ -385,8 +386,10 @@ textarea::placeholder,input::placeholder{color:var(--ink-dim)}
       <button id="dg-fail-x" aria-label="Dismiss"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
     </div>
     <div id="call-band">
-      <button id="pip-x">✕</button>
+      <div id="local-video-handle"></div>
+      <button id="pip-x" style="display:none" tabindex="-1" aria-hidden="true"></button>
       <div class="videos" id="call-videos">
+        <button id="btn-flip-overlay" aria-label="Flip camera"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 2l4 4-4 4"/><path d="M3 11V9a4 4 0 0 1 4-4h14"/><path d="M7 22l-4-4 4-4"/><path d="M21 13v2a4 4 0 0 1-4 4H3"/></svg></button>
         <div id="remote-ph"><svg width="46" height="46" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="12" cy="8" r="4"/><path d="M4 21c0-4 3.6-7 8-7s8 3 8 7"/></svg></div>
         <video id="remote-video" autoplay playsinline></video>
         <video id="local-video" autoplay playsinline muted></video>
@@ -2338,10 +2341,10 @@ function wire(){
   $('rb-hangup').addEventListener('click',function(){CALL.hangUp(true)});
   $('dg-fail-x').addEventListener('click',function(){dgHideFailBanner()});
   $('pip-x').addEventListener('click',function(ev){ev.stopPropagation();CALL.hangUp(true)});
-  $('call-videos').addEventListener('click',function(){if(CALL.pip)CALL.exitPip()});
+  $('call-videos').addEventListener('click',function(ev){ tbSwapTap(ev); });
   $('ring-acc').addEventListener('click',function(){CALL.accept()});
   $('ring-dec').addEventListener('click',function(){CALL.decline()});
-  window.addEventListener('popstate',function(){if(CALL.active&&!CALL.pip)CALL.enterPip()});
+  /* popstate: intentionally NOT wired to any call behavior — V2 dropped. */
 }
 function closeDrawer(){commitRoomName();$('drawer-s4b').classList.remove('open');document.querySelectorAll('.info-pop.show').forEach(function(p){p.classList.remove('show')})}
 function populateLangSelects(){
@@ -2756,9 +2759,11 @@ var CALL={
   },
   remoteMic:function(on){_remoteMicOn=!!on;renderPartnerState()},
   remoteCam:function(on){$('remote-ph').style.display=on?'none':''},
-  enterPip:function(){if(!this.active||this.kind!=='video')return;this.pip=true;this.pushed=false;$('scr-room').classList.add('pip');log('call_pip',{},'ok')},
+  /* V2 dropped (owner ruling, see plan): a CSS-only reduced view cannot
+     survive real backgrounding, which was the whole point. */
+  pip:false,
+  enterPip:function(){},
   exitPip:function(){
-    this.pip=false;$('scr-room').classList.remove('pip');
     if(!this.pushed){try{history.pushState({tbCall:1},'',location.href)}catch(_){}this.pushed=true}
   },
   endPill:function(){
@@ -6857,123 +6862,8 @@ var R8B_CSS =
   '.r8-typing{display:none;padding:4px 14px;font-size:12.5px;color:var(--ink-dim);font-style:italic}' +
   '.r8-typing.on{display:block}';
 
-/* ── 8.8 tap video → PIP ───────────────────────────────────────────────────────
-   Tapping the PIP already exits it. The other half was missing: tapping the
-   full-size video to enter PIP. Bound on the video surface rather than the
-   band so a tap on the controls does not trigger it. */
-function wirePipSwap() {
-  try {
-    var host = $('call-videos');
-    if (!host || !host.addEventListener) return false;
-    if (host.dataset && host.dataset.r8Pip) return true;
+/* 8.8/8.9 (corner-band) REMOVED. V2 dropped, not reimplemented. */
 
-    host.addEventListener('click', function (ev) {
-      try {
-        /* Exiting is already handled by the base's own listener; this adds the
-           entering half only, and only for a video call where a PIP means
-           something. */
-        if (CALL.pip) return;
-        if (!CALL.active || CALL.kind !== 'video') return;
-        if (ev && ev.target && ev.target.closest && ev.target.closest('button')) return;
-        CALL.enterPip();
-        r8Log('pip_entered_by_tap', {}, 'ok');
-      } catch (e) { r8Log('pip_tap_failed', { e: String(e && e.message || e) }, 'error'); }
-    });
-
-    if (host.dataset) host.dataset.r8Pip = '1';
-    return true;
-  } catch (e) { r8Log('pip_swap_failed', { e: String(e && e.message || e) }, 'error'); return false; }
-}
-
-/* ── 8.9 draggable PIP ─────────────────────────────────────────────────────
-   The band is pinned to a fixed corner, so it can cover whatever is beneath
-   it with no way to move it. Dragging sets explicit coordinates; a drag is
-   distinguished from a tap by distance, so tap-to-exit keeps working.
-   Clamped to the viewport, or it could be dragged off-screen and lost. */
-var PIP_DRAG = { on: false, moved: false, sx: 0, sy: 0, ox: 0, oy: 0 };
-
-function wirePipDrag() {
-  try {
-    var band = $('call-band');
-    if (!band || !band.addEventListener) return false;
-    if (band.dataset && band.dataset.r8Drag) return true;
-
-    var point = function (ev) {
-      var t = (ev.touches && ev.touches[0]) || (ev.changedTouches && ev.changedTouches[0]) || ev;
-      return { x: t.clientX || 0, y: t.clientY || 0 };
-    };
-
-    var start = function (ev) {
-      if (!CALL.pip) return;
-      var p = point(ev);
-      PIP_DRAG.on = true;
-      PIP_DRAG.moved = false;
-      PIP_DRAG.sx = p.x;
-      PIP_DRAG.sy = p.y;
-      var r = band.getBoundingClientRect ? band.getBoundingClientRect() : { left: 0, top: 0 };
-      PIP_DRAG.ox = r.left;
-      PIP_DRAG.oy = r.top;
-    };
-
-    var move = function (ev) {
-      if (!PIP_DRAG.on) return;
-      var p = point(ev);
-      var dx = p.x - PIP_DRAG.sx, dy = p.y - PIP_DRAG.sy;
-      /* Below this, it is a tap. Without the threshold every tap would count
-         as a drag and tap-to-exit would stop working. */
-      if (!PIP_DRAG.moved && Math.abs(dx) + Math.abs(dy) < 6) return;
-      PIP_DRAG.moved = true;
-      if (ev.preventDefault) ev.preventDefault();
-
-      var w = band.offsetWidth || 118, h = band.offsetHeight || 198;
-      var vw = (window.innerWidth || 390), vh = (window.innerHeight || 700);
-      var nx = Math.max(4, Math.min(vw - w - 4, PIP_DRAG.ox + dx));
-      var ny = Math.max(4, Math.min(vh - h - 4, PIP_DRAG.oy + dy));
-      band.style.left = nx + 'px';
-      band.style.top = ny + 'px';
-      band.style.right = 'auto';
-      band.style.bottom = 'auto';
-    };
-
-    var end = function () {
-      if (!PIP_DRAG.on) return;
-      PIP_DRAG.on = false;
-      if (PIP_DRAG.moved) r8Log('pip_dragged', {}, 'ok');
-    };
-
-    band.addEventListener('mousedown', start);
-    band.addEventListener('touchstart', start);
-    band.addEventListener('mousemove', move);
-    band.addEventListener('touchmove', move);
-    band.addEventListener('mouseup', end);
-    band.addEventListener('touchend', end);
-    band.addEventListener('mouseleave', end);
-
-    /* A tap that turned into a drag must not also exit the PIP. */
-    band.addEventListener('click', function (ev) {
-      if (PIP_DRAG.moved) { ev.stopPropagation(); PIP_DRAG.moved = false; }
-    }, true);
-
-    if (band.dataset) band.dataset.r8Drag = '1';
-    return true;
-  } catch (e) { r8Log('pip_drag_failed', { e: String(e && e.message || e) }, 'error'); return false; }
-}
-
-/* Leaving PIP returns the band to its styled corner, so a dragged position
-   does not persist into the next call. */
-(function () {
-  var _r8ExitPip = CALL.exitPip;
-  CALL.exitPip = function () {
-    try {
-      var band = $('call-band');
-      if (band && band.style) {
-        band.style.left = ''; band.style.top = '';
-        band.style.right = ''; band.style.bottom = '';
-      }
-    } catch (_) {}
-    return _r8ExitPip.apply(this, arguments);
-  };
-})();
 
 /* ── 8.10 call timer, both sides ─────────────────────────────────────────────────
    The duration was already computed on both sides, and both sides lost it: any
@@ -7250,8 +7140,6 @@ setTimeout(function () {
     st.id = 'r8b-css';
     st.textContent = R8B_CSS;
     document.head.appendChild(st);
-    wirePipSwap();
-    wirePipDrag();
     wireTyping();
     /* Added alongside the base's own handler rather than replacing it — the
        base only acts on return, so leaving was never handled at all. */
@@ -9015,6 +8903,995 @@ function tbmdSpeechStrip(text) {
   setTimeout(retireOld, 30000);
 })();
 
+
+
+/* ===== 27·ship additions — video call surface, candidate 5 (R17/R18) ===== */
+(function(){ try { if (typeof log==='function') log('build', { c:'turn27-ship-video-c5', file:'bridge-turn27-ship.html', built:'2026-09-15 00:31 UTC' }, 'ok'); } catch(_){} })();
+
+var TB_HANDLE = 16;
+function tbClearPos(el) { if (!el) return; el.style.left = ''; el.style.top = ''; el.style.right = ''; el.style.bottom = ''; }
+function tbWireDrag(el, opts) {
+  if (!el || !el.addEventListener) return;
+  opts = opts || {};
+  var st = { on: false, moved: false, sx: 0, sy: 0, ox: 0, oy: 0 };
+  function point(ev) { var t = (ev.touches && ev.touches[0]) || (ev.changedTouches && ev.changedTouches[0]) || ev; return { x: t.clientX || 0, y: t.clientY || 0 }; }
+  function start(ev) {
+    if (opts.enabled && !opts.enabled()) return;
+    var p = point(ev);
+    st.on = true; st.moved = false; st.sx = p.x; st.sy = p.y;
+    var r = el.getBoundingClientRect ? el.getBoundingClientRect() : { left: 0, top: 0 };
+    st.ox = r.left; st.oy = r.top;
+  }
+  function move(ev) {
+    if (!st.on) return;
+    var p = point(ev); var dx = p.x - st.sx, dy = p.y - st.sy;
+    if (!st.moved && Math.abs(dx) + Math.abs(dy) < 11) return;
+    st.moved = true;
+    if (ev.preventDefault) ev.preventDefault();
+    var w = el.offsetWidth || 100, h = el.offsetHeight || 100;
+    var vw = window.innerWidth || 390, vh = window.innerHeight || 700;
+    var minX = opts.allowOffscreen ? (TB_HANDLE - w) : 4;
+    var maxX = opts.allowOffscreen ? (vw - TB_HANDLE) : (vw - w - 4);
+    var minY = opts.allowOffscreen ? (TB_HANDLE - h) : 4;
+    var maxY = opts.allowOffscreen ? (vh - TB_HANDLE) : (vh - h - 4);
+    var nx = Math.max(minX, Math.min(maxX, st.ox + dx));
+    var ny = Math.max(minY, Math.min(maxY, st.oy + dy));
+    el.style.left = nx + 'px'; el.style.top = ny + 'px'; el.style.right = 'auto'; el.style.bottom = 'auto';
+    if (opts.onMove) opts.onMove();
+  }
+  function end() { st.on = false; if (opts.onDragEnd) opts.onDragEnd(); }
+  el.addEventListener('mousedown', start); el.addEventListener('touchstart', start, { passive: true });
+  el.addEventListener('mousemove', move); el.addEventListener('touchmove', move, { passive: false });
+  el.addEventListener('mouseup', end); el.addEventListener('touchend', end); el.addEventListener('mouseleave', end);
+  el.addEventListener('click', function (ev) { if (st.moved) { ev.stopPropagation(); st.moved = false; } }, true);
+  el.__tbDragState = st;
+}
+
+var TB_SWAP = false;
+function tbSwapTap(ev) {
+  try {
+    if (ev && ev.target && ev.target.closest && ev.target.closest('button')) return;
+    if (!CALL.active || CALL.kind !== 'video') return;
+    TB_SWAP = !TB_SWAP;
+    var host = $('call-videos');
+    if (host) host.classList.toggle('swapped', TB_SWAP);
+    tbClearPos(document.getElementById('remote-video'));
+    tbClearPos(document.getElementById('local-video'));
+    try { if (typeof log === 'function') log('v1_swap', { swapped: TB_SWAP }, 'ok'); } catch (_) {}
+  } catch (_) {}
+}
+
+/* R18: touch-action:none is set in CSS on both video elements (declared
+   edit, static). This drag wiring is otherwise unchanged from candidate 4
+   except touchstart is passive (harmless, no preventDefault needed there)
+   and touchmove stays non-passive (preventDefault is called once past the
+   threshold, requires non-passive). */
+(function () {
+  var handle = document.getElementById('local-video-handle');
+  function edgeFor(el) {
+    var r = el.getBoundingClientRect();
+    var vw = window.innerWidth, vh = window.innerHeight;
+    var distances = { left: r.left, right: vw - r.right, top: r.top, bottom: vh - r.bottom };
+    var edge = 'left'; var min = distances.left;
+    for (var k in distances) { if (distances[k] < min) { min = distances[k]; edge = k; } }
+    return { edge: edge, r: r };
+  }
+  function placeHandle(el) {
+    if (!handle) return;
+    var info = edgeFor(el);
+    if (info.r.left > -TB_HANDLE && info.r.right < (window.innerWidth + TB_HANDLE) &&
+        info.r.top > -TB_HANDLE && info.r.bottom < (window.innerHeight + TB_HANDLE)) {
+      handle.style.display = 'none'; return;
+    }
+    handle.style.display = 'block';
+    if (info.edge === 'left') { handle.style.left = '2px'; handle.style.top = (info.r.top + info.r.height / 2 - 8) + 'px'; }
+    if (info.edge === 'right') { handle.style.left = (window.innerWidth - 18) + 'px'; handle.style.top = (info.r.top + info.r.height / 2 - 8) + 'px'; }
+    if (info.edge === 'top') { handle.style.top = '2px'; handle.style.left = (info.r.left + info.r.width / 2 - 8) + 'px'; }
+    if (info.edge === 'bottom') { handle.style.top = (window.innerHeight - 18) + 'px'; handle.style.left = (info.r.left + info.r.width / 2 - 8) + 'px'; }
+  }
+  ['remote-video', 'local-video'].forEach(function (id) {
+    var el = document.getElementById(id);
+    if (!el) return;
+    tbWireDrag(el, {
+      allowOffscreen: true,
+      enabled: function () {
+        if (!CALL.active || CALL.kind !== 'video') return false;
+        var isSmall = TB_SWAP ? (id === 'remote-video') : (id === 'local-video');
+        return isSmall;
+      },
+      onMove: function () { placeHandle(el); },
+      onDragEnd: function () { placeHandle(el); }
+    });
+  });
+})();
+
+(function () {
+  if (typeof CALL === 'undefined' || typeof CALL.hangUp !== 'function') return;
+  var _hangUp = CALL.hangUp;
+  CALL.hangUp = function () {
+    try {
+      ['remote-video', 'local-video'].forEach(function (id) {
+        var el = document.getElementById(id);
+        if (el && el.__tbDragState) el.__tbDragState.on = false;
+        tbClearPos(el);
+      });
+      var h = document.getElementById('local-video-handle'); if (h) h.style.display = 'none';
+    } catch (_) {}
+    TB_SWAP = false;
+    try { var host = $('call-videos'); if (host) host.classList.remove('swapped'); } catch (_) {}
+    return _hangUp.apply(this, arguments);
+  };
+})();
+
+/* V4 + R17 — camera flip. FIX: the old track is stopped and removed from
+   the sender FIRST, then the new stream is requested. Matches this
+   codebase's own established pattern (every other camera-touching path
+   already stops old tracks before acquiring new ones); flip was the one
+   place that didn't, very likely causing a device-busy getUserMedia
+   rejection swallowed by the catch below. */
+var TB_FACING = 'user';
+function tbFlipCamera() {
+  if (!CALL.active || CALL.kind !== 'video') return;
+  var next = TB_FACING === 'user' ? 'environment' : 'user';
+  var old = (CALL.stream && CALL.stream.getVideoTracks) ? CALL.stream.getVideoTracks()[0] : null;
+  camSenders().forEach(function (sender) { replaceSenderTrack(sender, null); });   /* R17: release first */
+  try { if (old) { CALL.stream.removeTrack(old); old.stop(); } } catch (_) {}
+  navigator.mediaDevices.getUserMedia({ video: { facingMode: next }, audio: false }).then(function (s) {
+    var track = s.getVideoTracks()[0];
+    if (!track) return;
+    camSenders().forEach(function (sender) { replaceSenderTrack(sender, track); });
+    try { CALL.stream.addTrack(track); } catch (_) {}
+    try { $('local-video').srcObject = CALL.stream; } catch (_) {}
+    TB_FACING = next;
+    try { if (typeof log === 'function') log('v4_camera_flip', { to: next }, 'ok'); } catch (_) {}
+  }).catch(function (e) { try { if (typeof log === 'function') log('v4_flip_failed', { e: String(e && e.name || e) }, 'warn'); } catch (_) {} });
+}
+(function () {
+  function add() {
+    var btn = document.getElementById('btn-flip-overlay');
+    if (!btn) return;
+    btn.addEventListener('click', function (ev) { ev.stopPropagation(); tbFlipCamera(); });
+  }
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', add); else add();
+})();
+
+(function () {
+  var BUILD = { c: 'turn27-ship-video-c5', file: 'bridge-turn27-ship.html', built: '2026-09-15 00:31 UTC' };
+  function paint() {
+    try {
+      var m = document.getElementById('m-s13'); if (!m) return;
+      var modal = m.querySelector('.modal'); if (!modal) return;
+      var f = document.getElementById('s13-build');
+      if (!f) { f = document.createElement('div'); f.id = 's13-build'; f.style.cssText = 'margin-top:12px;font-size:10.5px;color:var(--ink-dim);text-align:center'; modal.appendChild(f); }
+      f.textContent = BUILD.c + ' \u00b7 built ' + BUILD.built;
+    } catch (_) {}
+  }
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', paint); else paint();
+  var mo = null;
+  try { mo = new MutationObserver(function () { paint(); }); var target = document.getElementById('m-s13'); if (target) mo.observe(target, { attributes: true, attributeFilter: ['class'] }); } catch (_) {}
+})();
+
+
+/* ═══════════ GAP PART · D1-call-diagnostics.js ═══════════ */
+/* @contract
+   replaces: (none)
+   wraps: (none)
+   adds: TBD1, TBD1.sample, TBD1.turnProbe, TBD1.tick, TBD1.attach, TBD1.state
+*/
+/* ─────────────────────────────────────────────────────────────────────────────
+   D1 · CALL DIAGNOSTICS — READ-ONLY INSTRUMENT, NO FIX
+
+   WHY THIS EXISTS: two device logs show video freezing roughly twenty seconds
+   into a call and never coming back, while chat and the transcript keep working
+   because they ride the relay socket and reconnect on their own. The cause is
+   NOT known. The owner's working theory is that the TURN relay is not being
+   kept alive or checked during the call, so the video path never gets a chance
+   to recover.
+
+   The accepted build already logs `rtc_conn` and `rtc_recovery`, and it already
+   carries a keepalive channel, a video watchdog and a three-step repair ladder.
+   What it does NOT record is everything needed to tell those apart:
+
+     · ICE connection state is read but never logged — only `failed` is acted on
+     · nothing says whether the media path is going through TURN or peer-to-peer
+     · nothing says whether TURN is still answering once the call is under way;
+       credentials are fetched once at setup and never checked again
+     · nothing says whether the keepalive channel is actually open and sending
+     · nothing says whether the video watchdog ever armed
+     · nothing measures the picture itself, so "froze" has no timestamp
+
+   This part adds those readings and nothing else.
+
+   SURFACE OWNED BY THIS PART: none. It replaces nothing, wraps nothing, and
+   changes no behaviour. It reads the live call objects, attaches ADDITIONAL
+   listeners to the peer connection with addEventListener (which does not
+   disturb the `onxxx` handlers the recovery ladder installs), and writes log
+   lines. Log lines already travel to the shared device log via N16, so the two
+   handsets can be read together.
+
+   THE ONE THING IT DOES ON THE NETWORK: a TURN reachability probe. A separate,
+   throwaway RTCPeerConnection is built from the SAME iceServers the live call
+   is already using — read back off the live connection, no new endpoint, no new
+   credential path, no new secret (G19/G20) — forced to `relay` only, and asked
+   to gather. If a relay candidate comes back, TURN answered. It is closed the
+   moment the first relay candidate arrives or after five seconds, whichever is
+   first. It never touches the call's connection, sends no signalling, and
+   carries no media.
+
+   DELIBERATELY NOT DONE HERE: no repair, no retry, no change to the recovery
+   ladder, no UI. This build exists to produce evidence, and will never be a
+   baseline.
+   ───────────────────────────────────────────────────────────────────────────── */
+
+var TBD1 = (function () {
+  if (typeof log !== 'function') return null;
+
+  var BUILD = { c: 'turn27-ship-diag-d1', file: 'bridge-turn27-ship-diag1.html', base: '956ceb381585' };
+
+  var TICK_MS = 500;        /* how often the live call objects are read      */
+  var SAMPLE_EVERY = 4;     /* ticks between getStats samples → every 2s     */
+  var PROBE_MS = 15000;     /* how often TURN is re-probed during a call     */
+  var PROBE_TIMEOUT = 5000; /* how long a probe waits for a relay candidate  */
+  var DEAD_SAMPLES = 2;     /* stats samples with no new frames = frozen     */
+
+  var S = {
+    pcSeen: 0, samples: 0, probes: 0,
+    lastProbe: 0, lastServers: null,
+    cur: null,                       /* per-peer-connection record           */
+    inCall: false, callStart: 0,
+    recStep: -1, kaState: '', wd: null
+  };
+
+  function L(ev, d, lvl) { try { log(ev, d || {}, lvl || 'info'); } catch (_) {} }
+  function now() { return Date.now(); }
+  function C() { try { return (typeof CALL !== 'undefined' && CALL) ? CALL : null; } catch (_) { return null; } }
+  function gen() { try { return (typeof GEN !== 'undefined' && GEN) ? GEN.n : -1; } catch (_) { return -1; } }
+  function role() {
+    try { var r = (typeof activeRoom === 'function') ? activeRoom() : null; return (r && r.role) || '?'; }
+    catch (_) { return '?'; }
+  }
+  function candType(c) {
+    if (!c) return '?';
+    if (c.type) return c.type;
+    var bits = String(c.candidate || '').split(' ');
+    return bits.length > 7 ? bits[7] : '?';
+  }
+  function netInfo() {
+    var o = { on: true };
+    try { o.on = navigator.onLine !== false; } catch (_) {}
+    try {
+      var n = navigator.connection || navigator.mozConnection || navigator.webkitConnection;
+      if (n) { o.type = n.effectiveType || n.type; o.down = n.downlink; o.rtt = n.rtt; }
+    } catch (_) {}
+    return o;
+  }
+
+  /* ── Peer connection: additional listeners, never a replacement ─────────── */
+  function attach(pc) {
+    if (!pc) return null;
+    try { if (pc.__tbD1) return pc.__tbD1; } catch (_) { return null; }
+
+    S.pcSeen++;
+    var rec = {
+      id: S.pcSeen, t0: now(), cands: {}, relayCands: 0,
+      ice: '', conn: '', sig: '', gather: '',
+      bytes: -1, frames: -1, dead: 0, deadAt: 0, reported: false, pair: ''
+    };
+    try { Object.defineProperty(pc, '__tbD1', { value: rec, enumerable: false }); } catch (_) { pc.__tbD1 = rec; }
+
+    var c = C();
+    rec.ice = pc.iceConnectionState; rec.conn = pc.connectionState;
+    rec.sig = pc.signalingState; rec.gather = pc.iceGatheringState;
+    L('d1_pc_seen', {
+      pc: rec.id, gen: gen(), role: role(), kind: c && c.kind,
+      conn: rec.conn, ice: rec.ice, sig: rec.sig, gather: rec.gather
+    }, 'ok');
+
+    function transition(field, read) {
+      return function () {
+        try {
+          var v = read();
+          if (v === rec[field]) return;
+          var was = rec[field]; rec[field] = v;
+          L('d1_' + field, { pc: rec.id, from: was, to: v, ms: now() - rec.t0, gen: gen() },
+            (v === 'failed') ? 'error' : (v === 'disconnected') ? 'warn' : 'info');
+        } catch (_) {}
+      };
+    }
+    try {
+      pc.addEventListener('iceconnectionstatechange', transition('ice', function () { return pc.iceConnectionState; }));
+      pc.addEventListener('connectionstatechange', transition('conn', function () { return pc.connectionState; }));
+      pc.addEventListener('signalingstatechange', transition('sig', function () { return pc.signalingState; }));
+      pc.addEventListener('icegatheringstatechange', transition('gather', function () { return pc.iceGatheringState; }));
+      pc.addEventListener('icecandidate', function (e) {
+        try {
+          if (!e.candidate) {
+            L('d1_cand_done', { pc: rec.id, ms: now() - rec.t0, types: rec.cands, relay: rec.relayCands },
+              rec.relayCands ? 'ok' : 'warn');
+            return;
+          }
+          var t = candType(e.candidate);
+          rec.cands[t] = (rec.cands[t] || 0) + 1;
+          if (t === 'relay') rec.relayCands++;
+        } catch (_) {}
+      });
+      pc.addEventListener('icecandidateerror', function (e) {
+        try {
+          L('d1_cand_err', {
+            pc: rec.id, code: e && e.errorCode,
+            url: String((e && e.url) || '').slice(0, 60),
+            txt: String((e && e.errorText) || '').slice(0, 60)
+          }, 'warn');
+        } catch (_) {}
+      });
+    } catch (_) {}
+
+    return rec;
+  }
+
+  /* ── One getStats reading ───────────────────────────────────────────────── */
+  function sample() {
+    var c = C(); var pc = c && c.pc;
+    if (!pc || typeof pc.getStats !== 'function') return;
+    var rec = null;
+    try { rec = pc.__tbD1; } catch (_) {}
+    if (!rec) return;
+
+    pc.getStats().then(function (report) {
+      try {
+        var vin = null, vout = null, pair = null, byId = {};
+        report.forEach(function (r) {
+          byId[r.id] = r;
+          if (r.type === 'inbound-rtp' && r.kind === 'video') vin = r;
+          if (r.type === 'outbound-rtp' && r.kind === 'video') vout = r;
+          if (r.type === 'candidate-pair' && (r.selected === true || r.nominated === true) && r.state === 'succeeded') pair = r;
+        });
+        if (!pair) {
+          report.forEach(function (r) { if (!pair && r.type === 'candidate-pair' && r.state === 'succeeded') pair = r; });
+        }
+
+        var lt = '?', rt = '?';
+        if (pair) {
+          var lc = byId[pair.localCandidateId], rc = byId[pair.remoteCandidateId];
+          if (lc) lt = lc.candidateType || '?';
+          if (rc) rt = rc.candidateType || '?';
+        }
+        var pairKey = lt + '/' + rt;
+
+        var bytes = vin ? (vin.bytesReceived || 0) : 0;
+        var frames = vin ? (vin.framesDecoded || 0) : 0;
+        var dBytes = rec.bytes < 0 ? 0 : bytes - rec.bytes;
+        var dFrames = rec.frames < 0 ? 0 : frames - rec.frames;
+        var first = rec.bytes < 0;
+        rec.bytes = bytes; rec.frames = frames;
+
+        S.samples++;
+        var row = {
+          pc: rec.id, n: S.samples, ms: now() - rec.t0,
+          conn: pc.connectionState, ice: pc.iceConnectionState,
+          path: pairKey,
+          rtt: pair && pair.currentRoundTripTime != null ? Math.round(pair.currentRoundTripTime * 1000) : null,
+          inB: dBytes, inF: dFrames,
+          outB: vout ? (vout.bytesSent || 0) : null,
+          lost: vin ? (vin.packetsLost || 0) : null,
+          h: vin ? (vin.frameHeight || 0) : null,
+          ka: c.kaChannel ? c.kaChannel.readyState : 'none',
+          kaT: !!c.kaTimer, wd: !!c.videoWatchTimer, ct: !!c.connectTimeoutTimer,
+          rs: c.recoveryStep, rl: !!c.recoveryLock
+        };
+        L('d1_stats', row, 'info');
+
+        /* The path changed mid-call — a TURN allocation lost, or a relay
+           fallback taken. Called out separately so it cannot be missed. */
+        if (rec.pair && rec.pair !== pairKey) {
+          L('d1_path_change', { pc: rec.id, from: rec.pair, to: pairKey, ms: now() - rec.t0 }, 'warn');
+        }
+        rec.pair = pairKey;
+
+        /* The picture itself. Independent of the app's own watchdog, and of
+           connectionState, which can read healthy while nothing is arriving. */
+        if (!first && c.kind === 'video') {
+          if (dFrames === 0 && dBytes === 0) {
+            rec.dead++;
+            if (rec.dead === DEAD_SAMPLES && !rec.reported) {
+              rec.reported = true; rec.deadAt = now();
+              L('d1_video_dead', {
+                pc: rec.id, sinceCallMs: S.callStart ? now() - S.callStart : null,
+                ms: now() - rec.t0, conn: pc.connectionState, ice: pc.iceConnectionState,
+                path: pairKey, ka: row.ka, wd: row.wd, rs: c.recoveryStep, net: netInfo()
+              }, 'error');
+              turnProbe('video_dead');
+            }
+          } else {
+            if (rec.reported) {
+              L('d1_video_resumed', { pc: rec.id, deadMs: now() - rec.deadAt, path: pairKey, rs: c.recoveryStep }, 'ok');
+              rec.reported = false;
+            }
+            rec.dead = 0;
+          }
+        }
+      } catch (e) {
+        L('d1_stats_err', { e: String((e && e.name) || e) }, 'warn');
+      }
+    }).catch(function (e) {
+      L('d1_stats_err', { e: String((e && e.name) || e) }, 'warn');
+    });
+  }
+
+  /* ── Is TURN still answering? ───────────────────────────────────────────── */
+  function turnProbe(why) {
+    S.lastProbe = now();
+    var c = C(); var pc = c && c.pc;
+    var servers = null;
+    try { if (pc && typeof pc.getConfiguration === 'function') servers = pc.getConfiguration().iceServers; } catch (_) {}
+    if (!servers || !servers.length) servers = S.lastServers;
+    if (!servers || !servers.length) { L('d1_turn_probe', { why: why, skip: 'no-config' }, 'warn'); return; }
+    S.lastServers = servers;
+
+    var hasTurn = false;
+    try {
+      for (var i = 0; i < servers.length; i++) {
+        var urls = servers[i].urls || servers[i].url || [];
+        if (typeof urls === 'string') urls = [urls];
+        for (var j = 0; j < urls.length; j++) if (/^turns?:/i.test(String(urls[j]))) hasTurn = true;
+      }
+    } catch (_) {}
+    if (!hasTurn) {
+      L('d1_turn_probe', { why: why, ok: false, reason: 'no-turn-server-configured' }, 'error');
+      return;
+    }
+
+    S.probes++;
+    var t0 = now(), probe = null, done = false, relay = 0, errs = [];
+    function finish(how) {
+      if (done) return; done = true;
+      L('d1_turn_probe', {
+        why: why, n: S.probes, ok: relay > 0, relay: relay,
+        ms: now() - t0, end: how, err: errs.slice(0, 2)
+      }, relay > 0 ? 'ok' : 'error');
+      try { if (probe) probe.close(); } catch (_) {}
+    }
+    try {
+      probe = new RTCPeerConnection({ iceServers: servers, iceTransportPolicy: 'relay' });
+      probe.addEventListener('icecandidate', function (e) {
+        try {
+          if (!e.candidate) { finish('gathered'); return; }
+          if (candType(e.candidate) === 'relay') { relay++; finish('relay'); }
+        } catch (_) {}
+      });
+      probe.addEventListener('icecandidateerror', function (e) {
+        try { errs.push(String((e && e.errorCode) || '?') + ':' + String((e && e.errorText) || '').slice(0, 40)); } catch (_) {}
+      });
+      probe.createDataChannel('d1probe');
+      probe.createOffer().then(function (o) { return probe.setLocalDescription(o); })
+        .catch(function (e) { errs.push(String((e && e.name) || e)); finish('sld-err'); });
+      setTimeout(function () { finish('timeout'); }, PROBE_TIMEOUT);
+    } catch (e) {
+      errs.push(String((e && e.name) || e));
+      finish('throw');
+    }
+  }
+
+  /* ── The loop ───────────────────────────────────────────────────────────── */
+  var ticks = 0;
+  function tick() {
+    ticks++;
+    var c = C();
+    if (!c) return;
+
+    var active = !!c.active;
+    if (active && !S.inCall) {
+      S.inCall = true; S.callStart = now(); S.samples = 0;
+      L('d1_call_start', { gen: gen(), role: role(), kind: c.kind, caller: !!c.caller, net: netInfo() }, 'ok');
+    } else if (!active && S.inCall) {
+      S.inCall = false;
+      L('d1_call_end', {
+        gen: gen(), durMs: now() - S.callStart, samples: S.samples,
+        probes: S.probes, pcs: S.pcSeen, rs: c.recoveryStep
+      }, 'ok');
+      S.callStart = 0; S.recStep = -1; S.kaState = ''; S.wd = null;
+    }
+
+    if (c.pc) attach(c.pc);
+    if (!active) return;
+
+    /* State the app keeps to itself, surfaced the moment it moves. */
+    if (c.recoveryStep !== S.recStep) {
+      if (S.recStep !== -1) L('d1_recovery_step', { from: S.recStep, to: c.recoveryStep, lock: !!c.recoveryLock, ms: now() - S.callStart }, 'warn');
+      S.recStep = c.recoveryStep;
+    }
+    var ka = c.kaChannel ? c.kaChannel.readyState : 'none';
+    if (ka !== S.kaState) {
+      L('d1_ka', { rs: ka, timer: !!c.kaTimer, ms: now() - S.callStart }, ka === 'open' ? 'ok' : 'warn');
+      S.kaState = ka;
+    }
+    var wd = !!c.videoWatchTimer;
+    if (wd !== S.wd) {
+      L('d1_watchdog', { armed: wd, kind: c.kind, ms: now() - S.callStart }, (wd || c.kind !== 'video') ? 'info' : 'warn');
+      S.wd = wd;
+    }
+
+    if (ticks % SAMPLE_EVERY === 0) sample();
+    if (now() - S.lastProbe > PROBE_MS) turnProbe('interval');
+  }
+
+  /* ── Things that happen to the call from outside it ─────────────────────── */
+  try {
+    window.addEventListener('online', function () { L('d1_net', netInfo(), S.inCall ? 'warn' : 'info'); });
+    window.addEventListener('offline', function () { L('d1_net', { on: false, inCall: S.inCall }, S.inCall ? 'warn' : 'info'); });
+    var nc = navigator.connection || navigator.mozConnection || navigator.webkitConnection;
+    if (nc && nc.addEventListener) nc.addEventListener('change', function () { L('d1_netinfo', netInfo(), 'info'); });
+  } catch (_) {}
+  try {
+    document.addEventListener('visibilitychange', function () {
+      if (S.inCall) L('d1_vis', { hidden: !!document.hidden, ms: now() - S.callStart }, 'warn');
+    });
+    window.addEventListener('pagehide', function () { if (S.inCall) L('d1_vis', { pagehide: true }, 'warn'); });
+  } catch (_) {}
+
+  L('d1_build', { c: BUILD.c, file: BUILD.file, base: BUILD.base }, 'ok');
+  var timer = setInterval(tick, TICK_MS);
+
+  return {
+    build: BUILD, state: S, tick: tick, sample: sample, turnProbe: turnProbe,
+    attach: attach, timer: timer
+  };
+})();
+
+
+/* ═══════════ GAP PART · C1-signal-queue.js ═══════════ */
+/* @contract
+   replaces: (none)
+   wraps: relaySend
+   adds: (none)
+*/
+/* ─────────────────────────────────────────────────────────────────────────────
+   C-1 · SIGNALLING SURVIVES A RELAY OUTAGE (§7.14)
+
+   THE EVIDENCE: on Android the signalling socket dies the moment a call starts
+   (every socket on the phone dies together — a radio event), the reconnect is
+   a fixed 2 s backoff that fails once, and for those ~4 s `relaySend` returns
+   false and DROPS every ICE candidate the call produces. The candidates cross
+   only when the reconnect handshake happens to trigger a resend. That is the
+   4-second lag, to the millisecond, three calls out of three.
+
+   THE CHANGE: `relaySendWhenOpen(m, tries)` already exists (200 ms retries)
+   and already carries `call-accept` and `mic-state`. This part wraps
+   `relaySend` so that a `webrtc-signal` message it cannot deliver is handed to
+   that retry path once, instead of vanishing. Nothing else about the relay —
+   heartbeat, hello, chat, history, the 2 s backoff — is touched.
+
+   THE GUARD: `relaySendWhenOpen` calls `relaySend` by name, which is now this
+   wrapper. Without a once-flag every retry would enqueue a fresh retry chain.
+   The flag is a non-enumerable property so it never reaches the wire.
+   ───────────────────────────────────────────────────────────────────────────── */
+(function () {
+  if (typeof relaySend !== 'function' || typeof relaySendWhenOpen !== 'function') return;
+
+  var C1_TRIES = 40;   /* × 200 ms = 8 s; the observed outage is ~4 s */
+
+  function mark(m, v) {
+    try { Object.defineProperty(m, '_c1', { value: v, enumerable: false, configurable: true, writable: true }); }
+    catch (_) { m._c1 = v; }
+  }
+  function kindOf(m) {
+    try {
+      var s = m.signal || {};
+      if (s.description) return s.description.type || 'description';
+      if (s.candidate) return 'candidate';
+      if (s.restart) return 'restart';
+    } catch (_) {}
+    return 'other';
+  }
+
+  var _relaySend = relaySend;
+  relaySend = function (m) {
+    var ok = _relaySend.apply(this, arguments);
+    try {
+      if (m && m.type === 'webrtc-signal') {
+        if (!ok && !m._c1) {
+          mark(m, { t: Date.now(), kind: kindOf(m) });
+          log('c1_queued', { kind: m._c1.kind }, 'warn');
+          relaySendWhenOpen(m, C1_TRIES);
+        } else if (ok && m._c1 && !m._c1.done) {
+          m._c1.done = true;
+          log('c1_flushed', { kind: m._c1.kind, ms: Date.now() - m._c1.t }, 'ok');
+        }
+      }
+    } catch (_) {}
+    return ok;
+  };
+})();
+
+
+/* ═══════════ GAP PART · V2-relay-retry.js ═══════════ */
+/* @contract
+   replaces: (none)
+   wraps: relayConnect
+   adds: (none)
+*/
+/* ─────────────────────────────────────────────────────────────────────────────
+   V-2 · THE SIGNALLING SOCKET COMES BACK AS FAST AS THE NETWORK DOES (§7.15)
+
+   THE EVIDENCE: on cellular the carrier bounces the connection the moment a
+   video call's media starts. Every socket on the phone dies together. The
+   frozen relay code then waits a flat 2 s, tries once (which failed in 36 ms —
+   the link was still down), and waits another flat 2 s. Video appeared ~4 s
+   after answer on every cellular call; on wifi, where the socket never drops,
+   it appeared instantly.
+
+   THE CHANGE: after the frozen `relayConnect` builds its socket, an ADDITIONAL
+   close listener (addEventListener — the frozen `onclose` handler is left in
+   place and fires first) replaces the flat 2 s wait with a short ramp:
+   300 → 600 → 1200 → 2000 ms, capped, reset the moment a socket opens. The
+   frozen handler's own timer is cleared so the two never race. The retry
+   uses the frozen `relayConnect` — nothing else about the socket changes.
+
+   WHAT IT DOES NOT DO: it cannot bring the network back. The first second or
+   so is the carrier's. It only stops the app adding its own two seconds on
+   top, twice.
+   ───────────────────────────────────────────────────────────────────────────── */
+(function () {
+  if (typeof relayConnect !== 'function') return;
+
+  var RAMP = [300, 600, 1200, 2000];
+  var attempt = 0;
+  var timer = null;
+
+  function schedule(why) {
+    var ms = RAMP[Math.min(attempt, RAMP.length - 1)];
+    attempt++;
+    clearTimeout(timer);
+    timer = setTimeout(function () {
+      timer = null;
+      if (S.view !== 'room' || !S.roomId) return;
+      try { log('v2_retry', { n: attempt, ms: ms, why: why }, 'warn'); } catch (_) {}
+      relayConnect();
+    }, ms);
+  }
+
+  var _relayConnect = relayConnect;
+  relayConnect = function () {
+    var r = _relayConnect.apply(this, arguments);
+    try {
+      var ws = _relayWs;
+      if (!ws || ws.__v2) return r;
+      ws.__v2 = true;
+      ws.addEventListener('open', function () {
+        if (ws !== _relayWs) return;
+        attempt = 0;
+        clearTimeout(timer); timer = null;
+      });
+      ws.addEventListener('close', function () {
+        if (ws !== _relayWs) return;                /* a replaced socket is not ours to retry */
+        if (S.view !== 'room' || !S.roomId) return;
+        /* The frozen onclose has already armed its 2 s timer by now (it was
+           registered first). Take it over so exactly one retry is pending. */
+        clearTimeout(wsReconnectTimer); wsReconnectTimer = null;
+        schedule('close');
+      });
+    } catch (_) {}
+    return r;
+  };
+})();
+
+
+/* ═══════════ GAP PART · C3-joiner-restart.js ═══════════ */
+/* @contract
+   replaces: (none)
+   wraps: CALL.runRecovery, CALL.onSignal
+   adds: CALL._c3LastServed, CALL._c3Pending
+*/
+/* ─────────────────────────────────────────────────────────────────────────────
+   C-3 · THE JOINER CAN ASK FOR AN ICE RESTART (§7.14)
+
+   THE EVIDENCE: `runRecovery` step 2 is creator-only. A joiner falls through
+   to the step-3 body, closes its own peer connection, discards the saved offer
+   and candidates, stops the keepalive and watchdog — and, the rebuild being
+   creator-only too, waits for an offer nobody knows to send. Seen on device
+   (iPhone pc3, 2026-09-20) and proved headlessly the same day.
+
+   FOUND DURING BUILD (§7.14 addendum): the joiner's offer handler either SKIPS
+   an offer when its connection still reads `connected` (which it does for
+   16+ s during a one-way freeze) or tears down and rebuilds when it does not.
+   Neither answers an ICE-restart offer on the existing connection. So asking
+   for a restart is useless unless the joiner can also answer one. This part
+   does both. It also makes the creator's own existing step-2 restart land,
+   which it never could before.
+
+   THREE HOOKS, ALL ADDITIVE:
+   · runRecovery (joiner, about to take step 2): send `signal:{restart:true}`,
+     hold step 2 with the same 8 s release the creator uses, keep the pc.
+   · onSignal (creator, `signal.restart` arrives): the creator's step-2 body
+     verbatim — createOffer({iceRestart:true}) on the live pc. Rate-limited.
+   · onSignal (joiner, an offer arrives whose ice-ufrag differs from the
+     current remote description): answer it on the SAME pc. No close, no
+     rebuild, tracks and keepalive survive.
+
+   `signal.restart` is a new KEY on the proven `webrtc-signal` carrier, not a
+   new message type. A client without this part ignores it — the frozen
+   handler returns on `!d.signal` and then reads only `.description` and
+   `.candidate`.
+   ───────────────────────────────────────────────────────────────────────────── */
+(function () {
+  if (typeof CALL === 'undefined' || !CALL || typeof CALL.runRecovery !== 'function' || typeof CALL.onSignal !== 'function') return;
+
+  var C3_HOLD_MS = 8000;   /* mirrors the creator's step-2 release            */
+  var C3_MIN_GAP_MS = 8000;/* two detectors cannot make the creator restart twice */
+
+  CALL._c3LastServed = 0;
+  CALL._c3Pending = false;
+
+  function room() { try { return (typeof activeRoom === 'function') ? activeRoom() : null; } catch (_) { return null; } }
+  function isCreator() { var r = room(); return !!(r && r.role === 'creator'); }
+  function ufrag(desc) {
+    try {
+      var m = /a=ice-ufrag:(\S+)/.exec(String((desc && desc.sdp) || ''));
+      return m ? m[1] : '';
+    } catch (_) { return ''; }
+  }
+
+  /* ── the joiner asks ──────────────────────────────────────────────────── */
+  var _runRecovery = CALL.runRecovery;
+  CALL.runRecovery = function (reason) {
+    try {
+      var r = room();
+      if (this.active && r && r.role !== 'creator' && !this.recoveryLock &&
+          this.recoveryStep + 1 === 2 && this.pc) {
+        var self = this, gen = GEN.n;
+        this.recoveryLock = true;
+        this.recoveryStep = 2;
+        this._c3Pending = true;
+        var sent = relaySend({ type: 'webrtc-signal', transient: true, signal: { restart: true } });
+        log('c3_restart_requested', { reason: reason, sent: !!sent }, 'warn');
+        clearTimeout(this.recoveryTimer);
+        this.recoveryTimer = setTimeout(function () {
+          if (!GEN.is(gen)) return;
+          self.recoveryLock = false;
+          self._c3Pending = false;
+          var st = self.pc && self.pc.connectionState;
+          if (st === 'connected' || st === 'completed') { self.recoveryStep = 0; log('rtc_recovered', { step: 2 }, 'ok'); }
+        }, C3_HOLD_MS);
+        return;
+      }
+    } catch (_) {}
+    return _runRecovery.apply(this, arguments);
+  };
+
+  /* ── the creator serves; the joiner answers ───────────────────────────── */
+  var _onSignal = CALL.onSignal;
+  CALL.onSignal = function (d) {
+    var self = this;
+    try {
+      var sig = d && d.signal;
+      if (sig && sig.restart && isCreator() && this.active && this.pc) {
+        var now = Date.now();
+        if (now - this._c3LastServed < C3_MIN_GAP_MS) {
+          log('c3_restart_ignored', { sinceMs: now - this._c3LastServed }, 'info');
+        } else {
+          this._c3LastServed = now;
+          var gen = GEN.n, pc = this.pc;
+          pc.createOffer({ iceRestart: true }).then(function (o) {
+            if (!GEN.is(gen) || self.pc !== pc) return;
+            return pc.setLocalDescription(o).then(function () {
+              if (!GEN.is(gen) || self.pc !== pc) return;
+              var offer = { type: 'webrtc-signal', transient: true, signal: { description: pc.localDescription } };
+              relaySend(offer); self.savedOffer = offer;
+              log('c3_restart_served', {}, 'ok');
+            });
+          }).catch(function (e) { log('c3_restart_err', { e: String(e) }, 'error'); });
+        }
+        return _onSignal.apply(this, arguments);
+      }
+
+      if (sig && sig.description && sig.description.type === 'offer' &&
+          !isCreator() && this.active && this.pc && this.pc.remoteDescription) {
+        var cur = ufrag(this.pc.remoteDescription), nxt = ufrag(sig.description);
+        if (cur && nxt && cur !== nxt) {
+          var pc2 = this.pc, gen2 = GEN.n;
+          return pc2.setRemoteDescription(sig.description).then(function () {
+            if (!GEN.is(gen2) || self.pc !== pc2) return;
+            return self.flushCands();
+          }).then(function () {
+            if (!GEN.is(gen2) || self.pc !== pc2) return;
+            return pc2.createAnswer();
+          }).then(function (a) {
+            if (!a || !GEN.is(gen2) || self.pc !== pc2) return;
+            return pc2.setLocalDescription(a);
+          }).then(function () {
+            if (!GEN.is(gen2) || self.pc !== pc2) return;
+            relaySend({ type: 'webrtc-signal', transient: true, signal: { description: pc2.localDescription } });
+            self._c3Pending = false;
+            log('c3_restart_answered', { pending: true }, 'ok');
+          }).catch(function (e) { log('c3_restart_answer_err', { e: String(e) }, 'error'); });
+        }
+      }
+    } catch (_) {}
+    return _onSignal.apply(this, arguments);
+  };
+})();
+
+
+/* ═══════════ GAP PART · C2-stall-frames.js ═══════════ */
+/* @contract
+   replaces: (none)
+   wraps: CALL.startVideoWatchdog, CALL.stopVideoWatchdog
+   adds: CALL.c2Timer
+*/
+/* ─────────────────────────────────────────────────────────────────────────────
+   C-2 · STALL DETECTION BY DECODED FRAMES (§7.14)
+
+   THE EVIDENCE: iPhone pc5 — inbound video bytes and frames at zero for 18 s
+   while `connectionState` read `connected`, RTT was healthy and outbound kept
+   streaming. The shipped watchdog was armed (`wd:true`) the entire time and
+   never fired: it samples `remote-video.currentTime`, which keeps advancing on
+   a stalled MediaStream. D1's decoded-frame counter caught every freeze.
+
+   THE CHANGE: the existing watchdog is left running (harmless). A second
+   sampler, same cadence, same generation guard, same teardown, reads
+   `inbound-rtp` video `framesDecoded` from getStats. Three unchanged samples
+   (6 s) while the connection still claims `connected` is a stall, and it calls
+   the same `runRecovery('video_stalled')` the old detector would have —
+   which C-3 has made survivable on the joiner.
+
+   ARMING: no verdict until the first sample with frames > 0. D1 showed 2–4 s
+   of zero frames after `connected` on every call while the first frame was
+   still in flight; that is not a stall. This part ships only with C-3 — on
+   the accepted ladder a working stall detector on the joiner turns a frozen
+   picture into a dead call.
+   ───────────────────────────────────────────────────────────────────────────── */
+(function () {
+  if (typeof CALL === 'undefined' || !CALL || typeof CALL.startVideoWatchdog !== 'function' || typeof CALL.stopVideoWatchdog !== 'function') return;
+
+  var C2_MS = 2000;
+  var C2_STILL = 3;
+
+  CALL.c2Timer = null;
+
+  var _stop = CALL.stopVideoWatchdog;
+  CALL.stopVideoWatchdog = function () {
+    clearInterval(this.c2Timer); this.c2Timer = null;
+    return _stop.apply(this, arguments);
+  };
+
+  var _start = CALL.startVideoWatchdog;
+  CALL.startVideoWatchdog = function () {
+    var r = _start.apply(this, arguments);
+    var self = this, gen = GEN.n;
+    clearInterval(this.c2Timer); this.c2Timer = null;
+    if (this.kind !== 'video') return r;
+
+    var armed = false, last = -1, still = 0, stalled = false, t0 = Date.now();
+    this.c2Timer = setInterval(function () {
+      if (!GEN.is(gen) || !self.active) { clearInterval(self.c2Timer); self.c2Timer = null; return; }
+      var pc = self.pc;
+      if (!pc || typeof pc.getStats !== 'function') return;
+      pc.getStats().then(function (report) {
+        if (!GEN.is(gen) || self.pc !== pc) return;
+        var frames = -1;
+        report.forEach(function (row) {
+          if (row.type === 'inbound-rtp' && row.kind === 'video') frames = row.framesDecoded || 0;
+        });
+        if (frames < 0) return;
+
+        if (!armed) { if (frames > 0) { armed = true; last = frames; } return; }
+
+        if (frames === last) {
+          if (pc.connectionState !== 'connected') { still = 0; return; }  /* the ladder already owns this */
+          still++;
+          if (still >= C2_STILL) {
+            still = 0; stalled = true;
+            log('c2_stalled', { frames: frames, ms: Date.now() - t0 }, 'warn');
+            self.runRecovery('video_stalled');
+          }
+        } else {
+          if (stalled) { stalled = false; log('c2_resumed', { ms: Date.now() - t0 }, 'ok'); }
+          still = 0; last = frames;
+        }
+      }).catch(function () {});
+    }, C2_MS);
+    return r;
+  };
+})();
+
+
+/* ═══════════ GAP PART · S2-back-absorb.js ═══════════ */
+/* @contract
+   replaces: (none)
+   wraps: (none)
+   adds: (none) — one popstate listener, active only during a call
+*/
+/* ─────────────────────────────────────────────────────────────────────────────
+   S-2 · THE BACK BUTTON DOES NOTHING DURING A CALL (§7.15, owner ruling 2026-09-20)
+
+   Candidate 5 pushes one history entry when a call mounts and, having dropped
+   the corner band (V2), listens to nothing — so the first back press is eaten
+   and the second leaves the app; Android suspends the page and the far side
+   freezes (G57). The owner's ruling: back should be DISABLED during a call.
+
+   This part re-pushes the entry every time back is pressed while a call is
+   active, so there is always one more entry to absorb. Outside a call it does
+   nothing. It adds a listener; it replaces nothing and touches no handler the
+   baseline owns.
+   ───────────────────────────────────────────────────────────────────────────── */
+(function () {
+  if (typeof CALL === 'undefined' || !CALL) return;
+  window.addEventListener('popstate', function () {
+    try {
+      if (!CALL.active) return;
+      history.pushState({ tbCall: 1 }, '', location.href);
+      log('s2_back_absorbed', { kind: CALL.kind }, 'info');
+    } catch (_) {}
+  });
+})();
+
+
+/* ═══════════ GAP PART · F1-flip-keeps-sender.js ═══════════ */
+/* @contract
+   replaces: (none)
+   wraps: replaceSenderTrack, camSenders
+   adds: (none) — a non-enumerable tag on a released video sender
+*/
+/* ─────────────────────────────────────────────────────────────────────────────
+   F-1 · A CAMERA FLIP KEEPS THE FAR SIDE'S PICTURE (§7.15, D-9, G60)
+
+   THE EVIDENCE (c7 device gate, creator, 2026-09-21):
+     10:03:04.777  v4_camera_flip {"to":"environment"}
+     10:03:05.800  d1_stats … outB 5746832
+     10:03:07.804  d1_stats … outB 5746832      ← outbound video never moves again
+   Two more flips, same number. The far side's picture of this phone froze at
+   the first flip and never came back, while the flip looked perfect locally.
+
+   THE CAUSE: `tbFlipCamera` (R17, "release first") does
+     camSenders().forEach(s => replaceSenderTrack(s, null));   // sender.track → null
+     … getUserMedia …
+     camSenders().forEach(s => replaceSenderTrack(s, track));  // camSenders() is now []
+   because `camSenders` keeps only senders whose CURRENT track is video, and a
+   released sender has no track. The new camera reaches `CALL.stream` and the
+   local preview, never the connection.
+
+   THE CHANGE, two wrappers: `replaceSenderTrack` — when a video track is
+   being replaced with null, tag the sender (non-enumerable). `camSenders` —
+   call through, then add any tagged sender the filter dropped. The second
+   pass in `tbFlipCamera` now finds its sender and the far side keeps its
+   picture. The same lookup serves `restoreCamTrack`, so camera-off → on gets
+   the same repair for free.
+   ───────────────────────────────────────────────────────────────────────────── */
+(function () {
+  if (typeof replaceSenderTrack !== 'function' || typeof camSenders !== 'function') return;
+
+  function tag(sender) {
+    try { Object.defineProperty(sender, '__tbVideoSender', { value: true, enumerable: false, configurable: true }); }
+    catch (_) { try { sender.__tbVideoSender = true; } catch (__) {} }
+  }
+
+  var _replaceSenderTrack = replaceSenderTrack;
+  replaceSenderTrack = function (sender, track) {
+    try {
+      if (sender && track === null && sender.track && sender.track.kind === 'video') tag(sender);
+      if (sender && track && track.kind === 'video') tag(sender);
+    } catch (_) {}
+    return _replaceSenderTrack.apply(this, arguments);
+  };
+
+  var _camSenders = camSenders;
+  camSenders = function () {
+    var found = _camSenders.apply(this, arguments) || [];
+    try {
+      var all = (CALL.pc && CALL.pc.getSenders) ? CALL.pc.getSenders() : [];
+      for (var i = 0; i < all.length; i++) {
+        var s = all[i];
+        if (s && s.__tbVideoSender && found.indexOf(s) === -1) found.push(s);
+      }
+      if (found.length && !found.__f1Logged) {
+        /* one line per lookup that the tag rescued, so a device log can prove it */
+        var rescued = found.filter(function (s) { return !(s.track && s.track.kind === 'video'); }).length;
+        if (rescued) log('f1_sender_kept', { n: rescued }, 'ok');
+      }
+    } catch (_) {}
+    return found;
+  };
+})();
 
 </script>
 </body>
