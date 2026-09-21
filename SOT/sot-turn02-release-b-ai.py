@@ -54,7 +54,12 @@ class AIManager:
   self.s.tx([("DELETE FROM ai_turns WHERE task_id=?",(task_id,)),("DELETE FROM ai_tasks WHERE task_id=?",(task_id,))],True)
  def scope_rows(self,scope):
   typ=str((scope or {}).get("type","entire_sot"));ids=[str(x) for x in (scope or {}).get("placement_ids",[]) if x]
-  if typ in ("selected","query") and ids:rows=self.active_rows(ids)
+  if typ in ("selected","query") and ids:
+   by={}
+   for i in range(0,len(ids),400):
+    chunk=ids[i:i+400];q=",".join("?" for _ in chunk)
+    for r in self.s.rows("SELECT * FROM placements WHERE placement_state='ACTIVE' AND placement_id IN ("+q+")",tuple(chunk)):by[r["placement_id"]]=r
+   rows=[by[x] for x in ids if x in by]
   else:rows=self.s.rows("SELECT * FROM placements WHERE placement_state='ACTIVE' ORDER BY placement_no")
   return rows,typ
  def packet(self,scope,limit=300):
@@ -66,7 +71,7 @@ class AIManager:
   sample=rows[:limit]
   placements=[{"placement_id":r["placement_id"],"placement_no":r["placement_no"],"filename":r["filename"],"folder":str(Path(r["path"]).parent),"extension":r.get("extension"),"size":r.get("size"),"created":r.get("created"),"modified":r.get("modified"),"estate":r.get("estate"),"class":r.get("system_classification"),"lifecycle":r.get("lifecycle"),"fingerprint":r.get("fingerprint"),"tags":self.parse_tags(r.get("tags")),"notes":r.get("notes"),"quality_rating":r.get("quality_rating"),"content_rating":r.get("content_rating")} for r in sample]
   manifest={"catalog_revision":self.catalog_revision(),"scope_type":typ,"scope":scope or {"type":"entire_sot"},"total_placements":all_count,"total_bytes":all_bytes,"included_placement_ids":[r["placement_id"] for r in sample],"truncated":all_count>len(sample)}
-  packet={"summary":{"placements":all_count,"bytes":all_bytes,"classes":cls,"extensions":dict(sorted(ext.items())),"estates":dict(sorted(est.items()))},"target":self.target_get(),"plan":self.plan_summary(),"placements":placements}
+  packet={"manifest":manifest,"summary":{"placements":all_count,"bytes":all_bytes,"classes":cls,"extensions":dict(sorted(ext.items())),"estates":dict(sorted(est.items()))},"target":self.target_get(),"plan":self.plan_summary(),"placements":placements}
   return packet,manifest
  def system_prompt(self,task_type):
   cfg=TASK_TYPES[task_type];common="You are the governed SOT storage-estate task engine. Use only supplied SOT evidence. Distinguish evidence from interpretation. Never invent file paths or placement IDs. Never claim an action occurred unless SOT execution results prove it."
@@ -163,7 +168,8 @@ class AIManager:
    key=(tuple(ch.get("add") or []),tuple(ch.get("remove") or []));groups.setdefault(key,[]).append(ch["placement_id"])
   results=[]
   for (add,remove),ids in groups.items():
-   z=self.metadata_update({"ids":ids,"updates":{"add_tags":list(add),"remove_tags":list(remove)}});results.extend(z.get("results") or [])
+   for i in range(0,len(ids),400):
+    chunk=ids[i:i+400];z=self.metadata_update({"ids":chunk,"updates":{"add_tags":list(add),"remove_tags":list(remove)}});results.extend(z.get("results") or [])
   now=time.time();appr={"approved_at":now,"note":str(approval_note or ""),"proposal_revision":task["evidence_revision"],"placement_count":len(changes)};applied={"results":results,"catalog_revision":self.catalog_revision(),"placement_count":len(changes)}
   self.s.submit("UPDATE ai_tasks SET status='complete',updated=?,approval_json=?,applied_result_json=?,evidence_revision=? WHERE task_id=?",(now,json.dumps(appr),json.dumps(applied),self.catalog_revision(),task_id),True)
   self.m.event("ai_auto_tag_applied","Auto Tag proposal applied",None,None,"INFO",{"task_id":task_id,"placements":len(changes),"catalog_revision":self.catalog_revision()});return self.public(self.row(task_id),True)
