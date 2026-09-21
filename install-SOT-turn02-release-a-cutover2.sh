@@ -76,7 +76,7 @@ archive_db12() {
 DB11_SUM=""
 ROLLBACK_ARMED=0
 rollback() {
-  local rc=$?
+  local rc="${1:-1}"
   set +e
   echo "Release A cutover failed; preserving failed schema-12 attempt and restoring prior SOT service." >&2
   systemctl --user disable --now "$SERVICE_NEW" >/dev/null 2>&1 || true
@@ -87,7 +87,7 @@ rollback() {
   fi
   exit "$rc"
 }
-trap 'if [[ "$ROLLBACK_ARMED" -eq 1 ]]; then rollback; fi' ERR
+trap 'rc=$?; if [[ "$ROLLBACK_ARMED" -eq 1 ]]; then rollback "$rc"; else exit "$rc"; fi' ERR
 
 echo "STAGE cutover begin"
 ROLLBACK_ARMED=1
