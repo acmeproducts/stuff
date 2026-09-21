@@ -1,15 +1,56 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-REF="3f1be97fe9fa425a6263c3f291bd4037e1497b95"
+REF="338ef8d59d4c830a506c7e32db0ea92db61589ca"
 ROOT="$HOME/.sot-turn02/release-a"
 BASE="https://raw.githubusercontent.com/acmeproducts/stuff/$REF"
 SERVICE_NEW="sot-turn02-release-a.service"
 SERVICE_OLD="sot-turn02-v8-clean3.service"
+UNIT_PATH="$HOME/.config/systemd/user/$SERVICE_NEW"
 DB11="$HOME/.sot-turn02/sot-v11-clean.db"
 DB12="$HOME/.sot-turn02/sot-v12-release-a.db"
+STAGE="$(mktemp -d "$HOME/.sot-turn02/release-a-stage.XXXXXXXX")"
+PREV_DIR=""
+UNIT_PREV=""
+DB12_BACKUP=""
+CURRENT_RELEASE_ACTIVE=0
+OLD_ACTIVE=0
+ROLLBACK_ARMED=0
 
-mkdir -p "$ROOT/SOT" "$HOME/.config/systemd/user" "$HOME/.sot-turn02"
+cleanup() {
+  rm -rf "$STAGE" 2>/dev/null || true
+  [[ -n "$UNIT_PREV" ]] && rm -f "$UNIT_PREV" 2>/dev/null || true
+  [[ -n "$DB12_BACKUP" ]] && rm -f "$DB12_BACKUP" 2>/dev/null || true
+}
+
+rollback() {
+  set +e
+  echo "Release A update failed; restoring the previously running SOT runtime." >&2
+  systemctl --user stop "$SERVICE_NEW" >/dev/null 2>&1 || true
+  rm -rf "$ROOT/SOT" 2>/dev/null || true
+  if [[ -n "$PREV_DIR" && -d "$PREV_DIR" ]]; then
+    mv "$PREV_DIR" "$ROOT/SOT"
+  fi
+  if [[ -n "$UNIT_PREV" && -f "$UNIT_PREV" ]]; then
+    cp -a "$UNIT_PREV" "$UNIT_PATH"
+  fi
+  if [[ -n "$DB12_BACKUP" && -f "$DB12_BACKUP" ]]; then
+    cp -f "$DB12_BACKUP" "$DB12"
+  fi
+  systemctl --user daemon-reload >/dev/null 2>&1 || true
+  if [[ "$CURRENT_RELEASE_ACTIVE" -eq 1 ]]; then
+    systemctl --user enable "$SERVICE_NEW" >/dev/null 2>&1 || true
+    systemctl --user restart "$SERVICE_NEW" >/dev/null 2>&1 || true
+  elif [[ "$OLD_ACTIVE" -eq 1 ]]; then
+    systemctl --user enable "$SERVICE_OLD" >/dev/null 2>&1 || true
+    systemctl --user restart "$SERVICE_OLD" >/dev/null 2>&1 || true
+  fi
+}
+
+trap 'rc=$?; if [[ "$ROLLBACK_ARMED" -eq 1 ]]; then rollback; fi; cleanup; exit $rc' ERR
+trap 'cleanup' EXIT
+
+mkdir -p "$STAGE/SOT" "$HOME/.config/systemd/user" "$HOME/.sot-turn02"
 
 FILES=(
   "sot-turn02-release-a-engine.py"
@@ -19,36 +60,40 @@ FILES=(
   "qualify-release-a.py"
 )
 for f in "${FILES[@]}"; do
-  curl -fsSL "$BASE/SOT/$f" -o "$ROOT/SOT/$f"
+  curl -fsSL "$BASE/SOT/$f" -o "$STAGE/SOT/$f"
 done
 
-python3 -m py_compile   "$ROOT/SOT/sot-turn02-release-a-engine.py"   "$ROOT/SOT/sot-turn02-release-a-server.py"   "$ROOT/SOT/qualify-release-a.py"
+python3 -m py_compile   "$STAGE/SOT/sot-turn02-release-a-engine.py"   "$STAGE/SOT/sot-turn02-release-a-server.py"   "$STAGE/SOT/qualify-release-a.py"
 
-python3 "$ROOT/SOT/qualify-release-a.py"
+python3 "$STAGE/SOT/qualify-release-a.py"
 
-python3 - "$ROOT/SOT/sot-turn02-pre-base-release-a.html" <<'PY'
+python3 - "$STAGE/SOT/sot-turn02-pre-base-release-a.html" <<'PY'
 from pathlib import Path
 import sys
 s=Path(sys.argv[1]).read_text()
 assert "SOT Turn 02 Release A" in s
 assert "const names=['Estate','Analyze','Database','Grid','Plan','Activity']" in s
-assert 'type="range" min="1" max="10" step="1"' in s
-assert "Edit Tags" in s and "Edit Notes & Ratings" in s
-assert "db-selected" in s
-assert "subnav(['Analysis','Capacity','Operations']" in s
-assert "IN PLAY - LANDED" not in s
+assert "<b>Evidence Database</b>" not in s
+assert "onclick=\"runOmni()\">Go</button>" not in s
+assert "o.addEventListener('blur'" in s
+assert ".dbgrid tbody tr:nth-child(odd)" in s and ".dbgrid tbody tr:nth-child(even)" in s
+assert ".dbgrid tbody tr:hover td{background:#fff!important;color:#000!important}" in s
+assert "toggleExportMenu()" in s and "function chooseExport(kind)" in s
+assert "tag-modal-x" in s and 'autocapitalize="none"' in s
+assert ".map(x=>x.trim().toLowerCase())" in s
+assert "{ok:'Close',hideCancel:true}" not in s
 js=s.rsplit("<script>",1)[1].split("</script>",1)[0]
 Path("/tmp/sot-release-a.js").write_text(js)
-print("PASS Release A governed UI markers")
+print("PASS compact Database + lowercase-tag UI contract")
 PY
 if command -v node >/dev/null 2>&1; then
   node --check /tmp/sot-release-a.js
   echo "PASS Release A browser JavaScript syntax"
 fi
 
-install -m 0644 "$ROOT/SOT/$SERVICE_NEW" "$HOME/.config/systemd/user/$SERVICE_NEW"
-
-OLD_ACTIVE=0
+if systemctl --user is-active --quiet "$SERVICE_NEW"; then
+  CURRENT_RELEASE_ACTIVE=1
+fi
 if systemctl --user is-active --quiet "$SERVICE_OLD"; then
   OLD_ACTIVE=1
 fi
@@ -58,22 +103,34 @@ if [[ -f "$DB11" ]]; then
   DB11_SUM="$(sha256sum "$DB11" | awk '{print $1}')"
 fi
 
-ROLLBACK_ARMED=0
-rollback() {
-  set +e
-  echo "Release A cutover failed; restoring prior SOT service." >&2
-  systemctl --user disable --now "$SERVICE_NEW" >/dev/null 2>&1 || true
-  if [[ "$OLD_ACTIVE" -eq 1 ]]; then
-    systemctl --user enable "$SERVICE_OLD" >/dev/null 2>&1 || true
-    systemctl --user restart "$SERVICE_OLD" >/dev/null 2>&1 || true
-  fi
-}
-trap 'rc=$?; if [[ "$ROLLBACK_ARMED" -eq 1 ]]; then rollback; fi; exit $rc' ERR
-
 ROLLBACK_ARMED=1
-if [[ "$OLD_ACTIVE" -eq 1 ]]; then
-  systemctl --user stop "$SERVICE_OLD"
+systemctl --user stop "$SERVICE_NEW" >/dev/null 2>&1 || true
+systemctl --user stop "$SERVICE_OLD" >/dev/null 2>&1 || true
+
+if [[ -f "$DB12" ]]; then
+  DB12_BACKUP="$(mktemp "$HOME/.sot-turn02/sot-v12-release-a.rollback.XXXXXXXX.db")"
+  python3 - "$DB12" "$DB12_BACKUP" <<'PY'
+import sqlite3,sys
+src,dst=sys.argv[1:3]
+a=sqlite3.connect(src);b=sqlite3.connect(dst)
+try:a.backup(b);b.commit()
+finally:b.close();a.close()
+print("PASS Release A database rollback snapshot")
+PY
 fi
+
+mkdir -p "$ROOT"
+if [[ -d "$ROOT/SOT" ]]; then
+  PREV_DIR="$ROOT/SOT.previous.$(date +%s)"
+  mv "$ROOT/SOT" "$PREV_DIR"
+fi
+if [[ -f "$UNIT_PATH" ]]; then
+  UNIT_PREV="$(mktemp "$HOME/.sot-turn02/release-a-unit.XXXXXXXX")"
+  cp -a "$UNIT_PATH" "$UNIT_PREV"
+fi
+
+mv "$STAGE/SOT" "$ROOT/SOT"
+install -m 0644 "$ROOT/SOT/$SERVICE_NEW" "$UNIT_PATH"
 systemctl --user daemon-reload
 systemctl --user enable "$SERVICE_NEW" >/dev/null
 systemctl --user restart "$SERVICE_NEW"
@@ -111,7 +168,7 @@ if [[ -n "$DB11_SUM" ]]; then
   echo "PASS predecessor v11 database preserved byte-for-byte"
 fi
 test -f "$DB12"
-echo "PASS Release A schema-12 database exists"
+echo "PASS Release A schema-12 database present"
 
 DNS="$(tailscale status --json | python3 -c 'import json,sys;print(json.load(sys.stdin)["Self"]["DNSName"].rstrip("."))')"
 SERVE="$(tailscale serve status 2>&1)"
@@ -131,11 +188,12 @@ assert h["ok"] and h["version"]=="turn02-release-a" and h["schema"]==12,h
 print("PASS shared-origin /sot Release A HTTPS health")
 PY
 
-if [[ "$OLD_ACTIVE" -eq 1 ]]; then
-  systemctl --user disable "$SERVICE_OLD" >/dev/null 2>&1 || true
-fi
+systemctl --user disable "$SERVICE_OLD" >/dev/null 2>&1 || true
 ROLLBACK_ARMED=0
-trap - ERR
+
+[[ -n "$PREV_DIR" && -d "$PREV_DIR" ]] && rm -rf "$PREV_DIR"
+[[ -n "$DB12_BACKUP" && -f "$DB12_BACKUP" ]] && rm -f "$DB12_BACKUP" && DB12_BACKUP=""
+[[ -n "$UNIT_PREV" && -f "$UNIT_PREV" ]] && rm -f "$UNIT_PREV" && UNIT_PREV=""
 
 ENC_API="https%3A%2F%2F${DNS}%2Fsot"
 printf 'APP https://acmeproducts.github.io/stuff/SOT/sot-turn02-pre-base-release-a.html?v=%s&api=%s\n' "$REF" "$ENC_API"
