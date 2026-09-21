@@ -1,5 +1,5 @@
-<!-- TALKBRIDGE-PLAN v21.42.0 -->
-# TALKBRIDGE MASTER PLAN v21.42.0
+<!-- TALKBRIDGE-PLAN v21.43.0 -->
+# TALKBRIDGE MASTER PLAN v21.43.0
 
 **Location:** `talkbridge/TALKBRIDGE-PLAN-v9.md` in `acmeproducts/stuff`.
 **Owner:** Confi — sole decision-maker, runs every device gate.
@@ -88,6 +88,7 @@ built yet.
 | ~~27·pre-ship (old)~~ | ~~Notifications & steadiness~~ — TalkBridge icon on alerts + strongest legal call alert (D-1/#652) in the folder worker; presence 60-s damping; render coalescing | Spec §7.2 (paths updated to folder) | queued — ringfence: worker swap + push continuity | — |
 | 27·ship | **Video call surface, candidate 5** — tap-swap (kept); camera-flip stops the old track before requesting the new one (matches this codebase's own established pattern, everywhere else already does this); drag gets `touch-action:none` on the video elements. Screen share still dropped, V2 still dropped. | Spec §7.6 + R17 (stop-before-acquire) + R18 (touch-action:none) | **ACCEPTED 2026-09-14 (owner).** Tap-swap confirmed working. Drag: PARTIAL PASS, accepted with a known issue — the small video can now be moved (R18 fixed the gesture), but a z-index/stacking bug still confines it visually within the large video pane instead of the full screen; backlogged, not blocking. Camera flip (R17): status unconfirmed, owner chose not to chase further — backlogged alongside the drag z-index issue. 27·ship CLOSED. | https://acmeproducts.github.io/stuff/bridge-turn27-ship.html |
 | 27·post-ship | **IndexedDB capacity fix** — ROLLED BACK 2026-09-14 (buried G56): the mirror-everything design solved resilience, not capacity; transcripts (the only data under real growth pressure) still wrote through the same localStorage-capped path. Owner ruling: BLOCKED on the real app until (1) a standalone POC harness — no app code, no live users — proves the async transcript pattern (room-entry load timing, concurrent read-modify-write races on sys-pill/missed-call/live-message appends) actually works, and (2) a painfully detailed spec is written from what the POC proves, not from assumption. | POC required before any §7.11-successor spec is written | **BLOCKED — POC harness not started** | — |
+| 27·ship · DIAGNOSTIC D1 (not a stage, never a baseline) | **Read-only call instrument** built on the accepted 27·ship bytes to find out why video freezes roughly twenty seconds into a call and never returns while chat and the transcript keep working. Adds ICE/connection/signalling/gathering transition logging, a 2-second getStats sample (inbound video bytes and frames decoded, selected candidate pair resolved to host/srflx/**relay**, RTT, packet loss), an independent picture-stopped detector that does not depend on `connectionState`, live readings of the existing keepalive channel, video watchdog, connect timeout and recovery step, a TURN reachability probe that reuses the live connection’s own iceServers (no new endpoint, no new credential path — G19/G20), and network/visibility events during a call. Replaces nothing, wraps nothing, changes no behaviour, adds no UI. | Owner instruction 2026-09-20; scope: visibility only, no fix | **BUILT 2026-09-20 — device gate pending.** Machine gates M1–M6 36/36; four structural checks green, each self-verified; mutations 13/13 caught. Output = accepted 27·ship bytes verbatim + one appended part, byte-checked. | https://acmeproducts.github.io/stuff/bridge-turn27-ship-diag1.html |
 | 28·pre-base | Snapshot | — | queued | — |
 | 28·base | **Refactor & technical debt** — collisions & concurrency folded in per owner ruling (device-namespaced message ids, phrasebook compare-and-swap three-way merge, concurrent-rename convergence) + full render coalescing, log hygiene, wrapper-chain audit, dead-candidate purge, graveyard index. Sequenced BEFORE multi-user because id-namespacing and PB merge are its prerequisites | Specs §7.9+§7.10 merged | queued — ringfence: silent behavior drift; gate = zero-regression session | — |
 | 28·pre-ship | **Multi-user, relay leg** — relay v6.4 alone: fan-out N≤4, cap enforcement, per-device call addressing; app untouched; gated by the 3-socket harness before any app change | Spec §7.8 R-parts | queued — ringfence: relay regressions isolated from app | — |
@@ -96,6 +97,12 @@ built yet.
 | 29·pre-base | Snapshot | — | queued | — |
 | 29·base | **D-1 Android lock-screen ringing — one attempt, bounded** — try the strongest legal presentation (requireInteraction, vibrate pattern, full-screen-capable notification where the platform allows); NOT a native ringer, web push cannot produce one. Gate = the attempt is made and the result is recorded, pass or fail; no open-ended chase. | Spec to be written before build (not yet §7-graded) | queued | — |
 | 27·pre-base + 27·base | IndexedDB mirror per §7.3 (DB1 kv store, DB2 dual-write + evict-restore, DB3 parity surface); cutover and multi-user are turn 28+ | Spec complete §7.3 — builds only after §7.2 accepted | — |
+
+The D1 row above is an INSTRUMENT, not a stage. It consumes no stage name, it will
+never be accepted as a baseline, and it is superseded or deleted once the video-freeze
+cause is proven. It exists because of THE METHOD’s first rule: a root cause is a
+printout, not a hypothesis, and when the cause is unknown the whole path is
+instrumented and read rather than reasoned about.
 
 NAMING CORRECTION 2026-08-16: the R10 candidate was mis-emitted as
 `bridge-turn25-base.html`. Canonical artifact is `bridge-turn24-post-ship.html`
@@ -120,6 +127,7 @@ they are never counted as progress.
 | D-4 | **CLOSED 2026-09-13 (27·base accepted)** — was: Presence indicator does not work. Owner traced it back through turn 23 and found no working version — it PREDATES this cycle and was never caught. | ATTEMPTED (N17) — presence now comes from the relay, which is the only party that knows who is attached |
 | D-5 | Call timers do not match between the two sides. | ATTEMPTED (N18) — the anchor moved but the on-screen clock was never restarted, so the display kept its original start; both sides now anchor AND restart at the answer |
 | D-6 | Call screen reported not working by the owner on the base address — which does not contain the video build (G38). Needs re-testing on the single address before any cause is claimed. | UNVERIFIED |
+| D-7 | **Video freezes roughly 20 s into a call and never recovers**, while chat and the transcript keep working (they ride the relay socket and reconnect on their own). Two device logs this cycle. Cause NOT proven. Owner’s working theory: the TURN relay is not kept alive or checked during the call. Recorded against that theory, not as an argument: the accepted build ALREADY carries a 3-second keepalive data channel, a remote-video watchdog and a three-step recovery ladder — so "no keepalive at all" is not the gap; "nothing ever checks whether TURN is still answering, and nothing measures the picture" is. Also unexplained and unresolved: 20 s is exactly `CALL.CONNECT_TIMEOUT_MS`. Instrumented by D1; no fix attempted until the log says which it is. | OPEN — instrumented, awaiting a two-device reproduction |
 
 **Why these exist:** D-1 is a regression introduced in the R10 candidate work
 and not caught. D-2 is a fix that was built, broken, rolled back and then not
@@ -1948,6 +1956,8 @@ Green means allowed to push. It never means done.
 ---
 
 ## 10 · CHANGE LOG
+
+**v21.43.0 · 2026-09-20.** D-7 opened: video freezes ~20 s into a call and never recovers while chat and the transcript keep working. Cause unknown and deliberately not guessed at. A read-only diagnostic build (D1) is declared in the ledger and built on the accepted 27·ship bytes: every ICE and connection transition, a 2-second media sample that says whether the path is going through TURN and whether frames are still arriving, a picture-stopped detector independent of `connectionState`, live readings of the keepalive channel, watchdog, connect timeout and recovery step, and a TURN reachability probe built from the live connection’s own iceServers. Nothing is replaced, wrapped or made visible; this build fixes nothing and will never be a baseline. The accepted 27·ship artifact is untouched (§0c).
 
 **v20.46.0 · 2026-09-03.** Two faults, both mine, both removed at the source.
 **G42 — Android microphone dead.** The caller mute disabled the outgoing audio
