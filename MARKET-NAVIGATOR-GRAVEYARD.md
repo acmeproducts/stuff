@@ -216,3 +216,8 @@ Never ship Turn 26 from a source that omits accepted cumulative Turn 25 function
 ## 16. Turn 26 wrong-baseline candidate — 2026-09-21
 
 Candidate commit `2934e9e5335ef9a362efa96407e68f52a311bcef` is rejected and must not be used as an implementation donor. It was built from the historical Turn 25 pre-ship blob rather than the complete accepted cumulative Turn 25 Ship runtime and therefore would have regressed accepted Index Explanation, Derived Model Health, NOW Print and subsequent Turn 25 corrections. The direct Turn 26 baseline remains commit `7241de67db1558b9223fb608fa26443dcb98a3b2`, artifact `market-navigator-turn25-ship.html`, blob `8ebd766774d6e70011cdac0e40c2759eba8f5fc5`.
+
+
+## 17. Standalone Analyze / ribbon permanent prohibitions
+
+Never let an expanded-components breadcrumb consume enough ribbon width to hide a horizon or the `…` menu; use the compact `*` token with an accessible “Components” label. Never make the long-press Source action land on a generic HEALTH page when an exact source/model entry can be addressed. Never implement the Analyze action by mutating NOW breadcrumb/drill-down state. Never dismiss the standalone Analyze modal by outside click. Never create a second chart, evidence, AI, or Library engine merely to support the standalone modal; reuse the governed chart/evidence and existing AI/Library persistence paths.
