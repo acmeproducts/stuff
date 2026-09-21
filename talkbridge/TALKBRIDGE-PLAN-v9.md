@@ -1,5 +1,5 @@
-<!-- TALKBRIDGE-PLAN v21.44.0 -->
-# TALKBRIDGE MASTER PLAN v21.44.0
+<!-- TALKBRIDGE-PLAN v21.45.0 -->
+# TALKBRIDGE MASTER PLAN v21.45.0
 
 **Location:** `talkbridge/TALKBRIDGE-PLAN-v9.md` in `acmeproducts/stuff`.
 **Owner:** Confi — sole decision-maker, runs every device gate.
@@ -87,7 +87,7 @@ built yet.
 | 27·pre-ship | **N-1 notification lifecycle** — relay v6.6 sends a terminal retraction push to any recipient NOT currently connected when their call record resolves without their own action (caller hung up or cancelled, answered by no one, etc.); a foreground device never holds an OS card in the first place (`_decide`: visible+connected → in_app, no push requested), so no client-side close path was needed. K1 (tb-sw2.js) closes the card, or on a missed outcome replaces it with "Missed call". The room-transcript half of the owner's "both" ruling was ALREADY WORKING via existing CR3 reconciliation (`cr3PillMissed`) — verified, not built. Ring-tone selection DROPPED from this release: no chosen value was ever given, and a knob with nothing to turn to is not a feature. | Built directly from evidence found in the code, correcting the original §9 guess | **ACCEPTED 2026-09-13 (owner: pass).** Gates pass; mutations 3/3 (push-to-connected, double-push-on-retry, accepted-worker-touched). Known limitation, not fixed here: if the caller's own device also backgrounds or closes right after dialing, no side ever sends call-end and the callee's card can linger — a pre-existing gap in the call model, not caused by or fixed by N-1. | https://acmeproducts.github.io/stuff/bridge-turn27-pre-ship.html |
 | ~~27·pre-ship (old)~~ | ~~Notifications & steadiness~~ — TalkBridge icon on alerts + strongest legal call alert (D-1/#652) in the folder worker; presence 60-s damping; render coalescing | Spec §7.2 (paths updated to folder) | queued — ringfence: worker swap + push continuity | — |
 | 27·ship | **Video call surface, candidate 5** — tap-swap (kept); camera-flip stops the old track before requesting the new one (matches this codebase's own established pattern, everywhere else already does this); drag gets `touch-action:none` on the video elements. Screen share still dropped, V2 still dropped. | Spec §7.6 + R17 (stop-before-acquire) + R18 (touch-action:none) | **ACCEPTED 2026-09-14 (owner).** Tap-swap confirmed working. Drag: PARTIAL PASS, accepted with a known issue — the small video can now be moved (R18 fixed the gesture), but a z-index/stacking bug still confines it visually within the large video pane instead of the full screen; backlogged, not blocking. Camera flip (R17): status unconfirmed, owner chose not to chase further — backlogged alongside the drag z-index issue. 27·ship CLOSED. | https://acmeproducts.github.io/stuff/bridge-turn27-ship.html |
-| 27·post-ship | **Call recovery** — C-1 signalling survives a relay outage (webrtc-signal messages queue and flush instead of being dropped), C-3 the joiner can ask the creator for an ICE restart instead of going silent, C-2 stall detection counts decoded frames instead of watching `currentTime`. REASSIGNED 2026-09-20: this slot held IndexedDB, blocked indefinitely on a POC that has not started; D-7 belongs to the turn-27 call work (§0d) and the chain does not wait on a stalled stage. IndexedDB moves to 29·pre-ship, behind its POC prerequisite, unchanged. | Spec §7.14 — written from D1 device evidence, not assumption | **SPEC WRITTEN 2026-09-20 — awaiting owner GO. Nothing built.** | (will be) https://acmeproducts.github.io/stuff/bridge-turn27-post-ship.html — address currently serves accepted 27·ship bytes |
+| 27·post-ship | **Call recovery** — C-1 signalling survives a relay outage (webrtc-signal messages queue and flush instead of being dropped), C-3 the joiner can ask the creator for an ICE restart instead of going silent, C-2 stall detection counts decoded frames instead of watching `currentTime`. REASSIGNED 2026-09-20: this slot held IndexedDB, blocked indefinitely on a POC that has not started; D-7 belongs to the turn-27 call work (§0d) and the chain does not wait on a stalled stage. IndexedDB moves to 29·pre-ship, behind its POC prerequisite, unchanged. | Spec §7.14 — written from D1 device evidence, not assumption | **BUILT 2026-09-20 on owner GO — device gate pending.** Candidate sha256 `96c9777ee65d` = accepted 27·ship bytes verbatim + D1 + C-1 + C-3 + C-2, byte-checked. Two-instance harness (creator + joiner + fake relay) 34/34; four structural checks green, each self-verified; mutations 13/13 caught on the named test. Found during build and folded in (§7.14 addendum): the joiner’s offer handler skips or rebuilds on ANY offer, so it could never answer an ICE restart — C-3 now answers a restart on the same pc, which also makes the creator’s pre-existing step 2 land for the first time (M3b.9). Relay v6.6 untouched. | https://acmeproducts.github.io/stuff/bridge-turn27-post-ship.html |
 | 27·ship · DIAGNOSTIC D1 (not a stage, never a baseline) | **Read-only call instrument** built on the accepted 27·ship bytes to find out why video freezes roughly twenty seconds into a call and never returns while chat and the transcript keep working. Adds ICE/connection/signalling/gathering transition logging, a 2-second getStats sample (inbound video bytes and frames decoded, selected candidate pair resolved to host/srflx/**relay**, RTT, packet loss), an independent picture-stopped detector that does not depend on `connectionState`, live readings of the existing keepalive channel, video watchdog, connect timeout and recovery step, a TURN reachability probe that reuses the live connection’s own iceServers (no new endpoint, no new credential path — G19/G20), and network/visibility events during a call. Replaces nothing, wraps nothing, changes no behaviour, adds no UI. | Owner instruction 2026-09-20; scope: visibility only, no fix | **DEVICE-RUN 2026-09-20 (owner, both phones, both roles) — evidence read, findings in §7.14 and D-7. Instrument did its job; superseded once 27·post-ship is accepted.** Machine gates M1–M6 36/36; four structural checks green, each self-verified; mutations 13/13 caught. Output = accepted 27·ship bytes verbatim + one appended part, byte-checked. | https://acmeproducts.github.io/stuff/bridge-turn27-ship-diag1.html |
 | 28·pre-base | Snapshot | — | queued | — |
 | 28·base | **Refactor & technical debt** — collisions & concurrency folded in per owner ruling (device-namespaced message ids, phrasebook compare-and-swap three-way merge, concurrent-rename convergence) + full render coalescing, log hygiene, wrapper-chain audit, dead-candidate purge, graveyard index. Sequenced BEFORE multi-user because id-namespacing and PB merge are its prerequisites | Specs §7.9+§7.10 merged | queued — ringfence: silent behavior drift; gate = zero-regression session | — |
@@ -1957,6 +1957,8 @@ Green means allowed to push. It never means done.
 ---
 
 ## 10 · CHANGE LOG
+
+**v21.45.0 · 2026-09-20.** 27·post-ship BUILT on owner GO: `bridge-turn27-post-ship.html` = accepted 27·ship bytes + D1 + C-1 + C-3 + C-2, sha256 `96c9777ee65d`. Two-instance harness 34/34, structural checks 4/4 self-verified, mutations 13/13. Found during build (§7.14 addendum): the joiner could never answer an ICE restart — the frozen offer handler skips or rebuilds, never restarts — so C-3 also answers a restart on the same pc, and the creator’s pre-existing step 2 now lands. Device gate G1–G4 pending.
 
 **v21.44.0 · 2026-09-20.** D-7 root-caused from the D1 device run — both phones, both roles — and the cause is not the TURN relay. The 4-second lag is the signalling socket dying at call start, a fixed 2 s reconnect backoff that fails once, and `relaySend` silently dropping every ICE candidate in between. The freeze is one-way path death that the shipped watchdog cannot see because it watches `currentTime` instead of decoded frames. The "never recovers" is the joiner’s repair ladder destroying its own connection with no way to ask for a new offer. 27·post-ship is REASSIGNED from IndexedDB (blocked indefinitely on a POC that has not started) to these three fixes; IndexedDB moves to 29·pre-ship with its ruling intact. Spec §7.14 written from the printouts. Not built; awaiting GO. A correction on the record: the builder’s first read of the Android log blamed the TCP/TLS TURN endpoints for the lag and proposed removing them — wrong on both counts. Those failures are a symptom of the same interface flap, and removing them would strip the only path for a user on a UDP-blocked network. Caught by reading the relay code before writing the spec, which is the rule.
 
@@ -4785,3 +4787,28 @@ before. PASS = all four. Any miss = candidate dies, G-entry, rollback to
 iPhone gathering zero relay candidates (recorded, not understood, not
 touched). The 2 s reconnect backoff. Removing any TURN URL. The backgrounded-
 call resume gap (G55 note 3). Anything in the relay or worker.
+
+### §7.14 addendum — found during build, 2026-09-20 (harness, not device)
+
+The joiner's frozen offer handler (line ~2712) does one of two things with
+ANY incoming offer: if its connection reads `connected` it logs
+`rtc_offer_skip` and drops it; otherwise it closes its pc, nulls its state,
+and rebuilds from scratch. Neither path answers an ICE-restart offer on the
+existing connection. So the spec as written — "the joiner can ask" — would
+have produced a restart offer the joiner then threw away. Consequences:
+
+1. C-3 grew a third hook: on the joiner, an offer whose `a=ice-ufrag` differs
+   from the current remote description is an ICE restart and is answered on
+   the SAME pc (setRemoteDescription → flushCands → createAnswer →
+   setLocalDescription → send). No close, no rebuild, tracks survive.
+2. This also makes the creator's own, pre-existing step-2 ICE restart land
+   for the first time in this codebase — it had the same joiner-side problem
+   and had never fired on device, so nobody had seen it fail. Gated as M3b.9.
+3. Harness M3b.8/M3b.9 added; mutation "C-3 fires on the creator too"
+   retargeted to M3b.8 (M3b.7 only exercised step 1 and could not see it).
+4. Mutation run also exposed that the C-1 once-guard removal is caught at
+   M3a.1 (11,423 queued messages, synchronous fan-out) not M3a.4; retargeted.
+   The storm is real and the guard is load-bearing.
+
+Contract after the addendum — C-3 wraps: `CALL.runRecovery`, `CALL.onSignal`;
+adds: `CALL._c3LastServed`, `CALL._c3Pending`. Nothing replaced.
