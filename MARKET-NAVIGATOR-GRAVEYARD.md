@@ -193,3 +193,9 @@ Owner authorization on 2026-09-18 permits a bounded patch-forward correction to 
 Never ratio-rebase a governed zero-crossing Treasury spread; conditionally include a signed series merely because a selected horizon happens to have a positive baseline; invent a runtime transform, replacement component, or adaptive weight to make Health green; conceal automatic renormalization after omission; classify current FRED public-CSV acquisition as requiring an API key; or expose unexplained Model Health jargon without the governed Glossary/context path.
 
 The only approved zero-crossing repair is the versioned governed `signed_level_sd` transform persisted with its historical scale. If that transform lacks sufficient canonical evidence, omit rather than estimate and expose the resulting lifecycle truthfully.
+
+## 13. Yield Curve factor prohibitions
+
+Never hide the two governed Treasury spreads as anonymous equal-weight rows in MAC Health/Explanation; describe a currently positive curve as inverted because of historical inversion; infer inversion from chart pixels; fabricate missing episode dates; dynamically increase MAC weight because the curve is inverted; or change the canonical 2/7 aggregate Yield Curve weight without a separately versioned weight study and owner disposition.
+
+The accepted current MAC arithmetic remains seven equal eligible components. The Yield Curve factor therefore has an explicit aggregate canonical weight of 28.5714% when both spreads are eligible. Visibility is first-class; weighting remains governed rather than event-driven.
