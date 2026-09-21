@@ -620,3 +620,16 @@ Reject displaying or exporting the filename redundantly inside Database **Path**
 
 Reject Database rerenders that reset the evidence table horizontal position to the left edge. Selection, sort, polling and local rerender must preserve the user's current horizontal and vertical table scroll position.
 
+---
+
+## GY-092 — Capturing SQLite preservation checksum before stopping the predecessor service, and reusing a failed schema-12 cutover database
+
+**Status:** REJECTED HOST-CUTOVER / MIGRATION PATTERN  
+**Decision date:** 2026-09-20
+
+Reject installer logic that hashes an actively served SQLite database and later requires the main database file to remain byte-identical across service shutdown. Clean SQLite/WAL shutdown may checkpoint committed evidence into the main file and change its byte hash even though logical data remains valid. This creates a false cutover failure.
+
+Also reject retrying a rolled-back Release A cutover against the schema-12 database created by that failed attempt. Once rollback restores the predecessor runtime, the failed schema-12 database is no longer authoritative and may become stale relative to v11.
+
+**Required replacement:** finish pre-cutover qualification first; stop the old supervised service; validate and hash the stabilized predecessor database only after stop/checkpoint; archive any existing failed-attempt schema-12 database; recreate schema-12 from stabilized v11; verify predecessor checksum after migration; and archive the new schema-12 attempt on any subsequent rollback before restoring the old service.
+
