@@ -55,6 +55,13 @@ select.input{appearance:auto}
 .ibtn.trash:active{color:var(--err)}
 .pchev{display:inline-flex;align-items:center;justify-content:center;width:28px;height:28px;flex-shrink:0;color:var(--dim);background:none;border:none;font-size:12px;transition:transform .15s}
 .pchev.open{transform:rotate(90deg)}
+.coachToggle{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-top:9px;font-size:12px;color:var(--dim);cursor:pointer}
+.coachToggle input{appearance:none;width:38px;height:22px;border-radius:20px;background:var(--idle);position:relative;cursor:pointer;flex-shrink:0}
+.coachToggle input:before{content:'';position:absolute;width:16px;height:16px;top:3px;left:3px;border-radius:50%;background:white;transition:left .15s}
+.coachToggle input:checked{background:var(--accent)}
+.coachToggle input:checked:before{left:19px}
+.coachToggle input:focus-visible{outline:2px solid var(--text);outline-offset:2px}
+body.coachMode #engineFoot,body.coachMode #webToggle,body.coachMode #chatInfo,body.coachMode #objective button,body.coachMode .msg .mmeta .mono{display:none!important}
 
 #main{flex:1;display:flex;flex-direction:column;min-width:0}
 .mainbar{justify-content:flex-start}
@@ -177,7 +184,7 @@ select.input{appearance:auto}
 <div id="scrim"></div>
 <div id="app">
 <aside id="sidebar">
-  <div class="bar"><span id="dot"></span><span class="brand">devstream <span class="version">v1.0 b31</span></span><span class="grow"></span><button class="btn" id="projectAdd">+ New</button><button class="btn" id="refresh">↻</button><button class="btn" id="settings">⚙</button></div>
+  <div class="bar"><span id="dot"></span><span class="brand">devstream <span class="version">v1.0 b32</span></span><span class="grow"></span><button class="btn" id="projectAdd">+ New</button><button class="btn" id="refresh">↻</button><button class="btn" id="settings">⚙</button></div>
   <div id="searchWrap"><input id="search" class="input" placeholder="Search projects & threads">
     <div class="legend"><span><i class="legendDot ok"></i>OK</span><span><i class="legendDot run"></i>Running</span><span><i class="legendDot err"></i>Error</span></div></div>
   <div id="projList"></div>
@@ -245,10 +252,11 @@ select.input{appearance:auto}
   <header>New project<button class="btn" data-close="newProjModal">✕</button></header>
   <div class="pbody">
     <div class="frow"><label>Project label</label><input id="npLabel" class="input" placeholder="e.g. Orbital8"></div>
-    <div class="frow"><label>File — type a partial and tap to select, or type a new name and press Enter</label>
+    <div class="frow" id="npFileRow"><label>File — type a partial and tap to select, or type a new name and press Enter</label>
       <div class="omni-wrap"><input id="npFile" class="input mono" autocomplete="off" placeholder="myapp.html"><div class="omni-list" id="npOmni"></div></div>
       <div class="hint" id="npHint">Named once, here: this is the project’s code file and the only place builds land. Its plan (same name, .md) is the sole authority on plan, backlog and bugs. Tabs you add later are just named workspaces — they never carry a filename.</div></div>
-    <div class="frow"><label>Engine</label><select id="npEngine" class="input">
+    <div class="frow"><label class="coachToggle" style="font-size:14px;color:var(--text)">Coach mode for this project <input id="npCoach" type="checkbox" checked aria-label="Coach mode"></label><div class="hint">A simpler conversation with one helpful next step. Your project files are set up automatically. You can change this on the project card.</div></div>
+    <div class="frow" id="npEngineRow"><label>Engine</label><select id="npEngine" class="input">
       <option value="venice">Venice.ai</option>
       <option value="openrouter">OpenRouter</option>
       <option value="anthropic-direct">Anthropic API</option></select></div>
@@ -471,9 +479,18 @@ function renderSidebar(){
     d.innerHTML='<div class="cttl"><span class="dot '+projState(p)+'"></span><span class="grow" style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+esc(p)+'</span>'+
       '<button class="ibtn doc '+(plan&&pr.planExists?'':'off')+'" title="Open plan">'+ICON_DOC+'</button>'+
       '<button class="ibtn trash" title="Delete project">'+ICON_TRASH+'</button></div>'+
-      '<div class="csub">'+th.length+' tab'+(th.length===1?'':'s')+' · '+rel(pr.lastTouched)+'</div>';
+      '<div class="csub">'+th.length+' tab'+(th.length===1?'':'s')+' · '+rel(pr.lastTouched)+'</div>'+
+      '<label class="coachToggle">Coach mode <input class="coachSwitch" type="checkbox" role="switch" aria-label="Coach mode for '+esc(p)+'" '+(pr.coachMode?'checked':'')+'></label>';
     d.querySelector('.ibtn.doc').onclick=e=>{e.stopPropagation();openPlan(p)};
     d.querySelector('.ibtn.trash').onclick=e=>{e.stopPropagation();softDeleteProject(p)};
+    d.querySelector('.coachToggle').onclick=e=>e.stopPropagation();
+    d.querySelector('.coachSwitch').onchange=e=>guard(async()=>{
+      e.stopPropagation();const prior=!!pr.coachMode;pr.coachMode=e.target.checked;
+      try{await saveSOT('devstream: Coach mode '+(pr.coachMode?'on':'off')+' for '+p)}
+      catch(err){pr.coachMode=prior;e.target.checked=prior;throw err}
+      renderSidebar();if(activeProject===p&&activeKey){renderChat(true);refreshObjective(activeKey)}
+      toast('Coach mode '+(pr.coachMode?'on':'off')+' for '+p);
+    });
     d.onclick=()=>{openProject(p);sideOpen(false)};
     pl.appendChild(d);
   });
@@ -481,6 +498,7 @@ function renderSidebar(){
 function firstThreadOf(p){return Object.keys(sot.threads).filter(k=>sot.threads[k].project===p&&!sot.threads[k].deleted)[0]||null}
 function openProject(p,preferKey){
   activeProject=p;localStorage.setItem('ds_activeproj',p);
+  document.body.classList.toggle('coachMode',!!sot.projects[p]?.coachMode);
   const k=(preferKey&&sot.threads[preferKey]&&!sot.threads[preferKey].deleted)?preferKey:firstThreadOf(p);
   renderSidebar();renderTabs();
   if(k){openThread(k);return}
@@ -551,7 +569,8 @@ async function refreshObjective(key){
     const objective=line?line.replace(/^\s*-\s*/,'').replace(/\*\*/g,'').replace(/\s*—.*$/,'').trim():f.content.match(/^#\s+(.+)$/m)?.[1]||file;
     const state=threads[key]?.data.lastState||'';
     const next=state.match(/next:\s*([^|]+)/i)?.[1]?.trim();
-    el.innerHTML='<strong>Objective:</strong> '+esc(objective)+(next?' &nbsp;·&nbsp; <strong>Next:</strong> '+esc(next):'')+' <button type="button">Open plan ↗</button>';
+    const coach=!!sot.projects[sot.threads[key].project]?.coachMode;
+    el.innerHTML='<strong>'+(coach?'Goal':'Objective')+':</strong> '+esc(objective)+(next?' &nbsp;·&nbsp; <strong>Next:</strong> '+esc(next):'')+' <button type="button">Open plan ↗</button>';
     el.querySelector('button').onclick=()=>window.open('https://github.com/'+repoFull()+'/blob/'+cfg.branch+'/'+file,'_blank');
     el.style.display='block';
   }catch(e){if(activeKey===key){el.textContent='Master plan unavailable — '+e.message;el.style.display='block'}}
@@ -559,9 +578,14 @@ async function refreshObjective(key){
 function renderChat(force){
   const key=activeKey;if(!key||!threads[key])return;
   const t=sot.threads[key],d=threads[key].data;
+  const coach=!!sot.projects[t.project]?.coachMode;
+  document.body.classList.toggle('coachMode',coach);
+  $('message').placeholder=coach?'Tell me what you want to make or change…':'Questions, ideas, feedback — or say build it';
+  $('runPending').textContent=coach?'▶ Continue':'▶';
+  $('pendingRun').textContent=coach?'▶ Continue':'▶ run now';
   $('chatTitle').textContent=t.project+' · '+tabName(t);
   $('chatInfo').textContent=d.lastState?d.lastState:(repoFull()+' · builds: '+(d.outputFile||projMain(t.project)||'—')+' · plan: '+(projPlan(t.project)||d.planFile||'—'));
-  $('pill').textContent=t.state||'idle';$('pill').className=t.state||'';
+  $('pill').textContent=coach?(t.state==='executing'?'Working':t.state==='error'?'Needs help':'Ready'):(t.state||'idle');$('pill').className=t.state||'';
   $('engineFoot').textContent=(t.engine||'venice')+(t.model?' · '+t.model:'')+' ▾';
   const wb=$('webToggle');
   wb.style.color=t.web?'var(--accent)':'var(--dim)';wb.style.borderColor=t.web?'var(--accent)':'var(--line)';
@@ -579,14 +603,16 @@ function renderChat(force){
   const keepScroll=c.scrollTop;
   c.innerHTML='';
   d.messages.forEach(m=>{
+    if(coach&&m.hiddenInCoach)return;
     const el=document.createElement('div');
     el.className='msg '+(m.role==='user'?'user':'agent')+(m.status==='pending'?' pending':'');
     let meta='<div class="mmeta"><span>'+rel(m.ts)+'</span>';
-    if(m.status==='pending')meta+='<span>⧗ queued</span>';
+    if(m.status==='pending')meta+='<span>⧗ '+(coach?'waiting':'queued')+'</span>';
     if(m.commit)meta+='<span class="mono">'+m.commit.slice(0,10)+'</span>';
     if(m.target)meta+='<span class="mono">→ '+esc(m.target)+'</span>';
     let attHtml='';(m.attachments||[]).forEach(a=>{attHtml+=a.kind==='image'?'<img class="att" src="'+esc(a.url)+'" alt="'+esc(a.name)+'">':'<div class="mmeta">📄 '+esc(a.name)+' ('+Math.round((a.text||'').length/1000)+'k)</div>'});
-    el.innerHTML=linkify(m.text)+attHtml+meta+'</div>';
+    const displayText=coach&&m.role==='agent'?(m.coachText||(m.summary?m.summary:m.text)):m.text;
+    el.innerHTML=linkify(displayText)+attHtml+meta+'</div>';
     c.appendChild(el);
   });
   c.scrollTop=atBottom?c.scrollHeight:keepScroll;
@@ -651,9 +677,17 @@ async function deleteThread(key){
 const PLAN_PROMPT=f=>'Create '+planOf(f)+' — the master plan for '+f+' — following the house planning-doc standard. Requisite sections, in order: (0) TURN/STAGE LEDGER: a table of turns/stages with status, where every future build session appends a row before touching code; (1) RELEASES: numbered release list with one-line goals; (2) per-release sections: scope (in/out), build gates (how we verify, on real devices), and backlog of deferred items; (3) FUTURE IDEAS: unscheduled parking lot; (4) IMMUTABLE WORKING RULES: mobile-first, all diagnostics in-app (never DevTools), update-plan-before-code, read-back verification after every push, no stubs or fake data; (5) DECISION LOG: dated owner decisions; (6) APPENDIX: authority order (this plan is the sole authority; chat history loses to the plan). Seed it with what is known so far about '+f+' and mark everything else TBD. Keep it tight and scannable on a phone.';
 $('projectAdd').onclick=()=>{
   if(!cfg){openModal('cfgModal');return}
-  $('npLabel').value='';$('npFile').value='';$('npEngine').value=cfg.engine||'venice';
-  npSelectedExisting=false;openModal('newProjModal');
+  $('npLabel').value='';$('npFile').value='';$('npEngine').value=cfg.engine||'venice';$('npCoach').checked=true;
+  syncNewProjectMode();npSelectedExisting=false;openModal('newProjModal');
 };
+function syncNewProjectMode(){
+  const coach=$('npCoach').checked;
+  $('npFileRow').style.display=coach?'none':'';
+  $('npEngineRow').style.display=coach?'none':'';
+  if(coach)$('npFile').value='projects/'+slug($('npLabel').value)+'.html';
+}
+$('npCoach').onchange=syncNewProjectMode;
+$('npLabel').addEventListener('input',()=>{if($('npCoach').checked)syncNewProjectMode()});
 function npFilter(){
   const q=($('npFile').value||'').toLowerCase().trim();
   const L=$('npOmni');L.innerHTML='';
@@ -672,21 +706,23 @@ function npFilter(){
 $('npFile').addEventListener('input',()=>{npSelectedExisting=false;$('npHint').textContent='Named once, here: this is the project’s code file and the only place builds land. Its plan (same name, .md) is the sole authority on plan, backlog and bugs. Tabs you add later are just named workspaces — they never carry a filename.';npFilter()});
 $('npFile').addEventListener('keydown',e=>{if(e.key==='Enter'){e.preventDefault();$('npOmni').style.display='none';$('npCreate').click()}});
 $('npCreate').onclick=()=>guard(async()=>{
-  const label=$('npLabel').value.trim(), file=$('npFile').value.trim(), engine=$('npEngine').value;
+  const label=$('npLabel').value.trim(), coach=$('npCoach').checked, engine=$('npEngine').value;
+  let file=coach?'projects/'+slug(label)+'.html':$('npFile').value.trim();
   if(!label)throw new Error('Project label required');
   if(!file)throw new Error('File required');
   if(sot.projects[label])throw new Error('Project '+label+' already exists');
-  const plan=planOf(file);
   const tree=await repoTree(true);
+  if(coach){let n=2;while(tree.includes(file)||tree.includes(planOf(file)))file='projects/'+slug(label)+'-'+(n++)+'.html'}
+  const plan=planOf(file);
   const fileExists=tree.includes(file), planExists=tree.includes(plan);
-  sot.projects[label]={notes:'',lastTouched:now(),planFile:plan,planExists,mainFile:file};
+  sot.projects[label]={notes:'',lastTouched:now(),planFile:plan,planExists,mainFile:file,coachMode:$('npCoach').checked};
   // first tab = the project thread; tabs are named, the project owns the filename
   const tid='main',key=tkey(label,tid);
   const msgs=[];
   if(!planExists){
-    msgs.push({role:'user',text:PLAN_PROMPT(file)+(fileExists?'\n\n[codebase exists: '+file+' — read it and seed the plan from what it already does]':''),ts:now(),status:'pending',forcedTarget:plan});
+    msgs.push({role:'user',text:PLAN_PROMPT(file)+(fileExists?'\n\n[codebase exists: '+file+' — read it and seed the plan from what it already does]':''),ts:now(),status:'pending',forcedTarget:plan,hiddenInCoach:true});
   }else{
-    msgs.push({role:'agent',text:'Plan found: '+plan+' — referencing it for all work in this thread.',ts:now()});
+    msgs.push({role:'agent',text:'Plan found: '+plan+' — referencing it for all work in this thread.',coachText:'I’ve got the project’s goals. What would you like to make first?',ts:now()});
   }
   const data={project:label,outputFile:file,tid,name:'Main',planFile:plan,inputFile:fileExists?file:null,repo:repoFull(),engine,created:now(),messages:msgs};
   const sha=await putFileSafe(tpath(label,tid),JSON.stringify(data,null,1),'devstream: new project '+label);
@@ -708,7 +744,7 @@ async function newThreadForProject(){
   await guard(async()=>{
     const tree=await repoTree(true);
     const data={project:activeProject,outputFile:file,tid,name,planFile:p.planFile,inputFile:tree.includes(file)?file:null,repo:repoFull(),engine:cfg.engine||'venice',created:now(),
-      messages:[{role:'agent',text:'Tab "'+name+'" — same project, same plan ('+p.planFile+'). Builds land in '+file+' unless you tell me to write somewhere else. Ask questions, add ideas or feedback and the plan gets updated; say "build it" and the build happens here.',ts:now()}]};
+      messages:[{role:'agent',text:'Tab "'+name+'" — same project, same plan ('+p.planFile+'). Builds land in '+file+' unless you tell me to write somewhere else. Ask questions, add ideas or feedback and the plan gets updated; say "build it" and the build happens here.',coachText:'This is a fresh space to work on your idea. What would you like to try next?',ts:now()}]};
     const sha=await putFileSafe(tpath(activeProject,tid),JSON.stringify(data,null,1),'devstream: new tab '+key);
     threads[key]={data,sha};
     sot.threads[key]={project:activeProject,file,tid,name,repo:repoFull(),engine:cfg.engine||'venice',state:'idle',startedAt:'',finishedAt:'',lastCommit:'',testUrl:'',error:''};
@@ -799,8 +835,8 @@ $('runPending').onclick=()=>{if(activeKey)dispatch(activeKey)};
 $('pendingRun').onclick=()=>{if(activeKey)dispatch(activeKey)};
 
 /* ---- in-app agent (anthropic-direct) ---- */
-function agentSystem(codeFile,planFile,patchMode){
-  return 'You are the devstream build agent for a project with two artifacts: the CODE file "'+codeFile+'" (a single-file mobile-first HTML app) and the PLAN file "'+planFile+'" (the master plan, sole authority, and the ONLY memory that persists between runs — chat history may be partial or missing). The plan carries the work: goals, open tasks/backlog and bug tracking. The owner drives the pace — when they ask you to execute the plan, do the next thing the plan says; there are no project phases or stage gates to check. You may be given REFERENCED FILE blocks (code pulled from GitHub URLs the owner pasted) — treat them as authoritative source material. CRITICAL: if a REFERENCED FILE block is present, its full contents ARE already in front of you — never reply that you cannot access GitHub, fetch URLs, or read the file; just use the contents given. If web search is enabled you can look up current docs, APIs and error messages to unblock yourself; cite what you found in the SUMMARY. ALWAYS read the plan context first and continue from its ledger; you are picking up where the previous run left off. Rules: questions/ideas/feedback update the PLAN (or are just answered); update-plan-before-code; at most ONE file write per response. The PLAN path never changes — it is the project\'s sole authority for plan, open tasks/backlog and bug tracking. The CODE path is "'+codeFile+'" unless the owner explicitly tells you in this request to land the build in a different filename; if they do, use that exact path as TARGET and it becomes the project\'s code file from then on. When you write the PLAN, append a dated row to its TURN/STAGE LEDGER describing this run. All diagnostics in the app itself, never console-only. Preserve existing functionality not mentioned. Respond in EXACTLY this format:\nSUMMARY: <one or two sentences>\nTARGET: <'+codeFile+' or '+planFile+' or, ONLY if the owner explicitly named a different file to write to in this request, that path — or NONE>\nSTATE: open: <top open items, terse> | next: <the single next step>\n<blank line>\n<if TARGET is a file: '+(patchMode?'SEARCH/REPLACE edit blocks as specified below':'the COMPLETE new file content, no fences, nothing after it')+'. If TARGET is NONE: your answer text.>'+(patchMode?'\n\nOUTPUT MODE: PATCH. The file is too large to reprint within your output limit — do NOT output the whole file. Emit one or more edit blocks, each exactly:\n<<<<<<< SEARCH\n(text copied character-for-character from the current file, appearing EXACTLY ONCE)\n=======\n(replacement text)\n>>>>>>> REPLACE\nKeep SEARCH blocks small but unique. Never invent text that is not in the file. To add code near the end, SEARCH a unique closing fragment and repeat it in the replacement. Output nothing after the final block.':'');
+function agentSystem(codeFile,planFile,patchMode,coachMode){
+  return 'You are the devstream build agent for a project with two artifacts: the CODE file "'+codeFile+'" (a single-file mobile-first HTML app) and the PLAN file "'+planFile+'" (the master plan, sole authority, and the ONLY memory that persists between runs — chat history may be partial or missing). The plan carries the work: goals, open tasks/backlog and bug tracking. The owner drives the pace — when they ask you to execute the plan, do the next thing the plan says; there are no project phases or stage gates to check. You may be given REFERENCED FILE blocks (code pulled from GitHub URLs the owner pasted) — treat them as authoritative source material. CRITICAL: if a REFERENCED FILE block is present, its full contents ARE already in front of you — never reply that you cannot access GitHub, fetch URLs, or read the file; just use the contents given. If web search is enabled you can look up current docs, APIs and error messages to unblock yourself; cite what you found in the SUMMARY. ALWAYS read the plan context first and continue from its ledger; you are picking up where the previous run left off. Rules: questions/ideas/feedback update the PLAN (or are just answered); update-plan-before-code; at most ONE file write per response. The PLAN path never changes — it is the project\'s sole authority for plan, open tasks/backlog and bug tracking. The CODE path is "'+codeFile+'" unless the owner explicitly tells you in this request to land the build in a different filename; if they do, use that exact path as TARGET and it becomes the project\'s code file from then on. When you write the PLAN, append a dated row to its TURN/STAGE LEDGER describing this run. All diagnostics in the app itself, never console-only. Preserve existing functionality not mentioned. '+(coachMode?'COACH MODE: Speak to a beginner as a patient mentor in plain language. Help them make small playable improvements and explain what changed. For a question, answer simply and offer one optional next step. Treat requests to make, create, add, or change something as build requests; make a playable first version without waiting for the phrase build it or for stage approval. Ask a clarifying question only when essential information is missing. Avoid mentioning files, models, commits, plans, gates, or internal process unless the user asks. Keep the objective and open work accurately saved in the plan. ':'')+'Respond in EXACTLY this format:\nSUMMARY: <one or two sentences>\nTARGET: <'+codeFile+' or '+planFile+' or, ONLY if the owner explicitly named a different file to write to in this request, that path — or NONE>\nSTATE: open: <top open items, terse> | next: <the single next step>\n<blank line>\n<if TARGET is a file: '+(patchMode?'SEARCH/REPLACE edit blocks as specified below':'the COMPLETE new file content, no fences, nothing after it')+'. If TARGET is NONE: your answer text.>'+(patchMode?'\n\nOUTPUT MODE: PATCH. The file is too large to reprint within your output limit — do NOT output the whole file. Emit one or more edit blocks, each exactly:\n<<<<<<< SEARCH\n(text copied character-for-character from the current file, appearing EXACTLY ONCE)\n=======\n(replacement text)\n>>>>>>> REPLACE\nKeep SEARCH blocks small but unique. Never invent text that is not in the file. To add code near the end, SEARCH a unique closing fragment and repeat it in the replacement. Output nothing after the final block.':'');
 }
 function parseAgent(text){
   let summary='Done.',target='NONE';
@@ -855,6 +891,7 @@ const interrupted=new Set();
 async function runAgent(key,premarked){
   const t=sot.threads[key],th=threads[key];
   if(!t||!th)return;
+  const coach=!!sot.projects[t.project]?.coachMode;
   if(activeRuns.has(key)||(t.state==='executing'&&!premarked)){toast('This thread is already building');return}
   activeRuns.add(key);
   const pend=th.data.messages.filter(m=>m.role==='user'&&m.status==='pending');
@@ -888,7 +925,7 @@ async function runAgent(key,premarked){
     const patchMode=baseChars>0&&needTok>cap*0.85;
     if(patchMode)dlog('preflight: '+codeFile+' needs ~'+Math.round(needTok/1000)+'k output tokens vs '+eng+' cap '+Math.round(cap/1000)+'k → PATCH MODE');
     const res=await runJob(key,{cfg:{...cfg},codeFile,planFile,inputFile:th.data.inputFile||null,images,ghRefs,webSearch:!!t.web,patchMode,
-      system:agentSystem(codeFile,planFile,patchMode),history,instr,chain,threadModel:t.model||null,threadEngine:eng,
+      system:agentSystem(codeFile,planFile,patchMode,coach),history,instr,chain,threadModel:t.model||null,threadEngine:eng,
        allowPlanCreate:!sot.projects[t.project].planExists&&pend.some(m=>m.text.startsWith('Create '+planFile+' — the master plan'))});
     if(interrupted.has(key))throw new Error('Interrupted by user');
     let{summary,target,body,state,usedEng,usedModel}=res;
@@ -905,7 +942,7 @@ async function runAgent(key,premarked){
         if(!beforePlan||!beforePlan.content.trim())throw new Error('Master plan is missing or empty; code was not written.');
         const planInstr='Update the master plan BEFORE the code write for this request. Preserve all existing goals, decisions, open items and prior ledger rows. Append a dated ledger row for the intended build and record its acceptance checks. Return TARGET: '+planFile+' and the COMPLETE updated Markdown plan, never patch blocks. User request:\n'+instr+'\nProposed code response summary: '+summary+'\nProposed target: '+target;
         const checkpoint=await runJob(key,{cfg:{...cfg},codeFile,planFile,inputFile:th.data.inputFile||null,images:[],ghRefs:[],webSearch:false,patchMode:false,
-          system:agentSystem(codeFile,planFile,false),history,instr:planInstr,chain,threadModel:t.model||null,threadEngine:eng});
+          system:agentSystem(codeFile,planFile,false,coach),history,instr:planInstr,chain,threadModel:t.model||null,threadEngine:eng});
         if(interrupted.has(key))throw new Error('Interrupted by user');
         const requiredHeadings=beforePlan.content.match(/^#{1,3} .+$/gm)||[];
         if(checkpoint.target!==planFile||!checkpoint.body.startsWith('#')||checkpoint.body.length<beforePlan.content.length*0.75||/^<{7} SEARCH$/m.test(checkpoint.body)
@@ -952,7 +989,13 @@ async function runAgent(key,premarked){
       reply+='\n⚠️ The engine claimed it cannot access GitHub, but '+ing.length+' file(s) WERE supplied in its context — that is a model failure, not a fetch failure. Switch this thread to a stronger model via the engine chip.';
     if(state)reply+='\n— '+state;
     if(interrupted.has(key))throw new Error('Interrupted by user');
-    const amsg={role:'agent',text:reply,summary,ts:now(),commit:commit||undefined,target:target!=='NONE'?target:undefined,state:state||undefined,engine:usedEng,model:usedModel};
+    const nextStep=(state||'').match(/next:\s*([^|]+)/i)?.[1]?.trim();
+    const coachText=target===planFile
+      ? summary+'\nI’ve saved where we’re headed. What would you like to try first?'
+      : target!=='NONE'
+        ? summary+'\nPlay it: '+testUrl+(nextStep?'\nYou could try '+nextStep+'.':'\nWhat would you like to change next?')
+        : (body||summary);
+    const amsg={role:'agent',text:reply,coachText,summary,ts:now(),commit:commit||undefined,target:target!=='NONE'?target:undefined,state:state||undefined,engine:usedEng,model:usedModel};
     th.data.messages.push(amsg);outboxAdd(key,amsg);
     th.data.lastState=state||th.data.lastState;
     progress[key]={line:'saving reply',at:Date.now(),started:(progress[key]||{}).started};renderProgress();
@@ -967,7 +1010,7 @@ async function runAgent(key,premarked){
       toast(key+' interrupted — message left queued');
       return;
     }
-    const emsg={role:'agent',text:'Failed: '+e.message,ts:now()};
+    const emsg={role:'agent',text:'Failed: '+e.message,coachText:'I couldn’t finish that step. Your request is saved. Tap Continue to try again, or ask me what happened.',ts:now()};
     th.data.messages.push(emsg);outboxAdd(key,emsg);
     try{th.sha=await putFileSafe(threadPath(key),JSON.stringify(th.data,null,1),'devstream: agent error '+key,th.sha)}catch(e2){}
     delete progress[key];
@@ -1163,7 +1206,8 @@ function renderProgress(){
   if(!activeKey)return;const t=sot.threads[activeKey];const p=progress[activeKey];
   const tt=$('typingText'),te=$('typingElapsed');if(!tt)return;
   if(t&&t.state==='executing'&&!isStalled(t)){
-    tt.textContent=p?p.line:'running (started on another device or before reload)';
+    const coach=!!sot.projects[t.project]?.coachMode;
+    tt.textContent=coach?'Working on your idea…':(p?p.line:'running (started on another device or before reload)');
     tt.style.color=p&&p.err?'var(--err)':'';
     const st=(p&&p.started)||new Date(t.startedAt).getTime();
     te.textContent=Math.round((Date.now()-st)/1000)+'s';
