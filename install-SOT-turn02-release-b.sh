@@ -14,6 +14,10 @@ PREV_DIR=""
 UNIT_PREV=""
 DB13_BACKUP=""
 DB13_ARCHIVE=""
+HELPER_BACKUP=""
+SUDOERS_BACKUP=""
+HELPER_PATH="/usr/local/sbin/sot-mount-drive"
+SUDOERS_PATH="/etc/sudoers.d/sot-mount-drive"
 B_ACTIVE=0
 A_ACTIVE=0
 ROLLBACK_ARMED=0
@@ -22,6 +26,8 @@ cleanup(){
   rm -rf "$STAGE" 2>/dev/null || true
   [[ -n "$UNIT_PREV" ]] && rm -f "$UNIT_PREV" 2>/dev/null || true
   [[ -n "$DB13_BACKUP" ]] && rm -f "$DB13_BACKUP" 2>/dev/null || true
+  [[ -n "$HELPER_BACKUP" ]] && rm -f "$HELPER_BACKUP" 2>/dev/null || true
+  [[ -n "$SUDOERS_BACKUP" ]] && rm -f "$SUDOERS_BACKUP" 2>/dev/null || true
 }
 
 rollback(){
@@ -33,6 +39,8 @@ rollback(){
   if [[ -n "$UNIT_PREV" && -f "$UNIT_PREV" ]]; then cp -a "$UNIT_PREV" "$UNIT_NEW"; fi
   if [[ -n "$DB13_BACKUP" && -f "$DB13_BACKUP" ]]; then cp -f "$DB13_BACKUP" "$DB13"; fi
   if [[ -n "$DB13_ARCHIVE" && -f "$DB13_ARCHIVE" && ! -f "$DB13" ]]; then cp -f "$DB13_ARCHIVE" "$DB13"; fi
+  if [[ -n "$HELPER_BACKUP" && -f "$HELPER_BACKUP" ]]; then sudo install -o root -g root -m 0755 "$HELPER_BACKUP" "$HELPER_PATH"; else sudo rm -f "$HELPER_PATH"; fi
+  if [[ -n "$SUDOERS_BACKUP" && -f "$SUDOERS_BACKUP" ]]; then sudo install -o root -g root -m 0440 "$SUDOERS_BACKUP" "$SUDOERS_PATH"; else sudo rm -f "$SUDOERS_PATH"; fi
   systemctl --user daemon-reload >/dev/null 2>&1 || true
   if [[ "$B_ACTIVE" -eq 1 ]]; then
     systemctl --user enable "$SERVICE_NEW" >/dev/null 2>&1 || true
@@ -55,6 +63,7 @@ FILES=(
   "sot-turn02-release-b-server.py"
   "sot-turn02-release-b.service"
   "sot-turn02-release-b.html"
+  "sot-mount-drive.sh"
   "qualify-release-b.py"
 )
 for f in "${FILES[@]}"; do
@@ -62,6 +71,7 @@ for f in "${FILES[@]}"; do
 done
 
 python3 -m py_compile   "$STAGE/SOT/sot-turn02-release-b-engine.py"   "$STAGE/SOT/sot-turn02-release-b-ai.py"   "$STAGE/SOT/sot-turn02-release-b-server.py"   "$STAGE/SOT/qualify-release-b.py"
+bash -n "$STAGE/SOT/sot-mount-drive.sh"
 
 python3 "$STAGE/SOT/qualify-release-b.py"
 
@@ -135,6 +145,16 @@ if [[ -f "$UNIT_NEW" ]]; then UNIT_PREV="$(mktemp "$HOME/.sot-turn02/release-b-u
 
 mv "$STAGE/SOT" "$ROOT/SOT"
 install -m 0644 "$ROOT/SOT/$SERVICE_NEW" "$UNIT_NEW"
+
+if sudo test -f "$HELPER_PATH"; then HELPER_BACKUP="$(mktemp "$HOME/.sot-turn02/sot-mount-drive.previous.XXXXXXXX")"; sudo cat "$HELPER_PATH" > "$HELPER_BACKUP"; fi
+if sudo test -f "$SUDOERS_PATH"; then SUDOERS_BACKUP="$(mktemp "$HOME/.sot-turn02/sot-mount-drive-sudoers.previous.XXXXXXXX")"; sudo cat "$SUDOERS_PATH" > "$SUDOERS_BACKUP"; fi
+sudo install -o root -g root -m 0755 "$ROOT/SOT/sot-mount-drive.sh" "$HELPER_PATH"
+printf '%s ALL=(root) NOPASSWD: %s\n' "$USER" "$HELPER_PATH" > "$STAGE/sot-mount-drive.sudoers"
+sudo visudo -cf "$STAGE/sot-mount-drive.sudoers" >/dev/null
+sudo install -o root -g root -m 0440 "$STAGE/sot-mount-drive.sudoers" "$SUDOERS_PATH"
+sudo -n "$HELPER_PATH" C
+echo "PASS governed Windows lazy-mount helper installed"
+
 systemctl --user daemon-reload
 systemctl --user enable "$SERVICE_NEW" >/dev/null
 systemctl --user restart "$SERVICE_NEW"
@@ -153,13 +173,15 @@ assert h["ok"] and h["version"]=="turn02-release-b" and h["schema"]==13 and h["p
 p=json.load(urllib.request.urlopen("http://127.0.0.1:8765/api/placements",timeout=15))
 assert p["ok"] and isinstance(p["placements"],list)
 a=json.load(urllib.request.urlopen("http://127.0.0.1:8765/api/ai/tasks",timeout=15))
-assert a["ok"] and len(a["task_types"])==6 and isinstance(a["tasks"],list),a
+assert a["ok"] and len(a["task_types"])==7 and "compare_paths" in a["task_types"] and isinstance(a["tasks"],list),a
+v=json.load(urllib.request.urlopen("http://127.0.0.1:8765/api/volumes",timeout=30))
+assert v["ok"] and any(str(x.get("windows_drive","")).upper()=="C:" and x.get("available") for x in v["volumes"]),v
 q=json.load(urllib.request.urlopen("http://127.0.0.1:8765/api/plan",timeout=15))["plan"]
 assert q["analysis"]["unique"]["bytes"]+q["analysis"]["keep"]["bytes"]+q["analysis"]["excess"]["bytes"]==q["analysis"]["estate"]["bytes"]
 if q["capacity"]["configured"]:
     assert q["capacity"]["estate"]["bytes"]+q["capacity"]["open"]["bytes"]==q["capacity"]["target"]["bytes"]
 assert q["operations"]["in_play"]["bytes"]+q["operations"]["landed"]["bytes"]==q["operations"]["estate"]["bytes"]
-print("PASS Release B health + Database + task catalog + additive Plan")
+print("PASS Release B health + Database + 7-task catalog + live volume reconciliation + additive Plan")
 PY
 
 test "$(sha256sum "$DB12" | awk '{print $1}')" = "$DB12_SUM"
@@ -186,6 +208,8 @@ ROLLBACK_ARMED=0
 [[ -n "$PREV_DIR" && -d "$PREV_DIR" ]] && rm -rf "$PREV_DIR"
 [[ -n "$DB13_BACKUP" && -f "$DB13_BACKUP" ]] && rm -f "$DB13_BACKUP" && DB13_BACKUP=""
 [[ -n "$UNIT_PREV" && -f "$UNIT_PREV" ]] && rm -f "$UNIT_PREV" && UNIT_PREV=""
+[[ -n "$HELPER_BACKUP" && -f "$HELPER_BACKUP" ]] && rm -f "$HELPER_BACKUP" && HELPER_BACKUP=""
+[[ -n "$SUDOERS_BACKUP" && -f "$SUDOERS_BACKUP" ]] && rm -f "$SUDOERS_BACKUP" && SUDOERS_BACKUP=""
 
 ENC_API="https%3A%2F%2F${DNS}%2Fsot"
 printf 'APP https://acmeproducts.github.io/stuff/SOT/sot-turn02-release-b.html?v=%s&api=%s\n' "$REF" "$ENC_API"
