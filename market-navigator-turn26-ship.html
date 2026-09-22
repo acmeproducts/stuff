@@ -431,7 +431,7 @@ function renderLiveTurn26(a){
   box.innerHTML=`<div class="liveHead26"><strong>LIVE · ${esc(live.intent.horizon)} · ${esc(live.intent.revisionMode)}</strong><span class="rowMeta">${esc(new Date(live.createdAt).toLocaleString())}</span></div><div>${DOMPurify.sanitize(marked.parse(live.answer||''))}</div><div class="contextNote26">Temporary live result. The saved analysis has not been changed.</div><div class="liveActions26"><button class="save" id="saveLive26">Save in Analysis</button><button id="discardLive26">Discard</button></div>`;
   $('transcript').appendChild(box);collapseContext26(box,a);
   $('saveLive26').onclick=()=>saveLiveCheckpoint26(a);
-  $('discardLive26').onclick=()=>{S.liveInvestigation26=null;renderLibrary()};
+  $('discardLive26').onclick=()=>{S.liveQuerySeq26=(S.liveQuerySeq26||0)+1;S.liveInvestigation26=null;renderLibrary()};
   $('transcript').scrollTop=$('transcript').scrollHeight
 }
 async function saveLiveCheckpoint26(a){
@@ -442,7 +442,7 @@ async function saveLiveCheckpoint26(a){
   a.turns.push({role:'assistant',content:live.answer,at:new Date().toISOString(),checkpointId:cp.id});
   if(JSON.stringify(a.state)!==before)throw Error('Original analysis state mutated during checkpoint save');
   a.updatedAt=cp.savedAt;a.status='ready';await persistAnalysis(a);
-  S.libraryCheckpoint26=S.libraryCheckpoint26||{};S.libraryCheckpoint26[a.id]=cp.id;S.liveInvestigation26=null;renderLibrary()
+  S.libraryCheckpoint26=S.libraryCheckpoint26||{};S.libraryCheckpoint26[a.id]=cp.id;S.liveQuerySeq26=(S.liveQuerySeq26||0)+1;S.liveInvestigation26=null;renderLibrary()
 }
 function contextSystem26(a,result){
   let original=aiEvidenceState(a.state),live=aiEvidenceState(result.state),timing=timingEvidence26(result.state);
@@ -453,6 +453,7 @@ function hasLiveContextLinks26(markdown){
   return /\[[^\]]+\]\(https?:\/\/[^)]+\)/i.test(s)||/https?:\/\/\S+/i.test(s)
 }
 async function runLiveInvestigation26(a,text,intent){
+  let seq=(S.liveQuerySeq26||0)+1;S.liveQuerySeq26=seq;
   let result=await governedLiveQuery26(a,intent),answer,bundle=null;
   if(intent&&intent.operation==='refresh-context'){
     let ctx=await callAIContext26([{role:'system',content:contextSystem26(a,result)},{role:'user',content:text}],result.state,text);
@@ -460,6 +461,7 @@ async function runLiveInvestigation26(a,text,intent){
   }else{
     answer=await callAI([{role:'system',content:contextSystem26(a,result)},{role:'user',content:text}],{web:true})
   }
+  if(seq!==S.liveQuerySeq26)return;
   S.liveInvestigation26={analysisId:a.id,question:text,intent,result,answer,contextSources:bundle,createdAt:new Date().toISOString()};renderLibrary()
 }
 
