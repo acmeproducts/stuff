@@ -126,7 +126,6 @@ def reconcile_ai_scope(scope):
    if not raw:continue
    p=reconcile_windows_path(raw,False)
    if p not in seen:seen.add(p);roots.append(p)
-  if not roots:raise RuntimeError("Compare Converted Files requires at least one Comparison Source")
   scope={"type":"compare_converted_files","roots":roots}
  return scope
 
