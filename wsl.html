@@ -16,6 +16,15 @@
   #hud .score{font-size:28px;font-weight:800;letter-spacing:1px;}
   #hud .best{font-size:13px;font-weight:600;opacity:.85;}
   #hud .timer{font-size:22px;font-weight:700;color:#8cff5a;min-width:64px;text-align:center;}
+  #hud .dist{font-size:14px;font-weight:700;color:#ffd700;min-width:70px;text-align:center;}
+  #btnSettings{
+    position:fixed;top:calc(env(safe-area-inset-top,0px) + 12px);right:12px;z-index:20;
+    width:44px;height:44px;border-radius:50%;border:none;background:#2a3a5a;
+    color:#fff;font-size:22px;box-shadow:0 4px 12px rgba(0,0,0,.4);pointer-events:auto;
+    display:flex;align-items:center;justify-content:center;touch-action:manipulation;
+    -webkit-tap-highlight-color:transparent;cursor:pointer;
+  }
+  #btnSettings:active{transform:scale(0.92);background:#3a4a7a;}
   #hint{position:fixed;bottom:calc(env(safe-area-inset-bottom,0px) + 140px);left:12px;right:12px;
     text-align:center;pointer-events:none;color:#eaf6ff;font-size:15px;
     text-shadow:0 2px 6px rgba(0,0,0,.75);z-index:5;}
@@ -31,6 +40,7 @@
     position:fixed;bottom:calc(env(safe-area-inset-bottom,0px) + 18px);
     left:0;right:0;display:flex;justify-content:center;align-items:center;gap:10px;
     padding:0 12px;z-index:10;pointer-events:none;
+    transition:all .3s ease;
   }
   .ctrl-btn{
     height:64px;min-width:72px;flex:1 1 auto;max-width:160px;
@@ -48,15 +58,43 @@
   #btnBack{background:linear-gradient(180deg,#00aaff,#0077aa);}
   #btnJump{background:linear-gradient(180deg,#39b54a,#2a8a36);}
   #btnFront{background:linear-gradient(180deg,#ff4444,#cc0000);}
+
+  @media (orientation: landscape) and (min-aspect-ratio: 16/9){
+    #ctrlRow{bottom:calc(env(safe-area-inset-bottom,0px) + 8px);}
+    .ctrl-btn{height:48px;min-width:60px;font-size:12px;border-radius:12px;}
+    #hint{bottom:calc(env(safe-area-inset-bottom,0px) + 110px);font-size:13px;}
+  }
+
+  #settingsPanel{
+    position:fixed;inset:0;background:rgba(5,12,28,.95);z-index:30;
+    display:none;flex-direction:column;align-items:center;justify-content:flex-start;
+    padding:calc(env(safe-area-inset-top,0px) + 20px) 20px calc(env(safe-area-inset-bottom,0px) + 20px);
+    color:#fff;overflow-y:auto;touch-action:pan-y;
+  }
+  #settingsPanel h2{margin:0 0 20px;font-size:24px;}
+  .setting-group{width:100%;max-width:400px;margin-bottom:20px;background:rgba(255,255,255,.08);padding:16px;border-radius:12px;}
+  .setting-group h3{margin:0 0 12px;font-size:16px;color:#8cff5a;}
+  .btn-row{display:flex;gap:8px;flex-wrap:wrap;}
+  .preset-btn{flex:1;min-width:60px;padding:10px;border-radius:8px;border:2px solid #444;background:#222;color:#fff;font-weight:700;font-size:14px;pointer-events:auto;}
+  .preset-btn.active{border-color:#8cff5a;background:#1a3a1a;}
+  .slider-wrap{display:flex;align-items:center;gap:12px;margin-top:8px;}
+  .slider-wrap input[type=range]{flex:1;}
+  .slider-label{min-width:80px;font-size:14px;font-weight:600;}
+  .value-display{min-width:40px;text-align:right;font-size:14px;font-family:monospace;}
+  select{width:100%;padding:10px;border-radius:8px;border:2px solid #444;background:#222;color:#fff;font-size:15px;margin-top:8px;}
+  #closeSettings{margin-top:auto;width:100%;max-width:400px;padding:16px;border-radius:12px;border:none;background:linear-gradient(180deg,#39b54a,#2a8a36);color:#fff;font-weight:800;font-size:16px;pointer-events:auto;}
+  .obstacle-preview{display:flex;gap:10px;margin-top:10px;align-items:center;font-size:13px;opacity:.8;}
 </style>
 </head>
 <body>
 <canvas id="game"></canvas>
 <div id="hud">
   <div class="score" id="score">0</div>
+  <div class="dist" id="dist">0″</div>
   <div class="timer" id="timer">0:00</div>
   <div class="best" id="best">BEST 0</div>
 </div>
+<button id="btnSettings" aria-label="Settings">⚙️</button>
 <div id="hint">Draw to extend • Tap track to release ⛄🛒</div>
 
 <div id="overlay">
@@ -73,17 +111,70 @@
   <button id="btnFront" class="ctrl-btn">FRONT &gt;</button>
 </div>
 
+<div id="settingsPanel">
+  <h2>⚙️ Settings</h2>
+  
+  <div class="setting-group">
+    <h3>Intensity Preset</h3>
+    <div class="btn-row">
+      <button class="preset-btn" data-preset="low">Low</button>
+      <button class="preset-btn" data-preset="med">Med</button>
+      <button class="preset-btn" data-preset="high">High</button>
+      <button class="preset-btn active" data-preset="custom">Custom</button>
+    </div>
+    <div class="slider-wrap" style="margin-top:12px;">
+      <span class="slider-label">Jump</span>
+      <input type="range" id="jumpForce" min="400" max="2000" step="100" value="800">
+      <span class="value-display" id="jumpVal">800</span>
+    </div>
+    <div class="slider-wrap">
+      <span class="slider-label">Flip</span>
+      <input type="range" id="flipForce" min="200" max="1200" step="100" value="400">
+      <span class="value-display" id="flipVal">400</span>
+    </div>
+  </div>
+
+  <div class="setting-group">
+    <h3>Audio Theme</h3>
+    <select id="audioTheme">
+      <option value="calm">Calm (Soft sine)</option>
+      <option value="fun">Fun (Triangle up)</option>
+      <option value="whimsical">Whimsical (Square vibrato)</option>
+      <option value="zen">Zen (Sine reverb)</option>
+    </select>
+  </div>
+
+  <div class="setting-group">
+    <h3>Difficulty / Obstacles</h3>
+    <div class="slider-wrap">
+      <span class="slider-label">Zen</span>
+      <input type="range" id="difficulty" min="0" max="3" step="1" value="1">
+      <span class="slider-label">Hard</span>
+    </div>
+    <div class="obstacle-preview" id="diffLabel">Low: Few black holes</div>
+  </div>
+
+  <button id="closeSettings">SAVE & CLOSE</button>
+</div>
+
 <script>
 (function(){
 "use strict";
 
 var cvs=document.getElementById('game'),ctx=cvs.getContext('2d',{alpha:false});
-var elScore=document.getElementById('score'),elBest=document.getElementById('best'),
-    elTimer=document.getElementById('timer'),elHint=document.getElementById('hint'),
-    elOverlay=document.getElementById('overlay'),elFinal=document.getElementById('finalScore'),
-    elBreak=document.getElementById('finalBreakdown'),
+var elScore=document.getElementById('score'),elDist=document.getElementById('dist'),
+    elBest=document.getElementById('best'),elTimer=document.getElementById('timer'),
+    elHint=document.getElementById('hint'),elOverlay=document.getElementById('overlay'),
+    elFinal=document.getElementById('finalScore'),elBreak=document.getElementById('finalBreakdown'),
     btnRescue=document.getElementById('btnRescue'),btnBack=document.getElementById('btnBack'),
-    btnJump=document.getElementById('btnJump'),btnFront=document.getElementById('btnFront');
+    btnJump=document.getElementById('btnJump'),btnFront=document.getElementById('btnFront'),
+    btnSettings=document.getElementById('btnSettings'),
+    settingsPanel=document.getElementById('settingsPanel'),
+    closeSettings=document.getElementById('closeSettings'),
+    jumpSlider=document.getElementById('jumpForce'),flipSlider=document.getElementById('flipForce'),
+    jumpVal=document.getElementById('jumpVal'),flipVal=document.getElementById('flipVal'),
+    audioSelect=document.getElementById('audioTheme'),diffSlider=document.getElementById('difficulty'),
+    diffLabel=document.getElementById('diffLabel');
 
 var W=0,H=0,DPR=1,zoom=1;
 var stars=[],flakes=[];
@@ -105,11 +196,51 @@ var G=1050,DRAG=0.1,ROLL=5,VMAX=2000;
 var AC=null;
 
 var rescueCharges=3;
-var survivalSeconds=0;
-var runStartTime=0;
-var isTiming=false;
-var baseScore=0;
-var rescueEditTrackIndex=-1;
+var survivalSeconds=0,runStartTime=0,isTiming=false;
+var baseScore=0,rescueEditTrackIndex=-1;
+var totalDistancePx=0;
+
+// Settings & Physics
+var settings={
+  intensity:'med',
+  jumpForce:1200,
+  flipForce:400,
+  audioTheme:'fun',
+  difficulty:1
+};
+var jumpChain=0,jumpChainTime=0;
+var obstacles=[];
+
+var PRESETS={
+  low:{jump:800,flip:300},
+  med:{jump:1200,flip:400},
+  high:{jump:1800,flip:800}
+};
+
+function loadSettings(){
+  try{
+    var s=localStorage.getItem('scl_settings');
+    if(s){
+      settings=JSON.parse(s);
+      applyUIFromSettings();
+    }
+  }catch(e){}
+}
+function saveSettings(){
+  try{localStorage.setItem('scl_settings',JSON.stringify(settings));}catch(e){}
+}
+function applyUIFromSettings(){
+  jumpSlider.value=settings.jumpForce;jumpVal.textContent=settings.jumpForce;
+  flipSlider.value=settings.flipForce;flipVal.textContent=settings.flipForce;
+  audioSelect.value=settings.audioTheme;
+  diffSlider.value=settings.difficulty;
+  updateDiffLabel(settings.difficulty);
+  document.querySelectorAll('.preset-btn').forEach(b=>b.classList.toggle('active',b.dataset.preset===settings.intensity));
+}
+function updateDiffLabel(v){
+  var txt=['Zen: No obstacles','Low: Few black holes','Med: Holes & rocks','Hard: Dense obstacles + fences'][v]||'Low';
+  diffLabel.textContent=txt;
+}
 
 function beep(f,dur){
   dur=dur||140;
@@ -117,8 +248,12 @@ function beep(f,dur){
     if(!AC){var Ctx=window.AudioContext||window.webkitAudioContext;if(!Ctx)return;AC=new Ctx();}
     if(AC.state==='suspended')AC.resume();
     var o=AC.createOscillator(),g=AC.createGain();
-    o.frequency.value=f;o.type='triangle';
-    g.gain.setValueAtTime(0.09,AC.currentTime);
+    var theme=settings.audioTheme;
+    if(theme==='calm'){o.type='sine';g.gain.setValueAtTime(0.06,AC.currentTime);}
+    else if(theme==='whimsical'){o.type='square';g.gain.setValueAtTime(0.04,AC.currentTime);o.detune.value=Math.sin(Date.now()/50)*20;}
+    else if(theme==='zen'){o.type='sine';g.gain.setValueAtTime(0.08,AC.currentTime);}
+    else{o.type='triangle';g.gain.setValueAtTime(0.09,AC.currentTime);}
+    o.frequency.value=f;
     g.gain.exponentialRampToValueAtTime(0.001,AC.currentTime+dur/1000);
     o.connect(g);g.connect(AC.destination);
     o.start();o.stop(AC.currentTime+dur/1000);
@@ -184,10 +319,70 @@ function nearestOnAnyTrack(x,y){
   return best;
 }
 
+function generateObstacles(){
+  obstacles=[];
+  var d=settings.difficulty;
+  if(d===0)return;
+  var count=[0,3,6,12][d]||3;
+  var types=d>=3?['blackhole','rock','fence']:['blackhole','rock'];
+  for(var i=0;i<count;i++){
+    var ox=800+Math.random()*3000;
+    var oy=(H*0.2)+Math.random()*(H*0.5);
+    var type=types[Math.floor(Math.random()*types.length)];
+    var o={x:ox,y:oy,type:type,r:20+Math.random()*25};
+    if(type==='fence'){o.w=80+Math.random()*60;o.h=12;}
+    obstacles.push(o);
+  }
+}
+function drawObstacles(){
+  for(var i=0;i<obstacles.length;i++){
+    var ob=obstacles[i];
+    if(ob.type==='blackhole'){
+      var grd=ctx.createRadialGradient(ob.x,ob.y,2,ob.x,ob.y,ob.r);
+      grd.addColorStop(0,'rgba(0,0,0,1)');grd.addColorStop(1,'rgba(80,0,120,0)');
+      ctx.fillStyle=grd;ctx.beginPath();ctx.arc(ob.x,ob.y,ob.r,0,Math.PI*2);ctx.fill();
+    }else if(ob.type==='rock'){
+      ctx.fillStyle='#5a5a5a';ctx.beginPath();
+      ctx.arc(ob.x,ob.y,ob.r,0,Math.PI*2);ctx.fill();
+      ctx.strokeStyle='#333';ctx.lineWidth=3;ctx.stroke();
+    }else if(ob.type==='fence'){
+      ctx.fillStyle='#8b4513';ctx.fillRect(ob.x-ob.w/2,ob.y-ob.h/2,ob.w,ob.h);
+      ctx.strokeStyle='#5c2e0b';ctx.strokeRect(ob.x-ob.w/2,ob.y-ob.h/2,ob.w,ob.h);
+    }
+  }
+}
+function checkObstacleCollisons(){
+  if(settings.difficulty===0)return;
+  for(var i=0;i<obstacles.length;i++){
+    var ob=obstacles[i];
+    var hit=false;
+    if(ob.type==='blackhole'){
+      if(Math.hypot(cart.x-ob.x,cart.y-ob.y)<ob.r-5)hit=true;
+    }else if(ob.type==='rock'){
+      if(Math.hypot(cart.x-ob.x,cart.y-ob.y)<ob.r+10)hit=true;
+    }else if(ob.type==='fence'){
+      if(Math.abs(cart.x-ob.x)<ob.w/2+12 && Math.abs(cart.y-ob.y)<ob.h/2+12)hit=true;
+    }
+    if(hit){crash('Obstacle!');return;}
+  }
+}
+function crash(reason){
+  addFloater(cart.x,cart.y,reason,'#ff4444');
+  die();
+}
+
 function toWorld(cx,cy){return{x:cx/zoom+camX,y:cy/zoom+camY};}
 function formatTime(sec){
   var m=Math.floor(sec/60),s=Math.floor(sec%60);
   return m+':'+(s<10?'0':'')+s;
+}
+function formatInches(px){
+  return Math.floor(px/20);
+}
+function updateScoreDisplay(){
+  var distScore=formatInches(totalDistancePx);
+  elScore.textContent=(baseScore);
+  elDist.textContent=distScore+'″';
 }
 function updateButtonText(){
   btnRescue.textContent='RESCUE x'+Math.max(0,rescueCharges);
@@ -200,14 +395,16 @@ function reset(){
   state=ST.READY;
   cart={track:0,s:0,v:0,x:0,y:0,ang:0,flip:0,flipAng:0};
   var p=pointAt(0,0);cart.x=p.x;cart.y=p.y;cart.ang=p.ang;
-  baseScore=0;maxPage=0;floaters=[];fall.t=0;fall.grace=0;
+  baseScore=0;maxPage=0;floaters=[];fall.t=0;fall.grace=0;jumpChain=0;
+  totalDistancePx=0;
   rescueCharges=3;rescueEditTrackIndex=-1;
   survivalSeconds=0;isTiming=false;runStartTime=0;
   zoom=1;resize();snapCamera();
   elOverlay.style.display='none';
   elHint.textContent='Draw to extend • Tap track to release ⛄🛒';
+  generateObstacles();
   beep(600,80);
-  updateButtonText();
+  updateButtonText();updateScoreDisplay();
 }
 function snapCamera(){
   var e=tracks[editTrack].pts[tracks[editTrack].pts.length-1];
@@ -229,11 +426,12 @@ function startFallOffTrack(reason){
   fall.vx=Math.cos(cart.ang)*cart.v;
   fall.vy=Math.sin(cart.ang)*cart.v*0.5;
   fall.rot=cart.ang;
-  fall.spin=fall.vx>=0?8:-8;
-  fall.t=0;fall.grace=0;
+  fall.spin=fall.vx>=0?4:-4;
+  fall.t=0;fall.grace=0.15;
   hole.x=p.x+(fall.vx>=0?300:-300);
   hole.y=p.y+180;
   state=ST.FALL;
+  elHint.textContent='Falling! Draw to rescue • JUMP • Flip • RESCUE';
   beep(160,180);
 }
 function landOnTrack(ti,s){
@@ -241,9 +439,8 @@ function landOnTrack(ti,s){
   cart.track=ti;cart.s=s;cart.x=p.x;cart.y=p.y;cart.ang=p.ang;
   var dot=fall.vx*Math.cos(p.ang)+fall.vy*Math.sin(p.ang);
   cart.v=Math.min(VMAX,Math.max(-VMAX,dot));
-  state=ST.RUN;
+  state=ST.RUN;cart.flip=0;cart.flipAng=0;fall.grace=0;jumpChain=0;
   if(!isTiming){runStartTime=performance.now();isTiming=true;}
-  cart.flip=0;cart.flipAng=0;fall.grace=0;
   addFloater(cart.x,cart.y-50,'LAND','#8cff5a');
   beep(880,120);
 }
@@ -261,8 +458,15 @@ function doRescue(){
   var tr=mkTrack(col);tr.rescue=true;tracks.push(tr);
   rescueEditTrackIndex=idx;
   editTrack=idx;
-  var p=pointAt(cart.track,Math.min(cart.s,tracks[cart.track].totalLen));
-  addPoint(idx,p.x,p.y+10);
+  var p;
+  if(state===ST.READY||state===ST.RUN){
+    p={x:cart.x,y:cart.y+10};
+  }else if(state===ST.FALL){
+    p={x:cart.x,y:cart.y+10};
+  }else{
+    p=pointAt(cart.track,Math.min(cart.s,tracks[cart.track].totalLen));
+  }
+  addPoint(idx,p.x,p.y);
   addPoint(idx,p.x+120,p.y+10);
   state=ST.RESCUE_EDIT;
   camX+=(p.x-camX)*0.5;camY+=(p.y-camY)*0.5;
@@ -271,20 +475,27 @@ function doRescue(){
   updateButtonText();
 }
 function doJump(){
+  var now=performance.now();
+  if(now-jumpChainTime>800)jumpChain=0;
+  jumpChainTime=now;jumpChain++;
+
+  var force=settings.jumpForce;
+  if(jumpChain>=3)force=Math.min(2200,force*1.6);
+
   if(state===ST.RUN){
     fall.vx=Math.cos(cart.ang)*Math.abs(cart.v);
-    fall.vy=-1800;
+    fall.vy=-force;
     fall.rot=cart.ang;
     fall.spin=0;
-    fall.t=0;fall.grace=0;
+    fall.t=0;fall.grace=0.12;
     cart.flip=0;cart.flipAng=0;
     state=ST.FALL;
-    beep(520,140);
-    addFloater(cart.x,cart.y-50,'JUMP','#8cff5a');
+    beep(520+jumpChain*80,140);
+    addFloater(cart.x,cart.y-50,jumpChain>=3?'BIG JUMP!':'JUMP','#8cff5a');
   }else if(state===ST.FALL){
-    fall.vy-=1100;
+    fall.vy-=force*0.6;
     if(fall.vy<-4000)fall.vy=-4000;
-    fall.spin+=(fall.vx>=0?4:-4);
+    fall.spin+=(fall.vx>=0?3:-3);
     beep(800,100);
     addFloater(cart.x,cart.y-70,'BOOST','#ffd700');
   }else{
@@ -293,9 +504,8 @@ function doJump(){
 }
 function triggerFlip(isFront){
   if(state===ST.RUN){
-    // Convert run momentum to fall with slight pop
     fall.vx=Math.cos(cart.ang)*Math.abs(cart.v);
-    fall.vy=-1200;
+    fall.vy=-settings.flipForce;
     fall.rot=cart.ang;
     fall.spin=0;
     fall.t=0;fall.grace=0.12;
@@ -308,20 +518,19 @@ function triggerFlip(isFront){
     return;
   }
 
+  var f=settings.flipForce;
   if(isFront){
-    // Moderate forward boost
-    fall.vx = Math.abs(fall.vx) + 800;
-    fall.vy -= 800;
-    if(fall.vy < -2800) fall.vy = -2800;
-    fall.spin += 10;
+    fall.vx = Math.abs(fall.vx) + f*0.8;
+    fall.vy -= f*0.6;
+    if(fall.vy < -3500) fall.vy = -3500;
+    fall.spin += 6;
     beep(600,100);beep(950,130);
     addFloater(cart.x,cart.y-60,'FLIP >','#ff6666');
   }else{
-    // Moderate backward boost, slightly more height
-    fall.vx = -Math.abs(fall.vx) - 500;
-    fall.vy -= 1000;
-    if(fall.vy < -2800) fall.vy = -2800;
-    fall.spin -= 8;
+    fall.vx = -Math.abs(fall.vx) - f*0.5;
+    fall.vy -= f*0.8;
+    if(fall.vy < -3500) fall.vy = -3500;
+    fall.spin -= 5;
     beep(450,130);beep(700,160);
     addFloater(cart.x,cart.y-60,'< FLIP','#66ccff');
   }
@@ -333,11 +542,12 @@ function die(){
 }
 function gameOver(){
   state=ST.OVER;
-  var finalScore=baseScore+Math.floor(survivalSeconds*10);
+  var inchScore=formatInches(totalDistancePx);
+  var finalScore=baseScore+inchScore+Math.floor(survivalSeconds*10);
   try{if(finalScore>parseInt(localStorage.getItem('scl_best')||'0',10))localStorage.setItem('scl_best',String(finalScore));}catch(e){}
   var bestScore=0;try{bestScore=parseInt(localStorage.getItem('scl_best')||'0',10);}catch(e){}
   elFinal.textContent=finalScore+' PTS';
-  elBreak.textContent='Base '+baseScore+' • Time '+formatTime(Math.floor(survivalSeconds))+' ×10 • Best '+bestScore;
+  elBreak.textContent='Base '+baseScore+' • '+inchScore+'″ • Time '+formatTime(Math.floor(survivalSeconds))+' ×10 • Best '+bestScore;
   elOverlay.style.display='flex';
   elHint.textContent='';
 }
@@ -353,6 +563,8 @@ function update(dt){
     elTimer.textContent=formatTime(Math.floor(survivalSeconds));
   }
 
+  updateScoreDisplay();
+
   if(state===ST.RESCUE_EDIT){
     camX+=(cart.x-W*0.35/zoom - camX)*Math.min(1,dt*4);
     camY+=(cart.y-H*0.55/zoom - camY)*Math.min(1,dt*4);
@@ -361,18 +573,24 @@ function update(dt){
 
   var tx,ty;
   if(state===ST.READY){var e=tracks[editTrack].pts[tracks[editTrack].pts.length-1];tx=e.x-W*0.58/zoom;ty=e.y-H*0.55/zoom;}
-  else if(state===ST.RUN||state===ST.FALL){tx=cart.x-W*0.35/zoom;ty=cart.y-H*0.55/zoom;}
-  else if(state===ST.SUCK||state===ST.OVER){tx=camX;ty=camY;}
-  var k=Math.min(1,dt*6);camX+=(tx-camX)*k;camY+=(ty-camY)*k;
+  else if(state===ST.RUN||state===ST.FALL){
+    tx=cart.x-W*0.35/zoom;ty=cart.y-H*0.55/zoom;
+    if(state===ST.FALL && cart.y<camY+H*0.2){ty=cart.y-H*0.3/zoom;}
+  }else if(state===ST.SUCK||state===ST.OVER){tx=camX;ty=camY;}
+  
+  var k=Math.min(1,dt*4);camX+=(tx-camX)*k;camY+=(ty-camY)*k;
 
   if(state===ST.RUN){
+    checkObstacleCollisons();
     var tr=tracks[cart.track];
     if(!tr||tr.pts.length<2){startFallOffTrack('notrack');return;}
     var p0=pointAt(cart.track,cart.s);
     var acc=G*Math.sin(p0.ang)-DRAG*cart.v-(cart.v>0?ROLL:(cart.v<0?-ROLL:0));
     cart.v+=acc*dt;
     if(cart.v>VMAX)cart.v=VMAX;else if(cart.v<-VMAX)cart.v=-VMAX;
-    cart.s+=cart.v*dt;
+    var ds = cart.v*dt;
+    cart.s+=ds;
+    totalDistancePx+=Math.abs(ds);
     
     if(cart.s>tr.totalLen&&cart.v>0){startFallOffTrack('end');return;}
     
@@ -383,7 +601,7 @@ function update(dt){
     fall.t+=dt;
     if(fall.grace>0)fall.grace-=dt;
     if(cart.flip===1){
-      cart.flipAng+= (Math.PI*2)/0.35 * dt;
+      cart.flipAng+= (Math.PI*2)/0.5 * dt;
       if(cart.flipAng>=Math.PI*2){cart.flip=2;cart.flipAng=Math.PI*2;}
     }
     fall.vy+=G*dt;
@@ -426,6 +644,7 @@ function draw(){
     ctx.strokeStyle=tr.color;ctx.lineWidth=3.5/zoom;ctx.stroke();
     if(tr.rescue){ctx.strokeStyle='rgba(255,255,255,0.5)';ctx.lineWidth=8/zoom;ctx.stroke();}
   }
+  drawObstacles();
   if(state===ST.READY||state===ST.RESCUE_EDIT){
     var et=tracks[editTrack];if(et&&et.pts.length){
       var e=et.pts[et.pts.length-1],t=performance.now()/250;
@@ -481,8 +700,50 @@ btnBack.addEventListener('pointerdown',function(e){e.preventDefault();e.stopProp
 btnFront.addEventListener('pointerdown',function(e){e.preventDefault();e.stopPropagation();triggerFlip(true);});
 btnJump.addEventListener('pointerdown',function(e){e.preventDefault();e.stopPropagation();doJump();});
 
+btnSettings.addEventListener('click',function(){
+  settingsPanel.style.display='flex';
+});
+closeSettings.addEventListener('click',function(){
+  settingsPanel.style.display='none';
+  saveSettings();
+});
+
+document.querySelectorAll('.preset-btn').forEach(function(btn){
+  btn.addEventListener('click',function(){
+    var p=btn.dataset.preset;
+    settings.intensity=p;
+    document.querySelectorAll('.preset-btn').forEach(b=>b.classList.remove('active'));
+    btn.classList.add('active');
+    if(PRESETS[p]){
+      settings.jumpForce=PRESETS[p].jump;
+      settings.flipForce=PRESETS[p].flip;
+      jumpSlider.value=settings.jumpForce;jumpVal.textContent=settings.jumpForce;
+      flipSlider.value=settings.flipForce;flipVal.textContent=settings.flipForce;
+    }
+  });
+});
+jumpSlider.addEventListener('input',function(){
+  settings.intensity='custom';
+  settings.jumpForce=parseInt(this.value);
+  jumpVal.textContent=this.value;
+  document.querySelectorAll('.preset-btn').forEach(b=>b.classList.remove('active'));
+  document.querySelector('[data-preset="custom"]').classList.add('active');
+});
+flipSlider.addEventListener('input',function(){
+  settings.intensity='custom';
+  settings.flipForce=parseInt(this.value);
+  flipVal.textContent=this.value;
+  document.querySelectorAll('.preset-btn').forEach(b=>b.classList.remove('active'));
+  document.querySelector('[data-preset="custom"]').classList.add('active');
+});
+audioSelect.addEventListener('change',function(){settings.audioTheme=this.value;});
+diffSlider.addEventListener('input',function(){
+  settings.difficulty=parseInt(this.value);
+  updateDiffLabel(settings.difficulty);
+});
+
 window.addEventListener('pointerdown',function(e){
-  if(e.target.closest('.ctrl-btn'))return;
+  if(e.target.closest('.ctrl-btn')||e.target.closest('#settingsPanel')||e.target.closest('#btnSettings'))return;
   pointers.set(e.pointerId,{x:e.clientX,y:e.clientY});
   if(pointers.size===2){
     var pts=Array.from(pointers.values()),dx=pts[0].x-pts[1].x,dy=pts[0].y-pts[1].y;
@@ -492,6 +753,9 @@ window.addEventListener('pointerdown',function(e){
   if(state===ST.OVER){reset();return;}
   if(state===ST.READY||state===ST.RUN||state===ST.RESCUE_EDIT){
     drawing=true;
+  }else if(state===ST.FALL){
+    doRescue();
+    if(state===ST.RESCUE_EDIT) drawing=true;
   }
 },{passive:false});
 window.addEventListener('pointermove',function(e){
@@ -509,7 +773,7 @@ window.addEventListener('pointermove',function(e){
 },{passive:false});
 window.addEventListener('pointerup',function(e){
   pointers.delete(e.pointerId);if(pointers.size<2)pinchStartDist=0;
-  if(e.target.closest('.ctrl-btn'))return;
+  if(e.target.closest('.ctrl-btn')||e.target.closest('#settingsPanel')||e.target.closest('#btnSettings'))return;
   var wasDrawing=drawing;drawing=false;
   if(state===ST.OVER)return;
   if(state===ST.READY&&wasDrawing&&!moved){
@@ -537,6 +801,7 @@ window.addEventListener('wheel',function(e){
 window.addEventListener('resize',resize);
 window.addEventListener('orientationchange',function(){setTimeout(resize,300);});
 
+loadSettings();
 resize();reset();
 requestAnimationFrame(function loop(t){
   requestAnimationFrame(loop);
@@ -544,59 +809,9 @@ requestAnimationFrame(function loop(t){
   stepFlakes(dt);
   for(var i=floaters.length-1;i>=0;i--){if(floaters[i].t>1.3)floaters.splice(i,1);}
   update(dt);draw();
-  elScore.textContent=baseScore;
   try{var b=parseInt(localStorage.getItem('scl_best')||'0',10);elBest.textContent='BEST '+b;}catch(e){elBest.textContent='BEST 0';}
 });
 })();
 </script>
 </body>
 </html>
-
-PLAN file wsl.md:
-<plan>
-# WSL — Master Plan
-
-Single-file mobile-first HTML app (wsl.html). This plan is the sole authority and the only memory that persists between runs. Chat history may be partial or missing.
-
-## Define
-
-**Working title:** Snowman Coal-Cart Line Rider (from owner instructions + image v3.png)
-
-**Purpose:** A mobile-first, single-file HTML arcade game where the player draws track, releases a snowman in a coal cart, and keeps it alive by drawing ahead or manually rescuing. No automatic "stuck/deadpool" detection exists—the player alone decides when a rescue is needed.
-
-**Users:** Casual mobile players; short sessions; one-thumb/two-thumb play.
-
-**Core loop:**
-1. A track exists; tap it to release the cart.
-2. Cart rolls on momentum (gravity, slope, drag).
-3. Player may press **JUMP** at any time during a run to launch into the air. Repeated JUMP taps while airborne stack height (upward velocity) for bigger arcs.
-4. If the cart leaves the track (end, gap, or jump), it enters FALL. In FALL, player may use **BACK FLIP** (short boost up/back) or **FRONT FLIP** (long forward reach) to try to catch another track.
-5. **RESCUE** can be pressed at **any time** (RUN, FALL, even READY). It consumes one charge (3 total), freezes time, spawns a new colored track under the cart (orange → blue → red per use), and enters EDIT mode to draw a replacement line. Tap the cart to resume RUN on that new line.
-6. Failure = cart falls into the black hole. Timer pauses during RESCUE_EDIT. Final score = base points (distance pages + trick bonuses) + (survival seconds × 10).
-
-**Controls (bottom center row, always visible, always tappable):**
-- **RESCUE** (left-most): Shows remaining charges "x3/x2/x1/x0". Clicking anytime consumes one charge and opens the rescue draw-mode.
-- **< BACK** (second): Only functional during FALL. Performs a back-flip (moderate height gain, short backward impulse).
-- **JUMP** (third): During RUN → launch into FALL with upward velocity. During FALL → add upward boost (cumulative, capped) to extend airtime/climb.
-- **FRONT >** (right-most): Only during FALL. Long forward flip covering more ground.
-
-**Why:** Removing automatic detection puts skill entirely in player judgment—reading oscillation, deciding when a line is unrecoverable, and conserving 3 precious rescues for true emergencies.
-
-**Success criteria:**
-- One HTML file, no external assets.
-- Touch-first, mobile-optimized, pinch/wheel zoom preserved.
-- Jump stacking must be noticeable (visual feedback + sound pitch rise).
-- Rescue freeze must pause timer and physics; resume snaps cart to new track start.
-- No greyed/disabled buttons—always render full color; invalid presses simply no-op or harmless beep.
-
-## Backlog
-- DONE (2026-09-20): Defined four-button centered layout including JUMP.
-- DONE (2026-09-20): Specified rescue works in any state (no deadpool detection).
-- DONE (2026-09-20): Jump mechanics defined (initial launch + repeated tap boost).
-
-## Turn/Stage Ledger
-| Date | Stage | What happened |
-|---|---|---|
-| 2026-09-20 | DEFINE | Refined controls to four buttons (RESCUE/BACK/JUMP/FRONT); removed all automatic deadpool detection; rescue usable anytime; jump supports repeated taps for extra height; timer pauses in RESCUE_EDIT. |
-| 2026-09-21 | TUNE | Nerfed flip strengths: reduced horizontal impulse (+800/-500 vs +5200/-1800), vertical boost (-800/-1000 vs -2000/-3200), and spin (+10/-8 vs +28/-24) for balanced gameplay. |
-</plan>

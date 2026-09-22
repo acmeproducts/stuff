@@ -972,3 +972,33 @@ Release blocking:
 - selecting another modal series as primary changes the comparison/rebase reference without changing NOW;
 - modal AI POV closes modal, opens Library, and persists the exact modal state;
 - retained Turn 26 QA remains green.
+
+
+### 34.6 Clarified Turn 26 baseline and Library context export contract — 2026-09-21
+
+The implementation baseline for this correction is the deployed `market-navigator-turn26-ship.html` surface at `https://acmeproducts.github.io/stuff/market-navigator-turn26-ship.html`.
+
+The standalone Analyze modal is a fresh analysis page rooted at the series chosen from the long-press information card. Its root/breadcrumb label is that selected series. Its horizon selection is modal-local and must not change the underlying NOW horizon. It exposes all seven governed horizons, `+ Add`, and the `…` action menu. AI POV freezes the exact modal state, closes the modal, immediately opens Library with the new analysis card visibly in `processing` state, and then completes that same card when the AI response returns.
+
+Library `Context & Further Reading · N sources` is evidence, not optional decoration. It must:
+
+- default **expanded/open** in the Library transcript;
+- retain every live source hyperlink returned in the frozen analysis;
+- render expanded in Library Print, including all source links and the external-source boilerplate footnote;
+- remain present in full in Download Markdown, including the Markdown hyperlinks;
+- never be dropped, collapsed-away, or replaced by a source count alone in print/download outputs.
+
+Release qualification must prove modal-local horizon independence, selected-series root identity, processing-card handoff, expanded Library context, expanded print context, and linked Markdown download.
+
+
+### 34.7 Seeded-question mobile readability — 2026-09-21
+
+The Library `?` seeded-question menu must remain fully contained inside the Library detail card on mobile. It may not extend underneath the left rail or clip the beginning of any question. Every question must:
+
+- start from a consistent visible left inset;
+- wrap naturally within the available Library width;
+- use readable line-height and spacing between questions;
+- remain left-aligned;
+- avoid horizontal scrolling or clipped first words.
+
+At 412px mobile width, the menu bounds and every question row must remain within the Library detail card.

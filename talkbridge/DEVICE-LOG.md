@@ -1,41 +1,8 @@
 # TalkBridge device log
 
-Both handsets write here. Drained 2026-09-21T22:40:33Z, every 30s. Newest at the bottom.
+Both handsets write here. Drained 2026-09-22T01:15:08Z, every 30s. Newest at the bottom.
 
 ```
-08:58:59.962 [iphone-7qf] md1_rendered {"id":"p-p-12"}
-08:58:59.962 [iphone-7qf] md1_rendered {"id":"p-m-10"}
-08:58:59.962 [iphone-7qf] md1_rendered {"id":"p-p-13"}
-08:58:59.963 [iphone-7qf] md1_rendered {"id":"p-m-11"}
-08:58:59.963 [iphone-7qf] md1_rendered {"id":"p-p-14"}
-08:58:59.963 [iphone-7qf] md1_rendered {"id":"p-m-12"}
-08:58:59.963 [iphone-7qf] md1_rendered {"id":"p-p-15"}
-08:58:59.964 [iphone-7qf] md1_rendered {"id":"p-m-13"}
-08:58:59.964 [iphone-7qf] md1_rendered {"id":"p-m-14"}
-08:58:59.964 [iphone-7qf] md1_rendered {"id":"p-p-16"}
-08:58:59.964 [iphone-7qf] md1_rendered {"id":"p-m-15"}
-08:58:59.964 [iphone-7qf] md1_rendered {"id":"p-p-17"}
-08:58:59.965 [iphone-7qf] md1_rendered {"id":"p-m-16"}
-08:58:59.965 [iphone-7qf] md1_rendered {"id":"p-p-18"}
-08:58:59.965 [iphone-7qf] md1_rendered {"id":"p-m-17"}
-08:58:59.965 [iphone-7qf] md1_rendered {"id":"p-m-19"}
-08:58:59.966 [iphone-7qf] md1_rendered {"id":"p-p-19"}
-08:58:59.966 [iphone-7qf] md1_rendered {"id":"p-m-18"}
-08:58:59.966 [iphone-7qf] md1_rendered {"id":"p-m-20"}
-08:58:59.966 [iphone-7qf] md1_rendered {"id":"p-p-20"}
-08:58:59.966 [iphone-7qf] md1_rendered {"id":"p-m-21"}
-08:58:59.967 [iphone-7qf] md1_rendered {"id":"p-p-21"}
-08:58:59.992 [iphone-7qf] read_receipts_sent {"n":1}
-08:58:59.992 [iphone-7qf] history_sync_merged {"n":43,"done":true}
-08:59:07.114 [android-brg] rc_panel_rendered {"live":1,"bin":0,"wired":1}
-08:59:07.114 [android-brg] rc_home_rendered {"cards":0,"wired":0}
-08:59:07.117 [android-brg] joiner_create_control {"shown":true}
-08:59:15.699 [iphone-7qf] rc_panel_rendered {"live":1,"bin":0,"wired":1}
-08:59:15.699 [iphone-7qf] rc_home_rendered {"cards":0,"wired":0}
-08:59:15.699 [iphone-7qf] joiner_create_control {"shown":false}
-08:59:21.280 [android-brg] pr3_dot {"others":1}
-08:59:21.375 [iphone-7qf] pr3_dot {"others":1}
-08:59:27.119 [android-brg] rc_panel_rendered {"live":1,"bin":0,"wired":1}
 08:59:27.119 [android-brg] rc_home_rendered {"cards":0,"wired":0}
 08:59:27.120 [android-brg] joiner_create_control {"shown":true}
 08:59:29.825 [android-brg] pr3_dot {"others":1}
@@ -4002,4 +3969,37 @@ Both handsets write here. Drained 2026-09-21T22:40:33Z, every 30s. Newest at the
 16:49:03.080 [android-brg] joiner_create_control {"shown":true}
 16:49:23.132 [android-brg] rc_panel_rendered {"live":1,"bin":0,"wired":1}
 16:49:23.133 [android-brg] rc_home_rendered {"cards":0,"wired":0}
-16:49:23.152 [android-brg] joiner_create_control {"shown":true}```
+16:49:23.152 [android-brg] joiner_create_control {"shown":true}
+00:00:13.217 [android-brg] n16_devlog {"dev":"android-brg"}
+00:00:13.217 [android-brg] u1_manifest_swapped {}
+00:00:13.218 [android-brg] b8c_ready {}
+00:00:13.218 [android-brg] build {"c":"turn26-ship-c6","file":"bridge-turn26-ship.html","built":"2026-09-06 09:04 UTC"}
+00:00:13.218 [android-brg] build {"c":"turn26-post-ship-md1","file":"bridge-turn26-post-ship.html","built":"2026-09-06 21:29 UTC"}
+00:00:13.218 [android-brg] build {"c":"turn27-base-presence","file":"bridge-turn27-base.html","built":"2026-09-13 15:12 UTC"}
+00:00:13.218 [android-brg] build {"c":"turn27-pre-ship-n1","file":"bridge-turn27-pre-ship.html","built":"2026-09-13 21:29 UTC"}
+00:00:13.218 [android-brg] build {"c":"turn27-ship-video-c5","file":"bridge-turn27-ship.html","built":"2026-09-15 00:31 UTC"}
+00:00:13.218 [android-brg] k1_ids {"prefix":"0224e6cd"}
+00:00:13.237 [android-brg] wrap_map {"symbols":65,"map":{"enterRoom":["A-session-and-transcription.js","R-room-card.js","J-joiner-shell.js","L-room-lifecycle.js","M-room-menu.js","R9-phrasebook-mirror.js"],"leaveRoomInternals":["A-session-and-transcription.js","R9-phrasebook-mirror.js"],"CALL.start":["A-session-and-transcription.js","R9-phrasebook-mirror.js"],"CALL.accept":["A-session-and-transcription.js","R9-phrasebook-mirror.js"]
+00:00:13.238 [android-brg] nopw_swept {"fields":19,"changed":15}
+00:00:13.238 [android-brg] nopw_swept {"fields":19,"changed":0}
+00:00:13.246 [android-brg] p2_gate_shown {"platform":"android","invite":false}
+00:00:13.516 [android-brg] rc_panel_no_body {}
+00:00:13.665 [android-brg] lc_create_capture_wired {}
+00:00:13.716 [android-brg] lc_boot_check {"grant":false,"expires":null,"cleared":false,"canCreate":true}
+00:00:13.717 [android-brg] r8_menu_labels {"applied":3,"of":3}
+00:00:13.718 [android-brg] r8_flag_bands {"dressed":2}
+00:00:13.718 [android-brg] r8_no_clock {}
+00:00:13.718 [android-brg] r8_r8a_installed {}
+00:00:13.815 [android-brg] net_armed {}
+00:00:13.817 [android-brg] rm_share_merged_into_general {}
+00:00:13.817 [android-brg] rm_manage_pane_built {}
+00:00:13.818 [android-brg] rm_room_name_field_taken_over {}
+00:00:13.819 [android-brg] rm_header_bg_picker_built {}
+00:00:13.820 [android-brg] r8_r8b_init {}
+00:00:14.117 [android-brg] rib_layout_built {"moved":3,"of":3}
+00:23:44.154 [desktop-y0z] net_returned {"why":"visible","awayMs":69577930,"inRoom":false,"inCall":false}
+00:23:44.252 [desktop-y0z] cr3_announce {"why":"visible","visible":true,"lanes":0}
+00:23:44.253 [desktop-y0z] cr3_recover {"why":"visible","n":1,"inRoom":false}
+00:23:57.511 [desktop-y0z] net_returned {"why":"focus","awayMs":13360,"inRoom":false,"inCall":false}
+00:23:57.551 [desktop-y0z] cr3_announce {"why":"focus","visible":true,"lanes":0}
+00:23:57.551 [desktop-y0z] cr3_recover {"why":"focus","n":2,"inRoom":false}```

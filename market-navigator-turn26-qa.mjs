@@ -49,7 +49,7 @@ The timing is consistent with the observed move, but does not establish causatio
  await page.route('https://cdn.jsdelivr.net/npm/marked/marked.min.js',r=>r.fulfill({status:200,contentType:'text/javascript',body:fs.readFileSync(path.join(ROOT,'node_modules/marked/marked.min.js'),'utf8')}));
  await page.route('https://cdn.jsdelivr.net/npm/dompurify@3.1.6/dist/purify.min.js',r=>r.fulfill({status:200,contentType:'text/javascript',body:fs.readFileSync(path.join(ROOT,'node_modules/dompurify/dist/purify.min.js'),'utf8')}));
  await page.route('https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js',r=>r.fulfill({status:200,contentType:'text/javascript',body:'window.XLSX=window.XLSX||{};'}));
- await page.route('https://api.venice.ai/**',r=>r.fulfill({status:200,contentType:'application/json',body:JSON.stringify({choices:[{message:{content:AI}}]})}));
+ await page.route('https://api.venice.ai/**',async r=>{await new Promise(res=>setTimeout(res,600));await r.fulfill({status:200,contentType:'application/json',body:JSON.stringify({choices:[{message:{content:AI}}]})})});
  try{
    await page.goto(origin+'/'+ARTIFACT,{waitUntil:'load'});
    await page.waitForFunction(()=>window.__mnShip25&&window.__mnShip25.ready()&&window.__mnTurn26,{timeout:30000});
@@ -58,7 +58,6 @@ The timing is consistent with the observed move, but does not establish causatio
    check('retained governed arithmetic',await page.evaluate(()=>window.__mnShip25.record('risk','1YR').status==='RECONCILED'));
    check('Turn26 API present',await page.evaluate(()=>window.__mnTurn26.version==='turn26-live-library-1'));
    // Turn 26 standalone Analyze correction.
-   const nowBeforeStandalone=await page.evaluate(()=>JSON.stringify(window.__mnShip25.nowState?window.__mnShip25.nowState():null)).catch(()=>null);
    await page.locator('#legend [data-id="risk"]').click();
    await page.waitForFunction(()=>document.querySelector('#nowCrumb')?.textContent?.includes('*'));
    check('compact components breadcrumb uses star',await page.locator('#nowCrumb').textContent().then(t=>t.includes('*')&&!/COMPONENTS/.test(t)));
@@ -75,14 +74,28 @@ The timing is consistent with the observed move, but does not establish causatio
    const sourceHref=await page.locator('#nowSeriesAbout a[target="_blank"]').getAttribute('href');
    check('info card Source deep-links exact Health entry',sourceHref&&sourceHref.includes('#health-source-'+componentId),sourceHref||'');
    check('info card exposes Analyze icon',await page.locator('#analyzeNowSeries26[title="Analyze"]').count()===1);
-   const nowStateBeforeModal=await page.evaluate(()=>JSON.stringify(window.__mnShip25.nowState?window.__mnShip25.nowState():null)).catch(()=>null);
+   const nowStateBeforeModal=await page.evaluate(()=>JSON.stringify(window.__mnShip25.nowState()));
+   const nowHorizonBeforeModal=await page.evaluate(()=>window.__mnShip25.horizon());
    await page.click('#analyzeNowSeries26');
    await page.waitForSelector('#standaloneAnalysis26:not(.hidden)');
    check('Analyze opens standalone modal',await page.locator('#standaloneAnalysis26[aria-modal="true"]').count()===1);
-   check('modal primary starts from selected component',await page.evaluate(id=>window.__mnStandalone26&&window.__mnStandalone26.state().active===id,componentId));
+   check('modal root is selected component only',await page.evaluate(id=>{
+     const st=window.__mnStandalone26.state(),title=document.getElementById('standaloneAnalysisTitle26').textContent.trim();
+     return st&&st.root===id&&st.index===null&&title.length>0&&!/^Analyze/i.test(title);
+   },componentId));
+   check('standalone modal exposes all horizons',await page.locator('#analysisHz [data-analysis-h]').count()===7);
+   check('standalone modal exposes Add and More',await page.locator('#analysisAdd26').count()===1&&await page.locator('#analysisMore26').count()===1);
+   await page.click('#analysisMore26');
+   const menuText=(await page.locator('#analysisMenu26').innerText()).replace(/\s+/g,' ');
+   check('standalone More retains full actions',/AI POV/.test(menuText)&&/Data/.test(menuText)&&/Print/.test(menuText)&&/Download Markdown/.test(menuText)&&/Download CSV/.test(menuText)&&/Download JSON/.test(menuText),menuText);
+   await page.click('#analysisMore26');
+   const targetH=nowHorizonBeforeModal==='1YR'?'3YR':'1YR';
+   await page.click('#analysisHz [data-analysis-h="'+targetH+'"]');
+   await page.waitForFunction(h=>window.__mnStandalone26.state()?.horizon===h,targetH);
+   check('modal horizon is local',await page.evaluate(([h,nowh])=>window.__mnStandalone26.state().horizon===h&&window.__mnShip25.horizon()===nowh,[targetH,nowHorizonBeforeModal]));
    await page.locator('#standaloneAnalysis26').click({position:{x:2,y:2}});
    check('outside click does not dismiss standalone modal',await page.locator('#standaloneAnalysis26:not(.hidden)').count()===1);
-   check('opening modal leaves NOW state unchanged',await page.evaluate(b=>JSON.stringify(window.__mnShip25.nowState?window.__mnShip25.nowState():null)===b,nowStateBeforeModal));
+   check('opening/using modal leaves NOW state unchanged',await page.evaluate(b=>JSON.stringify(window.__mnShip25.nowState())===b,nowStateBeforeModal));
    await page.click('#analysisAdd26');
    await page.waitForSelector('#analysisPicker26:not(.hidden)');
    const addButton=page.locator('#analysisPickerList26 [data-analysis-add]:not([disabled])').first();
@@ -96,22 +109,53 @@ The timing is consistent with the observed move, but does not establish causatio
    await page.click('#analysisClose26');
    await page.waitForFunction(()=>document.getElementById('standaloneAnalysis26').classList.contains('hidden'));
    check('explicit X closes standalone modal',await page.locator('#standaloneAnalysis26.hidden').count()===1);
-   check('closing modal restores unchanged NOW state',await page.evaluate(b=>JSON.stringify(window.__mnShip25.nowState?window.__mnShip25.nowState():null)===b,nowStateBeforeModal));
+   check('closing modal restores unchanged NOW state',await page.evaluate(b=>JSON.stringify(window.__mnShip25.nowState())===b,nowStateBeforeModal));
 
+   // Reopen and prove AI POV closes modal and opens a processing Library card immediately.
+   await page.evaluate(id=>window.__mnStandalone26.open(id),componentId);
+   await page.waitForSelector('#standaloneAnalysis26:not(.hidden)');
+   await page.click('#analysisMore26');
+   await page.click('#analysisAI26');
+   await page.waitForFunction(()=>document.getElementById('standaloneAnalysis26').classList.contains('hidden'));
+   await page.waitForFunction(()=>window.__mnCurrentAnalysis&&window.__mnCurrentAnalysis()&&window.__mnCurrentAnalysis().status==='processing',{timeout:5000});
+   check('AI POV closes modal and opens Library',await page.evaluate(()=>window.__mnShip25.view()==='library'&&document.getElementById('standaloneAnalysis26').classList.contains('hidden')));
+   check('Library card shows processing immediately',/processing/i.test(await page.locator('#libList .row.on .rowMeta').innerText()));
+   const modalFrozen=await page.evaluate(()=>JSON.stringify(window.__mnCurrentAnalysis().state));
+   check('processing card is rooted in selected component',await page.evaluate(id=>window.__mnCurrentAnalysis().state.root===id,componentId));
 
-   await page.evaluate(()=>window.__mnShip25.startAI());
    await page.waitForFunction(()=>window.__mnCurrentAnalysis&&window.__mnCurrentAnalysis()&&window.__mnCurrentAnalysis().status==='ready',{timeout:20000});
    await page.waitForFunction(()=>document.querySelectorAll('#libList .row').length>0);
    const cardCount=await page.locator('#libList .row').count();
    const original=await page.evaluate(()=>JSON.stringify(window.__mnCurrentAnalysis().state));
-   check('initial AI context collapsed',await page.locator('#transcript details.contextDetails26').count()>=1);
+   check('initial AI context expanded',await page.locator('#transcript details.contextDetails26[open]').count()>=1);
    check('context exposes Refresh Context',await page.locator('#transcript .refreshContext26').count()>=1);
+   const contextLinks=await page.locator('#transcript details.contextDetails26[open] a[href]').count();
+   check('expanded context contains live links',contextLinks>=2,String(contextLinks));
+   const printBuilt=await page.evaluate(()=>buildLibraryPrintReport25());
+   check('print keeps Context & Further Reading expanded',await page.locator('#libraryPrintTranscript details.contextDetails26[open]').count()>=1);
+   check('print keeps context live links',await page.locator('#libraryPrintTranscript details.contextDetails26[open] a[href]').count()===contextLinks);
+   await page.evaluate(()=>cleanupLibraryPrint25());
+   const dlPromise=page.waitForEvent('download');
+   await page.evaluate(()=>document.getElementById('libDownload').click());
+   const dl=await dlPromise,stream=await dl.createReadStream();let md='';
+   for await (const chunk of stream)md+=chunk.toString();
+   check('Markdown download includes Context & Further Reading',md.includes('## Context & Further Reading'));
+   check('Markdown download preserves source links',md.includes('https://www.federalreserve.gov/')&&md.includes('https://www.reuters.com/markets/'));
+
 
    await page.click('#libQuestion26');
    await page.waitForSelector('#seedMenu26:not(.hidden)');
    const seeds=await page.locator('#seedMenu26 [data-seed26]').allTextContents();
    check('context-aware question menu populated',seeds.length>=5);
    check('question menu includes horizon extension',seeds.some(x=>/1 year/i.test(x)));
+   const seedGeo=await page.evaluate(()=>{
+     const menu=document.getElementById('seedMenu26'),detail=document.querySelector('.libDetail'),buttons=[...menu.querySelectorAll('button')];
+     const m=menu.getBoundingClientRect(),d=detail.getBoundingClientRect();
+     return{menu:{left:m.left,right:m.right,width:m.width},detail:{left:d.left,right:d.right,width:d.width},buttons:buttons.map(b=>{const r=b.getBoundingClientRect(),s=getComputedStyle(b);return{left:r.left,right:r.right,width:r.width,textAlign:s.textAlign,lineHeight:s.lineHeight,whiteSpace:s.whiteSpace,scrollWidth:b.scrollWidth,clientWidth:b.clientWidth}})};
+   });
+   check('seeded-question menu stays inside Library detail',seedGeo.menu.left>=seedGeo.detail.left-1&&seedGeo.menu.right<=seedGeo.detail.right+1,JSON.stringify(seedGeo));
+   check('seeded questions have readable left inset and wrapping',seedGeo.buttons.every(b=>b.left>=seedGeo.menu.left&&b.right<=seedGeo.menu.right+1&&b.textAlign==='left'&&b.whiteSpace==='normal'&&b.scrollWidth<=b.clientWidth+1),JSON.stringify(seedGeo.buttons));
+
    await page.evaluate(()=>document.getElementById('seedMenu26').classList.add('hidden'));
 
    await page.fill('#compose','Extend this same analysis to 1 year. Does the current trend persist?');
@@ -127,6 +171,7 @@ The timing is consistent with the observed move, but does not establish causatio
    check('Save in Analysis appends checkpoint',await page.evaluate(()=>window.__mnTurn26.checkpoints().length===1));
    check('same Library card after save',await page.locator('#libList .row').count()===cardCount);
    check('original frozen state immutable',await page.evaluate(o=>JSON.stringify(window.__mnCurrentAnalysis().state)===o,original));
+   await page.waitForFunction(()=>document.querySelectorAll('.checkpointStrip26 [data-cp26]').length===2);
    check('checkpoint strip contains Original + saved state',await page.locator('.checkpointStrip26 [data-cp26]').count()===2);
    const cp=await page.evaluate(()=>window.__mnTurn26.checkpoints()[0]);
    check('saved checkpoint carries query contract',cp.query&&cp.query.revision_mode==='extend-from-frozen');
