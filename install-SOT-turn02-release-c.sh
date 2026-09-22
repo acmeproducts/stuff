@@ -48,6 +48,7 @@ trap cleanup EXIT
 
 mkdir -p "$STAGE/SOT" "$HOME/.config/systemd/user" "$HOME/.sot-turn02"
 FILES=(
+  "sot-turn02-release-a-engine.py"
   "sot-turn02-release-c-engine.py"
   "sot-turn02-release-c-ai.py"
   "sot-turn02-release-c-server.py"
