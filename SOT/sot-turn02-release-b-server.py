@@ -109,6 +109,14 @@ def reconcile_sources(source_ids=None):
  if source_ids:rows=[r for r in rows if r["source_id"] in source_ids]
  for r in rows:reconcile_windows_path(r["root"],False)
  return rows
+def reconcile_ai_scope(scope):
+ scope=dict(scope or {})
+ if scope.get("type")=="compare_paths":
+  for k in ("path_a","path_b"):
+   raw=str(scope.get(k) or "").strip()
+   if not raw:raise RuntimeError("Compare Paths requires both Path A and Path B")
+   scope[k]=reconcile_windows_path(raw,False)
+ return scope
 
 def volume_roots():
  out=[Path("/").resolve()]
@@ -465,12 +473,13 @@ class H(BaseHTTPRequestHandler):
     vols.sort(key=lambda v:(0 if v["path"]=="/" else 1,str(v.get("windows_drive") or v.get("path") or "").lower()))
     return self.sendj({"ok":True,"volumes":vols,"reconciled_at":time.time()})
    if p=="/api/folders":
-    raw=parse_qs(u.query).get("path",["/"])[0];raw=reconcile_windows_path(raw,False);root=Path(raw).resolve();items=[]
+    raw=parse_qs(u.query).get("path",["/"])[0];raw=reconcile_windows_path(raw,False);root=Path(raw).resolve();items=[];files=[]
     for x in root.iterdir():
      try:
       if x.is_dir() and not x.is_symlink():items.append({"name":x.name,"path":str(x.resolve())})
+      elif x.is_file() and not x.is_symlink():files.append({"name":x.name,"path":str(x.resolve()),"size":x.stat().st_size})
      except OSError:pass
-    return self.sendj({"ok":True,"path":str(root),"folders":sorted(items,key=lambda z:z["name"].lower())})
+    return self.sendj({"ok":True,"path":str(root),"folders":sorted(items,key=lambda z:z["name"].lower()),"files":sorted(files,key=lambda z:z["name"].lower())})
    return self.sendj({"ok":False,"error":"not found"},404)
   except Exception as e:return self.sendj({"ok":False,"error":str(e)},500)
  def do_POST(self):
@@ -489,9 +498,12 @@ class H(BaseHTTPRequestHandler):
     reconcile_sources(b.get("source_ids"));return self.sendj({"ok":True,"job_id":M.start(b.get("source_ids"))})
    if p=="/api/ai/task/create":return self.sendj({"ok":True,"task":get_ai().create(b["task_type"],b.get("scope"),b.get("title"))})
    if p=="/api/ai/task/title":return self.sendj({"ok":True,"task":get_ai().title(str(b.get("task_id","")),b.get("title"))})
+   if p=="/api/ai/task/scope":
+    scope=reconcile_ai_scope(b.get("scope") or {});return self.sendj({"ok":True,"task":get_ai().scope(str(b.get("task_id","")),scope)})
    if p=="/api/ai/task/delete":
     get_ai().delete(str(b.get("task_id","")));return self.sendj({"ok":True})
-   if p=="/api/ai/task/run":return self.sendj({"ok":True,"task":get_ai().run(str(b.get("task_id","")),b.get("prompt",""),b.get("provider"),b.get("model"),b.get("api_key"),b.get("scope"))})
+   if p=="/api/ai/task/run":
+    scope=reconcile_ai_scope(b.get("scope") or {});return self.sendj({"ok":True,"task":get_ai().run(str(b.get("task_id","")),b.get("prompt",""),b.get("provider"),b.get("model"),b.get("api_key"),scope)})
    if p=="/api/ai/task/apply":return self.sendj({"ok":True,"task":get_ai().apply(str(b.get("task_id","")),b.get("approval_note",""))})
    if p=="/api/grid/metadata":return self.sendj({"ok":True,**metadata_update(b)})
    if p=="/api/grid/folder/preflight":
