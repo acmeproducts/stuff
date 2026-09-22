@@ -698,3 +698,22 @@ C3 remains OPEN because:
 
 No production index arithmetic changes as a result of this section.
 
+
+
+## 23. Treasury-curve direction decision for the redesign
+
+For the redesigned MAC model, the Treasury-curve components are provisionally assigned **direction −1**:
+
+- `curve10y2y`: deeper/more-negative inversion raises MAC pressure;
+- `curve10y3m`: deeper/more-negative inversion raises MAC pressure.
+
+Rationale:
+
+- MAC's declared meaning is greater inflation and monetary-policy pressure.
+- The 10Y, 2Y and Fed Funds level components already carry the direct nominal-rate-pressure channel.
+- The curve components therefore serve a distinct policy-restriction / inversion channel rather than duplicating the rate-level channel.
+- Under that role, a more negative spread represents greater restrictive/inversion pressure; a normalization/steepening reduces that pressure.
+- The direction is selected from model semantics, not because one sign produces a prettier chart or better leave-one-out statistic.
+
+This is a **versioned redesign decision**, not a mutation of current Turn 26 arithmetic. It becomes canonical only when C2–C5 and the persistent-index redesign are approved together.
+
