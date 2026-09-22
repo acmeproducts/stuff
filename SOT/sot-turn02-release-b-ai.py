@@ -49,6 +49,11 @@ class AIManager:
   if not title:raise RuntimeError("Task title required")
   if not self.row(task_id):raise RuntimeError("Task not found")
   self.s.submit("UPDATE ai_tasks SET title=?,updated=? WHERE task_id=?",(title,time.time(),task_id),True);return self.public(self.row(task_id),True)
+ def scope(self,task_id,scope):
+  if not self.row(task_id):raise RuntimeError("Task not found")
+  if not isinstance(scope,dict):raise RuntimeError("Task scope must be an object")
+  self.s.submit("UPDATE ai_tasks SET scope_json=?,updated=? WHERE task_id=?",(json.dumps(scope),time.time(),task_id),True)
+  return self.public(self.row(task_id),True)
  def delete(self,task_id):
   if not self.row(task_id):raise RuntimeError("Task not found")
   if task_id in self.runs:raise RuntimeError("Cannot delete a running task")
