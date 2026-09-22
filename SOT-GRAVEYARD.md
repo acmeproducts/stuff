@@ -828,3 +828,10 @@ Required replacement:
 - comparison runs within the union of registered task sources;
 - deterministic basename grouping + ffprobe + read-only ffmpeg validation precede AI interpretation;
 - Refresh rescans the same persisted sources and incorporates newly added/changed files.
+
+
+## 2026-09-22 — RELEASE C ARTIFACT NEGATIVE RULES
+
+Do not overwrite, repurpose, or rename Release B files to ship the corrective Folder Search / converted-file comparison work.
+
+Required replacement: publish the correction under the unique Release C artifact/runtime names, preserve Release B for rollback/comparison, and deploy Release C from its own runtime directory/service.
