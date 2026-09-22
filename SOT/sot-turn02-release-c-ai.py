@@ -38,7 +38,7 @@ class AIManager:
     z["turns"].append({"turn_id":t["turn_id"],"ordinal":t["ordinal"],"role":t["role"],"content":t["content"],"created":t["created"],"status":t["status"],"evidence_revision":t["evidence_revision"],"scope":self.jload(t["scope_json"],{}),"evidence_manifest":self.jload(t["evidence_manifest_json"],{}),"provider":t["provider"],"model":t["model"],"error_detail":t["error_detail"]})
   return z
  def list(self):
-  return [self.public(x,False) for x in self.s.rows("SELECT * FROM ai_tasks ORDER BY updated DESC")]
+  return [self.public(x,False) for x in self.s.rows("SELECT * FROM ai_tasks ORDER BY updated DESC") if x.get("task_type") in TASK_TYPES]
  def create(self,task_type,scope=None,title=None):
   if task_type not in TASK_TYPES:raise RuntimeError("Unsupported AI task type")
   now=time.time();tid=uuid.uuid4().hex;cfg=TASK_TYPES[task_type];scope=scope or {"type":"entire_sot"}
