@@ -62,7 +62,7 @@ try:
   srv.target_set(str(target))
 
   A=srv.get_ai()
-  assert set(srv.ai_mod.TASK_TYPES)=={"auto_tag","analyze_estate","explain_duplicates","find_review_candidates","propose_target_structure","plan_target_landing"}
+  assert set(srv.ai_mod.TASK_TYPES)=={"auto_tag","analyze_estate","explain_duplicates","find_review_candidates","propose_target_structure","plan_target_landing","compare_paths"}
   task=A.create("auto_tag",{"type":"entire_sot"})
   assert task["status"]=="draft" and task["turns"]==[]
   first=rows[0]["placement_id"]
@@ -107,6 +107,34 @@ try:
   after_ops=srv.S.rows("SELECT COUNT(*) n FROM operations")[0]["n"]
   assert fdone["status"]=="complete" and before_ops==after_ops
   print("PASS TARGET structure task is proposal-only")
+
+  # Compare Paths works outside the SOT placement table and remains read-only.
+  legacy=home/"legacy-avi";converted=home/"converted-mp4";legacy.mkdir();converted.mkdir()
+  (legacy/"clip001.avi").write_bytes(b"legacy-video-a")
+  (legacy/"clip002.avi").write_bytes(b"legacy-video-b")
+  (converted/"clip001.mp4").write_bytes(b"converted-video-a")
+  (converted/"orphan.mp4").write_bytes(b"converted-orphan")
+  def fake_probe(p):
+   name=Path(p).name
+   if name.startswith("clip001"):
+    return {"available":True,"ok":True,"format_name":Path(p).suffix.lstrip("."),"duration":60.0 if p.suffix==".avi" else 59.8,"bit_rate":1000.0,"stream_count":2,"video_codec":"fixture","width":1920,"height":1080,"frame_rate":"30/1","audio_codecs":["aac"],"has_video":True,"has_audio":True}
+   return {"available":True,"ok":True,"format_name":Path(p).suffix.lstrip("."),"duration":30.0,"bit_rate":800.0,"stream_count":2,"video_codec":"fixture","width":1280,"height":720,"frame_rate":"30/1","audio_codecs":["aac"],"has_video":True,"has_audio":True}
+  A2._ffprobe=fake_probe
+  cmp_scope={"type":"compare_paths","path_a":str(legacy),"path_b":str(converted)}
+  packet,manifest=A2.compare_packet(cmp_scope)
+  assert manifest["files_a"]==2 and manifest["files_b"]==2 and manifest["paired"]==1
+  assert manifest["unmatched_a"]==1 and manifest["unmatched_b"]==1
+  pair=packet["comparison"]["pairs"][0]
+  assert pair["a"]["filename"]=="clip001.avi" and pair["b"]["filename"]=="clip001.mp4"
+  assert pair["bucket"]=="Verified conversion candidate" and pair["duration_difference_percent"]<1.0
+  before_ops=srv.S.rows("SELECT COUNT(*) n FROM operations")[0]["n"]
+  ct=A2.create("compare_paths",cmp_scope)
+  A2.provider=lambda *args:"## Compare result\n\nclip001 is a verified conversion candidate; clip002 remains unmatched and must not be deleted automatically."
+  A2.run(ct["task_id"],"verify converted media","venice","fixture-model","fixture-key",cmp_scope)
+  cdone=wait_task(A2,ct["task_id"])
+  assert cdone["status"]=="complete" and "Compare result" in cdone["result_markdown"]
+  assert srv.S.rows("SELECT COUNT(*) n FROM operations")[0]["n"]==before_ops
+  print("PASS Compare Paths deterministic pairing + media evidence + read-only authority")
 
   # Stale Auto Tag proposal cannot apply.
   stale=A2.create("auto_tag",{"type":"selected","placement_ids":[first]})
