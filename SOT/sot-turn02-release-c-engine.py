@@ -277,15 +277,15 @@ class Manager:
    tx.append(("UPDATE placements SET placement_id=?,source_id=?,estate=? WHERE placement_id=?",(newid,owner,target["estate"],r["placement_id"])))
    self.s.tx(tx,True)
  def start(self,source_ids=None):
-  src=self.s.rows("SELECT * FROM sources WHERE enabled=1 ORDER BY source_id")
-  if source_ids:src=[x for x in src if x["source_id"] in source_ids]
+  all_src=self.s.rows("SELECT * FROM sources WHERE enabled=1 ORDER BY source_id")
+  src=[x for x in all_src if not source_ids or x["source_id"] in source_ids]
   if not src:raise RuntimeError("no enabled sources")
-  self._normalize_source_ownership(src)
+  self._normalize_source_ownership(all_src)
   old=self.s.rows("SELECT 1 FROM jobs WHERE state IN ('RUNNING','PAUSED') LIMIT 1")
   if old:raise RuntimeError("job already active")
   rev=(self.s.rows("SELECT COALESCE(MAX(revision),0)+1 n FROM jobs")[0]["n"]);jid=uuid.uuid4().hex;now=time.time()
   self.s.submit("INSERT INTO jobs(job_id,revision,state,created,started,last_progress) VALUES(?,?,'RUNNING',?,?,?)",(jid,rev,now,now,now),True)
-  rt={"queues":{x["source_id"]:queue.Queue(self.capacity) for x in src},"done":set(),"stop":threading.Event(),"rr":0,"sched":threading.Lock(),"src":{x["source_id"]:x for x in src},"activity":{},"seen":{x["source_id"]:set() for x in src}}
+  rt={"queues":{x["source_id"]:queue.Queue(self.capacity) for x in src},"done":set(),"stop":threading.Event(),"rr":0,"sched":threading.Lock(),"src":{x["source_id"]:x for x in src},"owners":{x["source_id"]:x for x in all_src},"activity":{},"seen":{x["source_id"]:set() for x in src}}
   self.runs[jid]=rt
   for x in src:self.s.submit("INSERT INTO job_sources(job_id,source_id,state,producer_state,queue_capacity,last_progress) VALUES(?,?,'RUNNING','RUNNING',?,?)",(jid,x["source_id"],self.capacity,now))
   self.event("job_started","Analysis started",jid)
@@ -304,7 +304,7 @@ class Manager:
     for name in files:
      if rt["stop"].is_set():break
      p=str(Path(root,name))
-     if self._owner_source(p,rt["src"])!=sid:continue
+     if self._owner_source(p,rt["owners"])!=sid:continue
      rt["seen"][sid].add(p)
      try:
       st=os.stat(p,follow_symlinks=False)
