@@ -313,3 +313,30 @@ Do not solve this by horizon-dependent weights or fabricated daily macro observa
 - **Persistent-index anchor selection:** blocked by C5.
 
 This failure is useful: it prevents a mathematically cleaner but still structurally misleading component registry from becoming the foundation of the persistent indices.
+
+
+## 15. C1 provenance defect discovered — 10Y mixed lineage
+
+The C1 audit found that `market-evidence/series/tenYear.json` contained:
+
+- 5,072 observations;
+- only 2,577 unique UTC calendar dates;
+- 2,495 dates with two observations.
+
+The duplicate dates contain a FRED-style midnight observation and a second legacy Yahoo-style timestamp/value from the former `^TNX` lineage. The current file metadata already declares FRED `DGS10`, so the file was internally inconsistent: one canonical series label but two historical source lineages.
+
+The 2Y file does not show this duplicate-date condition.
+
+This invalidates any scale statistic calculated from the mixed 10Y file until cleanup, because the extra same-day rows distort the change distribution.
+
+Remediation:
+- evidence pipeline commit `8188c139828bbf506b536b1de1c19b119a3a3a05` makes FRED evidence one canonical observation per UTC source date;
+- full-bootstrap provider migrations no longer retain observations from a different historical provider lineage;
+- the canonical evidence workflow must rebuild and republish 10Y before C1 is marked PASS.
+
+C1 therefore remains open until the rebuilt evidence proves:
+- provider = FRED;
+- identifier = DGS10;
+- one canonical observation per source date;
+- no legacy Yahoo `^TNX` rows remain;
+- dependent Health/derived evidence rebuild cleanly.
