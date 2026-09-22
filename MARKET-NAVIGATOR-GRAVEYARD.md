@@ -226,3 +226,8 @@ Never let an expanded-components breadcrumb consume enough ribbon width to hide 
 ### 17.1 Additional permanent prohibitions — standalone analysis and context evidence
 
 Never let the standalone Analyze modal reuse or mutate NOW's horizon state. Never show ENV / index drill-down ancestry as the modal root; the selected series itself is the root. Never wait for AI completion before showing the Library card: the modal AI POV handoff must show the card as processing immediately. Never default Context & Further Reading closed in Library. Never omit its linked source body from print or Markdown download while showing only the source count.
+
+
+### 17.2 Seeded-question overflow prohibition
+
+Never size or position the Library seeded-question menu from the full viewport when that causes it to extend behind the navigation rail or outside the Library detail card. Never clip the first words of a seeded question or require horizontal scrolling to read it.
