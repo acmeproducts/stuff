@@ -13,7 +13,7 @@
 | 2026-09-20 | Build | done | Plan file found corrupted (literal patch blocks from a prior run). Reconstructed full plan from ledger fragments + owner directives; added guard rule #7. R1 code build is next |
 | 2026-09-22 | R2 hardening | done | Plan gate and read-back, per-thread queue, stale-write rejection, fallback model record, and objective display implemented; static syntax checks and GitHub read-back passed |
 | 2026-09-22 | R3 Coach mode | done | Per-project switch, beginner chat wording, automatic new-project file path, and plain-language build replies added; JavaScript parse and GitHub read-back passed |
-| 2026-09-22 | R4 suggested tasks | in-progress | Add context-aware task buttons to Coach and detailed conversations |
+| 2026-09-22 | R4 suggested tasks | done | Added responsive context-aware choices for starting, continuing, testing, planning, waiting, and error recovery; static parse, GitHub read-back, and hosted-page load passed |
 
 ## 1. RELEASES
 - **R1 — Dashboard & workflow restore (current)** — right-panel dashboard; collapsible soft-delete bin; simplified per-project tabs
