@@ -46,6 +46,9 @@ try:
  with tempfile.TemporaryDirectory() as td:
   home=Path(td);os.environ["HOME"]=str(home)
   srv=load("release_b_server_fixture",HERE/"sot-turn02-release-b-server.py")
+  assert srv.normalize_mount_source(r"C:\x5c")=="C:"
+  assert srv.normalize_mount_source("D:/")=="D:"
+  print("PASS findmnt Windows source normalization")
   e1=home/"estate1";e2=home/"estate2";target=home/"target";e1.mkdir();e2.mkdir();target.mkdir()
   (e1/"photo-one.jpg").write_bytes(b"one")
   (e1/"dup-a.bin").write_bytes(b"same")
