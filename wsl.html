@@ -16,6 +16,7 @@
   #hud .score{font-size:28px;font-weight:800;letter-spacing:1px;}
   #hud .best{font-size:13px;font-weight:600;opacity:.85;}
   #hud .timer{font-size:22px;font-weight:700;color:#8cff5a;min-width:64px;text-align:center;}
+  #hud .dist{font-size:14px;font-weight:700;color:#ffd700;min-width:70px;text-align:center;}
   #btnSettings{
     position:fixed;top:calc(env(safe-area-inset-top,0px) + 12px);right:12px;z-index:20;
     width:44px;height:44px;border-radius:50%;border:none;background:#2a3a5a;
@@ -58,7 +59,6 @@
   #btnJump{background:linear-gradient(180deg,#39b54a,#2a8a36);}
   #btnFront{background:linear-gradient(180deg,#ff4444,#cc0000);}
 
-  /* Landscape optimization */
   @media (orientation: landscape) and (min-aspect-ratio: 16/9){
     #ctrlRow{bottom:calc(env(safe-area-inset-bottom,0px) + 8px);}
     .ctrl-btn{height:48px;min-width:60px;font-size:12px;border-radius:12px;}
@@ -90,6 +90,7 @@
 <canvas id="game"></canvas>
 <div id="hud">
   <div class="score" id="score">0</div>
+  <div class="dist" id="dist">0″</div>
   <div class="timer" id="timer">0:00</div>
   <div class="best" id="best">BEST 0</div>
 </div>
@@ -161,10 +162,10 @@
 "use strict";
 
 var cvs=document.getElementById('game'),ctx=cvs.getContext('2d',{alpha:false});
-var elScore=document.getElementById('score'),elBest=document.getElementById('best'),
-    elTimer=document.getElementById('timer'),elHint=document.getElementById('hint'),
-    elOverlay=document.getElementById('overlay'),elFinal=document.getElementById('finalScore'),
-    elBreak=document.getElementById('finalBreakdown'),
+var elScore=document.getElementById('score'),elDist=document.getElementById('dist'),
+    elBest=document.getElementById('best'),elTimer=document.getElementById('timer'),
+    elHint=document.getElementById('hint'),elOverlay=document.getElementById('overlay'),
+    elFinal=document.getElementById('finalScore'),elBreak=document.getElementById('finalBreakdown'),
     btnRescue=document.getElementById('btnRescue'),btnBack=document.getElementById('btnBack'),
     btnJump=document.getElementById('btnJump'),btnFront=document.getElementById('btnFront'),
     btnSettings=document.getElementById('btnSettings'),
@@ -197,19 +198,19 @@ var AC=null;
 var rescueCharges=3;
 var survivalSeconds=0,runStartTime=0,isTiming=false;
 var baseScore=0,rescueEditTrackIndex=-1;
+var totalDistancePx=0;
 
 // Settings & Physics
 var settings={
-  intensity:'med', // low/med/high/custom
+  intensity:'med',
   jumpForce:1200,
   flipForce:400,
   audioTheme:'fun',
-  difficulty:1 // 0=zen,1=low,2=med,3=high
+  difficulty:1
 };
 var jumpChain=0,jumpChainTime=0;
 var obstacles=[];
 
-// Presets
 var PRESETS={
   low:{jump:800,flip:300},
   med:{jump:1200,flip:400},
@@ -226,7 +227,7 @@ function loadSettings(){
   }catch(e){}
 }
 function saveSettings(){
-  try{localSettings.setItem('scl_settings',JSON.stringify(settings));}catch(e){}
+  try{localStorage.setItem('scl_settings',JSON.stringify(settings));}catch(e){}
 }
 function applyUIFromSettings(){
   jumpSlider.value=settings.jumpForce;jumpVal.textContent=settings.jumpForce;
@@ -241,7 +242,6 @@ function updateDiffLabel(v){
   diffLabel.textContent=txt;
 }
 
-// Audio themes
 function beep(f,dur){
   dur=dur||140;
   try{
@@ -252,7 +252,7 @@ function beep(f,dur){
     if(theme==='calm'){o.type='sine';g.gain.setValueAtTime(0.06,AC.currentTime);}
     else if(theme==='whimsical'){o.type='square';g.gain.setValueAtTime(0.04,AC.currentTime);o.detune.value=Math.sin(Date.now()/50)*20;}
     else if(theme==='zen'){o.type='sine';g.gain.setValueAtTime(0.08,AC.currentTime);}
-    else{o.type='triangle';g.gain.setValueAtTime(0.09,AC.currentTime);} // fun default
+    else{o.type='triangle';g.gain.setValueAtTime(0.09,AC.currentTime);}
     o.frequency.value=f;
     g.gain.exponentialRampToValueAtTime(0.001,AC.currentTime+dur/1000);
     o.connect(g);g.connect(AC.destination);
@@ -319,11 +319,10 @@ function nearestOnAnyTrack(x,y){
   return best;
 }
 
-// Obstacles
 function generateObstacles(){
   obstacles=[];
   var d=settings.difficulty;
-  if(d===0)return; // Zen
+  if(d===0)return;
   var count=[0,3,6,12][d]||3;
   var types=d>=3?['blackhole','rock','fence']:['blackhole','rock'];
   for(var i=0;i<count;i++){
@@ -352,7 +351,7 @@ function drawObstacles(){
     }
   }
 }
-function checkObstacleCollisions(){
+function checkObstacleCollisons(){
   if(settings.difficulty===0)return;
   for(var i=0;i<obstacles.length;i++){
     var ob=obstacles[i];
@@ -377,6 +376,14 @@ function formatTime(sec){
   var m=Math.floor(sec/60),s=Math.floor(sec%60);
   return m+':'+(s<10?'0':'')+s;
 }
+function formatInches(px){
+  return Math.floor(px/20);
+}
+function updateScoreDisplay(){
+  var distScore=formatInches(totalDistancePx);
+  elScore.textContent=(baseScore);
+  elDist.textContent=distScore+'″';
+}
 function updateButtonText(){
   btnRescue.textContent='RESCUE x'+Math.max(0,rescueCharges);
 }
@@ -389,6 +396,7 @@ function reset(){
   cart={track:0,s:0,v:0,x:0,y:0,ang:0,flip:0,flipAng:0};
   var p=pointAt(0,0);cart.x=p.x;cart.y=p.y;cart.ang=p.ang;
   baseScore=0;maxPage=0;floaters=[];fall.t=0;fall.grace=0;jumpChain=0;
+  totalDistancePx=0;
   rescueCharges=3;rescueEditTrackIndex=-1;
   survivalSeconds=0;isTiming=false;runStartTime=0;
   zoom=1;resize();snapCamera();
@@ -396,7 +404,7 @@ function reset(){
   elHint.textContent='Draw to extend • Tap track to release ⛄🛒';
   generateObstacles();
   beep(600,80);
-  updateButtonText();
+  updateButtonText();updateScoreDisplay();
 }
 function snapCamera(){
   var e=tracks[editTrack].pts[tracks[editTrack].pts.length-1];
@@ -472,7 +480,7 @@ function doJump(){
   jumpChainTime=now;jumpChain++;
 
   var force=settings.jumpForce;
-  if(jumpChain>=3)force=Math.min(2200,force*1.6);// Triple jump = big pop
+  if(jumpChain>=3)force=Math.min(2200,force*1.6);
 
   if(state===ST.RUN){
     fall.vx=Math.cos(cart.ang)*Math.abs(cart.v);
@@ -534,11 +542,12 @@ function die(){
 }
 function gameOver(){
   state=ST.OVER;
-  var finalScore=baseScore+Math.floor(survivalSeconds*10);
+  var inchScore=formatInches(totalDistancePx);
+  var finalScore=baseScore+inchScore+Math.floor(survivalSeconds*10);
   try{if(finalScore>parseInt(localStorage.getItem('scl_best')||'0',10))localStorage.setItem('scl_best',String(finalScore));}catch(e){}
   var bestScore=0;try{bestScore=parseInt(localStorage.getItem('scl_best')||'0',10);}catch(e){}
   elFinal.textContent=finalScore+' PTS';
-  elBreak.textContent='Base '+baseScore+' • Time '+formatTime(Math.floor(survivalSeconds))+' ×10 • Best '+bestScore;
+  elBreak.textContent='Base '+baseScore+' • '+inchScore+'″ • Time '+formatTime(Math.floor(survivalSeconds))+' ×10 • Best '+bestScore;
   elOverlay.style.display='flex';
   elHint.textContent='';
 }
@@ -554,32 +563,34 @@ function update(dt){
     elTimer.textContent=formatTime(Math.floor(survivalSeconds));
   }
 
+  updateScoreDisplay();
+
   if(state===ST.RESCUE_EDIT){
     camX+=(cart.x-W*0.35/zoom - camX)*Math.min(1,dt*4);
     camY+=(cart.y-H*0.55/zoom - camY)*Math.min(1,dt*4);
     return;
   }
 
-  // Camera follow with deadzone to keep cart visible
   var tx,ty;
   if(state===ST.READY){var e=tracks[editTrack].pts[tracks[editTrack].pts.length-1];tx=e.x-W*0.58/zoom;ty=e.y-H*0.55/zoom;}
   else if(state===ST.RUN||state===ST.FALL){
     tx=cart.x-W*0.35/zoom;ty=cart.y-H*0.55/zoom;
-    // If falling high, keep camera lower so cart stays in view
     if(state===ST.FALL && cart.y<camY+H*0.2){ty=cart.y-H*0.3/zoom;}
   }else if(state===ST.SUCK||state===ST.OVER){tx=camX;ty=camY;}
   
   var k=Math.min(1,dt*4);camX+=(tx-camX)*k;camY+=(ty-camY)*k;
 
   if(state===ST.RUN){
-    checkObstacleCollisions();
+    checkObstacleCollisons();
     var tr=tracks[cart.track];
     if(!tr||tr.pts.length<2){startFallOffTrack('notrack');return;}
     var p0=pointAt(cart.track,cart.s);
     var acc=G*Math.sin(p0.ang)-DRAG*cart.v-(cart.v>0?ROLL:(cart.v<0?-ROLL:0));
     cart.v+=acc*dt;
     if(cart.v>VMAX)cart.v=VMAX;else if(cart.v<-VMAX)cart.v=-VMAX;
-    cart.s+=cart.v*dt;
+    var ds = cart.v*dt;
+    cart.s+=ds;
+    totalDistancePx+=Math.abs(ds);
     
     if(cart.s>tr.totalLen&&cart.v>0){startFallOffTrack('end');return;}
     
@@ -689,7 +700,6 @@ btnBack.addEventListener('pointerdown',function(e){e.preventDefault();e.stopProp
 btnFront.addEventListener('pointerdown',function(e){e.preventDefault();e.stopPropagation();triggerFlip(true);});
 btnJump.addEventListener('pointerdown',function(e){e.preventDefault();e.stopPropagation();doJump();});
 
-// Settings UI handlers
 btnSettings.addEventListener('click',function(){
   settingsPanel.style.display='flex';
 });
@@ -744,7 +754,6 @@ window.addEventListener('pointerdown',function(e){
   if(state===ST.READY||state===ST.RUN||state===ST.RESCUE_EDIT){
     drawing=true;
   }else if(state===ST.FALL){
-    // Draw-to-rescue: touching canvas while falling initiates rescue mode
     doRescue();
     if(state===ST.RESCUE_EDIT) drawing=true;
   }
@@ -800,7 +809,6 @@ requestAnimationFrame(function loop(t){
   stepFlakes(dt);
   for(var i=floaters.length-1;i>=0;i--){if(floaters[i].t>1.3)floaters.splice(i,1);}
   update(dt);draw();
-  elScore.textContent=baseScore;
   try{var b=parseInt(localStorage.getItem('scl_best')||'0',10);elBest.textContent='BEST '+b;}catch(e){elBest.textContent='BEST 0';}
 });
 })();
