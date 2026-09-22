@@ -1,0 +1,123 @@
+name: SOT Release C Qualification
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - 'SOT/sot-turn02-release-c-engine.py'
+      - 'SOT/sot-turn02-release-c-ai.py'
+      - 'SOT/sot-turn02-release-c-server.py'
+      - 'SOT/sot-turn02-release-c.html'
+      - 'SOT/sot-turn02-release-c.service'
+      - 'SOT/qualify-release-c.py'
+      - 'SOT/sot-mount-drive.sh'
+      - 'install-SOT-turn02-release-c.sh'
+      - '.github/workflows/sot-release-c-qualify.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  qualify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Preserve accepted ancestors
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git hash-object SOT/sot-turn02-pre-base-release-a.html)" = "92810933977e4dfd7d8defcd346b60af29a97954"
+          test -f SOT/sot-turn02-release-b.html
+          test -f SOT/sot-turn02-release-c.html
+          echo "PASS Release A ancestor and separate B/C artifacts preserved"
+
+      - name: Python and shell syntax
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 -m py_compile SOT/sot-turn02-release-c-engine.py SOT/sot-turn02-release-c-ai.py SOT/sot-turn02-release-c-server.py SOT/qualify-release-c.py
+          bash -n SOT/sot-mount-drive.sh
+          bash -n install-SOT-turn02-release-c.sh
+          echo "PASS Release C compile + shell syntax"
+
+      - name: Release C browser syntax and product contract
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+          s=Path("SOT/sot-turn02-release-c.html").read_text()
+          required=[
+            "SOT Turn 02 Release C",
+            "FOLDER SEARCH",
+            "Folder Search Results",
+            "id=\"fsback\"",
+            "fschip",
+            "moveCheckedFolderResults",
+            "clearFolderResults",
+            "foldergo",
+            "Compare Converted Files",
+            "Comparison Sources",
+            "openComparisonPicker",
+            "saveComparisonScope",
+            "compare_converted_files",
+            "Refresh rescans the saved Comparison Sources",
+            "Edit Sources",
+            ".dbgrid tbody tr:nth-child(odd) td{background:#20262d;color:#fff}",
+          ]
+          missing=[x for x in required if x not in s]
+          assert not missing,missing
+          assert "Compare Paths / Folders" not in s
+          assert "Path A" not in s and "Path B" not in s
+          assert "foldersearch-results" not in s
+          js=s.rsplit("<script>",1)[1].split("</script>",1)[0]
+          Path("/tmp/sot-release-c.js").write_text(js)
+          print("PASS corrected modal search + persistent converted-file UI contract")
+          PY
+          node --check /tmp/sot-release-c.js
+
+      - name: Backend authority and overlap contract
+        shell: bash
+        run: |
+          set -euo pipefail
+          grep -F 'VERSION="turn02-release-c"' SOT/sot-turn02-release-c-engine.py
+          grep -F 'def _owner_source(self,path,src)' SOT/sot-turn02-release-c-engine.py
+          grep -F 'self._normalize_source_ownership(src)' SOT/sot-turn02-release-c-engine.py
+          ! grep -F 'raise RuntimeError("overlapping Estate root")' SOT/sot-turn02-release-c-engine.py
+          grep -F 'def folder_search(root,query,exclude=None,limit=500)' SOT/sot-turn02-release-c-server.py
+          grep -F 'folder_path not in excluded' SOT/sot-turn02-release-c-server.py
+          grep -F '/api/folder-search' SOT/sot-turn02-release-c-server.py
+          grep -F 'compare_converted_files' SOT/sot-turn02-release-c-ai.py
+          grep -F 'def converted_packet(self,scope,probe_limit=600,validate_limit=300)' SOT/sot-turn02-release-c-ai.py
+          grep -F 'def _ffprobe(self,p)' SOT/sot-turn02-release-c-ai.py
+          grep -F 'def _ffmpeg_validate(self,p)' SOT/sot-turn02-release-c-ai.py
+          grep -F '"evidence_signature":signature' SOT/sot-turn02-release-c-ai.py
+          ! grep -F '"compare_paths"' SOT/sot-turn02-release-c-ai.py
+          ! grep -F 'os.remove' SOT/sot-turn02-release-c-ai.py
+          ! grep -F 'shutil.move' SOT/sot-turn02-release-c-ai.py
+          echo "PASS explicit-root accounting + read-only converted-file authority"
+
+      - name: Installer rollback and unique-file contract
+        shell: bash
+        run: |
+          set -euo pipefail
+          grep -F 'REF="f80069bcfb14e451c48ca3d49392000a5e367412"' install-SOT-turn02-release-c.sh
+          grep -F 'ROOT="$HOME/.sot-turn02/release-c"' install-SOT-turn02-release-c.sh
+          grep -F 'SERVICE_C="sot-turn02-release-c.service"' install-SOT-turn02-release-c.sh
+          grep -F 'SERVICE_B="sot-turn02-release-b.service"' install-SOT-turn02-release-c.sh
+          grep -F 'Release C cutover failed; restoring previous SOT runtime.' install-SOT-turn02-release-c.sh
+          grep -F 'sot-turn02-release-c.html' install-SOT-turn02-release-c.sh
+          grep -F 'command -v ffmpeg' install-SOT-turn02-release-c.sh
+          grep -F 'command -v ffprobe' install-SOT-turn02-release-c.sh
+          grep -F 'compare_converted_files' install-SOT-turn02-release-c.sh
+          ! grep -E 'tailscale serve .*--set-path|tailscale serve --bg' install-SOT-turn02-release-c.sh
+          echo "PASS unique Release C rollback-safe installer"
+
+      - name: Disposable Release C qualification
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 SOT/qualify-release-c.py
