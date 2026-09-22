@@ -458,3 +458,131 @@ Required next tests:
 Current status:
 
 **C3: OPEN — frequency-adjusted information scaling is the leading candidate, not yet approved.**
+
+
+## 18. Reproducible rolling-window C3 audit
+
+A non-production audit harness is now governed at:
+
+- `market-navigator-component-shadow-audit.py`
+- workflow: `Market Navigator component shadow audit`
+
+The audit samples rolling historical windows and reports:
+- median / P90 / P95 / maximum largest-component share;
+- P95 top-two concentration;
+- leave-one-component-out sign-flip rate;
+- P95 leave-one-out magnitude effect;
+- which component most often dominates.
+
+The workflow produces an artifact only; it does not modify canonical index arithmetic.
+
+### 18.1 S2A frequency-adjusted candidate
+
+S2A uses:
+- log/proportional movement for positive price/index/level series;
+- additive movement for signed/rate/WTI series;
+- historical native-event change volatility;
+- `sqrt(events per year)` frequency adjustment;
+- current component directions.
+
+Selected P95 largest-component shares:
+
+| Index / Horizon | P95 largest share |
+|---|---:|
+| RSK 5D | ~50% |
+| RSK MTD | ~48% |
+| RSK 1YR | ~47% |
+| GRW 1YR | ~53% |
+| GRW 3YR | ~48% |
+| MAC YTD | ~44% |
+| MAC 1YR | ~43% |
+| MAC 3YR | ~36% |
+
+Short windows remain more concentrated because only a subset of components may receive meaningful new information.
+
+The result is not “equal influence,” but it is materially more stable than the first family-specific SD candidate and does not contain the Fed Funds explosion found earlier.
+
+### 18.2 VIX/MOVE sensitivity
+
+S2B changes VIX and MOVE from log/proportional movement to additive level movement while leaving the frequency normalization unchanged.
+
+For RSK, S2B is modestly **more** concentrated than S2A across several horizons, for example:
+- 5D P95 largest share: ~53% vs ~50%;
+- MTD: ~50% vs ~48%;
+- 3YR: ~61% vs ~58%.
+
+Provisional implication:
+- retain log/proportional movement as the leading VIX/MOVE candidate;
+- do not call this decision final until regime-specific behavior and interpretability are reviewed.
+
+### 18.3 Treasury-curve direction sensitivity
+
+S2C reverses the two Treasury-spread directions so deeper inversion increases MAC pressure.
+
+Concentration is unchanged because only signs change, but leave-one-out sign stability changes materially.
+
+This proves that direction is not a cosmetic metadata choice. It changes the semantic meaning and robustness of MAC.
+
+Do **not** select the direction that merely produces the better statistical stability score. Resolve it from the declared meaning of MAC:
+- whether MAC is an inflation/rate-pressure index;
+- a restrictive-policy/financial-pressure index;
+- or a broader macro-state index.
+
+A direction change requires a versioned model-definition decision.
+
+### 18.4 C3 status
+
+**C3 remains OPEN, but S2A is the leading scaling architecture.**
+
+Remaining release-blocking work:
+- regime splits, especially 2020 and tightening/easing cycles;
+- WTI stress behavior around the negative-price episode;
+- full component dominance-frequency review;
+- scale-window sensitivity;
+- C4 information-time correction, because current rolling windows still use observation dates rather than historical release/vintage availability.
+
+## 19. C4 architecture — availability/vintage sidecar
+
+The existing canonical value files remain useful for current/latest data, but they do not by themselves prove when historical macro information became public.
+
+C4 will therefore use a separate availability/vintage layer rather than rewriting source observation dates.
+
+Required conceptual record:
+
+```text
+series_id
+observation_date
+value
+available_from
+available_until
+vintage_date
+is_initial_release
+is_revision
+source
+source_revision
+```
+
+For an as-known-at-the-time persistent index, the calculation date may use only records whose `available_from` is on or before that date.
+
+For revised series, a later vintage becomes available on its later availability date; history is not silently rewritten backward.
+
+### 19.1 FRED / ALFRED capability
+
+The public FRED graph CSV currently used for latest canonical evidence does not carry the required historical real-time/vintage contract.
+
+The official FRED/ALFRED API supports:
+- real-time periods;
+- series vintage dates;
+- observations by vintage;
+- “new and revised observations only”;
+- “initial release only.”
+
+Those web-service endpoints require a FRED API key.
+
+Therefore:
+- keep the current no-key public CSV path for latest/current canonical values;
+- add a backend-only FRED/ALFRED credential path for the C4 vintage sidecar;
+- do not add a user-facing FRED-key requirement to normal Market Navigator operation;
+- do not block C3 work while that credential is being provisioned.
+
+C4 cannot be marked PASS until the sidecar is built and historical no-look-ahead tests pass.
