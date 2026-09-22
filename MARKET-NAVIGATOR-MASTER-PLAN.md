@@ -1166,6 +1166,33 @@ A historical chart intended to represent information available to the market at 
 
 Until this is solved for a component, do not claim that a persistent historical index is an as-known-at-the-time market signal.
 
+### 36.2A Transformation-scale calibration and backcast truth
+
+Any statistical scale used to normalize component movement is part of the versioned model definition.
+
+Persist at minimum:
+- calibration start/end;
+- source/evidence revision used for calibration;
+- scale estimator;
+- native event cadence / annualization rule;
+- resulting scale parameter;
+- model version.
+
+Historical qualification must distinguish:
+
+**Live/as-known index history** — every scale parameter used at a date was knowable under the governed model at that date.
+
+**Retrospective backcast** — a later model version/calibration is applied backward for comparison/research.
+
+A retrospective backcast may be useful and may be displayed, but it must be labeled as such. It may not be represented as the index value that would have been published or knowable on that historical date.
+
+Never use future observations to calibrate historical transform scales while silently calling the resulting history “as-known-at-the-time.”
+
+The I1 anchor/version decision must therefore specify whether pre-launch history is:
+- unavailable;
+- a labeled retrospective backcast using frozen launch calibration; or
+- produced by a separately qualified expanding/rolling no-look-ahead calibration rule.
+
 ### 36.3 Historical FRED/ALFRED credential boundary
 
 Current/latest FRED canonical acquisition remains the public no-auth CSV path.
