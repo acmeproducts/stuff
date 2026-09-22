@@ -168,6 +168,23 @@ try:
   assert str((overlap/"B").resolve()) in [x["path"] for x in parent["results"]]
   print("PASS Folder Search exact exclusion preserves parent/child/sibling candidates")
 
+  # Live Folder Search progress exposes path/timestamps/counters and completes asynchronously.
+  prog=[]
+  direct=srv.folder_search(str(overlap/"B"),"#file:*.txt",[],500,lambda z:prog.append(dict(z)))
+  assert prog and prog[0]["current_path"] and prog[-1]["scanned_folders"]>=1 and prog[-1]["scanned_files"]>=1
+  assert len({x["current_path"] for x in prog})>=2,prog
+  started=time.time();sj=srv.folder_search_start(str(overlap/"B"),"#file:*.txt",[],500)
+  assert sj["state"]=="RUNNING" and sj["search_id"] and sj["started"]>=started-.5
+  deadline=time.time()+10;status=None
+  while time.time()<deadline:
+   status=srv.folder_search_status(sj["search_id"])
+   assert all(k in status for k in ("root","query","current_path","started","updated","scanned_folders","scanned_files","matches"))
+   if status["state"]!="RUNNING":break
+   time.sleep(.02)
+  assert status and status["state"]=="COMPLETED",status
+  assert status["scanned_folders"]>=1 and status["scanned_files"]>=1 and isinstance(status["results"],list)
+  print("PASS asynchronous Folder Search live path + timer source timestamps + counters")
+
   # Stale Auto Tag proposal cannot apply.
   stale=A2.create("auto_tag",{"type":"selected","placement_ids":[first]})
   A2.provider=fake_provider
