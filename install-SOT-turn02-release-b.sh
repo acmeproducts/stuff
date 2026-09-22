@@ -73,7 +73,7 @@ assert "SOT Turn 02 Release B" in s
 assert "const names=['Estate','Analyze','Database','Grid','Plan','AI','Activity']" in s
 assert "Apply approved tags" in s
 assert "['path','Folder']" in s
-assert ".dbgrid tbody tr:nth-child(odd) td{background:#343a40;color:#fff}" in s
+assert ".dbgrid tbody tr:nth-child(odd) td{background:#20262d;color:#fff}" in s
 assert ".dbgrid tbody tr:nth-child(even) td{background:#fff;color:#343a40}" in s
 js=s.rsplit("<script>",1)[1].split("</script>",1)[0]
 Path("/tmp/sot-release-b.js").write_text(js)
