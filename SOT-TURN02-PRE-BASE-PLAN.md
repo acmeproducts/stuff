@@ -1458,3 +1458,125 @@ Release B qualification must prove:
 10. Estate performs periodic live volume reconciliation without losing picker state;
 11. no unrestricted sudo rule is installed; and
 12. all existing Release B Database / Grid / Plan / AI gates remain green.
+
+
+## 2026-09-21 — RELEASE B AI COMPARE PATHS / CONVERSION VERIFICATION — BINDING
+
+Release B AI gains a governed **Compare Paths / Folders** task that may analyze two arbitrary currently-accessible filesystem paths, including content that is not yet part of the SOT Database.
+
+### Purpose
+
+This task is for evidence-backed comparison of two files or folder trees. A primary use case is conversion verification, for example:
+- Folder A contains legacy AVI files.
+- Folder B contains MP4 files believed to be conversions of those AVI files.
+- The owner wants SOT to determine which MP4s have credible corresponding AVI sources, whether the converted media appears structurally valid, which legacy originals are plausible candidates for cold storage or later soft-delete review, and which pairs require manual attention.
+
+### Task catalog
+
+Add task type:
+
+**Compare Paths / Folders**
+
+This task is read-only in Release B. It may recommend review/cold-storage/soft-delete candidates, but it may not move, archive, trash, or delete either side.
+
+### Inputs
+
+The task workspace provides two independent governed filesystem selectors:
+- **Path A**
+- **Path B**
+
+Each selector uses the same live reconciled Windows/WSL volume inventory and folder browser as Estate/TARGET. Either side may be:
+- a folder root;
+- a specific file;
+- inside or outside registered Estate;
+- on different volumes.
+
+The Task Card persists both selected paths and their current stable-volume identity evidence where available.
+
+### Comparison evidence
+
+SOT builds deterministic evidence before AI interpretation.
+
+For folder comparisons:
+- recursively enumerate regular files on each side;
+- capture full filename, extension, relative path, size, modified/created timestamps when available;
+- normalize a comparison key from filename stem without discarding the exact original names;
+- pair obvious stem/name matches first;
+- retain unmatched files on both sides;
+- do not assume same-name files are equivalent merely because names match.
+
+For media files, when `ffprobe` is installed:
+- run `ffprobe` read-only;
+- collect container format, duration, stream count, video/audio codec names, width/height, frame-rate metadata where available, bitrate where available, and probe success/failure;
+- treat probe failure as evidence requiring review;
+- do not decode/transcode or alter the file.
+
+For AVI → MP4 conversion review, the deterministic comparison should expose at minimum:
+- normalized stem/name match;
+- source/converted extensions;
+- source and converted byte sizes;
+- source and converted durations;
+- absolute and percentage duration difference;
+- source/converted video dimensions;
+- source/converted audio/video stream presence;
+- container/codec metadata;
+- probe success;
+- exact names and paths.
+
+### Legitimacy / recommendation boundary
+
+SOT must not label an MP4 “legitimate” solely from filename matching.
+
+A strong conversion-match candidate requires evidence such as:
+- credible filename/stem correspondence;
+- successful media probe on both sides;
+- materially similar duration within a governed tolerance;
+- compatible stream structure;
+- no obvious zero-byte/truncated/probe-error condition.
+
+Resolution, codec, and byte size may legitimately change during conversion and are not by themselves evidence of corruption.
+
+The AI result must classify each pair into evidence-oriented buckets such as:
+- **Verified conversion candidate**
+- **Likely match — review**
+- **Unmatched converted file**
+- **Unmatched legacy file**
+- **Probe/error — manual review**
+
+A legacy AVI may be recommended as:
+- **Cold-storage candidate**
+- **Soft-delete review candidate**
+only when the converted counterpart has sufficient deterministic evidence. The recommendation is advisory only in Release B.
+
+### Name-aware comparison
+
+The AI receives both exact filenames and normalized pairing keys. It may reason about naming patterns across the two trees, including:
+- extension-only conversion;
+- renamed prefixes/suffixes;
+- numbering sequences;
+- date/device tokens;
+- systematic conversion-tool suffixes.
+
+It must clearly distinguish deterministic pairing evidence from inferred naming-pattern matches.
+
+### Scale / persistence
+
+- Comparison runs in a background task and does not block Database/Grid/Analyze.
+- Task progress records files enumerated/probed on each side.
+- Evidence manifest stores both path roots, counts, paired/unmatched counts, and probe availability.
+- The durable transcript/result remains available from the Task Card.
+- Large comparisons may summarize evidence for the model while preserving deterministic pair results server-side.
+
+### Qualification
+
+Release B qualification must verify:
+1. Compare Paths / Folders exists in the task catalog;
+2. task accepts two independent paths outside the SOT placement table;
+3. it is read-only and exposes no Apply/delete/move action;
+4. deterministic name/stem pairing precedes AI interpretation;
+5. exact filenames remain in evidence;
+6. optional `ffprobe` evidence is collected read-only when available;
+7. duration difference and probe failures are surfaced;
+8. unmatched A/B files remain visible;
+9. task result may recommend cold-storage/soft-delete review but never executes it; and
+10. existing Auto Tag authority boundaries remain unchanged.
