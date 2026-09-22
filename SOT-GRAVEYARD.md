@@ -863,3 +863,16 @@ Required replacement while search is running:
 - live Files scanned count;
 - live Matches count;
 - asynchronous search status polling so large directories remain visibly active even when the current path does not change for an extended interval.
+
+
+## 2026-09-22 — SOURCE READINESS / PLAN FRESHNESS NEGATIVE RULES
+
+Do not reintroduce:
+
+- Analyze → Sources showing only the latest job's `job_sources` rows while newly registered Estate roots disappear from the processing surface.
+- Newly registered sources that have no visible PENDING / READY state.
+- Requiring a full all-source rescan merely to ingest newly registered roots.
+- Plan charts that look authoritative while registered sources have never been analyzed.
+- Registration that silently starts expensive fingerprint work.
+
+Required replacement: authoritative registered-source inventory in Analyze, explicit pending readiness, Analyze pending (N), incremental source-ID job start, global post-job classification refresh, and a visible Plan stale-evidence banner until all registered sources are current.
