@@ -742,3 +742,23 @@ Rejected and must not return:
 - Automatically invoking privileged mount operations from SOT.
 
 Required replacement: merge Windows logical-drive discovery with WSL mount discovery, show unmounted Windows-visible drives explicitly as unavailable, and promote them to selectable only after WSL can actually access the mounted path.
+
+
+## 2026-09-21 — LIVE WINDOWS VOLUME / MOUNT NEGATIVE RULES
+
+Rejected and must not return:
+
+- Treating current WSL mount state as durable truth.
+- Requiring the owner to know in advance which Windows drives need static `fstab` entries.
+- Showing “Not mounted in WSL” as the terminal product behavior when SOT can govern the mount itself.
+- Trusting `/mnt/<letter>` directory existence as proof of a real Windows volume.
+- Hiding a Windows-visible drive because the current WSL mount is absent.
+- Giving the SOT server unrestricted sudo.
+- Mounting to arbitrary owner-supplied paths.
+- Replacing an unrelated mount at `/mnt/<letter>`.
+- Accepting only `drvfs` and rejecting WSL2 Windows mounts reported as `9p`.
+- Caching Windows drive inventory only at service startup.
+- Tight-loop privileged remount attempts for a persistently unavailable device.
+- Treating a transiently disconnected source as evidence that its historical placements should be deleted or reclassified.
+
+Required replacement: recover the proven Turn 01 dynamic Windows discovery + narrow `sot-mount-drive` lazy-mount architecture; reconcile live Windows inventory with verified `9p`/`drvfs` mount-table state; mount/revalidate at discovery and operation boundaries; keep failures visible and non-destructive.
