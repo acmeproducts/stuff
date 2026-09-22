@@ -2134,3 +2134,23 @@ The corrected work is not releasable until all of the following are true:
 - live Windows volume reconciliation remains green;
 - Release A ancestor hash remains untouched;
 - all existing Release B Database, Grid, Plan, Activity, AI, installer, rollback, and shared-origin gates remain green.
+
+
+## 2026-09-22 — RELEASE C ARTIFACT IDENTITY / ROLLBACK COMPARISON — BINDING
+
+The approved corrective implementation is published as a new, uniquely named Release C artifact set. Release B files remain intact for rollback and side-by-side comparison.
+
+Canonical Release C public UI:
+
+`SOT/sot-turn02-release-c.html`
+
+Release C runtime files:
+
+- `SOT/sot-turn02-release-c-engine.py`
+- `SOT/sot-turn02-release-c-ai.py`
+- `SOT/sot-turn02-release-c-server.py`
+- `SOT/sot-turn02-release-c.service`
+- `SOT/qualify-release-c.py`
+- `install-SOT-turn02-release-c.sh`
+
+Release C must not overwrite or rename `sot-turn02-release-b.html` or the Release B runtime directory. The installer deploys Release C under `~/.sot-turn02/release-c`, snapshots the shared schema-13 database before cutover, preserves the Release B runtime and unit, and restarts Release B on failed Release C cutover when Release B was the previously active runtime.
