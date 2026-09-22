@@ -148,6 +148,18 @@ The timing is consistent with the observed move, but does not establish causatio
    const seeds=await page.locator('#seedMenu26 [data-seed26]').allTextContents();
    check('context-aware question menu populated',seeds.length>=5);
    check('question menu includes horizon extension',seeds.some(x=>/1 year/i.test(x)));
+   const contextSeedIndex=seeds.findIndex(x=>/reputable data releases and reporting/i.test(x));
+   check('context seed is present',contextSeedIndex>=0);
+   await page.locator('#seedMenu26 [data-seed26="'+contextSeedIndex+'"]').click();
+   await page.click('#send');
+   await page.waitForSelector('.liveResult26',{timeout:20000});
+   check('seeded context question routes through live context',await page.evaluate(()=>window.__mnTurn26.live()?.intent?.operation==='refresh-context'));
+   check('seeded context result renders live links',await page.locator('.liveResult26 a[href^="http"]').count()>=2);
+   await page.click('#discardLive26');
+   await page.waitForFunction(()=>!document.querySelector('.liveResult26'));
+   await page.click('#libQuestion26');
+   await page.waitForSelector('#seedMenu26:not(.hidden)');
+
    const seedGeo=await page.evaluate(()=>{
      const menu=document.getElementById('seedMenu26'),detail=document.querySelector('.libDetail'),buttons=[...menu.querySelectorAll('button')];
      const m=menu.getBoundingClientRect(),d=detail.getBoundingClientRect();
