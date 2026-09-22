@@ -143,7 +143,7 @@ jobs:
         run: |
           set -euo pipefail
           bash -n install-SOT-turn02-release-b.sh
-          grep -F 'REF="892c24485f587031d47a5fa92772cc4f3f6ae800"' install-SOT-turn02-release-b.sh
+          grep -F 'REF="3101e10722f078467284b22c6554b53a1aadd4f0"' install-SOT-turn02-release-b.sh
           grep -F 'DB12="$HOME/.sot-turn02/sot-v12-release-a.db"' install-SOT-turn02-release-b.sh
           grep -F 'DB13="$HOME/.sot-turn02/sot-v13-release-b.db"' install-SOT-turn02-release-b.sh
           grep -F 'Release A migration snapshot materialized as schema-13 seed' install-SOT-turn02-release-b.sh
@@ -162,6 +162,18 @@ jobs:
           grep -F 'mount -t drvfs "$EXPECTED" "$ROOT"' SOT/sot-mount-drive.sh
           grep -F '"$fstype" == "drvfs" || "$fstype" == "9p"' SOT/sot-mount-drive.sh
           grep -F 'refusing conflicting mount' SOT/sot-mount-drive.sh
+          test "$(printf '%s' 'C:\x5c' | sed -E 's/(\\x5c|\\x2f|[\\/])+$//')" = "C:"
+          python3 - <<'PY'
+          import importlib.util
+          from pathlib import Path
+          p=Path("SOT/sot-turn02-release-b-server.py")
+          spec=importlib.util.spec_from_file_location("sotservernorm",p)
+          # Static source check avoids server initialization side effects.
+          src=p.read_text()
+          assert "def normalize_mount_source(v):" in src
+          assert r"(?:\\x5c|\\x2f|[\\/])+$" in src
+          print("PASS escaped findmnt Windows source normalization contract")
+          PY
           set +e
           bash SOT/sot-mount-drive.sh ZZ >/tmp/mount-helper.out 2>&1
           rc=$?
