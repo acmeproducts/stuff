@@ -305,6 +305,48 @@ def parse_tags(v):
  try:
   z=json.loads(v or "[]");return [str(x) for x in z if str(x).strip()] if isinstance(z,list) else []
  except Exception:return []
+SOURCE_CHECK_LOCK=threading.RLock()
+SOURCE_CHECK_RUNNING=set()
+
+def source_ids_on_volume(volume_root):
+ try:
+  vr=Path(reconcile_windows_path(volume_root,False)).resolve();vdev=os.stat(vr).st_dev
+ except Exception:return []
+ out=[]
+ for src in S.rows("SELECT source_id,root FROM sources WHERE enabled=1 ORDER BY source_id"):
+  try:
+   root=Path(reconcile_windows_path(src["root"],False)).resolve()
+   if os.stat(root).st_dev==vdev:out.append(src["source_id"])
+  except Exception:continue
+ return out
+
+def check_source_ids(source_ids,reason):
+ checked=[];changed=[];errors=[]
+ for sid in source_ids:
+  with SOURCE_CHECK_LOCK:
+   if sid in SOURCE_CHECK_RUNNING:continue
+   SOURCE_CHECK_RUNNING.add(sid)
+  try:
+   z=M.check_source_metadata(sid);checked.append(sid)
+   if z.get("changed"):changed.append(sid)
+  except Exception as e:
+   errors.append({"source_id":sid,"error":str(e)})
+   M.event("source_freshness_check_failed",str(e),None,sid,"WARNING",{"reason":reason})
+  finally:
+   with SOURCE_CHECK_LOCK:SOURCE_CHECK_RUNNING.discard(sid)
+ S.drain(20)
+ return {"checked":checked,"changed":changed,"errors":errors,"reason":reason}
+
+def schedule_source_check(source_ids,reason):
+ ids=list(dict.fromkeys(source_ids or []))
+ if not ids:return {"scheduled":0,"source_ids":[]}
+ threading.Thread(target=check_source_ids,args=(ids,reason),daemon=True,name="source-freshness-"+reason.replace(" ","-")[:24]).start()
+ return {"scheduled":len(ids),"source_ids":ids}
+
+def startup_source_check():
+ time.sleep(.5)
+ ids=[x["source_id"] for x in S.rows("SELECT source_id FROM sources WHERE enabled=1 ORDER BY source_id")]
+ schedule_source_check(ids,"startup")
 def source_status_rows():
  rows=S.rows("SELECT * FROM sources WHERE enabled=1 ORDER BY estate,label")
  out=[]
@@ -323,8 +365,9 @@ def source_status_rows():
              "last_current_folder":lr["current_folder"],"last_current_file":lr["current_file"],"last_progress":lr["last_progress"]})
    current=lr["job_state"]=="COMPLETED" and lr["source_state"]=="COMPLETED"
   else:current=False
-  z["pending"]=not current
-  z["analysis_state"]="CURRENT" if current else ("READY" if lr is None else "RETRY")
+  stale=bool(src["stale"])
+  z["pending"]=stale or not current
+  z["analysis_state"]="STALE" if stale and current else ("CURRENT" if current else ("READY" if lr is None else "RETRY"))
   out.append(z)
  return out
 
@@ -608,6 +651,10 @@ class H(BaseHTTPRequestHandler):
     z=folder_search_start(b.get("root","/"),b.get("query",""),b.get("exclude") or [],b.get("limit",500));return self.sendj({"ok":True,**z})
    if p=="/api/folder-search":
     z=folder_search(b.get("root","/"),b.get("query",""),b.get("exclude") or [],b.get("limit",500));return self.sendj({"ok":True,**z})
+   if p=="/api/sources/check-volume":
+    root=str(b.get("root") or "").strip()
+    if not root:raise RuntimeError("volume root required")
+    ids=source_ids_on_volume(root);z=schedule_source_check(ids,"volume_select");return self.sendj({"ok":True,**z})
    if p=="/api/sources":
     root=reconcile_windows_path(b["root"],False);sid=M.add_source(b["label"],root,b.get("failure_domain",root),b.get("role","primary"),b.get("estate"));M.event("source_registered","Estate source registered",None,sid,"INFO",{"root":root,"estate":b.get("estate") or b.get("label")});S.drain(10);return self.sendj({"ok":True,"source_id":sid,"source":next((x for x in source_status_rows() if x["source_id"]==sid),None)})
    if p=="/api/target":return self.sendj({"ok":True,"target":target_set(b["path"],b.get("label",""))})
@@ -657,4 +704,6 @@ class H(BaseHTTPRequestHandler):
    return self.sendj({"ok":False,"error":"not found"},404)
   except Exception as e:return self.sendj({"ok":False,"error":str(e)},400)
  def log_message(self,*a):pass
-if __name__=="__main__":ThreadingHTTPServer(("0.0.0.0",int(os.environ.get("SOT_PORT","8765"))),H).serve_forever()
+if __name__=="__main__":
+ threading.Thread(target=startup_source_check,daemon=True,name="source-freshness-startup").start()
+ ThreadingHTTPServer(("0.0.0.0",int(os.environ.get("SOT_PORT","8765"))),H).serve_forever()
