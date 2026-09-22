@@ -85,6 +85,8 @@ select.input{appearance:auto}
 .msg a{color:var(--accent);word-break:break-all}
 #typing{display:none;align-items:center;gap:8px;padding:6px 14px 8px;color:var(--run);font-size:12px;border-top:1px dashed var(--line)}
 #interrupt{min-height:30px;padding:3px 10px;color:var(--err);border-color:var(--err);background:transparent}
+#objective{display:none;padding:7px 12px;border-bottom:1px solid var(--line);color:var(--dim);font-size:12px;line-height:1.4}
+#objective strong{color:var(--text)} #objective button{color:var(--accent);margin-left:8px}
 .spin{width:12px;height:12px;border:2px solid var(--run);border-top-color:transparent;border-radius:50%;animation:rot .8s linear infinite}
 @keyframes rot{to{transform:rotate(360deg)}}
 #composer{border-top:1px solid var(--line);padding:8px 8px calc(8px + env(safe-area-inset-bottom))}
@@ -182,6 +184,7 @@ select.input{appearance:auto}
 </aside>
 <main id="main">
   <div class="bar mainbar"><div class="titlewrap"><div id="chatTitle">Select a thread</div><div id="chatInfo">devstream orchestrator</div></div><span id="pill">idle</span><button class="btn" id="dashRefresh" style="display:none">↻</button><button class="btn" id="runPending" style="display:none">▶</button></div>
+  <div id="objective"></div>
   <div id="projectTabs"></div>
   <div id="error"></div>
   <div id="emptyState"><div><b>devstream</b><div style="margin-top:6px">+ New starts a project: pick or name its file once —<br>that file and its plan are the project. Tabs are yours to name.</div></div></div>
@@ -350,23 +353,19 @@ async function putFile(path,content,message,sha){
   const body={message,content:enc(content),branch:cfg.branch};if(sha)body.sha=sha;
   return(await gh('contents/'+path,{method:'PUT',body:JSON.stringify(body)})).content.sha;
 }
-const pathQueues={};
-function putFileSafe(path,content,message){
+const pathQueues={},pathLastSha={};
+function putFileSafe(path,content,message,expectedSha){
   const prev=pathQueues[path]||Promise.resolve();
   const job=prev.then(async()=>{
-    let lastErr,shaHint=null;
-    for(let a=1;a<=4;a++){
-      const cur=await getFile(path);
-      try{return await putFile(path,content,message,shaHint||(cur?cur.sha:null))}
-      catch(e){lastErr=e;
-        if(!/409/.test(e.message))throw e;
-        const expected=e.message.match(/does not match ([0-9a-f]{40})/i);
-        shaHint=expected?expected[1]:null;
-        dlog('409 on '+path.split('/').pop()+' — fresh sha retry '+a);
-        await new Promise(r=>setTimeout(r,400*a));
-      }
+    const cur=await getFile(path);
+    const actual=cur?cur.sha:null;
+    if(expectedSha!==undefined&&actual!==expectedSha&&pathLastSha[path]!==actual)
+      throw new Error('Conflict on '+path+': changed since it was read. Refresh and review before retrying.');
+    try{const saved=await putFile(path,content,message,actual);pathLastSha[path]=saved;return saved}
+    catch(e){
+      if(/409/.test(e.message))throw new Error('Conflict on '+path+': another write landed first. Refresh and review before retrying.');
+      throw e;
     }
-    throw lastErr;
   });
   pathQueues[path]=job.catch(()=>{});
   return job;
@@ -386,14 +385,8 @@ async function loadSOT(){
 let sotQueue=Promise.resolve();
 function saveSOT(msg){
   const job=sotQueue.then(async()=>{
-    for(let a=1;a<=4;a++){
-      try{sotSha=await putFile(SOTPATH,JSON.stringify(sot,null,1),msg,sotSha);return}
-      catch(e){
-        if(!/409/.test(e.message)||a===4){dlog('E|status save failed: '+e.message);throw e}
-        dlog('status 409 — refreshing sha (attempt '+a+')');
-        const f=await getFile(SOTPATH);sotSha=f?f.sha:null;
-      }
-    }
+    try{sotSha=await putFileSafe(SOTPATH,JSON.stringify(sot,null,1),msg,sotSha)}
+    catch(e){dlog('E|status save failed: '+e.message);throw e}
   });
   sotQueue=job.catch(()=>{});
   return job;
@@ -452,6 +445,7 @@ function showView(v){
   $('chatArea').style.display=v==='chat'?'flex':'none';
   $('dashView').style.display=v==='dash'?'flex':'none';
   $('projectTabs').style.display=v==='chat'?'':'none';
+  $('objective').style.display=v==='chat'&&$('objective').textContent?'block':'none';
   $('pill').style.display=v==='chat'?'':'none';
   $('dashRefresh').style.display=v==='dash'?'':'none';
   if(v!=='chat')$('runPending').style.display='none';
@@ -538,12 +532,28 @@ async function loadThread(key){
   threads[key]={data,sha:f.sha};return threads[key];
 }
 async function openThread(key){
-  activeKey=key;renderTabs();showView('chat');
+  activeKey=key;$('objective').textContent='';$('objective').style.display='none';renderTabs();showView('chat');
   $('messages').innerHTML='<div class="msg agent">Loading…</div>';
   const ok=await guard(()=>loadThread(key));
-  if(ok){renderChat();schedulePoll()}
+  if(ok){renderChat();refreshObjective(key);schedulePoll()}
 }
 let chatSig='';
+async function refreshObjective(key){
+  const el=$('objective');if(!el||!sot.threads[key])return;
+  const file=projPlan(sot.threads[key].project)||threads[key]?.data.planFile;
+  try{
+    const f=await getFile(file);
+    if(activeKey!==key)return;
+    if(!f||!f.content.trim()){el.textContent='Master plan unavailable';el.style.display='block';return}
+    const line=f.content.split('\n').find(x=>/\*\*.*\(current\).*\*\*/i.test(x));
+    const objective=line?line.replace(/^\s*-\s*/,'').replace(/\*\*/g,'').replace(/\s*—.*$/,'').trim():f.content.match(/^#\s+(.+)$/m)?.[1]||file;
+    const state=threads[key]?.data.lastState||'';
+    const next=state.match(/next:\s*([^|]+)/i)?.[1]?.trim();
+    el.innerHTML='<strong>Objective:</strong> '+esc(objective)+(next?' &nbsp;·&nbsp; <strong>Next:</strong> '+esc(next):'')+' <button type="button">Open plan ↗</button>';
+    el.querySelector('button').onclick=()=>window.open('https://github.com/'+repoFull()+'/blob/'+cfg.branch+'/'+file,'_blank');
+    el.style.display='block';
+  }catch(e){if(activeKey===key){el.textContent='Master plan unavailable — '+e.message;el.style.display='block'}}
+}
 function renderChat(force){
   const key=activeKey;if(!key||!threads[key])return;
   const t=sot.threads[key],d=threads[key].data;
@@ -555,7 +565,7 @@ function renderChat(force){
   wb.style.color=t.web?'var(--accent)':'var(--dim)';wb.style.borderColor=t.web?'var(--accent)':'var(--line)';
   wb.textContent=t.web?'🌐 web ON':'🌐 web';
   const pendN=d.messages.filter(m=>m.status==='pending').length;
-  $('runPending').style.display=pendN?'inline-flex':'none';
+  $('runPending').style.display=pendN&&t.state!=='executing'?'inline-flex':'none';
   const pb=$('pendingBar');
   if(pendN&&t.state!=='executing'){pb.style.display='flex';$('pendingBarText').textContent=pendN+' queued message'+(pendN===1?'':'s')+' — not yet run'}
   else pb.style.display='none';
@@ -741,28 +751,39 @@ async function storeAttachments(t,atts){
   return out;
 }
 /* ---- send / dispatch ---- */
+const activeRuns=new Set(),scheduledRuns=new Set(),savingMessages={};
+function startQueued(key){
+  if(activeRuns.has(key)||scheduledRuns.has(key)||savingMessages[key])return;
+  const th=threads[key],t=sot.threads[key];
+  if(th&&t&&t.state!=='executing'&&th.data.messages.some(m=>m.role==='user'&&m.status==='pending'))
+    setTimeout(()=>dispatch(key),0);
+}
 function sendMessage(){
   const key=activeKey;const txt=$('message').value.trim();
   if(!key||(!txt&&!pendingAtt.length))return;
   const t=sot.threads[key],th=threads[key];
   if(!t||!th)return;
+  savingMessages[key]=(savingMessages[key]||0)+1;
   const draft={role:'user',text:txt,ts:now(),status:'pending'};
   th.data.messages.push(draft);outboxAdd(key,draft);
   $('message').value='';$('message').style.height='44px';
   const atts=pendingAtt;pendingAtt=[];renderAttList();
-  t.state='executing';t.startedAt=now();t.error='';
-  progress[key]={line:'saving your message…',at:Date.now(),started:Date.now()};
+  const shouldStart=!activeRuns.has(key)&&!scheduledRuns.has(key);
+  if(shouldStart){scheduledRuns.add(key);t.state='executing';t.startedAt=now();t.error=''}
+  if(shouldStart)progress[key]={line:'saving your message…',at:Date.now(),started:Date.now()};
+  else toast('Message queued for the next run');
   renderChat(true);renderTabs();renderSidebar();renderProgress();
   guard(async()=>{
     const stored=atts.length?await storeAttachments(t,atts):[];
     if(stored.length){draft.attachments=stored;saveOutbox();if(activeKey===key)renderChat(true)}
-    th.sha=await putFileSafe(threadPath(key),JSON.stringify(th.data,null,1),'devstream: message '+key);
+    th.sha=await putFileSafe(threadPath(key),JSON.stringify(th.data,null,1),'devstream: message '+key,th.sha);
     sot.projects[t.project].lastTouched=now();
     await saveSOT('devstream: touch '+key);
-    dispatch(key,true);
+    if(shouldStart){scheduledRuns.delete(key);dispatch(key,true)}
   }).then(ok=>{
-    if(ok)return;
-    t.state='error';t.finishedAt=now();delete progress[key];
+    savingMessages[key]=Math.max(0,(savingMessages[key]||1)-1);
+    if(ok){startQueued(key);return}
+    if(shouldStart){scheduledRuns.delete(key);t.state='error';t.finishedAt=now();delete progress[key]}
     if(activeKey===key)renderChat(true);
     renderTabs();renderSidebar();renderProgress();
   });
@@ -771,7 +792,7 @@ $('send').onclick=sendMessage;
 $('message').addEventListener('keydown',e=>{if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();sendMessage()}});
 $('message').addEventListener('input',function(){this.style.height='44px';this.style.height=Math.min(this.scrollHeight,130)+'px'});
 function threadPath(key){const th=threads[key];const t=sot.threads[key]||{};return tpath(th.data.project,th.data.tid||t.tid||th.data.outputFile)}
-function dispatch(key,premarked){runAgent(key,!!premarked)}
+function dispatch(key,premarked){if(activeRuns.has(key)||scheduledRuns.has(key))return;runAgent(key,!!premarked)}
 $('runPending').onclick=()=>{if(activeKey)dispatch(activeKey)};
 $('pendingRun').onclick=()=>{if(activeKey)dispatch(activeKey)};
 
@@ -832,21 +853,23 @@ const interrupted=new Set();
 async function runAgent(key,premarked){
   const t=sot.threads[key],th=threads[key];
   if(!t||!th)return;
-  if(t.state==='executing'&&!premarked){toast('This thread is already building');return}
+  if(activeRuns.has(key)||(t.state==='executing'&&!premarked)){toast('This thread is already building');return}
+  activeRuns.add(key);
   const pend=th.data.messages.filter(m=>m.role==='user'&&m.status==='pending');
-  if(!pend.length){toast('Nothing pending');return}
+  if(!pend.length){activeRuns.delete(key);toast('Nothing pending');return}
   const eng=t.engine||'venice';
   const chain=[eng,...['venice','openrouter','anthropic-direct'].filter(x=>x!==eng)]
     .filter(x=>(x==='venice'&&cfg.vkey&&cfg.vmodel)||(x==='openrouter'&&cfg.orkey&&cfg.ormodel)||(x==='anthropic-direct'&&cfg.akey));
   if(interrupted.has(key)){
     interrupted.delete(key);delete progress[key];
     await setState(key,{state:'idle',finishedAt:now(),error:''});
-    toast(key+' interrupted — message left queued');return;
+    activeRuns.delete(key);toast(key+' interrupted — message left queued');return;
   }
   if(!chain.length){
     delete progress[key];await setState(key,{state:'error',finishedAt:now(),error:'no engine is configured'});
-    errbar('no engine is configured — open ⚙, validate at least one engine');return;
+    activeRuns.delete(key);errbar('no engine is configured — open ⚙, validate at least one engine');return;
   }
+  let completed=false;
   try{
     await setState(key,{state:'executing',startedAt:now(),error:''});
     if(interrupted.has(key))throw new Error('Interrupted by user');
@@ -863,14 +886,35 @@ async function runAgent(key,premarked){
     const patchMode=baseChars>0&&needTok>cap*0.85;
     if(patchMode)dlog('preflight: '+codeFile+' needs ~'+Math.round(needTok/1000)+'k output tokens vs '+eng+' cap '+Math.round(cap/1000)+'k → PATCH MODE');
     const res=await runJob(key,{cfg:{...cfg},codeFile,planFile,inputFile:th.data.inputFile||null,images,ghRefs,webSearch:!!t.web,patchMode,
-      system:agentSystem(codeFile,planFile,patchMode),history,instr,chain,threadModel:t.model||null,threadEngine:eng});
+      system:agentSystem(codeFile,planFile,patchMode),history,instr,chain,threadModel:t.model||null,threadEngine:eng,
+       allowPlanCreate:!sot.projects[t.project].planExists&&pend.some(m=>m.text.startsWith('Create '+planFile+' — the master plan'))});
     if(interrupted.has(key))throw new Error('Interrupted by user');
-    let{summary,target,body,state,usedEng}=res;
+    let{summary,target,body,state,usedEng,usedModel}=res;
     let commit=null,testUrl=t.testUrl||'',reply=summary;
-    if(usedEng!==eng)reply='[via '+usedEng+' — '+eng+' failed]\n'+reply;
+    if(usedEng!==eng)reply='[fallback: '+usedEng+' · '+usedModel+' — '+eng+' failed]\n'+reply;
     const followedContract=/^SUMMARY:/m.test(res.raw||'')||target!=='NONE'||summary!=='Done.';
     const ing=res.ingested||[];
     if(target!=='NONE'){
+      if(target!==planFile&&target!==codeFile&&!pend.some(m=>m.text.includes(target)))
+        throw new Error('Unexpected output path '+target+'; no file was written.');
+      if(target!==planFile){
+        progress[key]={line:'updating master plan before code',at:Date.now(),started:(progress[key]||{}).started};renderProgress();
+        const beforePlan=await getFile(planFile);
+        if(!beforePlan||!beforePlan.content.trim())throw new Error('Master plan is missing or empty; code was not written.');
+        const planInstr='Update the master plan BEFORE the code write for this request. Preserve all existing goals, decisions, open items and prior ledger rows. Append a dated ledger row for the intended build and record its acceptance checks. Return TARGET: '+planFile+' and the COMPLETE updated Markdown plan, never patch blocks. User request:\n'+instr+'\nProposed code response summary: '+summary+'\nProposed target: '+target;
+        const checkpoint=await runJob(key,{cfg:{...cfg},codeFile,planFile,inputFile:th.data.inputFile||null,images:[],ghRefs:[],webSearch:false,patchMode:false,
+          system:agentSystem(codeFile,planFile,false),history,instr:planInstr,chain,threadModel:t.model||null,threadEngine:eng});
+        if(interrupted.has(key))throw new Error('Interrupted by user');
+        const requiredHeadings=beforePlan.content.match(/^#{1,3} .+$/gm)||[];
+        if(checkpoint.target!==planFile||!checkpoint.body.startsWith('#')||checkpoint.body.length<beforePlan.content.length*0.75||/^<{7} SEARCH$/m.test(checkpoint.body)
+          ||requiredHeadings.some(h=>!checkpoint.body.includes(h)))
+          throw new Error('Plan checkpoint failed validation; code was not written.');
+        await putFileSafe(planFile,checkpoint.body,'devstream: plan checkpoint '+key,beforePlan.sha);
+        const verifiedPlan=await getFile(planFile);
+        if(!verifiedPlan||verifiedPlan.content!==checkpoint.body)throw new Error('Plan read-back failed; code was not written.');
+        reply+='\n📋 Master plan updated and verified before code.';
+        if(activeKey===key)refreshObjective(key);
+      }
       const prev=await getFile(target).catch(()=>null);
       const prevLen=prev?prev.content.length:0;
       if(patchMode&&target===codeFile){
@@ -885,7 +929,7 @@ async function runAgent(key,premarked){
       else if(body.length<80)throw new Error('agent returned no usable file content for '+target);
       if(interrupted.has(key))throw new Error('Interrupted by user');
       progress[key]={line:'committing '+target+' ('+Math.round(body.length/1000)+'k)',at:Date.now(),started:(progress[key]||{}).started};renderProgress();
-      commit=await putFileSafe(target,body,'devstream agent: '+key+' — '+summary.slice(0,60));
+      commit=await putFileSafe(target,body,'devstream agent: '+key+' — '+summary.slice(0,60),prev?prev.sha:null);
       reply+='\n✅ Wrote '+target+' — '+Math.round(body.length/1000)+'k chars'+(prevLen?' (was '+Math.round(prevLen/1000)+'k)':' (new file)')+'\nDiff: https://github.com/'+repoFull()+'/commit/'+commit;
       if(target===planFile){sot.projects[t.project].planExists=true;reply+='\nPlan: https://github.com/'+repoFull()+'/blob/'+cfg.branch+'/'+planFile}
       else{
@@ -905,14 +949,14 @@ async function runAgent(key,premarked){
       reply+='\n⚠️ The engine claimed it cannot access GitHub, but '+ing.length+' file(s) WERE supplied in its context — that is a model failure, not a fetch failure. Switch this thread to a stronger model via the engine chip.';
     if(state)reply+='\n— '+state;
     if(interrupted.has(key))throw new Error('Interrupted by user');
-    const amsg={role:'agent',text:reply,summary,ts:now(),commit:commit||undefined,target:target!=='NONE'?target:undefined,state:state||undefined};
+    const amsg={role:'agent',text:reply,summary,ts:now(),commit:commit||undefined,target:target!=='NONE'?target:undefined,state:state||undefined,engine:usedEng,model:usedModel};
     th.data.messages.push(amsg);outboxAdd(key,amsg);
     th.data.lastState=state||th.data.lastState;
     progress[key]={line:'saving reply',at:Date.now(),started:(progress[key]||{}).started};renderProgress();
-    th.sha=await putFileSafe(threadPath(key),JSON.stringify(th.data,null,1),'devstream: agent reply '+key);
+    th.sha=await putFileSafe(threadPath(key),JSON.stringify(th.data,null,1),'devstream: agent reply '+key,th.sha);
     delete progress[key];
     await setState(key,{state:'ok',finishedAt:now(),lastCommit:commit||t.lastCommit,testUrl,error:''});
-    toast(key+' done');
+    completed=true;toast(key+' done');
   }catch(e){
     if(interrupted.has(key)){
       interrupted.delete(key);delete progress[key];
@@ -922,9 +966,12 @@ async function runAgent(key,premarked){
     }
     const emsg={role:'agent',text:'Failed: '+e.message,ts:now()};
     th.data.messages.push(emsg);outboxAdd(key,emsg);
-    try{th.sha=await putFileSafe(threadPath(key),JSON.stringify(th.data,null,1),'devstream: agent error '+key)}catch(e2){}
+    try{th.sha=await putFileSafe(threadPath(key),JSON.stringify(th.data,null,1),'devstream: agent error '+key,th.sha)}catch(e2){}
     delete progress[key];
     await setState(key,{state:'error',finishedAt:now(),error:e.message});
+  }finally{
+    activeRuns.delete(key);
+    if(completed)startQueued(key);
   }
 }
 /* ---- blob worker pool (4) ---- */
@@ -1023,6 +1070,7 @@ self.onmessage=async e=>{
     }
     post({type:'log',line:'reading plan '+planFile});
     const pc=await ghGet(cfg,planFile);
+    if(!pc&&!job.allowPlanCreate)throw new Error('Master plan '+planFile+' is missing or empty. Restore it before running this thread.');
     if(pc)ctx+='PLAN file '+planFile+':\\n<plan>\\n'+pc+'\\n</plan>\\n\\n';
     post({type:'log',line:'reading code '+codeFile});
     const cc=await ghGet(cfg,codeFile);
@@ -1030,16 +1078,20 @@ self.onmessage=async e=>{
     else if(inputFile){const ic=await ghGet(cfg,inputFile);if(ic)ctx+='INPUT codebase '+inputFile+':\\n<code>\\n'+ic+'\\n</code>\\n\\n'}
     const baseChars=(ctx.split('<code>').length>1?ctx.length:0);
     if(baseChars>45000)post({type:'log',line:'baseline is '+Math.round(baseChars/1000)+'k chars (~'+Math.round(baseChars/3.5/1000)+'k tokens out) — engines capped at 16k output cannot rewrite this file whole'});
-    let text=null,usedEng=null,fails=[];
+    let text=null,usedEng=null,usedModel=null,fails=[];
     for(const eng of chain){
-      post({type:'log',line:'engine '+eng+' call ('+Math.round((ctx.length+instr.length)/1000)+'k chars in)'+(job.webSearch?' +web search':'')+'…'});
-      try{text=await callEngine(cfg,eng,eng===threadEngine?threadModel:null,system,history,ctx+'Instructions:\\n'+instr,images,job.webSearch);usedEng=eng;break}
+      post({type:'log',line:'engine '+eng+' · '+(eng===threadEngine&&threadModel?threadModel:(eng==='venice'?cfg.vmodel:eng==='openrouter'?cfg.ormodel:'claude-sonnet-4-6'))+' call ('+Math.round((ctx.length+instr.length)/1000)+'k chars in)'+(job.webSearch?' +web search':'')+'…'});
+      try{const selected=eng===threadEngine?threadModel:null;
+        text=await callEngine(cfg,eng,selected,system,history,ctx+'Instructions:\\n'+instr,images,job.webSearch);
+        usedEng=eng;usedModel=selected||(eng==='venice'?cfg.vmodel:eng==='openrouter'?cfg.ormodel:'claude-sonnet-4-6');
+        if(eng==='openrouter'&&job.webSearch&&!/:online$/.test(usedModel))usedModel+=':online';
+        break}
       catch(err){fails.push(eng+': '+err.message);post({type:'log',line:'engine '+eng+' failed: '+err.message,err:true})}
     }
     if(text===null)throw new Error('all engines failed: '+fails.join(' | '));
     post({type:'log',line:'engine done ('+Math.round(text.length/1000)+'k chars out), parsing'});
     const{summary,target,body,state}=parseAgent(text);
-    post({type:'done',summary,target,body,state:(typeof state!=='undefined'?state:''),usedEng,raw:text.slice(0,400),ingested});
+    post({type:'done',summary,target,body,state:(typeof state!=='undefined'?state:''),usedEng,usedModel,raw:text.slice(0,400),ingested});
   }catch(err){post({type:'error',message:err.message})}
 };
 `;
@@ -1162,7 +1214,7 @@ $('webToggle').onclick=()=>guard(async()=>{
   const key=activeKey;if(!key)return;
   const t=sot.threads[key],th=threads[key];
   t.web=!t.web;th.data.web=t.web;
-  th.sha=await putFileSafe(threadPath(key),JSON.stringify(th.data,null,1),'devstream: web search '+(t.web?'on':'off')+' '+key);
+  th.sha=await putFileSafe(threadPath(key),JSON.stringify(th.data,null,1),'devstream: web search '+(t.web?'on':'off')+' '+key,th.sha);
   await saveSOT('devstream: web '+key);renderChat();
   toast('Web search '+(t.web?'ON — agent can search for blockers':'off'));
 });
@@ -1194,10 +1246,10 @@ $('teValidate').onclick=async()=>{
     // success → persist to the thread immediately
     const key=activeKey;const t=sot.threads[key],th=threads[key];
     t.engine=prov;t.model=model;th.data.engine=prov;th.data.model=model;
-    th.sha=await putFileSafe(threadPath(key),JSON.stringify(th.data,null,1),'devstream: engine '+prov+'/'+model+' for '+key);
+    th.sha=await putFileSafe(threadPath(key),JSON.stringify(th.data,null,1),'devstream: engine '+prov+'/'+model+' for '+key,th.sha);
     await saveSOT('devstream: engine change '+key);
     renderChat();
-    $('teStatus').textContent='✓ verified & applied: '+prov+' · '+model;
+    $('teStatus').textContent='✓ verified & applied: '+prov+' · '+model+(activeRuns.has(key)?' (next run)':'');
     toast(prov+' · '+model);
   }catch(e){$('teStatus').textContent='✗ '+e.message}
 };
