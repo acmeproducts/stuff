@@ -236,14 +236,14 @@ function activeCheckpointId26(a){S.libraryCheckpoint26=S.libraryCheckpoint26||{}
 function activeLibraryState26(a){let id=activeCheckpointId26(a);if(id==='original')return (a&&a.state)||{};let q=checkpointList26(a).find(x=>x.id===id);return (q&&q.state)||(a&&a.state)||{}}
 function checkpointLabel26(cp,i){if(!cp)return'Original';let d=new Date(cp.savedAt||cp.createdAt||Date.now());return`${i+1}. ${(cp.query&&cp.query.horizon)||(cp.state&&cp.state.horizon)||'refresh'} · ${d.toLocaleDateString()}`}
 function liveIntent26(text,a){
-  let s=String(text||'').toLowerCase(),live=/\b(refresh|current|today|bring current|extend|since (this|the) analysis|what (has )?changed|revised|revision|vintage|trend persist|one year|1 year|1yr|ytd|mtd)\b/.test(s);
+  let s=String(text||'').toLowerCase(),isContext=/\b(context|further reading|reporting|news|data releases?|contemporaneous|reputable data|reputable reporting)\b/.test(s),live=isContext||/\b(refresh|current|today|bring current|extend|since (this|the) analysis|what (has )?changed|revised|revision|vintage|trend persist|one year|1 year|1yr|ytd|mtd)\b/.test(s);
   if(!live)return null;
   let base=activeLibraryState26(a),h=base.horizon||'MTD';
   if(/\b(one year|1 year|1yr|12m)\b/.test(s))h='1YR';
   else if(/\bytd\b/.test(s))h='YTD';
   else if(/\bmtd\b/.test(s))h='MTD';
   let revisionMode=/\b(revised|revision|current[- ]?vintage|restate|what we know now)\b/.test(s)?'current-vintage-restatement':'extend-from-frozen';
-  return{operation:/\bextend|1 year|one year|1yr|ytd|mtd\b/.test(s)?'extend-horizon':'bring-current',horizon:h,revisionMode,requestedAt:new Date().toISOString(),question:text}
+  return{operation:isContext?'refresh-context':(/\bextend|1 year|one year|1yr|ytd|mtd\b/.test(s)?'extend-horizon':'bring-current'),horizon:h,revisionMode,requestedAt:new Date().toISOString(),question:text}
 }
 function queryContract26(a,intent){
   let base=activeLibraryState26(a),series=[...new Set(base.series||((a&&a.state&&a.state.series)||[]))];
@@ -345,8 +345,19 @@ function contextSystem26(a,result){
   let original=aiEvidenceState(a.state),live=aiEvidenceState(result.state),timing=timingEvidence26(result.state);
   return `You are Market Navigator, an evidence-first market research analyst. ORIGINAL FROZEN EVIDENCE and LIVE GOVERNED QUERY EVIDENCE are supplied below. Do not invent observations, arithmetic, revisions, or causation. Distinguish Observed, Contemporaneous context, and Possible relationship. Use web research for context and include a final section exactly titled "## Context & Further Reading" with two explicit subsections: "### Data & Releases" and "### Related Reporting". Data & Releases bullets must contain release date, source, an actual working Markdown hyperlink to the cited primary release or methodology page, and relevance. Related Reporting bullets must contain publication date, publisher, the actual story headline as a clickable working Markdown hyperlink, and relevance to the observed move. Never silently omit Related Reporting: when no credible relevant story can be found, state 'No qualifying related reporting found for this window.' Never substitute a no-URL disclaimer for a link; use the authorized web research context to retrieve the live URL. Prefer FRED/Federal Reserve/BLS/BEA/EIA/Treasury/SEC for primary data and Reuters/AP/Bloomberg/FT/WSJ for reporting when relevant. Temporal coincidence is not proof of causation. ORIGINAL: ${JSON.stringify(original)} LIVE: ${JSON.stringify(live)} QUERY: ${JSON.stringify(result.contract)} INDICATOR TIMING: ${JSON.stringify(timing)}`
 }
+function hasLiveContextLinks26(markdown){
+  let s=String(markdown||'');
+  return /\[[^\]]+\]\(https?:\/\/[^)]+\)/i.test(s)||/https?:\/\/\S+/i.test(s)
+}
 async function runLiveInvestigation26(a,text,intent){
-  let result=await governedLiveQuery26(a,intent),answer=await callAI([{role:'system',content:contextSystem26(a,result)},{role:'user',content:text}],{web:true});
+  let result=await governedLiveQuery26(a,intent),sys=contextSystem26(a,result),answer=await callAI([{role:'system',content:sys},{role:'user',content:text}],{web:true});
+  if(intent&&intent.operation==='refresh-context'&&!hasLiveContextLinks26(answer)){
+    let repair='Your previous response did not include actual live hyperlinks. Re-run the context retrieval and return the complete answer again. Under ## Context & Further Reading include ### Data & Releases and ### Related Reporting with actual clickable Markdown links in the form [descriptive title](https://...). Do not use citation numbers, footnote markers such as ^1^, bare source names, or statements that links are active without supplying the URL.';
+    answer=await callAI([{role:'system',content:sys},{role:'user',content:text},{role:'assistant',content:answer},{role:'user',content:repair}],{web:true});
+  }
+  if(intent&&intent.operation==='refresh-context'&&!hasLiveContextLinks26(answer)){
+    answer=String(answer||'')+'\n\n## Context & Further Reading\n\nNo live external links were returned for this context pass. Use the newspaper button to retry Context & Further Reading.';
+  }
   S.liveInvestigation26={analysisId:a.id,question:text,intent,result,answer,createdAt:new Date().toISOString()};renderLibrary()
 }
 
