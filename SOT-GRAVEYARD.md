@@ -729,3 +729,16 @@ Rejected and must not return:
 - Artificially wide gaps between Item / Files / Size / Percent columns.
 
 Required replacement: content-sized compact report columns with only normal cell padding; horizontal scrolling only when the actual content requires it.
+
+
+## 2026-09-21 — VOLUME DISCOVERY NEGATIVE RULES
+
+Rejected and must not return:
+
+- Treating `/mnt/*` enumeration as the complete set of Windows-available volumes.
+- Silently hiding a Windows-visible drive because WSL has not mounted it.
+- Showing an unmounted Windows drive as if it were selectable for source/target operations.
+- Empty Folder Tree behavior with no explanation when a Windows drive is not mounted in WSL.
+- Automatically invoking privileged mount operations from SOT.
+
+Required replacement: merge Windows logical-drive discovery with WSL mount discovery, show unmounted Windows-visible drives explicitly as unavailable, and promote them to selectable only after WSL can actually access the mounted path.
