@@ -1666,3 +1666,471 @@ Release B qualification must prove:
 8. bulk transfer preserves the non-overlapping Estate-root invariant;
 9. search is read-only; and
 10. existing live-volume reconciliation and Estate registration gates remain green.
+
+
+## 2026-09-22 — CORRECTIVE EXECUTION PLAN: ROLLBACK FOLDER SEARCH, REBUILD SOURCE SEARCH, REPLACE AI CONVERSION COMPARISON — BINDING
+
+This section supersedes the earlier 2026-09-22 **Estate Panel 2 Folder Search / Bulk Path Selection** design and the earlier **Compare Paths / Folders** AI design.
+
+No implementation work under this section begins until the owner approves this updated Plan.
+
+### Execution baseline and sequencing
+
+The next execution must proceed in this exact order:
+
+1. **Rollback application code to the last qualified runtime before Folder Search was introduced.**
+   - Baseline runtime: `e74482f24cc74f49241da41095a2a77e5e11b9fb`.
+   - Preserve all governance documents and unrelated accepted work added after that runtime.
+   - Do not roll back the database schema, qualified Release B AI task persistence, live Windows volume reconciliation, mount helper, Plan arithmetic, Database/Grid work, or other accepted Release B behavior.
+   - The rollback is code-selective: restore the Estate picker/UI/backend surfaces that existed immediately before Folder Search was added.
+
+2. **Implement the corrected Folder/File Search described below.**
+   - Qualify it independently before changing AI comparison behavior.
+
+3. **Remove the current A/B Compare Paths / Folders functionality.**
+   - Remove the temporary Path A / Path B task UI and its A-versus-B comparison semantics.
+   - Preserve task persistence infrastructure and unrelated AI task types.
+
+4. **Implement the replacement persistent converted-file comparison task described below.**
+   - Reuse the same governed three-panel source selection model as Estate.
+   - Qualify refresh/re-scan behavior and deterministic FFmpeg evidence before release.
+
+5. Run the full Release B mechanical gate and publish only after all existing and new gates are green.
+
+---
+
+# A. CORRECTED ESTATE FOLDER / FILE SEARCH
+
+## A1. Placement and interaction model
+
+The search input remains directly above **Panel 2 — Folder Tree** in the Estate Picker.
+
+Submitting the search does **not** expand results inline inside Panel 2.
+
+Instead, pressing Enter or Search opens a dedicated **Search Results modal**.
+
+The modal must:
+
+- have a fixed **X in the upper-right corner**;
+- remain open while the owner moves one or more results into Panel 3;
+- close only when the owner taps X or explicitly dismisses it;
+- preserve the original search expression while open;
+- use its own scroll region;
+- not move or resize Panels 1, 2, or 3.
+
+## A2. Search grammar
+
+Folder/File Search is filesystem-based beneath the currently selected live/reconciled Panel 1 volume.
+
+Supported syntax:
+
+- `#folder:<pattern>` — match folder names or full folder paths.
+- `#file:<pattern>` — match filenames; the selectable result is the containing folder path.
+- unqualified terms — match folder names/paths or filenames.
+- `-<term>` — negative exclusion.
+- `*` — multi-character wildcard.
+- `?` — single-character wildcard.
+- search is case-insensitive.
+- multiple positive terms are ANDed.
+- multiple negative terms exclude from the positive result set.
+
+Examples:
+
+- `#folder:*video*`
+- `#file:*.mp4`
+- `#file:*.mp4 -#folder:*archive*`
+- `#folder:*camera* -#file:*.tmp`
+
+## A3. Search result semantics
+
+Search returns **unique folder paths** only.
+
+For `#file:` matches, the file itself is not transferred to Panel 3; its containing folder is the result.
+
+A result is excluded only when that **exact folder path** is already:
+
+- a registered Estate root; or
+- already present in Panel 3 as a pending selected Estate root.
+
+Parent/child/sibling relationships do **not** suppress otherwise valid results.
+
+Example:
+
+Existing Estate registration:
+
+`A/B/E`
+
+Search may still return and allow selection of:
+
+`A/B/C`
+`A/B/D`
+`A/B`
+
+Only the exact already-registered path `A/B/E` is excluded.
+
+## A4. Explicit Estate roots are preserved
+
+Estate roots represent explicit owner selections.
+
+Adding a parent, child, or sibling must **never** silently delete, collapse, replace, or normalize another registered Estate root.
+
+Example:
+
+Before:
+
+`A/B/E`
+
+After owner selects C and D:
+
+`A/B/E`
+`A/B/C`
+`A/B/D`
+
+All three remain explicit Estate registrations.
+
+If the owner later explicitly adds `A/B`, then all four registrations may exist:
+
+`A/B/E`
+`A/B/C`
+`A/B/D`
+`A/B`
+
+SOT must not silently remove any of them.
+
+## A5. No double counting despite overlapping registrations
+
+Overlapping explicit registrations are permitted, but duplicate traversal/accounting is not.
+
+The backend scan planner must ensure that a physical file is not double-counted merely because it is reachable through more than one registered Estate root.
+
+The implementation must preserve both concepts simultaneously:
+
+- **registration truth** — every explicit owner-selected Estate root remains registered;
+- **content accounting truth** — each physical placement is indexed/accounted consistently without duplicate estate totals caused only by overlapping source roots.
+
+Any overlap-deduplication rule belongs in scan/evidence planning, not by deleting owner registrations.
+
+## A6. Search result selection model
+
+All modal results are selected by default.
+
+Selection UI is based around a single live chip:
+
+**`14 selected ×`**
+
+Behavior:
+
+- the number updates immediately as individual checkboxes are checked/unchecked;
+- clicking the **chip body** transfers all currently selected result paths into Panel 3;
+- clicking the chip's **×** deselects all results without transferring anything;
+- after deselect-all, selecting individual checkboxes rebuilds the chip count;
+- when zero are selected, the chip displays `0 selected` and cannot transfer.
+
+Each result row also includes:
+
+- checkbox;
+- full folder path;
+- a large touch-safe **`>`** button.
+
+Tapping a row's **`>`** transfers only that one path into Panel 3.
+
+Once a path is transferred into Panel 3, it disappears from the active search results because its exact path is now already selected.
+
+The modal may remain open so the owner can continue transferring additional results.
+
+## A7. Search backend contract
+
+Folder/File Search remains read-only.
+
+The backend must:
+
+- reconcile the active Windows/WSL volume before searching;
+- recursively enumerate beneath the selected root;
+- not follow symlinked directories;
+- match folder/file grammar deterministically;
+- map file matches to containing folder paths;
+- deduplicate returned folder paths;
+- exclude only exact paths already registered or pending in Panel 3;
+- return path-sorted results;
+- bound response size and surface explicit truncation;
+- not register sources, mutate files, change Database rows, or start analysis.
+
+## A8. Folder Search qualification
+
+Qualification must prove:
+
+1. results open in a modal, not inline Panel 2;
+2. modal has a fixed top-right X;
+3. `#folder:`, `#file:`, negative terms, `*`, and `?` work;
+4. search operates on filesystem state, not only indexed SOT placements;
+5. file matches return containing folder paths;
+6. exact already-registered/pending paths are excluded;
+7. parent/child/sibling candidates remain selectable when only a related path is registered;
+8. all results start selected;
+9. the live `# selected ×` chip updates correctly;
+10. chip body moves selected results;
+11. chip × deselects all without moving anything;
+12. each row has a large touch-safe `>`;
+13. moving a result removes that exact path from the result list;
+14. explicit overlapping Estate registrations remain preserved;
+15. scan/accounting does not double-count content solely due to overlapping registrations;
+16. the three picker panels remain independently scrollable.
+
+---
+
+# B. REMOVE CURRENT A/B AI COMPARISON
+
+The current **Compare Paths / Folders** task is rejected.
+
+The following behavior must be removed:
+
+- temporary Path A and Path B controls;
+- A-versus-B task semantics;
+- one-time arbitrary path pairing as the primary task model;
+- task cards that describe comparison as `Path A ↔ Path B`;
+- task configuration that must be rebuilt for each subsequent comparison run.
+
+The underlying AI task persistence framework remains.
+
+---
+
+# C. REPLACEMENT AI TASK — CONVERTED FILE VERIFICATION
+
+## C1. Product model
+
+Replace the rejected task with a persistent AI task:
+
+**Compare Converted Files**
+
+This task verifies alternate media representations **within a persistent owner-selected source set**.
+
+It is not “A versus B.”
+
+The task owns a durable list of **Comparison Sources**.
+
+## C2. Source selection UI
+
+Comparison Sources use the same governed three-panel source-selection interaction as Estate:
+
+- **Panel 1 — Available Volumes**
+- **Panel 2 — Folder Tree + corrected Folder/File Search**
+- **Panel 3 — Comparison Sources**
+
+The comparison picker must reuse the same live Windows volume reconciliation and the same corrected Search Results modal behavior.
+
+Panel 3 is task-specific and persists with the AI task.
+
+Comparison Sources do not automatically become Estate roots unless separately registered through Estate.
+
+The owner may add/remove comparison source roots explicitly.
+
+No source is silently collapsed because another selected source is its parent or child.
+
+## C3. Persistent task configuration
+
+Each Compare Converted Files task stores:
+
+- task ID/title;
+- registered Comparison Source roots;
+- stable-volume identity evidence where available;
+- comparison matching rules/version;
+- last refresh/scan timestamp;
+- evidence revision;
+- discovered media inventory;
+- deterministic candidate groups;
+- last verification state/result;
+- transcript/history.
+
+Closing and reopening the task restores the same Comparison Sources.
+
+## C4. Comparison scope
+
+The engine compares media **within the union of all registered Comparison Sources**.
+
+It does not divide them into A and B sides.
+
+Primary grouping is by logical basename across extensions.
+
+Example group:
+
+`clip001.avi`
+`clip001.mp4`
+`clip001.mkv`
+
+The first authoritative pairing pass uses exact basename equality after extension removal.
+
+A later secondary naming pass may consider deterministic rename conventions such as:
+
+- `clip001_converted.mp4`
+- `clip001-final.mp4`
+
+but these are explicitly marked inferred-name candidates and cannot be promoted to verified status based on naming alone.
+
+## C5. Deterministic FFmpeg-suite evidence
+
+AI interpretation occurs only after deterministic media inspection.
+
+The implementation uses the locally available FFmpeg suite, at minimum:
+
+### ffprobe
+
+Collect, when available:
+
+- container format;
+- duration;
+- stream count;
+- video codec;
+- audio codec(s);
+- dimensions;
+- aspect-related metadata where available;
+- frame-rate metadata;
+- bitrate;
+- probe success/failure.
+
+### ffmpeg validation
+
+Run read-only decode/validation appropriate for the file, for example decode-to-null, to surface:
+
+- truncated/broken stream errors;
+- unreadable packets;
+- decode failures;
+- obvious corruption conditions.
+
+No transcode or file rewrite is performed.
+
+Additional deterministic fingerprint/sampling methods may be added later, but are not required to establish this release.
+
+## C6. Conversion verification logic
+
+Filename equality alone is never sufficient.
+
+A strong converted-file replacement candidate requires deterministic evidence such as:
+
+- exact or explicitly identified inferred basename relationship;
+- successful probe of both representations;
+- successful/acceptable decode validation of the converted representation;
+- duration within governed tolerance;
+- compatible expected stream structure;
+- plausible dimensions/aspect;
+- absence of obvious truncation/corruption evidence.
+
+Expected changes such as:
+
+- AVI → MP4 container;
+- codec changes;
+- bitrate changes;
+- substantially different file size;
+
+are informational and are not by themselves failures.
+
+## C7. Result states
+
+Each logical media group receives one deterministic result category:
+
+- **Verified replacement**
+- **Probable replacement — review**
+- **Conversion failed / suspect**
+- **Legacy only**
+- **Converted only**
+- **Multiple candidates / ambiguous**
+
+AI then explains the deterministic evidence and may recommend actions.
+
+For a verified legacy → converted relationship, the legacy file may be recommended as:
+
+- **Cold-storage candidate**
+- **Soft-delete review candidate**
+
+These remain recommendations only.
+
+The task may not move, archive, trash, or delete files in this release.
+
+## C8. Refresh behavior
+
+The task is designed to be reused over time.
+
+A prominent **Refresh** action must:
+
+1. re-read the same persisted Comparison Sources;
+2. reconcile/mount their current volumes;
+3. enumerate current files;
+4. identify files that are new, changed, or missing since the last evidence revision;
+5. preserve unchanged deterministic results where still valid;
+6. run probe/decode verification only where evidence is new or changed when practical;
+7. update candidate groups and result states;
+8. produce a new evidence revision and retain prior task history.
+
+Example:
+
+If 200 new MP4 conversions are added to a registered Comparison Source next week, the owner opens the same task and taps **Refresh**. No source re-selection is required.
+
+## C9. Relationship to SOT Database
+
+Comparison Sources may be inside or outside the registered Estate.
+
+The task does not require files to already exist in SOT Database rows.
+
+Where a compared file already has an SOT placement, the task may reference that placement as additional evidence, but filesystem/media evidence remains authoritative for the conversion comparison.
+
+## C10. AI authority boundary
+
+The deterministic engine:
+
+- enumerates;
+- groups;
+- probes;
+- validates;
+- calculates tolerances;
+- records evidence/result state.
+
+AI:
+
+- explains;
+- summarizes;
+- identifies review priorities;
+- recommends cold-storage/soft-delete review candidates.
+
+AI must not fabricate probe/decode results and must clearly distinguish deterministic results from inferred naming relationships.
+
+No destructive action is exposed by this task.
+
+## C11. Qualification for Compare Converted Files
+
+Qualification must prove:
+
+1. rejected A/B UI and semantics are absent;
+2. persistent three-panel Comparison Sources configuration exists;
+3. corrected Folder/File Search is reused by comparison source selection;
+4. task sources persist across close/reopen/service restart;
+5. comparison runs across the union of all registered task sources;
+6. exact basename + different extension grouping works;
+7. same-name evidence alone cannot produce Verified replacement;
+8. ffprobe evidence is captured when available;
+9. read-only ffmpeg validation is performed when available;
+10. probe/decode failures produce review/suspect states;
+11. duration tolerance is explicitly calculated;
+12. unmatched legacy and converted files remain visible;
+13. Refresh reuses saved source roots without requiring re-selection;
+14. newly added files appear on subsequent Refresh;
+15. unchanged evidence can remain stable across refresh;
+16. comparison is usable for files outside the SOT Database;
+17. recommendations remain advisory only;
+18. no move/archive/trash/delete route is exposed by the task;
+19. all other Release B AI task authority rules remain green.
+
+---
+
+# D. RELEASE GATE
+
+The corrected work is not releasable until all of the following are true:
+
+- application code is selectively restored to the pre-Folder-Search runtime baseline before rebuilding;
+- corrected Folder/File Search passes its qualification;
+- rejected inline Folder Search behavior is absent;
+- rejected A/B Compare Paths behavior is absent;
+- Compare Converted Files passes persistence, refresh, FFmpeg evidence, and authority gates;
+- explicit overlapping Estate registrations are preserved;
+- overlapping roots do not corrupt Estate accounting;
+- live Windows volume reconciliation remains green;
+- Release A ancestor hash remains untouched;
+- all existing Release B Database, Grid, Plan, Activity, AI, installer, rollback, and shared-origin gates remain green.
