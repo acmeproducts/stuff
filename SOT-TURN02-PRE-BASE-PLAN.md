@@ -2170,3 +2170,58 @@ The Folder Search interaction must remain stable while live volume reconciliatio
 - If search fails, the open modal shows the failure state in addition to the normal toast; it must not appear to do nothing.
 - Search request completion must not depend on the originating input element remaining mounted in the DOM.
 - Qualification must prove draft persistence across a simulated Estate re-render, clear-X behavior, immediate modal activation before the awaited request, and stable structural volume signatures that exclude volatile free-space counters.
+
+
+## 2026-09-22 — FOLDER SEARCH LIVE PROGRESS / PATH / TIMER — BINDING
+
+Folder Search must expose live proof of work while recursive enumeration is running.
+
+### Modal progress contract
+
+Immediately after Search/Enter:
+
+- the Folder Search Results modal opens;
+- the search expression remains visible;
+- **Search root** shows the reconciled root being searched;
+- **Current path** shows the directory currently being enumerated;
+- **Elapsed** shows a continuously increasing search timer;
+- **Folders scanned** and **Files scanned** show live counters;
+- the timer continues even when Current path has not changed, so a directory containing tens of thousands of files does not look stalled.
+
+### Backend execution model
+
+Folder Search becomes an asynchronous read-only search job:
+
+- POST starts a search job and returns a search ID immediately;
+- GET status returns running/completed/failed state plus:
+  - root;
+  - query;
+  - current path;
+  - started timestamp;
+  - updated timestamp;
+  - folders scanned;
+  - files scanned;
+  - matches found so far;
+  - final results/truncation when complete;
+- progress is updated during filesystem traversal;
+- no Database mutation, source registration, or filesystem mutation is introduced;
+- existing exact-path exclusion and search grammar remain unchanged.
+
+### UI polling
+
+- While the modal is open and the search is running, the browser polls search status on a short cadence.
+- Elapsed time is rendered from the local clock and start timestamp so it continues every second even between backend progress updates.
+- Completion replaces progress content with the normal selected-by-default result list.
+- Failure remains visible in the modal with the last known path/counters.
+- Closing the modal stops UI polling for that search; it does not corrupt the search result state.
+
+### Qualification
+
+Qualification must prove:
+1. search start returns before recursive traversal completes;
+2. status exposes root/current_path/elapsed source timestamps/folder count/file count/match count;
+3. current path changes as traversal advances;
+4. file/folder counters advance independently of result count;
+5. the UI renders Search root, Current path, Elapsed, Folders scanned, Files scanned;
+6. the elapsed timer is client-driven and continues while backend path is unchanged;
+7. completed results retain the existing checkbox/chip/transfer behavior.
