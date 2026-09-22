@@ -1018,3 +1018,19 @@ Requirements:
 - if the retry still produces no links, render a truthful no-links warning rather than presenting citation markers as linked evidence.
 
 Release qualification must prove the seeded context question resolves to `refresh-context` and produces rendered anchor elements without requiring the newspaper refresh as a second step.
+
+
+### 34.9 Context parity remediation — deterministic retrieval, 2026-09-22
+
+The `?` seeded context question and the `📰` Refresh Context control must execute the **same retrieval function**, not merely similar prompts.
+
+For providers with a structured web-search endpoint, Market Navigator must retrieve the source set directly and preserve the returned title, URL, snippet, and date. The AI may summarize and interpret that retrieved evidence, but it does not own link generation.
+
+For Venice, use the authenticated `/api/v1/augment/search` result set as the source-link authority. The rendered `Context & Further Reading` block is built from the retrieved source records, so it cannot degrade to citation markers, source names without URLs, or model-invented URLs.
+
+The same deterministic context enrichment applies to:
+- the initial AI POV analysis;
+- the seeded `?` context/reporting question;
+- the `📰` Refresh Context action.
+
+`?` and `📰` may differ only in *when* they are invoked. They may not differ in retrieval quality, link guarantees, source classes, or rendering.
