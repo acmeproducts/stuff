@@ -2,7 +2,7 @@
 
 Status: AUTHORITATIVE PRODUCT / BUILD / QUALIFICATION PLAN
 Updated: 2026-09-22
-Planning state: **ANALYTICAL REDESIGN PROGRAM — C3 ACTIVE; TURN 26 RETAINED WORKING BASELINE**
+Planning state: **ANALYTICAL REDESIGN PROGRAM — C3 PASS; C4 READY / AWAITING CREDENTIALLED WORKFLOW RUN; TURN 26 RETAINED WORKING BASELINE**
 Target artifact: **`market-navigator-turn26-ship.html`**
 
 Next cumulative application artifact: **`market-navigator-turn26-ship.html`**
@@ -1282,10 +1282,10 @@ The owner has delegated detailed dependency management to the governed program. 
 | Gate | Status | Current decision |
 |---|---|---|
 | C1 provenance | **PASS** | 21-component inventory established; WTI = Yahoo `CL=F`; 10Y mixed FRED/Yahoo lineage repaired and rebuilt as clean FRED `DGS10`. |
-| C2 transform registry | **PROVISIONAL / substantially defined** | Price/index family uses proportional/log movement; NFCI and Treasury spreads use signed additive movement; WTI uses signed additive price movement; rates/inflation/unemployment/HY spread use additive bp/pp movement; VIX/MOVE remain proportional/log provisionally. Redesigned Treasury-spread direction is −1 so deeper inversion raises MAC pressure. |
-| C3 influence/scaling | **OPEN** | S2A frequency-adjusted information scaling is leading. Non-zero-change event counting is rejected; 3Y/5Y retrospective default calibration windows are rejected. |
-| C4 information time/vintage | **OPEN** | Sidecar architecture and workflow exist; historical FRED/ALFRED vintage qualification requires the governed backend FRED API credential. |
-| C5 component registry | **BLOCKED** | Requires C3 + C4 pass. |
+| C2 transform registry | **PROVISIONAL / substantially defined** | Price/index family uses proportional/log movement; NFCI and Treasury spreads use signed additive movement; WTI uses signed additive price movement; rates/inflation/unemployment/HY spread use additive bp/pp movement; VIX/MOVE remain proportional/log. Redesigned Treasury-spread direction is −1 so deeper inversion raises MAC pressure. Final registry still waits on C4/C5. |
+| C3 influence/scaling | **PASS** | Use S2A event-change volatility × sqrt(observed native-event frequency), frozen from pre-effective evidence for each model version. Retain seven equal nominal coefficients and expose realized concentration/sensitivity rather than adaptively reweighting. Pre-effective history using launch scales is BACKCAST. |
+| C4 information time/vintage | **READY / AWAITING CREDENTIALLED RUN** | Sidecar architecture and workflow exist; historical FRED/ALFRED vintage qualification requires a workflow run with the governed backend FRED API credential. No C4 workflow run is recorded at this handoff. |
+| C5 component registry | **BLOCKED** | Requires C4 pass and merger of C3 scale records with C4 availability records. |
 | I1 persistent index | **BLOCKED** | No anchor selection until C5. |
 | AI levels | **QUEUED** | Plain / Standard / Technical after analytical state is stable. |
 | Tabbed navigation | **QUEUED** | After analytical contracts are stable. |
@@ -1305,9 +1305,9 @@ Do not reopen casually:
 
 ### 40.2 Next managed actions
 
-1. Complete C3 regime interpretation and no-look-ahead calibration design.
-2. Run C4 vintage sidecar when the backend credential is available.
-3. Merge C3 + C4 findings into the proposed versioned component registry.
+1. Run C4 vintage sidecar when the backend credential is available.
+2. Prove initial-release/revision availability semantics and no historical look-ahead for every governed slow/revised component.
+3. Merge the passed C3 scale records with C4 availability records into the proposed versioned component registry.
 4. Only then begin I1 persistent-index anchor/backfill/version specification.
 5. Do not begin AI-level or navigation implementation merely because they are easier UI work.
 
@@ -1331,7 +1331,7 @@ Current retained application artifact while redesign work proceeds:
 
 - `market-navigator-turn26-ship.html`
 - current main blob at this handoff: `fc61e29d76f1a7ecf1226f74e0884865dca04684`
-- byte size: `231392`
+- byte size: `231792`
 
 That application remains the working product baseline while the analytical redesign is qualified. Do not mutate it merely to accelerate the redesign unless the active gate explicitly requires application code.
 
@@ -1424,10 +1424,10 @@ At this handoff:
 | Gate | Status | Meaning |
 |---|---|---|
 | C1 — component inventory/provenance | **PASS** | 21-component inventory/provenance established. |
-| C2 — transform registry | **PROVISIONAL / substantially defined** | Families/directions mostly established; final registry waits on C3/C4. |
-| C3 — influence/scaling | **ACTIVE / OPEN** | This is the next primary analytical task. |
-| C4 — information time/vintage | **OPEN** | Requires governed release/vintage qualification; FRED/ALFRED historical web service may require backend key. |
-| C5 — component registry approval | **BLOCKED** | Requires C3 + C4. |
+| C2 — transform registry | **PROVISIONAL / substantially defined** | Families/directions and C3 scale treatment are established; final registry waits on C4/C5. |
+| C3 — influence/scaling | **PASS** | S2A selected: economically meaningful event changes, native-event frequency adjustment, fixed scale per model version, equal nominal coefficients with explicit concentration/sensitivity reporting. |
+| C4 — information time/vintage | **READY / AWAITING CREDENTIALLED RUN** | Requires governed release/vintage qualification through the backend-only FRED/ALFRED key path; no workflow run is recorded at this handoff. |
+| C5 — component registry approval | **BLOCKED** | Requires C4, then merger of C3 scale records with C4 availability records. |
 | I1 — persistent-index specification | **BLOCKED** | No anchor/backfill decision until C5. |
 | AI Plain/Standard/Technical | **QUEUED** | Design retained; implementation waits for stable analytical result contract. |
 | Tabbed navigation | **QUEUED** | Do not implement yet. |
@@ -1435,19 +1435,27 @@ At this handoff:
 
 ### 41.7 Immediate next work
 
-The successor session should begin with **C3 — influence/scaling qualification**, not UI work.
+The successor session should begin with **C4 — information-time/vintage qualification**, not UI work.
 
-Required C3 output:
+C3 is complete. Its governed recommendation is:
 
-1. For each of the 21 components, compute/compare realized contribution behavior under the proposed transform family.
-2. Quantify contribution dispersion and concentration over governed historical windows/regimes.
-3. Test leave-one-out impact and direction stability for RSK, GRW and MAC.
-4. Specifically inspect VIX, MOVE, HY spread, WTI, NFCI, rates/inflation/unemployment for structural dominance or under-influence.
-5. Compare candidate scaling methods without using future information in an “as-known” history.
-6. Recommend one interpretable versioned scale rule or demonstrate that no additional cross-family normalization is required.
-7. Do not change production weights/transforms until C3 passes and C4 information-time semantics are reconciled with it.
+1. retain the established economically meaningful transform families;
+2. scale by native-event change volatility × sqrt(observed canonical native-event frequency);
+3. estimate scale only from evidence available before the model-version effective timestamp and freeze it for that version;
+4. label any pre-effective history rendered with that scale **RETROSPECTIVE BACKCAST**;
+5. retain seven equal nominal coefficients and expose concentration, direction strength, and leave-one-out sensitivity instead of adaptively reweighting;
+6. retain VIX/MOVE as log/proportional and redesigned Treasury-curve direction −1;
+7. do not change production arithmetic until C4 passes and C5 approves the merged registry.
 
-Then proceed to **C4**, merge C3+C4 into the proposed component registry, and only then begin **I1 persistent index specification**.
+Required C4 output:
+
+1. run the governed vintage sidecar using backend secret `MARKET_NAVIGATOR_FRED_API_KEY`;
+2. prove observation-period, first-publication, and revision/vintage timing for weekly/monthly/revised components;
+3. prove the as-known calculation cannot see a record before `available_from`;
+4. define truthful missing/blocked behavior for sources without qualified historical availability;
+5. merge the result with the C3 scale records for C5 disposition.
+
+Only after C5 may **I1 persistent index specification** begin.
 
 ### 41.8 Persistent-index specification questions reserved for I1
 
@@ -1521,6 +1529,6 @@ Do not regress:
 
 Use this as the continuation prompt:
 
-> Continue Market Navigator in `acmeproducts/stuff` from current `main`. This is the analytical-redesign program, not an invitation to redesign ad hoc. Read in full `MARKET-NAVIGATOR-MASTER-PLAN.md`, `MARKET-NAVIGATOR-GRAVEYARD.md`, and `MARKET-NAVIGATOR-BUILD-PROTOCOL.md`. Section 41 is the session handoff; Sections 35–40 are the governing redesign program. Preserve the deployed Turn 26 application unless the active gate specifically requires code changes. Advance **C3 — influence/scaling qualification** first. Do not choose a persistent-index anchor, implement Plain/Standard/Technical, or change navigation before their dependency gates are satisfied. Record evidence, decisions, and blockers back into the Master Plan so the owner is not required to reconstruct history. Follow the clean-baseline protocol for any code stage. Return with the C3 findings, recommended governed scaling rule, unresolved decisions, and the next gate status.
+> Continue Market Navigator in `acmeproducts/stuff` from current `main`. This is the analytical-redesign program, not an invitation to redesign ad hoc. Read in full `MARKET-NAVIGATOR-MASTER-PLAN.md`, `MARKET-NAVIGATOR-GRAVEYARD.md`, and `MARKET-NAVIGATOR-BUILD-PROTOCOL.md`. Section 41 is the session handoff; Sections 35–40 are the governing redesign program. Preserve the deployed Turn 26 application unless the active gate specifically requires code changes. C3 is PASS under the frozen model-version launch-calibration rule recorded here and in `MARKET-NAVIGATOR-COMPONENT-AUDIT-2026-09-22.md`. Advance **C4 — information-time/vintage qualification** next using the governed backend-only FRED/ALFRED credential path. If the credential is absent, report the explicit external blocker; do not approximate vintage truth. Do not choose a persistent-index anchor, implement Plain/Standard/Technical, or change navigation before their dependency gates are satisfied. Record evidence, decisions, and blockers back into this Master Plan. Follow the clean-baseline protocol for any code stage. Return with C4 findings, C5 readiness, unresolved sources, and the next gate status.
 
 This handoff section is part of the authoritative Master Plan. Future sessions should update it or supersede it in-place rather than creating a competing plan.

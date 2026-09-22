@@ -24,10 +24,18 @@ jobs:
           from pathlib import Path
           p=Path('market-evidence/reports/component-shadow-audit.json')
           x=json.loads(p.read_text())
+          assert x['schema']=='market-navigator-component-shadow-audit-v2'
           assert x['status']=='NON_PRODUCTION_C3_SHADOW'
           assert {'S2A_EVENT_FREQ','S2B_VOL_LEVEL','S2C_CURVE_INVERTED_PRESSURE'} <= set(x['scenarios'])
+          calibration=x['calibrationCandidate']
+          assert calibration['method']=='frozen model-version launch calibration'
+          assert calibration['diagnosticCutoff']
+          assert set(calibration['expandingPriorOnlyScaleDiagnostics']) == set(x['scenarios']['S2A_EVENT_FREQ']['scales'])
           for s in x['scenarios'].values():
               assert {'risk','growth','macro'} <= set(s['indices'])
+              for index in s['indices'].values():
+                  for horizon in index.values():
+                      assert set(horizon['materialLeaveOneOutSignFlipRate']) == {'0.05','0.10','0.20'}
           print('COMPONENT SHADOW AUDIT CONTRACT PASS')
           PY
       - uses: actions/upload-artifact@v4

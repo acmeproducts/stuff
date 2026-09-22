@@ -457,7 +457,7 @@ Required next tests:
 
 Current status:
 
-**C3: OPEN — frequency-adjusted information scaling is the leading candidate, not yet approved.**
+**Historical status at this stage: C3 OPEN — frequency-adjusted information scaling was the leading candidate, not yet approved. Superseded by the §26 disposition.**
 
 
 ## 18. Reproducible rolling-window C3 audit
@@ -532,7 +532,7 @@ A direction change requires a versioned model-definition decision.
 
 ### 18.4 C3 status
 
-**C3 remains OPEN, but S2A is the leading scaling architecture.**
+**Historical status at this stage: C3 remained OPEN, with S2A the leading scaling architecture. Superseded by the §26 disposition.**
 
 Remaining release-blocking work:
 - regime splits, especially 2020 and tightening/easing cycles;
@@ -688,15 +688,17 @@ The current leading branch remains:
 
 This is the leading branch because the alternatives tested so far either increase concentration materially or solve no identified defect.
 
-### 22.4 C3 is still not approved
+### 22.4 Historical status before final calibration decision
 
-C3 remains OPEN because:
+At this stage C3 remained OPEN because:
 - regime-specific behavior must still be interpreted, not merely calculated;
 - Treasury-curve direction semantics remain unresolved;
 - calibration must become time-governed for production/as-known history;
 - C4 availability/vintage truth is still required before persistent historical indices can be approved.
 
 No production index arithmetic changes as a result of this section.
+
+This intermediate status is superseded by the §26 disposition after regime interpretation, material-direction diagnostics, and the frozen model-version launch-calibration contract were completed.
 
 
 
@@ -717,3 +719,94 @@ Rationale:
 
 This is a **versioned redesign decision**, not a mutation of current Turn 26 arithmetic. It becomes canonical only when C2–C5 and the persistent-index redesign are approved together.
 
+## 24. C3 regime interpretation and direction-materiality correction
+
+The rolling audit was extended so leave-one-out direction stability is not overstated by sign changes around an effectively neutral composite.
+
+For each window it now records:
+
+- `directionStrength = |sum(component movements)| / sum(|component movements|)`;
+- near-neutral rates at 5%, 10%, and 20% direction-strength thresholds;
+- raw leave-one-out sign flips;
+- material leave-one-out sign flips at the same three thresholds, requiring both the full and leave-one-out result to clear the threshold.
+
+The thresholds are reported as sensitivity diagnostics. They do not become hidden production lifecycle rules through this audit.
+
+Under S2A, the 10% material sign-flip rates are materially below the raw zero-deadband figures:
+
+| Index | 5D | MTD | YTD | 1YR | 3YR | 5YR |
+|---|---:|---:|---:|---:|---:|---:|
+| RSK | 10.9% | 7.6% | 7.2% | 7.5% | 6.5% | 16.6% |
+| GRW | 18.8% | 18.4% | 7.6% | 8.8% | 7.3% | 0.0% |
+| MAC | 12.3% | 10.1% | 1.8% | 10.4% | 14.9% | 0.4% |
+
+Interpretation:
+
+- short-window concentration remains real, especially for GRW, because tradable components can receive many observations while monthly components receive none;
+- COVID and tightening/easing regimes change which component dominates, but no tested regime supports a permanent horizon-dependent reweighting rule;
+- high raw sign-flip rates in some long windows are partly near-neutral arithmetic, not proof that a strongly directional composite is routinely reversed by one omission;
+- concentrated or near-neutral windows must remain visible in Model Health/Index Explanation rather than being cosmetically normalized away.
+
+Representative S2A regime findings:
+
+- RSK MTD P95 largest-component share ranges from about 41% in 2022–2023 to 59% in 2020;
+- GRW MTD remains structurally the most concentrated family, about 58–70% across the named regimes;
+- MAC 1YR P95 largest-component share ranges from about 30% pre-COVID to 45% in 2024–2026;
+- GRW 3YR during 2020 has a 10%-material leave-one-out flip rate near 38%, which must be retained as a stress/regime warning rather than used to tune the historical result.
+
+These findings support monitoring and disclosure, not adaptive weights.
+
+## 25. No-look-ahead calibration decision
+
+The governed C3 recommendation is **frozen model-version launch calibration**.
+
+For each component and model version:
+
+1. select the economically governed change family;
+2. use only canonical evidence available before the model-version effective timestamp;
+3. estimate the historical volatility of one native observation/event change;
+4. estimate observed canonical native-event frequency per year, counting canonical observations rather than only non-zero changes;
+5. set `annualizedScale = eventChangeSD × sqrt(eventsPerYear)`;
+6. persist transform family, direction, calibration start/end, observation count, event-change SD, events/year, annualized scale, evidence revision, and model version;
+7. freeze those parameters for the life of that model version.
+
+A later recalibration requires a new model version. It does not rewrite the prior model version's published values.
+
+This rule prevents future information from entering live values after launch and avoids an adaptive scale that changes the meaning of one index point over time. Any history before the model-version effective timestamp produced with the frozen launch scale is explicitly **RETROSPECTIVE BACKCAST**. It is not labeled as the value that would have been published or knowable on that historical date.
+
+An expanding prior-only scale-vintage diagnostic is now emitted by the shadow audit. Relative to the 2026-09-21 diagnostic launch scale:
+
+- VIX, MOVE, and WTI historical expanding estimates are comparatively stable;
+- unemployment and payroll scales reach about 1.51× the launch scale in earlier vintages;
+- manufacturing production reaches about 1.42×;
+- NFCI reaches about 1.39×;
+- 2Y Treasury falls as low as about 0.60×;
+- Core PCE falls as low as about 0.66×.
+
+That drift is evidence against silently recalibrating one continuous canonical series. It supports a fixed scale within a model version plus explicit version turnover.
+
+## 26. C3 disposition
+
+**C3 — influence/scaling qualification: PASS for the proposed component-registry architecture.**
+
+Approved C3 branch for the proposed redesign:
+
+- S2A economic-change families and frequency-adjusted scale architecture;
+- VIX/MOVE retained as log/proportional movement;
+- WTI retained as signed additive price movement;
+- rates, inflation, unemployment, and HY spread retained as additive bp/pp movement;
+- NFCI and Treasury spreads retained as signed additive level movement;
+- Treasury spreads use redesign direction −1 under the declared MAC pressure interpretation;
+- seven equal nominal coefficients remain the proposed weighting rule;
+- scale parameters are frozen per model version from pre-effective evidence;
+- concentration, direction strength, and leave-one-out sensitivity remain governed health/explanation outputs rather than triggers for adaptive reweighting.
+
+Rejected branches remain rejected:
+
+- non-zero-change-only event frequency;
+- 3Y or 5Y retrospective scale windows as the default;
+- additive-level VIX/MOVE;
+- horizon-dependent weights or scales;
+- adaptive tuning to force equal realized influence.
+
+C3 PASS does not approve production arithmetic and does not make pre-launch history as-known. **C4 remains release-blocking** for observation/release/vintage availability. C5 remains blocked until C4 passes and the C3/C4 records are merged into the versioned component registry. I1 remains blocked until C5.

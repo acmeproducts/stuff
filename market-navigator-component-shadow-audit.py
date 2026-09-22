@@ -2,6 +2,8 @@
 """
 Market Navigator component shadow audit.
 
+Version: C3 audit contract v2 (2026-09-22).
+
 NON-PRODUCTION: compares candidate component transformations/scales against
 canonical evidence without modifying derived-index-definition.json or
 market-evidence/derived-indices.json.
@@ -61,6 +63,7 @@ SCENARIOS={
 }
 
 HORIZONS=("1D","5D","MTD","YTD","1YR","3YR","5YR")
+MATERIALITY_THRESHOLDS=(.05,.10,.20)
 
 def read(p): return json.loads(Path(p).read_text())
 def iso(ms): return dt.datetime.fromtimestamp(ms/1000,UTC).date().isoformat()
@@ -141,10 +144,46 @@ def sign(x,eps=1e-12):
 def summarize_windows(rows):
     largest=[r["largestShare"] for r in rows if r["largestShare"] is not None]
     top2=[r["top2Share"] for r in rows if r["top2Share"] is not None]
+    direction_strength=[r["directionStrength"] for r in rows]
     return {
         "windows":len(rows),
         "largestShare":{"median":percentile(largest,.5),"p90":percentile(largest,.9),"p95":percentile(largest,.95),"max":max(largest) if largest else None},
         "top2Share":{"median":percentile(top2,.5),"p90":percentile(top2,.9),"p95":percentile(top2,.95),"max":max(top2) if top2 else None},
+        "directionStrength":{"median":percentile(direction_strength,.5),"p10":percentile(direction_strength,.1)},
+        "nearNeutralRate":{
+            f"{threshold:.2f}":(sum(1 for r in rows if r["directionStrength"]<threshold)/len(rows) if rows else None)
+            for threshold in MATERIALITY_THRESHOLDS
+        },
+        "materialLeaveOneOutSignFlipRate":{
+            f"{threshold:.2f}":(
+                sum(1 for r in rows if r["materialLeaveOneOutSignFlips"][f"{threshold:.2f}"]>0)/len(rows)
+                if rows else None
+            ) for threshold in MATERIALITY_THRESHOLDS
+        },
+    }
+
+def scale_vintage_diagnostics(obs,family,launch_scale,launch_cutoff):
+    """Measure expanding, prior-only scale drift without making it production arithmetic."""
+    if not launch_scale or not obs:return {"vintages":[],"ratioToLaunch":{}}
+    first=dt.datetime.fromtimestamp(obs[0]["t"]/1000,UTC).year
+    last=dt.datetime.fromtimestamp(launch_cutoff/1000,UTC).year
+    vintages=[]
+    for year in range(first+5,last+1):
+        cutoff=int(dt.datetime(year,1,1,tzinfo=UTC).timestamp()*1000)-1
+        prior=[p for p in obs if p["t"]<=cutoff]
+        if len(prior)<3:continue
+        ev=event_sigma(prior,family);freq=observed_events_per_year(prior,family)
+        scale=ev*math.sqrt(freq) if ev and freq else None
+        if scale:
+            vintages.append({"knownThrough":f"{year-1}-12-31","annualizedScale":scale,"ratioToLaunch":scale/launch_scale})
+    ratios=[x["ratioToLaunch"] for x in vintages]
+    return {
+        "vintages":vintages,
+        "ratioToLaunch":{
+            "min":min(ratios) if ratios else None,
+            "median":percentile(ratios,.5),
+            "max":max(ratios) if ratios else None,
+        }
     }
 
 def main():
@@ -155,13 +194,15 @@ def main():
             comp[x["id"]]={"index":index_id,"direction":int(x["direction"])}
     series={sid:read(ROOT/f"{sid}.json") for sid in comp}
     market=series["spy"]["observations"]
+    calibration_cutoff=market[-1]["t"]
     scenarios={}
     for sname,sc in SCENARIOS.items():
         family={**BASE_FAMILY,**sc["overrides"]}
         direction={sid:sc["direction_overrides"].get(sid,meta["direction"]) for sid,meta in comp.items()}
         scales={}
         for sid,x in series.items():
-            sobs=scale_observations(x["observations"],sc.get("scale_lookback_years"))
+            available=[p for p in x["observations"] if p["t"]<=calibration_cutoff]
+            sobs=scale_observations(available,sc.get("scale_lookback_years"))
             ev=event_sigma(sobs,family[sid])
             nz=bool(sc.get("nonzero_event_frequency") and family[sid]=="diff")
             freq=observed_events_per_year(sobs,family[sid],nz)
@@ -169,6 +210,9 @@ def main():
                 "family":family[sid],"eventSigma":ev,"eventsPerYear":freq,
                 "annualizedScale":(ev*math.sqrt(freq) if ev and freq else None),
                 "cadence":x.get("cadence"),
+                "calibrationStart":iso(sobs[0]["t"]) if sobs else None,
+                "calibrationEnd":iso(sobs[-1]["t"]) if sobs else None,
+                "calibrationObservationCount":len(sobs),
                 "scaleLookbackYears":sc.get("scale_lookback_years"),
                 "frequencyRule":"non-zero economic changes per calendar year" if nz else "observed canonical observations per calendar year"
             }
@@ -199,15 +243,26 @@ def main():
                     full=statistics.fmean(x["movement"] for x in vals)
                     ordered=sorted(vals,key=lambda x:abs(x["movement"]),reverse=True)
                     flips=0;max_loo=0
+                    direction_strength=abs(sum(x["movement"] for x in vals))/total
+                    material_flips={f"{threshold:.2f}":0 for threshold in MATERIALITY_THRESHOLDS}
                     for x in vals:
-                        loo=statistics.fmean(y["movement"] for y in vals if y["id"]!=x["id"])
+                        remaining=[y["movement"] for y in vals if y["id"]!=x["id"]]
+                        loo=statistics.fmean(remaining)
+                        loo_total=sum(abs(y) for y in remaining)
+                        loo_strength=abs(sum(remaining))/loo_total if loo_total else 0
                         if sign(full) and sign(loo) and sign(full)!=sign(loo):flips+=1
+                        if sign(full) and sign(loo) and sign(full)!=sign(loo):
+                            for threshold in MATERIALITY_THRESHOLDS:
+                                if direction_strength>=threshold and loo_strength>=threshold:
+                                    material_flips[f"{threshold:.2f}"]+=1
                         max_loo=max(max_loo,abs(loo-full))
                     windows.append({
                         "end":iso(t1),"largestComponent":ordered[0]["id"],
                         "largestShare":abs(ordered[0]["movement"])/total,
                         "top2Share":sum(abs(x["movement"]) for x in ordered[:2])/total,
-                        "fullMovement":full,"leaveOneOutSignFlips":flips,"maxLeaveOneOutDelta":max_loo
+                        "fullMovement":full,"directionStrength":direction_strength,
+                        "leaveOneOutSignFlips":flips,"materialLeaveOneOutSignFlips":material_flips,
+                        "maxLeaveOneOutDelta":max_loo
                     })
                 summary=summarize_windows(windows)
                 summary["anyLeaveOneOutSignFlipRate"]=(sum(1 for w in windows if w["leaveOneOutSignFlips"]>0)/len(windows) if windows else None)
@@ -231,11 +286,28 @@ def main():
                 hres[h]=summary
             by_index[index_id]=hres
         scenarios[sname]={"description":sc["description"],"scales":scales,"indices":by_index}
+    leading=scenarios["S2A_EVENT_FREQ"]
+    scale_vintages={}
+    for sid,x in series.items():
+        launch_scale=leading["scales"][sid]["annualizedScale"]
+        scale_vintages[sid]=scale_vintage_diagnostics(
+            [p for p in x["observations"] if p["t"]<=calibration_cutoff],
+            BASE_FAMILY[sid],launch_scale,calibration_cutoff
+        )
     out={
-        "schema":"market-navigator-component-shadow-audit-v1",
+        "schema":"market-navigator-component-shadow-audit-v2",
         "status":"NON_PRODUCTION_C3_SHADOW",
         "generatedAt":dt.datetime.now(UTC).replace(microsecond=0).isoformat().replace("+00:00","Z"),
         "warning":"C4 release/vintage information-time semantics are not applied; results are transformation/influence diagnostics only. Scale-window scenarios are retrospective sensitivity tests, not production backcasts.",
+        "calibrationCandidate":{
+            "method":"frozen model-version launch calibration",
+            "diagnosticCutoff":iso(calibration_cutoff),
+            "rule":"For a production model version, estimate each component event-change SD and observed native-event frequency only from evidence available before the model effective timestamp; freeze eventSigma, eventsPerYear, annualizedScale, calibration bounds, evidence revision and transform family for that model version.",
+            "historyLabel":"Any pre-effective-date history rendered with the frozen launch scale is RETROSPECTIVE BACKCAST, not an as-known published index.",
+            "recalibration":"A later scale estimate requires a new model version; it does not rewrite the earlier version's published values.",
+            "c4Boundary":"Release/vintage availability remains a C4 prerequisite for any as-known historical construction.",
+            "expandingPriorOnlyScaleDiagnostics":scale_vintages
+        },
         "scenarios":scenarios
     }
     OUT.parent.mkdir(parents=True,exist_ok=True);OUT.write_text(json.dumps(out,indent=2,sort_keys=True)+"\n")
