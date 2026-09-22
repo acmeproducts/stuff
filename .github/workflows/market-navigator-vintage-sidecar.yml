@@ -1,0 +1,42 @@
+name: Market Navigator C4 vintage sidecar
+on:
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  vintage:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Require governed FRED/ALFRED credential
+        env:
+          MARKET_NAVIGATOR_FRED_API_KEY: ${{ secrets.MARKET_NAVIGATOR_FRED_API_KEY }}
+        run: |
+          if [ -z "$MARKET_NAVIGATOR_FRED_API_KEY" ]; then
+            echo "C4 BLOCKED: repository secret MARKET_NAVIGATOR_FRED_API_KEY is not configured." >&2
+            exit 2
+          fi
+      - name: Build non-production availability/vintage sidecar
+        env:
+          MARKET_NAVIGATOR_FRED_API_KEY: ${{ secrets.MARKET_NAVIGATOR_FRED_API_KEY }}
+        run: python3 market-navigator-vintage-sidecar.py
+      - name: Validate no-look-ahead sidecar contract
+        run: |
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+          m=json.loads(Path('market-evidence/vintage/manifest.json').read_text())
+          assert m['status']=='C4_SHADOW_NON_PRODUCTION'
+          assert m['series']
+          for p in Path('market-evidence/vintage').glob('*.json'):
+              if p.name=='manifest.json': continue
+              x=json.loads(p.read_text())
+              assert x['status']=='C4_SHADOW_NON_PRODUCTION'
+              for e in x['events']:
+                  assert e['availableFrom'] and e['observationDate']
+          print('C4 VINTAGE SIDECAR CONTRACT PASS',len(m['series']))
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: market-navigator-c4-vintage-sidecar
+          path: market-evidence/vintage
