@@ -236,3 +236,8 @@ Never size or position the Library seeded-question menu from the full viewport w
 ### 17.3 Context citation-marker prohibition
 
 Never accept footnote markers, citation numbers, or source names without URLs as satisfying Context & Further Reading link requirements. Never make the user press the newspaper refresh merely to obtain the live links that the seeded context question itself requested.
+
+
+### 17.4 Context-path divergence prohibition
+
+Never implement `?` context retrieval and `📰` refresh as separate prompt-only behaviors. Never rely on the model to manufacture or remember URLs when a provider returns structured search results. Never accept a richer newspaper result than the equivalent seeded context result because the two controls used different retrieval paths.
