@@ -13,8 +13,9 @@ EXPECTED="${LETTER}:"
 
 normalize_source() {
   local v="$1"
-  v="${v//\\//}"
-  v="${v%/}"
+  # findmnt escapes a literal Windows trailing backslash as \x5c.
+  # Normalize both escaped and literal slash forms before comparison.
+  v="$(printf '%s' "$v" | sed -E 's/(\\x5c|\\x2f|[\\/])+$//')"
   printf '%s' "${v^^}"
 }
 
