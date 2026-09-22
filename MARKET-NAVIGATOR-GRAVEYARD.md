@@ -231,3 +231,8 @@ Never let the standalone Analyze modal reuse or mutate NOW's horizon state. Neve
 ### 17.2 Seeded-question overflow prohibition
 
 Never size or position the Library seeded-question menu from the full viewport when that causes it to extend behind the navigation rail or outside the Library detail card. Never clip the first words of a seeded question or require horizontal scrolling to read it.
+
+
+### 17.3 Context citation-marker prohibition
+
+Never accept footnote markers, citation numbers, or source names without URLs as satisfying Context & Further Reading link requirements. Never make the user press the newspaper refresh merely to obtain the live links that the seeded context question itself requested.
