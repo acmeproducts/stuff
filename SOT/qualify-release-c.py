@@ -80,6 +80,23 @@ try:
   assert srv.S.rows("SELECT COUNT(*) n FROM placements WHERE source_id=? AND fingerprint IS NOT NULL AND placement_state='ACTIVE'",(sid3,))[0]["n"]==1
   assert srv.plan_summary()["readiness"]["pending_sources"]==0
   print("PASS registered source readiness + incremental pending analysis + Plan freshness")
+
+  # Metadata-only freshness turns CURRENT back to STALE/PENDING; reanalysis reconciles added and missing paths.
+  old_e3=str((e3/"new-source.bin").resolve());(e3/"added-later.bin").write_bytes(b"added-later");(e3/"new-source.bin").unlink()
+  chk=srv.M.check_source_metadata(sid3)
+  assert chk["changed"]
+  st3=next(x for x in srv.source_status_rows() if x["source_id"]==sid3)
+  assert st3["analysis_state"]=="STALE" and st3["pending"]
+  assert srv.plan_summary()["readiness"]["pending_sources"]>=1
+  jid_refresh=srv.M.start([sid3]);zr=wait_job(srv.M,jid_refresh);srv.S.drain(10);assert zr["job"]["state"]=="COMPLETED"
+  retired=srv.S.rows("SELECT placement_state FROM placements WHERE source_id=? AND path=?",(sid3,old_e3))
+  assert retired and retired[0]["placement_state"]=="RETIRED",retired
+  added=srv.S.rows("SELECT fingerprint,placement_state FROM placements WHERE source_id=? AND path=?",(sid3,str((e3/"added-later.bin").resolve())))
+  assert added and added[0]["fingerprint"] and added[0]["placement_state"]=="ACTIVE",added
+  st3b=next(x for x in srv.source_status_rows() if x["source_id"]==sid3)
+  assert st3b["analysis_state"]=="CURRENT" and not st3b["pending"]
+  assert not srv.M.check_source_metadata(sid3)["changed"]
+  print("PASS metadata drift -> STALE -> added/changed fingerprint + missing retirement -> CURRENT")
   srv.target_set(str(target))
 
   A=srv.get_ai()
@@ -175,7 +192,13 @@ try:
   jid2=srv.M.start([sid_e,sid_c,sid_d,sid_b]);z2=wait_job(srv.M,jid2);srv.S.drain(10);assert z2["job"]["state"]=="COMPLETED"
   phys=srv.S.rows("SELECT path,COUNT(*) n FROM placements WHERE placement_state='ACTIVE' AND path LIKE ? GROUP BY path",(str(overlap/"B")+"%",))
   assert phys and all(int(x["n"])==1 for x in phys),phys
-  print("PASS explicit overlapping Estate roots preserved without duplicate physical placements")
+  (overlap/"B"/"E"/"child-new.txt").write_text("child")
+  ce=srv.M.check_source_metadata(sid_e);cb=srv.M.check_source_metadata(sid_b)
+  assert ce["changed"] and not cb["changed"],(ce,cb)
+  jid_child=srv.M.start([sid_e]);zc=wait_job(srv.M,jid_child);srv.S.drain(10);assert zc["job"]["state"]=="COMPLETED"
+  phys2=srv.S.rows("SELECT path,COUNT(*) n FROM placements WHERE placement_state='ACTIVE' AND path LIKE ? GROUP BY path",(str(overlap/"B")+"%",))
+  assert all(int(x["n"])==1 for x in phys2),phys2
+  print("PASS explicit overlapping Estate roots + child-owned freshness + incremental ownership without duplicate placements")
 
   # Correct Folder Search is filesystem-based and exact-exclusion only.
   fs=srv.folder_search(str(overlap/"B"),"#file:*.txt",[str(overlap/"B"/"E")],500)
