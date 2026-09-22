@@ -23,7 +23,6 @@ DEF=Path("data/market-backend/derived-index-definition.json")
 OUT=Path("market-evidence/reports/component-shadow-audit.json")
 UTC=dt.timezone.utc
 
-FREQ={"trading-day":252,"daily":252,"weekly":52,"monthly":12,"quarterly":4}
 
 BASE_FAMILY={
     # RSK
@@ -76,6 +75,12 @@ def event_sigma(obs,family):
             d.append(b-a)
     s=sd(d)
     return s if s and math.isfinite(s) and s>0 else None
+
+def observed_events_per_year(obs):
+    if len(obs)<2:return None
+    span=(obs[-1]["t"]-obs[0]["t"])/(365.2425*86400000)
+    if span<=0:return None
+    return (len(obs)-1)/span
 
 def economic_change(a,b,family):
     a=float(a);b=float(b)
@@ -132,11 +137,12 @@ def main():
         direction={sid:sc["direction_overrides"].get(sid,meta["direction"]) for sid,meta in comp.items()}
         scales={}
         for sid,x in series.items():
-            ev=event_sigma(x["observations"],family[sid]); freq=FREQ.get(x.get("cadence"),None)
+            ev=event_sigma(x["observations"],family[sid]); freq=observed_events_per_year(x["observations"])
             scales[sid]={
                 "family":family[sid],"eventSigma":ev,"eventsPerYear":freq,
                 "annualizedScale":(ev*math.sqrt(freq) if ev and freq else None),
-                "cadence":x.get("cadence")
+                "cadence":x.get("cadence"),
+                "frequencyRule":"observed canonical observations per calendar year"
             }
         by_index={}
         for index_id,idef in defs["indices"].items():
