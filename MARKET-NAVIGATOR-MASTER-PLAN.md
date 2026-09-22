@@ -1273,3 +1273,41 @@ For subsequent work:
 - record unresolved decisions as explicit gates rather than silently choosing;
 - do not advance a dependent track merely because UI/code implementation is convenient;
 - do not declare a new analytical baseline until the applicable gates pass and owner disposition is obtained.
+
+
+## 40. Current redesign program status — 2026-09-22
+
+The owner has delegated detailed dependency management to the governed program. Current status:
+
+| Gate | Status | Current decision |
+|---|---|---|
+| C1 provenance | **PASS** | 21-component inventory established; WTI = Yahoo `CL=F`; 10Y mixed FRED/Yahoo lineage repaired and rebuilt as clean FRED `DGS10`. |
+| C2 transform registry | **PROVISIONAL / substantially defined** | Price/index family uses proportional/log movement; NFCI and Treasury spreads use signed additive movement; WTI uses signed additive price movement; rates/inflation/unemployment/HY spread use additive bp/pp movement; VIX/MOVE remain proportional/log provisionally. Redesigned Treasury-spread direction is −1 so deeper inversion raises MAC pressure. |
+| C3 influence/scaling | **OPEN** | S2A frequency-adjusted information scaling is leading. Non-zero-change event counting is rejected; 3Y/5Y retrospective default calibration windows are rejected. |
+| C4 information time/vintage | **OPEN** | Sidecar architecture and workflow exist; historical FRED/ALFRED vintage qualification requires the governed backend FRED API credential. |
+| C5 component registry | **BLOCKED** | Requires C3 + C4 pass. |
+| I1 persistent index | **BLOCKED** | No anchor selection until C5. |
+| AI levels | **QUEUED** | Plain / Standard / Technical after analytical state is stable. |
+| Tabbed navigation | **QUEUED** | After analytical contracts are stable. |
+| Evidence/Library integration | **RETAIN + REQUALIFY** | Existing Turn 26 evidence and Library behavior remain baseline capabilities. |
+
+### 40.1 Decisions that are now closed unless new evidence overturns them
+
+Do not reopen casually:
+- WTI canonical lineage is Yahoo `CL=F`, not EIA Cushing spot.
+- WTI negative 2020 observations are valid evidence and are not deleted.
+- Ratio rebasing is not acceptable for NFCI, WTI, Treasury spreads, or rate/percentage measures identified in C2.
+- VIX/MOVE additive-level candidate is not preferred over proportional/log movement based on current C3 evidence.
+- Counting only non-zero stored changes as event frequency is rejected as a general normalization rule.
+- Three-year and five-year retrospective calibration windows are rejected as the default normalization window.
+- Redesigned Treasury-curve components use direction −1 under the declared MAC pressure interpretation.
+- Horizon must ultimately become viewport only; it may not define the canonical index value.
+
+### 40.2 Next managed actions
+
+1. Complete C3 regime interpretation and no-look-ahead calibration design.
+2. Run C4 vintage sidecar when the backend credential is available.
+3. Merge C3 + C4 findings into the proposed versioned component registry.
+4. Only then begin I1 persistent-index anchor/backfill/version specification.
+5. Do not begin AI-level or navigation implementation merely because they are easier UI work.
+
