@@ -62,6 +62,24 @@ try:
   assert len(rows)==4
   classes=sorted(r["system_classification"] for r in rows)
   assert classes.count("UNIQUE")==2 and classes.count("KEEP")==1 and classes.count("EXCESS")==1,classes
+
+  # Newly registered sources must immediately surface as pending and support incremental analysis.
+  e3=home/"estate3";e3.mkdir();(e3/"new-source.bin").write_bytes(b"new-source")
+  sid3=srv.M.add_source("Estate 3",str(e3),"domain-3",estate="Estate 3")
+  st={x["source_id"]:x for x in srv.source_status_rows()}
+  assert st[sid1]["analysis_state"]=="CURRENT" and not st[sid1]["pending"]
+  assert st[sid2]["analysis_state"]=="CURRENT" and not st[sid2]["pending"]
+  assert st[sid3]["analysis_state"]=="READY" and st[sid3]["pending"]
+  ps=srv.plan_summary()
+  assert ps["readiness"]["pending_sources"]==1 and sid3 in ps["readiness"]["pending_source_ids"]
+  jid_pending=srv.M.start([sid3]);zp=wait_job(srv.M,jid_pending);srv.S.drain(10)
+  assert zp["job"]["state"]=="COMPLETED"
+  st2={x["source_id"]:x for x in srv.source_status_rows()}
+  assert all(not st2[x]["pending"] for x in (sid1,sid2,sid3)),st2
+  assert st2[sid1]["last_revision"]<st2[sid3]["last_revision"]
+  assert srv.S.rows("SELECT COUNT(*) n FROM placements WHERE source_id=? AND fingerprint IS NOT NULL AND placement_state='ACTIVE'",(sid3,))[0]["n"]==1
+  assert srv.plan_summary()["readiness"]["pending_sources"]==0
+  print("PASS registered source readiness + incremental pending analysis + Plan freshness")
   srv.target_set(str(target))
 
   A=srv.get_ai()
