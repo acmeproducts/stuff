@@ -148,6 +148,14 @@ The timing is consistent with the observed move, but does not establish causatio
    const seeds=await page.locator('#seedMenu26 [data-seed26]').allTextContents();
    check('context-aware question menu populated',seeds.length>=5);
    check('question menu includes horizon extension',seeds.some(x=>/1 year/i.test(x)));
+   const seedGeo=await page.evaluate(()=>{
+     const menu=document.getElementById('seedMenu26'),detail=document.querySelector('.libDetail'),buttons=[...menu.querySelectorAll('button')];
+     const m=menu.getBoundingClientRect(),d=detail.getBoundingClientRect();
+     return{menu:{left:m.left,right:m.right,width:m.width},detail:{left:d.left,right:d.right,width:d.width},buttons:buttons.map(b=>{const r=b.getBoundingClientRect(),s=getComputedStyle(b);return{left:r.left,right:r.right,width:r.width,textAlign:s.textAlign,lineHeight:s.lineHeight,whiteSpace:s.whiteSpace,scrollWidth:b.scrollWidth,clientWidth:b.clientWidth}})};
+   });
+   check('seeded-question menu stays inside Library detail',seedGeo.menu.left>=seedGeo.detail.left-1&&seedGeo.menu.right<=seedGeo.detail.right+1,JSON.stringify(seedGeo));
+   check('seeded questions have readable left inset and wrapping',seedGeo.buttons.every(b=>b.left>=seedGeo.menu.left&&b.right<=seedGeo.menu.right+1&&b.textAlign==='left'&&b.whiteSpace==='normal'&&b.scrollWidth<=b.clientWidth+1),JSON.stringify(seedGeo.buttons));
+
    await page.evaluate(()=>document.getElementById('seedMenu26').classList.add('hidden'));
 
    await page.fill('#compose','Extend this same analysis to 1 year. Does the current trend persist?');
