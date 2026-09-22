@@ -1,0 +1,36 @@
+name: Market Navigator component shadow audit
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'market-navigator-component-shadow-audit.py'
+      - '.github/workflows/market-navigator-component-shadow-audit.yml'
+      - 'market-evidence/series/**'
+      - 'data/market-backend/derived-index-definition.json'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  audit:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Run non-production component scaling audit
+        run: python3 market-navigator-component-shadow-audit.py
+      - name: Validate report contract
+        run: |
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+          p=Path('market-evidence/reports/component-shadow-audit.json')
+          x=json.loads(p.read_text())
+          assert x['status']=='NON_PRODUCTION_C3_SHADOW'
+          assert {'S2A_EVENT_FREQ','S2B_VOL_LEVEL','S2C_CURVE_INVERTED_PRESSURE'} <= set(x['scenarios'])
+          for s in x['scenarios'].values():
+              assert {'risk','growth','macro'} <= set(s['indices'])
+          print('COMPONENT SHADOW AUDIT CONTRACT PASS')
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: market-navigator-component-shadow-audit
+          path: market-evidence/reports/component-shadow-audit.json
