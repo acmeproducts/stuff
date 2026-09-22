@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-import importlib.util,json,os,sys,time,mimetypes,subprocess,hashlib,shutil,uuid
+import importlib.util,json,os,sys,time,mimetypes,subprocess,hashlib,shutil,uuid,re
 from http.server import ThreadingHTTPServer,BaseHTTPRequestHandler
 from pathlib import Path
 HERE=Path(__file__).resolve().parent;sp=importlib.util.spec_from_file_location("sotreleaseb",HERE/"sot-turn02-release-b-engine.py");m=importlib.util.module_from_spec(sp);sys.modules[sp.name]=m;sp.loader.exec_module(m)
@@ -13,6 +13,36 @@ def creation_revision():
  except Exception:return 0
 def bump_creation_revision():
  r=int(time.time()*1000);CREATION_REV_FILE.parent.mkdir(parents=True,exist_ok=True);tmp=CREATION_REV_FILE.with_suffix(".tmp");tmp.write_text(json.dumps({"revision":r}));tmp.replace(CREATION_REV_FILE);return r
+def windows_logical_drives():
+ if "microsoft" not in os.uname().release.lower():return []
+ ps=Path("/mnt/c/Windows/System32/WindowsPowerShell/v1.0/powershell.exe")
+ if not ps.exists():return []
+ script="$ErrorActionPreference='Stop'; Get-CimInstance Win32_LogicalDisk | Select-Object DeviceID,VolumeName,DriveType,ProviderName,FreeSpace,Size | ConvertTo-Json -Compress"
+ try:
+  r=subprocess.run([str(ps),"-NoProfile","-Command",script],text=True,capture_output=True,timeout=15)
+  if r.returncode!=0:return []
+  z=json.loads(r.stdout or "[]")
+  if isinstance(z,dict):z=[z]
+  out=[]
+  types={2:"removable",3:"fixed",4:"network",5:"optical",6:"ramdisk"}
+  for d in z:
+   dev=str(d.get("DeviceID") or "").strip()
+   if not re.match(r"^[A-Za-z]:$",dev):continue
+   letter=dev[0].lower();wsl="/mnt/"+letter
+   p=Path(wsl)
+   mounted=False;readable=False
+   try:
+    mounted=p.is_dir() and os.path.ismount(p)
+    readable=mounted and os.access(p,os.R_OK|os.X_OK)
+   except OSError:pass
+   label=d.get("VolumeName") if isinstance(d.get("VolumeName"),str) else ""
+   out.append({"label":label.strip() or dev,"windows":True,"windows_drive":dev,"windows_path":dev+"\\","path":wsl,
+               "mounted":bool(mounted),"available":bool(readable),
+               "drive_type":types.get(int(d.get("DriveType") or 0),"unknown"),
+               "provider":d.get("ProviderName"),"free_bytes":d.get("FreeSpace"),"total_bytes":d.get("Size")})
+  return out
+ except Exception:return []
+
 def volume_roots():
  out=[Path("/").resolve()]
  for base in ("/mnt","/media"):
@@ -343,15 +373,25 @@ class H(BaseHTTPRequestHandler):
       self.wfile.write(chunk);left-=len(chunk)
     return
    if p=="/api/volumes":
-    vols=[{"label":"WSL","path":"/"}]
+    vols=[{"label":"WSL","path":"/","mounted":True,"available":True,"windows":False}]
+    by_path={"/":vols[0]}
     for base in ("/mnt","/media"):
      q=Path(base)
      if q.exists():
       for x in q.iterdir():
        if base=="/mnt" and x.name.lower() in ("wsl","wslg"):continue
        try:
-        if x.is_dir() and os.path.ismount(x) and os.access(x,os.R_OK|os.X_OK):os.statvfs(x);vols.append({"label":x.name,"path":str(x)})
+        if x.is_dir() and os.path.ismount(x) and os.access(x,os.R_OK|os.X_OK):
+         os.statvfs(x);v={"label":x.name,"path":str(x),"mounted":True,"available":True,"windows":False};vols.append(v);by_path[str(x)]=v
        except OSError:pass
+    for w in windows_logical_drives():
+     cur=by_path.get(w["path"])
+     if cur:
+      cur.update({k:v for k,v in w.items() if k not in ("path","label")})
+      if not cur.get("label") or cur["label"]==Path(cur["path"]).name:cur["label"]=w["label"]
+     else:
+      vols.append(w);by_path[w["path"]]=w
+    vols.sort(key=lambda v:(0 if v["path"]=="/" else 1,str(v.get("windows_drive") or v.get("path") or "").lower()))
     return self.sendj({"ok":True,"volumes":vols})
    if p=="/api/folders":
     root=Path(parse_qs(u.query).get("path",["/"])[0]).resolve();items=[]
