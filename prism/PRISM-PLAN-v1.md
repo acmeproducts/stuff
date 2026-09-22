@@ -1,5 +1,5 @@
-<!-- PRISM-PLAN v6.1.3 -->
-# PRISM MASTER PLAN v6.1.3
+<!-- PRISM-PLAN v6.1.4 -->
+# PRISM MASTER PLAN v6.1.4
 
 ## Governing objective
 Complete PRISM R27 as one clean standalone release and provide the approved standalone Library companion over the same durable Analysis records. R27 remains the authorized full-product release. No R28.
@@ -10,7 +10,7 @@ Complete PRISM R27 as one clean standalone release and provide the approved stan
 - `Explore` is removed from the shipped selector, DOM, restorable view state, rendering path, and acceptance sequence. It is parked for possible later development and may return only as a separately qualified, explicitly authorized surface. `Feed` remains the linear view of the Map corpus.
 - `Library` is a first-class same-origin application page, reached by the top-level Library tab. It is the approved complete Library surface and reads/writes the same `prism/analyses` records as Map; it is not an alternate product, database, wrapper, or iframe.
 - Moving from NewsMap or Feed to Library and back restores the exact prior Map mode and retains active dimensions, filters, time window, query, selection, and reader state through same-tab session state unless the owner explicitly changes them. Historical saved `Explore` state resolves safely to NewsMap.
-- Analyze and Library `＋` open the governed AI POV prompt workspace. Run persists and selects the exact Processing card before provider work; completion writes the Markdown response and generated title back to that same card, then hands off to the complete Library page with that exact card selected.
+- Analyze opens the governed AI POV prompt workspace (the Library `＋` is retired, 2026-09-22; the Library starter remains the in-Library way to begin one). Run persists and selects the exact Processing card before provider work; completion writes the Markdown response and generated title back to that same card, then hands off to the complete Library page with that exact card selected.
 - The integrated Library retains per-Analysis parallel provider jobs and generated inline-editable titles. Consolidation may not reintroduce a global busy lock, generic permanent titles, or background selection theft.
 
 ## Approved standalone Library companion — 2026-09-08
@@ -88,7 +88,7 @@ The Map is not a fixed-row lattice. It must visually behave like a dense NewsMap
 ## Library product contract — mandatory acceptance surface
 Library is a complete two-surface workspace and may never degrade to a blank page.
 1. The Library has a persistent left Analysis rail and a right Analysis workspace.
-2. The Analysis rail is independently scrollable and explicitly collapsible/expandable. Collapsing it must expand the right workspace; it must never destroy the rail state or Analysis selection.
+2. The Analysis rail is independently scrollable and explicitly collapsible/expandable. Collapsed, it has zero width and the workspace takes the whole width; the collapse/expand toggle lives in the workspace head so it is reachable in both states (2026-09-22). Collapsing must never destroy the rail state or Analysis selection.
 3. Each rail card is exactly title + × delete; `Created <date/time> | Updated <date/time>`; `Status: Processing|Ready|Failed`.
 4. The right workspace fills all remaining application height and is a true three-row grid: fixed Analysis header / `minmax(0,1fr)` independently scrolling complete Analysis transcript / pinned bottom chat compose strip.
 5. The compose strip is sticky/pinned to the bottom of the right workspace and contains a paperclip attachment button, prompt textarea, and send button.
