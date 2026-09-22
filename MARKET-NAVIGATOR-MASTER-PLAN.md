@@ -1002,3 +1002,19 @@ The Library `?` seeded-question menu must remain fully contained inside the Libr
 - avoid horizontal scrolling or clipped first words.
 
 At 412px mobile width, the menu bounds and every question row must remain within the Library detail card.
+
+
+### 34.8 Seeded context questions must return live links — 2026-09-22
+
+The Library `?` seeded question **“What reputable data releases and reporting are contemporaneous with the move?”** is a governed live-context query, not a generic conversational follow-up.
+
+Requirements:
+
+- route that question, and equivalent natural-language context/news/reporting requests, through the same live context retrieval path used by the newspaper Refresh Context action;
+- require actual clickable Markdown hyperlinks in both Data & Releases and Related Reporting when qualifying sources exist;
+- citation markers, footnote numbers, source names without URLs, or claims that links are active are not substitutes for hyperlinks;
+- validate the generated Context & Further Reading body before rendering;
+- if a response contains external-source claims but no working hyperlink syntax/URL, retry the context request once with an explicit link-repair instruction;
+- if the retry still produces no links, render a truthful no-links warning rather than presenting citation markers as linked evidence.
+
+Release qualification must prove the seeded context question resolves to `refresh-context` and produces rendered anchor elements without requiring the newspaper refresh as a second step.
