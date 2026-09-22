@@ -175,8 +175,9 @@ The timing is consistent with the observed move, but does not establish causatio
    check('seeded context result renders rich live links',seedHrefSet.length>=5,JSON.stringify(seedHrefSet));
    check('seeded context includes reporting links',seedHrefSet.some(x=>x.includes('reuters.com'))&&seedHrefSet.some(x=>x.includes('bloomberg.com')),JSON.stringify(seedHrefSet));
    check('seeded context source bundle is deterministic',await page.evaluate(()=>{let x=window.__mnTurn26.live()?.contextSources;return !!x&&x.schema==='market-navigator-context-sources-v1'&&x.primary.length>=1&&x.reporting.length>=2}));
+   const seedQueryId=await page.evaluate(()=>window.__mnTurn26.live()?.result?.query_id);
    await page.click('.liveResult26 .refreshContext26');
-   await page.waitForFunction(()=>window.__mnTurn26.live()?.contextSources?.reporting?.length>=2);
+   await page.waitForFunction(id=>{let x=window.__mnTurn26.live();return x?.result?.query_id&&x.result.query_id!==id&&x?.contextSources?.reporting?.length>=2},seedQueryId);
    const newspaperHrefSet=await page.locator('.liveResult26 details.contextDetails26 a[href^="http"]').evaluateAll(xs=>[...new Set(xs.map(x=>x.href))].sort());
    check('? and newspaper use identical source-link set',JSON.stringify(seedHrefSet)===JSON.stringify(newspaperHrefSet),JSON.stringify({seedHrefSet,newspaperHrefSet}));
    await page.click('#discardLive26');
@@ -194,6 +195,7 @@ The timing is consistent with the observed move, but does not establish causatio
 
    await page.evaluate(()=>document.getElementById('seedMenu26').classList.add('hidden'));
 
+   check('1YR seed intent resolves correctly before execution',await page.evaluate(()=>window.__mnTurn26.intent('Extend this same analysis to 1 year. Does the current trend persist?',window.__mnCurrentAnalysis()).horizon==='1YR'));
    await page.fill('#compose','Extend this same analysis to 1 year. Does the current trend persist?');
    await page.click('#send');
    await page.waitForSelector('.liveResult26',{timeout:20000});
