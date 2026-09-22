@@ -11,10 +11,11 @@
 | 2026-09-20 | Define → Build | superseded | Owner clarified workflow: selecting a project auto-opens its first tab; new tabs skip filename prompt and default to the project file; project .md is sole authority |
 | 2026-09-20 | Design → Build | in-progress | Build starts: implementing R1 — right-panel dashboard, collapsible soft-delete bin above dashboard card, project-select opens first tab, new tabs default to project file |
 | 2026-09-20 | Build | done | Plan file found corrupted (literal patch blocks from a prior run). Reconstructed full plan from ledger fragments + owner directives; added guard rule #7. R1 code build is next |
+| 2026-09-22 | R2 hardening | in-progress | Owner requested friction and continuity improvements; plan gate, per-thread queue, conflict safety, fallback visibility, and objective display |
 
 ## 1. RELEASES
 - **R1 — Dashboard & workflow restore (current)** — right-panel dashboard; collapsible soft-delete bin; simplified per-project tabs
-- R2+ — TBD
+- **R2 — Run continuity and conflict safety (current)** — guard plan context, serialize thread runs, avoid stale writes, expose model changes and next step
 - History prior to 2026-09-20 was lost in the plan-corruption event; the running app (v1.0 b31) is the de-facto baseline
 
 ## 2. R1 — Dashboard & workflow restore
@@ -37,6 +38,22 @@
 - Existing behaviors (chat, build loop, engines, thread recycle bin) unchanged
 
 **Backlog** — TBD
+
+## R2 — Run continuity and conflict safety
+**Scope (in)**
+1. Require a readable master plan before inference; show a recoverable error when it is missing
+2. Serialize runs per thread while keeping newly sent messages visible and queued
+3. Reject stale GitHub writes instead of retrying replacement content against a new SHA
+4. Show provider/model fallback during a run and record the provider/model that actually answered
+5. Show the current objective and next step near the conversation
+6. Verify plan updates before code writes when a request changes the plan
+
+**Build gates**
+- Send two messages during one run: second stays queued and runs only after the first finishes or is stopped
+- Missing plan: no code write; clear error and retry after restoring the plan
+- Concurrent plan/thread edit: no silent overwrite
+- Provider fallback: visible in progress and final reply, with actual model recorded
+- New objective: saved plan can be read back before code changes
 
 ## 3. FUTURE IDEAS
 - In-chat retargeting of build output filename ("land this in X.html")
