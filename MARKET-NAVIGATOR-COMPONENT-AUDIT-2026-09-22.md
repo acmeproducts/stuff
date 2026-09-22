@@ -202,3 +202,114 @@ After that, RSK / GRW / MAC can be generated once as versioned persistent time s
 5. Only then produce the proposed canonical component-registry revision.
 
 This audit is intentionally conservative: it prevents the index redesign from locking in mathematically correct but economically misleading component behavior.
+
+
+## 11. Preliminary C3 influence test — first candidate scaling does NOT pass
+
+A first deterministic endpoint test was run against the canonical series histories using the provisional families in this audit:
+
+- proportional ratio movement for the provisional price/index family;
+- `signed_level_sd` for NFCI and the Treasury spreads;
+- `signed_change_sd` for WTI;
+- `rate_change_sd` for HY spread, Treasury yields, CPI/Core PCE, unemployment and Fed Funds;
+- seven equal nominal component coefficients.
+
+This test is diagnostic only. It does not change production arithmetic.
+
+### 11.1 RSK concentration
+
+The provisional RSK treatment remains materially concentrated in different components depending on horizon.
+
+Examples of largest absolute-movement share:
+
+- 5D: VIX ≈ **62%**;
+- MTD: VIX ≈ **64%**;
+- YTD: MOVE ≈ **59%**;
+- 3YR: SPY ≈ **60%**.
+
+The two largest components together account for roughly **76–88%** of absolute movement in several tested horizons.
+
+Finding: merely repairing HY Spread/NFCI while leaving VIX/MOVE/SPY on raw proportional scales does not make equal nominal weights behave like balanced influence.
+
+### 11.2 GRW concentration
+
+The provisional GRW treatment is less extreme but still meaningfully concentrated.
+
+Examples:
+- MTD: WTI ≈ **43%** of absolute movement;
+- 1YR: Copper ≈ **45%**;
+- 5YR: QQQ ≈ **47%**;
+- top two components reach roughly **64–79%** in several horizons.
+
+Monthly manufacturing, unemployment and payroll components naturally contribute no new movement in short windows when no release occurs.
+
+Finding: WTI's proposed `signed_change_sd` is mathematically viable, but the complete GRW scale still needs influence/frequency qualification before canonical adoption.
+
+### 11.3 MAC exposes a specific scaling failure
+
+The provisional `rate_change_sd` definition used the standard deviation of all one-observation changes.
+
+That is not a safe universal scale.
+
+Fed Funds is the clearest failure because the daily series contains many unchanged observations. The resulting all-day change SD is small, so an ordinary policy step becomes many standard deviations.
+
+Under the first candidate:
+- 5D Fed Funds accounts for about **82%** of absolute MAC movement;
+- the 5YR transformed moves for 10Y, 2Y and Fed Funds become roughly **91**, **82** and **97** transform units respectively.
+
+Finding: **C3 FAIL for the first candidate scaling rule.** Do not implement `rate_change_sd` as “divide by SD of all daily changes” across every rate series.
+
+## 12. Revised scaling problem to solve
+
+The next audit must distinguish **economic change definition** from **influence scale**.
+
+The economic change definitions remain useful:
+
+- prices/positive levels → proportional/log-style movement;
+- signed indicators/spreads → additive movement;
+- WTI → additive price movement;
+- rates/percentages → basis-point/percentage-point movement.
+
+But each family then needs a scale appropriate to its observation/event process.
+
+At minimum compare:
+
+### Candidate S1 — raw economically meaningful change
+Preserve raw proportional / basis-point / additive units with equal nominal coefficients. This is maximally interpretable but may permit structural dominance.
+
+### Candidate S2 — event-cadence normalization
+Normalize changes using the distribution of actual information events rather than every stored row.
+
+Examples:
+- Fed Funds: non-zero policy-rate changes / policy events rather than thousands of zero daily changes;
+- monthly macro: month-to-month release changes;
+- weekly NFCI: weekly changes;
+- trading-day prices/volatility: trading-day return/change distributions.
+
+### Candidate S3 — common realized-influence normalization
+Calibrate each transformed component to a common historical movement target so equal nominal weights approximate equal typical influence.
+
+This is statistically cleaner but requires a strong governance explanation and stability test; it may not be selected merely because it produces visually balanced charts.
+
+## 13. Mixed-frequency influence is now an explicit C3/C4 dependency
+
+Even after event-cadence scaling, market series update hundreds of times per year while monthly macro series update roughly twelve times.
+
+Therefore the persistent-index design must decide whether:
+
+- a component contributes only when new information arrives;
+- a release changes a persistent component state that then remains in force;
+- or another governed time-normalization rule is necessary.
+
+Do not solve this by horizon-dependent weights or fabricated daily macro observations.
+
+## 14. Current gate status
+
+- **C1 provenance:** substantially complete for the 21 current components; WTI lineage resolved as Yahoo `CL=F`.
+- **C2 transform family:** provisional; economic change families identified, with VIX/MOVE and Treasury-curve direction still open.
+- **C3 influence/scaling:** **FAIL on first candidate**; revised scaling comparison required.
+- **C4 information-time/vintage:** open.
+- **C5 component registry approval:** blocked by C3 and C4.
+- **Persistent-index anchor selection:** blocked by C5.
+
+This failure is useful: it prevents a mathematically cleaner but still structurally misleading component registry from becoming the foundation of the persistent indices.
