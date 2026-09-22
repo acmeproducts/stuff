@@ -1309,3 +1309,46 @@ The Plan/report tables must use content-sized columns rather than stretching col
 - Keep normal compact cell padding so values remain readable/tappable.
 - Horizontal scrolling is allowed only when the actual content width exceeds the viewport.
 - This is presentation-only; Plan arithmetic, row order, labels, bars, totals, and subtab behavior remain unchanged.
+
+
+## 2026-09-21 — WINDOWS-AWARE VOLUME DISCOVERY — BINDING
+
+SOT volume discovery must distinguish **Windows-visible drives** from **WSL-mounted usable volumes**.
+
+### Discovery contract
+
+- On WSL, `/api/volumes` must query Windows for logical filesystem drives in addition to enumerating Linux mount points.
+- Windows discovery must include fixed, removable, optical, and mapped/network logical drives that Windows reports.
+- Windows drive letters are merged with the corresponding expected WSL DrvFs path, normally `/mnt/<letter>`.
+- A Windows-visible drive must not silently disappear merely because it is not currently mounted in WSL.
+- Each returned volume records whether it is:
+  - visible to Windows;
+  - mounted/usable in WSL;
+  - Windows drive letter / Windows root;
+  - WSL path when applicable;
+  - drive type when Windows supplies it.
+- Duplicate entries from Windows discovery and Linux mount discovery are coalesced.
+
+### Usability boundary
+
+- Existing SOT source/target/folder operations remain Linux-path based.
+- A Windows-visible drive that is not mounted in WSL is shown in the picker but is explicitly marked **Not mounted in WSL** and is not selectable for source/target operations.
+- SOT must not silently perform privileged mounts.
+- Once the drive becomes mounted/readable in WSL, Refresh volumes must promote the same drive to a selectable volume.
+
+### Picker presentation
+
+- Available Volumes must show Windows-visible drives even when currently unavailable to WSL.
+- Mounted drives show their WSL path.
+- Windows-only entries show the Windows drive/root plus **Not mounted in WSL**.
+- Tapping an unmounted entry produces a concise explanation rather than an empty Folder Tree or generic error.
+
+### Qualification
+
+Release B qualification must verify:
+1. Windows logical-drive discovery is present on WSL;
+2. Windows-only drives are returned rather than hidden;
+3. mounted Windows drives coalesce with `/mnt/<letter>`;
+4. unmounted Windows drives are marked unavailable and cannot become source/target roots;
+5. Linux-only mounts continue to appear; and
+6. no automatic privileged mount command is introduced.
