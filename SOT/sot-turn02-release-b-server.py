@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-import importlib.util,json,os,sys,time,mimetypes,subprocess,hashlib,shutil,uuid,re
+import importlib.util,json,os,sys,time,mimetypes,subprocess,hashlib,shutil,uuid,re,threading
 from http.server import ThreadingHTTPServer,BaseHTTPRequestHandler
 from pathlib import Path
 HERE=Path(__file__).resolve().parent;sp=importlib.util.spec_from_file_location("sotreleaseb",HERE/"sot-turn02-release-b-engine.py");m=importlib.util.module_from_spec(sp);sys.modules[sp.name]=m;sp.loader.exec_module(m)
@@ -13,35 +13,102 @@ def creation_revision():
  except Exception:return 0
 def bump_creation_revision():
  r=int(time.time()*1000);CREATION_REV_FILE.parent.mkdir(parents=True,exist_ok=True);tmp=CREATION_REV_FILE.with_suffix(".tmp");tmp.write_text(json.dumps({"revision":r}));tmp.replace(CREATION_REV_FILE);return r
+MOUNT_HELPER="/usr/local/sbin/sot-mount-drive"
+MOUNT_RETRY_SECONDS=20
+MOUNT_STATE={}
+MOUNT_LOCK=threading.RLock()
+
+def normalize_mount_source(v):
+ return str(v or "").strip().replace("\\","/").rstrip("/").upper()
+
+def mount_info(root):
+ try:
+  z=subprocess.run(["findmnt","-rn","-M",str(root),"-o","TARGET,FSTYPE,SOURCE"],text=True,capture_output=True,timeout=5)
+  if z.returncode!=0 or not z.stdout.strip():return None
+  parts=z.stdout.strip().split(None,2)
+  if len(parts)<3:return None
+  return {"target":parts[0],"fstype":parts[1].lower(),"source":parts[2]}
+ except Exception:return None
+
+def verified_windows_mount(letter):
+ letter=str(letter or "").strip().lower()
+ if not re.match(r"^[a-z]$",letter):return False,{"error":"invalid Windows drive"}
+ root="/mnt/"+letter;mi=mount_info(root);expected=(letter+":").upper()
+ if not mi:return False,{"root":root,"error":"not mounted"}
+ if mi["target"]!=root:return False,{"root":root,"mount":mi,"error":"mount target mismatch"}
+ if mi["fstype"] not in ("9p","drvfs"):return False,{"root":root,"mount":mi,"error":"not a Windows-backed WSL mount"}
+ if normalize_mount_source(mi["source"])!=expected:return False,{"root":root,"mount":mi,"error":"mount source mismatch"}
+ try:
+  p=Path(root)
+  if not p.is_dir() or not os.access(p,os.R_OK|os.X_OK):return False,{"root":root,"mount":mi,"error":"mount is not readable"}
+  next(p.iterdir(),None)
+  return True,{"root":root,"mount":mi}
+ except Exception as e:return False,{"root":root,"mount":mi,"error":"mount unreadable: "+str(e)}
+
 def windows_logical_drives():
  if "microsoft" not in os.uname().release.lower():return []
  ps=Path("/mnt/c/Windows/System32/WindowsPowerShell/v1.0/powershell.exe")
  if not ps.exists():return []
- script="$ErrorActionPreference='Stop'; Get-CimInstance Win32_LogicalDisk | Select-Object DeviceID,VolumeName,DriveType,ProviderName,FreeSpace,Size | ConvertTo-Json -Compress"
+ script="$ErrorActionPreference='Stop'; Get-CimInstance Win32_LogicalDisk | Select-Object DeviceID,VolumeName,DriveType,ProviderName,FreeSpace,Size,VolumeSerialNumber | ConvertTo-Json -Compress"
  try:
   r=subprocess.run([str(ps),"-NoProfile","-Command",script],text=True,capture_output=True,timeout=15)
   if r.returncode!=0:return []
   z=json.loads(r.stdout or "[]")
   if isinstance(z,dict):z=[z]
-  out=[]
-  types={2:"removable",3:"fixed",4:"network",5:"optical",6:"ramdisk"}
+  out=[];types={2:"removable",3:"fixed",4:"network",5:"optical",6:"ramdisk"}
   for d in z:
    dev=str(d.get("DeviceID") or "").strip()
    if not re.match(r"^[A-Za-z]:$",dev):continue
-   letter=dev[0].lower();wsl="/mnt/"+letter
-   p=Path(wsl)
-   mounted=False;readable=False
-   try:
-    mounted=p.is_dir() and os.path.ismount(p)
-    readable=mounted and os.access(p,os.R_OK|os.X_OK)
-   except OSError:pass
-   label=d.get("VolumeName") if isinstance(d.get("VolumeName"),str) else ""
-   out.append({"label":label.strip() or dev,"windows":True,"windows_drive":dev,"windows_path":dev+"\\","path":wsl,
-               "mounted":bool(mounted),"available":bool(readable),
-               "drive_type":types.get(int(d.get("DriveType") or 0),"unknown"),
-               "provider":d.get("ProviderName"),"free_bytes":d.get("FreeSpace"),"total_bytes":d.get("Size")})
+   letter=dev[0].lower();ok,detail=verified_windows_mount(letter);label=d.get("VolumeName") if isinstance(d.get("VolumeName"),str) else ""
+   out.append({"label":label.strip() or dev,"windows":True,"windows_drive":dev,"windows_path":dev+"\\","path":"/mnt/"+letter,
+               "mounted":bool(ok),"available":bool(ok),"mount_error":None if ok else detail.get("error"),
+               "drive_type":types.get(int(d.get("DriveType") or 0),"unknown"),"provider":d.get("ProviderName"),
+               "volume_serial":d.get("VolumeSerialNumber"),"stable_volume_id":str(d.get("VolumeSerialNumber") or d.get("ProviderName") or dev),
+               "free_bytes":d.get("FreeSpace"),"total_bytes":d.get("Size")})
   return out
  except Exception:return []
+
+def ensure_windows_drive_mounted(letter,force=False):
+ letter=str(letter or "").strip().lower()
+ if not re.match(r"^[a-z]$",letter):return {"ok":False,"error":"invalid Windows drive"}
+ ok,detail=verified_windows_mount(letter)
+ if ok:return {"ok":True,**detail}
+ inventory={str(v.get("windows_drive",""))[:1].lower():v for v in windows_logical_drives()}
+ if letter not in inventory:return {"ok":False,"root":"/mnt/"+letter,"error":letter.upper()+": is not currently available in Windows"}
+ now=time.time()
+ with MOUNT_LOCK:
+  prev=MOUNT_STATE.get(letter)
+  if not force and prev and not prev.get("ok") and now-float(prev.get("at",0))<MOUNT_RETRY_SECONDS:return dict(prev)
+  try:
+   z=subprocess.run(["sudo","-n",MOUNT_HELPER,letter.upper()],text=True,capture_output=True,timeout=25)
+   if z.returncode!=0:
+    result={"ok":False,"root":"/mnt/"+letter,"error":(z.stderr or z.stdout or "mount helper failed").strip()[:600],"at":now}
+   else:
+    good,check=verified_windows_mount(letter)
+    result={"ok":bool(good),"root":"/mnt/"+letter,"error":None if good else check.get("error","mount verification failed"),"mount":check.get("mount"),"at":now}
+  except Exception as e:result={"ok":False,"root":"/mnt/"+letter,"error":str(e)[:600],"at":now}
+  MOUNT_STATE[letter]=result
+  return dict(result)
+
+def windows_letter_for_path(path):
+ m=re.match(r"^/mnt/([A-Za-z])(?:/|$)",str(path))
+ return m.group(1).lower() if m else None
+
+def reconcile_windows_path(path,require_write=False):
+ raw=str(path);letter=windows_letter_for_path(raw)
+ if not letter:return str(Path(raw).resolve())
+ z=ensure_windows_drive_mounted(letter)
+ if not z.get("ok"):raise RuntimeError(z.get("error") or (letter.upper()+": unavailable"))
+ p=Path(raw).resolve()
+ mode=os.R_OK|os.X_OK|(os.W_OK if require_write else 0)
+ if not os.access(p,mode):raise RuntimeError(str(p)+" is not accessible with required permissions")
+ return str(p)
+
+def reconcile_sources(source_ids=None):
+ rows=S.rows("SELECT source_id,root FROM sources WHERE enabled=1 ORDER BY source_id")
+ if source_ids:rows=[r for r in rows if r["source_id"] in source_ids]
+ for r in rows:reconcile_windows_path(r["root"],False)
+ return rows
 
 def volume_roots():
  out=[Path("/").resolve()]
@@ -56,12 +123,12 @@ def volume_roots():
  return out
 def target_get():
  try:
-  z=json.loads(TARGET_FILE.read_text());p=Path(z["path"]).resolve()
+  z=json.loads(TARGET_FILE.read_text());reconcile_windows_path(z["path"],False);p=Path(z["path"]).resolve()
   if not p.is_dir():return {"configured":True,"path":str(p),"label":z.get("label",p.name or str(p)),"available":False}
   st=os.statvfs(p);return {"configured":True,"path":str(p),"label":z.get("label",p.name or str(p)),"configured_at":z.get("configured_at"),"available":os.access(p,os.R_OK|os.W_OK|os.X_OK),"registered_free_bytes":z.get("registered_free_bytes"),"registered_total_bytes":z.get("registered_total_bytes"),"free_bytes":st.f_bavail*st.f_frsize,"total_bytes":st.f_blocks*st.f_frsize}
  except Exception:return {"configured":False}
 def target_set(path,label=""):
- p=Path(path).resolve()
+ path=reconcile_windows_path(path,True);p=Path(path).resolve()
  if not p.is_dir():raise RuntimeError("TARGET folder does not exist")
  roots=volume_roots()
  if not any(p==r or str(p).startswith(str(r).rstrip("/")+"/") for r in roots):raise RuntimeError("TARGET is not on an available volume")
@@ -161,14 +228,14 @@ def finalize_bulk(bulk_id,event_type,message,detail):
 def move_preflight(ids,destination):
  rows=active_rows(ids)
  if len(rows)!=len(ids):raise RuntimeError("One or more selected placements are missing or no longer active")
- dest=Path(destination).resolve()
+ destination=reconcile_windows_path(destination,True);dest=Path(destination).resolve()
  if not dest.is_dir():raise RuntimeError("Destination folder does not exist")
  ds=destination_source(dest)
  if not ds:raise RuntimeError("Destination must be inside a registered Estate root")
  if not os.access(dest,os.R_OK|os.W_OK|os.X_OK):raise RuntimeError("Destination is not readable/writable")
  seen=set();items=[];cross_bytes=0
  for r in rows:
-  src=Path(r["path"]).resolve()
+  reconcile_windows_path(r["path"],False);src=Path(r["path"]).resolve()
   if r["availability"]!="AVAILABLE" or not src.is_file():raise RuntimeError("Selected file unavailable: "+r["filename"])
   dst=(dest/r["filename"]).resolve()
   if dst==src:raise RuntimeError("Destination is already the current folder for "+r["filename"])
@@ -265,8 +332,8 @@ def delete_batch(ids,mode="trash",token=None):
   if not set(ids).issubset(allowed):raise RuntimeError("Permanent-delete scope does not match the failed-trash subset")
  bulk=uuid.uuid4().hex;requested=time.time();results=[];failed=[];successes=0
  for r in rows:
-  fp=Path(r["path"]).resolve()
   try:
+   reconcile_windows_path(r["path"],True);fp=Path(r["path"]).resolve()
    if r["availability"]!="AVAILABLE" or not fp.is_file():raise RuntimeError("File unavailable")
    if mode=="trash":verification=trash_one(fp);state="TRASHED"
    elif mode=="permanent":fp.unlink();verification="permanent-unlink";state="DELETED"
@@ -348,7 +415,7 @@ class H(BaseHTTPRequestHandler):
    if p=="/api/file/info":
     pid=parse_qs(u.query).get("id",[""])[0];r=S.rows("SELECT placement_id,path,filename,size,availability FROM placements WHERE placement_id=? AND placement_state=\'ACTIVE\'",(pid,))
     if not r:return self.sendj({"ok":False,"error":"placement not found"},404)
-    z=r[0];fp=Path(z["path"]).resolve()
+    z=r[0];reconcile_windows_path(z["path"],False);fp=Path(z["path"]).resolve()
     if z["availability"]!="AVAILABLE" or not fp.is_file():return self.sendj({"ok":False,"error":"file unavailable"},404)
     mime=mimetypes.guess_type(str(fp))[0] or "application/octet-stream";ext=fp.suffix.lower()
     preview="image" if mime.startswith("image/") else "video" if mime.startswith("video/") else "text" if ext in (".txt",".md",".markdown") or mime.startswith("text/plain") else "frame" if ext in (".pdf",".html",".htm") else "none"
@@ -356,7 +423,7 @@ class H(BaseHTTPRequestHandler):
    if p=="/api/file/content":
     pid=parse_qs(u.query).get("id",[""])[0];r=S.rows("SELECT path,availability FROM placements WHERE placement_id=? AND placement_state=\'ACTIVE\'",(pid,))
     if not r:return self.sendj({"ok":False,"error":"placement not found"},404)
-    fp=Path(r[0]["path"]).resolve()
+    reconcile_windows_path(r[0]["path"],False);fp=Path(r[0]["path"]).resolve()
     if r[0]["availability"]!="AVAILABLE" or not fp.is_file():return self.sendj({"ok":False,"error":"file unavailable"},404)
     mime=mimetypes.guess_type(str(fp))[0] or "application/octet-stream";size=fp.stat().st_size;start=0;end=size-1;status=200
     rh=self.headers.get("Range")
@@ -385,6 +452,10 @@ class H(BaseHTTPRequestHandler):
          os.statvfs(x);v={"label":x.name,"path":str(x),"mounted":True,"available":True,"windows":False};vols.append(v);by_path[str(x)]=v
        except OSError:pass
     for w in windows_logical_drives():
+     letter=str(w.get("windows_drive",""))[:1].lower()
+     if letter:
+      state=ensure_windows_drive_mounted(letter)
+      w["mounted"]=bool(state.get("ok"));w["available"]=bool(state.get("ok"));w["mount_error"]=state.get("error")
      cur=by_path.get(w["path"])
      if cur:
       cur.update({k:v for k,v in w.items() if k not in ("path","label")})
@@ -392,9 +463,9 @@ class H(BaseHTTPRequestHandler):
      else:
       vols.append(w);by_path[w["path"]]=w
     vols.sort(key=lambda v:(0 if v["path"]=="/" else 1,str(v.get("windows_drive") or v.get("path") or "").lower()))
-    return self.sendj({"ok":True,"volumes":vols})
+    return self.sendj({"ok":True,"volumes":vols,"reconciled_at":time.time()})
    if p=="/api/folders":
-    root=Path(parse_qs(u.query).get("path",["/"])[0]).resolve();items=[]
+    raw=parse_qs(u.query).get("path",["/"])[0];raw=reconcile_windows_path(raw,False);root=Path(raw).resolve();items=[]
     for x in root.iterdir():
      try:
       if x.is_dir() and not x.is_symlink():items.append({"name":x.name,"path":str(x.resolve())})
@@ -405,15 +476,17 @@ class H(BaseHTTPRequestHandler):
  def do_POST(self):
   try:
    p=self.path.split("?",1)[0];b=self.body()
-   if p=="/api/sources":return self.sendj({"ok":True,"source_id":M.add_source(b["label"],b["root"],b.get("failure_domain",b["root"]),b.get("role","primary"),b.get("estate"))})
+   if p=="/api/sources":
+    root=reconcile_windows_path(b["root"],False);return self.sendj({"ok":True,"source_id":M.add_source(b["label"],root,b.get("failure_domain",root),b.get("role","primary"),b.get("estate"))})
    if p=="/api/target":return self.sendj({"ok":True,"target":target_set(b["path"],b.get("label",""))})
    if p=="/api/creation/backfill":return self.sendj({"ok":True,"result":creation_backfill()})
    if p=="/api/folders/create":
-    parent=Path(b["parent"]).resolve();name=str(b["name"]).strip()
+    parent=Path(reconcile_windows_path(b["parent"],True)).resolve();name=str(b["name"]).strip()
     if not name or name in (".","..") or "/" in name or "\\" in name:raise RuntimeError("Invalid folder name")
     if not any(parent==r or str(parent).startswith(str(r).rstrip("/")+"/") for r in volume_roots()):raise RuntimeError("Parent is not on an available volume")
     child=parent/name;child.mkdir(exist_ok=False);return self.sendj({"ok":True,"folder":{"name":child.name,"path":str(child.resolve())}})
-   if p=="/api/job/start":return self.sendj({"ok":True,"job_id":M.start(b.get("source_ids"))})
+   if p=="/api/job/start":
+    reconcile_sources(b.get("source_ids"));return self.sendj({"ok":True,"job_id":M.start(b.get("source_ids"))})
    if p=="/api/ai/task/create":return self.sendj({"ok":True,"task":get_ai().create(b["task_type"],b.get("scope"),b.get("title"))})
    if p=="/api/ai/task/title":return self.sendj({"ok":True,"task":get_ai().title(str(b.get("task_id","")),b.get("title"))})
    if p=="/api/ai/task/delete":
@@ -434,7 +507,7 @@ class H(BaseHTTPRequestHandler):
    if p=="/api/file/open":
     pid=b.get("id","");r=S.rows("SELECT path,availability FROM placements WHERE placement_id=? AND placement_state=\'ACTIVE\'",(pid,))
     if not r:return self.sendj({"ok":False,"error":"placement not found"},404)
-    fp=Path(r[0]["path"]).resolve()
+    reconcile_windows_path(r[0]["path"],False);fp=Path(r[0]["path"]).resolve()
     if r[0]["availability"]!="AVAILABLE" or not fp.is_file():return self.sendj({"ok":False,"error":"file unavailable"},404)
     if os.name=="nt":os.startfile(str(fp))
     elif "microsoft" in os.uname().release.lower():
