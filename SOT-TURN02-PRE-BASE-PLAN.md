@@ -1352,3 +1352,109 @@ Release B qualification must verify:
 4. unmounted Windows drives are marked unavailable and cannot become source/target roots;
 5. Linux-only mounts continue to appear; and
 6. no automatic privileged mount command is introduced.
+
+
+## 2026-09-21 — LIVE WINDOWS VOLUME RECONCILIATION + PROVEN LAZY MOUNT RECOVERY — BINDING
+
+This section supersedes the temporary Windows-aware discovery rule that merely displayed Windows-visible/WSL-unmounted drives. Repository history confirms that SOT Turn 01 already implemented and owner-tested the correct architecture: **dynamic Windows drive discovery + lazy WSL mount through a narrow `sot-mount-drive` helper**. Turn 02 must recover that proven behavior rather than leave mount repair to the owner.
+
+### Recovered lineage
+
+The implementation must recover the established Turn 01 storage pattern represented by:
+- `integrate-SOT-turn01-base.py` — `windowsDriveLetters()`, `driveMounted()`, `ensureWindowsDriveMounted()`, `volumeRecord()`, `volumeFor()`;
+- `patch-SOT-turn01-base-storage-final.py` — mount-table verification for both WSL2 `9p` and `drvfs`, exact source/target matching, and stale/unreadable mount rejection;
+- the Turn 01 installer lineage that expected a root-owned `/usr/local/sbin/sot-mount-drive` helper callable by the SOT service through narrowly scoped passwordless sudo.
+
+This is recovered product behavior, not a new speculative design.
+
+### Authority and identity
+
+- Windows is authoritative for whether a Windows filesystem volume currently exists.
+- WSL mount state is the current access mechanism, not the durable identity.
+- Windows discovery records current drive letter/root plus a stable identity when Windows exposes one (volume serial / volume GUID / provider identity).
+- SOT does not assume that a letter or `/mnt/<letter>` path remains permanently attached to the same physical volume.
+- Every reconciliation reads current Windows inventory again.
+
+### Continuous reconciliation
+
+SOT maintains live volume state rather than a startup snapshot.
+
+- While SOT is running, Windows volume inventory is re-read periodically.
+- Newly appearing Windows volumes are discovered without restarting SOT.
+- A Windows-visible drive that is not currently usable in WSL triggers the governed lazy-mount path.
+- A drive that disappears from Windows immediately becomes unavailable in SOT.
+- A drive that reappears is reconciled and remounted as needed.
+- Refresh Volumes remains an explicit immediate refresh control, but normal correctness must not depend on the user pressing it.
+
+### Governed mount helper
+
+The Release B installer installs a root-owned executable:
+
+`/usr/local/sbin/sot-mount-drive`
+
+Contract:
+- accepts exactly one Windows drive letter;
+- rejects all other arguments;
+- mounts only to the canonical `/mnt/<lowercase-letter>` location;
+- may establish only Windows-backed WSL mounts using the normal WSL Windows filesystem mechanism;
+- recognizes both `9p` and `drvfs` as valid WSL2 Windows-backed mount types;
+- verifies exact mount target and normalized Windows source after mounting;
+- verifies the mounted root is readable;
+- never accepts mere directory existence as proof of a mount;
+- refuses to replace an unrelated/conflicting mount at the canonical target;
+- may repair only a stale/unreadable Windows mount when the target/source correspond to the same requested drive;
+- has no arbitrary command execution surface.
+
+The installer grants the SOT service user passwordless sudo for **only this helper**. The SOT server itself does not receive unrestricted sudo.
+
+### Lazy mount behavior
+
+- `/api/volumes` reconciles current Windows inventory with current Linux mount-table state.
+- When a Windows volume is currently visible but lacks a valid usable WSL mount, SOT attempts `sudo -n /usr/local/sbin/sot-mount-drive <LETTER>`.
+- After the helper returns, SOT re-reads mount state and only marks the volume AVAILABLE if exact mount verification and readability pass.
+- Mount failures are returned as truthful per-volume state and logged; they do not silently hide the Windows volume.
+- Mount attempts use a short retry/cooldown so a persistently unavailable optical/network/removable drive cannot cause a tight privileged retry loop.
+
+### Operation-boundary reconciliation
+
+Before any operation that depends on a Windows-backed path, SOT revalidates/mounts the current drive as needed. This includes:
+- Estate source registration;
+- source analysis start;
+- folder browsing;
+- TARGET configuration;
+- folder creation;
+- Folder move preflight/execution;
+- file preview/open/delete where the placement is Windows-backed.
+
+A drive that was mounted five minutes ago is never assumed to remain usable merely because its former mount directory still exists.
+
+### Picker behavior
+
+- Estate Available Volumes is a live inventory.
+- Mounted/reconciled Windows drives are immediately selectable.
+- A drive currently visible in Windows but failing mount is shown with the actual failure state, not a generic “mount it yourself” instruction.
+- Volume list refreshes automatically while Estate is open, but must preserve picker scroll, expanded folder state, and current selection.
+- TARGET uses the same reconciled volume inventory and mount authority as Estate.
+
+### Job behavior
+
+- A source root is reconciled before analysis begins.
+- If a required Windows source is no longer present, analysis start refuses truthfully before creating a running job.
+- If a source disappears during an active analysis, file errors must not convert the missing volume into destructive evidence or silently reclassify missing placements. The condition is an availability failure and is logged for recovery.
+- A subsequent analysis after the same volume returns/remounts reuses the authoritative placement history.
+
+### Qualification additions
+
+Release B qualification must prove:
+1. the recovered lazy-mount helper exists and is installer-managed;
+2. helper accepts only one drive letter and mounts only `/mnt/<letter>`;
+3. helper accepts verified `9p` or `drvfs`, not placeholder directories;
+4. conflicting unrelated mounts are refused;
+5. server invokes only the fixed helper through `sudo -n`;
+6. Windows inventory is re-read dynamically rather than cached as startup truth;
+7. `/api/volumes` attempts governed lazy mount for Windows-visible unmounted drives;
+8. mount failure remains visible with truthful state;
+9. operation-boundary path reconciliation is present;
+10. Estate performs periodic live volume reconciliation without losing picker state;
+11. no unrestricted sudo rule is installed; and
+12. all existing Release B Database / Grid / Plan / AI gates remain green.
