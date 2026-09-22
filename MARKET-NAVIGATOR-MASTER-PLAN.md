@@ -1,7 +1,7 @@
 # Market Navigator — Canonical Master Plan
 
 Status: AUTHORITATIVE PRODUCT / BUILD / QUALIFICATION PLAN
-Updated: 2026-09-21
+Updated: 2026-09-22
 Planning state: **TURN 26 IMPLEMENTATION AUTHORIZED — 2026-09-21**
 Target artifact: **`market-navigator-turn26-ship.html`**
 
@@ -1034,3 +1034,196 @@ The same deterministic context enrichment applies to:
 - the `📰` Refresh Context action.
 
 `?` and `📰` may differ only in *when* they are invoked. They may not differ in retrieval quality, link guarantees, source classes, or rendering.
+
+
+---
+
+# PROGRAM CONTROL — Market Navigator Analytical Redesign
+Owner authorization: 2026-09-22
+
+This section supersedes earlier sequencing language where it conflicts. It does not discard accepted Turn 26 functionality. The current deployed Turn 26 remains the working application baseline while the analytical redesign is governed, audited, and qualified.
+
+The owner has delegated detailed recall, sequencing, dependency management, and gate management for this redesign. The program must therefore be managed as one coordinated body of work rather than as isolated UI/model patches.
+
+## 35. Six coordinated workstreams
+
+### Track 1 — Components
+Purpose: make every RSK/GRW/MAC component economically and mathematically defensible before redefining the composite indices.
+
+Scope:
+- source identity/provenance;
+- transformation family;
+- direction semantics;
+- transformation scale;
+- nominal weight versus realized influence;
+- missing/degraded behavior;
+- cadence/information age;
+- observation date versus public-release/vintage date;
+- model participation and 7/7 completeness;
+- deterministic replication/reconciliation.
+
+Current transformation families under audit:
+- proportional price/positive-level movement;
+- signed/zero-centered level movement;
+- signed price movement for legitimate zero-crossing prices;
+- rate / percentage-point / basis-point movement;
+- mixed-frequency information-age semantics.
+
+Do not assume that a mathematically valid ratio is economically appropriate merely because the series stays positive.
+
+### Track 2 — Persistent indices
+Begins only after Track 1 passes its component-definition gate.
+
+Target definition:
+- RSK, GRW, and MAC become persistent, versioned index time series;
+- one governed model-version anchor establishes index level 100;
+- changing 1D/5D/MTD/YTD/1YR/3YR/5YR changes only the viewport;
+- the same calendar date has the same canonical index value regardless of selected horizon;
+- optional **Rebase 100** remains a clearly labeled display/comparison transform, never the canonical index definition;
+- two-axis charting may overlay canonical RSK/GRW/MAC against market instruments such as S&P 500/SPY, Nasdaq/QQQ, Dow, Gold and WTI without redefining either series.
+
+No permanent anchor may be selected until component transforms, scaling/influence behavior, and historical information-time treatment are approved.
+
+### Track 3 — AI interpretation level
+One governed analysis/evidence set; multiple explanation levels.
+
+Product vocabulary:
+- **Plain**
+- **Standard**
+- **Technical**
+
+Rules:
+- the level changes vocabulary, assumed knowledge, mechanism explanation, and terminology;
+- it does not change evidence, calculations, factual conclusions, source set, links, limitations, or chart state;
+- Config may hold a default level;
+- an analysis may be reinterpreted at another level without rerunning the model/evidence calculation;
+- a tabbed Plain | Standard | Technical presentation may be used, but the three views must derive from one analytical result rather than three independent analyses.
+
+### Track 4 — Tabbed navigation/layout
+Evaluate replacement of the persistent left rail with compact horizontal navigation, especially on mobile.
+
+Hierarchy principle:
+- Row 1 answers **Where am I?** — e.g. NOW | LIBRARY | HEALTH, with Config separately accessible.
+- Row 2 answers **What part of this area?** — contextual subtabs such as HEALTH: Sources | Models | Glossary.
+- Chart operational controls such as horizons, + Add, representation and ... remain chart controls rather than becoming navigation tabs.
+
+Do not implement this track until the analytical model/state contracts from Tracks 1–3 are stable enough to avoid rebuilding navigation twice.
+
+### Track 5 — Evidence & Context
+Preserve and strengthen the existing governed context system:
+- Context & Further Reading;
+- primary releases/methodology;
+- related reporting;
+- live links;
+- seeded questions;
+- newspaper refresh;
+- causality discipline;
+- source freezing with saved analysis/checkpoints.
+
+Evidence/context must be usable at all AI interpretation levels without changing the underlying source set.
+
+### Track 6 — Analysis / Library
+Carry the redesigned analytical state through:
+- standalone Analyze modal;
+- + Add and primary/rebase reference;
+- AI POV handoff;
+- processing card;
+- immutable saved state/checkpoints;
+- live refresh/extend;
+- revision semantics;
+- Print;
+- Markdown/CSV/JSON;
+- TTS/Listen;
+- exact Context & Further Reading preservation.
+
+Saved analyses must persist model version, index anchor/version, transformation registry version, evidence revision, representation mode (canonical vs explicit Rebase 100), and AI interpretation level.
+
+## 36. Cross-cutting gates that prevent false confidence
+
+Two issues cut across the six tracks and are release-blocking.
+
+### 36.1 Scale / realized influence
+Equal nominal weights do not automatically produce equal practical influence when component transformations use different units/scales.
+
+Before approving the component registry:
+- measure historical contribution dispersion by component;
+- measure largest-component and top-N contribution concentration;
+- measure leave-one-out sensitivity;
+- compare nominal equal weight with realized historical influence;
+- explicitly decide whether equal weight means equal arithmetic coefficient only or whether additional scaling is required to prevent one component family from dominating structurally.
+
+Do not silently change equal weights merely to force equal influence. Any scaling rule must be governed and interpretable.
+
+### 36.2 Information-time / vintage truth
+Historical macro observations must not appear in the index before they were publicly knowable.
+
+For slow/revised series distinguish:
+- economic observation period;
+- publication/release timestamp;
+- revision/vintage timestamp.
+
+A historical chart intended to represent information available to the market at each date must use information availability time, not merely the source observation-period date.
+
+Until this is solved for a component, do not claim that a persistent historical index is an as-known-at-the-time market signal.
+
+## 37. Execution order and stop gates
+
+Execute in this order:
+
+**C1 — Component inventory and provenance**
+Verify all 21 current components against catalog, canonical evidence and model definition.
+
+**C2 — Transformation registry**
+Assign and justify the governed transform family, direction and scale rule for every component. Resolve WTI, NFCI, rates, inflation, unemployment and HY spread explicitly. Treat VIX/MOVE as an influence-review decision rather than changing them mechanically.
+
+**C3 — Influence / sensitivity qualification**
+Quantify whether the proposed transforms plus equal nominal weights create unacceptable structural concentration.
+
+**C4 — Information-time qualification**
+Define release/vintage behavior for monthly/weekly/revised macro series and prove no historical look-ahead.
+
+**C5 — Component registry approval**
+Only after C1–C4 may RSK/GRW/MAC component construction be treated as the input to the persistent-index redesign.
+
+**I1 — Persistent index specification**
+Select model-version anchor, fixed-base formula, backfill rules, versioning and explicit Rebase-100 display behavior.
+
+**I2 — Shadow construction**
+Build the new indices alongside the current system for qualification. Do not overwrite Turn 26 historical evidence.
+
+**I3 — Index qualification**
+Replication, reconciliation, horizon invariance, contribution, sensitivity, information-time, overlay, and regression gates.
+
+**A1 — AI explanation levels**
+Implement Plain / Standard / Technical over the same frozen analytical result.
+
+**U1 — Navigation/tab redesign**
+Implement only after analytical state contracts are stable.
+
+**E/L — Evidence/Library integration**
+Qualify context links, saved-state version metadata, print/download/TTS and live refresh against the new index model.
+
+## 38. Current component-audit findings locked for follow-through
+
+Repository inspection establishes:
+
+- canonical WTI is Yahoo Finance `CL=F`, described as WTI crude-oil futures/benchmark evidence; do not treat it as EIA Cushing spot;
+- current WTI history legitimately spans zero and is currently omitted from GRW under ratio rebasing;
+- NFCI is FRED `NFCI`, a weekly signed/zero-centered financial-conditions index and is currently omitted from RSK under ratio rebasing;
+- current Treasury curve components already use `signed_level_sd`;
+- 10Y, 2Y, Fed Funds, CPI YoY, Core PCE YoY and unemployment are currently ratio-rebased and require the rate/percentage-point transform audit;
+- HY spread is FRED `BAMLH0A0HYM2`, a percent credit-spread series; it belongs in the rate/spread audit rather than being accepted as ordinary ratio solely because it stays positive;
+- monthly/weekly components are carried from their most recent real observation, but the persistent-index program must separately prove information-availability timing before historical backfill is considered truthful;
+- current equal weighting can reconcile a reduced component set after omissions; reconciliation alone is not proof of complete model coverage.
+
+## 39. Program-management rule
+
+Do not require the owner to remember or restate dependencies already governed here.
+
+For subsequent work:
+- consult this section first;
+- state which track/gate is being advanced;
+- preserve accepted work outside that track;
+- record unresolved decisions as explicit gates rather than silently choosing;
+- do not advance a dependent track merely because UI/code implementation is convenient;
+- do not declare a new analytical baseline until the applicable gates pass and owner disposition is obtained.
