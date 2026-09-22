@@ -163,6 +163,7 @@ The timing is consistent with the observed move, but does not establish causatio
    check('Save in Analysis appends checkpoint',await page.evaluate(()=>window.__mnTurn26.checkpoints().length===1));
    check('same Library card after save',await page.locator('#libList .row').count()===cardCount);
    check('original frozen state immutable',await page.evaluate(o=>JSON.stringify(window.__mnCurrentAnalysis().state)===o,original));
+   await page.waitForFunction(()=>document.querySelectorAll('.checkpointStrip26 [data-cp26]').length===2);
    check('checkpoint strip contains Original + saved state',await page.locator('.checkpointStrip26 [data-cp26]').count()===2);
    const cp=await page.evaluate(()=>window.__mnTurn26.checkpoints()[0]);
    check('saved checkpoint carries query contract',cp.query&&cp.query.revision_mode==='extend-from-frozen');
