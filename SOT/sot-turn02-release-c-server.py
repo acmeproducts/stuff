@@ -305,6 +305,29 @@ def parse_tags(v):
  try:
   z=json.loads(v or "[]");return [str(x) for x in z if str(x).strip()] if isinstance(z,list) else []
  except Exception:return []
+def source_status_rows():
+ rows=S.rows("SELECT * FROM sources WHERE enabled=1 ORDER BY estate,label")
+ out=[]
+ for src in rows:
+  last=S.rows("""SELECT j.revision,j.state job_state,j.started,j.ended,
+                       js.state source_state,js.producer_state,js.discovered_files,js.discovered_bytes,
+                       js.hashed_files,js.hashed_bytes,js.errors,js.current_folder,js.current_file,js.last_progress
+                FROM job_sources js JOIN jobs j ON j.job_id=js.job_id
+                WHERE js.source_id=? ORDER BY j.revision DESC LIMIT 1""",(src["source_id"],))
+  z=dict(src);lr=last[0] if last else None
+  if lr:
+   z.update({"last_revision":lr["revision"],"last_job_state":lr["job_state"],"last_source_state":lr["source_state"],
+             "last_producer_state":lr["producer_state"],"last_started":lr["started"],"last_ended":lr["ended"],
+             "last_discovered_files":lr["discovered_files"],"last_discovered_bytes":lr["discovered_bytes"],
+             "last_hashed_files":lr["hashed_files"],"last_hashed_bytes":lr["hashed_bytes"],"last_errors":lr["errors"],
+             "last_current_folder":lr["current_folder"],"last_current_file":lr["current_file"],"last_progress":lr["last_progress"]})
+   current=lr["job_state"]=="COMPLETED" and lr["source_state"]=="COMPLETED"
+  else:current=False
+  z["pending"]=not current
+  z["analysis_state"]="CURRENT" if current else ("READY" if lr is None else "RETRY")
+  out.append(z)
+ return out
+
 def plan_summary():
  rows=S.rows("SELECT placement_id,size,system_classification FROM placements WHERE placement_state='ACTIVE' AND availability='AVAILABLE' AND fingerprint IS NOT NULL")
  def agg(cls):
@@ -315,9 +338,11 @@ def plan_summary():
  t=target_get();target=int(t.get("free_bytes") or t.get("registered_free_bytes") or 0) if t.get("configured") else 0
  open_bytes=target-retained["bytes"] if t.get("configured") else 0
  landed={"files":0,"bytes":0};inplay={"files":retained["files"],"bytes":retained["bytes"]}
+ pending=[x for x in source_status_rows() if x.get("pending")]
  return {"analysis":{"unique":unique,"keep":keep,"excess":excess,"estate":estate},
          "capacity":{"estate":retained,"open":{"files":None,"bytes":open_bytes},"target":{"files":None,"bytes":target},"configured":bool(t.get("configured"))},
          "operations":{"in_play":inplay,"landed":landed,"estate":retained},
+         "readiness":{"pending_sources":len(pending),"pending_source_ids":[x["source_id"] for x in pending],"complete":not pending},
          "catalog_revision":catalog_revision()}
 def op_insert(bulk_id,typ,row,requested,success,result,error=None,post_id=None,new_path=None,verification=None,detail=None):
  return ("INSERT INTO operations(operation_id,bulk_id,operation_type,placement_no,pre_placement_id,post_placement_id,prior_path,new_path,requested,completed,success,result,error_detail,verification,detail_json) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
@@ -502,7 +527,7 @@ class H(BaseHTTPRequestHandler):
    if p=="/api/health":
     return self.sendj({"ok":True,"version":m.VERSION,"schema":m.SCHEMA,"process":"healthy","db":S.db_probe(.10),"writer_queue":S.q.qsize(),"writer_error":S.writer_error,"creation_revision":creation_revision(),"catalog_revision":catalog_revision(),"time":time.time()})
    if p=="/api/job/latest":return self.sendj({"ok":True,"snapshot":latest()})
-   if p=="/api/sources":return self.sendj({"ok":True,"sources":S.rows("SELECT * FROM sources ORDER BY estate,label")})
+   if p=="/api/sources":return self.sendj({"ok":True,"sources":source_status_rows()})
    if p=="/api/events":return self.sendj({"ok":True,"events":S.rows("SELECT * FROM events ORDER BY event_id DESC LIMIT 500")})
    if p=="/api/target":return self.sendj({"ok":True,"target":target_get()})
    if p=="/api/plan":return self.sendj({"ok":True,"plan":plan_summary()})
@@ -584,7 +609,7 @@ class H(BaseHTTPRequestHandler):
    if p=="/api/folder-search":
     z=folder_search(b.get("root","/"),b.get("query",""),b.get("exclude") or [],b.get("limit",500));return self.sendj({"ok":True,**z})
    if p=="/api/sources":
-    root=reconcile_windows_path(b["root"],False);return self.sendj({"ok":True,"source_id":M.add_source(b["label"],root,b.get("failure_domain",root),b.get("role","primary"),b.get("estate"))})
+    root=reconcile_windows_path(b["root"],False);sid=M.add_source(b["label"],root,b.get("failure_domain",root),b.get("role","primary"),b.get("estate"));M.event("source_registered","Estate source registered",None,sid,"INFO",{"root":root,"estate":b.get("estate") or b.get("label")});S.drain(10);return self.sendj({"ok":True,"source_id":sid,"source":next((x for x in source_status_rows() if x["source_id"]==sid),None)})
    if p=="/api/target":return self.sendj({"ok":True,"target":target_set(b["path"],b.get("label",""))})
    if p=="/api/creation/backfill":return self.sendj({"ok":True,"result":creation_backfill()})
    if p=="/api/folders/create":
