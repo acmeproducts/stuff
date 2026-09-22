@@ -11,7 +11,7 @@
 | 2026-09-20 | Define → Build | superseded | Owner clarified workflow: selecting a project auto-opens its first tab; new tabs skip filename prompt and default to the project file; project .md is sole authority |
 | 2026-09-20 | Design → Build | in-progress | Build starts: implementing R1 — right-panel dashboard, collapsible soft-delete bin above dashboard card, project-select opens first tab, new tabs default to project file |
 | 2026-09-20 | Build | done | Plan file found corrupted (literal patch blocks from a prior run). Reconstructed full plan from ledger fragments + owner directives; added guard rule #7. R1 code build is next |
-| 2026-09-22 | R2 hardening | in-progress | Owner requested friction and continuity improvements; plan gate, per-thread queue, conflict safety, fallback visibility, and objective display |
+| 2026-09-22 | R2 hardening | done | Plan gate and read-back, per-thread queue, stale-write rejection, fallback model record, and objective display implemented; static syntax checks and GitHub read-back passed |
 
 ## 1. RELEASES
 - **R1 — Dashboard & workflow restore (current)** — right-panel dashboard; collapsible soft-delete bin; simplified per-project tabs
