@@ -777,3 +777,20 @@ Rejected and must not return:
 - Transcoding or rewriting media merely to perform verification.
 
 Required replacement: read-only Compare Paths / Folders task with deterministic enumeration, exact-name + normalized-name evidence, optional read-only ffprobe metadata, pair/unmatched reporting, evidence-oriented conversion confidence, and advisory cold-storage/soft-delete review recommendations only.
+
+
+## 2026-09-22 — ESTATE PANEL 2 FOLDER SEARCH NEGATIVE RULES
+
+Rejected and must not return:
+
+- Making Folder Search depend on files already indexed in the SOT Database.
+- Returning file paths as Panel 3 Estate roots when a `#file:` term matched; the selectable result is the containing folder path.
+- Clearing search/checkbox state during routine live-volume refresh.
+- Tiny per-row transfer controls that are difficult to tap.
+- Requiring one-at-a-time transfer when multiple search results are checked.
+- Adding overlapping parent/child roots to Panel 3.
+- Treating “Move checked” as a filesystem move.
+- Following symlinked directory trees during search.
+- Unbounded recursive search responses.
+
+Required replacement: read-only filesystem search beneath the active reconciled volume; `#folder:` / `#file:` / negative wildcard grammar; unique checked-by-default folder-path results; Select all / Deselect all / Move checked >; per-row large `>`; overlap-safe transfer into Selected Estate Roots.
