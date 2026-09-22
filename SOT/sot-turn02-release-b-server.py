@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-import importlib.util,json,os,sys,time,mimetypes,subprocess,hashlib,shutil,uuid,re,threading
+import importlib.util,json,os,sys,time,mimetypes,subprocess,hashlib,shutil,uuid,re,threading,fnmatch
 from http.server import ThreadingHTTPServer,BaseHTTPRequestHandler
 from pathlib import Path
 HERE=Path(__file__).resolve().parent;sp=importlib.util.spec_from_file_location("sotreleaseb",HERE/"sot-turn02-release-b-engine.py");m=importlib.util.module_from_spec(sp);sys.modules[sp.name]=m;sp.loader.exec_module(m)
@@ -117,6 +117,51 @@ def reconcile_sources(source_ids=None):
  if source_ids:rows=[r for r in rows if r["source_id"] in source_ids]
  for r in rows:reconcile_windows_path(r["root"],False)
  return rows
+def folder_search_tokens(raw):
+ raw=str(raw or "").strip()
+ if not raw:return []
+ parts=re.findall(r'(?:[^\s"]+:"[^"]*"|"[^"]*"|[^\s]+)',raw)
+ out=[]
+ for token in parts:
+  token=token.strip()
+  if not token:continue
+  neg=token.startswith("-")
+  if neg:token=token[1:]
+  if token.startswith("#"):token=token[1:]
+  k=token.find(":");field=None
+  if k>0 and token[:k].lower() in ("folder","file"):
+   field=token[:k].lower();value=token[k+1:]
+  else:value=token
+  value=value.strip('"')
+  if value:out.append({"negative":neg,"field":field,"value":value})
+ return out
+
+def folder_search_match(value,pattern):
+ value=str(value or "");pattern=str(pattern or "")
+ if "*" in pattern or "?" in pattern:return fnmatch.fnmatch(value.lower(),pattern.lower())
+ return pattern.lower() in value.lower()
+
+def folder_search(root,query,limit=500):
+ root=Path(reconcile_windows_path(root,False)).resolve()
+ if not root.is_dir():raise RuntimeError("Folder Search root is not a directory")
+ terms=folder_search_tokens(query)
+ if not terms:raise RuntimeError("Folder Search query required")
+ limit=max(1,min(2000,int(limit or 500)));results=[];seen=set();scanned_folders=0;scanned_files=0;truncated=False
+ for current,dirs,files in os.walk(root):
+  dirs[:]=[d for d in dirs if not Path(current,d).is_symlink()]
+  scanned_folders+=1;scanned_files+=len(files)
+  folder_path=str(Path(current).resolve());folder_name=Path(current).name
+  def hit(term):
+   field=term["field"];pat=term["value"]
+   if field=="folder":return folder_search_match(folder_path,pat) or folder_search_match(folder_name,pat)
+   if field=="file":return any(folder_search_match(name,pat) for name in files)
+   return folder_search_match(folder_path,pat) or folder_search_match(folder_name,pat) or any(folder_search_match(name,pat) for name in files)
+  positives=[t for t in terms if not t["negative"]];negatives=[t for t in terms if t["negative"]]
+  matched=(all(hit(t) for t in positives) if positives else True) and not any(hit(t) for t in negatives)
+  if matched and folder_path not in seen:
+   seen.add(folder_path);results.append({"path":folder_path,"name":folder_name or folder_path})
+   if len(results)>=limit:truncated=True;break
+ return {"root":str(root),"query":str(query),"results":sorted(results,key=lambda z:z["path"].lower()),"count":len(results),"truncated":truncated,"scanned_folders":scanned_folders,"scanned_files":scanned_files}
 def reconcile_ai_scope(scope):
  scope=dict(scope or {})
  if scope.get("type")=="compare_paths":
@@ -480,6 +525,8 @@ class H(BaseHTTPRequestHandler):
       vols.append(w);by_path[w["path"]]=w
     vols.sort(key=lambda v:(0 if v["path"]=="/" else 1,str(v.get("windows_drive") or v.get("path") or "").lower()))
     return self.sendj({"ok":True,"volumes":vols,"reconciled_at":time.time()})
+   if p=="/api/folder-search":
+    q=parse_qs(u.query);return self.sendj({"ok":True,**folder_search(q.get("root",["/"])[0],q.get("q",[""])[0],q.get("limit",["500"])[0])})
    if p=="/api/folders":
     raw=parse_qs(u.query).get("path",["/"])[0];raw=reconcile_windows_path(raw,False);root=Path(raw).resolve();items=[];files=[]
     for x in root.iterdir():
