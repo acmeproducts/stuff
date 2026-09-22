@@ -10,6 +10,7 @@ on:
       - 'SOT/sot-turn02-release-b-server.py'
       - 'SOT/sot-turn02-release-b.html'
       - 'SOT/sot-turn02-release-b.service'
+      - 'SOT/sot-mount-drive.sh'
       - 'SOT/qualify-release-b.py'
       - 'install-SOT-turn02-release-b.sh'
       - '.github/workflows/sot-release-b-qualify.yml'
@@ -58,6 +59,11 @@ jobs:
             "find_review_candidates",
             "propose_target_structure",
             "plan_target_landing",
+            "compare_paths",
+            "Compare Paths / Folders",
+            "function openAiComparePicker(side)",
+            "/api/ai/task/scope",
+            "setInterval(volumePoll,7000)",
             "Apply approved tags",
             "function activeAiConfig()",
             "function renderAI()",
@@ -79,7 +85,7 @@ jobs:
             "Scope is the shared Database/Grid search. Blank search means Entire SOT.",
             "if(!['Estate','Grid','Database','AI'].includes(active))render(active)",
             "loadAiTasks(true,false)",
-            "Not mounted in WSL",
+            "Mount unavailable",
             "function openVolumeIndex(i)",
             "function targetVolumeIndex(i)",
           ]
@@ -119,8 +125,14 @@ jobs:
           grep -F '/api/ai/task/apply' SOT/sot-turn02-release-b-server.py
           grep -F 'def windows_logical_drives()' SOT/sot-turn02-release-b-server.py
           grep -F 'Get-CimInstance Win32_LogicalDisk' SOT/sot-turn02-release-b-server.py
-          grep -F '"mounted":bool(mounted)' SOT/sot-turn02-release-b-server.py
-          grep -F '"available":bool(readable)' SOT/sot-turn02-release-b-server.py
+          grep -F 'def verified_windows_mount(letter)' SOT/sot-turn02-release-b-server.py
+          grep -F 'def ensure_windows_drive_mounted(letter,force=False)' SOT/sot-turn02-release-b-server.py
+          grep -F 'subprocess.run(["sudo","-n",MOUNT_HELPER' SOT/sot-turn02-release-b-server.py
+          grep -F 'def reconcile_ai_scope(scope)' SOT/sot-turn02-release-b-server.py
+          grep -F '/api/ai/task/scope' SOT/sot-turn02-release-b-server.py
+          grep -F '"compare_paths"' SOT/sot-turn02-release-b-ai.py
+          grep -F 'def compare_packet(self,scope,probe_limit=400)' SOT/sot-turn02-release-b-ai.py
+          grep -F '"ffprobe"' SOT/sot-turn02-release-b-ai.py
           ! grep -E 'sudo mount|wsl.exe .* -u root .*mount' SOT/sot-turn02-release-b-server.py
           ! grep -F 'os.remove' SOT/sot-turn02-release-b-ai.py
           ! grep -F 'shutil.move' SOT/sot-turn02-release-b-ai.py
@@ -131,7 +143,7 @@ jobs:
         run: |
           set -euo pipefail
           bash -n install-SOT-turn02-release-b.sh
-          grep -F 'REF="8d012ff4d1b5dc07c95e774756491c9de07fa91b"' install-SOT-turn02-release-b.sh
+          grep -F 'REF="892c24485f587031d47a5fa92772cc4f3f6ae800"' install-SOT-turn02-release-b.sh
           grep -F 'DB12="$HOME/.sot-turn02/sot-v12-release-a.db"' install-SOT-turn02-release-b.sh
           grep -F 'DB13="$HOME/.sot-turn02/sot-v13-release-b.db"' install-SOT-turn02-release-b.sh
           grep -F 'Release A migration snapshot materialized as schema-13 seed' install-SOT-turn02-release-b.sh
@@ -140,6 +152,21 @@ jobs:
           grep -F 'prior inactive schema-13 attempt archived' install-SOT-turn02-release-b.sh
           grep -F 'Release A predecessor preserved' install-SOT-turn02-release-b.sh
           grep -F 'shared-origin Release B HTTPS' install-SOT-turn02-release-b.sh
+          grep -F 'sot-mount-drive.sh' install-SOT-turn02-release-b.sh
+          grep -F 'visudo -cf' install-SOT-turn02-release-b.sh
+          grep -F 'NOPASSWD: %s' install-SOT-turn02-release-b.sh
+          grep -F 'len(a["task_types"])==7' install-SOT-turn02-release-b.sh
+          bash -n SOT/sot-mount-drive.sh
+          grep -F '[[ "$#" -ne 1 || ! "$1" =~ ^[A-Za-z]$ ]]' SOT/sot-mount-drive.sh
+          grep -F 'ROOT="/mnt/$LOWER"' SOT/sot-mount-drive.sh
+          grep -F 'mount -t drvfs "$EXPECTED" "$ROOT"' SOT/sot-mount-drive.sh
+          grep -F '"$fstype" == "drvfs" || "$fstype" == "9p"' SOT/sot-mount-drive.sh
+          grep -F 'refusing conflicting mount' SOT/sot-mount-drive.sh
+          set +e
+          bash SOT/sot-mount-drive.sh ZZ >/tmp/mount-helper.out 2>&1
+          rc=$?
+          set -e
+          test "$rc" -eq 64
           ! grep -E 'tailscale serve .*--set-path|tailscale serve --bg' install-SOT-turn02-release-b.sh
           echo "PASS Release B staged rollback-safe installer"
 
