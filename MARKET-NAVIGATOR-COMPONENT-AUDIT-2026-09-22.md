@@ -624,3 +624,77 @@ Do not choose among these based solely on which chart looks smoothest. Evaluate:
 - comparability through time;
 - sufficient-history behavior for monthly/weekly components;
 - ability to reproduce a historical published value exactly.
+
+
+## 22. C3 sensitivity expansion — branch decisions
+
+The shadow audit was expanded at commit `dcb5804db5c1e9270afe81f4b8b998411ec5922d` and passed workflow run `35792148449`.
+
+The new scenarios compare the leading S2A architecture with:
+- non-zero-change-only event frequency for additive/rate families;
+- five-year retrospective scale estimation;
+- three-year retrospective scale estimation;
+- the existing VIX/MOVE additive-level and Treasury-curve-direction sensitivities.
+
+### 22.1 Reject non-zero-event frequency as the general rate scaling rule
+
+`S2D_NONZERO_EVENT_FREQ` materially worsens MAC concentration.
+
+Representative P95 largest-component shares:
+- MAC 5D: approximately **71%**;
+- MAC MTD: approximately **74%**;
+- MAC 1YR: approximately **63%**;
+- MAC 3YR: approximately **61%**.
+
+This happens because counting only non-zero rate changes reduces effective event frequency sharply for step-like series such as Fed Funds, increasing the normalized impact of those events.
+
+Decision:
+- **reject S2D as the general scaling rule**;
+- do not equate “information event” with “non-zero stored change” mechanically;
+- keep S2A's observed native-cadence frequency treatment as the leading branch while C4 later supplies true release/availability timing.
+
+### 22.2 Reject short retrospective calibration windows as the default model scale
+
+Five-year and three-year retrospective scales are materially less stable for GRW than the leading full-history diagnostic scale.
+
+Under the five-year scale sensitivity, GRW P95 largest-component share rises to roughly:
+- 1YR: **64%**;
+- 3YR: **76%**;
+- 5YR: **66%**.
+
+Under the three-year scale sensitivity it rises further:
+- YTD: **71%**;
+- 1YR: **79%**;
+- 3YR: **87%**;
+- 5YR: **80%**.
+
+Risk and Macro are less dramatically affected, but the GRW instability is sufficient to reject a short fixed retrospective calibration window as the default architecture.
+
+Decision:
+- **reject 3Y and 5Y retrospective calibration windows as the default scale definition**;
+- retain them as sensitivity diagnostics only;
+- do not confuse this result with the final no-look-ahead calibration decision. Full-history S2A is still a diagnostic benchmark, not yet a production historical methodology.
+
+### 22.3 Leading C3 branch after sensitivity expansion
+
+The current leading branch remains:
+
+**S2A_EVENT_FREQ**
+- economically meaningful change by component family;
+- event-change volatility scale;
+- observed canonical native-event frequency;
+- VIX/MOVE retained as log/proportional movement provisionally;
+- current Treasury-curve directions remain unresolved semantically.
+
+This is the leading branch because the alternatives tested so far either increase concentration materially or solve no identified defect.
+
+### 22.4 C3 is still not approved
+
+C3 remains OPEN because:
+- regime-specific behavior must still be interpreted, not merely calculated;
+- Treasury-curve direction semantics remain unresolved;
+- calibration must become time-governed for production/as-known history;
+- C4 availability/vintage truth is still required before persistent historical indices can be approved.
+
+No production index arithmetic changes as a result of this section.
+
