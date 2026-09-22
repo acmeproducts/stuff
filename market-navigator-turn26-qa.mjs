@@ -49,7 +49,24 @@ The timing is consistent with the observed move, but does not establish causatio
  await page.route('https://cdn.jsdelivr.net/npm/marked/marked.min.js',r=>r.fulfill({status:200,contentType:'text/javascript',body:fs.readFileSync(path.join(ROOT,'node_modules/marked/marked.min.js'),'utf8')}));
  await page.route('https://cdn.jsdelivr.net/npm/dompurify@3.1.6/dist/purify.min.js',r=>r.fulfill({status:200,contentType:'text/javascript',body:fs.readFileSync(path.join(ROOT,'node_modules/dompurify/dist/purify.min.js'),'utf8')}));
  await page.route('https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js',r=>r.fulfill({status:200,contentType:'text/javascript',body:'window.XLSX=window.XLSX||{};'}));
- await page.route('https://api.venice.ai/**',async r=>{await new Promise(res=>setTimeout(res,600));await r.fulfill({status:200,contentType:'application/json',body:JSON.stringify({choices:[{message:{content:AI}}]})})});
+ await page.route('https://api.venice.ai/**',async r=>{
+   await new Promise(res=>setTimeout(res,120));
+   if(r.request().url().includes('/augment/search')){
+     let body={};try{body=r.request().postDataJSON()||{}}catch{}
+     const news=/market news|Reuters|Bloomberg|Financial Times|Wall Street Journal|\bAP\b/i.test(body.query||'');
+     const results=news?[
+       {title:'Reuters Markets — contextual market report',url:'https://www.reuters.com/markets/',content:'Contemporaneous market reporting covering rates, equities, currencies and commodities.',date:'2026-09-18'},
+       {title:'Bloomberg Markets — contextual market report',url:'https://www.bloomberg.com/markets',content:'Market reporting covering cross-asset moves relevant to the analysis window.',date:'2026-09-18'},
+       {title:'Financial Times Markets',url:'https://www.ft.com/markets',content:'Financial-market reporting relevant to the selected horizon.',date:'2026-09-18'}
+     ]:[
+       {title:'Federal Reserve press releases',url:'https://www.federalreserve.gov/newsevents/pressreleases.htm',content:'Primary Federal Reserve policy releases and statements.',date:'2026-09-18'},
+       {title:'BLS CPI news release',url:'https://www.bls.gov/news.release/cpi.htm',content:'Primary CPI release and methodology from the Bureau of Labor Statistics.',date:'2026-09-18'},
+       {title:'FRED economic data',url:'https://fred.stlouisfed.org/',content:'Primary Federal Reserve Bank of St. Louis economic data portal.',date:'2026-09-18'}
+     ];
+     await r.fulfill({status:200,contentType:'application/json',body:JSON.stringify({query:body.query||'',results})});return
+   }
+   await r.fulfill({status:200,contentType:'application/json',body:JSON.stringify({choices:[{message:{content:AI}}]})})
+ });
  try{
    await page.goto(origin+'/'+ARTIFACT,{waitUntil:'load'});
    await page.waitForFunction(()=>window.__mnShip25&&window.__mnShip25.ready()&&window.__mnTurn26,{timeout:30000});
@@ -140,7 +157,7 @@ The timing is consistent with the observed move, but does not establish causatio
    const dl=await dlPromise,stream=await dl.createReadStream();let md='';
    for await (const chunk of stream)md+=chunk.toString();
    check('Markdown download includes Context & Further Reading',md.includes('## Context & Further Reading'));
-   check('Markdown download preserves source links',md.includes('https://www.federalreserve.gov/')&&md.includes('https://www.reuters.com/markets/'));
+   check('Markdown download preserves source links',md.includes('https://www.federalreserve.gov/newsevents/pressreleases.htm')&&md.includes('https://www.reuters.com/markets/'));
 
 
    await page.click('#libQuestion26');
@@ -154,7 +171,14 @@ The timing is consistent with the observed move, but does not establish causatio
    await page.click('#send');
    await page.waitForSelector('.liveResult26',{timeout:20000});
    check('seeded context question routes through live context',await page.evaluate(()=>window.__mnTurn26.live()?.intent?.operation==='refresh-context'));
-   check('seeded context result renders live links',await page.locator('.liveResult26 a[href^="http"]').count()>=2);
+   const seedHrefSet=await page.locator('.liveResult26 details.contextDetails26 a[href^="http"]').evaluateAll(xs=>[...new Set(xs.map(x=>x.href))].sort());
+   check('seeded context result renders rich live links',seedHrefSet.length>=5,JSON.stringify(seedHrefSet));
+   check('seeded context includes reporting links',seedHrefSet.some(x=>x.includes('reuters.com'))&&seedHrefSet.some(x=>x.includes('bloomberg.com')),JSON.stringify(seedHrefSet));
+   check('seeded context source bundle is deterministic',await page.evaluate(()=>{let x=window.__mnTurn26.live()?.contextSources;return !!x&&x.schema==='market-navigator-context-sources-v1'&&x.primary.length>=1&&x.reporting.length>=2}));
+   await page.click('.liveResult26 .refreshContext26');
+   await page.waitForFunction(()=>window.__mnTurn26.live()?.contextSources?.reporting?.length>=2);
+   const newspaperHrefSet=await page.locator('.liveResult26 details.contextDetails26 a[href^="http"]').evaluateAll(xs=>[...new Set(xs.map(x=>x.href))].sort());
+   check('? and newspaper use identical source-link set',JSON.stringify(seedHrefSet)===JSON.stringify(newspaperHrefSet),JSON.stringify({seedHrefSet,newspaperHrefSet}));
    await page.click('#discardLive26');
    await page.waitForFunction(()=>!document.querySelector('.liveResult26'));
    await page.click('#libQuestion26');
