@@ -153,7 +153,7 @@ def folder_search_match(value,pattern):
  if "*" in pattern or "?" in pattern:return fnmatch.fnmatch(value.lower(),pattern.lower())
  return pattern.lower() in value.lower()
 
-def folder_search(root,query,exclude=None,limit=500):
+def folder_search(root,query,exclude=None,limit=500,progress=None):
  root=Path(reconcile_windows_path(root,False)).resolve()
  if not root.is_dir():raise RuntimeError("Folder Search root is not a directory")
  terms=folder_search_tokens(query)
@@ -164,6 +164,8 @@ def folder_search(root,query,exclude=None,limit=500):
   dirs[:]=[d for d in dirs if not Path(current,d).is_symlink()]
   scanned_folders+=1;scanned_files+=len(files)
   folder_path=str(Path(current).resolve());folder_name=Path(current).name
+  if progress:
+   progress({"current_path":folder_path,"scanned_folders":scanned_folders,"scanned_files":scanned_files,"matches":len(results),"updated":time.time()})
   def hit(term):
    field=term["field"];pat=term["value"]
    if field=="folder":return folder_search_match(folder_path,pat) or folder_search_match(folder_name,pat)
@@ -175,6 +177,38 @@ def folder_search(root,query,exclude=None,limit=500):
    seen.add(folder_path);results.append({"path":folder_path,"name":folder_name or folder_path})
    if len(results)>=limit:truncated=True;break
  return {"root":str(root),"query":str(query),"results":sorted(results,key=lambda z:z["path"].lower()),"count":len(results),"truncated":truncated,"scanned_folders":scanned_folders,"scanned_files":scanned_files}
+
+FOLDER_SEARCH_JOBS={}
+FOLDER_SEARCH_LOCK=threading.RLock()
+
+def folder_search_start(root,query,exclude=None,limit=500):
+ sid=uuid.uuid4().hex;started=time.time()
+ root=str(Path(reconcile_windows_path(root,False)).resolve())
+ job={"search_id":sid,"state":"RUNNING","root":root,"query":str(query or ""),"current_path":root,"started":started,"updated":started,
+      "scanned_folders":0,"scanned_files":0,"matches":0,"results":[],"truncated":False,"error":None}
+ with FOLDER_SEARCH_LOCK:FOLDER_SEARCH_JOBS[sid]=job
+ def update(z):
+  with FOLDER_SEARCH_LOCK:
+   j=FOLDER_SEARCH_JOBS.get(sid)
+   if j:j.update(z)
+ def worker():
+  try:
+   result=folder_search(root,query,exclude or [],limit,update)
+   with FOLDER_SEARCH_LOCK:
+    j=FOLDER_SEARCH_JOBS.get(sid)
+    if j:j.update({"state":"COMPLETED","current_path":j.get("current_path") or root,"updated":time.time(),"scanned_folders":result["scanned_folders"],"scanned_files":result["scanned_files"],"matches":result["count"],"results":result["results"],"truncated":result["truncated"]})
+  except Exception as e:
+   with FOLDER_SEARCH_LOCK:
+    j=FOLDER_SEARCH_JOBS.get(sid)
+    if j:j.update({"state":"FAILED","updated":time.time(),"error":str(e)[:1000]})
+ threading.Thread(target=worker,daemon=True,name="folder-search-"+sid[:8]).start()
+ return {"search_id":sid,"state":"RUNNING","root":root,"query":str(query or ""),"started":started}
+
+def folder_search_status(sid):
+ with FOLDER_SEARCH_LOCK:
+  j=FOLDER_SEARCH_JOBS.get(str(sid))
+  if not j:raise RuntimeError("Folder Search job not found")
+  return dict(j)
 
 def volume_roots():
  out=[Path("/").resolve()]
@@ -530,6 +564,8 @@ class H(BaseHTTPRequestHandler):
       vols.append(w);by_path[w["path"]]=w
     vols.sort(key=lambda v:(0 if v["path"]=="/" else 1,str(v.get("windows_drive") or v.get("path") or "").lower()))
     return self.sendj({"ok":True,"volumes":vols,"reconciled_at":time.time()})
+   if p=="/api/folder-search/status":
+    sid=parse_qs(u.query).get("id",[""])[0];return self.sendj({"ok":True,**folder_search_status(sid)})
    if p=="/api/folders":
     raw=parse_qs(u.query).get("path",["/"])[0];raw=reconcile_windows_path(raw,False);root=Path(raw).resolve();items=[];files=[]
     for x in root.iterdir():
@@ -543,6 +579,8 @@ class H(BaseHTTPRequestHandler):
  def do_POST(self):
   try:
    p=self.path.split("?",1)[0];b=self.body()
+   if p=="/api/folder-search/start":
+    z=folder_search_start(b.get("root","/"),b.get("query",""),b.get("exclude") or [],b.get("limit",500));return self.sendj({"ok":True,**z})
    if p=="/api/folder-search":
     z=folder_search(b.get("root","/"),b.get("query",""),b.get("exclude") or [],b.get("limit",500));return self.sendj({"ok":True,**z})
    if p=="/api/sources":
