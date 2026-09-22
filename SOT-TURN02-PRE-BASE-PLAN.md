@@ -2274,3 +2274,67 @@ Release C qualification must prove:
 7. completion clears pending state;
 8. global classification/Plan evidence incorporates newly analyzed placements; and
 9. Plan visibly marks stale/incomplete evidence while pending sources exist.
+
+
+## 2026-09-22 — SINGLE-USER SOURCE FRESHNESS TRIGGERS — BINDING
+
+SOT uses **no periodic background metadata rescans** for already-CURRENT sources.
+
+Freshness checks are triggered only by:
+
+1. **SOT startup** — check every enabled registered source that is currently accessible.
+2. **Volume selection** — when the owner selects a volume in the Estate picker, check enabled registered sources rooted on that volume.
+
+### Metadata signature
+
+The freshness check is metadata-only; it does not read file contents or recompute fingerprints.
+
+For each registered source, SOT deterministically derives a signature from the source-owned regular files using:
+- relative path;
+- file size;
+- modified timestamp;
+- aggregate file count;
+- aggregate bytes.
+
+Symlinked directories are not followed. Overlapping registered Estate roots use the same longest-root ownership rule as analysis so a child source's files do not make its registered parent spuriously stale.
+
+### Baseline and stale state
+
+- After a successful source analysis, SOT stores the source's analyzed metadata signature as its baseline and marks the source CURRENT.
+- Existing sources created before this feature derive their initial analyzed baseline from their current active SOT placement evidence, then compare that baseline to the live filesystem.
+- Startup/volume-selection checks compare live metadata against the analyzed baseline.
+- Match → source remains CURRENT.
+- Difference → source becomes **PENDING / STALE**.
+- A stale source participates in **Analyze pending (N)** exactly like a newly registered source.
+- A missing/unavailable volume does not fabricate a content change; availability remains a separate state.
+
+### Missing-file reconciliation
+
+A completed source analysis must retire active placements that were part of that source's prior evidence but were not observed in the completed scan.
+
+This is required so CURRENT means the Database actually reflects the source filesystem:
+- new files are inserted/fingerprinted;
+- changed files are refingerprinted;
+- missing files are retired from active evidence;
+- unchanged files retain their fingerprints.
+
+Retirement is evidence-state reconciliation only; analysis never deletes the physical file.
+
+### Post-analysis chain
+
+After stale/pending source analysis completes:
+
+`STALE/PENDING → enumerate → reconcile missing/new/changed → fingerprint changed/new → global UNIQUE/KEEP/EXCESS recompute → catalog revision → Database refresh → Plan refresh → CURRENT`.
+
+### Qualification
+
+Release C qualification must prove:
+1. startup check can mark a previously CURRENT source stale after a metadata-only filesystem change;
+2. volume-scoped check evaluates only registered sources on the selected volume;
+3. no periodic timer/scheduler is introduced for source freshness;
+4. unchanged sources remain CURRENT;
+5. overlapping source ownership does not cause parent false-positive stale state for child-owned files;
+6. deleted/missing files are retired after reanalysis;
+7. added/changed files are fingerprinted;
+8. successful reanalysis updates the analyzed metadata baseline and clears stale state; and
+9. Plan readiness follows the resulting pending/current state.
