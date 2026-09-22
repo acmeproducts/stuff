@@ -12,7 +12,7 @@
 | 2026-09-20 | Design → Build | in-progress | Build starts: implementing R1 — right-panel dashboard, collapsible soft-delete bin above dashboard card, project-select opens first tab, new tabs default to project file |
 | 2026-09-20 | Build | done | Plan file found corrupted (literal patch blocks from a prior run). Reconstructed full plan from ledger fragments + owner directives; added guard rule #7. R1 code build is next |
 | 2026-09-22 | R2 hardening | done | Plan gate and read-back, per-thread queue, stale-write rejection, fallback model record, and objective display implemented; static syntax checks and GitHub read-back passed |
-| 2026-09-22 | R3 Coach mode | in-progress | Owner requested a project-card switch and a conversational student experience with the same saved objective and progress |
+| 2026-09-22 | R3 Coach mode | done | Per-project switch, beginner chat wording, automatic new-project file path, and plain-language build replies added; JavaScript parse and GitHub read-back passed |
 
 ## 1. RELEASES
 - **R1 — Dashboard & workflow restore (current)** — right-panel dashboard; collapsible soft-delete bin; simplified per-project tabs
