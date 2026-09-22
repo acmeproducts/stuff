@@ -241,3 +241,29 @@ Never accept footnote markers, citation numbers, or source names without URLs as
 ### 17.4 Context-path divergence prohibition
 
 Never implement `?` context retrieval and `📰` refresh as separate prompt-only behaviors. Never rely on the model to manufacture or remember URLs when a provider returns structured search results. Never accept a richer newspaper result than the equivalent seeded context result because the two controls used different retrieval paths.
+
+
+## 18. Analytical-redesign permanent prohibitions — 2026-09-22
+
+Do not:
+
+- redefine RSK/GRW/MAC directly from a selected chart horizon;
+- let changing 5D/MTD/YTD/1YR/etc. alter the canonical index value for the same calendar date;
+- treat Rebase 100 as the canonical index definition;
+- choose a permanent fixed-base anchor before component transforms, influence/scaling, and information-time treatment pass their gates;
+- assume equal nominal weight means equal realized influence;
+- silently rescale components to equalize influence without a governed, interpretable rule;
+- accept a ratio transform merely because a series is positive;
+- ratio-rebase signed/zero-centered measures or legitimate zero-crossing price series;
+- describe percentage-point/basis-point measures solely through percent-of-level arithmetic when that distorts economic meaning;
+- treat a stale monthly/weekly observation as “new information = zero” without exposing its information age;
+- fabricate interpolated macro releases merely to create daily movement;
+- place an economic observation into historical index time before the information was publicly available;
+- overwrite historical index values with later revisions without explicit vintage semantics;
+- change component membership or weights simply because a short horizon contains no new release;
+- allow reconciliation of a reduced component set to masquerade as full model completeness;
+- generate Plain, Standard, and Technical as three independently reasoned analyses that can disagree on facts or conclusions;
+- implement the navigation/tab redesign before the analytical state contracts are stable;
+- mutate the accepted Turn 26 application merely to accelerate the redesign before the applicable analytical gates pass.
+
+The redesign must advance through the Master Plan program-control gates rather than through ad hoc patch accumulation.
