@@ -762,3 +762,18 @@ Rejected and must not return:
 - Treating a transiently disconnected source as evidence that its historical placements should be deleted or reclassified.
 
 Required replacement: recover the proven Turn 01 dynamic Windows discovery + narrow `sot-mount-drive` lazy-mount architecture; reconcile live Windows inventory with verified `9p`/`drvfs` mount-table state; mount/revalidate at discovery and operation boundaries; keep failures visible and non-destructive.
+
+
+## 2026-09-21 — AI COMPARE-PATH NEGATIVE RULES
+
+Rejected and must not return:
+
+- Restricting all AI analysis to rows already indexed in the SOT Database.
+- Treating identical filename stems as proof that two media files are equivalent.
+- Calling an MP4 valid/legitimate solely because a corresponding AVI name exists.
+- Recommending deletion of a legacy source when the converted counterpart failed media probing or materially differs in duration without explicit review.
+- Hiding unmatched files from either comparison side.
+- AI-initiated move/archive/trash/delete from Compare Paths / Folders in Release B.
+- Transcoding or rewriting media merely to perform verification.
+
+Required replacement: read-only Compare Paths / Folders task with deterministic enumeration, exact-name + normalized-name evidence, optional read-only ffprobe metadata, pair/unmatched reporting, evidence-oriented conversion confidence, and advisory cold-storage/soft-delete review recommendations only.
