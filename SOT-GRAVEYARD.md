@@ -794,3 +794,37 @@ Rejected and must not return:
 - Unbounded recursive search responses.
 
 Required replacement: read-only filesystem search beneath the active reconciled volume; `#folder:` / `#file:` / negative wildcard grammar; unique checked-by-default folder-path results; Select all / Deselect all / Move checked >; per-row large `>`; overlap-safe transfer into Selected Estate Roots.
+
+
+## 2026-09-22 — CORRECTED FOLDER SEARCH + CONVERTED-FILE AI NEGATIVE RULES
+
+The earlier inline Folder Search and A/B Compare Paths implementations are rejected.
+
+Do not reintroduce:
+
+- inline Folder Search result lists inside Panel 2;
+- Select all / Deselect all button pairs as the primary result-selection model;
+- automatic removal/collapse of registered descendant Estate roots when an ancestor is added;
+- suppressing a search result merely because a related parent/child/sibling path is registered;
+- treating owner-selected Estate roots as a minimal normalized root set;
+- A-versus-B comparison semantics;
+- temporary Path A / Path B controls;
+- one-time comparison source selection that must be rebuilt for each later scan;
+- name-only claims that a converted file is verified;
+- AI-generated media verification without deterministic FFmpeg-suite evidence;
+- destructive move/archive/trash/delete actions from converted-file comparison.
+
+Required replacement:
+
+- Folder Search opens a modal with top-right X;
+- exact already-registered/pending paths only are excluded;
+- all results initially selected;
+- live `# selected ×` chip where body transfers selected paths and × deselects all;
+- per-result large `>` transfer;
+- explicit owner-selected Estate roots remain preserved even when overlapping;
+- scan/accounting prevents duplicate content totals rather than deleting registrations;
+- persistent **Compare Converted Files** task using the standard three-panel source picker;
+- task-specific Comparison Sources persist and are reusable;
+- comparison runs within the union of registered task sources;
+- deterministic basename grouping + ffprobe + read-only ffmpeg validation precede AI interpretation;
+- Refresh rescans the same persisted sources and incorporates newly added/changed files.
