@@ -1,6 +1,8 @@
 # Chatlink Turn 01 pre-base: standalone owner portal migration plan
 
-Status: planning approved by the user's request of 2026-09-21. This document changes no application code. The user has accepted chat-lab; it is the behavioral baseline, not an unfinished keyboard experiment.
+Status: focused Turn 01 candidate implemented following the user's approval to proceed. The accepted chat-lab remains the behavioral baseline. See tests/chatlink/README.md for delivered scope, storage decisions, and test coverage.
+
+Implementation scope update (2026-09-22): owner rail, room settings, durable conversations/drafts, safe switching, legacy import, trash/restore, and export are included. Advanced backup restore/conflicts and multi-tab takeover are deferred as agreed. Storage v1 uses transactional per-room IndexedDB records rather than separate message/draft stores; a Web Lock prevents competing writers. The detailed original plan below remains the design reference; the implementation README records these explicit refinements.
 Target application: **`chatlink-turn01-pre-base.html`**.
 Plan owner: implementation agent, responsible for engineering, interim testing, and release verification.
 Repository source review pinned to **70258f801f0b37b7409eec2795bb97e9633ece18**.
