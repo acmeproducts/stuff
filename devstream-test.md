@@ -12,10 +12,12 @@
 | 2026-09-20 | Design → Build | in-progress | Build starts: implementing R1 — right-panel dashboard, collapsible soft-delete bin above dashboard card, project-select opens first tab, new tabs default to project file |
 | 2026-09-20 | Build | done | Plan file found corrupted (literal patch blocks from a prior run). Reconstructed full plan from ledger fragments + owner directives; added guard rule #7. R1 code build is next |
 | 2026-09-22 | R2 hardening | done | Plan gate and read-back, per-thread queue, stale-write rejection, fallback model record, and objective display implemented; static syntax checks and GitHub read-back passed |
+| 2026-09-22 | R3 Coach mode | in-progress | Owner requested a project-card switch and a conversational student experience with the same saved objective and progress |
 
 ## 1. RELEASES
 - **R1 — Dashboard & workflow restore (current)** — right-panel dashboard; collapsible soft-delete bin; simplified per-project tabs
-- **R2 — Run continuity and conflict safety (current)** — guard plan context, serialize thread runs, avoid stale writes, expose model changes and next step
+- **R2 — Run continuity and conflict safety** — guard plan context, serialize thread runs, avoid stale writes, expose model changes and next step
+- **R3 — Coach mode (current)** — optional project-level conversational experience
 - History prior to 2026-09-20 was lost in the plan-corruption event; the running app (v1.0 b31) is the de-facto baseline
 
 ## 2. R1 — Dashboard & workflow restore
@@ -54,6 +56,20 @@
 - Concurrent plan/thread edit: no silent overwrite
 - Provider fallback: visible in progress and final reply, with actual model recorded
 - New objective: saved plan can be read back before code changes
+
+## R3 — Coach mode
+**Scope (in)**
+- Per-project Coach mode switch on the project card, persisted in project state
+- Existing projects remain in their current detailed mode; new projects offer Coach mode at creation
+- Coach mode uses plain language in chat, gives one useful next suggestion, and keeps technical controls out of the main conversation
+- Project plan, objective, run queue, conflict guards, and model fallback continue to work in both modes
+
+**Build gates**
+- Toggle Coach mode, refresh, and confirm the choice persists
+- Switch between projects and confirm each keeps its own choice
+- Coach conversation shows a playable link after a build and a gentle next step without requiring a stage approval
+- Detailed mode retains engine, web, plan, and diagnostic access
+- Switching modes leaves thread messages and master plan unchanged
 
 ## 3. FUTURE IDEAS
 - In-chat retargeting of build output filename ("land this in X.html")
