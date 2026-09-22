@@ -1580,3 +1580,89 @@ Release B qualification must verify:
 8. unmatched A/B files remain visible;
 9. task result may recommend cold-storage/soft-delete review but never executes it; and
 10. existing Auto Tag authority boundaries remain unchanged.
+
+
+## 2026-09-22 — ESTATE PANEL 2 FOLDER SEARCH / BULK PATH SELECTION — BINDING
+
+The Estate Picker middle column (Panel 2 / Folder Tree) gains a **FOLDER SEARCH** surface above the tree. It searches the currently selected live volume/path space directly; it is not limited to paths already indexed in the SOT Database.
+
+### Search syntax
+
+The Folder Search field uses a compact OMNISEARCH grammar specific to filesystem discovery:
+
+- `#folder:<pattern>` — match folder names and/or full folder paths.
+- `#file:<pattern>` — match filenames; each hit returns the containing folder path as the selectable result.
+- Unqualified terms match either folder path or filename.
+- Prefix any term with `-` to exclude matching results.
+- `*` and `?` wildcards are supported.
+- Multiple positive terms are ANDed; multiple negative terms exclude from the positive result set.
+- Search is case-insensitive.
+- Enter executes search.
+- Search always runs beneath the currently selected Panel 1 volume/root and must use the same live Windows/WSL reconciliation before enumeration.
+
+Examples:
+- `#folder:*video*`
+- `#file:*.mp4`
+- `#file:*.mp4 -#folder:*archive*`
+- `#folder:*camera* -#file:*.tmp`
+
+### Results
+
+- Search results appear in Panel 2 above the normal Folder Tree.
+- Results are **unique folder paths**.
+- Every returned result is checked by default.
+- Each result row shows:
+  - checkbox;
+  - full path;
+  - a large touch-safe `>` control to move that one path into Panel 3.
+- Controls above the results:
+  - **Select all**
+  - **Deselect all**
+  - **Move checked >**
+- `Move checked >` moves all currently checked paths into Panel 3 in one action.
+- Deselecting rows does not remove the result; it only changes the next bulk transfer.
+- The normal expandable Folder Tree remains available beneath search results.
+
+### Panel 3 / overlap behavior
+
+Moving a search result means adding that path to **Selected Estate Roots**; it does not move filesystem content.
+
+Existing Estate overlap rules remain authoritative:
+- already registered/selected coverage is not duplicated;
+- if a selected parent covers a checked child, the child is not separately added;
+- if a newly added parent covers already-selected descendants, the parent replaces those descendants so Panel 3 remains a valid non-overlapping source-root set;
+- bulk transfer reports how many paths were added and how many were skipped/reduced by overlap rules.
+
+### Search backend
+
+Add a read-only filesystem search endpoint.
+
+- Search operates only beneath a currently accessible/reconciled volume root.
+- It recursively enumerates folders and regular files without following symlinked directories.
+- File matches contribute their parent folder as the result path.
+- Folder matches contribute the folder itself.
+- Results are deduplicated and path-sorted.
+- A bounded result limit prevents an unbounded browser payload; truncation is explicit.
+- Search does not register sources, mutate files, alter Database rows, or authorize analysis.
+
+### Mobile / interaction
+
+- Search controls are touch-safe.
+- The per-row `>` is materially larger than the old tiny transfer affordance.
+- Search results have their own scroll region and do not cause Panel 1 or Panel 3 to scroll.
+- The three picker panels remain independently scrollable.
+- Refreshing live volumes must not clear an active Folder Search expression or checkbox state unless the selected volume itself disappears.
+
+### Qualification
+
+Release B qualification must prove:
+1. Folder Search exists above Panel 2;
+2. `#folder:`, `#file:`, negative terms, `*` and `?` are accepted;
+3. search is filesystem-based and not dependent on SOT placement rows;
+4. file hits return containing folder paths;
+5. results are unique and checked by default;
+6. Select all / Deselect all / Move checked > are present;
+7. each result has its own large `>` transfer control;
+8. bulk transfer preserves the non-overlapping Estate-root invariant;
+9. search is read-only; and
+10. existing live-volume reconciliation and Estate registration gates remain green.
