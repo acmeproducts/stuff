@@ -340,3 +340,121 @@ C1 therefore remains open until the rebuilt evidence proves:
 - one canonical observation per source date;
 - no legacy Yahoo `^TNX` rows remain;
 - dependent Health/derived evidence rebuild cleanly.
+
+
+## 16. C1 provenance remediation PASS — canonical 10Y rebuilt
+
+The canonical evidence pipeline was corrected and rerun.
+
+Pipeline fixes:
+- FRED evidence is canonicalized to one observation per UTC source date;
+- a full-bootstrap provider migration no longer carries forward observations from a different provider/identifier lineage;
+- legacy Yahoo `^TNX` rows therefore cannot remain mixed into canonical FRED `DGS10`.
+
+The first workflow attempt rebuilt evidence correctly but was blocked by a pre-existing indentation error in `market-navigator-r7-index-audit.py`. That gate script was repaired at commit `925505bb3376031e0beef191dc703837f925ccde`.
+
+The rerun passed:
+- catalog reconciliation;
+- canonical evidence build;
+- Health build;
+- source lifecycle;
+- owned-backend truth validation;
+- derived-index coherence;
+- publication of canonical evidence.
+
+Verified current 10Y evidence:
+- provider: `FRED`;
+- identifier: `DGS10`;
+- observations: **2,577**;
+- unique UTC source dates: **2,577**;
+- duplicate source dates: **0**.
+
+The former 5,072-row mixed FRED/Yahoo file is no longer canonical.
+
+**C1 provenance status: PASS for this defect.**
+
+## 17. Leading C3 shadow candidate — frequency-adjusted information scaling
+
+After cleaning 10Y, the shadow influence test was rerun using a second candidate architecture.
+
+The candidate separates:
+
+1. **economic change definition**, from
+2. **influence scale**.
+
+Economic changes:
+- positive price/index/level series: log/proportional movement;
+- signed indicators/spreads: additive level movement;
+- WTI: additive price movement;
+- rates/inflation/unemployment/spreads: additive basis-point / percentage-point movement.
+
+Influence scale:
+- standardize by the historical volatility of one native information event;
+- divide by the square root of the component's expected information-event frequency per year.
+
+Conceptually:
+
+`standardized information movement = economically meaningful change / event-change SD / sqrt(events per year)`
+
+Provisional frequencies used only for the shadow test:
+- trading-day/daily market/rate series: 252;
+- weekly: 52;
+- monthly: 12.
+
+This is not yet the canonical formula. It is the leading C3 candidate because it addresses the otherwise severe mismatch between daily, weekly and monthly component opportunity to move.
+
+### 17.1 Clean-data MAC result
+
+With cleaned FRED DGS10 evidence, largest absolute-component shares were approximately:
+
+- 5D: **46%** (Fed Funds);
+- MTD: **28%** (2Y);
+- YTD: **29%** (2Y);
+- 1YR: **27%** (2Y);
+- 3YR: **30%** (Fed Funds);
+- 5YR: **30%** (Fed Funds).
+
+This is materially less concentrated than the first `rate_change_sd` candidate, in which Fed Funds represented about 82% of 5D absolute movement.
+
+### 17.2 RSK result
+
+The same frequency-adjusted concept reduced—but did not eliminate—RSK concentration.
+
+Indicative largest shares:
+- MTD ≈ **24%**;
+- YTD ≈ **34%**;
+- 1YR ≈ **38%**;
+- 3YR ≈ **43%**.
+
+Very short windows can still be concentrated because only a few components may move materially in that exact interval. That is not automatically a model flaw.
+
+### 17.3 GRW result
+
+Indicative largest shares:
+- 1D ≈ **40%**;
+- MTD ≈ **52%** (WTI);
+- YTD ≈ **33%**;
+- 1YR ≈ **35%**;
+- 3YR ≈ **36%**;
+- 5YR ≈ **34%**.
+
+The candidate substantially reduces the long-horizon domination created by mixing raw percentage moves with standardized macro changes.
+
+### 17.4 What remains before C3 can pass
+
+Do not adopt the candidate merely because the concentration numbers look better.
+
+Required next tests:
+- rolling-window contribution distributions rather than endpoint snapshots only;
+- median / 90th / 95th percentile largest-component share;
+- leave-one-out sign/magnitude stability;
+- sensitivity to scale-estimation window;
+- sensitivity to event-frequency assumptions;
+- treatment of zero-change days versus actual information events, especially Fed Funds;
+- VIX/MOVE ratio-vs-additive/log specification comparison;
+- WTI behavior around April 2020 and normal periods;
+- comparison of equal nominal coefficients under this normalization versus alternative governed scalings.
+
+Current status:
+
+**C3: OPEN — frequency-adjusted information scaling is the leading candidate, not yet approved.**
