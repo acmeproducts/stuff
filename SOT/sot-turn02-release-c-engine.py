@@ -31,6 +31,14 @@ class Store:
   }
   for name,decl in additions.items():
    if name not in cols:c.execute(f"ALTER TABLE placements ADD COLUMN {name} {decl}")
+  source_cols={r[1] for r in c.execute("PRAGMA table_info(sources)")}
+  source_additions={
+   "metadata_signature":"TEXT",
+   "metadata_checked":"REAL",
+   "stale":"INTEGER NOT NULL DEFAULT 0"
+  }
+  for name,decl in source_additions.items():
+   if name not in source_cols:c.execute(f"ALTER TABLE sources ADD COLUMN {name} {decl}")
   c.executescript("""
 CREATE TABLE IF NOT EXISTS operations(
  operation_id TEXT PRIMARY KEY,bulk_id TEXT,operation_type TEXT NOT NULL,placement_no INTEGER,
@@ -196,12 +204,61 @@ class Manager:
   return {"unique":sum(1 for x in groups.values() if len(x)==1),"duplicate_groups":sum(1 for x in groups.values() if len(x)>1)}
  def event(self,typ,msg,jid=None,sid=None,severity="INFO",detail=None):
   self.s.submit("INSERT INTO events(ts,severity,event_type,job_id,source_id,message,detail_json) VALUES(?,?,?,?,?,?,?)",(time.time(),severity,typ,jid,sid,msg,json.dumps(detail or {})))
+ def _source_rows(self):
+  return self.s.rows("SELECT * FROM sources WHERE enabled=1 ORDER BY source_id")
+ def metadata_signature(self,source_id):
+  srcs=self._source_rows();byid={x["source_id"]:x for x in srcs};src=byid.get(source_id)
+  if not src:raise RuntimeError("source not found")
+  root=Path(src["root"]).resolve()
+  h=hashlib.sha256();count=0;total=0;newest=0.0
+  for cur,dirs,files in os.walk(root):
+   dirs[:]=sorted(d for d in dirs if not Path(cur,d).is_symlink())
+   for name in sorted(files):
+    p=Path(cur,name)
+    try:
+     if not p.is_file() or p.is_symlink():continue
+     ps=str(p.resolve())
+     if self._owner_source(ps,byid)!=source_id:continue
+     st=p.stat();rel=str(p.resolve().relative_to(root))
+     line=(rel+"\0"+str(int(st.st_size))+"\0"+repr(float(st.st_mtime))+"\n").encode()
+     h.update(line);count+=1;total+=int(st.st_size);newest=max(newest,float(st.st_mtime))
+    except OSError:continue
+  return {"digest":h.hexdigest(),"files":count,"bytes":total,"newest_mtime":newest}
+ def placement_signature(self,source_id):
+  src=self.s.rows("SELECT root FROM sources WHERE source_id=?",(source_id,))
+  if not src:raise RuntimeError("source not found")
+  root=Path(src[0]["root"]).resolve();h=hashlib.sha256();count=0;total=0;newest=0.0
+  rows=self.s.rows("SELECT path,size,modified FROM placements WHERE source_id=? AND placement_state='ACTIVE' AND availability='AVAILABLE' ORDER BY path",(source_id,))
+  for r in rows:
+   try:rel=str(Path(r["path"]).resolve().relative_to(root))
+   except Exception:rel=str(r["path"])
+   size=int(r["size"] or 0);mtime=float(r["modified"] or 0.0)
+   h.update((rel+"\0"+str(size)+"\0"+repr(mtime)+"\n").encode());count+=1;total+=size;newest=max(newest,mtime)
+  return {"digest":h.hexdigest(),"files":count,"bytes":total,"newest_mtime":newest}
+ def check_source_metadata(self,source_id):
+  src=self.s.rows("SELECT * FROM sources WHERE source_id=? AND enabled=1",(source_id,))
+  if not src:return {"source_id":source_id,"checked":False,"reason":"not enabled"}
+  src=src[0]
+  live=self.metadata_signature(source_id)
+  baseline=json.loads(src["metadata_signature"]) if src["metadata_signature"] else self.placement_signature(source_id)
+  changed=live!=baseline
+  now=time.time()
+  if not src["metadata_signature"]:
+   self.s.submit("UPDATE sources SET metadata_signature=?,metadata_checked=?,stale=? WHERE source_id=?",(json.dumps(baseline,sort_keys=True),now,1 if changed else 0,source_id),True)
+  else:self.s.submit("UPDATE sources SET metadata_checked=?,stale=? WHERE source_id=?",(now,1 if changed else 0,source_id),True)
+  if changed:self.event("source_stale","Source metadata changed; analysis pending",None,source_id,"INFO",{"baseline":baseline,"live":live})
+  self.s.drain(10)
+  return {"source_id":source_id,"checked":True,"changed":changed,"baseline":baseline,"live":live}
+ def refresh_source_baseline(self,source_id):
+  sig=self.placement_signature(source_id);now=time.time()
+  self.s.submit("UPDATE sources SET metadata_signature=?,metadata_checked=?,stale=0 WHERE source_id=?",(json.dumps(sig,sort_keys=True),now,source_id),True)
+  return sig
  def add_source(self,label,root,failure_domain,role="primary",estate=None):
   root=str(Path(root).resolve());estate=estate or label
   if self.s.rows("SELECT 1 FROM sources WHERE root=? LIMIT 1",(root,)):raise RuntimeError("Estate root already registered")
   if self.s.rows("SELECT 1 FROM sources WHERE estate=? LIMIT 1",(estate,)):estate=str(estate)+" · "+root
   sid=hashlib.sha256(root.encode()).hexdigest()[:16]
-  self.s.submit("INSERT INTO sources(source_id,label,root,estate,failure_domain,role,enabled) VALUES(?,?,?,?,?,?,1)",(sid,label,root,estate,failure_domain,role),True);return sid
+  self.s.submit("INSERT INTO sources(source_id,label,root,estate,failure_domain,role,enabled,stale) VALUES(?,?,?,?,?,?,1,1)",(sid,label,root,estate,failure_domain,role),True);return sid
  def _owner_source(self,path,src):
   p=str(Path(path).resolve());matches=[]
   for x in src.values() if isinstance(src,dict) else src:
@@ -228,7 +285,7 @@ class Manager:
   if old:raise RuntimeError("job already active")
   rev=(self.s.rows("SELECT COALESCE(MAX(revision),0)+1 n FROM jobs")[0]["n"]);jid=uuid.uuid4().hex;now=time.time()
   self.s.submit("INSERT INTO jobs(job_id,revision,state,created,started,last_progress) VALUES(?,?,'RUNNING',?,?,?)",(jid,rev,now,now,now),True)
-  rt={"queues":{x["source_id"]:queue.Queue(self.capacity) for x in src},"done":set(),"stop":threading.Event(),"rr":0,"sched":threading.Lock(),"src":{x["source_id"]:x for x in src},"activity":{}}
+  rt={"queues":{x["source_id"]:queue.Queue(self.capacity) for x in src},"done":set(),"stop":threading.Event(),"rr":0,"sched":threading.Lock(),"src":{x["source_id"]:x for x in src},"activity":{},"seen":{x["source_id"]:set() for x in src}}
   self.runs[jid]=rt
   for x in src:self.s.submit("INSERT INTO job_sources(job_id,source_id,state,producer_state,queue_capacity,last_progress) VALUES(?,?,'RUNNING','RUNNING',?,?)",(jid,x["source_id"],self.capacity,now))
   self.event("job_started","Analysis started",jid)
@@ -248,6 +305,7 @@ class Manager:
      if rt["stop"].is_set():break
      p=str(Path(root,name))
      if self._owner_source(p,rt["src"])!=sid:continue
+     rt["seen"][sid].add(p)
      try:
       st=os.stat(p,follow_symlinks=False)
       if not os.path.isfile(p):continue
@@ -316,7 +374,17 @@ class Manager:
   self.s.drain(60)
   if rt["stop"].is_set():state="STOPPED"
   else:
-   self._infer(jid);self.s.drain(60);state="COMPLETED"
+   now=time.time()
+   for sid in rt["queues"]:
+    seen=rt["seen"].get(sid,set())
+    active=self.s.rows("SELECT placement_id,path FROM placements WHERE source_id=? AND placement_state='ACTIVE'",(sid,))
+    missing=[r["placement_id"] for r in active if r["path"] not in seen]
+    if missing:
+     self.s.many("UPDATE placements SET placement_state='RETIRED',retired_at=?,availability='UNAVAILABLE',plan=NULL,system_classification=NULL,duplicate_group=NULL,duplicate_cardinality=NULL WHERE placement_id=?",[(now,pid) for pid in missing],True)
+     self.event("source_missing_retired",f"{len(missing)} missing placements retired",jid,sid,"INFO",{"count":len(missing)})
+   self._infer(jid);self.s.drain(60)
+   for sid in rt["queues"]:self.refresh_source_baseline(sid)
+   self.s.drain(30);state="COMPLETED"
   now=time.time();self.s.submit("UPDATE jobs SET state=?,ended=?,last_progress=? WHERE job_id=?",(state,now,now,jid));self.s.submit("UPDATE job_sources SET state=?,queue_depth=0,active_workers=0 WHERE job_id=?",(state,jid));self.event("job_"+state.lower(),state.title(),jid);self.s.drain(30)
  def _infer(self,jid):
   groups=self.s.rows("SELECT fingerprint,COUNT(*) n,MAX(size) size FROM placements WHERE job_id=? AND fingerprint IS NOT NULL GROUP BY fingerprint",(jid,))
