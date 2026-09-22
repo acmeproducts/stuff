@@ -199,6 +199,7 @@ class Manager:
  def add_source(self,label,root,failure_domain,role="primary",estate=None):
   root=str(Path(root).resolve());estate=estate or label
   if self.s.rows("SELECT 1 FROM sources WHERE root=? LIMIT 1",(root,)):raise RuntimeError("Estate root already registered")
+  if self.s.rows("SELECT 1 FROM sources WHERE estate=? LIMIT 1",(estate,)):estate=str(estate)+" · "+root
   sid=hashlib.sha256(root.encode()).hexdigest()[:16]
   self.s.submit("INSERT INTO sources(source_id,label,root,estate,failure_domain,role,enabled) VALUES(?,?,?,?,?,?,1)",(sid,label,root,estate,failure_domain,role),True);return sid
  def _owner_source(self,path,src):
