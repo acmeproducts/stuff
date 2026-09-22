@@ -835,3 +835,16 @@ Required replacement:
 Do not overwrite, repurpose, or rename Release B files to ship the corrective Folder Search / converted-file comparison work.
 
 Required replacement: publish the correction under the unique Release C artifact/runtime names, preserve Release B for rollback/comparison, and deploy Release C from its own runtime directory/service.
+
+
+## 2026-09-22 — FOLDER SEARCH ACTIVATION REGRESSION NEGATIVE RULES
+
+Do not reintroduce:
+
+- Folder Search draft loss caused by routine Estate re-rendering.
+- Structural volume signatures that include volatile free-space counters and therefore cause needless picker re-renders.
+- Search UI with no explicit clear-X control.
+- Waiting for a potentially long recursive filesystem search to complete before opening the results modal.
+- Search failure paths that leave the user with no persistent visible state.
+
+Required replacement: durable draft state, explicit clear-X, immediate Search Results modal with Searching… state, stable structural volume signature, and visible in-modal failure/result transitions.
