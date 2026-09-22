@@ -49,6 +49,19 @@ try:
   assert srv.normalize_mount_source(r"C:\x5c")=="C:"
   assert srv.normalize_mount_source("D:/")=="D:"
   print("PASS findmnt Windows source normalization")
+
+  fsroot=home/"folder-search";(fsroot/"Videos"/"Converted").mkdir(parents=True);(fsroot/"Videos"/"Archive").mkdir(parents=True);(fsroot/"Docs").mkdir()
+  (fsroot/"Videos"/"Converted"/"clip01.mp4").write_bytes(b"mp4")
+  (fsroot/"Videos"/"Converted"/"clip02.tmp").write_bytes(b"tmp")
+  (fsroot/"Videos"/"Archive"/"old01.mp4").write_bytes(b"old")
+  (fsroot/"Docs"/"readme.txt").write_text("doc")
+  q1=srv.folder_search(str(fsroot),"#file:*.mp4 -#folder:*Archive*",500)
+  paths=[x["path"] for x in q1["results"]]
+  assert str((fsroot/"Videos"/"Converted").resolve()) in paths and str((fsroot/"Videos"/"Archive").resolve()) not in paths,paths
+  q2=srv.folder_search(str(fsroot),"#folder:*Video*",500)
+  assert any(x["path"]==str((fsroot/"Videos").resolve()) for x in q2["results"])
+  assert len(paths)==len(set(paths)) and q1["truncated"] is False
+  print("PASS filesystem Folder Search #folder/#file/negative/wildcard semantics")
   e1=home/"estate1";e2=home/"estate2";target=home/"target";e1.mkdir();e2.mkdir();target.mkdir()
   (e1/"photo-one.jpg").write_bytes(b"one")
   (e1/"dup-a.bin").write_bytes(b"same")
