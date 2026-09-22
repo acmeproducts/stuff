@@ -2154,3 +2154,19 @@ Release C runtime files:
 - `install-SOT-turn02-release-c.sh`
 
 Release C must not overwrite or rename `sot-turn02-release-b.html` or the Release B runtime directory. The installer deploys Release C under `~/.sot-turn02/release-c`, snapshots the shared schema-13 database before cutover, preserves the Release B runtime and unit, and restarts Release B on failed Release C cutover when Release B was the previously active runtime.
+
+
+## 2026-09-22 — RELEASE C FOLDER SEARCH ACTIVATION / DRAFT PERSISTENCE CORRECTION — BINDING
+
+The Folder Search interaction must remain stable while live volume reconciliation runs.
+
+- The Estate Folder Search input has durable in-memory draft state.
+- Routine Estate re-renders, including live volume reconciliation, must restore the current search draft rather than blank the field.
+- Volume-change detection must ignore volatile capacity/free-space counters when deciding whether the Estate picker needs a structural re-render.
+- The Folder Search field includes an explicit **×** clear control. Clearing it updates draft state immediately and keeps focus behavior predictable.
+- Clicking Search or pressing Enter opens the Folder Search modal **immediately**, before recursive filesystem enumeration completes.
+- While search is running, the modal displays a visible **Searching…** state and retains the fixed top-right X.
+- When results arrive, the same open modal is populated with checked-by-default results and the selected-count chip.
+- If search fails, the open modal shows the failure state in addition to the normal toast; it must not appear to do nothing.
+- Search request completion must not depend on the originating input element remaining mounted in the DOM.
+- Qualification must prove draft persistence across a simulated Estate re-render, clear-X behavior, immediate modal activation before the awaited request, and stable structural volume signatures that exclude volatile free-space counters.
