@@ -876,3 +876,16 @@ Do not reintroduce:
 - Registration that silently starts expensive fingerprint work.
 
 Required replacement: authoritative registered-source inventory in Analyze, explicit pending readiness, Analyze pending (N), incremental source-ID job start, global post-job classification refresh, and a visible Plan stale-evidence banner until all registered sources are current.
+
+
+## 2026-09-22 — SOURCE FRESHNESS TRIGGER NEGATIVE RULES
+
+Do not reintroduce:
+
+- periodic 15/30-minute or similar background filesystem rescans for source freshness;
+- treating CURRENT as “was analyzed once” when startup/volume selection detects metadata drift;
+- source freshness checks that read file contents;
+- parent-source stale state caused solely by files owned by a deeper explicitly registered child source;
+- reanalysis that leaves missing files active in Database evidence.
+
+Required replacement: single-user triggers only at SOT startup and owner volume selection; metadata-only signature comparison; stale→PENDING handoff; missing/new/changed placement reconciliation; successful reanalysis clears stale and advances authoritative Database/Plan evidence.
