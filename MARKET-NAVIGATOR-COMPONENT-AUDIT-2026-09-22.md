@@ -586,3 +586,41 @@ Therefore:
 - do not block C3 work while that credential is being provisioned.
 
 C4 cannot be marked PASS until the sidecar is built and historical no-look-ahead tests pass.
+
+
+## 20. WTI zero-crossing stress result
+
+The leading frequency-adjusted WTI candidate was stress-tested on the canonical Yahoo `CL=F` history.
+
+Using additive daily price change divided by annualized historical daily-change scale:
+
+- 2020-04-20: $18.27 → −$37.63, raw change −$55.90, approximately **−1.51 normalized annualized units**;
+- 2020-04-21: −$37.63 → $10.01, raw change +$47.64, approximately **+1.29 units**.
+
+The transform therefore:
+- remains defined through zero;
+- preserves the real negative-price event;
+- treats the episode as exceptionally large;
+- does not become infinite merely because price crosses zero.
+
+This is a **PASS for mathematical stress behavior**, not final C3 approval. Scale-window/calibration-time sensitivity still applies.
+
+## 21. Scale calibration itself must be time-governed
+
+The current shadow audit estimates event volatility from the full available canonical history. That is acceptable for diagnosing candidate behavior in C3, but it cannot automatically become historical production methodology.
+
+If a 2026-calibrated scale is applied to 2018 history, the result is a retrospective backcast because the scale uses information unavailable in 2018.
+
+Before C3/I1 approval, compare:
+
+1. **Frozen launch calibration** — calibrate from a governed pre-launch history and keep scale parameters fixed for a model version. Pre-launch history, if shown using those parameters, is explicitly labeled BACKCAST.
+2. **Expanding no-look-ahead calibration** — scale at each date uses only earlier information, with minimum-history requirements and archived parameter history.
+3. **Rolling no-look-ahead calibration** — scale uses a fixed trailing historical window, again using only prior information.
+
+Do not choose among these based solely on which chart looks smoothest. Evaluate:
+- interpretability;
+- stability;
+- sensitivity to shocks/regime shifts;
+- comparability through time;
+- sufficient-history behavior for monthly/weekly components;
+- ability to reproduce a historical published value exactly.
