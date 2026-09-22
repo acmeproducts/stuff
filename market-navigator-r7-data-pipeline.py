@@ -27,6 +27,13 @@ def canon(a):
    if math.isfinite(v):d[t]={'t':t,'v':v}
   except:pass
  return [d[k] for k in sorted(d)]
+def canon_fred(a):
+ out={}
+ for p in canon(a):
+  d=dt.datetime.fromtimestamp(p['t']/1000,dt.timezone.utc).date().isoformat()
+  q=out.get(d)
+  if q is None or p['t']<q['t']:out[d]=p
+ return [out[k] for k in sorted(out)]
 def yahoo(sym,boot):
  rng='10y' if boot else '1mo';url='https://query1.finance.yahoo.com/v8/finance/chart/'+urllib.parse.quote(sym,safe='')+'?'+urllib.parse.urlencode({'range':rng,'interval':'1d','includePrePost':'false','events':'div,splits'})
  raw,http=get(url,'application/json');j=json.loads(raw);r=((j.get('chart') or {}).get('result') or [None])[0]
@@ -74,7 +81,9 @@ def yoy(a):
   d=dt.datetime.fromtimestamp(p['t']/1000,dt.timezone.utc);q=m.get((d.year-1,d.month))
   if q and q['v']:out.append({'t':p['t'],'v':(p['v']/q['v']-1)*100})
  return canon(out)
-def merge(a,b):return canon((a or [])+(b or []))
+def merge(a,b,provider=None):
+ z=canon((a or [])+(b or []))
+ return canon_fred(z) if provider=='FRED' else z
 def before(a,t):
  z=None
  for p in a:
@@ -124,7 +133,17 @@ def main():
     except Exception as e:source_errors.append(f"{src.get('provider')}: {e}")
    if raw is None:raise RuntimeError('; '.join(source_errors) or 'no provider configured')
    if 'year-over-year percent change' in (m.get('transformation') or '').lower():raw=yoy(raw)
-   obs=merge(obs0,raw);success=iso()
+   used_provider=(used or {}).get('provider')
+   used_identifier=(used or {}).get('identifier')
+   old_provider=old.get('provider');old_identifier=old.get('providerIdentifier')
+   same_lineage=(old_provider==used_provider and old_identifier==used_identifier)
+   # Never retain observations from a different historical provider lineage when a full bootstrap is available.
+   # FRED canonical evidence is additionally one observation per UTC source date; this removes legacy same-day rows
+   # (for example the former Yahoo ^TNX values that contaminated canonical DGS10 after migration).
+   if BOOT and obs0 and not same_lineage: obs=canon(raw)
+   else: obs=merge(obs0,raw,used_provider)
+   if used_provider=='FRED': obs=canon_fred(obs)
+   success=iso()
   except Exception as e:
    err=str(e);obs=canon(obs0);success=old.get('last_successful');failures.append(f'{sid}: {e}')
   if obs:
