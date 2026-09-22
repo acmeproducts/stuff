@@ -351,9 +351,11 @@ async function getFile(path){
 }
 async function putFile(path,content,message,sha){
   const body={message,content:enc(content),branch:cfg.branch};if(sha)body.sha=sha;
-  return(await gh('contents/'+path,{method:'PUT',body:JSON.stringify(body)})).content.sha;
+  const j=await gh('contents/'+path,{method:'PUT',body:JSON.stringify(body)});
+  pathCommit[path]=j.commit&&j.commit.sha;
+  return j.content.sha;
 }
-const pathQueues={},pathLastSha={};
+const pathQueues={},pathLastSha={},pathCommit={};
 function putFileSafe(path,content,message,expectedSha){
   const prev=pathQueues[path]||Promise.resolve();
   const job=prev.then(async()=>{
@@ -929,7 +931,8 @@ async function runAgent(key,premarked){
       else if(body.length<80)throw new Error('agent returned no usable file content for '+target);
       if(interrupted.has(key))throw new Error('Interrupted by user');
       progress[key]={line:'committing '+target+' ('+Math.round(body.length/1000)+'k)',at:Date.now(),started:(progress[key]||{}).started};renderProgress();
-      commit=await putFileSafe(target,body,'devstream agent: '+key+' — '+summary.slice(0,60),prev?prev.sha:null);
+      await putFileSafe(target,body,'devstream agent: '+key+' — '+summary.slice(0,60),prev?prev.sha:null);
+      commit=pathCommit[target]||null;
       reply+='\n✅ Wrote '+target+' — '+Math.round(body.length/1000)+'k chars'+(prevLen?' (was '+Math.round(prevLen/1000)+'k)':' (new file)')+'\nDiff: https://github.com/'+repoFull()+'/commit/'+commit;
       if(target===planFile){sot.projects[t.project].planExists=true;reply+='\nPlan: https://github.com/'+repoFull()+'/blob/'+cfg.branch+'/'+planFile}
       else{
