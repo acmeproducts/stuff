@@ -2225,3 +2225,52 @@ Qualification must prove:
 5. the UI renders Search root, Current path, Elapsed, Folders scanned, Files scanned;
 6. the elapsed timer is client-driven and continues while backend path is unchanged;
 7. completed results retain the existing checkbox/chip/transfer behavior.
+
+
+## 2026-09-22 — REGISTERED SOURCE READINESS / INCREMENTAL ANALYSIS / PLAN FRESHNESS — BINDING
+
+The Estate Catalog and Analyze source inventory must describe the same authoritative registered-source set.
+
+### Source readiness
+
+- Every enabled registered Estate source appears in **Analyze → Sources**, whether or not it participated in the most recent analysis job.
+- A newly registered source that has never completed analysis is shown as **PENDING / READY FOR ANALYSIS**, not omitted.
+- A source whose most recent source-job ended STOPPED / INTERRUPTED / FAILED is also pending retry.
+- A source with a completed source-job is shown with its last completed revision and status.
+- The latest active job telemetry may overlay live queue/worker/current-folder/current-file counters, but may never replace the registered-source inventory.
+
+### Start behavior
+
+- When one or more sources are pending, the primary Analyze action is **Analyze pending (N)**.
+- That action submits exactly the pending source IDs to the backend for enumeration/fingerprinting.
+- When no source is pending, the primary action becomes **Reanalyze all** and submits all enabled sources.
+- Incremental analysis must remain revisioned and must recompute global duplicate classifications across all active placements after the pending sources finish.
+- Existing completed source evidence remains available while pending sources are processed.
+
+### Registration handoff
+
+- Successful Estate registration immediately makes the new roots visible in Analyze as pending.
+- Registration does not silently start an expensive scan.
+- Activity records source registration.
+- The owner therefore has an explicit, visible handoff:
+  **Register selected → Analyze pending → fingerprint/inference → refreshed Database/Plan**.
+
+### Plan freshness
+
+- If any registered source is pending analysis, Plan must visibly state that the displayed charts are based on incomplete/stale Estate evidence.
+- Plan may display the last known charts for continuity, but they may not appear fully authoritative while registered sources remain pending.
+- The stale banner includes the number of pending sources.
+- When the incremental job completes, catalog revision advances, placements reload, pending count falls, and Plan recomputes from the newly authoritative active placements.
+
+### Qualification
+
+Release C qualification must prove:
+1. newly registered source appears in the source-status API before any analysis job;
+2. it is marked pending;
+3. a previously completed source remains current even if it did not participate in a later incremental job;
+4. Analyze renders every registered source, not only latest `job_sources`;
+5. primary action becomes Analyze pending (N) when pending sources exist;
+6. pending source IDs are submitted to `/api/job/start`;
+7. completion clears pending state;
+8. global classification/Plan evidence incorporates newly analyzed placements; and
+9. Plan visibly marks stale/incomplete evidence while pending sources exist.
