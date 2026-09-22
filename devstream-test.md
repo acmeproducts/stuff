@@ -13,11 +13,13 @@
 | 2026-09-20 | Build | done | Plan file found corrupted (literal patch blocks from a prior run). Reconstructed full plan from ledger fragments + owner directives; added guard rule #7. R1 code build is next |
 | 2026-09-22 | R2 hardening | done | Plan gate and read-back, per-thread queue, stale-write rejection, fallback model record, and objective display implemented; static syntax checks and GitHub read-back passed |
 | 2026-09-22 | R3 Coach mode | done | Per-project switch, beginner chat wording, automatic new-project file path, and plain-language build replies added; JavaScript parse and GitHub read-back passed |
+| 2026-09-22 | R4 suggested tasks | in-progress | Add context-aware task buttons to Coach and detailed conversations |
 
 ## 1. RELEASES
 - **R1 — Dashboard & workflow restore (current)** — right-panel dashboard; collapsible soft-delete bin; simplified per-project tabs
 - **R2 — Run continuity and conflict safety** — guard plan context, serialize thread runs, avoid stale writes, expose model changes and next step
-- **R3 — Coach mode (current)** — optional project-level conversational experience
+- **R3 — Coach mode** — optional project-level conversational experience
+- **R4 — Suggested task buttons (current)** — visible next choices in both modes
 - History prior to 2026-09-20 was lost in the plan-corruption event; the running app (v1.0 b31) is the de-facto baseline
 
 ## 2. R1 — Dashboard & workflow restore
@@ -70,6 +72,20 @@
 - Coach conversation shows a playable link after a build and a gentle next step without requiring a stage approval
 - Detailed mode retains engine, web, plan, and diagnostic access
 - Switching modes leaves thread messages and master plan unchanged
+
+## R4 — Suggested task buttons
+**Scope (in)**
+- Show a small set of suggested next actions above the composer in both Coach and detailed modes
+- Change suggestions for errors, queued work, early projects, and established projects
+- Use plain student-friendly labels in Coach mode and plan/testing labels in detailed mode
+- A tap sends the selected request through the normal chat queue so it appears immediately and remains interruptible
+
+**Build gates**
+- Coach and detailed modes each show useful, distinct suggestions
+- Error and queued states show recovery-oriented choices
+- Tapping a suggestion creates a normal visible user message and starts or queues it once
+- Suggestions remain usable on narrow mobile layouts and do not hide the composer
+- Existing typed drafts are not overwritten without confirmation
 
 ## 3. FUTURE IDEAS
 - In-chat retargeting of build output filename ("land this in X.html")
