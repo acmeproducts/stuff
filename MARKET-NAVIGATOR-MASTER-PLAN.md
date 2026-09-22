@@ -1166,6 +1166,25 @@ A historical chart intended to represent information available to the market at 
 
 Until this is solved for a component, do not claim that a persistent historical index is an as-known-at-the-time market signal.
 
+### 36.3 Historical FRED/ALFRED credential boundary
+
+Current/latest FRED canonical acquisition remains the public no-auth CSV path.
+
+Historical availability/vintage qualification is different. The official FRED/ALFRED web-service endpoints needed for:
+- real-time periods;
+- vintage dates;
+- initial-release-only observations;
+- new/revised-observation history;
+
+require an API key.
+
+Governed implementation rule:
+- use one backend-only repository secret named `MARKET_NAVIGATOR_FRED_API_KEY`;
+- never embed the key in HTML, source JSON, reports, logs, or downloadable artifacts;
+- do not add a normal-user Config requirement for this key;
+- if the secret is absent, the C4 vintage build reports BLOCKED and production continues using the accepted current/latest evidence path;
+- do not approximate historical release/vintage truth merely to avoid the credential requirement.
+
 ## 37. Execution order and stop gates
 
 Execute in this order:
