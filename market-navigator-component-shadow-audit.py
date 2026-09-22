@@ -35,16 +35,28 @@ BASE_FAMILY={
 
 SCENARIOS={
     "S2A_EVENT_FREQ":{
-        "description":"Leading candidate: economically meaningful change / event SD / sqrt(expected events per year); VIX/MOVE log; current curve directions.",
-        "overrides":{},"direction_overrides":{}
+        "description":"Leading candidate: economically meaningful change / event SD / sqrt(observed events per year); VIX/MOVE log; current curve directions.",
+        "overrides":{},"direction_overrides":{},"scale_lookback_years":None,"nonzero_event_frequency":False
     },
     "S2B_VOL_LEVEL":{
         "description":"Sensitivity: VIX and MOVE use additive level changes instead of log changes.",
-        "overrides":{"vix":"diff","move":"diff"},"direction_overrides":{}
+        "overrides":{"vix":"diff","move":"diff"},"direction_overrides":{},"scale_lookback_years":None,"nonzero_event_frequency":False
     },
     "S2C_CURVE_INVERTED_PRESSURE":{
         "description":"Sensitivity: same as S2A but Treasury-curve directions reversed so deeper inversion raises MAC pressure.",
-        "overrides":{},"direction_overrides":{"curve10y2y":-1,"curve10y3m":-1}
+        "overrides":{},"direction_overrides":{"curve10y2y":-1,"curve10y3m":-1},"scale_lookback_years":None,"nonzero_event_frequency":False
+    },
+    "S2D_NONZERO_EVENT_FREQ":{
+        "description":"Sensitivity: for additive/rate families, event frequency counts only non-zero information changes; price/log families retain observed cadence.",
+        "overrides":{},"direction_overrides":{},"scale_lookback_years":None,"nonzero_event_frequency":True
+    },
+    "S2E_5Y_SCALE":{
+        "description":"Sensitivity: S2A architecture with scale parameters estimated from the latest five years of canonical observations.",
+        "overrides":{},"direction_overrides":{},"scale_lookback_years":5,"nonzero_event_frequency":False
+    },
+    "S2F_3Y_SCALE":{
+        "description":"Sensitivity: S2A architecture with scale parameters estimated from the latest three years of canonical observations.",
+        "overrides":{},"direction_overrides":{},"scale_lookback_years":3,"nonzero_event_frequency":False
     },
 }
 
@@ -76,11 +88,23 @@ def event_sigma(obs,family):
     s=sd(d)
     return s if s and math.isfinite(s) and s>0 else None
 
-def observed_events_per_year(obs):
+def scale_observations(obs,lookback_years):
+    if not lookback_years or not obs:return obs
+    cutoff=obs[-1]["t"]-int(lookback_years*365.2425*86400000)
+    out=[x for x in obs if x["t"]>=cutoff]
+    return out if len(out)>=3 else obs
+
+def observed_events_per_year(obs,family,nonzero_only=False):
     if len(obs)<2:return None
     span=(obs[-1]["t"]-obs[0]["t"])/(365.2425*86400000)
     if span<=0:return None
-    return (len(obs)-1)/span
+    if not nonzero_only:return (len(obs)-1)/span
+    count=0
+    vals=[float(p["v"]) for p in obs if p.get("v") is not None and math.isfinite(float(p["v"]))]
+    for a,b in zip(vals,vals[1:]):
+        ch=economic_change(a,b,family)
+        if ch is not None and abs(ch)>1e-12:count+=1
+    return count/span if count else None
 
 def economic_change(a,b,family):
     a=float(a);b=float(b)
@@ -137,12 +161,16 @@ def main():
         direction={sid:sc["direction_overrides"].get(sid,meta["direction"]) for sid,meta in comp.items()}
         scales={}
         for sid,x in series.items():
-            ev=event_sigma(x["observations"],family[sid]); freq=observed_events_per_year(x["observations"])
+            sobs=scale_observations(x["observations"],sc.get("scale_lookback_years"))
+            ev=event_sigma(sobs,family[sid])
+            nz=bool(sc.get("nonzero_event_frequency") and family[sid]=="diff")
+            freq=observed_events_per_year(sobs,family[sid],nz)
             scales[sid]={
                 "family":family[sid],"eventSigma":ev,"eventsPerYear":freq,
                 "annualizedScale":(ev*math.sqrt(freq) if ev and freq else None),
                 "cadence":x.get("cadence"),
-                "frequencyRule":"observed canonical observations per calendar year"
+                "scaleLookbackYears":sc.get("scale_lookback_years"),
+                "frequencyRule":"non-zero economic changes per calendar year" if nz else "observed canonical observations per calendar year"
             }
         by_index={}
         for index_id,idef in defs["indices"].items():
@@ -188,6 +216,18 @@ def main():
                 counts={}
                 for w in windows:counts[w["largestComponent"]]=counts.get(w["largestComponent"],0)+1
                 summary["largestComponentFrequency"]=dict(sorted(counts.items(),key=lambda kv:(-kv[1],kv[0])))
+                regimes={
+                    "PRE_COVID_2016_2019":(dt.date(2016,1,1),dt.date(2019,12,31)),
+                    "COVID_2020":(dt.date(2020,1,1),dt.date(2020,12,31)),
+                    "INFLATION_TIGHTENING_2022_2023":(dt.date(2022,1,1),dt.date(2023,12,31)),
+                    "RECENT_2024_2026":(dt.date(2024,1,1),dt.date(2026,12,31)),
+                }
+                summary["regimes"]={}
+                for rname,(ra,rb) in regimes.items():
+                    rr=[w for w in windows if ra<=dt.date.fromisoformat(w["end"])<=rb]
+                    rs=summarize_windows(rr)
+                    rs["anyLeaveOneOutSignFlipRate"]=(sum(1 for w in rr if w["leaveOneOutSignFlips"]>0)/len(rr) if rr else None)
+                    summary["regimes"][rname]=rs
                 hres[h]=summary
             by_index[index_id]=hres
         scenarios[sname]={"description":sc["description"],"scales":scales,"indices":by_index}
@@ -195,7 +235,7 @@ def main():
         "schema":"market-navigator-component-shadow-audit-v1",
         "status":"NON_PRODUCTION_C3_SHADOW",
         "generatedAt":dt.datetime.now(UTC).replace(microsecond=0).isoformat().replace("+00:00","Z"),
-        "warning":"C4 release/vintage information-time semantics are not applied; results are transformation/influence diagnostics only.",
+        "warning":"C4 release/vintage information-time semantics are not applied; results are transformation/influence diagnostics only. Scale-window scenarios are retrospective sensitivity tests, not production backcasts.",
         "scenarios":scenarios
     }
     OUT.parent.mkdir(parents=True,exist_ok=True);OUT.write_text(json.dumps(out,indent=2,sort_keys=True)+"\n")
