@@ -20,7 +20,14 @@ MOUNT_LOCK=threading.RLock()
 
 def normalize_mount_source(v):
  raw=str(v or "").strip()
- raw=re.sub(r'(?i)(?:\\x5c|\\x2f|[\\/])+
+ suffixes=(chr(92)+"x5c",chr(92)+"x2f",chr(92),"/")
+ changed=True
+ while changed:
+  changed=False
+  for suffix in suffixes:
+   if raw.lower().endswith(suffix.lower()):
+    raw=raw[:-len(suffix)];changed=True;break
+ return raw.upper()
 
 def mount_info(root):
  try:
