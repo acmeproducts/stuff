@@ -14,3 +14,6 @@ Build: node tests/audio-overlap/build.cjs
 Control tests: node tests/audio-overlap/test.cjs
 
 Acoustic evaluation: compare both modes with speaker-only playback, human-only speech, simultaneous speech, high speaker volume, both directions and background noise. Verify original spoken words and absence of self-generated messages. Real microphone/speaker evaluation remains required; automated scheduling tests cannot establish acoustic cancellation quality.
+
+## r2 microphone guard and debug log
+Default Hold while mic on blocks TTS while either microphone is active or being acquired. Finish speaking / play queue stops recognition and releases retained playback; toggling the microphone off also retains pending playback. Other teardown paths clear pending audio. This trades simultaneous spoken translation for preventing overlap. The expandable debug log beneath configuration contains timestamped STT microphone/socket events, recognized text, queued/spoken TTS text, cancellation, errors and mode changes. It is capped at 300 entries, kept in memory and can be copied. Prior comparison modes remain available and may reproduce feedback.
