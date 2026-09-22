@@ -848,3 +848,18 @@ Do not reintroduce:
 - Search failure paths that leave the user with no persistent visible state.
 
 Required replacement: durable draft state, explicit clear-X, immediate Search Results modal with Searching… state, stable structural volume signature, and visible in-modal failure/result transitions.
+
+
+## 2026-09-22 — FOLDER SEARCH PROGRESS NEGATIVE RULES
+
+Do not reintroduce a Folder Search modal that only says “Searching…” with no observable progress.
+
+Required replacement while search is running:
+
+- visible Search root;
+- visible Current path being enumerated;
+- continuously increasing Elapsed timer;
+- live Folders scanned count;
+- live Files scanned count;
+- live Matches count;
+- asynchronous search status polling so large directories remain visibly active even when the current path does not change for an extended interval.
