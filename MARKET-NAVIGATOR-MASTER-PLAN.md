@@ -2,7 +2,7 @@
 
 Status: AUTHORITATIVE PRODUCT / BUILD / QUALIFICATION PLAN
 Updated: 2026-09-22
-Planning state: **TURN 26 IMPLEMENTATION AUTHORIZED — 2026-09-21**
+Planning state: **ANALYTICAL REDESIGN PROGRAM — C3 ACTIVE; TURN 26 RETAINED WORKING BASELINE**
 Target artifact: **`market-navigator-turn26-ship.html`**
 
 Next cumulative application artifact: **`market-navigator-turn26-ship.html`**
@@ -1311,3 +1311,216 @@ Do not reopen casually:
 4. Only then begin I1 persistent-index anchor/backfill/version specification.
 5. Do not begin AI-level or navigation implementation merely because they are easier UI work.
 
+
+
+## 41. Successor-session handoff — authoritative continuation point
+
+This section exists specifically so a new session can continue without requiring the owner to reconstruct this conversation.
+
+### 41.1 What to read first
+
+Before making any Market Navigator change, fetch current `main` and read in full:
+
+1. `MARKET-NAVIGATOR-MASTER-PLAN.md` — authoritative positive specification and program state.
+2. `MARKET-NAVIGATOR-GRAVEYARD.md` — binding negative specification / rejected approaches.
+3. `MARKET-NAVIGATOR-BUILD-PROTOCOL.md` — clean-baseline and stage-advancement rules.
+
+Do not create a parallel redesign plan. This Master Plan is the single authoritative plan.
+
+Current retained application artifact while redesign work proceeds:
+
+- `market-navigator-turn26-ship.html`
+- current main blob at this handoff: `fc61e29d76f1a7ecf1226f74e0884865dca04684`
+- byte size: `231392`
+
+That application remains the working product baseline while the analytical redesign is qualified. Do not mutate it merely to accelerate the redesign unless the active gate explicitly requires application code.
+
+### 41.2 End goal
+
+Market Navigator is being evolved from a horizon-rebased charting tool into a durable evidence-backed market/economic research system in which:
+
+- every component has an economically defensible governed transform;
+- RSK / GRW / MAC become persistent versioned indices with fixed model-version anchoring;
+- changing horizon changes the viewport, not the canonical value for a date;
+- optional Rebase 100 remains a display/comparison transform only;
+- canonical indices can be overlaid meaningfully against SPY/S&P 500, Nasdaq/QQQ, Dow, Gold, WTI and other governed market series on the existing two-axis architecture;
+- AI interprets one governed analytical result at Plain / Standard / Technical levels without changing facts or conclusions;
+- navigation is simplified after the analytical contracts stabilize;
+- evidence, Context & Further Reading, Library, live refresh, Print, Markdown, TTS, and saved-state reproducibility remain intact.
+
+### 41.3 Six workstreams and dependencies
+
+The redesign is managed as six coordinated tracks:
+
+1. **Components** — provenance, transform family, direction, scale, realized influence, cadence/information age, release/vintage timing, participation/completeness.
+2. **Persistent Indices** — fixed-base versioned RSK/GRW/MAC, anchor/backfill/versioning, viewport-only horizons, explicit Rebase 100 comparison mode.
+3. **AI Interpretation Level** — Plain / Standard / Technical over the same governed evidence and conclusions.
+4. **Tabbed Navigation/Layout** — evaluate top-row primary tabs and contextual subtabs only after analytical state contracts are stable.
+5. **Evidence & Context** — primary releases, related reporting, deterministic live links, seeded questions, newspaper refresh, causality discipline, frozen source sets.
+6. **Analysis / Library** — standalone Analyze, + Add, AI POV handoff, processing card, checkpoints, live query, revision semantics, print/download/TTS.
+
+Dependency rule:
+
+**Components → Persistent Indices → AI interpretation contracts → Navigation implementation**
+
+Tracks 5 and 6 are retained capabilities throughout and must be requalified against the redesigned analytical model.
+
+### 41.4 Component redesign principles already established
+
+Do not return to one universal ratio transform.
+
+Current governed candidate families are:
+
+- **proportional / log movement** for genuine positive price/index/level measures where proportional movement is economically meaningful;
+- **signed level movement** for zero-centered signed measures such as NFCI and Treasury spreads;
+- **signed price change** for WTI because legitimate price history can cross zero;
+- **rate / percentage-point / basis-point change** for rates and rate-like measures including Treasury yields, Fed Funds, inflation rates, unemployment, and HY spread;
+- **information-age / vintage semantics** as a cross-cutting timing rule rather than a fake arithmetic transform.
+
+Important closed findings:
+
+- WTI canonical lineage is Yahoo Finance `CL=F`, not EIA Cushing spot.
+- The April 2020 negative WTI observation is valid evidence and must not be deleted/truncated.
+- NFCI is a signed, zero-centered measure and ratio rebasing is invalid.
+- Treasury-spread signed treatment is already the architectural precedent.
+- 10Y, 2Y, Fed Funds, CPI YoY, Core PCE YoY, unemployment, and HY spread require additive rate/spread treatment rather than percent-of-level reasoning.
+- VIX/MOVE remain proportional/log provisionally pending influence qualification; do not change them merely for uniformity.
+- Mixed-frequency macro series must not be interpolated merely to make a daily chart move.
+- A slow series with no new release remains part of the model; “no new information” is not the same as “component absent.”
+
+### 41.5 The two cross-cutting problems that must be solved before persistent indices
+
+**A. Realized influence / scale**
+
+Equal nominal weight does not guarantee equal historical influence across heterogeneous transform families.
+
+C3 must quantify:
+
+- contribution dispersion by component;
+- largest-component and top-N concentration;
+- leave-one-out sensitivity;
+- direction robustness;
+- nominal equal weight versus realized influence;
+- whether any governed scale normalization is required.
+
+Do not silently alter weights or normalize merely to make influence equal. The rule must remain interpretable and versioned.
+
+**B. Information-time / vintage truth**
+
+Historical macro data must not appear in the index before it was publicly available.
+
+For slow/revised series distinguish:
+
+- observation period;
+- release/publication timestamp;
+- revision/vintage timestamp.
+
+Historical “as known at the time” indices cannot use future revisions or future calibration information.
+
+### 41.6 Current gate status
+
+At this handoff:
+
+| Gate | Status | Meaning |
+|---|---|---|
+| C1 — component inventory/provenance | **PASS** | 21-component inventory/provenance established. |
+| C2 — transform registry | **PROVISIONAL / substantially defined** | Families/directions mostly established; final registry waits on C3/C4. |
+| C3 — influence/scaling | **ACTIVE / OPEN** | This is the next primary analytical task. |
+| C4 — information time/vintage | **OPEN** | Requires governed release/vintage qualification; FRED/ALFRED historical web service may require backend key. |
+| C5 — component registry approval | **BLOCKED** | Requires C3 + C4. |
+| I1 — persistent-index specification | **BLOCKED** | No anchor/backfill decision until C5. |
+| AI Plain/Standard/Technical | **QUEUED** | Design retained; implementation waits for stable analytical result contract. |
+| Tabbed navigation | **QUEUED** | Do not implement yet. |
+| Evidence/Library | **RETAIN + REQUALIFY** | Existing Turn 26 capability remains mandatory. |
+
+### 41.7 Immediate next work
+
+The successor session should begin with **C3 — influence/scaling qualification**, not UI work.
+
+Required C3 output:
+
+1. For each of the 21 components, compute/compare realized contribution behavior under the proposed transform family.
+2. Quantify contribution dispersion and concentration over governed historical windows/regimes.
+3. Test leave-one-out impact and direction stability for RSK, GRW and MAC.
+4. Specifically inspect VIX, MOVE, HY spread, WTI, NFCI, rates/inflation/unemployment for structural dominance or under-influence.
+5. Compare candidate scaling methods without using future information in an “as-known” history.
+6. Recommend one interpretable versioned scale rule or demonstrate that no additional cross-family normalization is required.
+7. Do not change production weights/transforms until C3 passes and C4 information-time semantics are reconciled with it.
+
+Then proceed to **C4**, merge C3+C4 into the proposed component registry, and only then begin **I1 persistent index specification**.
+
+### 41.8 Persistent-index specification questions reserved for I1
+
+Do not decide these early. I1 must explicitly resolve:
+
+- anchor date/value and model-version meaning;
+- whether pre-launch history is unavailable, a labeled retrospective backcast, or an expanding/rolling no-look-ahead reconstruction;
+- index continuity across model-version changes;
+- whether revisions restate current-vintage history or preserve published vintage;
+- how component transformation-scale versions are persisted;
+- canonical index overlay behavior on two-axis charts;
+- exact semantics and UI labeling for optional Rebase 100;
+- how contribution explanation maps from persistent component signals into persistent composite movement.
+
+Core rule to preserve:
+
+**Horizon controls viewport. It must not define the canonical index value.**
+
+### 41.9 AI interpretation design reserved for A1
+
+Once the analytical result contract is stable:
+
+- use **Plain | Standard | Technical** rather than Beginner/Intermediate/Expert;
+- Config may hold a default;
+- Library analysis may be reinterpreted at another level;
+- optional tabs may expose all three;
+- all three are transformations of one governed analysis/evidence set;
+- evidence, calculations, conclusions, source links, limitations and Context & Further Reading remain identical across levels.
+
+Example intent:
+
+- Plain explains what an inversion/rise/fall means in everyday language.
+- Standard uses normal market/economic terminology with concise mechanisms.
+- Technical exposes transformations, basis-point/percentage-point interpretation, model mechanics, caveats and provenance.
+
+Never run three independent analyses that can disagree.
+
+### 41.10 Navigation redesign reserved for U1
+
+Only after Tracks 1–3 stabilize, evaluate replacing the persistent left rail with top navigation.
+
+Current design hypothesis:
+
+- top row: **NOW | LIBRARY | HEALTH**, with Config separately accessible;
+- contextual second row per area;
+- chart operational controls remain with the chart;
+- prefer spending vertical space rather than permanently sacrificing mobile chart width.
+
+Do not implement this because it is visually attractive before analytical-state dependencies settle.
+
+### 41.11 Evidence and Library invariants that must survive redesign
+
+Do not regress:
+
+- deterministic Context & Further Reading source links;
+- parity between seeded `?` context retrieval and newspaper refresh;
+- primary releases versus Related Reporting distinction;
+- causality discipline;
+- external-source caveat;
+- immutable saved analysis state/checkpoints;
+- live refresh/extend and revision semantics;
+- standalone Analyze workflow;
+- AI POV processing-card handoff;
+- Library Print with expanded Context & Further Reading and links;
+- Markdown/CSV/JSON exports;
+- TTS/Listen;
+- source/model Health and Glossary;
+- Index Explanation and deterministic arithmetic evidence.
+
+### 41.12 Successor-session operating instruction
+
+Use this as the continuation prompt:
+
+> Continue Market Navigator in `acmeproducts/stuff` from current `main`. This is the analytical-redesign program, not an invitation to redesign ad hoc. Read in full `MARKET-NAVIGATOR-MASTER-PLAN.md`, `MARKET-NAVIGATOR-GRAVEYARD.md`, and `MARKET-NAVIGATOR-BUILD-PROTOCOL.md`. Section 41 is the session handoff; Sections 35–40 are the governing redesign program. Preserve the deployed Turn 26 application unless the active gate specifically requires code changes. Advance **C3 — influence/scaling qualification** first. Do not choose a persistent-index anchor, implement Plain/Standard/Technical, or change navigation before their dependency gates are satisfied. Record evidence, decisions, and blockers back into the Master Plan so the owner is not required to reconstruct history. Follow the clean-baseline protocol for any code stage. Return with the C3 findings, recommended governed scaling rule, unresolved decisions, and the next gate status.
+
+This handoff section is part of the authoritative Master Plan. Future sessions should update it or supersede it in-place rather than creating a competing plan.
