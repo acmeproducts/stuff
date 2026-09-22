@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-REF="e2fad6eb615757e48f6babc903580e8e95123f03"
+REF="41cd583ce55328414238803ecc510c2c9805e520"
 ROOT="$HOME/.sot-turn02/release-c"
 BASE="https://raw.githubusercontent.com/acmeproducts/stuff/$REF"
 SERVICE_C="sot-turn02-release-c.service"
