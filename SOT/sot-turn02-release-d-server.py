@@ -76,26 +76,30 @@ def windows_logical_drives():
   return out
  except Exception:return []
 
+def mounted_windows_drive_record(letter):
+ letter=str(letter or "").strip().lower()
+ if not re.match(r"^[a-z]$",letter):return None
+ ok,detail=verified_windows_mount(letter)
+ if not ok:return None
+ root="/mnt/"+letter
+ try:
+  st=os.statvfs(root);free=int(st.f_bavail*st.f_frsize);total=int(st.f_blocks*st.f_frsize)
+ except OSError:
+  free=None;total=None
+ mi=detail.get("mount") or {}
+ return {"label":letter.upper()+":","windows":True,"windows_drive":letter.upper()+":","windows_path":letter.upper()+":\\","path":root,
+         "mounted":True,"available":True,"mount_error":None,"drive_type":"mounted","provider":None,
+         "volume_serial":None,"stable_volume_id":"windows-mounted:"+letter.upper()+":","free_bytes":free,"total_bytes":total,
+         "mount_fstype":mi.get("fstype"),"mount_source":mi.get("source"),"identity_source":"verified_mount"}
+
 def mounted_windows_drives():
- out=[]
- q=Path("/mnt")
+ out=[];q=Path("/mnt")
  if not q.exists():return out
  try:items=sorted(q.iterdir(),key=lambda p:p.name.lower())
  except OSError:return out
  for x in items:
-  letter=x.name.lower()
-  if not re.match(r"^[a-z]$",letter):continue
-  ok,detail=verified_windows_mount(letter)
-  if not ok:continue
-  try:
-   st=os.statvfs(x);free=int(st.f_bavail*st.f_frsize);total=int(st.f_blocks*st.f_frsize)
-  except OSError:
-   free=None;total=None
-  mi=detail.get("mount") or {}
-  out.append({"label":letter.upper()+":","windows":True,"windows_drive":letter.upper()+":","windows_path":letter.upper()+":\\","path":"/mnt/"+letter,
-              "mounted":True,"available":True,"mount_error":None,"drive_type":"mounted","provider":None,
-              "volume_serial":None,"stable_volume_id":"windows-mounted:"+letter.upper()+":","free_bytes":free,"total_bytes":total,
-              "mount_fstype":mi.get("fstype"),"mount_source":mi.get("source"),"identity_source":"verified_mount"})
+  z=mounted_windows_drive_record(x.name)
+  if z:out.append(z)
  return out
 
 def ensure_windows_drive_mounted(letter,force=False):
