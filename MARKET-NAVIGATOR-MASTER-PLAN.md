@@ -2,7 +2,7 @@
 
 Status: AUTHORITATIVE PRODUCT / BUILD / QUALIFICATION PLAN
 Updated: 2026-09-23
-Planning state: **ANALYTICAL REDESIGN PROGRAM — C4/C5/I1 PASS; TURN 27 REJECTED BY OWNER QUALIFICATION; TURN 28 CORRECTIVE CANDIDATE IN QUALIFICATION; TURN 26 RETAINED WORKING BASELINE**
+Planning state: **ANALYTICAL REDESIGN PROGRAM — C4/C5/I1 PASS; TURN 27 REJECTED BY OWNER QUALIFICATION; TURN 28 CORRECTIVE CANDIDATE QUALIFIED / AWAITING OWNER DISPOSITION; TURN 26 RETAINED WORKING BASELINE**
 Target artifact: **`market-navigator-turn28-pre-ship.html`**
 
 Next cumulative application artifact: **`market-navigator-turn28-pre-ship.html`**
@@ -1287,9 +1287,9 @@ The owner has delegated detailed dependency management to the governed program. 
 | C4 information time/vintage | **PASS WITH PROSPECTIVE-ONLY SOURCE** | Eleven FRED components passed ALFRED initial/revision timing and no-look-ahead qualification. HY spread `BAMLH0A0HYM2` is not available in ALFRED, so prelaunch history is labeled current-vintage retrospective backcast and post-launch truth requires prospective capture. |
 | C5 component registry | **PASS** | `MN-PERSISTENT-1.0.0` merges the frozen C3 scales with C4 availability modes. Seven fixed 1/7 coefficients per index; no reduced-set renormalization. |
 | I1 persistent index | **PASS** | Common anchor 2016-09-01 = 100; horizons are viewport-only; Rebase 100 is display-only; pre-effective history is `RETROSPECTIVE BACKCAST`; formula and contribution reconciliation passed. |
-| AI levels | **RETAINED IN TURN 28 CORRECTIVE CANDIDATE** | Plain / Standard / Technical remain transformations of one governed analysis and evidence set; exact Turn 28 requalification is pending. |
-| Tabbed navigation | **RETAINED IN TURN 28 CORRECTIVE CANDIDATE** | NOW / LIBRARY / HEALTH top navigation is retained; exact Turn 28 desktop/mobile requalification is pending. |
-| Evidence/Library integration | **RETAINED IN TURN 28 CORRECTIVE CANDIDATE** | Turn 26 Evidence, Analyze, Library, source-link, Print, Markdown, checkpoint, and revision journeys are retained; exact Turn 28 requalification is pending. |
+| AI levels | **TURN 28 CANDIDATE QUALIFIED** | Plain / Standard / Technical remain transformations of one governed analysis and evidence set. |
+| Tabbed navigation | **TURN 28 CANDIDATE QUALIFIED** | NOW / LIBRARY / HEALTH top navigation passed retained desktop/mobile browser qualification. |
+| Evidence/Library integration | **TURN 28 CANDIDATE QUALIFIED** | Turn 26 Evidence, Analyze, Library, source-link, Print, Markdown, checkpoint, and revision journeys passed exact Turn 28 requalification. |
 
 ### 40.1 Decisions that are now closed unless new evidence overturns them
 
@@ -1540,6 +1540,8 @@ The bounded corrective delta is:
 4. calculate nearby-weight robustness in persistent-index coordinates by adding weighted signal deltas to the persistent baseline, rather than subtracting the persistent baseline from a synthetic 100-based level.
 
 Current candidate files are `market-navigator-build-turn28.py`, `market-navigator-turn28-pre-ship.html`, `market-navigator-turn28-qa.mjs`, and `.github/workflows/market-navigator-turn28.yml`. The candidate may advance only after deterministic rebuild, syntax, full retained browser QA, the four correction-specific gates above, exact merged-main rerun, Pages deployment, byte identity, and live smoke pass. Turn 26 remains the working baseline and C1–C5/I1 remain closed; this correction does not redefine the persistent model.
+
+Qualification completed at commit `dc8ab9996f3a67b5220ae13bb696e5d91ce7e7a6`: deterministic rebuild, persistent-index contract, inline syntax, retained browser journeys, nearest-series hover, null-safe comparison click, dual-axis GRW display, and coordinate-correct GRW lifecycle all passed in Actions run `35845196019`; Pages run `35845196110` passed. The live artifact is exactly 237,430 bytes with SHA-256 `cb15d99283f6281bcdc9490c871de6402fac06159827d496a697cff7bf5bba2a`, byte-identical to the qualified candidate. It remains a candidate pending owner disposition.
 
 Successor operating instruction:
 
