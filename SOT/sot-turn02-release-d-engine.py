@@ -362,6 +362,7 @@ class Manager:
       if ids & busy:continue
       try:self._launch(row["job_id"]);active+=1;busy.update(ids)
       except Exception as e:
+       with self.lock:self.runs.pop(row["job_id"],None)
        now=time.time();self.s.submit("UPDATE jobs SET state='FAILED',ended=?,last_progress=? WHERE job_id=?",(now,now,row["job_id"]),True);self.event("job_launch_failed",str(e),row["job_id"],None,"ERROR")
    except Exception as e:self.last_scheduler_error=str(e)
    self.scheduler_stop.wait(.25)
@@ -501,7 +502,12 @@ class Manager:
       else:
        pno=self.alloc_no();self.s.submit("INSERT INTO placements(placement_id,placement_no,job_id,revision,source_id,estate,path,filename,extension,size,created,modified,scanned_at,lifecycle,role,last_verified) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?, 'NONE',?,?)",(pid,pno,jid,rev,sid,src["estate"],p,name,Path(name).suffix.lower(),st.st_size,created,st.st_mtime,now,src["role"],now))
       self.s.submit("UPDATE job_sources SET discovered_files=discovered_files+1,discovered_bytes=discovered_bytes+?,hashed_files=hashed_files+?,hashed_bytes=hashed_bytes+?,current_folder=?,current_file=?,last_progress=? WHERE job_id=? AND source_id=?",(st.st_size,1 if unchanged else 0,st.st_size if unchanged else 0,root,name,now,jid,sid))
-      if not unchanged:q.put((pid,p,st.st_size))
+      if not unchanged:
+       while not rt["stop"].is_set():
+        self._wait_if_paused(rt)
+        if rt["stop"].is_set():break
+        try:q.put((pid,p,st.st_size),timeout=.1);break
+        except queue.Full:continue
       self.s.submit("UPDATE jobs SET last_progress=? WHERE job_id=?",(now,jid))
      except Exception as e:
       now=time.time();pid=hashlib.sha256((sid+"\0"+p).encode()).hexdigest();old=self.s.rows("SELECT placement_no FROM placements WHERE placement_id=?",(pid,))
@@ -593,12 +599,12 @@ class Manager:
    if j["state"]=="QUEUED":
     now=time.time();self.s.submit("UPDATE jobs SET state='ABORTED',ended=?,last_progress=?,control='ABORT',deleted=1,delete_requested=1 WHERE job_id=?",(now,now,jid),True);self.event("job_aborted_deleted","Queued job aborted and removed",jid);return
    rt=self.runs.get(jid)
-   if rt:rt["stop"].set()
+   if rt:rt["stop"].set();rt["pause"].clear()
    self.s.submit("UPDATE jobs SET state='STOPPING',control='ABORT',delete_requested=1,last_progress=? WHERE job_id=?",(time.time(),jid),True);self.event("job_abort_requested","Abort + Delete requested",jid);return
   if action=="stop":
    rt=self.runs.get(jid)
    if not rt:raise RuntimeError("job not active in this process")
-   rt["stop"].set();self.s.submit("UPDATE jobs SET state='STOPPING',control='STOP',last_progress=? WHERE job_id=?",(time.time(),jid),True);self.event("job_stop","Stop requested",jid);return
+   rt["stop"].set();rt["pause"].clear();self.s.submit("UPDATE jobs SET state='STOPPING',control='STOP',last_progress=? WHERE job_id=?",(time.time(),jid),True);self.event("job_stop","Stop requested",jid);return
   if action=="delete":
    if j["state"] in ("RUNNING","STOPPING","QUEUED"):raise RuntimeError("Use Abort + Delete for an active or queued job")
    self.s.submit("UPDATE jobs SET deleted=1 WHERE job_id=?",(jid,),True);self.event("job_deleted","Job removed from queue history",jid);return
