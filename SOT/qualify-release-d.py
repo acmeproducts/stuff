@@ -38,6 +38,12 @@ try:
   home=Path(td);os.environ["HOME"]=str(home)
   srv=load("release_d_server_fixture",HERE/"sot-turn02-release-d-server.py")
   assert srv.m.VERSION=="turn02-release-d" and srv.m.SCHEMA==14
+  original_verify=srv.verified_windows_mount
+  srv.verified_windows_mount=lambda letter:(True,{"root":"/mnt/"+str(letter).lower(),"mount":{"target":"/mnt/"+str(letter).lower(),"fstype":"9p","source":str(letter).upper()+":"}})
+  fallback=srv.mounted_windows_drive_record("c")
+  srv.verified_windows_mount=original_verify
+  assert fallback["windows"] is True and fallback["windows_drive"]=="C:" and fallback["available"] is True and fallback["identity_source"]=="verified_mount",fallback
+  print("PASS verified mounted Windows drive retains Windows identity without PowerShell inventory")
   tables={x["name"] for x in srv.S.rows("SELECT name FROM sqlite_master WHERE type='table'")}
   assert {"job_scope_sources","ai_compare_jobs","ai_compare_events","ai_turns"}.issubset(tables),tables
   print("PASS Release D schema + persistent job tables")
