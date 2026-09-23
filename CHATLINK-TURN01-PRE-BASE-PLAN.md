@@ -288,4 +288,6 @@ Ownership metadata (side, generation, source/target language, time, confidence, 
 
 **Removed.** The earlier "Queue until gap / Hold" playback experiment in chat-test.html is replaced by this design.
 
+**Status (2026-09-23).** Implemented in chat-test.html via tests/audio-turn/build.cjs. Automated gates pass: 18 controller tests; 13/13 Chatlink scenarios in ask mode; 11 unchanged + 3 new scenarios in open mode; 32/32 keyboard scenarios. The two ask-only mic scenarios are replaced in open mode by the new scenarios. chatlink-turn01-pre-base.html and donor files are unchanged. A device trial is pending.
+
 **Out of scope, recorded.** Voice fingerprinting (needs enrollment), mic-direction detection (browsers expose one channel), Deepgram auto-detect as the sole router (no Thai), buffering, PTT, new providers.
