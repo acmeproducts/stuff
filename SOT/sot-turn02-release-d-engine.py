@@ -480,9 +480,11 @@ class Manager:
   sid=src["source_id"];q=rt["queues"][sid];self.event("source_started","Enumeration started",jid,sid)
   try:
    for root,dirs,files in os.walk(src["root"]):
+    self._wait_if_paused(rt)
     if rt["stop"].is_set():break
     dirs[:]=[d for d in dirs if not Path(root,d).is_symlink()]
     for name in files:
+     self._wait_if_paused(rt)
      if rt["stop"].is_set():break
      p=str(Path(root,name))
      if self._owner_source(p,rt["owners"])!=sid:continue
@@ -522,6 +524,8 @@ class Manager:
  def _worker(self,jid,rev,rt,n):
   self.event("worker_started",f"Fingerprint worker {n} started",jid)
   while not rt["stop"].is_set():
+   self._wait_if_paused(rt)
+   if rt["stop"].is_set():break
    sid,q,w=self._next(rt)
    if w is None:
     with rt["sched"]:finished=len(rt["done"])==len(rt["queues"])
@@ -531,12 +535,17 @@ class Manager:
    try:
     self.s.submit("UPDATE placements SET lifecycle='IN_PROCESS' WHERE placement_id=?",(pid,))
     self.s.submit("UPDATE job_sources SET active_workers=active_workers+1,current_file=?,last_progress=? WHERE job_id=? AND source_id=?",(Path(p).name,now,jid,sid))
-    h=hashlib.sha256()
+    h=hashlib.sha256();heartbeat=now
     with open(p,"rb") as f:
      while True:
+      self._wait_if_paused(rt)
+      if rt["stop"].is_set():break
       b=f.read(1024*1024)
       if not b:break
-      h.update(b);a=rt["activity"].get(n);a and a.update(bytes=min(size,a["bytes"]+len(b)),updated=time.time(),mbps=(min(size,a["bytes"]+len(b))/1048576/max(.001,time.time()-a["started"])))
+      h.update(b);tick=time.time();a=rt["activity"].get(n);a and a.update(bytes=min(size,a["bytes"]+len(b)),updated=tick,mbps=(min(size,a["bytes"]+len(b))/1048576/max(.001,tick-a["started"])))
+      if tick-heartbeat>=1.0:
+       heartbeat=tick;self.s.submit("UPDATE jobs SET last_progress=? WHERE job_id=?",(tick,jid));self.s.submit("UPDATE job_sources SET last_progress=?,current_file=? WHERE job_id=? AND source_id=?",(tick,Path(p).name,jid,sid))
+    if rt["stop"].is_set():raise RuntimeError("job stopped during fingerprint")
     fp=h.hexdigest();now=time.time();rt["activity"].pop(n,None)
     self.s.submit("UPDATE placements SET fingerprint=?,content_id=?,lifecycle='HASHED',last_verified=? WHERE placement_id=?",(fp,fp,now,pid))
     self.s.submit("UPDATE job_sources SET hashed_files=hashed_files+1,hashed_bytes=hashed_bytes+?,active_workers=MAX(active_workers-1,0),last_progress=? WHERE job_id=? AND source_id=?",(size,now,jid,sid))
@@ -602,14 +611,36 @@ class Manager:
   ev=self.s.rows("SELECT * FROM events WHERE job_id=? ORDER BY event_id DESC LIMIT 100",(jid,))
   job=dict(j[0]);now=time.time();base=job.get("started") or job.get("created") or now
   job["elapsed_seconds"]=max(0.0,(job.get("ended") or now)-base);job["last_progress_age"]=max(0.0,now-(job.get("last_progress") or base))
+  rt=self.runs.get(jid,{})
+  activity=list(rt.get("activity",{}).values())
+  if activity:
+   freshest=max(float(x.get("updated") or 0) for x in activity)
+   if freshest>float(job.get("last_progress") or 0):job["last_progress_age"]=max(0.0,now-freshest)
   unfinished=job["state"] in ("RUNNING","STOPPING")
   job["effective_state"]="STALLED" if unfinished and job["last_progress_age"]>self.stall else job["state"]
+  for x in ss:
+   x["remaining_files"]=max(0,int(x.get("discovered_files") or 0)-int(x.get("hashed_files") or 0))
+   x["remaining_bytes"]=max(0,int(x.get("discovered_bytes") or 0)-int(x.get("hashed_bytes") or 0))
+   x["enumeration_complete"]=x.get("producer_state")=="COMPLETED"
   total_hashed=sum(int(x.get("hashed_files") or 0) for x in ss);total_bytes=sum(int(x.get("hashed_bytes") or 0) for x in ss)
   job["throughput_mbps"]=total_bytes/1048576/max(.001,job["elapsed_seconds"])
   job["queue_depth"]=sum(int(x.get("queue_depth") or 0) for x in ss);job["active_workers"]=sum(int(x.get("active_workers") or 0) for x in ss)
   job["errors"]=sum(int(x.get("errors") or 0) for x in ss);job["warnings"]=sum(int(x.get("warnings") or 0) for x in ss);job["source_count"]=len(self.s.rows("SELECT 1 FROM job_scope_sources WHERE job_id=?",(jid,)))
+  job["known_remaining_files"]=sum(int(x.get("remaining_files") or 0) for x in ss);job["known_remaining_bytes"]=sum(int(x.get("remaining_bytes") or 0) for x in ss)
   scopes=self.s.rows("SELECT source_id,label,root,estate,failure_domain,role FROM job_scope_sources WHERE job_id=? ORDER BY label",(jid,))
-  return {"job":job,"scope_sources":scopes,"sources":ss,"metrics":m,"events":ev,"activity":list(self.runs.get(jid,{}).get("activity",{}).values())}
+  return {"job":job,"scope_sources":scopes,"sources":ss,"metrics":m,"events":ev,"activity":activity}
  def list_jobs(self,limit=100):
-  rows=self.s.rows("SELECT job_id FROM jobs WHERE deleted=0 AND job_type='analysis' ORDER BY created DESC LIMIT ?",(int(limit),))
-  return [self.snapshot(x["job_id"]) for x in rows]
+  rows=self.s.rows("SELECT job_id,state FROM jobs WHERE deleted=0 AND job_type='analysis' ORDER BY created DESC LIMIT ?",(int(limit),))
+  items=[self.snapshot(x["job_id"]) for x in rows]
+  live=[x for x in items if x and x["job"]["state"] in ("QUEUED","RUNNING","PAUSED","STOPPING")]
+  source_jobs={}
+  for x in live:
+   for sc in x.get("scope_sources",[]):source_jobs.setdefault(sc["source_id"],set()).add(x["job"]["job_id"])
+  for x in items:
+   if not x:continue
+   jid=x["job"]["job_id"];overlap=set()
+   for sc in x.get("scope_sources",[]):
+    overlap.update(source_jobs.get(sc["source_id"],set())-{jid})
+   x["job"]["overlap_job_ids"]=sorted(overlap)
+   x["job"]["overlap_source_count"]=sum(1 for sc in x.get("scope_sources",[]) if (source_jobs.get(sc["source_id"],set())-{jid}))
+  return items
