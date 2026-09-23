@@ -209,3 +209,41 @@ Chosen for implementation planning:
 - Owner-only is a positional UI boundary; stronger authentication remains separately scoped.
 
 These choices are concrete defaults, not requests for the user to design the implementation. Revisit only if implementation evidence exposes a conflict with the confirmed requirements.
+
+
+## 13. Browser-only audio turn-control update (2026-09-23)
+
+This is a controlled future update to **chat-test.html only**. It does not authorize changes to chat-lab.html, chatlink-turn01-pre-base.html, chat-admin.html, test.html, translation, normalization, keyboard behavior, room storage, or accepted STT/TTS transport outside the named audio boundary.
+
+### Product behavior
+
+Both South and North microphones remain available by default. Each side has an independent user mute control. When a side’s TTS begins, that side enters 'tts-playing'; its microphone hardware may remain open, but captured frames are not sent to Deepgram. A subtle pause cue may play; it is short, low-volume, optional, configurable, and never submitted as speech. While TTS is playing, captured audio is discarded. No local microphone buffer is retained, replayed, or translated later. When TTS ends, wait only for a small configurable speaker-decay interval, emit an optional subtle resume cue, then return that side to 'stt-listening'. The translation itself is the primary turn signal. If a side is muted, its STT submission remains disabled regardless of TTS state.
+
+### Ownership and existing pipeline
+
+When both sides are unmuted and neither side is playing TTS, ownership may be determined from the configured North/South language pair and active conversation state. Configured languages are authoritative; language detection is confirmation/fallback, not the sole router. Add a short ownership lock to prevent rapid side switching within one utterance. Same-language ambiguity remains an explicit limitation and must not be hidden by normalization.
+
+Capture ownership metadata before normalization: side, room/session generation, source language, target language, timestamp, confidence, and TTS state. Normalization, translation, and TTS remain downstream and unchanged. The normalizer must not decide transcript ownership.
+
+### Diagnostics
+
+The existing debug log under configuration must record mic-open, user-mute, tts-start, stt-submit-blocked, tts-end, resume-delay, stt-submit-resumed, cue-played, transcript-routed, and low-confidence-owner. Log timestamps, side, session generation, and reason; never log API keys or raw audio.
+
+### Scope fence and regression policy
+
+The first implementation may edit only the controlled audio/state code and existing diagnostics in chat-test.html. No donor file, accepted portal, keyboard, prediction, normalization, translation, room model, or layout may change. Do not add buffering, PTT, acoustic AEC, a new TTS provider, new language support, or a new external dependency. Do not deploy until all gates pass.
+
+### Acceptance gates
+
+1. Existing chat-test English STT, translation, normalization, TTS, keyboard, prediction, mute, room, and debug-log tests pass unchanged.
+2. TTS start blocks only that side’s Deepgram submission; the opposite side remains available.
+3. TTS end resumes submission exactly once after the decay interval; repeated callbacks create no duplicate sockets, cues, or handlers.
+4. No captured frame from a TTS window is submitted or replayed afterward.
+5. User mute overrides automatic resume and survives TTS start/end.
+6. Cues are optional, subtle, and absent from the submitted STT stream.
+7. A/B/A room and reload lifecycle tests show no stale audio state crossing sessions.
+8. Existing normalization and translation fixtures remain behavior-equivalent.
+9. Diff is limited to chat-test.html and scoped tests/fixtures; donor hashes and chatlink-turn01-pre-base.html remain unchanged.
+10. Hosted candidate is checked only after automated gates pass; failed candidates remain unpublished.
+
+Implementation is paused at this plan-review checkpoint. The next code change is a test-first patch to chat-test.html against these gates.
