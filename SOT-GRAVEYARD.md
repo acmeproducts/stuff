@@ -889,3 +889,15 @@ Do not reintroduce:
 - reanalysis that leaves missing files active in Database evidence.
 
 Required replacement: single-user triggers only at SOT startup and owner volume selection; metadata-only signature comparison; stale→PENDING handoff; missing/new/changed placement reconciliation; successful reanalysis clears stale and advances authoritative Database/Plan evidence.
+
+
+## 2026-09-23 — CONVERTED-FILE REFRESH / SOURCE-PICKER RESPONSIVENESS NEGATIVE RULES
+
+Do not reintroduce:
+
+- synchronous recursive comparison inventory, ffprobe, or ffmpeg work inside the Refresh HTTP request before the task is marked Running;
+- browser Refresh requests that sit long enough to abort and appear inert;
+- bulk Comparison Source selection that performs one persisted scope write per selected path;
+- UI that waits for each scope write before showing the selected source locally.
+
+Required replacement: immediate Running acknowledgement, background deterministic evidence construction, durable failed state on background errors, immediate local source-selection feedback, and one persisted scope update for bulk source transfer.
