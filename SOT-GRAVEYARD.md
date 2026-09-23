@@ -936,3 +936,21 @@ Required replacement:
 - Compare Converted Files right-panel job telemetry and durable event history;
 - chat compose labeled **Send**, operating only on the latest completed deterministic comparison evidence;
 - atomic serialized AI-turn ordinal allocation and a recoverable SQLite writer.
+
+
+---
+
+## 2026-09-23 — RELEASE D WINDOWS-VOLUME CUTOVER NEGATIVE RULES
+
+Rejected and must not return:
+
+- classifying a verified `/mnt/c`, `/mnt/d`, etc. Windows-backed `9p` / `drvfs` mount as `windows:false` merely because PowerShell/CIM discovery returned no rows;
+- making successful Release D cutover depend on PowerShell inventory when the actual mounted Windows volume has already been independently verified;
+- silently losing Windows-drive identity during a systemd-user-service launch while the same drive remains mounted and readable.
+
+Required replacement:
+
+- merge verified mounted-drive evidence with Windows logical-drive inventory;
+- synthesize Windows drive identity from the verified mount source when PowerShell metadata is absent;
+- preserve `windows:true`, `windows_drive`, availability, mount state and capacity for those verified mounts;
+- mechanically qualify the PowerShell-unavailable / verified-mount-present case.
