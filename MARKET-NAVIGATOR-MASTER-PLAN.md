@@ -2,10 +2,10 @@
 
 Status: AUTHORITATIVE PRODUCT / BUILD / QUALIFICATION PLAN
 Updated: 2026-09-23
-Planning state: **ANALYTICAL REDESIGN PROGRAM — C4/C5/I1 PASS; TURN 27 PERSISTENT-INDEX CANDIDATE QUALIFIED / AWAITING OWNER DISPOSITION; TURN 26 RETAINED WORKING BASELINE**
-Target artifact: **`market-navigator-turn27-pre-ship.html`**
+Planning state: **ANALYTICAL REDESIGN PROGRAM — C4/C5/I1 PASS; TURN 27 REJECTED BY OWNER QUALIFICATION; TURN 28 CORRECTIVE CANDIDATE IN QUALIFICATION; TURN 26 RETAINED WORKING BASELINE**
+Target artifact: **`market-navigator-turn28-pre-ship.html`**
 
-Next cumulative application artifact: **`market-navigator-turn27-pre-ship.html`**
+Next cumulative application artifact: **`market-navigator-turn28-pre-ship.html`**
 
 This file is the single positive specification for Market Navigator. `MARKET-NAVIGATOR-GRAVEYARD.md` remains the binding negative specification. `MARKET-NAVIGATOR-BUILD-PROTOCOL.md` governs stage advancement. Do not create a parallel plan.
 
@@ -1287,9 +1287,9 @@ The owner has delegated detailed dependency management to the governed program. 
 | C4 information time/vintage | **PASS WITH PROSPECTIVE-ONLY SOURCE** | Eleven FRED components passed ALFRED initial/revision timing and no-look-ahead qualification. HY spread `BAMLH0A0HYM2` is not available in ALFRED, so prelaunch history is labeled current-vintage retrospective backcast and post-launch truth requires prospective capture. |
 | C5 component registry | **PASS** | `MN-PERSISTENT-1.0.0` merges the frozen C3 scales with C4 availability modes. Seven fixed 1/7 coefficients per index; no reduced-set renormalization. |
 | I1 persistent index | **PASS** | Common anchor 2016-09-01 = 100; horizons are viewport-only; Rebase 100 is display-only; pre-effective history is `RETROSPECTIVE BACKCAST`; formula and contribution reconciliation passed. |
-| AI levels | **TURN 27 CANDIDATE QUALIFIED** | Plain / Standard / Technical passed as transformations of one governed analysis and evidence set. |
-| Tabbed navigation | **TURN 27 CANDIDATE QUALIFIED** | NOW / LIBRARY / HEALTH top navigation passed desktop/mobile browser qualification. |
-| Evidence/Library integration | **TURN 27 CANDIDATE QUALIFIED** | Retained Turn 26 Evidence, Analyze, Library, source-link, Print, Markdown, checkpoint, and revision journeys passed. |
+| AI levels | **RETAINED IN TURN 28 CORRECTIVE CANDIDATE** | Plain / Standard / Technical remain transformations of one governed analysis and evidence set; exact Turn 28 requalification is pending. |
+| Tabbed navigation | **RETAINED IN TURN 28 CORRECTIVE CANDIDATE** | NOW / LIBRARY / HEALTH top navigation is retained; exact Turn 28 desktop/mobile requalification is pending. |
+| Evidence/Library integration | **RETAINED IN TURN 28 CORRECTIVE CANDIDATE** | Turn 26 Evidence, Analyze, Library, source-link, Print, Markdown, checkpoint, and revision journeys are retained; exact Turn 28 requalification is pending. |
 
 ### 40.1 Decisions that are now closed unless new evidence overturns them
 
@@ -1305,10 +1305,10 @@ Do not reopen casually:
 
 ### 40.2 Next managed actions
 
-1. Owner tests the qualified Turn 27 candidate URL and returns accept/reject disposition.
-2. If accepted, promote the exact qualified artifact without rebuilding or changing bytes.
-3. If rejected, record the failure and end this candidate lineage under the clean-baseline protocol.
-4. Keep Turn 26 as the working baseline until owner acceptance.
+1. Turn 27 is rejected after owner qualification exposed crosshair, overlay-scaling, and robustness-coordinate defects; its lineage is ended.
+2. Build Turn 28 directly from immutable Turn 26 with only the corrected Turn 27 delta: nearest-series hover inspection with safe click state, persistent-index/comparison dual axes, and coordinate-correct robustness diagnostics.
+3. Run deterministic rebuild, full retained browser journeys, Turn 28 correction gates, Pages deployment, exact byte identity, and live smoke.
+4. Keep Turn 26 as the working baseline until owner acceptance of an exact qualified successor.
 
 
 
@@ -1527,3 +1527,20 @@ Use this as the continuation prompt:
 > Continue Market Navigator in `acmeproducts/stuff` from current `main`. Read in full `MARKET-NAVIGATOR-MASTER-PLAN.md`, `MARKET-NAVIGATOR-GRAVEYARD.md`, and `MARKET-NAVIGATOR-BUILD-PROTOCOL.md`. Section 41 is the authoritative handoff. C1–C5 and I1 are complete under model `MN-PERSISTENT-1.0.0`; do not reopen them absent contrary qualification evidence. Preserve the immutable Turn 26 baseline (`market-navigator-turn26-ship.html`, blob `fc61e29d76f1a7ecf1226f74e0884865dca04684`). Advance exact-candidate qualification of `market-navigator-turn27-pre-ship.html`: deterministic rebuild, persistent-index QA, retained Turn 26 browser journeys, Turn 27 persistent explanations, Plain/Standard/Technical, desktop/mobile top navigation, Pages deployment, byte identity, and live smoke. Do not publish as accepted production before those gates pass and the owner disposes the candidate. Record evidence, decisions, and blockers back into this Master Plan.
 
 This handoff section is part of the authoritative Master Plan. Future sessions should update it or supersede it in-place rather than creating a competing plan.
+
+## 42. Turn 28 corrective handoff — supersedes Turn 27 disposition instructions
+
+Owner qualification on 2026-09-23 rejects Turn 27 despite its earlier mechanical qualification. The exact observed failures are recorded in Graveyard §19. Turn 28 is a clean reconstruction from immutable Turn 26 blob `fc61e29d76f1a7ecf1226f74e0884865dca04684`, not a patch-forward from Turn 27.
+
+The bounded corrective delta is:
+
+1. move chart inspection continuously to the nearest plotted real series on mouse hover while retaining explicit close and touch/click behavior;
+2. make comparison-point selection safe when no prior V2 selection state exists;
+3. plot the canonical persistent index on Y1 and horizon-rebased comparison series on Y2 so a real low-amplitude index move remains visible;
+4. calculate nearby-weight robustness in persistent-index coordinates by adding weighted signal deltas to the persistent baseline, rather than subtracting the persistent baseline from a synthetic 100-based level.
+
+Current candidate files are `market-navigator-build-turn28.py`, `market-navigator-turn28-pre-ship.html`, `market-navigator-turn28-qa.mjs`, and `.github/workflows/market-navigator-turn28.yml`. The candidate may advance only after deterministic rebuild, syntax, full retained browser QA, the four correction-specific gates above, exact merged-main rerun, Pages deployment, byte identity, and live smoke pass. Turn 26 remains the working baseline and C1–C5/I1 remain closed; this correction does not redefine the persistent model.
+
+Successor operating instruction:
+
+> Continue Turn 28 from current `main`. Preserve immutable Turn 26 artifact `market-navigator-turn26-ship.html`, blob `fc61e29d76f1a7ecf1226f74e0884865dca04684`. Do not patch the rejected Turn 27 candidate. Rebuild `market-navigator-turn28-pre-ship.html` directly from Turn 26 with the bounded corrected Turn 27 delta, then run deterministic, syntax, retained browser, crosshair, dual-axis, coordinate-correct health, deployment, byte-identity, and live-smoke gates. Do not call Turn 28 accepted before owner disposition.
