@@ -658,3 +658,19 @@ AI interpretation uses the latest completed persisted comparison evidence. Sendi
 ### Database-writer resilience
 
 A failed SQLite statement is an operation failure, not a permanent database-writer death. The single writer rolls back the failed batch, reports the error to the waiting caller, records writer diagnostics, and continues accepting later work. AI transcript ordinals are allocated atomically inside the serialized SQLite writer so concurrent task activity cannot race on `UNIQUE(task_id, ordinal)`.
+
+
+---
+
+## 2026-09-23 — Release D cutover correction: mounted Windows volumes remain authoritative when PowerShell inventory is unavailable
+
+Owner qualification reached the Release D runtime successfully, but the final live-volume gate failed because the service returned mounted `/mnt/<drive-letter>` volumes as generic WSL mounts when the Windows PowerShell inventory call returned no rows.
+
+Release D must treat two independent signals as valid Windows-volume evidence:
+
+- Windows logical-drive inventory, when PowerShell interop is available; and
+- a verified `9p` / `drvfs` mount at `/mnt/<letter>` whose mount source normalizes to the same Windows drive letter.
+
+The live volume API must merge both. A verified mounted Windows drive remains a Windows volume even if PowerShell/CIM inventory is temporarily unavailable from the systemd service. PowerShell metadata may enrich the mounted record later, but it is not allowed to demote an already verified Windows-backed mount to a generic WSL volume.
+
+The Release D installer gate must explicitly exercise and accept this mounted-drive fallback before cutover.
