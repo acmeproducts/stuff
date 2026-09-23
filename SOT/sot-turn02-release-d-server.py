@@ -686,7 +686,7 @@ class H(BaseHTTPRequestHandler):
    if p=="/api/job/control":
     jid=str(b.get("job_id",""));M.control(jid,str(b.get("action","")));return self.sendj({"ok":True,"job":M.snapshot(jid)})
    if p=="/api/job/restart":
-    jid=M.restart(str(b.get("job_id","")));return self.sendj({"ok":True,"job_id":jid,"job":M.snapshot(jid)}
+    jid=M.restart(str(b.get("job_id","")));return self.sendj({"ok":True,"job_id":jid,"job":M.snapshot(jid)})
    if p=="/api/ai/task/create":return self.sendj({"ok":True,"task":get_ai().create(b["task_type"],b.get("scope"),b.get("title"))})
    if p=="/api/ai/task/title":return self.sendj({"ok":True,"task":get_ai().title(str(b.get("task_id","")),b.get("title"))})
    if p=="/api/ai/task/scope":
