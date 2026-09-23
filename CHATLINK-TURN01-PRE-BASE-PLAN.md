@@ -247,3 +247,16 @@ The first implementation may edit only the controlled audio/state code and exist
 10. Hosted candidate is checked only after automated gates pass; failed candidates remain unpublished.
 
 Implementation is paused at this plan-review checkpoint. The next code change is a test-first patch to chat-test.html against these gates.
+
+
+### Logging amendment: positive and error outcomes (2026-09-23)
+
+Every controlled audio action must produce an explicit result record. An event that only says an action was attempted is insufficient. The debug log must distinguish successful completion, expected blocking, and failure.
+
+For each event, record: timestamp, side, room/session generation, event name, outcome (`ok`, `blocked`, or `error`), reason/code, and relevant state before/after. Never record API keys, raw audio, or full credential values.
+
+Required positive records include: mic opened, mic muted by user, TTS started, STT submission blocked for TTS, pause cue played, TTS ended, decay interval completed, resume cue played, STT submission resumed, transcript accepted, transcript routed to North or South, normalization completed, translation completed, and TTS completed.
+
+Required error or blocked records include: microphone permission denied, microphone open failed, socket unavailable, socket send failed, STT blocked because TTS is active, user mute blocked resume, TTS start failed, TTS playback failed, TTS cancelled, cue playback unavailable, resume timer cancelled or duplicated, transcript rejected, owner confidence below threshold, normalization failed, translation failed, and stale session result discarded. Expected blocking must be visibly different from an unexpected error.
+
+Acceptance additions: automated tests must assert at least one successful and one blocked/error log for every state transition; force microphone, socket, TTS, cue, routing, normalization, translation, and stale-session failures; verify log ordering and side/session attribution; verify a failed transition cannot silently leave the opposite state active. The debug panel must show outcome and reason, and copy/download must preserve them.
