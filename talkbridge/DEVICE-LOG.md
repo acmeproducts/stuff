@@ -1,6 +1,6 @@
 # TalkBridge device log
 
-Both handsets write here. Drained 2026-09-23T22:18:24Z, every 30s. Newest at the bottom.
+Both handsets write here. Drained 2026-09-23T22:18:56Z, every 30s. Newest at the bottom.
 
 ```
 09:00:24.548 [iphone-7qf] d1_path_change {"pc":1,"from":"prflx/host","to":"host/host","ms":2521}
