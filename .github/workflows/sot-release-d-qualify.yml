@@ -1,0 +1,100 @@
+name: SOT Release D Qualification
+
+on:
+  workflow_dispatch:
+  pull_request:
+    branches: [main]
+  push:
+    branches:
+      - main
+      - sot-release-d-job-queue
+    paths:
+      - 'SOT/sot-turn02-release-d-engine.py'
+      - 'SOT/sot-turn02-release-d-ai.py'
+      - 'SOT/sot-turn02-release-d-server.py'
+      - 'SOT/sot-turn02-release-d.html'
+      - 'SOT/sot-turn02-release-d.service'
+      - 'SOT/qualify-release-d.py'
+      - 'install-SOT-turn02-release-d.sh'
+      - '.github/workflows/sot-release-d-qualify.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  qualify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Preserve Release C
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -f SOT/sot-turn02-release-c-engine.py
+          test -f SOT/sot-turn02-release-c-ai.py
+          test -f SOT/sot-turn02-release-c-server.py
+          test -f SOT/sot-turn02-release-c.html
+          echo "PASS Release C rollback artifacts preserved"
+
+      - name: Python syntax
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 -m py_compile             SOT/sot-turn02-release-d-engine.py             SOT/sot-turn02-release-d-ai.py             SOT/sot-turn02-release-d-server.py             SOT/qualify-release-d.py
+          echo "PASS Release D Python syntax"
+
+      - name: Release D browser syntax and contract
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+          s=Path("SOT/sot-turn02-release-d.html").read_text()
+          required=[
+            "SOT Turn 02 Release D",
+            "Kick off job",
+            "/api/job/kickoff",
+            "/api/jobs",
+            "Abort + Delete",
+            "Restart",
+            "scheduler owns execution",
+            "Comparison Sources",
+            "Go!",
+            "/api/ai/compare/enqueue",
+            "/api/ai/compare/control",
+            "seconds_per_media_minute",
+            "Send",
+            "It does not rescan files",
+            "refreshCompareJobPanel",
+            "Job log",
+          ]
+          missing=[x for x in required if x not in s]
+          assert not missing,missing
+          rejected=[
+            'onclick="registerSelected()">Register selected',
+            "Refresh rescans these saved sources",
+            "source_ids:pending.map",
+          ]
+          present=[x for x in rejected if x in s]
+          assert not present,present
+          js=s.rsplit("<script>",1)[1].split("</script>",1)[0]
+          Path("/tmp/sot-release-d.js").write_text(js)
+          print("PASS Release D governed UI markers")
+          PY
+          node --check /tmp/sot-release-d.js
+
+      - name: Release D behavioral qualification
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 SOT/qualify-release-d.py
+
+      - name: Installer syntax
+        if: hashFiles('install-SOT-turn02-release-d.sh') != ''
+        shell: bash
+        run: |
+          set -euo pipefail
+          bash -n install-SOT-turn02-release-d.sh
+          echo "PASS Release D installer syntax"

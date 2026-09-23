@@ -622,3 +622,39 @@ The governing mental model is:
 - **Master Plan = compiled executable intent.**
 - **Scheduler = centralized resource authority.**
 - **AI = analyst/advisor, never filesystem authority.**
+
+
+---
+
+## 2026-09-23 — Turn 02 Release D: persistent job queue and converted-media execution split
+
+Release D corrects the owner-test failure in Release C by making long-running work a first-class persistent job rather than a page action.
+
+### Analysis queue
+
+- Estate picker selection is an explicit **Kick off job** action. It registers any newly selected Estate roots and immediately enqueues exactly one analysis job containing an immutable source/path snapshot.
+- A later Kick off job creates a second independent job. It must not mutate or silently merge into an earlier queued/running job.
+- The backend scheduler owns dispatch. Analysis requests return after durable queue creation; the browser never owns job lifetime.
+- Analyze exposes a **Queue** surface with every non-deleted job, status, immutable source count, current folder/file, discovered/hashed counters and bytes, elapsed time, throughput, queue depth, errors/warnings, last-progress age and a compact durable event log.
+- Queue controls are per-job: **Abort + Delete** for active/queued work, **Restart** for terminal work, and Delete for terminal history. Restart creates a new job from the prior immutable source snapshot.
+- A running job with unfinished work and no durable progress beyond the stall threshold is visibly **STALLED** with last path and last-progress age.
+- Jobs may coexist. The scheduler may run more than one job only within its configured active-job limit and remains the authority for future volume/contention policy.
+
+### Job source persistence
+
+At enqueue time, each job persists the selected source IDs plus root, label, Estate and failure-domain snapshots. Runtime work is reconstructed from the job snapshot, not from transient browser selection or a later registry read. Browser reload, navigation or subsequent source registration cannot change the scope of an existing job.
+
+### Compare Converted Files
+
+Converted-media verification is split into two operations:
+
+1. **Go!** in the Comparison Sources picker persists the complete selected path set once and enqueues a deterministic comparison job. The picker has a top-right × that cancels the draft without changing the persisted task scope.
+2. The task compose action is **Send**. It is conversation about the latest completed deterministic evidence and does not rescan storage.
+
+The comparison job is independent of the AI provider. It performs enumeration, ffprobe, read-only ffmpeg validation and deterministic comparison in the background, with persisted progress and events. The task right panel exposes phase, current path/file, files/folders/media processed, comparison counts, elapsed time, media-duration throughput, running deterministic result counts, last-progress age and Abort/Restart/Delete controls. The exact Comparison Source paths are snapshotted into the job before execution.
+
+AI interpretation uses the latest completed persisted comparison evidence. Sending a follow-up never changes the deterministic job scope and never starts a new filesystem scan.
+
+### Database-writer resilience
+
+A failed SQLite statement is an operation failure, not a permanent database-writer death. The single writer rolls back the failed batch, reports the error to the waiting caller, records writer diagnostics, and continues accepting later work. AI transcript ordinals are allocated atomically inside the serialized SQLite writer so concurrent task activity cannot race on `UNIQUE(task_id, ordinal)`.

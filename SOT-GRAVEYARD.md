@@ -901,3 +901,38 @@ Do not reintroduce:
 - UI that waits for each scope write before showing the selected source locally.
 
 Required replacement: immediate Running acknowledgement, background deterministic evidence construction, durable failed state on background errors, immediate local source-selection feedback, and one persisted scope update for bulk source transfer.
+
+
+---
+
+## 2026-09-23 — RELEASE D JOB-QUEUE / CONVERTED-MEDIA NEGATIVE RULES
+
+Rejected and must not return:
+
+- one global “latest job” as the only analysis control target;
+- refusing a new analysis solely because a different job is already running;
+- browser-owned or transient source selections as execution scope;
+- changing an existing job when new Estate roots are selected later;
+- calling an Estate picker action “Register selected” when the owner action is to launch processing;
+- requiring the owner to infer progress from worker-launch events or visit Activity to discover what a job is doing;
+- queue rows without current path/folder, counters, elapsed time, last-progress age and stall visibility;
+- Stop-only job control with no per-job Abort + Delete / Restart lifecycle;
+- comparison-source edits that persist path-by-path before the owner commits the job;
+- using the Compare Converted Files chat compose button as a filesystem “Refresh” execution control;
+- requiring an AI provider key merely to run deterministic converted-media verification;
+- re-enumerating or re-running ffprobe/ffmpeg because the owner sends a conversational AI follow-up;
+- a comparison run whose source paths cannot be reconstructed after browser reload;
+- opaque converted-media execution with no current path, phase, counters, timing, running deterministic results or durable job log;
+- allocating AI transcript ordinal with a read-then-insert race;
+- permanently latching the SQLite writer into a failed state after one rejected statement.
+
+Required replacement:
+
+- durable FIFO analysis jobs with immutable persisted source/path snapshots and a backend scheduler;
+- explicit **Kick off job** from Estate selection, with later selections creating later jobs;
+- Analyze **Queue** with per-job status/progress/log and Abort + Delete / Restart;
+- deterministic stalled-job detection from persisted last-progress timestamps;
+- Comparison Sources modal with top-right × and **Go!** that atomically persists scope and enqueues the deterministic comparison job;
+- Compare Converted Files right-panel job telemetry and durable event history;
+- chat compose labeled **Send**, operating only on the latest completed deterministic comparison evidence;
+- atomic serialized AI-turn ordinal allocation and a recoverable SQLite writer.
