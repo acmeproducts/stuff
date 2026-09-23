@@ -2338,3 +2338,34 @@ Release C qualification must prove:
 7. added/changed files are fingerprinted;
 8. successful reanalysis updates the analyzed metadata baseline and clears stale state; and
 9. Plan readiness follows the resulting pending/current state.
+
+
+## 2026-09-23 — COMPARE CONVERTED FILES RESPONSIVENESS / BACKGROUND EVIDENCE BUILD — BINDING
+
+The **Compare Converted Files** task must never make the Refresh control appear inert while deterministic filesystem/media evidence is being built.
+
+### Refresh execution
+
+- Clicking **Refresh** must return an accepted task state immediately and visibly change the task to **Running**.
+- The synchronous request path may validate task/source configuration, but it must not recursively enumerate Comparison Sources, run ffprobe, or run ffmpeg before returning.
+- Deterministic inventory/grouping/ffprobe/ffmpeg evidence construction runs inside the task's background worker.
+- Any failure during evidence construction is persisted as task failure/error_detail and becomes visible through normal AI task polling.
+- AI provider invocation begins only after deterministic evidence is successfully built.
+- Existing read-only authority remains unchanged.
+
+### Comparison Source editing responsiveness
+
+- Adding/removing a Comparison Source updates the picker immediately.
+- Bulk Folder Search transfer into Comparison Sources persists the resulting source set in **one** scope update, not one network/database round trip per selected path.
+- Individual add/remove may persist immediately, but must not block visual selection feedback.
+- Source persistence remains durable and must survive task close/reopen/service restart.
+- The task card source list refreshes from the saved scope after persistence.
+
+### Qualification
+
+Release C qualification must prove:
+1. `AIManager.run()` marks the task analyzing and returns before `converted_packet()` completes;
+2. deterministic comparison evidence is constructed in the background worker;
+3. deterministic evidence failures become durable failed-task state rather than aborted/inert browser requests;
+4. bulk comparison-source transfer performs one persisted scope write for the complete selected set; and
+5. saved Comparison Sources remain durable and Refresh reuses them.
