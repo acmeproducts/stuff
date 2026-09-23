@@ -1546,3 +1546,18 @@ Qualification completed at commit `dc8ab9996f3a67b5220ae13bb696e5d91ce7e7a6`: de
 Successor operating instruction:
 
 > Continue Turn 28 from current `main`. Preserve immutable Turn 26 artifact `market-navigator-turn26-ship.html`, blob `fc61e29d76f1a7ecf1226f74e0884865dca04684`. Do not patch the rejected Turn 27 candidate. Rebuild `market-navigator-turn28-pre-ship.html` directly from Turn 26 with the bounded corrected Turn 27 delta, then run deterministic, syntax, retained browser, crosshair, dual-axis, coordinate-correct health, deployment, byte-identity, and live-smoke gates. Do not call Turn 28 accepted before owner disposition.
+
+## 43. Backlog — governed source retirement
+
+The Sources configuration surface can register and refresh sources but cannot retire one. Add a governed retirement lifecycle; do not implement retirement as destructive deletion.
+
+Required behavior:
+
+1. each registered source exposes **Retire** with confirmation and a required reason;
+2. retirement records actor, timestamp, reason, last successful observation, provider identity, and registry/model dependencies;
+3. a retired source stops future acquisition and disappears from new-series selection, while its historical observations, provenance, saved analyses, exports, and audit history remain reproducible;
+4. a source required by an active governed RSK/GRW/MAC definition cannot be retired silently—the UI must identify the dependency and require a separately versioned replacement/model transition before retirement completes;
+5. retired sources are visible under an **Active | Retired** filter and can be reactivated without creating a duplicate identity;
+6. qualification must prove acquisition exclusion, historical reproducibility, dependency blocking, reactivation, and persistence across reload/export/import.
+
+This is a post-Turn-28 backlog item. It does not alter the qualified Turn 28 candidate or authorize model-component changes.
