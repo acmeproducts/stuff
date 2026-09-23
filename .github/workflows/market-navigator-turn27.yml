@@ -1,0 +1,62 @@
+name: Market Navigator Turn 27 persistent qualification
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - 'market-navigator-turn27-pre-ship.html'
+      - 'market-navigator-turn27-qa.mjs'
+      - 'market-navigator-build-turn27.py'
+      - 'market-navigator-build-persistent-*.py'
+      - 'market-navigator-persistent-index-qa.py'
+      - 'market-evidence/persistent-indices-v1.json'
+      - 'market-evidence/derived-indices-persistent-v1.json'
+      - 'market-evidence/reports/persistent-index-qualification.json'
+      - 'data/market-backend/component-registry-v1.json'
+      - 'data/market-backend/derived-index-definition-persistent-v1.json'
+      - '.github/workflows/market-navigator-turn27.yml'
+permissions:
+  contents: read
+jobs:
+  qualify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Verify persistent index contract
+        run: python3 market-navigator-persistent-index-qa.py
+      - name: Rebuild compatibility evidence and application from pinned baseline
+        run: |
+          python3 market-navigator-build-persistent-compat.py
+          python3 market-navigator-build-turn27.py
+          git diff --exit-code -- market-evidence/derived-indices-persistent-v1.json data/market-backend/derived-index-definition-persistent-v1.json market-navigator-turn27-pre-ship.html
+      - name: Verify inline JavaScript syntax
+        run: |
+          node - <<'JS'
+          const fs=require('fs'),vm=require('vm');
+          const html=fs.readFileSync('market-navigator-turn27-pre-ship.html','utf8');
+          const blocks=[...html.matchAll(/<script(?:\s[^>]*)?>([\s\S]*?)<\/script>/gi)].map(m=>m[1]).filter(x=>x.trim());
+          blocks.forEach((code,i)=>new vm.Script(code,{filename:`turn27-inline-${i}.js`}));
+          console.log('TURN27 INLINE JS SYNTAX PASS',blocks.length);
+          JS
+      - name: Install browser qualification dependencies
+        run: |
+          npm install --no-save --package-lock=false playwright@1.55.0 marked@15.0.12 dompurify@3.1.6
+          npx playwright install --with-deps chromium
+      - name: Run retained and Turn 27 browser qualification
+        run: node market-navigator-turn27-qa.mjs
+      - name: Upload candidate and qualification evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: market-navigator-turn27-persistent-candidate
+          path: |
+            market-navigator-turn27-pre-ship.html
+            market-evidence/reports/persistent-index-qualification.json
+            data/market-backend/component-registry-v1.json
+            MARKET-NAVIGATOR-PERSISTENT-INDEX-SPEC.md
