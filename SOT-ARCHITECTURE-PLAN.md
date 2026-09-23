@@ -691,3 +691,40 @@ Required behavior:
 - Release D migration backfills a frozen source snapshot for historical jobs from their existing `job_sources` + registered `sources` records when no `job_scope_sources` rows exist. The backfill is one-way metadata migration only; it does not run, reclassify or alter file evidence.
 - Historical jobs with recoverable source history must show their actual source count and Restart must create a new queued job from the recovered frozen snapshot.
 - If a historical job truly has no recoverable source history, the UI must not present a Restart action that can only fail.
+
+
+---
+
+## 2026-09-23 — Release D queue concurrency, deduplication, observability and task-result correction
+
+Owner testing of the live Release D queue showed that the scheduler is technically job-based but still behaves too much like a serialized opaque queue when restarted jobs overlap the same sources. It also exposed render-state loss in the queue and Compare Converted Files task.
+
+### Queue scheduling and global control
+
+- Analyze Queue has one global **Start All / Pause All** toggle. Pause All pauses dispatch and cooperatively pauses running analysis producers/hash workers. Start All resumes paused work and dispatches queued work.
+- The scheduler runs independent jobs concurrently. Default concurrency is four active analysis jobs, with multiple hash workers per job. Jobs sharing the same registered source cannot execute concurrently because they would mutate the same source evidence; non-overlapping jobs must not be serialized behind them.
+- Scheduler status is explicit in the UI: paused/running, active jobs / maximum active jobs, workers per active job, and queued count.
+- A terminal FAILED/STOPPED/INTERRUPTED job never occupies an active scheduler slot or prevents unrelated queued work from launching.
+- Long file hashing emits durable progress heartbeats while bytes are being read so a healthy large-file operation is not mislabeled STALLED merely because the fingerprint has not finished.
+
+### Queue deduplication
+
+- Before enqueue or Restart, source scope is canonicalized by source ID and compared with all QUEUED/RUNNING/PAUSED/STOPPING analysis work.
+- A source already covered by live work is not queued a second time. If the requested scope is fully covered, no duplicate job is created and the API returns the existing covering job(s).
+- If only part of the requested scope is already live, the new job contains only uncovered sources and reports the suppressed/covered source count.
+- Restart therefore cannot spawn repeated duplicate jobs from repeated taps while equivalent work is already queued/running.
+- Existing historical/test jobs are not silently rewritten; queue cards disclose source overlap so redundant legacy queue entries can be identified and explicitly aborted/deleted.
+
+### Queue position and job contents
+
+- Analyze polling must preserve the owner’s queue scroll position. Polling may update metrics in place/re-render, but must restore both the queue container and page scroll position.
+- Each job exposes a persistent **Contents** disclosure showing every frozen source root, per-source state, current folder/file, discovered files/bytes, hashed files/bytes, known remaining files/bytes, queue depth, errors and whether enumeration is complete.
+- Job cards show aggregate processed and known-remaining counts and any live-source overlap with other queued/running jobs.
+- Contents and Job log disclosure/scroll state persist across polling.
+
+### Compare Converted Files observability
+
+- The Compare Converted Files deterministic job must expose the same durable source/content visibility as analysis jobs: exact persisted source roots, current path/file, phase, processed counts, timing, last progress and log.
+- Compare Job log disclosure and log scroll position persist across task polling.
+- A completed comparison displays a concrete outcome from persisted deterministic evidence, not only counters. For each basename group, show state and the actual legacy/converted file pair(s). Verified replacement pairs show both paths plus duration difference and ffmpeg validation status.
+- The persisted result packet remains the authority for this display; opening/closing the outcome does not rerun ffprobe/ffmpeg and AI Send does not rescan.
