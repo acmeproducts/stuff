@@ -238,9 +238,15 @@ class AIManager:
    p=str(Path(str(raw)).resolve())
    if p not in seen:seen.add(p);roots.append(p)
   if not roots:raise RuntimeError("Add at least one Comparison Source before Go!")
-  frozen={"type":"compare_converted_files","roots":roots};jid=uuid.uuid4().hex;now=time.time()
-  self.s.tx([("UPDATE ai_tasks SET scope_json=?,updated=?,error_detail=NULL WHERE task_id=?",(json.dumps(frozen),now,task_id)),("INSERT INTO ai_compare_jobs(compare_job_id,task_id,status,scope_json,created,updated,phase,last_progress,parent_job_id) VALUES(?,?,'QUEUED',?,?,?,'QUEUED',?,?)",(jid,task_id,json.dumps(frozen),now,now,now,parent_job_id))],True)
-  self.compare_event(jid,"Converted-media comparison queued","INFO","QUEUED",{"roots":roots});return self.compare_public(self.s.rows("SELECT * FROM ai_compare_jobs WHERE compare_job_id=?",(jid,))[0],True)
+  frozen={"type":"compare_converted_files","roots":roots};scope_json=json.dumps(frozen,sort_keys=True)
+  live=self.s.rows("SELECT * FROM ai_compare_jobs WHERE task_id=? AND deleted=0 AND status IN ('QUEUED','RUNNING','STOPPING') ORDER BY created DESC",(task_id,))
+  for row in live:
+   existing=self.jload(row.get("scope_json"),{})
+   if sorted(existing.get("roots",[]))==sorted(roots):
+    z=self.compare_public(row,True);z["created"]=False;z["deduped"]=True;return z
+  jid=uuid.uuid4().hex;now=time.time()
+  self.s.tx([("UPDATE ai_tasks SET scope_json=?,updated=?,error_detail=NULL WHERE task_id=?",(scope_json,now,task_id)),("INSERT INTO ai_compare_jobs(compare_job_id,task_id,status,scope_json,created,updated,phase,last_progress,parent_job_id) VALUES(?,?,'QUEUED',?,?,?,'QUEUED',?,?)",(jid,task_id,scope_json,now,now,now,parent_job_id))],True)
+  self.compare_event(jid,"Converted-media comparison queued","INFO","QUEUED",{"roots":roots});z=self.compare_public(self.s.rows("SELECT * FROM ai_compare_jobs WHERE compare_job_id=?",(jid,))[0],True);z["created"]=True;z["deduped"]=False;return z
  def _start_compare(self,jid):
   with self.lock:
    if jid in self.compare_runs:return

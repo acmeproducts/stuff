@@ -260,8 +260,8 @@ WHERE NOT EXISTS (SELECT 1 FROM job_scope_sources x WHERE x.job_id=js.job_id AND
   t=threading.Thread(target=f,daemon=True);t.start();t.join(timeout);return out
  def close(self):self.drain();self.stop.set();self.t.join(2)
 class Manager:
- def __init__(self,store,workers=8,queue_capacity=128,stall_seconds=30,max_active_jobs=2):
-  self.s=store;self.workers=workers;self.capacity=queue_capacity;self.stall=stall_seconds;self.max_active_jobs=max(1,int(max_active_jobs));self.runs={};self.lock=threading.RLock()
+ def __init__(self,store,workers=8,queue_capacity=128,stall_seconds=30,max_active_jobs=4):
+  self.s=store;self.workers=max(1,int(workers));self.capacity=queue_capacity;self.stall=stall_seconds;self.max_active_jobs=max(1,int(max_active_jobs));self.runs={};self.lock=threading.RLock();self.scheduler_paused=False;self.last_scheduler_error=None
   now=time.time();self.s.submit("UPDATE jobs SET state='INTERRUPTED',ended=?,control='INTERRUPTED' WHERE state IN ('RUNNING','PAUSED','STOPPING')",(now,),True);self.s.submit("UPDATE job_sources SET state='INTERRUPTED',active_workers=0,queue_depth=0 WHERE state IN ('RUNNING','PAUSED','STOPPING')",(),True)
   self.seq_lock=threading.Lock();self.next_no=(self.s.rows("SELECT COALESCE(MAX(placement_no),0)+1 n FROM placements")[0]["n"])
   self.recompute_classifications()
@@ -274,19 +274,74 @@ class Manager:
    if missing:raise RuntimeError("Unknown or disabled source(s): "+", ".join(sorted(missing)))
   if not rows:raise RuntimeError("no enabled sources")
   return rows
- def _enqueue_snapshots(self,rows,parent_job_id=None,title=None):
+ def _live_source_coverage(self):
+  rows=self.s.rows("""SELECT j.job_id,j.state,j.created,sc.source_id
+                     FROM jobs j JOIN job_scope_sources sc ON sc.job_id=j.job_id
+                     WHERE j.deleted=0 AND j.job_type='analysis' AND j.state IN ('QUEUED','RUNNING','PAUSED','STOPPING')
+                     ORDER BY j.created,j.job_id""")
+  by_source={}
+  for r in rows:by_source.setdefault(r["source_id"],[]).append(r["job_id"])
+  return by_source
+ def _dedupe_rows(self,rows):
+  uniq=[];seen=set()
+  for r in rows:
+   sid=r["source_id"]
+   if sid in seen:continue
+   seen.add(sid);uniq.append(r)
+  coverage=self._live_source_coverage();uncovered=[];covered={}
+  for r in uniq:
+   ids=coverage.get(r["source_id"],[])
+   if ids:covered[r["source_id"]]=ids
+   else:uncovered.append(r)
+  covering=sorted({jid for ids in covered.values() for jid in ids})
+  return uniq,uncovered,covered,covering
+ def _enqueue_snapshots(self,rows,parent_job_id=None,title=None,detail=None):
   rev=int(self.s.rows("SELECT COALESCE(MAX(revision),0)+1 n FROM jobs")[0]["n"]);jid=uuid.uuid4().hex;now=time.time()
   scope=[{"source_id":x["source_id"],"label":x["label"],"root":x["root"],"estate":x["estate"],"failure_domain":x["failure_domain"],"role":x["role"]} for x in rows]
   stmts=[("INSERT INTO jobs(job_id,revision,state,created,last_progress,control,job_type,title,scope_json,queued,deleted,parent_job_id,delete_requested) VALUES(?,?,'QUEUED',?,?, 'RUN','analysis',?,?,?,?,?,0)",(jid,rev,now,now,title or ("Analyze "+str(len(rows))+" source"+("" if len(rows)==1 else "s")),json.dumps(scope),now,0,parent_job_id))]
   for x in rows:stmts.append(("INSERT INTO job_scope_sources(job_id,source_id,label,root,estate,failure_domain,role) VALUES(?,?,?,?,?,?,?)",(jid,x["source_id"],x["label"],x["root"],x["estate"],x["failure_domain"],x["role"])))
-  self.s.tx(stmts,True);self.event("job_queued","Analysis job queued",jid,None,"INFO",{"source_count":len(rows),"roots":[x["root"] for x in rows]});self.s.drain(10)
+  self.s.tx(stmts,True);payload={"source_count":len(rows),"roots":[x["root"] for x in rows]};payload.update(detail or {});self.event("job_queued","Analysis job queued",jid,None,"INFO",payload);self.s.drain(10)
   return jid
+ def enqueue_info(self,source_ids=None,parent_job_id=None,title=None):
+  requested=self._snapshot_sources(source_ids);all_rows,rows,covered,covering=self._dedupe_rows(requested)
+  info={"requested_source_count":len(all_rows),"queued_source_count":len(rows),"suppressed_source_count":len(all_rows)-len(rows),"covering_job_ids":covering,"covered_sources":covered,"created":False,"deduped":bool(covered)}
+  if not rows:
+   info["job_id"]=covering[0] if covering else None
+   return info
+  detail={"suppressed_source_count":info["suppressed_source_count"],"covering_job_ids":covering}
+  jid=self._enqueue_snapshots(rows,parent_job_id,title,detail);info.update(job_id=jid,created=True);return info
  def enqueue(self,source_ids=None,parent_job_id=None,title=None):
-  return self._enqueue_snapshots(self._snapshot_sources(source_ids),parent_job_id,title)
- def restart(self,jid):
+  return self.enqueue_info(source_ids,parent_job_id,title).get("job_id")
+ def restart_info(self,jid):
   rows=self.s.rows("SELECT source_id,label,root,estate,failure_domain,role FROM job_scope_sources WHERE job_id=? ORDER BY source_id",(jid,))
   if not rows:raise RuntimeError("job has no persisted source snapshot")
-  return self._enqueue_snapshots(rows,jid,"Restart of "+jid[:8])
+  all_rows,uncovered,covered,covering=self._dedupe_rows(rows)
+  info={"requested_source_count":len(all_rows),"queued_source_count":len(uncovered),"suppressed_source_count":len(all_rows)-len(uncovered),"covering_job_ids":covering,"covered_sources":covered,"created":False,"deduped":bool(covered),"parent_job_id":jid}
+  if not uncovered:
+   info["job_id"]=covering[0] if covering else None
+   return info
+  njid=self._enqueue_snapshots(uncovered,jid,"Restart of "+jid[:8],{"suppressed_source_count":info["suppressed_source_count"],"covering_job_ids":covering});info.update(job_id=njid,created=True);return info
+ def restart(self,jid):
+  return self.restart_info(jid).get("job_id")
+ def scheduler_status(self):
+  queued=self.s.rows("SELECT COUNT(*) n FROM jobs WHERE deleted=0 AND job_type='analysis' AND state='QUEUED'")[0]["n"]
+  paused=self.s.rows("SELECT COUNT(*) n FROM jobs WHERE deleted=0 AND job_type='analysis' AND state='PAUSED'")[0]["n"]
+  with self.lock:active=len(self.runs)
+  return {"paused":bool(self.scheduler_paused),"active_jobs":active,"queued_jobs":int(queued or 0),"paused_jobs":int(paused or 0),"max_active_jobs":self.max_active_jobs,"workers_per_job":self.workers,"last_error":self.last_scheduler_error}
+ def pause_all(self):
+  self.scheduler_paused=True;now=time.time()
+  with self.lock:runs=list(self.runs.items())
+  for jid,rt in runs:
+   rt["pause"].set();self.s.submit("UPDATE jobs SET state='PAUSED',control='PAUSE',last_progress=? WHERE job_id=? AND state='RUNNING'",(now,jid));self.s.submit("UPDATE job_sources SET state='PAUSED',last_progress=? WHERE job_id=? AND state='RUNNING'",(now,jid));self.event("job_paused","Paused by Pause All",jid)
+  self.s.drain(10);return self.scheduler_status()
+ def resume_all(self):
+  self.scheduler_paused=False;now=time.time()
+  with self.lock:runs=list(self.runs.items())
+  for jid,rt in runs:
+   rt["pause"].clear();self.s.submit("UPDATE jobs SET state='RUNNING',control='RUN',last_progress=? WHERE job_id=? AND state='PAUSED'",(now,jid));self.s.submit("UPDATE job_sources SET state='RUNNING',last_progress=? WHERE job_id=? AND state='PAUSED'",(now,jid));self.event("job_resumed","Resumed by Start All",jid)
+  self.s.drain(10);return self.scheduler_status()
+ def _wait_if_paused(self,rt):
+  while rt["pause"].is_set() and not rt["stop"].is_set():time.sleep(.05)
  def _active_source_ids(self):
   ids=set()
   for jid in list(self.runs):
@@ -295,6 +350,8 @@ class Manager:
  def _scheduler(self):
   while not self.scheduler_stop.is_set():
    try:
+    if self.scheduler_paused:
+     self.scheduler_stop.wait(.25);continue
     with self.lock:active=len(self.runs)
     if active<self.max_active_jobs:
      busy=self._active_source_ids()
@@ -305,6 +362,7 @@ class Manager:
       if ids & busy:continue
       try:self._launch(row["job_id"]);active+=1;busy.update(ids)
       except Exception as e:
+       with self.lock:self.runs.pop(row["job_id"],None)
        now=time.time();self.s.submit("UPDATE jobs SET state='FAILED',ended=?,last_progress=? WHERE job_id=?",(now,now,row["job_id"]),True);self.event("job_launch_failed",str(e),row["job_id"],None,"ERROR")
    except Exception as e:self.last_scheduler_error=str(e)
    self.scheduler_stop.wait(.25)
@@ -315,7 +373,7 @@ class Manager:
   job=self.s.rows("SELECT revision,state FROM jobs WHERE job_id=?",(jid,))[0]
   if job["state"]!="RUNNING":return
   rev=job["revision"];src=[dict(x) for x in rows];owners={x["source_id"]:x for x in src}
-  rt={"queues":{x["source_id"]:queue.Queue(self.capacity) for x in src},"done":set(),"stop":threading.Event(),"rr":0,"sched":threading.Lock(),"src":{x["source_id"]:x for x in src},"owners":owners,"activity":{},"seen":{x["source_id"]:set() for x in src}}
+  rt={"queues":{x["source_id"]:queue.Queue(self.capacity) for x in src},"done":set(),"stop":threading.Event(),"pause":threading.Event(),"rr":0,"sched":threading.Lock(),"src":{x["source_id"]:x for x in src},"owners":owners,"activity":{},"seen":{x["source_id"]:set() for x in src}}
   with self.lock:self.runs[jid]=rt
   for x in src:self.s.submit("INSERT OR REPLACE INTO job_sources(job_id,source_id,state,producer_state,queue_capacity,last_progress) VALUES(?,?,'RUNNING','RUNNING',?,?)",(jid,x["source_id"],self.capacity,now))
   self.event("job_started","Analysis job started",jid,None,"INFO",{"source_count":len(src)})
@@ -423,9 +481,11 @@ class Manager:
   sid=src["source_id"];q=rt["queues"][sid];self.event("source_started","Enumeration started",jid,sid)
   try:
    for root,dirs,files in os.walk(src["root"]):
+    self._wait_if_paused(rt)
     if rt["stop"].is_set():break
     dirs[:]=[d for d in dirs if not Path(root,d).is_symlink()]
     for name in files:
+     self._wait_if_paused(rt)
      if rt["stop"].is_set():break
      p=str(Path(root,name))
      if self._owner_source(p,rt["owners"])!=sid:continue
@@ -442,7 +502,12 @@ class Manager:
       else:
        pno=self.alloc_no();self.s.submit("INSERT INTO placements(placement_id,placement_no,job_id,revision,source_id,estate,path,filename,extension,size,created,modified,scanned_at,lifecycle,role,last_verified) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?, 'NONE',?,?)",(pid,pno,jid,rev,sid,src["estate"],p,name,Path(name).suffix.lower(),st.st_size,created,st.st_mtime,now,src["role"],now))
       self.s.submit("UPDATE job_sources SET discovered_files=discovered_files+1,discovered_bytes=discovered_bytes+?,hashed_files=hashed_files+?,hashed_bytes=hashed_bytes+?,current_folder=?,current_file=?,last_progress=? WHERE job_id=? AND source_id=?",(st.st_size,1 if unchanged else 0,st.st_size if unchanged else 0,root,name,now,jid,sid))
-      if not unchanged:q.put((pid,p,st.st_size))
+      if not unchanged:
+       while not rt["stop"].is_set():
+        self._wait_if_paused(rt)
+        if rt["stop"].is_set():break
+        try:q.put((pid,p,st.st_size),timeout=.1);break
+        except queue.Full:continue
       self.s.submit("UPDATE jobs SET last_progress=? WHERE job_id=?",(now,jid))
      except Exception as e:
       now=time.time();pid=hashlib.sha256((sid+"\0"+p).encode()).hexdigest();old=self.s.rows("SELECT placement_no FROM placements WHERE placement_id=?",(pid,))
@@ -465,6 +530,8 @@ class Manager:
  def _worker(self,jid,rev,rt,n):
   self.event("worker_started",f"Fingerprint worker {n} started",jid)
   while not rt["stop"].is_set():
+   self._wait_if_paused(rt)
+   if rt["stop"].is_set():break
    sid,q,w=self._next(rt)
    if w is None:
     with rt["sched"]:finished=len(rt["done"])==len(rt["queues"])
@@ -474,12 +541,17 @@ class Manager:
    try:
     self.s.submit("UPDATE placements SET lifecycle='IN_PROCESS' WHERE placement_id=?",(pid,))
     self.s.submit("UPDATE job_sources SET active_workers=active_workers+1,current_file=?,last_progress=? WHERE job_id=? AND source_id=?",(Path(p).name,now,jid,sid))
-    h=hashlib.sha256()
+    h=hashlib.sha256();heartbeat=now
     with open(p,"rb") as f:
      while True:
+      self._wait_if_paused(rt)
+      if rt["stop"].is_set():break
       b=f.read(1024*1024)
       if not b:break
-      h.update(b);a=rt["activity"].get(n);a and a.update(bytes=min(size,a["bytes"]+len(b)),updated=time.time(),mbps=(min(size,a["bytes"]+len(b))/1048576/max(.001,time.time()-a["started"])))
+      h.update(b);tick=time.time();a=rt["activity"].get(n);a and a.update(bytes=min(size,a["bytes"]+len(b)),updated=tick,mbps=(min(size,a["bytes"]+len(b))/1048576/max(.001,tick-a["started"])))
+      if tick-heartbeat>=1.0:
+       heartbeat=tick;self.s.submit("UPDATE jobs SET last_progress=? WHERE job_id=?",(tick,jid));self.s.submit("UPDATE job_sources SET last_progress=?,current_file=? WHERE job_id=? AND source_id=?",(tick,Path(p).name,jid,sid))
+    if rt["stop"].is_set():raise RuntimeError("job stopped during fingerprint")
     fp=h.hexdigest();now=time.time();rt["activity"].pop(n,None)
     self.s.submit("UPDATE placements SET fingerprint=?,content_id=?,lifecycle='HASHED',last_verified=? WHERE placement_id=?",(fp,fp,now,pid))
     self.s.submit("UPDATE job_sources SET hashed_files=hashed_files+1,hashed_bytes=hashed_bytes+?,active_workers=MAX(active_workers-1,0),last_progress=? WHERE job_id=? AND source_id=?",(size,now,jid,sid))
@@ -527,12 +599,12 @@ class Manager:
    if j["state"]=="QUEUED":
     now=time.time();self.s.submit("UPDATE jobs SET state='ABORTED',ended=?,last_progress=?,control='ABORT',deleted=1,delete_requested=1 WHERE job_id=?",(now,now,jid),True);self.event("job_aborted_deleted","Queued job aborted and removed",jid);return
    rt=self.runs.get(jid)
-   if rt:rt["stop"].set()
+   if rt:rt["stop"].set();rt["pause"].clear()
    self.s.submit("UPDATE jobs SET state='STOPPING',control='ABORT',delete_requested=1,last_progress=? WHERE job_id=?",(time.time(),jid),True);self.event("job_abort_requested","Abort + Delete requested",jid);return
   if action=="stop":
    rt=self.runs.get(jid)
    if not rt:raise RuntimeError("job not active in this process")
-   rt["stop"].set();self.s.submit("UPDATE jobs SET state='STOPPING',control='STOP',last_progress=? WHERE job_id=?",(time.time(),jid),True);self.event("job_stop","Stop requested",jid);return
+   rt["stop"].set();rt["pause"].clear();self.s.submit("UPDATE jobs SET state='STOPPING',control='STOP',last_progress=? WHERE job_id=?",(time.time(),jid),True);self.event("job_stop","Stop requested",jid);return
   if action=="delete":
    if j["state"] in ("RUNNING","STOPPING","QUEUED"):raise RuntimeError("Use Abort + Delete for an active or queued job")
    self.s.submit("UPDATE jobs SET deleted=1 WHERE job_id=?",(jid,),True);self.event("job_deleted","Job removed from queue history",jid);return
@@ -545,14 +617,36 @@ class Manager:
   ev=self.s.rows("SELECT * FROM events WHERE job_id=? ORDER BY event_id DESC LIMIT 100",(jid,))
   job=dict(j[0]);now=time.time();base=job.get("started") or job.get("created") or now
   job["elapsed_seconds"]=max(0.0,(job.get("ended") or now)-base);job["last_progress_age"]=max(0.0,now-(job.get("last_progress") or base))
+  rt=self.runs.get(jid,{})
+  activity=list(rt.get("activity",{}).values())
+  if activity:
+   freshest=max(float(x.get("updated") or 0) for x in activity)
+   if freshest>float(job.get("last_progress") or 0):job["last_progress_age"]=max(0.0,now-freshest)
   unfinished=job["state"] in ("RUNNING","STOPPING")
   job["effective_state"]="STALLED" if unfinished and job["last_progress_age"]>self.stall else job["state"]
+  for x in ss:
+   x["remaining_files"]=max(0,int(x.get("discovered_files") or 0)-int(x.get("hashed_files") or 0))
+   x["remaining_bytes"]=max(0,int(x.get("discovered_bytes") or 0)-int(x.get("hashed_bytes") or 0))
+   x["enumeration_complete"]=x.get("producer_state")=="COMPLETED"
   total_hashed=sum(int(x.get("hashed_files") or 0) for x in ss);total_bytes=sum(int(x.get("hashed_bytes") or 0) for x in ss)
   job["throughput_mbps"]=total_bytes/1048576/max(.001,job["elapsed_seconds"])
   job["queue_depth"]=sum(int(x.get("queue_depth") or 0) for x in ss);job["active_workers"]=sum(int(x.get("active_workers") or 0) for x in ss)
   job["errors"]=sum(int(x.get("errors") or 0) for x in ss);job["warnings"]=sum(int(x.get("warnings") or 0) for x in ss);job["source_count"]=len(self.s.rows("SELECT 1 FROM job_scope_sources WHERE job_id=?",(jid,)))
+  job["known_remaining_files"]=sum(int(x.get("remaining_files") or 0) for x in ss);job["known_remaining_bytes"]=sum(int(x.get("remaining_bytes") or 0) for x in ss)
   scopes=self.s.rows("SELECT source_id,label,root,estate,failure_domain,role FROM job_scope_sources WHERE job_id=? ORDER BY label",(jid,))
-  return {"job":job,"scope_sources":scopes,"sources":ss,"metrics":m,"events":ev,"activity":list(self.runs.get(jid,{}).get("activity",{}).values())}
+  return {"job":job,"scope_sources":scopes,"sources":ss,"metrics":m,"events":ev,"activity":activity}
  def list_jobs(self,limit=100):
-  rows=self.s.rows("SELECT job_id FROM jobs WHERE deleted=0 AND job_type='analysis' ORDER BY created DESC LIMIT ?",(int(limit),))
-  return [self.snapshot(x["job_id"]) for x in rows]
+  rows=self.s.rows("SELECT job_id,state FROM jobs WHERE deleted=0 AND job_type='analysis' ORDER BY created DESC LIMIT ?",(int(limit),))
+  items=[self.snapshot(x["job_id"]) for x in rows]
+  live=[x for x in items if x and x["job"]["state"] in ("QUEUED","RUNNING","PAUSED","STOPPING")]
+  source_jobs={}
+  for x in live:
+   for sc in x.get("scope_sources",[]):source_jobs.setdefault(sc["source_id"],set()).add(x["job"]["job_id"])
+  for x in items:
+   if not x:continue
+   jid=x["job"]["job_id"];overlap=set()
+   for sc in x.get("scope_sources",[]):
+    overlap.update(source_jobs.get(sc["source_id"],set())-{jid})
+   x["job"]["overlap_job_ids"]=sorted(overlap)
+   x["job"]["overlap_source_count"]=sum(1 for sc in x.get("scope_sources",[]) if (source_jobs.get(sc["source_id"],set())-{jid}))
+  return items

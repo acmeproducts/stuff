@@ -84,8 +84,13 @@ try:
   (e1/"a.bin").write_bytes(b"A"*2048);(e2/"b.bin").write_bytes(b"B"*4096)
   sid1=srv.M.add_source("Estate One",str(e1),"domain-one",estate="Estate One")
   sid2=srv.M.add_source("Estate Two",str(e2),"domain-two",estate="Estate Two")
-  j1=srv.M.enqueue([sid1]);j2=srv.M.enqueue([sid2])
-  assert j1!=j2
+  paused=srv.M.pause_all();assert paused["paused"] is True and paused["max_active_jobs"]>=4
+  i1=srv.M.enqueue_info([sid1]);dup=srv.M.enqueue_info([sid1]);i2=srv.M.enqueue_info([sid2])
+  assert i1["created"] and i2["created"] and i1["job_id"]!=i2["job_id"]
+  assert dup["created"] is False and dup["deduped"] and dup["suppressed_source_count"]==1 and dup["job_id"]==i1["job_id"],dup
+  j1=i1["job_id"];j2=i2["job_id"]
+  st=srv.M.scheduler_status();assert st["paused"] and st["queued_jobs"]>=2 and st["active_jobs"]==0,st
+  resumed=srv.M.resume_all();assert resumed["paused"] is False
   s1=srv.S.rows("SELECT root FROM job_scope_sources WHERE job_id=?",(j1,))
   s2=srv.S.rows("SELECT root FROM job_scope_sources WHERE job_id=?",(j2,))
   assert [x["root"] for x in s1]==[str(e1.resolve())]
@@ -95,7 +100,9 @@ try:
   assert len(srv.M.list_jobs())>=2
   assert z1["job"]["source_count"]==1 and z2["job"]["source_count"]==1
   assert z1["job"]["elapsed_seconds"]>=0 and z2["job"]["elapsed_seconds"]>=0
-  print("PASS independent queued analysis jobs + immutable source snapshots")
+  assert z1["job"]["known_remaining_files"]==0 and z2["job"]["known_remaining_files"]==0
+  assert all(x["enumeration_complete"] for x in z1["sources"]+z2["sources"])
+  print("PASS Pause/Start All + live-source dedupe + independent queued analysis jobs")
 
   # Restart copies the prior frozen source list to a new job.
   j3=srv.M.restart(j1);assert j3!=j1
@@ -123,15 +130,23 @@ try:
   A._ffmpeg_validate=lambda p:{"available":True,"ok":True,"returncode":0,"errors":""}
   task=A.create("compare_converted_files",{"type":"compare_converted_files","roots":[]})
   scope={"type":"compare_converted_files","roots":[str(cmp_root)]}
+  A.compare_max_active=0
   cj=A.enqueue_compare(task["task_id"],scope);cid=cj["compare_job_id"]
+  dupcmp=A.enqueue_compare(task["task_id"],scope)
+  assert dupcmp["deduped"] is True and dupcmp["created"] is False and dupcmp["compare_job_id"]==cid,dupcmp
+  A.compare_max_active=2
   done=wait_compare(A,cid)
   assert done["status"]=="COMPLETED",done
   assert done["scope"]["roots"]==[str(cmp_root.resolve())]
   assert done["files_scanned"]==3 and done["media_files"]==3
   assert done["groups_compared"]==2 and done["verified"]==1 and done["legacy_only"]==1,done
   assert done["media_duration_seconds"]>0 and done["seconds_per_media_minute"] is not None
+  groups=done["result"]["comparison"]["groups"];verified=[g for g in groups if g["state"]=="Verified replacement"]
+  assert len(verified)==1 and verified[0]["pairs"],groups
+  pair=verified[0]["pairs"][0]
+  assert pair["legacy"]["path"].endswith("clip001.avi") and pair["converted"]["path"].endswith("clip001.mp4") and pair["validation_converted"]["ok"] is True,pair
   assert done["events"]
-  print("PASS deterministic Compare job + persisted paths + live metrics/results/log")
+  print("PASS deterministic Compare job + dedupe + persisted paths + concrete pair outcome")
 
   # AI Send reads the completed deterministic packet; it must not rescan the filesystem.
   A.converted_packet=lambda *a,**k:(_ for _ in ()).throw(AssertionError("Send attempted deterministic rescan"))

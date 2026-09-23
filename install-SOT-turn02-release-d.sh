@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-REF="56ea63e96290b7e79383360b11e2f33f9733566b"
+REF="9ee723fcb1814d1d528b599a3f33e47ccfe88c2c"
 ROOT="$HOME/.sot-turn02/release-d"
 BASE="https://raw.githubusercontent.com/acmeproducts/stuff/$REF"
 SERVICE_D="sot-turn02-release-d.service"
@@ -132,11 +132,12 @@ h=json.load(open("/tmp/sot-release-d-health.json"))
 assert h["ok"] and h["version"]=="turn02-release-d" and h["schema"]==14 and h["process"]=="healthy",h
 j=json.load(urllib.request.urlopen("http://127.0.0.1:8765/api/jobs",timeout=15))
 assert j["ok"] and isinstance(j["jobs"],list),j
+assert j.get("scheduler",{}).get("max_active_jobs",0)>=4 and j["scheduler"].get("workers_per_job",0)>=2,j
 a=json.load(urllib.request.urlopen("http://127.0.0.1:8765/api/ai/tasks",timeout=15))
 assert a["ok"] and "compare_converted_files" in a["task_types"],a
 v=json.load(urllib.request.urlopen("http://127.0.0.1:8765/api/volumes",timeout=30))
 assert v["ok"] and any(str(x.get("windows_drive","")).upper()=="C:" and x.get("available") for x in v["volumes"]),v
-print("PASS Release D health + queue + AI catalog + live volumes")
+print("PASS Release D health + parallel scheduler + queue + AI catalog + live volumes")
 PY
 
 curl -fsS --max-time 15 https://oc-ref.fell-dojo.ts.net/sot/api/health >/tmp/sot-release-d-https.json
