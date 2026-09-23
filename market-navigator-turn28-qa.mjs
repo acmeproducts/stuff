@@ -87,8 +87,9 @@ The timing is consistent with the observed move, but does not establish causatio
    // hover inspection, safe comparison selection, and coordinate-correct
    // robustness diagnostics.
    await page.locator('#legend [data-id="growth"]').click();
-   await page.waitForFunction(()=>window.__mnShip25.indexContext()==='growth'&&window.__mnShip25.nowState()?.chart?.series?.length>1);
-   check('persistent index and comparisons use dual axes',await page.evaluate(()=>{let c=window.__mnShip25.nowState().chart,g=c.series.find(x=>x.id==='growth'),others=c.series.filter(x=>x.id!=='growth');return c.mode==='dual'&&g?.axis===0&&g?.axisLabel==='Persistent Index'&&others.length&&others.every(x=>x.axis===1&&x.axisLabel==='Indexed 100')}));
+   await page.waitForFunction(()=>{let s=window.__mnShip25.nowState();return window.__mnShip25.indexContext()==='growth'&&s?.root==='growth'&&s?.chart?.mode==='dual'&&s.chart.series.length>1});
+   const dualAxisState=await page.evaluate(()=>window.__mnShip25.nowState().chart);
+   check('persistent index and comparisons use dual axes',(()=>{let c=dualAxisState,g=c.series.find(x=>x.id==='growth'),others=c.series.filter(x=>x.id!=='growth');return c.mode==='dual'&&g?.axis===0&&g?.axisLabel==='Persistent Index'&&others.length&&others.every(x=>x.axis===1&&x.axisLabel==='Indexed 100')})(),JSON.stringify(dualAxisState.series.map(x=>({id:x.id,axis:x.axis,axisLabel:x.axisLabel}))));
    check('GRW five-year robustness is coordinate-correct',await page.evaluate(()=>{let h=window.__mnShip25.modelHealth('growth','5YR');return h.lifecycle==='ACTIVE'&&h.directionStability===1&&h.specificationRobustness===1}),await page.evaluate(()=>JSON.stringify(window.__mnShip25.modelHealth('growth','5YR'))));
    const hover=await page.locator('#nowChart').boundingBox(),hoverSeries=new Map();
    for(const xf of [.2,.4,.6,.8])for(const yf of [.18,.36,.54,.72,.88]){
