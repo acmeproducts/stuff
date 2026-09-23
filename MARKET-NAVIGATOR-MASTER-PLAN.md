@@ -1,11 +1,11 @@
 # Market Navigator — Canonical Master Plan
 
 Status: AUTHORITATIVE PRODUCT / BUILD / QUALIFICATION PLAN
-Updated: 2026-09-22
-Planning state: **ANALYTICAL REDESIGN PROGRAM — C3 PASS; C4 READY / AWAITING CREDENTIALLED WORKFLOW RUN; TURN 26 RETAINED WORKING BASELINE**
-Target artifact: **`market-navigator-turn26-ship.html`**
+Updated: 2026-09-23
+Planning state: **ANALYTICAL REDESIGN PROGRAM — C4/C5/I1 PASS; TURN 27 PERSISTENT-INDEX CANDIDATE AWAITING BROWSER QUALIFICATION; TURN 26 RETAINED WORKING BASELINE**
+Target artifact: **`market-navigator-turn27-pre-ship.html`**
 
-Next cumulative application artifact: **`market-navigator-turn26-ship.html`**
+Next cumulative application artifact: **`market-navigator-turn27-pre-ship.html`**
 
 This file is the single positive specification for Market Navigator. `MARKET-NAVIGATOR-GRAVEYARD.md` remains the binding negative specification. `MARKET-NAVIGATOR-BUILD-PROTOCOL.md` governs stage advancement. Do not create a parallel plan.
 
@@ -1282,14 +1282,14 @@ The owner has delegated detailed dependency management to the governed program. 
 | Gate | Status | Current decision |
 |---|---|---|
 | C1 provenance | **PASS** | 21-component inventory established; WTI = Yahoo `CL=F`; 10Y mixed FRED/Yahoo lineage repaired and rebuilt as clean FRED `DGS10`. |
-| C2 transform registry | **PROVISIONAL / substantially defined** | Price/index family uses proportional/log movement; NFCI and Treasury spreads use signed additive movement; WTI uses signed additive price movement; rates/inflation/unemployment/HY spread use additive bp/pp movement; VIX/MOVE remain proportional/log. Redesigned Treasury-spread direction is −1 so deeper inversion raises MAC pressure. Final registry still waits on C4/C5. |
+| C2 transform registry | **PASS** | The approved C5 registry freezes transform family, direction, scale, source, availability mode, and fixed coefficient for all 21 components. |
 | C3 influence/scaling | **PASS** | Use S2A event-change volatility × sqrt(observed native-event frequency), frozen from pre-effective evidence for each model version. Retain seven equal nominal coefficients and expose realized concentration/sensitivity rather than adaptively reweighting. Pre-effective history using launch scales is BACKCAST. |
-| C4 information time/vintage | **READY / AWAITING CREDENTIALLED RUN** | Sidecar architecture and workflow exist; historical FRED/ALFRED vintage qualification requires a workflow run with the governed backend FRED API credential. No C4 workflow run is recorded at this handoff. |
-| C5 component registry | **BLOCKED** | Requires C4 pass and merger of C3 scale records with C4 availability records. |
-| I1 persistent index | **BLOCKED** | No anchor selection until C5. |
-| AI levels | **QUEUED** | Plain / Standard / Technical after analytical state is stable. |
-| Tabbed navigation | **QUEUED** | After analytical contracts are stable. |
-| Evidence/Library integration | **RETAIN + REQUALIFY** | Existing Turn 26 evidence and Library behavior remain baseline capabilities. |
+| C4 information time/vintage | **PASS WITH PROSPECTIVE-ONLY SOURCE** | Eleven FRED components passed ALFRED initial/revision timing and no-look-ahead qualification. HY spread `BAMLH0A0HYM2` is not available in ALFRED, so prelaunch history is labeled current-vintage retrospective backcast and post-launch truth requires prospective capture. |
+| C5 component registry | **PASS** | `MN-PERSISTENT-1.0.0` merges the frozen C3 scales with C4 availability modes. Seven fixed 1/7 coefficients per index; no reduced-set renormalization. |
+| I1 persistent index | **PASS** | Common anchor 2016-09-01 = 100; horizons are viewport-only; Rebase 100 is display-only; pre-effective history is `RETROSPECTIVE BACKCAST`; formula and contribution reconciliation passed. |
+| AI levels | **CANDIDATE IMPLEMENTED / AWAITING QUALIFICATION** | Turn 27 applies Plain / Standard / Technical as transformations of one governed analysis and evidence set. |
+| Tabbed navigation | **CANDIDATE IMPLEMENTED / AWAITING QUALIFICATION** | Turn 27 moves NOW / LIBRARY / HEALTH to the top row and keeps contextual controls below. |
+| Evidence/Library integration | **TURN 27 REQUALIFICATION PENDING** | Turn 26 invariants remain mandatory; the candidate must pass browser and deployed-origin journeys before owner testing. |
 
 ### 40.1 Decisions that are now closed unless new evidence overturns them
 
@@ -1305,11 +1305,10 @@ Do not reopen casually:
 
 ### 40.2 Next managed actions
 
-1. Run C4 vintage sidecar when the backend credential is available.
-2. Prove initial-release/revision availability semantics and no historical look-ahead for every governed slow/revised component.
-3. Merge the passed C3 scale records with C4 availability records into the proposed versioned component registry.
-4. Only then begin I1 persistent-index anchor/backfill/version specification.
-5. Do not begin AI-level or navigation implementation merely because they are easier UI work.
+1. Qualify the exact Turn 27 candidate built from the immutable Turn 26 blob `fc61e29d76f1a7ecf1226f74e0884865dca04684`.
+2. Validate persistent chart identity across horizons, native-value explanation arithmetic, Health, Evidence, Library, AI interpretation levels, and top navigation on desktop and mobile.
+3. Require deterministic rebuild, static syntax, full browser QA, Pages deployment, deployed byte identity, and live-origin smoke tests before handing the URL to the owner.
+4. Keep Turn 26 as the working baseline until the owner accepts Turn 27. A rejection ends this candidate lineage under the clean-baseline protocol.
 
 
 
@@ -1334,6 +1333,13 @@ Current retained application artifact while redesign work proceeds:
 - byte size: `231792`
 
 That application remains the working product baseline while the analytical redesign is qualified. Do not mutate it merely to accelerate the redesign unless the active gate explicitly requires application code.
+
+Current successor candidate:
+
+- `market-navigator-turn27-pre-ship.html`
+- built only from the immutable Turn 26 blob above;
+- persistent model version `MN-PERSISTENT-1.0.0`;
+- not production or accepted until exact-candidate browser/deployment qualification and owner disposition.
 
 ### 41.2 End goal
 
@@ -1424,51 +1430,40 @@ At this handoff:
 | Gate | Status | Meaning |
 |---|---|---|
 | C1 — component inventory/provenance | **PASS** | 21-component inventory/provenance established. |
-| C2 — transform registry | **PROVISIONAL / substantially defined** | Families/directions and C3 scale treatment are established; final registry waits on C4/C5. |
+| C2 — transform registry | **PASS** | C5 registry freezes all 21 governed definitions under `MN-PERSISTENT-1.0.0`. |
 | C3 — influence/scaling | **PASS** | S2A selected: economically meaningful event changes, native-event frequency adjustment, fixed scale per model version, equal nominal coefficients with explicit concentration/sensitivity reporting. |
-| C4 — information time/vintage | **READY / AWAITING CREDENTIALLED RUN** | Requires governed release/vintage qualification through the backend-only FRED/ALFRED key path; no workflow run is recorded at this handoff. |
-| C5 — component registry approval | **BLOCKED** | Requires C4, then merger of C3 scale records with C4 availability records. |
-| I1 — persistent-index specification | **BLOCKED** | No anchor/backfill decision until C5. |
-| AI Plain/Standard/Technical | **QUEUED** | Design retained; implementation waits for stable analytical result contract. |
-| Tabbed navigation | **QUEUED** | Do not implement yet. |
-| Evidence/Library | **RETAIN + REQUALIFY** | Existing Turn 26 capability remains mandatory. |
+| C4 — information time/vintage | **PASS WITH PROSPECTIVE-ONLY SOURCE** | Eleven FRED components passed vintage/no-look-ahead checks; HY spread is not in ALFRED and therefore uses explicit retrospective/prospective-only handling. |
+| C5 — component registry approval | **PASS** | C3 scale records and C4 availability records merged; fixed seven-component participation is approved. |
+| I1 — persistent-index specification | **PASS** | Persistent fixed-anchor series, viewport-only horizons, display-only Rebase 100, and contribution reconciliation are qualified. |
+| AI Plain/Standard/Technical | **CANDIDATE IMPLEMENTED** | Turn 27 implementation awaits exact-candidate browser qualification. |
+| Tabbed navigation | **CANDIDATE IMPLEMENTED** | Turn 27 top navigation awaits desktop/mobile qualification. |
+| Evidence/Library | **TURN 27 REQUALIFICATION PENDING** | Existing Turn 26 capability remains mandatory. |
 
 ### 41.7 Immediate next work
 
-The successor session should begin with **C4 — information-time/vintage qualification**, not UI work.
+The successor session should begin with **Turn 27 exact-candidate qualification**, not new feature work.
 
-C3 is complete. Its governed recommendation is:
+Required outputs:
 
-1. retain the established economically meaningful transform families;
-2. scale by native-event change volatility × sqrt(observed canonical native-event frequency);
-3. estimate scale only from evidence available before the model-version effective timestamp and freeze it for that version;
-4. label any pre-effective history rendered with that scale **RETROSPECTIVE BACKCAST**;
-5. retain seven equal nominal coefficients and expose concentration, direction strength, and leave-one-out sensitivity instead of adaptively reweighting;
-6. retain VIX/MOVE as log/proportional and redesigned Treasury-curve direction −1;
-7. do not change production arithmetic until C4 passes and C5 approves the merged registry.
+1. deterministic rebuild of the persistent index evidence, compatibility evidence, and candidate HTML;
+2. persistent-index QA proving formula replication, seven-component completeness, contribution reconciliation, horizon invariance, and Rebase 100 isolation;
+3. browser QA covering the retained Turn 26 journeys plus Turn 27 model version, top navigation, native-value explanations, and Plain / Standard / Technical controls;
+4. deployed byte identity and Pages-origin smoke tests;
+5. a test URL for owner accept/reject disposition.
 
-Required C4 output:
+Do not reopen C1–C5 or I1 unless qualification produces contrary evidence. Do not mutate the accepted Turn 26 artifact.
 
-1. run the governed vintage sidecar using backend secret `MARKET_NAVIGATOR_FRED_API_KEY`;
-2. prove observation-period, first-publication, and revision/vintage timing for weekly/monthly/revised components;
-3. prove the as-known calculation cannot see a record before `available_from`;
-4. define truthful missing/blocked behavior for sources without qualified historical availability;
-5. merge the result with the C3 scale records for C5 disposition.
+### 41.8 Persistent-index specification — I1 resolution
 
-Only after C5 may **I1 persistent index specification** begin.
+I1 resolved the reserved questions in `MARKET-NAVIGATOR-PERSISTENT-INDEX-SPEC.md`:
 
-### 41.8 Persistent-index specification questions reserved for I1
-
-Do not decide these early. I1 must explicitly resolve:
-
-- anchor date/value and model-version meaning;
-- whether pre-launch history is unavailable, a labeled retrospective backcast, or an expanding/rolling no-look-ahead reconstruction;
-- index continuity across model-version changes;
-- whether revisions restate current-vintage history or preserve published vintage;
-- how component transformation-scale versions are persisted;
-- canonical index overlay behavior on two-axis charts;
-- exact semantics and UI labeling for optional Rebase 100;
-- how contribution explanation maps from persistent component signals into persistent composite movement.
+- common fixed anchor is 2016-09-01 = 100;
+- pre-effective history is explicitly labeled `RETROSPECTIVE BACKCAST`;
+- model changes require an explicit new version and additive chain-linking at the effective date;
+- qualified FRED components use then-available vintage state; HY spread uses explicitly labeled current-vintage backcast until prospective capture exists;
+- component transformation scales are frozen in the versioned C5 registry;
+- canonical indices retain absolute values on overlays; optional Rebase 100 is display-only;
+- contribution explanation uses native values for provenance and governed signal deltas for exact index-point reconciliation.
 
 Core rule to preserve:
 
@@ -1529,6 +1524,6 @@ Do not regress:
 
 Use this as the continuation prompt:
 
-> Continue Market Navigator in `acmeproducts/stuff` from current `main`. This is the analytical-redesign program, not an invitation to redesign ad hoc. Read in full `MARKET-NAVIGATOR-MASTER-PLAN.md`, `MARKET-NAVIGATOR-GRAVEYARD.md`, and `MARKET-NAVIGATOR-BUILD-PROTOCOL.md`. Section 41 is the session handoff; Sections 35–40 are the governing redesign program. Preserve the deployed Turn 26 application unless the active gate specifically requires code changes. C3 is PASS under the frozen model-version launch-calibration rule recorded here and in `MARKET-NAVIGATOR-COMPONENT-AUDIT-2026-09-22.md`. Advance **C4 — information-time/vintage qualification** next using the governed backend-only FRED/ALFRED credential path. If the credential is absent, report the explicit external blocker; do not approximate vintage truth. Do not choose a persistent-index anchor, implement Plain/Standard/Technical, or change navigation before their dependency gates are satisfied. Record evidence, decisions, and blockers back into this Master Plan. Follow the clean-baseline protocol for any code stage. Return with C4 findings, C5 readiness, unresolved sources, and the next gate status.
+> Continue Market Navigator in `acmeproducts/stuff` from current `main`. Read in full `MARKET-NAVIGATOR-MASTER-PLAN.md`, `MARKET-NAVIGATOR-GRAVEYARD.md`, and `MARKET-NAVIGATOR-BUILD-PROTOCOL.md`. Section 41 is the authoritative handoff. C1–C5 and I1 are complete under model `MN-PERSISTENT-1.0.0`; do not reopen them absent contrary qualification evidence. Preserve the immutable Turn 26 baseline (`market-navigator-turn26-ship.html`, blob `fc61e29d76f1a7ecf1226f74e0884865dca04684`). Advance exact-candidate qualification of `market-navigator-turn27-pre-ship.html`: deterministic rebuild, persistent-index QA, retained Turn 26 browser journeys, Turn 27 persistent explanations, Plain/Standard/Technical, desktop/mobile top navigation, Pages deployment, byte identity, and live smoke. Do not publish as accepted production before those gates pass and the owner disposes the candidate. Record evidence, decisions, and blockers back into this Master Plan.
 
 This handoff section is part of the authoritative Master Plan. Future sessions should update it or supersede it in-place rather than creating a competing plan.

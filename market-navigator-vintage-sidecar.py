@@ -18,7 +18,7 @@ YoY transform must be computed later from the raw vintage state that existed on
 the relevant availability date; it must not use today's revised t-12 value.
 """
 from __future__ import annotations
-import datetime as dt, json, os, urllib.parse, urllib.request
+import datetime as dt, json, os, time, urllib.error, urllib.parse, urllib.request
 from pathlib import Path
 
 CATALOG=Path("data/market-backend/data-catalog.json")
@@ -28,6 +28,7 @@ API="https://api.stlouisfed.org/fred/series/observations"
 START="2015-01-01"
 UTC=dt.timezone.utc
 KEY=os.environ.get("MARKET_NAVIGATOR_FRED_API_KEY","").strip()
+RESUME=os.environ.get("MARKET_NAVIGATOR_VINTAGE_RESUME","").strip()=="1"
 
 def read(p): return json.loads(Path(p).read_text())
 def iso_now(): return dt.datetime.now(UTC).replace(microsecond=0).isoformat().replace("+00:00","Z")
@@ -38,19 +39,36 @@ def get_json(params):
     q={**params,"api_key":KEY,"file_type":"json","limit":100000}
     url=API+"?"+urllib.parse.urlencode(q)
     req=urllib.request.Request(url,headers={"User-Agent":"MarketNavigatorVintageAudit/1.0"})
-    with urllib.request.urlopen(req,timeout=60) as r:
-        return json.loads(r.read().decode("utf-8"))
+    for attempt in range(3):
+        try:
+            with urllib.request.urlopen(req,timeout=60) as r:
+                return json.loads(r.read().decode("utf-8"))
+        except urllib.error.HTTPError as exc:
+            detail=exc.read().decode("utf-8",errors="replace")
+            raise RuntimeError(f"FRED API HTTP {exc.code}: {detail}") from exc
+        except (TimeoutError,urllib.error.URLError):
+            if attempt==2: raise
+            time.sleep(2**attempt)
 
 def fetch(series_id,output_type):
-    today=dt.date.today().isoformat()
-    return get_json({
-        "series_id":series_id,
-        "observation_start":START,
-        "realtime_start":START,
-        "realtime_end":today,
-        "output_type":output_type,
-        "sort_order":"asc",
-    }).get("observations") or []
+    # FRED caps JSON requests at 2,000 vintage dates. A single 2015-present
+    # real-time period now exceeds that ceiling. Two-year windows also keep
+    # dense revision streams below the response/read timeout.
+    start=dt.date.fromisoformat(START)
+    today=dt.date.today()
+    rows=[]
+    while start <= today:
+        end=min(today,dt.date(start.year+2,start.month,start.day)-dt.timedelta(days=1))
+        rows.extend(get_json({
+            "series_id":series_id,
+            "observation_start":START,
+            "realtime_start":start.isoformat(),
+            "realtime_end":end.isoformat(),
+            "output_type":output_type,
+            "sort_order":"asc",
+        }).get("observations") or [])
+        start=end+dt.timedelta(days=1)
+    return rows
 
 def clean_value(v):
     if v in (None,"","."): return None
@@ -66,11 +84,56 @@ def main():
     summary={}
     for sid in fred_ids:
         meta=cmap[sid];source_id=meta["provider_identifier"]
-        initial=fetch(source_id,4)
-        changed=fetch(source_id,3)
-        initial_keys={(x.get("date"),x.get("realtime_start"),x.get("value")) for x in initial}
+        target=OUT/f"{sid}.json"
+        if RESUME and target.exists():
+            obj=read(target)
+            events=obj.get("events") or []
+            summary[sid]={
+                "sourceSeriesId":source_id,
+                "availabilityQualification":obj.get("availabilityQualification","QUALIFIED_ALFRED"),
+                "events":len(events),
+                "initial":sum(1 for x in events if x["isInitialRelease"]),
+                "revisions":sum(1 for x in events if x["isRevision"]),
+                "firstAvailable":events[0]["availableFrom"] if events else None,
+                "lastAvailable":events[-1]["availableFrom"] if events else None,
+            }
+            print(f"C4 RESUME {sid}: {len(events)} existing events",flush=True)
+            continue
+        print(f"C4 FETCH {sid} ({source_id})",flush=True)
+        try:
+            periods=fetch(source_id,1)
+        except RuntimeError as exc:
+            if "does not exist in ALFRED" not in str(exc):
+                raise
+            obj={
+                "schema":"market-navigator-fred-vintage-sidecar-v1",
+                "status":"C4_SHADOW_NON_PRODUCTION",
+                "generatedAt":iso_now(),
+                "canonicalSeriesId":sid,
+                "sourceProvider":"FRED/ALFRED",
+                "sourceSeriesId":source_id,
+                "canonicalTransformation":meta.get("transformation"),
+                "nativeCadence":meta.get("native_cadence"),
+                "nativeUnit":meta.get("native_unit"),
+                "observationStart":START,
+                "availabilityQualification":"BLOCKED_NOT_IN_ALFRED",
+                "events":[],
+                "notes":[
+                    "FRED reports this series is not available in ALFRED for the requested historical real-time period.",
+                    "No historical availability date is inferred from the observation date or today's current-vintage data.",
+                ],
+            }
+            target.write_text(json.dumps(obj,indent=2,sort_keys=True)+"\n")
+            summary[sid]={
+                "sourceSeriesId":source_id,
+                "availabilityQualification":"BLOCKED_NOT_IN_ALFRED",
+                "events":0,"initial":0,"revisions":0,
+                "firstAvailable":None,"lastAvailable":None,
+            }
+            print(f"C4 BLOCKED {sid}: not available in ALFRED",flush=True)
+            continue
         seen=set();events=[]
-        for x in changed+initial:
+        for x in periods:
             v=clean_value(x.get("value"))
             if v is None:continue
             key=(x.get("date"),x.get("realtime_start"),x.get("value"))
@@ -81,9 +144,16 @@ def main():
                 "availableFrom":x.get("realtime_start"),
                 "availableUntil":x.get("realtime_end"),
                 "value":v,
-                "isInitialRelease":key in initial_keys,
-                "isRevision":key not in initial_keys,
+                "isInitialRelease":False,
+                "isRevision":True,
             })
+        events.sort(key=lambda x:(x["observationDate"] or "",x["availableFrom"] or "",x["value"]))
+        first_by_observation={}
+        for event in events:
+            first_by_observation.setdefault(event["observationDate"],event)
+        for event in first_by_observation.values():
+            event["isInitialRelease"]=True
+            event["isRevision"]=False
         events.sort(key=lambda x:(x["availableFrom"] or "",x["observationDate"] or "",x["value"]))
         obj={
             "schema":"market-navigator-fred-vintage-sidecar-v1",
@@ -96,15 +166,17 @@ def main():
             "nativeCadence":meta.get("native_cadence"),
             "nativeUnit":meta.get("native_unit"),
             "observationStart":START,
+            "availabilityQualification":"QUALIFIED_ALFRED",
             "events":events,
             "notes":[
                 "availableFrom/Until are FRED/ALFRED real-time periods, not canonical observation dates.",
                 "For transformed canonical series such as CPI/Core PCE YoY, derive the value from the raw as-of vintage state later; do not apply today's revised t-12 denominator.",
             ],
         }
-        (OUT/f"{sid}.json").write_text(json.dumps(obj,indent=2,sort_keys=True)+"\n")
+        target.write_text(json.dumps(obj,indent=2,sort_keys=True)+"\n")
         summary[sid]={
             "sourceSeriesId":source_id,
+            "availabilityQualification":"QUALIFIED_ALFRED",
             "events":len(events),
             "initial":sum(1 for x in events if x["isInitialRelease"]),
             "revisions":sum(1 for x in events if x["isRevision"]),
