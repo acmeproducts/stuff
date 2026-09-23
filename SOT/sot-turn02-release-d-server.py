@@ -76,6 +76,28 @@ def windows_logical_drives():
   return out
  except Exception:return []
 
+def mounted_windows_drives():
+ out=[]
+ q=Path("/mnt")
+ if not q.exists():return out
+ try:items=sorted(q.iterdir(),key=lambda p:p.name.lower())
+ except OSError:return out
+ for x in items:
+  letter=x.name.lower()
+  if not re.match(r"^[a-z]$",letter):continue
+  ok,detail=verified_windows_mount(letter)
+  if not ok:continue
+  try:
+   st=os.statvfs(x);free=int(st.f_bavail*st.f_frsize);total=int(st.f_blocks*st.f_frsize)
+  except OSError:
+   free=None;total=None
+  mi=detail.get("mount") or {}
+  out.append({"label":letter.upper()+":","windows":True,"windows_drive":letter.upper()+":","windows_path":letter.upper()+":\\","path":"/mnt/"+letter,
+              "mounted":True,"available":True,"mount_error":None,"drive_type":"mounted","provider":None,
+              "volume_serial":None,"stable_volume_id":"windows-mounted:"+letter.upper()+":","free_bytes":free,"total_bytes":total,
+              "mount_fstype":mi.get("fstype"),"mount_source":mi.get("source"),"identity_source":"verified_mount"})
+ return out
+
 def ensure_windows_drive_mounted(letter,force=False):
  letter=str(letter or "").strip().lower()
  if not re.match(r"^[a-z]$",letter):return {"ok":False,"error":"invalid Windows drive"}
@@ -615,15 +637,21 @@ class H(BaseHTTPRequestHandler):
    if p=="/api/volumes":
     vols=[{"label":"WSL","path":"/","mounted":True,"available":True,"windows":False}]
     by_path={"/":vols[0]}
+    # First preserve verified Windows-backed mounts even if PowerShell/CIM inventory is unavailable.
+    for w in mounted_windows_drives():
+     vols.append(w);by_path[w["path"]]=w
+    # Then add other WSL/media mounts without demoting verified Windows identity.
     for base in ("/mnt","/media"):
      q=Path(base)
      if q.exists():
       for x in q.iterdir():
        if base=="/mnt" and x.name.lower() in ("wsl","wslg"):continue
+       if str(x) in by_path:continue
        try:
         if x.is_dir() and os.path.ismount(x) and os.access(x,os.R_OK|os.X_OK):
          os.statvfs(x);v={"label":x.name,"path":str(x),"mounted":True,"available":True,"windows":False};vols.append(v);by_path[str(x)]=v
        except OSError:pass
+    # PowerShell inventory enriches or adds Windows drives; it is not the sole identity source.
     for w in windows_logical_drives():
      letter=str(w.get("windows_drive",""))[:1].lower()
      if letter:
@@ -631,10 +659,13 @@ class H(BaseHTTPRequestHandler):
       w["mounted"]=bool(state.get("ok"));w["available"]=bool(state.get("ok"));w["mount_error"]=state.get("error")
      cur=by_path.get(w["path"])
      if cur:
-      cur.update({k:v for k,v in w.items() if k not in ("path","label")})
-      if not cur.get("label") or cur["label"]==Path(cur["path"]).name:cur["label"]=w["label"]
+      label=w.get("label") or cur.get("label")
+      cur.update({k:v for k,v in w.items() if k not in ("path","label") and v is not None})
+      cur["windows"]=True;cur["windows_drive"]=w.get("windows_drive") or cur.get("windows_drive");cur["windows_path"]=w.get("windows_path") or cur.get("windows_path")
+      cur["identity_source"]="windows_inventory+verified_mount" if cur.get("identity_source")=="verified_mount" else "windows_inventory"
+      if label:cur["label"]=label
      else:
-      vols.append(w);by_path[w["path"]]=w
+      w["identity_source"]="windows_inventory";vols.append(w);by_path[w["path"]]=w
     vols.sort(key=lambda v:(0 if v["path"]=="/" else 1,str(v.get("windows_drive") or v.get("path") or "").lower()))
     return self.sendj({"ok":True,"volumes":vols,"reconciled_at":time.time()})
    if p=="/api/folder-search/status":
