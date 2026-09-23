@@ -1,6 +1,9 @@
 // Controller gates, run without a browser: fake clock, fake speech, fake audio.
 const vm=require('node:vm'),fs=require('node:fs'),assert=require('node:assert/strict');
-const code=fs.readFileSync(__dirname+'/controller.js','utf8');
+// The controller lives inside chat-test.html; test it from there.
+const html=fs.readFileSync(__dirname+'/../../chat-test.html','utf8'),B='/* ===== audio-turn: begin ===== */',E='/* ===== audio-turn: end ===== */';
+if(html.split(B).length!==2||html.split(E).length!==2)throw new Error('audio-turn markers missing');
+const code=html.slice(html.indexOf(B)+B.length,html.indexOf(E));
 function world(opts){
  opts=opts||{};let now=10000,timers=[],spoken=[],cancels=0,logs=[],diags=[],sent=[],composed=[],store={};
  const synth={cancel(){cancels++},speak(u){spoken.push(u)}};

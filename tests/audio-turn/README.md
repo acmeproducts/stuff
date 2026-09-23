@@ -1,6 +1,6 @@
 # chat-test audio turn control
 
-`chat-test.html` is built from the accepted `chatlink-turn01-pre-base.html` by patching named boundaries only. It replaces the earlier audio-overlap experiment. Design: CHATLINK-TURN01-PRE-BASE-PLAN.md §13, "Design amendment".
+`chat-test.html` is the single source file. Edit it directly; there is no build step. The audio controller sits between the `audio-turn: begin/end` markers. It replaces the earlier audio-overlap experiment. Design: CHATLINK-TURN01-PRE-BASE-PLAN.md §13, "Design amendment".
 
 - Read-aloud pauses STT for both sides (one mic, one speaker). While it plays, silence goes to Deepgram and captured audio is dropped, never kept.
 - Soft two-note tones: descending means wait, ascending means speak. Listening resumes only after the speak tone, after a 300 ms pause. A single low "bong" means the text was put in a compose box because the speaker was unclear.
@@ -11,7 +11,6 @@
 ## Build and test
 
 ```sh
-node tests/audio-turn/build.cjs                 # writes chat-test.html
 node tests/audio-turn/test.cjs                  # controller gates (no browser)
 NODE_PATH=$(npm root -g) CHAT_BROWSER_CHANNEL=chromium node tests/audio-turn/regression.cjs                  # 13 Chatlink scenarios, ask mode
 NODE_PATH=$(npm root -g) CHAT_BROWSER_CHANNEL=chromium AUDIO_MODE=open node tests/audio-turn/regression.cjs  # 11 unchanged + 3 open-mode scenarios
