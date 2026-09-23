@@ -239,7 +239,6 @@ The timing is consistent with the observed move, but does not establish causatio
    });
    check('revision modes remain distinct',modes[0]==='extend-from-frozen'&&modes[1]===true&&modes[2]==='current-vintage-restatement'&&modes[3]===false,JSON.stringify(modes));
 
-   if(await page.evaluate(()=>document.getElementById('rail').classList.contains('closed')))await page.click('#toggle');
    await page.click('.nav[data-view="health"]');
    await page.waitForSelector('#mnxHealthTabs');
    await page.click('#mnxHealthTabs [data-mnx-health="glossary"]');
@@ -252,5 +251,5 @@ The timing is consistent with the observed move, but does not establish causatio
  }finally{
    await ctx.close();await browser.close();srv.close();
  }
- console.log('TURN26 QA PASS',results.length,'checks');
+ console.log('TURN27 QA PASS',results.length,'checks');
 })().catch(e=>{console.error('TURN26 QA FAIL',e.stack||e);process.exit(1)});
