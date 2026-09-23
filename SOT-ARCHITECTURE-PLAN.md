@@ -674,3 +674,20 @@ Release D must treat two independent signals as valid Windows-volume evidence:
 The live volume API must merge both. A verified mounted Windows drive remains a Windows volume even if PowerShell/CIM inventory is temporarily unavailable from the systemd service. PowerShell metadata may enrich the mounted record later, but it is not allowed to demote an already verified Windows-backed mount to a generic WSL volume.
 
 The Release D installer gate must explicitly exercise and accept this mounted-drive fallback before cutover.
+
+
+---
+
+## 2026-09-23 — Release D queue-state correction: persistent log disclosure and legacy restart migration
+
+Owner testing exposed two queue-state defects after Release D cutover:
+
+- Analyze polling re-renders the queue every few seconds, which resets an open Job log `<details>` element to closed.
+- pre-Release-D jobs have `job_sources` history but no Release-D `job_scope_sources` snapshot, so they display “0 sources” and Restart fails with “job has no persisted source snapshot.”
+
+Required behavior:
+
+- Job-log disclosure is user state. Opening or closing a Job log must persist across Analyze polling/re-render for that browser session. Polling may refresh log rows without changing the owner’s disclosure choice.
+- Release D migration backfills a frozen source snapshot for historical jobs from their existing `job_sources` + registered `sources` records when no `job_scope_sources` rows exist. The backfill is one-way metadata migration only; it does not run, reclassify or alter file evidence.
+- Historical jobs with recoverable source history must show their actual source count and Restart must create a new queued job from the recovered frozen snapshot.
+- If a historical job truly has no recoverable source history, the UI must not present a Restart action that can only fail.
