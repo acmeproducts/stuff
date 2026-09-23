@@ -240,14 +240,21 @@ class AIManager:
   task=self.row(task_id)
   if not task:raise RuntimeError("Task not found")
   if task["status"] in ("analyzing","applying"):raise RuntimeError("Task is already running")
-  scope=scope or self.jload(task.get("scope_json"),{"type":"entire_sot"});packet,manifest=self.packet(scope);rev=manifest["catalog_revision"];now=time.time()
-  ordinal=self.next_ordinal(task_id);user_prompt=str(prompt or "").strip() or "Run this task."
+  scope=scope or self.jload(task.get("scope_json"),{"type":"entire_sot"});rev=self.catalog_revision();now=time.time()
+  ordinal=self.next_ordinal(task_id);user_prompt=str(prompt or "").strip() or "Run this task.";turn_id=uuid.uuid4().hex
+  prep_manifest={"catalog_revision":rev,"scope":scope,"preparing":True}
   self.s.tx([
-   ("INSERT INTO ai_turns(turn_id,task_id,ordinal,role,content,created,status,evidence_revision,scope_json,evidence_manifest_json,provider,model) VALUES(?,?,?,?,?,?,?,?,?,?,?,?)",(uuid.uuid4().hex,task_id,ordinal,"user",user_prompt,now,"ready",rev,json.dumps(scope),json.dumps(manifest),provider,model)),
+   ("INSERT INTO ai_turns(turn_id,task_id,ordinal,role,content,created,status,evidence_revision,scope_json,evidence_manifest_json,provider,model) VALUES(?,?,?,?,?,?,?,?,?,?,?,?)",(turn_id,task_id,ordinal,"user",user_prompt,now,"preparing",rev,json.dumps(scope),json.dumps(prep_manifest),provider,model)),
    ("UPDATE ai_tasks SET status='analyzing',updated=?,scope_json=?,evidence_revision=?,provider=?,model=?,error_detail=NULL,cancelled=0 WHERE task_id=?",(now,json.dumps(scope),rev,provider,model,task_id))
   ],True)
   def worker():
+   packet=None;manifest=prep_manifest;worker_rev=rev
    try:
+    packet,manifest=self.packet(scope);worker_rev=manifest["catalog_revision"];prepared=time.time()
+    self.s.tx([
+     ("UPDATE ai_turns SET status='ready',evidence_revision=?,evidence_manifest_json=? WHERE turn_id=?",(worker_rev,json.dumps(manifest),turn_id)),
+     ("UPDATE ai_tasks SET updated=?,evidence_revision=? WHERE task_id=?",(prepared,worker_rev,task_id))
+    ],True)
     history=self.turns(task_id);msgs=[{"role":"system","content":self.system_prompt(task["task_type"])}]
     for t in history[-8:]:
      if t["role"] in ("user","assistant") and t["content"]:msgs.append({"role":t["role"],"content":t["content"]})
@@ -262,20 +269,21 @@ class AIManager:
       rem=sorted(set(self.normalize_tag(x) for x in ch.get("remove",[]) if self.normalize_tag(x)))
       add=[x for x in add if x not in ("#unique","#keep","#excess")];rem=[x for x in rem if x not in ("#unique","#keep","#excess")]
       clean.append({"placement_id":pid,"add":add,"remove":rem,"reason":str(ch.get("reason",""))[:500]})
-     prop={"summary":str(prop.get("summary","Auto Tag proposal"))[:2000],"changes":clean,"evidence_revision":rev};assistant=json.dumps(prop,ensure_ascii=False);status="proposal-ready";proposal=json.dumps(prop);summary=prop["summary"];result=None
+     prop={"summary":str(prop.get("summary","Auto Tag proposal"))[:2000],"changes":clean,"evidence_revision":worker_rev};assistant=json.dumps(prop,ensure_ascii=False);status="proposal-ready";proposal=json.dumps(prop);summary=prop["summary"];result=None
     else:
      assistant=answer;status="complete";proposal=None;summary=TASK_TYPES[task["task_type"]]["description"];result=answer
     now2=time.time();ord2=self.next_ordinal(task_id)
     self.s.tx([
-     ("INSERT INTO ai_turns(turn_id,task_id,ordinal,role,content,created,status,evidence_revision,scope_json,evidence_manifest_json,provider,model) VALUES(?,?,?,?,?,?,?,?,?,?,?,?)",(uuid.uuid4().hex,task_id,ord2,"assistant",assistant,now2,"ready",rev,json.dumps(scope),json.dumps(manifest),provider,model)),
-     ("UPDATE ai_tasks SET status=?,updated=?,summary=?,proposal_json=?,result_markdown=?,error_detail=NULL WHERE task_id=?",(status,now2,summary,proposal,result,task_id))
+     ("INSERT INTO ai_turns(turn_id,task_id,ordinal,role,content,created,status,evidence_revision,scope_json,evidence_manifest_json,provider,model) VALUES(?,?,?,?,?,?,?,?,?,?,?,?)",(uuid.uuid4().hex,task_id,ord2,"assistant",assistant,now2,"ready",worker_rev,json.dumps(scope),json.dumps(manifest),provider,model)),
+     ("UPDATE ai_tasks SET status=?,updated=?,summary=?,proposal_json=?,result_markdown=?,error_detail=NULL,evidence_revision=? WHERE task_id=?",(status,now2,summary,proposal,result,worker_rev,task_id))
     ],True)
-    self.m.event("ai_task_complete","AI task completed: "+task["task_type"],None,None,"INFO",{"task_id":task_id,"task_type":task["task_type"],"status":status,"evidence_revision":rev})
+    self.m.event("ai_task_complete","AI task completed: "+task["task_type"],None,None,"INFO",{"task_id":task_id,"task_type":task["task_type"],"status":status,"evidence_revision":worker_rev})
    except Exception as e:
     now2=time.time();ord2=self.next_ordinal(task_id)
     self.s.tx([
-     ("INSERT INTO ai_turns(turn_id,task_id,ordinal,role,content,created,status,evidence_revision,scope_json,evidence_manifest_json,provider,model,error_detail) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?)",(uuid.uuid4().hex,task_id,ord2,"assistant","",now2,"failed",rev,json.dumps(scope),json.dumps(manifest),provider,model,str(e)[:2000])),
-     ("UPDATE ai_tasks SET status='failed',updated=?,error_detail=? WHERE task_id=?",(now2,str(e)[:2000],task_id))
+     ("UPDATE ai_turns SET status='failed',evidence_revision=?,evidence_manifest_json=?,error_detail=? WHERE turn_id=?",(worker_rev,json.dumps(manifest),str(e)[:2000],turn_id)),
+     ("INSERT INTO ai_turns(turn_id,task_id,ordinal,role,content,created,status,evidence_revision,scope_json,evidence_manifest_json,provider,model,error_detail) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?)",(uuid.uuid4().hex,task_id,ord2,"assistant","",now2,"failed",worker_rev,json.dumps(scope),json.dumps(manifest),provider,model,str(e)[:2000])),
+     ("UPDATE ai_tasks SET status='failed',updated=?,error_detail=?,evidence_revision=? WHERE task_id=?",(now2,str(e)[:2000],worker_rev,task_id))
     ],True);self.m.event("ai_task_failed","AI task failed: "+task["task_type"],None,None,"ERROR",{"task_id":task_id,"error":str(e)[:500]})
    finally:
     with self.lock:self.runs.pop(task_id,None)
