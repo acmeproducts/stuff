@@ -260,3 +260,34 @@ Required positive records include: mic opened, mic muted by user, TTS started, S
 Required error or blocked records include: microphone permission denied, microphone open failed, socket unavailable, socket send failed, STT blocked because TTS is active, user mute blocked resume, TTS start failed, TTS playback failed, TTS cancelled, cue playback unavailable, resume timer cancelled or duplicated, transcript rejected, owner confidence below threshold, normalization failed, translation failed, and stale session result discarded. Expected blocking must be visibly different from an unexpected error.
 
 Acceptance additions: automated tests must assert at least one successful and one blocked/error log for every state transition; force microphone, socket, TTS, cue, routing, normalization, translation, and stale-session failures; verify log ordering and side/session attribution; verify a failed transition cannot silently leave the opposite state active. The debug panel must show outcome and reason, and copy/download must preserve them.
+
+
+### Design amendment: turn tones, echo filter and speaker routing (2026-09-23)
+
+This amendment supersedes conflicting lines above. Target remains **chat-test.html only** (lineage: chat-lab → chatlink-turn01-pre-base → chat-test). Goal: zero-friction conversation; anything the user must do to hold a normal conversation is a defect.
+
+**Input modes (device setting, "Microphone mode").**
+- `open` (default): both sides listen continuously. Each side's existing mic button is that side's mute. No asking, no tapping to talk. Typing does not close the microphones.
+- `ask`: the current behavior, kept intact: one owner, ask/allow permission, mic open until closed. Turn gating and the echo filter below apply in both modes.
+- A room whose North and South languages are the same cannot be routed by language, so it runs in `ask` mode automatically, with one visible note and a log record.
+
+**Turn gate (one device, one speaker).** The phone has one microphone and one speaker, so any read-aloud playback pauses STT submission for both sides. Microphones stay physically open. Captured frames during playback are replaced with silence on the socket (keeps the Deepgram connection alive) and are never kept, buffered or replayed. On playback end: wait the resume delay (default 300 ms), play the "speak" tone, and resume submission only after the tone finishes, so the tone never reaches STT. Duplicate or stale end callbacks are ignored.
+
+**Tones.** Played only when read-aloud is on for either side. They are soft, short (about 0.4 s), and distinct by pitch, not loudness. "Wait" is a descending two-note tone at TTS start; "speak" is an ascending two-note tone at resume. A low single "bong" means the app was unsure who spoke and put the text in a compose box. Settings: tones on/off, volume. Web Audio only, with no new dependency.
+
+**Speaker routing: all before normalization.** In `open` mode each side's socket listens in its own configured language on the same microphone. Finals arriving within a short window are grouped as one utterance and decided in this order:
+1. Echo filter: text matching something read aloud in the last 20 s is dropped (`transcript-rejected`, reason `echo`). Applies in both modes.
+2. Script: characters unique to one side's language (Thai, CJK, kana, Hangul, Arabic, Devanagari, Cyrillic) decide the owner.
+3. Language match and Deepgram confidence: a candidate is owned by the side whose language it was heard in; highest confidence wins.
+4. Ownership lock (1.5 s) keeps one utterance on one side; after it expires, turn order leans toward the other person.
+5. Still unsure (score below threshold or too close): the raw text goes into the likelier side's compose box unsent, and the "bong" plays (`low-confidence-owner`).
+
+Ownership metadata (side, generation, source/target language, time, confidence, TTS state, reason) is captured before `portal.submit`. Normalization, translation and storage stay unchanged downstream.
+
+**Logging.** Every event above records `ok`, `blocked` or `error` with side, generation, reason and before/after state, in the existing debug log. The debug panel gets Download next to Copy. No keys or audio are logged.
+
+**Removed.** The earlier "Queue until gap / Hold" playback experiment in chat-test.html is replaced by this design.
+
+**Status (2026-09-23).** Implemented directly in chat-test.html (single file, no build step). Automated gates pass: 18 controller tests; 13/13 Chatlink scenarios in ask mode; 11 unchanged + 3 new scenarios in open mode; 32/32 keyboard scenarios. The two ask-only mic scenarios are replaced in open mode by the new scenarios. chatlink-turn01-pre-base.html and donor files are unchanged. A device trial is pending.
+
+**Out of scope, recorded.** Voice fingerprinting (needs enrollment), mic-direction detection (browsers expose one channel), Deepgram auto-detect as the sole router (no Thai), buffering, PTT, new providers.

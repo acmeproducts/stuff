@@ -286,42 +286,212 @@ function translateWithRetry(text,from,to,retries){
 /* ===== bridge27: speakText ===== */
 function speakText(text,lang){
   text=norm(text);if(!text||!window.speechSynthesis)return;
-  window.audioOverlap.enqueue(text,lang);
+  window.audioTurn.speak(text,lang);
 }
-/* Playback scheduling experiment: audio energy is NOT speaker identification. */
+/* ===== audio-turn: begin ===== */
+/* Audio turn control. One device = one microphone and one speaker, so any
+   read-aloud playback pauses STT submission for BOTH sides. Frames captured
+   during playback are replaced with silence on the socket and never kept.
+   Speaker ownership is decided here, before normalization. */
 (function(){
- const synth=window.speechSynthesis, cancelNative=synth.cancel.bind(synth);
- let queue=[],current=null,lastVoice=0,mode='gaps',epoch=0,hold=false,lastError='';
- const status=()=>{const el=document.getElementById('audio-test-status');if(el)el.textContent=(current?'Playing':hold?'Playback held':'Listening')+' · '+queue.length+' queued'+(lastError?' · '+lastError:'');};
- function clear(){epoch++;queue=[];current=null;hold=false;cancelNative();status();}
- // All existing lifecycle cancellation paths also clear pending playback.
- synth.cancel=clear;
- function tick(){
-  if(current||hold||!queue.length||document.hidden)return;
-  if(mode==='gaps'&&Date.now()-lastVoice<900)return;
-  const item=queue.shift(),token=epoch,u=new SpeechSynthesisUtterance(item.text);
-  current=u;u.lang=gL(item.lang).tts;
-  const done=()=>{if(token!==epoch||current!==u)return;current=null;lastVoice=Date.now();status();};
-  u.onend=done;u.onerror=()=>{lastError='Playback failed; use message replay';done();};
-  try{synth.speak(u);}catch(e){u.onerror();}status();
+ const W=window,synth=W.speechSynthesis,cancelNative=synth?synth.cancel.bind(synth):function(){};
+ const SIDES=['south','north'],CFG_KEY='chat_test_audio';
+ const DEF={mode:'open',tones:true,volume:0.12,resumeMs:300,threshold:0.55,margin:0.12,windowMs:700,lockMs:1500,turnMs:60000,echoMs:20000};
+ const LIFECYCLE=/^(owner portal|room switch|trash room|storage changed|hidden|pagehide|mic denied)$/;
+ const SCRIPT={th:'thai',zh:'han',ja:'kana',ko:'hangul',ar:'arabic',hi:'devanagari',ru:'cyrillic'};
+ const SCRIPT_RE={thai:/[฀-๿]/g,kana:/[぀-ヿ]/g,han:/[一-鿿]/g,hangul:/[가-힯ᄀ-ᇿ]/g,arabic:/[؀-ۿ]/g,devanagari:/[ऀ-ॿ]/g,cyrillic:/[Ѐ-ӿ]/g,latin:/[A-Za-zÀ-ɏ]/g};
+ let hooks=null,starting={},gen=1,muted={south:false,north:false},pend=null,last={side:null,ts:0},spoken=[],blockedLogged={},fallbackNoted='';
+ const tts={phase:'idle',token:0,timer:null};let cueUntil=0,actx=null;
+
+ function cfg(){let c={};try{c=JSON.parse(W.localStorage.getItem(CFG_KEY)||'{}')||{}}catch(_){}return Object.assign({},DEF,c)}
+ function saveCfg(p){const c=Object.assign(cfg(),p);try{W.localStorage.setItem(CFG_KEY,JSON.stringify(c))}catch(_){}return c}
+ function rec(ev,outcome,d){
+  const data=Object.assign({outcome:outcome,gen:gen},d||{});
+  log('audio:'+ev,data,outcome==='error'?'error':outcome==='blocked'?'warn':'ok');
+  if(hooks&&hooks.diag){const parts=Object.keys(data).filter(k=>k!=='outcome').map(k=>k+'='+(typeof data[k]==='string'?data[k].slice(0,40):data[k]));hooks.diag('audio '+ev+' ['+outcome+'] '+parts.join(' '),outcome==='error')}
  }
- window.audioOverlap={
-  enqueue(text,lang){text=norm(text);if(!text)return;if(queue.length>=20){lastError='Queue full; use message replay';status();return;}queue.push({text,lang});status();tick();},
-  observe(samples){let sum=0;for(let i=0;i<samples.length;i++)sum+=samples[i]*samples[i];if(samples.length&&Math.sqrt(sum/samples.length)>.025)lastVoice=Date.now();},
-  setMode(value){mode=value==='continuous'?'continuous':'gaps';status();},
-  toggleHold(){hold=!hold;if(hold&&current){epoch++;current=null;cancelNative();lastError='Interrupted audio remains available on its message';}status();},
-  clear,tick,state:()=>({mode,queued:queue.length,playing:!!current,hold})
- };
- setInterval(tick,100);
- document.addEventListener('DOMContentLoaded',()=>{
-  const bar=document.createElement('div');bar.id='audio-test-controls';
-  bar.style.cssText='position:fixed;bottom:3px;left:64px;right:4px;z-index:1000;font:11px system-ui;background:#fff;color:#123;border-radius:8px;padding:3px;display:flex;gap:4px;align-items:center';
-  bar.innerHTML='<label>Audio test <select aria-label="Audio test mode"><option value="gaps">Queue until gap</option><option value="continuous">Continuous + AEC</option></select></label><button type="button">Hold / resume</button><span id="audio-test-status" role="status"></span>';
-  bar.querySelector('select').onchange=e=>audioOverlap.setMode(e.target.value);
-  bar.querySelector('button').onclick=()=>audioOverlap.toggleHold();document.body.appendChild(bar);status();
- });
+ function langs(){return hooks?{south:hooks.langOf('south'),north:hooks.langOf('north')}:{south:'en',north:'en'}}
+ function openMode(){const l=langs();return cfg().mode==='open'&&l.south!==l.north}
+ function now(){return Date.now()}
+
+ /* ---------- tones: soft, short, distinct by pitch ---------- */
+ function ctx(){if(actx)return actx;const A=W.AudioContext||W.webkitAudioContext;if(!A)return null;try{actx=new A()}catch(_){actx=null}return actx}
+ const TONES={wait:[660,440],speak:[440,660],bong:[220]};
+ function cue(kind,done){
+  const c=cfg(),notes=TONES[kind],dur=notes.length*180+40;
+  if(!c.tones){done&&done();return}
+  const a=ctx();
+  if(!a){rec('cue-played','error',{cue:kind,reason:'cue-unavailable'});done&&done();return}
+  try{
+   if(a.state==='suspended'&&a.resume)a.resume();
+   const t0=a.currentTime+0.02;
+   notes.forEach((f,i)=>{const o=a.createOscillator(),g=a.createGain(),s=t0+i*0.18;o.type='sine';o.frequency.value=f;g.gain.setValueAtTime(0,s);g.gain.linearRampToValueAtTime(c.volume,s+0.02);g.gain.exponentialRampToValueAtTime(0.0001,s+(kind==='bong'?0.34:0.16));o.connect(g);g.connect(a.destination);o.start(s);o.stop(s+(kind==='bong'?0.36:0.17))});
+   cueUntil=Math.max(cueUntil,now()+dur+(kind==='bong'?200:0));
+   rec('cue-played','ok',{cue:kind});
+  }catch(e){rec('cue-played','error',{cue:kind,reason:'cue-failed'})}
+  setTimeout(()=>{done&&done()},dur+(kind==='bong'?200:0));
+ }
+
+ /* ---------- TTS turn gate ---------- */
+ function remember(text){spoken.push({text:text,ts:now()});spoken=spoken.filter(s=>now()-s.ts<cfg().echoMs).slice(-8)}
+ function speak(text,lang){
+  text=norm(text);if(!text)return;
+  if(!synth){rec('tts-start','error',{reason:'tts-unavailable'});return}
+  clearTimeout(tts.timer);tts.timer=null;
+  const token=++tts.token,before=tts.phase;tts.phase='playing';blockedLogged={};
+  remember(text);
+  rec('stt-submit-blocked','blocked',{reason:'tts-active',before:before,after:'playing'});
+  cue('wait',()=>{
+   if(token!==tts.token)return;
+   const u=new SpeechSynthesisUtterance(text);u.lang=gL(lang).tts;
+   u.onstart=()=>{if(token===tts.token)rec('tts-start','ok',{lang:lang})};
+   // Browsers sometimes never fire end; never leave STT blocked.
+   const guard=setTimeout(()=>{if(token===tts.token&&tts.phase==='playing'){cancelNative();end(token,'error','tts-timeout')}},Math.min(30000,2500+text.length*120));
+   tts.guard=guard;
+   u.onend=()=>end(token,'ok','completed');
+   u.onerror=e=>{const r=e&&e.error||'playback-failed';end(token,/interrupt|cancel/.test(r)?'blocked':'error',r)};
+   try{cancelNative();synth.speak(u)}catch(e){rec('tts-start','error',{reason:'speak-threw'});end(token,'error','speak-threw')}
+  });
+ }
+ function end(token,outcome,reason){
+  if(token!==tts.token||tts.phase!=='playing'){rec('tts-end','blocked',{reason:'stale-or-duplicate'});return}
+  clearTimeout(tts.guard);
+  rec(outcome==='ok'?'tts-completed':outcome==='blocked'?'tts-cancelled':'tts-failed',outcome,{reason:reason});
+  tts.phase='decay';
+  const ms=cfg().resumeMs;
+  tts.timer=setTimeout(()=>{
+   if(token!==tts.token){rec('resume-timer','blocked',{reason:'superseded'});return}
+   tts.timer=null;rec('resume-delay','ok',{ms:ms});tts.phase='cue';
+   cue('speak',()=>{
+    if(token!==tts.token){rec('resume-timer','blocked',{reason:'superseded'});return}
+    tts.phase='idle';
+    SIDES.forEach(s=>{if(openMode()&&muted[s])rec('stt-submit-resumed','blocked',{side:s,reason:'user-muted'})});
+    rec('stt-submit-resumed','ok',{before:'cue',after:'idle'});
+   });
+  },ms);
+ }
+ function cancel(reason){
+  if(tts.phase!=='idle'){tts.token++;clearTimeout(tts.timer);clearTimeout(tts.guard);tts.timer=null;const before=tts.phase;tts.phase='idle';rec('tts-cancelled','blocked',{reason:reason||'cancelled',before:before,after:'idle'});rec('stt-submit-resumed','ok',{reason:'cancelled'})}
+  cancelNative();
+ }
+ if(synth)synth.cancel=function(){cancel('lifecycle')};
+ function admit(side){
+  const ok=tts.phase==='idle'&&now()>=cueUntil;
+  if(!ok&&!blockedLogged[side]){blockedLogged[side]=1;rec('stt-submit-blocked','blocked',{side:side,reason:tts.phase==='idle'?'cue':'tts-'+tts.phase})}
+  if(ok&&blockedLogged[side]){delete blockedLogged[side]}
+  return ok;
+ }
+
+ /* ---------- routing: before normalization ---------- */
+ function clean(t){return String(t).toLowerCase().replace(/[\s\p{P}\p{S}]+/gu,' ').trim()}
+ function bigrams(t){const s=t.replace(/ /g,''),m={};for(let i=0;i<s.length-1;i++){const k=s.slice(i,i+2);m[k]=(m[k]||0)+1}return m}
+ function dice(a,b){const A=bigrams(a),B=bigrams(b);let n=0,na=0,nb=0;for(const k in A){na+=A[k];if(B[k])n+=Math.min(A[k],B[k])}for(const k in B)nb+=B[k];return na+nb?2*n/(na+nb):0}
+ function isEcho(text){const t=clean(text);if(t.length<2)return false;return spoken.some(s=>{if(now()-s.ts>cfg().echoMs)return false;const x=clean(s.text);return(t.length>=4&&x.includes(t))||dice(t,x)>=0.6})}
+ function scriptOf(text){let best=null,n=0;for(const k in SCRIPT_RE){const m=String(text).match(SCRIPT_RE[k]);const c=m?m.length:0;if(c>n){n=c;best=k}}return best}
+ function scriptSide(text){const sc=scriptOf(text);if(!sc)return null;const l=langs(),hit=SIDES.filter(s=>(SCRIPT[l[s]]||'latin')===sc||(sc==='han'&&l[s]==='ja'));return hit.length===1?hit[0]:null}
+ function langCode(lang,alt){let c=lang;if(!c&&alt&&Array.isArray(alt.languages)&&alt.languages[0])c=alt.languages[0];return c?String(c).toLowerCase().split('-')[0]:null}
+ function sideForLang(code){const l=langs();const hit=SIDES.filter(s=>l[s]===code);return hit.length===1?hit[0]:null}
+
+ function heard(pipe,text,lang,alt){
+  text=String(text||'').trim();if(!text)return;
+  const item={pipe:pipe,text:text,lang:langCode(lang,alt),conf:alt&&typeof alt.confidence==='number'?alt.confidence:0.5,ts:now(),tts:tts.phase,gen:gen};
+  rec('transcript-accepted','ok',{side:pipe,lang:item.lang||'?',conf:+item.conf.toFixed(2),tts:item.tts});
+  if(!openMode()){
+   if(isEcho(text)){rec('transcript-rejected','blocked',{side:pipe,reason:'echo'});return}
+   deliver(pipe,item,'owner');return;
+  }
+  const running=SIDES.filter(s=>hooks&&hooks.mic[s]&&hooks.mic[s].on);
+  if(running.length===1&&running[0]===pipe){
+   if(isEcho(text)){rec('transcript-rejected','blocked',{side:pipe,reason:'echo'});return}
+   deliver(pipe,item,'only-open-side');return;
+  }
+  if(!pend)pend={gen:gen,items:[],timer:setTimeout(decide,cfg().windowMs)};
+  pend.items.push(item);
+ }
+ function decide(){
+  const p=pend;pend=null;if(!p)return;
+  if(p.gen!==gen){rec('stale-session','blocked',{reason:'discarded',items:p.items.length});return}
+  if(p.items.some(i=>isEcho(i.text))){rec('transcript-rejected','blocked',{reason:'echo',items:p.items.length});return}
+  const c=cfg(),t=now(),score={},best={};
+  p.items.forEach(i=>{
+   const ss=scriptSide(i.text);let owner=sideForLang(i.lang)||ss;if(!owner)return;
+   let s=i.conf;if(ss)s+=ss===owner?0.3:-0.6;
+   if(score[owner]==null||s>score[owner]){score[owner]=s;best[owner]=i}
+  });
+  if(last.side){const age=t-last.ts;if(age<c.lockMs&&score[last.side]!=null)score[last.side]+=0.15;else{const o=last.side==='south'?'north':'south';if(age<c.turnMs&&score[o]!=null)score[o]+=0.05}}
+  const ranked=Object.keys(score).sort((a,b)=>score[b]-score[a]);
+  const top=ranked[0],second=ranked[1];
+  if(top&&score[top]>=c.threshold&&(!second||score[top]-score[second]>=c.margin)){deliver(top,best[top],'scored',{score:+score[top].toFixed(2),runnerUp:second?+score[second].toFixed(2):null});return}
+  const side=top||p.items[0].pipe,item=best[side]||p.items[0];
+  rec('low-confidence-owner','blocked',{side:side,score:top?+score[top].toFixed(2):null,runnerUp:second?+score[second].toFixed(2):null,reason:'placed-in-compose'});
+  if(hooks)hooks.compose(side,item.text);
+  cue('bong');
+ }
+ function deliver(side,item,reason,extra){
+  if(item.gen!==gen){rec('stale-session','blocked',{side:side,reason:'discarded'});return}
+  const l=langs();
+  rec('transcript-routed','ok',Object.assign({side:side,reason:reason,src:l[side],tgt:l[side==='south'?'north':'south'],conf:+item.conf.toFixed(2),tts:item.tts},extra||{}));
+  last={side:side,ts:now()};
+  if(hooks)hooks.send(side,item.text);
+ }
+
+ /* ---------- microphones: open mode keeps both listening ---------- */
+ function roomReady(){const b=document.body;return !!b&&!b.classList.contains('cl-open')&&!b.classList.contains('cl-empty-room')&&!document.hidden}
+ function sync(){
+  if(!hooks)return;
+  const l=langs(),key=l.south+'|'+l.north;
+  if(cfg().mode==='open'&&l.south===l.north&&roomReady()&&fallbackNoted!==key){fallbackNoted=key;rec('mode-fallback','blocked',{reason:'same-language-room',mode:'ask'});hooks.toast('Same language on both sides: tap a mic to talk')}
+  if(!openMode())return;
+  const ready=roomReady();
+  SIDES.forEach(s=>{
+   const P=hooks.mic[s],want=ready&&!muted[s];
+   if(want&&!P.on&&!starting[s]){starting[s]=1;P.start().then(()=>{delete starting[s];rec('mic-open','ok',{side:s});if(!(roomReady()&&openMode()&&!muted[s]))P.hardStop()}).catch(e=>{delete starting[s];const denied=e&&e.name==='NotAllowedError';rec('mic-open','error',{side:s,reason:denied?'permission-denied':'open-failed'});muted[s]=true;hooks.paint(s,false)})}
+   if(!want&&P.on)P.hardStop();
+  });
+  SIDES.filter(s=>!(ready&&!muted[s])).forEach(s=>hooks.paint(s,false));
+  SIDES.filter(s=>ready&&!muted[s]).forEach(s=>hooks.paint(s,true));
+ }
+ function toggleMute(side){
+  if(!openMode())return false;
+  const before=muted[side]?'muted':'open';muted[side]=!muted[side];
+  rec('user-mute','ok',{side:side,before:before,after:muted[side]?'muted':'open'});
+  sync();return true;
+ }
+ function wantsMic(side){return openMode()&&roomReady()&&!muted[side]}
+ function keepsMic(why){return openMode()&&!LIFECYCLE.test(why)}
+ function afterTeardown(why){
+  if(LIFECYCLE.test(why)){gen++;if(pend){clearTimeout(pend.timer);rec('stale-session','blocked',{reason:'discarded',items:pend.items.length});pend=null}last={side:null,ts:0};if(why==='room switch'){muted={south:false,north:false}}}
+  sync();
+ }
+
+ /* ---------- settings ---------- */
+ function settingsUI(f){
+  const c=cfg(),el=(t,x,cls)=>{const e=document.createElement(t);if(x!=null)e.textContent=x;if(cls)e.className=cls;return e};
+  const m=el('label','Microphone mode','cl-field'),sel=el('select');[['open','Both open, app decides who spoke'],['ask','Ask to talk, mic open until closed']].forEach(o=>{const x=el('option',o[1]);x.value=o[0];sel.appendChild(x)});sel.value=c.mode;m.appendChild(sel);f.appendChild(m);
+  const t=el('label','Turn tones','cl-field'),tsel=el('select');[['on','On'],['off','Off']].forEach(o=>{const x=el('option',o[1]);x.value=o[0];tsel.appendChild(x)});tsel.value=c.tones?'on':'off';t.appendChild(tsel);f.appendChild(t);
+  const v=el('label','Tone volume','cl-field'),vin=el('input');vin.type='range';vin.min='0.02';vin.max='0.4';vin.step='0.02';vin.value=String(c.volume);v.appendChild(vin);f.appendChild(v);
+  const d=el('label','Pause after read-aloud (ms)','cl-field'),din=el('input');din.type='number';din.min='0';din.max='2000';din.step='50';din.value=String(c.resumeMs);d.appendChild(din);f.appendChild(d);
+  return {mode:sel,tones:tsel,volume:vin,resume:din};
+ }
+ function saveSettings(ui){
+  if(!ui)return;
+  const c=saveCfg({mode:ui.mode.value==='ask'?'ask':'open',tones:ui.tones.value!=='off',volume:Math.max(0.02,Math.min(0.4,Number(ui.volume.value)||DEF.volume)),resumeMs:Math.max(0,Math.min(2000,Number(ui.resume.value)||0))});
+  rec('settings-saved','ok',{mode:c.mode,tones:c.tones,resumeMs:c.resumeMs});
+  if(hooks&&c.mode==='ask')SIDES.forEach(s=>{if(hooks.mic[s].on&&!hooks.ownsMic(s))hooks.mic[s].hardStop();hooks.paint(s,hooks.ownsMic(s))});
+ }
+ function note(stage,outcome,d){rec(stage,outcome,d)}
+
+ W.audioTurn={bind(h){hooks=h;sync()},speak,cancel,admit,heard,decide,sync,toggleMute,wantsMic,keepsMic,afterTeardown,settingsUI,saveSettings,note,isEcho,scriptSide,cfg,
+  state:()=>({phase:tts.phase,gen:gen,muted:Object.assign({},muted),pending:pend?pend.items.length:0,open:openMode(),last:Object.assign({},last)})};
+ if(document&&document.addEventListener){
+  const wake=()=>{const a=ctx();if(a&&a.state==='suspended'&&a.resume)a.resume();if(hooks)SIDES.forEach(s=>{const c=hooks.mic[s]&&hooks.mic[s].audioCtx;if(c&&c.state==='suspended'&&c.resume)c.resume().then(()=>rec('mic-open','ok',{side:s,reason:'audio-resumed-on-tap'})).catch(()=>rec('mic-open','error',{side:s,reason:'audio-resume-failed'}))})};
+  document.addEventListener('pointerdown',wake,{capture:true,passive:true});
+  document.addEventListener('visibilitychange',()=>sync());
+  document.addEventListener('DOMContentLoaded',()=>{if(W.MutationObserver)new MutationObserver(()=>sync()).observe(document.body,{attributes:true,attributeFilter:['class']})});
+ }
 })();
 
+/* ===== audio-turn: end ===== */
 /* ===== bridge27: GEN ===== */
 var GEN = {
   n: 1,
@@ -933,7 +1103,7 @@ function dgLangParam(room) {
 
                     function pump(f){
                         if(!live()||P.ws.readyState!==1||!P.on)return;
-                        window.audioOverlap.observe(f);
+                        if(!window.audioTurn.admit(side)){var z=new Int16Array(f.length);P.ws.send(z.buffer);if(P.enWs&&P.enWs.readyState===1)P.enWs.send(z.buffer);return}
                         var b=new Int16Array(f.length);
                         for(var i=0;i<f.length;i++){var s=Math.max(-1,Math.min(1,f[i]));b[i]=s<0?s*0x8000:s*0x7FFF}
                         P.ws.send(b.buffer);
@@ -975,10 +1145,10 @@ function dgLangParam(room) {
                                If the English channel returns something substantial inside the
                                window, the native text was phonetic nonsense and gets dropped. */
                             dgArbitrateNative(t,function(held){
-                                if(live())onFinal(held,dgUseMulti(room)?null:room.myLang);
+                                if(live())onFinal(held,dgUseMulti(room)?null:room.myLang,alt);
                             });
                         }else{
-                            onFinal(t,dgUseMulti(room)?null:room.myLang);
+                            onFinal(t,dgUseMulti(room)?null:room.myLang,alt);
                         }
                     }
                 }catch(e2){}
@@ -1014,7 +1184,7 @@ function dgLangParam(room) {
                         var verdict=dgArbitrateEnglish(alt.transcript);
                         if(verdict==='ignored')return;
                         /* language known by construction: this channel hears only English */
-                        if(live())onFinal(String(alt.transcript).trim(),'en');
+                        if(live())onFinal(String(alt.transcript).trim(),'en',alt);
                     }catch(_){}
                 };
                 P.enWs.onerror=function(){if(P.enWs===enSock)diag(side+': english channel error',true)};
@@ -1076,7 +1246,7 @@ function dgLangParam(room) {
     function teardown(why){
         clearMicIdle();
         ['south','north'].forEach(function(s){
-            if(mic[s])mic[s].hardStop();
+            if(mic[s]&&!window.audioTurn.keepsMic(why))mic[s].hardStop();
             hideKeyboard(s);
             paintIdle(s);
         });
@@ -1084,6 +1254,7 @@ function dgLangParam(room) {
         try{if(window.speechSynthesis)speechSynthesis.cancel()}catch(e){}
         clearAsk();
         diag('teardown ('+why+')');
+        window.audioTurn.afterTeardown(why);
     }
 
     function acquire(side,mode,why){
@@ -1096,6 +1267,7 @@ function dgLangParam(room) {
             showKeyboard(side);
         }
         paintActive(side,mode);
+        window.audioTurn.sync();
         diag('acquire '+side+'/'+mode+(why?' ('+why+')':''));
     }
 
@@ -1354,7 +1526,7 @@ function dgLangParam(room) {
     var candidateTxn={south:null,north:null},compAnchor={south:null,north:null};
     var pendingConversion={south:null,north:null},undoEdit={south:null,north:null};
     var predictionTxn={south:null,north:null};
-    var CHAT_BUILD='chat-test-audio-r1';
+    var CHAT_BUILD='chat-test-audio-r2';
     var UNDO_LABEL={en:'Undo',th:'เลิกทำ',es:'Deshacer',fr:'Annuler',de:'Rückgängig',
         it:'Annulla',pt:'Desfazer',nl:'Ongedaan maken',sv:'Ångra',pl:'Cofnij',tr:'Geri al',
         ru:'Отменить',ar:'تراجع',hi:'पूर्ववत करें',vi:'Hoàn tác',id:'Urungkan',ms:'Buat asal',
@@ -2103,7 +2275,7 @@ function dgLangParam(room) {
 
         strip.querySelector('.micbtn').addEventListener('click',function(){
             if(INPUT.owner===side&&INPUT.mode==='mic')teardown('mic-toggle-off');
-            else requestInput(side,'mic');
+            else if(!window.audioTurn.toggleMute(side))requestInput(side,'mic');
         });
         strip.querySelector('.sendbtn').addEventListener('click',function(){sendTyped(side)});
         strip.querySelector('.clearbtn').addEventListener('click',function(){
@@ -2166,8 +2338,8 @@ function dgLangParam(room) {
 
         ['south','north'].forEach(function(s){
             buildStrip(s);
-            mic[s]=createMicPipeline(s,function(text,lang){
-                sendFrom(s,text,true);       // keepMic: a pause is not end-of-turn
+            mic[s]=createMicPipeline(s,function(text,lang,alt){
+                window.audioTurn.heard(s,text,lang,alt);       // routed; keepMic: a pause is not end-of-turn
                 armMicIdle(s);               // but sustained silence IS — re-arm the idle clock
             });
             var ov=document.getElementById('ask-'+s);
@@ -2175,6 +2347,11 @@ function dgLangParam(room) {
             ov.querySelector('.ask-no').addEventListener('click',function(){resolveAsk(false)});
         });
 
+        window.audioTurn.bind({mic:mic,langOf:langOf,diag:diag,toast:toastMsg,
+            send:function(side,text){sendFrom(side,text,true)},
+            ownsMic:function(side){return INPUT.owner===side&&INPUT.mode==='mic'},
+            paint:function(side,on){if(on)paintActive(side,'mic');else{var m=document.querySelector('#strip-'+side+' .micbtn');if(m){m.classList.add('off');m.dataset.on='false';m.dataset.owned='false'}}},
+            compose:function(side,text){var i=inputEl(side);i.value=i.value?i.value.replace(/\s+$/,'')+' '+text:text;resetComposition(side);changedDraft(side);updateClear(side)}});
         document.getElementById('dg-close').addEventListener('click',function(){
             document.getElementById('diag-panel').classList.remove('show')});
         document.getElementById('dg-copy').addEventListener('click',function(){
@@ -2281,7 +2458,7 @@ var portal=(function(){
   candidates.forEach(function(r){host.appendChild(node('p',title(r)+' · '+pair(r)+' · '+r.messages.length+' messages','cl-note'))});var importButton=button('Import '+candidates.length+' conversations',async function(){requireWriter();importButton.disabled=true;try{await new Promise(function(resolve,reject){var tx=db.transaction('rooms','readwrite'),s=tx.objectStore('rooms');candidates.forEach(function(r){var q=s.get(r.id);q.onsuccess=function(){if(!q.result)s.put(r)}});tx.oncomplete=resolve;tx.onabort=function(){reject(tx.error)};});await list();toastMsg('Conversations imported');}finally{importButton.disabled=false;}},'cl-primary');host.append(importButton,button('Cancel',function(){return settings()}));
  }
  async function settings(){view='settings';clearError();$('cl-heading').textContent='Device settings';var f=node('div');$('cl-body').replaceChildren(f);f.appendChild(node('p','Speech settings stay on this browser. No key is included in conversation data.','cl-note'));var key=field(f,'Deepgram key',dgKey(),'password');key.autocomplete='off';f.appendChild(node('p',dgKey()?'Speech key is configured.':'Add a Deepgram key to enable speech input.','cl-note'));var h=node('label','Keyboard vibration','cl-field'),sel=node('select');['off','light','medium','strong'].forEach(function(v){var o=node('option',v);o.value=v;sel.appendChild(o)});try{sel.value=localStorage.getItem('duck_haptic')||'medium'}catch(e){}h.appendChild(sel);f.appendChild(h);
-  f.appendChild(button('Save device settings',function(){requireWriter();if(key.value.trim())localStorage.setItem('tb_dg_key',key.value.trim());localStorage.setItem('duck_haptic',sel.value);toastMsg('Device settings saved');return list()},'cl-primary'));
+  var audioUI=window.audioTurn.settingsUI(f);f.appendChild(button('Save device settings',function(){requireWriter();window.audioTurn.saveSettings(audioUI);if(key.value.trim())localStorage.setItem('tb_dg_key',key.value.trim());localStorage.setItem('duck_haptic',sel.value);toastMsg('Device settings saved');return list()},'cl-primary'));
   f.appendChild(node('p','Conversations are stored in this browser on this device. Clearing browser data removes them.','cl-note'));
   f.appendChild(button('Import from chat-admin / lab',importLegacy));
   f.appendChild(button('Export conversations',async function(){var all=await read('rooms');var data=JSON.stringify({format:'chatlink-audio-test',version:1,exportedAt:new Date().toISOString(),rooms:all},null,2);var a=node('a');a.href=URL.createObjectURL(new Blob([data],{type:'application/json'}));a.download='chatlink-conversations.json';a.click();setTimeout(function(){URL.revokeObjectURL(a.href)},1000)}));
@@ -2297,10 +2474,10 @@ var portal=(function(){
  }
  async function processMessage(ctx,id){var job=ctx.roomId+'|'+id;if(jobs.has(job))return;jobs.add(job);
   try{var room=await read('rooms',ctx.roomId),entry=room&&room.messages.find(function(m){return m.id===id});if(!entry||room.trashedAt)return;await refresh(ctx.roomId);
-   var normalized=await normalizeOutgoing({myLang:ctx.src,theirLang:ctx.tgt,myLangMode:'fixed'},entry.original||entry.text);
+   var normalized=await normalizeOutgoing({myLang:ctx.src,theirLang:ctx.tgt,myLangMode:'fixed'},entry.original||entry.text);window.audioTurn.note('normalization-completed','ok',{side:ctx.side,lang:normalized.lang});
    var saveNormalized=function(){return change('rooms',ctx.roomId,function(r){if(!r||r.trashedAt)return;var m=r.messages.find(function(m){return m.id===id});if(!m)return;m.text=normalized.text;m.src=normalized.lang;m.status='pending';return r})};
    if(!await track(saveNormalized(),saveNormalized))return;await refresh(ctx.roomId);
-   var tr=normalized.lang===ctx.tgt?{ok:true,text:normalized.text}:await translateWithRetry(normalized.text,normalized.lang,ctx.tgt,2);
+   var tr=normalized.lang===ctx.tgt?{ok:true,text:normalized.text}:await translateWithRetry(normalized.text,normalized.lang,ctx.tgt,2);window.audioTurn.note(tr&&tr.ok?'translation-completed':'translation-failed',tr&&tr.ok?'ok':'error',{side:ctx.side,tgt:ctx.tgt});
    var update=function(){return change('rooms',ctx.roomId,function(r){if(!r||r.trashedAt)return;var m=r.messages.find(function(m){return m.id===id});if(!m)return;m.tr=tr&&tr.ok?norm(tr.text):null;m.status=m.tr?'complete':'failed';return r})};
    if(!await track(update(),update))return;await refresh(ctx.roomId);if(active&&active.id===ctx.roomId&&generation===ctx.gen&&!opened&&tr.ok)speakIfOn(ctx.side,norm(tr.text),ctx.tgt);
   }finally{jobs.delete(job);if(active&&active.id===ctx.roomId)renderAll();}
@@ -2313,7 +2490,7 @@ var portal=(function(){
  function visible(){return !!active&&writer&&!opened}
  function guardMicrophoneStarts(){['south','north'].forEach(function(side){var p=mic[side],start=p.start,stop=p.hardStop,serial=Promise.resolve(),epoch=0;
   p.hardStop=function(){epoch++;stop();};
-  p.start=function(){var request=++epoch,room=active&&active.id,gen=generation;var current=function(){return epoch===request&&active&&active.id===room&&generation===gen&&visible()&&INPUT.owner===side&&INPUT.mode==='mic'};
+  p.start=function(){var request=++epoch,room=active&&active.id,gen=generation;var current=function(){return epoch===request&&active&&active.id===room&&generation===gen&&visible()&&(window.audioTurn.wantsMic(side)||INPUT.owner===side&&INPUT.mode==='mic')};
    var task=serial.then(function(){if(!current())return;return start().then(function(){if(!current())stop();},function(e){if(current())throw e;stop();});});serial=task.catch(function(){});return task;
   };
  });}
