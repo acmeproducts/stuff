@@ -2,7 +2,7 @@
 
 Status: AUTHORITATIVE PRODUCT / BUILD / QUALIFICATION PLAN
 Updated: 2026-09-23
-Planning state: **ANALYTICAL REDESIGN PROGRAM — C4/C5/I1 PASS; TURN 27 PERSISTENT-INDEX CANDIDATE AWAITING BROWSER QUALIFICATION; TURN 26 RETAINED WORKING BASELINE**
+Planning state: **ANALYTICAL REDESIGN PROGRAM — C4/C5/I1 PASS; TURN 27 PERSISTENT-INDEX CANDIDATE QUALIFIED / AWAITING OWNER DISPOSITION; TURN 26 RETAINED WORKING BASELINE**
 Target artifact: **`market-navigator-turn27-pre-ship.html`**
 
 Next cumulative application artifact: **`market-navigator-turn27-pre-ship.html`**
@@ -1287,9 +1287,9 @@ The owner has delegated detailed dependency management to the governed program. 
 | C4 information time/vintage | **PASS WITH PROSPECTIVE-ONLY SOURCE** | Eleven FRED components passed ALFRED initial/revision timing and no-look-ahead qualification. HY spread `BAMLH0A0HYM2` is not available in ALFRED, so prelaunch history is labeled current-vintage retrospective backcast and post-launch truth requires prospective capture. |
 | C5 component registry | **PASS** | `MN-PERSISTENT-1.0.0` merges the frozen C3 scales with C4 availability modes. Seven fixed 1/7 coefficients per index; no reduced-set renormalization. |
 | I1 persistent index | **PASS** | Common anchor 2016-09-01 = 100; horizons are viewport-only; Rebase 100 is display-only; pre-effective history is `RETROSPECTIVE BACKCAST`; formula and contribution reconciliation passed. |
-| AI levels | **CANDIDATE IMPLEMENTED / AWAITING QUALIFICATION** | Turn 27 applies Plain / Standard / Technical as transformations of one governed analysis and evidence set. |
-| Tabbed navigation | **CANDIDATE IMPLEMENTED / AWAITING QUALIFICATION** | Turn 27 moves NOW / LIBRARY / HEALTH to the top row and keeps contextual controls below. |
-| Evidence/Library integration | **TURN 27 REQUALIFICATION PENDING** | Turn 26 invariants remain mandatory; the candidate must pass browser and deployed-origin journeys before owner testing. |
+| AI levels | **TURN 27 CANDIDATE QUALIFIED** | Plain / Standard / Technical passed as transformations of one governed analysis and evidence set. |
+| Tabbed navigation | **TURN 27 CANDIDATE QUALIFIED** | NOW / LIBRARY / HEALTH top navigation passed desktop/mobile browser qualification. |
+| Evidence/Library integration | **TURN 27 CANDIDATE QUALIFIED** | Retained Turn 26 Evidence, Analyze, Library, source-link, Print, Markdown, checkpoint, and revision journeys passed. |
 
 ### 40.1 Decisions that are now closed unless new evidence overturns them
 
@@ -1305,10 +1305,10 @@ Do not reopen casually:
 
 ### 40.2 Next managed actions
 
-1. Qualify the exact Turn 27 candidate built from the immutable Turn 26 blob `fc61e29d76f1a7ecf1226f74e0884865dca04684`.
-2. Validate persistent chart identity across horizons, native-value explanation arithmetic, Health, Evidence, Library, AI interpretation levels, and top navigation on desktop and mobile.
-3. Require deterministic rebuild, static syntax, full browser QA, Pages deployment, deployed byte identity, and live-origin smoke tests before handing the URL to the owner.
-4. Keep Turn 26 as the working baseline until the owner accepts Turn 27. A rejection ends this candidate lineage under the clean-baseline protocol.
+1. Owner tests the qualified Turn 27 candidate URL and returns accept/reject disposition.
+2. If accepted, promote the exact qualified artifact without rebuilding or changing bytes.
+3. If rejected, record the failure and end this candidate lineage under the clean-baseline protocol.
+4. Keep Turn 26 as the working baseline until owner acceptance.
 
 
 
@@ -1339,7 +1339,7 @@ Current successor candidate:
 - `market-navigator-turn27-pre-ship.html`
 - built only from the immutable Turn 26 blob above;
 - persistent model version `MN-PERSISTENT-1.0.0`;
-- not production or accepted until exact-candidate browser/deployment qualification and owner disposition.
+- browser/deployment qualified at commit `c139bd45ef1fae70c4af93f050927b6dae61972d`; awaiting owner disposition.
 
 ### 41.2 End goal
 
@@ -1435,21 +1435,21 @@ At this handoff:
 | C4 — information time/vintage | **PASS WITH PROSPECTIVE-ONLY SOURCE** | Eleven FRED components passed vintage/no-look-ahead checks; HY spread is not in ALFRED and therefore uses explicit retrospective/prospective-only handling. |
 | C5 — component registry approval | **PASS** | C3 scale records and C4 availability records merged; fixed seven-component participation is approved. |
 | I1 — persistent-index specification | **PASS** | Persistent fixed-anchor series, viewport-only horizons, display-only Rebase 100, and contribution reconciliation are qualified. |
-| AI Plain/Standard/Technical | **CANDIDATE IMPLEMENTED** | Turn 27 implementation awaits exact-candidate browser qualification. |
-| Tabbed navigation | **CANDIDATE IMPLEMENTED** | Turn 27 top navigation awaits desktop/mobile qualification. |
-| Evidence/Library | **TURN 27 REQUALIFICATION PENDING** | Existing Turn 26 capability remains mandatory. |
+| AI Plain/Standard/Technical | **TURN 27 CANDIDATE QUALIFIED** | Same-evidence interpretation controls passed browser qualification. |
+| Tabbed navigation | **TURN 27 CANDIDATE QUALIFIED** | Top navigation passed mobile browser geometry and journey checks. |
+| Evidence/Library | **TURN 27 CANDIDATE QUALIFIED** | Retained capability journeys passed; owner disposition remains. |
 
 ### 41.7 Immediate next work
 
-The successor session should begin with **Turn 27 exact-candidate qualification**, not new feature work.
+The successor session should begin with **Turn 27 owner disposition**, not new feature work.
 
-Required outputs:
+Completed qualification evidence:
 
-1. deterministic rebuild of the persistent index evidence, compatibility evidence, and candidate HTML;
-2. persistent-index QA proving formula replication, seven-component completeness, contribution reconciliation, horizon invariance, and Rebase 100 isolation;
-3. browser QA covering the retained Turn 26 journeys plus Turn 27 model version, top navigation, native-value explanations, and Plain / Standard / Technical controls;
-4. deployed byte identity and Pages-origin smoke tests;
-5. a test URL for owner accept/reject disposition.
+1. deterministic persistent evidence / compatibility / candidate rebuild — PASS;
+2. formula replication, seven-component completeness, contribution reconciliation, horizon invariance, and Rebase 100 isolation — PASS;
+3. retained Turn 26 journeys plus Turn 27 model version, native-value explanations, fixed coefficients, Plain / Standard / Technical, and top navigation — PASS;
+4. Pages deployment and exact 236,942-byte live identity — PASS;
+5. next gate — owner accept/reject disposition of the deployed candidate.
 
 Do not reopen C1–C5 or I1 unless qualification produces contrary evidence. Do not mutate the accepted Turn 26 artifact.
 
