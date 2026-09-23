@@ -3,7 +3,7 @@ import importlib.util,json,os,sys,time,mimetypes,subprocess,hashlib,shutil,uuid,
 from http.server import ThreadingHTTPServer,BaseHTTPRequestHandler
 from pathlib import Path
 HERE=Path(__file__).resolve().parent;sp=importlib.util.spec_from_file_location("sotreleased",HERE/"sot-turn02-release-d-engine.py");m=importlib.util.module_from_spec(sp);sys.modules[sp.name]=m;sp.loader.exec_module(m)
-S=m.Store();M=m.Manager(S,workers=max(2,min(8,os.cpu_count() or 4)),queue_capacity=128,max_active_jobs=max(1,int(os.environ.get("SOT_MAX_ACTIVE_JOBS","2"))))
+S=m.Store();M=m.Manager(S,workers=max(2,min(8,os.cpu_count() or 4)),queue_capacity=128,max_active_jobs=max(1,int(os.environ.get("SOT_MAX_ACTIVE_JOBS","4"))))
 asp=importlib.util.spec_from_file_location("sotreleasedai",HERE/"sot-turn02-release-d-ai.py");ai_mod=importlib.util.module_from_spec(asp);sys.modules[asp.name]=ai_mod;asp.loader.exec_module(ai_mod)
 AI=None
 TARGET_FILE=Path.home()/".sot-turn02"/"target.json"
@@ -596,7 +596,7 @@ class H(BaseHTTPRequestHandler):
    if p=="/api/health":
     return self.sendj({"ok":True,"version":m.VERSION,"schema":m.SCHEMA,"process":"healthy","db":S.db_probe(.10),"writer_queue":S.q.qsize(),"writer_error":S.last_writer_error,"creation_revision":creation_revision(),"catalog_revision":catalog_revision(),"time":time.time()})
    if p=="/api/job/latest":return self.sendj({"ok":True,"snapshot":latest()})
-   if p=="/api/jobs":return self.sendj({"ok":True,"jobs":M.list_jobs(100)})
+   if p=="/api/jobs":return self.sendj({"ok":True,"jobs":M.list_jobs(100),"scheduler":M.scheduler_status()})
    if p=="/api/job":
     jid=parse_qs(u.query).get("id",[""])[0];z=M.snapshot(jid);return self.sendj({"ok":True,"job":z}) if z else self.sendj({"ok":False,"error":"job not found"},404)
    if p=="/api/ai/compare/jobs":
@@ -705,7 +705,7 @@ class H(BaseHTTPRequestHandler):
     if not any(parent==r or str(parent).startswith(str(r).rstrip("/")+"/") for r in volume_roots()):raise RuntimeError("Parent is not on an available volume")
     child=parent/name;child.mkdir(exist_ok=False);return self.sendj({"ok":True,"folder":{"name":child.name,"path":str(child.resolve())}})
    if p in ("/api/job/start","/api/job/enqueue"):
-    ids=b.get("source_ids");reconcile_sources(ids);jid=M.enqueue(ids);return self.sendj({"ok":True,"job_id":jid,"job":M.snapshot(jid)})
+    ids=b.get("source_ids");reconcile_sources(ids);info=M.enqueue_info(ids);jid=info.get("job_id");return self.sendj({"ok":True,**info,"job":M.snapshot(jid) if jid else None,"scheduler":M.scheduler_status()})
    if p=="/api/job/kickoff":
     roots=b.get("roots") or []
     if not roots:raise RuntimeError("Select at least one Estate root")
@@ -717,11 +717,17 @@ class H(BaseHTTPRequestHandler):
      else:
       label=str(raw.get("label") or Path(root).name or root);sid=M.add_source(label,root,raw.get("failure_domain",root),raw.get("role","primary"),raw.get("estate") or label);M.event("source_registered","Estate source registered",None,sid,"INFO",{"root":root,"estate":raw.get("estate") or label});created.append(sid)
      ids.append(sid)
-    S.drain(10);reconcile_sources(ids);jid=M.enqueue(ids);return self.sendj({"ok":True,"job_id":jid,"source_ids":ids,"created_source_ids":created,"job":M.snapshot(jid)})
+    S.drain(10);reconcile_sources(ids);info=M.enqueue_info(ids);jid=info.get("job_id");return self.sendj({"ok":True,**info,"source_ids":ids,"created_source_ids":created,"job":M.snapshot(jid) if jid else None,"scheduler":M.scheduler_status()})
    if p=="/api/job/control":
     jid=str(b.get("job_id",""));M.control(jid,str(b.get("action","")));return self.sendj({"ok":True,"job":M.snapshot(jid)})
    if p=="/api/job/restart":
-    jid=M.restart(str(b.get("job_id","")));return self.sendj({"ok":True,"job_id":jid,"job":M.snapshot(jid)})
+    info=M.restart_info(str(b.get("job_id","")));jid=info.get("job_id");return self.sendj({"ok":True,**info,"job":M.snapshot(jid) if jid else None,"scheduler":M.scheduler_status()})
+   if p=="/api/scheduler/control":
+    action=str(b.get("action","")).lower()
+    if action in ("pause","pause_all"):state=M.pause_all()
+    elif action in ("start","resume","start_all","resume_all"):state=M.resume_all()
+    else:raise RuntimeError("scheduler action must be start or pause")
+    return self.sendj({"ok":True,"scheduler":state,"jobs":M.list_jobs(100)})
    if p=="/api/ai/task/create":return self.sendj({"ok":True,"task":get_ai().create(b["task_type"],b.get("scope"),b.get("title"))})
    if p=="/api/ai/task/title":return self.sendj({"ok":True,"task":get_ai().title(str(b.get("task_id","")),b.get("title"))})
    if p=="/api/ai/task/scope":
