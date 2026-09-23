@@ -10,6 +10,7 @@ on:
       - sot-release-d-job-queue
       - sot-release-d-volume-recovery
       - sot-release-d-queue-state
+      - sot-release-d-parallel-queue-observability
     paths:
       - 'SOT/sot-turn02-release-d-engine.py'
       - 'SOT/sot-turn02-release-d-ai.py'
@@ -66,6 +67,33 @@ jobs:
           print("PASS Release D verified-mount Windows identity contract")
           PY
 
+      - name: Release D scheduler concurrency contract
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+          engine=Path("SOT/sot-turn02-release-d-engine.py").read_text()
+          server=Path("SOT/sot-turn02-release-d-server.py").read_text()
+          service=Path("SOT/sot-turn02-release-d.service").read_text()
+          required_engine=[
+            "max_active_jobs=4",
+            "def enqueue_info",
+            "def pause_all",
+            "def resume_all",
+            "suppressed_source_count",
+            "overlap_source_count",
+            "known_remaining_files",
+            "heartbeat=tick",
+          ]
+          missing=[x for x in required_engine if x not in engine]
+          assert not missing,missing
+          assert '/api/scheduler/control' in server
+          assert 'SOT_MAX_ACTIVE_JOBS","4"' in server
+          assert 'Environment=SOT_MAX_ACTIVE_JOBS=4' in service
+          print("PASS Release D parallel scheduler + dedupe + heartbeat contract")
+          PY
+
       - name: Release D browser syntax and contract
         shell: bash
         run: |
@@ -94,6 +122,17 @@ jobs:
             "setJobLogOpen",
             "restoreJobLogUi",
             "Restart unavailable · no persisted source scope",
+            "Pause All",
+            "Start All",
+            "schedulerToggle",
+            "captureAnalyzeUi",
+            "jobContents",
+            "Queue overlap:",
+            "known remaining",
+            "compareLogOpen",
+            "Deterministic outcome",
+            "ffmpeg PASS",
+            "Job content · ",
           ]
           missing=[x for x in required if x not in s]
           assert not missing,missing
