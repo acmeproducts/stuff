@@ -260,8 +260,8 @@ WHERE NOT EXISTS (SELECT 1 FROM job_scope_sources x WHERE x.job_id=js.job_id AND
   t=threading.Thread(target=f,daemon=True);t.start();t.join(timeout);return out
  def close(self):self.drain();self.stop.set();self.t.join(2)
 class Manager:
- def __init__(self,store,workers=8,queue_capacity=128,stall_seconds=30,max_active_jobs=2):
-  self.s=store;self.workers=workers;self.capacity=queue_capacity;self.stall=stall_seconds;self.max_active_jobs=max(1,int(max_active_jobs));self.runs={};self.lock=threading.RLock()
+ def __init__(self,store,workers=8,queue_capacity=128,stall_seconds=30,max_active_jobs=4):
+  self.s=store;self.workers=max(1,int(workers));self.capacity=queue_capacity;self.stall=stall_seconds;self.max_active_jobs=max(1,int(max_active_jobs));self.runs={};self.lock=threading.RLock();self.scheduler_paused=False;self.last_scheduler_error=None
   now=time.time();self.s.submit("UPDATE jobs SET state='INTERRUPTED',ended=?,control='INTERRUPTED' WHERE state IN ('RUNNING','PAUSED','STOPPING')",(now,),True);self.s.submit("UPDATE job_sources SET state='INTERRUPTED',active_workers=0,queue_depth=0 WHERE state IN ('RUNNING','PAUSED','STOPPING')",(),True)
   self.seq_lock=threading.Lock();self.next_no=(self.s.rows("SELECT COALESCE(MAX(placement_no),0)+1 n FROM placements")[0]["n"])
   self.recompute_classifications()
@@ -274,19 +274,74 @@ class Manager:
    if missing:raise RuntimeError("Unknown or disabled source(s): "+", ".join(sorted(missing)))
   if not rows:raise RuntimeError("no enabled sources")
   return rows
- def _enqueue_snapshots(self,rows,parent_job_id=None,title=None):
+ def _live_source_coverage(self):
+  rows=self.s.rows("""SELECT j.job_id,j.state,j.created,sc.source_id
+                     FROM jobs j JOIN job_scope_sources sc ON sc.job_id=j.job_id
+                     WHERE j.deleted=0 AND j.job_type='analysis' AND j.state IN ('QUEUED','RUNNING','PAUSED','STOPPING')
+                     ORDER BY j.created,j.job_id""")
+  by_source={}
+  for r in rows:by_source.setdefault(r["source_id"],[]).append(r["job_id"])
+  return by_source
+ def _dedupe_rows(self,rows):
+  uniq=[];seen=set()
+  for r in rows:
+   sid=r["source_id"]
+   if sid in seen:continue
+   seen.add(sid);uniq.append(r)
+  coverage=self._live_source_coverage();uncovered=[];covered={}
+  for r in uniq:
+   ids=coverage.get(r["source_id"],[])
+   if ids:covered[r["source_id"]]=ids
+   else:uncovered.append(r)
+  covering=sorted({jid for ids in covered.values() for jid in ids})
+  return uniq,uncovered,covered,covering
+ def _enqueue_snapshots(self,rows,parent_job_id=None,title=None,detail=None):
   rev=int(self.s.rows("SELECT COALESCE(MAX(revision),0)+1 n FROM jobs")[0]["n"]);jid=uuid.uuid4().hex;now=time.time()
   scope=[{"source_id":x["source_id"],"label":x["label"],"root":x["root"],"estate":x["estate"],"failure_domain":x["failure_domain"],"role":x["role"]} for x in rows]
   stmts=[("INSERT INTO jobs(job_id,revision,state,created,last_progress,control,job_type,title,scope_json,queued,deleted,parent_job_id,delete_requested) VALUES(?,?,'QUEUED',?,?, 'RUN','analysis',?,?,?,?,?,0)",(jid,rev,now,now,title or ("Analyze "+str(len(rows))+" source"+("" if len(rows)==1 else "s")),json.dumps(scope),now,0,parent_job_id))]
   for x in rows:stmts.append(("INSERT INTO job_scope_sources(job_id,source_id,label,root,estate,failure_domain,role) VALUES(?,?,?,?,?,?,?)",(jid,x["source_id"],x["label"],x["root"],x["estate"],x["failure_domain"],x["role"])))
-  self.s.tx(stmts,True);self.event("job_queued","Analysis job queued",jid,None,"INFO",{"source_count":len(rows),"roots":[x["root"] for x in rows]});self.s.drain(10)
+  self.s.tx(stmts,True);payload={"source_count":len(rows),"roots":[x["root"] for x in rows]};payload.update(detail or {});self.event("job_queued","Analysis job queued",jid,None,"INFO",payload);self.s.drain(10)
   return jid
+ def enqueue_info(self,source_ids=None,parent_job_id=None,title=None):
+  requested=self._snapshot_sources(source_ids);all_rows,rows,covered,covering=self._dedupe_rows(requested)
+  info={"requested_source_count":len(all_rows),"queued_source_count":len(rows),"suppressed_source_count":len(all_rows)-len(rows),"covering_job_ids":covering,"covered_sources":covered,"created":False,"deduped":bool(covered)}
+  if not rows:
+   info["job_id"]=covering[0] if covering else None
+   return info
+  detail={"suppressed_source_count":info["suppressed_source_count"],"covering_job_ids":covering}
+  jid=self._enqueue_snapshots(rows,parent_job_id,title,detail);info.update(job_id=jid,created=True);return info
  def enqueue(self,source_ids=None,parent_job_id=None,title=None):
-  return self._enqueue_snapshots(self._snapshot_sources(source_ids),parent_job_id,title)
- def restart(self,jid):
+  return self.enqueue_info(source_ids,parent_job_id,title).get("job_id")
+ def restart_info(self,jid):
   rows=self.s.rows("SELECT source_id,label,root,estate,failure_domain,role FROM job_scope_sources WHERE job_id=? ORDER BY source_id",(jid,))
   if not rows:raise RuntimeError("job has no persisted source snapshot")
-  return self._enqueue_snapshots(rows,jid,"Restart of "+jid[:8])
+  all_rows,uncovered,covered,covering=self._dedupe_rows(rows)
+  info={"requested_source_count":len(all_rows),"queued_source_count":len(uncovered),"suppressed_source_count":len(all_rows)-len(uncovered),"covering_job_ids":covering,"covered_sources":covered,"created":False,"deduped":bool(covered),"parent_job_id":jid}
+  if not uncovered:
+   info["job_id"]=covering[0] if covering else None
+   return info
+  njid=self._enqueue_snapshots(uncovered,jid,"Restart of "+jid[:8],{"suppressed_source_count":info["suppressed_source_count"],"covering_job_ids":covering});info.update(job_id=njid,created=True);return info
+ def restart(self,jid):
+  return self.restart_info(jid).get("job_id")
+ def scheduler_status(self):
+  queued=self.s.rows("SELECT COUNT(*) n FROM jobs WHERE deleted=0 AND job_type='analysis' AND state='QUEUED'")[0]["n"]
+  paused=self.s.rows("SELECT COUNT(*) n FROM jobs WHERE deleted=0 AND job_type='analysis' AND state='PAUSED'")[0]["n"]
+  with self.lock:active=len(self.runs)
+  return {"paused":bool(self.scheduler_paused),"active_jobs":active,"queued_jobs":int(queued or 0),"paused_jobs":int(paused or 0),"max_active_jobs":self.max_active_jobs,"workers_per_job":self.workers,"last_error":self.last_scheduler_error}
+ def pause_all(self):
+  self.scheduler_paused=True;now=time.time()
+  with self.lock:runs=list(self.runs.items())
+  for jid,rt in runs:
+   rt["pause"].set();self.s.submit("UPDATE jobs SET state='PAUSED',control='PAUSE',last_progress=? WHERE job_id=? AND state='RUNNING'",(now,jid));self.s.submit("UPDATE job_sources SET state='PAUSED',last_progress=? WHERE job_id=? AND state='RUNNING'",(now,jid));self.event("job_paused","Paused by Pause All",jid)
+  self.s.drain(10);return self.scheduler_status()
+ def resume_all(self):
+  self.scheduler_paused=False;now=time.time()
+  with self.lock:runs=list(self.runs.items())
+  for jid,rt in runs:
+   rt["pause"].clear();self.s.submit("UPDATE jobs SET state='RUNNING',control='RUN',last_progress=? WHERE job_id=? AND state='PAUSED'",(now,jid));self.s.submit("UPDATE job_sources SET state='RUNNING',last_progress=? WHERE job_id=? AND state='PAUSED'",(now,jid));self.event("job_resumed","Resumed by Start All",jid)
+  self.s.drain(10);return self.scheduler_status()
+ def _wait_if_paused(self,rt):
+  while rt["pause"].is_set() and not rt["stop"].is_set():time.sleep(.05)
  def _active_source_ids(self):
   ids=set()
   for jid in list(self.runs):
@@ -295,6 +350,8 @@ class Manager:
  def _scheduler(self):
   while not self.scheduler_stop.is_set():
    try:
+    if self.scheduler_paused:
+     self.scheduler_stop.wait(.25);continue
     with self.lock:active=len(self.runs)
     if active<self.max_active_jobs:
      busy=self._active_source_ids()
@@ -315,7 +372,7 @@ class Manager:
   job=self.s.rows("SELECT revision,state FROM jobs WHERE job_id=?",(jid,))[0]
   if job["state"]!="RUNNING":return
   rev=job["revision"];src=[dict(x) for x in rows];owners={x["source_id"]:x for x in src}
-  rt={"queues":{x["source_id"]:queue.Queue(self.capacity) for x in src},"done":set(),"stop":threading.Event(),"rr":0,"sched":threading.Lock(),"src":{x["source_id"]:x for x in src},"owners":owners,"activity":{},"seen":{x["source_id"]:set() for x in src}}
+  rt={"queues":{x["source_id"]:queue.Queue(self.capacity) for x in src},"done":set(),"stop":threading.Event(),"pause":threading.Event(),"rr":0,"sched":threading.Lock(),"src":{x["source_id"]:x for x in src},"owners":owners,"activity":{},"seen":{x["source_id"]:set() for x in src}}
   with self.lock:self.runs[jid]=rt
   for x in src:self.s.submit("INSERT OR REPLACE INTO job_sources(job_id,source_id,state,producer_state,queue_capacity,last_progress) VALUES(?,?,'RUNNING','RUNNING',?,?)",(jid,x["source_id"],self.capacity,now))
   self.event("job_started","Analysis job started",jid,None,"INFO",{"source_count":len(src)})
