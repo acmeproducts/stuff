@@ -974,3 +974,35 @@ Required replacement:
 - backfill missing historical job scope metadata from durable `job_sources` + `sources` rows only;
 - enable Restart only when a durable/recovered scope exists;
 - leave historical evidence and job results unchanged.
+
+
+---
+
+## 2026-09-23 — RELEASE D PARALLEL QUEUE / OBSERVABILITY NEGATIVE RULES
+
+Rejected and must not return:
+
+- queue polling that moves the owner back to the top of Analyze;
+- queue or Compare polling that closes an owner-opened disclosure;
+- a nominal multi-job scheduler that serializes unrelated source scopes;
+- repeated Restart taps that create duplicate queued work for sources already QUEUED/RUNNING/PAUSED/STOPPING;
+- hiding source overlap so multiple legacy/restart jobs with similar counts cannot be distinguished;
+- queue cards that only show aggregate counts without the frozen source roots and per-source processed/remaining state;
+- a healthy large-file hash being labeled STALLED because durable progress updates only after the file completes;
+- FAILED/terminal jobs consuming active scheduler capacity;
+- Compare Converted Files reporting only `Verified 11` without identifying which basenames/files were actually verified;
+- Compare Job logs auto-closing on poll;
+- deriving comparison outcome from a new rescan when persisted deterministic evidence already exists.
+
+Required replacement:
+
+- persistent Analyze scroll position;
+- persistent Queue Contents + Job log disclosure state and inner scroll positions;
+- Start All / Pause All scheduler control;
+- four-way default concurrent analysis dispatch for non-overlapping source scopes with multiple workers per job;
+- source-level live-work deduplication at enqueue/Restart;
+- explicit overlap/suppression reporting;
+- durable hash heartbeats;
+- per-source content/progress/remaining display;
+- persistent Compare log disclosure and source list;
+- deterministic persisted per-basename/pair outcome rendering.
