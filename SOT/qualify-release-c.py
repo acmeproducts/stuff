@@ -165,8 +165,25 @@ try:
   assert groups["legacyonly"]["state"]=="Legacy only"
   assert manifest["ffprobe_available"] in (True,False) and "evidence_signature" in manifest
   before_ops=srv.S.rows("SELECT COUNT(*) n FROM operations")[0]["n"]
-  ct=A2.create("compare_converted_files",cmp_scope)
   A2.provider=lambda *args:"## Converted-file result\n\nclip001 is a Verified replacement. legacyonly remains Legacy only."
+
+  # Refresh acknowledgement must return before deterministic evidence construction completes.
+  gate=srv.ai_mod.threading.Event();orig_converted=A2.converted_packet
+  def slow_converted(scope,*args,**kwargs):
+   gate.wait(3)
+   return orig_converted(scope,*args,**kwargs)
+  A2.converted_packet=slow_converted
+  fast=A2.create("compare_converted_files",cmp_scope)
+  t0=time.time();accepted=A2.run(fast["task_id"],"refresh converted media","venice","fixture-model","fixture-key",cmp_scope);elapsed=time.time()-t0
+  assert elapsed<0.75,elapsed
+  assert accepted["status"]=="analyzing",accepted
+  assert A2.row(fast["task_id"])["status"]=="analyzing"
+  gate.set();fdone=wait_task(A2,fast["task_id"])
+  assert fdone["status"]=="complete",fdone
+  A2.converted_packet=orig_converted
+  print("PASS Compare Converted Files Refresh acknowledges before background evidence build")
+
+  ct=A2.create("compare_converted_files",cmp_scope)
   A2.run(ct["task_id"],"refresh converted media","venice","fixture-model","fixture-key",cmp_scope)
   cdone=wait_task(A2,ct["task_id"])
   assert cdone["status"]=="complete" and "Converted-file result" in cdone["result_markdown"]
