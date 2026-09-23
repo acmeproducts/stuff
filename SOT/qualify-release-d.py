@@ -59,6 +59,26 @@ try:
   assert srv.S.last_writer_error and "definitely_missing_table" in srv.S.last_writer_error["error"]
   print("PASS DB writer survives statement failure")
 
+  # Historical pre-D jobs with job_sources but no job_scope_sources gain restartable scope metadata on reopen.
+  legacy_path=home/"legacy-scope.db"
+  ls=srv.m.Store(path=legacy_path)
+  legacy_root=home/"legacy-root";legacy_root.mkdir()
+  legacy_sid="legacy-source";legacy_jid="legacy-job"
+  ls.submit("INSERT INTO sources(source_id,label,root,estate,failure_domain,role,enabled) VALUES(?,?,?,?,?,?,1)",(legacy_sid,"Legacy Source",str(legacy_root),"Legacy Estate","legacy-domain","primary"),True)
+  ls.submit("INSERT INTO jobs(job_id,revision,state,created,last_progress,control,job_type,deleted,delete_requested) VALUES(?,1,'INTERRUPTED',?,?,'INTERRUPTED','analysis',0,0)",(legacy_jid,time.time(),time.time()),True)
+  ls.submit("INSERT INTO job_sources(job_id,source_id,state,producer_state,last_progress) VALUES(?,?,'INTERRUPTED','COMPLETED',?)",(legacy_jid,legacy_sid,time.time()),True)
+  assert not ls.rows("SELECT 1 FROM job_scope_sources WHERE job_id=?",(legacy_jid,))
+  ls.close()
+  ls2=srv.m.Store(path=legacy_path)
+  recovered=ls2.rows("SELECT source_id,label,root,estate,failure_domain,role FROM job_scope_sources WHERE job_id=?",(legacy_jid,))
+  assert len(recovered)==1 and recovered[0]["source_id"]==legacy_sid and recovered[0]["root"]==str(legacy_root),recovered
+  lm=srv.m.Manager(ls2,workers=1,queue_capacity=4,max_active_jobs=1)
+  restarted=lm.restart(legacy_jid)
+  rs=lm.snapshot(restarted)
+  assert rs["job"]["state"]=="QUEUED" and rs["job"]["source_count"]==1 and rs["scope_sources"][0]["root"]==str(legacy_root),rs
+  lm.control(restarted,"abort-delete");lm.scheduler_stop.set();ls2.drain(5);ls2.close()
+  print("PASS historical job scope backfill + restart")
+
   # Two independent source selections create two immutable jobs; scheduler dispatches them.
   e1=home/"estate-one";e2=home/"estate-two";e1.mkdir();e2.mkdir()
   (e1/"a.bin").write_bytes(b"A"*2048);(e2/"b.bin").write_bytes(b"B"*4096)

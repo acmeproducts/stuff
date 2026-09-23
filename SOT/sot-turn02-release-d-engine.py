@@ -167,6 +167,14 @@ CREATE INDEX IF NOT EXISTS idx_ai_compare_events_job ON ai_compare_events(compar
     c.execute("DELETE FROM placements WHERE placement_id=? AND placement_id<>?",(stable,old_id))
     c.execute("UPDATE placements SET placement_id=? WHERE placement_id=?",(stable,old_id))
   c.execute("CREATE UNIQUE INDEX IF NOT EXISTS idx_place_source_path ON placements(source_id,path)")
+  # Release D legacy-job migration: recover immutable restart scope metadata from durable historical job/source records.
+  c.execute("""
+INSERT OR IGNORE INTO job_scope_sources(job_id,source_id,label,root,estate,failure_domain,role)
+SELECT js.job_id,s.source_id,s.label,s.root,s.estate,s.failure_domain,s.role
+FROM job_sources js
+JOIN sources s ON s.source_id=js.source_id
+WHERE NOT EXISTS (SELECT 1 FROM job_scope_sources x WHERE x.job_id=js.job_id AND x.source_id=js.source_id)
+""")
   c.execute("INSERT OR REPLACE INTO meta(k,v) VALUES('schema',?)",(str(SCHEMA),))
   c.execute("INSERT OR IGNORE INTO meta(k,v) VALUES('catalog_revision',?)",(str(int(time.time()*1000)),))
   c.commit();c.close()

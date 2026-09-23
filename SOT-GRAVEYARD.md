@@ -954,3 +954,23 @@ Required replacement:
 - synthesize Windows drive identity from the verified mount source when PowerShell metadata is absent;
 - preserve `windows:true`, `windows_drive`, availability, mount state and capacity for those verified mounts;
 - mechanically qualify the PowerShell-unavailable / verified-mount-present case.
+
+
+---
+
+## 2026-09-23 — RELEASE D QUEUE-STATE NEGATIVE RULES
+
+Rejected and must not return:
+
+- Analyze polling that auto-closes a Job log the owner opened;
+- treating disclosure state as disposable render state;
+- showing historical Release C/pre-D jobs as “0 sources” solely because `job_scope_sources` did not exist when those jobs were created;
+- offering Restart for a job with no recoverable persisted source scope and then surfacing a 400 error;
+- modifying historical file evidence as part of scope-snapshot migration.
+
+Required replacement:
+
+- persist open/closed Job-log state across queue polling;
+- backfill missing historical job scope metadata from durable `job_sources` + `sources` rows only;
+- enable Restart only when a durable/recovered scope exists;
+- leave historical evidence and job results unchanged.
