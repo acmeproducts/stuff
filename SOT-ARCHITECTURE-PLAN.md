@@ -728,3 +728,18 @@ Owner testing of the live Release D queue showed that the scheduler is technical
 - Compare Job log disclosure and log scroll position persist across task polling.
 - A completed comparison displays a concrete outcome from persisted deterministic evidence, not only counters. For each basename group, show state and the actual legacy/converted file pair(s). Verified replacement pairs show both paths plus duration difference and ffmpeg validation status.
 - The persisted result packet remains the authority for this display; opening/closing the outcome does not rerun ffprobe/ffmpeg and AI Send does not rescan.
+
+
+---
+
+## 2026-09-25 — Release D lifecycle cards, Omnisearch scrolling, and color presets
+
+Owner requirements: Queue and Sources use chevron expand/collapse with status visible in the summary; Jobs and Sources use a reversible SOFT DELETED status with Restore and an explicit final removal action; Database/Grid Omnisearch autocomplete remains scrollable while browsing; Configuration adds a Colors tab with app, Database zebra, and Database hover presets.
+
+Baseline measurements from current code: Queue had 0 collapsible job cards and filtered deleted jobs from list output; Sources had 0 collapsible source cards and returned only enabled sources; therefore both surfaces had 0 visible Restore controls. Omnisearch options selected on pointerdown while blur hid the list after 140 ms, conflicting with touch-drag scrolling. Configuration had 0 tabs and 0 app color presets; Database zebra and hover each had one hard-coded style.
+
+Implementation: native details cards retain disclosure state across polling. Existing job deleted state becomes visible soft deletion with timestamp and restore/final-remove controls; removing job metadata never removes placements. Sources use enabled=0 plus deletion timestamp as reversible soft deletion; restore marks a source stale, and removing a source registration preserves placements and frozen job snapshots. Omnisearch activates an option on click instead of pointerdown and the suggestion viewport owns touch pan/overscroll. Configuration becomes General | Colors.
+
+Before/after: app palettes 0→4 (SOT Dark, Slate, Ocean, Warm); zebra formats 1→4 (Classic, Dark, Light, Blue); hover formats 1→4 (Classic, Blue, Amber, Outline); suggestion viewport 38vh→min(46vh,360px) with touch-action pan-y; reversible lifecycle controls 0→Restore plus final removal for both Jobs and Sources.
+
+Acceptance: qualification must prove job/source soft-delete, restore, final metadata/registration removal, and preservation of placement evidence/historical source snapshots. Browser gates require collapsible Job/Source cards, lifecycle controls, touch-scroll Omnisearch markers, and all color preset selectors.
