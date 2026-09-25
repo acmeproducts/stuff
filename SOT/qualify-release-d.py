@@ -117,6 +117,32 @@ try:
   assert not any(x["job"]["job_id"]==j4 for x in srv.M.list_jobs())
   print("PASS per-job Abort + Delete")
 
+  # Owner acceptance: job soft-delete is reversible and permanent metadata deletion preserves file evidence.
+  jd=srv.M.enqueue([sid1]);zd=wait_job(srv.M,jd);assert zd["job"]["state"]=="COMPLETED",zd
+  evidence_before=srv.S.rows("SELECT COUNT(*) n FROM placements")[0]["n"]
+  srv.M.control(jd,"soft-delete")
+  soft=srv.M.snapshot(jd);assert soft and soft["job"]["deleted"]==1 and soft["job"]["lifecycle_status"]=="SOFT_DELETED",soft
+  assert any(x["job"]["job_id"]==jd and x["job"]["lifecycle_status"]=="SOFT_DELETED" for x in srv.M.list_jobs(100,include_deleted=True))
+  srv.M.control(jd,"restore");assert srv.M.snapshot(jd)["job"]["deleted"]==0
+  srv.M.control(jd,"soft-delete");srv.M.control(jd,"purge")
+  assert srv.M.snapshot(jd) is None
+  assert srv.S.rows("SELECT COUNT(*) n FROM placements")[0]["n"]==evidence_before
+  print("PASS job soft-delete + restore + permanent metadata delete")
+
+  # Owner acceptance: source soft-delete is reversible and permanent registration deletion preserves evidence/snapshots.
+  source_evidence_before=srv.S.rows("SELECT COUNT(*) n FROM placements WHERE source_id=?",(sid2,))[0]["n"]
+  frozen_before=srv.S.rows("SELECT COUNT(*) n FROM job_scope_sources WHERE job_id=? AND source_id=?",(j2,sid2))[0]["n"]
+  srv.M.source_control(sid2,"soft-delete")
+  sr=next(x for x in srv.source_status_rows(include_deleted=True) if x["source_id"]==sid2)
+  assert sr["soft_deleted"] is True and sr["analysis_state"]=="SOFT_DELETED",sr
+  srv.M.source_control(sid2,"restore")
+  rr=srv.S.rows("SELECT enabled,stale FROM sources WHERE source_id=?",(sid2,))[0];assert rr["enabled"]==1 and rr["stale"]==1,rr
+  srv.M.source_control(sid2,"soft-delete");srv.M.source_control(sid2,"purge")
+  assert not srv.S.rows("SELECT 1 FROM sources WHERE source_id=?",(sid2,))
+  assert srv.S.rows("SELECT COUNT(*) n FROM placements WHERE source_id=?",(sid2,))[0]["n"]==source_evidence_before
+  assert srv.S.rows("SELECT COUNT(*) n FROM job_scope_sources WHERE job_id=? AND source_id=?",(j2,sid2))[0]["n"]==frozen_before
+  print("PASS source soft-delete + restore + permanent registration delete")
+
   A=srv.get_ai()
   cmp_root=home/"comparison";cmp_root.mkdir()
   (cmp_root/"clip001.avi").write_bytes(b"legacy")
