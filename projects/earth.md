@@ -20,6 +20,7 @@ Append one row before every future build session touches code.
 | 2026-09-25 | T3 build start | Initiated build; blocked on repo access and asset inventory | Done |
 | 2026-09-25 | T4 plan update | Updated ledger; preparing to build HTML shell | Done |
 | 2026-09-25 | T5 HTML shell | Build self-contained mobile-first HTML5 shell with in-app diagnostics and asset-loading state | In progress |
+| 2026-09-25 | T5a shell build | Ledger updated; ready to write projects/earth.html | In progress |
 
 ## 1. RELEASES
 
