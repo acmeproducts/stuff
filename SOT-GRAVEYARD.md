@@ -1015,3 +1015,20 @@ Required replacement:
 Rejected and must not return: first-action irreversible removal for a Job or Source; hiding soft-deleted Jobs/Sources so they cannot be restored; removing placement/file evidence when removing job metadata or a source registration; final job-record removal while its runtime is active; duplicating a soft-deleted source instead of restoring it; always-expanded Queue/Sources rows; polling that resets disclosure choice; Omnisearch selection on pointerdown; blur-driven autocomplete closure during touch scrolling; a non-scrollable suggestion surface; one fixed Database zebra style; one fixed Database hover style; or color settings without a dedicated Colors tab.
 
 Required replacement: visible SOFT DELETED status with Restore and an explicit final-remove action for Jobs and Sources; metadata/registration removal only, with evidence and historical snapshots preserved; persistent chevron disclosure cards; click activation plus touch-pan autocomplete; General and Colors config tabs; persisted app, zebra, and hover presets with current styling as the default.
+
+
+---
+
+## 2026-09-25 — RELEASE D STATUS-GROUP HIERARCHY NEGATIVE RULES
+
+Rejected and must not return:
+
+- one flat Queue containing all Job cards regardless of status;
+- one flat Sources list containing all Source cards regardless of status;
+- replacing individual Job/Source chevrons with status grouping instead of nesting them;
+- grouping by status without preserving the owner's open/closed group choices across polling;
+- hiding exact Job/Source status inside a broad group label;
+- separate frontend-only stall timing that can disagree with the scheduler's configured stall threshold;
+- completed or soft-deleted history expanded by default and consuming the working view.
+
+Required replacement: fixed outer groups Running, Stalled, Error, Completed and Soft Deleted; persistent group chevrons; each Job/Source remains independently collapsible inside its group; exact inner status remains visible; Running/Stalled/Error default open while Completed/Soft Deleted default closed; Source Stalled grouping uses scheduler stall_seconds telemetry.

@@ -332,7 +332,7 @@ class Manager:
   queued=self.s.rows("SELECT COUNT(*) n FROM jobs WHERE deleted=0 AND job_type='analysis' AND state='QUEUED'")[0]["n"]
   paused=self.s.rows("SELECT COUNT(*) n FROM jobs WHERE deleted=0 AND job_type='analysis' AND state='PAUSED'")[0]["n"]
   with self.lock:active=len(self.runs)
-  return {"paused":bool(self.scheduler_paused),"active_jobs":active,"queued_jobs":int(queued or 0),"paused_jobs":int(paused or 0),"max_active_jobs":self.max_active_jobs,"workers_per_job":self.workers,"last_error":self.last_scheduler_error}
+  return {"paused":bool(self.scheduler_paused),"active_jobs":active,"queued_jobs":int(queued or 0),"paused_jobs":int(paused or 0),"max_active_jobs":self.max_active_jobs,"workers_per_job":self.workers,"stall_seconds":self.stall,"last_error":self.last_scheduler_error}
  def pause_all(self):
   self.scheduler_paused=True;now=time.time()
   with self.lock:runs=list(self.runs.items())
