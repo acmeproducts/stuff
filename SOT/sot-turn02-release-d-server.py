@@ -373,8 +373,8 @@ def startup_source_check():
  time.sleep(.5)
  ids=[x["source_id"] for x in S.rows("SELECT source_id FROM sources WHERE enabled=1 ORDER BY source_id")]
  schedule_source_check(ids,"startup")
-def source_status_rows():
- rows=S.rows("SELECT * FROM sources WHERE enabled=1 ORDER BY estate,label")
+def source_status_rows(include_deleted=True):
+ rows=S.rows("SELECT * FROM sources ORDER BY enabled DESC,estate,label") if include_deleted else S.rows("SELECT * FROM sources WHERE enabled=1 ORDER BY estate,label")
  out=[]
  for src in rows:
   last=S.rows("""SELECT j.revision,j.state job_state,j.started,j.ended,
@@ -391,9 +391,12 @@ def source_status_rows():
              "last_current_folder":lr["current_folder"],"last_current_file":lr["current_file"],"last_progress":lr["last_progress"]})
    current=lr["job_state"]=="COMPLETED" and lr["source_state"]=="COMPLETED"
   else:current=False
-  stale=bool(src["stale"])
-  z["pending"]=stale or not current
-  z["analysis_state"]="STALE" if stale and current else ("CURRENT" if current else ("READY" if lr is None else "RETRY"))
+  z["soft_deleted"]=not bool(src["enabled"])
+  if z["soft_deleted"]:
+   z["pending"]=False;z["analysis_state"]="SOFT_DELETED"
+  else:
+   stale=bool(src["stale"]);z["pending"]=stale or not current
+   z["analysis_state"]="STALE" if stale and current else ("CURRENT" if current else ("READY" if lr is None else "RETRY"))
   out.append(z)
  return out
 
@@ -407,7 +410,7 @@ def plan_summary():
  t=target_get();target=int(t.get("free_bytes") or t.get("registered_free_bytes") or 0) if t.get("configured") else 0
  open_bytes=target-retained["bytes"] if t.get("configured") else 0
  landed={"files":0,"bytes":0};inplay={"files":retained["files"],"bytes":retained["bytes"]}
- pending=[x for x in source_status_rows() if x.get("pending")]
+ pending=[x for x in source_status_rows(False) if x.get("pending")]
  return {"analysis":{"unique":unique,"keep":keep,"excess":excess,"estate":estate},
          "capacity":{"estate":retained,"open":{"files":None,"bytes":open_bytes},"target":{"files":None,"bytes":target},"configured":bool(t.get("configured"))},
          "operations":{"in_play":inplay,"landed":landed,"estate":retained},
@@ -596,12 +599,12 @@ class H(BaseHTTPRequestHandler):
    if p=="/api/health":
     return self.sendj({"ok":True,"version":m.VERSION,"schema":m.SCHEMA,"process":"healthy","db":S.db_probe(.10),"writer_queue":S.q.qsize(),"writer_error":S.last_writer_error,"creation_revision":creation_revision(),"catalog_revision":catalog_revision(),"time":time.time()})
    if p=="/api/job/latest":return self.sendj({"ok":True,"snapshot":latest()})
-   if p=="/api/jobs":return self.sendj({"ok":True,"jobs":M.list_jobs(100),"scheduler":M.scheduler_status()})
+   if p=="/api/jobs":return self.sendj({"ok":True,"jobs":M.list_jobs(100,include_deleted=True),"scheduler":M.scheduler_status()})
    if p=="/api/job":
     jid=parse_qs(u.query).get("id",[""])[0];z=M.snapshot(jid);return self.sendj({"ok":True,"job":z}) if z else self.sendj({"ok":False,"error":"job not found"},404)
    if p=="/api/ai/compare/jobs":
     tid=parse_qs(u.query).get("task_id",[""])[0];return self.sendj({"ok":True,"jobs":get_ai().compare_jobs(tid,50)})
-   if p=="/api/sources":return self.sendj({"ok":True,"sources":source_status_rows()})
+   if p=="/api/sources":return self.sendj({"ok":True,"sources":source_status_rows(include_deleted=True)})
    if p=="/api/events":return self.sendj({"ok":True,"events":S.rows("SELECT * FROM events ORDER BY event_id DESC LIMIT 500")})
    if p=="/api/target":return self.sendj({"ok":True,"target":target_get()})
    if p=="/api/plan":return self.sendj({"ok":True,"plan":plan_summary()})
@@ -712,14 +715,18 @@ class H(BaseHTTPRequestHandler):
     ids=[];created=[]
     for item in roots:
      raw=item if isinstance(item,dict) else {"root":item};root=reconcile_windows_path(raw.get("root",""),False)
-     existing=S.rows("SELECT source_id FROM sources WHERE root=? AND enabled=1",(root,))
-     if existing:sid=existing[0]["source_id"]
+     existing=S.rows("SELECT source_id,enabled FROM sources WHERE root=?",(root,))
+     if existing:
+      if not existing[0]["enabled"]:raise RuntimeError("Source is soft deleted; restore it from Analyze → Sources before launching work")
+      sid=existing[0]["source_id"]
      else:
       label=str(raw.get("label") or Path(root).name or root);sid=M.add_source(label,root,raw.get("failure_domain",root),raw.get("role","primary"),raw.get("estate") or label);M.event("source_registered","Estate source registered",None,sid,"INFO",{"root":root,"estate":raw.get("estate") or label});created.append(sid)
      ids.append(sid)
     S.drain(10);reconcile_sources(ids);info=M.enqueue_info(ids);jid=info.get("job_id");return self.sendj({"ok":True,**info,"source_ids":ids,"created_source_ids":created,"job":M.snapshot(jid) if jid else None,"scheduler":M.scheduler_status()})
    if p=="/api/job/control":
-    jid=str(b.get("job_id",""));M.control(jid,str(b.get("action","")));return self.sendj({"ok":True,"job":M.snapshot(jid)})
+    jid=str(b.get("job_id",""));M.control(jid,str(b.get("action","")));return self.sendj({"ok":True,"job":M.snapshot(jid),"jobs":M.list_jobs(100,include_deleted=True)})
+   if p=="/api/source/control":
+    sid=str(b.get("source_id",""));M.source_control(sid,str(b.get("action","")));return self.sendj({"ok":True,"source":next((x for x in source_status_rows(include_deleted=True) if x["source_id"]==sid),None),"sources":source_status_rows(include_deleted=True)})
    if p=="/api/job/restart":
     info=M.restart_info(str(b.get("job_id","")));jid=info.get("job_id");return self.sendj({"ok":True,**info,"job":M.snapshot(jid) if jid else None,"scheduler":M.scheduler_status()})
    if p=="/api/scheduler/control":
@@ -727,7 +734,7 @@ class H(BaseHTTPRequestHandler):
     if action in ("pause","pause_all"):state=M.pause_all()
     elif action in ("start","resume","start_all","resume_all"):state=M.resume_all()
     else:raise RuntimeError("scheduler action must be start or pause")
-    return self.sendj({"ok":True,"scheduler":state,"jobs":M.list_jobs(100)})
+    return self.sendj({"ok":True,"scheduler":state,"jobs":M.list_jobs(100,include_deleted=True)})
    if p=="/api/ai/task/create":return self.sendj({"ok":True,"task":get_ai().create(b["task_type"],b.get("scope"),b.get("title"))})
    if p=="/api/ai/task/title":return self.sendj({"ok":True,"task":get_ai().title(str(b.get("task_id","")),b.get("title"))})
    if p=="/api/ai/task/scope":

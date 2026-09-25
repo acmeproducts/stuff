@@ -1006,3 +1006,12 @@ Required replacement:
 - per-source content/progress/remaining display;
 - persistent Compare log disclosure and source list;
 - deterministic persisted per-basename/pair outcome rendering.
+
+
+---
+
+## 2026-09-25 — RELEASE D LIFECYCLE / OMNISEARCH / COLOR-PRESET NEGATIVE RULES
+
+Rejected and must not return: first-action irreversible removal for a Job or Source; hiding soft-deleted Jobs/Sources so they cannot be restored; removing placement/file evidence when removing job metadata or a source registration; final job-record removal while its runtime is active; duplicating a soft-deleted source instead of restoring it; always-expanded Queue/Sources rows; polling that resets disclosure choice; Omnisearch selection on pointerdown; blur-driven autocomplete closure during touch scrolling; a non-scrollable suggestion surface; one fixed Database zebra style; one fixed Database hover style; or color settings without a dedicated Colors tab.
+
+Required replacement: visible SOFT DELETED status with Restore and an explicit final-remove action for Jobs and Sources; metadata/registration removal only, with evidence and historical snapshots preserved; persistent chevron disclosure cards; click activation plus touch-pan autocomplete; General and Colors config tabs; persisted app, zebra, and hover presets with current styling as the default.

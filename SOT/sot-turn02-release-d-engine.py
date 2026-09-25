@@ -38,6 +38,7 @@ class Store:
    "scope_json":"TEXT",
    "queued":"REAL",
    "deleted":"INTEGER NOT NULL DEFAULT 0",
+   "deleted_at":"REAL",
    "parent_job_id":"TEXT",
    "delete_requested":"INTEGER NOT NULL DEFAULT 0"
   }
@@ -47,7 +48,8 @@ class Store:
   source_additions={
    "metadata_signature":"TEXT",
    "metadata_checked":"REAL",
-   "stale":"INTEGER NOT NULL DEFAULT 0"
+   "stale":"INTEGER NOT NULL DEFAULT 0",
+   "deleted_at":"REAL"
   }
   for name,decl in source_additions.items():
    if name not in source_cols:c.execute(f"ALTER TABLE sources ADD COLUMN {name} {decl}")
@@ -313,6 +315,9 @@ class Manager:
  def enqueue(self,source_ids=None,parent_job_id=None,title=None):
   return self.enqueue_info(source_ids,parent_job_id,title).get("job_id")
  def restart_info(self,jid):
+  meta=self.s.rows("SELECT deleted FROM jobs WHERE job_id=?",(jid,))
+  if not meta:raise RuntimeError("job not found")
+  if meta[0]["deleted"]:raise RuntimeError("Restore the soft-deleted job before restarting it")
   rows=self.s.rows("SELECT source_id,label,root,estate,failure_domain,role FROM job_scope_sources WHERE job_id=? ORDER BY source_id",(jid,))
   if not rows:raise RuntimeError("job has no persisted source snapshot")
   all_rows,uncovered,covered,covering=self._dedupe_rows(rows)
@@ -583,7 +588,7 @@ class Manager:
    self.s.drain(30);state="COMPLETED"
   now=time.time();self.s.submit("UPDATE jobs SET state=?,ended=?,last_progress=? WHERE job_id=?",(state,now,now,jid));self.s.submit("UPDATE job_sources SET state=?,queue_depth=0,active_workers=0 WHERE job_id=?",(state,jid));self.event("job_"+state.lower(),state.title(),jid);self.s.drain(30)
   delete_req=self.s.rows("SELECT delete_requested FROM jobs WHERE job_id=?",(jid,))
-  if delete_req and delete_req[0]["delete_requested"]:self.s.submit("UPDATE jobs SET deleted=1 WHERE job_id=?",(jid,),True)
+  if delete_req and delete_req[0]["delete_requested"]:self.s.submit("UPDATE jobs SET deleted=1,deleted_at=COALESCE(deleted_at,?) WHERE job_id=?",(time.time(),jid),True)
   with self.lock:self.runs.pop(jid,None)
  def _infer(self,jid):
   groups=self.s.rows("SELECT fingerprint,COUNT(*) n,MAX(size) size FROM placements WHERE job_id=? AND fingerprint IS NOT NULL GROUP BY fingerprint",(jid,))
@@ -592,23 +597,52 @@ class Manager:
    self.s.submit("UPDATE placements SET plan=CASE WHEN availability='ERROR' THEN 'REVIEW' ELSE 'IN_PLAY' END,rationale=CASE WHEN ?=1 THEN 'Unique content awaiting TARGET landing' ELSE 'Content has multiple source placements; remains in play until TARGET is landed and verified' END,lifecycle='COMPLETED' WHERE job_id=? AND fingerprint=?",(n,jid,fp))
   self.s.drain(60);self.recompute_classifications();self.s.bump_catalog_revision()
  def control(self,jid,action):
-  row=self.s.rows("SELECT * FROM jobs WHERE job_id=? AND deleted=0",(jid,))
+  row=self.s.rows("SELECT * FROM jobs WHERE job_id=?",(jid,))
   if not row:raise RuntimeError("job not found")
   j=row[0];action=str(action or "").lower()
-  if action in ("abort-delete","abort_delete"):
+  if action in ("abort-delete","abort_delete","soft-delete","soft_delete","delete"):
+   if j["deleted"]:return
+   now=time.time()
    if j["state"]=="QUEUED":
-    now=time.time();self.s.submit("UPDATE jobs SET state='ABORTED',ended=?,last_progress=?,control='ABORT',deleted=1,delete_requested=1 WHERE job_id=?",(now,now,jid),True);self.event("job_aborted_deleted","Queued job aborted and removed",jid);return
-   rt=self.runs.get(jid)
-   if rt:rt["stop"].set();rt["pause"].clear()
-   self.s.submit("UPDATE jobs SET state='STOPPING',control='ABORT',delete_requested=1,last_progress=? WHERE job_id=?",(time.time(),jid),True);self.event("job_abort_requested","Abort + Delete requested",jid);return
+    self.s.submit("UPDATE jobs SET state='ABORTED',ended=?,last_progress=?,control='ABORT',deleted=1,deleted_at=?,delete_requested=1 WHERE job_id=?",(now,now,now,jid),True);self.event("job_soft_deleted","Queued job aborted and soft deleted",jid);return
+   if j["state"] in ("RUNNING","PAUSED","STOPPING"):
+    rt=self.runs.get(jid)
+    if rt:rt["stop"].set();rt["pause"].clear()
+    self.s.submit("UPDATE jobs SET state='STOPPING',control='ABORT',deleted=1,deleted_at=?,delete_requested=1,last_progress=? WHERE job_id=?",(now,now,jid),True);self.event("job_soft_delete_requested","Abort + soft delete requested",jid);return
+   self.s.submit("UPDATE jobs SET deleted=1,deleted_at=?,delete_requested=0 WHERE job_id=?",(now,jid),True);self.event("job_soft_deleted","Job soft deleted",jid);return
+  if action=="restore":
+   if not j["deleted"]:return
+   if jid in self.runs or j["state"] in ("RUNNING","PAUSED","STOPPING"):raise RuntimeError("Job is still stopping; restore after it reaches a terminal state")
+   self.s.submit("UPDATE jobs SET deleted=0,deleted_at=NULL,delete_requested=0 WHERE job_id=?",(jid,),True);self.event("job_restored","Soft-deleted job restored",jid);return
+  if action in ("purge","permanent-delete","permanent_delete"):
+   if not j["deleted"]:raise RuntimeError("Soft delete the job before permanent deletion")
+   if jid in self.runs or j["state"] in ("RUNNING","PAUSED","STOPPING"):raise RuntimeError("Job is still active; permanent deletion is blocked")
+   self.s.tx([
+    ("DELETE FROM events WHERE job_id=?",(jid,)),
+    ("DELETE FROM job_sources WHERE job_id=?",(jid,)),
+    ("DELETE FROM job_scope_sources WHERE job_id=?",(jid,)),
+    ("DELETE FROM jobs WHERE job_id=?",(jid,))
+   ],True);return
+  if j["deleted"]:raise RuntimeError("Restore the soft-deleted job before changing it")
   if action=="stop":
    rt=self.runs.get(jid)
    if not rt:raise RuntimeError("job not active in this process")
    rt["stop"].set();rt["pause"].clear();self.s.submit("UPDATE jobs SET state='STOPPING',control='STOP',last_progress=? WHERE job_id=?",(time.time(),jid),True);self.event("job_stop","Stop requested",jid);return
-  if action=="delete":
-   if j["state"] in ("RUNNING","STOPPING","QUEUED"):raise RuntimeError("Use Abort + Delete for an active or queued job")
-   self.s.submit("UPDATE jobs SET deleted=1 WHERE job_id=?",(jid,),True);self.event("job_deleted","Job removed from queue history",jid);return
   raise RuntimeError("bad action")
+ def source_control(self,source_id,action):
+  rows=self.s.rows("SELECT * FROM sources WHERE source_id=?",(source_id,))
+  if not rows:raise RuntimeError("source not found")
+  src=rows[0];action=str(action or "").lower();now=time.time()
+  if action in ("soft-delete","soft_delete","delete"):
+   if not src["enabled"]:return
+   self.s.submit("UPDATE sources SET enabled=0,deleted_at=?,stale=1 WHERE source_id=?",(now,source_id),True);self.event("source_soft_deleted","Source soft deleted",None,source_id,"INFO",{"root":src["root"]});return
+  if action=="restore":
+   if src["enabled"]:return
+   self.s.submit("UPDATE sources SET enabled=1,deleted_at=NULL,stale=1 WHERE source_id=?",(source_id,),True);self.event("source_restored","Source restored; currentness review required",None,source_id,"INFO",{"root":src["root"]});return
+  if action in ("purge","permanent-delete","permanent_delete"):
+   if src["enabled"]:raise RuntimeError("Soft delete the source before permanent deletion")
+   self.s.submit("DELETE FROM sources WHERE source_id=?",(source_id,),True);self.event("source_purged","Source registration permanently deleted; evidence preserved",None,source_id,"INFO",{"root":src["root"]});return
+  raise RuntimeError("bad source action")
  def snapshot(self,jid):
   j=self.s.rows("SELECT * FROM jobs WHERE job_id=?",(jid,))
   if not j:return None
@@ -624,6 +658,7 @@ class Manager:
    if freshest>float(job.get("last_progress") or 0):job["last_progress_age"]=max(0.0,now-freshest)
   unfinished=job["state"] in ("RUNNING","STOPPING")
   job["effective_state"]="STALLED" if unfinished and job["last_progress_age"]>self.stall else job["state"]
+  job["lifecycle_status"]="SOFT_DELETED" if job.get("deleted") else job["effective_state"]
   for x in ss:
    x["remaining_files"]=max(0,int(x.get("discovered_files") or 0)-int(x.get("hashed_files") or 0))
    x["remaining_bytes"]=max(0,int(x.get("discovered_bytes") or 0)-int(x.get("hashed_bytes") or 0))
@@ -635,10 +670,11 @@ class Manager:
   job["known_remaining_files"]=sum(int(x.get("remaining_files") or 0) for x in ss);job["known_remaining_bytes"]=sum(int(x.get("remaining_bytes") or 0) for x in ss)
   scopes=self.s.rows("SELECT source_id,label,root,estate,failure_domain,role FROM job_scope_sources WHERE job_id=? ORDER BY label",(jid,))
   return {"job":job,"scope_sources":scopes,"sources":ss,"metrics":m,"events":ev,"activity":activity}
- def list_jobs(self,limit=100):
-  rows=self.s.rows("SELECT job_id,state FROM jobs WHERE deleted=0 AND job_type='analysis' ORDER BY created DESC LIMIT ?",(int(limit),))
+ def list_jobs(self,limit=100,include_deleted=True):
+  where="job_type='analysis'" if include_deleted else "deleted=0 AND job_type='analysis'"
+  rows=self.s.rows("SELECT job_id,state,deleted FROM jobs WHERE "+where+" ORDER BY deleted ASC,created DESC LIMIT ?",(int(limit),))
   items=[self.snapshot(x["job_id"]) for x in rows]
-  live=[x for x in items if x and x["job"]["state"] in ("QUEUED","RUNNING","PAUSED","STOPPING")]
+  live=[x for x in items if x and not x["job"].get("deleted") and x["job"]["state"] in ("QUEUED","RUNNING","PAUSED","STOPPING")]
   source_jobs={}
   for x in live:
    for sc in x.get("scope_sources",[]):source_jobs.setdefault(sc["source_id"],set()).add(x["job"]["job_id"])
