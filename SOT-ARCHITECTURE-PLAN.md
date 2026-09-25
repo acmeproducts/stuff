@@ -779,3 +779,45 @@ Group disclosure state is browser-session UI state and must survive polling/re-r
 Before/after: Analyze Queue status grouping **0 → 5 outer status chevrons** plus existing per-job chevrons. Analyze Sources status grouping **0 → 5 outer status chevrons** plus existing per-source chevrons.
 
 Acceptance: browser qualification must require both group-state stores, both grouping functions, both grouped renderers, and the five exact group labels. Scheduler telemetry must expose its configured stall threshold so Source Stalled grouping uses the same threshold as Job stall detection.
+
+
+---
+
+## 2026-09-25 — Release D simplified Analyze status hierarchy
+
+Owner testing showed that separate **Stalled** and **Error** outer groups make Analyze harder to scan and that applying scheduler stall timing to Sources misrepresents a source catalog. The Analyze hierarchy is simplified to the same four canonical groups on both Queue and Sources:
+
+1. **Action Needed**
+2. **Running**
+3. **Completed**
+4. **Soft Deleted**
+
+### Queue semantics
+
+Queue is the only job-control surface. Jobs remain individually collapsible inside the outer group.
+
+- **Soft Deleted**: job lifecycle is soft-deleted, regardless of former runtime state.
+- **Action Needed**: STALLED, FAILED, INTERRUPTED, ABORTED, STOPPED, or any terminal job carrying errors.
+- **Completed**: COMPLETED with zero errors.
+- **Running**: QUEUED, RUNNING, PAUSED, STOPPING, and other non-terminal work.
+
+The canonical outer-group label is also the visible job status badge so group and badge cannot disagree. The raw scheduler/job state remains visible inside the expanded detail for diagnosis.
+
+Order is fixed: Action Needed → Running → Completed → Soft Deleted. Action Needed and Running default open; Completed and Soft Deleted default closed.
+
+### Sources semantics
+
+Sources is a catalog/status surface, not a job-control surface. It must not infer that an old Source is stalled merely because its last progress timestamp is old.
+
+- **Soft Deleted**: source registration is soft-deleted.
+- **Running**: the latest source-owning job is QUEUED, RUNNING, PAUSED, or STOPPING.
+- **Completed**: source analysis state is CURRENT and the latest source/job record has no errors.
+- **Action Needed**: READY, STALE, RETRY, never-processed/pending sources, FAILED/INTERRUPTED/ABORTED/STOPPED latest job states, or any source with errors.
+
+Source cards remain individually collapsible and may expose source registration lifecycle controls (Soft delete / Restore / Permanently delete), but **Restart and other job execution controls exist only in Queue**.
+
+The canonical Source badge uses the same four labels and badge styling as Queue. Exact source state and last job state remain diagnostic detail inside the expanded Source card.
+
+### Acceptance
+
+Browser qualification must require exactly the four canonical status groups, shared canonical badge labels, fixed group order, and Queue-only Restart control. The old five-group Stalled/Error hierarchy and Source last-progress-age stall classification are rejected.
