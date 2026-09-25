@@ -6,8 +6,8 @@ Deploy target: `https://acmeproducts.github.io/stuff/devstream.html`
 Test target: `https://acmeproducts.github.io/stuff/devstream-test.html`
 
 ## Status
-- Current release: v1.0 build 3 on devstream-test.html (2026-08-14)
-- Stage: TEST (b18)
+- Current release: v1.0 b34 on devstream-test.html (2026-09-24)
+- Stage: TEST (b34)
 
 ## Release Rules (inherited, proven)
 1. Mobile-first. All diagnostics in-app. No DevTools ever.
@@ -79,7 +79,41 @@ Agent writes `executing` at run start, final state at end. App is read-only cons
 48px touch targets; panels stack below ribbon full-width; no side popovers; gesture semantics per v2.9.2 shell (double-tap menu below tab, document-level pointer tracking).
 
 ## 8. Out of scope v1.0
-Parallel-run limits / file-lock queueing; cross-repo status aggregation; push notifications.
+Cross-repo status aggregation; push notifications.
+
+Parallel-run limits / file-lock queueing were removed from out-of-scope by the owner on 2026-09-24 and are governed by the project scheduler contract below.
+
+---
+
+# 2026-09-24 — Project storage, recovery, and scheduler contract
+
+## Owner scope
+1. CONFIG exposes one subdirectory for project code and plan files.
+2. Soft-deleted projects live under a collapsible **Deleted projects** chevron at the top of the project rail. Each deleted project card offers **Restore** or **Delete permanently**; permanent deletion requires an explicit “Are you sure?” confirmation.
+3. A project with no live tabs still shows **+** to create a tab. If deleted tabs exist, it also shows **↻** to restore the most recently deleted tab.
+4. Tasks may stack/queue inside each project. A project has at most one active writer at a time; different projects may execute in parallel through the existing four-worker pool.
+
+## Baseline score before change
+| Gate | Before | Required after |
+|---|---:|---:|
+| Configurable project code/plan directory | 0 | 1 |
+| Deleted-project recovery in project rail | 0 | 1 |
+| Blank-project deleted-tab restore affordance | 0 | 1 |
+| Per-project serialization with cross-project parallelism | 0 | 1 |
+
+The prior worker pool already supported four concurrent thread jobs, but it treated threads as the concurrency boundary. Two tabs from one project could therefore write the same project code/plan concurrently. The new concurrency boundary is the project.
+
+## Acceptance gates
+- **DS-G34-1 Storage:** Settings contains **Project code + plan subdirectory**. New generated project files and their same-name plans land under that directory. Existing projects are not moved.
+- **DS-G34-2 Deleted projects:** deleting a project moves it out of the live project list and into the collapsible rail recovery section; Restore returns it; Delete permanently shows the irreversible confirmation before deleting thread-history records. Project code/plan files remain untouched.
+- **DS-G34-3 Blank project:** after all tabs are soft-deleted, the tab strip remains visible with **+** and **↻**. **↻** restores the most recently deleted tab.
+- **DS-G34-4 Project queue:** while one task for Project A is active, later tasks for Project A queue FIFO instead of starting a second writer. Project B/C/D tasks may use the remaining worker slots concurrently. Global worker ceiling remains four.
+- **DS-G34-5 Preservation:** provider configuration, per-thread engine/model selection, plan continuity, attachments, web search, Coach mode, debug, soft-deleted tabs, and the existing four-worker engine pool remain intact.
+
+## Graveyard additions
+- **G-DS-01 — Parallel writers inside one project:** do not restore thread-level concurrency that allows two tabs in the same project to write the same code/plan simultaneously.
+- **G-DS-02 — Hard-coded `projects/` creation root:** do not hard-code the project artifact root; new generated project artifacts use the configured subdirectory.
+- **G-DS-03 — Hiding the tab strip when a project is blank:** do not hide the only recovery/create controls when all tabs are deleted.
 
 ---
 
@@ -89,6 +123,7 @@ Parallel-run limits / file-lock queueing; cross-repo status aggregation; push no
 | DS-1 | Build v1.0 per spec above | OPEN |
 
 # Decision Log
+- 2026-09-24: Project artifact subdirectory is configurable; existing projects keep their paths. Project is the concurrency boundary: one active writer per project, FIFO queued work within a project, up to four projects concurrently. Deleted projects recover from the project rail; blank projects retain + and ↻ recovery controls. Owner directive.
 - 2026-08-25: Project lifecycle phases adopted: Define (what/why) -> Design (how) -> Build (execution cycles) -> Ship. Phase is project-level state (badge + explicit advance), not tabs. Agent prompt is phase-aware. Owner approved.
 - 2026-08-25: Continuity contract: agent replies MUST carry a STATE line (phase | open items | next step) and append a dated ledger row to the plan on every plan write. The plan is the sole persistent memory; chat is commentary. Owner approved.
 - 2026-08-25: Execution is a 4-worker blob pool (concurrent builds, UI never blocked). Per-thread provider+model with validate-before-apply. Keys localStorage-only with reveal toggle + sanitation (autofill mangling was a confirmed field defect).

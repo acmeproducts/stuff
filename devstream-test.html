@@ -179,6 +179,9 @@ body.coachMode .suggestBtn{border-color:rgba(57,197,207,.5);background:rgba(57,1
 .recRow .grow{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .recBtn{font-size:12px;color:var(--accent);padding:7px 8px}
 .recBtn.danger{color:var(--err)}
+.deletedRail{margin:0 0 8px}
+.deletedRail .dtoggle{margin-bottom:0}
+.tab.restoretab{min-width:48px;max-width:48px;justify-content:center;color:var(--accent);font-size:21px}
 .attChip{font-size:11px;padding:4px 9px;border:1px solid var(--line);border-radius:12px;background:var(--panel2);display:flex;gap:6px;align-items:center}
 .attChip button{color:var(--err)}
 .msg img.att{max-width:220px;max-height:220px;border-radius:8px;display:block;margin-top:6px;border:1px solid var(--line)}
@@ -189,7 +192,7 @@ body.coachMode .suggestBtn{border-color:rgba(57,197,207,.5);background:rgba(57,1
 <div id="scrim"></div>
 <div id="app">
 <aside id="sidebar">
-  <div class="bar"><span id="dot"></span><span class="brand">devstream <span class="version">v1.0 b33</span></span><span class="grow"></span><button class="btn" id="projectAdd">+ New</button><button class="btn" id="refresh">↻</button><button class="btn" id="settings">⚙</button></div>
+  <div class="bar"><span id="dot"></span><span class="brand">devstream <span class="version">v1.0 b34</span></span><span class="grow"></span><button class="btn" id="projectAdd">+ New</button><button class="btn" id="refresh">↻</button><button class="btn" id="settings">⚙</button></div>
   <div id="searchWrap"><input id="search" class="input" placeholder="Search projects & threads">
     <div class="legend"><span><i class="legendDot ok"></i>OK</span><span><i class="legendDot run"></i>Running</span><span><i class="legendDot err"></i>Error</span></div></div>
   <div id="projList"></div>
@@ -225,6 +228,7 @@ body.coachMode .suggestBtn{border-color:rgba(57,197,207,.5);background:rgba(57,1
     <div class="frow"><label>Owner / Organization</label><input id="sotOwner" class="input mono" placeholder="acmeproducts"></div>
     <div class="frow"><label>Repository</label><input id="sotRepo" class="input mono" placeholder="stuff"></div>
     <div class="frow"><label>Branch</label><input id="sotBranch" class="input mono" placeholder="main"></div>
+    <div class="frow"><label>Project code + plan subdirectory</label><input id="cfgProjectDir" class="input mono" placeholder="projects"><div class="hint">New project code and its matching plan are created under this folder. Existing projects keep their current paths.</div></div>
     <div class="frow"><label>Venice API key</label><input id="cfgvkey" class="input keyfield" type="password" autocomplete="new-password" spellcheck="false" autocapitalize="off" placeholder="…">
       <button class="btn" id="vLoad" style="margin-top:6px">Load Venice models</button>
       <select id="cfgvmodel" class="input mono" style="margin-top:6px"><option value="">— load models first —</option></select>
@@ -293,13 +297,18 @@ let sot={threads:{},projects:{}}, sotSha=null;
 let threads={}, activeProject=localStorage.getItem('ds_activeproj')||null, activeKey=null;
 let debug=JSON.parse(sessionStorage.getItem('ds_debug')||'[]'),debugTab='log',treeCache=null, dashFilter='all', dashSort='last', pollTimer=null, dashTimer=null, npSelectedExisting=false, delOpen=false, view='empty';
 let secOpen=JSON.parse(localStorage.getItem('ds_secopen')||'{}');
+let deletedRailOpen=localStorage.getItem('ds_deleted_projects_open')==='1';
 function saveSecOpen(){try{localStorage.setItem('ds_secopen',JSON.stringify(secOpen))}catch(e){}}
+function saveDeletedRailOpen(){try{localStorage.setItem('ds_deleted_projects_open',deletedRailOpen?'1':'0')}catch(e){}}
 
 const $=id=>document.getElementById(id);
 const enc=s=>btoa(unescape(encodeURIComponent(s)));
 const dec=s=>decodeURIComponent(escape(atob(s.replace(/\n/g,''))));
 const now=()=>new Date().toISOString();
 const repoFull=()=>cfg.owner+'/'+cfg.repo;
+function normDir(v){return String(v||'projects').trim().replace(/\\/g,'/').replace(/^\/+|\/+$/g,'').replace(/\/{2,}/g,'/')||'projects'}
+const projectDir=()=>normDir((cfg&&cfg.projectDir)||'projects');
+const projectPath=name=>projectDir()+'/'+String(name||'').replace(/^\/+/,'');
 function toast(m){const t=document.createElement('div');t.className='toast';t.textContent=m;$('toasts').appendChild(t);setTimeout(()=>t.remove(),2800)}
 function errbar(m){const b=$('error');if(!m){b.style.display='none';return}b.textContent=m;b.style.display='block'}
 function rel(iso){if(!iso)return'never';const s=(Date.now()-new Date(iso))/1e3;if(s<60)return Math.floor(s)+'s ago';if(s<3600)return Math.floor(s/60)+'m ago';if(s<86400)return Math.floor(s/3600)+'h ago';return Math.floor(s/86400)+'d ago'}
@@ -459,7 +468,7 @@ function showView(v){
   $('emptyState').style.display=v==='empty'?'flex':'none';
   $('chatArea').style.display=v==='chat'?'flex':'none';
   $('dashView').style.display=v==='dash'?'flex':'none';
-  $('projectTabs').style.display=v==='chat'?'':'none';
+  $('projectTabs').style.display=(v==='chat'||(v==='empty'&&activeProject))?'':'none';
   $('objective').style.display=v==='chat'&&$('objective').textContent?'block':'none';
   $('pill').style.display=v==='chat'?'':'none';
   $('dashRefresh').style.display=v==='dash'?'':'none';
@@ -475,6 +484,7 @@ function renderSidebar(){
   const dc=document.createElement('div');dc.className='card';dc.id='dashcard';
   dc.innerHTML='<div class="cttl">Dashboard<span class="grow"></span>'+(runs?'<span class="badge run">'+runs+'</span>':'')+(errs?'<span class="badge err">'+errs+'</span>':'')+'</div><div class="csub">'+Object.keys(sot.projects).length+' projects · '+Object.keys(sot.threads).length+' threads</div>';
   dc.onclick=()=>{sideOpen(false);openDash()};pl.appendChild(dc);
+  renderDeletedProjectsRail(pl,q);
   Object.keys(sot.projects).filter(p=>!sot.projects[p].deleted).sort().forEach(p=>{
     const th=Object.entries(sot.threads).filter(([k,t])=>t.project===p&&!t.deleted);
     if(q&&!(p.toLowerCase().includes(q)||th.some(([k,t])=>(tabName(t)+' '+(t.file||'')).toLowerCase().includes(q))))return;
@@ -500,6 +510,27 @@ function renderSidebar(){
     pl.appendChild(d);
   });
 }
+function renderDeletedProjectsRail(pl,q){
+  const all=Object.keys(sot.projects).filter(p=>sot.projects[p].deleted).sort();
+  if(!all.length)return;
+  const visible=q?all.filter(p=>p.toLowerCase().includes(q)):all;
+  if(q&&!visible.length)return;
+  const sec=document.createElement('div');sec.className='deletedRail';
+  const tog=document.createElement('button');tog.className='dtoggle'+(deletedRailOpen?' open':'');
+  tog.innerHTML='<span class="chev">▸</span><span>Deleted projects</span><span class="csub" style="margin-left:auto">'+all.length+'</span>';
+  const wrap=document.createElement('div');wrap.style.display=deletedRailOpen?'block':'none';wrap.style.marginTop='8px';
+  tog.onclick=()=>{deletedRailOpen=!deletedRailOpen;saveDeletedRailOpen();tog.classList.toggle('open',deletedRailOpen);wrap.style.display=deletedRailOpen?'block':'none'};
+  visible.forEach(p=>{
+    const pr=sot.projects[p],n=Object.keys(sot.threads).filter(k=>sot.threads[k].project===p).length;
+    const c=document.createElement('div');c.className='delCard';
+    c.innerHTML='<div class="dcttl">'+esc(p)+'</div><div class="dcsub">'+n+' tab'+(n===1?'':'s')+' · '+esc(pr.mainFile||'—')+'</div><div class="dcbtns"><button class="recBtn">Restore</button><button class="recBtn danger">Delete permanently</button></div>';
+    const[rb,fb]=c.querySelectorAll('button');
+    rb.onclick=e=>{e.stopPropagation();restoreProject(p)};
+    fb.onclick=e=>{e.stopPropagation();hardDeleteProject(p)};
+    wrap.appendChild(c);
+  });
+  sec.appendChild(tog);sec.appendChild(wrap);pl.appendChild(sec);
+}
 function firstThreadOf(p){return Object.keys(sot.threads).filter(k=>sot.threads[k].project===p&&!sot.threads[k].deleted)[0]||null}
 function openProject(p,preferKey){
   activeProject=p;localStorage.setItem('ds_activeproj',p);
@@ -520,7 +551,9 @@ function projectThreads(){return Object.keys(sot.threads).filter(k=>sot.threads[
 function renderTabs(){
   const ts=$('projectTabs');ts.innerHTML='';
   if(!activeProject)return;
-  projectThreads().filter(k=>!sot.threads[k].deleted).forEach(k=>{
+  const live=projectThreads().filter(k=>!sot.threads[k].deleted);
+  const deleted=projectThreads().filter(k=>sot.threads[k].deleted);
+  live.forEach(k=>{
     const t=sot.threads[k];
     const el=document.createElement('div');el.className='tab'+(k===activeKey?' active':'');
     el.innerHTML='<span class="dot '+(t.state||'idle')+'"></span><span class="tname">'+esc(tabName(t))+'</span><button class="tabClose" title="Soft delete → Recycle Bin">×</button>';
@@ -531,9 +564,13 @@ function renderTabs(){
     el.addEventListener('contextmenu',e=>{e.preventDefault();showCtx(el,k)});
     ts.appendChild(el);
   });
-  const add=document.createElement('div');add.className='tab addtab';add.textContent='+';
+  const add=document.createElement('div');add.className='tab addtab';add.textContent='+';add.title='Add tab';
   add.onclick=newThreadForProject;
   ts.appendChild(add);
+  if(!live.length&&deleted.length){
+    const restore=document.createElement('div');restore.className='tab restoretab';restore.textContent='↻';restore.title='Restore last deleted tab';
+    restore.onclick=restoreLastDeletedTab;ts.appendChild(restore);
+  }
 }
 function showCtx(tabEl,key){
   const c=$('tabContext');const r=tabEl.getBoundingClientRect();c.innerHTML='';
@@ -642,7 +679,13 @@ async function softDeleteProject(p){
   });
 }
 async function restoreThread(key){sot.threads[key].deleted=false;delete sot.threads[key].deletedAt;const p=sot.threads[key].project;if(sot.projects[p]&&sot.projects[p].deleted){sot.projects[p].deleted=false}await guard(saveSOT('devstream: restore '+key));renderSidebar();renderTabs();if(view==='dash')renderDash()}
-async function restoreProject(p){sot.projects[p].deleted=false;delete sot.projects[p].deletedAt;Object.keys(sot.threads).forEach(k=>{if(sot.threads[k].project===p)sot.threads[k].deleted=false});await guard(saveSOT('devstream: restore project '+p));renderSidebar();renderTabs();if(view==='dash')renderDash()}
+async function restoreLastDeletedTab(){
+  if(!activeProject)return;
+  const deleted=projectThreads().filter(k=>sot.threads[k].deleted).sort((a,b)=>String(sot.threads[b].deletedAt||'').localeCompare(String(sot.threads[a].deletedAt||'')));
+  if(!deleted.length){toast('No deleted tab to restore');return}
+  const key=deleted[0];await restoreThread(key);openProject(activeProject,key);toast('Restored '+tabName(sot.threads[key]));
+}
+async function restoreProject(p){sot.projects[p].deleted=false;delete sot.projects[p].deletedAt;Object.keys(sot.threads).forEach(k=>{if(sot.threads[k].project===p)sot.threads[k].deleted=false});await guard(saveSOT('devstream: restore project '+p));renderSidebar();renderTabs();if(view==='dash')renderDash();toast('Restored '+p)}
 async function hardDeleteThread(key){
   if(!confirm('PERMANENTLY delete thread '+key+'? Chat history is destroyed. Repo code files are NOT touched.'))return;
   await guard(async()=>{
@@ -655,7 +698,7 @@ async function hardDeleteThread(key){
   });
 }
 async function hardDeleteProject(p){
-  if(!confirm('PERMANENTLY delete project "'+p+'" and all its thread histories? Repo code files are NOT touched.'))return;
+  if(!confirm('Are you sure? PERMANENTLY delete project "'+p+'" and all its thread histories? This cannot be undone. Repo code and plan files are NOT touched.'))return;
   await guard(async()=>{
     for(const k of Object.keys(sot.threads).filter(k=>sot.threads[k].project===p)){
       const t=sot.threads[k];const pt=tpath(t.project,t.tid||t.file);
@@ -690,7 +733,7 @@ function syncNewProjectMode(){
   const coach=$('npCoach').checked;
   $('npFileRow').style.display=coach?'none':'';
   $('npEngineRow').style.display=coach?'none':'';
-  if(coach)$('npFile').value='projects/'+slug($('npLabel').value)+'.html';
+  if(coach)$('npFile').value=projectPath(slug($('npLabel').value)+'.html');
 }
 $('npCoach').onchange=syncNewProjectMode;
 $('npLabel').addEventListener('input',()=>{if($('npCoach').checked)syncNewProjectMode()});
@@ -713,12 +756,14 @@ $('npFile').addEventListener('input',()=>{npSelectedExisting=false;$('npHint').t
 $('npFile').addEventListener('keydown',e=>{if(e.key==='Enter'){e.preventDefault();$('npOmni').style.display='none';$('npCreate').click()}});
 $('npCreate').onclick=()=>guard(async()=>{
   const label=$('npLabel').value.trim(), coach=$('npCoach').checked, engine=$('npEngine').value;
-  let file=coach?'projects/'+slug(label)+'.html':$('npFile').value.trim();
+  const entered=$('npFile').value.trim();
+  let file=coach?projectPath(slug(label)+'.html'):entered;
   if(!label)throw new Error('Project label required');
   if(!file)throw new Error('File required');
+  if(!coach&&!npSelectedExisting&&!file.startsWith(projectDir()+'/'))file=projectPath(file);
   if(sot.projects[label])throw new Error('Project '+label+' already exists');
   const tree=await repoTree(true);
-  if(coach){let n=2;while(tree.includes(file)||tree.includes(planOf(file)))file='projects/'+slug(label)+'-'+(n++)+'.html'}
+  if(coach){const stem=projectPath(slug(label));let n=2;while(tree.includes(file)||tree.includes(planOf(file)))file=stem+'-'+(n++)+'.html'}
   const plan=planOf(file);
   const fileExists=tree.includes(file), planExists=tree.includes(plan);
   sot.projects[label]={notes:'',lastTouched:now(),planFile:plan,planExists,mainFile:file,coachMode:$('npCoach').checked};
@@ -828,11 +873,34 @@ function useSuggestion(item){
 
 /* ---- send / dispatch ---- */
 const activeRuns=new Set(),scheduledRuns=new Set(),savingMessages={};
+const activeProjectRuns=new Map(),projectRunQueues={};
+function hasPending(key){const th=threads[key];return !!(th&&th.data.messages.some(m=>m.role==='user'&&m.status==='pending'))}
+function queueProjectRun(key){
+  const t=sot.threads[key];if(!t||t.deleted)return;
+  const q=projectRunQueues[t.project]||(projectRunQueues[t.project]=[]);
+  if(!q.includes(key))q.push(key);
+  const pos=q.indexOf(key)+1;
+  progress[key]={line:'queued in '+t.project+' ('+pos+' in project queue)',at:Date.now(),started:(progress[key]||{}).started||Date.now()};
+  renderProgress();renderSidebar();
+}
+function drainProjectQueue(project){
+  if(activeProjectRuns.has(project))return;
+  const q=projectRunQueues[project]||[];
+  while(q.length){
+    const key=q.shift(),t=sot.threads[key];
+    if(!t||t.deleted||savingMessages[key]||!hasPending(key))continue;
+    dispatch(key);break;
+  }
+  if(!q.length)delete projectRunQueues[project];
+}
+function releaseProjectRun(key){
+  const t=sot.threads[key];if(!t)return;
+  if(activeProjectRuns.get(t.project)===key)activeProjectRuns.delete(t.project);
+  setTimeout(()=>drainProjectQueue(t.project),0);
+}
 function startQueued(key){
-  if(activeRuns.has(key)||scheduledRuns.has(key)||savingMessages[key])return;
-  const th=threads[key],t=sot.threads[key];
-  if(th&&t&&t.state!=='executing'&&th.data.messages.some(m=>m.role==='user'&&m.status==='pending'))
-    setTimeout(()=>dispatch(key),0);
+  if(scheduledRuns.has(key)||savingMessages[key])return;
+  if(hasPending(key))setTimeout(()=>dispatch(key),0);
 }
 function sendMessage(){
   const key=activeKey;const txt=$('message').value.trim();
@@ -845,9 +913,9 @@ function sendMessage(){
   $('message').value='';$('message').style.height='44px';
   const atts=pendingAtt;pendingAtt=[];renderAttList();
   const shouldStart=!activeRuns.has(key)&&!scheduledRuns.has(key);
-  if(shouldStart){scheduledRuns.add(key);t.state='executing';t.startedAt=now();t.error=''}
-  if(shouldStart)progress[key]={line:'saving your message…',at:Date.now(),started:Date.now()};
-  else toast('Message queued for the next run');
+  if(shouldStart)scheduledRuns.add(key);
+  progress[key]={line:'saving your message…',at:Date.now(),started:(progress[key]||{}).started||Date.now()};
+  if(!shouldStart)toast('Task queued for this project');
   renderChat(true);renderTabs();renderSidebar();renderProgress();
   guard(async()=>{
     const stored=atts.length?await storeAttachments(t,atts):[];
@@ -855,7 +923,7 @@ function sendMessage(){
     th.sha=await putFileSafe(threadPath(key),JSON.stringify(th.data,null,1),'devstream: message '+key,th.sha);
     sot.projects[t.project].lastTouched=now();
     await saveSOT('devstream: touch '+key);
-    if(shouldStart){scheduledRuns.delete(key);dispatch(key,true)}
+    if(shouldStart){scheduledRuns.delete(key);dispatch(key)}
   }).then(ok=>{
     savingMessages[key]=Math.max(0,(savingMessages[key]||1)-1);
     if(ok){startQueued(key);return}
@@ -868,7 +936,15 @@ $('send').onclick=sendMessage;
 $('message').addEventListener('keydown',e=>{if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();sendMessage()}});
 $('message').addEventListener('input',function(){this.style.height='44px';this.style.height=Math.min(this.scrollHeight,130)+'px'});
 function threadPath(key){const th=threads[key];const t=sot.threads[key]||{};return tpath(th.data.project,th.data.tid||t.tid||th.data.outputFile)}
-function dispatch(key,premarked){if(activeRuns.has(key)||scheduledRuns.has(key))return;runAgent(key,!!premarked)}
+function dispatch(key,premarked){
+  const t=sot.threads[key];if(!t||t.deleted)return;
+  if(scheduledRuns.has(key))return;
+  if(activeRuns.has(key)){queueProjectRun(key);return}
+  const owner=activeProjectRuns.get(t.project);
+  if(owner&&owner!==key){queueProjectRun(key);return}
+  activeProjectRuns.set(t.project,key);
+  runAgent(key,!!premarked);
+}
 $('runPending').onclick=()=>{if(activeKey)dispatch(activeKey)};
 $('pendingRun').onclick=()=>{if(activeKey)dispatch(activeKey)};
 
@@ -928,23 +1004,23 @@ async function callEngine(eng,system,history,user,modelOverride){
 const interrupted=new Set();
 async function runAgent(key,premarked){
   const t=sot.threads[key],th=threads[key];
-  if(!t||!th)return;
+  if(!t||!th){releaseProjectRun(key);return}
   const coach=!!sot.projects[t.project]?.coachMode;
-  if(activeRuns.has(key)||(t.state==='executing'&&!premarked)){toast('This thread is already building');return}
+  if(activeRuns.has(key)||(t.state==='executing'&&!premarked)){toast('This thread is already building');releaseProjectRun(key);return}
   activeRuns.add(key);
   const pend=th.data.messages.filter(m=>m.role==='user'&&m.status==='pending');
-  if(!pend.length){activeRuns.delete(key);toast('Nothing pending');return}
+  if(!pend.length){activeRuns.delete(key);releaseProjectRun(key);toast('Nothing pending');return}
   const eng=t.engine||'venice';
   const chain=[eng,...['venice','openrouter','anthropic-direct'].filter(x=>x!==eng)]
     .filter(x=>(x==='venice'&&cfg.vkey&&cfg.vmodel)||(x==='openrouter'&&cfg.orkey&&cfg.ormodel)||(x==='anthropic-direct'&&cfg.akey));
   if(interrupted.has(key)){
     interrupted.delete(key);delete progress[key];
     await setState(key,{state:'idle',finishedAt:now(),error:''});
-    activeRuns.delete(key);toast(key+' interrupted — message left queued');return;
+    activeRuns.delete(key);releaseProjectRun(key);toast(key+' interrupted — message left queued');return;
   }
   if(!chain.length){
     delete progress[key];await setState(key,{state:'error',finishedAt:now(),error:'no engine is configured'});
-    activeRuns.delete(key);errbar('no engine is configured — open ⚙, validate at least one engine');return;
+    activeRuns.delete(key);releaseProjectRun(key);errbar('no engine is configured — open ⚙, validate at least one engine');return;
   }
   let completed=false;
   try{
@@ -1055,7 +1131,8 @@ async function runAgent(key,premarked){
     await setState(key,{state:'error',finishedAt:now(),error:e.message});
   }finally{
     activeRuns.delete(key);
-    if(completed)startQueued(key);
+    if(completed&&hasPending(key))queueProjectRun(key);
+    releaseProjectRun(key);
   }
 }
 /* ---- blob worker pool (4) ---- */
@@ -1457,27 +1534,13 @@ function renderDash(){
 }
 
 function renderDeleted(body){
-  const dp=Object.keys(sot.projects).filter(p=>sot.projects[p].deleted).sort();
   const dt=Object.keys(sot.threads).filter(k=>sot.threads[k].deleted&&!(sot.projects[sot.threads[k].project]||{}).deleted);
-  if(!dp.length&&!dt.length)return;
+  if(!dt.length)return;
   const sec=document.createElement('div');sec.className='dsec';
   const tog=document.createElement('button');tog.className='dtoggle'+(delOpen?' open':'');
-  tog.innerHTML='<span class="chev">▸</span><span>Deleted</span><span class="csub" style="margin-left:auto">'+
-    (dp.length?dp.length+' project'+(dp.length===1?'':'s'):'')+(dp.length&&dt.length?' · ':'')+
-    (dt.length?dt.length+' tab'+(dt.length===1?'':'s'):'')+'</span>';
+  tog.innerHTML='<span class="chev">▸</span><span>Deleted tabs</span><span class="csub" style="margin-left:auto">'+dt.length+'</span>';
   const wrap=document.createElement('div');wrap.style.display=delOpen?'block':'none';wrap.style.marginTop='8px';
   tog.onclick=()=>{delOpen=!delOpen;tog.classList.toggle('open',delOpen);wrap.style.display=delOpen?'block':'none'};
-  dp.forEach(p=>{
-    const pr=sot.projects[p];
-    const n=Object.keys(sot.threads).filter(k=>sot.threads[k].project===p).length;
-    const c=document.createElement('div');c.className='delCard';
-    c.innerHTML='<div class="dcttl">'+esc(p)+'</div><div class="dcsub">'+n+' tab'+(n===1?'':'s')+
-      ' · '+esc(pr.mainFile||'—')+' · deleted '+rel(pr.deletedAt)+'</div>'+
-      '<div class="dcbtns"><button class="recBtn">Restore project</button><button class="recBtn danger">Delete forever</button></div>';
-    const[rb,fb]=c.querySelectorAll('button');
-    rb.onclick=()=>restoreProject(p);fb.onclick=()=>hardDeleteProject(p);
-    wrap.appendChild(c);
-  });
   dt.forEach(k=>{
     const t=sot.threads[k];
     const c=document.createElement('div');c.className='delCard';
@@ -1492,7 +1555,7 @@ function renderDeleted(body){
 }
 
 /* ---- settings / boot ---- */
-$('settings').onclick=()=>{if(cfg){$('sotPat').value=cfg.pat;$('sotOwner').value=cfg.owner;$('sotRepo').value=cfg.repo;$('sotBranch').value=cfg.branch;$('cfgakey').value=cfg.akey||'';$('cfgvkey').value=cfg.vkey||'';$('cfgorkey').value=cfg.orkey||'';
+$('settings').onclick=()=>{if(cfg){$('sotPat').value=cfg.pat;$('sotOwner').value=cfg.owner;$('sotRepo').value=cfg.repo;$('sotBranch').value=cfg.branch;$('cfgProjectDir').value=cfg.projectDir||'projects';$('cfgakey').value=cfg.akey||'';$('cfgvkey').value=cfg.vkey||'';$('cfgorkey').value=cfg.orkey||'';
   if(cfg.vmodel)fillModels('cfgvmodel',[cfg.vmodel],cfg.vmodel);
   if(cfg.ormodel)fillModels('cfgormodel',[cfg.ormodel],cfg.ormodel);$('cfgengine').value=cfg.engine||'venice'}openModal('cfgModal');bindAppearanceUI()};
 var MODEL_CAPS=JSON.parse(localStorage.getItem('ds_model_caps')||'{}');
@@ -1574,10 +1637,10 @@ $('sotValidate').onclick=async()=>{
 $('cfgSave').onclick=()=>guard(async()=>{
   const pat=$('sotPat').value.trim(),owner=$('sotOwner').value.trim(),repo=$('sotRepo').value.trim(),branch=$('sotBranch').value.trim()||'main';
   if(!pat||!owner||!repo)throw new Error('PAT, owner and repository are required');
-  cfg={pat,owner,repo,branch,akey:cleanKey($('cfgakey').value),vkey:cleanKey($('cfgvkey').value),vmodel:$('cfgvmodel').value||'',orkey:cleanKey($('cfgorkey').value),ormodel:$('cfgormodel').value||'',engine:$('cfgengine').value};
+  cfg={pat,owner,repo,branch,projectDir:normDir($('cfgProjectDir').value),akey:cleanKey($('cfgakey').value),vkey:cleanKey($('cfgvkey').value),vmodel:$('cfgvmodel').value||'',orkey:cleanKey($('cfgorkey').value),ormodel:$('cfgormodel').value||'',engine:$('cfgengine').value};
   localStorage.setItem(LS,JSON.stringify(cfg));treeCache=null;
   await loadSOT();
-  sot.config={engine:cfg.engine,vmodel:cfg.vmodel,ormodel:cfg.ormodel,appearance};   // model choices sync via SOT; keys NEVER leave this browser
+  sot.config={engine:cfg.engine,vmodel:cfg.vmodel,ormodel:cfg.ormodel,projectDir:cfg.projectDir,appearance};   // model choices + project directory sync via SOT; keys NEVER leave this browser
   await saveSOT('devstream: engine config');
   dlog('K|engine config saved to SOT');
   $('dot').classList.add('on');closeModals();renderSidebar();renderTabs();toast('Connected');
@@ -1611,7 +1674,7 @@ applyAppearance();
 (async function boot(){
   // migrate v1 cfg
   const old=JSON.parse(localStorage.getItem('ds_cfg_v1')||'null');
-  if(old&&!cfg){const[owner,repo]=(old.repo||'/').split('/');cfg={pat:old.pat,owner,repo,branch:old.branch||'main',akey:old.akey||'',engine:'venice'};localStorage.setItem(LS,JSON.stringify(cfg))}
+  if(old&&!cfg){const[owner,repo]=(old.repo||'/').split('/');cfg={pat:old.pat,owner,repo,branch:old.branch||'main',projectDir:'projects',akey:old.akey||'',engine:'venice'};localStorage.setItem(LS,JSON.stringify(cfg))}
   if(!cfg){openModal('cfgModal');return}
   const ok=await guard(loadSOT);
   if(ok){
@@ -1621,7 +1684,7 @@ applyAppearance();
         t.state='error';t.error='stalled — build interrupted (browser closed mid-run); re-send or ▶ to retry';t.finishedAt=now();healed++;
       }});
     if(healed){dlog('healed '+healed+' stalled thread(s)');saveSOT('devstream: heal stalled').catch(()=>{})}
-    if(sot.config){cfg.vmodel=cfg.vmodel||sot.config.vmodel||'';cfg.ormodel=cfg.ormodel||sot.config.ormodel||'';cfg.engine=cfg.engine||sot.config.engine||'venice';localStorage.setItem(LS,JSON.stringify(cfg));
+    if(sot.config){cfg.vmodel=cfg.vmodel||sot.config.vmodel||'';cfg.ormodel=cfg.ormodel||sot.config.ormodel||'';cfg.engine=cfg.engine||sot.config.engine||'venice';cfg.projectDir=cfg.projectDir||sot.config.projectDir||'projects';localStorage.setItem(LS,JSON.stringify(cfg));
       if(!localStorage.getItem('ds_appearance')&&sot.config.appearance){appearance=sot.config.appearance;saveAppearance();applyAppearance()}}
     $('dot').classList.add('on');
     if(activeProject&&sot.projects[activeProject]&&!sot.projects[activeProject].deleted)openProject(activeProject);
