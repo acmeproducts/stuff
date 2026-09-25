@@ -743,3 +743,39 @@ Implementation: native details cards retain disclosure state across polling. Exi
 Before/after: app palettes 0→4 (SOT Dark, Slate, Ocean, Warm); zebra formats 1→4 (Classic, Dark, Light, Blue); hover formats 1→4 (Classic, Blue, Amber, Outline); suggestion viewport 38vh→min(46vh,360px) with touch-action pan-y; reversible lifecycle controls 0→Restore plus final removal for both Jobs and Sources.
 
 Acceptance: qualification must prove job/source soft-delete, restore, final metadata/registration removal, and preservation of placement evidence/historical source snapshots. Browser gates require collapsible Job/Source cards, lifecycle controls, touch-scroll Omnisearch markers, and all color preset selectors.
+
+
+---
+
+## 2026-09-25 — Release D nested status-group chevrons for Queue and Sources
+
+Owner clarified the Analyze information hierarchy before applying the prior patch.
+
+Required structure is now two levels, not one:
+
+1. **Status group chevron**
+2. **Individual Job/Source chevron inside that group**
+
+Queue status groups, in fixed order: **Running, Stalled, Error, Completed, Soft Deleted**. Every job remains individually collapsible and keeps its exact underlying state on the job card. Grouping is presentation only and does not change scheduler state.
+
+Job grouping rules:
+- Soft Deleted overrides all runtime states.
+- STALLED → Stalled.
+- COMPLETED → Completed.
+- FAILED / INTERRUPTED / ABORTED / STOPPED → Error.
+- QUEUED / RUNNING / PAUSED / STOPPING and any other active state → Running.
+
+Sources use the same outer groups and remain individually collapsible. Source grouping rules:
+- soft-deleted registration → Soft Deleted;
+- RUNNING/STOPPING with last progress older than the scheduler stall threshold → Stalled;
+- last errors, RETRY, FAILED, INTERRUPTED, ABORTED or STOPPED → Error;
+- CURRENT → Completed;
+- READY / STALE / QUEUED / RUNNING / PAUSED and other non-terminal pending/currentness states → Running.
+
+This intentionally keeps the exact source status visible on the inner Source card even when the broader outer bucket is Running.
+
+Group disclosure state is browser-session UI state and must survive polling/re-render exactly like Job, Source, Contents and Job-log disclosure state. Default-open groups are Running, Stalled and Error; Completed and Soft Deleted default closed. Counts are always visible in the outer group summary.
+
+Before/after: Analyze Queue status grouping **0 → 5 outer status chevrons** plus existing per-job chevrons. Analyze Sources status grouping **0 → 5 outer status chevrons** plus existing per-source chevrons.
+
+Acceptance: browser qualification must require both group-state stores, both grouping functions, both grouped renderers, and the five exact group labels. Scheduler telemetry must expose its configured stall threshold so Source Stalled grouping uses the same threshold as Job stall detection.
