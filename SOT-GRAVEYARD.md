@@ -1032,3 +1032,28 @@ Rejected and must not return:
 - completed or soft-deleted history expanded by default and consuming the working view.
 
 Required replacement: fixed outer groups Running, Stalled, Error, Completed and Soft Deleted; persistent group chevrons; each Job/Source remains independently collapsible inside its group; exact inner status remains visible; Running/Stalled/Error default open while Completed/Soft Deleted default closed; Source Stalled grouping uses scheduler stall_seconds telemetry.
+
+
+---
+
+## 2026-09-25 — RELEASE D SIMPLIFIED ANALYZE GROUPING NEGATIVE RULES
+
+Rejected and must not return:
+
+- separate outer **Stalled** and **Error** groups;
+- different group taxonomies between Queue and Sources;
+- Source classification as Stalled solely because its last progress timestamp is old;
+- exact/raw job state used as the primary badge when it disagrees with the outer canonical group;
+- Restart or other job execution controls on the Sources surface;
+- Completed jobs with errors shown as healthy Completed;
+- a long list ordered before the items requiring owner attention.
+
+Required replacement:
+
+- identical four-group order on Queue and Sources: **Action Needed → Running → Completed → Soft Deleted**;
+- Action Needed combines stalled/error/interrupted/aborted/stopped failure conditions;
+- Queue owns all job execution/restart controls;
+- Sources is a catalog of processing outcome/currentness plus source-registration lifecycle;
+- canonical group label is the visible badge on both Job and Source cards;
+- raw Job/Source states remain diagnostic detail only;
+- Action Needed and Running default open; Completed and Soft Deleted default closed.
