@@ -112,10 +112,13 @@ try:
   z3=wait_job(srv.M,j3);assert z3["job"]["state"]=="COMPLETED"
   print("PASS analysis Restart creates a new queued job from frozen scope")
 
-  # Queued Abort + Delete is per-job and disappears from queue history.
+  # Queued Abort + Delete now maps to visible reversible soft deletion.
   j4=srv.M.enqueue([sid1]);srv.M.control(j4,"abort-delete");time.sleep(.05)
-  assert not any(x["job"]["job_id"]==j4 for x in srv.M.list_jobs())
-  print("PASS per-job Abort + Delete")
+  z4=srv.M.snapshot(j4)
+  assert z4 and z4["job"]["lifecycle_status"]=="SOFT_DELETED",z4
+  assert not any(x["job"]["job_id"]==j4 for x in srv.M.list_jobs(100,include_deleted=False))
+  assert any(x["job"]["job_id"]==j4 for x in srv.M.list_jobs(100,include_deleted=True))
+  print("PASS per-job Abort + Soft delete")
 
   # Owner acceptance: job soft-delete is reversible and permanent metadata deletion preserves file evidence.
   jd=srv.M.enqueue([sid1]);zd=wait_job(srv.M,jd);assert zd["job"]["state"]=="COMPLETED",zd
