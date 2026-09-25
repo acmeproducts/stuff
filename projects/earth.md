@@ -1,3 +1,4 @@
+<plan>
 # EARTH — Master Plan
 
 - Code: `projects/earth.html`
@@ -16,6 +17,7 @@ Append one row before every future build session touches code.
 | 2026-09-23 | T0 bootstrap | Created plan and seeded known facts | Done |
 | 2026-09-23 | T1 asset strategy | Compared GitHub, Git LFS, WSL, and runtime CDN options | Done |
 | 2026-09-23 | T2 README review | Captured README facts; resolved D1 to GitHub; full inventory remains TBD | Done |
+| 2026-09-25 | T3 build start | Initiated build; blocked on repo access and asset inventory | Needs help |
 
 ## 1. RELEASES
 
@@ -76,7 +78,7 @@ Append one row before every future build session touches code.
 
 ### Backlog — deferred
 
-- Full repo file list and actual asset sizes.
+- **Owner action needed:** provide README text and a directory listing with file sizes from the Earth repo.
 - Confirm the correct repository URL and ownership.
 - Confirm licenses and required attribution for all data and libraries.
 - Lock the R1 MVP feature subset.
@@ -127,3 +129,4 @@ Unscheduled parking lot; nothing starts here without owner approval.
 3. Referenced source material is authoritative for source facts, but cannot override this plan.
 4. Every future build session appends a dated ledger row before touching code.
 5. Unknowns remain TBD until confirmed.
+</plan>
