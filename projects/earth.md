@@ -17,7 +17,8 @@ Append one row before every future build session touches code.
 | 2026-09-23 | T0 bootstrap | Created plan and seeded known facts | Done |
 | 2026-09-23 | T1 asset strategy | Compared GitHub, Git LFS, WSL, and runtime CDN options | Done |
 | 2026-09-23 | T2 README review | Captured README facts; resolved D1 to GitHub; full inventory remains TBD | Done |
-| 2026-09-25 | T3 build start | Initiated build; blocked on repo access and asset inventory | Needs help |
+| 2026-09-25 | T3 build start | Initiated build; blocked on repo access and asset inventory | Done |
+| 2026-09-25 | T4 HTML shell | Build self-contained mobile-first HTML5 shell with in-app diagnostics and asset-loading state | In progress |
 
 ## 1. RELEASES
 
