@@ -102,7 +102,12 @@ try:
   assert z1["job"]["elapsed_seconds"]>=0 and z2["job"]["elapsed_seconds"]>=0
   assert z1["job"]["known_remaining_files"]==0 and z2["job"]["known_remaining_files"]==0
   assert all(x["enumeration_complete"] for x in z1["sources"]+z2["sources"])
-  print("PASS Pause/Start All + live-source dedupe + independent queued analysis jobs")
+  catalog=srv.source_status_rows(include_deleted=True)
+  c1=next(x for x in catalog if x["source_id"]==sid1)
+  assert c1["last_job_id"]==j1 and c1["last_success_job_id"]==j1,c1
+  assert c1["last_success_files"]>=1 and c1["last_success_bytes"]>=2048,c1
+  assert "latest_error_message" in c1 and "latest_error_at" in c1,c1
+  print("PASS Pause/Start All + live-source dedupe + independent queued analysis jobs + source outcome metadata")
 
   # Restart copies the prior frozen source list to a new job.
   j3=srv.M.restart(j1);assert j3!=j1
