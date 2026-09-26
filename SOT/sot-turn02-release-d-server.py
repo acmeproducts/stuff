@@ -377,20 +377,36 @@ def source_status_rows(include_deleted=True):
  rows=S.rows("SELECT * FROM sources ORDER BY enabled DESC,estate,label") if include_deleted else S.rows("SELECT * FROM sources WHERE enabled=1 ORDER BY estate,label")
  out=[]
  for src in rows:
-  last=S.rows("""SELECT j.revision,j.state job_state,j.started,j.ended,
+  last=S.rows("""SELECT j.job_id,j.revision,j.state job_state,j.started,j.ended,
                        js.state source_state,js.producer_state,js.discovered_files,js.discovered_bytes,
                        js.hashed_files,js.hashed_bytes,js.errors,js.current_folder,js.current_file,js.last_progress
                 FROM job_sources js JOIN jobs j ON j.job_id=js.job_id
                 WHERE js.source_id=? AND COALESCE(j.deleted,0)=0 ORDER BY j.revision DESC LIMIT 1""",(src["source_id"],))
-  z=dict(src);lr=last[0] if last else None
+  success=S.rows("""SELECT j.job_id,j.revision,j.ended,js.hashed_files,js.hashed_bytes
+                   FROM job_sources js JOIN jobs j ON j.job_id=js.job_id
+                   WHERE js.source_id=? AND js.state='COMPLETED' AND COALESCE(js.errors,0)=0
+                     AND COALESCE(j.deleted,0)=0
+                   ORDER BY COALESCE(j.ended,j.last_progress,j.created) DESC,j.revision DESC LIMIT 1""",(src["source_id"],))
+  latest_error=S.rows("""SELECT ts,message,event_type FROM events
+                        WHERE source_id=? AND severity='ERROR'
+                        ORDER BY ts DESC,event_id DESC LIMIT 1""",(src["source_id"],))
+  z=dict(src);lr=last[0] if last else None;ok=success[0] if success else None;er=latest_error[0] if latest_error else None
   if lr:
-   z.update({"last_revision":lr["revision"],"last_job_state":lr["job_state"],"last_source_state":lr["source_state"],
+   z.update({"last_job_id":lr["job_id"],"last_revision":lr["revision"],"last_job_state":lr["job_state"],"last_source_state":lr["source_state"],
              "last_producer_state":lr["producer_state"],"last_started":lr["started"],"last_ended":lr["ended"],
              "last_discovered_files":lr["discovered_files"],"last_discovered_bytes":lr["discovered_bytes"],
              "last_hashed_files":lr["hashed_files"],"last_hashed_bytes":lr["hashed_bytes"],"last_errors":lr["errors"],
              "last_current_folder":lr["current_folder"],"last_current_file":lr["current_file"],"last_progress":lr["last_progress"]})
    current=lr["job_state"]=="COMPLETED" and lr["source_state"]=="COMPLETED"
   else:current=False
+  z["last_success_job_id"]=ok["job_id"] if ok else None
+  z["last_success_revision"]=ok["revision"] if ok else None
+  z["last_success_ended"]=ok["ended"] if ok else None
+  z["last_success_files"]=ok["hashed_files"] if ok else 0
+  z["last_success_bytes"]=ok["hashed_bytes"] if ok else 0
+  z["latest_error_at"]=er["ts"] if er else None
+  z["latest_error_message"]=er["message"] if er else None
+  z["latest_error_type"]=er["event_type"] if er else None
   z["soft_deleted"]=not bool(src["enabled"])
   if z["soft_deleted"]:
    z["pending"]=False;z["analysis_state"]="SOFT_DELETED"

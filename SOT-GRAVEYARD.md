@@ -1057,3 +1057,34 @@ Required replacement:
 - canonical group label is the visible badge on both Job and Source cards;
 - raw Job/Source states remain diagnostic detail only;
 - Action Needed and Running default open; Completed and Soft Deleted default closed.
+
+
+---
+
+## 2026-09-26 — RELEASE D ANALYZE POLISH NEGATIVE RULES
+
+Rejected and must not return:
+
+- red outline on the entire Queue Action Needed group;
+- red outline on every Action Needed Job card regardless of whether that card is open/active;
+- readiness text telling the owner to launch work for sources already covered by live Queue jobs;
+- “N active” in the Sources catalog header;
+- Source status derived only from a historical last-job state when current live Queue scope is available;
+- Restart or other job-execution controls rendered by Source cards;
+- duplicate restart-parent text in a collapsed Job subtitle;
+- a canonical Job badge that can be pushed offscreen by the subtitle on mobile;
+- a zero-count default-open status group with a large empty body;
+- two-line Queue telemetry that wastes mobile vertical space;
+- Source detail centered on worker/job mechanics instead of source outcome/currentness/errors.
+
+Required replacement:
+
+- neutral Queue Action Needed group outline; red border only on the open/active Job card inside that group;
+- readiness computed against live job source scopes;
+- **N registered** source header;
+- Sources grouped by live coverage plus source processing outcome;
+- Queue-only job controls;
+- compact restart subtitle and compact one-line Queue telemetry;
+- zero-count groups collapsed;
+- right-pinned canonical badge;
+- outcome-first Source details with successful analysis and error information.
