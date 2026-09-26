@@ -1314,6 +1314,9 @@ Do not reopen casually:
 
 ## 41. Successor-session handoff — authoritative continuation point
 
+Operational session-handoff companion: `MARKET-NAVIGATOR-NEXT-SESSION-HANDOFF.md`. That file is an orientation aid only; this Master Plan remains authoritative. Future sessions should use the handoff to avoid reconstructing program context, then verify all active decisions against this Master Plan before execution.
+
+
 This section exists specifically so a new session can continue without requiring the owner to reconstruct this conversation.
 
 ### 41.1 What to read first
