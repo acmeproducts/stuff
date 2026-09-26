@@ -821,3 +821,67 @@ The canonical Source badge uses the same four labels and badge styling as Queue.
 ### Acceptance
 
 Browser qualification must require exactly the four canonical status groups, shared canonical badge labels, fixed group order, and Queue-only Restart control. The old five-group Stalled/Error hierarchy and Source last-progress-age stall classification are rejected.
+
+
+---
+
+## 2026-09-26 — Release D Analyze mobile polish: source catalog truth, readiness truth, compact cards
+
+Owner approved the simplified Analyze hierarchy from live Android screenshots and requested the remaining inconsistencies be corrected without changing the four-group model.
+
+### Baseline score from the live approved runtime
+
+- Group order: PASS — Action Needed → Running → Completed → Soft Deleted.
+- Nested group + individual Job/Source chevrons: PASS.
+- Queue as the job-control surface: PASS.
+- Sources as a catalog rather than a job-control surface: PARTIAL — no Restart button exists, but Source grouping/detail still reads too much like job state.
+- Queue readiness truth: FAIL — the banner can say 20 sources require kickoff while those same 20 are already covered by a live job.
+- Source header truth: FAIL — “21 active” is ambiguous and reads like 21 active jobs.
+- Mobile Job badge layout: FAIL — long restart subtitles can push the canonical badge offscreen.
+- Restart subtitle: FAIL — restart parent text is duplicated.
+- Empty group density: FAIL — zero-count Action Needed can open into a large empty body.
+- Queue summary density: FAIL — scheduler telemetry and total-history count consume two lines.
+- Action Needed outline: FAIL — the red outline is applied to the whole Queue group; owner requires red outline only on the active/open Job card.
+- Source detail usefulness: PARTIAL — raw job state dominates; source outcome/currentness/error history should dominate.
+
+### Required behavior
+
+#### Queue
+
+- Preserve the four groups and order.
+- Zero-count groups default collapsed even if that group is normally default-open.
+- Action Needed outer group uses the normal neutral group border. Only an **open Job card inside Queue → Action Needed** receives the red outline.
+- The canonical Job badge is pinned to the right edge and cannot be displaced by long text on phone-width layouts.
+- Collapsed restart subtitle is exactly **Restart of <parent> · N sources**; the parent relationship must not be repeated.
+- Expanded detail retains the raw Job state.
+- Queue summary becomes one compact telemetry line: active/max jobs · queued jobs · workers/job · total queue/history jobs.
+- Queue remains the only place for Restart, Abort/Soft Delete, scheduler Start/Pause, and other job execution controls.
+
+#### Readiness banner
+
+Compute pending/currentness sources against the scopes of live Queue jobs.
+
+- If all pending sources are already covered by QUEUED/RUNNING/PAUSED/STOPPING work, do not tell the owner to kick off another job. Show a neutral “currently being processed/covered” message.
+- If uncovered pending sources exist, show Action Needed with the uncovered count and optionally the already-covered count.
+- If no source requires currentness work, omit the banner.
+
+#### Sources
+
+Sources remains the same four visual groups: Action Needed → Running → Completed → Soft Deleted, but grouping is source-catalog truth.
+
+- Running: source is currently covered by a live Queue job.
+- Completed: source has a successful/current processing outcome with no source errors.
+- Action Needed: source is pending/stale/unprocessed/retry/error and is not already covered by live Queue work.
+- Soft Deleted: source registration is soft deleted.
+- No Restart or job execution control is allowed on Sources.
+- Header reads registered-source truth, e.g. **21 registered**, not “21 active.”
+- Expanded Source detail prioritizes: Root, Currentness, Last successful analysis, files/bytes processed, error count/latest error, Last job ID/state, and Last path.
+- Raw source/job states remain diagnostic details; they are not execution controls.
+
+### Preserved scope
+
+Do not change Estate registration workflow, scheduler concurrency/deduplication, job persistence, Database/Grid, Omnisearch, Config color presets, Compare Converted Files, Plan, AI, or file evidence semantics.
+
+### Acceptance
+
+Qualification must require readiness coverage logic, compact Queue telemetry, nonduplicated restart subtitle, zero-count collapsed groups, right-pinned canonical badges, neutral Action Needed group border plus red outline only on open Action Needed Job cards, registered-source header wording, source outcome fields, and absence of Restart controls in source-card rendering.
