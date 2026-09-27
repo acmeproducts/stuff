@@ -1998,3 +1998,16 @@ Mechanical release gates:
 - Source/ship blob: `544661884a412c57aac08fada4f961012a4bc496`.
 - Release behavior includes governed GRW/RSK/MAC persistent indices, independent Fixed/Horizon display selector, and selectable Indexed 100 / Y1 + Y2 representation with active eligible comparison on native Y2.
 - NOW top-row geometry remains unchanged from the last-known-good layout.
+
+
+### 45.15 28·post-ship correction — Library interpretation tabs (owner approved 2026-09-27)
+
+Observed defect: existing Plain / Standard / Technical Library interpretation buttons shipped without their intended styling and rendered as overlapping native controls over the Library header/chart on mobile.
+
+Approved bounded correction:
+- restore compact inline styling for the existing three interpretation buttons;
+- keep them in the existing Library header;
+- no analysis data, persistence, chart, AI, index, NOW, or Library architecture changes;
+- mobile controls must remain contained in the Library header and must not overlay the chart.
+
+Target: `market-navigator-turn28-post-ship.html`.
