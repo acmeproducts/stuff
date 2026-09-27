@@ -1,5 +1,5 @@
-<!-- TALKBRIDGE-PLAN v21.58.0 -->
-# TALKBRIDGE MASTER PLAN v21.58.0
+<!-- TALKBRIDGE-PLAN v21.59.0 -->
+# TALKBRIDGE MASTER PLAN v21.59.0
 
 **Location:** `talkbridge/TALKBRIDGE-PLAN-v9.md` in `acmeproducts/stuff`.
 **Owner:** Confi — sole decision-maker, runs every device gate.
@@ -95,16 +95,28 @@ each moved one turn later; nothing was dropped.
 | 27·post-ship c2 | technical debt & concurrency + D-10 patch | ACCEPTED 2026-09-21 |
 | 28·pre-base | byte-identical snapshot of accepted 27·post-ship | BANKED |
 | **28·base** | **technical debt — flatten the relay path (cluster 1)** | **BUILT, awaiting the owner's device gate** |
-| 28·pre-ship | technical debt — flatten the call (cluster 2) | queued, after 28·base is accepted |
-| 28·ship | free slot: the smallest next thing (D-11, `log` layers, or nothing) | — |
-| 28·post-ship | free slot | — |
-| 29·base / 29·pre-ship | multi-user, relay leg / app leg | queued |
+| 28·pre-ship | technical debt — flatten the call (cluster 2) | queued |
+| 28·ship | **FLATTENING, cluster 3 — room lifecycle.** `enterRoom` (6 layers), `joinRoom` (3), `leaveRoomInternals`, `openS3`, `invUrl`. Same proof (differential harness), same ringfence. | Spec §7.16 · §0c-1 | queued — after 28·pre-ship is accepted | — |
+| 28·post-ship | **FLATTENING, clusters 4 and 5 — render and the shallow sweep — plus D-11.** `renderPanel` (4), `renderHome`, `renderTranscript`, `renderRoomHead`, `appendMsgDom`, `msgHtml`, `roomCardHtml`, `wireRoomCards`; then every remaining `wrap_map` entry including `log` (the device-log uploader moves with it); then D-11 as the one declared behaviour change of the turn, gated on its own. **Turn 28 closes with technical debt DONE: `wrap_map` empty.** | Spec §7.16 · §0c-1 | queued — after 28·ship is accepted | — |
+| 28·ship | technical debt — flatten room lifecycle (cluster 3) | queued |
+| 28·post-ship | technical debt — flatten render + the shallow sweep incl. `log` (clusters 4–5) + D-11 | queued — turn 28 closes with technical debt DONE |
+| 29·pre-base | byte-identical snapshot of accepted 28·post-ship | queued |
+| 29·pre-base | Byte-identical snapshot of accepted 28·post-ship | — | queued | — |
+| 29·base | multi-user, relay leg | queued |
+| 29·pre-ship | multi-user, app leg | queued |
 | 29·ship | D-2 + D-6 directory release | queued |
-| 29·post-ship | IndexedDB — behind its POC, may defer past beta | queued |
+| 29·post-ship | IndexedDB — behind its POC; if the owner defers it, this stage is a byte-identical copy-forward, never skipped | queued |
+| 30·pre-base | byte-identical snapshot of accepted 29·post-ship | queued |
 | 30·base | beta readiness | queued |
 
-Deferred past beta, not on the chain: flattening clusters 3–5 (room lifecycle,
-render, the shallow sweep incl. `log`), D-11, the video wants (backlog).
+**The stage rule, restated because it was broken in the previous revision:**
+pre-base → base → pre-ship → ship → post-ship → next turn's pre-base. Every
+stage exists, in that order, every turn. A stage with no new work is a
+byte-identical copy-forward with its own address, never a hole and never a
+"free slot". The revision before this one left 28·ship and 28·post-ship empty
+and dropped 29·pre-base from the ledger; both are corrected here.
+
+Not on the chain: the video wants (backlog).
 
 | Turn·Stage | Release | Status | Artifact |
 |---|---|---|---|
@@ -141,6 +153,9 @@ ck that is now null, so the new camera never reaches the connection. Fixed addit
 | 28·pre-base | Byte-identical snapshot of accepted 27·post-ship | — | **BANKED 2026-09-21** — `bridge-turn28-pre-base.html` sha256 `a38d6abbcfd1`, byte-identical to accepted 27·post-ship (copy-forward, no rebuild, G15) | https://acmeproducts.github.io/stuff/bridge-turn28-pre-base.html |
 | 28·base | **FLATTENING, cluster 1 — the relay path.** `handleRelay` (5 layers), `LISTEN.handle` (4), `relaySend` (3), `relayConnect` (3), `LISTEN.open`, `reconnectRelayNow`, `log` (3): each chain replaced by ONE function that does what the stack did, nothing more, nothing less. Proven by the differential harness (accepted build vs candidate, same inputs → same log sequence, same screen) and by the marker-set equality check. No behaviour change of any kind; anything found wrong is recorded for a later release. | Spec §7.16 · §0c-1 in force (2026-09-21) | **BUILT 2026-09-21, awaiting the owner’s device gate.** sha256 `05e77cbf2379`. The first edited base in this project: 27 layers removed from the accepted 27·post-ship bytes — every one banked byte-for-byte under `talkbridge/fixtures/flatten/28b/` and named in `removals.json`; the assembler refuses any removal that is not exactly one banked occurrence — and one part added, `fl1-relay-path.js`, holding `relaySend`, `relayConnect`, `reconnectRelayNow`, `LISTEN.open`, `LISTEN.handle`, `handleRelay` flat (plus their two verbatim dispatch bodies `handleRelayCore` / `listenHandleCore`). The V-2 ramp and the C-1 queue helpers moved in whole (their state was private to their wrappers). **Scope notes:** `log` (3 layers) was NOT flattened — its middle layer is the device-log uploader whose buffer is private to that block, and moving it means moving the uploader; deferred to cluster 5 with that reason. K-4’s wrap of `onRoomNameSignal` is untouched (not a relay-path symbol). **Gates:** differential harness 27/27 — accepted and candidate driven through the same script (hello, chat both ways, receipts owed and paid, typing, presence, ping, rename, threads, records, lifecycle, call ring/end, a dropped and flushed signal, socket open/coalesce/close/ramp/retry, a no-room connect, a background room’s lane: hello, ping, chat, duplicate, pills, missed call) and identical on every axis: ordered log, wire, sockets, lanes, rooms, transcript, background transcript, call state, rendered transcript, errors; marker set equal; six symbols bound once, no captured layer reference left; prior 27·post-ship suite 53/53 on the candidate (its byte checks superseded by the differential); checks 4/4 self-verified; mutations 19/19 on the named test (each lost layer, a re-ordered after-block, a re-inserted layer, a new marker, an undeclared base edit). **DEVICE GATE (owner, both phones):** one normal session, zero regressions, the device log reads as before; pull the relay for 5 s mid-chat on each phone, chat continues after. |
 | 28·pre-ship | **FLATTENING, cluster 2 — the call.** Every `CALL.*` chain (`teardown` 4, `start`, `accept`, `setupPC`, `onSignal`, `runRecovery`, `startVideoWatchdog`/`stopVideoWatchdog`, `mount`, `hangUp`, `toggleMic`, `toggleCam`, `onIncoming`, `onAccepted`, `keys`) plus `camSenders` and `replaceSenderTrack`. Same proof, same ringfence. After this, multi-user edits one function per concern instead of a stack. | Spec §7.16 · §0c-1 in force (2026-09-21) | queued — after 28·base is accepted | — |
+| 28·ship | **FLATTENING, cluster 3 — room lifecycle.** `enterRoom` (6 layers), `joinRoom` (3), `leaveRoomInternals`, `openS3`, `invUrl`. Same proof (differential harness), same ringfence. | Spec §7.16 · §0c-1 | queued — after 28·pre-ship is accepted | — |
+| 28·post-ship | **FLATTENING, clusters 4 and 5 — render and the shallow sweep — plus D-11.** `renderPanel` (4), `renderHome`, `renderTranscript`, `renderRoomHead`, `appendMsgDom`, `msgHtml`, `roomCardHtml`, `wireRoomCards`; then every remaining `wrap_map` entry including `log` (the device-log uploader moves with it); then D-11 as the one declared behaviour change of the turn, gated on its own. **Turn 28 closes with technical debt DONE: `wrap_map` empty.** | Spec §7.16 · §0c-1 | queued — after 28·ship is accepted | — |
+| 29·pre-base | Byte-identical snapshot of accepted 28·post-ship | — | queued | — |
 | 29·base | **Multi-user, relay leg** (was 28·base; moved by the 2026-09-21 flattening ruling) — — relay v6.4 alone: fan-out N≤4, cap enforcement, per-device call addressing; app untouched; gated by the 3-socket harness before any app change | Spec §7.8 R-parts | queued — ringfence: relay regressions isolated from app | — |
 | 29·pre-ship | **Multi-user, app leg** — named bubbles for N, presence count, receipts count, room-full UX | Spec §7.8 A-parts | queued | — |
 | 29·ship | **D-2 + D-6 — the directory release (un-hijack done right)** — the app moves to `/stuff/talkbridge-app/` per §7.5 with the PROVEN Chrome-installability recipe from §7.12 (start_url, id, additive fetch handler), old-worker retirement, complete path-impact map per G44. Owner ruling 2026-09-12 stands: one release, isolated, never shares a gate with anything else. Restored to the chain by owner ruling 2026-09-20 (an unreliable un-hijack is a beta-visible defect on any phone that also runs PRISM) and moved AHEAD of IndexedDB by owner ruling the same night. Everything after it builds at the final address. | Spec §7.5 + §7.12 recipe (intact); /stuff/tb-skeleton/ stays the working reference | queued — input: accepted 28·pre-ship | — |
@@ -2014,6 +2029,8 @@ Green means allowed to push. It never means done.
 ---
 
 ## 10 · CHANGE LOG
+
+**v21.59.0 · 2026-09-27.** Owner correction: the stages run pre-base → base → pre-ship → ship → post-ship → next pre-base, every turn, none skipped. The previous revision left 28·ship and 28·post-ship as "free slots" and omitted 29·pre-base — both wrong. Fixed: 28·ship = flatten room lifecycle (cluster 3); 28·post-ship = flatten render + shallow sweep incl. `log` (clusters 4–5) + D-11, closing turn 28 with technical debt done; 29·pre-base restored; 29·post-ship (IndexedDB) is a copy-forward if deferred, never a hole. The stage rule is restated in the WHERE WE ARE block.
 
 **v21.58.0 · 2026-09-27.** Owner: "plan is out of sync — we are still clearing tech debt and we are on turn 28 base already." The ledger was current; the prose around it was not. Added the WHERE WE ARE block at the top of §0 (rewritten at every ledger change), corrected the 0d roadmap sentence, the §7.9/§7.10 headings and the 27·post-ship row title. No stage, status or sequence changed: 28·base (flatten the relay path) is built and awaits the owner's device gate.
 
@@ -5163,7 +5180,7 @@ The accepted 27·post-ship bytes, always. A red device gate on a cluster buries
 that cluster's candidate whole (no patching forward); the fixture layer files
 survive for the next attempt.
 
-### Explicitly deferred (after beta)
+### Clusters 3–5 — scheduled at 28·ship and 28·post-ship (owner correction 2026-09-27: no stage is skipped; turn 28 is the technical-debt turn, whole)
 Cluster 3 room lifecycle (`enterRoom` 6, `joinRoom` 3, `leaveRoomInternals`,
 `openS3`, `invUrl`). Cluster 4 render (`renderPanel` 4, `renderHome`,
 `renderTranscript`, `renderRoomHead`, `appendMsgDom`, `msgHtml`,
