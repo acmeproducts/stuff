@@ -1768,7 +1768,7 @@ These files are the required index-construction sources for every successor stag
 | Turn·Stage | Purpose | State | Artifact / link |
 |---|---|---|---|
 | 28·pre-base | Freeze clean successor input from accepted cumulative Turn 26 baseline plus approved persistent-index evidence | **BUILT — mechanical identity gate complete; owner disposition pending** | https://acmeproducts.github.io/stuff/market-navigator-turn28-pre-base.html |
-| 28·base | Production index construction integration: GRW/RSK/MAC governed persistent math only; no UI redesign | **PLANNED** | new stage artifact required |
+| 28·base | Production index construction integration: GRW/RSK/MAC governed persistent math; last-known-good NOW geometry preserved | **BUILT — owner execution authority granted 2026-09-27** | https://acmeproducts.github.io/stuff/market-navigator-turn28-base.html |
 | 28·pre-ship | Display contract integration: A/B behavior + retained chart-axis behavior, no visual relocation yet unless separately owner-approved | **PLANNED** | new stage artifact required |
 | 28·ship | Owner-approved minimal display placement: add Fixed/Horizon dropdown beside existing bottom chart-representation dropdown; preserve NOW top rows | **AUTHORIZED 2026-09-27** | new stage artifact required |
 | 28·post-ship | Regression hardening: responsive geometry screenshots, crosshair, print, Library, Health, source selection, persistence, Pages smoke, byte identity | **PLANNED** | new stage artifact required |
@@ -1829,6 +1829,8 @@ Mechanical gates:
 
 Owner gate:
 - review of evidence/gate summary only; no UI acceptance is implied.
+
+28·base construction record: rebuilt from the previously qualified persistent-index lineage while explicitly removing its top-navigation geometry override, thereby retaining the Turn 26 NOW geometry. The display selector is not introduced at base. Artifact: https://acmeproducts.github.io/stuff/market-navigator-turn28-base.html .
 
 ### 45.8 Stage 28·pre-ship — display behavior integration
 
