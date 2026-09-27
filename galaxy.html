@@ -50,6 +50,14 @@ body{background:var(--bg);font-family:-apple-system,system-ui,"Segoe UI",Roboto,
   border-radius:8px;padding:7px 8px;font-size:2.6vmin}
 .gobtn{width:100%;background:var(--accent);color:#fff;border:none;border-radius:10px;padding:8px;
   font-size:2.8vmin;font-weight:700;cursor:pointer}
+.diag-row{display:flex;align-items:center;gap:8px;padding:8px 10px;background:var(--card);
+  border:1px solid var(--card-line);border-radius:10px;margin-bottom:7px}
+.diag-dot{width:9px;height:9px;border-radius:50%;flex-shrink:0}
+.diag-dot.ok{background:#81c995}.diag-dot.bad{background:#f28b82}
+.diag-dot.pending{background:#fdd663;animation:pulse 1s infinite}
+@keyframes pulse{50%{opacity:.35}}
+.diag-name{flex:0 0 88px;font-size:2.6vmin;color:var(--ink);font-weight:700}
+.diag-detail{flex:1;font-size:2.3vmin;color:var(--ink-dim)}
 /* page dots */
 #dots{position:absolute;left:50%;bottom:6%;transform:translateX(-50%);display:flex;gap:5px;z-index:5}
 #dots i{width:5px;height:5px;border-radius:50%;background:#3a3c48}
@@ -105,6 +113,7 @@ body{background:var(--bg);font-family:-apple-system,system-ui,"Segoe UI",Roboto,
         <input id="proxyUrlInput" value="https://proxy.myacctfortracking.workers.dev/"></div>
       <div class="srow"><label>Custom URL</label><input id="urlInput" placeholder="https://…"></div>
       <button class="gobtn" onclick="goto(document.getElementById('urlInput').value)">Fetch</button>
+      <button class="gobtn" style="margin-top:8px;background:transparent;border:1px solid var(--card-line);color:var(--ink-dim)" onclick="runDiagnostics()">🩺 Test proxies</button>
     </div></div>
   </div>
   <div id="dots"><i class="on"></i><i></i><i></i><i></i></div>
@@ -295,6 +304,44 @@ function setOv(status, bodyHtmlOrNode){
   if(bodyHtmlOrNode instanceof Node) ovBody.appendChild(bodyHtmlOrNode);
   else if(bodyHtmlOrNode!=null) ovBody.innerHTML=bodyHtmlOrNode;
   ovBody.scrollTop=0;
+}
+/* ---------- diagnostics ---------- */
+function runDiagnostics(){
+  pushView(async ()=>{
+    const testTarget='https://news.google.com/rss';
+    const wrap=ce('div');
+    wrap.appendChild(ce('div','ov-h','Proxy Diagnostics'));
+    wrap.appendChild(ce('div','ov-meta',`Testing each proxy against ${esc(testTarget)}`));
+    const rows={};
+    PROXIES.forEach(proxy=>{
+      const row=ce('div','diag-row');
+      row.innerHTML=`<div class="diag-dot pending"></div><div class="diag-name">${esc(proxy.name)}</div><div class="diag-detail">testing…</div>`;
+      wrap.appendChild(row); rows[proxy.name]=row;
+    });
+    setOv('Diagnostics', wrap);
+    let anyOk=false;
+    await Promise.all(PROXIES.map(async proxy=>{
+      const row=rows[proxy.name], dot=row.querySelector('.diag-dot'), detail=row.querySelector('.diag-detail');
+      const t0=performance.now();
+      try{
+        const r=await fetchWithTimeout(proxy.build(testTarget),8000);
+        const ms=Math.round(performance.now()-t0);
+        if(!r.ok){dot.className='diag-dot bad';detail.textContent=`HTTP ${r.status} · ${ms}ms`;return}
+        const text=await r.text();
+        if(text && text.trim().length>0){dot.className='diag-dot ok';detail.textContent=`OK · ${ms}ms`;anyOk=true}
+        else{dot.className='diag-dot bad';detail.textContent=`empty response · ${ms}ms`}
+      }catch(e){
+        const ms=Math.round(performance.now()-t0);
+        dot.className='diag-dot bad';
+        detail.textContent=(e.name==='AbortError'?'timed out':(e.message||'failed'))+` · ${ms}ms`;
+      }
+    }));
+    const summary=ce('div','ov-p', anyOk
+      ? 'At least one proxy is working — the app will use it automatically.'
+      : 'All proxies failed right now. This usually clears on its own within a few minutes; tap Test proxies again to recheck.');
+    summary.style.marginTop='12px';
+    wrap.appendChild(summary);
+  });
 }
 function openArticle(link,titleHint){
   if(!link) return;

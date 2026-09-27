@@ -51,6 +51,15 @@ button:active { background-color: #1557b0; }
 .watch-link:active { background: #303134; }
 .card-meta { color: #9aa0a6; font-size: 12px; margin-top: 6px; display: flex; gap: 8px; flex-wrap: wrap;
   align-items: center; }
+.diag-row { display: flex; align-items: center; gap: 10px; padding: 9px 12px; background: #202124;
+  border: 1px solid #5f6368; border-radius: 10px; margin-bottom: 8px; font-size: 14px; }
+.diag-dot { width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0; }
+.diag-dot.ok { background: #81c995; }
+.diag-dot.bad { background: #f28b82; }
+.diag-dot.pending { background: #fdd663; animation: pulse 1s infinite; }
+@keyframes pulse { 50% { opacity: .35; } }
+.diag-name { flex: 0 0 108px; color: #e8eaed; font-weight: bold; }
+.diag-detail { color: #9aa0a6; font-size: 12px; flex: 1; }
 .flair { background: #3c4043; color: #e8eaed; border-radius: 8px; padding: 1px 7px; font-size: 10px; }
 .self-snip { color: #9aa0a6; font-size: 13px; margin-top: 6px; line-height: 1.35; }
 .back-pill { display: inline-flex; align-items: center; gap: 4px; background: #202124; color: #8ab4f8;
@@ -108,6 +117,10 @@ button:active { background-color: #1557b0; }
       <button class="chip" onclick="quick('https://www.reddit.com/r/technology')">r/technology</button>
       <button class="chip" onclick="quick('https://www.reddit.com/r/worldnews')">r/worldnews</button>
       <button class="chip" onclick="quick('https://www.reddit.com/r/AskReddit')">r/AskReddit</button>
+    </div>
+    <div class="chip-hdr">Diagnostics</div>
+    <div class="chips">
+      <button class="chip" onclick="runDiagnostics()">🩺 Test all proxies</button>
     </div>
     <div id="status"></div>
   </div>
@@ -369,6 +382,50 @@ async function loadGeneric(targetUrlString, baseTargetUrl){
   watchContent.innerHTML = `<div class="watch-h">${esc(article.title)}</div>` + article.content;
   setStatus('Article extracted successfully.', true);
   scrollTop();
+}
+
+/* ================= diagnostics ================= */
+async function runDiagnostics(){
+  const testTarget = 'https://news.google.com/rss';
+  setStatus('Running diagnostics…');
+  watchContent.innerHTML = '';
+  watchContent.appendChild(ce('div', 'watch-h', 'Proxy Diagnostics'));
+  watchContent.appendChild(ce('div', 'watch-p', `Testing each proxy against ${testTarget}`));
+  const rows = {};
+  PROXIES.forEach(proxy => {
+    const row = ce('div', 'diag-row');
+    row.innerHTML = `<div class="diag-dot pending"></div><div class="diag-name">${esc(proxy.name)}</div><div class="diag-detail">testing…</div>`;
+    watchContent.appendChild(row);
+    rows[proxy.name] = row;
+  });
+  scrollTop();
+  let anyOk = false;
+  await Promise.all(PROXIES.map(async proxy => {
+    const row = rows[proxy.name];
+    const dot = row.querySelector('.diag-dot'), detail = row.querySelector('.diag-detail');
+    const t0 = performance.now();
+    try {
+      const response = await fetchWithTimeout(proxy.build(testTarget), 8000);
+      const ms = Math.round(performance.now() - t0);
+      if (!response.ok) { dot.className = 'diag-dot bad'; detail.textContent = `HTTP ${response.status} · ${ms}ms`; return; }
+      const text = await response.text();
+      if (text && text.trim().length > 0) {
+        dot.className = 'diag-dot ok'; detail.textContent = `OK · ${ms}ms`; anyOk = true;
+      } else {
+        dot.className = 'diag-dot bad'; detail.textContent = `empty response · ${ms}ms`;
+      }
+    } catch (err) {
+      const ms = Math.round(performance.now() - t0);
+      dot.className = 'diag-dot bad';
+      detail.textContent = (err.name === 'AbortError' ? 'timed out' : (err.message || 'failed')) + ` · ${ms}ms`;
+    }
+  }));
+  const summary = ce('div', 'watch-p', anyOk
+    ? 'At least one proxy is working — the app will use it automatically.'
+    : 'All proxies failed right now. This usually clears on its own within a few minutes; tap Test again to recheck.');
+  summary.style.marginTop = '14px';
+  watchContent.appendChild(summary);
+  setStatus(anyOk ? 'Diagnostics complete.' : 'Diagnostics complete — all proxies down.', anyOk);
 }
 
 /* ================= main entry ================= */
