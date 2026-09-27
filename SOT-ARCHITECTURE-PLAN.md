@@ -923,3 +923,23 @@ Add a dedicated selected-folder-scope state represented by removable Omnisearch 
 ### Acceptance
 
 Mechanical browser qualification must require the folder-scope state, root-or-descendant matcher, chip rendering/removal, selected-folder autocomplete suppression, matching/total counter, long-press export target, and absence of the old dedicated Export button and old \`matches / shown rows\` counter expression.
+
+
+---
+
+## 2026-09-27 — Release D diagnostic observability and evidence capture
+
+Owner review of a 328-row Database export found 203 lifecycle NONE and 6 IN_PROCESS records, concentrated on D: and I:, while E: was fully fingerprinted. The current runtime persists selected lifecycle events in SQLite but suppresses HTTP logging and has no complete durable runtime log or supported database snapshot path for independent diagnosis.
+
+Required behavior:
+
+- Every Manager event is mirrored to a durable structured JSONL runtime log under the SOT state directory while remaining in the SQLite events table.
+- SQLite-writer and scheduler exceptions are written to the same structured log.
+- Diagnostic capture uses SQLite's backup API after draining queued writes; copying a live WAL database file directly is prohibited.
+- A diagnostic bundle contains the SQLite backup, structured runtime event log, and a machine-readable summary of jobs, sources, scheduler/writer state, and per-source placement lifecycle/fingerprint counts.
+- Config exposes **Create SQLite snapshot** and **Publish diagnostics**.
+- Publish targets a separately configured/cloned **private** diagnostic Git repository; raw SOT SQLite databases are not committed to the public application repository.
+- Publish stages, commits, and pushes one timestamped snapshot so subsequent sessions can inspect job history and database state without relying on screenshots.
+- Analysis scheduling, hashing, classification, Estate registration, Plan, and file-operation semantics are unchanged by this observability release.
+
+Acceptance: qualification must prove durable event mirroring, writer/scheduler error logging, SQLite backup usage, diagnostic summary, snapshot endpoint, private-repository publish endpoint, and both Config controls.
