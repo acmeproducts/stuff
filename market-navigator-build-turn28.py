@@ -37,6 +37,11 @@ def main():
     s=replace_once(s,"</style></head>",css+"</style></head>","Turn 28 CSS")
 
     s=replace_once(s,
+        "function setNowFooter(w,mode='indexed'){let text=mode==='dual'?'Native Y1 + Y2':mode==='native'?'Native Y1':'Indexed 100';$('nowMeta').innerHTML=`<span>TURN 25 CONSOLIDATION</span><span class=\"footerSep\">|</span><span>${w.startLabel} → ${w.endLabel}</span><span class=\"footerSep\">|</span><select id=\"nowRepresentation\" aria-label=\"Chart representation\"><option selected value=\"${mode}\">${text}</option></select>`}",
+        "function setNowFooter(w,mode='indexed'){let display=S.indexDisplay||'fixed',axis=mode==='dual'?'Persistent Index Y1 + Indexed 100 Y2':display==='fixed'?'Fixed Baseline':'Horizon Rebase';$('nowMeta').innerHTML=`<span>MN-PERSISTENT-1.0.0</span><span class=\"footerSep\">|</span><span>${w.startLabel} → ${w.endLabel}</span><span class=\"footerSep\">|</span><select id=\"nowRepresentation\" aria-label=\"Index display mode\"><option value=\"fixed\" ${display==='fixed'?'selected':''}>A · Fixed Baseline</option><option value=\"rebase\" ${display==='rebase'?'selected':''}>B · Horizon Rebase</option></select><span class=\"footerSep\">|</span><span>${axis}</span>`;$('nowRepresentation').onchange=()=>{S.indexDisplay=$('nowRepresentation').value;renderNow()}}",
+        "A/B display selector")
+
+    s=replace_once(s,
         '<div class="field"><label>Default provider</label><select id="defaultProvider">',
         '<div class="field"><label>Interpretation level</label><select id="analysisLevelDefault"><option value="plain">Plain</option><option value="standard">Standard</option><option value="technical">Technical</option></select></div><div class="field"><label>Default provider</label><select id="defaultProvider">',
         "AI interpretation config")
@@ -99,7 +104,7 @@ def main():
     s=s.replace("let text=mode==='dual'?'Native Y1 + Y2':mode==='native'?'Native Y1':'Indexed 100';", "let text=mode==='dual'?'Persistent Index Y1 + Indexed 100 Y2':mode==='native'?'Native Y1':'Indexed 100';")
     s=replace_once(s,
         "setNowFooter(w,'indexed');captureNowState(sets,w,'indexed');S.nowPaint25={sets,w,mode:'indexed'};draw('now',sets,w,'indexed')}function componentCard",
-        "let chartMode=sets.length>1?'dual':'indexed';sets.forEach(z=>{z.axis=z.id===k?0:1;z.axisLabel=z.id===k?'Persistent Index':'Indexed 100'});setNowFooter(w,chartMode);captureNowState(sets,w,chartMode);S.nowPaint25={sets,w,mode:chartMode};draw('now',sets,w,chartMode)}function componentCard",
+        "let chartMode=(S.indexDisplay||'fixed')==='fixed'&&sets.length>1?'dual':'indexed';sets.forEach(z=>{z.axis=chartMode==='dual'?(z.id===k?0:1):0;z.axisLabel=z.id===k?((S.indexDisplay||'fixed')==='fixed'?'Persistent Index':'Horizon Rebase'):'Indexed 100'});setNowFooter(w,chartMode);captureNowState(sets,w,chartMode);S.nowPaint25={sets,w,mode:chartMode};draw('now',sets,w,chartMode)}function componentCard",
         "persistent comparison dual axes")
 
     s=replace_once(s,
@@ -127,6 +132,8 @@ def main():
 
     js="""
 /* TURN27_PERSISTENT_AI_LEVEL_RUNTIME */
+function indexDisplayCurve28(curve){let a=(curve||[]).map(p=>({t:+p.t,v:+p.v,idx:+p.v,raw:+p.v,sourceT:+p.t}));if((S.indexDisplay||'fixed')==='rebase'&&a.length){let base=a[0].v;if(Number.isFinite(base)&&base!==0)a=a.map(p=>({...p,v:100*p.raw/base,idx:100*p.raw/base}))}return a}
+
 function interpretationInstruction27(level){
  if(level==='plain')return 'Use everyday language, define necessary market terms immediately, and emphasize practical meaning. Preserve every governed fact, limitation, conclusion, and link.';
  if(level==='technical')return 'Expose transforms, index-point arithmetic, basis-point/percentage-point meaning, vintage timing, model mechanics, caveats, and provenance. Preserve the governed conclusions and links.';
