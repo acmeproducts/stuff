@@ -36,9 +36,9 @@ def main():
 """
     css+=".nowContext28{position:absolute;left:50%;top:3px;transform:translateX(-50%);display:flex;align-items:center;gap:8px;white-space:nowrap;font-size:10px;color:var(--muted)}.nowContext28 select{font:inherit}.rail .foot span{display:none}@media(max-width:700px){.nowContext28{font-size:8px;gap:4px}.nowContext28 select{max-width:116px}}\n"
     s=replace_once(s,"</style></head>",css+"</style></head>","Turn 28 CSS")
-    s=s.replace('<div class="foot"><button class="gear" id="settingsGear" aria-label="Configuration">⚙</button><span>CONFIG</span></div>','<div class="foot"><button class="gear" id="settingsGear" aria-label="Configuration">⚙</button><span style="display:none">CONFIG</span></div>')
 
-
+    s=s.replace("componentsExpanded:false,hiddenComponents:[],nowComparisons:[],nowRepresentation:null,","componentsExpanded:false,hiddenComponents:[],nowComparisons:[],nowRepresentation:null,indexDisplay:'fixed',axisMode:null,")
+    s=s.replace("function setNowFooter(w,mode='indexed'){let text=mode==='dual'?'Native Y1 + Y2':mode==='native'?'Native Y1':'Indexed 100';$('nowMeta').innerHTML=\`<span>TURN 25 CONSOLIDATION</span><span class=\"footerSep\">|</span><span>${w.startLabel} → ${w.endLabel}</span><span class=\"footerSep\">|</span><select id=\"nowRepresentation\" aria-label=\"Chart representation\"><option selected value=\"${mode}\">${text}</option></select>\`}","function setNowFooter(w,mode='indexed'){let allowed=S.level===2&&S.index&&S.nowComparisons.length?'dual':'indexed',axis=S.axisMode&&['indexed','dual'].includes(S.axisMode)?S.axisMode:allowed;if(axis==='dual'&&allowed!=='dual')axis='indexed';S.axisMode=axis;let axisOptions=allowed==='dual'?\`<option value=\"indexed\" ${axis==='indexed'?'selected':''}>Base 100</option><option value=\"dual\" ${axis==='dual'?'selected':''}>Y1 + Y2</option>\`:\`<option value=\"indexed\" selected>Base 100</option>\`;$('nowMeta').innerHTML=\`<span>MN-PERSISTENT-1.0.0</span><span class=\"footerSep\">|</span><select id=\"nowRepresentation\" aria-label=\"Chart axis representation\">${axisOptions}</select>\`;$('nowRepresentation').onchange=()=>{S.axisMode=$('nowRepresentation').value;renderNow()};return axis}")
 
     s=replace_once(s,
         '<div class="field"><label>Default provider</label><select id="defaultProvider">',
@@ -50,8 +50,45 @@ def main():
         "Library interpretation tabs")
 
     s=s.replace("(x.curve||[]).map(p=>({t:+p.t,v:+p.v,idx:+p.v,raw:+p.v,sourceT:+p.t}))","indexDisplayCurve28(x.curve||[])")
-    s=s.replace("componentsExpanded:false,hiddenComponents:[],nowComparisons:[],nowRepresentation:null,","componentsExpanded:false,hiddenComponents:[],nowComparisons:[],nowRepresentation:null,indexDisplay:'fixed',axisMode:null,")
-    s=s.replace("function setNowFooter(w,mode='indexed'){let text=mode==='dual'?'Native Y1 + Y2':mode==='native'?'Native Y1':'Indexed 100';$('nowMeta').innerHTML=\`<span>TURN 25 CONSOLIDATION</span><span class=\"footerSep\">|</span><span>${w.startLabel} → ${w.endLabel}</span><span class=\"footerSep\">|</span><select id=\"nowRepresentation\" aria-label=\"Chart representation\"><option selected value=\"${mode}\">${text}</option></select>\`}","function setNowFooter(w,mode='indexed'){let allowed=S.level===2&&S.index&&S.nowComparisons.length?'dual':'indexed',axis=S.axisMode&&['indexed','dual'].includes(S.axisMode)?S.axisMode:allowed;if(axis==='dual'&&allowed!=='dual')axis='indexed';S.axisMode=axis;let axisOptions=allowed==='dual'?\`<option value=\"indexed\" ${axis==='indexed'?'selected':''}>Base 100</option><option value=\"dual\" ${axis==='dual'?'selected':''}>Y1 + Y2</option>\`:\`<option value=\"indexed\" selected>Base 100</option>\`;$('nowMeta').innerHTML=\`<span>MN-PERSISTENT-1.0.0</span><span class=\"footerSep\">|</span><select id=\"nowRepresentation\" aria-label=\"Chart axis representation\">${axisOptions}</select>\`;$('nowRepresentation').onchange=()=>{S.axisMode=$('nowRepresentation').value;renderNow()};return axis}")
+    s=replace_once(s,"j('market-evidence/derived-indices.json'),j('data/market-backend/derived-index-definition.json')",
+        "j('market-evidence/derived-indices-persistent-v1.json'),j('data/market-backend/derived-index-definition-persistent-v1.json')",
+        "persistent boot evidence")
+    s=replace_once(s,
+        "renormalizationRule:'Each available component carries weight 1/n where n is the number of components available at the horizon; components excluded by the governed ratio-eligibility rule are omitted and the remaining weights renormalise through the arithmetic mean.',",
+        "renormalizationRule:'All seven components carry a fixed 1/7 coefficient. Missing governed state makes the index unavailable; no reduced-set renormalization is permitted.',",
+        "fixed coefficient manifest")
+    s=replace_once(s,
+        "let raw=(b.components||[]).filter(c=>Number.isFinite(+c.orientedIndex)&&Number.isFinite(+c.moveFrom100)&&Number.isFinite(+c.t0Value)&&Number.isFinite(+c.nowValue)&&+c.t0Value!==0),",
+        "let raw=(b.components||[]).filter(c=>Number.isFinite(+c.orientedIndex)&&Number.isFinite(+c.moveFrom100)&&Number.isFinite(+c.signalT0)&&Number.isFinite(+c.signalNow)),",
+        "persistent attribution filter")
+    old="let w=1/n,anchorNow=b.commonNow||'',anchorT0=b.commonT0||'',"
+    new="let w=1/7,anchorNow=b.commonNow||'',anchorT0=b.commonT0||'',"
+    s=replace_once(s,old,new,"fixed one-seventh weight")
+    start="replicatedOriented=raw.map(c=>{let kind=c.transform||(defMap[c.id]&&defMap[c.id].transform)||'ratio';return kind==='signed_level_sd'?100+(+c.direction)*(((+c.nowValue)-(+c.t0Value))/(+c.transformScale)):100+(+c.direction)*((((+c.nowValue)/(+c.t0Value)))-1)*100}),"
+    s=replace_once(s,start,"replicatedOriented=raw.map(c=>100+((+c.signalNow)-(+c.signalT0))),","persistent replication")
+    s=replace_once(s,
+        "recomputedIndex=replicatedOriented.reduce((a,x)=>a+x,0)/n,",
+        "recomputedIndex=(Number.isFinite(+b.baseline)?+b.baseline:100)+replicatedOriented.reduce((a,x)=>a+(x-100),0)/7,",
+        "persistent absolute index replication")
+    s=s.replace("weightRule:`1/${n} equal weight over components available at this horizon`","weightRule:'fixed 1/7 coefficient; no reduced-set renormalization'")
+    s=s.replace("let cover=r.coverageStatus==='COMPLETE'?'':` ${r.componentsDefined-r.componentsUsed} of ${r.componentsDefined} defined components are excluded by the governed ratio-eligibility rule and are not estimated.`;","let cover=r.coverageStatus==='COMPLETE'?'':` The canonical index is unavailable unless all ${r.componentsDefined} governed component states exist.`;")
+    s=s.replace("dir=r.indexMovementPercent>0.005?`rose ${mnxNum(Math.abs(r.indexMovementPercent))}%`:r.indexMovementPercent<-0.005?`fell ${mnxNum(Math.abs(r.indexMovementPercent))}%`:'was essentially unchanged',","dir=r.indexMovementPercent>0.005?`rose ${mnxNum(Math.abs(r.indexMovementPercent))} index points`:r.indexMovementPercent<-0.005?`fell ${mnxNum(Math.abs(r.indexMovementPercent))} index points`:'was essentially unchanged',")
+    s=s.replace("**Index movement: ${mnxPct(r.indexMovementPercent)}**","**Index movement: ${mnxSigned(r.indexMovementPercent,3,' index points')}**")
+    s=s.replace("· ${mnxPct(c.rawMovementPercent)} | ${mnxPp(c.indexContributionPercentPoints)} |","· standardized move ${mnxSigned(c.orientedMovementPercent,4,'')} | ${mnxSigned(c.indexContributionPercentPoints,4,' points')} |")
+    s=s.replace("**${mnxPp(r.reconciliation.summedContribution)}**","**${mnxSigned(r.reconciliation.summedContribution,4,' points')}**")
+    s=s.replace("Equal weighting and 1/n renormalisation are read from the governed definition, never assumed.","Fixed 1/7 coefficients and the no-renormalization rule are read from the governed definition, never assumed.")
+    s=s.replace("/* Leave-one-component-out under the governed renormalisation rule (arithmetic mean of remaining available components) */","/* Diagnostic leave-one-component-out: preserve fixed 1/7 coefficients; never promote this counterfactual to the governed index. */")
+    s=s.replace("specification:`omit ${x.displayName} (governed renormalisation)`","specification:`omit ${x.displayName} (diagnostic fixed-coefficient counterfactual)`")
+    s=s.replace("['Components available','How many defined model components can participate truthfully at the selected horizon.','Missing components reduce coverage. Governed fallback renormalizes remaining eligible components; Health remains WATCH/DEGRADED as appropriate.'],","['Components available','How many defined model components can participate truthfully at the selected horizon.','All seven governed states are required. A missing state makes the canonical index unavailable; weights are never silently renormalized.'],")
+    s=s.replace("['Leave-one-out impact','How much the index changes when one component is removed and the remaining governed weights are renormalized.','Large impact means the result depends heavily on that component.'],","['Leave-one-out impact','A diagnostic counterfactual that removes one contribution while preserving the fixed coefficients.','Large impact means the result depends heavily on that component; this is not a governed alternate index.'],")
+    s=s.replace("'Remaining eligible components are renormalized to 100%. Current lifecycle: '","'No reduced-set index is calculated. Current lifecycle: '")
+    s=s.replace("participates=c.transform==='signed_level_sd'?'Zero-crossing safe: additive change standardized by canonical historical level SD; remains eligible across inversion/uninversion.':(c.ratioEligible?'Ratio-rebased when horizon evidence is available.':'Currently structurally excluded: '+(c.ratioIneligibleReason||'ratio transform unavailable')+'. Remaining eligible weights renormalize automatically; model coverage falls.');", "participates='Governed native-value change divided by the frozen model-version scale; fixed 1/7 coefficient and no reduced-set renormalization.';")
+    s=s.replace("let rest=oriented.filter((_,j)=>j!==i),v=rest.reduce((a,x)=>a+x,0)/rest.length,move=v-r.baselineIndexValue;", "let v=r.endIndexValue-c.indexContributionPercentPoints,move=v-r.baselineIndexValue;")
+    s=s.replace("<td>${mnxPct(c.rawMovementPercent)}</td><td>${mnxPp(c.indexContributionPercentPoints)}</td>", "<td>${mnxNum(c.baselineValue,4)} → ${mnxNum(c.endValue,4)} · signal ${mnxSigned(c.orientedMovementPercent,4,'')}</td><td>${mnxSigned(c.indexContributionPercentPoints,4,' points')}</td>")
+    s=s.replace("Σ contributions ${m.reconciliation?mnxPp(m.reconciliation.summedContribution):'—'} vs governed index movement ${m.reconciliation?mnxPp(m.reconciliation.indexMovement):'—'} · residual ${m.reconciliation?mnxPp(m.reconciliation.residual,6):'—'}", "Σ contributions ${m.reconciliation?mnxSigned(m.reconciliation.summedContribution,4,' points'):'—'} vs governed index movement ${m.reconciliation?mnxSigned(m.reconciliation.indexMovement,4,' points'):'—'} · residual ${m.reconciliation?mnxSigned(m.reconciliation.residual,6,' points'):'—'}")
+    s=s.replace("<td>${mnxPct(s.recomputedMovementPercent)}</td>", "<td>${mnxSigned(s.recomputedMovementPercent,4,' points')}</td>")
+    s=s.replace("against tolerance ±${r.reconciliation.tolerance} pp", "against tolerance ±${r.reconciliation.tolerance} index points")
+    s=s.replace("v=oriented.reduce((a,x,j)=>a+x*ws[j],0)/den,move=v-r.baselineIndexValue;", "v=r.baselineIndexValue+oriented.reduce((a,x,j)=>a+(x-100)*ws[j],0)/den,move=v-r.baselineIndexValue;")
 
     # Turn 28: restore continuous nearest-series hover inspection and remove
     # the legacy null-state write exposed by comparison-series clicks.
@@ -61,8 +98,11 @@ def main():
         "continuous crosshair hover")
     s=s.replace("S.priorV2.component=sel.id;componentCard(sel.id)", "S.priorV2={...(S.priorV2||{}),component:sel.id};componentCard(sel.id)")
 
-    # Turn 28: a canonical persistent index and horizon-rebased comparisons
-
+    # Turn 28: persistent index on Y1 and indexed comparison on Y2.
+    s=replace_once(s,
+        "renderNowContext28(w);let chartMode=setNowFooter(w,'indexed');captureNowState(sets,w,chartMode);S.nowPaint25={sets,w,mode:chartMode};draw('now',sets,w,chartMode)}function componentCard",
+        "renderNowContext28(w);let chartMode=setNowFooter(w,sets.length>1?'dual':'indexed');sets.forEach(z=>{z.axis=chartMode==='dual'?(z.id===k?0:1):0;z.axisLabel=chartMode==='dual'?(z.id===k?'Persistent Index':'Indexed 100'):'Indexed 100'});captureNowState(sets,w,chartMode);S.nowPaint25={sets,w,mode:chartMode};draw('now',sets,w,chartMode)}function componentCard",
+        "persistent comparison dual axes")
 
     s=replace_once(s,
         "function renderAIConfig(){let r=aiRegistry(),ps=r.providers||{};$('defaultProvider').value=r.defaultProvider||'venice';",
