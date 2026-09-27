@@ -1133,3 +1133,11 @@ Rejected and must not return:
 - running duplicate inference on a job whose persisted placement evidence is incomplete.
 
 Required replacement: reconcile persisted job/source placements immediately before inference; require discovered count, fingerprint count, and zero pending lifecycle rows to agree; otherwise emit structured integrity evidence and terminate as FAILED / Action Needed.
+
+
+## 2026-09-27 — RELEASE D REHASH EVIDENCE NEGATIVE RULES
+
+- Never clear a previously valid fingerprint merely because a new Analyze pass has begun.
+- Never expose a changed placement as current duplicate evidence while its replacement hash is pending.
+- Never count a retained prior fingerprint as completion of the current rehash; current completion requires `HASHED + AVAILABLE`.
+- Never allow an interrupted re-analysis to convert durable prior evidence into null/unknown evidence.
