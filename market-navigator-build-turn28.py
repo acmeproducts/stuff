@@ -51,6 +51,10 @@ def main():
 
     s=s.replace("(x.curve||[]).map(p=>({t:+p.t,v:+p.v,idx:+p.v,raw:+p.v,sourceT:+p.t}))","indexDisplayCurve28(x.curve||[])")
     s=s.replace("componentsExpanded:false,hiddenComponents:[],nowComparisons:[],nowRepresentation:null,","componentsExpanded:false,hiddenComponents:[],nowComparisons:[],nowRepresentation:null,indexDisplay:'fixed',axisMode:null,")
+    s=replace_once(s,
+        "function setNowFooter(w,mode='indexed'){let text=mode==='dual'?'Native Y1 + Y2':mode==='native'?'Native Y1':'Indexed 100';$('nowMeta').innerHTML=\`<span>TURN 25 CONSOLIDATION</span><span class=\"footerSep\">|</span><span>${w.startLabel} → ${w.endLabel}</span><span class=\"footerSep\">|</span><select id=\"nowRepresentation\" aria-label=\"Chart representation\"><option selected value=\"${mode}\">${text}</option></select>\`}",
+        "function setNowFooter(w,mode='indexed'){let allowed=S.level===2&&S.index&&S.nowComparisons.length?'dual':'indexed',axis=S.axisMode&&['indexed','dual'].includes(S.axisMode)?S.axisMode:allowed;if(axis==='dual'&&allowed!=='dual')axis='indexed';S.axisMode=axis;let axisOptions=allowed==='dual'?\`<option value=\"indexed\" ${axis==='indexed'?'selected':''}>Base 100</option><option value=\"dual\" ${axis==='dual'?'selected':''}>Y1 + Y2</option>\`:\`<option value=\"indexed\" selected>Base 100</option>\`;$('nowMeta').innerHTML=\`<span>MN-PERSISTENT-1.0.0</span><span class=\"footerSep\">|</span><select id=\"nowRepresentation\" aria-label=\"Chart axis representation\">${axisOptions}</select>\`;$('nowRepresentation').onchange=()=>{S.axisMode=$('nowRepresentation').value;renderNow()};return axis}",
+        "approved axis selector")
     s=replace_once(s,"j('market-evidence/derived-indices.json'),j('data/market-backend/derived-index-definition.json')",
         "j('market-evidence/derived-indices-persistent-v1.json'),j('data/market-backend/derived-index-definition-persistent-v1.json')",
         "persistent boot evidence")
