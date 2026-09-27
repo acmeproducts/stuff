@@ -88,9 +88,18 @@ The timing is consistent with the observed move, but does not establish causatio
    // hover inspection, safe comparison selection, and coordinate-correct
    // robustness diagnostics.
    await page.locator('#legend [data-id="growth"]').click();
-   await page.waitForFunction(()=>{let s=window.__mnShip25.nowState();return window.__mnShip25.indexContext()==='growth'&&s?.root==='growth'&&s?.chart?.mode==='dual'&&s.chart.series.length>1});
+   await page.waitForFunction(()=>{let s=window.__mnShip25.nowState();return window.__mnShip25.indexContext()==='growth'&&s?.root==='growth'&&s?.chart?.mode==='indexed'&&s.chart.series.length>1});
+   const y2Id=await page.evaluate(()=>[...document.querySelectorAll('#legend [data-id]')].map(x=>x.dataset.id).find(x=>!['risk','growth','macro'].includes(x)));
+   check('eligible native Y2 series exists',!!y2Id);
+   await page.locator('#legend [data-id="'+y2Id+'"]').click();
+   await page.waitForFunction(()=>document.querySelectorAll('#nowRepresentation option').length===2);
+   check('representation exposes Indexed 100 and Y1 + Y2',await page.locator('#nowRepresentation option').allTextContents().then(x=>x.length===2&&x[0].trim()==='Indexed 100'&&x[1].trim()==='Y1 + Y2'));
+   await page.selectOption('#nowRepresentation','dual');
+   await page.waitForFunction(()=>window.__mnShip25.nowState()?.chart?.mode==='dual');
    const dualAxisState=await page.evaluate(()=>window.__mnShip25.nowState().chart);
-   check('persistent index and comparisons use dual axes',(()=>{let c=dualAxisState,g=c.series.find(x=>x.id==='growth'),others=c.series.filter(x=>x.id!=='growth');return c.mode==='dual'&&g?.axis===0&&g?.axisLabel==='Persistent Index'&&others.length&&others.every(x=>x.axis===1&&x.axisLabel==='Indexed 100')})(),JSON.stringify(dualAxisState.series.map(x=>({id:x.id,axis:x.axis,axisLabel:x.axisLabel}))));
+   check('active comparison alone uses native Y2',(()=>{let c=dualAxisState,y=c.series.find(x=>x.id===y2Id),others=c.series.filter(x=>x.id!==y2Id);return c.mode==='dual'&&y?.axis===1&&y?.axisLabel&&y.points.some(p=>Number.isFinite(+p.raw)&&Math.abs(+p.v-(+p.raw))<1e-9)&&others.every(x=>x.axis===0&&x.axisLabel==='Indexed 100')})(),JSON.stringify(dualAxisState.series.map(x=>({id:x.id,axis:x.axis,axisLabel:x.axisLabel,unit:x.unit}))));
+   await page.selectOption('#nowRepresentation','indexed');
+   await page.waitForFunction(()=>window.__mnShip25.nowState()?.chart?.mode==='indexed');
    check('GRW five-year robustness is coordinate-correct',await page.evaluate(()=>{let h=window.__mnShip25.modelHealth('growth','5YR');return h.lifecycle==='ACTIVE'&&h.directionStability===1&&h.specificationRobustness===1}),await page.evaluate(()=>JSON.stringify(window.__mnShip25.modelHealth('growth','5YR'))));
    const hover=await page.locator('#nowChart').boundingBox(),hoverSeries=new Map();
    for(const xf of [.2,.4,.6,.8])for(const yf of [.18,.36,.54,.72,.88]){
@@ -107,10 +116,10 @@ The timing is consistent with the observed move, but does not establish causatio
    await page.click('#crumbEnvironment');
    await page.waitForFunction(()=>window.__mnShip25.level()===1);
 
-   check('A/B display selector exposes both governed modes',await page.locator('#nowRepresentation option').allTextContents().then(x=>x.some(t=>/Fixed Baseline/.test(t))&&x.some(t=>/Horizon Rebase/.test(t))));
+   check('Fixed/Horizon display selector exposes exact approved labels',await page.locator('#nowIndexDisplay option').allTextContents().then(x=>x.length===2&&x[0].trim()==='Fixed'&&x[1].trim()==='Horizon'));
    const fixedSeries=await page.evaluate(()=>JSON.stringify(window.__mnShip25.nowState().chart.series.find(x=>['risk','growth','macro'].includes(x.id))?.points.map(p=>p.raw)));
-   await page.selectOption('#nowRepresentation','rebase');
-   await page.waitForFunction(()=>document.getElementById('nowRepresentation')?.value==='rebase');
+   await page.selectOption('#nowIndexDisplay','rebase');
+   await page.waitForFunction(()=>document.getElementById('nowIndexDisplay')?.value==='rebase');
    check('B horizon rebase starts governed index at 100',await page.evaluate(()=>{let s=window.__mnShip25.nowState().chart.series.find(x=>['risk','growth','macro'].includes(x.id));return !!s?.points?.length&&Math.abs(s.points[0].v-100)<1e-9}));
    check('B display does not mutate canonical raw index evidence',await page.evaluate(f=>JSON.stringify(window.__mnShip25.nowState().chart.series.find(x=>['risk','growth','macro'].includes(x.id))?.points.map(p=>p.raw))===f,fixedSeries));
    await page.selectOption('#nowIndexDisplay','fixed');
