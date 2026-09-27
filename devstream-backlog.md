@@ -6,8 +6,8 @@ Deploy target: `https://acmeproducts.github.io/stuff/devstream.html`
 Test target: `https://acmeproducts.github.io/stuff/devstream-test.html`
 
 ## Status
-- Current release: v1.0 b35 on devstream-test.html (2026-09-27)
-- Stage: TEST (b35)
+- Current release: v1.0 b36 on devstream-test.html (2026-09-27)
+- Stage: TEST (b36)
 
 ## Release Rules (inherited, proven)
 1. Mobile-first. All diagnostics in-app. No DevTools ever.
@@ -148,12 +148,38 @@ The prior worker pool already supported four concurrent thread jobs, but it trea
 
 ---
 
+# 2026-09-27 — Session Manager v3 interaction parity correction
+
+## Owner report
+The b35 drag/drop implementation did not work on the owner's Android device. The required reference is the actual `session-manager-v3.html` interaction model, not merely a partial tab-move implementation.
+
+## Required parity
+- Tabs: drag/reorder inside a project; drag to another project; long-press menu with **Rename, Assign, Customize, Download, Share**.
+- Projects: reorderable; long-press menu with **Rename, Customize, Download, Share**.
+- Touch: movement after the drag arm begins drag; a stationary long-press opens the context menu.
+- Customization persists in SOT. Downloads are browser downloads. Share uses Web Share with clipboard fallback.
+- Existing web-default-ON and b34 scheduler/storage/recovery behavior remain unchanged.
+
+## Acceptance gates
+- **DS-G36-1 Tab DnD:** touch/pen drag reorders tabs and can assign a tab to a project; desktop HTML5 DnD remains.
+- **DS-G36-2 Tab menu:** stationary long-press exposes Rename / Assign / Customize / Download / Share.
+- **DS-G36-3 Project DnD:** project cards are reorderable and order persists in SOT.
+- **DS-G36-4 Project menu:** stationary long-press exposes Rename / Customize / Download / Share.
+- **DS-G36-5 Preservation:** internet defaults ON, project queue safety, four-project worker pool, soft-delete recovery, configurable storage, provider/model controls, attachments and Coach mode remain intact.
+
+## Graveyard additions
+- **G-DS-07 — Hold-to-drag only:** stationary long-press opens the action menu; movement is drag.
+- **G-DS-08 — Partial Session Manager parity:** do not ship tab movement without the owner-specified tab/project menus and project ordering.
+
+---
+
 # Backlog
 | ID | Item | Status |
 |---|---|---|
 | DS-1 | Build v1.0 per spec above | OPEN |
 
 # Decision Log
+- 2026-09-27: b35 rejected on Android because drag/drop did not work and Session Manager v3 parity was incomplete. b36 copies the interaction contract: tab and project drag/reorder plus long-press action menus.
 - 2026-09-27: Internet/web access defaults ON for existing undefined and new Devstream threads. Session Manager v3 is the reference for tab drag/drop: reorder within project, move between projects, desktop plus touch/pen long-press. Cross-project moves are blocked while the tab has active/queued work so the one-writer-per-project rule remains authoritative. Owner directive.
 - 2026-09-24: Project artifact subdirectory is configurable; existing projects keep their paths. Project is the concurrency boundary: one active writer per project, FIFO queued work within a project, up to four projects concurrently. Deleted projects recover from the project rail; blank projects retain + and ↻ recovery controls. Owner directive.
 - 2026-08-25: Project lifecycle phases adopted: Define (what/why) -> Design (how) -> Build (execution cycles) -> Ship. Phase is project-level state (badge + explicit advance), not tabs. Agent prompt is phase-aware. Owner approved.
