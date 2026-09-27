@@ -36,6 +36,7 @@ def main():
 """
     css+=".nowContext28{position:absolute;left:50%;top:3px;transform:translateX(-50%);display:flex;align-items:center;gap:8px;white-space:nowrap;font-size:10px;color:var(--muted)}.nowContext28 select{font:inherit}.rail .foot span{display:none}@media(max-width:700px){.nowContext28{font-size:8px;gap:4px}.nowContext28 select{max-width:116px}}\n"
     s=replace_once(s,"</style></head>",css+"</style></head>","Turn 28 CSS")
+    s=s.replace('<div class="foot"><button class="gear" id="settingsGear" aria-label="Configuration">⚙</button><span>CONFIG</span></div>','<div class="foot"><button class="gear" id="settingsGear" aria-label="Configuration">⚙</button><span style="display:none">CONFIG</span></div>')
 
 
 
