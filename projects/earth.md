@@ -1,3 +1,4 @@
+<plan>
 # EARTH — Master Plan
 
 - Code: `projects/earth.html`
@@ -20,7 +21,8 @@ Append one row before every future build session touches code.
 | 2026-09-25 | T4 plan update | Updated ledger; preparing to build HTML shell | Done |
 | 2026-09-25 | T5 HTML shell | Build self-contained mobile-first HTML5 shell with in-app diagnostics and asset-loading state | In progress |
 | 2026-09-25 | T5a shell build | Ledger updated; ready to write projects/earth.html | In progress |
-| 2026-09-27 | T6 minimal shell draft | Added ledger entry for next build step; set next action to create minimal mobile‑first HTML shell | In progress |
+| 2026-09-27 | T6 minimal shell draft | Added ledger entry for next build step; set next action to create minimal mobile‑first HTML shell | Blocked |
+| 2026-09-27 | T7 diagnostic | Identified why prior code writes failed: plan checkpoint and read-back validation did not complete, so no code was written; next step is to write the minimal HTML shell | Done |
 
 ## 1. RELEASES
 
@@ -133,3 +135,4 @@ Unscheduled parking lot; nothing starts here without owner approval.
 3. Referenced source material is authoritative for source facts, but cannot override this plan.
 4. Every future build session appends a dated ledger row before touching code.
 5. Unknowns remain TBD until confirmed.
+</plan>
