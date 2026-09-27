@@ -1148,3 +1148,11 @@ Required replacement: reconcile persisted job/source placements immediately befo
 - Never use a regenerated placement ID as the existence test when the database uniqueness contract is `source_id + path`.
 - Never INSERT a placement if the same `source_id + path` already exists under a historical/legacy placement ID.
 - Never advance Analyze counters as evidence that a placement write succeeded; the completion-integrity gate remains authoritative.
+
+
+## 2026-09-27 — DEVELOPMENT TEST-DATA PRESERVATION NEGATIVE RULES
+
+- Do not create migration complexity solely to preserve disposable development estate evidence.
+- Do not maintain old/new data paths or compatibility branches solely for test-era database contents.
+- Prefer a clean current-schema rebuild and fresh analysis when it is simpler and safer.
+- Treat source registrations/configuration separately from derived fingerprints, classifications, jobs, plans, and other rebuildable evidence.
