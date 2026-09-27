@@ -981,3 +981,8 @@ Definition of working: enumeration resolves an existing placement first by `sour
 ## 2026-09-27 — Development estate reset policy
 
 Owner direction: SOT is still in development and current estate analysis data is disposable. Do not add complex migrations, compatibility paths, dual-read/dual-write behavior, or data-preservation machinery merely to retain test-era fingerprints, classifications, jobs, plans, transcripts, or derived evidence. When a clean rebuild materially simplifies correctness, prefer rebuilding the development database from current schema and re-analyzing from source. Source registrations and operational configuration may be retained/reseeded as configuration; derived estate evidence must be regenerated through the current pipeline.
+
+
+## 2026-09-27 — Clean Release D database startup
+
+The first clean-development reset exposed an obsolete implicit migration: deleting `sot-v14-release-d.db` caused Store startup to copy `sot-v13-release-b.db` back into the Release D path, resurrecting 1,646 historical placements and interrupted job state. This contradicts the development estate reset policy. Release D now creates the current schema directly when its database is absent and never imports a predecessor database implicitly. Qualification creates a predecessor database containing a sentinel table, starts Release D with no current database, and requires zero placements plus absence of the predecessor sentinel.
