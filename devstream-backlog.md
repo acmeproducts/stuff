@@ -6,8 +6,8 @@ Deploy target: `https://acmeproducts.github.io/stuff/devstream.html`
 Test target: `https://acmeproducts.github.io/stuff/devstream-test.html`
 
 ## Status
-- Current release: v1.0 b34 on devstream-test.html (2026-09-24)
-- Stage: TEST (b34)
+- Current release: v1.0 b35 on devstream-test.html (2026-09-27)
+- Stage: TEST (b35)
 
 ## Release Rules (inherited, proven)
 1. Mobile-first. All diagnostics in-app. No DevTools ever.
@@ -117,12 +117,44 @@ The prior worker pool already supported four concurrent thread jobs, but it trea
 
 ---
 
+# 2026-09-27 — Automatic internet access + Session Manager tab drag/drop
+
+## Owner scope
+1. Internet/web access is enabled automatically; the owner does not have to enable it tab-by-tab.
+2. Restore the Session Manager v3 tab drag/drop behavior: reorder tabs within a project and move tabs between projects, including the touch/pen long-press interaction.
+
+## Reference behavior
+`session-manager-v3.html` is the interaction reference: desktop HTML5 drag/drop, project rows as cross-project drop targets, positional tab drop zones, and long-press touch/pen drag with sidebar reveal at the left edge.
+
+## Baseline score before change
+| Gate | Before | Required after |
+|---|---:|---:|
+| Existing undefined + new threads default web ON | 0 | 1 |
+| Persisted within-project tab reorder | 0 | 1 |
+| Cross-project tab drag/drop | 0 | 1 |
+| Touch/pen long-press drag | 0 | 1 |
+
+## Acceptance gates
+- **DS-G35-1 Web default:** any existing thread with no explicit web setting behaves as web ON; every newly created project/tab stores `web:true`. An explicit manual OFF remains respected.
+- **DS-G35-2 Within project:** dragging a live tab to a positional drop zone changes and persists that project's tab order in the SOT.
+- **DS-G35-3 Between projects:** dragging a non-busy tab onto another live project moves the tab and its chat history, retargets its code/plan to the destination project, updates SOT/order, and retires the old thread record. A tab with active/queued work is not movable across projects.
+- **DS-G35-4 Touch parity:** touch/pen long-press arms tab drag; movement can reveal the mobile sidebar at the left edge; dropping on a project or tab position performs the same operation as desktop.
+- **DS-G35-5 Preservation:** b34 configurable project directory, deleted-project recovery, blank-project +/↻ recovery, one-writer-per-project queue, four-worker cross-project parallelism, provider/model settings, attachments, Coach mode, debug, and manual web toggle remain intact.
+
+## Graveyard additions
+- **G-DS-04 — Opt-in web as the default:** do not make ordinary Devstream work require the owner to turn web access on for each tab.
+- **G-DS-05 — Thread-only drag without touch parity:** do not restore desktop-only drag/drop; Session Manager v3 touch/pen behavior is part of the requirement.
+- **G-DS-06 — Moving an active/queued writer across projects:** do not allow a move that can bypass the project concurrency boundary.
+
+---
+
 # Backlog
 | ID | Item | Status |
 |---|---|---|
 | DS-1 | Build v1.0 per spec above | OPEN |
 
 # Decision Log
+- 2026-09-27: Internet/web access defaults ON for existing undefined and new Devstream threads. Session Manager v3 is the reference for tab drag/drop: reorder within project, move between projects, desktop plus touch/pen long-press. Cross-project moves are blocked while the tab has active/queued work so the one-writer-per-project rule remains authoritative. Owner directive.
 - 2026-09-24: Project artifact subdirectory is configurable; existing projects keep their paths. Project is the concurrency boundary: one active writer per project, FIFO queued work within a project, up to four projects concurrently. Deleted projects recover from the project rail; blank projects retain + and ↻ recovery controls. Owner directive.
 - 2026-08-25: Project lifecycle phases adopted: Define (what/why) -> Design (how) -> Build (execution cycles) -> Ship. Phase is project-level state (badge + explicit advance), not tabs. Agent prompt is phase-aware. Owner approved.
 - 2026-08-25: Continuity contract: agent replies MUST carry a STATE line (phase | open items | next step) and append a dated ledger row to the plan on every plan write. The plan is the sole persistent memory; chat is commentary. Owner approved.
