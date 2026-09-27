@@ -223,6 +223,41 @@ Devstream surfaced a thread-file write conflict after another write landed first
 
 ---
 
+# 2026-09-27 — Donor-exact mobile gesture correction
+
+## Owner-verified donor behavior
+Screenshots and Session Manager v3 source establish the interaction contract:
+- **Context menu:** double-tap a tab/project. It is not a hold gesture.
+- **Drag:** tap-and-hold. At 350ms the dragged tab/project name appears immediately in a floating ghost.
+- **Landing feedback:** the destination project or tab insertion zone highlights while dragging.
+- **Drop:** release on the highlighted destination to persist the move/reorder.
+- **Menu appearance:** use Session Manager v3 context-menu CSS and hierarchy without Devstream legacy button overrides.
+
+## b39 defect
+b39 incorrectly changed stationary hold into context-menu activation. Devstream also retained old `#tabContext button` CSS that overrode the transplanted donor menu, causing the visible separators/sizing shown in the owner's screenshot.
+
+## b40 change
+- Restored the donor tab gesture state machine: 350ms hold enters drag and creates the named ghost; double-tap opens context.
+- Restored the donor project gesture state machine with the same hold-to-drag / double-tap-menu split.
+- Preserved donor target highlighting for project destinations and tab insertion zones.
+- Removed the legacy Devstream `#tabContext button` rules that were overriding donor menu styling.
+- Restored the donor portrait `.tabContext.stacked` rule.
+- Preserved b38 automatic write reconciliation and all queue/storage/web/provider behavior.
+
+## Acceptance
+- **DS-G40-1:** no hold-to-context path exists for tabs or projects.
+- **DS-G40-2:** 350ms hold creates a visible ghost containing the tab/project name.
+- **DS-G40-3:** double-tap opens tab/project context.
+- **DS-G40-4:** drag hover highlights project target or tab insertion zone.
+- **DS-G40-5:** legacy `#tabContext button` override is absent; donor context classes control appearance.
+- **DS-G40-6:** existing persisted move/reorder and b38 reconciliation remain intact.
+
+## Graveyard
+- **G-DS-13 — Hold opens context menu:** rejected; donor behavior is double-tap context, hold-to-drag.
+- **G-DS-14 — Legacy generic #tabContext button styling:** rejected; it corrupts the donor context-menu appearance.
+
+---
+
 # Backlog
 | ID | Item | Status |
 |---|---|---|
