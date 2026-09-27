@@ -1769,8 +1769,8 @@ These files are the required index-construction sources for every successor stag
 |---|---|---|---|
 | 28·pre-base | Freeze clean successor input from accepted cumulative Turn 26 baseline plus approved persistent-index evidence | **BUILT — mechanical identity gate complete; owner disposition pending** | https://acmeproducts.github.io/stuff/market-navigator-turn28-pre-base.html |
 | 28·base | Production index construction integration: GRW/RSK/MAC governed persistent math; last-known-good NOW geometry preserved | **BUILT — owner execution authority granted 2026-09-27** | https://acmeproducts.github.io/stuff/market-navigator-turn28-base.html |
-| 28·pre-ship | Display contract integration: A/B behavior + retained chart-axis behavior, no visual relocation yet unless separately owner-approved | **PLANNED** | new stage artifact required |
-| 28·ship | Owner-approved minimal display placement: add Fixed/Horizon dropdown beside existing bottom chart-representation dropdown; preserve NOW top rows | **AUTHORIZED 2026-09-27** | new stage artifact required |
+| 28·pre-ship | Display contract integration using approved minimal placement: separate Fixed/Horizon dropdown immediately beside retained chart-representation dropdown; NOW top rows untouched | **BUILT — owner authorized 2026-09-27** | https://acmeproducts.github.io/stuff/market-navigator-turn28-pre-ship-stage.html |
+| 28·ship | Release candidate from approved 28·pre-ship behavior/placement; no additional product/UI delta | **NEXT — byte-identical stage copy-forward after pre-ship mechanical checks** | — |
 | 28·post-ship | Regression hardening: responsive geometry screenshots, crosshair, print, Library, Health, source selection, persistence, Pages smoke, byte identity | **PLANNED** | new stage artifact required |
 | 29·pre-base | Byte-identical snapshot of accepted 28·post-ship | queued | — |
 
@@ -1834,7 +1834,7 @@ Owner gate:
 
 ### 45.8 Stage 28·pre-ship — display behavior integration
 
-**Exact product delta:** expose the two approved index display modes while preserving existing chart representation controls. The owner subsequently fixed their final visual placement for 28·ship: a separate `Fixed/Horizon` dropdown immediately beside the existing bottom representation dropdown; no top-row relocation.
+**Exact product delta:** expose the two approved index display modes while preserving existing chart representation controls. Final owner-approved placement is part of this pre-ship delta: a separate `Fixed/Horizon` dropdown immediately beside the existing bottom representation dropdown; no top-row relocation. Because placement and behavior are now one minimal approved change, 28·ship carries no additional UI delta and is a byte-identical stage copy-forward if pre-ship qualifies.
 
 Required:
 - A = Fixed Baseline;
