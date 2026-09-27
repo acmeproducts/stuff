@@ -173,6 +173,23 @@ try:
   assert len({r["fingerprint"] for r in dup_rows})==1 and {r["duplicate_cardinality"] for r in dup_rows}=={3},dup_rows
   print("PASS N-copy reclassification: changed copy = UNIQUE; remaining 3 = 1 KEEP + 2 EXCESS")
 
+  # Overlapping registered roots: a physical file belongs only to the most-specific selected source.
+  overlap_parent=home/"overlap-parent";overlap_child=overlap_parent/"child";overlap_child.mkdir(parents=True)
+  parent_file=overlap_parent/"parent.bin";child_file=overlap_child/"child.bin"
+  parent_file.write_bytes(b"PARENT-ONLY"*64);child_file.write_bytes(b"CHILD-ONLY"*64)
+  parent_sid=srv.M.add_source("Overlap Parent",str(overlap_parent),"overlap-parent-domain",estate="Overlap")
+  child_sid=srv.M.add_source("Overlap Child",str(overlap_child),"overlap-child-domain",estate="Overlap")
+  overlap_job=srv.M.enqueue([parent_sid,child_sid]);overlap_done=wait_job(srv.M,overlap_job);srv.S.drain(10)
+  assert overlap_done["job"]["state"]=="COMPLETED",overlap_done
+  parent_rows=srv.S.rows("SELECT source_id,path,system_classification FROM placements WHERE job_id=? AND source_id=? ORDER BY path",(overlap_job,parent_sid))
+  child_rows=srv.S.rows("SELECT source_id,path,system_classification FROM placements WHERE job_id=? AND source_id=? ORDER BY path",(overlap_job,child_sid))
+  assert [r["path"] for r in parent_rows]==[str(parent_file)],parent_rows
+  assert [r["path"] for r in child_rows]==[str(child_file)],child_rows
+  all_overlap=srv.S.rows("SELECT path,COUNT(*) n FROM placements WHERE job_id=? AND source_id IN (?,?) GROUP BY path ORDER BY path",(overlap_job,parent_sid,child_sid))
+  assert len(all_overlap)==2 and all(r["n"]==1 for r in all_overlap),all_overlap
+  assert all(r["system_classification"]=="UNIQUE" for r in parent_rows+child_rows),parent_rows+child_rows
+  print("PASS overlapping roots: child file belongs only to most-specific source; no double count or false duplicate")
+
   # Queued Abort + Delete now maps to visible reversible soft deletion.
   j4=srv.M.enqueue([sid1]);srv.M.control(j4,"abort-delete");time.sleep(.05)
   z4=srv.M.snapshot(j4)
