@@ -513,8 +513,8 @@ class Manager:
       old=self.s.rows("SELECT placement_no,size,modified,fingerprint,content_id FROM placements WHERE placement_id=?",(pid,))
       unchanged=bool(old and old[0]["fingerprint"] and old[0]["size"]==st.st_size and old[0]["modified"]==st.st_mtime)
       if old:
-       self.s.submit("UPDATE placements SET job_id=?,revision=?,estate=?,filename=?,extension=?,size=?,created=COALESCE(?,created),modified=?,scanned_at=?,lifecycle=?,plan=NULL,rationale=NULL,availability='AVAILABLE',error_detail=NULL,role=?,last_verified=?,placement_state='ACTIVE',retired_at=NULL WHERE placement_id=?",(jid,rev,src["estate"],name,Path(name).suffix.lower(),st.st_size,created,st.st_mtime,now,'HASHED' if unchanged else 'NONE',src["role"],now,pid))
-       if not unchanged:self.s.submit("UPDATE placements SET fingerprint=NULL,content_id=NULL,duplicate_group=NULL,duplicate_cardinality=NULL WHERE placement_id=?",(pid,))
+       self.s.submit("UPDATE placements SET job_id=?,revision=?,estate=?,filename=?,extension=?,size=?,created=COALESCE(?,created),modified=?,scanned_at=?,lifecycle=?,plan=NULL,rationale=NULL,availability=?,error_detail=NULL,role=?,last_verified=?,placement_state='ACTIVE',retired_at=NULL WHERE placement_id=?",(jid,rev,src["estate"],name,Path(name).suffix.lower(),st.st_size,created,st.st_mtime,now,'HASHED' if unchanged else 'NONE','AVAILABLE' if unchanged else 'PENDING',src["role"],now,pid))
+       if not unchanged:self.s.submit("UPDATE placements SET system_classification=NULL,duplicate_group=NULL,duplicate_cardinality=NULL WHERE placement_id=?",(pid,))
       else:
        pno=self.alloc_no();self.s.submit("INSERT INTO placements(placement_id,placement_no,job_id,revision,source_id,estate,path,filename,extension,size,created,modified,scanned_at,lifecycle,role,last_verified) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?, 'NONE',?,?)",(pid,pno,jid,rev,sid,src["estate"],p,name,Path(name).suffix.lower(),st.st_size,created,st.st_mtime,now,src["role"],now))
       self.s.submit("UPDATE job_sources SET discovered_files=discovered_files+1,discovered_bytes=discovered_bytes+?,hashed_files=hashed_files+?,hashed_bytes=hashed_bytes+?,current_folder=?,current_file=?,last_progress=? WHERE job_id=? AND source_id=?",(st.st_size,1 if unchanged else 0,st.st_size if unchanged else 0,root,name,now,jid,sid))
@@ -569,7 +569,7 @@ class Manager:
        heartbeat=tick;self.s.submit("UPDATE jobs SET last_progress=? WHERE job_id=?",(tick,jid));self.s.submit("UPDATE job_sources SET last_progress=?,current_file=? WHERE job_id=? AND source_id=?",(tick,Path(p).name,jid,sid))
     if rt["stop"].is_set():raise RuntimeError("job stopped during fingerprint")
     fp=h.hexdigest();now=time.time();rt["activity"].pop(n,None)
-    self.s.submit("UPDATE placements SET fingerprint=?,content_id=?,lifecycle='HASHED',last_verified=? WHERE placement_id=?",(fp,fp,now,pid))
+    self.s.submit("UPDATE placements SET fingerprint=?,content_id=?,lifecycle='HASHED',availability='AVAILABLE',error_detail=NULL,last_verified=? WHERE placement_id=?",(fp,fp,now,pid))
     self.s.submit("UPDATE job_sources SET hashed_files=hashed_files+1,hashed_bytes=hashed_bytes+?,active_workers=MAX(active_workers-1,0),last_progress=? WHERE job_id=? AND source_id=?",(size,now,jid,sid))
     self.s.submit("UPDATE jobs SET last_progress=? WHERE job_id=?",(now,jid))
    except Exception as e:
@@ -598,7 +598,7 @@ class Manager:
    integrity=[]
    for sid in rt["queues"]:
     js=self.s.rows("SELECT discovered_files,hashed_files FROM job_sources WHERE job_id=? AND source_id=?",(jid,sid))
-    persisted=self.s.rows("SELECT COUNT(*) files,SUM(CASE WHEN fingerprint IS NOT NULL THEN 1 ELSE 0 END) hashed,SUM(CASE WHEN lifecycle IN ('NONE','IN_PROCESS') THEN 1 ELSE 0 END) pending FROM placements WHERE job_id=? AND source_id=? AND placement_state='ACTIVE'",(jid,sid))[0]
+    persisted=self.s.rows("SELECT COUNT(*) files,SUM(CASE WHEN lifecycle='HASHED' AND availability='AVAILABLE' AND fingerprint IS NOT NULL THEN 1 ELSE 0 END) hashed,SUM(CASE WHEN lifecycle IN ('NONE','IN_PROCESS') OR availability='PENDING' THEN 1 ELSE 0 END) pending FROM placements WHERE job_id=? AND source_id=? AND placement_state='ACTIVE'",(jid,sid))[0]
     expected_discovered=int(js[0]["discovered_files"] or 0) if js else 0;expected_hashed=int(js[0]["hashed_files"] or 0) if js else 0
     actual_files=int(persisted["files"] or 0);actual_hashed=int(persisted["hashed"] or 0);pending=int(persisted["pending"] or 0)
     if actual_files!=expected_discovered or actual_hashed!=expected_hashed or pending:
