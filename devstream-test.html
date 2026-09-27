@@ -197,7 +197,7 @@ body.coachMode .suggestBtn{border-color:rgba(57,197,207,.5);background:rgba(57,1
 <div id="scrim"></div>
 <div id="app">
 <aside id="sidebar">
-  <div class="bar"><span id="dot"></span><span class="brand">devstream <span class="version">v1.0 b37</span></span><span class="grow"></span><button class="btn" id="projectAdd">+ New</button><button class="btn" id="refresh">↻</button><button class="btn" id="settings">⚙</button></div>
+  <div class="bar"><span id="dot"></span><span class="brand">devstream <span class="version">v1.0 b38</span></span><span class="grow"></span><button class="btn" id="projectAdd">+ New</button><button class="btn" id="refresh">↻</button><button class="btn" id="settings">⚙</button></div>
   <div id="searchWrap"><input id="search" class="input" placeholder="Search projects & threads">
     <div class="legend"><span><i class="legendDot ok"></i>OK</span><span><i class="legendDot run"></i>Running</span><span><i class="legendDot err"></i>Error</span></div></div>
   <div id="projList"></div>
@@ -383,21 +383,25 @@ async function putFile(path,content,message,sha){
   return j.content.sha;
 }
 const pathQueues={},pathLastSha={},pathCommit={};
+function isThreadDataPath(path){return path.startsWith('devstream/threads/')&&path.endsWith('.json')}
+function reconcileThreadContent(remoteContent,localContent){
+  const remote=JSON.parse(remoteContent||'{}'),local=JSON.parse(localContent||'{}'),merged={...remote,...local},messages=[],seen=new Set();
+  [...(remote.messages||[]),...(local.messages||[])].forEach(m=>{const sig=msgSig(m);if(!seen.has(sig)){seen.add(sig);messages.push(m)}});
+  messages.sort((x,y)=>String(x.ts||'').localeCompare(String(y.ts||'')));merged.messages=messages;return JSON.stringify(merged,null,1);
+}
 function putFileSafe(path,content,message,expectedSha){
   const prev=pathQueues[path]||Promise.resolve();
   const job=prev.then(async()=>{
-    const cur=await getFile(path);
-    const actual=cur?cur.sha:null;
-    if(expectedSha!==undefined&&actual!==expectedSha&&pathLastSha[path]!==actual)
-      throw new Error('Conflict on '+path+': changed since it was read. Refresh and review before retrying.');
-    try{const saved=await putFile(path,content,message,actual);pathLastSha[path]=saved;return saved}
-    catch(e){
-      if(/409/.test(e.message))throw new Error('Conflict on '+path+': another write landed first. Refresh and review before retrying.');
-      throw e;
+    let payload=content,cur=await getFile(path),actual=cur?cur.sha:null;
+    if(expectedSha!==undefined&&actual!==expectedSha&&pathLastSha[path]!==actual){
+      if(!isThreadDataPath(path))throw new Error('Conflict on '+path+': changed since it was read. Refresh and review before retrying.');
+      payload=reconcileThreadContent(cur.content,payload);dlog('K|thread reconcile: merged concurrent write for '+path);
     }
-  });
-  pathQueues[path]=job.catch(()=>{});
-  return job;
+    for(let attempt=1;attempt<=3;attempt++){
+      try{const saved=await putFile(path,payload,message,actual);pathLastSha[path]=saved;return saved}
+      catch(e){if(!String(e.message).includes('409')||!isThreadDataPath(path)||attempt===3)throw e;cur=await getFile(path);actual=cur?cur.sha:null;payload=reconcileThreadContent(cur?cur.content:'{}',payload);dlog('thread reconcile: retry '+attempt+' for '+path)}
+    }
+  });pathQueues[path]=job.catch(()=>{});return job;
 }
 async function repoTree(force){
   if(treeCache&&!force)return treeCache;
