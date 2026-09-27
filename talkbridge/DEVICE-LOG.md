@@ -1,6 +1,6 @@
 # TalkBridge device log
 
-Both handsets write here. Drained 2026-09-27T15:12:38Z, every 30s. Newest at the bottom.
+Both handsets write here. Drained 2026-09-27T15:13:10Z, every 30s. Newest at the bottom.
 
 ```
 Not found```
