@@ -96,12 +96,9 @@ each moved one turn later; nothing was dropped.
 | 28·pre-base | byte-identical snapshot of accepted 27·post-ship | BANKED |
 | **28·base** | **technical debt — flatten the relay path (cluster 1)** | **BUILT, awaiting the owner's device gate** |
 | 28·pre-ship | technical debt — flatten the call (cluster 2) | queued |
-| 28·ship | **FLATTENING, cluster 3 — room lifecycle.** `enterRoom` (6 layers), `joinRoom` (3), `leaveRoomInternals`, `openS3`, `invUrl`. Same proof (differential harness), same ringfence. | Spec §7.16 · §0c-1 | queued — after 28·pre-ship is accepted | — |
-| 28·post-ship | **FLATTENING, clusters 4 and 5 — render and the shallow sweep — plus D-11.** `renderPanel` (4), `renderHome`, `renderTranscript`, `renderRoomHead`, `appendMsgDom`, `msgHtml`, `roomCardHtml`, `wireRoomCards`; then every remaining `wrap_map` entry including `log` (the device-log uploader moves with it); then D-11 as the one declared behaviour change of the turn, gated on its own. **Turn 28 closes with technical debt DONE: `wrap_map` empty.** | Spec §7.16 · §0c-1 | queued — after 28·ship is accepted | — |
 | 28·ship | technical debt — flatten room lifecycle (cluster 3) | queued |
 | 28·post-ship | technical debt — flatten render + the shallow sweep incl. `log` (clusters 4–5) + D-11 | queued — turn 28 closes with technical debt DONE |
 | 29·pre-base | byte-identical snapshot of accepted 28·post-ship | queued |
-| 29·pre-base | Byte-identical snapshot of accepted 28·post-ship | — | queued | — |
 | 29·base | multi-user, relay leg | queued |
 | 29·pre-ship | multi-user, app leg | queued |
 | 29·ship | D-2 + D-6 directory release | queued |
