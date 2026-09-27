@@ -1767,7 +1767,7 @@ These files are the required index-construction sources for every successor stag
 
 | Turn·Stage | Purpose | State | Artifact / link |
 |---|---|---|---|
-| 28·pre-base | Freeze clean successor input from accepted cumulative Turn 26 baseline plus approved persistent-index evidence | **TO BANK EXPLICITLY** | artifact to be created before next product change |
+| 28·pre-base | Freeze clean successor input from accepted cumulative Turn 26 baseline plus approved persistent-index evidence | **BUILT — mechanical identity gate complete; owner disposition pending** | https://acmeproducts.github.io/stuff/market-navigator-turn28-pre-base.html |
 | 28·base | Production index construction integration: GRW/RSK/MAC governed persistent math only; no UI redesign | **PLANNED** | new stage artifact required |
 | 28·pre-ship | Display contract integration: A/B behavior + retained chart-axis behavior, no visual relocation yet unless separately owner-approved | **PLANNED** | new stage artifact required |
 | 28·ship | Owner-approved UI placement only, after written design approval; exact top-row/date/A-B + second-row horizon + bottom axis design if owner approves that exact design | **BLOCKED ON OWNER UI APPROVAL** | no artifact may be built before approval |
@@ -1792,6 +1792,8 @@ Required work:
 4. run retained Turn 26 qualification;
 5. record live Pages URL;
 6. owner disposition closes the stage.
+
+Construction record: `market-navigator-turn28-pre-base.html` is a byte-identical copy of the immutable accepted Turn 26 source blob `fc61e29d76f1a7ecf1226f74e0884865dca04684`. No product/UI/index change is included in pre-base. Live address: https://acmeproducts.github.io/stuff/market-navigator-turn28-pre-base.html . Owner disposition is required before 28·base begins.
 
 Non-goals:
 - no new index math;
