@@ -1,7 +1,7 @@
 # Market Navigator — Canonical Master Plan
 
 Status: AUTHORITATIVE PRODUCT / BUILD / QUALIFICATION PLAN
-Updated: 2026-09-23
+Updated: 2026-09-27
 Planning state: **ANALYTICAL REDESIGN PROGRAM — C4/C5/I1 PASS; TURN 27 REJECTED BY OWNER QUALIFICATION; TURN 28 CORRECTIVE CANDIDATE QUALIFIED / AWAITING OWNER DISPOSITION; TURN 26 RETAINED WORKING BASELINE**
 Target artifact: **`market-navigator-turn28-pre-ship.html`**
 
@@ -10,6 +10,75 @@ Next cumulative application artifact: **`market-navigator-turn28-pre-ship.html`*
 This file is the single positive specification for Market Navigator. `MARKET-NAVIGATOR-GRAVEYARD.md` remains the binding negative specification. `MARKET-NAVIGATOR-BUILD-PROTOCOL.md` governs stage advancement. Do not create a parallel plan.
 
 ---
+
+## 0. Persistent-index production cutover — owner execution authorization 2026-09-27
+
+This is the next authorized Market Navigator construction pass and supersedes any earlier instruction to hold C5/I1 at shadow-only status pending another methodological review.
+
+### 0.1 Scope and decisions are closed
+
+Implement **RSK, GRW, and MAC together** under model version `MN-PERSISTENT-1.0.0`. Do not reopen component selection, directions, transformations, scales, nominal weights, anchor date, or the persistent-index methodology during this pass.
+
+Authoritative analytical inputs:
+
+- `MARKET-NAVIGATOR-C4-C5-DECISION-2026-09-23.md`;
+- `MARKET-NAVIGATOR-PERSISTENT-INDEX-SPEC.md`;
+- `data/market-backend/component-registry-v1.json`;
+- C3 decision `S2A_EVENT_FREQ_WITH_FROZEN_MODEL_VERSION_SCALE`;
+- common fixed reference date `2016-09-01`, index level 100;
+- seven governed components and seven fixed equal 1/7 coefficients for each index;
+- canonical formula `index(t) = 100 + (1/7) × Σ governed_component_signal_i(t)`;
+- no horizon-dependent scales, weights, anchors, adaptive reweighting, or reduced-set renormalization.
+
+RSK uses the approved C5/S2A event-frequency normalization. MAC uses the corrected Treasury-curve directions and governed additive transforms for signed/rate series. GRW uses the same approved persistent-index contract and its C5 component registry. The former horizon/ratio calculations are superseded production mathematics.
+
+### 0.2 Display contract — preserve both modes
+
+The application must expose both representations over the **same canonical stored series**:
+
+- **A — Fixed Baseline:** native persistent `MN-PERSISTENT-1.0.0` values.
+- **B — Horizon Rebase:** display-only `100 × canonical(t) / canonical(view_start)`.
+
+Changing A/B or 1D/5D/MTD/YTD/1YR/3YR/5YR must never recalculate component signals, weights, scales, canonical values, Health evidence, or persisted Library evidence.
+
+### 0.3 Construction baseline and purity
+
+Construct the successor from the last accepted cumulative Turn 26 application baseline identified elsewhere in this plan and Graveyard. **Do not patch forward from rejected Turn 27.** Existing Turn 27 analytical scripts/evidence may be used only where they exactly implement the approved C4/C5/I1 specification; rejected Turn 27 application behavior is not an implementation donor.
+
+Retire superseded calculations from production execution and application selection paths. Preserve historical code/evidence only as repository provenance; it must not remain an alternate live calculation path.
+
+### 0.4 Required implementation sequence
+
+1. Rebuild/verify the governed C5 registry and persistent RSK/GRW/MAC evidence from source evidence.
+2. Validate the persistent series independently before wiring it into the application.
+3. Wire the single canonical persistent evidence path into NOW, Index Explanation, AI POV, Print, downloads, Health, and Library persistence without creating a second analytical state.
+4. Add/preserve A/B display selection as a presentation transform only.
+5. Remove the superseded horizon-dependent/ratio calculation from production execution.
+6. Re-run all retained Turn 26 gates plus the persistent-index gates below.
+7. Publish only a mechanically qualified successor; owner acceptance remains the release-baseline disposition.
+
+### 0.5 Release-blocking persistent-index gates
+
+For **each of RSK, GRW, and MAC**:
+
+- anchor date is exactly `2016-09-01` and canonical anchor value is 100 within floating-point tolerance;
+- exactly seven governed component states and fixed 1/7 coefficients are used; missing state makes the index unavailable rather than renormalized;
+- component signal arithmetic matches the C5 transform family, direction, and frozen annualized scale;
+- the sum of seven component contributions equals canonical index movement within floating-point tolerance;
+- all chart horizons are slices of one canonical series and the same calendar date has the same canonical value regardless of selected horizon;
+- A Fixed Baseline equals canonical stored values;
+- B Horizon Rebase begins at 100 and is mathematically derived only from canonical values;
+- toggling A/B does not mutate canonical evidence, model version, contributions, Health, or saved Library evidence;
+- mixed-frequency observations retain their actual source observation dates and stale/no-new-release state is truthful;
+- ALFRED-qualified data obey availability time; HY Spread pre-effective history remains explicitly retrospective current-vintage backcast and prospective operation follows the C4 rule;
+- RSK movement is validated against its component contributions so the previously observed compressed legacy range cannot survive through an obsolete calculation path;
+- MAC signed/rate components, including both Treasury curves, never use ratio rebasing and use the corrected governed directions;
+- GRW production movement is reproduced from the approved persistent component signals rather than the superseded horizon calculation;
+- no live application path can select the superseded calculation.
+
+### 0.6 Release evidence
+
+Record the exact source baseline commit/blob, generated registry/evidence revisions, candidate commit/blob, production-series summary for all three indices, diff from baseline, and every gate result. A failure blocks release and is corrected from the clean baseline under the Build Protocol; do not redefine a gate to match a failing candidate.
 
 ## 0A. Turn 26 cumulative construction baseline — owner execution authorization 2026-09-21
 
