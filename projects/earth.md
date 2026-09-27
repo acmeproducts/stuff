@@ -1,4 +1,3 @@
-<plan>
 # EARTH — Master Plan
 
 - Code: `projects/earth.html`
@@ -21,6 +20,7 @@ Append one row before every future build session touches code.
 | 2026-09-25 | T4 plan update | Updated ledger; preparing to build HTML shell | Done |
 | 2026-09-25 | T5 HTML shell | Build self-contained mobile-first HTML5 shell with in-app diagnostics and asset-loading state | In progress |
 | 2026-09-25 | T5a shell build | Ledger updated; ready to write projects/earth.html | In progress |
+| 2026-09-27 | T6 minimal shell draft | Added ledger entry for next build step; set next action to create minimal mobile‑first HTML shell | In progress |
 
 ## 1. RELEASES
 
@@ -53,7 +53,7 @@ Append one row before every future build session touches code.
 - Original controls include click-to-look, WASD/QE/scroll movement, walking/flying, jumping, doors, settings, search, and random land jumps.
 - Position and settings are saved locally; a backend is optional.
 - Original quick start requires Node.js 22.5+, Corepack, and Yarn.
-- Repository identity needs confirmation: the owner described `acmeproducts/earth`, while the README contains a `magnificus/earth` clone URL.
+- Original repository identity needs confirmation: the owner described `acmeproducts/earth`, while the README contains a `magnificus/earth` clone URL.
 
 ### Asset decision
 
@@ -62,7 +62,7 @@ Append one row before every future build session touches code.
 | A. GitHub static repo + Pages | Small/medium assets; CDN caching and backups | Core assets load as normal static URLs; recommended | Selected |
 | B. Git LFS | Large files; free tier then paid bandwidth | Same delivery as A, but bandwidth risk | Fallback if assets exceed GitHub limits |
 | C. WSL disk | Local disk; VHDX grows and does not shrink automatically | Phone needs a local server and LAN access; not publishable | Fallback only |
-| D. Runtime CDN | No storage cost | Depends on third-party uptime/CORS and violates the up-front rule | No for core assets |
+| D. Runtime CDN | No storage cost | Depends on third‑party uptime/CORS and violates the up‑front rule | No for core assets |
 
 - Keep core assets separate; embedding large assets in HTML adds about 33% size.
 - Target textures at or below 4096px; larger textures can strain phone GPUs.
@@ -71,13 +71,13 @@ Append one row before every future build session touches code.
 
 ### Build gates — verify on real devices
 
-- Publish from GitHub and open the app on a physical phone over Wi-Fi and mobile data.
+- Publish from GitHub and open the app on a physical phone over Wi‑Fi and mobile data.
 - Confirm every core asset loads; confirm there is no runtime CDN or backend dependency for the visible world.
 - Confirm touch controls, scene response, and stability with no crash.
-- Confirm diagnostics are visible in-app and include load, failure, frame-rate, and storage information; DevTools must not be required.
+- Confirm diagnostics are visible in‑app and include load, failure, frame‑rate, and storage information; DevTools must not be required.
 - Confirm there is no build step.
 - Read back the result after every change and compare it with this plan.
-- Exact load-time, frame-rate, and memory thresholds are TBD.
+- Exact load‑time, frame‑rate, and memory thresholds are TBD.
 
 ### Backlog — deferred
 
@@ -86,8 +86,8 @@ Append one row before every future build session touches code.
 - Confirm licenses and required attribution for all data and libraries.
 - Lock the R1 MVP feature subset.
 - Choose the static asset set and texture resolutions.
-- Decide how to pre-bundle real-world elevation/land-cover/OSM data without using fake data.
-- Optional backend and saved-position/settings behavior.
+- Decide how to pre‑bundle real‑world elevation/land‑cover/OSM data without using fake data.
+- Optional backend and saved‑position/settings behavior.
 - WSL fallback hosting.
 - Performance budgets and desktop parity.
 - Full original feature parity.
@@ -98,7 +98,7 @@ Unscheduled parking lot; nothing starts here without owner approval.
 
 - Full original feature parity.
 - Offline package and periodic asset updates.
-- Higher-resolution terrain, roads, buildings, and vegetation.
+- Higher‑resolution terrain, roads, buildings, and vegetation.
 - Optional backend for synchronized saves.
 - Desktop keyboard/mouse mode.
 - Accessibility improvements.
@@ -106,10 +106,10 @@ Unscheduled parking lot; nothing starts here without owner approval.
 
 ## 4. IMMUTABLE WORKING RULES
 
-1. Mobile-first design and testing.
-2. All diagnostics in-app — never DevTools or console-only.
+1. Mobile‑first design and testing.
+2. All diagnostics in‑app — never DevTools or console‑only.
 3. Update this plan before touching code.
-4. Read-back verification after every push.
+4. Read‑back verification after every push.
 5. No stubs or fake data.
 6. Preserve existing functionality not mentioned.
 7. Keep core assets in GitHub; use WSL only as a fallback.
@@ -124,6 +124,7 @@ Unscheduled parking lot; nothing starts here without owner approval.
 | 2026-09-23 | R1 stack fixed: HTML5, no build step, no React, no TypeScript. |
 | 2026-09-23 | Core assets selected for GitHub storage; WSL is fallback only; runtime CDN is excluded for core assets. |
 | 2026-09-23 | README facts captured; full inventory, R1 scope, licensing, and performance targets remain TBD. |
+| 2026-09-27 | Added ledger entry for next build step; set next action to create minimal mobile‑first HTML shell. |
 
 ## 6. APPENDIX — Authority order
 
@@ -132,4 +133,3 @@ Unscheduled parking lot; nothing starts here without owner approval.
 3. Referenced source material is authoritative for source facts, but cannot override this plan.
 4. Every future build session appends a dated ledger row before touching code.
 5. Unknowns remain TBD until confirmed.
-</plan>
