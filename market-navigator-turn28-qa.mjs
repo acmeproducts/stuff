@@ -106,14 +106,16 @@ The timing is consistent with the observed move, but does not establish causatio
    await page.click('#crumbEnvironment');
    await page.waitForFunction(()=>window.__mnShip25.level()===1);
 
-   check('A/B display selector exposes both governed modes',await page.locator('#nowRepresentation option').allTextContents().then(x=>x.some(t=>/Fixed Baseline/.test(t))&&x.some(t=>/Horizon Rebase/.test(t))));
+   check('A/B context is centered in top row',await page.locator('#indexDisplay28 option').allTextContents().then(x=>x.some(t=>/Fixed Baseline/.test(t))&&x.some(t=>/Horizon Rebase/.test(t))));
    const fixedSeries=await page.evaluate(()=>JSON.stringify(window.__mnShip25.nowState().chart.series.find(x=>['risk','growth','macro'].includes(x.id))?.points.map(p=>p.raw)));
-   await page.selectOption('#nowRepresentation','rebase');
-   await page.waitForFunction(()=>document.getElementById('nowRepresentation')?.value==='rebase');
+   await page.selectOption('#indexDisplay28','rebase');
+   await page.waitForFunction(()=>document.getElementById('indexDisplay28')?.value==='rebase');
    check('B horizon rebase starts governed index at 100',await page.evaluate(()=>{let s=window.__mnShip25.nowState().chart.series.find(x=>['risk','growth','macro'].includes(x.id));return !!s?.points?.length&&Math.abs(s.points[0].v-100)<1e-9}));
    check('B display does not mutate canonical raw index evidence',await page.evaluate(f=>JSON.stringify(window.__mnShip25.nowState().chart.series.find(x=>['risk','growth','macro'].includes(x.id))?.points.map(p=>p.raw))===f,fixedSeries));
-   await page.selectOption('#nowRepresentation','fixed');
-   await page.waitForFunction(()=>document.getElementById('nowRepresentation')?.value==='fixed');
+   check('bottom control is axis representation not A/B',await page.locator('#nowRepresentation option').allTextContents().then(x=>x.some(t=>/Base 100|Y1 \+ Y2/.test(t))&&!x.some(t=>/Fixed Baseline|Horizon Rebase/.test(t))));
+   check('visible CONFIG duplication removed',await page.evaluate(()=>getComputedStyle(document.querySelector('#rail .foot span')).display==='none'));
+   await page.selectOption('#indexDisplay28','fixed');
+   await page.waitForFunction(()=>document.getElementById('indexDisplay28')?.value==='fixed');
    // Turn 26 standalone Analyze correction.
    await page.locator('#legend [data-id="risk"]').click();
    await page.waitForFunction(()=>document.querySelector('#nowCrumb')?.textContent?.includes('*'));
