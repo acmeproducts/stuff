@@ -1119,3 +1119,17 @@ Rejected and must not return:
 - requiring screenshots as the authoritative evidence for lifecycle gaps.
 
 Required replacement: durable structured JSONL event logging; SQLite backup-based snapshots; machine-readable job/source/lifecycle summary; Config controls to create and publish diagnostic bundles; raw diagnostic bundles published only to a separately configured private diagnostic repository.
+
+
+---
+
+## 2026-09-27 — RELEASE D ANALYZE FALSE-COMPLETION NEGATIVE RULE
+
+Rejected and must not return:
+
+- treating in-memory queue exhaustion or incremented \`job_sources\` counters as sufficient proof that persisted analysis evidence is complete;
+- marking an analysis job COMPLETED when persisted placements disagree with its discovered/hashed counters;
+- refreshing a source baseline after completion-integrity failure;
+- running duplicate inference on a job whose persisted placement evidence is incomplete.
+
+Required replacement: reconcile persisted job/source placements immediately before inference; require discovered count, fingerprint count, and zero pending lifecycle rows to agree; otherwise emit structured integrity evidence and terminate as FAILED / Action Needed.

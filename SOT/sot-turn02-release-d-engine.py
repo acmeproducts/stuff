@@ -594,9 +594,22 @@ class Manager:
     if missing:
      self.s.many("UPDATE placements SET placement_state='RETIRED',retired_at=?,availability='UNAVAILABLE',plan=NULL,system_classification=NULL,duplicate_group=NULL,duplicate_cardinality=NULL WHERE placement_id=?",[(now,pid) for pid in missing],True)
      self.event("source_missing_retired",f"{len(missing)} missing placements retired",jid,sid,"INFO",{"count":len(missing)})
-   self._infer(jid);self.s.drain(60)
-   for sid in rt["queues"]:self.refresh_source_baseline(sid)
-   self.s.drain(30);state="COMPLETED"
+   self.s.drain(60)
+   integrity=[]
+   for sid in rt["queues"]:
+    js=self.s.rows("SELECT discovered_files,hashed_files FROM job_sources WHERE job_id=? AND source_id=?",(jid,sid))
+    persisted=self.s.rows("SELECT COUNT(*) files,SUM(CASE WHEN fingerprint IS NOT NULL THEN 1 ELSE 0 END) hashed,SUM(CASE WHEN lifecycle IN ('NONE','IN_PROCESS') THEN 1 ELSE 0 END) pending FROM placements WHERE job_id=? AND source_id=? AND placement_state='ACTIVE'",(jid,sid))[0]
+    expected_discovered=int(js[0]["discovered_files"] or 0) if js else 0;expected_hashed=int(js[0]["hashed_files"] or 0) if js else 0
+    actual_files=int(persisted["files"] or 0);actual_hashed=int(persisted["hashed"] or 0);pending=int(persisted["pending"] or 0)
+    if actual_files!=expected_discovered or actual_hashed!=expected_hashed or pending:
+     detail={"expected_discovered":expected_discovered,"expected_hashed":expected_hashed,"persisted_files":actual_files,"persisted_hashed":actual_hashed,"pending":pending}
+     integrity.append({"source_id":sid,**detail});self.event("completion_integrity_failed","Persisted placement evidence does not match job counters",jid,sid,"ERROR",detail)
+   if integrity:
+    state="FAILED";self.event("job_completion_blocked",f"{len(integrity)} source(s) failed completion integrity",jid,None,"ERROR",{"sources":integrity})
+   else:
+    self._infer(jid);self.s.drain(60)
+    for sid in rt["queues"]:self.refresh_source_baseline(sid)
+    self.s.drain(30);state="COMPLETED"
   now=time.time();self.s.submit("UPDATE jobs SET state=?,ended=?,last_progress=? WHERE job_id=?",(state,now,now,jid));self.s.submit("UPDATE job_sources SET state=?,queue_depth=0,active_workers=0 WHERE job_id=?",(state,jid));self.event("job_"+state.lower(),state.title(),jid);self.s.drain(30)
   delete_req=self.s.rows("SELECT delete_requested FROM jobs WHERE job_id=?",(jid,))
   if delete_req and delete_req[0]["delete_requested"]:self.s.submit("UPDATE jobs SET deleted=1,deleted_at=COALESCE(deleted_at,?) WHERE job_id=?",(time.time(),jid),True)
