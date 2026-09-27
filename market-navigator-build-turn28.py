@@ -100,7 +100,7 @@ def main():
 
     # Turn 28: persistent index on Y1 and indexed comparison on Y2.
     s=replace_once(s,
-        "renderNowContext28(w);let chartMode=setNowFooter(w,'indexed');captureNowState(sets,w,chartMode);S.nowPaint25={sets,w,mode:chartMode};draw('now',sets,w,chartMode)}function componentCard",
+        "setNowFooter(w,'indexed');captureNowState(sets,w,'indexed');S.nowPaint25={sets,w,mode:'indexed'};draw('now',sets,w,'indexed')}function componentCard",
         "renderNowContext28(w);let chartMode=setNowFooter(w,sets.length>1?'dual':'indexed');sets.forEach(z=>{z.axis=chartMode==='dual'?(z.id===k?0:1):0;z.axisLabel=chartMode==='dual'?(z.id===k?'Persistent Index':'Indexed 100'):'Indexed 100'});captureNowState(sets,w,chartMode);S.nowPaint25={sets,w,mode:chartMode};draw('now',sets,w,chartMode)}function componentCard",
         "persistent comparison dual axes")
 
