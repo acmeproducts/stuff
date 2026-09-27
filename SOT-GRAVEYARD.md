@@ -1156,3 +1156,10 @@ Required replacement: reconcile persisted job/source placements immediately befo
 - Do not maintain old/new data paths or compatibility branches solely for test-era database contents.
 - Prefer a clean current-schema rebuild and fresh analysis when it is simpler and safer.
 - Treat source registrations/configuration separately from derived fingerprints, classifications, jobs, plans, and other rebuildable evidence.
+
+
+## 2026-09-27 — IMPLICIT PREDECESSOR DATABASE RESURRECTION
+
+- Removed: automatic copy of `sot-v13-release-b.db` when the Release D database is absent.
+- Never repopulate a deliberately deleted development database from an older release.
+- Any future production migration must be an explicit governed operation, not an implicit startup fallback.
