@@ -986,3 +986,8 @@ Owner direction: SOT is still in development and current estate analysis data is
 ## 2026-09-27 — Clean Release D database startup
 
 The first clean-development reset exposed an obsolete implicit migration: deleting `sot-v14-release-d.db` caused Store startup to copy `sot-v13-release-b.db` back into the Release D path, resurrecting 1,646 historical placements and interrupted job state. This contradicts the development estate reset policy. Release D now creates the current schema directly when its database is absent and never imports a predecessor database implicitly. Qualification creates a predecessor database containing a sentinel table, starts Release D with no current database, and requires zero placements plus absence of the predecessor sentinel.
+
+
+## 2026-09-27 — Small N-copy classification proof before estate scan
+
+Before any multi-terabyte qualification, prove duplicate arithmetic in the isolated Release D qualifier. Four byte-identical files in four temporary sources must complete as one fingerprint group with cardinality 4 and exactly `1 KEEP + 3 EXCESS`. After changing one file and restarting the same four-source scope, the changed file must become `UNIQUE` with cardinality 1 while the remaining three must become cardinality 3 with exactly `1 KEEP + 2 EXCESS`. This proof uses only temporary fixture files and a temporary qualifier database; it must not scan or modify the owner estate.
