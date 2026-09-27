@@ -1,9 +1,29 @@
-I need a bit more before I can start pulling assets and writing code:
+<plan>
+# Earth — Single-file Babylon.js Earth explorer
 
-1. **GitHub access:** I can't browse GitHub directly. Can you paste a directory listing of `https://github.com/acmeproducts/earth/tree/main/assets` (or the whole repo tree), or paste the key files you want me to use? If the files are large, even a listing with sizes/URLs is enough for me to plan the loads.
+## Goal
+Build the full walkable, streamed 3D Earth described in the reference README as a single-file mobile-first HTML app (`projects/earth.html`), loading assets at runtime from the `acmeproducts/earth` GitHub repo and public geodata services.
 
-2. **Asset source:** Should I copy assets into this project's own GitHub repo, or load them directly from `acmeproducts/earth` at runtime? The current plan says "acquire up front," but your note says "loaded from GitHub" — I want to confirm which repo hosts them.
+## Decisions made this run
+- **Asset hosting:** Load directly from `https://raw.githubusercontent.com/acmeproducts/earth/main/assets/...` at runtime; do not mirror locally.
+- **Start location:** San Francisco, CA, USA (~37.7749°N, 122.4194°W). Recognizable coast, hills, and urban features.
+- **Scope cadence:** Full build in one go as requested; no descoping without explicit owner approval.
+- **Mobile controls:** I will design and implement the best simple mobile control scheme (twin virtual sticks: left for move/turn, right for look; plus jump/fly/door buttons) and refine based on testing.
 
-3. **California start:** What exact location should the app open to? A city/landmark or lat/lon is fine (e.g., Los Angeles, San Francisco, Yosemite, Mount Shasta).
+## Blocker
+I cannot browse GitHub or fetch URLs in this environment. The `acmeproducts/earth` assets are not in front of me. To proceed I need one of:
+1. Paste the `assets/` directory listing (file names and relative paths), or
+2. Paste the key asset files you want used (small ones) and list the larger ones, or
+3. Confirm you want me to ignore that repo and build a self-contained prototype using only public APIs (Mapzen terrain, Terrascope LCM-10, OSM Overpass) — this would be a different asset strategy.
 
-4. **Scope cadence:** Since the original app is huge, do you want me to build the full thing in one go, or ship a playable first version and then iterate? I can do either; just tell me your preference.
+## Open work
+- Obtain asset listing / files from `acmeproducts/earth`
+- Set up single-file Babylon.js app shell with mobile controls
+- Implement terrain streaming, land cover, vegetation, buildings, weather, time/seasons, save/load
+- California default spawn and saved position
+
+## TURN/STAGE LEDGER
+| Date | Stage | Notes |
+|------|-------|-------|
+| 2026-09-27 | Planning | Owner confirmed runtime CDN loading, San Francisco spawn, full scope, and asked me to design mobile controls. Blocked pending asset listing/files from `acmeproducts/earth`. |
+</plan>
