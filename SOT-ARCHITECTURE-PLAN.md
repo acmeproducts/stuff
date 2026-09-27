@@ -991,3 +991,8 @@ The first clean-development reset exposed an obsolete implicit migration: deleti
 ## 2026-09-27 — Small N-copy classification proof before estate scan
 
 Before any multi-terabyte qualification, prove duplicate arithmetic in the isolated Release D qualifier. Four byte-identical files in four temporary sources must complete as one fingerprint group with cardinality 4 and exactly `1 KEEP + 3 EXCESS`. After changing one file and restarting the same four-source scope, the changed file must become `UNIQUE` with cardinality 1 while the remaining three must become cardinality 3 with exactly `1 KEEP + 2 EXCESS`. This proof uses only temporary fixture files and a temporary qualifier database; it must not scan or modify the owner estate.
+
+
+## 2026-09-27 — Overlapping registered-root ownership proof
+
+Before returning to normal SOT development, qualify the existing most-specific-source ownership rule with a tiny isolated fixture. Register a parent root and its child root in the same analysis job, place one file directly in the parent and one in the child, and require exactly two persisted physical placements: the parent file owned by the parent source and the child file owned only by the child source. Neither path may be counted twice and both must classify UNIQUE. No estate scan is required for this proof.
