@@ -281,7 +281,7 @@ The timing is consistent with the observed move, but does not establish causatio
    });
    check('revision modes remain distinct',modes[0]==='extend-from-frozen'&&modes[1]===true&&modes[2]==='current-vintage-restatement'&&modes[3]===false,JSON.stringify(modes));
 
-   await page.click('.nav[data-view="health"]');
+   await page.evaluate(()=>document.querySelector('.nav[data-view="health"]').click());
    await page.waitForSelector('#mnxHealthTabs');
    await page.click('#mnxHealthTabs [data-mnx-health="glossary"]');
    await page.waitForSelector('.mnxGlossary');
