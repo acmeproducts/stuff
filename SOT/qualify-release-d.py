@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-import importlib.util,json,os,sys,tempfile,threading,time,uuid
+import importlib.util,json,os,sys,tempfile,threading,time,uuid,sqlite3
 from pathlib import Path
 
 HERE=Path(__file__).resolve().parent
@@ -36,8 +36,13 @@ old_home=os.environ.get("HOME")
 try:
  with tempfile.TemporaryDirectory() as td:
   home=Path(td);os.environ["HOME"]=str(home)
+  legacy=home/".sot-turn02"/"sot-v13-release-b.db";legacy.parent.mkdir(parents=True,exist_ok=True)
+  lc=sqlite3.connect(legacy);lc.execute("CREATE TABLE legacy_marker(v TEXT)");lc.execute("INSERT INTO legacy_marker VALUES('must-not-migrate')");lc.commit();lc.close()
   srv=load("release_d_server_fixture",HERE/"sot-turn02-release-d-server.py")
   assert srv.m.VERSION=="turn02-release-d" and srv.m.SCHEMA==14
+  assert not srv.S.rows("SELECT name FROM sqlite_master WHERE type='table' AND name='legacy_marker'"),"Release D resurrected predecessor database"
+  assert srv.S.rows("SELECT COUNT(*) n FROM placements")[0]["n"]==0,"fresh Release D database is not empty"
+  print("PASS fresh Release D startup ignores predecessor database and starts with zero placements")
   original_verify=srv.verified_windows_mount
   srv.verified_windows_mount=lambda letter:(True,{"root":"/mnt/"+str(letter).lower(),"mount":{"target":"/mnt/"+str(letter).lower(),"fstype":"9p","source":str(letter).upper()+":"}})
   fallback=srv.mounted_windows_drive_record("c")
@@ -139,6 +144,34 @@ try:
   replaced=srv.S.rows("SELECT fingerprint,lifecycle,availability FROM placements WHERE source_id=? AND path=?",(sid1,str(p1)))[0]
   assert replaced["fingerprint"] and replaced["fingerprint"]!=before and replaced["lifecycle"]=="HASHED" and replaced["availability"]=="AVAILABLE",replaced
   print("PASS changed-file rehash preserves prior fingerprint until successful atomic replacement")
+
+  # N-copy classification: four byte-identical placements must classify as one KEEP plus three EXCESS.
+  copy_roots=[];copy_sids=[];copy_paths=[]
+  for n in range(4):
+   root=home/f"ncopy-{n+1}";root.mkdir();p=root/"same.bin";p.write_bytes(b"N-COPY-FIXTURE"*128)
+   copy_roots.append(root);copy_paths.append(str(p));copy_sids.append(srv.M.add_source(f"N Copy {n+1}",str(root),f"ncopy-domain-{n+1}",estate=f"N Copy {n+1}"))
+  ncopy_job=srv.M.enqueue(copy_sids);ncopy_done=wait_job(srv.M,ncopy_job);srv.S.drain(10)
+  assert ncopy_done["job"]["state"]=="COMPLETED",ncopy_done
+  ncopy_rows=srv.S.rows("SELECT path,system_classification,duplicate_cardinality,fingerprint FROM placements WHERE source_id IN (?,?,?,?) ORDER BY path",tuple(copy_sids))
+  assert len(ncopy_rows)==4,ncopy_rows
+  assert len({r["fingerprint"] for r in ncopy_rows})==1,ncopy_rows
+  assert [r["system_classification"] for r in ncopy_rows].count("KEEP")==1,ncopy_rows
+  assert [r["system_classification"] for r in ncopy_rows].count("EXCESS")==3,ncopy_rows
+  assert {r["duplicate_cardinality"] for r in ncopy_rows}=={4},ncopy_rows
+  print("PASS N-copy classification: 4 identical placements = 1 KEEP + 3 EXCESS")
+
+  # Change one copy and re-analyze the same four-source scope: three remain duplicates and one becomes unique.
+  Path(copy_paths[3]).write_bytes(b"N-COPY-CHANGED"*192)
+  ncopy_job2=srv.M.restart(ncopy_job);ncopy_done2=wait_job(srv.M,ncopy_job2);srv.S.drain(10)
+  assert ncopy_done2["job"]["state"]=="COMPLETED",ncopy_done2
+  ncopy_rows2=srv.S.rows("SELECT path,system_classification,duplicate_cardinality,fingerprint FROM placements WHERE source_id IN (?,?,?,?) ORDER BY path",tuple(copy_sids))
+  classes=[r["system_classification"] for r in ncopy_rows2]
+  assert classes.count("UNIQUE")==1 and classes.count("KEEP")==1 and classes.count("EXCESS")==2,ncopy_rows2
+  unique_row=next(r for r in ncopy_rows2 if r["system_classification"]=="UNIQUE")
+  assert unique_row["path"]==copy_paths[3] and unique_row["duplicate_cardinality"]==1,unique_row
+  dup_rows=[r for r in ncopy_rows2 if r["system_classification"]!="UNIQUE"]
+  assert len({r["fingerprint"] for r in dup_rows})==1 and {r["duplicate_cardinality"] for r in dup_rows}=={3},dup_rows
+  print("PASS N-copy reclassification: changed copy = UNIQUE; remaining 3 = 1 KEEP + 2 EXCESS")
 
   # Queued Abort + Delete now maps to visible reversible soft deletion.
   j4=srv.M.enqueue([sid1]);srv.M.control(j4,"abort-delete");time.sleep(.05)

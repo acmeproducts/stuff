@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 import hashlib,json,os,queue,sqlite3,threading,time,uuid
 from pathlib import Path
-VERSION="turn02-release-d";SCHEMA=14;DB_DEFAULT=Path.home()/".sot-turn02"/"sot-v14-release-d.db";PREDECESSOR=Path.home()/".sot-turn02"/"sot-v13-release-b.db"
+VERSION="turn02-release-d";SCHEMA=14;DB_DEFAULT=Path.home()/".sot-turn02"/"sot-v14-release-d.db"
 DDL="""
 PRAGMA foreign_keys=ON;
 CREATE TABLE IF NOT EXISTS meta(k TEXT PRIMARY KEY,v TEXT NOT NULL);
@@ -15,10 +15,6 @@ CREATE TABLE IF NOT EXISTS events(event_id INTEGER PRIMARY KEY AUTOINCREMENT,ts 
 class Store:
  def __init__(self,path=DB_DEFAULT,batch_size=200,batch_ms=.20):
   self.path=Path(path);self.path.parent.mkdir(parents=True,exist_ok=True);self.batch_size=batch_size;self.batch_ms=batch_ms
-  if self.path==DB_DEFAULT and not self.path.exists() and PREDECESSOR.exists():
-   src=sqlite3.connect(PREDECESSOR,timeout=30);dst=sqlite3.connect(self.path,timeout=30)
-   try:src.backup(dst);dst.commit()
-   finally:dst.close();src.close()
   c=sqlite3.connect(self.path,timeout=30);c.executescript(DDL);cols={r[1] for r in c.execute("PRAGMA table_info(placements)")};
   additions={
    "tags":"TEXT NOT NULL DEFAULT '[]'",
