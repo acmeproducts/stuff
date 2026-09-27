@@ -996,3 +996,10 @@ Before any multi-terabyte qualification, prove duplicate arithmetic in the isola
 ## 2026-09-27 — Overlapping registered-root ownership proof
 
 Before returning to normal SOT development, qualify the existing most-specific-source ownership rule with a tiny isolated fixture. Register a parent root and its child root in the same analysis job, place one file directly in the parent and one in the child, and require exactly two persisted physical placements: the parent file owned by the parent source and the child file owned only by the child source. Neither path may be counted twice and both must classify UNIQUE. No estate scan is required for this proof.
+
+
+## 2026-09-27 — Clean-slate semantics and Grid preview persistence correction
+
+Owner device evidence showed two distinct problems. First, the development reset had been described as a clean slate even though 21 source registrations were deliberately reseeded afterward. A true clean development slate means the current Release D database starts with zero source registrations, zero placements, zero jobs and zero derived evidence; source registrations may be imported later only as an explicit owner action. Second, the Grid file preview already wrote geometry to `localStorage.sotViewerBox`, but its always-active `ResizeObserver` could call the save routine while the viewer was `display:none`, replacing valid geometry with hidden/zero geometry. The viewer save routine must ignore hidden or zero-size states so close/reload/reopen restores the last visible position and size. The preview delete control must use the exact line-art trash SVG already proven in repository `ui-v2.html`, not an emoji/cartoon glyph.
+
+Before/after: clean reset source registrations **21 reseeded → 0 required for a true clean slate**; viewer geometry persistence **stored but vulnerable to hidden overwrite → visible nonzero geometry only**; preview delete glyph **emoji → ui-v2 line-art SVG**.

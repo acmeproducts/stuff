@@ -1173,3 +1173,8 @@ Reject using a full-estate scan to prove N-copy classification behavior. Prove 4
 ## 2026-09-27 — OVERLAPPING ROOT DOUBLE COUNTING
 
 Reject counting a child-root file under both its registered child and registered parent when both participate in one analysis job. Ownership must resolve to the most-specific selected root before persistence; overlapping registration must not manufacture duplicate placements or duplicate classifications.
+
+
+## 2026-09-27 — RESEEDING A CLEAN DEVELOPMENT RESET / HIDDEN VIEWER GEOMETRY / EMOJI TRASH
+
+Reject calling a reset a clean slate when source registrations are automatically or procedurally reseeded afterward. Clean means zero registrations and zero derived evidence until the owner explicitly adds/imports sources. Reject persisting Grid preview geometry from a hidden or zero-size viewer because `display:none` observer callbacks can overwrite the last valid visible geometry. Reject the emoji/cartoon trash glyph in the Grid preview; use the established `ui-v2.html` line-art SVG.
