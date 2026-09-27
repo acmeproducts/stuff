@@ -1088,3 +1088,19 @@ Required replacement:
 - zero-count groups collapsed;
 - right-pinned canonical badge;
 - outcome-first Source details with successful analysis and error information.
+
+
+---
+
+## 2026-09-26 — RELEASE D DATABASE OMNISEARCH FOLDER-CHIP / COUNT NEGATIVE RULES
+
+Rejected and must not return:
+
+- representing an owner-selected positive Folder autocomplete result only as a raw substring \`#folder:<text>\` token;
+- broadening an explicitly selected folder because another unrelated path happens to contain the same word;
+- leaving a selected folder path in autocomplete so the same scope can be selected repeatedly;
+- displaying the 600-row Database render cap as though it were the total searchable-file denominator;
+- a permanent Database export/download button consuming mobile toolbar width;
+- changing CSV/JSON export contents merely because the trigger moved.
+
+Required replacement: removable light folder-scope chips with dark text; selected paths suppressed from autocomplete; OR across selected folder roots with root-or-descendant scope and AND against the remaining query; **matching files / total loaded files** count; CSV/JSON popup from long-press on that count; no ordinary-tap export action.

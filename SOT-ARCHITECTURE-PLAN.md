@@ -885,3 +885,41 @@ Do not change Estate registration workflow, scheduler concurrency/deduplication,
 ### Acceptance
 
 Qualification must require readiness coverage logic, compact Queue telemetry, nonduplicated restart subtitle, zero-count collapsed groups, right-pinned canonical badges, neutral Action Needed group border plus red outline only on open Action Needed Job cards, registered-source header wording, source outcome fields, and absence of Restart controls in source-card rendering.
+
+
+---
+
+## 2026-09-26 — Release D Database Omnisearch exact-folder chips, truthful count, compact export
+
+Owner device testing showed three Database Omnisearch defects: choosing a folder from autocomplete inserted broad text that matched unrelated paths containing the same word; the result counter could display values such as **9503 / 600**, where 600 was only the render cap; and the dedicated download button consumed scarce mobile toolbar width.
+
+### Definition of working
+
+- Typing \`#folder:\` continues to autocomplete distinct folder paths.
+- Tapping a positive folder-path autocomplete result converts it into a light chip with dark text and an × removal control instead of leaving a \`#folder:\` text token.
+- Selected folder paths disappear from autocomplete until their chip is removed.
+- Multiple selected folder chips are an OR scope: a placement is eligible when its containing folder is the selected root or a descendant of that root. The remaining free-text/field query is then ANDed against that scoped population.
+- Example: selecting \`/mnt/d/00 Consolidate\` and \`/mnt/e/00 Consolidate\`, then entering \`excess\`, searches only those two folder trees for \`excess\`; \`/mnt/d/consolidate SD Cad 256 gb\` is not included merely because its name contains “consolidate”.
+- Database and Grid share the same selected folder-chip scopes so changing view does not silently broaden the query.
+- The Database counter is always **matching files / total loaded files**. The 600-row render cap is presentation only and is never shown as the denominator.
+- The permanent export icon is removed from the Database toolbar. Long-pressing the result counter opens the existing CSV / JSON export menu; ordinary tap has no export action.
+
+### Cause
+
+The previous autocomplete wrote raw \`#folder:<value>\` text into the query. Non-wildcard field matching used substring semantics, and folder values containing spaces were not represented as a durable exact selection object. The counter combined total matches with the 600-row render cap, producing a misleading fraction.
+
+### Change
+
+Add a dedicated selected-folder-scope state represented by removable Omnisearch chips. Folder-scope matching normalizes separators and uses root-or-descendant prefix semantics; all other query grammar remains unchanged. Filter selected folder values out of autocomplete. Replace the toolbar export icon with a long-press target on the corrected result count.
+
+### Baseline / after
+
+- durable selected folder scopes: **0 → N chips**;
+- autocomplete selected-path suppression: **0 → active**;
+- misleading match/render-cap counter: **possible → removed**;
+- dedicated Database export buttons: **1 → 0**;
+- CSV/JSON export formats: **2 → 2**, now opened from long-press on the count.
+
+### Acceptance
+
+Mechanical browser qualification must require the folder-scope state, root-or-descendant matcher, chip rendering/removal, selected-folder autocomplete suppression, matching/total counter, long-press export target, and absence of the old dedicated Export button and old \`matches / shown rows\` counter expression.
