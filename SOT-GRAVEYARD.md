@@ -1104,3 +1104,18 @@ Rejected and must not return:
 - changing CSV/JSON export contents merely because the trigger moved.
 
 Required replacement: removable light folder-scope chips with dark text; selected paths suppressed from autocomplete; OR across selected folder roots with root-or-descendant scope and AND against the remaining query; **matching files / total loaded files** count; CSV/JSON popup from long-press on that count; no ordinary-tap export action.
+
+
+---
+
+## 2026-09-27 — RELEASE D DIAGNOSTIC EVIDENCE NEGATIVE RULES
+
+Rejected and must not return:
+
+- relying only on the 500-row browser event feed to diagnose Analyze processing;
+- suppressing scheduler/SQLite-writer failures without a durable runtime record;
+- copying the live SQLite main file as a diagnostic snapshot while WAL writes may be outstanding;
+- committing the raw SOT database, filesystem paths, AI transcripts, or operational history into the public application repository;
+- requiring screenshots as the authoritative evidence for lifecycle gaps.
+
+Required replacement: durable structured JSONL event logging; SQLite backup-based snapshots; machine-readable job/source/lifecycle summary; Config controls to create and publish diagnostic bundles; raw diagnostic bundles published only to a separately configured private diagnostic repository.
