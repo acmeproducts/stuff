@@ -1660,8 +1660,8 @@ Do not infer approval from prior requirements, a general execution instruction, 
 
 The owner has specified the following intended arrangement, but after this rollback it must **not** be reimplemented until the owner explicitly authorizes implementation again:
 
-- **Top/global row, centered:** the active chart date range (for example `2026-01-02 → 2026-09-22`) immediately beside the A/B persistent-index display selector.
-- The A/B selector means only: **A · Fixed Baseline** or **B · Horizon Rebase**. It is not an axis selector.
+- **Top/global row:** the active chart date range (for example `2026-01-02 → 2026-09-22`) is the centered anchor directly above the centered horizon controls on row two. Immediately to the date range's right, separated by a literal `|`, is the smallest practical persistent-index display menu.
+- The compact menu contains exactly two visible choices: **Fixed** and **Horizon**. It does **not** display `A`, `B`, `A/B`, `Fixed Baseline`, or `Horizon Rebase` in the menu UI. Semantics remain unchanged: **Fixed** = governed persistent fixed-baseline display; **Horizon** = display-only horizon rebase to 100. It is not an axis selector.
 - **Second/chart-context row, centered directly below that top-row block:** existing horizon controls `1D  5D  MTD  YTD  1YR  3YR  5YR`.
 - **Below the chart:** retain/restore the separately approved chart-axis representation selector, including **Base 100 / Y1+Y2 when applicable**. Axis representation and A/B baseline display are independent controls.
 - Remove redundant duplicate explanatory text only when explicitly included in the approved design delta.
@@ -1854,10 +1854,13 @@ Owner gate:
 
 ### 45.9 Stage 28·ship — UI placement gate
 
-**BLOCKED until explicit owner approval of the exact design.**
+**AUTHORIZED — exact design approved by owner 2026-09-27.**
 
-Current proposed design, preserved for review but not authorized:
-- top/global row center: `date range + A/B selector`;
+**OWNER APPROVED 2026-09-27 — implementation authorized by explicit `please update plan and proceed`.**
+
+Approved design:
+- top/global row: the **date range itself is centered directly above the horizon controls**; immediately to its right is literal separator `|` followed by the minimum-width display menu;
+- that menu reads exactly **Fixed** / **Horizon** — never A/B — with semantics Fixed = persistent fixed baseline and Horizon = display-only horizon rebase to 100;
 - directly below, second/chart row center: horizon controls;
 - bottom chart footer: separate axis representation selector;
 - Config visual cleanup only if explicitly included in the approved design;
