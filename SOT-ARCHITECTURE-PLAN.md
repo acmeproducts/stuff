@@ -976,3 +976,8 @@ Definition of working: an existing valid fingerprint is retained while a changed
 Controlled job `b9bafa49255f4b2b8470e84dcbc6d76a` on Documents proved the completion guard: 65 files were discovered/hashed by counters, but only 15 were durably associated with the job. Diagnostics recorded `UNIQUE constraint failed: placements.source_id, placements.path`. Analyze had been deciding existing/new from regenerated `placement_id` even though SQLite's authoritative uniqueness is `(source_id,path)`.
 
 Definition of working: enumeration resolves an existing placement first by `source_id + path`, reuses its stored placement ID, and inserts only when that unique source/path does not exist. Error handling follows the same identity rule. Qualification must deliberately give an existing row a legacy/non-derived placement ID and prove re-analysis completes with exactly one row for the source/path and updates that row to the new job.
+
+
+## 2026-09-27 — Development estate reset policy
+
+Owner direction: SOT is still in development and current estate analysis data is disposable. Do not add complex migrations, compatibility paths, dual-read/dual-write behavior, or data-preservation machinery merely to retain test-era fingerprints, classifications, jobs, plans, transcripts, or derived evidence. When a clean rebuild materially simplifies correctness, prefer rebuilding the development database from current schema and re-analyzing from source. Source registrations and operational configuration may be retained/reseeded as configuration; derived estate evidence must be regenerated through the current pipeline.
