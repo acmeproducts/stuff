@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-import importlib.util,json,os,sys,tempfile,threading,time,uuid
+import importlib.util,json,os,sys,tempfile,threading,time,uuid,sqlite3
 from pathlib import Path
 
 HERE=Path(__file__).resolve().parent
@@ -36,8 +36,13 @@ old_home=os.environ.get("HOME")
 try:
  with tempfile.TemporaryDirectory() as td:
   home=Path(td);os.environ["HOME"]=str(home)
+  legacy=home/".sot-turn02"/"sot-v13-release-b.db";legacy.parent.mkdir(parents=True,exist_ok=True)
+  lc=sqlite3.connect(legacy);lc.execute("CREATE TABLE legacy_marker(v TEXT)");lc.execute("INSERT INTO legacy_marker VALUES('must-not-migrate')");lc.commit();lc.close()
   srv=load("release_d_server_fixture",HERE/"sot-turn02-release-d-server.py")
   assert srv.m.VERSION=="turn02-release-d" and srv.m.SCHEMA==14
+  assert not srv.S.rows("SELECT name FROM sqlite_master WHERE type='table' AND name='legacy_marker'"),"Release D resurrected predecessor database"
+  assert srv.S.rows("SELECT COUNT(*) n FROM placements")[0]["n"]==0,"fresh Release D database is not empty"
+  print("PASS fresh Release D startup ignores predecessor database and starts with zero placements")
   original_verify=srv.verified_windows_mount
   srv.verified_windows_mount=lambda letter:(True,{"root":"/mnt/"+str(letter).lower(),"mount":{"target":"/mnt/"+str(letter).lower(),"fstype":"9p","source":str(letter).upper()+":"}})
   fallback=srv.mounted_windows_drive_record("c")
