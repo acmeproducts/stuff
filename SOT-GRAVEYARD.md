@@ -1168,3 +1168,8 @@ Required replacement: reconcile persisted job/source placements immediately befo
 ## 2026-09-27 — MULTI-TERABYTE SCAN AS BASIC DUPLICATE-ARITHMETIC TEST
 
 Reject using a full-estate scan to prove N-copy classification behavior. Prove 4-copy classification and changed-copy reclassification first with a tiny isolated fixture. Estate-scale work is a later scale/integration qualification, not a substitute for a deterministic behavioral test.
+
+
+## 2026-09-27 — OVERLAPPING ROOT DOUBLE COUNTING
+
+Reject counting a child-root file under both its registered child and registered parent when both participate in one analysis job. Ownership must resolve to the most-specific selected root before persistence; overlapping registration must not manufacture duplicate placements or duplicate classifications.
