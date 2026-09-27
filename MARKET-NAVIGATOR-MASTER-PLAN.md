@@ -1675,3 +1675,273 @@ The rejected candidate demonstrated that DOM-presence/browser-functional tests c
 ### 44.5 Current state after this commit
 
 Turn 28 UI/application/build/QA is rolled back to the qualified state at `7f252ac07394fff23ddc9c0cebcb27ef2aa402f4`. Persistent-index methodology `MN-PERSISTENT-1.0.0` remains unchanged. The next UI step is **design review/owner approval only**, not implementation.
+
+
+## 45. Turn/stage rebuild plan — index program consolidation (owner directive 2026-09-27)
+
+This section is authoritative for all remaining Market Navigator index work and supersedes any ad hoc Turn 28 UI implementation sequence. It adopts the TalkBridge operating pattern: explicit turn/stage ledger, immutable accepted baselines, declared stage diffs, owner gates, no skipped stages, no patch-forward from rejected candidates, and no UI implementation before owner-approved design.
+
+### 45.1 Standing release law for Market Navigator
+
+Every Market Navigator turn advances in this exact order:
+
+**pre-base → base → pre-ship → ship → post-ship**
+
+No stage may be skipped. If a stage has no product delta, it is a byte-identical copy-forward with its own artifact and live address. A new turn begins only after post-ship is accepted.
+
+Each stage must declare before construction:
+- exact baseline commit/blob;
+- exact target artifact name;
+- exact product delta;
+- explicit non-goals;
+- exact mechanical gates;
+- owner approval level required before advancement.
+
+Each accepted stage becomes immutable. Rejected candidates are never patched forward unless the owner explicitly authorizes patch-forward. Default behavior is rebuild from the last clean accepted stage per `MARKET-NAVIGATOR-BUILD-PROTOCOL.md`.
+
+### 45.2 Current program state
+
+**Last qualified analytical candidate before the rejected UI experiment:**
+- commit: `7f252ac07394fff23ddc9c0cebcb27ef2aa402f4`
+- artifact: `market-navigator-turn28-pre-ship.html`
+- model: `MN-PERSISTENT-1.0.0`
+- status: analytical/index construction qualified, but not accepted as final production ship solely by owner UI disposition.
+
+**Rollback/governance commit:**
+- `39605e9ff4fb85da9c12031301705bfcd52b28ab`
+- restored Turn 28 app/build/QA UI files to the qualified `7f252ac...` state;
+- added explicit owner UI approval gate in §44.
+
+### 45.3 Index program decisions already closed — do not reopen
+
+The following are complete and must be treated as governed inputs to the build plan:
+
+#### GRW
+- seven-component construction retained;
+- governed component transforms retained;
+- fixed equal coefficients retained;
+- persistent-index methodology retained;
+- no component redesign;
+- A/B display modes are presentation-only;
+- remaining work is production-stage integration/validation, not methodology analysis.
+
+#### RSK
+- seven components retained;
+- fixed `1/7` coefficients retained;
+- S2A_EVENT_FREQ scaling methodology selected;
+- component-specific volatility/frequency scales frozen;
+- approved under `MN-PERSISTENT-1.0.0`;
+- old narrow-range behavior belongs to the superseded calculation;
+- remaining work is governed production execution/validation only.
+
+#### MAC
+- persistent formula approved;
+- signed/zero-crossing Treasury treatment retained;
+- corrected curve directions retained;
+- fixed seven-component coefficients retained;
+- superseded ratio implementation is retired;
+- remaining work is governed production execution/validation only.
+
+#### A/B display contract
+- **A · Fixed Baseline** = governed persistent canonical index view.
+- **B · Horizon Rebase** = display-only rebase of visible horizon to 100.
+- A/B must never mutate canonical stored values, component membership, transforms, weights, or source observations.
+
+### 45.4 Governed evidence and implementation links
+
+These files are the required index-construction sources for every successor stage:
+
+- Master Plan: https://github.com/acmeproducts/stuff/blob/main/MARKET-NAVIGATOR-MASTER-PLAN.md
+- Build Protocol: https://github.com/acmeproducts/stuff/blob/main/MARKET-NAVIGATOR-BUILD-PROTOCOL.md
+- Graveyard: https://github.com/acmeproducts/stuff/blob/main/MARKET-NAVIGATOR-GRAVEYARD.md
+- Persistent index spec: https://github.com/acmeproducts/stuff/blob/main/MARKET-NAVIGATOR-PERSISTENT-INDEX-SPEC.md
+- Component registry: https://github.com/acmeproducts/stuff/blob/main/data/market-backend/component-registry-v1.json
+- Persistent derived-index definition: https://github.com/acmeproducts/stuff/blob/main/data/market-backend/derived-index-definition-persistent-v1.json
+- Persistent derived-index evidence: https://github.com/acmeproducts/stuff/blob/main/market-evidence/derived-indices-persistent-v1.json
+- Persistent qualification report: https://github.com/acmeproducts/stuff/blob/main/market-evidence/reports/persistent-index-qualification.json
+- Turn 28 deterministic builder: https://github.com/acmeproducts/stuff/blob/main/market-navigator-build-turn28.py
+- Turn 28 browser QA: https://github.com/acmeproducts/stuff/blob/main/market-navigator-turn28-qa.mjs
+- Current rolled-back candidate: https://github.com/acmeproducts/stuff/blob/main/market-navigator-turn28-pre-ship.html
+
+### 45.5 Turn/stage ledger — Market Navigator
+
+| Turn·Stage | Purpose | State | Artifact / link |
+|---|---|---|---|
+| 28·pre-base | Freeze clean successor input from accepted cumulative Turn 26 baseline plus approved persistent-index evidence | **TO BANK EXPLICITLY** | artifact to be created before next product change |
+| 28·base | Production index construction integration: GRW/RSK/MAC governed persistent math only; no UI redesign | **PLANNED** | new stage artifact required |
+| 28·pre-ship | Display contract integration: A/B behavior + retained chart-axis behavior, no visual relocation yet unless separately owner-approved | **PLANNED** | new stage artifact required |
+| 28·ship | Owner-approved UI placement only, after written design approval; exact top-row/date/A-B + second-row horizon + bottom axis design if owner approves that exact design | **BLOCKED ON OWNER UI APPROVAL** | no artifact may be built before approval |
+| 28·post-ship | Regression hardening: responsive geometry screenshots, crosshair, print, Library, Health, source selection, persistence, Pages smoke, byte identity | **PLANNED** | new stage artifact required |
+| 29·pre-base | Byte-identical snapshot of accepted 28·post-ship | queued | — |
+
+No later turn may start until 28·post-ship is accepted.
+
+### 45.6 Stage 28·pre-base — mandatory first step
+
+**Purpose:** create an explicit immutable baseline artifact before any further Market Navigator change.
+
+Baseline source:
+- immutable accepted cumulative Turn 26 artifact: `market-navigator-turn26-ship.html`
+- blob: `fc61e29d76f1a7ecf1226f74e0884865dca04684`
+- plus already-qualified persistent evidence/configuration files under `MN-PERSISTENT-1.0.0`.
+
+Required work:
+1. create the stage artifact at a new address;
+2. verify exact intended source lineage;
+3. record SHA-256/blob identity;
+4. run retained Turn 26 qualification;
+5. record live Pages URL;
+6. owner disposition closes the stage.
+
+Non-goals:
+- no new index math;
+- no UI change;
+- no crosshair change;
+- no print change;
+- no source-retirement work.
+
+### 45.7 Stage 28·base — governed index production integration
+
+**Exact product delta:** integrate the already-approved persistent GRW/RSK/MAC production mathematics into the clean stage baseline.
+
+Required:
+- GRW: governed seven-component persistent calculation;
+- RSK: governed S2A_EVENT_FREQ-scaled seven-component persistent calculation;
+- MAC: governed persistent calculation with approved signed Treasury treatment;
+- fixed `1/7` coefficients for all seven governed components;
+- missing governed component state => index unavailable; no reduced-set renormalization;
+- canonical persistent series independent of selected chart horizon;
+- exact component-contribution reconciliation;
+- native-value provenance retained.
+
+Mechanical gates:
+1. formula replication;
+2. 7/7 component completeness;
+3. fixed coefficient assertion;
+4. contribution reconciliation;
+5. horizon invariance;
+6. no-look-ahead / information-time checks where applicable;
+7. deterministic rebuild;
+8. retained Turn 26 browser suite;
+9. no UI geometry changes versus 28·pre-base.
+
+Owner gate:
+- review of evidence/gate summary only; no UI acceptance is implied.
+
+### 45.8 Stage 28·pre-ship — display behavior integration
+
+**Exact product delta:** expose the two approved index display modes while preserving existing chart representation controls.
+
+Required:
+- A = Fixed Baseline;
+- B = Horizon Rebase to 100;
+- B changes display points only;
+- canonical raw persistent evidence must remain byte/value stable;
+- chart-axis representation remains separately selectable where applicable;
+- no control relocation at this stage unless separately approved.
+
+Mechanical gates:
+1. A/B parity over same canonical raw series;
+2. B first visible governed index point = 100;
+3. raw persistent evidence unchanged between A/B;
+4. Base 100 / Y1+Y2 representation behavior retained;
+5. responsive control visibility;
+6. retained browser regression suite;
+7. deterministic rebuild.
+
+Owner gate:
+- functional behavior acceptance only.
+
+### 45.9 Stage 28·ship — UI placement gate
+
+**BLOCKED until explicit owner approval of the exact design.**
+
+Current proposed design, preserved for review but not authorized:
+- top/global row center: `date range + A/B selector`;
+- directly below, second/chart row center: horizon controls;
+- bottom chart footer: separate axis representation selector;
+- Config visual cleanup only if explicitly included in the approved design;
+- normal bounded chart geometry must be preserved.
+
+Before implementation, the builder must present:
+1. exact text mockup of desktop layout;
+2. exact text mockup of mobile layout;
+3. list of DOM/control moves;
+4. explicit list of things that will not change;
+5. owner approval.
+
+After approval, mechanical gates must include:
+- screenshot artifacts at desktop and mobile widths;
+- geometry assertions for row placement/centering;
+- non-overlap assertions;
+- chart height bounds;
+- horizon visibility;
+- A/B visibility;
+- axis-selector visibility;
+- gear/config visibility per approved design;
+- retained browser suite;
+- deterministic rebuild;
+- Pages smoke.
+
+A DOM-presence-only PASS is prohibited.
+
+### 45.10 Stage 28·post-ship — full cumulative release qualification
+
+Purpose: prove the complete accepted Turn 28 candidate as a release, not merely as isolated features.
+
+Required cumulative gates:
+- persistent GRW/RSK/MAC arithmetic;
+- A/B display isolation;
+- axis representation;
+- crosshair nearest-series behavior;
+- explicit close behavior;
+- null-safe comparison selection;
+- NOW Print;
+- Library Print;
+- Plain/Standard/Technical interpretation;
+- Library persistence;
+- Health/model status;
+- source availability;
+- responsive desktop/mobile geometry;
+- exact Pages deployment;
+- byte identity/live smoke;
+- no mutation of accepted prior artifacts.
+
+Owner gate:
+- final device/UI disposition.
+- Only after owner acceptance does 28·post-ship become the baseline for 29·pre-base.
+
+### 45.11 Required operating checklist for every Market Navigator stage
+
+Before any write:
+1. fetch current `main`;
+2. read in full:
+   - `MARKET-NAVIGATOR-MASTER-PLAN.md`
+   - `MARKET-NAVIGATOR-GRAVEYARD.md`
+   - `MARKET-NAVIGATOR-BUILD-PROTOCOL.md`
+3. state current turn·stage;
+4. state baseline commit/blob;
+5. state target artifact;
+6. state exact allowed delta;
+7. state non-goals;
+8. state gates;
+9. verify no accepted artifact will be overwritten.
+
+During execution:
+- no freestyle scope expansion;
+- no patch-forward from a rejected candidate;
+- no wrappers/compatibility layers used to preserve a failed design;
+- no skipped stages;
+- no UI implementation without design approval.
+
+After execution:
+1. record commit/blob;
+2. record diff scope;
+3. record gate results;
+4. record Pages URL;
+5. record owner disposition;
+6. update this ledger before the next stage begins.
+
+### 45.12 Successor-session instruction
+
+> Continue Market Navigator in `acmeproducts/stuff` strictly from Master Plan §45 and the Turn/Stage protocol. Read the Master Plan, Graveyard, and Build Protocol in full before any write. Identify the current turn·stage from §45.5. Do not skip stages. Do not patch rejected candidates. Do not alter an accepted artifact. Do not implement UI without explicit owner approval of the exact design. Execute only the declared stage delta, run all listed mechanical gates, publish a new stage artifact at a new address, update the ledger, and stop for the required owner gate before advancing.
