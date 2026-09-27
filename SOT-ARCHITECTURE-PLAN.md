@@ -962,3 +962,10 @@ Before an analysis job may transition to COMPLETED, each source must reconcile i
 Any mismatch blocks inference, blocks source-baseline refresh, writes a structured \`completion_integrity_failed\` event with expected and persisted counts, writes a job-level \`job_completion_blocked\` event, and terminates the job as FAILED / Action Needed rather than falsely COMPLETED.
 
 This is an integrity guard, not the final root-cause repair. After installation, rerun the three \`00 Consolidate\` sources under the durable logger. The new gate must either prove a coherent completion or preserve the mismatch as FAILED evidence for diagnosis.
+
+
+## 2026-09-27 — Release D non-destructive rehash evidence preservation
+
+Diagnostic snapshot `sot-diagnostic-20260927T083624Z` proved that a historical Analyze job could report 114/114 hashed while later persisted source evidence contained only 9/10 fingerprints. Root cause is destructive re-analysis: enumeration clears an existing fingerprint before replacement hashing succeeds, so an interrupted later job destroys the last valid evidence.
+
+Definition of working: an existing valid fingerprint is retained while a changed placement is rehashed; the placement is marked `PENDING` and removed from current duplicate classification; only a successful hash atomically replaces fingerprint/content identity and restores `AVAILABLE/HASHED`. Completion integrity counts only `HASHED + AVAILABLE + fingerprint` as persisted hashed evidence and treats pending work as incomplete. Interrupted or failed rehash must never erase the last valid fingerprint. After install, qualify first on the small Documents source, publish diagnostics, then rerun D and I `00 Consolidate` only after the controlled job passes.
