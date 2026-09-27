@@ -50,6 +50,7 @@ def main():
         '<div class="grow"></div><div class="interpretTabs27" id="interpretTabs27" aria-label="Interpretation level"><button class="interpretTab27" data-interpret27="plain">Plain</button><button class="interpretTab27" data-interpret27="standard">Standard</button><button class="interpretTab27" data-interpret27="technical">Technical</button></div><button class="btn libQuestionBtn"',
         "Library interpretation tabs")
 
+    s=s.replace("(x.curve||[]).map(p=>({t:+p.t,v:+p.v,idx:+p.v,raw:+p.v,sourceT:+p.t}))","indexDisplayCurve28(x.curve||[])")
     s=replace_once(s,"j('market-evidence/derived-indices.json'),j('data/market-backend/derived-index-definition.json')",
         "j('market-evidence/derived-indices-persistent-v1.json'),j('data/market-backend/derived-index-definition-persistent-v1.json')",
         "persistent boot evidence")
