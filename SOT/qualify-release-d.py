@@ -117,6 +117,15 @@ try:
   z3=wait_job(srv.M,j3);assert z3["job"]["state"]=="COMPLETED"
   print("PASS analysis Restart creates a new queued job from frozen scope")
 
+  # Legacy placement IDs must resolve through the database's authoritative (source_id,path) unique key.
+  legacy_path=str(e1/"a.bin");legacy_pid="legacy-"+uuid.uuid4().hex
+  srv.S.submit("UPDATE placements SET placement_id=? WHERE source_id=? AND path=?",(legacy_pid,sid1,legacy_path),True)
+  jlegacy=srv.M.restart(j1);zlegacy=wait_job(srv.M,jlegacy);srv.S.drain(10)
+  assert zlegacy["job"]["state"]=="COMPLETED",zlegacy
+  identity_rows=srv.S.rows("SELECT placement_id,job_id FROM placements WHERE source_id=? AND path=?",(sid1,legacy_path))
+  assert len(identity_rows)==1 and identity_rows[0]["placement_id"]==legacy_pid and identity_rows[0]["job_id"]==jlegacy,identity_rows
+  print("PASS legacy placement identity re-analysis uses unique source/path without duplicate INSERT")
+
   # A changed file must retain its last valid fingerprint until the replacement hash succeeds.
   p1=e1/"a.bin";before=srv.S.rows("SELECT fingerprint FROM placements WHERE source_id=? AND path=?",(sid1,str(p1)))[0]["fingerprint"]
   assert before
