@@ -98,13 +98,7 @@ def main():
     s=s.replace("S.priorV2.component=sel.id;componentCard(sel.id)", "S.priorV2={...(S.priorV2||{}),component:sel.id};componentCard(sel.id)")
 
     # Turn 28: a canonical persistent index and horizon-rebased comparisons
-    # use independent axes. This preserves the canonical index value while
-    # preventing a volatile comparison from visually flattening the index.
-    s=s.replace("let text=mode==='dual'?'Native Y1 + Y2':mode==='native'?'Native Y1':'Indexed 100';", "let text=mode==='dual'?'Persistent Index Y1 + Indexed 100 Y2':mode==='native'?'Native Y1':'Indexed 100';")
-    s=replace_once(s,
-        "renderNowContext28(w);let chartMode=setNowFooter(w,'indexed');captureNowState(sets,w,chartMode);S.nowPaint25={sets,w,mode:chartMode};draw('now',sets,w,chartMode)}function componentCard",
-        "renderNowContext28(w);let chartMode=setNowFooter(w,sets.length>1?'dual':'indexed');sets.forEach(z=>{z.axis=chartMode==='dual'?(z.id===k?0:1):0;z.axisLabel=chartMode==='dual'?(z.id===k?'Persistent Index':'Indexed 100'):'Indexed 100'});captureNowState(sets,w,chartMode);S.nowPaint25={sets,w,mode:chartMode};draw('now',sets,w,chartMode)}function componentCard",
-        "persistent comparison dual axes")
+
 
     s=replace_once(s,
         "function renderAIConfig(){let r=aiRegistry(),ps=r.providers||{};$('defaultProvider').value=r.defaultProvider||'venice';",
