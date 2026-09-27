@@ -23,13 +23,18 @@ def create_diagnostic_bundle():
  try:src.backup(dst);dst.commit()
  finally:dst.close();src.close()
  Path(str(out)+"-summary.json").write_text(json.dumps(diagnostic_summary(),indent=2,sort_keys=True,default=str),encoding="utf-8")
+ dump=sqlite3.connect(str(out)+".db")
+ try:
+  with Path(str(out)+"-dump.sql").open("w",encoding="utf-8") as fh:
+   for line in dump.iterdump():fh.write(line+"\\n")
+ finally:dump.close()
  if S.log_path.exists():shutil.copy2(S.log_path,str(out)+"-events.jsonl")
- return {"base":str(out),"db":str(out)+".db","summary":str(out)+"-summary.json","events":str(out)+"-events.jsonl"}
+ return {"base":str(out),"db":str(out)+".db","dump":str(out)+"-dump.sql","summary":str(out)+"-summary.json","events":str(out)+"-events.jsonl"}
 def publish_diagnostic_bundle():
  z=create_diagnostic_bundle();repo=DIAG_REPO_DIR
  if not (repo/".git").exists():raise RuntimeError("Diagnostic repo checkout missing at "+str(repo)+". Clone a PRIVATE repository there first.")
  target=repo/"snapshots"/Path(z["base"]).name;target.mkdir(parents=True,exist_ok=True)
- for key in ("db","summary","events"):
+ for key in ("db","dump","summary","events"):
   p=Path(z[key]);
   if p.exists():shutil.copy2(p,target/p.name)
  subprocess.run(["git","-C",str(repo),"add","snapshots"],check=True,timeout=30)
