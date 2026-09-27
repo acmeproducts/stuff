@@ -37,10 +37,7 @@ def main():
     css+=".nowContext28{position:absolute;left:50%;top:3px;transform:translateX(-50%);display:flex;align-items:center;gap:8px;white-space:nowrap;font-size:10px;color:var(--muted)}.nowContext28 select{font:inherit}.rail .foot span{display:none}@media(max-width:700px){.nowContext28{font-size:8px;gap:4px}.nowContext28 select{max-width:116px}}\n"
     s=replace_once(s,"</style></head>",css+"</style></head>","Turn 28 CSS")
 
-    s=replace_once(s,
-        "function setNowFooter(w,mode='indexed'){let allowed=S.level===2&&S.index&&S.nowComparisons.length?'dual':'indexed',axis=S.axisMode&&['indexed','dual'].includes(S.axisMode)?S.axisMode:allowed;if(axis==='dual'&&allowed!=='dual')axis='indexed';S.axisMode=axis;let axisOptions=allowed==='dual'?\`<option value=\"indexed\" ${axis==='indexed'?'selected':''}>Base 100</option><option value=\"dual\" ${axis==='dual'?'selected':''}>Y1 + Y2</option>\`:\`<option value=\"indexed\" selected>Base 100</option>\`;$('nowMeta').innerHTML=\`<span>MN-PERSISTENT-1.0.0</span><span class=\"footerSep\">|</span><select id=\"nowRepresentation\" aria-label=\"Chart axis representation\">${axisOptions}</select>\`;$('nowRepresentation').onchange=()=>{S.axisMode=$('nowRepresentation').value;renderNow()};return axis}",
-        "function setNowFooter(w,mode='indexed'){let display=S.indexDisplay||'fixed',axis=mode==='dual'?'Persistent Index Y1 + Indexed 100 Y2':display==='fixed'?'Fixed Baseline':'Horizon Rebase';$('nowMeta').innerHTML=`<span>MN-PERSISTENT-1.0.0</span><span class=\"footerSep\">|</span><span>${w.startLabel} → ${w.endLabel}</span><span class=\"footerSep\">|</span><select id=\"nowRepresentation\" aria-label=\"Index display mode\"><option value=\"fixed\" ${display==='fixed'?'selected':''}>A · Fixed Baseline</option><option value=\"rebase\" ${display==='rebase'?'selected':''}>B · Horizon Rebase</option></select><span class=\"footerSep\">|</span><span>${axis}</span>`;$('nowRepresentation').onchange=()=>{S.indexDisplay=$('nowRepresentation').value;renderNow()}}",
-        "A/B display selector")
+
 
     s=replace_once(s,
         '<div class="field"><label>Default provider</label><select id="defaultProvider">',
