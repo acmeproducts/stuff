@@ -1769,8 +1769,8 @@ These files are the required index-construction sources for every successor stag
 |---|---|---|---|
 | 28·pre-base | Freeze clean successor input from accepted cumulative Turn 26 baseline plus approved persistent-index evidence | **BUILT — mechanical identity gate complete; owner disposition pending** | https://acmeproducts.github.io/stuff/market-navigator-turn28-pre-base.html |
 | 28·base | Production index construction integration: GRW/RSK/MAC governed persistent math; last-known-good NOW geometry preserved | **BUILT — owner execution authority granted 2026-09-27** | https://acmeproducts.github.io/stuff/market-navigator-turn28-base.html |
-| 28·pre-ship | Display contract integration using approved minimal placement: separate Fixed/Horizon dropdown immediately beside retained chart-representation dropdown; NOW top rows untouched | **BUILT — owner authorized 2026-09-27** | https://acmeproducts.github.io/stuff/market-navigator-turn28-pre-ship-stage.html |
-| 28·ship | Release candidate from approved 28·pre-ship behavior/placement; no additional product/UI delta | **NEXT — byte-identical stage copy-forward after pre-ship mechanical checks** | — |
+| 28·pre-ship | Display contract integration + restored selectable native Y2; separate Fixed/Horizon dropdown immediately beside retained chart-representation dropdown; NOW top rows untouched | **QUALIFIED / ACCEPTED FOR SHIP 2026-09-27** | https://acmeproducts.github.io/stuff/market-navigator-turn28-pre-ship-stage.html?v=e52e34a2b4efb7c2d5be8884a264552263d54cb3 |
+| 28·ship | Byte-identical release candidate from qualified 28·pre-ship behavior/placement; no additional product/UI delta | **BUILT / QUALIFIED 2026-09-27** | https://acmeproducts.github.io/stuff/market-navigator-turn28-ship.html |
 | 28·post-ship | Regression hardening: responsive geometry screenshots, crosshair, print, Library, Health, source selection, persistence, Pages smoke, byte identity | **PLANNED** | new stage artifact required |
 | 29·pre-base | Byte-identical snapshot of accepted 28·post-ship | queued | — |
 
@@ -1988,3 +1988,13 @@ Mechanical release gates:
 9. retained NOW geometry and prior browser regression gates pass.
 
 28·pre-ship remains **OPEN / RELEASE-BLOCKED** until these gates pass. Do not advance to 28·ship before qualification.
+
+
+### 45.14 28·ship release record — 2026-09-27
+
+- Source: qualified `market-navigator-turn28-pre-ship-stage.html` at commit `e52e34a2b4efb7c2d5be8884a264552263d54cb3`.
+- Qualification: GitHub Actions run 36327370182 PASS.
+- Ship artifact is a byte-identical stage copy-forward; no product, data, math, or UI delta.
+- Source/ship blob: `544661884a412c57aac08fada4f961012a4bc496`.
+- Release behavior includes governed GRW/RSK/MAC persistent indices, independent Fixed/Horizon display selector, and selectable Indexed 100 / Y1 + Y2 representation with active eligible comparison on native Y2.
+- NOW top-row geometry remains unchanged from the last-known-good layout.
