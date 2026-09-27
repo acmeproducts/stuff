@@ -1178,3 +1178,8 @@ Reject counting a child-root file under both its registered child and registered
 ## 2026-09-27 — RESEEDING A CLEAN DEVELOPMENT RESET / HIDDEN VIEWER GEOMETRY / EMOJI TRASH
 
 Reject calling a reset a clean slate when source registrations are automatically or procedurally reseeded afterward. Clean means zero registrations and zero derived evidence until the owner explicitly adds/imports sources. Reject persisting Grid preview geometry from a hidden or zero-size viewer because `display:none` observer callbacks can overwrite the last valid visible geometry. Reject the emoji/cartoon trash glyph in the Grid preview; use the established `ui-v2.html` line-art SVG.
+
+
+## 2026-09-27 — NON-IDEMPOTENT OPERATOR ACTIONS
+
+Reject operator-facing commands or controls whose accidental repeat can duplicate registrations/jobs, corrupt state, or apply an irreversible mutation twice. Do not assume a command, button, network request, or pasted recovery sequence executes exactly once. Required replacement: idempotent/convergent behavior where possible; otherwise detect the already-applied transition and safely refuse the repeat.
