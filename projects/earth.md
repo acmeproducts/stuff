@@ -23,6 +23,7 @@ Append one row before every future build session touches code.
 | 2026-09-25 | T5a shell build | Ledger updated; ready to write projects/earth.html | In progress |
 | 2026-09-27 | T6 minimal shell draft | Added ledger entry for next build step; set next action to create minimal mobile‑first HTML shell | Blocked |
 | 2026-09-27 | T7 diagnostic | Identified why prior code writes failed: plan checkpoint and read-back validation did not complete, so no code was written; next step is to write the minimal HTML shell | Done |
+| 2026-09-27 | T8 owner direction | Owner confirms full original scope, acmeproducts/earth repo, runtime CDN acceptable, California start, dev designs mobile controls | Open |
 
 ## 1. RELEASES
 
@@ -83,7 +84,7 @@ Append one row before every future build session touches code.
 
 ### Backlog — deferred
 
-- **Owner action needed:** provide README text and a directory listing with file sizes from the Earth repo.
+- **Owner action needed:** provide a directory listing with file sizes from the `acmeproducts/earth` repo, or paste the key asset files and code files to be used.
 - Confirm the correct repository URL and ownership.
 - Confirm licenses and required attribution for all data and libraries.
 - Lock the R1 MVP feature subset.
@@ -124,9 +125,10 @@ Unscheduled parking lot; nothing starts here without owner approval.
 |---|---|
 | 2026-09-23 | Project bootstrapped with code at `projects/earth.html` and this plan as sole authority. |
 | 2026-09-23 | R1 stack fixed: HTML5, no build step, no React, no TypeScript. |
-| 2026-09-23 | Core assets selected for GitHub storage; WSL is fallback only; runtime CDN is excluded for core assets. |
-| 2026-09-23 | README facts captured; full inventory, R1 scope, licensing, and performance targets remain TBD. |
-| 2026-09-27 | Added ledger entry for next build step; set next action to create minimal mobile‑first HTML shell. |
+| 2026-09-27 | Owner confirms full original scope: if the app does it, we do it; no descoping. |
+| 2026-09-27 | Repository source set to `acmeproducts/earth`; owner will provide contents or listing. |
+| 2026-09-27 | Runtime CDN acceptable for delivery; start location is California. |
+| 2026-09-27 | Developer owns mobile control design. |
 
 ## 6. APPENDIX — Authority order
 
