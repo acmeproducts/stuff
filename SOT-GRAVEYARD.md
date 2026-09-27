@@ -1163,3 +1163,8 @@ Required replacement: reconcile persisted job/source placements immediately befo
 - Removed: automatic copy of `sot-v13-release-b.db` when the Release D database is absent.
 - Never repopulate a deliberately deleted development database from an older release.
 - Any future production migration must be an explicit governed operation, not an implicit startup fallback.
+
+
+## 2026-09-27 — MULTI-TERABYTE SCAN AS BASIC DUPLICATE-ARITHMETIC TEST
+
+Reject using a full-estate scan to prove N-copy classification behavior. Prove 4-copy classification and changed-copy reclassification first with a tiny isolated fixture. Estate-scale work is a later scale/integration qualification, not a substitute for a deterministic behavioral test.
