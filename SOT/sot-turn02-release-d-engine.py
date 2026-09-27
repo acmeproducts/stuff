@@ -510,7 +510,8 @@ class Manager:
       st=os.stat(p,follow_symlinks=False)
       if not os.path.isfile(p):continue
       pid=hashlib.sha256((sid+"\0"+p).encode()).hexdigest();now=time.time();created=self.created_time(p,st)
-      old=self.s.rows("SELECT placement_no,size,modified,fingerprint,content_id FROM placements WHERE placement_id=?",(pid,))
+      old=self.s.rows("SELECT placement_id,placement_no,size,modified,fingerprint,content_id FROM placements WHERE source_id=? AND path=? LIMIT 1",(sid,p))
+      if old:pid=old[0]["placement_id"]
       unchanged=bool(old and old[0]["fingerprint"] and old[0]["size"]==st.st_size and old[0]["modified"]==st.st_mtime)
       if old:
        self.s.submit("UPDATE placements SET job_id=?,revision=?,estate=?,filename=?,extension=?,size=?,created=COALESCE(?,created),modified=?,scanned_at=?,lifecycle=?,plan=NULL,rationale=NULL,availability=?,error_detail=NULL,role=?,last_verified=?,placement_state='ACTIVE',retired_at=NULL WHERE placement_id=?",(jid,rev,src["estate"],name,Path(name).suffix.lower(),st.st_size,created,st.st_mtime,now,'HASHED' if unchanged else 'NONE','AVAILABLE' if unchanged else 'PENDING',src["role"],now,pid))
@@ -526,7 +527,7 @@ class Manager:
         except queue.Full:continue
       self.s.submit("UPDATE jobs SET last_progress=? WHERE job_id=?",(now,jid))
      except Exception as e:
-      now=time.time();pid=hashlib.sha256((sid+"\0"+p).encode()).hexdigest();old=self.s.rows("SELECT placement_no FROM placements WHERE placement_id=?",(pid,))
+      now=time.time();pid=hashlib.sha256((sid+"\0"+p).encode()).hexdigest();old=self.s.rows("SELECT placement_id,placement_no FROM placements WHERE source_id=? AND path=? LIMIT 1",(sid,p));pid=old[0]["placement_id"] if old else pid
       if old:self.s.submit("UPDATE placements SET job_id=?,revision=?,estate=?,filename=?,extension=?,scanned_at=?,lifecycle='NONE',availability='ERROR',error_detail=?,role=?,last_verified=? WHERE placement_id=?",(jid,rev,src["estate"],name,Path(name).suffix.lower(),now,str(e),src["role"],now,pid))
       else:
        pno=self.alloc_no();self.s.submit("INSERT INTO placements(placement_id,placement_no,job_id,revision,source_id,estate,path,filename,extension,scanned_at,lifecycle,availability,error_detail,role,last_verified) VALUES(?,?,?,?,?,?,?,?,?,?,'NONE','ERROR',?,?,?)",(pid,pno,jid,rev,sid,src["estate"],p,name,Path(name).suffix.lower(),now,str(e),src["role"],now))

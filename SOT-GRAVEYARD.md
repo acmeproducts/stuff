@@ -1141,3 +1141,10 @@ Required replacement: reconcile persisted job/source placements immediately befo
 - Never expose a changed placement as current duplicate evidence while its replacement hash is pending.
 - Never count a retained prior fingerprint as completion of the current rehash; current completion requires `HASHED + AVAILABLE`.
 - Never allow an interrupted re-analysis to convert durable prior evidence into null/unknown evidence.
+
+
+## 2026-09-27 — RELEASE D PLACEMENT IDENTITY NEGATIVE RULES
+
+- Never use a regenerated placement ID as the existence test when the database uniqueness contract is `source_id + path`.
+- Never INSERT a placement if the same `source_id + path` already exists under a historical/legacy placement ID.
+- Never advance Analyze counters as evidence that a placement write succeeded; the completion-integrity gate remains authoritative.

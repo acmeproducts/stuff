@@ -969,3 +969,10 @@ This is an integrity guard, not the final root-cause repair. After installation,
 Diagnostic snapshot `sot-diagnostic-20260927T083624Z` proved that a historical Analyze job could report 114/114 hashed while later persisted source evidence contained only 9/10 fingerprints. Root cause is destructive re-analysis: enumeration clears an existing fingerprint before replacement hashing succeeds, so an interrupted later job destroys the last valid evidence.
 
 Definition of working: an existing valid fingerprint is retained while a changed placement is rehashed; the placement is marked `PENDING` and removed from current duplicate classification; only a successful hash atomically replaces fingerprint/content identity and restores `AVAILABLE/HASHED`. Completion integrity counts only `HASHED + AVAILABLE + fingerprint` as persisted hashed evidence and treats pending work as incomplete. Interrupted or failed rehash must never erase the last valid fingerprint. After install, qualify first on the small Documents source, publish diagnostics, then rerun D and I `00 Consolidate` only after the controlled job passes.
+
+
+## 2026-09-27 — Release D placement identity reconciliation
+
+Controlled job `b9bafa49255f4b2b8470e84dcbc6d76a` on Documents proved the completion guard: 65 files were discovered/hashed by counters, but only 15 were durably associated with the job. Diagnostics recorded `UNIQUE constraint failed: placements.source_id, placements.path`. Analyze had been deciding existing/new from regenerated `placement_id` even though SQLite's authoritative uniqueness is `(source_id,path)`.
+
+Definition of working: enumeration resolves an existing placement first by `source_id + path`, reuses its stored placement ID, and inserts only when that unique source/path does not exist. Error handling follows the same identity rule. Qualification must deliberately give an existing row a legacy/non-derived placement ID and prove re-analysis completes with exactly one row for the source/path and updates that row to the new job.
