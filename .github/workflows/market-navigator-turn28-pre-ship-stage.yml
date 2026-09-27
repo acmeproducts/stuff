@@ -1,0 +1,40 @@
+name: Market Navigator Turn 28 pre-ship qualification
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - 'market-navigator-turn28-base.html'
+      - 'market-navigator-turn28-pre-ship-stage.html'
+      - 'market-navigator-build-turn28-pre-ship-stage.py'
+      - 'market-navigator-turn28-pre-ship-stage-qa.mjs'
+      - '.github/workflows/market-navigator-turn28-pre-ship-stage.yml'
+permissions:
+  contents: read
+jobs:
+  qualify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: {python-version: '3.12'}
+      - uses: actions/setup-node@v4
+        with: {node-version: '22'}
+      - name: Deterministic rebuild from 28 base
+        run: |
+          python3 market-navigator-build-turn28-pre-ship-stage.py
+          git diff --exit-code -- market-navigator-turn28-pre-ship-stage.html
+      - name: Verify inline JavaScript syntax
+        run: |
+          node - <<'JS'
+          const fs=require('fs'),vm=require('vm');
+          const html=fs.readFileSync('market-navigator-turn28-pre-ship-stage.html','utf8');
+          [...html.matchAll(/<script(?:\s[^>]*)?>([\s\S]*?)<\/script>/gi)].map(m=>m[1]).filter(x=>x.trim()).forEach((x,i)=>new vm.Script(x,{filename:'inline-'+i+'.js'}));
+          console.log('INLINE JS PASS');
+          JS
+      - name: Install browser dependencies
+        run: |
+          npm install --no-save --package-lock=false playwright@1.55.0 marked@15.0.12 dompurify@3.1.6
+          npx playwright install --with-deps chromium
+      - name: Run retained browser qualification
+        run: node market-navigator-turn28-pre-ship-stage-qa.mjs
