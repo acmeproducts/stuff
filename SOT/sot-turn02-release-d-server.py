@@ -36,7 +36,7 @@ def publish_diagnostic_bundle():
  staged=subprocess.run(["git","-C",str(repo),"diff","--cached","--quiet"],timeout=30).returncode!=0
  if staged:
   subprocess.run(["git","-C",str(repo),"commit","-m","SOT diagnostic snapshot "+Path(z["base"]).name],check=True,timeout=60)
-  subprocess.run(["git","-C",str(repo),"push"],check=True,timeout=120)
+  subprocess.run(["git","-C",str(repo),"push","-u","origin","HEAD"],check=True,timeout=120)
  return {"published":bool(staged),"repo":str(repo),"snapshot":str(target)}
 def creation_revision():
  try:return json.loads(CREATION_REV_FILE.read_text()).get("revision",0)
