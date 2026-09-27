@@ -6,7 +6,7 @@ Deploy target: `https://acmeproducts.github.io/stuff/devstream.html`
 Test target: `https://acmeproducts.github.io/stuff/devstream-test.html`
 
 ## Status
-- Current release: v1.0 b37 on devstream-test.html (2026-09-27)
+- Current release: v1.0 b38 on devstream-test.html (2026-09-27)
 - Stage: TEST (b37)
 
 ## Release Rules (inherited, proven)
@@ -196,6 +196,30 @@ b36 was rejected. Its context menu was a homemade approximation: customization a
 ## Graveyard
 - **G-DS-09 — Homemade context menu/customizer:** rejected. Do not replace the Session Manager v3 menu with prompt-based or visually simplified substitutes.
 - **G-DS-10 — Custom touch DnD semantics:** rejected. Use the proven Session Manager v3 touch gesture state machine.
+
+---
+
+# 2026-09-27 — Automatic thread-write reconciliation
+
+## Owner report
+Devstream surfaced a thread-file write conflict after another write landed first. Compatible thread races must reconcile automatically rather than requiring the owner to refresh and retry.
+
+## Cause
+`putFileSafe()` serialized writes inside one browser instance but treated a newer GitHub SHA from another writer as fatal, even for append-oriented thread conversation data.
+
+## Change
+- Thread writes merge remote and local messages by the existing message signature, retain chronological order, and save against the current SHA.
+- A GitHub 409 on a thread write refetches, merges, and retries up to three attempts.
+- Non-thread files retain strict stale-SHA conflict protection.
+- Reconciliation uses the existing in-app Debug log.
+
+## Acceptance
+- **DS-G38-1:** stale thread SHA triggers reconciliation instead of an immediate refresh/review error.
+- **DS-G38-2:** remote-only and local-only messages both survive.
+- **DS-G38-3:** duplicate messages are deduplicated through `msgSig()`.
+- **DS-G38-4:** 409 thread races retry at most three times.
+- **DS-G38-5:** non-thread stale writes still fail closed.
+- **DS-G38-6:** b37 menus/DnD and existing scheduler/web/storage behavior remain unchanged.
 
 ---
 
