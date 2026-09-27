@@ -181,7 +181,17 @@ WHERE NOT EXISTS (SELECT 1 FROM job_scope_sources x WHERE x.job_id=js.job_id AND
   c.execute("INSERT OR IGNORE INTO meta(k,v) VALUES('catalog_revision',?)",(str(int(time.time()*1000)),))
   c.commit();c.close()
   self.q=queue.Queue(maxsize=8192);self.stop=threading.Event();self.writer_error=None;self.last_writer_error=None
+  self.log_path=self.path.parent/"sot-release-d-events.jsonl";self.log_lock=threading.RLock()
+  self.log("store_open",severity="INFO",detail={"db":str(self.path),"schema":SCHEMA})
   self.t=threading.Thread(target=self._writer,name="sot-db-writer",daemon=True);self.t.start()
+ def log(self,event_type,message="",severity="INFO",job_id=None,source_id=None,detail=None):
+  row={"ts":time.time(),"severity":severity,"event_type":event_type,"job_id":job_id,"source_id":source_id,"message":str(message or ""),"detail":detail or {}}
+  try:
+   with self.log_lock:
+    self.log_path.parent.mkdir(parents=True,exist_ok=True)
+    with self.log_path.open("a",encoding="utf-8") as fh:fh.write(json.dumps(row,sort_keys=True,default=str)+"\n")
+  except Exception:pass
+  return row
  def _connect(self,ro=False):
   if ro:
    c=sqlite3.connect("file:"+str(self.path)+"?mode=ro",uri=True,timeout=2,check_same_thread=False)
@@ -213,11 +223,11 @@ WHERE NOT EXISTS (SELECT 1 FROM job_scope_sources x WHERE x.job_id=js.job_id AND
      err=e
      try:c.execute("ROLLBACK TO sot_item");c.execute("RELEASE sot_item")
      except Exception:pass
-     self.last_writer_error={"at":time.time(),"error":repr(e),"kind":kind}
+     self.last_writer_error={"at":time.time(),"error":repr(e),"kind":kind};self.log("db_writer_error",repr(e),"ERROR",detail={"kind":kind})
     outcomes.append((ev,box,err))
    try:c.commit()
    except Exception as e:
-    c.rollback();self.last_writer_error={"at":time.time(),"error":repr(e),"kind":"commit"}
+    c.rollback();self.last_writer_error={"at":time.time(),"error":repr(e),"kind":"commit"};self.log("db_writer_error",repr(e),"ERROR",detail={"kind":"commit"})
     outcomes=[(ev,box,e) for ev,box,_ in outcomes]
    for ev,box,err in outcomes:
     if box is not None:box.append(err if err is not None else True)
@@ -369,7 +379,7 @@ class Manager:
       except Exception as e:
        with self.lock:self.runs.pop(row["job_id"],None)
        now=time.time();self.s.submit("UPDATE jobs SET state='FAILED',ended=?,last_progress=? WHERE job_id=?",(now,now,row["job_id"]),True);self.event("job_launch_failed",str(e),row["job_id"],None,"ERROR")
-   except Exception as e:self.last_scheduler_error=str(e)
+   except Exception as e:self.last_scheduler_error=str(e);self.s.log("scheduler_error",str(e),"ERROR")
    self.scheduler_stop.wait(.25)
  def _launch(self,jid):
   rows=self.s.rows("SELECT * FROM job_scope_sources WHERE job_id=? ORDER BY source_id",(jid,))
@@ -404,6 +414,7 @@ class Manager:
   self.s.tx(stmts,True)
   return {"unique":sum(1 for x in groups.values() if len(x)==1),"duplicate_groups":sum(1 for x in groups.values() if len(x)>1)}
  def event(self,typ,msg,jid=None,sid=None,severity="INFO",detail=None):
+  self.s.log(typ,msg,severity,jid,sid,detail)
   self.s.submit("INSERT INTO events(ts,severity,event_type,job_id,source_id,message,detail_json) VALUES(?,?,?,?,?,?,?)",(time.time(),severity,typ,jid,sid,msg,json.dumps(detail or {})))
  def _source_rows(self):
   return self.s.rows("SELECT * FROM sources WHERE enabled=1 ORDER BY source_id")
