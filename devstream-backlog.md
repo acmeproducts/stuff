@@ -6,8 +6,8 @@ Deploy target: `https://acmeproducts.github.io/stuff/devstream.html`
 Test target: `https://acmeproducts.github.io/stuff/devstream-test.html`
 
 ## Status
-- Current release: v1.0 b41 on devstream-test.html (2026-09-27)
-- Stage: TEST (b41)
+- Current release: v1.0 b42 on devstream-test.html (2026-09-27)
+- Stage: TEST (b42)
 
 ## Release Rules (inherited, proven)
 1. Mobile-first. All diagnostics in-app. No DevTools ever.
@@ -255,6 +255,19 @@ b39 incorrectly changed stationary hold into context-menu activation. Devstream 
 ## Graveyard
 - **G-DS-13 — Hold opens context menu:** rejected; donor behavior is double-tap context, hold-to-drag.
 - **G-DS-14 — Legacy generic #tabContext button styling:** rejected; it corrupts the donor context-menu appearance.
+
+---
+
+# 2026-09-27 — b42 gesture initialization correction
+
+## Root cause
+b41 invoked `bindProjectTouchDnD()` before authenticated boot/render. At that moment `#projList` did not yet exist because the app shell is created by `renderShell()`. The binder returned and was never retried. This disabled the project gesture system. Gesture binding now occurs only after successful SOT load and the first `renderSidebar()/renderTabs()`, when both interaction surfaces exist.
+
+## Acceptance
+- **DS-G42-1:** no project/tab gesture binder runs before boot.
+- **DS-G42-2:** first successful application render is followed by both gesture binders.
+- **DS-G42-3:** donor double-tap context and hold-drag mechanics remain unchanged.
+- **DS-G42-4:** JavaScript parses after the initialization correction.
 
 ---
 
