@@ -1770,7 +1770,7 @@ These files are the required index-construction sources for every successor stag
 | 28·pre-base | Freeze clean successor input from accepted cumulative Turn 26 baseline plus approved persistent-index evidence | **BUILT — mechanical identity gate complete; owner disposition pending** | https://acmeproducts.github.io/stuff/market-navigator-turn28-pre-base.html |
 | 28·base | Production index construction integration: GRW/RSK/MAC governed persistent math only; no UI redesign | **PLANNED** | new stage artifact required |
 | 28·pre-ship | Display contract integration: A/B behavior + retained chart-axis behavior, no visual relocation yet unless separately owner-approved | **PLANNED** | new stage artifact required |
-| 28·ship | Owner-approved UI placement only, after written design approval; exact top-row/date/A-B + second-row horizon + bottom axis design if owner approves that exact design | **BLOCKED ON OWNER UI APPROVAL** | no artifact may be built before approval |
+| 28·ship | Owner-approved minimal display placement: add Fixed/Horizon dropdown beside existing bottom chart-representation dropdown; preserve NOW top rows | **AUTHORIZED 2026-09-27** | new stage artifact required |
 | 28·post-ship | Regression hardening: responsive geometry screenshots, crosshair, print, Library, Health, source selection, persistence, Pages smoke, byte identity | **PLANNED** | new stage artifact required |
 | 29·pre-base | Byte-identical snapshot of accepted 28·post-ship | queued | — |
 
@@ -1832,7 +1832,7 @@ Owner gate:
 
 ### 45.8 Stage 28·pre-ship — display behavior integration
 
-**Exact product delta:** expose the two approved index display modes while preserving existing chart representation controls.
+**Exact product delta:** expose the two approved index display modes while preserving existing chart representation controls. The owner subsequently fixed their final visual placement for 28·ship: a separate `Fixed/Horizon` dropdown immediately beside the existing bottom representation dropdown; no top-row relocation.
 
 Required:
 - A = Fixed Baseline;
@@ -1858,13 +1858,18 @@ Owner gate:
 
 **AUTHORIZED — exact design approved by owner 2026-09-27.**
 
-**OWNER APPROVED 2026-09-27 — implementation authorized by explicit `please update plan and proceed`.**
+**OWNER SUPERSEDED THE EARLIER ROW-RELOCATION DESIGN 2026-09-27.** Do not move the date, horizon controls, or display selector into the top two rows.
 
-Approved design:
-- top/global row: the **date range itself is centered directly above the horizon controls**; immediately to its right is literal separator `|` followed by the minimum-width display menu;
-- that menu reads exactly **Fixed** / **Horizon** — never A/B — with semantics Fixed = persistent fixed baseline and Horizon = display-only horizon rebase to 100;
-- directly below, second/chart row center: horizon controls;
-- bottom chart footer: separate axis representation selector;
+**Current approved design — implementation authorized by `Update the plan and then execute`:**
+- preserve the last-known-good NOW top rows and their existing placement; no Row 1 / Row 2 redesign in this release;
+- preserve the existing bottom metadata/footer sequence containing model/build label, date range, and the existing chart-representation dropdown (for example `Indexed 100`);
+- add exactly one separate compact dropdown **immediately next to the existing chart-representation dropdown**;
+- the new dropdown contains exactly **Fixed** and **Horizon**;
+- **Fixed** = governed persistent fixed-baseline display; **Horizon** = display-only horizon rebase to 100;
+- the new dropdown is independent of the existing chart-representation dropdown; do not replace, rename, relocate, or combine the existing representation control;
+- no `A`, `B`, or `A/B` UI text;
+- no other NOW chrome relocation is authorized;
+- Config may move to the gear location already discussed, with no redundant visible `CONFIG` text label, but that cleanup must not alter the NOW row geometry.
 - Config visual cleanup only if explicitly included in the approved design;
 - normal bounded chart geometry must be preserved.
 
