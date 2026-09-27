@@ -103,9 +103,6 @@ The timing is consistent with the observed move, but does not establish causatio
    if(comparison){await page.mouse.click(comparison[1].x,comparison[1].y);await page.waitForTimeout(80)}
    check('comparison datapoint click has no null-state error',!errors.some(x=>/Cannot set properties of null|priorV2/.test(x)),errors.join(' | '));
    if(await page.locator('#closeNowSeriesAbout').count())await page.click('#closeNowSeriesAbout');
-   await page.click('#crumbEnvironment');
-   await page.waitForFunction(()=>window.__mnShip25.level()===1);
-
    check('A/B context is centered in top row',await page.locator('#indexDisplay28 option').allTextContents().then(x=>x.some(t=>/Fixed Baseline/.test(t))&&x.some(t=>/Horizon Rebase/.test(t))));
    const fixedSeries=await page.evaluate(()=>JSON.stringify(window.__mnShip25.nowState().chart.series.find(x=>['risk','growth','macro'].includes(x.id))?.points.map(p=>p.raw)));
    await page.selectOption('#indexDisplay28','rebase');
@@ -116,6 +113,8 @@ The timing is consistent with the observed move, but does not establish causatio
    check('visible CONFIG duplication removed',await page.evaluate(()=>getComputedStyle(document.querySelector('#rail .foot span')).display==='none'));
    await page.selectOption('#indexDisplay28','fixed');
    await page.waitForFunction(()=>document.getElementById('indexDisplay28')?.value==='fixed');
+   await page.click('#crumbEnvironment');
+   await page.waitForFunction(()=>window.__mnShip25.level()===1);
    // Turn 26 standalone Analyze correction.
    await page.locator('#legend [data-id="risk"]').click();
    await page.waitForFunction(()=>document.querySelector('#nowCrumb')?.textContent?.includes('*'));
