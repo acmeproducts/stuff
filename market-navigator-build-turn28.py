@@ -34,16 +34,12 @@ def main():
 .rail .foot{margin:0 6px 0 auto;border:0;padding:5px}.shell{grid-row:2;min-height:0}.interpretTabs27{display:flex;gap:2px}.interpretTab27{border:1px solid var(--line);background:var(--panel2);border-radius:6px;padding:4px 6px;font-size:9px;font-weight:800}.interpretTab27.on{border-color:var(--accent);color:var(--accent)}
 @media(max-width:760px){.rail,.rail.closed{width:100%}.railHead{display:none}.rail nav,.rail.closed nav{display:flex}.rail .nav{padding:0 9px}.rail .foot span{display:none}.interpretTab27{padding:4px;font-size:8px}}
 """
-    css+=".nowContext28{position:absolute;left:50%;top:3px;transform:translateX(-50%);display:flex;align-items:center;gap:8px;white-space:nowrap;font-size:10px;color:var(--muted)}.nowContext28 select{font:inherit}.rail .foot span{display:none}@media(max-width:700px){.nowContext28{font-size:8px;gap:4px}.nowContext28 select{max-width:116px}}\n"
     s=replace_once(s,"</style></head>",css+"</style></head>","Turn 28 CSS")
-    s=s.replace('<div class="foot"><button class="gear" id="settingsGear" aria-label="Configuration">⚙</button><span>CONFIG</span></div>','<div class="foot"><button class="gear" id="settingsGear" aria-label="Configuration">⚙</button><span style="display:none">CONFIG</span></div>')
 
-    s=s.replace("componentsExpanded:false,hiddenComponents:[],nowComparisons:[],nowRepresentation:null,","componentsExpanded:false,hiddenComponents:[],nowComparisons:[],nowRepresentation:null,indexDisplay:'fixed',axisMode:null,")
-    old_footer='''function setNowFooter(w,mode='indexed'){let text=mode==='dual'?'Native Y1 + Y2':mode==='native'?'Native Y1':'Indexed 100';$('nowMeta').innerHTML=`<span>TURN 25 CONSOLIDATION</span><span class="footerSep">|</span><span>${w.startLabel} → ${w.endLabel}</span><span class="footerSep">|</span><select id="nowRepresentation" aria-label="Chart representation"><option selected value="${mode}">${text}</option></select>`}'''
-    new_footer='''function setNowFooter(w,mode='indexed'){let allowed=mode==='dual'?'dual':'indexed',axis=S.axisMode&&['indexed','dual'].includes(S.axisMode)?S.axisMode:allowed;if(axis==='dual'&&allowed!=='dual')axis='indexed';S.axisMode=axis;let axisOptions=allowed==='dual'?`<option value="indexed" ${axis==='indexed'?'selected':''}>Base 100</option><option value="dual" ${axis==='dual'?'selected':''}>Y1 + Y2</option>`:`<option value="indexed" selected>Base 100</option>`;$('nowMeta').innerHTML=`<span>MN-PERSISTENT-1.0.0</span><span class="footerSep">|</span><select id="nowRepresentation" aria-label="Chart axis representation">${axisOptions}</select>`;$('nowRepresentation').onchange=()=>{S.axisMode=$('nowRepresentation').value;renderNow()};return axis}'''
-    if old_footer in s:
-        s=s.replace(old_footer,new_footer,1)
-
+    s=replace_once(s,
+        "function setNowFooter(w,mode='indexed'){let text=mode==='dual'?'Native Y1 + Y2':mode==='native'?'Native Y1':'Indexed 100';$('nowMeta').innerHTML=`<span>TURN 25 CONSOLIDATION</span><span class=\"footerSep\">|</span><span>${w.startLabel} → ${w.endLabel}</span><span class=\"footerSep\">|</span><select id=\"nowRepresentation\" aria-label=\"Chart representation\"><option selected value=\"${mode}\">${text}</option></select>`}",
+        "function setNowFooter(w,mode='indexed'){let display=S.indexDisplay||'fixed',axis=mode==='dual'?'Persistent Index Y1 + Indexed 100 Y2':display==='fixed'?'Fixed Baseline':'Horizon Rebase';$('nowMeta').innerHTML=`<span>MN-PERSISTENT-1.0.0</span><span class=\"footerSep\">|</span><span>${w.startLabel} → ${w.endLabel}</span><span class=\"footerSep\">|</span><select id=\"nowRepresentation\" aria-label=\"Index display mode\"><option value=\"fixed\" ${display==='fixed'?'selected':''}>A · Fixed Baseline</option><option value=\"rebase\" ${display==='rebase'?'selected':''}>B · Horizon Rebase</option></select><span class=\"footerSep\">|</span><span>${axis}</span>`;$('nowRepresentation').onchange=()=>{S.indexDisplay=$('nowRepresentation').value;renderNow()}}",
+        "A/B display selector")
 
     s=replace_once(s,
         '<div class="field"><label>Default provider</label><select id="defaultProvider">',
@@ -103,12 +99,13 @@ def main():
         "continuous crosshair hover")
     s=s.replace("S.priorV2.component=sel.id;componentCard(sel.id)", "S.priorV2={...(S.priorV2||{}),component:sel.id};componentCard(sel.id)")
 
-    s=s.replace("async function openV2(k){S.level=2;S.index=k;S.componentsExpanded=true;","async function openV2(k){S.level=2;S.index=k;S.axisMode=null;S.componentsExpanded=true;")
-
-    # Turn 28: persistent index on Y1 and indexed comparison on Y2.
+    # Turn 28: a canonical persistent index and horizon-rebased comparisons
+    # use independent axes. This preserves the canonical index value while
+    # preventing a volatile comparison from visually flattening the index.
+    s=s.replace("let text=mode==='dual'?'Native Y1 + Y2':mode==='native'?'Native Y1':'Indexed 100';", "let text=mode==='dual'?'Persistent Index Y1 + Indexed 100 Y2':mode==='native'?'Native Y1':'Indexed 100';")
     s=replace_once(s,
         "setNowFooter(w,'indexed');captureNowState(sets,w,'indexed');S.nowPaint25={sets,w,mode:'indexed'};draw('now',sets,w,'indexed')}function componentCard",
-        "renderNowContext28(w);let chartMode=setNowFooter(w,sets.length>1?'dual':'indexed');sets.forEach(z=>{z.axis=chartMode==='dual'?(z.id===k?0:1):0;z.axisLabel=chartMode==='dual'?(z.id===k?'Persistent Index':'Indexed 100'):'Indexed 100'});captureNowState(sets,w,chartMode);S.nowPaint25={sets,w,mode:chartMode};draw('now',sets,w,chartMode)}function componentCard",
+        "let chartMode=(S.indexDisplay||'fixed')==='fixed'&&sets.length>1?'dual':'indexed';sets.forEach(z=>{z.axis=chartMode==='dual'?(z.id===k?0:1):0;z.axisLabel=z.id===k?((S.indexDisplay||'fixed')==='fixed'?'Persistent Index':'Horizon Rebase'):'Indexed 100'});setNowFooter(w,chartMode);captureNowState(sets,w,chartMode);S.nowPaint25={sets,w,mode:chartMode};draw('now',sets,w,chartMode)}function componentCard",
         "persistent comparison dual axes")
 
     s=replace_once(s,
@@ -136,7 +133,6 @@ def main():
 
     js="""
 /* TURN27_PERSISTENT_AI_LEVEL_RUNTIME */
-function renderNowContext28(w){let h=document.getElementById('modeHeader');if(!h)return;let c=document.getElementById('nowContext28');if(!c){c=document.createElement('div');c.id='nowContext28';c.className='nowContext28';h.appendChild(c)}let d=S.indexDisplay||'fixed';c.innerHTML=`<span id="nowDateRange28">${w.startLabel} → ${w.endLabel}</span><select id="indexDisplay28" aria-label="Index baseline display"><option value="fixed" ${d==='fixed'?'selected':''}>A · Fixed Baseline</option><option value="rebase" ${d==='rebase'?'selected':''}>B · Horizon Rebase</option></select>`;document.getElementById('indexDisplay28').onchange=e=>{S.indexDisplay=e.target.value;renderNow()}}
 function indexDisplayCurve28(curve){let a=(curve||[]).map(p=>({t:+p.t,v:+p.v,idx:+p.v,raw:+p.v,sourceT:+p.t}));if((S.indexDisplay||'fixed')==='rebase'&&a.length){let base=a[0].v;if(Number.isFinite(base)&&base!==0)a=a.map(p=>({...p,v:100*p.raw/base,idx:100*p.raw/base}))}return a}
 
 function interpretationInstruction27(level){

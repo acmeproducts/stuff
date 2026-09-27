@@ -1633,3 +1633,45 @@ Required behavior:
 6. qualification must prove acquisition exclusion, historical reproducibility, dependency blocking, reactivation, and persistence across reload/export/import.
 
 This is a post-Turn-28 backlog item. It does not alter the qualified Turn 28 candidate or authorize model-component changes.
+
+
+## 44. UI change-control probation — owner directive 2026-09-27
+
+This section is authoritative and supersedes any conflicting UI implementation latitude elsewhere in this plan.
+
+### 44.1 Immediate rollback
+
+The unapproved/incorrect Turn 28 UI correction introduced after qualified commit `7f252ac07394fff23ddc9c0cebcb27ef2aa402f4` is rejected. Restore the Turn 28 application/build/QA UI state from `7f252ac07394fff23ddc9c0cebcb27ef2aa402f4` before any further UI work. Do not retain the failed header/footer/layout implementation merely because automated qualification passed.
+
+### 44.2 UI approval gate — mandatory
+
+**No UI design change may be implemented without explicit owner approval of the design first.** The sequence is mandatory:
+
+1. inspect the current rendered UI and existing behavior;
+2. describe the proposed UI change in chat, including exact placement and controls;
+3. obtain explicit owner approval;
+4. only then modify application/build/QA files;
+5. qualify both behavior and rendered geometry/visibility;
+6. present the candidate for owner disposition. Automated PASS is not owner approval.
+
+Do not infer approval from prior requirements, a general execution instruction, or a request to investigate. Do not redesign adjacent UI while implementing an approved change. The smallest complete approved delta is the entire authorized scope.
+
+### 44.3 Approved design specification awaiting a fresh implementation authorization
+
+The owner has specified the following intended arrangement, but after this rollback it must **not** be reimplemented until the owner explicitly authorizes implementation again:
+
+- **Top/global row, centered:** the active chart date range (for example `2026-01-02 → 2026-09-22`) immediately beside the A/B persistent-index display selector.
+- The A/B selector means only: **A · Fixed Baseline** or **B · Horizon Rebase**. It is not an axis selector.
+- **Second/chart-context row, centered directly below that top-row block:** existing horizon controls `1D  5D  MTD  YTD  1YR  3YR  5YR`.
+- **Below the chart:** retain/restore the separately approved chart-axis representation selector, including **Base 100 / Y1+Y2 when applicable**. Axis representation and A/B baseline display are independent controls.
+- Remove redundant duplicate explanatory text only when explicitly included in the approved design delta.
+- Gear and visible `CONFIG` text are redundant; any cleanup remains subject to the same approval gate.
+- Preserve normal bounded chart geometry. A control-presence test is insufficient; qualification must verify visibility, row placement, centering relationship, non-overlap, and chart dimensions at desktop and mobile widths.
+
+### 44.4 Regression lesson / required qualification
+
+The rejected candidate demonstrated that DOM-presence/browser-functional tests can PASS while the rendered UI is visibly wrong. Future UI qualification must therefore include explicit geometry assertions and rendered screenshots at representative desktop and mobile widths. A UI candidate cannot be called qualified solely because controls exist and event handlers work.
+
+### 44.5 Current state after this commit
+
+Turn 28 UI/application/build/QA is rolled back to the qualified state at `7f252ac07394fff23ddc9c0cebcb27ef2aa402f4`. Persistent-index methodology `MN-PERSISTENT-1.0.0` remains unchanged. The next UI step is **design review/owner approval only**, not implementation.
