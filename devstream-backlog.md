@@ -6,8 +6,8 @@ Deploy target: `https://acmeproducts.github.io/stuff/devstream.html`
 Test target: `https://acmeproducts.github.io/stuff/devstream-test.html`
 
 ## Status
-- Current release: v1.0 b38 on devstream-test.html (2026-09-27)
-- Stage: TEST (b37)
+- Current release: v1.0 b41 on devstream-test.html (2026-09-27)
+- Stage: TEST (b41)
 
 ## Release Rules (inherited, proven)
 1. Mobile-first. All diagnostics in-app. No DevTools ever.
@@ -255,6 +255,39 @@ b39 incorrectly changed stationary hold into context-menu activation. Devstream 
 ## Graveyard
 - **G-DS-13 — Hold opens context menu:** rejected; donor behavior is double-tap context, hold-to-drag.
 - **G-DS-14 — Legacy generic #tabContext button styling:** rejected; it corrupts the donor context-menu appearance.
+
+---
+
+# 2026-09-27 — Clean rollback + donor-only interaction port
+
+## Owner directive
+The prior drag/drop attempts are rejected. Return to the last pre-drag baseline, b34 (`fa2cafc4a30f7952e66681caa4097da4fcc39b4c`), retain the later automatic thread-write reconciliation, then port the working Session Manager v3 mobile interaction without redesigning it.
+
+## Construction
+- Application baseline is b34, not b40.
+- Retained only the b38 thread-file reconciliation/retry behavior needed to prevent the `another write landed first` failure.
+- Ported Session Manager v3 tab gesture contract: 350ms hold creates the named drag ghost; movement highlights a project or tab insertion target; release drops; double-tap opens context.
+- Ported Session Manager v3 project gesture contract: 350ms hold creates the named project ghost; before/after destination highlights; release reorders; double-tap opens context.
+- Ported donor context-menu hierarchy and visual CSS; no generic legacy `#tabContext button` override.
+- Tab/project ordering is persisted in Devstream SOT; cross-project tab moves persist the thread record in its destination.
+- Existing undefined web state defaults ON.
+
+## Root-cause correction
+The previous project touch implementation bound to a nonexistent `#projectList`. Devstream's actual sidebar list is `#projList`, so the handler never attached. b41 binds the donor project gesture handler to the actual Devstream list.
+
+## Acceptance
+- **DS-G41-1:** source baseline is b34 plus the explicitly listed reconciliation and donor interaction additions.
+- **DS-G41-2:** project mobile gesture handler binds to existing `#projList`.
+- **DS-G41-3:** tab/project hold enters drag and immediately creates a ghost containing the visible name.
+- **DS-G41-4:** tab/project double-tap opens donor context; hold does not open context.
+- **DS-G41-5:** project and tab landing targets visibly highlight and release persists reorder/move.
+- **DS-G41-6:** donor context menu structure/CSS is used without legacy Devstream button overrides.
+- **DS-G41-7:** thread write conflicts reconcile/retry automatically as in b38.
+- **DS-G41-8:** JavaScript parses successfully after the rollback/re-port.
+
+## Graveyard
+- **G-DS-15 — b35 through b40 interaction implementations:** rejected as the basis for further patching. Do not incrementally repair them; rebuild interaction from b34 + donor.
+- **G-DS-16 — `#projectList` Devstream binding:** invalid selector. Devstream sidebar is `#projList`.
 
 ---
 
