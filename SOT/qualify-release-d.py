@@ -117,6 +117,20 @@ try:
   z3=wait_job(srv.M,j3);assert z3["job"]["state"]=="COMPLETED"
   print("PASS analysis Restart creates a new queued job from frozen scope")
 
+  # A changed file must retain its last valid fingerprint until the replacement hash succeeds.
+  p1=e1/"a.bin";before=srv.S.rows("SELECT fingerprint FROM placements WHERE source_id=? AND path=?",(sid1,str(p1)))[0]["fingerprint"]
+  assert before
+  p1.write_bytes(b"CHANGED"*1024)
+  src=srv.M._snapshot_sources([sid1])[0];rev3=z3["job"]["revision"]
+  rt={"queues":{sid1:__import__("queue").Queue(4)},"done":set(),"stop":threading.Event(),"pause":threading.Event(),"rr":0,"sched":threading.Lock(),"src":{sid1:src},"owners":{sid1:src},"activity":{},"seen":{sid1:set()}}
+  srv.M._produce(j3,rev3,src,rt);srv.S.drain(10)
+  pending=srv.S.rows("SELECT fingerprint,lifecycle,availability,system_classification FROM placements WHERE source_id=? AND path=?",(sid1,str(p1)))[0]
+  assert pending["fingerprint"]==before and pending["lifecycle"]=="NONE" and pending["availability"]=="PENDING" and pending["system_classification"] is None,pending
+  srv.M._worker(j3,rev3,rt,99);srv.S.drain(10)
+  replaced=srv.S.rows("SELECT fingerprint,lifecycle,availability FROM placements WHERE source_id=? AND path=?",(sid1,str(p1)))[0]
+  assert replaced["fingerprint"] and replaced["fingerprint"]!=before and replaced["lifecycle"]=="HASHED" and replaced["availability"]=="AVAILABLE",replaced
+  print("PASS changed-file rehash preserves prior fingerprint until successful atomic replacement")
+
   # Queued Abort + Delete now maps to visible reversible soft deletion.
   j4=srv.M.enqueue([sid1]);srv.M.control(j4,"abort-delete");time.sleep(.05)
   z4=srv.M.snapshot(j4)
