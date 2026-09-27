@@ -9,7 +9,7 @@ AI=None
 TARGET_FILE=Path.home()/".sot-turn02"/"target.json"
 CREATION_REV_FILE=Path.home()/".sot-turn02"/"creation-revision.json"
 DIAG_DIR=Path.home()/".sot-turn02"/"diagnostics"
-DIAG_REPO_DIR=Path.home()/"stuff"/"SOT-diagnostics"
+DIAG_REPO_DIR=Path.home()/".sot-turn02"/"diagnostics-repo"
 def diagnostic_summary():
  rows=S.rows("SELECT source_id,COUNT(*) files,SUM(CASE WHEN fingerprint IS NOT NULL THEN 1 ELSE 0 END) fingerprinted,SUM(CASE WHEN lifecycle='NONE' THEN 1 ELSE 0 END) lifecycle_none,SUM(CASE WHEN lifecycle='IN_PROCESS' THEN 1 ELSE 0 END) in_process,SUM(CASE WHEN availability='ERROR' THEN 1 ELSE 0 END) errors FROM placements WHERE placement_state='ACTIVE' GROUP BY source_id ORDER BY source_id")
  jobs=S.rows("SELECT job_id,revision,state,created,started,last_progress,ended,control,title,parent_job_id FROM jobs ORDER BY created DESC")
