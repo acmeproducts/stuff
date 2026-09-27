@@ -50,6 +50,7 @@ def main():
         "Library interpretation tabs")
 
     s=s.replace("(x.curve||[]).map(p=>({t:+p.t,v:+p.v,idx:+p.v,raw:+p.v,sourceT:+p.t}))","indexDisplayCurve28(x.curve||[])")
+    s=s.replace("componentsExpanded:false,hiddenComponents:[],nowComparisons:[],nowRepresentation:null,","componentsExpanded:false,hiddenComponents:[],nowComparisons:[],nowRepresentation:null,indexDisplay:'fixed',axisMode:null,")
     s=replace_once(s,"j('market-evidence/derived-indices.json'),j('data/market-backend/derived-index-definition.json')",
         "j('market-evidence/derived-indices-persistent-v1.json'),j('data/market-backend/derived-index-definition-persistent-v1.json')",
         "persistent boot evidence")
