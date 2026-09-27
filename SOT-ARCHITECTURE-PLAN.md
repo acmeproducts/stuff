@@ -943,3 +943,22 @@ Required behavior:
 - Analysis scheduling, hashing, classification, Estate registration, Plan, and file-operation semantics are unchanged by this observability release.
 
 Acceptance: qualification must prove durable event mirroring, writer/scheduler error logging, SQLite backup usage, diagnostic summary, snapshot endpoint, private-repository publish endpoint, and both Config controls.
+
+
+---
+
+## 2026-09-27 — Release D Analyze completion-integrity gate
+
+Private diagnostic evidence proved that analysis job \`56d3588f7e244ad6b50a8644ca6ae548\` recorded \`114 discovered / 114 hashed\` for both D: and I: \`00 Consolidate\`, while the persisted active placements later contained only 9 and 10 fingerprints respectively. A job counter is therefore not sufficient evidence for COMPLETED.
+
+### Definition of working
+
+Before an analysis job may transition to COMPLETED, each source must reconcile its job counters against persisted active placements owned by that exact job and source:
+
+- persisted placement count = \`job_sources.discovered_files\`;
+- persisted fingerprint count = \`job_sources.hashed_files\`;
+- persisted \`NONE\` or \`IN_PROCESS\` count = 0.
+
+Any mismatch blocks inference, blocks source-baseline refresh, writes a structured \`completion_integrity_failed\` event with expected and persisted counts, writes a job-level \`job_completion_blocked\` event, and terminates the job as FAILED / Action Needed rather than falsely COMPLETED.
+
+This is an integrity guard, not the final root-cause repair. After installation, rerun the three \`00 Consolidate\` sources under the durable logger. The new gate must either prove a coherent completion or preserve the mismatch as FAILED evidence for diagnosis.
