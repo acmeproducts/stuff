@@ -1957,3 +1957,34 @@ After execution:
 ### 45.12 Successor-session instruction
 
 > Continue Market Navigator in `acmeproducts/stuff` strictly from Master Plan §45 and the Turn/Stage protocol. Read the Master Plan, Graveyard, and Build Protocol in full before any write. Identify the current turn·stage from §45.5. Do not skip stages. Do not patch rejected candidates. Do not alter an accepted artifact. Do not implement UI without explicit owner approval of the exact design. Execute only the declared stage delta, run all listed mechanical gates, publish a new stage artifact at a new address, update the ledger, and stop for the required owner gate before advancing.
+
+
+### 45.13 Critical 28·pre-ship correction — restore selectable dual Y-axis (owner approved 2026-09-27)
+
+Owner identified a release-blocking regression in the 28·pre-ship candidate: the retained chart-representation control was rendered as a one-option status field, preventing the already-approved dual-axis behavior.
+
+**This is an approved correction, not a new design.** It must be completed inside 28·pre-ship before advancement.
+
+Required behavior:
+- the existing representation dropdown remains immediately left of the separate `Fixed/Horizon` dropdown;
+- representation offers **Indexed 100** and **Y1 + Y2** whenever the active comparison series has a valid native measurement;
+- **Indexed 100** keeps all visible series on the common indexed scale;
+- **Y1 + Y2** keeps the governed index and other comparison/component series on Y1 as Indexed 100, while the **active non-index comparison series** is plotted on Y2 in its native unit;
+- example: with GRW and QQQ active, GRW/other indexed series remain on Y1 and QQQ is shown on Y2 in USD/share;
+- changing Fixed/Horizon affects only governed persistent-index display semantics and is independent of representation mode;
+- switching the active comparison updates the Y2 native series/unit;
+- if no eligible non-index active series exists, Y1 + Y2 is unavailable and the chart remains Indexed 100;
+- no NOW Row 1 / Row 2 movement or other UI redesign is authorized.
+
+Mechanical release gates:
+1. representation dropdown exposes Indexed 100 + Y1 + Y2 for an eligible active comparison;
+2. selecting Y1 + Y2 produces exactly two axes;
+3. active comparison Y2 plotted values equal native observations, not Indexed-100 values;
+4. Y1 series remain Indexed 100;
+5. Y2 axis label reflects the active comparison native unit;
+6. crosshair retains indexed and native values;
+7. Fixed/Horizon remains adjacent, independent, and unchanged;
+8. switching back to Indexed 100 restores one common indexed scale;
+9. retained NOW geometry and prior browser regression gates pass.
+
+28·pre-ship remains **OPEN / RELEASE-BLOCKED** until these gates pass. Do not advance to 28·ship before qualification.
