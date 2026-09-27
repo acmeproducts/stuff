@@ -6,8 +6,8 @@ Deploy target: `https://acmeproducts.github.io/stuff/devstream.html`
 Test target: `https://acmeproducts.github.io/stuff/devstream-test.html`
 
 ## Status
-- Current release: v1.0 b36 on devstream-test.html (2026-09-27)
-- Stage: TEST (b36)
+- Current release: v1.0 b37 on devstream-test.html (2026-09-27)
+- Stage: TEST (b37)
 
 ## Release Rules (inherited, proven)
 1. Mobile-first. All diagnostics in-app. No DevTools ever.
@@ -173,12 +173,39 @@ The b35 drag/drop implementation did not work on the owner's Android device. The
 
 ---
 
+# 2026-09-27 — Literal Session Manager v3 interaction transplant
+
+## Owner report
+b36 was rejected. Its context menu was a homemade approximation: customization asked for CSS strings through browser prompts, and Android drag/drop still did not work. The owner requires a lift-and-shift of the proven Session Manager v3 interaction, not another redesign.
+
+## Change
+- Replaced the b36 menu implementation with the Session Manager v3 two-pane/stacked context menu structure and controls.
+- Customize now uses native color pickers and numeric font-size controls exactly like Session Manager v3; no CSS-value prompts.
+- Replaced touch tab DnD with the Session Manager v3 gesture state machine: 350ms hold, 220ms movement arm, 12px slop, drag ghost, positional drop zones, left-edge sidebar reveal, and double-tap context menu.
+- Replaced project touch reorder with the Session Manager v3 project gesture state machine and before/after targets.
+- Native desktop project DnD now uses Session Manager v3 before/after semantics.
+- Devstream persistence/build semantics are retained behind those transplanted interactions.
+
+## Acceptance
+- **DS-G37-1 Menu visual/interaction parity:** tab and project menus use the Session Manager v3 main/leaf layout; Customize exposes color controls and font size directly.
+- **DS-G37-2 Tab touch DnD parity:** source gesture constants and state machine are present and drop through the existing Devstream move/reorder functions.
+- **DS-G37-3 Project touch DnD parity:** source project gesture constants/state machine and before/after target behavior are present.
+- **DS-G37-4 No browser prompt customization:** customization contains no `prompt()` calls.
+- **DS-G37-5 Preservation:** web default ON, queue safety, four-project worker pool, recovery, storage config, providers, attachments and Coach mode are unchanged.
+
+## Graveyard
+- **G-DS-09 — Homemade context menu/customizer:** rejected. Do not replace the Session Manager v3 menu with prompt-based or visually simplified substitutes.
+- **G-DS-10 — Custom touch DnD semantics:** rejected. Use the proven Session Manager v3 touch gesture state machine.
+
+---
+
 # Backlog
 | ID | Item | Status |
 |---|---|---|
 | DS-1 | Build v1.0 per spec above | OPEN |
 
 # Decision Log
+- 2026-09-27: b36 rejected. Owner requires literal lift-and-shift of Session Manager v3 drag/drop and context menus for tabs and projects; no homemade prompt-based customization.
 - 2026-09-27: b35 rejected on Android because drag/drop did not work and Session Manager v3 parity was incomplete. b36 copies the interaction contract: tab and project drag/reorder plus long-press action menus.
 - 2026-09-27: Internet/web access defaults ON for existing undefined and new Devstream threads. Session Manager v3 is the reference for tab drag/drop: reorder within project, move between projects, desktop plus touch/pen long-press. Cross-project moves are blocked while the tab has active/queued work so the one-writer-per-project rule remains authoritative. Owner directive.
 - 2026-09-24: Project artifact subdirectory is configurable; existing projects keep their paths. Project is the concurrency boundary: one active writer per project, FIFO queued work within a project, up to four projects concurrently. Deleted projects recover from the project rail; blank projects retain + and ↻ recovery controls. Owner directive.
