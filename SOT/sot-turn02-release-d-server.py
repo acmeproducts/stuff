@@ -8,6 +8,36 @@ asp=importlib.util.spec_from_file_location("sotreleasedai",HERE/"sot-turn02-rele
 AI=None
 TARGET_FILE=Path.home()/".sot-turn02"/"target.json"
 CREATION_REV_FILE=Path.home()/".sot-turn02"/"creation-revision.json"
+DIAG_DIR=Path.home()/".sot-turn02"/"diagnostics"
+DIAG_REPO_DIR=Path.home()/"stuff"/"SOT-diagnostics"
+def diagnostic_summary():
+ rows=S.rows("SELECT source_id,COUNT(*) files,SUM(CASE WHEN fingerprint IS NOT NULL THEN 1 ELSE 0 END) fingerprinted,SUM(CASE WHEN lifecycle='NONE' THEN 1 ELSE 0 END) lifecycle_none,SUM(CASE WHEN lifecycle='IN_PROCESS' THEN 1 ELSE 0 END) in_process,SUM(CASE WHEN availability='ERROR' THEN 1 ELSE 0 END) errors FROM placements WHERE placement_state='ACTIVE' GROUP BY source_id ORDER BY source_id")
+ jobs=S.rows("SELECT job_id,revision,state,created,started,last_progress,ended,control,title,parent_job_id FROM jobs ORDER BY created DESC")
+ sources=S.rows("SELECT source_id,label,root,enabled,stale,metadata_checked FROM sources ORDER BY source_id")
+ return {"generated":time.time(),"version":m.VERSION,"schema":m.SCHEMA,"catalog_revision":catalog_revision(),"sources":sources,"jobs":jobs,"placement_state_by_source":rows,"writer_error":S.last_writer_error,"scheduler":M.scheduler_status()}
+def create_diagnostic_bundle():
+ DIAG_DIR.mkdir(parents=True,exist_ok=True);stamp=time.strftime("%Y%m%dT%H%M%SZ",time.gmtime());out=DIAG_DIR/("sot-diagnostic-"+stamp)
+ S.drain(30)
+ import sqlite3
+ src=sqlite3.connect(S.path,timeout=30);dst=sqlite3.connect(str(out)+".db",timeout=30)
+ try:src.backup(dst);dst.commit()
+ finally:dst.close();src.close()
+ Path(str(out)+"-summary.json").write_text(json.dumps(diagnostic_summary(),indent=2,sort_keys=True,default=str),encoding="utf-8")
+ if S.log_path.exists():shutil.copy2(S.log_path,str(out)+"-events.jsonl")
+ return {"base":str(out),"db":str(out)+".db","summary":str(out)+"-summary.json","events":str(out)+"-events.jsonl"}
+def publish_diagnostic_bundle():
+ z=create_diagnostic_bundle();repo=DIAG_REPO_DIR
+ if not (repo/".git").exists():raise RuntimeError("Diagnostic repo checkout missing at "+str(repo)+". Clone a PRIVATE repository there first.")
+ target=repo/"snapshots"/Path(z["base"]).name;target.mkdir(parents=True,exist_ok=True)
+ for key in ("db","summary","events"):
+  p=Path(z[key]);
+  if p.exists():shutil.copy2(p,target/p.name)
+ subprocess.run(["git","-C",str(repo),"add","snapshots"],check=True,timeout=30)
+ staged=subprocess.run(["git","-C",str(repo),"diff","--cached","--quiet"],timeout=30).returncode!=0
+ if staged:
+  subprocess.run(["git","-C",str(repo),"commit","-m","SOT diagnostic snapshot "+Path(z["base"]).name],check=True,timeout=60)
+  subprocess.run(["git","-C",str(repo),"push"],check=True,timeout=120)
+ return {"published":bool(staged),"repo":str(repo),"snapshot":str(target)}
 def creation_revision():
  try:return json.loads(CREATION_REV_FILE.read_text()).get("revision",0)
  except Exception:return 0
@@ -622,6 +652,7 @@ class H(BaseHTTPRequestHandler):
     tid=parse_qs(u.query).get("task_id",[""])[0];return self.sendj({"ok":True,"jobs":get_ai().compare_jobs(tid,50)})
    if p=="/api/sources":return self.sendj({"ok":True,"sources":source_status_rows(include_deleted=True)})
    if p=="/api/events":return self.sendj({"ok":True,"events":S.rows("SELECT * FROM events ORDER BY event_id DESC LIMIT 500")})
+   if p=="/api/diagnostics":return self.sendj({"ok":True,"summary":diagnostic_summary(),"log_path":str(S.log_path),"repo_path":str(DIAG_REPO_DIR)})
    if p=="/api/target":return self.sendj({"ok":True,"target":target_get()})
    if p=="/api/plan":return self.sendj({"ok":True,"plan":plan_summary()})
    if p=="/api/placements":return self.sendj({"ok":True,"catalog_revision":catalog_revision(),"placements":S.rows("SELECT * FROM placements WHERE placement_state=\'ACTIVE\' ORDER BY placement_no LIMIT 10000")})
@@ -745,6 +776,8 @@ class H(BaseHTTPRequestHandler):
     sid=str(b.get("source_id",""));M.source_control(sid,str(b.get("action","")));return self.sendj({"ok":True,"source":next((x for x in source_status_rows(include_deleted=True) if x["source_id"]==sid),None),"sources":source_status_rows(include_deleted=True)})
    if p=="/api/job/restart":
     info=M.restart_info(str(b.get("job_id","")));jid=info.get("job_id");return self.sendj({"ok":True,**info,"job":M.snapshot(jid) if jid else None,"scheduler":M.scheduler_status()})
+   if p=="/api/diagnostics/snapshot":return self.sendj({"ok":True,"bundle":create_diagnostic_bundle()})
+   if p=="/api/diagnostics/publish":return self.sendj({"ok":True,"publish":publish_diagnostic_bundle()})
    if p=="/api/scheduler/control":
     action=str(b.get("action","")).lower()
     if action in ("pause","pause_all"):state=M.pause_all()
