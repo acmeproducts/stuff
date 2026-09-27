@@ -99,6 +99,8 @@ def main():
         "continuous crosshair hover")
     s=s.replace("S.priorV2.component=sel.id;componentCard(sel.id)", "S.priorV2={...(S.priorV2||{}),component:sel.id};componentCard(sel.id)")
 
+    s=s.replace("async function openV2(k){S.level=2;S.index=k;S.componentsExpanded=true;","async function openV2(k){S.level=2;S.index=k;S.axisMode=null;S.componentsExpanded=true;")
+
     # Turn 28: persistent index on Y1 and indexed comparison on Y2.
     s=replace_once(s,
         "setNowFooter(w,'indexed');captureNowState(sets,w,'indexed');S.nowPaint25={sets,w,mode:'indexed'};draw('now',sets,w,'indexed')}function componentCard",
