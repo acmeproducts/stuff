@@ -6,8 +6,8 @@ Deploy target: `https://acmeproducts.github.io/stuff/devstream.html`
 Test target: `https://acmeproducts.github.io/stuff/devstream-test.html`
 
 ## Status
-- Current release: v1.0 b42 on devstream-test.html (2026-09-27)
-- Stage: TEST (b42)
+- Current release: v1.0 b43 on devstream-test.html (2026-09-27)
+- Stage: TEST (b43)
 
 ## Release Rules (inherited, proven)
 1. Mobile-first. All diagnostics in-app. No DevTools ever.
@@ -255,6 +255,29 @@ b39 incorrectly changed stationary hold into context-menu activation. Devstream 
 ## Graveyard
 - **G-DS-13 — Hold opens context menu:** rejected; donor behavior is double-tap context, hold-to-drag.
 - **G-DS-14 — Legacy generic #tabContext button styling:** rejected; it corrupts the donor context-menu appearance.
+
+---
+
+# 2026-09-27 — b43 planned gesture arbiter
+
+## Implementation
+- Implemented `DEVSTREAM-DONOR-INTERACTION-PLAN.md` as one interaction-state change rather than another donor-code transplant.
+- Touch project/tab first tap is now pending for the 350ms double-tap decision window instead of navigating immediately.
+- Same-target second tap cancels pending navigation and opens donor-shaped context.
+- 350ms hold cancels pending navigation and enters drag with the visible item name as ghost.
+- Movement before hold is treated as scroll/cancel, not navigation.
+- Dedicated tab-close and project controls are excluded from gesture arbitration.
+- Mouse/desktop click and native drag paths remain separate.
+- Existing b38 write-conflict reconciliation is retained.
+
+## Required device gate
+1. Single tap project opens once after the short decision delay.
+2. Double tap project opens context without loading project between taps.
+3. Hold project produces named ghost; target highlights; release persists reorder.
+4. Single tap tab opens once after the short decision delay.
+5. Double tap tab opens context without loading thread between taps.
+6. Hold tab produces named ghost; insertion/project target highlights; release persists reorder/move.
+7. Close/delete/coach/plan controls remain independent.
 
 ---
 
