@@ -6,8 +6,8 @@ Deploy target: `https://acmeproducts.github.io/stuff/devstream.html`
 Test target: `https://acmeproducts.github.io/stuff/devstream-test.html`
 
 ## Status
-- Current release: v1.0 b46 on devstream-test.html (2026-09-27)
-- Stage: TEST (b46)
+- Current release: v1.0 b47 on devstream-test.html (2026-09-27)
+- Stage: TEST (b47)
 
 ## Release Rules (inherited, proven)
 1. Mobile-first. All diagnostics in-app. No DevTools ever.
@@ -255,6 +255,15 @@ b39 incorrectly changed stationary hold into context-menu activation. Devstream 
 ## Graveyard
 - **G-DS-13 — Hold opens context menu:** rejected; donor behavior is double-tap context, hold-to-drag.
 - **G-DS-14 — Legacy generic #tabContext button styling:** rejected; it corrupts the donor context-menu appearance.
+
+---
+
+# 2026-09-28 — b47 chain step 2: target footprint
+
+- Owner validated b46 hold activation: PASS.
+- Preserve b46 activation unchanged.
+- While moving an armed tab, a valid tab insertion zone or project target now receives an explicit high-visibility footprint.
+- Drop/persistence/repaint logic is unchanged and remains the next gate.
 
 ---
 

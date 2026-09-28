@@ -78,3 +78,7 @@ Acceptance remains: hold produces named ghost; movement highlights the actual de
 ## b46 activation gate
 
 Owner device result on b45: drag does not activate at all; no hold bubble appears. Therefore downstream target/drop/repaint work is not the current gate. b46 changes only tab hold activation: the scrollable Devstream tab ribbon uses a direct touchstart/touchend gesture lane, with a 350ms stationary hold producing the named bubble. Target/drop/repaint logic is retained but is not considered validated until activation passes.
+
+## b47 chain step 2 — target footprint
+
+Owner device validation: b46 PASS for step 1 (stationary hold displays named tab bubble). b47 preserves that accepted activation path and changes only step 2 feedback: while an armed tab is moved over a valid insertion zone or project, that destination receives an explicit visible footprint/highlight. Drop/persistence/repaint are intentionally unchanged and remain unvalidated.
