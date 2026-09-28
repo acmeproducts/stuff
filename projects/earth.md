@@ -9,6 +9,15 @@ Build the full walkable, streamed 3D Earth described in the reference README as 
 - Plan rewritten around verifiable milestones M1–M8 instead of a single big-bang file write.
 - 2026-09-28: Owner re-confirmed full scope in scope, web access working.
 
+## SECURITY INCIDENT (2026-09-28) — secret in thread state
+- Symptom: writes to `devstream/threads/earth__dev.json` failed twice with GitHub 409 "Secret detected in content", preceded by a 409 write conflict.
+- Root cause: the thread-state JSON persists conversation history, and the GitHub personal access token the owner pasted into chat earlier is embedded in that history. The agent never wrote the token into the plan or code artifacts; it entered the thread file via automatic chat-history persistence.
+- GitHub push protection / secret scanning is working as intended and is blocking the push. Do NOT bypass it.
+- Corrective action (in order):
+  1. Scrub the token from `devstream/threads/earth__dev.json` — remove every occurrence of the PAT string, including URL-encoded or escaped copies inside embedded history, then retry the thread write.
+  2. Owner: revoke the exposed token on GitHub immediately (it has been transmitted multiple times and must be considered compromised). Generate a fresh one only if ever needed elsewhere — this project needs no GitHub auth (reference repo is public).
+  3. Rule going forward: never paste credentials into chat; never write any token/secret into the plan, the code, or any persisted state file. If a secret ever appears in chat again, treat it as compromised and exclude it from all persisted content.
+
 ## Reference repo confirmed (2026-09-27, via web search)
 - The reference project is public on GitHub as `magnificus/earth` — "A walkable, streamed 3D Earth built with Babylon.js and real-world geographic data." Features match our scope: terrain streaming, roads, buildings, water, vegetation, weather, seasons, stars, a fictional moon, settings, and saves.
 - Key data-source detail extracted from its docs: **land cover** comes from **Copernicus LCFM LCM-10 V1 (reference year 2020)**, streamed as native-resolution classification windows from **Terrascope's public TiTiler service** with nearest-neighbour sampling and class-code translation. Sole source, **no API key required**. Adopted as our M4 biome source (see Architecture).
@@ -17,13 +26,13 @@ Build the full walkable, streamed 3D Earth described in the reference README as 
   - LCM-10 coverage bounds: **60 S to 83 N** — outside this band, use procedural classification fallback and HUD flag.
   - Reference rendering behavior on missing classification: bare-ground fallback; other service errors remain visible (mirror this: never blank terrain, always show source status).
   - LCM-10 base year is 2020; annual 2021–2025 products (+ LCCM-10 change maps) expected later in 2026 — no action needed, note for future.
-- **SECURITY:** Owner posted a GitHub personal access token in chat. It is NOT recorded here and must never be written into the plan or the code. The repo is public so no token is needed; owner should revoke the posted token on GitHub (it is now exposed) and generate a fresh one only if ever needed elsewhere.
 
 ## Decisions locked
 - **Asset hosting:** Self-contained single HTML file; Babylon.js from CDN with dual-CDN loader (cdn.babylonjs.com → cdn.jsdelivr.net → unpkg). No build step, no local assets.
 - **Start location:** San Francisco, CA, USA (37.7749°N, 122.4194°W).
 - **Mobile controls:** Twin virtual sticks — left move/turn, right look — plus buttons for jump, fly toggle, settings. WASD + pointer-lock mouse on desktop.
 - **Diagnostics:** On-screen HUD only, never console-only: FPS, lat/lon, altitude, mode (walk/fly), loaded tile count, per-service source status (CDN / elevation / land cover / OSM: OK or PROC-fallback).
+- **Secrets hygiene:** No tokens or credentials in plan, code, or persisted thread state — ever. Reference repo is public; runtime data services need no keys.
 
 ## Architecture (pinned)
 - **Coordinates:** Web Mercator tile math; base terrain at zoom 15 (~1.2 km tiles at equator); lat/lon ↔ tile/pixel conversions in-app.
@@ -55,10 +64,12 @@ Build the full walkable, streamed 3D Earth described in the reference README as 
 - Imagery CORS/usage policy → optional layer, off by default, failure never blocks terrain.
 - Phone perf → quality presets (LOW/MED/HIGH) scale subdivisions, ring radius, vegetation density, particles.
 - Build-env fetch failures → irrelevant at runtime; app validates services live in the browser and reports on HUD.
-- Credentials in chat → never persist tokens in plan or code; reference repo is public and needs no auth.
+- Credentials in chat → never persist tokens in plan, code, or thread state; scrub any that leak into persisted history before pushing (see SECURITY INCIDENT); treat exposed tokens as compromised.
+- Thread-write conflicts (409) → refresh thread state, re-apply, retry once; never force-push over another writer blindly.
 
 ## Open work
-- Next: write `projects/earth.html` covering M1+M2 (bootstrap + real-elevation terrain with fallback).
+- Immediate: scrub the PAT from `devstream/threads/earth__dev.json` and retry the blocked thread write; owner revokes the exposed token.
+- Next build step: write `projects/earth.html` covering M1+M2 (bootstrap + real-elevation terrain with fallback).
 - Then proceed M3→M8 in order, one milestone step per turn, verifying each smoke test and logging to the ledger.
 - At M4 start: web-search the exact Terrascope TiTiler tile-URL template for the LCFM LCM-10 V1 collection before coding land cover.
 - Final: tune streaming radius/LOD for smooth performance, keeping architecture expandable toward the reference 33×33 grid.
@@ -71,4 +82,5 @@ Build the full walkable, streamed 3D Earth described in the reference README as 
 | 2026-09-27 | Build start | Owner directive: web access available, no descoping. Plan refreshed with full feature checklist. |
 | 2026-09-27 | Plan reset | Owner: prior approach failing — back up, correct plan. Rewritten with pinned endpoints (Terrarium elevation, Overpass, dual-CDN Babylon), fallback chains for every service, milestone build order M1–M8 (sequencing only, no scope cut), risk register. Next: write earth.html covering M1+M2. |
 | 2026-09-27 | Plan update | Web search confirmed reference repo as public `magnificus/earth`; pinned its land-cover pipeline (Copernicus LCFM LCM-10 V1 via Terrascope public TiTiler, no key) as M4 primary source with procedural fallback; TiTiler URL template to be searched at M4. Owner-posted GitHub PAT NOT stored — revocation advised; repo is public, app needs no GitHub auth. Next: write earth.html M1+M2. |
-| 2026-09-28 | Plan checkpoint | Web search confirmed Terrascope STAC collection `https://stac.terrascope.be/collections/lcfm-lcm-10`, LCM-10 coverage 60 S–83 N, bare-ground fallback behavior, base year 2020 (annual products coming later in 2026). Owner re-confirmed full scope. Plan validated build-ready. Next: write `projects/earth.html` covering M1+M2 (dual-CDN Babylon bootstrap, HUD skeleton with on-screen error trap, walk+fly camera, Mercator math, one z15 Terrarium tile with seeded fBm fallback, SF spawn at 37.7749 N 122.4194 W). |
+| 2026-09-28 | Plan checkpoint | Web search confirmed Terrascope STAC collection `https://stac.terrascope.be/collections/lcfm-lcm-10`, LCM-10 coverage 60 S–83 N, bare-ground fallback behavior, base year 2020 (annual products coming later in 2026). Owner re-confirmed full scope. Plan validated build-ready. Next: write `projects/earth.html` covering M1+M2. |
+| 2026-09-28 | Security incident | Thread writes to `devstream/threads/earth__dev.json` blocked twice by GitHub push protection: "Secret detected in content". Root cause: owner-posted GitHub PAT embedded in persisted chat history inside the thread JSON — not written by the agent into plan/code. Directives: scrub all token occurrences from the thread JSON and retry; owner revokes the exposed token; secrets never persisted anywhere going forward. Ledger updated; build remains blocked on the scrub, then proceed to earth.html M1+M2. |
