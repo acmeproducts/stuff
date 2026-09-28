@@ -20,6 +20,7 @@ turn from Turn 22 on: `chat-turnNN-STAGE.html` + `chat-admin-turnNN-STAGE.html`)
 | 22·pre-base | Two-file split: `chat.html` (stateless shell, `?room=` required) + `chat-admin.html` (room create/edit/delete/restore, keys, font colour+size). All 6 gates pass — engine byte-identical (16/16), switch harness (25/25), no room/key code in chat.html, no-room gate present, never writes rooms_index. | **SHIPPED as pre-base — awaiting real-device test** | https://acmeproducts.github.io/stuff/chat.html · https://acmeproducts.github.io/stuff/chat-admin.html |
 | — (2026-09-28) | Copy request: `chat-test.html` → `bugsbunny.html`, verbatim copy, original untouched. | **BLOCKED — source contents not provided with the request; asked owner to paste file or URL.** | pending: `bugsbunny.html` |
 | — (2026-09-28, 2nd) | Owner supplied the URL `https://acmeproducts.github.io/stuff/chat-test.html` for the copy source. | **STILL BLOCKED — only the address arrived; the file's contents were not delivered with it (no REFERENCED FILE block, search results unrelated). Asked owner to paste the raw code directly. Writing a "copy" without the source would be fabrication.** | pending: `bugsbunny.html` |
+| — (2026-09-28, 3rd) | Owner explained the GitHub raw-URL pattern (navigate username → repo, `/blob/` between repo name and file name) so the source could be fetched directly. | **STILL BLOCKED — the obstacle was never finding the address; it is that this agent cannot open or fetch URLs at all. Only content delivered into the chat (pasted code, or a REFERENCED FILE block) is visible. The web lookup that ran returned unrelated results (DuckDB docs), not the file. Asked owner to paste the raw code, in chunks if the file is large. No "copy" will be fabricated.** | pending: `bugsbunny.html` |
 
 Turns 20·base through 20·ship, and the two rejected Turn 21 candidates, are
 Appendix A history — superseded, not live. See Appendix A §0 for those rows if
@@ -103,14 +104,18 @@ Shared CSS with chat.html — siblings in one workflow, not two products.
 ### B0 · Copy chat-test.html → bugsbunny.html — BLOCKED, waiting on owner
 
 Owner request (2026-09-28): make an exact copy of `chat-test.html` as
-`bugsbunny.html`; the original is not to be touched. Source URL is now known:
-`https://acmeproducts.github.io/stuff/chat-test.html` — but the file's
-contents have never been delivered into the chat (no REFERENCED FILE block
-arrived with the URL; the accompanying search results were unrelated). Nothing
-has been written — producing a "copy" without the source would be fabrication.
-Waiting on: the file's full contents pasted directly into chat (a URL alone
-does not bring the code with it). Filename note: owner typed "bugsbunnny.html"
-(three n's); assumed typo for `bugsbunny.html` — confirm spelling on delivery.
+`bugsbunny.html`; the original is not to be touched. Source URL is known:
+`https://acmeproducts.github.io/stuff/chat-test.html`, and the owner has now
+explained the raw-URL pattern (username → repository → `/blob/` between repo
+and file name). The block is not knowing where the file lives — it is that
+the build agent cannot retrieve anything from a URL: no fetch/navigation
+capability exists in this chat, and the web lookup that ran returned unrelated
+results. Only file contents pasted directly into the chat (or delivered as a
+REFERENCED FILE block) are visible to the agent. Nothing has been written —
+producing a "copy" without the source would be fabrication. Waiting on: the
+file's full contents pasted directly into chat, in chunks if the file is too
+large for one message. Filename note: owner typed "bugsbunnny.html" (three
+n's); assumed typo for `bugsbunny.html` — confirm spelling on delivery.
 
 ### B1 · Mic turn-release model — SETTLED, build next
 
