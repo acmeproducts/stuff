@@ -74,3 +74,7 @@ Owner report after b44: Rename now works; drag/drop remains broken. Devstream di
 Cause addressed in b45: donor-style touch drag was still resolving destinations through the painted element under the pointer. The target implementation now resolves project cards, tabs, and insertion zones from their viewport `getBoundingClientRect()` geometry, in the same `clientX/clientY` coordinate system as the pointer. Once HOLD arms drag, Devstream explicitly owns the gesture until release; normal scrolling remains available before drag arms.
 
 Acceptance remains: hold produces named ghost; movement highlights the actual destination; release persists reorder/move. Rename correction from b44 must remain intact.
+
+## b46 activation gate
+
+Owner device result on b45: drag does not activate at all; no hold bubble appears. Therefore downstream target/drop/repaint work is not the current gate. b46 changes only tab hold activation: the scrollable Devstream tab ribbon uses a direct touchstart/touchend gesture lane, with a 350ms stationary hold producing the named bubble. Target/drop/repaint logic is retained but is not considered validated until activation passes.

@@ -70,7 +70,7 @@ body.coachMode #engineFoot,body.coachMode #webToggle,body.coachMode #chatInfo,bo
 #chatInfo{font-size:11px;color:var(--dim);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 #pill{font-size:11px;padding:3px 10px;border-radius:999px;border:1px solid var(--line);color:var(--dim);flex-shrink:0}
 #pill.ok{color:var(--ok);border-color:var(--ok)}#pill.executing{color:var(--run);border-color:var(--run)}#pill.error{color:var(--err);border-color:var(--err)}
-#projectTabs{display:flex;height:48px;flex:0 0 48px;align-items:stretch;gap:2px;padding:0 10px;border-bottom:1px solid var(--line);background:var(--panel);overflow-x:auto;overflow-y:hidden;scrollbar-width:none}
+#projectTabs{display:flex;height:48px;flex:0 0 48px;align-items:stretch;gap:2px;padding:0 10px;border-bottom:1px solid var(--line);background:var(--panel);overflow-x:auto;overflow-y:hidden;scrollbar-width:none;touch-action:pan-x}
 #projectTabs::-webkit-scrollbar{display:none}
 body.touchDragging{touch-action:none;overscroll-behavior:none}body.touchDragging #projectTabs,body.touchDragging #projList{touch-action:none}
 .tab{flex-shrink:0;display:flex;align-items:center;gap:7px;min-width:110px;max-width:260px;padding:0 12px;border:0;border-bottom:3px solid transparent;background:transparent;color:var(--dim);font-weight:750;font-size:12.5px;white-space:nowrap;-webkit-user-select:none;user-select:none;-webkit-touch-callout:none}
@@ -190,7 +190,7 @@ body.coachMode .suggestBtn{border-color:rgba(57,197,207,.5);background:rgba(57,1
 <div id="scrim"></div>
 <div id="app">
 <aside id="sidebar">
-  <div class="bar"><span id="dot"></span><span class="brand">devstream <span class="version">v1.0 b45</span></span><span class="grow"></span><button class="btn" id="projectAdd">+ New</button><button class="btn" id="refresh">↻</button><button class="btn" id="settings">⚙</button></div>
+  <div class="bar"><span id="dot"></span><span class="brand">devstream <span class="version">v1.0 b46</span></span><span class="grow"></span><button class="btn" id="projectAdd">+ New</button><button class="btn" id="refresh">↻</button><button class="btn" id="settings">⚙</button></div>
   <div id="searchWrap"><input id="search" class="input" placeholder="Search projects & threads">
     <div class="legend"><span><i class="legendDot ok"></i>OK</span><span><i class="legendDot run"></i>Running</span><span><i class="legendDot err"></i>Error</span></div></div>
   <div id="projList"></div>
@@ -712,14 +712,34 @@ function tabDropTargetAt(x,y,key){
 }
 function bindTabTouchDnD(){
   if(document.documentElement.dataset.tabTouchBound==='1')return;document.documentElement.dataset.tabTouchBound='1';
-  const HOLD=350,ARM=220,SLOP=12,DBL=350;let g=null,lastKey='',lastAt=0,singleTimer=null;
+  const root=$('projectTabs'),HOLD=350,SLOP=12,DBL=350;let g=null,lastKey='',lastAt=0,singleTimer=null;
   const cancelSingle=()=>{if(singleTimer){clearTimeout(singleTimer);singleTimer=null}};
   const reset=()=>{if(g?.holdTimer)clearTimeout(g.holdTimer);g=null;window.__scTouch=false;document.body.classList.remove('touchDragging');clearTabDragUI();removeTabDragGhost()};
-  const beginDrag=x=>{cancelSingle();x.mode='drag';tabDragSuppressUntil=Date.now()+1000;makeTabDragGhost(x.tab,x.x,x.y);x.tab.classList.add('dragging');document.body.classList.add('touchDragging');try{x.tab.setPointerCapture?.(x.pointerId)}catch{};if(navigator.vibrate)try{navigator.vibrate(12)}catch{}};
-  document.addEventListener('pointerdown',e=>{if(e.pointerType!=='touch'||e.button!==0)return;const tab=e.target.closest?.('.tab[data-thread-key]');if(!tab||e.target.closest?.('.tabClose'))return;tabDragSuppressUntil=Date.now()+1000;window.__scTouch=true;cancelSingle();g={pointerId:e.pointerId,tab,key:tab.dataset.threadKey,startX:e.clientX,startY:e.clientY,startAt:performance.now(),x:e.clientX,y:e.clientY,mode:'pending',moved:false,holdTimer:null};g.holdTimer=setTimeout(()=>{if(g&&g.mode==='pending')beginDrag(g)},HOLD)},{passive:true});
-  document.addEventListener('pointermove',e=>{if(!g||e.pointerId!==g.pointerId)return;g.x=e.clientX;g.y=e.clientY;const dist=Math.hypot(e.clientX-g.startX,e.clientY-g.startY);if(g.mode==='pending'&&dist>SLOP){const elapsed=performance.now()-g.startAt;if(elapsed<ARM){g.moved=true;clearTimeout(g.holdTimer);g.holdTimer=null;reset();return}clearTimeout(g.holdTimer);g.holdTimer=null;beginDrag(g)}if(g.mode!=='drag')return;e.preventDefault();moveTabDragGhost(e.clientX,e.clientY);if(e.clientX<=56&&!$('sidebar').classList.contains('open'))sideOpen(true);clearTabDragUI();g.tab.classList.add('dragging');const t=tabDropTargetAt(e.clientX,e.clientY,g.key);if(t.project)t.project.classList.add('dragOver');else if(t.zone)t.zone.classList.add('dragOver')},{passive:false});
-  document.addEventListener('pointerup',e=>{if(!g||e.pointerId!==g.pointerId)return;const x=g;if(x.holdTimer)clearTimeout(x.holdTimer);if(x.mode==='drag'){e.preventDefault();const t=tabDropTargetAt(e.clientX,e.clientY,x.key);if(t.project&&typeof t.project.__tabDrop==='function')t.project.__tabDrop(x.key);else if(t.zone&&typeof t.zone.__tabDrop==='function')t.zone.__tabDrop(x.key);lastKey='';lastAt=0;reset();return}if(x.moved){reset();return}const n=Date.now();if(lastKey===x.key&&n-lastAt<=DBL){cancelSingle();lastKey='';lastAt=0;tabDragSuppressUntil=n+900;e.preventDefault();openTabContext(x.key,x.tab);if(navigator.vibrate)try{navigator.vibrate(10)}catch{};reset();return}lastKey=x.key;lastAt=n;const key=x.key;singleTimer=setTimeout(()=>{singleTimer=null;if(lastKey===key){lastKey='';lastAt=0;tabDragSuppressUntil=Date.now()+150;openThread(key)}},DBL);reset()},{passive:false});
-  document.addEventListener('pointercancel',e=>{if(g&&e.pointerId===g.pointerId){cancelSingle();lastKey='';lastAt=0;reset()}},{passive:true});
+  const beginDrag=x=>{if(!x||x.mode!=='pending')return;cancelSingle();x.mode='drag';tabDragSuppressUntil=Date.now()+1200;makeTabDragGhost(x.tab,x.x,x.y);x.tab.classList.add('dragging');document.body.classList.add('touchDragging');if(navigator.vibrate)try{navigator.vibrate(12)}catch{}};
+  root.addEventListener('touchstart',e=>{
+    if(e.touches.length!==1)return;const tab=e.target.closest?.('.tab[data-thread-key]');if(!tab||e.target.closest?.('.tabClose'))return;
+    const t=e.touches[0];tabDragSuppressUntil=Date.now()+1200;window.__scTouch=true;cancelSingle();
+    g={tab,key:tab.dataset.threadKey,startX:t.clientX,startY:t.clientY,x:t.clientX,y:t.clientY,mode:'pending',holdTimer:null};
+    g.holdTimer=setTimeout(()=>{if(g&&g.mode==='pending')beginDrag(g)},HOLD);
+  },{passive:true});
+  root.addEventListener('touchmove',e=>{
+    if(!g||e.touches.length!==1)return;const t=e.touches[0];g.x=t.clientX;g.y=t.clientY;
+    if(g.mode==='pending'){
+      const dx=t.clientX-g.startX,dy=t.clientY-g.startY;
+      // Horizontal movement is tab-strip scrolling. Vertical/diagonal movement before HOLD cancels activation.
+      if(Math.hypot(dx,dy)>SLOP){clearTimeout(g.holdTimer);g.holdTimer=null;reset();return}
+      return;
+    }
+    e.preventDefault();moveTabDragGhost(t.clientX,t.clientY);if(t.clientX<=56&&!$('sidebar').classList.contains('open'))sideOpen(true);clearTabDragUI();g.tab.classList.add('dragging');const hit=tabDropTargetAt(t.clientX,t.clientY,g.key);if(hit.project)hit.project.classList.add('dragOver');else if(hit.zone)hit.zone.classList.add('dragOver');
+  },{passive:false});
+  root.addEventListener('touchend',e=>{
+    if(!g)return;const x=g;if(x.holdTimer)clearTimeout(x.holdTimer);
+    const t=e.changedTouches?.[0],cx=t?.clientX??x.x,cy=t?.clientY??x.y;
+    if(x.mode==='drag'){e.preventDefault();const hit=tabDropTargetAt(cx,cy,x.key);if(hit.project&&typeof hit.project.__tabDrop==='function')hit.project.__tabDrop(x.key);else if(hit.zone&&typeof hit.zone.__tabDrop==='function')hit.zone.__tabDrop(x.key);lastKey='';lastAt=0;reset();return}
+    const n=Date.now();if(lastKey===x.key&&n-lastAt<=DBL){cancelSingle();lastKey='';lastAt=0;tabDragSuppressUntil=n+900;e.preventDefault();openTabContext(x.key,x.tab);if(navigator.vibrate)try{navigator.vibrate(10)}catch{};reset();return}
+    lastKey=x.key;lastAt=n;const key=x.key;singleTimer=setTimeout(()=>{singleTimer=null;if(lastKey===key){lastKey='';lastAt=0;tabDragSuppressUntil=Date.now()+150;openThread(key)}},DBL);reset();
+  },{passive:false});
+  root.addEventListener('touchcancel',()=>{cancelSingle();lastKey='';lastAt=0;reset()},{passive:true});
   document.addEventListener('click',e=>{if(e.target.closest?.('.tabClose'))return;if(Date.now()<tabDragSuppressUntil&&e.target.closest?.('.tab[data-thread-key]')){e.preventDefault();e.stopImmediatePropagation()}},true);
 }
 function closeTabContext(){const r=$('tabContextRoot');if(r)r.innerHTML='';if(window.__ctxOff){document.removeEventListener('pointerdown',window.__ctxOff,true);window.__ctxOff=null}}

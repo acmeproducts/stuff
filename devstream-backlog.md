@@ -6,8 +6,8 @@ Deploy target: `https://acmeproducts.github.io/stuff/devstream.html`
 Test target: `https://acmeproducts.github.io/stuff/devstream-test.html`
 
 ## Status
-- Current release: v1.0 b45 on devstream-test.html (2026-09-27)
-- Stage: TEST (b45)
+- Current release: v1.0 b46 on devstream-test.html (2026-09-27)
+- Stage: TEST (b46)
 
 ## Release Rules (inherited, proven)
 1. Mobile-first. All diagnostics in-app. No DevTools ever.
@@ -255,6 +255,15 @@ b39 incorrectly changed stationary hold into context-menu activation. Devstream 
 ## Graveyard
 - **G-DS-13 — Hold opens context menu:** rejected; donor behavior is double-tap context, hold-to-drag.
 - **G-DS-14 — Legacy generic #tabContext button styling:** rejected; it corrupts the donor context-menu appearance.
+
+---
+
+# 2026-09-27 — b46 tab hold activation gate
+
+- Owner device result: b45 never enters drag; the named hold bubble never appears.
+- Scope narrowed to the first chain link only: tab tap-and-hold activation.
+- The scrollable Devstream tab ribbon now listens directly to touchstart/touchend; a stationary 350ms hold creates the existing named drag bubble. Horizontal tab scrolling remains native via `touch-action:pan-x`.
+- Target, drop, persistence and repaint code remain in place but are not claimed validated until this activation gate passes.
 
 ---
 
