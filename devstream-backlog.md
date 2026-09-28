@@ -6,8 +6,8 @@ Deploy target: `https://acmeproducts.github.io/stuff/devstream.html`
 Test target: `https://acmeproducts.github.io/stuff/devstream-test.html`
 
 ## Status
-- Current release: v1.0 b47 on devstream-test.html (2026-09-27)
-- Stage: TEST (b47)
+- Current release: v1.0 b48 on devstream-test.html (2026-09-27)
+- Stage: TEST (b48)
 
 ## Release Rules (inherited, proven)
 1. Mobile-first. All diagnostics in-app. No DevTools ever.
@@ -255,6 +255,16 @@ b39 incorrectly changed stationary hold into context-menu activation. Devstream 
 ## Graveyard
 - **G-DS-13 — Hold opens context menu:** rejected; donor behavior is double-tap context, hold-to-drag.
 - **G-DS-14 — Legacy generic #tabContext button styling:** rejected; it corrupts the donor context-menu appearance.
+
+---
+
+# 2026-09-28 — b48 message removal + completed tab outcomes
+
+- Owner device result: b47 dragging works; slight lag remains.
+- Every rendered message bubble has ×; confirmation permanently removes that message from the thread JSON and writes the cleaned JSON. This supports removing an accidentally entered secret that GitHub secret protection rejects.
+- Cross-project tab drop now opens the destination project and moved tab regardless of which tab was active before the move.
+- + New tab naming uses an in-app modal instead of browser prompt; created tab is inserted first and opened.
+- b46/b47 touch activation and target-footprint path retained.
 
 ---
 

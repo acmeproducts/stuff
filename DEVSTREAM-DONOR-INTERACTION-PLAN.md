@@ -82,3 +82,7 @@ Owner device result on b45: drag does not activate at all; no hold bubble appear
 ## b47 chain step 2 — target footprint
 
 Owner device validation: b46 PASS for step 1 (stationary hold displays named tab bubble). b47 preserves that accepted activation path and changes only step 2 feedback: while an armed tab is moved over a valid insertion zone or project, that destination receives an explicit visible footprint/highlight. Drop/persistence/repaint are intentionally unchanged and remain unvalidated.
+
+## b48 validated drag + message deletion / tab completion
+
+Owner device result: b47 drag movement works, with slight lag. Preserve the validated touch activation and target footprint. Complete the cross-project outcome by opening the destination project and moved tab after a successful drop. Add permanent per-message deletion (× → confirmation → remove from in-memory thread JSON → write cleaned JSON), specifically allowing an accidentally entered secret to be removed before GitHub persistence. New + tabs use an in-app naming modal and are inserted first in the project tab order.
