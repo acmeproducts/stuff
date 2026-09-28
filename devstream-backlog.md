@@ -6,8 +6,8 @@ Deploy target: `https://acmeproducts.github.io/stuff/devstream.html`
 Test target: `https://acmeproducts.github.io/stuff/devstream-test.html`
 
 ## Status
-- Current release: v1.0 b48 on devstream-test.html (2026-09-27)
-- Stage: TEST (b48)
+- Current release: v1.0 b49 on devstream-test.html (2026-09-27)
+- Stage: TEST (b49)
 
 ## Release Rules (inherited, proven)
 1. Mobile-first. All diagnostics in-app. No DevTools ever.
@@ -255,6 +255,15 @@ b39 incorrectly changed stationary hold into context-menu activation. Devstream 
 ## Graveyard
 - **G-DS-13 — Hold opens context menu:** rejected; donor behavior is double-tap context, hold-to-drag.
 - **G-DS-14 — Legacy generic #tabContext button styling:** rejected; it corrupts the donor context-menu appearance.
+
+---
+
+# 2026-09-28 — b49 Android project drag + tab confirmation + 409 recovery
+
+- Tab × now asks before moving the tab to Deleted.
+- Project hold/drag/drop now uses the direct touch lane proven by the accepted tab drag path; native desktop project drag remains unchanged.
+- Thread persistence now gets a fresh uncached GitHub content SHA before writes and after 409 conflicts, then reconciles/retries up to five times. This addresses the observed stale-SHA mismatch on earth__main.json.
+- Existing message permanent-delete and accepted tab drag behavior retained.
 
 ---
 

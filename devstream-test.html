@@ -192,7 +192,7 @@ body.coachMode .suggestBtn{border-color:rgba(57,197,207,.5);background:rgba(57,1
 <div id="scrim"></div>
 <div id="app">
 <aside id="sidebar">
-  <div class="bar"><span id="dot"></span><span class="brand">devstream <span class="version">v1.0 b48</span></span><span class="grow"></span><button class="btn" id="projectAdd">+ New</button><button class="btn" id="refresh">↻</button><button class="btn" id="settings">⚙</button></div>
+  <div class="bar"><span id="dot"></span><span class="brand">devstream <span class="version">v1.0 b49</span></span><span class="grow"></span><button class="btn" id="projectAdd">+ New</button><button class="btn" id="refresh">↻</button><button class="btn" id="settings">⚙</button></div>
   <div id="searchWrap"><input id="search" class="input" placeholder="Search projects & threads">
     <div class="legend"><span><i class="legendDot ok"></i>OK</span><span><i class="legendDot run"></i>Running</span><span><i class="legendDot err"></i>Error</span></div></div>
   <div id="projList"></div>
@@ -375,6 +375,14 @@ async function getFile(path){
   }
   return{content,sha:j.sha};
 }
+async function getFileFresh(path){
+  const url='https://api.github.com/repos/'+repoFull()+'/contents/'+path+'?ref='+encodeURIComponent(cfg.branch)+'&_ds='+Date.now();
+  const r=await fetch(url,{cache:'no-store',headers:{'Authorization':'Bearer '+cfg.pat,'Accept':'application/vnd.github+json'}});
+  if(r.status===404)return null;if(!r.ok){let msg='';try{msg=(await r.json()).message}catch(e){}throw new Error('GitHub '+r.status+(msg?': '+msg:''));}
+  const j=await r.json();let content=j.content?dec(j.content):'';
+  if(!content&&j.size>0){const rr=await fetch(url,{cache:'no-store',headers:{'Authorization':'Bearer '+cfg.pat,'Accept':'application/vnd.github.raw+json'}});if(!rr.ok)throw new Error('raw fallback failed '+rr.status);content=await rr.text()}
+  return{content,sha:j.sha};
+}
 async function putFile(path,content,message,sha){
   const body={message,content:enc(content),branch:cfg.branch};if(sha)body.sha=sha;
   const j=await gh('contents/'+path,{method:'PUT',body:JSON.stringify(body)});
@@ -391,15 +399,9 @@ function reconcileThreadContent(remoteContent,localContent){
 function putFileSafe(path,content,message,expectedSha){
   const prev=pathQueues[path]||Promise.resolve();
   const job=prev.then(async()=>{
-    let payload=content,cur=await getFile(path),actual=cur?cur.sha:null;
-    if(expectedSha!==undefined&&actual!==expectedSha&&pathLastSha[path]!==actual){
-      if(!isThreadDataPath(path))throw new Error('Conflict on '+path+': changed since it was read. Refresh and review before retrying.');
-      payload=reconcileThreadContent(cur.content,payload);dlog('K|thread reconcile: merged concurrent write for '+path);
-    }
-    for(let attempt=1;attempt<=3;attempt++){
-      try{const saved=await putFile(path,payload,message,actual);pathLastSha[path]=saved;return saved}
-      catch(e){if(!String(e.message).includes('409')||!isThreadDataPath(path)||attempt===3)throw e;cur=await getFile(path);actual=cur?cur.sha:null;payload=reconcileThreadContent(cur?cur.content:'{}',payload);dlog('thread reconcile: retry '+attempt+' for '+path)}
-    }
+    let payload=content,cur=await getFileFresh(path),actual=cur?cur.sha:null;
+    if(expectedSha!==undefined&&actual!==expectedSha&&pathLastSha[path]!==actual){if(!isThreadDataPath(path))throw new Error('Conflict on '+path+': changed since it was read. Refresh and review before retrying.');payload=reconcileThreadContent(cur?cur.content:'{}',payload);dlog('K|thread reconcile: merged concurrent write for '+path)}
+    for(let attempt=1;attempt<=5;attempt++){try{const saved=await putFile(path,payload,message,actual);pathLastSha[path]=saved;return saved}catch(e){if(!String(e.message).includes('409')||!isThreadDataPath(path)||attempt===5)throw e;await new Promise(r=>setTimeout(r,120*attempt));cur=await getFileFresh(path);actual=cur?cur.sha:null;payload=reconcileThreadContent(cur?cur.content:'{}',payload);dlog('K|thread reconcile: fresh SHA retry '+attempt+' for '+path)}}
   });pathQueues[path]=job.catch(()=>{});return job;
 }
 async function repoTree(force){
@@ -654,19 +656,16 @@ function setupProjectGestures(row,p){
 let projectTouchGesture=null;
 function bindProjectTouchDnD(){
   const root=$('projList');if(!root||root.dataset.projectTouchBound==='1')return;root.dataset.projectTouchBound='1';
-  const HOLD=350,ARM=220,SLOP=12,DBL=350;let ghost=null,lastId='',lastAt=0,singleTimer=null;
-  const cancelSingle=()=>{if(singleTimer){clearTimeout(singleTimer);singleTimer=null}};
-  const clear=()=>root.querySelectorAll('.card.projectDrop').forEach(n=>n.classList.remove('projectTouchDragging','projectTouchTarget','projectOrderBefore','projectOrderAfter'));
-  const killGhost=()=>{ghost?.remove();ghost=null};
-  const reset=()=>{if(projectTouchGesture?.timer)clearTimeout(projectTouchGesture.timer);projectTouchGesture=null;window.__pcTouch=false;document.body.classList.remove('touchDragging');clear();killGhost()};
+  const HOLD=350,SLOP=12,DBL=350;let g=null,ghost=null,lastId='',lastAt=0,singleTimer=null;
+  const cancelSingle=()=>{if(singleTimer){clearTimeout(singleTimer);singleTimer=null}},clear=()=>root.querySelectorAll('.card.projectDrop').forEach(n=>n.classList.remove('projectTouchDragging','projectTouchTarget','projectOrderBefore','projectOrderAfter')),killGhost=()=>{ghost?.remove();ghost=null};
+  const reset=()=>{if(g?.timer)clearTimeout(g.timer);g=null;projectTouchGesture=null;window.__pcTouch=false;document.body.classList.remove('touchDragging');clear();killGhost()};
   const makeGhost=(row,x,y)=>{killGhost();ghost=document.createElement('div');ghost.id='tabDragGhost';ghost.textContent=row.querySelector('.projectName')?.textContent?.trim()||row.dataset.project||'Project';ghost.style.left=x+'px';ghost.style.top=y+'px';document.body.appendChild(ghost)};
-  const beginDrag=g=>{cancelSingle();g.mode='drag';window.__projectTouchSuppress=Date.now()+1000;g.row.classList.add('projectTouchDragging');makeGhost(g.row,g.x,g.y);document.body.classList.add('touchDragging');try{g.row.setPointerCapture?.(g.pointerId)}catch{};if(navigator.vibrate)try{navigator.vibrate(12)}catch{}};
-  const targetAt=(x,y,g)=>{const t=[...root.querySelectorAll('.card.projectDrop[data-project]')].find(n=>n.dataset.project!==g.id&&pointInRect(x,y,n.getBoundingClientRect(),4));if(!t)return null;const r=t.getBoundingClientRect();return{row:t,after:y>=r.top+r.height/2}};
-  root.addEventListener('pointerdown',e=>{if(e.pointerType!=='touch'||e.button!==0)return;const row=e.target.closest?.('.card.projectDrop[data-project]');if(!row||e.target.closest?.('button,input,label,.coachToggle,.coachSwitch,.ibtn'))return;window.__projectTouchSuppress=Date.now()+1000;window.__pcTouch=true;cancelSingle();const g={id:row.dataset.project,row,pointerId:e.pointerId,startX:e.clientX,startY:e.clientY,startAt:performance.now(),x:e.clientX,y:e.clientY,mode:'pending',moved:false,timer:null};g.timer=setTimeout(()=>{if(projectTouchGesture===g&&g.mode==='pending')beginDrag(g)},HOLD);projectTouchGesture=g},{passive:true});
-  root.addEventListener('pointermove',e=>{const g=projectTouchGesture;if(!g||g.pointerId!==e.pointerId)return;g.x=e.clientX;g.y=e.clientY;const dist=Math.hypot(e.clientX-g.startX,e.clientY-g.startY);if(g.mode==='pending'&&dist>SLOP){const elapsed=performance.now()-g.startAt;if(elapsed<ARM){g.moved=true;clearTimeout(g.timer);g.timer=null;reset();return}clearTimeout(g.timer);g.timer=null;beginDrag(g)}if(g.mode!=='drag')return;e.preventDefault();if(ghost){ghost.style.left=e.clientX+'px';ghost.style.top=e.clientY+'px'}clear();g.row.classList.add('projectTouchDragging');const t=targetAt(e.clientX,e.clientY,g);if(t)t.row.classList.add('projectTouchTarget',t.after?'projectOrderAfter':'projectOrderBefore')},{passive:false});
-  root.addEventListener('pointerup',e=>{const g=projectTouchGesture;if(!g||g.pointerId!==e.pointerId)return;if(g.timer)clearTimeout(g.timer);if(g.mode==='drag'){e.preventDefault();const t=targetAt(e.clientX,e.clientY,g);if(t)reorderProject(g.id,t.row.dataset.project,t.after);lastId='';lastAt=0;reset();return}if(g.moved){reset();return}const n=Date.now();if(lastId===g.id&&n-lastAt<=DBL){cancelSingle();lastId='';lastAt=0;window.__projectTouchSuppress=n+900;e.preventDefault();openProjectContext(g.id,g.row);if(navigator.vibrate)try{navigator.vibrate(10)}catch{};reset();return}lastId=g.id;lastAt=n;const id=g.id;singleTimer=setTimeout(()=>{singleTimer=null;if(lastId===id){lastId='';lastAt=0;window.__projectTouchSuppress=Date.now()+150;openProject(id);sideOpen(false)}},DBL);reset()},{passive:false});
-  root.addEventListener('pointercancel',e=>{if(projectTouchGesture&&e.pointerId===projectTouchGesture.pointerId){cancelSingle();lastId='';lastAt=0;reset()}},{passive:true});
-  root.addEventListener('click',e=>{if(e.target.closest?.('button,input,label,.coachToggle,.coachSwitch,.ibtn'))return;if(Date.now()<(window.__projectTouchSuppress||0)&&e.target.closest?.('.card.projectDrop[data-project]')){e.preventDefault();e.stopImmediatePropagation()}},true);
+  const beginDrag=x=>{if(!x||x.mode!=='pending')return;cancelSingle();x.mode='drag';window.__projectTouchSuppress=Date.now()+1200;x.row.classList.add('projectTouchDragging');makeGhost(x.row,x.x,x.y);document.body.classList.add('touchDragging');if(navigator.vibrate)try{navigator.vibrate(12)}catch{}};
+  const targetAt=(x,y,xg)=>{const t=[...root.querySelectorAll('.card.projectDrop[data-project]')].find(n=>n.dataset.project!==xg.id&&pointInRect(x,y,n.getBoundingClientRect(),4));if(!t)return null;const r=t.getBoundingClientRect();return{row:t,after:y>=r.top+r.height/2}};
+  root.addEventListener('touchstart',e=>{if(e.touches.length!==1)return;const row=e.target.closest?.('.card.projectDrop[data-project]');if(!row||e.target.closest?.('button,input,label,.coachToggle,.coachSwitch,.ibtn'))return;const t=e.touches[0];window.__projectTouchSuppress=Date.now()+1200;window.__pcTouch=true;cancelSingle();g={id:row.dataset.project,row,startX:t.clientX,startY:t.clientY,x:t.clientX,y:t.clientY,mode:'pending',timer:null};projectTouchGesture=g;g.timer=setTimeout(()=>{if(g&&g.mode==='pending')beginDrag(g)},HOLD)},{passive:true});
+  root.addEventListener('touchmove',e=>{if(!g||e.touches.length!==1)return;const t=e.touches[0];g.x=t.clientX;g.y=t.clientY;if(g.mode==='pending'){if(Math.hypot(t.clientX-g.startX,t.clientY-g.startY)>SLOP)reset();return}e.preventDefault();if(ghost){ghost.style.left=t.clientX+'px';ghost.style.top=t.clientY+'px'}clear();g.row.classList.add('projectTouchDragging');const hit=targetAt(t.clientX,t.clientY,g);if(hit)hit.row.classList.add('projectTouchTarget',hit.after?'projectOrderAfter':'projectOrderBefore')},{passive:false});
+  root.addEventListener('touchend',e=>{if(!g)return;const x=g;if(x.timer)clearTimeout(x.timer);const t=e.changedTouches?.[0],cx=t?.clientX??x.x,cy=t?.clientY??x.y;if(x.mode==='drag'){e.preventDefault();const hit=targetAt(cx,cy,x);if(hit)reorderProject(x.id,hit.row.dataset.project,hit.after);lastId='';lastAt=0;reset();return}const n=Date.now();if(lastId===x.id&&n-lastAt<=DBL){cancelSingle();lastId='';lastAt=0;e.preventDefault();openProjectContext(x.id,x.row);reset();return}lastId=x.id;lastAt=n;const id=x.id;singleTimer=setTimeout(()=>{singleTimer=null;if(lastId===id){lastId='';lastAt=0;openProject(id);sideOpen(false)}},DBL);reset()},{passive:false});
+  root.addEventListener('touchcancel',()=>{cancelSingle();lastId='';lastAt=0;reset()},{passive:true});
 }
 async function moveThreadToProject(key,targetProject){
   const t=sot.threads[key],target=sot.projects[targetProject];if(!t||!target||target.deleted||t.project===targetProject)return;
@@ -869,6 +868,7 @@ async function confirmDeleteMessage(key,index){
   });
 }
 async function softDeleteThread(key){
+  const t=sot.threads[key];if(!t)return;if(!confirm('Remove tab "'+tabName(t)+'"? It will move to Deleted and can be restored.'))return;
   await guard(async()=>{
     sot.threads[key].deleted=true;sot.threads[key].deletedAt=now();
     if(activeKey===key){activeKey=null;if(view!=='dash')showView('empty')}

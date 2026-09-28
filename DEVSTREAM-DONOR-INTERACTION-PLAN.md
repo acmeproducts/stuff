@@ -86,3 +86,7 @@ Owner device validation: b46 PASS for step 1 (stationary hold displays named tab
 ## b48 validated drag + message deletion / tab completion
 
 Owner device result: b47 drag movement works, with slight lag. Preserve the validated touch activation and target footprint. Complete the cross-project outcome by opening the destination project and moved tab after a successful drop. Add permanent per-message deletion (× → confirmation → remove from in-memory thread JSON → write cleaned JSON), specifically allowing an accidentally entered secret to be removed before GitHub persistence. New + tabs use an in-app naming modal and are inserted first in the project tab order.
+
+## b49 Android project drag + tab delete confirmation + 409 recovery
+
+Owner report: tab dragging works; tab × needs confirmation; projects must support the same mobile hold/drag/drop interaction; active Earth thread writes repeatedly fail GitHub 409 with a stale/mismatched content SHA. b49 preserves accepted tab dragging. Tab × now confirms before soft-delete. Project mobile reordering now uses the direct touch-event hold path already validated for tabs (350ms named ghost, target marker, release reorder). Thread writes bypass the shared GET single-flight cache when establishing/recovering the current content SHA and retry a 409 against a freshly fetched SHA, preserving thread reconciliation.
