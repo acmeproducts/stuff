@@ -6,8 +6,8 @@ Deploy target: `https://acmeproducts.github.io/stuff/devstream.html`
 Test target: `https://acmeproducts.github.io/stuff/devstream-test.html`
 
 ## Status
-- Current release: v1.0 b49 on devstream-test.html (2026-09-27)
-- Stage: TEST (b49)
+- Current release: v1.0 b50 on devstream-test.html (2026-09-27)
+- Stage: TEST (b50)
 
 ## Release Rules (inherited, proven)
 1. Mobile-first. All diagnostics in-app. No DevTools ever.
@@ -255,6 +255,16 @@ b39 incorrectly changed stationary hold into context-menu activation. Devstream 
 ## Graveyard
 - **G-DS-13 — Hold opens context menu:** rejected; donor behavior is double-tap context, hold-to-drag.
 - **G-DS-14 — Legacy generic #tabContext button styling:** rejected; it corrupts the donor context-menu appearance.
+
+---
+
+# 2026-09-28 — b50 409 hardening + project drag gate
+
+- Owner screenshot: repeated thread JSON GitHub 409 SHA mismatch under queued activity.
+- Thread writes now retry against a fresh SHA up to 12 times with bounded backoff.
+- Permanent message deletion uses a per-path tombstone during reconciliation so a concurrent remote copy cannot restore the deleted message/secret.
+- Tab × confirmation retained from b49.
+- Project touch drag/reorder retained and project list now declares native vertical pan before hold activation.
 
 ---
 

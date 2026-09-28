@@ -90,3 +90,7 @@ Owner device result: b47 drag movement works, with slight lag. Preserve the vali
 ## b49 Android project drag + tab delete confirmation + 409 recovery
 
 Owner report: tab dragging works; tab × needs confirmation; projects must support the same mobile hold/drag/drop interaction; active Earth thread writes repeatedly fail GitHub 409 with a stale/mismatched content SHA. b49 preserves accepted tab dragging. Tab × now confirms before soft-delete. Project mobile reordering now uses the direct touch-event hold path already validated for tabs (350ms named ghost, target marker, release reorder). Thread writes bypass the shared GET single-flight cache when establishing/recovering the current content SHA and retry a 409 against a freshly fetched SHA, preserving thread reconciliation.
+
+## b50 409 concurrency + project drag + tab delete confirmation
+
+Owner device report: repeated GitHub 409 SHA mismatch while several messages are queued; tab × must require confirmation; projects must support drag/drop. b49 already introduced tab × confirmation and project touch drag code; b50 preserves those and hardens the live path. Thread writes now serialize with up to 12 fresh-SHA retries under contention. Permanent message deletion records an in-memory tombstone so conflict reconciliation cannot resurrect the removed message from the remote JSON. Project list touch behavior explicitly permits vertical scrolling before the 350ms hold, then the existing named-ghost reorder path owns the gesture.
