@@ -7,11 +7,16 @@ Build the full walkable, streamed 3D Earth described in the reference README as 
 - Owner directive: previous approach not working — back up, put a correct plan in place, full internet access available.
 - Reality: outbound fetches from this build environment have failed repeatedly. Treat internet as guaranteed at APP RUNTIME (the user's browser), not at build time. Therefore: pin exact endpoints, give every external dependency a fallback chain, surface source status on the HUD, and never let one failed service block startup.
 - Plan rewritten around verifiable milestones M1–M8 instead of a single big-bang file write.
+- 2026-09-28: Owner re-confirmed full scope in scope, web access working.
 
 ## Reference repo confirmed (2026-09-27, via web search)
 - The reference project is public on GitHub as `magnificus/earth` — "A walkable, streamed 3D Earth built with Babylon.js and real-world geographic data." Features match our scope: terrain streaming, roads, buildings, water, vegetation, weather, seasons, stars, a fictional moon, settings, and saves.
 - Key data-source detail extracted from its docs: **land cover** comes from **Copernicus LCFM LCM-10 V1 (reference year 2020)**, streamed as native-resolution classification windows from **Terrascope's public TiTiler service** with nearest-neighbour sampling and class-code translation. Sole source, **no API key required**. Adopted as our M4 biome source (see Architecture).
-- Exact TiTiler tile-URL template to be confirmed via web search at the start of M4, before coding it.
+- **2026-09-28 web-search confirmations:**
+  - Terrascope STAC catalog endpoint: `https://stac.terrascope.be/collections/lcfm-lcm-10` (developer discovery path for the collection; TiTiler tile-URL template still to be confirmed via search at M4 start, before coding land cover).
+  - LCM-10 coverage bounds: **60 S to 83 N** — outside this band, use procedural classification fallback and HUD flag.
+  - Reference rendering behavior on missing classification: bare-ground fallback; other service errors remain visible (mirror this: never blank terrain, always show source status).
+  - LCM-10 base year is 2020; annual 2021–2025 products (+ LCCM-10 change maps) expected later in 2026 — no action needed, note for future.
 - **SECURITY:** Owner posted a GitHub personal access token in chat. It is NOT recorded here and must never be written into the plan or the code. The repo is public so no token is needed; owner should revoke the posted token on GitHub (it is now exposed) and generate a fresh one only if ever needed elsewhere.
 
 ## Decisions locked
@@ -23,7 +28,7 @@ Build the full walkable, streamed 3D Earth described in the reference README as 
 ## Architecture (pinned)
 - **Coordinates:** Web Mercator tile math; base terrain at zoom 15 (~1.2 km tiles at equator); lat/lon ↔ tile/pixel conversions in-app.
 - **Elevation:** Terrarium PNG tiles from the public elevation-tiles-prod S3 endpoint (`/terrarium/{z}/{x}/{y}.png`, CORS-enabled). Decode: `h = R*256 + G + B/256 − 32768` meters. Fallback: seeded fBm noise heightfield so terrain always renders (HUD flags SRC: PROC).
-- **Land cover / biomes:** PRIMARY — Copernicus LCFM LCM-10 V1 classification windows via Terrascope public TiTiler (nearest-neighbour, class codes → ocean/beach/grass/forest/rock/snow/desert/cropland/urban), driving vertex colors and vegetation scatter. FALLBACK — per-vertex procedural classification from latitude, elevation, moisture noise. HUD flags which source is live.
+- **Land cover / biomes:** PRIMARY — Copernicus LCFM LCM-10 V1 classification windows via Terrascope public TiTiler (nearest-neighbour, class codes → ocean/beach/grass/forest/rock/snow/desert/cropland/urban), driving vertex colors and vegetation scatter. STAC collection: `https://stac.terrascope.be/collections/lcfm-lcm-10`; coverage 60 S–83 N (outside → fallback). FALLBACK — per-vertex procedural classification from latitude, elevation, moisture noise; bare-ground color when class unknown. HUD flags which source is live.
 - **Water:** Sea-level (0 m) animated water plane per tile; lakes where elevation ≈ flat below threshold.
 - **Roads & buildings:** Overpass API (overpass-api.de primary, kumi.systems mirror) bbox queries around player, debounced, cached; roads as terrain-conforming ribbons, building footprints extruded to boxes. Fallback + beyond range: procedural street grid and procedural enterable buildings along roads.
 - **Streaming:** Ring of tiles centered on player (start 5×5, quality-scalable), LOD by distance (mesh subdivisions 96/48/24), skirt geometry to hide seams, tile cache + unload outside radius; architecture expandable toward the reference 33×33 grid.
@@ -45,7 +50,7 @@ Build the full walkable, streamed 3D Earth described in the reference README as 
 ## Risk register
 - CDN blocked → try 3 CDNs in order; if all fail, show on-screen fatal error (never silent).
 - Terrarium 404/429/CORS → per-tile fBm fallback; HUD flags PROC; retry on tile re-entry.
-- TiTiler unavailable/slow → per-tile procedural biome classification; HUD flags PROC; land cover never blocks terrain render.
+- TiTiler unavailable/slow/out-of-coverage (60 S–83 N) → per-tile procedural biome classification; HUD flags PROC; land cover never blocks terrain render.
 - Overpass rate-limit → exponential backoff, in-memory cache, procedural grid fallback; HUD flags.
 - Imagery CORS/usage policy → optional layer, off by default, failure never blocks terrain.
 - Phone perf → quality presets (LOW/MED/HIGH) scale subdivisions, ring radius, vegetation density, particles.
@@ -66,3 +71,4 @@ Build the full walkable, streamed 3D Earth described in the reference README as 
 | 2026-09-27 | Build start | Owner directive: web access available, no descoping. Plan refreshed with full feature checklist. |
 | 2026-09-27 | Plan reset | Owner: prior approach failing — back up, correct plan. Rewritten with pinned endpoints (Terrarium elevation, Overpass, dual-CDN Babylon), fallback chains for every service, milestone build order M1–M8 (sequencing only, no scope cut), risk register. Next: write earth.html covering M1+M2. |
 | 2026-09-27 | Plan update | Web search confirmed reference repo as public `magnificus/earth`; pinned its land-cover pipeline (Copernicus LCFM LCM-10 V1 via Terrascope public TiTiler, no key) as M4 primary source with procedural fallback; TiTiler URL template to be searched at M4. Owner-posted GitHub PAT NOT stored — revocation advised; repo is public, app needs no GitHub auth. Next: write earth.html M1+M2. |
+| 2026-09-28 | Plan checkpoint | Web search confirmed Terrascope STAC collection `https://stac.terrascope.be/collections/lcfm-lcm-10`, LCM-10 coverage 60 S–83 N, bare-ground fallback behavior, base year 2020 (annual products coming later in 2026). Owner re-confirmed full scope. Plan validated build-ready. Next: write `projects/earth.html` covering M1+M2 (dual-CDN Babylon bootstrap, HUD skeleton with on-screen error trap, walk+fly camera, Mercator math, one z15 Terrarium tile with seeded fBm fallback, SF spawn at 37.7749 N 122.4194 W). |
