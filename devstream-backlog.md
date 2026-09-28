@@ -6,8 +6,8 @@ Deploy target: `https://acmeproducts.github.io/stuff/devstream.html`
 Test target: `https://acmeproducts.github.io/stuff/devstream-test.html`
 
 ## Status
-- Current release: v1.0 b44 on devstream-test.html (2026-09-27)
-- Stage: TEST (b44)
+- Current release: v1.0 b45 on devstream-test.html (2026-09-27)
+- Stage: TEST (b45)
 
 ## Release Rules (inherited, proven)
 1. Mobile-first. All diagnostics in-app. No DevTools ever.
@@ -255,6 +255,15 @@ b39 incorrectly changed stationary hold into context-menu activation. Devstream 
 ## Graveyard
 - **G-DS-13 — Hold opens context menu:** rejected; donor behavior is double-tap context, hold-to-drag.
 - **G-DS-14 — Legacy generic #tabContext button styling:** rejected; it corrupts the donor context-menu appearance.
+
+---
+
+# 2026-09-27 — b45 Devstream-specific drag geometry
+
+- Owner confirmed b44 Rename/Enter works; drag/drop does not.
+- Devstream has an extra main ribbon above its tab strip and a mobile overlay sidebar; drag destination resolution is now based on viewport rectangles rather than `elementFromPoint()` painted hit-testing.
+- Once HOLD arms drag, the gesture explicitly disables browser touch/overscroll takeover until release. Before arming, ordinary scrolling remains available.
+- b44 rename fix and b38 conflict reconciliation retained.
 
 ---
 

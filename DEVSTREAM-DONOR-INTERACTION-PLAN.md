@@ -66,3 +66,11 @@ Exactly one terminal outcome is allowed.
 ## Implementation status
 
 **BUILT — b43.** The planned gesture arbiter is implemented as a coherent change. Single-tap navigation is deferred until the double-tap window resolves; double tap cancels navigation and opens context; hold cancels navigation and enters drag; scroll movement cancels the gesture. Device validation remains the final interaction gate.
+
+## b45 Devstream geometry correction
+
+Owner report after b44: Rename now works; drag/drop remains broken. Devstream differs physically from the donor because its main ribbon sits above the 48px tab strip and its mobile sidebar overlays the main surface.
+
+Cause addressed in b45: donor-style touch drag was still resolving destinations through the painted element under the pointer. The target implementation now resolves project cards, tabs, and insertion zones from their viewport `getBoundingClientRect()` geometry, in the same `clientX/clientY` coordinate system as the pointer. Once HOLD arms drag, Devstream explicitly owns the gesture until release; normal scrolling remains available before drag arms.
+
+Acceptance remains: hold produces named ghost; movement highlights the actual destination; release persists reorder/move. Rename correction from b44 must remain intact.
