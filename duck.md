@@ -18,6 +18,7 @@ turn from Turn 22 on: `chat-turnNN-STAGE.html` + `chat-admin-turnNN-STAGE.html`)
 | 20·post-ship | Bridge-core engine (byte-verified) + ownership switch + 44px keyboard + dual-socket arbitration + mic idle release. | **ACCEPTED BASELINE — proven working for both South and North.** | https://acmeproducts.github.io/stuff/duck-turn20-post-ship.html (= `duck.html`) |
 | 23·base | Keyboard engineered rebuild (§3 items 1–21): SHARK2 recognizer, 48px keys, key-preview popup, haptics. | **BUILT — awaiting real-device test** | https://acmeproducts.github.io/stuff/chat-turn23-base.html |
 | 22·pre-base | Two-file split: `chat.html` (stateless shell, `?room=` required) + `chat-admin.html` (room create/edit/delete/restore, keys, font colour+size). All 6 gates pass — engine byte-identical (16/16), switch harness (25/25), no room/key code in chat.html, no-room gate present, never writes rooms_index. | **SHIPPED as pre-base — awaiting real-device test** | https://acmeproducts.github.io/stuff/chat.html · https://acmeproducts.github.io/stuff/chat-admin.html |
+| — (2026-09-28) | Copy request: `chat-test.html` → `bugsbunny.html`, verbatim copy, original untouched. | **BLOCKED — source contents not provided with the request; asked owner to paste file or URL.** | pending: `bugsbunny.html` |
 
 Turns 20·base through 20·ship, and the two rejected Turn 21 candidates, are
 Appendix A history — superseded, not live. See Appendix A §0 for those rows if
@@ -97,6 +98,16 @@ Shared CSS with chat.html — siblings in one workflow, not two products.
 ---
 
 ## 2 · BACKLOG
+
+### B0 · Copy chat-test.html → bugsbunny.html — BLOCKED, waiting on owner
+
+Owner request (2026-09-28): make an exact copy of `chat-test.html` as
+`bugsbunny.html`; the original is not to be touched. The file's contents were
+not provided with the request and no REFERENCED FILE block accompanied it, so
+nothing has been written — producing a "copy" without the source would be
+fabrication. Waiting on: the file pasted into chat or its GitHub URL. Filename
+note: owner typed "bugsbunnny.html" (three n's); assumed typo for
+`bugsbunny.html` — confirm spelling on delivery.
 
 ### B1 · Mic turn-release model — SETTLED, build next
 
