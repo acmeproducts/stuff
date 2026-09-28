@@ -1,6 +1,6 @@
 # Devstream Donor Interaction Implementation Plan
 
-Status: **PLANNING ONLY — NO APPLICATION CODE CHANGE**
+Status: **IMPLEMENTED IN b43 — DEVICE VALIDATION PENDING**
 
 Donor: `session-manager-v3.html` @ `6b7ac39bc688953b868f2f9317221f0f740b336a`  
 Target reviewed: `devstream-test.html` b42
@@ -63,6 +63,6 @@ Exactly one terminal outcome is allowed.
 9. Preserve the accepted refresh/write-conflict reconciliation and non-interaction baseline behavior.
 10. Publish only after the complete interaction state machine is built as one coherent change.
 
-## Current build authorization
+## Implementation status
 
-**NO.** This document is the planning gate. Application code remains unchanged while this interaction map is reviewed.
+**BUILT — b43.** The planned gesture arbiter is implemented as a coherent change. Single-tap navigation is deferred until the double-tap window resolves; double tap cancels navigation and opens context; hold cancels navigation and enters drag; scroll movement cancels the gesture. Device validation remains the final interaction gate.
