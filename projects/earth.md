@@ -10,13 +10,15 @@ Build the full walkable, streamed 3D Earth described in the reference README as 
 - 2026-09-28: Owner re-confirmed full scope in scope, web access working.
 
 ## SECURITY INCIDENT (2026-09-28) — secret in thread state
-- Symptom: writes to `devstream/threads/earth__dev.json` failed twice with GitHub 409 "Secret detected in content", preceded by a 409 write conflict.
-- Root cause: the thread-state JSON persists conversation history, and the GitHub personal access token the owner pasted into chat earlier is embedded in that history. The agent never wrote the token into the plan or code artifacts; it entered the thread file via automatic chat-history persistence.
-- GitHub push protection / secret scanning is working as intended and is blocking the push. Do NOT bypass it.
+- Symptom: writes to `devstream/threads/earth__dev.json` failed three times with GitHub 409 "Secret detected in content", preceded by a 409 write conflict.
+- Root cause: the thread-state JSON auto-persists conversation history, and a GitHub personal access token pasted into chat earlier is embedded in that history. The token was never written into the plan or code artifacts by the agent; it entered the thread file via automatic chat-history persistence. GitHub push protection is working as intended — do NOT bypass it while the token is live.
+- Agent capability note: the build agent writes only `projects/earth.md` and `projects/earth.html`; it has no write path to the thread-state file and cannot edit or scrub chat history. Remediation is owner/operator-side.
 - Corrective action (in order):
-  1. Scrub the token from `devstream/threads/earth__dev.json` — remove every occurrence of the PAT string, including URL-encoded or escaped copies inside embedded history, then retry the thread write.
-  2. Owner: revoke the exposed token on GitHub immediately (it has been transmitted multiple times and must be considered compromised). Generate a fresh one only if ever needed elsewhere — this project needs no GitHub auth (reference repo is public).
-  3. Rule going forward: never paste credentials into chat; never write any token/secret into the plan, the code, or any persisted state file. If a secret ever appears in chat again, treat it as compromised and exclude it from all persisted content.
+  1. Owner: revoke the exposed token on GitHub immediately (Settings → Developer settings → Personal access tokens → Revoke). It has been transmitted repeatedly and must be considered compromised; once revoked it is inert even where copies remain. Generate a fresh one only if ever needed elsewhere — this project needs no GitHub auth (reference repo is public).
+  2. Scrub or reset the thread state: remove every occurrence of the PAT string from `devstream/threads/earth__dev.json` (including URL-encoded or escaped copies inside embedded history), or delete the thread file and reset the conversation so the offending message leaves persisted history; then retry the thread write.
+  3. Persistence-layer hardening (operator): redact known secret patterns (e.g., `ghp_`/`github_pat_` prefixes) to `[REDACTED]` before serializing thread state, so a pasted credential can never reach the repo again.
+  4. Last resort, only AFTER revocation: use GitHub's push-protection "allow secret" bypass to land one clean write — acceptable only because a revoked token is dead.
+  5. Rule going forward: never paste credentials into chat; never write any token/secret into the plan, the code, or any persisted state file. If a secret appears in chat again, treat it as compromised and exclude it from all persisted content.
 
 ## Reference repo confirmed (2026-09-27, via web search)
 - The reference project is public on GitHub as `magnificus/earth` — "A walkable, streamed 3D Earth built with Babylon.js and real-world geographic data." Features match our scope: terrain streaming, roads, buildings, water, vegetation, weather, seasons, stars, a fictional moon, settings, and saves.
@@ -64,12 +66,12 @@ Build the full walkable, streamed 3D Earth described in the reference README as 
 - Imagery CORS/usage policy → optional layer, off by default, failure never blocks terrain.
 - Phone perf → quality presets (LOW/MED/HIGH) scale subdivisions, ring radius, vegetation density, particles.
 - Build-env fetch failures → irrelevant at runtime; app validates services live in the browser and reports on HUD.
-- Credentials in chat → never persist tokens in plan, code, or thread state; scrub any that leak into persisted history before pushing (see SECURITY INCIDENT); treat exposed tokens as compromised.
+- Credentials in chat → never persist tokens in plan, code, or thread state; scrub/reset any that leak into persisted history before pushing (see SECURITY INCIDENT); treat exposed tokens as compromised.
 - Thread-write conflicts (409) → refresh thread state, re-apply, retry once; never force-push over another writer blindly.
 
 ## Open work
-- Immediate: scrub the PAT from `devstream/threads/earth__dev.json` and retry the blocked thread write; owner revokes the exposed token.
-- Next build step: write `projects/earth.html` covering M1+M2 (bootstrap + real-elevation terrain with fallback).
+- Immediate (owner/operator-side): revoke the exposed PAT; scrub or reset `devstream/threads/earth__dev.json` and retry the blocked thread write; optionally add redaction to the persistence layer (see SECURITY INCIDENT).
+- Next build step (agent-side, unblocked once thread writes pass): write `projects/earth.html` covering M1+M2 (bootstrap + real-elevation terrain with fallback).
 - Then proceed M3→M8 in order, one milestone step per turn, verifying each smoke test and logging to the ledger.
 - At M4 start: web-search the exact Terrascope TiTiler tile-URL template for the LCFM LCM-10 V1 collection before coding land cover.
 - Final: tune streaming radius/LOD for smooth performance, keeping architecture expandable toward the reference 33×33 grid.
@@ -84,3 +86,4 @@ Build the full walkable, streamed 3D Earth described in the reference README as 
 | 2026-09-27 | Plan update | Web search confirmed reference repo as public `magnificus/earth`; pinned its land-cover pipeline (Copernicus LCFM LCM-10 V1 via Terrascope public TiTiler, no key) as M4 primary source with procedural fallback; TiTiler URL template to be searched at M4. Owner-posted GitHub PAT NOT stored — revocation advised; repo is public, app needs no GitHub auth. Next: write earth.html M1+M2. |
 | 2026-09-28 | Plan checkpoint | Web search confirmed Terrascope STAC collection `https://stac.terrascope.be/collections/lcfm-lcm-10`, LCM-10 coverage 60 S–83 N, bare-ground fallback behavior, base year 2020 (annual products coming later in 2026). Owner re-confirmed full scope. Plan validated build-ready. Next: write `projects/earth.html` covering M1+M2. |
 | 2026-09-28 | Security incident | Thread writes to `devstream/threads/earth__dev.json` blocked twice by GitHub push protection: "Secret detected in content". Root cause: owner-posted GitHub PAT embedded in persisted chat history inside the thread JSON — not written by the agent into plan/code. Directives: scrub all token occurrences from the thread JSON and retry; owner revokes the exposed token; secrets never persisted anywhere going forward. Ledger updated; build remains blocked on the scrub, then proceed to earth.html M1+M2. |
+| 2026-09-28 | Security incident | Third 409 secret-detection block; owner instructed "remove secret". Clarified in reply: the secret lives only in the auto-persisted chat history inside the thread JSON — plan and code artifacts are clean; the agent has no write path to the thread file, so remediation is owner/operator-side: (1) revoke the PAT now, (2) scrub every token copy from the thread JSON or delete/reset it, (3) add secret-pattern redaction to the persistence layer, (4) push-protection bypass only as last resort after revocation. Plan security section updated with the full remediation order; build start (earth.html M1+M2) queued behind the thread-write fix. |
