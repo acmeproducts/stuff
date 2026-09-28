@@ -6,8 +6,8 @@ Deploy target: `https://acmeproducts.github.io/stuff/devstream.html`
 Test target: `https://acmeproducts.github.io/stuff/devstream-test.html`
 
 ## Status
-- Current release: v1.0 b43 on devstream-test.html (2026-09-27)
-- Stage: TEST (b43)
+- Current release: v1.0 b44 on devstream-test.html (2026-09-27)
+- Stage: TEST (b44)
 
 ## Release Rules (inherited, proven)
 1. Mobile-first. All diagnostics in-app. No DevTools ever.
@@ -255,6 +255,17 @@ b39 incorrectly changed stationary hold into context-menu activation. Devstream 
 ## Graveyard
 - **G-DS-13 — Hold opens context menu:** rejected; donor behavior is double-tap context, hold-to-drag.
 - **G-DS-14 — Legacy generic #tabContext button styling:** rejected; it corrupts the donor context-menu appearance.
+
+---
+
+# 2026-09-27 — b44 failed-device-test corrections
+
+## Exact failures corrected
+- **Rename Enter:** project rename could throw before persistence because `isThreadBusyForMove()` still referenced scheduler symbols removed by the b34 rollback. The predicate now uses only structures that exist in the target baseline. Rename inputs also accept Android Enter by `key`, `code`, or keyCode 13 and stop propagation.
+- **Drag:** b43 departed from the donor by cancelling any movement before the stationary 350ms hold completed. The donor has a second 220ms movement-arm threshold. b44 restores that donor behavior: movement before 220ms remains scroll/cancel; movement after 220ms enters drag; a stationary 350ms hold also enters drag.
+
+## Device gate
+Re-test project/tab Rename → Enter, project hold/drag/reorder, tab hold/drag/reorder, and tab hold/drag to another project.
 
 ---
 
