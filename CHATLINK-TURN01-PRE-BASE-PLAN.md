@@ -418,3 +418,16 @@ Ownership metadata (side, generation, source/target language, time, confidence, 
 - Nothing uses the keys yet.
 
 **Gates (lab).** 23/23 controller tests. Ask mode: 25/25, including the r9 scenario with mocked providers. Open mode: 26/26. Keyboard: 32/32. The real Venice/OpenRouter endpoints were not called from the lab.
+
+
+### chat-test r10: join window 1.5 s → 4 s (2026-09-29)
+
+**Owner field log (r9).** `dg_final` for the first half (30 chars, no ending punctuation) arrived at 11:31:46. `fragment-held` fired at 11:31:47 and `fragment-released reason=timeout` at 11:31:48. The second half's `dg_final` came at 11:31:50, about 4 s after the first, so the two halves were sent separately.
+
+**Cause.** The 1.5 s join window was shorter than the real gap. The gap is the speaking time of the second half plus Korean's 1 s end-of-speech wait plus Deepgram latency.
+
+**Change.** Join window (joinMs) is now 4000 ms. Only finals without ending punctuation wait; complete sentences are still sent immediately.
+
+**Evidence.** The r8 scenario now uses a 3.5 s gap. It fails on r9 (2 messages) and passes on r10 (1 message).
+
+**Gates (lab).** 23/23 controller tests. Ask mode: 25/25. Open mode: 26/26. Keyboard: 32/32.

@@ -129,7 +129,7 @@ test('r8: a mid-sentence final is held and joined with the next one',async()=>{
 });
 test('r8: a held fragment is released after the join window, Thai is never held',async()=>{
  const t=world({langs:{north:'ko'}});t.a.sync();await t.tick();t.a.toggleMute('south');
- t.a.heard('north','잠깐만요','ko',{confidence:1});t.advance(1499);assert.equal(t.sent.length,0);t.advance(1);assert.deepEqual(t.sent,[['north','잠깐만요']]);
+ t.a.heard('north','잠깐만요','ko',{confidence:1});t.advance(3999);assert.equal(t.sent.length,0);t.advance(1);assert.deepEqual(t.sent,[['north','잠깐만요']]);
  const u=world();u.a.sync();await u.tick();u.a.toggleMute('south');u.a.heard('north','สวัสดีครับ','th',{confidence:1});assert.deepEqual(u.sent,[['north','สวัสดีครับ']]);
 });
 test('r8: read-aloud start releases a held fragment; room switch discards it',async()=>{
