@@ -276,6 +276,10 @@ Baseline: b50 `8ff0462`. Test file only; `devstream.html` untouched. No other be
 - Paste intercepts only when the clipboard contains real files. Drop accepts only real `File` objects; dropping files anywhere never navigates the page. Compose strip highlights while files are dragged over it (depth-counted, no child flicker).
 - Per-file rejection toast (name + reason); other files still attach. Binary/unreadable files are rejected with a reason.
 
+## Amendment — attachments are local-only (owner directive 2026-09-29)
+- Image attachments are no longer uploaded to GitHub. They are stored in this browser's IndexedDB (`ds_attachments`); the thread record keeps only name/type/id. Images are passed to the provider from local storage. Older messages with a GitHub path/url still work. On another device an image shows as "stored on another device" and is skipped for provider calls.
+- Text/document attachments were already inline in the thread record (unchanged).
+
 ## Acceptance
 - **DS-B51-1..15:** logging behaviors per owner spec items 1–15.
 - **DS-B51-16..39:** attachment picker/paste/drop and error behaviors per owner spec items 16–39.

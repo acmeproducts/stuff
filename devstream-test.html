@@ -1001,12 +1001,13 @@ function renderChat(force){
     if(m.status==='pending')meta+='<span>⧗ '+(coach?'waiting':'queued')+'</span>';
     if(m.commit)meta+='<span class="mono">'+m.commit.slice(0,10)+'</span>';
     if(m.target)meta+='<span class="mono">→ '+esc(m.target)+'</span>';
-    let attHtml='';(m.attachments||[]).forEach(a=>{attHtml+=a.kind==='image'?'<img class="att" src="'+esc(a.url)+'" alt="'+esc(a.name)+'">':'<div class="mmeta">📄 '+esc(a.name)+' ('+Math.round((a.text||'').length/1000)+'k)</div>'});
+    let attHtml='';(m.attachments||[]).forEach(a=>{attHtml+=a.kind==='image'?'<img class="att" '+(a.id?'data-attid="'+esc(a.id)+'"':'src="'+esc(a.url)+'"')+' alt="'+esc(a.name)+'">':'<div class="mmeta">📄 '+esc(a.name)+' ('+Math.round((a.text||'').length/1000)+'k)</div>'});
     const displayText=coach&&m.role==='agent'?(m.coachText||(m.summary?m.summary:m.text)):m.text;
     el.innerHTML='<button class="msgDelete" type="button" title="Permanently remove message" aria-label="Permanently remove message">×</button>'+linkify(displayText)+attHtml+meta+'</div>';
     el.querySelector('.msgDelete').onclick=()=>confirmDeleteMessage(key,mi);
     c.appendChild(el);
   });
+  c.querySelectorAll('img[data-attid]').forEach(hydrateAttImg);
   c.scrollTop=atBottom?c.scrollHeight:keepScroll;
 }
 async function confirmDeleteMessage(key,index){
@@ -1225,13 +1226,22 @@ async function ingestFiles(files,source){
   });
 })();
 function renderAttList(){const L=$('attachList');L.innerHTML='';pendingAtt.forEach((a,i)=>{const c=document.createElement('span');c.className='attChip';c.innerHTML=(a.kind==='image'?'🖼 ':'📄 ')+esc(a.name)+' <button>✕</button>';c.querySelector('button').onclick=()=>{pendingAtt.splice(i,1);renderAttList()};L.appendChild(c)})}
+/* image attachments live in this browser only (IndexedDB); threads keep just id/name/type */
+let attDbP=null;
+function attDb(){return attDbP||(attDbP=new Promise((res,rej)=>{const r=indexedDB.open('ds_attachments',1);r.onupgradeneeded=()=>r.result.createObjectStore('files',{keyPath:'id'});r.onsuccess=()=>res(r.result);r.onerror=()=>rej(r.error)}))}
+async function attPut(rec){const db=await attDb();return new Promise((res,rej)=>{const tx=db.transaction('files','readwrite');tx.objectStore('files').put(rec);tx.oncomplete=()=>res();tx.onerror=()=>rej(tx.error)})}
+async function attGet(id){const db=await attDb();return new Promise((res,rej)=>{const r=db.transaction('files').objectStore('files').get(id);r.onsuccess=()=>res(r.result||null);r.onerror=()=>rej(r.error)})}
+async function hydrateAttImg(img){
+  try{const rec=await attGet(img.dataset.attid);if(!rec)throw 0;const bin=atob(rec.b64),u8=new Uint8Array(bin.length);for(let i=0;i<bin.length;i++)u8[i]=bin.charCodeAt(i);img.src=URL.createObjectURL(new Blob([u8],{type:rec.type}))}
+  catch(e){const d=document.createElement('div');d.className='mmeta';d.textContent='🖼 '+(img.alt||'image')+' (stored on another device)';img.replaceWith(d)}
+}
 async function storeAttachments(t,atts){
   const out=[];
   for(const a of atts){
     if(a.kind==='image'){
-      const path='devstream/attachments/'+encodeURIComponent(t.project)+'/'+Date.now()+'-'+a.name.replace(/[^\w.\-]/g,'_');
-      await gh('contents/'+path,{method:'PUT',body:JSON.stringify({message:'devstream: attachment '+a.name,content:a.b64,branch:cfg.branch})});
-      out.push({name:a.name,type:a.type,kind:'image',path,url:'https://raw.githubusercontent.com/'+repoFull()+'/'+cfg.branch+'/'+path});
+      const id='a'+Date.now().toString(36)+Math.random().toString(36).slice(2,8);
+      await attPut({id,name:a.name,type:a.type,b64:a.b64});
+      out.push({name:a.name,type:a.type,kind:'image',id});
     }else out.push({name:a.name,type:a.type,kind:'text',text:a.text});
   }
   return out;
@@ -1427,7 +1437,7 @@ async function runAgent(key,premarked){
     const history=th.data.messages.filter(m=>m.status!=='pending').map(m=>({role:m.role==='user'?'user':'assistant',content:m.summary||m.text})).slice(-14);
     const forced=pend.find(m=>m.forcedTarget);
     const instr=pend.map(m=>m.text+(m.attachments||[]).filter(a=>a.kind==='text').map(a=>'\n\n<attachment name="'+a.name+'">\n'+a.text+'\n</attachment>').join('')).join('\n\n')+(forced?'\n\n(Required TARGET for this response: '+forced.forcedTarget+')':'');
-    const images=pend.flatMap(m=>(m.attachments||[]).filter(a=>a.kind==='image').map(a=>({path:a.path,type:a.type,name:a.name})));
+    const images=[];for(const m of pend)for(const a of (m.attachments||[]).filter(a=>a.kind==='image')){const rec=a.id?await attGet(a.id).catch(()=>null):null;if(rec)images.push({name:a.name,type:a.type,b64:rec.b64});else if(a.path)images.push({path:a.path,type:a.type,name:a.name});else toast(a.name+' is not on this device — skipped')}
     const ghRefs=pend.flatMap(m=>parseGhRefs(m.text));
     const curFile=await getFile(codeFile).catch(()=>null);
     const baseChars=curFile?curFile.content.length:0;
@@ -1613,6 +1623,7 @@ self.onmessage=async e=>{
     const{cfg,codeFile,planFile,inputFile,system,history,instr,chain,threadModel,threadEngine}=job;
     const images=[];
     for(const im of (job.images||[])){
+      if(im.b64){images.push({name:im.name,type:im.type,b64:im.b64});continue}
       post({type:'log',line:'loading image '+im.name});
       const r=await tfetch('https://api.github.com/repos/'+cfg.owner+'/'+cfg.repo+'/contents/'+im.path+'?ref='+cfg.branch,{cache:'no-store',headers:{'Authorization':'Bearer '+cfg.pat,'Accept':'application/vnd.github+json'}},25000);
       if(r.ok){const j=await r.json();images.push({name:im.name,type:im.type,b64:(j.content||'').replace(/\\n/g,'')})}
