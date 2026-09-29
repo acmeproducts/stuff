@@ -1,7 +1,7 @@
 // Open-mode scenarios, appended to the Chatlink harness (uses its create/menu/send/settled helpers).
 async function openRoom(page,name){await page.evaluate(()=>{localStorage.setItem('tb_dg_key','synthetic-key');localStorage.setItem('chat_test_audio',JSON.stringify({mode:'open',tones:true,resumeMs:300}))});await create(page,name);await page.waitForFunction(()=>mic.south.active&&mic.north.active);
  const byLang=l=>page.testSockets.filter(w=>w.url().includes('language='+l)).slice(-1)[0];return {south:byLang('en-US'),north:byLang('th')};}
-const final=(ws,text,confidence)=>ws.send(JSON.stringify({is_final:true,channel:{alternatives:[{transcript:text,confidence}]}}));
+const final=(ws,text,confidence)=>{ws.send(JSON.stringify({is_final:true,channel:{alternatives:[{transcript:text,confidence}]}}));ws.send(JSON.stringify({type:'UtteranceEnd'}))};
 const events=(page,name)=>page.evaluate(n=>debugLog.filter(e=>e.ev==='audio:'+n).map(e=>e.d),name);
 test('open mode: both listen, speaker routed, read-aloud silences the mic, echo dropped, resume',async({page})=>{
  await page.evaluate(()=>{window.ttsLog=[];speechSynthesis.speak=u=>{window.ttsLog.push(u.text);window.finishTTS=()=>u.onend&&u.onend();setTimeout(()=>u.onstart&&u.onstart(),10)}});

@@ -53,7 +53,7 @@ test('r7: every message records its route; the check shows it',async({page})=>{
  await create(page,'Routes');await send(page,'north','สวัสดีครับ');await settled(page,1);
  assert.deepEqual(await page.evaluate(()=>HIST[0].via),{input:'keyboard'});
  await page.locator('#strip-south .micbtn').click();await page.waitForFunction(()=>mic.south.active);
- const ws=page.testSockets.filter(w=>w.url().includes('language=en-US')).slice(-1)[0];ws.send(JSON.stringify({is_final:true,channel:{alternatives:[{transcript:'hello friend',confidence:.91}]}}));
+ const ws=page.testSockets.filter(w=>w.url().includes('language=en-US')).slice(-1)[0];ws.send(JSON.stringify({is_final:true,channel:{alternatives:[{transcript:'hello friend',confidence:.91}]}}));ws.send(JSON.stringify({type:'UtteranceEnd'}));
  await settled(page,2);const via=await page.evaluate(()=>HIST[1].via);
  assert.equal(via.input,'voice');assert.equal(via.pipe,'south');assert.equal(via.heardAs,'en');assert.equal(via.reason,'owner');assert.equal(via.mode,'ask');assert.equal(via.conf,0.91);
  const h=page.locator('#tx-south .bhdr').nth(1);await h.scrollIntoViewIfNeeded();const b=await h.boundingBox();await page.mouse.click(b.x+10,b.y+b.height/2);await page.waitForTimeout(60);await page.mouse.click(b.x+10,b.y+b.height/2);
@@ -61,7 +61,7 @@ test('r7: every message records its route; the check shows it',async({page})=>{
  assert.match(await ov.locator('tr').last().textContent(),/RouteVoiceMic channel: south \(English\), heard as English, confidence 0\.91, mode ask, decided by mic owner/);
  assert.ok(await page.evaluate(()=>debugLog.some(e=>e.ev==='route'&&e.d.input==='voice'&&e.d.side==='south')));
 });
-test('r8: a Korean sentence split at "하지만" arrives as one message',async({page})=>{
+test('r8/r12: without an UtteranceEnd, finals 3.5 s apart still arrive as one message (fallback)',async({page})=>{
  await page.evaluate(()=>{localStorage.setItem('tb_dg_key','synthetic-key');localStorage.setItem('chat_test_audio',JSON.stringify({mode:'open',tones:false}))});
  await create(page,'Split','en','ko');await page.waitForFunction(()=>mic.south.active&&mic.north.active);
  const ko=page.testSockets.filter(w=>w.url().includes('language=ko')).slice(-1)[0];
@@ -69,7 +69,7 @@ test('r8: a Korean sentence split at "하지만" arrives as one message',async({
  fin('가끔은 잠들 수 있을 것 같은 기분이 들기도 하지만');await page.waitForTimeout(3500);fin('지금은 출근해야 해요.');
  await page.waitForFunction(()=>HIST.length>=1&&HIST[0].status!=='pending',null,{timeout:12000});await page.waitForTimeout(2000);
  assert.equal(await page.evaluate(()=>HIST.length),1);assert.equal(await page.evaluate(()=>HIST[0].original),'가끔은 잠들 수 있을 것 같은 기분이 들기도 하지만 지금은 출근해야 해요.');
- assert.equal(await page.evaluate(()=>HIST[0].via.joined),2);
+ assert.ok(await page.evaluate(()=>debugLog.some(e=>e.ev==='dg_utterance'&&e.d.parts===2&&e.d.reason==='fallback')));
 });
 test('r9: AI keys tab loads models, validates and saves Venice and OpenRouter keys',async({page})=>{
  await page.route('https://api.venice.ai/**',route=>{const u=route.request().url();if(u.endsWith('/models'))return route.fulfill({json:{data:[{id:'venice-b'},{id:'venice-a'}]}});const b=JSON.parse(route.request().postData()||'{}');return b.model==='venice-a'?route.fulfill({status:402,json:{error:'credits'}}):route.fulfill({json:{choices:[{message:{content:'ok'}}]}})});
@@ -98,4 +98,19 @@ test('r11: open mode with an English partner opens no extra English channel; ask
  await page.evaluate(()=>localStorage.setItem('chat_test_audio',JSON.stringify({mode:'ask',tones:false})));
  await create(page,'AskDual','en','ko');await page.locator('#strip-north .micbtn').click();await page.waitForFunction(()=>mic.north.active);await page.waitForTimeout(300);
  assert.ok(await page.evaluate(()=>debugLog.some(e=>e.ev==='dg_en_open')),'ask mode keeps the English side-channel for code-switching');
+});
+test('r12: same audio, split with or without a period, gives one message per spoken turn',async({page})=>{
+ await page.evaluate(()=>{localStorage.setItem('tb_dg_key','synthetic-key');localStorage.setItem('chat_test_audio',JSON.stringify({mode:'open',tones:false}))});
+ await create(page,'Turns','en','ko');await page.waitForFunction(()=>mic.south.active&&mic.north.active);
+ const ko=page.testSockets.filter(w=>w.url().includes('language=ko')).slice(-1)[0];
+ assert.ok(ko.url().includes('interim_results=true')&&ko.url().includes('utterance_end_ms=1500'));
+ const fin=t=>ko.send(JSON.stringify({is_final:true,channel:{alternatives:[{transcript:t,confidence:1}]}})),end=()=>ko.send(JSON.stringify({type:'UtteranceEnd'}));
+ fin('하마터면 잠들 뻔했어요.');await page.waitForTimeout(1200);fin('하지만 이제 출근할 시간이에요.');end();
+ await page.waitForFunction(()=>HIST.length>=1,null,{timeout:3000});await page.waitForTimeout(1500);
+ assert.equal(await page.evaluate(()=>HIST.length),1,'a period mid-turn does not split the message');
+ assert.equal(await page.evaluate(()=>HIST[0].original),'하마터면 잠들 뻔했어요. 하지만 이제 출근할 시간이에요.');
+ fin('하마터면 잠들 뻔했어요 하지만');await page.waitForTimeout(1200);fin('이제 출근할 시간이에요.');end();
+ await page.waitForFunction(()=>HIST.length>=2,null,{timeout:3000});await page.waitForTimeout(1500);
+ assert.equal(await page.evaluate(()=>HIST.length),2,'the other split gives the same single message');
+ assert.ok(await page.evaluate(()=>debugLog.filter(e=>e.ev==='dg_utterance'&&e.d.reason==='utterance-end'&&e.d.parts===2).length===2));
 });

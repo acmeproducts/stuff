@@ -332,7 +332,7 @@ function speakText(text,lang){
 (function(){
  const W=window,synth=W.speechSynthesis,cancelNative=synth?synth.cancel.bind(synth):function(){};
  const SIDES=['south','north'],CFG_KEY='chat_test_audio';
- const DEF={mode:'open',tones:true,startTone:'rise',doneTone:'fall',volume:0.12,resumeMs:300,threshold:0.55,margin:0.12,windowMs:700,joinMs:4000,lockMs:1500,turnMs:60000,echoMs:20000};
+ const DEF={mode:'open',tones:true,startTone:'rise',doneTone:'fall',volume:0.12,resumeMs:300,threshold:0.55,margin:0.12,windowMs:700,lockMs:1500,turnMs:60000,echoMs:20000};
  const LIFECYCLE=/^(owner portal|room switch|trash room|storage changed|hidden|pagehide|mic denied)$/;
  const SCRIPT={th:'thai',zh:'han',ja:'kana',ko:'hangul',ar:'arabic',hi:'devanagari',ru:'cyrillic'};
  const SCRIPT_RE={thai:/[฀-๿]/g,kana:/[぀-ヿ]/g,han:/[一-鿿]/g,hangul:/[가-힯ᄀ-ᇿ]/g,arabic:/[؀-ۿ]/g,devanagari:/[ऀ-ॿ]/g,cyrillic:/[Ѐ-ӿ]/g,latin:/[A-Za-zÀ-ɏ]/g};
@@ -396,7 +396,6 @@ function speakText(text,lang){
   if(!synth){rec('tts-start','error',{reason:'tts-unavailable'});return}
   clearTimeout(tts.timer);tts.timer=null;
   const token=++tts.token,before=tts.phase;tts.phase='playing';blockedLogged={};
-  if(Object.keys(frag).length)flushFrags('tts-start');
   remember(text);
   rec('stt-submit-blocked','blocked',{reason:'tts-active',before:before,after:'playing'});
   cue('wait',()=>{
@@ -489,24 +488,9 @@ function speakText(text,lang){
   const l=langs();
   rec('transcript-routed','ok',Object.assign({side:side,reason:reason,src:l[side],tgt:l[side==='south'?'north':'south'],conf:+item.conf.toFixed(2),tts:item.tts},extra||{}));
   last={side:side,ts:now()};
-  join(side,item.text,Object.assign({input:'voice',mode:openMode()?'open':'ask',pipe:item.pipe,heardAs:item.lang||'?',conf:+item.conf.toFixed(2),reason:reason,tts:item.tts},extra||{}));
+  send(side,item.text,Object.assign({input:'voice',mode:openMode()?'open':'ask',pipe:item.pipe,heardAs:item.lang||'?',conf:+item.conf.toFixed(2),reason:reason,tts:item.tts},extra||{}));
  }
- /* r10: join window 4 s (field log: the second half arrived 4 s after the first).
-    r8: after the speaker is decided, a final that stops mid-sentence (no ending punctuation) is held
-    briefly and joined with that speaker's next final, so "…하지만" + "지금은 출근해야 해요." is sent and
-    translated as one sentence. Thai is written without sentence punctuation, so it is never held. */
- const TERMINAL=/[.?!。？！…]["'”’」』)\]]*$/;let frag={};
  function send(side,text,via){if(hooks)hooks.send(side,text,via)}
- function flushFrags(reason){Object.keys(frag).forEach(sd=>{const f=frag[sd];delete frag[sd];clearTimeout(f.timer);if(f.gen===gen){rec('fragment-released','ok',{side:sd,reason:reason});send(sd,f.text,f.via)}else rec('stale-session','blocked',{side:sd,reason:'fragment-discarded'})})}
- function join(side,text,via){
-  const code=hooks?hooks.langOf(side):null,f=frag[side];
-  if(f){clearTimeout(f.timer);delete frag[side];text=f.text+(code==='zh'||code==='ja'?'':' ')+text;via=Object.assign({},via,{conf:Math.min(f.via.conf,via.conf),joined:(f.via.joined||1)+1});rec('fragment-joined','ok',{side:side,parts:via.joined})}
-  if(!TERMINAL.test(text)&&code!=='th'&&tts.phase==='idle'){
-   frag[side]={text:text,via:via,gen:gen,timer:setTimeout(()=>{const g=frag[side];if(!g)return;delete frag[side];if(g.gen!==gen)return;rec('fragment-released','ok',{side:side,reason:'timeout'});send(side,g.text,g.via)},cfg().joinMs)};
-   rec('fragment-held','ok',{side:side,lang:code||'?',ms:cfg().joinMs});return;
-  }
-  send(side,text,via);
- }
 
  /* ---------- microphones: open mode keeps both listening ---------- */
  function roomReady(){const b=document.body;return !!b&&!b.classList.contains('cl-open')&&!b.classList.contains('cl-empty-room')&&!document.hidden}
@@ -533,7 +517,7 @@ function speakText(text,lang){
  function wantsMic(side){return openMode()&&roomReady()&&!muted[side]}
  function keepsMic(why){return openMode()&&!LIFECYCLE.test(why)}
  function afterTeardown(why){
-  if(LIFECYCLE.test(why)){Object.keys(frag).forEach(p=>clearTimeout(frag[p].timer));frag={};gen++;if(pend){clearTimeout(pend.timer);rec('stale-session','blocked',{reason:'discarded',items:pend.items.length});pend=null}last={side:null,ts:0};if(why==='room switch'){muted={south:false,north:false}}}
+  if(LIFECYCLE.test(why)){gen++;if(pend){clearTimeout(pend.timer);rec('stale-session','blocked',{reason:'discarded',items:pend.items.length});pend=null}last={side:null,ts:0};if(why==='room switch'){muted={south:false,north:false}}}
   sync();
  }
 
@@ -1088,6 +1072,10 @@ function dgLangParam(room) {
     var DG_WATCHDOG_MS=30000, DG_MAX_FAILS=3;
     /* r3: Korean speakers pause mid-sentence; 400 ms cut sentences into fragments. */
     function dgEndpointing(room){return room&&room.myLang==='ko'?1000:400}
+    /* r12: one message per spoken turn. Finals are collected until Deepgram's UtteranceEnd (sent after this
+       many ms without words, from word timings in the audio), with a 4 s fallback. Punctuation is no longer used. */
+    function dgUtteranceEnd(room){return room&&room.myLang==='ko'?1500:1000}
+    var DG_UTT_FALLBACK_MS=4000;
     function dgKey(){try{return(localStorage.getItem('tb_dg_key')||'').trim()}catch(e){return ''}}
 
     function makeMicMeter(){return {
@@ -1170,7 +1158,7 @@ function dgLangParam(room) {
             var lang=dgLangParam(room);
             var myGen=P.gen.n;
             var url='wss://api.deepgram.com/v1/listen?model=nova-3&language='+encodeURIComponent(lang)+
-                    '&encoding=linear16&sample_rate=16000&channels=1&interim_results=false&punctuate=true&endpointing='+dgEndpointing(room);
+                    '&encoding=linear16&sample_rate=16000&channels=1&interim_results=true&utterance_end_ms='+dgUtteranceEnd(room)+'&punctuate=true&endpointing='+dgEndpointing(room);
             P.ws=new WebSocket(url,['token',key]);
             log('dg_connect',{side:side,lang:lang,endpointing:dgEndpointing(room)},'info');
             var mySocket=P.ws;
@@ -1225,24 +1213,36 @@ function dgLangParam(room) {
                 P.lastMsg=Date.now();
                 try{
                     var d=JSON.parse(e.data);
+                    if(d.type==='UtteranceEnd'){flushUtt('utterance-end');return}
                     var alt=d.channel&&d.channel.alternatives&&d.channel.alternatives[0];
                     if(alt&&alt.transcript&&d.is_final){
                         var t=String(alt.transcript).trim();
                         if(!t)return;
                         log('dg_final',{side:side,lang:lang,chars:t.length,conf:typeof alt.confidence==='number'?+alt.confidence.toFixed(2):null},'info');
-                        if(P.enWs){
-                            /* Dual-channel room (zh/th/ko/ar): hold the native result briefly.
-                               If the English channel returns something substantial inside the
-                               window, the native text was phonetic nonsense and gets dropped. */
-                            dgArbitrateNative(t,function(held){
-                                if(live())onFinal(held,dgUseMulti(room)?null:room.myLang,alt);
-                            });
-                        }else{
-                            onFinal(t,dgUseMulti(room)?null:room.myLang,alt);
-                        }
+                        P.utt.push({t:t,alt:alt});clearTimeout(P.uttTimer);
+                        P.uttTimer=setTimeout(function(){flushUtt('fallback')},DG_UTT_FALLBACK_MS);
                     }
                 }catch(e2){}
             };
+            P.utt=[];clearTimeout(P.uttTimer);
+            function flushUtt(reason){
+                clearTimeout(P.uttTimer);P.uttTimer=null;
+                if(!live()||!P.utt.length)return;
+                var parts=P.utt.splice(0),sep=(room.myLang==='zh'||room.myLang==='ja')?'':' ';
+                var t=parts.map(function(x){return x.t}).join(sep);
+                var alt=Object.assign({},parts[0].alt,{confidence:Math.min.apply(null,parts.map(function(x){return typeof x.alt.confidence==='number'?x.alt.confidence:0.5}))});
+                log('dg_utterance',{side:side,lang:lang,parts:parts.length,chars:t.length,reason:reason},'info');
+                if(P.enWs){
+                    /* Dual-channel room (zh/th/ko/ar): hold the native result briefly.
+                       If the English channel returns something substantial inside the
+                       window, the native text was phonetic nonsense and gets dropped. */
+                    dgArbitrateNative(t,function(held){
+                        if(live())onFinal(held,dgUseMulti(room)?null:room.myLang,alt);
+                    });
+                }else{
+                    onFinal(t,dgUseMulti(room)?null:room.myLang,alt);
+                }
+            }
             P.ws.onerror=function(){if(live())log('dg_error',{side:side,lang:lang},'error')};
             P.ws.onclose=function(ev){
                 if(P.ws===mySocket)log('dg_close',{side:side,lang:lang,code:ev&&ev.code,reason:String(ev&&ev.reason||'').slice(0,60),clean:!!(ev&&ev.wasClean)},ev&&ev.code===1000?'info':'warn');
@@ -1709,7 +1709,7 @@ function dgLangParam(room) {
     var candidateTxn={south:null,north:null},compAnchor={south:null,north:null};
     var pendingConversion={south:null,north:null},undoEdit={south:null,north:null};
     var predictionTxn={south:null,north:null};
-    var CHAT_BUILD='chat-test-audio-r11';
+    var CHAT_BUILD='chat-test-audio-r12';
     var UNDO_LABEL={en:'Undo',th:'เลิกทำ',es:'Deshacer',fr:'Annuler',de:'Rückgängig',
         it:'Annulla',pt:'Desfazer',nl:'Ongedaan maken',sv:'Ångra',pl:'Cofnij',tr:'Geri al',
         ru:'Отменить',ar:'تراجع',hi:'पूर्ववत करें',vi:'Hoàn tác',id:'Urungkan',ms:'Buat asal',

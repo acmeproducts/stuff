@@ -23,6 +23,8 @@ swap("assert.ok(menuBox.x<20&&menuBox.y>=height-60);","");
 swap("test('legacy import is repeatable and preserves 1000 messages'","skip('legacy import is repeatable and preserves 1000 messages'");
 s="function skip(){}\n"+s;
 swap("(async()=>{const server=",fs.readFileSync(path.join(__dirname,'r3.cjs'),'utf8')+"\n"+fs.readFileSync(path.join(__dirname,'r4.cjs'),'utf8')+"\n(async()=>{const server=");
+// r12: the simulated Deepgram also sends UtteranceEnd after each final, as the real service does after a pause.
+swap("sockets[0].send(JSON.stringify({is_final:true,channel:{alternatives:[{transcript:'hello friend'}]}}));","sockets[0].send(JSON.stringify({is_final:true,channel:{alternatives:[{transcript:'hello friend'}]}}));sockets[0].send(JSON.stringify({type:'UtteranceEnd'}));");
 // The engine-parity check compares the accepted base with chat-lab; chat-test changes the pipeline by design.
 s=s.replace(/for\(const \[a,b\] of \[\['\/\* ######## ENGINE'[^\n]*\n/,'\n');
 const m=new Module(source,module);m.filename=source;m.paths=Module._nodeModulePaths(path.dirname(source));m._compile(s,source);
