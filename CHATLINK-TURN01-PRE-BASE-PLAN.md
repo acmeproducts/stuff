@@ -388,3 +388,19 @@ Ownership metadata (side, generation, source/target language, time, confidence, 
 **Change.** Every new message stores its route: voice or keyboard, mic channel, heard language, confidence, mode, and deciding rule with scores. The translation check shows it as a "Route" row, and Copy includes it. `route` is also logged in the diagnostics log.
 
 **Gates (lab).** 20/20 controller tests. Ask mode: 23/23, including an r7 route scenario. Open mode: 24/24. Keyboard: 32/32.
+
+
+### chat-test r8: join a sentence split mid-way (2026-09-29)
+
+**Owner report (field).** "Sometimes I feel like I could probably fall asleep but/however I have to go to work now" was played in Korean to the phone and arrived as two messages. The first was "가끔은 … 기분이 들기도 하지만" ("… but"), translated as "Sometimes I feel like I can fall asleep", with the contrast lost. The second was "지금은 출근해야 해요." Route rows show voice, north (Korean), confidence 1 and correct routing.
+
+**Cause.** Deepgram ended the utterance at the pause after "하지만". Each half was then translated alone.
+
+**Change.** After the speaker is decided, a final with no sentence-ending punctuation is held for up to 1.5 s (joinMs) and joined with that speaker's next final. Thai is never held because it has no sentence punctuation. Any held fragment is released when read-aloud starts and discarded on room switch or other lifecycle teardown. Route shows `joined` when parts were combined.
+- A first version joined before the speaker decision. It sent English to the wrong side in open mode, because one mic's text was held and the other's was not. The join was moved after the decision.
+
+**Evidence.** A new scenario built from the owner's example fails on r7 (2 messages) and passes on r8 (1 message).
+
+**Note on the verdicts.** "지금은 출근해야 해요" vs "나는 지금 일하러 가야 해요" scored Miss 33% though the meaning is the same. The score measures wording, and Korean paraphrase changes most of the characters. Meaning-level checking needs an AI judge, which is backlogged under paid AI (owner decision).
+
+**Gates (lab).** 23/23 controller tests (existing tests now use punctuated text, as Deepgram produces since r3). Ask mode: 24/24. Open mode: 25/25. Keyboard: 32/32 (r8 code before the final test was added).

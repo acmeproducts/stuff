@@ -61,3 +61,13 @@ test('r7: every message records its route; the check shows it',async({page})=>{
  assert.match(await ov.locator('tr').last().textContent(),/RouteVoiceMic channel: south \(English\), heard as English, confidence 0\.91, mode ask, decided by mic owner/);
  assert.ok(await page.evaluate(()=>debugLog.some(e=>e.ev==='route'&&e.d.input==='voice'&&e.d.side==='south')));
 });
+test('r8: a Korean sentence split at "하지만" arrives as one message',async({page})=>{
+ await page.evaluate(()=>{localStorage.setItem('tb_dg_key','synthetic-key');localStorage.setItem('chat_test_audio',JSON.stringify({mode:'open',tones:false}))});
+ await create(page,'Split','en','ko');await page.waitForFunction(()=>mic.south.active&&mic.north.active);
+ const ko=page.testSockets.filter(w=>w.url().includes('language=ko')).slice(-1)[0];
+ const fin=t=>ko.send(JSON.stringify({is_final:true,channel:{alternatives:[{transcript:t,confidence:1}]}}));
+ fin('가끔은 잠들 수 있을 것 같은 기분이 들기도 하지만');await page.waitForTimeout(900);fin('지금은 출근해야 해요.');
+ await page.waitForFunction(()=>HIST.length>=1&&HIST[0].status!=='pending',null,{timeout:8000});await page.waitForTimeout(2000);
+ assert.equal(await page.evaluate(()=>HIST.length),1);assert.equal(await page.evaluate(()=>HIST[0].original),'가끔은 잠들 수 있을 것 같은 기분이 들기도 하지만 지금은 출근해야 해요.');
+ assert.equal(await page.evaluate(()=>HIST[0].via.joined),2);
+});
