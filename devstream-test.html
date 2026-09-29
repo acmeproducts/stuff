@@ -172,6 +172,9 @@ body.coachMode .suggestBtn{border-color:rgba(57,197,207,.5);background:rgba(57,1
 .debugTools{display:flex;gap:8px;align-items:center;padding:8px 12px;font-size:12px;color:var(--dim)}
 #debugOut{flex:1;overflow:auto;margin:0 12px 12px;padding:10px;background:var(--bg);border:1px solid var(--line);border-radius:8px;font:11px/1.5 ui-monospace,Menlo,monospace;white-space:pre-wrap;word-break:break-all}
 .okc{color:var(--ok)}.erc{color:var(--err)}
+#logOut{height:46vh;min-height:160px;overflow:auto;margin:8px 0 0;padding:10px;background:var(--bg);border:1px solid var(--line);border-radius:8px;font:11px/1.5 ui-monospace,Menlo,monospace;white-space:pre-wrap;word-break:break-all}
+.logTools{display:flex;gap:8px;flex-wrap:wrap}
+#composer.dropTarget{outline:2px dashed var(--accent);outline-offset:-3px;background:var(--panel2)}
 .tabClose{margin-left:auto;border:0;background:transparent;color:var(--dim);font-size:16px;padding:3px 5px;border-radius:5px}
 .tabClose:active{color:var(--err)}
 #recycleCard .cttl{color:var(--dim)}
@@ -192,7 +195,7 @@ body.coachMode .suggestBtn{border-color:rgba(57,197,207,.5);background:rgba(57,1
 <div id="scrim"></div>
 <div id="app">
 <aside id="sidebar">
-  <div class="bar"><span id="dot"></span><span class="brand">devstream <span class="version">v1.0 b50</span></span><span class="grow"></span><button class="btn" id="projectAdd">+ New</button><button class="btn" id="refresh">↻</button><button class="btn" id="settings">⚙</button></div>
+  <div class="bar"><span id="dot"></span><span class="brand">devstream <span class="version">v1.0 b51</span></span><span class="grow"></span><button class="btn" id="projectAdd">+ New</button><button class="btn" id="refresh">↻</button><button class="btn" id="settings">⚙</button></div>
   <div id="searchWrap"><input id="search" class="input" placeholder="Search projects & threads">
     <div class="legend"><span><i class="legendDot ok"></i>OK</span><span><i class="legendDot run"></i>Running</span><span><i class="legendDot err"></i>Error</span></div></div>
   <div id="projList"></div>
@@ -227,7 +230,8 @@ body.coachMode .suggestBtn{border-color:rgba(57,197,207,.5);background:rgba(57,1
 <!-- Settings modal (sm-v3 config pattern) -->
 <div class="modal" id="cfgModal"><div class="panel">
   <header>Settings<button class="btn" data-close="cfgModal">✕</button></header>
-  <div class="pbody">
+  <div class="debugTabs" id="cfgTabs"><button class="debugTab active" data-ct="settings">Settings</button><button class="debugTab" data-ct="logging">Logging</button></div>
+  <div class="pbody" id="cfgPaneSettings">
     <div class="frow"><label>GitHub PAT</label><input id="sotPat" class="input keyfield" type="password" autocomplete="new-password" spellcheck="false" autocapitalize="off" placeholder="ghp_…"></div>
     <div class="frow"><label>Owner / Organization</label><input id="sotOwner" class="input mono" placeholder="acmeproducts"></div>
     <div class="frow"><label>Repository</label><input id="sotRepo" class="input mono" placeholder="stuff"></div>
@@ -257,6 +261,12 @@ body.coachMode .suggestBtn{border-color:rgba(57,197,207,.5);background:rgba(57,1
     </div>
     <div class="frow"><label>Base text size: <span id="apSizeVal"></span></label><input id="apSize" type="range" min="12" max="19" step="1" style="width:100%"></div>
     <button class="btn primary" id="cfgSave" style="width:100%;margin-top:12px">Save</button>
+  </div>
+  <div class="pbody" id="cfgPaneLogging" style="display:none">
+    <div class="hint" style="margin:0 0 8px">Sanitized diagnostics saved to GitHub under devstream/logs/ plus events not yet flushed. No messages, prompts, attachments, keys or provider responses are recorded.</div>
+    <div class="logTools"><button class="btn" id="logDownload">Download</button><button class="btn" id="logCopy">Copy</button><button class="btn" id="logRefresh">↻</button><button class="btn" id="logClear" style="color:var(--err)">Clear</button></div>
+    <div class="hint" id="logStatus"></div>
+    <pre id="logOut"></pre>
   </div>
 </div></div>
 
@@ -426,7 +436,150 @@ function saveSOT(msg){
   sotQueue=job.catch(()=>{});
   return job;
 }
-function dlog(line,cls){const e=new Date().toISOString().slice(11,23)+' '+line;debug.push(cls?cls+'|'+e:e);if(debug.length>500)debug=debug.slice(-500);try{sessionStorage.setItem('ds_debug',JSON.stringify(debug))}catch(x){}const o=document.getElementById('debugOut');if(o){o.innerHTML=debugHtml();o.scrollTop=o.scrollHeight}}
+function dlog(line,cls,local){try{if(!local)dsFromDlog(line,cls)}catch(x){}const e=new Date().toISOString().slice(11,23)+' '+line;debug.push(cls?cls+'|'+e:e);if(debug.length>500)debug=debug.slice(-500);try{sessionStorage.setItem('ds_debug',JSON.stringify(debug))}catch(x){}const o=document.getElementById('debugOut');if(o){o.innerHTML=debugHtml();o.scrollTop=o.scrollHeight}}
+/* ---- persistent diagnostics (b51): sanitized JSONL batched to devstream/logs/ ---- */
+const DS_BUILD='b51',DS_LOG_CUR='devstream/logs/current.jsonl',DS_LOG_PREV='devstream/logs/previous.jsonl',DS_LOG_MAX=150*1024,DS_Q_MAX=400,DS_Q_KEY='ds_logq';
+const DS_FIELDS={st:1,ms:1,attempt:1,conflict:1,count:1,ok:1,rejected:1,bytes:1,type:1,ext:1,reason:1,op:1,state:1,proj:1,thr:1,err:1};
+let dsQ=[],dsSeq=0,dsTimer=null,dsLastFlush=0,dsFails=0,dsFlushStatus='idle',dsChain=Promise.resolve();const dsSession=Date.now().toString(36);
+try{dsQ=JSON.parse(localStorage.getItem(DS_Q_KEY)||'[]');if(!Array.isArray(dsQ))dsQ=[]}catch(e){dsQ=[]}
+function dsPersistQ(){try{let j=JSON.stringify(dsQ);while(j.length>100000&&dsQ.length>10){dsQ=dsQ.slice(Math.ceil(dsQ.length/2));j=JSON.stringify(dsQ)}localStorage.setItem(DS_Q_KEY,j)}catch(e){}}
+function dsSan(v,max){
+  if(typeof v==='number'||typeof v==='boolean')return String(v);
+  if(typeof v!=='string')return '';
+  let s=v.replace(/\s+body:[\s\S]*$/i,' body:[omitted]');
+  s=s.replace(/https?:\/\/[^\s"'<>)]+/gi,u=>{try{const x=new URL(u);return x.origin+x.pathname}catch(e){return '[url]'}});
+  s=s.replace(/data:[^\s"',;]*[;,][^\s"']*/gi,'[data-uri]');
+  s=s.replace(/\b(authorization|set-cookie|cookie|x-api-key|api[-_ ]?key|token|secret|password|passwd)\s*[:=]\s*\S+/gi,'$1=[redacted]');
+  s=s.replace(/\bkey[: ]+\S+/gi,'key [redacted]');
+  s=s.replace(/\bBearer\s+\S+/gi,'Bearer [redacted]');
+  s=s.replace(/\b(?:ghp|gho|ghs|ghu|ghr|github_pat)_[A-Za-z0-9_]+/g,'[redacted]');
+  s=s.replace(/\bsk-[A-Za-z0-9_\-]{6,}/g,'[redacted]');
+  s=s.replace(/[A-Za-z0-9+_=]{32,}/g,'[redacted]');
+  return s.slice(0,max||240);
+}
+function dsFields(f){const o={};if(!f||typeof f!=='object')return o;for(const k of Object.keys(f)){if(!DS_FIELDS[k])continue;const v=f[k];if(typeof v==='number'){if(isFinite(v))o[k]=v}else if(typeof v==='boolean')o[k]=v;else if(typeof v==='string')o[k]=dsSan(v,120)}return o}
+function dsLog(lv,sub,ev,msg,f){
+  try{
+    const e={id:dsSession+'.'+(++dsSeq),t:new Date().toISOString(),lv,sub,ev:dsSan(ev,60),b:DS_BUILD};
+    const m=dsSan(msg,240);if(m)e.msg=m;
+    if(activeKey)e.thr=dsSan(activeKey,80);
+    Object.assign(e,dsFields(f));
+    dsQ.push(e);if(dsQ.length>DS_Q_MAX)dsQ=dsQ.slice(-DS_Q_MAX);
+    dsPersistQ();dsSchedule(lv==='error');
+  }catch(x){}
+}
+function dsFromDlog(line,cls){
+  let raw=String(line),m=/^([EK])\|/.exec(raw);if(m){cls=cls||m[1];raw=raw.slice(2)}
+  if(raw.charAt(0)==='→')return;                       // request start: noise
+  if(raw.charAt(0)==='←'&&cls!=='E')return;            // successful response: noise
+  const lv=cls==='E'?'error':cls==='K'?'ok':'info',f={};
+  let sub='app';
+  const h=/^[←✕]\s+\S+\s+(?:(\d{3})\s+)?[\s\S]*?(\d+)ms/.exec(raw);
+  if(h){sub='http';if(h[1])f.st=+h[1];f.ms=+h[2]}
+  else if(/thread reconcile/.test(raw)){sub='github';f.conflict=true;const a=/retry (\d+)/.exec(raw);if(a)f.attempt=+a[1]}
+  else if(/^\[T\d|worker|watchdog|preflight|patch:/.test(raw))sub='worker';
+  else if(/status save|boot|healed/.test(raw))sub='sot';
+  const ev=raw.replace(/[^A-Za-z ]+/g,' ').trim().split(/\s+/).slice(0,3).join('_').toLowerCase()||'event';
+  dsLog(lv,sub,ev,raw,f);
+}
+function dsSchedule(urgent){
+  if(dsTimer&&!urgent)return;
+  const wait=urgent?Math.max(3000,dsLastFlush+15000-Date.now()):(dsFails?Math.min(60000*Math.pow(2,dsFails),300000):60000);
+  clearTimeout(dsTimer);dsTimer=setTimeout(()=>{dsTimer=null;dsFlush()},wait);
+}
+function dsFlush(){const j=dsChain.then(dsFlushNow);dsChain=j.catch(()=>{});return j}
+async function dsPut(path,content,sha,msg){
+  const body={message:msg,content:enc(content),branch:cfg.branch};if(sha)body.sha=sha;
+  const r=await fetch('https://api.github.com/repos/'+repoFull()+'/contents/'+path,{method:'PUT',cache:'no-store',headers:{'Authorization':'Bearer '+cfg.pat,'Accept':'application/vnd.github+json'},body:JSON.stringify(body)});
+  if(!r.ok)throw new Error('GitHub '+r.status);
+}
+async function dsDel(path,sha){
+  const r=await fetch('https://api.github.com/repos/'+repoFull()+'/contents/'+path,{method:'DELETE',cache:'no-store',headers:{'Authorization':'Bearer '+cfg.pat,'Accept':'application/vnd.github+json'},body:JSON.stringify({message:'devstream: clear diagnostics [skip ci]',sha,branch:cfg.branch})});
+  if(!r.ok&&r.status!==404)throw new Error('GitHub '+r.status);
+}
+async function dsFlushNow(){
+  if(!cfg||!cfg.pat||!dsQ.length)return;
+  const batch=dsQ.slice(),t0=performance.now(),msg='devstream: diagnostics ('+batch.length+') [skip ci]';let attempts=0;
+  try{
+    let ok=false,lastErr;
+    for(let a=1;a<=3&&!ok;a++){
+      attempts=a;
+      try{
+        const cur=await getFileFresh(DS_LOG_CUR);let text=cur?cur.content:'';
+        const fresh=batch.filter(e=>!text.includes('"id":"'+e.id+'"'));
+        if(fresh.length){
+          const add=fresh.map(e=>JSON.stringify(e)).join('\n')+'\n';
+          if(text&&!text.endsWith('\n'))text+='\n';
+          if(text&&text.length+add.length>DS_LOG_MAX){
+            const prev=await getFileFresh(DS_LOG_PREV);
+            await dsPut(DS_LOG_PREV,text,prev?prev.sha:null,'devstream: rotate diagnostics [skip ci]');
+            await dsPut(DS_LOG_CUR,add,cur.sha,msg);
+          }else await dsPut(DS_LOG_CUR,text+add,cur?cur.sha:null,msg);
+        }
+        ok=true;
+      }catch(e){lastErr=e;if(!/\b(409|422)\b/.test(String(e.message)))break;await new Promise(r=>setTimeout(r,250*a))}
+    }
+    if(!ok)throw lastErr;
+    const sent=new Set(batch.map(e=>e.id));dsQ=dsQ.filter(e=>!sent.has(e.id));dsPersistQ();
+    dsLastFlush=Date.now();dsFlushStatus='ok · '+new Date().toLocaleTimeString();
+    if(attempts>1)dsLog('warn','logging','write_conflict_resolved','',{attempt:attempts,conflict:true});
+    if(dsFails){dsLog('info','logging','flush_recovered','',{attempt:dsFails});dsFails=0}
+    if(dsQ.length)dsSchedule(false);
+  }catch(e){
+    dsFails++;dsFlushStatus='failed: '+dsSan(e&&e.message,100)+' · will retry';
+    dlog('log flush failed ('+dsFails+'): '+dsSan(e&&e.message,100),'',true);dsSchedule(false);
+  }
+}
+async function dsLoadDurable(){
+  const out=[];
+  for(const p of [DS_LOG_PREV,DS_LOG_CUR]){const f=await getFileFresh(p);if(f)f.content.split('\n').forEach(l=>{if(!l.trim())return;try{const o=JSON.parse(l);if(o&&typeof o==='object')out.push(o)}catch(e){}})}
+  return out;
+}
+function dsMerge(durable){
+  const ids=new Set(durable.map(e=>e.id)),all=durable.concat(dsQ.filter(e=>!ids.has(e.id)));
+  return all.map((e,i)=>[e,i]).sort((a,b)=>String(a[0].t||'').localeCompare(String(b[0].t||''))||a[1]-b[1]).map(x=>x[0]);
+}
+let dsShown='';
+function dsShow(list){
+  dsShown=list.map(e=>JSON.stringify(e)).join('\n');
+  const o=$('logOut');if(!o)return;
+  o.innerHTML=list.map(e=>'<span class="'+(e.lv==='error'?'erc':e.lv==='ok'?'okc':'')+'">'+esc(JSON.stringify(e))+'</span>').join('\n');o.scrollTop=o.scrollHeight;
+}
+async function dsRenderLogTab(){
+  const st=$('logStatus');if(!st)return;
+  dsShow(dsMerge([]));st.textContent='Loading saved diagnostics…';
+  let durable=[],err='';
+  try{durable=await dsLoadDurable()}catch(e){err=' · could not load GitHub log: '+dsSan(e.message,100)}
+  const list=dsMerge(durable);dsShow(list);
+  st.textContent=durable.length+' saved · '+dsQ.length+' unflushed · flush '+dsFlushStatus+err;
+}
+async function dsClear(){
+  if(!confirm('Clear all diagnostic logs?\n\nThis deletes the saved diagnostic log files in GitHub and the local diagnostic buffer. Threads, chats, attachments, projects and settings are not affected.'))return;
+  $('logStatus').textContent='Clearing…';
+  const j=dsChain.then(async()=>{
+    clearTimeout(dsTimer);dsTimer=null;dsQ=[];dsPersistQ();debug=[];try{sessionStorage.removeItem('ds_debug')}catch(e){}
+    const o=$('debugOut');if(o)o.innerHTML='';
+    const errs=[];
+    for(const p of [DS_LOG_CUR,DS_LOG_PREV]){try{const f=await getFileFresh(p);if(f)await dsDel(p,f.sha)}catch(e){errs.push(p.split('/').pop()+' '+dsSan(e.message,60))}}
+    if(errs.length)throw new Error(errs.join('; '));
+  });
+  dsChain=j.catch(()=>{});
+  try{await j;toast('Diagnostic logs cleared')}catch(e){toast('GitHub logs NOT cleared: '+dsSan(e.message,120)+' (local buffer cleared)')}
+  dsRenderLogTab();
+}
+function cfgTab(w){
+  $('cfgPaneSettings').style.display=w==='settings'?'':'none';$('cfgPaneLogging').style.display=w==='logging'?'':'none';
+  document.querySelectorAll('#cfgTabs .debugTab').forEach(b=>b.classList.toggle('active',b.dataset.ct===w));
+  if(w==='logging')dsRenderLogTab();
+}
+document.querySelectorAll('#cfgTabs .debugTab').forEach(b=>b.onclick=()=>cfgTab(b.dataset.ct));
+$('logRefresh').onclick=()=>dsRenderLogTab();
+$('logDownload').onclick=()=>{try{downloadText('devstream-diagnostics-'+new Date().toISOString().replace(/[:.]/g,'-')+'.jsonl',dsShown+'\n','application/x-ndjson');toast('Log downloaded')}catch(e){toast('Download failed: '+e.message)}};
+$('logCopy').onclick=async()=>{try{await navigator.clipboard.writeText(dsShown);toast('Log copied')}catch(e){toast('Copy failed: '+e.message)}};
+$('logClear').onclick=dsClear;
+window.addEventListener('pagehide',()=>{dsPersistQ();dsFlush()});
+document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='hidden'){dsPersistQ();if(dsQ.length&&Date.now()-dsLastFlush>15000)dsFlush()}});
+if(dsQ.length)dsSchedule(false);
 function debugHtml(){return debug.map(l=>{const[c,t]=l.includes('|')?l.split('|',2):['',l];return '<span class="'+(c==='E'?'erc':c==='K'?'okc':'')+'">'+esc(t)+'</span>'}).join('\n')}
 const inflight={};
 async function lfetch(label,url,opts){
@@ -848,12 +1001,13 @@ function renderChat(force){
     if(m.status==='pending')meta+='<span>⧗ '+(coach?'waiting':'queued')+'</span>';
     if(m.commit)meta+='<span class="mono">'+m.commit.slice(0,10)+'</span>';
     if(m.target)meta+='<span class="mono">→ '+esc(m.target)+'</span>';
-    let attHtml='';(m.attachments||[]).forEach(a=>{attHtml+=a.kind==='image'?'<img class="att" src="'+esc(a.url)+'" alt="'+esc(a.name)+'">':'<div class="mmeta">📄 '+esc(a.name)+' ('+Math.round((a.text||'').length/1000)+'k)</div>'});
+    let attHtml='';(m.attachments||[]).forEach(a=>{attHtml+=a.kind==='image'?'<img class="att" '+(a.id?'data-attid="'+esc(a.id)+'"':'src="'+esc(a.url)+'"')+' alt="'+esc(a.name)+'">':'<div class="mmeta">📄 '+esc(a.name)+' ('+Math.round((a.text||'').length/1000)+'k)</div>'});
     const displayText=coach&&m.role==='agent'?(m.coachText||(m.summary?m.summary:m.text)):m.text;
     el.innerHTML='<button class="msgDelete" type="button" title="Permanently remove message" aria-label="Permanently remove message">×</button>'+linkify(displayText)+attHtml+meta+'</div>';
     el.querySelector('.msgDelete').onclick=()=>confirmDeleteMessage(key,mi);
     c.appendChild(el);
   });
+  c.querySelectorAll('img[data-attid]').forEach(hydrateAttImg);
   c.scrollTop=atBottom?c.scrollHeight:keepScroll;
 }
 async function confirmDeleteMessage(key,index){
@@ -1026,24 +1180,68 @@ function parseGhRefs(text){
 /* ---- attachments ---- */
 let pendingAtt=[];
 $('attachBtn').onclick=()=>$('attachInput').click();
-$('attachInput').onchange=async e=>{
-  for(const f of e.target.files){
-    if(f.size>2*1024*1024){toast(f.name+' skipped (>2MB)');continue}
-    const isImg=/^image\//.test(f.type);
-    if(isImg){const b64=await new Promise(r=>{const fr=new FileReader();fr.onload=()=>r(fr.result.split(',')[1]);fr.readAsDataURL(f)});
-      pendingAtt.push({name:f.name,type:f.type,kind:'image',b64})}
-    else{const txt=await f.text();pendingAtt.push({name:f.name,type:f.type||'text/plain',kind:'text',text:txt.slice(0,300000)})}
+$('attachInput').onchange=async e=>{const fs=[...e.target.files];e.target.value='';await ingestFiles(fs,'picker')};
+/* single ingestion path for picker, paste and drag/drop */
+async function ingestFiles(files,source){
+  const list=[...(files||[])].filter(f=>f&&typeof f.name==='string'&&typeof f.size==='number');
+  if(!list.length)return 0;
+  let added=0,rejected=0;
+  for(const f of list){
+    const ext=(f.name.match(/\.([A-Za-z0-9]{1,8})$/)||[])[1]||'';
+    const reject=why=>{rejected++;toast(f.name+' rejected: '+why);dsLog('warn','attach','file_rejected','',{op:source,type:f.type||'unknown',ext,bytes:f.size,reason:why})};
+    try{
+      if(f.size>100*1024*1024){reject('larger than 100MB');continue}
+      if(/^image\//.test(f.type)){
+        const b64=await new Promise((r,j)=>{const fr=new FileReader();fr.onload=()=>r(fr.result.split(',')[1]);fr.onerror=()=>j(fr.error);fr.readAsDataURL(f)});
+        pendingAtt.push({name:f.name,type:f.type,kind:'image',b64});
+      }else{
+        const txt=await f.text();
+        if(txt.indexOf('\0')!==-1){reject('binary or unsupported file');continue}
+        pendingAtt.push({name:f.name,type:f.type||'text/plain',kind:'text',text:txt.slice(0,300000)});
+      }
+      added++;
+    }catch(err){reject('could not be read')}
   }
-  e.target.value='';renderAttList();
-};
+  renderAttList();
+  dsLog(rejected?'warn':'info','attach','ingest','',{op:source,count:list.length,ok:added,rejected});
+  return added;
+}
+(function bindComposeFiles(){
+  const box=$('composer');let depth=0,dt=null;
+  const hasFiles=e=>{const t=e.dataTransfer&&e.dataTransfer.types;return !!t&&[...t].includes('Files')};
+  const clear=()=>{depth=0;clearTimeout(dt);box.classList.remove('dropTarget')};
+  box.addEventListener('dragenter',e=>{if(!hasFiles(e))return;e.preventDefault();depth++;box.classList.add('dropTarget')});
+  box.addEventListener('dragover',e=>{if(!hasFiles(e))return;e.preventDefault();e.dataTransfer.dropEffect='copy';box.classList.add('dropTarget');clearTimeout(dt);dt=setTimeout(clear,700)});
+  box.addEventListener('dragleave',e=>{if(!hasFiles(e))return;depth=Math.max(0,depth-1);if(!depth)clear()});
+  box.addEventListener('drop',e=>{if(!hasFiles(e))return;e.preventDefault();clear();if(e.dataTransfer.files.length)ingestFiles(e.dataTransfer.files,'drop')});
+  window.addEventListener('dragend',clear);
+  window.addEventListener('dragover',e=>{if(hasFiles(e)){e.preventDefault();if(!box.contains(e.target))e.dataTransfer.dropEffect='none'}});
+  window.addEventListener('drop',e=>{clear();if(hasFiles(e))e.preventDefault()});
+  box.addEventListener('paste',e=>{
+    const cd=e.clipboardData;if(!cd)return;
+    let files=[...(cd.files||[])];
+    if(!files.length&&cd.items)files=[...cd.items].filter(i=>i.kind==='file').map(i=>i.getAsFile()).filter(Boolean);
+    if(!files.length)return;
+    e.preventDefault();ingestFiles(files,'paste');
+  });
+})();
 function renderAttList(){const L=$('attachList');L.innerHTML='';pendingAtt.forEach((a,i)=>{const c=document.createElement('span');c.className='attChip';c.innerHTML=(a.kind==='image'?'🖼 ':'📄 ')+esc(a.name)+' <button>✕</button>';c.querySelector('button').onclick=()=>{pendingAtt.splice(i,1);renderAttList()};L.appendChild(c)})}
+/* image attachments live in this browser only (IndexedDB); threads keep just id/name/type */
+let attDbP=null;
+function attDb(){return attDbP||(attDbP=new Promise((res,rej)=>{const r=indexedDB.open('ds_attachments',1);r.onupgradeneeded=()=>r.result.createObjectStore('files',{keyPath:'id'});r.onsuccess=()=>res(r.result);r.onerror=()=>rej(r.error)}))}
+async function attPut(rec){const db=await attDb();return new Promise((res,rej)=>{const tx=db.transaction('files','readwrite');tx.objectStore('files').put(rec);tx.oncomplete=()=>res();tx.onerror=()=>rej(tx.error)})}
+async function attGet(id){const db=await attDb();return new Promise((res,rej)=>{const r=db.transaction('files').objectStore('files').get(id);r.onsuccess=()=>res(r.result||null);r.onerror=()=>rej(r.error)})}
+async function hydrateAttImg(img){
+  try{const rec=await attGet(img.dataset.attid);if(!rec)throw 0;const bin=atob(rec.b64),u8=new Uint8Array(bin.length);for(let i=0;i<bin.length;i++)u8[i]=bin.charCodeAt(i);img.src=URL.createObjectURL(new Blob([u8],{type:rec.type}))}
+  catch(e){const d=document.createElement('div');d.className='mmeta';d.textContent='🖼 '+(img.alt||'image')+' (stored on another device)';img.replaceWith(d)}
+}
 async function storeAttachments(t,atts){
   const out=[];
   for(const a of atts){
     if(a.kind==='image'){
-      const path='devstream/attachments/'+encodeURIComponent(t.project)+'/'+Date.now()+'-'+a.name.replace(/[^\w.\-]/g,'_');
-      await gh('contents/'+path,{method:'PUT',body:JSON.stringify({message:'devstream: attachment '+a.name,content:a.b64,branch:cfg.branch})});
-      out.push({name:a.name,type:a.type,kind:'image',path,url:'https://raw.githubusercontent.com/'+repoFull()+'/'+cfg.branch+'/'+path});
+      const id='a'+Date.now().toString(36)+Math.random().toString(36).slice(2,8);
+      await attPut({id,name:a.name,type:a.type,b64:a.b64});
+      out.push({name:a.name,type:a.type,kind:'image',id});
     }else out.push({name:a.name,type:a.type,kind:'text',text:a.text});
   }
   return out;
@@ -1239,7 +1437,7 @@ async function runAgent(key,premarked){
     const history=th.data.messages.filter(m=>m.status!=='pending').map(m=>({role:m.role==='user'?'user':'assistant',content:m.summary||m.text})).slice(-14);
     const forced=pend.find(m=>m.forcedTarget);
     const instr=pend.map(m=>m.text+(m.attachments||[]).filter(a=>a.kind==='text').map(a=>'\n\n<attachment name="'+a.name+'">\n'+a.text+'\n</attachment>').join('')).join('\n\n')+(forced?'\n\n(Required TARGET for this response: '+forced.forcedTarget+')':'');
-    const images=pend.flatMap(m=>(m.attachments||[]).filter(a=>a.kind==='image').map(a=>({path:a.path,type:a.type,name:a.name})));
+    const images=[];for(const m of pend)for(const a of (m.attachments||[]).filter(a=>a.kind==='image')){const rec=a.id?await attGet(a.id).catch(()=>null):null;if(rec)images.push({name:a.name,type:a.type,b64:rec.b64});else if(a.path)images.push({path:a.path,type:a.type,name:a.name});else toast(a.name+' is not on this device — skipped')}
     const ghRefs=pend.flatMap(m=>parseGhRefs(m.text));
     const curFile=await getFile(codeFile).catch(()=>null);
     const baseChars=curFile?curFile.content.length:0;
@@ -1425,6 +1623,7 @@ self.onmessage=async e=>{
     const{cfg,codeFile,planFile,inputFile,system,history,instr,chain,threadModel,threadEngine}=job;
     const images=[];
     for(const im of (job.images||[])){
+      if(im.b64){images.push({name:im.name,type:im.type,b64:im.b64});continue}
       post({type:'log',line:'loading image '+im.name});
       const r=await tfetch('https://api.github.com/repos/'+cfg.owner+'/'+cfg.repo+'/contents/'+im.path+'?ref='+cfg.branch,{cache:'no-store',headers:{'Authorization':'Bearer '+cfg.pat,'Accept':'application/vnd.github+json'}},25000);
       if(r.ok){const j=await r.json();images.push({name:im.name,type:im.type,b64:(j.content||'').replace(/\\n/g,'')})}
@@ -1767,7 +1966,7 @@ function renderDeleted(body){
 /* ---- settings / boot ---- */
 $('settings').onclick=()=>{if(cfg){$('sotPat').value=cfg.pat;$('sotOwner').value=cfg.owner;$('sotRepo').value=cfg.repo;$('sotBranch').value=cfg.branch;$('cfgProjectDir').value=cfg.projectDir||'projects';$('cfgakey').value=cfg.akey||'';$('cfgvkey').value=cfg.vkey||'';$('cfgorkey').value=cfg.orkey||'';
   if(cfg.vmodel)fillModels('cfgvmodel',[cfg.vmodel],cfg.vmodel);
-  if(cfg.ormodel)fillModels('cfgormodel',[cfg.ormodel],cfg.ormodel);$('cfgengine').value=cfg.engine||'venice'}openModal('cfgModal');bindAppearanceUI()};
+  if(cfg.ormodel)fillModels('cfgormodel',[cfg.ormodel],cfg.ormodel);$('cfgengine').value=cfg.engine||'venice'}openModal('cfgModal');cfgTab('settings');bindAppearanceUI()};
 var MODEL_CAPS=JSON.parse(localStorage.getItem('ds_model_caps')||'{}');
 function saveCaps(){try{localStorage.setItem('ds_model_caps',JSON.stringify(MODEL_CAPS))}catch(e){}}
 function capOf(eng,model){var c=MODEL_CAPS[eng+'|'+model];return c||(eng==='venice'?16384:(eng==='anthropic-direct'?64000:32000))}
