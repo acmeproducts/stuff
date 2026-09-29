@@ -1,5 +1,5 @@
-<!-- TALKBRIDGE-PLAN v21.60.0 -->
-# TALKBRIDGE MASTER PLAN v21.60.0
+<!-- TALKBRIDGE-PLAN v21.61.0 -->
+# TALKBRIDGE MASTER PLAN v21.61.0
 
 **Location:** `talkbridge/TALKBRIDGE-PLAN-v9.md` in `acmeproducts/stuff`.
 **Owner:** Confi — sole decision-maker, runs every device gate.
@@ -106,7 +106,8 @@ each moved one turn later; nothing was dropped.
 | 29·ship | D-2 + D-6 directory release | queued | — |
 | 29·post-ship | IndexedDB — behind its POC; if the owner defers it, this stage is a byte-identical copy-forward, never skipped | queued | — |
 | 30·pre-base | byte-identical snapshot of accepted 29·post-ship | queued | — |
-| 30·base | beta readiness | queued | — |
+| 30·base | **localization** — the app's own words in the user's language, both sides (§7.17) | queued | — |
+| 30·pre-ship | beta readiness | queued | — |
 
 Every accepted or built stage carries its live address here and in the ledger; a row without a link is not built.
 
@@ -167,7 +168,8 @@ ck that is now null, so the new camera never reaches the connection. Fixed addit
 | 29·ship | **D-2 + D-6 — the directory release (un-hijack done right)** — the app moves to `/stuff/talkbridge-app/` per §7.5 with the PROVEN Chrome-installability recipe from §7.12 (start_url, id, additive fetch handler), old-worker retirement, complete path-impact map per G44. Owner ruling 2026-09-12 stands: one release, isolated, never shares a gate with anything else. Restored to the chain by owner ruling 2026-09-20 (an unreliable un-hijack is a beta-visible defect on any phone that also runs PRISM) and moved AHEAD of IndexedDB by owner ruling the same night. Everything after it builds at the final address. | Spec §7.5 + §7.12 recipe (intact); /stuff/tb-skeleton/ stays the working reference | queued — input: accepted 28·pre-ship | — |
 | 29·post-ship | **IndexedDB capacity** — BLOCKED until (1) a standalone POC harness, no app code, no live users, proves the async transcript pattern, and (2) a painfully detailed spec is written from what the POC proves. G56 stands. **Owner is on the fence whether this ships before beta (2026-09-20); if it is deferred, beta readiness simply follows 28·ship and this stage is re-sequenced after beta.** | POC first, then a §7.11-successor spec | queued behind its POC — may be deferred past beta | — |
 | 30·pre-base | Byte-identical snapshot of the last accepted stage, at the new address | — | queued | — |
-| 30·base | **Beta readiness** — the last release before beta testers: every dead candidate address purged or redirected to the new folder, the graveyard indexed, the plan’s open-defect table reconciled, one clean install per platform proven at the final address. Closes the feature set. | to be written | queued | — |
+| 30·base | **Localization (§7.17)** — every word the app itself says (buttons, labels, placeholders, toasts, system pills, onboarding, install guidance) shown in the user's own language on each phone; the partner sees theirs. System pills cross the relay as a key plus values and are worded on arrival, so "Bo joined" reads in Thai on the Thai phone. Default language from the phone on first run, changeable in settings. Built AFTER turn 28 because the renderers must have one owner each before their strings can be moved (§7.16 cluster 4). | Spec §7.17 | queued | — |
+| 30·pre-ship | **Beta readiness** — the last release before beta testers: every dead candidate address purged or redirected to the new folder, the graveyard indexed, the plan’s open-defect table reconciled, one clean install per platform proven at the final address. Closes the feature set. | to be written | queued | — |
 | — backlog (not on the chain to beta, owner ruling 2026-09-20) | D-1 Android lock-screen ringing (one bounded attempt, spec unwritten); the video wants parked in §7.15 (tap-swap, camera flip, draggable small video, screen share, BL-V1/V2/V3, backgrounded-call resume) | — | backlog | — |
 | 27·pre-base + 27·base | IndexedDB mirror per §7.3 (DB1 kv store, DB2 dual-write + evict-restore, DB3 parity surface); cutover and multi-user are turn 28+ | Spec complete §7.3 — builds only after §7.2 accepted | — |
 
@@ -189,7 +191,8 @@ the owner installed from that URL; it is retired when A8 passes.
 The roadmap is exactly three releases — **technical-debt cleanup (27·post-ship
 done; flattening at 28·base/28·pre-ship in progress), multi-user (turn 29),
 IndexedDB (29·post-ship, may defer)** — plus the directory release the owner
-put ahead of IndexedDB (29·ship). Nothing else is a release. Everything below is a defect — a thing
+put ahead of IndexedDB (29·ship) and localization (30·base, owner 2026-09-29).
+Nothing else is a release. Everything below is a defect — a thing
 that was working, or was promised working, and is not. Defects are fixed
 against the release they belong to; they never become roadmap entries, and
 they are never counted as progress.
@@ -2035,6 +2038,8 @@ Green means allowed to push. It never means done.
 ---
 
 ## 10 · CHANGE LOG
+
+**v21.61.0 · 2026-09-29.** Owner: add localization to the plan. §7.17 written: every word the app itself says, in each phone's own language, from one string table; system pills cross as key + values so each side words them; RTL for Arabic; owner-reviewed Thai, machine-translated rest marked as such. Placed at 30·base (after the renderers are flattened), beta readiness moves to 30·pre-ship. Chain to beta is one stage longer; nothing else moves.
 
 **v21.60.0 · 2026-09-27.** Owner: accepted releases lost their links. Fixed: the WHERE WE ARE table now carries the live address and sha of every accepted or built stage; the 28·base ledger row has its address; ledger rows that had been joined onto one line (27·ship c6/c7/c8) are split back into rows so the table renders past 26·pre-ship. Rule added under the table: a row without a link is not built.
 
@@ -5194,3 +5199,82 @@ Cluster 3 room lifecycle (`enterRoom` 6, `joinRoom` 3, `leaveRoomInternals`,
 `renderTranscript`, `renderRoomHead`, `appendMsgDom`, `msgHtml`,
 `roomCardHtml`, `wireRoomCards`). Cluster 5 the shallow sweep (everything
 else in `wrap_map`).
+
+────────────────────────────────────────────────────────────────────────
+## §7.17 BUILDER SPEC — LOCALIZATION (30·base) [added at owner order 2026-09-29: "please add to the plan localization"]
+────────────────────────────────────────────────────────────────────────
+### What it is
+TalkBridge translates what people SAY. It does not yet translate what the app
+itself SAYS. Today the chrome is English on both phones — the Thai partner in
+an English/Thai room reads "Join", "Your partner invited you to chat",
+"Missed voice call", "Saved to phrasebook", "Add tag…" in English. Only the
+joiner's arrival screen has two languages (`I18N`, en + th, five strings).
+Localization = every word the app produces is shown in that phone's own
+language, chosen from the 21 languages the app already speaks (`LANGS`).
+
+### Scope (the inventory, counted on the 28·base bytes; the build re-counts)
+- 28 `toast(...)` messages, 7 input placeholders, ~16 `textContent=` labels,
+  ~28 static labels in the HTML shell, the onboarding / install guidance
+  pages, the phrasebook overlay, the room menu and drawer, the call screen
+  (ring, connecting, timer captions, mute/camera captions), the home cards
+  ("Not seen yet", "Last seen …", waiting marks), the receipts and typing
+  captions, the rename notices and system pills ("X joined", "Missed voice
+  call", "X renamed the room to Y", "X is now Y", thread invites).
+- NOT in scope: the transcript's translated speech and chat (that is the
+  product's core, already per-language); the phrasebook cards' own content;
+  logs and the device log (English, for the builder); language NAMES in the
+  picker (each shown in its own language already by flag + name — keep).
+
+### Mechanism (additive-law-compatible; needs the flattened renderers of 28·post-ship)
+1. ONE string table, `L10N`, keyed by language code then string key, English
+   complete first, then every language in `LANGS`; a missing key falls back
+   to English and is logged once (`l10n_missing {lang,key}`) so gaps are
+   visible on the device log. `t(key, vars)` is the only way a chrome string
+   reaches the screen. `I18N` (joiner screen) becomes the first rows of the
+   table, not a second table.
+2. THE PHONE'S LANGUAGE is `room.myLang` inside a room and the app-level
+   `S.user.lang` outside one; on first run `S.user.lang` is taken from
+   `navigator.language` (mapped into `LANGS`, else English) and can be
+   changed in settings. Nothing in the relay decides a phone's language.
+3. SYSTEM PILLS cross the relay as `{ key, vars }` IN ADDITION to the `text`
+   they carry today (additive field; an old phone still shows `text`, a new
+   phone words the key in its own language and stores the key+vars in the
+   transcript so a language change re-words history). No new message type.
+4. NUMBERS, DATES, TIMES already use the browser's locale APIs
+   (`toLocaleTimeString([])`); they follow `S.user.lang` explicitly after
+   this release, not the OS setting, so a Thai phone set to English UI reads
+   English dates.
+5. RIGHT-TO-LEFT: Arabic is in `LANGS`. The shell gets `dir="rtl"` when the
+   phone's language is RTL; the transcript keeps per-bubble direction by the
+   bubble's own language (already the case for speech). Gate on a real
+   Arabic-language phone before accepting.
+6. TRANSLATIONS come from the same translation path the app already uses for
+   speech, generated ONCE at build time into the table and reviewed by the
+   owner for Thai (the language the owner can read); every other language
+   ships machine-translated and marked so in the table (`_mt: true`) until a
+   native reader reviews it. No runtime translation of chrome.
+
+### Gates
+M1 every `t()` key exists in English; every language in `LANGS` has every
+   key or the build lists the gaps (the list is the release note, not a red).
+M2 no hard-coded English left: a grep over the appended parts and the shell
+   for `toast('`, `placeholder="`, `textContent='` with a literal string that
+   is not a `t()` call is red; the legacy base is allowed until 28·post-ship
+   has flattened the renderers, after which the same grep applies to it.
+M3 the rig boots a room in `th`/`en` and one in `ar`/`en` and asserts the
+   labels, a toast, a system pill received over the wire, and the shell
+   direction; then switches language at runtime and asserts the re-wording.
+M4 structural checks; M5 mutations (drop a key → M1; hard-code a string → M2;
+   pill without key → M3 the old-phone fallback path; wrong direction → M3).
+Device gate (owner, both phones): one phone in Thai, one in English, a full
+session — arrival, chat, a call, a rename, a missed call, the phrasebook —
+every word of chrome on the Thai phone is Thai; nothing is cut off or
+overflowing; then the Thai phone switched to English at runtime re-words
+without a reload.
+
+### Why 30·base and not sooner
+Strings live inside the renderers. Until 28·post-ship gives each renderer one
+owner (§7.16 clusters 4–5) a string table would be wired through the same
+layer cake this project is dismantling. Localization is the first feature
+built on the flattened code, which is also its proof.
+
