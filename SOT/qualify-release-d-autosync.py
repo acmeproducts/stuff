@@ -57,11 +57,11 @@ print('PASS registration is standing permission for automatic SSOT synchronizati
 print('PASS stale detection automatically queues synchronization')
 
 ui=(HERE/'sot-turn02-release-d-source-actions.html').read_text()
-for required in ['SSOT','Current','Syncing','Problem','System history','liveSourceProgress',
+for required in ['SSOT','Current','Syncing','Problem','liveSourceProgress',
                  'SOT keeps registered sources current automatically']:
     assert required in ui,required
 for forbidden in ['Source action needed','Kick off only uncovered sources','Analyze again',
-                  "subnav(['Queue','Sources']"]:
+                  "subnav(['Queue','Sources']",'System history','systemHistoryHtml','system-history']:
     assert forbidden not in ui,forbidden
 assert "if(live)return 'Syncing'" in ui
-print('PASS Analyze is one SSOT surface: Current / Syncing / Problem with jobs demoted to history')
+print('PASS Analyze is one SSOT surface: Current / Syncing / Problem with internal history absent from the owner UI')
