@@ -1,3 +1,4 @@
+<plan>
 # Earth — Single-file Babylon.js Earth explorer
 
 ## Goal
@@ -90,3 +91,14 @@ Build the full walkable, streamed 3D Earth described in the reference README as 
 | 2026-09-28 | Plan checkpoint (pre-code) | Update-plan-before-code for the first build. Intended code write: `projects/earth.html` implementing M1 (triple-CDN Babylon loader cdn.babylonjs.com → jsdelivr → unpkg, sky/sun/fog, walk+fly camera, on-screen error trap, HUD skeleton) and M2 (Web Mercator z15 tile math, Terrarium fetch+decode `h = R*256 + G + B/256 − 32768`, seeded fBm fallback, SF spawn at 37.7749 N, 122.4194 W on real elevation, HUD SRC: TERR/PROC). Acceptance checks: (1) scene loads with all diagnostics on-screen, never console-only; (2) HUD shows FPS, mode walk/fly, lat/lon, altitude, elevation source; (3) SRC reads TERR when Terrarium tiles decode, PROC on fallback — terrain renders either way; (4) player spawns grounded on sampled elevation in SF; (5) fatal CDN failure shows on-screen error, never silent; (6) no secrets/tokens in code. Code write lands next turn; verification logged after. |
 | 2026-09-29 | Build M1+M2 start | Writing `projects/earth.html` implementing bootstrap (triple-CDN Babylon loader, sky/sun/fog, walk/fly camera, HUD, error trap) and terrain core (Mercator z15 tiles, Terrarium decode, fBm fallback, SF spawn). Verification to follow in next turn. |
 | 2026-09-29 | Plan checkpoint | Checkpoint identified as M1+M2 code write for `projects/earth.html`. Plan ledger updated; code file write is the next step. |
+| 2026-09-29 | Scrub request | Owner asked agent to scrub `devstream/threads/earth__dev.json`. Agent cannot write thread-state files (write scope limited to `projects/earth.md` and `projects/earth.html`). Owner/operator must perform the scrub using the steps in the SECURITY INCIDENT section. Once the thread write succeeds, build proceeds to `projects/earth.html` M1+M2. |
+</plan>
+
+Owner/operator scrub procedure:
+1. Revoke the exposed GitHub PAT on GitHub first (Settings → Developer settings → Personal access tokens → Revoke).
+2. Open `devstream/threads/earth__dev.json` locally or in a text editor.
+3. Search for every literal copy of the token, plus any URL-encoded or JSON-escaped variants (e.g., `ghp_...`, `github_pat_...`, `%67%68%70...`, `\\u0067...`).
+4. Replace every occurrence with `[REDACTED]` or remove the containing history entries entirely.
+5. Alternatively, delete the thread file and reset the conversation so the offending message leaves persisted history.
+6. Retry the thread write. If push protection still blocks, the token string is still present somewhere — repeat the search.
+7. Only as a last resort, after revocation, use GitHub's push-protection "allow secret" bypass for one clean write (a revoked token is inert).
