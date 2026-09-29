@@ -8,13 +8,13 @@ function world(opts){
  opts=opts||{};let now=10000,timers=[],spoken=[],cancels=0,logs=[],diags=[],sent=[],composed=[],store={};
  const synth={cancel(){cancels++},speak(u){spoken.push(u)}};
  const osc=()=>({type:'',frequency:{value:0},connect(){},start(){},stop(){}}),gain=()=>({gain:{setValueAtTime(){},linearRampToValueAtTime(){},exponentialRampToValueAtTime(){}},connect(){}});
- const AC=opts.noAudio?undefined:function(){return{state:'running',currentTime:0,destination:{},createOscillator:osc,createGain:gain}};
+ const AC=opts.noAudio?undefined:function(){return{state:'running',currentTime:0,destination:{},createOscillator:osc,createGain:gain,decodeAudioData:(b,ok,bad)=>{bad(new Error('bad'))}}};
  const body={classList:{contains:c=>c==='cl-empty-room'?!!opts.empty:false}};
  const mk=side=>({on:false,started:0,stopped:0,start(){this.started++;if(opts.deny)return Promise.reject({name:'NotAllowedError'});this.on=true;return Promise.resolve()},hardStop(){this.stopped++;this.on=false}});
  const mic={south:mk('south'),north:mk('north')};
  const w={speechSynthesis:synth,localStorage:{getItem:k=>store[k]==null?null:store[k],setItem:(k,v)=>{store[k]=String(v)}},AudioContext:AC};
  const ctx={window:w,document:{hidden:false,body,addEventListener(){}},SpeechSynthesisUtterance:function(t){this.text=t},gL:l=>({tts:l}),norm:s=>String(s||'').trim(),
-  log:(ev,d,l)=>logs.push({ev,d,l}),Date:{now:()=>now},setTimeout:(f,ms)=>{const t={at:now+ms,f};timers.push(t);return t},clearTimeout:t=>{timers=timers.filter(x=>x!==t)},Math,JSON,Object,String,Number,Array,Promise};
+  log:(ev,d,l)=>logs.push({ev,d,l}),Date:{now:()=>now},setTimeout:(f,ms)=>{const t={at:now+ms,f};timers.push(t);return t},clearTimeout:t=>{timers=timers.filter(x=>x!==t)},Math,JSON,Object,String,Number,Array,Promise,Uint8Array,atob:x=>Buffer.from(x,'base64').toString('binary')};
  vm.runInNewContext(code,ctx);const a=w.audioTurn;
  const langs=Object.assign({south:'en',north:'th'},opts.langs);
  a.bind({mic,langOf:s=>langs[s],diag:(m,e)=>diags.push(m),toast(){},send:(s,t)=>sent.push([s,t]),ownsMic:()=>false,paint(){},compose:(s,t)=>composed.push([s,t])});
@@ -109,6 +109,17 @@ test('Every record carries outcome and generation; no key-like values',async()=>
 });
 test('Playback that never ends times out and resumes',()=>{
  const t=world();t.a.speak('hi','en');t.advance(500);t.advance(3000);assert.equal(t.ev('tts-failed')[0].d.reason,'tts-timeout');t.advance(1000);assert.equal(t.a.state().phase,'idle');
+});
+test('Tone presets: chosen preset plays, "No tone" skips, gain raised 50%',()=>{
+ const t=world();t.store.chat_test_audio=JSON.stringify({startTone:'chime',doneTone:'none',volume:0.2});
+ t.a.speak('hi there','en');assert.equal(t.spoken.length,1,'no Done Speaking tone: speech starts at once');assert.equal(t.ev('cue-played').length,0);
+ t.spoken[0].onend();t.advance(300);assert.equal(t.ev('cue-played')[0].d.cue,'speak');t.advance(2000);assert.equal(t.a.state().phase,'idle');
+ assert.ok(/GAIN=1\.5/.test(code));
+});
+test('Custom tone that cannot be decoded falls back to the default and still resumes',async()=>{
+ const t=world();t.store.chat_test_audio=JSON.stringify({startTone:'custom'});t.store.chat_test_tone_start='data:audio/mpeg;base64,AAAA';
+ t.a.speak('hi there','en');t.advance(500);t.spoken[0].onend();t.advance(300);await t.tick();await t.tick();t.advance(1000);
+ assert.ok(t.ev('cue-played').some(x=>x.d.reason==='custom-tone-unplayable'));assert.equal(t.a.state().phase,'idle');
 });
 test('Settings persist mode, tones, delay',()=>{
  const t=world();const ui={mode:{value:'ask'},tones:{value:'off'},volume:{value:'0.2'},resume:{value:'450'}};t.a.saveSettings(ui);
