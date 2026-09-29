@@ -404,3 +404,17 @@ Ownership metadata (side, generation, source/target language, time, confidence, 
 **Note on the verdicts.** "지금은 출근해야 해요" vs "나는 지금 일하러 가야 해요" scored Miss 33% though the meaning is the same. The score measures wording, and Korean paraphrase changes most of the characters. Meaning-level checking needs an AI judge, which is backlogged under paid AI (owner decision).
 
 **Gates (lab).** 23/23 controller tests (existing tests now use punctuated text, as Deepgram produces since r3). Ask mode: 24/24. Open mode: 25/25. Keyboard: 32/32 (r8 code before the final test was added).
+
+
+### chat-test r9: AI keys tab (2026-09-29)
+
+**Owner request.** Add Venice and OpenRouter API keys as their own tab in the settings, following devstream-test.html. Don't change translation-check grading yet: that comes in a later release, after the r8 fix has been field-tested.
+
+**Change.**
+- Device settings has two tabs: **Device** (unchanged) and **AI keys**.
+- Each provider works as in devstream-test: key field, "Load … models", model picker, "Validate & save …" (1-token ping). The same 401/402 messages and key cleaning are used.
+- Keys are saved only after a successful validation, to `chat_ai_cfg` on this device. They are prefilled from devstream's saved keys (`ds_cfg_v2`, same site), which are read but never modified.
+- Keys are never logged (only provider, model and outcome).
+- Nothing uses the keys yet.
+
+**Gates (lab).** 23/23 controller tests. Ask mode: 25/25, including the r9 scenario with mocked providers. Open mode: 26/26. Keyboard: 32/32. The real Venice/OpenRouter endpoints were not called from the lab.

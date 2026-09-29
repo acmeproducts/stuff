@@ -71,3 +71,22 @@ test('r8: a Korean sentence split at "하지만" arrives as one message',async({
  assert.equal(await page.evaluate(()=>HIST.length),1);assert.equal(await page.evaluate(()=>HIST[0].original),'가끔은 잠들 수 있을 것 같은 기분이 들기도 하지만 지금은 출근해야 해요.');
  assert.equal(await page.evaluate(()=>HIST[0].via.joined),2);
 });
+test('r9: AI keys tab loads models, validates and saves Venice and OpenRouter keys',async({page})=>{
+ await page.route('https://api.venice.ai/**',route=>{const u=route.request().url();if(u.endsWith('/models'))return route.fulfill({json:{data:[{id:'venice-b'},{id:'venice-a'}]}});const b=JSON.parse(route.request().postData()||'{}');return b.model==='venice-a'?route.fulfill({status:402,json:{error:'credits'}}):route.fulfill({json:{choices:[{message:{content:'ok'}}]}})});
+ await page.route('https://openrouter.ai/**',route=>{const u=route.request().url();if(u.endsWith('/auth/key'))return route.request().headers().authorization==='Bearer sk-or-good'?route.fulfill({json:{data:{}}}):route.fulfill({status:401,json:{error:{message:'bad key'}}});if(u.endsWith('/models'))return route.fulfill({json:{data:[{id:'openai/gpt-x'}]}});return route.fulfill({json:{choices:[]}})});
+ await page.evaluate(()=>localStorage.setItem('ds_cfg_v2',JSON.stringify({vkey:'devstream-venice-key',vmodel:'venice-b'})));
+ await create(page,'AI');await menu(page);await page.locator('#cl-settings').click();
+ await page.getByRole('button',{name:'AI keys',exact:true}).click();
+ assert.equal(await page.getByLabel('Venice API key').inputValue(),'devstream-venice-key','prefilled from devstream');
+ await page.getByRole('button',{name:'Load Venice models',exact:true}).click();await page.getByText('2 models loaded').waitFor();
+ await page.getByLabel('Venice model').selectOption('venice-a');await page.getByRole('button',{name:'Validate & save Venice',exact:true}).click();await page.getByText(/needs credits/).waitFor();
+ assert.equal(await page.evaluate(()=>localStorage.getItem('chat_ai_cfg')),null,'failed validation saves nothing');
+ await page.getByLabel('Venice model').selectOption('venice-b');await page.getByRole('button',{name:'Validate & save Venice',exact:true}).click();await page.getByText('✓ verified & saved: venice-b').waitFor();
+ await page.getByLabel('OpenRouter API key').fill('sk-or-bad');await page.getByRole('button',{name:'Load OpenRouter models',exact:true}).click();await page.getByText(/401/).waitFor();
+ await page.getByLabel('OpenRouter API key').fill(' Bearer sk-or-good ');await page.getByRole('button',{name:'Load OpenRouter models',exact:true}).click();await page.getByText('1 models loaded').waitFor();
+ await page.getByRole('button',{name:'Validate & save OpenRouter',exact:true}).click();await page.getByText('✓ verified & saved: openai/gpt-x').waitFor();
+ assert.deepEqual(await page.evaluate(()=>JSON.parse(localStorage.getItem('chat_ai_cfg'))),{vkey:'devstream-venice-key',vmodel:'venice-b',orkey:'sk-or-good',ormodel:'openai/gpt-x'});
+ assert.equal(await page.evaluate(()=>localStorage.getItem('ds_cfg_v2')),JSON.stringify({vkey:'devstream-venice-key',vmodel:'venice-b'}),'devstream config untouched');
+ assert.ok(!(await page.evaluate(()=>JSON.stringify(debugLog))).includes('sk-or-good')&&!(await page.evaluate(()=>JSON.stringify(debugLog))).includes('devstream-venice-key'),'keys never logged');
+ await page.getByRole('button',{name:'Device',exact:true}).click();await page.getByLabel('Microphone mode').waitFor();
+});

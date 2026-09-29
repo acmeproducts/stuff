@@ -24,7 +24,7 @@ test('r3: settings drop import/export, open diagnostics; per-room export under t
  await create(page,'Export me');await send(page,'south','hello friend');await settled(page,1);
  await menu(page);await page.locator('#cl-settings').click();
  assert.equal(await page.getByRole('button',{name:'Import from chat-admin / lab'}).count(),0);assert.equal(await page.getByRole('button',{name:'Export conversations'}).count(),0);
- assert.equal(await page.getByText('Backup restore',{exact:false}).count(),0);assert.ok(await page.getByText('Build chat-test-audio-r8').count());
+ assert.equal(await page.getByText('Backup restore',{exact:false}).count(),0);assert.ok(await page.getByText('Build chat-test-audio-r9').count());
  await page.getByRole('button',{name:'Diagnostics log',exact:true}).click();await page.locator('#diag-panel.show').waitFor();
  for(const n of ['Export','Copy','Clear'])assert.ok(await page.locator('#diag-panel').getByRole('button',{name:n,exact:true}).isVisible());
  assert.ok(/trans_ok|trans_fallback/.test(await page.locator('#diag-lines').textContent()),'translation diagnostics present');
