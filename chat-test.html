@@ -188,6 +188,7 @@ body.cl-empty-room .half{visibility:hidden}.kb.open,.kbin{max-height:calc(50dvh 
 .cl-bt-verdict.match{background:#dcfce7;color:#166534}.cl-bt-verdict.partial{background:#fef9c3;color:#854d0e}.cl-bt-verdict.miss{background:#fee2e2;color:#991b1b}.cl-bt-verdict.wait{background:#e2e8f0;color:#334155}
 .cl-jump.show{display:flex}
 .bsaid{font-size:11px;color:#64748b;margin-top:4px;font-style:italic}
+.cl-live-bub{opacity:.7;border:1px dashed rgba(16,185,129,.6)}.bub.s.cl-live-bub{border-color:rgba(59,130,246,.6)}
 #diag-panel .diagtools button{min-height:40px;padding:6px 12px}
 
 </style>
@@ -1074,7 +1075,7 @@ function dgLangParam(room) {
     function dgEndpointing(room){return room&&room.myLang==='ko'?1000:400}
     /* r12: one message per spoken turn. Finals are collected until Deepgram's UtteranceEnd (sent after this
        many ms without words, from word timings in the audio), with a 4 s fallback. Punctuation is no longer used. */
-    function dgUtteranceEnd(room){return room&&room.myLang==='ko'?1500:1000}
+    function dgUtteranceEnd(room){return 1000}   // r13: 1000 ms (Deepgram's minimum) for every language, Korean included
     var DG_UTT_FALLBACK_MS=4000;
     function dgKey(){try{return(localStorage.getItem('tb_dg_key')||'').trim()}catch(e){return ''}}
 
@@ -1140,6 +1141,7 @@ function dgLangParam(room) {
 
         function stopSocket(){
             P.gen.bump();
+            if(window.clLive)window.clLive(side,'','',0);
             if(P.ws){try{P.ws.close()}catch(e){}}
             if(P.enWs){try{P.enWs.close()}catch(e){}}
             P.ws=null; P.enWs=null; P.active=false;
@@ -1215,11 +1217,14 @@ function dgLangParam(room) {
                     var d=JSON.parse(e.data);
                     if(d.type==='UtteranceEnd'){flushUtt('utterance-end');return}
                     var alt=d.channel&&d.channel.alternatives&&d.channel.alternatives[0];
+                    var sepL=(room.myLang==='zh'||room.myLang==='ja')?'':' ';
+                    if(alt&&alt.transcript&&!d.is_final){if(window.clLive)window.clLive(side,P.utt.map(function(x){return x.t}).join(sepL),String(alt.transcript),alt.confidence);return}
                     if(alt&&alt.transcript&&d.is_final){
                         var t=String(alt.transcript).trim();
                         if(!t)return;
                         log('dg_final',{side:side,lang:lang,chars:t.length,conf:typeof alt.confidence==='number'?+alt.confidence.toFixed(2):null},'info');
                         P.utt.push({t:t,alt:alt});clearTimeout(P.uttTimer);
+                        if(window.clLive)window.clLive(side,P.utt.map(function(x){return x.t}).join(sepL),'',alt.confidence);
                         P.uttTimer=setTimeout(function(){flushUtt('fallback')},DG_UTT_FALLBACK_MS);
                     }
                 }catch(e2){}
@@ -1232,6 +1237,7 @@ function dgLangParam(room) {
                 var t=parts.map(function(x){return x.t}).join(sep);
                 var alt=Object.assign({},parts[0].alt,{confidence:Math.min.apply(null,parts.map(function(x){return typeof x.alt.confidence==='number'?x.alt.confidence:0.5}))});
                 log('dg_utterance',{side:side,lang:lang,parts:parts.length,chars:t.length,reason:reason},'info');
+                if(window.clLive)window.clLive(side,'','',0);
                 if(P.enWs){
                     /* Dual-channel room (zh/th/ko/ar): hold the native result briefly.
                        If the English channel returns something substantial inside the
@@ -1556,6 +1562,7 @@ function dgLangParam(room) {
         });
         if(atBottom)host.scrollTop=host.scrollHeight;
         updateJump(panel);
+        paintLiveIn(panel);
     }
     /* r3: a circled down-arrow shows while a transcript is scrolled above the latest message. */
     function updateJump(panel){
@@ -1644,6 +1651,41 @@ function dgLangParam(room) {
             });
         });
     }
+    /* r13: live bubble. While someone talks, their words show at once in a faded bubble on both panes,
+       with a rough translation of what is already settled. The settled text is translated in the
+       background, so the real message usually finds its translation cached when the turn ends. */
+    var LIVE={},liveShown=null,liveSpec={};
+    window.clLive=function(pipe,committed,interim,conf){
+        committed=norm(committed||'');var text=norm(committed+' '+(interim||''));
+        if(!text){delete LIVE[pipe];delete liveSpec[pipe];pickLive();return}
+        LIVE[pipe]={text:text,committed:committed,conf:typeof conf==='number'?conf:0.5,ts:Date.now()};pickLive();
+    };
+    function pickLive(){
+        var best=null;
+        ['south','north'].forEach(function(p){var l=LIVE[p];if(!l||Date.now()-l.ts>3000)return;
+            var ss=window.audioTurn.scriptSide(l.text),sc=l.conf+(ss===p?0.3:ss?-0.6:0);
+            if(!best||sc>best.sc)best={p:p,sc:sc,l:l}});
+        if(!best||best.sc<0.5){if(liveShown){liveShown=null;paintLive()}return}
+        var keepTr=liveShown&&liveShown.side===best.p?liveShown.tr:'';
+        liveShown={side:best.p,text:best.l.text,tr:keepTr};
+        var c=best.l.committed;
+        if(c&&liveSpec[best.p]!==c){liveSpec[best.p]=c;var sd=best.p,src=langOf(sd),tgt=langOf(otherSide(sd));
+            if(src!==tgt)translateWithRetry(c,src,tgt,0).then(function(r){if(r&&r.ok&&liveShown&&liveShown.side===sd){liveShown.tr=r.text;paintLive()}});}
+        paintLive();
+    }
+    function paintLive(){['south','north'].forEach(paintLiveIn)}
+    function paintLiveIn(panel){
+        var host=document.getElementById('tx-'+panel);if(!host)return;
+        var old=host.querySelector('.cl-live');if(old)old.remove();
+        if(!liveShown)return;
+        var atBottom=host.scrollHeight-host.scrollTop-host.clientHeight<160;
+        var own=liveShown.side===panel,row=document.createElement('div');row.className='row cl-live '+(own?'own':'them');
+        var b=document.createElement('div');b.className='bub cl-live-bub '+(liveShown.side==='south'?'s':'n');
+        var main=document.createElement('div');main.className='btxt';main.textContent=own?liveShown.text:(liveShown.tr||'…');
+        var sub=document.createElement('div');sub.className='bsaid';sub.textContent=own?(liveShown.tr||''):liveShown.text;
+        b.append(main);if(sub.textContent)b.append(sub);row.appendChild(b);host.appendChild(row);
+        if(atBottom)host.scrollTop=host.scrollHeight;
+    }
     function bubbleFor(e,panel){
         var row=document.createElement('div');
         row.className='row '+(e.side===panel?'own':'them');row.dataset.msgId=e.id;
@@ -1709,7 +1751,7 @@ function dgLangParam(room) {
     var candidateTxn={south:null,north:null},compAnchor={south:null,north:null};
     var pendingConversion={south:null,north:null},undoEdit={south:null,north:null};
     var predictionTxn={south:null,north:null};
-    var CHAT_BUILD='chat-test-audio-r12';
+    var CHAT_BUILD='chat-test-audio-r13';
     var UNDO_LABEL={en:'Undo',th:'เลิกทำ',es:'Deshacer',fr:'Annuler',de:'Rückgängig',
         it:'Annulla',pt:'Desfazer',nl:'Ongedaan maken',sv:'Ångra',pl:'Cofnij',tr:'Geri al',
         ru:'Отменить',ar:'تراجع',hi:'पूर्ववत करें',vi:'Hoàn tác',id:'Urungkan',ms:'Buat asal',
