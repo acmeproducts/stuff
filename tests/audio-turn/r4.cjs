@@ -103,7 +103,7 @@ test('r12: same audio, split with or without a period, gives one message per spo
  await page.evaluate(()=>{localStorage.setItem('tb_dg_key','synthetic-key');localStorage.setItem('chat_test_audio',JSON.stringify({mode:'open',tones:false}))});
  await create(page,'Turns','en','ko');await page.waitForFunction(()=>mic.south.active&&mic.north.active);
  const ko=page.testSockets.filter(w=>w.url().includes('language=ko')).slice(-1)[0];
- assert.ok(ko.url().includes('interim_results=true')&&ko.url().includes('utterance_end_ms=1500'));
+ assert.ok(ko.url().includes('interim_results=true')&&ko.url().includes('utterance_end_ms=1000'));
  const fin=t=>ko.send(JSON.stringify({is_final:true,channel:{alternatives:[{transcript:t,confidence:1}]}})),end=()=>ko.send(JSON.stringify({type:'UtteranceEnd'}));
  fin('하마터면 잠들 뻔했어요.');await page.waitForTimeout(1200);fin('하지만 이제 출근할 시간이에요.');end();
  await page.waitForFunction(()=>HIST.length>=1,null,{timeout:3000});await page.waitForTimeout(1500);
@@ -113,4 +113,20 @@ test('r12: same audio, split with or without a period, gives one message per spo
  await page.waitForFunction(()=>HIST.length>=2,null,{timeout:3000});await page.waitForTimeout(1500);
  assert.equal(await page.evaluate(()=>HIST.length),2,'the other split gives the same single message');
  assert.ok(await page.evaluate(()=>debugLog.filter(e=>e.ev==='dg_utterance'&&e.d.reason==='utterance-end'&&e.d.parts===2).length===2));
+});
+test('r13: live bubble while speaking; translation is ready (cached) when the turn ends',async({page})=>{
+ const calls={};await page.route('https://translate.googleapis.com/**',route=>{const q=new URL(route.request().url()).searchParams.get('q');calls[q]=(calls[q]||0)+1;return route.fulfill({json:[[['EN:'+q,q]]]})});
+ await page.evaluate(()=>{localStorage.setItem('tb_dg_key','synthetic-key');localStorage.setItem('chat_test_audio',JSON.stringify({mode:'open',tones:false}))});
+ await create(page,'Live','en','ko');await page.waitForFunction(()=>mic.south.active&&mic.north.active);
+ const ko=page.testSockets.filter(w=>w.url().includes('language=ko')).slice(-1)[0];
+ const say=(t,final)=>ko.send(JSON.stringify({is_final:!!final,channel:{alternatives:[{transcript:t,confidence:.95}]}}));
+ say('하마터면');await page.locator('#tx-north .cl-live').waitFor({timeout:2000});await page.locator('#tx-south .cl-live').waitFor({timeout:2000});
+ assert.equal(await page.locator('#tx-north .cl-live .btxt').textContent(),'하마터면','speaker sees own words at once');
+ say('하마터면 잠들 뻔했어요.',true);await page.waitForFunction(()=>/EN:하마터면 잠들 뻔했어요\./.test(document.querySelector('#tx-south .cl-live .btxt').textContent),null,{timeout:3000});
+ say('하지만 이제');await page.waitForFunction(()=>/하지만 이제/.test(document.querySelector('#tx-north .cl-live .btxt').textContent));
+ say('하지만 이제 출근할 시간이에요.',true);await page.waitForTimeout(400);ko.send(JSON.stringify({type:'UtteranceEnd'}));
+ await page.waitForFunction(()=>HIST.length===1&&HIST[0].status==='complete',null,{timeout:4000});
+ assert.equal(await page.locator('.cl-live').count(),0,'live bubble removed when the message lands');
+ const full='하마터면 잠들 뻔했어요. 하지만 이제 출근할 시간이에요.';
+ assert.equal(await page.evaluate(()=>HIST[0].tr),'EN:'+full);assert.equal(calls[full],1,'full turn translated once, in the background, then reused');
 });

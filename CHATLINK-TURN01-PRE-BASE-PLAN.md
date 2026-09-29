@@ -469,3 +469,17 @@ Ownership metadata (side, generation, source/target language, time, confidence, 
 **Graveyard (r12).** The punctuation-based join (r8, window raised in r10) is removed and replaced by UtteranceEnd.
 
 **Gates (lab).** 20/20 controller tests (3 join tests retired with the feature). Ask mode: 27/27. Open mode: 28/28. Keyboard: 32/32. **Not verified:** Deepgram's real UtteranceEnd timing for the owner's audio.
+
+
+### chat-test r13: hide the end-of-turn wait (2026-09-29)
+
+**Owner report.** The r12 wait for end of speech "breaks up the conversation considerably". The owner approved three changes.
+
+**Change.**
+1. *Live bubble.* Deepgram interim results show the speaker's words at once, in a faded dashed bubble on both panes. The listener's pane shows the rough translation as its main line. The side is picked by the same confidence and script test as routing, and the bubble disappears when the real message lands.
+2. *Background translation.* Each time a part of the turn is settled (a Deepgram final), the text so far is translated in the background. When the turn ends, the message's translation is usually a cache hit. The lab scenario shows the full turn translated exactly once, before the message was created.
+3. *Korean end-of-speech wait* is 1000 ms (Deepgram's minimum), down from 1500 ms. All languages now use 1000 ms.
+
+One message per spoken turn is unchanged.
+
+**Gates (lab).** 20/20 controller tests. Ask mode: 28/28, including the r13 scenario. Open mode: 29/29. Keyboard: 32/32. **Not verified on the phone:** real interim-result timing and how the live bubble feels in conversation.
