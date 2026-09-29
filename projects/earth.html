@@ -9,7 +9,7 @@
   #renderCanvas { width:100%; height:100%; outline:none; display:block; }
   #hud { position:absolute; top:0; left:0; width:100%; height:100%; pointer-events:none; }
   #topHud { position:absolute; top:8px; left:8px; color:#0f0; background:rgba(0,0,0,0.45); font-family:monospace; font-size:15px; text-shadow:1px 1px 0 #000; line-height:1.45; padding:6px 8px; border-radius:4px; max-width:92vw; }
-  #errBox { position:absolute; bottom:8px; left:8px; right:8px; color:#f33; background:rgba(0,0,0,0.75); font-family:monospace; font-size:13px; padding:8px; border-radius:4px; max-height:30%; overflow:auto; display:none; pointer-events:auto; white-space:pre-wrap; }
+  #errBox { position:absolute; bottom:8px; left:8px; right:8px; color:#f66; background:rgba(0,0,0,0.75); font-family:monospace; font-size:13px; padding:8px; border-radius:4px; max-height:30%; overflow:auto; display:none; pointer-events:auto; white-space:pre-wrap; cursor:pointer; }
   #controls { position:absolute; bottom:8px; right:8px; pointer-events:auto; display:flex; flex-direction:column; gap:6px; align-items:flex-end; }
   button { font-family:monospace; font-size:15px; padding:10px 14px; border:none; border-radius:4px; background:rgba(255,255,255,0.88); color:#000; touch-action:manipulation; }
   button:active { background:rgba(200,200,200,0.95); }
@@ -25,12 +25,18 @@
   </div>
 </div>
 <script>
+'use strict';
+const BUILD = 'M3.1-hotfix 2026-09-29';
 const errBox = document.getElementById('errBox');
 function showErr(msg) {
   errBox.style.display = 'block';
   const lines = (errBox.textContent + msg + '\n').split('\n');
   errBox.textContent = lines.slice(-9).join('\n');
 }
+errBox.addEventListener('click', function() {
+  errBox.textContent = '';
+  errBox.style.display = 'none';
+});
 window.onerror = function(msg, src, line, col, err) {
   showErr('ERR: ' + msg + ' @' + line + ':' + col);
   return false;
@@ -41,65 +47,76 @@ window.addEventListener('unhandledrejection', function(e) {
 
 const CDN_URLS = [
   'https://cdn.babylonjs.com/babylon.js',
-  'https://cdn.jsdelivr.net/npm/babylonjs@latest/babylon.js',
-  'https://unpkg.com/babylonjs@latest/babylon.js'
+  'https://cdn.jsdelivr.net/npm/babylonjs@7/babylon.js',
+  'https://unpkg.com/babylonjs@7/babylon.js'
 ];
 
 function loadScript(url) {
-  return new Promise((resolve, reject) => {
+  return new Promise(function(resolve, reject) {
     const s = document.createElement('script');
     s.src = url;
-    s.crossOrigin = 'anonymous';
-    s.onload = () => resolve();
-    s.onerror = () => reject(new Error('Failed to load ' + url));
+    s.onload = function() { resolve(); };
+    s.onerror = function() { reject(new Error('script load failed')); };
     document.head.appendChild(s);
   });
 }
 
 async function loadBabylon() {
+  let lastErr = null;
   for (let i = 0; i < CDN_URLS.length; i++) {
     try {
       await loadScript(CDN_URLS[i]);
+      if (typeof window.BABYLON === 'undefined') throw new Error('BABYLON undefined after load');
       return CDN_URLS[i];
     } catch (e) {
-      if (i === CDN_URLS.length - 1) throw new Error('All Babylon CDNs failed');
+      lastErr = e;
     }
   }
+  throw new Error('All Babylon CDNs failed (' + (lastErr ? lastErr.message : 'unknown') + ')');
 }
 
-(async function init() {
-  try {
-    const cdn = await loadBabylon();
-    startApp(cdn);
-  } catch (e) {
+(function init() {
+  loadBabylon().then(function(cdn) {
+    try {
+      startApp(cdn);
+    } catch (e) {
+      showErr('FATAL: ' + (e && e.stack ? e.stack : e));
+    }
+  }).catch(function(e) {
     showErr('FATAL: ' + e.message);
-  }
+  });
 })();
 
 function startApp(cdnUrl) {
   const canvas = document.getElementById('renderCanvas');
   const engine = new BABYLON.Engine(canvas, true, { preserveDrawingBuffer: true, stencil: true });
   const scene = new BABYLON.Scene(engine);
-  scene.clearColor = new BABYLON.Color3(0.05, 0.05, 0.15);
+  scene.clearColor = new BABYLON.Color4(0.5, 0.7, 0.95, 1);
 
   scene.fogMode = BABYLON.Scene.FOGMODE_EXP2;
-  scene.fogDensity = 0.0015;
+  scene.fogDensity = 0.00035;
   scene.fogColor = new BABYLON.Color3(0.6, 0.75, 0.9);
 
   const sky = BABYLON.MeshBuilder.CreateBox('sky', { size: 10000 }, scene);
   const skyMat = new BABYLON.StandardMaterial('skyMat', scene);
   skyMat.backFaceCulling = false;
-  skyMat.diffuseColor = new BABYLON.Color3(0.05, 0.05, 0.15);
-  skyMat.emissiveColor = new BABYLON.Color3(0.05, 0.05, 0.15);
+  skyMat.disableLighting = true;
+  skyMat.fogEnabled = false;
+  skyMat.diffuseColor = new BABYLON.Color3(0, 0, 0);
+  skyMat.specularColor = new BABYLON.Color3(0, 0, 0);
+  skyMat.emissiveColor = new BABYLON.Color3(0.5, 0.7, 0.95);
   sky.material = skyMat;
   sky.infiniteDistance = true;
 
   const sun = new BABYLON.DirectionalLight('sun', new BABYLON.Vector3(-0.5, -1, -0.5), scene);
-  sun.intensity = 1.2;
+  sun.intensity = 1.15;
   const hemi = new BABYLON.HemisphericLight('hemi', new BABYLON.Vector3(0, 1, 0), scene);
-  hemi.intensity = 0.5;
+  hemi.intensity = 0.55;
+  hemi.groundColor = new BABYLON.Color3(0.35, 0.32, 0.28);
 
   const camera = new BABYLON.UniversalCamera('cam', new BABYLON.Vector3(0, 100, 0), scene);
+  camera.minZ = 0.3;
+  camera.maxZ = 20000;
   camera.attachControl(canvas, true);
   camera.speed = 5;
   camera.angularSensibility = 3000;
@@ -108,9 +125,13 @@ function startApp(cdnUrl) {
   camera.keysLeft.push(65);
   camera.keysRight.push(68);
 
-  canvas.addEventListener('click', () => {
+  canvas.addEventListener('contextmenu', function(e) { e.preventDefault(); });
+  canvas.addEventListener('click', function() {
     if (!document.pointerLockElement && canvas.requestPointerLock) {
-      try { canvas.requestPointerLock(); } catch(e){}
+      try {
+        const p = canvas.requestPointerLock();
+        if (p && p.catch) p.catch(function() {});
+      } catch (e) {}
     }
   });
 
@@ -124,8 +145,8 @@ function startApp(cdnUrl) {
     const n = Math.pow(2, z);
     const x = Math.floor((lon + 180) / 360 * n);
     const latRad = lat * DEG2RAD;
-    const y = Math.floor((1 - Math.log(Math.tan(latRad) + 1/Math.cos(latRad)) / Math.PI) / 2 * n);
-    return { x, y, n };
+    const y = Math.floor((1 - Math.log(Math.tan(latRad) + 1 / Math.cos(latRad)) / Math.PI) / 2 * n);
+    return { x: x, y: y, n: n };
   }
 
   function tileMeters(z) {
@@ -133,7 +154,7 @@ function startApp(cdnUrl) {
   }
 
   function hash2(x, y) {
-    let s = Math.sin(x * 12.9898 + y * 78.233 + 37.719) * 43758.5453;
+    const s = Math.sin(x * 12.9898 + y * 78.233 + 37.719) * 43758.5453;
     return s - Math.floor(s);
   }
   function noise2(x, y) {
@@ -201,7 +222,6 @@ function startApp(cdnUrl) {
   const terrainMat = new BABYLON.StandardMaterial('terrainMat', scene);
   terrainMat.specularColor = new BABYLON.Color3(0, 0, 0);
   terrainMat.ambientColor = new BABYLON.Color3(0.4, 0.4, 0.4);
-  terrainMat.useVertexColor = true;
   terrainMat.backFaceCulling = false;
 
   function makeProcHeights(tx, ty) {
@@ -242,7 +262,7 @@ function startApp(cdnUrl) {
     for (let j = 0; j < N; j++) {
       for (let i = 0; i < N; i++) {
         const a = j * nb + i, b = a + 1, c = a + nb, d = c + 1;
-        indices.push(a, c, b, b, c, d);
+        indices.push(a, b, c, b, d, c);
       }
     }
     const edges = [
@@ -286,42 +306,86 @@ function startApp(cdnUrl) {
   }
 
   function decodePng(blob) {
-    return new Promise((resolve, reject) => {
+    return new Promise(function(resolve, reject) {
       const url = URL.createObjectURL(blob);
       const img = new Image();
-      img.crossOrigin = 'anonymous';
-      img.onload = () => {
-        const c = document.createElement('canvas');
-        c.width = 256; c.height = 256;
-        const ctx = c.getContext('2d');
-        ctx.drawImage(img, 0, 0);
-        URL.revokeObjectURL(url);
-        resolve(ctx.getImageData(0, 0, 256, 256).data);
+      img.onload = function() {
+        try {
+          const c = document.createElement('canvas');
+          c.width = 256; c.height = 256;
+          const ctx = c.getContext('2d');
+          ctx.drawImage(img, 0, 0, 256, 256);
+          URL.revokeObjectURL(url);
+          resolve(ctx.getImageData(0, 0, 256, 256).data);
+        } catch (err) {
+          URL.revokeObjectURL(url);
+          reject(err);
+        }
       };
-      img.onerror = () => { URL.revokeObjectURL(url); reject(new Error('PNG decode failed')); };
+      img.onerror = function() {
+        URL.revokeObjectURL(url);
+        reject(new Error('PNG decode failed'));
+      };
       img.src = url;
     });
   }
 
-  async function fetchElev(t) {
-    const url = 'https://s3.amazonaws.com/elevation-tiles-prod/terrarium/' + zoom + '/' + t.tx + '/' + t.ty + '.png';
-    try {
-      const resp = await fetch(url, { mode: 'cors' });
-      if (!resp.ok) throw new Error('HTTP ' + resp.status);
-      const data = await decodePng(await resp.blob());
-      if (!tiles.has(t.key)) return;
-      const h = new Float32Array(65536);
-      for (let i = 0; i < 65536; i++) {
-        h[i] = data[i * 4] * 256 + data[i * 4 + 1] + data[i * 4 + 2] / 256 - 32768;
-      }
-      t.heights = h;
-      t.state = 'terr';
-      rebuildMesh(t);
-    } catch (e) {
-      if (!tiles.has(t.key)) return;
-      t.state = 'proc';
-      showErr('Elev PROC [' + t.tx + ',' + t.ty + ']: ' + e.message);
+  const ELEV_HOSTS = [
+    function(z, x, y) { return 'https://s3.amazonaws.com/elevation-tiles-prod/terrarium/' + z + '/' + x + '/' + y + '.png'; },
+    function(z, x, y) { return 'https://elevation-tiles-prod.s3.amazonaws.com/terrarium/' + z + '/' + x + '/' + y + '.png'; }
+  ];
+  let netFails = 0;
+  let lastNetErr = '';
+  let dlActive = 0;
+  const dlQueue = [];
+  const DL_MAX = 6;
+
+  function pumpDl() {
+    while (dlActive < DL_MAX && dlQueue.length > 0) {
+      const job = dlQueue.shift();
+      dlActive++;
+      job().catch(function() {}).then(function() {
+        dlActive--;
+        pumpDl();
+      });
     }
+  }
+  function queueDl(job) {
+    dlQueue.push(job);
+    pumpDl();
+  }
+
+  async function fetchElev(t) {
+    const fx = ((t.tx % NZ) + NZ) % NZ;
+    const fy = Math.min(Math.max(t.ty, 0), NZ - 1);
+    let lastErr = null;
+    for (let h = 0; h < ELEV_HOSTS.length; h++) {
+      if (!tiles.has(t.key)) return;
+      const ctrl = new AbortController();
+      const timer = setTimeout(function() { ctrl.abort(); }, 12000);
+      try {
+        const resp = await fetch(ELEV_HOSTS[h](zoom, fx, fy), { mode: 'cors', signal: ctrl.signal });
+        if (!resp.ok) throw new Error('HTTP ' + resp.status);
+        const data = await decodePng(await resp.blob());
+        if (!tiles.has(t.key)) return;
+        const hh = new Float32Array(65536);
+        for (let i = 0; i < 65536; i++) {
+          hh[i] = data[i * 4] * 256 + data[i * 4 + 1] + data[i * 4 + 2] / 256 - 32768;
+        }
+        t.heights = hh;
+        t.state = 'terr';
+        rebuildMesh(t);
+        return;
+      } catch (e) {
+        lastErr = e;
+      } finally {
+        clearTimeout(timer);
+      }
+    }
+    if (!tiles.has(t.key)) return;
+    t.state = 'proc';
+    netFails++;
+    lastNetErr = (lastErr && lastErr.message) ? lastErr.message : String(lastErr);
   }
 
   function ensureTile(tx, ty, d) {
@@ -335,7 +399,7 @@ function startApp(cdnUrl) {
     t = { key: key, tx: tx, ty: ty, lod: want, state: 'proc', heights: makeProcHeights(tx, ty), mesh: null };
     tiles.set(key, t);
     rebuildMesh(t);
-    fetchElev(t);
+    queueDl(function() { return fetchElev(t); });
   }
 
   function updateStreaming(ptx, pty) {
@@ -380,12 +444,12 @@ function startApp(cdnUrl) {
     btnFly.textContent = flyMode ? 'Walk' : 'Fly';
     camera.speed = flyMode ? 40 : 5;
   }
-  btnFly.addEventListener('click', () => setFly(!flyMode));
-  document.addEventListener('keydown', (e) => {
+  btnFly.addEventListener('click', function() { setFly(!flyMode); });
+  document.addEventListener('keydown', function(e) {
     if (e.key === 'f' || e.key === 'F') setFly(!flyMode);
   });
 
-  scene.registerBeforeRender(() => {
+  scene.registerBeforeRender(function() {
     const ptx = Math.round(camera.position.x / TILE_M) + originTx;
     const pty = Math.round(-camera.position.z / TILE_M) + originTy;
     if (ptx !== lastPTx || pty !== lastPTy) {
@@ -398,27 +462,30 @@ function startApp(cdnUrl) {
   });
 
   const topHud = document.getElementById('topHud');
-  scene.onBeforeRenderObservable.add(() => {
+  scene.onBeforeRenderObservable.add(function() {
     const fps = engine.getFps().toFixed(1);
     const tcfX = camera.position.x / TILE_M + originTx + 0.5;
     const tcfY = -camera.position.z / TILE_M + originTy + 0.5;
-    const lon = tcfX / NZ * 360 - 180;
+    let lon = tcfX / NZ * 360 - 180;
+    lon = ((lon + 180) % 360 + 360) % 360 - 180;
     const lat = Math.atan(Math.sinh(Math.PI * (1 - 2 * tcfY / NZ))) / DEG2RAD;
     let terr = 0, proc = 0;
     for (const t of tiles.values()) {
       if (t.state === 'terr') terr++; else proc++;
     }
-    topHud.innerHTML = 'FPS:' + fps +
+    topHud.innerHTML = BUILD +
+      '<br>FPS:' + fps +
       '<br>Lat:' + lat.toFixed(5) + ' Lon:' + lon.toFixed(5) +
       '<br>Alt:' + camera.position.y.toFixed(1) + 'm' +
       '<br>Mode:' + (flyMode ? 'FLY' : 'WALK') +
       '<br>Tiles:' + tiles.size + ' (ring ' + RING + ')' +
       '<br>SRC: TERR ' + terr + ' / PROC ' + proc +
+      '<br>NET fails:' + netFails + (lastNetErr ? ' (' + lastNetErr.slice(0, 40) + ')' : '') +
       '<br>CDN:' + cdnUrl.split('/')[2];
   });
 
-  engine.runRenderLoop(() => scene.render());
-  window.addEventListener('resize', () => engine.resize());
+  engine.runRenderLoop(function() { scene.render(); });
+  window.addEventListener('resize', function() { engine.resize(); });
 }
 </script>
 </body>
