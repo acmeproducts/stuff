@@ -258,6 +258,29 @@ b39 incorrectly changed stationary hold into context-menu activation. Devstream 
 
 ---
 
+# 2026-09-29 — b51 failed-tab blocker resolution
+
+## Owner directive
+A tab stays red while its latest run failed. The owner needs an explicit way to clear that attention state without erasing the failure.
+
+## Implemented
+- Tab context menu gains **Resolve blocker ›** only when the tab's state is `error` and the failure is unresolved. Submenu, exactly three choices:
+  - **Resolved another way** — clears the red/attention state; records `resolved_elsewhere` + time.
+  - **No longer needed** — clears the red/attention state; records `abandoned` + time.
+  - **Retry** — changes nothing about the failure; records `retry` + time and queues the same tab through the existing `dispatch()` path. The tab stays red until a run succeeds. No replacement tab.
+- Failure history is immutable: `state`, `error`, `finishedAt` and the thread's messages are never edited. Dispositions live in a separate append-only `dispositions[]` on the tab's record in the existing Devstream state file (`devstream-status.json`); each entry stores kind, time, and a copy of the failure it answers (`failedAt`, `error`). No new persistence system.
+- A tab counts as blocked only while `state==='error'` and no non-retry disposition matches its current `finishedAt`. A later failure has a new `finishedAt`, so it is red again automatically.
+- Red/attention displays (tab dot, sidebar project rollup, project error count, pill, dashboard rows/filter, suggestions) use the resolved-aware check. The dashboard shows a small "(blocker resolved / not needed)" note instead of the error text.
+- If saving the disposition fails, the in-memory entry is rolled back and the error is shown.
+
+## Decision
+Resolve state is derived from the disposition matching the specific failure, not a flag on the tab, so history stays evidence and new failures are never masked.
+
+## Acceptance
+- **DS-B51-BR-1..10:** owner acceptance tests 1–10 for failed-tab dispositions.
+
+---
+
 # 2026-09-29 — b51 fix: project opens on its first displayed tab
 - Regression: opening a project chose the first thread by raw key order, not the tab order shown (including drag-reordered order). Now uses the same ordered list as the tab bar. One-line change.
 
