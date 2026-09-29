@@ -1,0 +1,27 @@
+#!/usr/bin/env bash
+set -Eeuo pipefail
+REF="4232e42c805246349a1bffa8afcc7c8ef71c9b07"
+BASE="https://raw.githubusercontent.com/acmeproducts/stuff/$REF/SOT"
+ROOT="$HOME/.sot-turn02/release-d/SOT"
+UNIT="$HOME/.config/systemd/user/sot-turn02-release-d.service"
+TMP="$(mktemp -d)"
+trap 'rm -rf "$TMP"' EXIT
+mkdir -p "$ROOT" "$HOME/.config/systemd/user"
+for f in sot-turn02-release-d-autosync.py sot-turn02-release-d.service qualify-release-d-autosync.py sot-turn02-release-d-source-actions.html; do curl -fsSL "$BASE/$f" -o "$TMP/$f"; done
+python3 -m py_compile "$TMP/sot-turn02-release-d-autosync.py" "$TMP/qualify-release-d-autosync.py"
+python3 "$TMP/qualify-release-d-autosync.py"
+install -m 0644 "$TMP/sot-turn02-release-d-autosync.py" "$ROOT/sot-turn02-release-d-autosync.py"
+install -m 0644 "$TMP/qualify-release-d-autosync.py" "$ROOT/qualify-release-d-autosync.py"
+install -m 0644 "$TMP/sot-turn02-release-d-source-actions.html" "$ROOT/sot-turn02-release-d-source-actions.html"
+install -m 0644 "$TMP/sot-turn02-release-d.service" "$UNIT"
+systemctl --user daemon-reload
+systemctl --user restart sot-turn02-release-d.service
+for _ in $(seq 1 60); do curl -fsS --max-time 2 http://127.0.0.1:8765/api/health >"$TMP/health.json" 2>/dev/null && break; sleep .5; done
+python3 - "$TMP/health.json" <<'PY'
+import json,sys
+h=json.load(open(sys.argv[1]));assert h.get('ok') and h.get('version')=='turn02-release-d' and h.get('schema')==14,h
+print('PASS automatic SSOT runtime healthy')
+PY
+systemctl --user show sot-turn02-release-d.service -p ExecStart --value | grep -q 'sot-turn02-release-d-autosync.py'
+echo "PASS registered sources now auto-sync when drift is detected"
+echo "TEST https://acmeproducts.github.io/stuff/SOT/sot-turn02-release-d-source-actions.html?v=$REF&api=https%3A%2F%2Foc-ref.fell-dojo.ts.net%2Fsot"
