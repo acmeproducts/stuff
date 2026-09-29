@@ -369,3 +369,22 @@ Ownership metadata (side, generation, source/target language, time, confidence, 
 **Gates (lab).** 20/20 controller tests. Ask mode: 22/22, including a scenario built from the owner's example. Open mode: 23/23. Keyboard: 32/32.
 
 **Open question for field data.** Why English speech lands on the Thai side (the owner speaking English there, or routing). Diagnostics `audio:transcript-routed` records which side and why.
+
+
+### chat-test r7: route recorded on every message (2026-09-29)
+
+**Owner request.** Trace why English speech ends up on the Thai side.
+
+**Evidence available.**
+- No device log has reached a place I can read: the relay behind talkbridge/DEVICE-LOG.md returns "Not found", and chat-test keeps its log on the phone only.
+- Uploading chat-test logs to the repo automatically was blocked by the session's safety check, so it has not been built.
+- From the owner's examples:
+  - the first was dated Sep 22 (before r3);
+  - the spoken text was lowercase with no punctuation, and Deepgram punctuation was off before r3;
+  - older builds were ask-mode only, and in ask mode a Thai-side mic (th is in DG_DUAL_LANGS) runs an English side-channel whose results are posted as that side's message.
+
+  Most likely path: North held the mic, English speech was caught by North's English side-channel, it was posted as North, then normalized into Thai. In open mode (r2+), English side-channel results route to the English side instead. **Not confirmed on the device.**
+
+**Change.** Every new message stores its route: voice or keyboard, mic channel, heard language, confidence, mode, and deciding rule with scores. The translation check shows it as a "Route" row, and Copy includes it. `route` is also logged in the diagnostics log.
+
+**Gates (lab).** 20/20 controller tests. Ask mode: 23/23, including an r7 route scenario. Open mode: 24/24. Keyboard: 32/32.

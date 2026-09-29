@@ -488,7 +488,7 @@ function speakText(text,lang){
   const l=langs();
   rec('transcript-routed','ok',Object.assign({side:side,reason:reason,src:l[side],tgt:l[side==='south'?'north':'south'],conf:+item.conf.toFixed(2),tts:item.tts},extra||{}));
   last={side:side,ts:now()};
-  if(hooks)hooks.send(side,item.text);
+  if(hooks)hooks.send(side,item.text,Object.assign({input:'voice',mode:openMode()?'open':'ask',pipe:item.pipe,heardAs:item.lang||'?',conf:+item.conf.toFixed(2),reason:reason,tts:item.tts},extra||{}));
  }
 
  /* ---------- microphones: open mode keeps both listening ---------- */
@@ -1597,6 +1597,9 @@ function dgLangParam(room) {
         var spoken=rewritten?e.original:e.text;
         var rSpoken=row('Spoken',rewritten?'…':name(e.src),spoken),rBack=row('Back-translation','…','…'),rTarget=row('Target',name(e.tgt),e.tr||'(no translation yet)');
         if(rewritten)row('Normalized',name(e.src),e.text);
+        /* r7: how the message got to this side. */
+        var v=e.via;row('Route',v?(v.input==='voice'?'Voice':'Keyboard'):'—',!v?'Not recorded (message older than r7)':v.input!=='voice'?'Typed on the '+e.side+' keyboard':
+            'Mic channel: '+v.pipe+' ('+name(langOf(v.pipe))+'), heard as '+name(v.heardAs)+', confidence '+v.conf+', mode '+v.mode+', decided by '+({owner:'mic owner (ask mode)','only-open-side':'only open mic',scored:'score'}[v.reason]||v.reason)+(v.score!=null?' '+v.score+(v.runnerUp!=null?' vs '+v.runnerUp:''):''));
         var report={verdict:'',score:null};
         x.onclick=function(){ov.remove()};ov.addEventListener('click',function(ev){if(ev.target===ov)ov.remove()});
         copy.onclick=function(){var txt=rows.map(function(r){return r.label+' ('+r.lang+'): '+r.text}).join('\n')+'\nResult: '+report.verdict+(report.score!=null?' ('+Math.round(report.score*100)+'%)':'');
@@ -1687,7 +1690,7 @@ function dgLangParam(room) {
     var candidateTxn={south:null,north:null},compAnchor={south:null,north:null};
     var pendingConversion={south:null,north:null},undoEdit={south:null,north:null};
     var predictionTxn={south:null,north:null};
-    var CHAT_BUILD='chat-test-audio-r6';
+    var CHAT_BUILD='chat-test-audio-r7';
     var UNDO_LABEL={en:'Undo',th:'เลิกทำ',es:'Deshacer',fr:'Annuler',de:'Rückgängig',
         it:'Annulla',pt:'Desfazer',nl:'Ongedaan maken',sv:'Ångra',pl:'Cofnij',tr:'Geri al',
         ru:'Отменить',ar:'تراجع',hi:'पूर्ववत करें',vi:'Hoàn tác',id:'Urungkan',ms:'Buat asal',
@@ -2509,7 +2512,7 @@ function dgLangParam(room) {
         });
 
         window.audioTurn.bind({mic:mic,langOf:langOf,diag:diag,toast:toastMsg,
-            send:function(side,text){sendFrom(side,text,true)},
+            send:function(side,text,via){window.__clVia=via||null;try{sendFrom(side,text,true)}finally{window.__clVia=null}},
             ownsMic:function(side){return INPUT.owner===side&&INPUT.mode==='mic'},
             paint:function(side,on){if(on)paintActive(side,'mic');else{var m=document.querySelector('#strip-'+side+' .micbtn');if(m){m.classList.add('off');m.dataset.on='false';m.dataset.owned='false'}}},
             compose:function(side,text){var i=inputEl(side);i.value=i.value?i.value.replace(/\s+$/,'')+' '+text:text;resetComposition(side);changedDraft(side);updateClear(side)}});
@@ -2629,7 +2632,8 @@ var portal=(function(){
  // Capture side/languages/room before normalization; no asynchronous global ROOM use.
  function submit(side,textOverride,keepMic){if(!active||!writer||opened)return;var text=norm(textOverride!=null?textOverride:inputEl(side).value);if(!text)return;var ctx={roomId:active.id,side:side,src:langOf(side),tgt:langOf(otherSide(side)),gen:generation},id=crypto.randomUUID(),ts=Date.now();clearDraft(side);if(!keepMic)teardown('sent');scheduleDraft();
   // Persist the original before any remote work; a reload cannot lose submitted text.
-  var entry={id:id,side:side,original:text,ownerLang:ctx.src,text:text,src:ctx.src,tgt:ctx.tgt,ts:ts,tr:null,status:'pending'};
+  var via=window.__clVia||{input:'keyboard'};log('route',Object.assign({side:side},via),'info');
+  var entry={via:via,id:id,side:side,original:text,ownerLang:ctx.src,text:text,src:ctx.src,tgt:ctx.tgt,ts:ts,tr:null,status:'pending'};
   var write=function(){return change('rooms',ctx.roomId,function(r){if(!r||r.trashedAt)return;if(!r.messages.some(function(m){return m.id===id})){r.messages.push(entry);r.messages.sort(function(a,b){return a.ts-b.ts});r.updatedAt=ts;r.revision++;}return r})};
   var task=track(write(),write).then(function(r){if(r)return processMessage(ctx,id)});task.catch(showError);return task;
  }
