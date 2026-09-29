@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 set -Eeuo pipefail
-REF="4232e42c805246349a1bffa8afcc7c8ef71c9b07"
+REF="46c8fdbc70acbb3c769216ff38c7048bde2290a7"
 BASE="https://raw.githubusercontent.com/acmeproducts/stuff/$REF/SOT"
 ROOT="$HOME/.sot-turn02/release-d/SOT"
 UNIT="$HOME/.config/systemd/user/sot-turn02-release-d.service"
@@ -20,8 +20,33 @@ for _ in $(seq 1 60); do curl -fsS --max-time 2 http://127.0.0.1:8765/api/health
 python3 - "$TMP/health.json" <<'PY'
 import json,sys
 h=json.load(open(sys.argv[1]));assert h.get('ok') and h.get('version')=='turn02-release-d' and h.get('schema')==14,h
-print('PASS automatic SSOT runtime healthy')
+print('PASS continuous SSOT runtime healthy')
 PY
 systemctl --user show sot-turn02-release-d.service -p ExecStart --value | grep -q 'sot-turn02-release-d-autosync.py'
-echo "PASS registered sources now auto-sync when drift is detected"
+sleep 1
+curl -fsS http://127.0.0.1:8765/api/jobs >"$TMP/jobs.json"
+curl -fsS http://127.0.0.1:8765/api/sources >"$TMP/sources.json"
+python3 - "$TMP/jobs.json" "$TMP/sources.json" <<'PY'
+import json,sys
+jobs=json.load(open(sys.argv[1])).get('jobs',[])
+sources=json.load(open(sys.argv[2])).get('sources',[])
+live=set()
+for z in jobs:
+    j=z.get('job',z)
+    raw=str(j.get('state','')).upper()
+    effective=str(j.get('effective_state') or raw).upper()
+    if raw in {'QUEUED','RUNNING','PAUSED','STOPPING'} or effective in {'QUEUED','RUNNING','PAUSED','STOPPING'}:
+        live.update(str(x.get('source_id')) for x in z.get('scope_sources',[]) if x.get('source_id'))
+needs=[]
+for s in sources:
+    if s.get('soft_deleted') or not s.get('enabled',1):
+        continue
+    state=str(s.get('analysis_state') or '').upper()
+    if s.get('pending') or state in {'READY','STALE','RETRY'}:
+        needs.append(str(s.get('source_id')))
+uncovered=[x for x in needs if x not in live]
+assert not uncovered,{'uncovered_registered_sources':uncovered,'live_source_ids':sorted(live)}
+print('PASS stale/pending registered sources are covered by automatic live work')
+PY
+echo "PASS Queue/Sources owner workflow replaced by continuous SSOT"
 echo "TEST https://acmeproducts.github.io/stuff/SOT/sot-turn02-release-d-source-actions.html?v=$REF&api=https%3A%2F%2Foc-ref.fell-dojo.ts.net%2Fsot"

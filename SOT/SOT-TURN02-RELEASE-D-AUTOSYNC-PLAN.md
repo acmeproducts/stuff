@@ -71,3 +71,7 @@ Candidate must prove:
 - JavaScript parses under Node 22;
 - Python runtime/qualifier compile;
 - live WSL runtime recovery remains unverified until installed on the owner host.
+
+## Delivery
+
+`install-SOT-turn02-release-d-autosync.sh` is pinned to qualified content ref `46c8fdbc70acbb3c769216ff38c7048bde2290a7` and verifies after service restart that every stale/pending registered source is covered by live automatic work before reporting PASS.
