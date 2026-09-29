@@ -35,7 +35,7 @@ Rejected and must not return:
 
 Required replacement:
 
-- runtime startup automatically recovers only unfinished work interrupted by that startup through the existing deduplicated analysis path; historical INTERRUPTED records remain history;
+- runtime startup automatically recovers work interrupted by that startup and automatically covers enabled stale/pending sources through the existing deduplicated analysis path; historical INTERRUPTED records whose sources are already current remain history;
 - durable fingerprints/evidence are reused; interruption does not authorize deliberate rehash of already valid unchanged content;
 - Analyze is one owner-facing **SSOT** surface: **Current / Syncing / Problem / Soft Deleted**;
 - **Problem** is reserved for a condition SOT cannot continue automatically;

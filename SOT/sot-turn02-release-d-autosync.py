@@ -48,6 +48,17 @@ def install(srv):
                 })
         return recovered
 
+    def recover_pending_sources():
+        rows=srv.M.s.rows("""SELECT DISTINCT s.source_id
+                            FROM sources s
+                            LEFT JOIN placements p
+                              ON p.source_id=s.source_id AND p.placement_state='ACTIVE'
+                            WHERE s.enabled=1
+                              AND (s.stale=1 OR p.lifecycle IN ('NONE','IN_PROCESS') OR p.availability='PENDING')
+                            ORDER BY s.source_id""")
+        ids=[r["source_id"] for r in rows]
+        return queue_sync(ids,"startup_pending_recovery") if ids else {"created":False,"queued_source_count":0,"suppressed_source_count":0}
+
     def check_source_ids(source_ids,reason):
         result=original_check(source_ids,reason)
         changed=result.get("changed") or []
@@ -63,7 +74,9 @@ def install(srv):
     srv.M.add_source=add_source
     srv.queue_ssot_sync=queue_sync
     srv.recover_interrupted_ssot=recover_interrupted
+    srv.recover_pending_ssot=recover_pending_sources
     srv.recover_interrupted_ssot()
+    srv.recover_pending_ssot()
     return srv
 
 def load_runtime():
