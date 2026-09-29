@@ -173,8 +173,17 @@ body.cl-empty-room .half{visibility:hidden}.kb.open,.kbin{max-height:calc(50dvh 
 @media(prefers-reduced-motion:reduce){#cl-rail{transition:none}}
 /* r3: no sticky footer; the rail opens with a right swipe from the left edge of the South transcript. */
 #cl-toolbar{display:none}
-#tx-south{touch-action:pan-y}
-.cl-jump{position:absolute;right:12px;width:44px;height:44px;border-radius:50%;border:2px solid #2e8b8b;background:rgba(255,255,255,.95);color:#2e8b8b;font-size:22px;line-height:1;display:none;align-items:center;justify-content:center;box-shadow:0 2px 8px rgba(15,23,42,.18);z-index:6;padding:0}
+#tx-south{touch-action:manipulation}
+.bhdr{-webkit-user-select:none;user-select:none}
+.cl-jump{position:absolute;right:12px;width:40px;height:40px;border-radius:50%;border:0;background:linear-gradient(135deg,rgba(96,165,250,.95),rgba(59,130,246,.95));color:#fff;display:none;align-items:center;justify-content:center;box-shadow:0 2px 8px rgba(37,99,235,.28);z-index:6;padding:0}
+.cl-jump svg{width:22px;height:22px}
+.cl-bt{position:absolute;inset:0;z-index:20;background:rgba(15,23,42,.35);display:flex;align-items:center;justify-content:center;padding:12px}
+.cl-bt-card{background:#fff;border-radius:16px;box-shadow:0 8px 30px rgba(15,23,42,.25);width:100%;max-width:520px;max-height:100%;overflow:auto;padding:12px 14px;color:#0f172a;font-size:14px}
+.cl-bt-head{display:flex;align-items:center;gap:8px;margin-bottom:6px}.cl-bt-head b{flex:1;font-size:15px}
+.cl-bt-head button{min-width:40px;min-height:40px;border:0;border-radius:10px;background:#eff6ff;color:#1d4ed8;font-size:14px;padding:0 10px}
+.cl-bt-sec{margin:8px 0}.cl-bt-lbl{font-size:11px;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:.05em;margin-bottom:3px}
+.cl-bt-verdict{display:inline-block;border-radius:999px;padding:3px 10px;font-weight:700;font-size:12px}
+.cl-bt-verdict.match{background:#dcfce7;color:#166534}.cl-bt-verdict.partial{background:#fef9c3;color:#854d0e}.cl-bt-verdict.miss{background:#fee2e2;color:#991b1b}.cl-bt-verdict.wait{background:#e2e8f0;color:#334155}
 .cl-jump.show{display:flex}
 .bsaid{font-size:11px;color:#64748b;margin-top:4px;font-style:italic}
 #diag-panel .diagtools button{min-height:40px;padding:6px 12px}
@@ -204,7 +213,7 @@ body.cl-empty-room .half{visibility:hidden}.kb.open,.kbin{max-height:calc(50dvh 
   </div>
 </div>
 
-<div class="cl-welcome" id="cl-welcome"><h1>Chatlink</h1><p>Your conversations, on this device.<br>Swipe right from the left edge to begin.</p></div>
+<div class="cl-welcome" id="cl-welcome"><h1>Chatlink</h1><p>Your conversations, on this device.<br>Double-tap here to begin.</p></div>
 <div id="cl-cover" aria-hidden="true"></div>
 <aside id="cl-rail" role="dialog" aria-modal="true" aria-label="Owner conversation manager" aria-hidden="true" inert>
  <header class="cl-head"><strong id="cl-heading">Conversations</strong><button class="cl-icon" id="cl-settings" aria-label="Device settings">⚙</button><button class="cl-icon" id="cl-close" aria-label="Close conversations">×</button></header>
@@ -1532,31 +1541,70 @@ function dgLangParam(room) {
     function updateJump(panel){
         var host=document.getElementById('tx-'+panel);if(!host)return;
         var shell=host.parentNode,b=shell.querySelector('.cl-jump');
-        if(!b){b=document.createElement('button');b.type='button';b.className='cl-jump';b.setAttribute('aria-label','Jump to latest');b.textContent='↓';
+        if(!b){b=document.createElement('button');b.type='button';b.className='cl-jump';b.setAttribute('aria-label','Jump to latest');b.innerHTML='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14"/><path d="M6 13l6 6 6-6"/></svg>';
             b.addEventListener('click',function(){host.scrollTo({top:host.scrollHeight,behavior:'smooth'})});
             shell.appendChild(b);host.addEventListener('scroll',function(){updateJump(panel)},{passive:true});}
         b.style.bottom=(shell.clientHeight-(host.offsetTop+host.clientHeight)+12)+'px';
         b.classList.toggle('show',host.scrollHeight-host.scrollTop-host.clientHeight>160);
     }
-    /* r3: right swipe from the left edge of the South transcript opens the owner rail. */
-    (function(){
-        var st=null,EDGE=56;
-        document.addEventListener('pointerdown',function(e){
-            st=null;if(document.body.classList.contains('cl-open'))return;
-            var onSouth=e.target.closest&&e.target.closest('#tx-south'),empty=document.body.classList.contains('cl-empty-room');
-            if(e.clientX>EDGE||!(onSouth||(empty&&e.clientY>innerHeight/2)))return;
-            st={x:e.clientX,y:e.clientY,id:e.pointerId};
+    /* r4: double tap. Rail: anywhere on the South transcript outside a chat bubble
+       (lower half of the screen when no conversation is open). Bubble header: back-translation check. */
+    function onDoubleTap(test,fn){
+        var last=null;
+        document.addEventListener('pointerup',function(e){
+            var now=Date.now();
+            /* The second tap only has to be close in time and place: the first tap can close
+               the keyboard and shift the layout under the finger. */
+            if(last&&now-last.t<350&&Math.abs(e.clientX-last.x)<30&&Math.abs(e.clientY-last.y)<30){var h=last.hit;last=null;fn(h,e);return}
+            var hit=test(e);last=hit?{t:now,x:e.clientX,y:e.clientY,hit:hit}:null;
         },{passive:true});
-        document.addEventListener('pointermove',function(e){
-            if(!st||e.pointerId!==st.id)return;var dx=e.clientX-st.x,dy=Math.abs(e.clientY-st.y);
-            if(dy>40){st=null;return}
-            if(dx>=60){st=null;log('rail_swipe',{},'ok');document.getElementById('cl-menu').click()}
-        },{passive:true});
-        ['pointerup','pointercancel'].forEach(function(t){document.addEventListener(t,function(){st=null},{passive:true})});
-    })();
+    }
+    onDoubleTap(function(e){
+        if(document.body.classList.contains('cl-open')||!e.target.closest)return null;
+        if(document.body.classList.contains('cl-empty-room'))return e.clientY>innerHeight/2?'rail':null;
+        var tx=e.target.closest('#tx-south');if(!tx||e.target.closest('.bub,button'))return null;return 'rail';
+    },function(){log('rail_doubletap',{},'ok');document.getElementById('cl-menu').click()});
+    onDoubleTap(function(e){
+        var h=e.target.closest&&e.target.closest('.bhdr');if(!h||e.target.closest('button'))return null;return h;
+    },function(h){var row=h.closest('.row'),host=h.closest('.tx');if(!row||!host)return;
+        var e=HIST.find(function(m){return m.id===row.dataset.msgId});if(e)backCheck(e,host.id==='tx-north'?'north':'south')});
+    function btScore(a,b){
+        var clean=function(t){return String(t||'').toLowerCase().replace(/[\s\p{P}\p{S}]+/gu,'')};
+        var x=clean(a),y=clean(b);if(!x||!y)return 0;if(x===y)return 1;
+        var bg=function(t){var m={};for(var i=0;i<t.length-1;i++){var k=t.slice(i,i+2);m[k]=(m[k]||0)+1}return m};
+        var A=bg(x),B=bg(y),n=0,na=0,nb=0,k;for(k in A){na+=A[k];if(B[k])n+=Math.min(A[k],B[k])}for(k in B)nb+=B[k];
+        return na+nb?2*n/(na+nb):0;
+    }
+    function btVerdict(score){return score>=0.8?'match':score>=0.5?'partial':'miss'}
+    function backCheck(e,panel){
+        var shell=document.getElementById('tx-'+panel).parentNode,old=shell.querySelector('.cl-bt');if(old)old.remove();
+        var ov=document.createElement('div');ov.className='cl-bt';ov.setAttribute('role','dialog');ov.setAttribute('aria-label','Translation check');
+        var card=document.createElement('div');card.className='cl-bt-card';ov.appendChild(card);
+        var head=document.createElement('div');head.className='cl-bt-head';var ttl=document.createElement('b');ttl.textContent='Translation check';
+        var copy=document.createElement('button');copy.type='button';copy.textContent='Copy';var x=document.createElement('button');x.type='button';x.textContent='✕';x.setAttribute('aria-label','Close');
+        head.append(ttl,copy,x);card.appendChild(head);
+        var verdict=document.createElement('span');verdict.className='cl-bt-verdict wait';verdict.textContent='Checking…';card.appendChild(verdict);
+        function sec(label,text){var d=document.createElement('div');d.className='cl-bt-sec';var l=document.createElement('div');l.className='cl-bt-lbl';l.textContent=label;var t=document.createElement('div');t.textContent=text;d.append(l,t);card.appendChild(d);return t}
+        var srcName=(LANG_NAMES[e.src]||e.src),tgtName=(LANG_NAMES[e.tgt]||e.tgt);
+        sec('Source · '+srcName,e.text);if(e.original&&norm(e.original)!==norm(e.text))sec('Heard · '+srcName,e.original);
+        sec('Target · '+tgtName,e.tr||'(no translation yet)');var back=sec('Back-translation · '+srcName,'…');
+        var report={source:e.text,heard:e.original||'',target:e.tr||'',back:'',verdict:'',score:null};
+        x.onclick=function(){ov.remove()};ov.addEventListener('click',function(ev){if(ev.target===ov)ov.remove()});
+        copy.onclick=function(){var txt='Source ('+srcName+'): '+report.source+(report.heard&&report.heard!==report.source?'\nHeard: '+report.heard:'')+'\nTarget ('+tgtName+'): '+report.target+'\nBack-translation ('+srcName+'): '+report.back+'\nResult: '+report.verdict+(report.score!=null?' ('+Math.round(report.score*100)+'%)':'');
+            navigator.clipboard.writeText(txt).then(function(){copy.textContent='Copied';setTimeout(function(){copy.textContent='Copy'},1400)}).catch(function(){copy.textContent='Copy failed'})};
+        shell.appendChild(ov);x.focus();
+        if(!e.tr||e.src===e.tgt){verdict.className='cl-bt-verdict miss';verdict.textContent=e.tr?'Same language':'No translation';report.verdict=verdict.textContent;return}
+        translateWithRetry(e.tr,e.tgt,e.src,1).then(function(r){
+            if(!ov.isConnected)return;
+            if(!r.ok){back.textContent='(back-translation failed)';verdict.className='cl-bt-verdict miss';verdict.textContent='Check failed';report.verdict='check failed';log('bt_check',{outcome:'error',src:e.src,tgt:e.tgt},'error');return}
+            var sc=btScore(e.text,r.text),v=btVerdict(sc);back.textContent=r.text;report.back=r.text;report.score=sc;report.verdict=v;
+            verdict.className='cl-bt-verdict '+v;verdict.textContent=(v==='match'?'Match':v==='partial'?'Partial':'Miss')+' · '+Math.round(sc*100)+'%';
+            log('bt_check',{outcome:'ok',verdict:v,score:+sc.toFixed(2),src:e.src,tgt:e.tgt,chars:String(e.text).length},v==='miss'?'warn':'ok');
+        });
+    }
     function bubbleFor(e,panel){
         var row=document.createElement('div');
-        row.className='row '+(e.side===panel?'own':'them');
+        row.className='row '+(e.side===panel?'own':'them');row.dataset.msgId=e.id;
         var b=document.createElement('div');
         b.className='bub '+(e.side==='south'?'s':'n');
 
@@ -1619,7 +1667,7 @@ function dgLangParam(room) {
     var candidateTxn={south:null,north:null},compAnchor={south:null,north:null};
     var pendingConversion={south:null,north:null},undoEdit={south:null,north:null};
     var predictionTxn={south:null,north:null};
-    var CHAT_BUILD='chat-test-audio-r3';
+    var CHAT_BUILD='chat-test-audio-r4';
     var UNDO_LABEL={en:'Undo',th:'เลิกทำ',es:'Deshacer',fr:'Annuler',de:'Rückgängig',
         it:'Annulla',pt:'Desfazer',nl:'Ongedaan maken',sv:'Ångra',pl:'Cofnij',tr:'Geri al',
         ru:'Отменить',ar:'تراجع',hi:'पूर्ववत करें',vi:'Hoàn tác',id:'Urungkan',ms:'Buat asal',
