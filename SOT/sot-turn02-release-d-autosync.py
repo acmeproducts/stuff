@@ -3,6 +3,8 @@ import importlib.util,os,sys,threading
 from http.server import ThreadingHTTPServer
 from pathlib import Path
 
+LIVE_STATES=("QUEUED","RUNNING","PAUSED","STOPPING")
+
 def install(srv):
     original_check=srv.check_source_ids
     original_add=srv.M.add_source
@@ -19,6 +21,31 @@ def install(srv):
         })
         return info
 
+    def recover_interrupted():
+        rows=srv.M.s.rows("""SELECT job_id FROM jobs
+                            WHERE deleted=0 AND job_type='analysis' AND state='INTERRUPTED'
+                            ORDER BY created,job_id""")
+        recovered=[]
+        for row in rows:
+            jid=row["job_id"]
+            try:
+                info=srv.M.restart_info(jid)
+                srv.M.event("job_auto_recovery","Interrupted SSOT work recovered automatically",
+                            info.get("job_id") or jid,None,"INFO",{
+                                "interrupted_job_id":jid,
+                                "recovery_job_id":info.get("job_id"),
+                                "created":bool(info.get("created")),
+                                "queued_source_count":info.get("queued_source_count",0),
+                                "suppressed_source_count":info.get("suppressed_source_count",0),
+                                "covering_job_ids":info.get("covering_job_ids",[]),
+                            })
+                recovered.append({"interrupted_job_id":jid,**info})
+            except Exception as e:
+                srv.M.event("job_auto_recovery_failed",str(e),jid,None,"ERROR",{
+                    "interrupted_job_id":jid,
+                })
+        return recovered
+
     def check_source_ids(source_ids,reason):
         result=original_check(source_ids,reason)
         changed=result.get("changed") or []
@@ -33,6 +60,8 @@ def install(srv):
     srv.check_source_ids=check_source_ids
     srv.M.add_source=add_source
     srv.queue_ssot_sync=queue_sync
+    srv.recover_interrupted_ssot=recover_interrupted
+    srv.recover_interrupted_ssot()
     return srv
 
 def load_runtime():
