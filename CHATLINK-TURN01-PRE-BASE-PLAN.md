@@ -291,3 +291,30 @@ Ownership metadata (side, generation, source/target language, time, confidence, 
 **Status (2026-09-23).** Implemented directly in chat-test.html (single file, no build step). Automated gates pass: 18 controller tests; 13/13 Chatlink scenarios in ask mode; 11 unchanged + 3 new scenarios in open mode; 32/32 keyboard scenarios. The two ask-only mic scenarios are replaced in open mode by the new scenarios. chatlink-turn01-pre-base.html and donor files are unchanged. A device trial is pending.
 
 **Out of scope, recorded.** Voice fingerprinting (needs enrollment), mic-direction detection (browsers expose one channel), Deepgram auto-detect as the sole router (no Thai), buffering, PTT, new providers.
+
+
+### chat-test r3: translation quality and owner field-test fixes (2026-09-29)
+
+**Owner report (field test).** Speaker detection passed. English→Korean is understood, but Korean→English comes out flat and basic: a rich sentence becomes two or three words. Owner also asked for UI, tone and diagnostics changes (items 1–10 below). Owner decided on Google only for now; paid AI translation is backlogged for field testing of utility vs cost.
+
+**Causes and changes**
+- *Flat Korean translations.* Cause: MyMemory returns the closest stored translation-memory entry, which for Korean is often a short fragment. Change: Google Translate (free, no key) is tried first, with MyMemory as a logged fallback. Evidence: automated test shows Google used first and MyMemory used when Google fails (HTTP 429).
+- *Korean sentences cut up.* Cause: Deepgram ended a sentence after 0.4 s of silence. Change: 1.0 s for Korean; punctuation on for all languages.
+- *Unclear whether STT or translation is wrong.* Change: the speaker's own bubble shows "Heard: …" when normalization changed their words.
+- *Item 3, South mic meter dead.* Cause: one shared meter; North attaching detached South's. Change: one meter per side. A/B check on phone viewport: r2 South=0 / North=0.056; r3 South=0.064 / North=0.064.
+- *Items 1–2.* The hamburger footer is removed. A right swipe from the left edge of the South transcript (within 56 px) opens the rail, which closes with its × button. With no room open, the same swipe works on the lower half of the screen.
+- *Item 4.* A circled ↓ shows on a transcript scrolled more than 160 px above the latest message. Tapping it scrolls to the latest.
+- *Item 5.* Tone output gain ×1.5.
+- *Items 6–7.* Import and Export are removed from Device settings, and so is the "deferred" note. The build ID stays.
+- *Item 8.* "Export conversation" in each room's ⋯ settings downloads that room as JSON.
+- *Item 9.* Deepgram connect/open/close (code and reason)/error/final and every translation (provider, ms, sizes, fallback, failure) are logged. Device settings → "Diagnostics log" opens a modal with Export, Copy, Clear and ×.
+- *Item 10.* Start Speaking and Done Speaking tones are chosen from presets (Rising, Falling, Soft chime, Bell, Pop, Three-note up, No tone) or a custom uploaded audio file (≤ 400 KB, saved in browser storage, with a Play preview). A custom file that won't play falls back to the default tone, and listening still resumes.
+
+**Gates (lab, Chromium, phone viewport).** 20/20 controller tests. Ask mode: 18/18, including 6 r3 scenarios. Open mode: 19/19. Keyboard: 32/32. Base chatlink-turn01-pre-base: 13/13, unchanged. **Not yet verified on the real phone:** Google translation quality for Korean, the edge swipe versus Android's back gesture (the swipe zone is 56 px so it can start inside the screen edge), and tone loudness.
+
+**Graveyard (r3)**
+- Hamburger ☰ and the sticky footer (room title, language pair, save state) are removed at the owner's request; the swipe replaces them. Save-state text is no longer shown; errors still appear in the rail.
+- "Import from chat-admin / lab" is removed from settings. Its regression scenario is retired in the chat-test run and still runs against chatlink-turn01-pre-base.
+- "Export conversations" (all rooms) is replaced by per-room export.
+- MyMemory as the primary translator is buried for Korean quality; it remains the fallback only.
+- Backlog: paid AI translation (Claude or Gemini) for field testing of utility vs cost; reining in the English side-channel on the Korean side (not approved in this round).
