@@ -272,7 +272,7 @@ Baseline: b50 `8ff0462`. Test file only; `devstream.html` untouched. No other be
 - Config gets a Logging tab (same modal): merged durable + unflushed view, Download, Copy, Clear (confirmed; clears local buffer, queue, and GitHub log files only).
 
 ## Change 2 — Paste + drag/drop attachments
-- The 📎 handler body becomes one shared `ingestFiles(files, source)`; picker, clipboard paste and drag/drop all call it. Same 2 MB limit, same image/text conversion, same `pendingAtt` objects and chips.
+- The 📎 handler body becomes one shared `ingestFiles(files, source)`; picker, clipboard paste and drag/drop all call it. Attachment limit raised from 2 MB to 100 MB (owner directive 2026-09-29), same image/text conversion, same `pendingAtt` objects and chips.
 - Paste intercepts only when the clipboard contains real files. Drop accepts only real `File` objects; dropping files anywhere never navigates the page. Compose strip highlights while files are dragged over it (depth-counted, no child flicker).
 - Per-file rejection toast (name + reason); other files still attach. Binary/unreadable files are rejected with a reason.
 
