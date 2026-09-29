@@ -6,8 +6,8 @@ Deploy target: `https://acmeproducts.github.io/stuff/devstream.html`
 Test target: `https://acmeproducts.github.io/stuff/devstream-test.html`
 
 ## Status
-- Current release: v1.0 b50 on devstream-test.html (2026-09-27)
-- Stage: TEST (b50)
+- Current release: v1.0 b51 on devstream-test.html (2026-09-29)
+- Stage: TEST (b51)
 
 ## Release Rules (inherited, proven)
 1. Mobile-first. All diagnostics in-app. No DevTools ever.
@@ -255,6 +255,31 @@ b39 incorrectly changed stationary hold into context-menu activation. Devstream 
 ## Graveyard
 - **G-DS-13 — Hold opens context menu:** rejected; donor behavior is double-tap context, hold-to-drag.
 - **G-DS-14 — Legacy generic #tabContext button styling:** rejected; it corrupts the donor context-menu appearance.
+
+---
+
+# 2026-09-29 — b51 persistent diagnostic log + compose paste/drop attachments
+
+Baseline: b50 `8ff0462`. Test file only; `devstream.html` untouched. No other behavior changes.
+
+## Change 1 — Persistent diagnostics in GitHub
+- `dlog()` remains the single entry point (Debug console unchanged). Each line also becomes a sanitized structured event (JSONL) queued for GitHub.
+- Files: `devstream/logs/current.jsonl` (active) and `devstream/logs/previous.jsonl` (one rotated generation). Rotation at ~150 KB; total durable size bounded to ~2 generations.
+- Batched: flush every 60s when events are queued, ~3s after an error (never more than one flush per 15s), best-effort on page hide. Unflushed events persist locally (bounded) and retry with backoff; failures never surface into the logged operation.
+- Write conflicts (409/422) re-read a fresh SHA and re-append; events carry ids so a retried write cannot duplicate them.
+- One central sanitizer runs before queueing: keys/tokens/Authorization/Bearer/cookies/data URIs/long tokens redacted, URL queries dropped, lines truncated, only whitelisted primitive fields accepted, no arbitrary objects. Message/prompt/attachment/provider-body content is never logged.
+- Flush traffic is excluded from durable logging (no recursion).
+- Config gets a Logging tab (same modal): merged durable + unflushed view, Download, Copy, Clear (confirmed; clears local buffer, queue, and GitHub log files only).
+
+## Change 2 — Paste + drag/drop attachments
+- The 📎 handler body becomes one shared `ingestFiles(files, source)`; picker, clipboard paste and drag/drop all call it. Same 2 MB limit, same image/text conversion, same `pendingAtt` objects and chips.
+- Paste intercepts only when the clipboard contains real files. Drop accepts only real `File` objects; dropping files anywhere never navigates the page. Compose strip highlights while files are dragged over it (depth-counted, no child flicker).
+- Per-file rejection toast (name + reason); other files still attach. Binary/unreadable files are rejected with a reason.
+
+## Acceptance
+- **DS-B51-1..15:** logging behaviors per owner spec items 1–15.
+- **DS-B51-16..39:** attachment picker/paste/drop and error behaviors per owner spec items 16–39.
+- **DS-B51-40..50:** b50 regression list unchanged.
 
 ---
 
