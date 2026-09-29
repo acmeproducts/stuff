@@ -35,12 +35,27 @@ Rejected and must not return:
 
 Required replacement:
 
-- runtime startup automatically recovers work interrupted by that startup and automatically covers enabled stale/pending sources through the existing deduplicated analysis path; historical INTERRUPTED records whose sources are already current remain history;
+- runtime startup automatically recovers work interrupted by that startup and automatically covers enabled stale/pending sources through the existing deduplicated analysis path; historical INTERRUPTED records whose sources are already current remain durable backend history;
 - durable fingerprints/evidence are reused; interruption does not authorize deliberate rehash of already valid unchanged content;
 - Analyze is one owner-facing **SSOT** surface: **Current / Syncing / Problem / Soft Deleted**;
 - **Problem** is reserved for a condition SOT cannot continue automatically;
-- job records, source snapshots and logs remain durable under collapsed **System history**;
+- job records, source snapshots and logs remain durable backend/diagnostic evidence, not a normal owner-facing workflow;
 - Pause/Resume remains an explicit owner control;
 - live recovery coverage overrides historical interruption when computing owner-facing source status.
 
-This supersedes the prior Release D requirement that Queue and Sources remain parallel owner-facing status surfaces and that `INTERRUPTED` automatically belongs in owner-facing Action Needed. The durable scheduler/job ledger remains; only its owner-facing role is demoted beneath SSOT.
+This supersedes the prior Release D requirement that Queue and Sources remain parallel owner-facing status surfaces and that `INTERRUPTED` automatically belongs in owner-facing Action Needed. The durable scheduler/job ledger remains; only its owner-facing role is removed.
+
+---
+
+## 2026-09-29 — SYSTEM HISTORY ON PRIMARY SSOT SCREEN
+
+Rejected and must not return:
+
+- a **System history** section on the normal Analyze/SSOT screen;
+- exposing the internal job ledger merely because the records are durable;
+- spending owner-facing UI space on implementation history that is only needed for engineering diagnosis.
+
+Required replacement:
+
+- the primary Analyze surface contains only the SSOT states and controls needed for normal operation;
+- durable job/event/history evidence remains stored and available to diagnostics/engineering without being rendered on the primary SSOT screen.
