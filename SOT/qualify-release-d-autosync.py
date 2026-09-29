@@ -16,6 +16,8 @@ class FakeStore:
             assert "ended>=?" in sql,sql
             assert len(args)==1,args
             return [{'job_id':x} for x in self.interrupted]
+        if "FROM sources s" in sql:
+            return [{'source_id':'sid-pending'}]
         return []
 
 class FakeManager:
@@ -44,6 +46,8 @@ s=FakeServer();m.install(s)
 assert s.M.restarted==['fresh-job'],s.M.restarted
 assert any(x and x[0]=='job_auto_recovery' for x in s.M.events),s.M.events
 print('PASS only work interrupted by the current runtime startup auto-recovers')
+assert s.M.enqueued[0]==(['sid-pending'],'Automatic SSOT sync'),s.M.enqueued
+print('PASS stale/pending registered sources recover automatically on startup')
 
 sid=s.M.add_source('A','/tmp/a','/tmp/a')
 assert sid=='sid-1' and s.M.enqueued[-1]==(['sid-1'],'Automatic SSOT sync'),s.M.enqueued
