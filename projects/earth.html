@@ -28,7 +28,8 @@
 const errBox = document.getElementById('errBox');
 function showErr(msg) {
   errBox.style.display = 'block';
-  errBox.textContent += msg + '\n';
+  const lines = (errBox.textContent + msg + '\n').split('\n');
+  errBox.textContent = lines.slice(-9).join('\n');
 }
 window.onerror = function(msg, src, line, col, err) {
   showErr('ERR: ' + msg + ' @' + line + ':' + col);
@@ -127,14 +128,6 @@ function startApp(cdnUrl) {
     return { x, y, n };
   }
 
-  function tileToLatLon(x, y, z) {
-    const n = Math.pow(2, z);
-    const lon = x / n * 360 - 180;
-    const latRad = Math.atan(Math.sinh(Math.PI * (1 - 2 * y / n)));
-    const lat = latRad / DEG2RAD;
-    return { lat, lon };
-  }
-
   function tileMeters(z) {
     return 2 * Math.PI * EARTH_R / Math.pow(2, z);
   }
@@ -167,32 +160,24 @@ function startApp(cdnUrl) {
 
   const SF = { lat: 37.7749, lon: -122.4194 };
   const zoom = 15;
-  const tile = latLonToTile(SF.lat, SF.lon, zoom);
-  const tileSizeM = tileMeters(zoom);
+  const NZ = Math.pow(2, zoom);
+  const origin = latLonToTile(SF.lat, SF.lon, zoom);
+  const originTx = origin.x, originTy = origin.y;
+  const TILE_M = tileMeters(zoom) * Math.cos(SF.lat * DEG2RAD);
 
-  let heights = null;
-  let terrainReady = false;
-  let srcStatus = 'PROC';
-  let tileMesh = null;
-
-  const tempGround = BABYLON.MeshBuilder.CreateGround('tempGround', { width: tileSizeM, height: tileSizeM }, scene);
-  tempGround.position.y = -1;
-  const tempMat = new BABYLON.StandardMaterial('tempMat', scene);
-  tempMat.diffuseColor = new BABYLON.Color3(0.15, 0.2, 0.15);
-  tempGround.material = tempMat;
-
-  function localPosFromTilePixel(px, py) {
-    const x = (px / 255 - 0.5) * tileSizeM;
-    const z = (0.5 - py / 255) * tileSizeM;
-    return { x, z };
+  function procHeight(gx, gy) {
+    return 20 + fBm(gx * 0.006, gy * 0.006, 6, 2.0, 0.5) * 380;
   }
 
-  function sampleHeightAtLocal(x, z) {
-    if (!heights) return 0;
-    const px = Math.floor((x / tileSizeM + 0.5) * 255);
-    const py = Math.floor((0.5 - z / tileSizeM) * 255);
-    if (px < 0 || px > 255 || py < 0 || py > 255) return 0;
-    return heights[py * 256 + px];
+  function bilinear(h, px, py) {
+    px = Math.min(Math.max(px, 0), 255);
+    py = Math.min(Math.max(py, 0), 255);
+    const x0 = Math.floor(px), y0 = Math.floor(py);
+    const x1 = Math.min(x0 + 1, 255), y1 = Math.min(y0 + 1, 255);
+    const fx = px - x0, fy = py - y0;
+    const a = h[y0 * 256 + x0], b = h[y0 * 256 + x1];
+    const c = h[y1 * 256 + x0], d = h[y1 * 256 + x1];
+    return a + (b - a) * fx + (c - a) * fy + (a - b - c + d) * fx * fy;
   }
 
   function heightColor(h) {
@@ -204,54 +189,100 @@ function startApp(cdnUrl) {
     return new BABYLON.Color3(0.85, 0.85, 0.9);
   }
 
-  function buildTerrainFromHeights() {
-    if (tempGround) { tempGround.dispose(); tempGround = null; }
-    if (tileMesh) tileMesh.dispose();
+  const tiles = new Map();
+  const RING = 2;
+  const CACHE = 3;
+  const SKIRT = 14;
 
-    const positions = [];
-    const indices = [];
-    const normals = [];
-    const uvs = [];
-    const colors = [];
+  function lodForDist(d) {
+    return d <= 1 ? 96 : (d === 2 ? 48 : 24);
+  }
 
-    for (let y = 0; y < 256; y++) {
-      for (let x = 0; x < 256; x++) {
-        const p = localPosFromTilePixel(x, y);
-        const h = heights[y * 256 + x];
-        positions.push(p.x, h, p.z);
-        uvs.push(x / 255, y / 255);
+  const terrainMat = new BABYLON.StandardMaterial('terrainMat', scene);
+  terrainMat.specularColor = new BABYLON.Color3(0, 0, 0);
+  terrainMat.ambientColor = new BABYLON.Color3(0.4, 0.4, 0.4);
+  terrainMat.useVertexColor = true;
+  terrainMat.backFaceCulling = false;
+
+  function makeProcHeights(tx, ty) {
+    const S = 64;
+    const coarse = new Float32Array((S + 1) * (S + 1));
+    for (let j = 0; j <= S; j++) {
+      for (let i = 0; i <= S; i++) {
+        coarse[j * (S + 1) + i] = procHeight(tx * 256 + i / S * 255, ty * 256 + j / S * 255);
+      }
+    }
+    const h = new Float32Array(65536);
+    for (let py = 0; py < 256; py++) {
+      const fy = py / 255 * S;
+      const y0 = Math.floor(fy), y1 = Math.min(y0 + 1, S), wy = fy - y0;
+      for (let px = 0; px < 256; px++) {
+        const fx = px / 255 * S;
+        const x0 = Math.floor(fx), x1 = Math.min(x0 + 1, S), wx = fx - x0;
+        const a = coarse[y0 * (S + 1) + x0], b = coarse[y0 * (S + 1) + x1];
+        const c = coarse[y1 * (S + 1) + x0], d = coarse[y1 * (S + 1) + x1];
+        h[py * 256 + px] = a + (b - a) * wx + (c - a) * wy + (a - b - c + d) * wx * wy;
+      }
+    }
+    return h;
+  }
+
+  function buildTileMesh(t) {
+    const N = t.lod, nb = N + 1;
+    const positions = [], indices = [], normals = [], uvs = [], colors = [];
+    for (let j = 0; j < nb; j++) {
+      for (let i = 0; i < nb; i++) {
+        const h = bilinear(t.heights, i / N * 255, j / N * 255);
+        positions.push((i / N - 0.5) * TILE_M, h, (0.5 - j / N) * TILE_M);
+        uvs.push(i / N, j / N);
         const c = heightColor(h);
         colors.push(c.r, c.g, c.b, 1);
       }
     }
-    for (let y = 0; y < 255; y++) {
-      for (let x = 0; x < 255; x++) {
-        const a = y * 256 + x;
-        const b = y * 256 + x + 1;
-        const c = (y + 1) * 256 + x;
-        const d = (y + 1) * 256 + x + 1;
-        indices.push(a, c, b);
-        indices.push(b, c, d);
+    for (let j = 0; j < N; j++) {
+      for (let i = 0; i < N; i++) {
+        const a = j * nb + i, b = a + 1, c = a + nb, d = c + 1;
+        indices.push(a, c, b, b, c, d);
+      }
+    }
+    const edges = [
+      function(k) { return k; },
+      function(k) { return N * nb + k; },
+      function(k) { return k * nb; },
+      function(k) { return k * nb + N; }
+    ];
+    for (let e = 0; e < 4; e++) {
+      const getIdx = edges[e];
+      let prevTop = -1, prevSk = -1;
+      for (let k = 0; k < nb; k++) {
+        const top = getIdx(k);
+        const s = positions.length / 3;
+        positions.push(positions[top * 3], positions[top * 3 + 1] - SKIRT, positions[top * 3 + 2]);
+        uvs.push(uvs[top * 2], uvs[top * 2 + 1]);
+        colors.push(colors[top * 4], colors[top * 4 + 1], colors[top * 4 + 2], 1);
+        if (prevTop >= 0) {
+          indices.push(prevTop, prevSk, top, top, prevSk, s);
+        }
+        prevTop = top; prevSk = s;
       }
     }
     BABYLON.VertexData.ComputeNormals(positions, indices, normals);
-
     const vd = new BABYLON.VertexData();
     vd.positions = positions;
     vd.indices = indices;
     vd.normals = normals;
     vd.uvs = uvs;
     vd.colors = colors;
-    tileMesh = new BABYLON.Mesh('tile', scene);
-    vd.applyToMesh(tileMesh);
+    const mesh = new BABYLON.Mesh('t' + t.key, scene);
+    vd.applyToMesh(mesh);
+    mesh.material = terrainMat;
+    return mesh;
+  }
 
-    const mat = new BABYLON.StandardMaterial('tileMat', scene);
-    mat.specularColor = new BABYLON.Color3(0, 0, 0);
-    mat.ambientColor = new BABYLON.Color3(0.4, 0.4, 0.4);
-    mat.useVertexColor = true;
-    tileMesh.material = mat;
-
-    terrainReady = true;
+  function rebuildMesh(t) {
+    if (t.mesh) { t.mesh.dispose(); t.mesh = null; }
+    t.mesh = buildTileMesh(t);
+    t.mesh.position.set((t.tx - originTx) * TILE_M, 0, -(t.ty - originTy) * TILE_M);
   }
 
   function decodePng(blob) {
@@ -272,47 +303,82 @@ function startApp(cdnUrl) {
     });
   }
 
-  async function loadTerrariumTile() {
-    const url = `https://s3.amazonaws.com/elevation-tiles-prod/terrarium/${zoom}/${tile.x}/${tile.y}.png`;
+  async function fetchElev(t) {
+    const url = 'https://s3.amazonaws.com/elevation-tiles-prod/terrarium/' + zoom + '/' + t.tx + '/' + t.ty + '.png';
     try {
       const resp = await fetch(url, { mode: 'cors' });
       if (!resp.ok) throw new Error('HTTP ' + resp.status);
       const data = await decodePng(await resp.blob());
-      heights = new Float32Array(256 * 256);
-      for (let i = 0; i < 256 * 256; i++) {
-        const r = data[i * 4];
-        const g = data[i * 4 + 1];
-        const b = data[i * 4 + 2];
-        heights[i] = r * 256 + g + b / 256 - 32768;
+      if (!tiles.has(t.key)) return;
+      const h = new Float32Array(65536);
+      for (let i = 0; i < 65536; i++) {
+        h[i] = data[i * 4] * 256 + data[i * 4 + 1] + data[i * 4 + 2] / 256 - 32768;
       }
-      srcStatus = 'TERR';
+      t.heights = h;
+      t.state = 'terr';
+      rebuildMesh(t);
     } catch (e) {
-      heights = new Float32Array(256 * 256);
-      const seedX = tile.x * 1000, seedY = tile.y * 1000;
-      for (let y = 0; y < 256; y++) {
-        for (let x = 0; x < 256; x++) {
-          const nx = (seedX + x) * 0.01;
-          const ny = (seedY + y) * 0.01;
-          let h = 20 + fBm(nx, ny, 6, 2.0, 0.5) * 380;
-          heights[y * 256 + x] = h;
-        }
-      }
-      srcStatus = 'PROC';
-      showErr('Terrarium failed: ' + e.message + '; using PROC fallback');
+      if (!tiles.has(t.key)) return;
+      t.state = 'proc';
+      showErr('Elev PROC [' + t.tx + ',' + t.ty + ']: ' + e.message);
     }
-    buildTerrainFromHeights();
-
-    const centerLocal = localPosFromTilePixel(128, 128);
-    const h = sampleHeightAtLocal(centerLocal.x, centerLocal.z);
-    camera.position.set(centerLocal.x, h + eyeHeight, centerLocal.z);
   }
 
-  loadTerrariumTile();
+  function ensureTile(tx, ty, d) {
+    const key = tx + ',' + ty;
+    const want = lodForDist(d);
+    let t = tiles.get(key);
+    if (t) {
+      if (t.lod !== want) { t.lod = want; rebuildMesh(t); }
+      return;
+    }
+    t = { key: key, tx: tx, ty: ty, lod: want, state: 'proc', heights: makeProcHeights(tx, ty), mesh: null };
+    tiles.set(key, t);
+    rebuildMesh(t);
+    fetchElev(t);
+  }
+
+  function updateStreaming(ptx, pty) {
+    for (let dy = -RING; dy <= RING; dy++) {
+      for (let dx = -RING; dx <= RING; dx++) {
+        ensureTile(ptx + dx, pty + dy, Math.max(Math.abs(dx), Math.abs(dy)));
+      }
+    }
+    for (const entry of tiles) {
+      const key = entry[0], t = entry[1];
+      const d = Math.max(Math.abs(t.tx - ptx), Math.abs(t.ty - pty));
+      if (d > CACHE) {
+        if (t.mesh) t.mesh.dispose();
+        tiles.delete(key);
+      }
+    }
+  }
+
+  function worldHeight(x, z) {
+    const txf = x / TILE_M + originTx + 0.5;
+    const tyf = -z / TILE_M + originTy + 0.5;
+    const tx = Math.floor(txf), ty = Math.floor(tyf);
+    const t = tiles.get(tx + ',' + ty);
+    const px = (txf - tx) * 256, py = (tyf - ty) * 256;
+    if (t) return bilinear(t.heights, px, py);
+    return procHeight(txf * 256, tyf * 256);
+  }
+
+  const sfTxf = (SF.lon + 180) / 360 * NZ;
+  const sfTyf = (1 - Math.log(Math.tan(SF.lat * DEG2RAD) + 1 / Math.cos(SF.lat * DEG2RAD)) / Math.PI) / 2 * NZ;
+  const spawnX = (sfTxf - originTx - 0.5) * TILE_M;
+  const spawnZ = -(sfTyf - originTy - 0.5) * TILE_M;
+  const ptx0 = Math.round(spawnX / TILE_M) + originTx;
+  const pty0 = Math.round(-spawnZ / TILE_M) + originTy;
+  updateStreaming(ptx0, pty0);
+  camera.position.set(spawnX, worldHeight(spawnX, spawnZ) + eyeHeight, spawnZ);
+  let lastPTx = ptx0, lastPTy = pty0;
 
   const btnFly = document.getElementById('btnFly');
   function setFly(v) {
     flyMode = v;
     btnFly.textContent = flyMode ? 'Walk' : 'Fly';
+    camera.speed = flyMode ? 40 : 5;
   }
   btnFly.addEventListener('click', () => setFly(!flyMode));
   document.addEventListener('keydown', (e) => {
@@ -320,32 +386,34 @@ function startApp(cdnUrl) {
   });
 
   scene.registerBeforeRender(() => {
-    if (!flyMode && terrainReady) {
-      const h = sampleHeightAtLocal(camera.position.x, camera.position.z);
-      camera.position.y = h + eyeHeight;
+    const ptx = Math.round(camera.position.x / TILE_M) + originTx;
+    const pty = Math.round(-camera.position.z / TILE_M) + originTy;
+    if (ptx !== lastPTx || pty !== lastPTy) {
+      lastPTx = ptx; lastPTy = pty;
+      updateStreaming(ptx, pty);
+    }
+    if (!flyMode) {
+      camera.position.y = worldHeight(camera.position.x, camera.position.z) + eyeHeight;
     }
   });
 
   const topHud = document.getElementById('topHud');
   scene.onBeforeRenderObservable.add(() => {
     const fps = engine.getFps().toFixed(1);
-    const mercX = camera.position.x;
-    const mercZ = camera.position.z;
-    const px = (mercX / tileSizeM + 0.5) * 255;
-    const py = (0.5 - mercZ / tileSizeM) * 255;
-    const origin = tileToLatLon(tile.x, tile.y, zoom);
-    const next = tileToLatLon(tile.x + 1, tile.y + 1, zoom);
-    const dLat = next.lat - origin.lat;
-    const dLon = next.lon - origin.lon;
-    const lat = origin.lat + dLat * (py / 255);
-    const lon = origin.lon + dLon * (px / 255);
-    const alt = camera.position.y;
+    const tcfX = camera.position.x / TILE_M + originTx + 0.5;
+    const tcfY = -camera.position.z / TILE_M + originTy + 0.5;
+    const lon = tcfX / NZ * 360 - 180;
+    const lat = Math.atan(Math.sinh(Math.PI * (1 - 2 * tcfY / NZ))) / DEG2RAD;
+    let terr = 0, proc = 0;
+    for (const t of tiles.values()) {
+      if (t.state === 'terr') terr++; else proc++;
+    }
     topHud.innerHTML = 'FPS:' + fps +
       '<br>Lat:' + lat.toFixed(5) + ' Lon:' + lon.toFixed(5) +
-      '<br>Alt:' + alt.toFixed(1) + 'm' +
+      '<br>Alt:' + camera.position.y.toFixed(1) + 'm' +
       '<br>Mode:' + (flyMode ? 'FLY' : 'WALK') +
-      '<br>Tiles:1' +
-      '<br>SRC:' + srcStatus +
+      '<br>Tiles:' + tiles.size + ' (ring ' + RING + ')' +
+      '<br>SRC: TERR ' + terr + ' / PROC ' + proc +
       '<br>CDN:' + cdnUrl.split('/')[2];
   });
 
