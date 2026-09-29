@@ -1,4 +1,3 @@
-<plan>
 # Earth — Single-file Babylon.js Earth explorer
 
 ## Goal
@@ -91,4 +90,3 @@ Build the full walkable, streamed 3D Earth described in the reference README as 
 | 2026-09-28 | Plan checkpoint (pre-code) | Update-plan-before-code for the first build. Intended code write: `projects/earth.html` implementing M1 (triple-CDN Babylon loader cdn.babylonjs.com → jsdelivr → unpkg, sky/sun/fog, walk+fly camera, on-screen error trap, HUD skeleton) and M2 (Web Mercator z15 tile math, Terrarium fetch+decode `h = R*256 + G + B/256 − 32768`, seeded fBm fallback, SF spawn at 37.7749 N, 122.4194 W on real elevation, HUD SRC: TERR/PROC). Acceptance checks: (1) scene loads with all diagnostics on-screen, never console-only; (2) HUD shows FPS, mode walk/fly, lat/lon, altitude, elevation source; (3) SRC reads TERR when Terrarium tiles decode, PROC on fallback — terrain renders either way; (4) player spawns grounded on sampled elevation in SF; (5) fatal CDN failure shows on-screen error, never silent; (6) no secrets/tokens in code. Code write lands next turn; verification logged after. |
 | 2026-09-29 | Build M1+M2 start | Writing `projects/earth.html` implementing bootstrap (triple-CDN Babylon loader, sky/sun/fog, walk/fly camera, HUD, error trap) and terrain core (Mercator z15 tiles, Terrarium decode, fBm fallback, SF spawn). Verification to follow in next turn. |
 | 2026-09-29 | Plan checkpoint | Checkpoint identified as M1+M2 code write for `projects/earth.html`. Plan ledger updated; code file write is the next step. |
-</plan>
