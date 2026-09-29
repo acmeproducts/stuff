@@ -54,8 +54,8 @@ test('No tones when turned off; no audio device logs cue-unavailable',()=>{
 });
 test('Echo of read-aloud text is rejected before routing (ask mode too)',()=>{
  const t=world();t.store.chat_test_audio=JSON.stringify({mode:'ask'});t.a.speak('Where is the train station?','en');t.advance(500);t.spoken[0].onend();t.advance(1000);
- t.a.heard('south','where is the train station',null,{confidence:.9});assert.equal(t.sent.length,0);assert.equal(t.ev('transcript-rejected')[0].d.reason,'echo');
- t.a.heard('south','I need coffee','en',{confidence:.9});assert.deepEqual(t.sent,[['south','I need coffee']]);
+ t.a.heard('south','where is the train station.',null,{confidence:.9});assert.equal(t.sent.length,0);assert.equal(t.ev('transcript-rejected')[0].d.reason,'echo');
+ t.a.heard('south','I need coffee.','en',{confidence:.9});assert.deepEqual(t.sent,[['south','I need coffee.']]);
 });
 test('Open mode: both mics open; mute toggles one side only',async()=>{
  const t=world();t.a.sync();await t.tick();assert.equal(t.mic.south.on,true);assert.equal(t.mic.north.on,true);assert.equal(t.ev('mic-open').length,2);
@@ -66,19 +66,19 @@ test('Open mode: both mics open; mute toggles one side only',async()=>{
 });
 test('Open mode: routing picks the confident language before normalization',async()=>{
  const t=world();t.a.sync();await t.tick();
- t.a.heard('south','I would like two coffees please','en',{confidence:.93});t.a.heard('north','ไอ วู้ด ไลค์','th',{confidence:.41});
+ t.a.heard('south','I would like two coffees please.','en',{confidence:.93});t.a.heard('north','ไอ วู้ด ไลค์.','th',{confidence:.41});
  assert.equal(t.sent.length,0,'waits for the group window');t.advance(700);
- assert.deepEqual(t.sent,[['south','I would like two coffees please']]);
- t.advance(5000);t.a.heard('north','ขอบคุณครับ','th',{confidence:.88});t.a.heard('south','cop coon','en',{confidence:.52});t.advance(700);
- assert.deepEqual(t.sent[1],['north','ขอบคุณครับ']);assert.equal(t.ev('transcript-routed').length,2);
+ assert.deepEqual(t.sent,[['south','I would like two coffees please.']]);
+ t.advance(5000);t.a.heard('north','ขอบคุณครับ.','th',{confidence:.88});t.a.heard('south','cop coon.','en',{confidence:.52});t.advance(700);
+ assert.deepEqual(t.sent[1],['north','ขอบคุณครับ.']);assert.equal(t.ev('transcript-routed').length,2);
  assert.ok(t.ev('transcript-routed').every(x=>x.d.src&&x.d.tgt&&typeof x.d.conf==='number'&&x.d.tts));
 });
 test('Open mode: English channel on the Thai socket routes to the English side',async()=>{
- const t=world();t.a.sync();await t.tick();t.a.heard('north','the bill please','en',{confidence:.9});t.advance(700);assert.deepEqual(t.sent,[['south','the bill please']]);
+ const t=world();t.a.sync();await t.tick();t.a.heard('north','the bill please.','en',{confidence:.9});t.advance(700);assert.deepEqual(t.sent,[['south','the bill please.']]);
 });
 test('Open mode: unsure goes to compose with bong, not sent',async()=>{
  const t=world();t.a.sync();await t.tick();
- t.a.heard('south','okay','en',{confidence:.5});t.a.heard('north','โอเค','th',{confidence:.48});t.advance(700);
+ t.a.heard('south','okay.','en',{confidence:.5});t.a.heard('north','โอเค.','th',{confidence:.48});t.advance(700);
  assert.equal(t.sent.length,0);assert.equal(t.composed.length,1);assert.equal(t.ev('low-confidence-owner')[0].d.outcome,'blocked');
  assert.equal(t.ev('cue-played').slice(-1)[0].d.cue,'bong');
 });
@@ -86,16 +86,16 @@ test('Script veto: Thai characters cannot be owned by the English side',()=>{
  const t=world();assert.equal(t.a.scriptSide('สวัสดีครับ'),'north');assert.equal(t.a.scriptSide('hello'),'south');
 });
 test('Only one side open: that side owns speech directly',async()=>{
- const t=world();t.a.sync();await t.tick();t.a.toggleMute('south');t.a.heard('north','ขอบคุณ','th',{confidence:.3});assert.deepEqual(t.sent,[['north','ขอบคุณ']]);
+ const t=world();t.a.sync();await t.tick();t.a.toggleMute('south');t.a.heard('north','ขอบคุณ.','th',{confidence:.3});assert.deepEqual(t.sent,[['north','ขอบคุณ.']]);
 });
 test('Same-language room falls back to ask mode',async()=>{
  const t=world({langs:{north:'en'}});t.a.sync();await t.tick();assert.equal(t.mic.south.on,false);assert.equal(t.a.toggleMute('south'),false);assert.equal(t.ev('mode-fallback').length,1);
- t.a.heard('north','hello','en',{confidence:.9});assert.deepEqual(t.sent,[['north','hello']]);
+ t.a.heard('north','hello.','en',{confidence:.9});assert.deepEqual(t.sent,[['north','hello.']]);
 });
 test('Room switch discards a pending group; keyboard teardown keeps mics',async()=>{
  const t=world();t.a.sync();await t.tick();
  assert.equal(t.a.keepsMic('sent'),true);assert.equal(t.a.keepsMic('acquire:south/kb'),true);assert.equal(t.a.keepsMic('room switch'),false);
- t.a.heard('south','hello friend','en',{confidence:.9});t.a.afterTeardown('room switch');t.advance(1000);
+ t.a.heard('south','hello friend.','en',{confidence:.9});t.a.afterTeardown('room switch');t.advance(1000);
  assert.equal(t.sent.length,0);assert.ok(t.ev('stale-session').length>=1);
 });
 test('Permission denied is an error record and marks the side muted',async()=>{
@@ -120,6 +120,21 @@ test('Custom tone that cannot be decoded falls back to the default and still res
  const t=world();t.store.chat_test_audio=JSON.stringify({startTone:'custom'});t.store.chat_test_tone_start='data:audio/mpeg;base64,AAAA';
  t.a.speak('hi there','en');t.advance(500);t.spoken[0].onend();t.advance(300);await t.tick();await t.tick();t.advance(1000);
  assert.ok(t.ev('cue-played').some(x=>x.d.reason==='custom-tone-unplayable'));assert.equal(t.a.state().phase,'idle');
+});
+test('r8: a mid-sentence final is held and joined with the next one',async()=>{
+ const t=world({langs:{north:'ko'}});t.a.sync();await t.tick();t.a.toggleMute('south');
+ t.a.heard('north','가끔은 잠들 수 있을 것 같은 기분이 들기도 하지만','ko',{confidence:1});assert.equal(t.sent.length,0,'held');
+ t.advance(900);t.a.heard('north','지금은 출근해야 해요.','ko',{confidence:.9});
+ assert.deepEqual(t.sent,[['north','가끔은 잠들 수 있을 것 같은 기분이 들기도 하지만 지금은 출근해야 해요.']]);assert.equal(t.ev('fragment-joined').length,1);
+});
+test('r8: a held fragment is released after the join window, Thai is never held',async()=>{
+ const t=world({langs:{north:'ko'}});t.a.sync();await t.tick();t.a.toggleMute('south');
+ t.a.heard('north','잠깐만요','ko',{confidence:1});t.advance(1499);assert.equal(t.sent.length,0);t.advance(1);assert.deepEqual(t.sent,[['north','잠깐만요']]);
+ const u=world();u.a.sync();await u.tick();u.a.toggleMute('south');u.a.heard('north','สวัสดีครับ','th',{confidence:1});assert.deepEqual(u.sent,[['north','สวัสดีครับ']]);
+});
+test('r8: read-aloud start releases a held fragment; room switch discards it',async()=>{
+ const t=world();t.a.sync();await t.tick();t.a.toggleMute('north');t.a.heard('south','so what I mean is','en',{confidence:1});t.a.speak('hi there','en');assert.deepEqual(t.sent,[['south','so what I mean is']]);
+ const u=world();u.a.sync();await u.tick();u.a.toggleMute('north');u.a.heard('south','so what I mean is','en',{confidence:1});u.a.afterTeardown('room switch');u.advance(3000);assert.equal(u.sent.length,0);
 });
 test('Settings persist mode, tones, delay',()=>{
  const t=world();const ui={mode:{value:'ask'},tones:{value:'off'},volume:{value:'0.2'},resume:{value:'450'}};t.a.saveSettings(ui);
