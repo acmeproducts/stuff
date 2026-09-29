@@ -26,7 +26,7 @@ test('r4: double tap on a bubble header shows source, target, back-translation a
   const ov=page.locator('#tx-'+panel+' ~ .cl-bt, .half.'+panel+' .cl-bt');await ov.waitFor();await page.waitForFunction(p=>!document.querySelector('.half.'+p+' .cl-bt-verdict.wait'),panel);return ov}
  let ov=await check(0,'south');assert.match(await ov.textContent(),/Spoken.*English.*hello friend.*Back-translation.*English.*hello friend.*Target.*Thai.*สวัสดีเพื่อน/s);assert.equal(await ov.locator('.cl-bt-verdict').getAttribute('class'),'cl-bt-verdict match');
  await page.context().grantPermissions(['clipboard-read','clipboard-write']);await ov.getByRole('button',{name:'Copy',exact:true}).click();
- assert.match(await page.evaluate(()=>navigator.clipboard.readText()),/Spoken \(English\): hello friend\nBack-translation \(English\): hello friend\nTarget \(Thai\): สวัสดีเพื่อน\nResult: match/);
+ assert.match(await page.evaluate(()=>navigator.clipboard.readText()),/Spoken \(English\): hello friend\nBack-translation \(English\): hello friend\nTarget \(Thai\): สวัสดีเพื่อน\nRoute \(Keyboard\): Typed on the south keyboard\nResult: match/);
  await ov.getByRole('button',{name:'Close'}).click();assert.equal(await page.locator('.cl-bt').count(),0);
  ov=await check(1,'south');assert.equal(await ov.locator('.cl-bt-verdict').getAttribute('class'),'cl-bt-verdict miss');await ov.getByRole('button',{name:'Close'}).click();
  ov=await check(2,'south');assert.equal(await ov.locator('.cl-bt-verdict').getAttribute('class'),'cl-bt-verdict partial');await ov.getByRole('button',{name:'Close'}).click();
@@ -42,8 +42,22 @@ test('r6: English spoken on the Thai side is checked in English, in a zebra matr
  await page.mouse.click(cx,cy);await page.waitForTimeout(60);await page.mouse.click(cx,cy);
  const ov=page.locator('.half.north .cl-bt');await ov.waitFor();await page.waitForFunction(()=>!document.querySelector('.half.north .cl-bt-verdict.wait'),null,{timeout:5000});
  const cells=await ov.locator('tr').evaluateAll(rs=>rs.map(r=>[...r.children].map(c=>c.textContent)));
- assert.deepEqual(cells.map(r=>r[0]),['SpokenEnglish','Back-translationEnglish · same as target','TargetEnglish','NormalizedThai']);
+ assert.deepEqual(cells.map(r=>r[0]),['SpokenEnglish','Back-translationEnglish · same as target','TargetEnglish','NormalizedThai','Route—']);
  assert.deepEqual(cells[0],['SpokenEnglish',"okay now let's try with the gap"]);
  assert.equal(await ov.locator('.cl-bt-verdict').getAttribute('class'),'cl-bt-verdict match');
  const bgs=await ov.locator('tr').evaluateAll(rs=>rs.map(r=>getComputedStyle(r).backgroundColor));assert.notEqual(bgs[0],bgs[1]);assert.equal(bgs[0],bgs[2]);
+});
+
+test('r7: every message records its route; the check shows it',async({page})=>{
+ await page.evaluate(()=>{localStorage.setItem('tb_dg_key','synthetic-key');localStorage.setItem('chat_test_audio',JSON.stringify({mode:'ask',tones:false}))});
+ await create(page,'Routes');await send(page,'north','สวัสดีครับ');await settled(page,1);
+ assert.deepEqual(await page.evaluate(()=>HIST[0].via),{input:'keyboard'});
+ await page.locator('#strip-south .micbtn').click();await page.waitForFunction(()=>mic.south.active);
+ const ws=page.testSockets.filter(w=>w.url().includes('language=en-US')).slice(-1)[0];ws.send(JSON.stringify({is_final:true,channel:{alternatives:[{transcript:'hello friend',confidence:.91}]}}));
+ await settled(page,2);const via=await page.evaluate(()=>HIST[1].via);
+ assert.equal(via.input,'voice');assert.equal(via.pipe,'south');assert.equal(via.heardAs,'en');assert.equal(via.reason,'owner');assert.equal(via.mode,'ask');assert.equal(via.conf,0.91);
+ const h=page.locator('#tx-south .bhdr').nth(1);await h.scrollIntoViewIfNeeded();const b=await h.boundingBox();await page.mouse.click(b.x+10,b.y+b.height/2);await page.waitForTimeout(60);await page.mouse.click(b.x+10,b.y+b.height/2);
+ const ov=page.locator('.half.south .cl-bt');await ov.waitFor();
+ assert.match(await ov.locator('tr').last().textContent(),/RouteVoiceMic channel: south \(English\), heard as English, confidence 0\.91, mode ask, decided by mic owner/);
+ assert.ok(await page.evaluate(()=>debugLog.some(e=>e.ev==='route'&&e.d.input==='voice'&&e.d.side==='south')));
 });
