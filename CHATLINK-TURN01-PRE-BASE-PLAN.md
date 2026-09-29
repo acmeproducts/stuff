@@ -431,3 +431,21 @@ Ownership metadata (side, generation, source/target language, time, confidence, 
 **Evidence.** The r8 scenario now uses a 3.5 s gap. It fails on r9 (2 messages) and passes on r10 (1 message).
 
 **Gates (lab).** 23/23 controller tests. Ask mode: 25/25. Open mode: 26/26. Keyboard: 32/32.
+
+
+### chat-test r11: stop duplicate English messages in open mode (2026-09-29)
+
+**Owner report (field, r10).** "Inconsistent" results. The owner supplied a screenshot and the full diagnostics log.
+
+**Findings from the log.**
+1. *Duplicate English messages (bug).* At 11:49:46 South's English mic produced a final, which was routed south. At 11:49:48 the same sentence arrived from the Korean side's English side-channel (`pipe north, heardAs en`). That is 2 s later, outside the 700 ms grouping window, so it was routed south a second time. Two `trans_ok en→ko` calls of 35 characters followed. The same happened at 11:51:42–43.
+2. *One bubble vs two for the same Korean audio (not a bug).*
+   - At 11:52:15–16 the first half had no period: it was held and joined into one message.
+   - At 11:53:08–10 Deepgram put a period after "하마터면 잠들 뻔했어요." That is a complete sentence, so it was sent alone, followed by "하지만 이제 출근할 시간이에요."
+   - Both translations are faithful ("I almost fell asleep." / "But now it's time to go to work."). Deepgram's punctuation of the pause varies from run to run.
+
+**Change.** In open mode, a side whose partner speaks English no longer opens the extra English side-channel, because the partner's own mic already hears English. Ask mode keeps the side-channel for code-switching. This also cuts one Deepgram stream.
+
+**Evidence.** The new scenario fails on r10 (2 English sockets) and passes on r11 (1).
+
+**Gates (lab).** 23/23 controller tests. Ask mode: 26/26. Open mode: 27/27. Keyboard: 32/32.

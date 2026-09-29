@@ -90,3 +90,12 @@ test('r9: AI keys tab loads models, validates and saves Venice and OpenRouter ke
  assert.ok(!(await page.evaluate(()=>JSON.stringify(debugLog))).includes('sk-or-good')&&!(await page.evaluate(()=>JSON.stringify(debugLog))).includes('devstream-venice-key'),'keys never logged');
  await page.getByRole('button',{name:'Device',exact:true}).click();await page.getByLabel('Microphone mode').waitFor();
 });
+test('r11: open mode with an English partner opens no extra English channel; ask mode keeps it',async({page})=>{
+ await page.evaluate(()=>{localStorage.setItem('tb_dg_key','synthetic-key');localStorage.setItem('chat_test_audio',JSON.stringify({mode:'open',tones:false}))});
+ await create(page,'NoDup','en','ko');await page.waitForFunction(()=>mic.south.active&&mic.north.active);await page.waitForTimeout(300);
+ const urls=page.testSockets.map(w=>w.url());assert.equal(urls.filter(u=>u.includes('language=en')).length,1,'only South listens in English');
+ assert.equal(await page.evaluate(()=>debugLog.filter(e=>e.ev==='dg_en_open').length),0);
+ await page.evaluate(()=>localStorage.setItem('chat_test_audio',JSON.stringify({mode:'ask',tones:false})));
+ await create(page,'AskDual','en','ko');await page.locator('#strip-north .micbtn').click();await page.waitForFunction(()=>mic.north.active);await page.waitForTimeout(300);
+ assert.ok(await page.evaluate(()=>debugLog.some(e=>e.ev==='dg_en_open')),'ask mode keeps the English side-channel for code-switching');
+});
