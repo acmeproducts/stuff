@@ -258,6 +258,11 @@ b39 incorrectly changed stationary hold into context-menu activation. Devstream 
 
 ---
 
+# 2026-09-29 — b51 fix: project opens on its first displayed tab
+- Regression: opening a project chose the first thread by raw key order, not the tab order shown (including drag-reordered order). Now uses the same ordered list as the tab bar. One-line change.
+
+---
+
 # 2026-09-29 — b51 persistent diagnostic log + compose paste/drop attachments
 
 Baseline: b50 `8ff0462`. Test file only; `devstream.html` untouched. No other behavior changes.
