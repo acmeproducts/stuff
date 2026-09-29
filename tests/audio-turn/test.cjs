@@ -121,21 +121,6 @@ test('Custom tone that cannot be decoded falls back to the default and still res
  t.a.speak('hi there','en');t.advance(500);t.spoken[0].onend();t.advance(300);await t.tick();await t.tick();t.advance(1000);
  assert.ok(t.ev('cue-played').some(x=>x.d.reason==='custom-tone-unplayable'));assert.equal(t.a.state().phase,'idle');
 });
-test('r8: a mid-sentence final is held and joined with the next one',async()=>{
- const t=world({langs:{north:'ko'}});t.a.sync();await t.tick();t.a.toggleMute('south');
- t.a.heard('north','가끔은 잠들 수 있을 것 같은 기분이 들기도 하지만','ko',{confidence:1});assert.equal(t.sent.length,0,'held');
- t.advance(900);t.a.heard('north','지금은 출근해야 해요.','ko',{confidence:.9});
- assert.deepEqual(t.sent,[['north','가끔은 잠들 수 있을 것 같은 기분이 들기도 하지만 지금은 출근해야 해요.']]);assert.equal(t.ev('fragment-joined').length,1);
-});
-test('r8: a held fragment is released after the join window, Thai is never held',async()=>{
- const t=world({langs:{north:'ko'}});t.a.sync();await t.tick();t.a.toggleMute('south');
- t.a.heard('north','잠깐만요','ko',{confidence:1});t.advance(3999);assert.equal(t.sent.length,0);t.advance(1);assert.deepEqual(t.sent,[['north','잠깐만요']]);
- const u=world();u.a.sync();await u.tick();u.a.toggleMute('south');u.a.heard('north','สวัสดีครับ','th',{confidence:1});assert.deepEqual(u.sent,[['north','สวัสดีครับ']]);
-});
-test('r8: read-aloud start releases a held fragment; room switch discards it',async()=>{
- const t=world();t.a.sync();await t.tick();t.a.toggleMute('north');t.a.heard('south','so what I mean is','en',{confidence:1});t.a.speak('hi there','en');assert.deepEqual(t.sent,[['south','so what I mean is']]);
- const u=world();u.a.sync();await u.tick();u.a.toggleMute('north');u.a.heard('south','so what I mean is','en',{confidence:1});u.a.afterTeardown('room switch');u.advance(3000);assert.equal(u.sent.length,0);
-});
 test('Settings persist mode, tones, delay',()=>{
  const t=world();const ui={mode:{value:'ask'},tones:{value:'off'},volume:{value:'0.2'},resume:{value:'450'}};t.a.saveSettings(ui);
  const c=t.a.cfg();assert.equal(c.mode,'ask');assert.equal(c.tones,false);assert.equal(c.resumeMs,450);

@@ -449,3 +449,23 @@ Ownership metadata (side, generation, source/target language, time, confidence, 
 **Evidence.** The new scenario fails on r10 (2 English sockets) and passes on r11 (1).
 
 **Gates (lab).** 23/23 controller tests. Ask mode: 26/26. Open mode: 27/27. Keyboard: 32/32.
+
+
+### chat-test r12: one message per spoken turn, from Deepgram's end-of-speech signal (2026-09-29)
+
+**Owner correction.** The audio was played through Google Translate, so every run had identical timing and tone. My r11 note blamed the pause, which was wrong: the input did not vary.
+
+**Cause.** Deepgram's streaming output splits identical audio at different points on different runs. The field log shows a first final of 22 chars with no period in one run, and 13 chars ending in "." in another. r8/r10 joined halves only when a final lacked ending punctuation, so the result followed Deepgram's variation.
+
+**Change.**
+- The primary Deepgram socket now uses `interim_results=true&utterance_end_ms=` (1500 ms for Korean, 1000 ms otherwise).
+- Finals are collected and sent as one message when Deepgram sends `UtteranceEnd`, which it computes from word timings in the audio rather than from punctuation. A 4 s fallback covers a missing UtteranceEnd.
+- Each flush is logged as `dg_utterance` (parts, reason).
+- The r8/r10 punctuation join in the controller is removed.
+- The English side-channel is unchanged.
+
+**Evidence.** A new scenario plays both observed splits, one with a period mid-turn and one without. On r12 both give a single message; on r11 the with-period split gave two.
+
+**Graveyard (r12).** The punctuation-based join (r8, window raised in r10) is removed and replaced by UtteranceEnd.
+
+**Gates (lab).** 20/20 controller tests (3 join tests retired with the feature). Ask mode: 27/27. Open mode: 28/28. Keyboard: 32/32. **Not verified:** Deepgram's real UtteranceEnd timing for the owner's audio.
