@@ -24,13 +24,26 @@ test('r4: double tap on a bubble header shows source, target, back-translation a
  await create(page,'Check');await send(page,'south','hello friend');await settled(page,1);await send(page,'south','the weather is nice today');await settled(page,2);await send(page,'south','hello my friend');await settled(page,3);
  async function check(i,panel){const h=page.locator('#tx-'+panel+' .bhdr').nth(i);await h.scrollIntoViewIfNeeded();const box=await h.boundingBox();const cx=panel==='north'?box.x+box.width-12:box.x+10;await page.mouse.click(cx,box.y+box.height/2);await page.waitForTimeout(60);await page.mouse.click(cx,box.y+box.height/2);
   const ov=page.locator('#tx-'+panel+' ~ .cl-bt, .half.'+panel+' .cl-bt');await ov.waitFor();await page.waitForFunction(p=>!document.querySelector('.half.'+p+' .cl-bt-verdict.wait'),panel);return ov}
- let ov=await check(0,'south');assert.match(await ov.textContent(),/Source · English.*hello friend.*Back-translation · English.*hello friend.*Target · Thai.*สวัสดีเพื่อน/s);assert.equal(await ov.locator('.cl-bt-verdict').getAttribute('class'),'cl-bt-verdict match');
+ let ov=await check(0,'south');assert.match(await ov.textContent(),/Spoken.*English.*hello friend.*Back-translation.*English.*hello friend.*Target.*Thai.*สวัสดีเพื่อน/s);assert.equal(await ov.locator('.cl-bt-verdict').getAttribute('class'),'cl-bt-verdict match');
  await page.context().grantPermissions(['clipboard-read','clipboard-write']);await ov.getByRole('button',{name:'Copy',exact:true}).click();
- assert.match(await page.evaluate(()=>navigator.clipboard.readText()),/Source \(English\): hello friend\nBack-translation \(English\): hello friend\nTarget \(Thai\): สวัสดีเพื่อน\nResult: match/);
+ assert.match(await page.evaluate(()=>navigator.clipboard.readText()),/Spoken \(English\): hello friend\nBack-translation \(English\): hello friend\nTarget \(Thai\): สวัสดีเพื่อน\nResult: match/);
  await ov.getByRole('button',{name:'Close'}).click();assert.equal(await page.locator('.cl-bt').count(),0);
  ov=await check(1,'south');assert.equal(await ov.locator('.cl-bt-verdict').getAttribute('class'),'cl-bt-verdict miss');await ov.getByRole('button',{name:'Close'}).click();
  ov=await check(2,'south');assert.equal(await ov.locator('.cl-bt-verdict').getAttribute('class'),'cl-bt-verdict partial');await ov.getByRole('button',{name:'Close'}).click();
  ov=await check(0,'north');assert.ok(await ov.isVisible(),'North reader gets the check in their own (rotated) pane');
  assert.ok(await page.evaluate(()=>debugLog.filter(e=>e.ev==='bt_check').length>=4));
  assert.equal(await page.evaluate(()=>document.body.classList.contains('cl-open')),false,'header double tap does not open the rail');
+});
+
+test('r6: English spoken on the Thai side is checked in English, in a zebra matrix',async({page})=>{
+ await create(page,'Owner case');
+ await page.evaluate(()=>{HIST.push({id:'oc1',side:'north',original:"okay now let's try with the gap",text:'โอเคตอนนี้เรามาลองกับช่องว่าง',src:'th',tgt:'en',ts:Date.now(),tr:"Okay, now let's try with the gap.",status:'complete'});renderAll()});
+ const h=page.locator('#tx-north .bhdr').first();await h.scrollIntoViewIfNeeded();const box=await h.boundingBox(),cx=box.x+box.width-12,cy=box.y+box.height/2;
+ await page.mouse.click(cx,cy);await page.waitForTimeout(60);await page.mouse.click(cx,cy);
+ const ov=page.locator('.half.north .cl-bt');await ov.waitFor();await page.waitForFunction(()=>!document.querySelector('.half.north .cl-bt-verdict.wait'),null,{timeout:5000});
+ const cells=await ov.locator('tr').evaluateAll(rs=>rs.map(r=>[...r.children].map(c=>c.textContent)));
+ assert.deepEqual(cells.map(r=>r[0]),['SpokenEnglish','Back-translationEnglish · same as target','TargetEnglish','NormalizedThai']);
+ assert.deepEqual(cells[0],['SpokenEnglish',"okay now let's try with the gap"]);
+ assert.equal(await ov.locator('.cl-bt-verdict').getAttribute('class'),'cl-bt-verdict match');
+ const bgs=await ov.locator('tr').evaluateAll(rs=>rs.map(r=>getComputedStyle(r).backgroundColor));assert.notEqual(bgs[0],bgs[1]);assert.equal(bgs[0],bgs[2]);
 });

@@ -352,3 +352,20 @@ Ownership metadata (side, generation, source/target language, time, confidence, 
 - Thresholds are unchanged pending more field samples.
 
 **Gates (lab).** 20/20 controller tests. Ask mode: 21/21. Open mode and keyboard were re-run before push.
+
+
+### chat-test r6: translation check starts from the spoken words; matrix layout (2026-09-29)
+
+**Owner report.** The check showed Source (Thai) "โอเคตอนนี้เรามาลองกับช่องว่าง", Back-translation (Thai), Target (English) "Okay, now let's try with the gap.", Heard "okay now let's try with the gap", and scored Partial 53%. The owner said: "SOURCE IS ENGLISH therefore backtranslate should also be ENGLISH", and asked for a matrix with zebra stripes.
+
+**Cause.** When English is spoken on the Thai side, normalization rewrites it into Thai before translating. The r4/r5 check treated that Thai rewrite as the source and back-translated into Thai, so it compared a machine rewrite with a machine rewrite.
+
+**Change.**
+- The check now starts from the spoken words. If normalization rewrote them, the spoken language is detected (script first, then the language model with a 2 s cap; Latin-script speech falls back to the other side's language, or English). The back-translation goes into that language.
+- When the spoken language equals the target language, no back-translation is needed and the target is compared directly ("same as target").
+- The modal is a zebra-striped matrix: Spoken, Back-translation, Target, then Normalized (only when a rewrite happened). Each row shows its language, and Copy uses the same rows.
+- The owner's example now scores Match 100%.
+
+**Gates (lab).** 20/20 controller tests. Ask mode: 22/22, including a scenario built from the owner's example. Open mode: 23/23. Keyboard: 32/32.
+
+**Open question for field data.** Why English speech lands on the Thai side (the owner speaking English there, or routing). Diagnostics `audio:transcript-routed` records which side and why.
