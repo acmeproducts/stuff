@@ -318,3 +318,22 @@ Ownership metadata (side, generation, source/target language, time, confidence, 
 - "Export conversations" (all rooms) is replaced by per-room export.
 - MyMemory as the primary translator is buried for Korean quality; it remains the fallback only.
 - Backlog: paid AI translation (Claude or Gemini) for field testing of utility vs cost; reining in the English side-channel on the Korean side (not approved in this round).
+
+
+### chat-test r4: double-tap rail, cleaner jump button, back-translation check (2026-09-29)
+
+**Owner request.**
+1. Open the left rail with a double tap anywhere on the South transcript outside a chat bubble.
+2. The jump arrow looked amateurish: it should be a blue filled circle with a white glyph and no border, matching the send button.
+3. Double-tapping a bubble header back-translates the target into the source language and shows a modal with the source, target, back-translation and a match/partial/miss indication, plus Copy and ✕. This is critical for catching translation problems as they happen.
+
+**Changes**
+- Rail: a double tap (two taps within 350 ms and 30 px) on the South transcript outside a bubble opens it; with no conversation open, the lower half of the screen works. The North surface and bubbles don't open it. The second tap only has to be near the first, because the first tap can close the keyboard and shift the layout. The r3 edge swipe is removed.
+- Jump button: 40 px circle with the send button's blue gradient, a white arrow icon, and no border.
+- Translation check: a double tap on a bubble header opens the modal inside the reader's own pane, so the North reader sees it the right way up. It shows Source, Heard (if normalization changed it), Target, Back-translation, and a verdict: Match ≥ 80%, Partial ≥ 50%, Miss below that. The score is character-pair similarity between the source and the back-translation. Copy puts all fields and the verdict on the clipboard. Each check is logged as `bt_check` in the diagnostics log.
+
+**Gates (lab, Chromium, phone viewport).** 20/20 controller tests. Ask mode: 21/21, including 3 r4 scenarios. Open mode: 22/22. Keyboard: 32/32. Base chatlink-turn01-pre-base: 13/13, unchanged. **Not verified on the phone:** the double tap versus the browser's own double-tap handling, and back-translation quality for Korean.
+
+**Graveyard (r4)**
+- The r3 left-edge swipe to open the rail is replaced by the double tap at the owner's request. The swipe also risked clashing with Android's back gesture.
+- The r3 outlined teal jump button is replaced by the blue filled button.
