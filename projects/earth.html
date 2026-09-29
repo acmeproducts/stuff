@@ -13,6 +13,20 @@
   #controls { position:absolute; bottom:8px; right:8px; pointer-events:auto; display:flex; flex-direction:column; gap:6px; align-items:flex-end; }
   button { font-family:monospace; font-size:15px; padding:10px 14px; border:none; border-radius:4px; background:rgba(255,255,255,0.88); color:#000; touch-action:manipulation; }
   button:active { background:rgba(200,200,200,0.95); }
+  #btnGear { position:absolute; top:8px; right:8px; pointer-events:auto; z-index:5; font-size:18px; }
+  #modalWrap { position:absolute; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.55); display:none; pointer-events:auto; z-index:10; }
+  #modal { position:absolute; top:50%; left:50%; transform:translate(-50%,-50%); width:min(92vw,420px); max-height:86vh; overflow:auto; background:#101418; color:#dfe; font-family:monospace; border:1px solid #3a4; border-radius:8px; padding:14px 16px; font-size:14px; box-sizing:border-box; }
+  #modal h2 { margin:0 0 10px; font-size:16px; color:#8f8; }
+  #modal .sec { margin-bottom:14px; }
+  #modal label { display:block; margin:6px 0 2px; color:#9c9; }
+  #modal input[type=range] { width:100%; }
+  #modal input[type=number], #modal select { width:100%; box-sizing:border-box; font-family:monospace; font-size:14px; padding:6px; background:#1c232b; color:#dfe; border:1px solid #456; border-radius:4px; }
+  #modal .row { display:flex; gap:8px; }
+  #modal .row > * { flex:1; }
+  #modal .val { color:#8f8; }
+  #modal .keys { color:#8aa; font-size:12px; line-height:1.5; }
+  #modalBtns { display:flex; gap:8px; margin-top:8px; }
+  #modalBtns button { flex:1; }
 </style>
 </head>
 <body>
@@ -20,13 +34,67 @@
 <div id="hud">
   <div id="topHud">Loading...</div>
   <div id="errBox"></div>
+  <button id="btnGear">&#9881;</button>
   <div id="controls">
     <button id="btnFly">Fly</button>
+  </div>
+  <div id="modalWrap">
+    <div id="modal">
+      <h2>Settings</h2>
+      <div class="sec">
+        <label>Detail</label>
+        <select id="optDetail">
+          <option value="LOW">LOW (fast)</option>
+          <option value="MED">MED</option>
+          <option value="HIGH">HIGH</option>
+        </select>
+      </div>
+      <div class="sec">
+        <label>Top speed — walk <span class="val" id="walkVal">5</span> / fly <span class="val" id="flyVal">40</span></label>
+        <input type="range" id="optWalk" min="1" max="25" step="0.5" value="5">
+        <input type="range" id="optFly" min="5" max="300" step="5" value="40">
+      </div>
+      <div class="sec">
+        <label>Time of day <span class="val" id="todVal">12:00</span></label>
+        <input type="range" id="optTod" min="0" max="24" step="0.25" value="12">
+      </div>
+      <div class="sec">
+        <label>Jump to location</label>
+        <select id="optPreset">
+          <option value="">— presets —</option>
+          <option value="37.7749,-122.4194">San Francisco</option>
+          <option value="40.7128,-74.0060">New York</option>
+          <option value="51.5074,-0.1278">London</option>
+          <option value="48.8584,2.2945">Paris</option>
+          <option value="35.6762,139.6503">Tokyo</option>
+          <option value="-33.8688,151.2093">Sydney</option>
+          <option value="27.9881,86.9250">Mt Everest</option>
+        </select>
+        <div class="row" style="margin-top:6px">
+          <input type="number" id="optLat" step="0.0001" min="-85" max="85" placeholder="lat">
+          <input type="number" id="optLon" step="0.0001" min="-180" max="180" placeholder="lon">
+        </div>
+        <div id="modalBtns">
+          <button id="btnJump">Jump</button>
+        </div>
+      </div>
+      <div class="sec">
+        <label>Controls — look damping <span class="val" id="sensVal">3000</span> (lower = faster)</label>
+        <input type="range" id="optSens" min="500" max="10000" step="100" value="3000">
+        <label style="margin-top:6px"><input type="checkbox" id="optInvertY"> Invert Y axis</label>
+        <div class="keys" style="margin-top:6px">
+          WASD move &middot; mouse drag / pointer-lock look &middot; wheel &amp; pinch zoom &middot; F fly/walk &middot; touch: drag to move/look
+        </div>
+      </div>
+      <div id="modalBtns">
+        <button id="btnClose">Close</button>
+      </div>
+    </div>
   </div>
 </div>
 <script>
 'use strict';
-const BUILD = 'M3.1-hotfix 2026-09-29';
+const BUILD = 'M3.2-settings 2026-09-29';
 const errBox = document.getElementById('errBox');
 function showErr(msg) {
   errBox.style.display = 'block';
@@ -135,6 +203,16 @@ function startApp(cdnUrl) {
     }
   });
 
+  // ---- settings (persisted) ----
+  const settings = { detail: 'MED', walkSpeed: 5, flySpeed: 40, tod: 12, sens: 3000, invertY: false };
+  try {
+    const s = JSON.parse(localStorage.getItem('earthSettings') || 'null');
+    if (s) for (const k in settings) { if (typeof s[k] === typeof settings[k]) settings[k] = s[k]; }
+  } catch (e) {}
+  function saveSettings() {
+    try { localStorage.setItem('earthSettings', JSON.stringify(settings)); } catch (e) {}
+  }
+
   let flyMode = false;
   const eyeHeight = 1.7;
 
@@ -182,9 +260,15 @@ function startApp(cdnUrl) {
   const SF = { lat: 37.7749, lon: -122.4194 };
   const zoom = 15;
   const NZ = Math.pow(2, zoom);
-  const origin = latLonToTile(SF.lat, SF.lon, zoom);
-  const originTx = origin.x, originTy = origin.y;
-  const TILE_M = tileMeters(zoom) * Math.cos(SF.lat * DEG2RAD);
+  let originTx = 0, originTy = 0, TILE_M = 1;
+
+  function tileFrac(lat, lon) {
+    const latRad = lat * DEG2RAD;
+    return {
+      x: (lon + 180) / 360 * NZ,
+      y: (1 - Math.log(Math.tan(latRad) + 1 / Math.cos(latRad)) / Math.PI) / 2 * NZ
+    };
+  }
 
   function procHeight(gx, gy) {
     return 20 + fBm(gx * 0.006, gy * 0.006, 6, 2.0, 0.5) * 380;
@@ -211,12 +295,19 @@ function startApp(cdnUrl) {
   }
 
   const tiles = new Map();
-  const RING = 2;
   const CACHE = 3;
   const SKIRT = 14;
 
+  const QUALITY = {
+    LOW:  { subdiv: [48, 24, 12], ring: 2 },
+    MED:  { subdiv: [96, 48, 24], ring: 2 },
+    HIGH: { subdiv: [144, 72, 36], ring: 3 }
+  };
+  let RING = QUALITY[settings.detail] ? QUALITY[settings.detail].ring : 2;
+
   function lodForDist(d) {
-    return d <= 1 ? 96 : (d === 2 ? 48 : 24);
+    const s = (QUALITY[settings.detail] || QUALITY.MED).subdiv;
+    return d <= 1 ? s[0] : (d === 2 ? s[1] : s[2]);
   }
 
   const terrainMat = new BABYLON.StandardMaterial('terrainMat', scene);
@@ -428,27 +519,207 @@ function startApp(cdnUrl) {
     return procHeight(txf * 256, tyf * 256);
   }
 
-  const sfTxf = (SF.lon + 180) / 360 * NZ;
-  const sfTyf = (1 - Math.log(Math.tan(SF.lat * DEG2RAD) + 1 / Math.cos(SF.lat * DEG2RAD)) / Math.PI) / 2 * NZ;
-  const spawnX = (sfTxf - originTx - 0.5) * TILE_M;
-  const spawnZ = -(sfTyf - originTy - 0.5) * TILE_M;
-  const ptx0 = Math.round(spawnX / TILE_M) + originTx;
-  const pty0 = Math.round(-spawnZ / TILE_M) + originTy;
-  updateStreaming(ptx0, pty0);
-  camera.position.set(spawnX, worldHeight(spawnX, spawnZ) + eyeHeight, spawnZ);
-  let lastPTx = ptx0, lastPTy = pty0;
+  let lastPTx = 0, lastPTy = 0;
 
+  function teleport(lat, lon) {
+    lat = Math.min(Math.max(lat, -85), 85);
+    lon = ((lon + 180) % 360 + 360) % 360 - 180;
+    const o = latLonToTile(lat, lon, zoom);
+    originTx = o.x;
+    originTy = o.y;
+    TILE_M = tileMeters(zoom) * Math.max(Math.cos(lat * DEG2RAD), 0.01);
+    for (const t of tiles.values()) { if (t.mesh) t.mesh.dispose(); }
+    tiles.clear();
+    const f = tileFrac(lat, lon);
+    const wx = (f.x - originTx - 0.5) * TILE_M;
+    const wz = -(f.y - originTy - 0.5) * TILE_M;
+    lastPTx = Math.round(wx / TILE_M) + originTx;
+    lastPTy = Math.round(-wz / TILE_M) + originTy;
+    updateStreaming(lastPTx, lastPTy);
+    camera.position.set(wx, worldHeight(wx, wz) + eyeHeight, wz);
+  }
+
+  function setQuality(q) {
+    if (!QUALITY[q]) return;
+    settings.detail = q;
+    RING = QUALITY[q].ring;
+    for (const t of tiles.values()) {
+      const d = Math.max(Math.abs(t.tx - lastPTx), Math.abs(t.ty - lastPTy));
+      const want = lodForDist(d);
+      if (t.lod !== want) { t.lod = want; rebuildMesh(t); }
+    }
+    updateStreaming(lastPTx, lastPTy);
+  }
+
+  teleport(SF.lat, SF.lon);
+
+  // ---- fly / walk ----
   const btnFly = document.getElementById('btnFly');
+  function applySpeeds() {
+    camera.speed = flyMode ? settings.flySpeed : settings.walkSpeed;
+  }
   function setFly(v) {
     flyMode = v;
     btnFly.textContent = flyMode ? 'Walk' : 'Fly';
-    camera.speed = flyMode ? 40 : 5;
+    applySpeeds();
   }
   btnFly.addEventListener('click', function() { setFly(!flyMode); });
   document.addEventListener('keydown', function(e) {
     if (e.key === 'f' || e.key === 'F') setFly(!flyMode);
   });
+  applySpeeds();
 
+  // ---- zoom: wheel + pinch (FOV based, 1x..8x) ----
+  const BASE_FOV = camera.fov;
+  let zoomMult = 1;
+  function setZoom(mult) {
+    zoomMult = Math.min(Math.max(mult, 1), 8);
+    camera.fov = BASE_FOV / zoomMult;
+  }
+  canvas.addEventListener('wheel', function(e) {
+    e.preventDefault();
+    setZoom(zoomMult * (e.deltaY < 0 ? 1.12 : 1 / 1.12));
+  }, { passive: false });
+
+  const pinchPts = new Map();
+  let pinchD0 = 0, pinchZ0 = 1;
+  canvas.addEventListener('pointerdown', function(e) {
+    if (e.pointerType !== 'touch') return;
+    pinchPts.set(e.pointerId, { x: e.clientX, y: e.clientY });
+    if (pinchPts.size === 2) {
+      const p = [];
+      for (const v of pinchPts.values()) p.push(v);
+      pinchD0 = Math.hypot(p[0].x - p[1].x, p[0].y - p[1].y);
+      pinchZ0 = zoomMult;
+    }
+  });
+  canvas.addEventListener('pointermove', function(e) {
+    if (!pinchPts.has(e.pointerId)) return;
+    pinchPts.set(e.pointerId, { x: e.clientX, y: e.clientY });
+    if (pinchPts.size === 2 && pinchD0 > 0) {
+      const p = [];
+      for (const v of pinchPts.values()) p.push(v);
+      const d = Math.hypot(p[0].x - p[1].x, p[0].y - p[1].y);
+      if (d > 0) setZoom(pinchZ0 * d / pinchD0);
+    }
+  });
+  function pinchEnd(e) {
+    pinchPts.delete(e.pointerId);
+    if (pinchPts.size < 2) pinchD0 = 0;
+  }
+  canvas.addEventListener('pointerup', pinchEnd);
+  canvas.addEventListener('pointercancel', pinchEnd);
+
+  // ---- time of day ----
+  const daySky = new BABYLON.Color3(0.5, 0.7, 0.95);
+  const nightSky = new BABYLON.Color3(0.02, 0.03, 0.08);
+  function fmtTOD(h) {
+    const hh = Math.floor(h) % 24;
+    const mm = Math.floor((h - Math.floor(h)) * 60);
+    return (hh < 10 ? '0' : '') + hh + ':' + (mm < 10 ? '0' : '') + mm;
+  }
+  function applyTOD() {
+    const h = settings.tod;
+    const elev = Math.sin((h - 6) / 12 * Math.PI);
+    const daylight = Math.min(Math.max(elev, 0), 1);
+    const az = (h - 12) / 12 * Math.PI;
+    if (elev <= 0) {
+      sun.direction = new BABYLON.Vector3(0.2, -1, 0.3).normalize();
+    } else {
+      sun.direction = new BABYLON.Vector3(Math.sin(az), -elev, Math.cos(az) * 0.5).normalize();
+    }
+    sun.intensity = 0.12 + 1.05 * daylight;
+    hemi.intensity = 0.22 + 0.35 * daylight;
+    const skyC = BABYLON.Color3.Lerp(nightSky, daySky, Math.min(daylight + 0.08, 1));
+    skyMat.emissiveColor = skyC;
+    scene.fogColor = new BABYLON.Color3(skyC.r * 0.95, skyC.g * 0.95, skyC.b * 0.95);
+    scene.clearColor = new BABYLON.Color4(skyC.r, skyC.g, skyC.b, 1);
+  }
+  applyTOD();
+
+  camera.angularSensibility = settings.sens;
+
+  // ---- settings modal wiring ----
+  const modalWrap = document.getElementById('modalWrap');
+  const optDetail = document.getElementById('optDetail');
+  const optWalk = document.getElementById('optWalk');
+  const optFly = document.getElementById('optFly');
+  const optTod = document.getElementById('optTod');
+  const optSens = document.getElementById('optSens');
+  const optInvertY = document.getElementById('optInvertY');
+  const optPreset = document.getElementById('optPreset');
+  const optLat = document.getElementById('optLat');
+  const optLon = document.getElementById('optLon');
+  const walkVal = document.getElementById('walkVal');
+  const flyVal = document.getElementById('flyVal');
+  const todVal = document.getElementById('todVal');
+  const sensVal = document.getElementById('sensVal');
+
+  optDetail.value = settings.detail;
+  optWalk.value = settings.walkSpeed;
+  optFly.value = settings.flySpeed;
+  optTod.value = settings.tod;
+  optSens.value = settings.sens;
+  optInvertY.checked = settings.invertY;
+  walkVal.textContent = settings.walkSpeed;
+  flyVal.textContent = settings.flySpeed;
+  todVal.textContent = fmtTOD(settings.tod);
+  sensVal.textContent = settings.sens;
+
+  document.getElementById('btnGear').addEventListener('click', function() {
+    modalWrap.style.display = 'block';
+  });
+  function closeModal() {
+    modalWrap.style.display = 'none';
+    saveSettings();
+  }
+  document.getElementById('btnClose').addEventListener('click', closeModal);
+  modalWrap.addEventListener('click', function(e) {
+    if (e.target === modalWrap) closeModal();
+  });
+
+  optDetail.addEventListener('change', function() {
+    setQuality(optDetail.value);
+    saveSettings();
+  });
+  optWalk.addEventListener('input', function() {
+    settings.walkSpeed = parseFloat(optWalk.value) || 5;
+    walkVal.textContent = optWalk.value;
+    applySpeeds();
+  });
+  optFly.addEventListener('input', function() {
+    settings.flySpeed = parseFloat(optFly.value) || 40;
+    flyVal.textContent = optFly.value;
+    applySpeeds();
+  });
+  optTod.addEventListener('input', function() {
+    settings.tod = parseFloat(optTod.value) || 0;
+    todVal.textContent = fmtTOD(settings.tod);
+    applyTOD();
+  });
+  optSens.addEventListener('input', function() {
+    settings.sens = parseFloat(optSens.value) || 3000;
+    sensVal.textContent = optSens.value;
+    camera.angularSensibility = settings.sens;
+  });
+  optInvertY.addEventListener('change', function() {
+    settings.invertY = optInvertY.checked;
+    saveSettings();
+  });
+  optPreset.addEventListener('change', function() {
+    if (!optPreset.value) return;
+    const parts = optPreset.value.split(',');
+    optLat.value = parts[0];
+    optLon.value = parts[1];
+  });
+  document.getElementById('btnJump').addEventListener('click', function() {
+    const la = parseFloat(optLat.value), lo = parseFloat(optLon.value);
+    if (isNaN(la) || isNaN(lo)) { showErr('JUMP: enter valid lat/lon'); return; }
+    teleport(la, lo);
+    closeModal();
+  });
+
+  // ---- per-frame ----
   scene.registerBeforeRender(function() {
     const ptx = Math.round(camera.position.x / TILE_M) + originTx;
     const pty = Math.round(-camera.position.z / TILE_M) + originTy;
@@ -478,13 +749,24 @@ function startApp(cdnUrl) {
       '<br>Lat:' + lat.toFixed(5) + ' Lon:' + lon.toFixed(5) +
       '<br>Alt:' + camera.position.y.toFixed(1) + 'm' +
       '<br>Mode:' + (flyMode ? 'FLY' : 'WALK') +
+      ' Time:' + fmtTOD(settings.tod) +
+      ' Q:' + settings.detail +
+      (zoomMult !== 1 ? ' Zoom:' + zoomMult.toFixed(1) + 'x' : '') +
       '<br>Tiles:' + tiles.size + ' (ring ' + RING + ')' +
       '<br>SRC: TERR ' + terr + ' / PROC ' + proc +
       '<br>NET fails:' + netFails + (lastNetErr ? ' (' + lastNetErr.slice(0, 40) + ')' : '') +
       '<br>CDN:' + cdnUrl.split('/')[2];
   });
 
-  engine.runRenderLoop(function() { scene.render(); });
+  let prevRotX = camera.rotation.x;
+  engine.runRenderLoop(function() {
+    scene.render();
+    if (settings.invertY) {
+      const dx = camera.rotation.x - prevRotX;
+      if (dx !== 0) camera.rotation.x = prevRotX - dx;
+    }
+    prevRotX = camera.rotation.x;
+  });
   window.addEventListener('resize', function() { engine.resize(); });
 }
 </script>
