@@ -25,7 +25,7 @@ This conflicts with the standing SSOT permission model and with the existing gra
 
 1. A registered source is owned by SOT until removed.
 2. Staleness automatically queues synchronization.
-3. A service interruption automatically recovers unfinished registered-source work after runtime startup. No owner Restart is required.
+3. A service interruption automatically recovers unfinished registered-source work interrupted by that runtime startup. No owner Restart is required; older historical INTERRUPTED records remain history.
 4. Existing persisted fingerprints/evidence remain authoritative; recovery uses the existing deduplicated analysis path, so already valid hashes are reused rather than deliberately rehashed.
 5. Queue and Sources are no longer separate owner workflows. Analyze presents one **SSOT** surface:
    - **Current** — synchronized;
@@ -62,7 +62,7 @@ Before fix:
 - stale registered sources auto-queued — PASS.
 
 Candidate must prove:
-- interrupted analysis is automatically recovered on runtime startup;
+- analysis interrupted by the current runtime startup is automatically recovered; historical INTERRUPTED records are not replayed;
 - duplicate recovery remains safe through existing source-level live-work dedupe;
 - Analyze contains no Queue/Sources subnav;
 - no “Source action needed / Kick off” manual-currentness banner remains;
