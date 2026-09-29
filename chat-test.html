@@ -181,6 +181,7 @@ body.cl-empty-room .half{visibility:hidden}.kb.open,.kbin{max-height:calc(50dvh 
 .cl-bt-card{background:#fff;border-radius:16px;box-shadow:0 8px 30px rgba(15,23,42,.25);width:100%;max-width:520px;max-height:100%;overflow:auto;padding:12px 14px;color:#0f172a;font-size:14px}
 .cl-bt-head{display:flex;align-items:center;gap:8px;margin-bottom:6px}.cl-bt-head b{flex:1;font-size:15px}
 .cl-bt-head button{min-width:40px;min-height:40px;border:0;border-radius:10px;background:#eff6ff;color:#1d4ed8;font-size:14px;padding:0 10px}
+.cl-tabs{display:flex;gap:6px;margin-bottom:10px}#cl-rail .cl-tab{flex:1;min-height:40px;border-radius:10px}#cl-rail .cl-tab.on{background:#2e8b8b;color:#fff;border-color:#2e8b8b}
 .cl-bt-grid{width:100%;border-collapse:collapse;margin-top:8px;font-size:14px}.cl-bt-grid th,.cl-bt-grid td{text-align:left;vertical-align:top;padding:7px 8px}.cl-bt-grid th{font-size:11px;font-weight:700;color:#475569;text-transform:uppercase;letter-spacing:.04em;white-space:nowrap}.cl-bt-grid th{width:1%}.cl-bt-grid .cl-bt-lang{font-size:11px;font-weight:500;color:#64748b;text-transform:none;letter-spacing:0;margin-top:2px;white-space:normal;max-width:96px}.cl-bt-grid tr:nth-child(odd){background:#f1f5f9}.cl-bt-grid tr:nth-child(even){background:#fff}
 .cl-bt-sec{margin:8px 0}.cl-bt-lbl{font-size:11px;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:.05em;margin-bottom:3px}
 .cl-bt-verdict{display:inline-block;border-radius:999px;padding:3px 10px;font-weight:700;font-size:12px}
@@ -1705,7 +1706,7 @@ function dgLangParam(room) {
     var candidateTxn={south:null,north:null},compAnchor={south:null,north:null};
     var pendingConversion={south:null,north:null},undoEdit={south:null,north:null};
     var predictionTxn={south:null,north:null};
-    var CHAT_BUILD='chat-test-audio-r8';
+    var CHAT_BUILD='chat-test-audio-r9';
     var UNDO_LABEL={en:'Undo',th:'เลิกทำ',es:'Deshacer',fr:'Annuler',de:'Rückgängig',
         it:'Annulla',pt:'Desfazer',nl:'Ongedaan maken',sv:'Ångra',pl:'Cofnij',tr:'Geri al',
         ru:'Отменить',ar:'تراجع',hi:'पूर्ववत करें',vi:'Hoàn tác',id:'Urungkan',ms:'Buat asal',
@@ -2637,12 +2638,41 @@ var portal=(function(){
   $('cl-heading').textContent='Import existing conversations';var host=$('cl-body');host.replaceChildren(node('p',candidates.length+' readable conversations. '+issues+' unreadable records will be skipped and left untouched.','cl-banner'));host.appendChild(node('p','This copies chat-admin/lab histories. Existing imported IDs are skipped. The old applications and their data remain unchanged. An unindexed Lab room is offered as English/Thai; review the language pair before importing.','cl-note'));
   candidates.forEach(function(r){host.appendChild(node('p',title(r)+' · '+pair(r)+' · '+r.messages.length+' messages','cl-note'))});var importButton=button('Import '+candidates.length+' conversations',async function(){requireWriter();importButton.disabled=true;try{await new Promise(function(resolve,reject){var tx=db.transaction('rooms','readwrite'),s=tx.objectStore('rooms');candidates.forEach(function(r){var q=s.get(r.id);q.onsuccess=function(){if(!q.result)s.put(r)}});tx.oncomplete=resolve;tx.onabort=function(){reject(tx.error)};});await list();toastMsg('Conversations imported');}finally{importButton.disabled=false;}},'cl-primary');host.append(importButton,button('Cancel',function(){return settings()}));
  }
- async function settings(){view='settings';clearError();$('cl-heading').textContent='Device settings';var f=node('div');$('cl-body').replaceChildren(f);f.appendChild(node('p','Speech settings stay on this browser. No key is included in conversation data.','cl-note'));var key=field(f,'Deepgram key',dgKey(),'password');key.autocomplete='off';f.appendChild(node('p',dgKey()?'Speech key is configured.':'Add a Deepgram key to enable speech input.','cl-note'));var h=node('label','Keyboard vibration','cl-field'),sel=node('select');['off','light','medium','strong'].forEach(function(v){var o=node('option',v);o.value=v;sel.appendChild(o)});try{sel.value=localStorage.getItem('duck_haptic')||'medium'}catch(e){}h.appendChild(sel);f.appendChild(h);
+ async function settings(){view='settings';clearError();$('cl-heading').textContent='Device settings';var f=node('div');$('cl-body').replaceChildren(settingsTabs('device'),f);f.appendChild(node('p','Speech settings stay on this browser. No key is included in conversation data.','cl-note'));var key=field(f,'Deepgram key',dgKey(),'password');key.autocomplete='off';f.appendChild(node('p',dgKey()?'Speech key is configured.':'Add a Deepgram key to enable speech input.','cl-note'));var h=node('label','Keyboard vibration','cl-field'),sel=node('select');['off','light','medium','strong'].forEach(function(v){var o=node('option',v);o.value=v;sel.appendChild(o)});try{sel.value=localStorage.getItem('duck_haptic')||'medium'}catch(e){}h.appendChild(sel);f.appendChild(h);
   var audioUI=window.audioTurn.settingsUI(f);f.appendChild(button('Save device settings',function(){requireWriter();window.audioTurn.saveSettings(audioUI);if(key.value.trim())localStorage.setItem('tb_dg_key',key.value.trim());localStorage.setItem('duck_haptic',sel.value);toastMsg('Device settings saved');return list()},'cl-primary'));
   f.appendChild(node('p','Conversations are stored in this browser on this device. Clearing browser data removes them.','cl-note'));
   f.appendChild(button('Diagnostics log',function(){window.openDiagnostics()}));
   if(failures.length)f.appendChild(button('Retry saving',async function(){var retry=failures.splice(0);for(var write of retry){try{await write()}catch(e){failures.push(write);throw e}}clearError();$('cl-save-state').textContent='Saved';await refresh(active&&active.id)},'cl-primary'));
   f.appendChild(node('p','Build '+CHAT_BUILD,'cl-note'));f.appendChild(button('Back to conversations',function(){return list()}));
+ }
+ /* r9: AI keys tab (Venice, OpenRouter), following devstream-test.html: load models, pick one, Validate & save.
+    Stored on this device only (chat_ai_cfg); prefilled from devstream's saved keys on the same site. Not used yet. */
+ var AI_LS='chat_ai_cfg';
+ function aiCfg(){var c=null;try{c=JSON.parse(localStorage.getItem(AI_LS)||'null')}catch(e){}if(!c){var d=null;try{d=JSON.parse(localStorage.getItem('ds_cfg_v2')||'null')}catch(e){}c=d?{vkey:d.vkey||'',vmodel:d.vmodel||'',orkey:d.orkey||'',ormodel:d.ormodel||'',from:'devstream'}:{}}return c}
+ function aiSave(c){var o=aiCfg();delete o.from;Object.assign(o,c);localStorage.setItem(AI_LS,JSON.stringify(o))}
+ function aiCleanKey(k){k=(k||'').trim().replace(/^bearer\s+/i,'');return k.replace(/[\s​-‍﻿ ]/g,'')}
+ function settingsTabs(which){var t=node('div',null,'cl-tabs');[['device','Device',settings],['ai','AI keys',aiSettings]].forEach(function(x){var b=button(x[1],x[2],'cl-tab'+(x[0]===which?' on':''));b.setAttribute('aria-pressed',x[0]===which?'true':'false');t.appendChild(b)});return t}
+ async function aiSettings(){view='ai';clearError();$('cl-heading').textContent='Device settings';var f=node('div');$('cl-body').replaceChildren(settingsTabs('ai'),f);var c=aiCfg();
+  f.appendChild(node('p','Keys stay in this browser on this device. They are not used yet; AI grading of the translation check comes in a later release.','cl-note'));
+  if(c.from==='devstream')f.appendChild(node('p','Filled in from the keys saved in devstream on this device. Validate to save them here.','cl-note'));
+  function provider(name,id,keyVal,modelVal,modelsFn){
+   var key=field(f,name+' API key',keyVal,'password');key.autocomplete='new-password';key.spellcheck=false;key.autocapitalize='off';key.setAttribute('aria-label',name+' API key');
+   var l=node('label',name+' model','cl-field'),sel=node('select');sel.setAttribute('aria-label',name+' model');var o=node('option',modelVal||'— load models first —');o.value=modelVal||'';sel.appendChild(o);l.appendChild(sel);f.appendChild(l);
+   var row=node('div',null,'cl-actions'),load=node('button','Load '+name+' models'),val=node('button','Validate & save '+name,'cl-primary'),st=node('span','','cl-note');load.type=val.type='button';st.setAttribute('role','status');row.append(load,val);f.appendChild(row);f.appendChild(st);
+   load.onclick=async function(){var k=aiCleanKey(key.value);st.textContent='';if(!k){st.textContent='✗ enter the key first';return}st.textContent='Loading…';
+    try{var ids=await modelsFn(k);if(!ids.length)throw new Error('no models returned');sel.innerHTML='';ids.forEach(function(m){var x=node('option',m);x.value=m;sel.appendChild(x)});sel.value=ids.indexOf(modelVal)>=0?modelVal:ids[0];st.textContent=ids.length+' models loaded — pick one, then Validate';log('ai_models',{provider:id,count:ids.length},'ok')}
+    catch(e){st.textContent='✗ '+e.message;log('ai_models',{provider:id,e:String(e.message).slice(0,80)},'error')}};
+   val.onclick=async function(){var k=aiCleanKey(key.value),m=sel.value;if(!k){st.textContent='✗ enter the key first';return}if(!m){st.textContent='✗ load models and pick one first';return}st.textContent='Pinging '+m+'…';
+    try{var r=await fetch(id==='venice'?'https://api.venice.ai/api/v1/chat/completions':'https://openrouter.ai/api/v1/chat/completions',{method:'POST',cache:'no-store',headers:{'Content-Type':'application/json','Authorization':'Bearer '+k},body:JSON.stringify({model:m,max_tokens:1,messages:[{role:'user',content:'ping'}]})});
+     var j={};try{j=await r.json()}catch(e){}
+     if(r.status===401)throw new Error('key rejected (401)');if(r.status===402)throw new Error('model "'+m+'" needs credits/plan (402) — pick another and re-Validate');
+     if(!r.ok)throw new Error('ping '+r.status+': '+String(JSON.stringify(j.error||j)).slice(0,140));
+     var save={};save[id==='venice'?'vkey':'orkey']=k;save[id==='venice'?'vmodel':'ormodel']=m;aiSave(save);st.textContent='✓ verified & saved: '+m;log('ai_validate',{provider:id,model:m},'ok');}
+    catch(e){st.textContent='✗ '+e.message;log('ai_validate',{provider:id,model:m,e:String(e.message).slice(0,80)},'error')}};
+  }
+  provider('Venice','venice',c.vkey,c.vmodel,async function(k){var r=await fetch('https://api.venice.ai/api/v1/models',{cache:'no-store',headers:{'Authorization':'Bearer '+k}});var j;try{j=await r.json()}catch(e){throw new Error('non-JSON reply — possible CORS block')}if(!r.ok)throw new Error(r.status+': '+((j.error&&(j.error.message||j.error))||'rejected'));return (j.data||[]).map(function(m){return m.id}).filter(Boolean).sort()});
+  provider('OpenRouter','openrouter',c.orkey,c.ormodel,async function(k){var r=await fetch('https://openrouter.ai/api/v1/auth/key',{cache:'no-store',headers:{'Authorization':'Bearer '+k}});var j;try{j=await r.json()}catch(e){throw new Error('non-JSON reply — possible CORS block')}if(!r.ok)throw new Error(r.status+': '+((j.error&&(j.error.message||j.error))||'key rejected'));var rm=await fetch('https://openrouter.ai/api/v1/models',{cache:'no-store'});var jm=await rm.json();return (jm.data||[]).map(function(m){return m.id}).filter(Boolean).sort()});
+  f.appendChild(button('Back to conversations',function(){return list()}));
  }
  // Capture side/languages/room before normalization; no asynchronous global ROOM use.
  function submit(side,textOverride,keepMic){if(!active||!writer||opened)return;var text=norm(textOverride!=null?textOverride:inputEl(side).value);if(!text)return;var ctx={roomId:active.id,side:side,src:langOf(side),tgt:langOf(otherSide(side)),gen:generation},id=crypto.randomUUID(),ts=Date.now();clearDraft(side);if(!keepMic)teardown('sent');scheduleDraft();
