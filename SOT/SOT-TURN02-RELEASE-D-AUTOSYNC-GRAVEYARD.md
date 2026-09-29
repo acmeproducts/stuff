@@ -30,11 +30,12 @@ Rejected and must not return:
 - treating a recoverable service interruption with zero source errors as an owner decision;
 - forcing the owner to reconcile separate **Queue** and **Sources** operational models to determine whether SSOT is correct;
 - showing historical `INTERRUPTED` state as the primary source status while replacement live recovery already covers that source;
-- exposing routine job lifecycle controls as the primary way to keep a registered source current.
+- exposing routine job lifecycle controls as the primary way to keep a registered source current;
+- replaying every historical INTERRUPTED job on each service startup.
 
 Required replacement:
 
-- runtime startup automatically recovers unfinished interrupted registered-source work through the existing deduplicated analysis path;
+- runtime startup automatically recovers only unfinished work interrupted by that startup through the existing deduplicated analysis path; historical INTERRUPTED records remain history;
 - durable fingerprints/evidence are reused; interruption does not authorize deliberate rehash of already valid unchanged content;
 - Analyze is one owner-facing **SSOT** surface: **Current / Syncing / Problem / Soft Deleted**;
 - **Problem** is reserved for a condition SOT cannot continue automatically;

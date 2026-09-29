@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-import importlib.util,os,sys,threading
+import importlib.util,os,sys,threading,time
 from http.server import ThreadingHTTPServer
 from pathlib import Path
 
@@ -22,9 +22,11 @@ def install(srv):
         return info
 
     def recover_interrupted():
+        cutoff=float(getattr(srv,"_autosync_runtime_loaded_at",time.time()))-1.0
         rows=srv.M.s.rows("""SELECT job_id FROM jobs
                             WHERE deleted=0 AND job_type='analysis' AND state='INTERRUPTED'
-                            ORDER BY created,job_id""")
+                              AND ended>=?
+                            ORDER BY created,job_id""",(cutoff,))
         recovered=[]
         for row in rows:
             jid=row["job_id"]
@@ -67,7 +69,9 @@ def install(srv):
 def load_runtime():
     here=Path(__file__).resolve().parent
     sp=importlib.util.spec_from_file_location("sotreleased_runtime",here/"sot-turn02-release-d-server.py")
+    loaded_at=time.time()
     srv=importlib.util.module_from_spec(sp);sys.modules[sp.name]=srv;sp.loader.exec_module(srv)
+    srv._autosync_runtime_loaded_at=loaded_at
     return install(srv)
 
 def main():

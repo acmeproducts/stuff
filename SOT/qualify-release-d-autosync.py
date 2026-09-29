@@ -9,9 +9,13 @@ def load(path):
     m=importlib.util.module_from_spec(sp);sys.modules[sp.name]=m;sp.loader.exec_module(m);return m
 
 class FakeStore:
-    def __init__(self):self.interrupted=['old-job']
+    def __init__(self):self.interrupted=['fresh-job'];self.queries=[]
     def rows(self,sql,args=()):
-        if "state='INTERRUPTED'" in sql:return [{'job_id':x} for x in self.interrupted]
+        self.queries.append((sql,args))
+        if "state='INTERRUPTED'" in sql:
+            assert "ended>=?" in sql,sql
+            assert len(args)==1,args
+            return [{'job_id':x} for x in self.interrupted]
         return []
 
 class FakeManager:
@@ -37,9 +41,9 @@ class FakeServer:
 
 m=load(HERE/'sot-turn02-release-d-autosync.py')
 s=FakeServer();m.install(s)
-assert s.M.restarted==['old-job'],s.M.restarted
+assert s.M.restarted==['fresh-job'],s.M.restarted
 assert any(x and x[0]=='job_auto_recovery' for x in s.M.events),s.M.events
-print('PASS interrupted SSOT work automatically recovers without owner action')
+print('PASS only work interrupted by the current runtime startup auto-recovers')
 
 sid=s.M.add_source('A','/tmp/a','/tmp/a')
 assert sid=='sid-1' and s.M.enqueued[-1]==(['sid-1'],'Automatic SSOT sync'),s.M.enqueued
