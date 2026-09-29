@@ -1,0 +1,357 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>Earth Explorer</title>
+<style>
+  html, body { margin:0; padding:0; width:100%; height:100%; overflow:hidden; background:#000; touch-action:none; user-select:none; -webkit-user-select:none; }
+  #renderCanvas { width:100%; height:100%; outline:none; display:block; }
+  #hud { position:absolute; top:0; left:0; width:100%; height:100%; pointer-events:none; }
+  #topHud { position:absolute; top:8px; left:8px; color:#0f0; background:rgba(0,0,0,0.45); font-family:monospace; font-size:15px; text-shadow:1px 1px 0 #000; line-height:1.45; padding:6px 8px; border-radius:4px; max-width:92vw; }
+  #errBox { position:absolute; bottom:8px; left:8px; right:8px; color:#f33; background:rgba(0,0,0,0.75); font-family:monospace; font-size:13px; padding:8px; border-radius:4px; max-height:30%; overflow:auto; display:none; pointer-events:auto; white-space:pre-wrap; }
+  #controls { position:absolute; bottom:8px; right:8px; pointer-events:auto; display:flex; flex-direction:column; gap:6px; align-items:flex-end; }
+  button { font-family:monospace; font-size:15px; padding:10px 14px; border:none; border-radius:4px; background:rgba(255,255,255,0.88); color:#000; touch-action:manipulation; }
+  button:active { background:rgba(200,200,200,0.95); }
+</style>
+</head>
+<body>
+<canvas id="renderCanvas"></canvas>
+<div id="hud">
+  <div id="topHud">Loading...</div>
+  <div id="errBox"></div>
+  <div id="controls">
+    <button id="btnFly">Fly</button>
+  </div>
+</div>
+<script>
+const errBox = document.getElementById('errBox');
+function showErr(msg) {
+  errBox.style.display = 'block';
+  errBox.textContent += msg + '\n';
+}
+window.onerror = function(msg, src, line, col, err) {
+  showErr('ERR: ' + msg + ' @' + line + ':' + col);
+  return false;
+};
+window.addEventListener('unhandledrejection', function(e) {
+  showErr('PROMISE: ' + (e.reason && e.reason.stack ? e.reason.stack : e.reason));
+});
+
+const CDN_URLS = [
+  'https://cdn.babylonjs.com/babylon.js',
+  'https://cdn.jsdelivr.net/npm/babylonjs@latest/babylon.js',
+  'https://unpkg.com/babylonjs@latest/babylon.js'
+];
+
+function loadScript(url) {
+  return new Promise((resolve, reject) => {
+    const s = document.createElement('script');
+    s.src = url;
+    s.crossOrigin = 'anonymous';
+    s.onload = () => resolve();
+    s.onerror = () => reject(new Error('Failed to load ' + url));
+    document.head.appendChild(s);
+  });
+}
+
+async function loadBabylon() {
+  for (let i = 0; i < CDN_URLS.length; i++) {
+    try {
+      await loadScript(CDN_URLS[i]);
+      return CDN_URLS[i];
+    } catch (e) {
+      if (i === CDN_URLS.length - 1) throw new Error('All Babylon CDNs failed');
+    }
+  }
+}
+
+(async function init() {
+  try {
+    const cdn = await loadBabylon();
+    startApp(cdn);
+  } catch (e) {
+    showErr('FATAL: ' + e.message);
+  }
+})();
+
+function startApp(cdnUrl) {
+  const canvas = document.getElementById('renderCanvas');
+  const engine = new BABYLON.Engine(canvas, true, { preserveDrawingBuffer: true, stencil: true });
+  const scene = new BABYLON.Scene(engine);
+  scene.clearColor = new BABYLON.Color3(0.05, 0.05, 0.15);
+
+  scene.fogMode = BABYLON.Scene.FOGMODE_EXP2;
+  scene.fogDensity = 0.0015;
+  scene.fogColor = new BABYLON.Color3(0.6, 0.75, 0.9);
+
+  const sky = BABYLON.MeshBuilder.CreateBox('sky', { size: 10000 }, scene);
+  const skyMat = new BABYLON.StandardMaterial('skyMat', scene);
+  skyMat.backFaceCulling = false;
+  skyMat.diffuseColor = new BABYLON.Color3(0.05, 0.05, 0.15);
+  skyMat.emissiveColor = new BABYLON.Color3(0.05, 0.05, 0.15);
+  sky.material = skyMat;
+  sky.infiniteDistance = true;
+
+  const sun = new BABYLON.DirectionalLight('sun', new BABYLON.Vector3(-0.5, -1, -0.5), scene);
+  sun.intensity = 1.2;
+  const hemi = new BABYLON.HemisphericLight('hemi', new BABYLON.Vector3(0, 1, 0), scene);
+  hemi.intensity = 0.5;
+
+  const camera = new BABYLON.UniversalCamera('cam', new BABYLON.Vector3(0, 100, 0), scene);
+  camera.attachControl(canvas, true);
+  camera.speed = 5;
+  camera.angularSensibility = 3000;
+  camera.keysUp.push(87);
+  camera.keysDown.push(83);
+  camera.keysLeft.push(65);
+  camera.keysRight.push(68);
+
+  canvas.addEventListener('click', () => {
+    if (!document.pointerLockElement && canvas.requestPointerLock) {
+      try { canvas.requestPointerLock(); } catch(e){}
+    }
+  });
+
+  let flyMode = false;
+  const eyeHeight = 1.7;
+
+  const EARTH_R = 6378137;
+  const DEG2RAD = Math.PI / 180;
+
+  function latLonToTile(lat, lon, z) {
+    const n = Math.pow(2, z);
+    const x = Math.floor((lon + 180) / 360 * n);
+    const latRad = lat * DEG2RAD;
+    const y = Math.floor((1 - Math.log(Math.tan(latRad) + 1/Math.cos(latRad)) / Math.PI) / 2 * n);
+    return { x, y, n };
+  }
+
+  function tileToLatLon(x, y, z) {
+    const n = Math.pow(2, z);
+    const lon = x / n * 360 - 180;
+    const latRad = Math.atan(Math.sinh(Math.PI * (1 - 2 * y / n)));
+    const lat = latRad / DEG2RAD;
+    return { lat, lon };
+  }
+
+  function tileMeters(z) {
+    return 2 * Math.PI * EARTH_R / Math.pow(2, z);
+  }
+
+  function hash2(x, y) {
+    let s = Math.sin(x * 12.9898 + y * 78.233 + 37.719) * 43758.5453;
+    return s - Math.floor(s);
+  }
+  function noise2(x, y) {
+    const ix = Math.floor(x), iy = Math.floor(y);
+    const fx = x - ix, fy = y - iy;
+    const a = hash2(ix, iy);
+    const b = hash2(ix + 1, iy);
+    const c = hash2(ix, iy + 1);
+    const d = hash2(ix + 1, iy + 1);
+    const ux = fx * fx * (3 - 2 * fx);
+    const uy = fy * fy * (3 - 2 * fy);
+    return a + (b - a) * ux + (c - a) * uy + (d - c - (b - a)) * ux * uy;
+  }
+  function fBm(x, y, octaves, lac, gain) {
+    let total = 0, amp = 1, freq = 1, norm = 0;
+    for (let i = 0; i < octaves; i++) {
+      total += noise2(x * freq, y * freq) * amp;
+      norm += amp;
+      amp *= gain;
+      freq *= lac;
+    }
+    return total / norm;
+  }
+
+  const SF = { lat: 37.7749, lon: -122.4194 };
+  const zoom = 15;
+  const tile = latLonToTile(SF.lat, SF.lon, zoom);
+  const tileSizeM = tileMeters(zoom);
+
+  let heights = null;
+  let terrainReady = false;
+  let srcStatus = 'PROC';
+  let tileMesh = null;
+
+  const tempGround = BABYLON.MeshBuilder.CreateGround('tempGround', { width: tileSizeM, height: tileSizeM }, scene);
+  tempGround.position.y = -1;
+  const tempMat = new BABYLON.StandardMaterial('tempMat', scene);
+  tempMat.diffuseColor = new BABYLON.Color3(0.15, 0.2, 0.15);
+  tempGround.material = tempMat;
+
+  function localPosFromTilePixel(px, py) {
+    const x = (px / 255 - 0.5) * tileSizeM;
+    const z = (0.5 - py / 255) * tileSizeM;
+    return { x, z };
+  }
+
+  function sampleHeightAtLocal(x, z) {
+    if (!heights) return 0;
+    const px = Math.floor((x / tileSizeM + 0.5) * 255);
+    const py = Math.floor((0.5 - z / tileSizeM) * 255);
+    if (px < 0 || px > 255 || py < 0 || py > 255) return 0;
+    return heights[py * 256 + px];
+  }
+
+  function heightColor(h) {
+    if (h < 0) return new BABYLON.Color3(0.1, 0.3, 0.5);
+    if (h < 5) return new BABYLON.Color3(0.75, 0.7, 0.4);
+    if (h < 100) return new BABYLON.Color3(0.25, 0.55, 0.15);
+    if (h < 500) return new BABYLON.Color3(0.4, 0.35, 0.25);
+    if (h < 1500) return new BABYLON.Color3(0.5, 0.45, 0.4);
+    return new BABYLON.Color3(0.85, 0.85, 0.9);
+  }
+
+  function buildTerrainFromHeights() {
+    if (tempGround) { tempGround.dispose(); tempGround = null; }
+    if (tileMesh) tileMesh.dispose();
+
+    const positions = [];
+    const indices = [];
+    const normals = [];
+    const uvs = [];
+    const colors = [];
+
+    for (let y = 0; y < 256; y++) {
+      for (let x = 0; x < 256; x++) {
+        const p = localPosFromTilePixel(x, y);
+        const h = heights[y * 256 + x];
+        positions.push(p.x, h, p.z);
+        uvs.push(x / 255, y / 255);
+        const c = heightColor(h);
+        colors.push(c.r, c.g, c.b, 1);
+      }
+    }
+    for (let y = 0; y < 255; y++) {
+      for (let x = 0; x < 255; x++) {
+        const a = y * 256 + x;
+        const b = y * 256 + x + 1;
+        const c = (y + 1) * 256 + x;
+        const d = (y + 1) * 256 + x + 1;
+        indices.push(a, c, b);
+        indices.push(b, c, d);
+      }
+    }
+    BABYLON.VertexData.ComputeNormals(positions, indices, normals);
+
+    const vd = new BABYLON.VertexData();
+    vd.positions = positions;
+    vd.indices = indices;
+    vd.normals = normals;
+    vd.uvs = uvs;
+    vd.colors = colors;
+    tileMesh = new BABYLON.Mesh('tile', scene);
+    vd.applyToMesh(tileMesh);
+
+    const mat = new BABYLON.StandardMaterial('tileMat', scene);
+    mat.specularColor = new BABYLON.Color3(0, 0, 0);
+    mat.ambientColor = new BABYLON.Color3(0.4, 0.4, 0.4);
+    mat.useVertexColor = true;
+    tileMesh.material = mat;
+
+    terrainReady = true;
+  }
+
+  function decodePng(blob) {
+    return new Promise((resolve, reject) => {
+      const url = URL.createObjectURL(blob);
+      const img = new Image();
+      img.crossOrigin = 'anonymous';
+      img.onload = () => {
+        const c = document.createElement('canvas');
+        c.width = 256; c.height = 256;
+        const ctx = c.getContext('2d');
+        ctx.drawImage(img, 0, 0);
+        URL.revokeObjectURL(url);
+        resolve(ctx.getImageData(0, 0, 256, 256).data);
+      };
+      img.onerror = () => { URL.revokeObjectURL(url); reject(new Error('PNG decode failed')); };
+      img.src = url;
+    });
+  }
+
+  async function loadTerrariumTile() {
+    const url = `https://s3.amazonaws.com/elevation-tiles-prod/terrarium/${zoom}/${tile.x}/${tile.y}.png`;
+    try {
+      const resp = await fetch(url, { mode: 'cors' });
+      if (!resp.ok) throw new Error('HTTP ' + resp.status);
+      const data = await decodePng(await resp.blob());
+      heights = new Float32Array(256 * 256);
+      for (let i = 0; i < 256 * 256; i++) {
+        const r = data[i * 4];
+        const g = data[i * 4 + 1];
+        const b = data[i * 4 + 2];
+        heights[i] = r * 256 + g + b / 256 - 32768;
+      }
+      srcStatus = 'TERR';
+    } catch (e) {
+      heights = new Float32Array(256 * 256);
+      const seedX = tile.x * 1000, seedY = tile.y * 1000;
+      for (let y = 0; y < 256; y++) {
+        for (let x = 0; x < 256; x++) {
+          const nx = (seedX + x) * 0.01;
+          const ny = (seedY + y) * 0.01;
+          let h = 20 + fBm(nx, ny, 6, 2.0, 0.5) * 380;
+          heights[y * 256 + x] = h;
+        }
+      }
+      srcStatus = 'PROC';
+      showErr('Terrarium failed: ' + e.message + '; using PROC fallback');
+    }
+    buildTerrainFromHeights();
+
+    const centerLocal = localPosFromTilePixel(128, 128);
+    const h = sampleHeightAtLocal(centerLocal.x, centerLocal.z);
+    camera.position.set(centerLocal.x, h + eyeHeight, centerLocal.z);
+  }
+
+  loadTerrariumTile();
+
+  const btnFly = document.getElementById('btnFly');
+  function setFly(v) {
+    flyMode = v;
+    btnFly.textContent = flyMode ? 'Walk' : 'Fly';
+  }
+  btnFly.addEventListener('click', () => setFly(!flyMode));
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'f' || e.key === 'F') setFly(!flyMode);
+  });
+
+  scene.registerBeforeRender(() => {
+    if (!flyMode && terrainReady) {
+      const h = sampleHeightAtLocal(camera.position.x, camera.position.z);
+      camera.position.y = h + eyeHeight;
+    }
+  });
+
+  const topHud = document.getElementById('topHud');
+  scene.onBeforeRenderObservable.add(() => {
+    const fps = engine.getFps().toFixed(1);
+    const mercX = camera.position.x;
+    const mercZ = camera.position.z;
+    const px = (mercX / tileSizeM + 0.5) * 255;
+    const py = (0.5 - mercZ / tileSizeM) * 255;
+    const origin = tileToLatLon(tile.x, tile.y, zoom);
+    const next = tileToLatLon(tile.x + 1, tile.y + 1, zoom);
+    const dLat = next.lat - origin.lat;
+    const dLon = next.lon - origin.lon;
+    const lat = origin.lat + dLat * (py / 255);
+    const lon = origin.lon + dLon * (px / 255);
+    const alt = camera.position.y;
+    topHud.innerHTML = 'FPS:' + fps +
+      '<br>Lat:' + lat.toFixed(5) + ' Lon:' + lon.toFixed(5) +
+      '<br>Alt:' + alt.toFixed(1) + 'm' +
+      '<br>Mode:' + (flyMode ? 'FLY' : 'WALK') +
+      '<br>Tiles:1' +
+      '<br>SRC:' + srcStatus +
+      '<br>CDN:' + cdnUrl.split('/')[2];
+  });
+
+  engine.runRenderLoop(() => scene.render());
+  window.addEventListener('resize', () => engine.resize());
+}
+</script>
+</body>
+</html>
