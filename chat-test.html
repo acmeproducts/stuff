@@ -181,6 +181,7 @@ body.cl-empty-room .half{visibility:hidden}.kb.open,.kbin{max-height:calc(50dvh 
 .cl-bt-card{background:#fff;border-radius:16px;box-shadow:0 8px 30px rgba(15,23,42,.25);width:100%;max-width:520px;max-height:100%;overflow:auto;padding:12px 14px;color:#0f172a;font-size:14px}
 .cl-bt-head{display:flex;align-items:center;gap:8px;margin-bottom:6px}.cl-bt-head b{flex:1;font-size:15px}
 .cl-bt-head button{min-width:40px;min-height:40px;border:0;border-radius:10px;background:#eff6ff;color:#1d4ed8;font-size:14px;padding:0 10px}
+.cl-bt-grid{width:100%;border-collapse:collapse;margin-top:8px;font-size:14px}.cl-bt-grid th,.cl-bt-grid td{text-align:left;vertical-align:top;padding:7px 8px}.cl-bt-grid th{font-size:11px;font-weight:700;color:#475569;text-transform:uppercase;letter-spacing:.04em;white-space:nowrap}.cl-bt-grid th{width:1%}.cl-bt-grid .cl-bt-lang{font-size:11px;font-weight:500;color:#64748b;text-transform:none;letter-spacing:0;margin-top:2px;white-space:normal;max-width:96px}.cl-bt-grid tr:nth-child(odd){background:#f1f5f9}.cl-bt-grid tr:nth-child(even){background:#fff}
 .cl-bt-sec{margin:8px 0}.cl-bt-lbl{font-size:11px;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:.05em;margin-bottom:3px}
 .cl-bt-verdict{display:inline-block;border-radius:999px;padding:3px 10px;font-weight:700;font-size:12px}
 .cl-bt-verdict.match{background:#dcfce7;color:#166534}.cl-bt-verdict.partial{background:#fef9c3;color:#854d0e}.cl-bt-verdict.miss{background:#fee2e2;color:#991b1b}.cl-bt-verdict.wait{background:#e2e8f0;color:#334155}
@@ -1576,6 +1577,9 @@ function dgLangParam(room) {
         return na+nb?2*n/(na+nb):0;
     }
     function btVerdict(score){return score>=0.8?'match':score>=0.5?'partial':'miss'}
+    /* r6: the check starts from what was actually spoken. When the speaker's words were in another
+       language and normalization rewrote them, the spoken text and its language are the source, and the
+       back-translation goes into that language. Shown as a zebra-striped matrix. */
     function backCheck(e,panel){
         var shell=document.getElementById('tx-'+panel).parentNode,old=shell.querySelector('.cl-bt');if(old)old.remove();
         var ov=document.createElement('div');ov.className='cl-bt';ov.setAttribute('role','dialog');ov.setAttribute('aria-label','Translation check');
@@ -1584,25 +1588,38 @@ function dgLangParam(room) {
         var copy=document.createElement('button');copy.type='button';copy.textContent='Copy';var x=document.createElement('button');x.type='button';x.textContent='✕';x.setAttribute('aria-label','Close');
         head.append(ttl,copy,x);card.appendChild(head);
         var verdict=document.createElement('span');verdict.className='cl-bt-verdict wait';verdict.textContent='Checking…';card.appendChild(verdict);
-        function sec(label,text){var d=document.createElement('div');d.className='cl-bt-sec';var l=document.createElement('div');l.className='cl-bt-lbl';l.textContent=label;var t=document.createElement('div');t.textContent=text;d.append(l,t);card.appendChild(d);return t}
-        var srcName=(LANG_NAMES[e.src]||e.src),tgtName=(LANG_NAMES[e.tgt]||e.tgt);
-        /* r5: back-translation sits directly under the source so the two can be compared by eye. */
-        sec('Source · '+srcName,e.text);var back=sec('Back-translation · '+srcName,'…');
-        sec('Target · '+tgtName,e.tr||'(no translation yet)');
-        if(e.original&&norm(e.original)!==norm(e.text))sec('Heard (before clean-up)',e.original);
-        var how=document.createElement('div');how.className='cl-note';how.style.cssText='font-size:11px;color:#64748b;margin-top:6px';how.textContent='Score compares the wording of source and back-translation, not meaning. Same meaning in different words scores lower.';card.appendChild(how);
-        var report={source:e.text,heard:e.original||'',target:e.tr||'',back:'',verdict:'',score:null};
+        var tbl=document.createElement('table');tbl.className='cl-bt-grid';var tb=document.createElement('tbody');tbl.appendChild(tb);card.appendChild(tbl);
+        var rows=[];
+        function row(label,lang,text){var tr=document.createElement('tr'),a=document.createElement('th'),b=document.createElement('div'),c=document.createElement('td');a.textContent=label;b.textContent=lang;b.className='cl-bt-lang';a.appendChild(b);c.textContent=text;tr.append(a,c);tb.appendChild(tr);var r={label:label,lang:lang,text:text,tr:tr,set:function(l,t){if(l!=null){this.lang=l;b.textContent=l}if(t!=null){this.text=t;c.textContent=t}}};rows.push(r);return r}
+        var how=document.createElement('div');how.style.cssText='font-size:11px;color:#64748b;margin-top:8px';how.textContent='Score compares the wording of Spoken and Back-translation, not meaning. Same meaning in different words scores lower.';card.appendChild(how);
+        var name=function(c){return LANG_NAMES[c]||c||'?'};
+        var rewritten=!!(e.original&&norm(e.original)!==norm(e.text));
+        var spoken=rewritten?e.original:e.text;
+        var rSpoken=row('Spoken',rewritten?'…':name(e.src),spoken),rBack=row('Back-translation','…','…'),rTarget=row('Target',name(e.tgt),e.tr||'(no translation yet)');
+        if(rewritten)row('Normalized',name(e.src),e.text);
+        var report={verdict:'',score:null};
         x.onclick=function(){ov.remove()};ov.addEventListener('click',function(ev){if(ev.target===ov)ov.remove()});
-        copy.onclick=function(){var txt='Source ('+srcName+'): '+report.source+'\nBack-translation ('+srcName+'): '+report.back+'\nTarget ('+tgtName+'): '+report.target+(report.heard&&report.heard!==report.source?'\nHeard (before clean-up): '+report.heard:'')+'\nResult: '+report.verdict+(report.score!=null?' ('+Math.round(report.score*100)+'%)':'');
+        copy.onclick=function(){var txt=rows.map(function(r){return r.label+' ('+r.lang+'): '+r.text}).join('\n')+'\nResult: '+report.verdict+(report.score!=null?' ('+Math.round(report.score*100)+'%)':'');
             navigator.clipboard.writeText(txt).then(function(){copy.textContent='Copied';setTimeout(function(){copy.textContent='Copy'},1400)}).catch(function(){copy.textContent='Copy failed'})};
         shell.appendChild(ov);x.focus();
-        if(!e.tr||e.src===e.tgt){verdict.className='cl-bt-verdict miss';verdict.textContent=e.tr?'Same language':'No translation';report.verdict=verdict.textContent;return}
-        translateWithRetry(e.tr,e.tgt,e.src,1).then(function(r){
+        function finish(back,lang,note){
             if(!ov.isConnected)return;
-            if(!r.ok){back.textContent='(back-translation failed)';verdict.className='cl-bt-verdict miss';verdict.textContent='Check failed';report.verdict='check failed';log('bt_check',{outcome:'error',src:e.src,tgt:e.tgt},'error');return}
-            var sc=btScore(e.text,r.text),v=btVerdict(sc);back.textContent=r.text;report.back=r.text;report.score=sc;report.verdict=v;
+            var sc=btScore(spoken,back),v=btVerdict(sc);rBack.set(name(lang)+(note?' · '+note:''),back);report.score=sc;report.verdict=v;
             verdict.className='cl-bt-verdict '+v;verdict.textContent=(v==='match'?'Match':v==='partial'?'Partial':'Miss')+' · '+Math.round(sc*100)+'%';
-            log('bt_check',{outcome:'ok',verdict:v,score:+sc.toFixed(2),src:e.src,tgt:e.tgt,chars:String(e.text).length},v==='miss'?'warn':'ok');
+            log('bt_check',{outcome:'ok',verdict:v,score:+sc.toFixed(2),spokenLang:lang,src:e.src,tgt:e.tgt,rewritten:rewritten,chars:String(spoken).length},v==='miss'?'warn':'ok');
+        }
+        if(!e.tr){verdict.className='cl-bt-verdict miss';verdict.textContent='No translation';report.verdict='no translation';rBack.set('—','—');return}
+        /* Latin-script speech that detection can't name: most often the other side's language. */
+        var guess=['th','zh','ja','ko','ar','hi','ru'].indexOf(e.tgt)>=0?'en':e.tgt;
+        var detect=rewritten?Promise.race([detectLangAsync(spoken).catch(function(){return null}),new Promise(function(r){setTimeout(function(){r(null)},2000)})]):Promise.resolve(e.src);
+        detect.then(function(lang){
+            lang=lang||(rewritten?guess:e.src);if(rewritten)rSpoken.set(name(lang));
+            if(lang===e.tgt){finish(e.tr,lang,'same as target');return}
+            return translateWithRetry(e.tr,e.tgt,lang,1).then(function(r){
+                if(!ov.isConnected)return;
+                if(!r.ok){rBack.set(name(lang),'(back-translation failed)');verdict.className='cl-bt-verdict miss';verdict.textContent='Check failed';report.verdict='check failed';log('bt_check',{outcome:'error',spokenLang:lang,tgt:e.tgt},'error');return}
+                finish(r.text,lang);
+            });
         });
     }
     function bubbleFor(e,panel){
@@ -1670,7 +1687,7 @@ function dgLangParam(room) {
     var candidateTxn={south:null,north:null},compAnchor={south:null,north:null};
     var pendingConversion={south:null,north:null},undoEdit={south:null,north:null};
     var predictionTxn={south:null,north:null};
-    var CHAT_BUILD='chat-test-audio-r5';
+    var CHAT_BUILD='chat-test-audio-r6';
     var UNDO_LABEL={en:'Undo',th:'เลิกทำ',es:'Deshacer',fr:'Annuler',de:'Rückgängig',
         it:'Annulla',pt:'Desfazer',nl:'Ongedaan maken',sv:'Ångra',pl:'Cofnij',tr:'Geri al',
         ru:'Отменить',ar:'تراجع',hi:'पूर्ववत करें',vi:'Hoàn tác',id:'Urungkan',ms:'Buat asal',
