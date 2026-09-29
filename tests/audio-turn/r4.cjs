@@ -24,9 +24,9 @@ test('r4: double tap on a bubble header shows source, target, back-translation a
  await create(page,'Check');await send(page,'south','hello friend');await settled(page,1);await send(page,'south','the weather is nice today');await settled(page,2);await send(page,'south','hello my friend');await settled(page,3);
  async function check(i,panel){const h=page.locator('#tx-'+panel+' .bhdr').nth(i);await h.scrollIntoViewIfNeeded();const box=await h.boundingBox();const cx=panel==='north'?box.x+box.width-12:box.x+10;await page.mouse.click(cx,box.y+box.height/2);await page.waitForTimeout(60);await page.mouse.click(cx,box.y+box.height/2);
   const ov=page.locator('#tx-'+panel+' ~ .cl-bt, .half.'+panel+' .cl-bt');await ov.waitFor();await page.waitForFunction(p=>!document.querySelector('.half.'+p+' .cl-bt-verdict.wait'),panel);return ov}
- let ov=await check(0,'south');assert.match(await ov.textContent(),/Source · English.*hello friend.*Target · Thai.*สวัสดีเพื่อน.*Back-translation · English.*hello friend/s);assert.equal(await ov.locator('.cl-bt-verdict').getAttribute('class'),'cl-bt-verdict match');
+ let ov=await check(0,'south');assert.match(await ov.textContent(),/Source · English.*hello friend.*Back-translation · English.*hello friend.*Target · Thai.*สวัสดีเพื่อน/s);assert.equal(await ov.locator('.cl-bt-verdict').getAttribute('class'),'cl-bt-verdict match');
  await page.context().grantPermissions(['clipboard-read','clipboard-write']);await ov.getByRole('button',{name:'Copy',exact:true}).click();
- assert.match(await page.evaluate(()=>navigator.clipboard.readText()),/Source \(English\): hello friend\nTarget \(Thai\): สวัสดีเพื่อน\nBack-translation \(English\): hello friend\nResult: match/);
+ assert.match(await page.evaluate(()=>navigator.clipboard.readText()),/Source \(English\): hello friend\nBack-translation \(English\): hello friend\nTarget \(Thai\): สวัสดีเพื่อน\nResult: match/);
  await ov.getByRole('button',{name:'Close'}).click();assert.equal(await page.locator('.cl-bt').count(),0);
  ov=await check(1,'south');assert.equal(await ov.locator('.cl-bt-verdict').getAttribute('class'),'cl-bt-verdict miss');await ov.getByRole('button',{name:'Close'}).click();
  ov=await check(2,'south');assert.equal(await ov.locator('.cl-bt-verdict').getAttribute('class'),'cl-bt-verdict partial');await ov.getByRole('button',{name:'Close'}).click();

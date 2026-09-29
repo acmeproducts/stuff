@@ -337,3 +337,18 @@ Ownership metadata (side, generation, source/target language, time, confidence, 
 **Graveyard (r4)**
 - The r3 left-edge swipe to open the rail is replaced by the double tap at the owner's request. The swipe also risked clashing with Android's back gesture.
 - The r3 outlined teal jump button is replaced by the blue filled button.
+
+
+### chat-test r5: translation-check layout (2026-09-29)
+
+**Owner report.** A check scored "Partial · 75%" although the back-translation has the same meaning. The owner asked for the back-translation to sit under the source so the two can be compared by eye.
+
+**Cause.** The score measures wording overlap (character pairs), not meaning. Source ดูว่า**เป็นการ**หยุดทดสอบหรือไม่ vs back-translation ดูว่า**มัน**หยุด**การ**ทดสอบหรือไม่: the same meaning in different words scores 75%.
+
+**Change.**
+- Order is now Source, Back-translation, Target, Heard. Copy uses the same order.
+- The "Heard" label no longer claims a language, because in the owner's example the heard text was English on the Thai side.
+- A one-line note says the score compares wording, not meaning.
+- Thresholds are unchanged pending more field samples.
+
+**Gates (lab).** 20/20 controller tests. Ask mode: 21/21. Open mode and keyboard were re-run before push.
