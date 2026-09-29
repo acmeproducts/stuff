@@ -1,0 +1,16 @@
+<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>SOT Turn 02 Release D · AI task-instance candidate</title><style>html,body,#app{width:100%;height:100%;margin:0;border:0;display:block;background:#0b0d10}</style></head><body><iframe id="app" title="SOT Turn 02 Release D"></iframe><script>
+const BASE='./sot-turn02-release-d.html';
+const frame=document.getElementById('app');
+frame.src=BASE+location.search;
+frame.addEventListener('load',()=>{
+ const w=frame.contentWindow,d=frame.contentDocument;
+ if(!w||!d||typeof w.renderAI!=='function')return;
+ w.openAiCatalog=function(){w.eval('aiTaskId=null;renderAI()')};
+ w.aiTaskSafeName=function(t){let x=String(t?.title||t?.task_type||'ai-task').trim().replace(/[^a-z0-9._-]+/gi,'-').replace(/^-+|-+$/g,'');return x||'ai-task'};
+ w.aiTaskMarkdown=function(t){let lines=['# '+String(t.title||'AI Task'),'','- Task ID: `'+String(t.task_id||'')+'`','- Task type: `'+String(t.task_type||'')+'`','- Status: '+String(t.status||''),'- Scope: '+w.scopeCaption(t.scope)+': '+w.scopeLabel(t.scope),'- Evidence revision: '+String(t.evidence_revision??'—'),'- Created: '+(t.created?new Date(t.created*1000).toISOString():'—'),'- Updated: '+(t.updated?new Date(t.updated*1000).toISOString():'—'),'','## Transcript',''];for(const x of(t.turns||[])){lines.push('### '+String(x.role||'turn')+' — '+(x.created?new Date(x.created*1000).toISOString():'—'),'');if(x.provider||x.model)lines.push('Provider/model: '+[x.provider,x.model].filter(Boolean).join(' / '),'');lines.push(String(x.content||x.error_detail||''),'');let m=x.evidence_manifest||{};if(x.evidence_revision!=null||Object.keys(m).length)lines.push('Evidence revision: '+String(x.evidence_revision??'—'),'')}return lines.join('\n')};
+ w.downloadAiTask=async function(kind){let id=w.eval('aiTaskId');if(!id)return;let t=(await w.req('/api/ai/task?id='+encodeURIComponent(id),{},8000)).task,stamp=new Date().toISOString().replace(/[:.]/g,'-'),base=w.aiTaskSafeName(t)+'-'+stamp;if(kind==='json')w.downloadBlob(base+'.json','application/json;charset=utf-8',JSON.stringify(t,null,2));else w.downloadBlob(base+'.md','text/markdown;charset=utf-8',w.aiTaskMarkdown(t));w.closeModal()};
+ w.openAiDownload=function(){if(!w.eval('aiTaskId'))return;w.openModal('Download AI Task','<div class="actions"><button class="btn live" onclick="downloadAiTask(\'md\')">Markdown</button><button class="btn" onclick="downloadAiTask(\'json\')">JSON</button></div><div class="muted">Markdown contains the readable transcript and evidence context. JSON contains the complete persisted task record.</div>',null,{hideOk:true})};
+ const decorate=()=>{let head=d.querySelector('.ai-rail-head');if(head&&!head.querySelector('.ai-new-task')){let b=d.createElement('button');b.className='btn ai-new-task';b.title='New AI task';b.setAttribute('aria-label','New AI task');b.textContent='+';b.onclick=w.openAiCatalog;head.appendChild(b)}let actions=d.querySelector('.ai-head-actions');if(actions&&!actions.querySelector('.ai-download-task')){let b=d.createElement('button');b.className='btn ai-download-task';b.textContent='Download';b.onclick=w.openAiDownload;actions.prepend(b)}};
+ new MutationObserver(decorate).observe(d.body,{childList:true,subtree:true});decorate();
+});
+</script></body></html>
