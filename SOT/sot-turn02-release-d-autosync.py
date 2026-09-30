@@ -7,6 +7,7 @@ from urllib.parse import parse_qs,urlparse
 LIVE_STATES=("QUEUED","RUNNING","PAUSED","STOPPING")
 PLACEMENT_PAGE_SIZE=5000
 PLACEMENT_PAGE_MAX=10000
+PLACEMENT_SNAPSHOT_TTL=120
 LOG_PUBLISH_INTERVAL=max(60,int(os.environ.get("SOT_LOG_PUBLISH_INTERVAL","300")))
 
 def install(srv):
@@ -15,6 +16,8 @@ def install(srv):
     original_get=srv.H.do_GET
     original_post=getattr(srv.H,"do_POST",None)
     srv._log_publish_status={"configured":False,"last_publish":None,"last_error":None,"published":False}
+    srv._placement_snapshot_lock=threading.RLock()
+    srv._placement_cursor_snapshots={}
 
     def placement_page(handler):
         u=urlparse(handler.path);q=parse_qs(u.query)
@@ -22,12 +25,25 @@ def install(srv):
         except Exception:after=0
         try:limit=max(1,min(PLACEMENT_PAGE_MAX,int(q.get("limit",[str(PLACEMENT_PAGE_SIZE)])[0] or PLACEMENT_PAGE_SIZE)))
         except Exception:limit=PLACEMENT_PAGE_SIZE
-        rows=srv.M.s.rows("SELECT * FROM placements WHERE placement_state='ACTIVE' AND placement_no>? ORDER BY placement_no LIMIT ?",(after,limit+1))
-        has_more=len(rows)>limit
-        page=rows[:limit]
-        total=srv.M.s.rows("SELECT COUNT(*) n FROM placements WHERE placement_state='ACTIVE'")[0]["n"]
-        next_after=int(page[-1]["placement_no"]) if page else after
-        return handler.sendj({"ok":True,"catalog_revision":srv.M.s.catalog_revision(),"total":int(total or 0),"page_size":len(page),"has_more":has_more,"next_after":next_after,"placements":page})
+        now=time.time()
+        with srv._placement_snapshot_lock:
+            for cursor,snap in list(srv._placement_cursor_snapshots.items()):
+                if now-float(snap["created"])>PLACEMENT_SNAPSHOT_TTL:
+                    srv._placement_cursor_snapshots.pop(cursor,None)
+            snap=srv._placement_cursor_snapshots.get(after) if after else None
+            if snap is None:
+                rows=srv.M.s.rows("SELECT * FROM placements WHERE placement_state='ACTIVE' ORDER BY placement_no")
+                snap={"created":now,"catalog_revision":srv.M.s.catalog_revision(),"placements":rows}
+            rows=snap["placements"]
+            start=0
+            if after:
+                while start<len(rows) and int(rows[start]["placement_no"])<=after:start+=1
+            page=rows[start:start+limit]
+            has_more=start+len(page)<len(rows)
+            next_after=int(page[-1]["placement_no"]) if page else after
+            if has_more and page:
+                srv._placement_cursor_snapshots[next_after]=snap
+        return handler.sendj({"ok":True,"catalog_revision":snap["catalog_revision"],"total":len(rows),"page_size":len(page),"has_more":has_more,"next_after":next_after,"placements":page})
 
     def log_tail(handler):
         u=urlparse(handler.path);q=parse_qs(u.query)
