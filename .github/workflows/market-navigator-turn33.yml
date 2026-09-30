@@ -1,0 +1,64 @@
+name: Market Navigator Turn 33 Qualify
+on:
+  push:
+    paths:
+      - 'market-navigator-build-turn33-v2.py'
+      - '.github/workflows/market-navigator-turn33.yml'
+permissions:
+  contents: write
+jobs:
+  qualify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: {python-version: '3.12'}
+      - name: Build from Turn 28
+        run: python market-navigator-build-turn33-v2.py
+      - name: Architecture gates
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          s=Path('market-navigator-turn33-pre-ship.html').read_text()
+          gates={
+          'Turn28 lineage': 'data-source-blob="544661884a412c57aac08fada4f961012a4bc496"' in s,
+          'one NOW chart surface': s.count('id="chartSurface33"')==1,
+          'in-place contract': 'TURN33_IN_PLACE_ANALYZE' in s,
+          'no reparent operation': 'appendChild(surface)' not in s and 'append(surface)' not in s,
+          'identity guard': 'TURN33_SURFACE_IDENTITY_CHANGED' in s and 'TURN33_SURFACE_REPARENTED' in s,
+          'full workspace': '.turn33Analysis #chartSurface33{position:fixed!important;inset:8px!important' in s,
+          'X close': 'turn33Close' in s,
+          'legacy Analyze retired': 'retiredOpenStandaloneAnalysis26' in s,
+          'ordinary renderer retained': 'await renderV2()' in s,
+          'no Turn32 donor': 'TURN32_TRUE_SINGLE_SURFACE' not in s,
+          'no Turn31 donor': 'chartSurface31' not in s,
+          'no Dashboard donor': 'dashboardView29' not in s,
+          }
+          for k,v in gates.items(): print(('PASS' if v else 'FAIL'),k)
+          assert all(gates.values())
+          PY
+      - name: JavaScript syntax
+        run: |
+          python - <<'PY'
+          import re,pathlib
+          s=pathlib.Path('market-navigator-turn33-pre-ship.html').read_text()
+          scripts=re.findall(r'<script[^>]*>(.*?)</script>',s,re.S)
+          pathlib.Path('/tmp/mn33.js').write_text('\n'.join(scripts))
+          PY
+          node --check /tmp/mn33.js
+      - name: Main-surface preservation gates
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          b=Path('market-navigator-turn28-ship.html').read_text(); c=Path('market-navigator-turn33-pre-ship.html').read_text()
+          for token in ['id="nowChart"','id="legend"','id="nowTip"','async function renderV2(){','function draw(']:
+            assert b.count(token)==c.count(token),(token,b.count(token),c.count(token)); print('PASS retained',token)
+          print('PASS main chart primitives preserved')
+          PY
+      - name: Commit qualified candidate
+        run: |
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git add market-navigator-turn33-pre-ship.html
+          git commit -m 'Market Navigator Turn 33: qualified in-place Analyze candidate'
+          git push
