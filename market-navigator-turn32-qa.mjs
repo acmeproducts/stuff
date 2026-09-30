@@ -2,29 +2,18 @@ import fs from 'fs';
 import http from 'http';
 import path from 'path';
 import { chromium } from 'playwright';
-
-const ROOT=process.cwd(), PORT=41732;
-const mime={'.html':'text/html','.json':'application/json','.js':'text/javascript','.css':'text/css','.md':'text/markdown'};
+const ROOT=process.cwd(),PORT=41732,mime={'.html':'text/html','.json':'application/json','.js':'text/javascript','.css':'text/css','.md':'text/markdown'};
 const server=http.createServer((req,res)=>{let p=decodeURIComponent(req.url.split('?')[0]);if(p==='/')p='/market-navigator-turn32-pre-ship.html';let f=path.join(ROOT,p);if(!f.startsWith(ROOT)){res.writeHead(403);return res.end()}fs.readFile(f,(e,b)=>{if(e){res.writeHead(404);return res.end('404')}res.writeHead(200,{'content-type':mime[path.extname(f)]||'application/octet-stream'});res.end(b)})});
-await new Promise(r=>server.listen(PORT,'127.0.0.1',r));
-let browser;
-const pass=(name,ok,detail='')=>{if(!ok)throw new Error('FAIL '+name+(detail?': '+detail:''));console.log('PASS',name)};
+await new Promise(r=>server.listen(PORT,'127.0.0.1',r));let browser;const pass=(name,ok,detail='')=>{if(!ok)throw new Error('FAIL '+name+(detail?': '+detail:''));console.log('PASS',name)};
 try{
- browser=await chromium.launch({headless:true}); const page=await browser.newPage({viewport:{width:1600,height:1000}});
- const errors=[]; page.on('pageerror',e=>errors.push(String(e))); await page.goto(`http://127.0.0.1:${PORT}/market-navigator-turn32-pre-ship.html`,{waitUntil:'networkidle'});
- await page.waitForSelector('#chartSurface32');
- pass('G1 candidate loads and chart surface exists',true);
- const before=await page.evaluate(()=>{window.__surfaceIdentity32=document.getElementById('chartSurface32');let n=window.__surfaceIdentity32;return{parent:n.parentElement?.id||n.parentElement?.className,canvas:n.querySelectorAll('canvas').length,legend:n.querySelectorAll('#legend').length}});
- pass('G2 one surface owns one NOW canvas',before.canvas===1,JSON.stringify(before)); pass('G2 one surface owns one legend',before.legend===1,JSON.stringify(before));
- const component=await page.evaluate(()=>{let ids=(window.S?.catalog?.series||[]).map(x=>x.id);return ids.find(id=>!window.IDX.includes(id))||'qqq'});
- await page.evaluate(async id=>{await window.openStandaloneAnalysis26(id)},component); await page.waitForSelector('#analysisMount32 #chartSurface32');
+ browser=await chromium.launch({headless:true});const page=await browser.newPage({viewport:{width:1600,height:1000}});const errors=[];page.on('pageerror',e=>errors.push(String(e)));await page.goto(`http://127.0.0.1:${PORT}/market-navigator-turn32-pre-ship.html`,{waitUntil:'networkidle'});await page.waitForSelector('#chartSurface32');
+ pass('G1 candidate loads and chart surface exists',true);pass('G5 initial runtime clean',errors.length===0,errors.join('\n'));
+ const before=await page.evaluate(()=>{window.__surfaceIdentity32=document.getElementById('chartSurface32');let n=window.__surfaceIdentity32;return{canvas:n.querySelectorAll('canvas').length,legend:n.querySelectorAll('#legend').length}});pass('G2 one surface owns one NOW canvas',before.canvas===1,JSON.stringify(before));pass('G2 one surface owns one legend',before.legend===1,JSON.stringify(before));
+ const component=await page.evaluate(()=>{let ids=(S?.catalog?.series||[]).map(x=>x.id);return ids.find(id=>!IDX.includes(id))||'qqq'});
+ await page.evaluate(async id=>{await openStandaloneAnalysis26(id)},component);await page.waitForSelector('#analysisMount32 #chartSurface32');
  const mounted=await page.evaluate(()=>({same:document.getElementById('chartSurface32')===window.__surfaceIdentity32,parent:document.getElementById('chartSurface32').parentElement?.id,visibleCanvases:[...document.querySelectorAll('canvas')].filter(c=>{let r=c.getBoundingClientRect(),st=getComputedStyle(c);return r.width>0&&r.height>0&&st.display!=='none'&&st.visibility!=='hidden'}).length,visibleLegends:[...document.querySelectorAll('#legend')].filter(e=>{let r=e.getBoundingClientRect();return r.width>0&&r.height>0}).length,modal:!document.getElementById('standaloneAnalysis26').classList.contains('hidden')}));
- pass('G4 Analyze mounts exact same chart node',mounted.same&&mounted.parent==='analysisMount32',JSON.stringify(mounted)); pass('G6 Analyze is modal and live',mounted.modal); pass('G8 no duplicate visible chart canvas',mounted.visibleCanvases===1,JSON.stringify(mounted)); pass('G8 no duplicate visible legend',mounted.visibleLegends===1,JSON.stringify(mounted));
- const fam=await page.evaluate(()=>{let ids=(S.catalog.series||[]).map(x=>x.id).filter(id=>!IDX.includes(id));let root=S.surfaceRoot32;let f0=measurementFamily(root),second=ids.find(id=>measurementFamily(id)!==f0);return{root,f0,second,f1:second?measurementFamily(second):null}});
- if(fam.second){await page.evaluate(async id=>{S.nowVisible=[S.surfaceRoot32,id];await renderV2()},fam.second);const dual=await page.evaluate(()=>({mode:S.surfaceLast32?.mode,ids:S.surfaceLast32?.ids,axes:S.surfaceLast32?.plan?.kinds?.length}));pass('G7 two measurement families use dual axes',dual.mode==='dual'&&dual.axes===2,JSON.stringify(dual))}else console.log('PASS G7 two-family dataset unavailable; static axis gate retained');
- await page.evaluate(async()=>{await closeStandaloneAnalysis26()}); await page.waitForFunction(()=>document.getElementById('standaloneAnalysis26').classList.contains('hidden'));
- const restored=await page.evaluate(()=>({same:document.getElementById('chartSurface32')===window.__surfaceIdentity32,inModal:!!document.querySelector('#analysisMount32 #chartSurface32'),surfaceMode:S.surfaceMode32||null}));
- pass('G4 close restores exact same chart node',restored.same&&!restored.inModal&&restored.surfaceMode===null,JSON.stringify(restored));
- pass('G5 no runtime page errors',errors.length===0,errors.join('\n'));
- console.log('TURN32_BROWSER_QUALIFICATION_PASS');
-} finally {if(browser)await browser.close(); await new Promise(r=>server.close(r))}
+ pass('G4 Analyze mounts exact same chart node',mounted.same&&mounted.parent==='analysisMount32',JSON.stringify(mounted));pass('G6 Analyze is modal and live',mounted.modal);pass('G8 no duplicate visible chart canvas',mounted.visibleCanvases===1,JSON.stringify(mounted));pass('G8 no duplicate visible legend',mounted.visibleLegends===1,JSON.stringify(mounted));
+ const fam=await page.evaluate(()=>{let ids=(S.catalog.series||[]).map(x=>x.id).filter(id=>!IDX.includes(id));let root=S.surfaceRoot32,f0=measurementFamily(root),second=ids.find(id=>measurementFamily(id)!==f0);return{root,f0,second,f1:second?measurementFamily(second):null}});
+ if(fam.second){await page.evaluate(async id=>{S.nowVisible=[S.surfaceRoot32,id];await renderV2()},fam.second);const dual=await page.evaluate(()=>({mode:S.surfaceLast32?.mode,ids:S.surfaceLast32?.ids,axes:S.surfaceLast32?.plan?.kinds?.length}));pass('G7 two measurement families use dual axes',dual.mode==='dual'&&dual.axes===2,JSON.stringify(dual))}else console.log('PASS G7 two-family dataset unavailable; static gate retained');
+ await page.evaluate(async()=>{await closeStandaloneAnalysis26()});await page.waitForFunction(()=>document.getElementById('standaloneAnalysis26').classList.contains('hidden'));const restored=await page.evaluate(()=>({same:document.getElementById('chartSurface32')===window.__surfaceIdentity32,inModal:!!document.querySelector('#analysisMount32 #chartSurface32'),surfaceMode:S.surfaceMode32||null}));pass('G4 close restores exact same chart node',restored.same&&!restored.inModal&&restored.surfaceMode===null,JSON.stringify(restored));pass('G5 no runtime page errors',errors.length===0,errors.join('\n'));console.log('TURN32_BROWSER_QUALIFICATION_PASS');
+}finally{if(browser)await browser.close();await new Promise(r=>server.close(r))}
