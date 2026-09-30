@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 set -Eeuo pipefail
-REF="53dc46a5bf53ace48550e58b4bfb732efa7e4fdd"
+REF="8052cb85906d1e1971f0e3c2b22ae3626a92c036"
 BASE="https://raw.githubusercontent.com/acmeproducts/stuff/$REF/SOT"
 ROOT="$HOME/.sot-turn02/release-d/SOT"
 UNIT="$HOME/.config/systemd/user/sot-turn02-release-d.service"
@@ -35,6 +35,12 @@ systemctl --user show sot-turn02-release-d.service -p ExecStart --value | grep -
 sleep 1
 curl -fsS http://127.0.0.1:8765/api/jobs >"$TMP/jobs.json"
 curl -fsS http://127.0.0.1:8765/api/sources >"$TMP/sources.json"
+curl -fsS 'http://127.0.0.1:8765/api/diagnostics/log?limit=5' >"$TMP/log.json"
+python3 - "$TMP/log.json" <<'PY'
+import json,sys
+z=json.load(open(sys.argv[1]));assert z.get('ok') and isinstance(z.get('lines'),list) and isinstance(z.get('publish'),dict),z
+print('PASS Config Log / Activity runtime endpoint')
+PY
 python3 - "$TMP/jobs.json" "$TMP/sources.json" <<'PY'
 import json,sys
 jobs=json.load(open(sys.argv[1])).get('jobs',[])
