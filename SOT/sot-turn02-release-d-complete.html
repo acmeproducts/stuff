@@ -1,0 +1,66 @@
+<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>SOT Turn 02 Release D · Complete SSOT</title><style>html,body,#shell{width:100%;height:100%;margin:0;border:0;display:block;background:#0b0d10}</style></head><body><iframe id="shell" title="SOT Turn 02 Release D"></iframe><script>
+const shell=document.getElementById('shell');
+shell.src='./sot-turn02-release-d-source-actions.html'+location.search;
+function installCompletePlacementRefresh(){
+ const outer=shell.contentWindow,outerDoc=shell.contentDocument;
+ const inner=outerDoc&&outerDoc.getElementById('app');
+ const w=inner&&inner.contentWindow,d=inner&&inner.contentDocument;
+ if(!w||!d||typeof w.req!=='function'||typeof w.loadPlacements!=='function')return false;
+ if(w.__ssotCompletePlacementRefresh)return true;
+ w.__ssotCompletePlacementRefresh=true;
+ w.__ssotPlacementBusy=false;
+ w.__ssotPlacementPending=false;
+ w.eval(`window.__ssotApplyPlacements=function(rows,rev){
+   placements=rows||[];
+   catalogRevision=rev??catalogRevision;
+   placementsLoadedAt=Date.now();
+   placementsRevision=snap?.job?.revision??null;
+   try{localStorage.sotPlacementsCache=JSON.stringify({model:PLACEMENT_CACHE_MODEL,revision:placementsRevision,creationRevision:creationRevision,catalogRevision:catalogRevision,ts:placementsLoadedAt,rows:placements})}catch(e){}
+   let n=document.querySelector('.pane.on')?.id;
+   if(['Database','Grid','Plan'].includes(n))render(n)
+ }`);
+ w.loadPlacements=async function(force=false){
+   if(w.__ssotPlacementBusy){if(force)w.__ssotPlacementPending=true;return}
+   let current=Number(w.eval('placements.length'))||0;
+   if(!force&&current)return;
+   w.__ssotPlacementBusy=true;
+   try{
+     let rows=[],after=0,rev=null,total=null,pages=0;
+     while(true){
+       let z=await w.req('/api/placements/page?after='+encodeURIComponent(after)+'&limit=5000',{},30000);
+       if(!z||!z.ok)throw Error(z?.error||'Placement page failed');
+       if(rev!==null&&z.catalog_revision!==rev){w.__ssotPlacementPending=true;break}
+       rev=z.catalog_revision;total=Number(z.total);
+       let page=z.placements||[];
+       rows.push(...page);pages++;
+       if(!z.has_more)break;
+       let next=Number(z.next_after);
+       if(!Number.isFinite(next)||next<=after||pages>10000)throw Error('Placement paging did not advance');
+       after=next
+     }
+     if(!w.__ssotPlacementPending){
+       if(Number.isFinite(total)&&rows.length!==total)throw Error('Placement paging incomplete: '+rows.length+' / '+total);
+       w.__ssotApplyPlacements(rows,rev)
+     }
+   }catch(e){w.toast('Database data retrying',2500);w.__ssotPlacementPending=true}
+   finally{
+     w.__ssotPlacementBusy=false;
+     if(w.__ssotPlacementPending){
+       w.__ssotPlacementPending=false;
+       setTimeout(()=>w.loadPlacements(true),100)
+     }
+   }
+ };
+ w.loadPlacements(true);
+ return true
+}
+function arm(){
+ const outerDoc=shell.contentDocument,inner=outerDoc&&outerDoc.getElementById('app');
+ if(inner&&!inner.__ssotCompleteListener){
+   inner.__ssotCompleteListener=true;
+   inner.addEventListener('load',()=>setTimeout(installCompletePlacementRefresh,0))
+ }
+ if(!installCompletePlacementRefresh())setTimeout(arm,50)
+}
+shell.addEventListener('load',arm);
+</script></body></html>

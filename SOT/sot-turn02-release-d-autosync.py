@@ -2,12 +2,43 @@
 import importlib.util,os,sys,threading,time
 from http.server import ThreadingHTTPServer
 from pathlib import Path
+from urllib.parse import parse_qs,urlparse
 
 LIVE_STATES=("QUEUED","RUNNING","PAUSED","STOPPING")
+PLACEMENT_PAGE_SIZE=5000
+PLACEMENT_PAGE_MAX=10000
 
 def install(srv):
     original_check=srv.check_source_ids
     original_add=srv.M.add_source
+    original_get=srv.H.do_GET
+
+    def placement_page(handler):
+        u=urlparse(handler.path);q=parse_qs(u.query)
+        try:after=max(0,int(q.get("after",["0"])[0] or 0))
+        except Exception:after=0
+        try:limit=max(1,min(PLACEMENT_PAGE_MAX,int(q.get("limit",[str(PLACEMENT_PAGE_SIZE)])[0] or PLACEMENT_PAGE_SIZE)))
+        except Exception:limit=PLACEMENT_PAGE_SIZE
+        rows=srv.M.s.rows("SELECT * FROM placements WHERE placement_state='ACTIVE' AND placement_no>? ORDER BY placement_no LIMIT ?",(after,limit+1))
+        has_more=len(rows)>limit
+        page=rows[:limit]
+        total=srv.M.s.rows("SELECT COUNT(*) n FROM placements WHERE placement_state='ACTIVE'")[0]["n"]
+        next_after=int(page[-1]["placement_no"]) if page else after
+        return handler.sendj({
+            "ok":True,
+            "catalog_revision":srv.M.s.catalog_revision(),
+            "total":int(total or 0),
+            "page_size":len(page),
+            "has_more":has_more,
+            "next_after":next_after,
+            "placements":page,
+        })
+
+    def do_GET(handler):
+        if urlparse(handler.path).path=="/api/placements/page":
+            try:return placement_page(handler)
+            except Exception as e:return handler.sendj({"ok":False,"error":str(e)},500)
+        return original_get(handler)
 
     def queue_sync(source_ids,reason):
         ids=list(dict.fromkeys(source_ids or []))
@@ -70,6 +101,7 @@ def install(srv):
         queue_sync([sid],"registration")
         return sid
 
+    srv.H.do_GET=do_GET
     srv.check_source_ids=check_source_ids
     srv.M.add_source=add_source
     srv.queue_ssot_sync=queue_sync
