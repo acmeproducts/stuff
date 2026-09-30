@@ -18,3 +18,23 @@ Required replacement:
 - client application only after a complete, same-revision fetch;
 - retained/retried forced refresh when a load is already active;
 - SQLite remains authoritative and existing evidence is preserved.
+
+## Owner UI convergence — rejected regressions
+
+Rejected and must not return:
+
+- showing stale/cached Database, Grid or Report counts as actionable while the complete placement estate is refreshing;
+- separate top-level Database and Grid destinations when both are views of the same shared search state;
+- burying Report behind data-view navigation instead of making it the first owner tab;
+- dead Report rows that summarize a population but cannot open that population in Search;
+- inventing file membership for capacity-only rows such as OPEN or TARGET merely to make a click return records;
+- changing report mathematics or classification to implement navigation.
+
+Required replacement:
+
+- one blocking **Database refreshing / rebuilding** owner state until complete same-revision placement delivery is applied;
+- Report first;
+- one Search destination with Table and Grid views;
+- every Report row routes to central Search using an explicit governed report scope;
+- zero/non-file-backed report rows route honestly to zero matching files;
+- existing Database/Grid renderers and shared query semantics remain intact underneath the unified Search surface.
