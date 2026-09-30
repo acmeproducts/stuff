@@ -1,46 +1,49 @@
 # SOT Turn 02 Release D — Placement Refresh Spin Correction
 
 **Decision date:** 2026-09-30  
-**Status:** OWNER-REPORTED BLOCKER / MINIMAL CORRECTION
+**Status:** OWNER-REPORTED BLOCKER / CORRECTIVE RELEASE
 
 ## Owner definition of working
 
 > “it just spins”
 
-The Database refresh blocker must terminate after one complete authoritative estate snapshot is loaded, even while Continuous SSOT is changing the live catalog.
+> “I dont even get the loading toast message just the black source screen which is not supposed to even be first”
 
-## Measured cause
+> “THIS LITERALLY HAS NONE OF THE FEATURES WE TALKED ABOUT”
 
-The current browser wrapper deliberately rejects a paged load when `catalog_revision` changes between pages and immediately retries the entire load. The current `/api/placements/page` endpoint reads each page and its revision independently from the live database. During active automatic SSOT work, the catalog can change between page requests, so a 30,324-row refresh can repeatedly restart and leave **Database refreshing / rebuilding** visible indefinitely.
+The application must visibly enter the governed refresh state, finish loading one complete authoritative estate snapshot, and then expose the approved owner UI with Report first.
 
-This is a paging-consistency defect, not a database rebuild requirement and not an analysis/job failure.
+## Root causes now proven
 
-## Baseline score
+There are three separate qualification failures in the previous candidate:
 
-- complete estate exists in SQLite — PASS;
-- paging beyond 10,000 rows — PASS;
-- blocker prevents stale partial estate from becoming actionable — PASS;
-- one multi-page request observes one immutable estate snapshot while the live catalog changes — FAIL;
-- refresh terminates under catalog churn — FAIL.
+1. **Live-revision paging race.** The browser rejected a multi-page load when `catalog_revision` changed between pages. Continuous SSOT can legitimately change the catalog during a 30,324-row fetch. The backend correction now serves one immutable placement snapshot for each traversal.
+2. **MutationObserver feedback loop.** `__ssotDecorateTabs()` unconditionally rewrote `search.innerHTML` and `estate.innerHTML`. The same tab container was observed for child mutations, so each rewrite generated another mutation and another rewrite. This starved browser rendering before the blocker/Report-first UI could paint, leaving the previously painted Source/Picker screen visible.
+3. **Unsafe placement apply.** `__ssotApplyPlacements()` referenced undeclared `snap?.job?.revision`. Optional chaining does not make an undeclared identifier safe. A successful page fetch therefore threw during apply and the loader converted that runtime exception into another retry.
 
-## Change
+The previous qualifier was insufficient: it proved Python behavior, required marker presence and JavaScript parseability, but it did not reject either browser runtime defect. A string-presence PASS is not a behavioral UI PASS.
 
-1. Keep the accepted browser blocker and complete-placement wrapper unchanged.
-2. Change only the Release D paging wrapper so page 1 captures an immutable in-memory snapshot of active placement rows plus its catalog revision.
-3. Continuation pages are served from that same snapshot by monotonic `placement_no` cursor, even if the live catalog changes meanwhile.
-4. A later request beginning at `after=0` captures a new current snapshot.
-5. Snapshot cursor state expires after 120 seconds.
-6. No schema migration, database rebuild, rehash, classification, source/job lifecycle, report math, AI behavior, or owner UI change.
+## Corrective change
+
+1. Retain the immutable backend placement snapshot already implemented.
+2. Make tab decoration idempotent: only replace Search/Add-to-Estate icon markup when its explicit decoration marker is absent.
+3. Remove the undeclared `snap` dependency from placement application; preserve a prior placement revision only when the variable actually exists, otherwise store `null`.
+4. Keep Report first, unified Search Table/Grid, Add to Estate, report-row routing, bulk Table/Grid actions and Config Log/Activity exactly as approved.
+5. Extend qualification with explicit regression gates that reject unconditional observed-tab `innerHTML` rewrites and unsafe `snap?.` references.
+6. The installer must lint the final wrapper with Node and run the corrected qualification before replacing the host files.
 
 ## Mechanical acceptance
 
-- start with 12,005 active placements at catalog revision 42;
-- fetch page 1;
-- mutate the live fixture to 12,006 placements and catalog revision 43 before page 2;
-- pages 2 and 3 must still report revision 42, total 12,005, and return exactly the original 12,005 rows;
-- a new page-1 request must report revision 43 and total 12,006;
-- existing Continuous SSOT, complete-placement, owner UI and diagnostics gates remain green.
+- 12,005-row traversal remains on one immutable revision while the live fixture advances to 12,006/new revision;
+- a new traversal sees the new revision;
+- wrapper JavaScript parses under Node 22;
+- no unsafe `snap?.job` reference exists;
+- tab decorators carry stable `data-ssot-icon` guards before changing `innerHTML`;
+- Report is first and legacy Grid/Analyze/Activity top-level buttons are hidden;
+- blocker exact text remains `Database refreshing / rebuilding`;
+- all previously approved Report/Search/Add-to-Estate/bulk/log markers remain present;
+- installer continues to verify local health and complete live placement delivery.
 
 ## Protected
 
-The owner-visible navigation and behavior from the prior convergence build are unchanged. This correction is limited to making the already-required complete refresh finite and internally consistent.
+No schema migration. No database rebuild. No rehash. No classification change. No report mathematics change. No source/job lifecycle change. No AI behavior change. No unrelated UI redesign.
