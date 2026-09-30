@@ -2011,3 +2011,18 @@ Approved bounded correction:
 - mobile controls must remain contained in the Library header and must not overlay the chart.
 
 Target: `market-navigator-turn28-post-ship.html`.
+
+
+---
+
+## 46. Turn 29 — NOW Current descriptive dashboard
+
+Owner-authorized 2026-09-29. This stage follows the failed 10–30-day predictive Trend qualification and does **not** publish predictive Trend.
+
+- NOW remains the entry point. Existing GRW/RSK/MAC entry chips gain a compact descriptive state: **▲ Positive / ▶ Neutral / ▼ Negative**, with green / grey / red redundant semantics. No new dashboard row is introduced.
+- Current state is descriptive, not predictive: each persistent index is located within its own trailing five-year empirical distribution. Lower / middle / upper terciles define the three state bands. GRW higher means more positive growth momentum; RSK higher means greater risk and therefore more negative; MAC higher means greater inflation/monetary-policy pressure and therefore more negative.
+- The classification is derived only from governed `MN-PERSISTENT-1.0.0` evidence. It adds no source, proxy, interpolation, forward fill, component, weight, or alternate index arithmetic.
+- The deterministic state and methodology are exposed to AI evidence and Health Glossary. AI may explain but not calculate or override the state.
+- The failed predictive Trend model remains excluded from production. No 10–30-day directional claim is authorized by this stage.
+- Candidate: `market-navigator-turn29-pre-ship.html`; evidence: `market-evidence/current-state-v1.json`; builder: `market-navigator-build-turn29.py`.
+- Release gates: exact Turn 28 Ship blob ancestry, deterministic rebuild, syntax, state vocabulary, forecast=false, all three governed indices present, glossary/AI evidence presence, and owner qualification before baseline promotion.
