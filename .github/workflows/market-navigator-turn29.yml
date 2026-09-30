@@ -1,0 +1,49 @@
+name: Market Navigator Turn 29 NOW Current
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'market-navigator-build-turn29.py'
+      - 'market-evidence/derived-indices-persistent-v1.json'
+      - '.github/workflows/market-navigator-turn29.yml'
+  workflow_dispatch:
+permissions:
+  contents: write
+jobs:
+  build-qualify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Build candidate and current-state evidence
+        run: python3 market-navigator-build-turn29.py
+      - name: Static qualification
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          import json,re
+          p=Path('market-navigator-turn29-pre-ship.html')
+          assert p.exists() and p.stat().st_size>200000
+          s=p.read_text()
+          for x in ['turn29BuildMarker','MN_CURRENT_STATE_29','Current state','forecast:false','mn-current-state-v1']:
+              assert x in s,x
+          e=json.loads(Path('market-evidence/current-state-v1.json').read_text())
+          assert e['forecast'] is False
+          assert set(e['indices'])=={'growth','risk','macro'}
+          assert all(v['label'] in {'Positive','Neutral','Negative','Unavailable'} for v in e['indices'].values())
+          scripts=re.findall(r'<script(?: [^>]*)?>(.*?)</script>',s,re.S)
+          inline='\n'.join(x for x in scripts if x.strip())
+          Path('/tmp/mn-inline.js').write_text(inline)
+          print(json.dumps(e['indices'],indent=2))
+          PY
+          node --check /tmp/mn-inline.js
+      - name: Commit generated candidate and evidence
+        run: |
+          if git diff --quiet -- market-navigator-turn29-pre-ship.html market-evidence/current-state-v1.json; then exit 0; fi
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git add market-navigator-turn29-pre-ship.html market-evidence/current-state-v1.json
+          git commit -m 'build: qualify Turn 29 NOW current candidate'
+          git push
