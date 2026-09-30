@@ -19,31 +19,36 @@ jobs:
           node-version: '22'
       - name: Build candidate and current-state evidence
         run: python3 market-navigator-build-turn29.py
+      - name: Record authoritative plan scope
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          p=Path('MARKET-NAVIGATOR-MASTER-PLAN.md'); s=p.read_text(); marker='## 46. Turn 29 — NOW Current descriptive dashboard'
+          if marker not in s:
+              s += '''\n\n---\n\n## 46. Turn 29 — NOW Current descriptive dashboard\n\nOwner-authorized 2026-09-29. This stage follows the failed 10–30-day predictive Trend qualification and does **not** publish predictive Trend.\n\n- NOW remains the entry point. Existing GRW/RSK/MAC entry chips gain a compact descriptive state: **▲ Positive / ▶ Neutral / ▼ Negative**, with green / grey / red redundant semantics. No new dashboard row is introduced.\n- Current state is descriptive, not predictive: each persistent index is located within its own trailing five-year empirical distribution. Lower / middle / upper terciles define the three state bands. GRW higher means more positive growth momentum; RSK higher means greater risk and therefore more negative; MAC higher means greater inflation/monetary-policy pressure and therefore more negative.\n- The classification is derived only from governed `MN-PERSISTENT-1.0.0` evidence. It adds no source, proxy, interpolation, forward fill, component, weight, or alternate index arithmetic.\n- The deterministic state and methodology are exposed to AI evidence and Health Glossary. AI may explain but not calculate or override the state.\n- The failed predictive Trend model remains excluded from production. No 10–30-day directional claim is authorized by this stage.\n- Candidate: `market-navigator-turn29-pre-ship.html`; evidence: `market-evidence/current-state-v1.json`; builder: `market-navigator-build-turn29.py`.\n- Release gates: exact Turn 28 Ship blob ancestry, deterministic rebuild, syntax, state vocabulary, forecast=false, all three governed indices present, glossary/AI evidence presence, and owner qualification before baseline promotion.\n'''
+              p.write_text(s)
+          PY
       - name: Static qualification
         run: |
           python3 - <<'PY'
           from pathlib import Path
           import json,re
-          p=Path('market-navigator-turn29-pre-ship.html')
-          assert p.exists() and p.stat().st_size>200000
+          p=Path('market-navigator-turn29-pre-ship.html'); assert p.exists() and p.stat().st_size>200000
           s=p.read_text()
-          for x in ['turn29BuildMarker','MN_CURRENT_STATE_29','Current state','forecast:false','mn-current-state-v1']:
-              assert x in s,x
-          e=json.loads(Path('market-evidence/current-state-v1.json').read_text())
-          assert e['forecast'] is False
+          for x in ['turn29BuildMarker','MN_CURRENT_STATE_29','Current state','forecast:false','mn-current-state-v1']: assert x in s,x
+          e=json.loads(Path('market-evidence/current-state-v1.json').read_text()); assert e['forecast'] is False
           assert set(e['indices'])=={'growth','risk','macro'}
           assert all(v['label'] in {'Positive','Neutral','Negative','Unavailable'} for v in e['indices'].values())
-          scripts=re.findall(r'<script(?: [^>]*)?>(.*?)</script>',s,re.S)
-          inline='\n'.join(x for x in scripts if x.strip())
-          Path('/tmp/mn-inline.js').write_text(inline)
+          scripts=re.findall(r'<script(?: [^>]*)?>(.*?)</script>',s,re.S); Path('/tmp/mn-inline.js').write_text('\n'.join(x for x in scripts if x.strip()))
+          assert '## 46. Turn 29 — NOW Current descriptive dashboard' in Path('MARKET-NAVIGATOR-MASTER-PLAN.md').read_text()
           print(json.dumps(e['indices'],indent=2))
           PY
           node --check /tmp/mn-inline.js
-      - name: Commit generated candidate and evidence
+      - name: Commit generated candidate, evidence and plan
         run: |
-          git add market-navigator-turn29-pre-ship.html market-evidence/current-state-v1.json
+          git add market-navigator-turn29-pre-ship.html market-evidence/current-state-v1.json MARKET-NAVIGATOR-MASTER-PLAN.md
           if git diff --cached --quiet; then exit 0; fi
           git config user.name github-actions[bot]
           git config user.email 41898282+github-actions[bot]@users.noreply.github.com
-          git commit -m 'build: qualify Turn 29 NOW current candidate'
+          git commit -m 'build: qualify Turn 29 NOW current candidate and plan'
           git push
