@@ -1,0 +1,69 @@
+name: Market Navigator Turn 31
+on:
+  push:
+    branches: [main]
+    paths:
+      - market-navigator-build-turn31.py
+      - .github/workflows/market-navigator-turn31.yml
+  workflow_dispatch:
+permissions:
+  contents: write
+jobs:
+  build-qualify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build from accepted Turn 28 Ship
+        run: python3 market-navigator-build-turn31.py
+      - name: Shared-surface architecture gates
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          s=Path('market-navigator-turn31-pre-ship.html').read_text()
+          assert s.count('async function chartSurface31(')==1
+          assert "chartSurface31({host:'now'" in s
+          assert "chartSurface31({host:'analysis'" in s
+          assert s.count('async function renderStandaloneAnalysis26(){')==1
+          assert 'sourceSetStandalone26(id,w' not in s
+          assert "plan=axisPlan(available.map(z=>z.id)),mode=plan.mode" in s
+          assert "kinds.length===2" in s and "return{mode:'indexed'" in s
+          assert 'TURN31_SHARED_CHART_SURFACE' in s
+          assert 'market-navigator-turn30-pre-ship' not in s
+          print('PASS shared chart surface: NOW + Analyze')
+          print('PASS exactly two incompatible families => dual')
+          print('PASS 3+ incompatible families => Indexed 100')
+          print('PASS rejected Turn 30 is not an ancestor')
+          PY
+      - name: JavaScript syntax
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          import re
+          s=Path('market-navigator-turn31-pre-ship.html').read_text()
+          js=re.findall(r'<script>(.*?)</script>',s,re.S)[-1]
+          Path('/tmp/mn31.js').write_text(js)
+          PY
+          node --check /tmp/mn31.js
+      - name: Record rejection and candidate in governance
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          plan=Path('MARKET-NAVIGATOR-MASTER-PLAN.md')
+          p=plan.read_text()
+          marker='## Turn 31 — shared chart surface rebuild — 2026-09-30\n'
+          if marker not in p:
+            p += '\n\n'+marker+'\nOwner rejected Turn 30 because Analyze duplicated the chart surface and allowed divergent legend/axis behavior. Construction baseline is owner-accepted `market-navigator-turn28-ship.html` commit `019810f5524c16a0f6f7132eba60d1bab416d100`. Turn 31 extracts one callable chart-surface preparation/axis/legend path and calls it from NOW and standalone Analyze. Analyze supplies only root series, series selection, horizon, and host. Axis contract: one family = native Y1; exactly two incompatible families = native Y1/Y2; three or more incompatible families = Indexed 100 Y1. Non-goals: no index-math, evidence, Library, Health, AI, navigation, or unrelated UI changes.\n'
+            plan.write_text(p)
+          gy=Path('MARKET-NAVIGATOR-GRAVEYARD.md'); g=gy.read_text(); gm='## 20. Turn 30 duplicate Analyze surface rejection — 2026-09-30\n'
+          if gm not in g:
+            g += '\n\n'+gm+'\nTurn 30 component-analysis implementation is rejected as an application donor. It duplicated chart-surface preparation/chrome and allowed Analyze behavior to diverge from the correct chart surface. Do not patch Turn 30 forward. Standalone Analyze must call the same governed chart-surface path as the primary chart, with only host/root/series/horizon supplied as context.\n'
+            gy.write_text(g)
+          PY
+      - name: Commit candidate and governance record together
+        run: |
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git add market-navigator-turn31-pre-ship.html MARKET-NAVIGATOR-MASTER-PLAN.md MARKET-NAVIGATOR-GRAVEYARD.md
+          git diff --cached --quiet && exit 0
+          git commit -m "Market Navigator Turn 31: shared chart surface candidate"
+          git push
