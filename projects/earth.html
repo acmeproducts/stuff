@@ -107,7 +107,7 @@
 </div>
 <script>
 'use strict';
-const BUILD = 'M4-biomes 2026-09-30';
+const BUILD = 'M5-city 2026-09-30';
 const errBox = document.getElementById('errBox');
 function showErr(msg) {
   errBox.style.display = 'block';
@@ -677,6 +677,330 @@ function startApp(cdnUrl) {
     water.scaling.z = s;
   }
 
+  // ---- M5 city: Overpass roads + buildings with procedural fallback ----
+  const OVERPASS_HOSTS = [
+    'https://overpass-api.de/api/interpreter',
+    'https://overpass.kumi.systems/api/interpreter'
+  ];
+  const AREA_T = 2; // tiles per city-area side
+  const cityLive = new Map();  // areaKey -> {roads, buildings, status, feats}
+  const cityData = new Map();  // areaKey -> {proc, elements} session cache (survives eviction)
+  let osmConsecFails = 0;
+  let osmBroken = false;       // circuit breaker: stops hammering a dead Overpass
+  let osmBackoff = 5000;
+  let cityPending = null;
+  let lastAreaKey = '';
+
+  const cityMat = new BABYLON.StandardMaterial('cityMat', scene);
+  cityMat.specularColor = new BABYLON.Color3(0, 0, 0);
+  cityMat.ambientColor = new BABYLON.Color3(0.5, 0.5, 0.5);
+  cityMat.backFaceCulling = false;
+
+  function worldFromLatLon(lat, lon) {
+    const f = tileFrac(lat, lon);
+    return { x: (f.x - originTx - 0.5) * TILE_M, z: -(f.y - originTy - 0.5) * TILE_M };
+  }
+  function tileLonW(tx) { return tx / NZ * 360 - 180; }
+  function tileLatN(ty) { return Math.atan(Math.sinh(Math.PI * (1 - 2 * ty / NZ))) / DEG2RAD; }
+  function sleep(ms) { return new Promise(function(res) { setTimeout(res, ms); }); }
+
+  function clearCityMeshes() {
+    for (const a of cityLive.values()) {
+      if (a.roads) a.roads.dispose();
+      if (a.buildings) a.buildings.dispose();
+    }
+    cityLive.clear();
+    cityData.clear();
+    cityPending = null;
+    lastAreaKey = '';
+  }
+
+  function meshFromVerts(name, pos, idx, col) {
+    const normals = [];
+    BABYLON.VertexData.ComputeNormals(pos, idx, normals);
+    const vd = new BABYLON.VertexData();
+    vd.positions = pos;
+    vd.indices = idx;
+    vd.normals = normals;
+    vd.colors = col;
+    const m = new BABYLON.Mesh(name, scene);
+    vd.applyToMesh(m);
+    m.material = cityMat;
+    return m;
+  }
+
+  const ROAD_W = { motorway: 12, trunk: 10, primary: 10, secondary: 8, tertiary: 6,
+    residential: 6, unclassified: 5, living_street: 5, service: 4, pedestrian: 4,
+    track: 4, footway: 2.5, path: 2.5, cycleway: 2.5, steps: 2 };
+
+  function addRibbonSeg(pos, idx, col, x0, z0, x1, z1, w, r, g, b) {
+    const dx = x1 - x0, dz = z1 - z0;
+    const len = Math.hypot(dx, dz);
+    if (len < 0.01) return;
+    const px = -dz / len * w / 2, pz = dx / len * w / 2;
+    const n = Math.max(1, Math.ceil(len / 16));
+    for (let k = 0; k < n; k++) {
+      const t0 = k / n, t1 = (k + 1) / n;
+      const ax = x0 + dx * t0, az = z0 + dz * t0;
+      const bx = x0 + dx * t1, bz = z0 + dz * t1;
+      const base = pos.length / 3;
+      pos.push(
+        ax + px, worldHeight(ax + px, az + pz) + 0.18, az + pz,
+        ax - px, worldHeight(ax - px, az - pz) + 0.18, az - pz,
+        bx + px, worldHeight(bx + px, bz + pz) + 0.18, bz + pz,
+        bx - px, worldHeight(bx - px, bz - pz) + 0.18, bz - pz);
+      for (let q2 = 0; q2 < 4; q2++) col.push(r, g, b, 1);
+      idx.push(base, base + 2, base + 1, base + 1, base + 2, base + 3);
+    }
+  }
+
+  function addBuildingBox(pos, idx, col, ring, hgt, seed) {
+    let cx = 0, cz = 0;
+    for (const p of ring) { cx += p.x; cz += p.z; }
+    cx /= ring.length; cz /= ring.length;
+    const base = worldHeight(cx, cz) - 1.0;
+    const top = base + 1.0 + hgt;
+    const rr = 0.55 + 0.35 * hash2(seed, 1.1);
+    const gg = 0.55 + 0.35 * hash2(seed, 2.3);
+    const bb = 0.55 + 0.35 * hash2(seed, 3.7);
+    for (let i = 0; i < ring.length; i++) {
+      const a = ring[i], b2 = ring[(i + 1) % ring.length];
+      const vb = pos.length / 3;
+      const sh = 0.8 + 0.2 * hash2(seed, i * 1.7);
+      pos.push(a.x, base, a.z, b2.x, base, b2.z, b2.x, top, b2.z, a.x, top, a.z);
+      for (let q2 = 0; q2 < 4; q2++) col.push(rr * sh, gg * sh, bb * sh, 1);
+      idx.push(vb, vb + 1, vb + 2, vb, vb + 2, vb + 3);
+    }
+    const rb = pos.length / 3;
+    pos.push(cx, top + 0.05, cz);
+    col.push(rr * 0.55, gg * 0.55, bb * 0.55, 1);
+    for (let i = 0; i < ring.length; i++) {
+      const a = ring[i], b2 = ring[(i + 1) % ring.length];
+      pos.push(a.x, top + 0.05, a.z, b2.x, top + 0.05, b2.z);
+      col.push(rr * 0.55, gg * 0.55, bb * 0.55, 1, rr * 0.55, gg * 0.55, bb * 0.55, 1);
+      idx.push(rb, rb + 1 + ((i + 1) % ring.length) * 2, rb + 1 + i * 2);
+    }
+  }
+
+  function addDoorBuilding(pos, idx, col, cx, cz, w, d, hgt, seed, doorAxis, doorSign) {
+    const x0 = cx - w / 2, x1 = cx + w / 2, z0 = cz - d / 2, z1 = cz + d / 2;
+    const base = worldHeight(cx, cz) - 1.0;
+    const top = base + 1.0 + hgt;
+    const rr = 0.6 + 0.3 * hash2(seed, 1.1);
+    const gg = 0.6 + 0.3 * hash2(seed, 2.3);
+    const bb = 0.6 + 0.3 * hash2(seed, 3.7);
+    function quad(ax, ay, az, bx, by, bz, cx2, cy2, cz2, dx2, dy2, dz2, sh) {
+      const vb = pos.length / 3;
+      pos.push(ax, ay, az, bx, by, bz, cx2, cy2, cz2, dx2, dy2, dz2);
+      for (let q2 = 0; q2 < 4; q2++) col.push(rr * sh, gg * sh, bb * sh, 1);
+      idx.push(vb, vb + 1, vb + 2, vb, vb + 2, vb + 3);
+    }
+    function wall(ax, az, bx, bz, withDoor) {
+      if (!withDoor) {
+        quad(ax, base, az, bx, base, bz, bx, top, bz, ax, top, az, 0.85);
+        return;
+      }
+      const len = Math.hypot(bx - ax, bz - az);
+      const ux = (bx - ax) / len, uz = (bz - az) / len;
+      const hw = Math.min(1.1, len * 0.15);
+      const dh = Math.min(3.0, hgt * 0.55);
+      const mx = (ax + bx) / 2, mz = (az + bz) / 2;
+      const l1x = mx - ux * hw, l1z = mz - uz * hw;
+      const l2x = mx + ux * hw, l2z = mz + uz * hw;
+      quad(ax, base, az, l1x, base, l1z, l1x, top, l1z, ax, top, az, 0.85);
+      quad(l2x, base, l2z, bx, base, bz, bx, top, bz, l2x, top, l2z, 0.85);
+      quad(l1x, base + 1 + dh, l1z, l2x, base + 1 + dh, l2z, l2x, top, l2z, l1x, top, l1z, 0.8);
+    }
+    wall(x0, z0, x1, z0, doorAxis === 'z' && doorSign < 0);
+    wall(x1, z0, x1, z1, doorAxis === 'x' && doorSign > 0);
+    wall(x1, z1, x0, z1, doorAxis === 'z' && doorSign > 0);
+    wall(x0, z1, x0, z0, doorAxis === 'x' && doorSign < 0);
+    quad(x0, top + 0.05, z0, x0, top + 0.05, z1, x1, top + 0.05, z1, x1, top + 0.05, z0, 0.55);
+  }
+
+  function buildCityFromOSM(ax, ay, elements) {
+    const rPos = [], rIdx = [], rCol = [];
+    const bPos = [], bIdx = [], bCol = [];
+    let roadN = 0, bldN = 0;
+    for (const el of elements) {
+      if (el.type !== 'way' || !el.geometry || el.geometry.length < 2) continue;
+      const tags = el.tags || {};
+      if (tags.highway) {
+        if (roadN >= 600) continue;
+        const w = ROAD_W[tags.highway] || 5;
+        const minor = tags.highway === 'footway' || tags.highway === 'path' ||
+          tags.highway === 'cycleway' || tags.highway === 'steps';
+        const shade = minor ? 0.42 : 0.16;
+        let prev = null;
+        for (const nd of el.geometry) {
+          const p = worldFromLatLon(nd.lat, nd.lon);
+          if (prev) addRibbonSeg(rPos, rIdx, rCol, prev.x, prev.z, p.x, p.z, w, shade, shade, shade * 1.06);
+          prev = p;
+        }
+        roadN++;
+      } else if (tags.building && el.geometry.length >= 4) {
+        if (bldN >= 800) continue;
+        const g = el.geometry;
+        const first = g[0], last = g[g.length - 1];
+        if (first.lat !== last.lat || first.lon !== last.lon) continue;
+        const ring = [];
+        let minx = 1e18, maxx = -1e18, minz = 1e18, maxz = -1e18;
+        for (let i = 0; i < g.length - 1; i++) {
+          const p = worldFromLatLon(g[i].lat, g[i].lon);
+          ring.push(p);
+          if (p.x < minx) minx = p.x; if (p.x > maxx) maxx = p.x;
+          if (p.z < minz) minz = p.z; if (p.z > maxz) maxz = p.z;
+        }
+        if (ring.length < 3 || maxx - minx > 400 || maxz - minz > 400) continue;
+        let hgt = parseFloat(tags.height);
+        if (!(hgt > 2)) hgt = (parseInt(tags['building:levels'], 10) || 0) * 3;
+        if (!(hgt > 2)) hgt = 8 + hash2(first.lat * 100, first.lon * 100) * 14;
+        addBuildingBox(bPos, bIdx, bCol, ring, Math.min(hgt, 220), el.id * 0.613);
+        bldN++;
+      }
+    }
+    const area = { roads: null, buildings: null, status: 'ok', feats: roadN + bldN };
+    if (rIdx.length) area.roads = meshFromVerts('crd' + ax + ',' + ay, rPos, rIdx, rCol);
+    if (bIdx.length) area.buildings = meshFromVerts('cbd' + ax + ',' + ay, bPos, bIdx, bCol);
+    return area;
+  }
+
+  function buildProcCity(ax, ay) {
+    const rPos = [], rIdx = [], rCol = [];
+    const bPos = [], bIdx = [], bCol = [];
+    const wx0 = (ax * AREA_T - originTx - 0.5) * TILE_M;
+    const wx1 = wx0 + AREA_T * TILE_M;
+    const wz0 = -(ay * AREA_T - originTy + 0.5) * TILE_M;
+    const wz1 = wz0 + AREA_T * TILE_M;
+    const seedA = ax * 91.7 + ay * 37.3;
+    const spacing = 118 + hash2(seedA, 1) * 14;
+    let feats = 0;
+    for (let x = wx0 + hash2(seedA, 2) * spacing; x < wx1; x += spacing) {
+      for (let z = wz0; z < wz1; z += 20) {
+        const z2 = Math.min(z + 20, wz1);
+        if (worldHeight(x, z) < 1.5 && worldHeight(x, z2) < 1.5) continue;
+        addRibbonSeg(rPos, rIdx, rCol, x, z, x, z2, 6, 0.17, 0.17, 0.18);
+      }
+      feats++;
+      let side = hash2(x, seedA) > 0.5 ? 1 : -1;
+      for (let z = wz0 + 10 + hash2(x, 7.7) * 20; z < wz1 - 10; z += 26 + hash2(x, z) * 14) {
+        if (hash2(x * 1.3, z * 0.7) < 0.35) continue;
+        const d = 9 + hash2(x, z * 1.1) * 8;
+        const w = 9 + hash2(x * 0.9, z) * 9;
+        const cx = x + side * (5 + d / 2);
+        if (worldHeight(cx, z) < 2) continue;
+        addDoorBuilding(bPos, bIdx, bCol, cx, z, d, w, 8 + hash2(x * 2.1, z * 1.7) * 14,
+          x * 0.01 + z * 0.013, 'x', -side);
+        side = -side;
+        feats++;
+      }
+    }
+    for (let z = wz0 + hash2(seedA, 3) * spacing; z < wz1; z += spacing) {
+      for (let x = wx0; x < wx1; x += 20) {
+        const x2 = Math.min(x + 20, wx1);
+        if (worldHeight(x, z) < 1.5 && worldHeight(x2, z) < 1.5) continue;
+        addRibbonSeg(rPos, rIdx, rCol, x, z, x2, z, 6, 0.17, 0.17, 0.18);
+      }
+      feats++;
+      let side = hash2(z, seedA) > 0.5 ? 1 : -1;
+      for (let x = wx0 + 10 + hash2(z, 5.1) * 20; x < wx1 - 10; x += 26 + hash2(z, x) * 14) {
+        if (hash2(z * 1.3, x * 0.7) < 0.35) continue;
+        const w = 9 + hash2(z, x * 1.1) * 9;
+        const d = 9 + hash2(z * 0.9, x) * 8;
+        const cz = z + side * (5 + d / 2);
+        if (worldHeight(x, cz) < 2) continue;
+        addDoorBuilding(bPos, bIdx, bCol, x, cz, w, d, 8 + hash2(z * 2.1, x * 1.7) * 14,
+          z * 0.011 + x * 0.017, 'z', -side);
+        side = -side;
+        feats++;
+      }
+    }
+    const area = { roads: null, buildings: null, status: 'proc', feats: feats };
+    if (rIdx.length) area.roads = meshFromVerts('crd' + ax + ',' + ay, rPos, rIdx, rCol);
+    if (bIdx.length) area.buildings = meshFromVerts('cbd' + ax + ',' + ay, bPos, bIdx, bCol);
+    return area;
+  }
+
+  function mountCity(ax, ay, key) {
+    if (cityLive.has(key)) return;
+    const data = cityData.get(key);
+    if (!data) return;
+    const area = data.proc ? buildProcCity(ax, ay) : buildCityFromOSM(ax, ay, data.elements);
+    cityLive.set(key, area);
+  }
+
+  async function fetchCity(ax, ay, key) {
+    if (cityLive.has(key)) return;
+    if (cityData.has(key)) { mountCity(ax, ay, key); return; }
+    if (osmBroken) {
+      cityData.set(key, { proc: true });
+      mountCity(ax, ay, key);
+      return;
+    }
+    const S = tileLatN(ay * AREA_T + AREA_T).toFixed(6);
+    const N2 = tileLatN(ay * AREA_T).toFixed(6);
+    const W2 = tileLonW(ax * AREA_T).toFixed(6);
+    const E2 = tileLonW(ax * AREA_T + AREA_T).toFixed(6);
+    const q = '[out:json][timeout:25];(way["highway"](' + S + ',' + W2 + ',' + N2 + ',' + E2 +
+      ');way["building"](' + S + ',' + W2 + ',' + N2 + ',' + E2 + '););out geom;';
+    for (let h = 0; h < OVERPASS_HOSTS.length; h++) {
+      const ctrl = new AbortController();
+      const timer = setTimeout(function() { ctrl.abort(); }, 25000);
+      try {
+        const resp = await fetch(OVERPASS_HOSTS[h], {
+          method: 'POST',
+          mode: 'cors',
+          signal: ctrl.signal,
+          headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+          body: 'data=' + encodeURIComponent(q)
+        });
+        if (resp.status === 429 || resp.status >= 500) {
+          osmBackoff = Math.min(osmBackoff * 2, 60000);
+          await sleep(Math.min(osmBackoff, 12000));
+          if (lastAreaKey !== key) return;
+          throw new Error('HTTP ' + resp.status);
+        }
+        if (!resp.ok) throw new Error('HTTP ' + resp.status);
+        const j = await resp.json();
+        osmConsecFails = 0;
+        osmBackoff = 5000;
+        cityData.set(key, { proc: false, elements: j.elements || [] });
+        mountCity(ax, ay, key);
+        return;
+      } catch (e) {
+      } finally {
+        clearTimeout(timer);
+      }
+    }
+    osmConsecFails++;
+    if (osmConsecFails >= 3) osmBroken = true;
+    cityData.set(key, { proc: true });
+    mountCity(ax, ay, key);
+  }
+
+  function updateCity(ptx, pty) {
+    const ax = Math.floor(ptx / AREA_T), ay = Math.floor(pty / AREA_T);
+    const akey = ax + ',' + ay;
+    if (akey !== lastAreaKey) {
+      lastAreaKey = akey;
+      cityPending = { key: akey, ax: ax, ay: ay, since: performance.now() };
+      for (const entry of cityLive) {
+        const kp = entry[0].split(',');
+        if (Math.max(Math.abs(+kp[0] - ax), Math.abs(+kp[1] - ay)) > 1) {
+          const a = entry[1];
+          if (a.roads) a.roads.dispose();
+          if (a.buildings) a.buildings.dispose();
+          cityLive.delete(entry[0]);
+        }
+      }
+    }
+    if (cityPending && performance.now() - cityPending.since > 1500) {
+      const p = cityPending;
+      cityPending = null;
+      fetchCity(p.ax, p.ay, p.key).catch(function() {});
+    }
+  }
+
   function buildTileMesh(t) {
     const N = t.lod, nb = N + 1;
     const positions = [], indices = [], normals = [], uvs = [], colors = [];
@@ -938,6 +1262,10 @@ function startApp(cdnUrl) {
       disposeTileExtras(t);
     }
     tiles.clear();
+    clearCityMeshes();
+    osmBroken = false;
+    osmConsecFails = 0;
+    osmBackoff = 5000;
     vy = 0;
     airborne = false;
     const f = tileFrac(lat, lon);
@@ -1297,6 +1625,9 @@ function startApp(cdnUrl) {
       updateStreaming(ptx, pty);
     }
 
+    // M5: city areas (debounced Overpass query ~1.5 s after settling)
+    updateCity(ptx, pty);
+
     // M4: water plane follows the player and animates (bob + texture drift)
     water.position.x = (ptx - originTx) * TILE_M;
     water.position.z = -(pty - originTy) * TILE_M;
@@ -1334,6 +1665,15 @@ function startApp(cdnUrl) {
       if (t.lcSrc === 'titi') lcTiti++;
       vegTotal += t.vegCount || 0;
     }
+    let osmAreas = 0, osmProcAreas = 0, osmFeats = 0;
+    for (const a of cityLive.values()) {
+      if (a.status === 'ok') { osmAreas++; osmFeats += a.feats; }
+      else osmProcAreas++;
+    }
+    let osmLine = '--';
+    if (osmAreas > 0) osmLine = 'OK ' + osmFeats;
+    if (osmProcAreas > 0) osmLine = (osmAreas > 0 ? osmLine + ' / ' : '') + 'PROC ' + osmProcAreas;
+    if (osmBroken) osmLine += ' (brk)';
     topHud.innerHTML = BUILD +
       '<br>FPS:' + fps +
       '<br>Lat:' + lat.toFixed(5) + ' Lon:' + lon.toFixed(5) +
@@ -1347,6 +1687,7 @@ function startApp(cdnUrl) {
       '<br>SRC: TERR ' + terr + ' / PROC ' + proc +
       '<br>IMG: ' + (settings.imagery ? ('OK ' + imgOk + ' / FAIL ' + imgFails + ' · Imagery © Esri & contributors') : 'off') +
       '<br>LC: ' + (lcTiti > 0 ? 'TITI ' + lcTiti + ' / ' : '') + 'PROC ' + (tiles.size - lcTiti) + ' · VEG ' + vegTotal +
+      '<br>OSM: ' + osmLine +
       '<br>NET fails:' + netFails + (lastNetErr ? ' (' + lastNetErr.slice(0, 40) + ')' : '') +
       '<br>CDN:' + cdnUrl.split('/')[2];
   });
