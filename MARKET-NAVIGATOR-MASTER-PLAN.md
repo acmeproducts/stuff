@@ -2021,10 +2021,15 @@ Owner correction 2026-09-30. The earlier Turn 29 candidate placed Current/Trend 
 
 - Current-state classification is retained only as governed **Analysis evidence** and **Health/Glossary methodology evidence**.
 - No Current/Trend arrow, color, label, badge, or state is added to the existing drill-down strip.
-- The future dashboard entry point remains **undefined and unimplemented** until Part B (Trend research disposition) is complete and the owner explicitly approves dashboard layout/placement.
 - Predictive `MN-TREND-1.0.0` failed production qualification and remains research-only. It must not appear in NOW, drill-down, narrative as validated forecast, Library, Print, Download, or production Health as a validated model.
 - The failed Trend V1 scheduled publisher is disabled; V1 can only be reproduced manually as research evidence.
 - Turn 29 candidate is rebuilt directly from the qualified Turn 28 Ship baseline and may alter only Analysis evidence context and Health Glossary content for descriptive Current state.
 - Candidate: `market-navigator-turn29-pre-ship.html`; evidence: `market-evidence/current-state-v1.json`; builder: `market-navigator-build-turn29.py`.
 - Release gates: exact Turn 28 Ship ancestry; deterministic rebuild; syntax; `forecast=false`; `uiPlacement=ANALYSIS_HEALTH_ONLY`; no drill-down-strip state CSS/rendering; all three governed indices present; owner qualification before baseline promotion.
+
+### 46.1 Part B — Trend research disposition COMPLETE
+
+Part B is complete as of 2026-09-30. The fixed V2 diagnostic compared the failed institutional Trend V1 with a 20-calendar-day recent-index-direction baseline and an agreement-only hybrid. None clears the burden for a governed 10–30-day investor-facing prediction. MAC V1 materially underperformed the naive baseline; GRW improved on a weak baseline but only reached ~54% at 20/30 days; RSK remained ~50–54%. Evidence: `market-evidence/reports/trend-v2-research.json` and `MARKET-NAVIGATOR-TREND-PART-B-DISPOSITION-2026-09-30.md`.
+
+**Disposition:** no predictive Trend is approved. Future predictive research is optional and requires genuinely untouched/prospective evidence. Part B no longer blocks discussion of a future dashboard, but **no dashboard layout or UI placement is approved by this closure**. Dashboard design remains a separate owner design decision under §44.
 
