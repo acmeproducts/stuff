@@ -1,18 +1,27 @@
 #!/usr/bin/env bash
 set -Eeuo pipefail
-REF="46c8fdbc70acbb3c769216ff38c7048bde2290a7"
+REF="9bf5f63f8717c20774fb8afc4c55bdf83583dc8b"
 BASE="https://raw.githubusercontent.com/acmeproducts/stuff/$REF/SOT"
 ROOT="$HOME/.sot-turn02/release-d/SOT"
 UNIT="$HOME/.config/systemd/user/sot-turn02-release-d.service"
 TMP="$(mktemp -d)"
 trap 'rm -rf "$TMP"' EXIT
 mkdir -p "$ROOT" "$HOME/.config/systemd/user"
-for f in sot-turn02-release-d-autosync.py sot-turn02-release-d.service qualify-release-d-autosync.py sot-turn02-release-d-source-actions.html; do curl -fsSL "$BASE/$f" -o "$TMP/$f"; done
+for f in sot-turn02-release-d-autosync.py sot-turn02-release-d.service qualify-release-d-autosync.py sot-turn02-release-d-source-actions.html sot-turn02-release-d-complete.html; do curl -fsSL "$BASE/$f" -o "$TMP/$f"; done
 python3 -m py_compile "$TMP/sot-turn02-release-d-autosync.py" "$TMP/qualify-release-d-autosync.py"
 python3 "$TMP/qualify-release-d-autosync.py"
+python3 - "$TMP/sot-turn02-release-d-complete.html" "$TMP/complete.js" <<'PY'
+from pathlib import Path
+import sys
+s=Path(sys.argv[1]).read_text()
+js=s.split("<script>",1)[1].split("</script>",1)[0]
+Path(sys.argv[2]).write_text(js)
+PY
+node --check "$TMP/complete.js"
 install -m 0644 "$TMP/sot-turn02-release-d-autosync.py" "$ROOT/sot-turn02-release-d-autosync.py"
 install -m 0644 "$TMP/qualify-release-d-autosync.py" "$ROOT/qualify-release-d-autosync.py"
 install -m 0644 "$TMP/sot-turn02-release-d-source-actions.html" "$ROOT/sot-turn02-release-d-source-actions.html"
+install -m 0644 "$TMP/sot-turn02-release-d-complete.html" "$ROOT/sot-turn02-release-d-complete.html"
 install -m 0644 "$TMP/sot-turn02-release-d.service" "$UNIT"
 systemctl --user daemon-reload
 systemctl --user restart sot-turn02-release-d.service
@@ -48,5 +57,30 @@ uncovered=[x for x in needs if x not in live]
 assert not uncovered,{'uncovered_registered_sources':uncovered,'live_source_ids':sorted(live)}
 print('PASS stale/pending registered sources are covered by automatic live work')
 PY
+python3 - <<'PY'
+import json,urllib.parse,urllib.request
+after=0
+count=0
+total=None
+revision=None
+while True:
+    q=urllib.parse.urlencode({'after':after,'limit':5000})
+    with urllib.request.urlopen('http://127.0.0.1:8765/api/placements/page?'+q,timeout=30) as r:
+        z=json.load(r)
+    assert z.get('ok'),z
+    if revision is None:revision=z.get('catalog_revision')
+    assert z.get('catalog_revision')==revision,(revision,z.get('catalog_revision'))
+    total=int(z.get('total',0))
+    rows=z.get('placements',[])
+    count+=len(rows)
+    if not z.get('has_more'):break
+    nxt=int(z.get('next_after',0))
+    assert nxt>after,(after,nxt)
+    after=nxt
+assert count==total,(count,total)
+print(f'PASS complete live placement delivery rows={count}')
+PY
+curl -fsS http://127.0.0.1:8765/api/plan >/dev/null
+echo "PASS complete live Plan endpoint"
 echo "PASS Queue/Sources owner workflow replaced by continuous SSOT"
-echo "TEST https://acmeproducts.github.io/stuff/SOT/sot-turn02-release-d-source-actions.html?v=$REF&api=https%3A%2F%2Foc-ref.fell-dojo.ts.net%2Fsot"
+echo "TEST https://acmeproducts.github.io/stuff/SOT/sot-turn02-release-d-complete.html?v=$REF&api=https%3A%2F%2Foc-ref.fell-dojo.ts.net%2Fsot"
