@@ -1,5 +1,5 @@
-<!-- TALKBRIDGE-PLAN v21.63.1 -->
-# TALKBRIDGE MASTER PLAN v21.63.1
+<!-- TALKBRIDGE-PLAN v21.63.2 -->
+# TALKBRIDGE MASTER PLAN v21.63.2
 
 **Location:** `talkbridge/TALKBRIDGE-PLAN-v9.md` in `acmeproducts/stuff`.
 **Owner:** Confi — sole decision-maker, runs every device gate.
@@ -2038,6 +2038,8 @@ Green means allowed to push. It never means done.
 ---
 
 ## 10 · CHANGE LOG
+
+**v21.63.2 · 2026-09-30.** Ownership workflow: the pull_request trigger loses its path filter so the check runs on every PR (a required check that never runs blocks the PR forever). Prerequisite for making "TalkBridge ownership" a required check on main.
 
 **v21.63.1 · 2026-09-30.** Governance protection only, at owner order (G61 replacement 2): `.github/workflows/talkbridge-ownership.yml` + `talkbridge/build/ownership-gate.mjs`. Every commit in a push to main or a pull request that changes or deletes `talkbridge/**`, `bridge-turn*.html`, `tb-*.js`, `tb-manifest-*` or `icon-v2-*` must be a TalkBridge commit — its message names TalkBridge, a turn·stage, or a plan version; the automated device log (`talkbridge/DEVICE-LOG.md`) is exempt. Judged per commit by first-parent diff. Proven on history: refuses `fdd61e2` (19 files), passes every TalkBridge and device-log commit since; 13-case self-test. Limit stated plainly: CI turns a push red, it cannot un-push; to make the check a hard block on merges, the owner enables branch protection on main with "TalkBridge ownership" as a required status check (a repository setting). No candidate, accepted artifact or product behaviour touched — hashes verified unchanged.
 
