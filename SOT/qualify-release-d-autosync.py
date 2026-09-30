@@ -92,3 +92,23 @@ for forbidden in ['Source action needed','Kick off only uncovered sources','Anal
 assert "if(live)return 'Syncing'" in ui
 print('PASS Analyze is one SSOT surface: Current / Syncing / Problem with internal history absent from the owner UI')
 print('PASS forced catalog refresh is retained while a paged placement refresh is already running')
+
+# Owner-directed report/search convergence acceptance. These checks intentionally fail
+# on the prior complete-placement baseline until the UI contract below is implemented.
+for required in [
+    'Database refreshing / rebuilding',
+    '__ssotSetRefreshBlocker',
+    '__ssotUnifySearchViews',
+    '__ssotOpenReportSearch',
+    '__ssotReportFirst',
+    'Table',
+    'Grid',
+    'UNIQUE',
+    'DUPLICATE',
+    'KEEP',
+    'EXCESS',
+]:
+    assert required in complete,required
+print('PASS database refresh is visibly blocked until the complete estate is applied')
+print('PASS Report is first and Database/Grid are one central Search surface with Table/Grid views')
+print('PASS report rows route directly into central Search')
