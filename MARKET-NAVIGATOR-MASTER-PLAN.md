@@ -2015,21 +2015,60 @@ Target: `market-navigator-turn28-post-ship.html`.
 
 ---
 
-## 46. Turn 29 — Current-state Analysis + Health; dashboard deferred
+## 46. Turn 29 — Current-state matrix dashboard + Analysis + Health
 
-Owner correction 2026-09-30. The earlier Turn 29 candidate placed Current/Trend state in the existing drill-down strip without approval. That placement is rejected and must not be promoted.
-
-- Current-state classification is retained only as governed **Analysis evidence** and **Health/Glossary methodology evidence**.
-- No Current/Trend arrow, color, label, badge, or state is added to the existing drill-down strip.
-- Predictive `MN-TREND-1.0.0` failed production qualification and remains research-only. It must not appear in NOW, drill-down, narrative as validated forecast, Library, Print, Download, or production Health as a validated model.
-- The failed Trend V1 scheduled publisher is disabled; V1 can only be reproduced manually as research evidence.
-- Turn 29 candidate is rebuilt directly from the qualified Turn 28 Ship baseline and may alter only Analysis evidence context and Health Glossary content for descriptive Current state.
-- Candidate: `market-navigator-turn29-pre-ship.html`; evidence: `market-evidence/current-state-v1.json`; builder: `market-navigator-build-turn29.py`.
-- Release gates: exact Turn 28 Ship ancestry; deterministic rebuild; syntax; `forecast=false`; `uiPlacement=ANALYSIS_HEALTH_ONLY`; no drill-down-strip state CSS/rendering; all three governed indices present; owner qualification before baseline promotion.
+Owner approved 2026-09-30 after Part B closure. The rejected drill-down-strip placement remains prohibited.
 
 ### 46.1 Part B — Trend research disposition COMPLETE
 
-Part B is complete as of 2026-09-30. The fixed V2 diagnostic compared the failed institutional Trend V1 with a 20-calendar-day recent-index-direction baseline and an agreement-only hybrid. None clears the burden for a governed 10–30-day investor-facing prediction. MAC V1 materially underperformed the naive baseline; GRW improved on a weak baseline but only reached ~54% at 20/30 days; RSK remained ~50–54%. Evidence: `market-evidence/reports/trend-v2-research.json` and `MARKET-NAVIGATOR-TREND-PART-B-DISPOSITION-2026-09-30.md`.
+Predictive `MN-TREND-1.0.0` failed production qualification. V2 diagnostic evidence did not clear the burden for a governed 10–30-day investor-facing prediction. **No predictive Trend is approved.** The failed V1 scheduled publisher remains disabled.
 
-**Disposition:** no predictive Trend is approved. Future predictive research is optional and requires genuinely untouched/prospective evidence. Part B no longer blocks discussion of a future dashboard, but **no dashboard layout or UI placement is approved by this closure**. Dashboard design remains a separate owner design decision under §44.
+### 46.2 Approved dashboard hierarchy
+
+At the ENV/NOW entry point, add one compact live-linked state matrix above the existing chart. It contains:
+
+1. the existing horizon choices `1D · 5D · MTD · YTD · 1YR · 3YR · 5YR`;
+2. one `ENVIRONMENT` synthesis row;
+3. three columns in owner-specified order: `RISK · GROWTH · MACRO`;
+4. exactly five favorability circles for each RSK/GRW/MAC index;
+5. exactly seven governed component rows beneath each index, each with exactly five favorability circles;
+6. a descriptive arrow beside Environment, each index and each component;
+7. every Environment/index/component label is a live link into the corresponding existing NOW state.
+
+The matrix is an entry/dashboard surface. It must not add indicators to the existing drill-down strip.
+
+### 46.3 Visual semantics
+
+The five-circle scale is always **market favorability**, regardless of a source's native direction:
+
+- levels 1–2: red / unfavorable;
+- level 3: yellow / neutral or mixed;
+- levels 4–5: green / favorable.
+
+A component/index level is its current selected-horizon governed movement ranked against historical movements of the same span, after applying the index's favorability orientation. This preserves one visual grammar across positive-growth and negative-risk/pressure concepts.
+
+Arrows are descriptive selected-horizon recent direction only: `↑` favorable, `→` flat/mixed, `↓` unfavorable. They are **not** the rejected predictive Trend and make no 10–30-day forecast.
+
+`ENVIRONMENT` is an equal visual synthesis of RSK/GRW/MAC favorability percentiles on a 10-cell / 10-point scale. It is dashboard orientation only and **must not become a fourth governed derived index** or alter RSK/GRW/MAC mathematics.
+
+### 46.4 Evidence and governance
+
+- Source exclusively from governed `MN-PERSISTENT-1.0.0` index/component evidence.
+- No new component, source, weight, proxy, interpolation, forward fill, or alternate index arithmetic.
+- Current-state methodology is available to Analysis/AI evidence and Health/Glossary; AI may explain but not calculate/override it.
+- Dashboard horizon selection follows the same NOW horizon state and never mutates canonical evidence.
+- Candidate: `market-navigator-turn29-pre-ship.html`; evidence: `market-evidence/current-state-v1.json`; builder: `market-navigator-build-turn29.py`.
+
+### 46.5 Release gates
+
+- exact qualified Turn 28 Ship ancestry;
+- deterministic rebuild and JavaScript syntax PASS;
+- `forecast=false`;
+- seven horizons present;
+- exactly RSK/GRW/MAC, five circles per index, seven component rows per index, five circles per component;
+- Environment explicitly non-index synthesis;
+- no drill-down-strip state pseudo-elements/badges;
+- live-link handlers target existing NOW navigation;
+- Analysis/AI + Health/Glossary methodology evidence present;
+- owner qualification before baseline promotion.
 
