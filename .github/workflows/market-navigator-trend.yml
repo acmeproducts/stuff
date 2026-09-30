@@ -1,52 +1,22 @@
-name: Market Navigator Current + Trend
+name: Market Navigator Trend V1 Research Only
 on:
-  push:
-    branches: [main]
-    paths:
-      - 'market-navigator-trend.py'
-      - 'data/market-backend/trend-model-v1.json'
-      - '.github/workflows/market-navigator-trend.yml'
   workflow_dispatch:
-  schedule:
-    - cron: '12 0 * * *'
 permissions:
-  contents: write
-concurrency:
-  group: market-navigator-trend-v1
-  cancel-in-progress: false
+  contents: read
 jobs:
-  qualify:
+  research-only:
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
       - uses: actions/checkout@v4
-        with: {fetch-depth: 0}
-      - name: Build governed Trend evidence and historical backtest
+      - name: Reproduce failed V1 research evidence without publishing
         run: python3 market-navigator-trend.py
-      - name: Qualify Trend publication contract
+      - name: Enforce failed-model boundary
         run: |
           python3 - <<'PY'
           import json
           from pathlib import Path
-          e=json.loads(Path('market-evidence/trend-v1.json').read_text());b=json.loads(Path('market-evidence/reports/trend-backtest-v1.json').read_text())
-          assert e['modelVersion']=='MN-TREND-1.0.0'
-          assert set(e['indices'])=={'macro','growth','risk'}
-          for k,v in e['indices'].items():
-            assert v['state'] in {'POSITIVE','NEUTRAL','NEGATIVE','UNAVAILABLE'}
-            assert len(v['sources'])==3
-            assert all(x['vote'] in {'POSITIVE','NEUTRAL','NEGATIVE','UNAVAILABLE'} for x in v['sources'])
-          for k,v in b['tests'].items():
-            assert v['status']=='COMPLETE',(k,v)
-            for h in ('10','20','30'):
-              s=v['stats'][h];assert s['observations']>100,(k,h,s);assert s['directionalSignals']>20,(k,h,s)
-          print('CURRENT+TREND QUALIFIED',e['revision'],{k:v['state'] for k,v in e['indices'].items()})
+          b=json.loads(Path('market-evidence/reports/trend-backtest-v1.json').read_text())
+          assert b['modelVersion']=='MN-TREND-1.0.0'
+          print('MN-TREND-1.0.0 remains RESEARCH ONLY / PRODUCTION FAILED')
           PY
-      - name: Publish governed Trend evidence
-        run: |
-          set -euo pipefail
-          git config user.name 'market-evidence-bot';git config user.email 'market-evidence-bot@users.noreply.github.com'
-          git add market-evidence/trend-v1.json market-evidence/trend-series market-evidence/reports/trend-backtest-v1.json
-          if git diff --cached --quiet; then echo 'No Trend evidence changes.'; exit 0; fi
-          git commit -m 'data: publish Market Navigator trend evidence'
-          git pull --rebase origin main
-          git push origin HEAD:main
