@@ -17,10 +17,7 @@ def rr(a,b,new,label):
     if i<0 or j<0: raise SystemExit(f'{label}: anchor missing')
     s=s[:i]+new+s[j:]
 
-# The existing NOW chart card becomes the ONE physical live chart surface.
 one('<div class="card chartCard">','<div class="card chartCard" id="chartSurface32" data-surface-instance="mn-chart-surface">','single physical chart surface id')
-
-# Full-workspace modal host only. It owns no chart chrome/canvas/legend.
 one('.standaloneAnalysis26{position:relative}', '.standaloneAnalysis26{position:relative;width:100%!important;height:100%!important;max-width:none!important;max-height:none!important;border-radius:8px}.modal:has(#standaloneAnalysis26){padding:8px;place-items:stretch}.analysisMount32{position:absolute;inset:0;min-width:0;min-height:0}.analysisMount32 #chartSurface32{height:100%;border-radius:8px}.analysisClose32{position:absolute;right:10px;top:8px;z-index:80;width:34px;height:34px;border:1px solid var(--line);background:#102338;border-radius:8px;color:var(--text);font-size:18px;font-weight:900}', 'full workspace host CSS')
 
 shared=r'''/* TURN32_TRUE_SINGLE_SURFACE: exactly one physical chart surface is mounted in NOW or Analyze. */
@@ -36,11 +33,8 @@ async function renderChartSurface32(){let seq=++S.v2RenderSeq,root=surfaceRoot32
 insert=s.find('async function openV2(')
 if insert<0: raise SystemExit('shared surface insertion anchor missing')
 s=s[:insert]+shared+s[insert:]
-
-# BOTH NOW and Analyze use this same renderer and same DOM.
 rr('async function renderV2(){','function componentCard','async function renderV2(){return renderChartSurface32()}\n','replace NOW renderer with one surface renderer')
 
-# Analyze opens by physically moving the exact NOW chart node. No Analyze chart renderer.
 openclose=r'''async function openStandaloneAnalysis26(id){
   if(S.surfaceMode32==='analysis')return;
   S.surfaceFrozen32=surfaceSnapshot32();S.surfaceMode32='analysis';S.surfaceRoot32=id;S.analysisRoot=id;S.analysisChartState=null;
@@ -58,18 +52,13 @@ async function closeStandaloneAnalysis26(){
 }
 '''
 rr('async function openStandaloneAnalysis26(id){','function analysisWindow26(',openclose+'function analysisWindow26(', 'replace Analyze open/close with physical mount')
-
-# Existing standalone renderer remains unreachable evidence only; rename it so there is no live Analyze renderer contract.
 s=s.replace('async function renderStandaloneAnalysis26(){','async function retiredStandaloneAnalysis26(){',1)
 
-# Prevent third measurement family before picker mutation. Same Add path is used in NOW and Analyze.
-needle="if(id===S.index||S.nowVisible.includes(id))return;S.nowVisible.push(id);"
-replacement="if(id===S.index||S.nowVisible.includes(id))return;if(S.surfaceMode32==='analysis'){let fam=[...new Set((S.nowVisible||[]).map(measurementFamily))],nf=measurementFamily(id);if(!fam.includes(nf)&&fam.length>=2){alert('Analysis supports a maximum of two measurement types. Remove a series before adding a third type.');return}}S.nowVisible.push(id);"
-if needle not in s: raise SystemExit('Add-series mutation anchor missing')
-s=s.replace(needle,replacement,1)
-
-# Horizon buttons already belong to the moved NOW surface. Their existing handler calls renderV2,
-# which now dispatches to the one shared renderer. No Analyze-specific horizon handler is used.
+# Inject the two-family guard immediately before the one picker mutation site.
+needle='S.nowVisible.push(id);'
+if s.count(needle)<1: raise SystemExit('Add-series push anchor missing')
+guard="if(S.surfaceMode32==='analysis'){let fam=[...new Set((S.nowVisible||[]).map(measurementFamily))],nf=measurementFamily(id);if(!fam.includes(nf)&&fam.length>=2){alert('Analysis supports a maximum of two measurement types. Remove a series before adding a third type.');return}}"
+s=s.replace(needle,guard+needle,1)
 
 s=s.replace('Market Navigator · Turn 28 Corrective Candidate','Market Navigator · Turn 32 True Single Surface Candidate')
 one('</body>','<div id="turn32Marker" class="hidden" data-source-blob="544661884a412c57aac08fada4f961012a4bc496" data-contract="physical-single-chart-surface"></div></body>','Turn 32 marker')
