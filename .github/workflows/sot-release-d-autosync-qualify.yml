@@ -1,0 +1,40 @@
+name: SOT Release D Continuous SSOT Qualification
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - 'SOT/sot-turn02-release-d-autosync.py'
+      - 'SOT/sot-turn02-release-d-source-actions.html'
+      - 'SOT/sot-turn02-release-d-complete.html'
+      - 'SOT/qualify-release-d-autosync.py'
+      - 'install-SOT-turn02-release-d-autosync.sh'
+      - '.github/workflows/sot-release-d-autosync-qualify.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  qualify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - name: Python syntax and Continuous SSOT contract
+        run: |
+          set -euo pipefail
+          python3 -m py_compile SOT/sot-turn02-release-d-autosync.py SOT/qualify-release-d-autosync.py
+          python3 SOT/qualify-release-d-autosync.py
+      - name: Complete owner UI JavaScript syntax
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+          s=Path('SOT/sot-turn02-release-d-complete.html').read_text()
+          js=s.split('<script>',1)[1].split('</script>',1)[0]
+          Path('/tmp/sot-release-d-complete.js').write_text(js)
+          PY
+          node --check /tmp/sot-release-d-complete.js
+      - name: Installer syntax
+        run: bash -n install-SOT-turn02-release-d-autosync.sh
