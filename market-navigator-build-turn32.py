@@ -38,7 +38,7 @@ async function closeStandaloneAnalysis26(){
  if(S.surfaceMode32!=='analysis')return;let modal=$('standaloneAnalysis26'),home=S.surfaceHome32,surface=$('chartSurface32');S.surfacePickerObserver32?.disconnect();S.surfacePickerObserver32=null;if(home?.next&&home.next.parentNode===home.parent)home.parent.insertBefore(surface,home.next);else home?.parent?.appendChild(surface);modal.querySelector('#analysisMount32')?.remove();modal.querySelector('#analysisClose32')?.remove();Array.from(modal.children).forEach(n=>n.classList.remove('hidden'));modal.classList.add('hidden');let frozen=S.surfaceFrozen32;S.surfaceMode32=null;S.surfaceRoot32=null;S.surfaceHome32=null;S.surfaceFrozen32=null;if(frozen)surfaceRestore32(frozen);await renderV2()
 }
 '''
-rr('async function openStandaloneAnalysis26(id){','function analysisWindow26(',openclose+'function analysisWindow26(', 'replace Analyze open/close with physical mount')
+rr('async function openStandaloneAnalysis26(id){','function analysisWindow26(',openclose,'replace Analyze open/close with physical mount')
 s=s.replace('async function renderStandaloneAnalysis26(){','async function retiredStandaloneAnalysis26(){',1)
 s=s.replace('Market Navigator · Turn 28 Corrective Candidate','Market Navigator · Turn 32 True Single Surface Candidate')
 one('</body>','<div id="turn32Marker" class="hidden" data-source-blob="544661884a412c57aac08fada4f961012a4bc496" data-contract="physical-single-chart-surface"></div></body>','Turn 32 marker')
