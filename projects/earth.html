@@ -14,6 +14,9 @@
   button { font-family:monospace; font-size:15px; padding:10px 14px; border:none; border-radius:4px; background:rgba(255,255,255,0.88); color:#000; touch-action:manipulation; }
   button:active { background:rgba(200,200,200,0.95); }
   #btnGear { position:absolute; top:8px; right:8px; pointer-events:auto; z-index:5; font-size:18px; }
+  #btnJumpTouch { position:absolute; bottom:92px; right:16px; display:none; z-index:4; width:78px; height:78px; border-radius:50%; padding:0; font-size:15px; font-weight:bold; background:rgba(255,255,255,0.72); }
+  #stickBase { position:absolute; width:120px; height:120px; margin-left:-60px; margin-top:-60px; border:2px solid rgba(255,255,255,0.5); border-radius:50%; background:rgba(255,255,255,0.08); display:none; pointer-events:none; z-index:3; }
+  #stickKnob { position:absolute; left:50%; top:50%; width:52px; height:52px; margin-left:-26px; margin-top:-26px; border-radius:50%; background:rgba(255,255,255,0.55); }
   #modalWrap { position:absolute; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.55); display:none; pointer-events:auto; z-index:10; }
   #modal { position:absolute; top:50%; left:50%; transform:translate(-50%,-50%); width:min(92vw,420px); max-height:86vh; overflow:auto; background:#101418; color:#dfe; font-family:monospace; border:1px solid #3a4; border-radius:8px; padding:14px 16px; font-size:14px; box-sizing:border-box; }
   #modal h2 { margin:0 0 10px; font-size:16px; color:#8f8; }
@@ -35,6 +38,8 @@
   <div id="topHud">Loading...</div>
   <div id="errBox"></div>
   <button id="btnGear">&#9881;</button>
+  <div id="stickBase"><div id="stickKnob"></div></div>
+  <button id="btnJumpTouch">JUMP</button>
   <div id="controls">
     <button id="btnFly">Fly</button>
   </div>
@@ -83,8 +88,15 @@
         <label>Controls — look damping <span class="val" id="sensVal">3000</span> (lower = faster)</label>
         <input type="range" id="optSens" min="500" max="10000" step="100" value="3000">
         <label style="margin-top:6px"><input type="checkbox" id="optInvertY"> Invert Y axis</label>
+        <label style="margin-top:8px">Touch controls</label>
+        <select id="optTouch">
+          <option value="auto">AUTO (show on first touch)</option>
+          <option value="on">ON</option>
+          <option value="off">OFF</option>
+        </select>
         <div class="keys" style="margin-top:6px">
-          WASD move &middot; mouse drag / pointer-lock look &middot; wheel &amp; pinch zoom &middot; F fly/walk &middot; touch: drag to move/look
+          WASD move &middot; mouse drag / pointer-lock look &middot; wheel &amp; pinch zoom &middot; F fly/walk<br>
+          Touch: left-half thumb = move stick &middot; right-half drag = look &middot; pinch = zoom &middot; JUMP button (walk)
         </div>
       </div>
       <div id="modalBtns">
@@ -95,7 +107,7 @@
 </div>
 <script>
 'use strict';
-const BUILD = 'M3.3-visual 2026-09-30';
+const BUILD = 'M3.4-mobile 2026-09-30';
 const errBox = document.getElementById('errBox');
 function showErr(msg) {
   errBox.style.display = 'block';
@@ -218,6 +230,15 @@ function startApp(cdnUrl) {
   camera.keysLeft.push(65);
   camera.keysRight.push(68);
 
+  // M3.4: remove Babylon's built-in touch camera handling — all touch is routed
+  // through our pointer-role state machine (stick / look / pinch) to avoid double-fire.
+  try {
+    if (camera.inputs && camera.inputs.attached) {
+      if (camera.inputs.attached.touch) camera.inputs.remove(camera.inputs.attached.touch);
+      if (camera.inputs.attached.mouse) camera.inputs.attached.mouse.touchEnabled = false;
+    }
+  } catch (e) {}
+
   canvas.addEventListener('contextmenu', function(e) { e.preventDefault(); });
   canvas.addEventListener('click', function() {
     if (!document.pointerLockElement && canvas.requestPointerLock) {
@@ -229,7 +250,7 @@ function startApp(cdnUrl) {
   });
 
   // ---- settings (persisted) ----
-  const settings = { detail: 'MED', walkSpeed: 5, flySpeed: 40, tod: 12, sens: 3000, invertY: false, imagery: true };
+  const settings = { detail: 'MED', walkSpeed: 5, flySpeed: 40, tod: 12, sens: 3000, invertY: false, imagery: true, touchCtl: 'auto' };
   try {
     const s = JSON.parse(localStorage.getItem('earthSettings') || 'null');
     if (s) for (const k in settings) { if (typeof s[k] === typeof settings[k]) settings[k] = s[k]; }
@@ -240,6 +261,10 @@ function startApp(cdnUrl) {
 
   let flyMode = false;
   const eyeHeight = 1.7;
+  let vy = 0;            // vertical velocity (jump)
+  let airborne = false;  // true while a jump is in the air
+  const GRAV = 25;
+  const JUMP_V = 8.5;
 
   const EARTH_R = 6378137;
   const DEG2RAD = Math.PI / 180;
@@ -617,6 +642,8 @@ function startApp(cdnUrl) {
       disposeTileExtras(t);
     }
     tiles.clear();
+    vy = 0;
+    airborne = false;
     const f = tileFrac(lat, lon);
     const wx = (f.x - originTx - 0.5) * TILE_M;
     const wz = -(f.y - originTy - 0.5) * TILE_M;
@@ -648,7 +675,9 @@ function startApp(cdnUrl) {
   function setFly(v) {
     flyMode = v;
     btnFly.textContent = flyMode ? 'Walk' : 'Fly';
+    if (flyMode) { vy = 0; airborne = false; }
     applySpeeds();
+    updateTouchUI();
   }
   btnFly.addEventListener('click', function() { setFly(!flyMode); });
   document.addEventListener('keydown', function(e) {
@@ -656,7 +685,7 @@ function startApp(cdnUrl) {
   });
   applySpeeds();
 
-  // ---- zoom: wheel + pinch (FOV based, 1x..8x) ----
+  // ---- zoom: wheel (FOV based, 1x..8x) ----
   const BASE_FOV = camera.fov;
   let zoomMult = 1;
   function setZoom(mult) {
@@ -668,34 +697,129 @@ function startApp(cdnUrl) {
     setZoom(zoomMult * (e.deltaY < 0 ? 1.12 : 1 / 1.12));
   }, { passive: false });
 
-  const pinchPts = new Map();
+  // ---- M3.4 touch controls: pointer roles (stick / look / pinch) ----
+  const stickBase = document.getElementById('stickBase');
+  const stickKnob = document.getElementById('stickKnob');
+  const btnJumpTouch = document.getElementById('btnJumpTouch');
+  const STICK_R = 55;
+  const stick = { id: -1, baseX: 0, baseY: 0, vx: 0, vy: 0 };
+  const others = new Map();   // non-stick touch pointers
+  const look = { id: -1, lastX: 0, lastY: 0 };
   let pinchD0 = 0, pinchZ0 = 1;
+  let touchActive = false;    // AUTO mode: set on first real touch
+  let modalOpen = false;
+
+  function touchOn() {
+    if (settings.touchCtl === 'off') return false;
+    if (settings.touchCtl === 'on') return true;
+    return touchActive;
+  }
+
+  function releaseAllRoles() {
+    stick.id = -1; stick.vx = 0; stick.vy = 0;
+    others.clear();
+    look.id = -1;
+    pinchD0 = 0;
+    stickBase.style.display = 'none';
+  }
+
+  function updateTouchUI() {
+    const show = touchOn() && !modalOpen;
+    btnJumpTouch.style.display = (show && !flyMode) ? 'block' : 'none';
+    if (!show) releaseAllRoles();
+  }
+
+  function showStickAt(x, y) {
+    stickBase.style.display = 'block';
+    stickBase.style.left = x + 'px';
+    stickBase.style.top = y + 'px';
+  }
+  function moveKnob(nx, ny) {
+    stickKnob.style.transform = 'translate(' + nx + 'px,' + ny + 'px)';
+  }
+
   canvas.addEventListener('pointerdown', function(e) {
     if (e.pointerType !== 'touch') return;
-    pinchPts.set(e.pointerId, { x: e.clientX, y: e.clientY });
-    if (pinchPts.size === 2) {
-      const p = [];
-      for (const v of pinchPts.values()) p.push(v);
-      pinchD0 = Math.hypot(p[0].x - p[1].x, p[0].y - p[1].y);
-      pinchZ0 = zoomMult;
+    if (settings.touchCtl === 'off') return;
+    if (!touchActive) { touchActive = true; updateTouchUI(); }
+    if (modalOpen) return;
+    try { canvas.setPointerCapture(e.pointerId); } catch (err) {}
+    if (stick.id === -1 && e.clientX < window.innerWidth * 0.45) {
+      stick.id = e.pointerId;
+      stick.baseX = e.clientX; stick.baseY = e.clientY;
+      stick.vx = 0; stick.vy = 0;
+      showStickAt(e.clientX, e.clientY);
+      moveKnob(0, 0);
+    } else {
+      others.set(e.pointerId, { x: e.clientX, y: e.clientY });
+      if (others.size === 1) {
+        look.id = e.pointerId;
+        look.lastX = e.clientX; look.lastY = e.clientY;
+      } else if (others.size === 2) {
+        const p = [];
+        for (const v of others.values()) p.push(v);
+        pinchD0 = Math.hypot(p[0].x - p[1].x, p[0].y - p[1].y);
+        pinchZ0 = zoomMult;
+      }
     }
   });
+
   canvas.addEventListener('pointermove', function(e) {
-    if (!pinchPts.has(e.pointerId)) return;
-    pinchPts.set(e.pointerId, { x: e.clientX, y: e.clientY });
-    if (pinchPts.size === 2 && pinchD0 > 0) {
-      const p = [];
-      for (const v of pinchPts.values()) p.push(v);
-      const d = Math.hypot(p[0].x - p[1].x, p[0].y - p[1].y);
-      if (d > 0) setZoom(pinchZ0 * d / pinchD0);
+    if (e.pointerId === stick.id) {
+      const dx = e.clientX - stick.baseX;
+      const dy = e.clientY - stick.baseY;
+      const mag = Math.hypot(dx, dy);
+      let nx = dx, ny = dy;
+      if (mag > STICK_R) { nx = dx / mag * STICK_R; ny = dy / mag * STICK_R; }
+      stick.vx = nx / STICK_R;
+      stick.vy = ny / STICK_R;
+      moveKnob(nx, ny);
+    } else if (others.has(e.pointerId)) {
+      others.set(e.pointerId, { x: e.clientX, y: e.clientY });
+      if (others.size === 2 && pinchD0 > 0) {
+        const p = [];
+        for (const v of others.values()) p.push(v);
+        const d = Math.hypot(p[0].x - p[1].x, p[0].y - p[1].y);
+        if (d > 0) setZoom(pinchZ0 * d / pinchD0);
+      } else if (others.size === 1 && e.pointerId === look.id) {
+        const dx = e.clientX - look.lastX;
+        const dy = e.clientY - look.lastY;
+        look.lastX = e.clientX; look.lastY = e.clientY;
+        camera.rotation.y += dx / settings.sens;
+        camera.rotation.x += dy / settings.sens; // invert-Y handled by the shared render-loop flip
+      }
     }
   });
-  function pinchEnd(e) {
-    pinchPts.delete(e.pointerId);
-    if (pinchPts.size < 2) pinchD0 = 0;
+
+  function releasePointer(e) {
+    if (e.pointerId === stick.id) {
+      stick.id = -1; stick.vx = 0; stick.vy = 0;
+      stickBase.style.display = 'none';
+    }
+    if (others.has(e.pointerId)) {
+      others.delete(e.pointerId);
+      if (others.size === 1) {
+        const entry = others.entries().next().value;
+        look.id = entry[0];
+        look.lastX = entry[1].x; look.lastY = entry[1].y;
+      } else {
+        look.id = -1;
+      }
+      if (others.size < 2) pinchD0 = 0;
+    }
   }
-  canvas.addEventListener('pointerup', pinchEnd);
-  canvas.addEventListener('pointercancel', pinchEnd);
+  canvas.addEventListener('pointerup', releasePointer);
+  canvas.addEventListener('pointercancel', releasePointer);
+
+  btnJumpTouch.addEventListener('pointerdown', function(e) {
+    e.preventDefault();
+    if (!flyMode && !airborne) {
+      vy = JUMP_V;
+      airborne = true;
+    }
+  });
+
+  updateTouchUI();
 
   // ---- time of day ----
   const dayTop = new BABYLON.Color3(0.2, 0.45, 0.85);
@@ -742,6 +866,7 @@ function startApp(cdnUrl) {
   const optTod = document.getElementById('optTod');
   const optSens = document.getElementById('optSens');
   const optInvertY = document.getElementById('optInvertY');
+  const optTouch = document.getElementById('optTouch');
   const optPreset = document.getElementById('optPreset');
   const optLat = document.getElementById('optLat');
   const optLon = document.getElementById('optLon');
@@ -757,17 +882,22 @@ function startApp(cdnUrl) {
   optTod.value = settings.tod;
   optSens.value = settings.sens;
   optInvertY.checked = settings.invertY;
+  optTouch.value = settings.touchCtl;
   walkVal.textContent = settings.walkSpeed;
   flyVal.textContent = settings.flySpeed;
   todVal.textContent = fmtTOD(settings.tod);
   sensVal.textContent = settings.sens;
 
   document.getElementById('btnGear').addEventListener('click', function() {
+    modalOpen = true;
     modalWrap.style.display = 'block';
+    updateTouchUI();
   });
   function closeModal() {
+    modalOpen = false;
     modalWrap.style.display = 'none';
     saveSettings();
+    updateTouchUI();
   }
   document.getElementById('btnClose').addEventListener('click', closeModal);
   modalWrap.addEventListener('click', function(e) {
@@ -815,6 +945,11 @@ function startApp(cdnUrl) {
     settings.invertY = optInvertY.checked;
     saveSettings();
   });
+  optTouch.addEventListener('change', function() {
+    settings.touchCtl = optTouch.value;
+    saveSettings();
+    updateTouchUI();
+  });
   optPreset.addEventListener('change', function() {
     if (!optPreset.value) return;
     const parts = optPreset.value.split(',');
@@ -830,6 +965,33 @@ function startApp(cdnUrl) {
 
   // ---- per-frame ----
   scene.registerBeforeRender(function() {
+    const dt = Math.min(engine.getDeltaTime() / 1000, 0.1);
+
+    // M3.4: virtual stick movement (camera-relative, delta-time scaled)
+    if (stick.id !== -1 && !modalOpen) {
+      const vm = Math.hypot(stick.vx, stick.vy);
+      if (vm > 0.02) {
+        const sp = (flyMode ? settings.flySpeed : settings.walkSpeed) * dt;
+        const fwd = camera.getForwardRay().direction;
+        const hl = Math.hypot(fwd.x, fwd.z);
+        if (hl > 0.001) {
+          const fw = -stick.vy;   // screen-up = forward
+          const st = stick.vx;    // screen-right = strafe right
+          if (flyMode) {
+            const rx = fwd.z / hl, rz = -fwd.x / hl;
+            camera.position.x += (fwd.x * fw + rx * st) * sp;
+            camera.position.y += fwd.y * fw * sp;
+            camera.position.z += (fwd.z * fw + rz * st) * sp;
+          } else {
+            const gx = fwd.x / hl, gz = fwd.z / hl;
+            const rx = gz, rz = -gx;
+            camera.position.x += (gx * fw + rx * st) * sp;
+            camera.position.z += (gz * fw + rz * st) * sp;
+          }
+        }
+      }
+    }
+
     const ptx = Math.round(camera.position.x / TILE_M) + originTx;
     const pty = Math.round(-camera.position.z / TILE_M) + originTy;
     if (ptx !== lastPTx || pty !== lastPTy) {
@@ -837,7 +999,18 @@ function startApp(cdnUrl) {
       updateStreaming(ptx, pty);
     }
     if (!flyMode) {
-      camera.position.y = worldHeight(camera.position.x, camera.position.z) + eyeHeight;
+      const ground = worldHeight(camera.position.x, camera.position.z) + eyeHeight;
+      if (airborne) {
+        vy -= GRAV * dt;
+        camera.position.y += vy * dt;
+        if (camera.position.y <= ground) {
+          camera.position.y = ground;
+          vy = 0;
+          airborne = false;
+        }
+      } else {
+        camera.position.y = ground;
+      }
     }
   });
 
@@ -858,6 +1031,7 @@ function startApp(cdnUrl) {
       '<br>Lat:' + lat.toFixed(5) + ' Lon:' + lon.toFixed(5) +
       '<br>Alt:' + camera.position.y.toFixed(1) + 'm' +
       '<br>Mode:' + (flyMode ? 'FLY' : 'WALK') +
+      ' CTL:' + (touchOn() ? 'TOUCH' : 'KEYS') +
       ' Time:' + fmtTOD(settings.tod) +
       ' Q:' + settings.detail +
       (zoomMult !== 1 ? ' Zoom:' + zoomMult.toFixed(1) + 'x' : '') +
