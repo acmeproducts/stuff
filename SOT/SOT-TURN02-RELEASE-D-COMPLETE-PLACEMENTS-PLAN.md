@@ -54,3 +54,53 @@ The existing health refresh can also lose a forced reload when a placement reque
 ## Protected
 
 No schema migration. No database rebuild. No rehash. No classification change. No Estate, Grid, Plan visual redesign. No AI-task change. No source/job lifecycle change.
+
+---
+
+# Owner UI convergence — 2026-09-29
+
+## Owner evidence / definition of working
+
+> “there needs to be a ui toast blocker that says db is refreshing/rebuilding”
+
+> “REPORT should be the first tab”
+
+> “EACH ROW FOR EACH REPORT SHOULD BE CLICKABLE TO A #### CENTRAL SEARCH”
+
+> “COMBINE DATABASE AND GRID AS THEY ARE JUST VIEWS OF EACH OTHER”
+
+## Baseline scorecard
+
+- complete 30,324-placement delivery — PASS;
+- database refresh is visibly blocked while the complete estate is being assembled — FAIL;
+- Report is first owner navigation tab — FAIL;
+- Database and Grid are presented as one Search surface with two views — FAIL;
+- Analysis report rows open the corresponding file set in Search — FAIL;
+- Capacity/Operations report rows route to Search, including zero/non-file-backed rows — FAIL;
+- existing Database and Grid renderers/search state remain reusable — PASS;
+- existing Report Analysis/Capacity/Operations calculations remain unchanged — PASS.
+
+## Implementation decision
+
+The accepted Release D application remains the inner baseline. The complete-placement wrapper owns this owner-facing convergence so the change is narrow and reversible:
+
+1. Add a blocking overlay/toast reading **Database refreshing / rebuilding** whenever a complete paged placement refresh is in flight. Cached/stale counts must not remain actionable while authoritative rows are loading. The blocker remains through catalog-revision retries and clears only after one complete same-revision estate is applied.
+2. Move the existing Plan/Report navigation control to the first position and expose it to the owner as **Report**. Report becomes the initial owner surface.
+3. Replace the two top-level Database and Grid choices with one **Search** navigation choice. The existing Database renderer becomes **Table** view and the existing Grid renderer becomes **Grid** view inside Search. Their already-shared query state is preserved.
+4. Make every Report table row clickable. A click sets a governed `#report:` central-search scope and opens Search/Table. File-backed rows resolve to the exact placement subset represented by the report row. Rows representing capacity/target or currently zero landed state still route to Search and correctly return zero file records rather than inventing file membership.
+5. Report mappings:
+   - Analysis: UNIQUE → UNIQUE; DUPLICATE → KEEP + EXCESS; KEEP → KEEP; EXCESS → EXCESS; ESTATE → all active placements.
+   - Capacity: ESTATE → retained UNIQUE + KEEP; OPEN → no placement rows; TARGET → no placement rows.
+   - Operations: IN PLAY → retained UNIQUE + KEEP under the current Release D model; LANDED → current landed set (zero in the current model); ESTATE → retained UNIQUE + KEEP.
+6. Do not change report mathematics, classification, database schema, source/job lifecycle, AI behavior, or the underlying Database/Grid renderers.
+
+## Acceptance gates
+
+- qualifier contains the owner-directed UI contract before production wrapper change;
+- refresh blocker marker and exact owner text are present;
+- Report-first and Search/Table/Grid convergence markers are present;
+- all report row labels are routed through the central report-search function;
+- the legacy Grid top-level button is hidden, not deleted from the underlying application;
+- existing complete-placement paging and Continuous SSOT gates continue to pass;
+- wrapper JavaScript parses under Node 22;
+- no unrelated source file is modified.
