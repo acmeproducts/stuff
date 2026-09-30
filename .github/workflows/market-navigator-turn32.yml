@@ -1,0 +1,72 @@
+name: Market Navigator Turn 32 true single surface
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'market-navigator-build-turn32.py'
+      - 'market-navigator-turn32-qa.mjs'
+      - '.github/workflows/market-navigator-turn32.yml'
+  workflow_dispatch:
+permissions:
+  contents: write
+jobs:
+  build-qualify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: {python-version: '3.12'}
+      - uses: actions/setup-node@v4
+        with: {node-version: '22'}
+      - name: G1 clean Turn 28 lineage
+        run: |
+          test "$(git hash-object market-navigator-turn28-ship.html)" = "544661884a412c57aac08fada4f961012a4bc496"
+          python3 market-navigator-build-turn32.py
+          ! grep -q 'TURN31_SHARED_CHART_SURFACE' market-navigator-turn32-pre-ship.html
+          ! grep -q 'turn30-fullsize-dual-axis' market-navigator-turn32-pre-ship.html
+          echo 'PASS G1 clean Turn 28 lineage'
+      - name: G2-G10 architecture gates against plan
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          s=Path('market-navigator-turn32-pre-ship.html').read_text()
+          checks={
+           'G2 one physical chart surface id':s.count('id="chartSurface32"')==1,
+           'G3 one shared renderer':s.count('async function renderChartSurface32()')==1 and 'async function renderV2(){return renderChartSurface32()}' in s,
+           'G4 physical mount into Analyze':"mount.appendChild(surface)" in s and "home.parent.insertBefore(surface,home.next)" in s,
+           'G5 state snapshot restore':"S.surfaceFrozen32=surfaceSnapshot32()" in s and "surfaceRestore32(frozen)" in s,
+           'G6 full workspace modal':'.analysisMount32{position:absolute;inset:0' in s and 'id=\'analysisClose32\'' in s,
+           'G7 third family refused before push':"if(!fam.includes(nf)&&fam.length>=2)" in s and s.index("if(!fam.includes(nf)&&fam.length>=2)") < s.index('S.nowVisible.push(id);',s.index("if(!fam.includes(nf)&&fam.length>=2)")),
+           'G8 standalone renderer retired':s.count('async function renderStandaloneAnalysis26(){')==0 and s.count('async function retiredStandaloneAnalysis26(){')==1,
+           'G8 no Analyze draw path':"draw('analysis'" not in s[s.index('/* TURN32_TRUE_SINGLE_SURFACE'):],
+           'G9 same legend/Add path':s.count('function surfaceLegend32(')==1 and "$('surfaceAdd32').onclick=openNowPicker25" in s,
+           'G10 no dashboard donor': 'turn29-dashboard' not in s.lower(),
+           'G10 canonical math untouched marker': 'TURN32_TRUE_SINGLE_SURFACE' in s,
+          }
+          for k,v in checks.items():
+           if not v: raise SystemExit('FAIL '+k)
+           print('PASS',k)
+          PY
+      - name: JavaScript syntax gate
+        run: |
+          node - <<'JS'
+          const fs=require('fs'),vm=require('vm'); const html=fs.readFileSync('market-navigator-turn32-pre-ship.html','utf8');
+          const blocks=[...html.matchAll(/<script(?:\s[^>]*)?>([\s\S]*?)<\/script>/gi)].map(m=>m[1]).filter(x=>x.trim()&&!x.includes('cdn.jsdelivr'));
+          blocks.forEach((code,i)=>new vm.Script(code,{filename:`turn32-${i}.js`})); console.log('PASS JS syntax',blocks.length);
+          JS
+      - name: Retained persistent-index gate
+        run: python3 market-navigator-persistent-index-qa.py
+      - name: Install browser qualification
+        run: |
+          npm install --no-save --package-lock=false playwright@1.55.0
+          npx playwright install --with-deps chromium
+      - name: G2-G9 semantic browser gates
+        run: node market-navigator-turn32-qa.mjs
+      - name: Commit qualified candidate
+        run: |
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git add market-navigator-turn32-pre-ship.html
+          git diff --cached --quiet && exit 0
+          git commit -m 'Market Navigator Turn 32: qualified true single chart surface candidate'
+          git push
