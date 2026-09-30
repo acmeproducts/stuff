@@ -298,3 +298,15 @@ Permanent prohibitions:
 - never use Turn 29 Dashboard work as an Analyze donor while Dashboard is tabled.
 
 The accepted implementation pattern for the successor is: build from Turn 28, make the correct NOW chart surface a single callable/mountable component, mount that exact component in NOW or the full-workspace Analyze host, pass root/horizon/series context, and restore the frozen NOW state on close.
+
+
+## 33. Turn 32 rejection — moving the main chart DOM broke NOW — 2026-09-30
+Turn 32 is rejected and prohibited as an implementation donor. It satisfied a literal node-identity test by **moving/reparenting the live NOW chart DOM into the Analyze modal**, but this damaged the main chart surface. The gate was therefore insufficient and the architecture was wrong.
+
+Permanent rules:
+- never move, detach, reparent or clone the accepted main NOW chart surface to implement Analyze;
+- never treat node identity alone as sufficient reuse proof;
+- reuse must preserve the accepted main surface in place and preserve its normal post-Analyze operation;
+- Analyze must be an in-place presentation/state mode of the existing chart, or a future explicitly approved component architecture, not a DOM relocation trick;
+- qualification must test the main chart **after Analyze closes**, including horizon, active series, Add availability and rendering;
+- Turn 30, Turn 31 and Turn 32 are all rejected donors for Analyze.
