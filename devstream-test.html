@@ -337,10 +337,24 @@ const slug=s=>(s||'').toLowerCase().replace(/[^a-z0-9]+/g,'-').replace(/^-+|-+$/
 const tabName=t=>t&&(t.name||t.file)||'';
 const ICON_TRASH='<svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>';
 const ICON_DOC='<svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>';
+/* failed-tab blocker disposition: t.dispositions is an append-only record kept apart from the failure (t.state/error/finishedAt stay untouched) */
+function blockerResolved(t){return !!t&&t.state==='error'&&(t.dispositions||[]).some(x=>x.kind!=='retry'&&x.failedAt===(t.finishedAt||null))}
+function isBlocked(t){return !!t&&t.state==='error'&&!blockerResolved(t)}
+function viewState(t){return t&&t.state==='error'&&blockerResolved(t)?'idle':(t&&t.state)}
+async function disposeBlocker(key,kind){
+  const t=sot.threads[key];if(!t||!isBlocked(t))return;
+  const rec={kind,at:now(),failedAt:t.finishedAt||null,error:t.error||''};
+  (t.dispositions=t.dispositions||[]).push(rec);
+  const ok=await guard(()=>saveSOT('devstream: blocker '+kind+' '+key));
+  if(!ok){t.dispositions=t.dispositions.filter(x=>x!==rec);renderTabs();renderSidebar();return}
+  renderTabs();renderSidebar();if(view==='dash')renderDash();if(activeKey===key)renderChat(true);
+  if(kind==='retry'){await guard(async()=>{if(!threads[key])await loadThread(key);dispatch(key)})}
+  else toast(kind==='abandoned'?'Marked no longer needed':'Marked resolved another way');
+}
 function projState(p){
   const ts=Object.values(sot.threads).filter(t=>t.project===p&&!t.deleted);
   if(ts.some(t=>t.state==='executing'&&!isStalled(t)))return'executing';
-  if(ts.some(t=>t.state==='error'||isStalled(t)))return'error';
+  if(ts.some(t=>isBlocked(t)||isStalled(t)))return'error';
   if(ts.some(t=>t.state==='ok'))return'ok';
   return'idle';
 }
@@ -650,7 +664,7 @@ function renderSidebar(){
   const pl=$('projList');pl.innerHTML='';
   const live=Object.values(sot.threads).filter(t=>!t.deleted);
   const runs=live.filter(t=>t.state==='executing'&&!isStalled(t)).length;
-  const errs=live.filter(t=>t.state==='error').length;
+  const errs=live.filter(t=>isBlocked(t)).length;
   const dc=document.createElement('div');dc.className='card';dc.id='dashcard';
   dc.innerHTML='<div class="cttl">Dashboard<span class="grow"></span>'+(runs?'<span class="badge run">'+runs+'</span>':'')+(errs?'<span class="badge err">'+errs+'</span>':'')+'</div><div class="csub">'+Object.keys(sot.projects).length+' projects · '+Object.keys(sot.threads).length+' threads</div>';
   dc.onclick=()=>{sideOpen(false);openDash()};pl.appendChild(dc);
@@ -752,7 +766,7 @@ function renderTabs(){
     const t=sot.threads[k];
     const el=document.createElement('div');el.className='tab'+(k===activeKey?' active':'');el.dataset.threadKey=k;el.draggable=true;
     if(t.style){if(t.style.bg)el.style.background=t.style.bg;if(t.style.fg)el.style.color=t.style.fg;if(t.style.size)el.style.fontSize=t.style.size+'px'}
-    el.innerHTML='<span class="dot '+(t.state||'idle')+'"></span><span class="tname">'+esc(tabName(t))+'</span><button class="tabClose" title="Soft delete → Recycle Bin">×</button>';
+    el.innerHTML='<span class="dot '+(viewState(t)||'idle')+'"></span><span class="tname">'+esc(tabName(t))+'</span><button class="tabClose" title="Soft delete → Recycle Bin">×</button>';
     el.querySelector('.tabClose').onclick=e=>{e.stopPropagation();softDeleteThread(k)};
     el.onclick=()=>{if(Date.now()>=tabDragSuppressUntil)openThread(k)};
     el.ondragstart=e=>{tabDragKey=k;el.classList.add('dragging');e.dataTransfer.effectAllowed='move';e.dataTransfer.setData('text/devstream-tab',k)};
@@ -911,10 +925,11 @@ async function saveProjectStyle(id,v){if(!sot.projects[id])return;sot.projects[i
 function projectMatches(name,q){q=String(q||'').trim().toLowerCase();if(!q)return true;return String(name||'').toLowerCase().includes(q)}
 function openTabContext(key,anchor){
   const row=sot.threads[key];if(!row)return;closeTabContext();const rect=anchor?.getBoundingClientRect?.()||{left:12,bottom:60},vw=window.visualViewport?.width||innerWidth,vh=window.visualViewport?.height||innerHeight,stack=vh>=vw||vw<=700,menuW=stack?Math.min(360,vw-16):438,left=Math.max(8,Math.min(rect.left,vw-menuW-8)),top=Math.max(8,Math.min(rect.bottom+6,vh-160)),r=$('tabContextRoot');
-  r.innerHTML=`<div class="tabContext ${stack?'stacked':''}" id="tabContext" style="left:${left}px;top:${top}px"><div class="tabContextMain"><button class="tabContextItem" data-c="rename">Rename<span class="tabContextArrow">›</span></button><button class="tabContextItem" data-c="assign">Assign<span class="tabContextArrow">›</span></button><button class="tabContextItem" data-c="custom">Customize<span class="tabContextArrow">›</span></button><button class="tabContextItem" data-a="download">Download</button><button class="tabContextItem" data-a="share">Share</button></div><div id="tabContextLeaf" class="tabContextLeaf"></div></div>`;
+  r.innerHTML=`<div class="tabContext ${stack?'stacked':''}" id="tabContext" style="left:${left}px;top:${top}px"><div class="tabContextMain"><button class="tabContextItem" data-c="rename">Rename<span class="tabContextArrow">›</span></button><button class="tabContextItem" data-c="assign">Assign<span class="tabContextArrow">›</span></button><button class="tabContextItem" data-c="custom">Customize<span class="tabContextArrow">›</span></button>${isBlocked(row)?'<button class="tabContextItem" data-c="blocker">Resolve blocker<span class="tabContextArrow">›</span></button>':''}<button class="tabContextItem" data-a="download">Download</button><button class="tabContextItem" data-a="share">Share</button></div><div id="tabContextLeaf" class="tabContextLeaf"></div></div>`;
   const leaf=$('tabContextLeaf'),menu=$('tabContext'),open=w=>{document.querySelectorAll('.tabContextItem').forEach(b=>b.classList.toggle('active',b.dataset.c===w));leaf.innerHTML='';menu.classList.toggle('customOpen',w==='custom');
     if(w==='rename'){leaf.innerHTML=`<div class="tabContextTitle">Rename tab</div><input id="ctxRename" class="tabContextInput" value="${esc(tabName(row))}"><div class="tabContextHelp">Enter saves the tab name.</div>`;const i=$('ctxRename');i.focus();i.select();i.onkeydown=async e=>{if(e.key==='Escape')closeTabContext();if(e.key==='Enter'||e.code==='Enter'||e.keyCode===13){e.preventDefault();e.stopPropagation();try{await renameTabInline(key,i.value);closeTabContext();toast('Tab renamed')}catch(err){toast(err.message)}}}}
     else if(w==='assign'){leaf.innerHTML=`<div class="tabContextTitle">Assign to project</div><input id="ctxAssign" class="tabContextInput" placeholder="Project search"><div id="ctxResults" class="omniResults"></div>`;const i=$('ctxAssign'),out=$('ctxResults'),draw=()=>{const choices=normalizeProjectOrder().filter(x=>!sot.projects[x].deleted&&x!==row.project&&projectMatches(x,i.value));out.innerHTML=choices.map(x=>`<button class="omniResult" data-id="${esc(x)}"><b>${esc(x)}</b><small>${projectThreads(x).filter(k=>!sot.threads[k].deleted).length} tab(s)</small></button>`).join('')||'<div class="tabContextHelp">No matches.</div>';out.querySelectorAll('[data-id]').forEach(b=>b.onclick=()=>{closeTabContext();moveThreadToProject(key,b.dataset.id)})};i.oninput=draw;i.onkeydown=e=>{if(e.key==='Escape')closeTabContext()};draw();i.focus()}
+    else if(w==='blocker'){leaf.innerHTML=`<div class="tabContextTitle">Resolve blocker</div><div class="omniResults"><button class="omniResult" data-bk="resolved_elsewhere"><b>Resolved another way</b><small>The work was completed outside this failed run.</small></button><button class="omniResult" data-bk="abandoned"><b>No longer needed</b><small>The failed work has been intentionally abandoned.</small></button><button class="omniResult" data-bk="retry"><b>Retry</b><small>The work is still required. The failure stays until a run succeeds.</small></button></div>`;leaf.querySelectorAll('[data-bk]').forEach(b=>b.onclick=e=>{e.stopPropagation();closeTabContext();disposeBlocker(key,b.dataset.bk)})}
     else{const st=tabStyle(key),bg=/^#[0-9a-f]{6}$/i.test(st.bg)?st.bg:'#ffffff',fg=/^#[0-9a-f]{6}$/i.test(st.fg)?st.fg:'#202124';leaf.innerHTML=`<div class="tabContextTitle">Customize tab</div><div class="customGrid"><label>Tab color<input id="ctxBg" type="color" value="${bg}"></label><label>Font color<input id="ctxFg" type="color" value="${fg}"></label><label>Font size<input id="ctxSize" class="tabContextInput" type="number" min="10" max="28" value="${st.size||16}"></label></div><div class="customActions"><button class="btn" id="ctxReset">Reset</button></div><div class="customPersist">Changes preview immediately and persist with the tab.</div>`;const read=()=>({bg:$('ctxBg').value,fg:$('ctxFg').value,size:Number($('ctxSize').value)}),preview=()=>{const n=document.querySelector(`.tab[data-thread-key="${CSS.escape(key)}"]`),v=read();if(!n)return;n.style.background=v.bg;n.style.color=v.fg;n.style.fontSize=Math.max(10,Math.min(28,v.size||16))+'px'},persist=()=>saveTabStyle(key,read());for(const id of ['ctxBg','ctxFg','ctxSize']){const c=$(id);c.oninput=preview;c.onchange=persist;c.onblur=persist}$('ctxReset').onclick=()=>{saveTabStyle(key,{});closeTabContext()}}
   };
   document.querySelectorAll('[data-c]').forEach(b=>b.onclick=e=>{e.stopPropagation();open(b.dataset.c)});
@@ -975,7 +990,7 @@ function renderChat(force){
   $('pendingRun').textContent=coach?'▶ Continue':'▶ run now';
   $('chatTitle').textContent=t.project+' · '+tabName(t);
   $('chatInfo').textContent=d.lastState?d.lastState:(repoFull()+' · builds: '+(d.outputFile||projMain(t.project)||'—')+' · plan: '+(projPlan(t.project)||d.planFile||'—'));
-  $('pill').textContent=coach?(t.state==='executing'?'Working':t.state==='error'?'Needs help':'Ready'):(t.state||'idle');$('pill').className=t.state||'';
+  $('pill').textContent=coach?(t.state==='executing'?'Working':isBlocked(t)?'Needs help':'Ready'):(viewState(t)||'idle');$('pill').className=viewState(t)||'';
   $('engineFoot').textContent=(t.engine||'venice')+(t.model?' · '+t.model:'')+' ▾';
   const wb=$('webToggle');
   wb.style.color=t.web?'var(--accent)':'var(--dim)';wb.style.borderColor=t.web?'var(--accent)':'var(--line)';
@@ -1249,7 +1264,7 @@ async function storeAttachments(t,atts){
 /* ---- suggested next tasks ---- */
 function renderSuggestions(key,coach,pendN){
   const box=$('suggestions'),t=sot.threads[key],d=threads[key]?.data;if(!box||!t||!d)return;
-  const running=t.state==='executing'&&!isStalled(t),failed=t.state==='error';
+  const running=t.state==='executing'&&!isStalled(t),failed=isBlocked(t);
   const hasWork=d.messages.some(m=>m.role==='agent'&&(m.commit||m.target));
   let items;
   if(failed&&pendN)items=coach
@@ -1876,7 +1891,7 @@ function renderDash(){
   projs.forEach(p=>{
     const pr=sot.projects[p];
     let rows=Object.entries(sot.threads).filter(([k,t])=>t.project===p&&!t.deleted);
-    if(dashFilter!=='all')rows=rows.filter(([k,t])=>(t.state||'idle')===dashFilter);
+    if(dashFilter!=='all')rows=rows.filter(([k,t])=>(viewState(t)||'idle')===dashFilter);
     const sec=document.createElement('div');sec.className='dsec';
     const runs=rows.filter(([k,t])=>t.state==='executing'&&!isStalled(t)).length;
     const open=secOpen[p]===true;
@@ -1906,10 +1921,10 @@ function renderDash(){
         tabWrap.appendChild(r);return;
       }
       const stalled=isStalled(t);
-      r.innerHTML='<span class="dot '+(stalled?'error':(t.state||'idle'))+'"></span><div class="ti">'+
+      r.innerHTML='<span class="dot '+(stalled?'error':(viewState(t)||'idle'))+'"></span><div class="ti">'+
         '<div class="tf">'+esc(tabName(t))+' <span class="mono" style="opacity:.6;font-weight:400">'+esc(t.file||'')+'</span></div>'+
-        '<div class="tt">'+(stalled?'STALLED '+stallAge(t)+' (was executing)':(t.state||'idle')+' · '+(t.engine||'venice')+' · '+rel(t.finishedAt||t.startedAt))+'</div>'+
-        (t.error?'<div class="terr">'+esc(t.error)+'</div>':'')+'</div>'+
+        '<div class="tt">'+(stalled?'STALLED '+stallAge(t)+' (was executing)':(viewState(t)||'idle')+(blockerResolved(t)?' (blocker '+((t.dispositions.slice().reverse().find(x=>x.kind!=='retry')||{}).kind==='abandoned'?'not needed':'resolved')+')':'')+' · '+(t.engine||'venice')+' · '+rel(t.finishedAt||t.startedAt))+'</div>'+
+        (t.error&&!blockerResolved(t)?'<div class="terr">'+esc(t.error)+'</div>':'')+'</div>'+
         (stalled?'<button class="recBtn">Reset</button>':'');
       if(stalled)r.querySelector('.recBtn').onclick=e=>{e.stopPropagation();guard(async()=>{
         t.state='error';t.error='stalled — reset by owner';t.finishedAt=now();
