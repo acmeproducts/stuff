@@ -48,6 +48,7 @@
           <option value="MED">MED</option>
           <option value="HIGH">HIGH</option>
         </select>
+        <label style="margin-top:6px"><input type="checkbox" id="optImagery" checked> Satellite imagery (real map photos)</label>
       </div>
       <div class="sec">
         <label>Top speed — walk <span class="val" id="walkVal">5</span> / fly <span class="val" id="flyVal">40</span></label>
@@ -94,7 +95,7 @@
 </div>
 <script>
 'use strict';
-const BUILD = 'M3.2-settings 2026-09-29';
+const BUILD = 'M3.3-visual 2026-09-30';
 const errBox = document.getElementById('errBox');
 function showErr(msg) {
   errBox.style.display = 'block';
@@ -172,15 +173,39 @@ function startApp(cdnUrl) {
   skyMat.fogEnabled = false;
   skyMat.diffuseColor = new BABYLON.Color3(0, 0, 0);
   skyMat.specularColor = new BABYLON.Color3(0, 0, 0);
-  skyMat.emissiveColor = new BABYLON.Color3(0.5, 0.7, 0.95);
+  skyMat.emissiveColor = new BABYLON.Color3(1, 1, 1);
   sky.material = skyMat;
   sky.infiniteDistance = true;
+
+  const skyDT = new BABYLON.DynamicTexture('skyDT', { width: 4, height: 256 }, scene, true);
+  skyDT.hasAlpha = false;
+  skyDT.wrapU = BABYLON.Texture.CLAMP_ADDRESSMODE;
+  skyDT.wrapV = BABYLON.Texture.CLAMP_ADDRESSMODE;
+  skyMat.emissiveTexture = skyDT;
+
+  function css(c) {
+    return 'rgb(' + Math.round(Math.min(Math.max(c.r, 0), 1) * 255) + ',' +
+      Math.round(Math.min(Math.max(c.g, 0), 1) * 255) + ',' +
+      Math.round(Math.min(Math.max(c.b, 0), 1) * 255) + ')';
+  }
+  function paintSky(top, hor) {
+    try {
+      const ctx = skyDT.getContext();
+      const g = ctx.createLinearGradient(0, 0, 0, 256);
+      g.addColorStop(0, css(top));
+      g.addColorStop(0.6, css(hor));
+      g.addColorStop(1, css(hor.scale(0.75)));
+      ctx.fillStyle = g;
+      ctx.fillRect(0, 0, 4, 256);
+      skyDT.update();
+    } catch (e) {}
+  }
 
   const sun = new BABYLON.DirectionalLight('sun', new BABYLON.Vector3(-0.5, -1, -0.5), scene);
   sun.intensity = 1.15;
   const hemi = new BABYLON.HemisphericLight('hemi', new BABYLON.Vector3(0, 1, 0), scene);
-  hemi.intensity = 0.55;
-  hemi.groundColor = new BABYLON.Color3(0.35, 0.32, 0.28);
+  hemi.intensity = 0.6;
+  hemi.groundColor = new BABYLON.Color3(0.4, 0.38, 0.34);
 
   const camera = new BABYLON.UniversalCamera('cam', new BABYLON.Vector3(0, 100, 0), scene);
   camera.minZ = 0.3;
@@ -204,7 +229,7 @@ function startApp(cdnUrl) {
   });
 
   // ---- settings (persisted) ----
-  const settings = { detail: 'MED', walkSpeed: 5, flySpeed: 40, tod: 12, sens: 3000, invertY: false };
+  const settings = { detail: 'MED', walkSpeed: 5, flySpeed: 40, tod: 12, sens: 3000, invertY: false, imagery: true };
   try {
     const s = JSON.parse(localStorage.getItem('earthSettings') || 'null');
     if (s) for (const k in settings) { if (typeof s[k] === typeof settings[k]) settings[k] = s[k]; }
@@ -390,10 +415,30 @@ function startApp(cdnUrl) {
     return mesh;
   }
 
+  function applyImagery(t) {
+    if (!t.mesh || !t.imgTex) return;
+    const n = t.mesh.getTotalVertices();
+    const whites = new Float32Array(n * 4);
+    whites.fill(1);
+    t.mesh.setVerticesData(BABYLON.VertexBuffer.ColorKind, whites);
+    if (!t.imgMat) {
+      t.imgMat = terrainMat.clone('im' + t.key);
+      t.imgMat.ambientColor = new BABYLON.Color3(0.55, 0.55, 0.55);
+    }
+    t.imgMat.diffuseTexture = t.imgTex;
+    t.mesh.material = t.imgMat;
+  }
+
+  function disposeTileExtras(t) {
+    if (t.imgTex) { t.imgTex.dispose(); t.imgTex = null; }
+    if (t.imgMat) { t.imgMat.dispose(); t.imgMat = null; }
+  }
+
   function rebuildMesh(t) {
     if (t.mesh) { t.mesh.dispose(); t.mesh = null; }
     t.mesh = buildTileMesh(t);
     t.mesh.position.set((t.tx - originTx) * TILE_M, 0, -(t.ty - originTy) * TILE_M);
+    if (settings.imagery && t.imgTex) applyImagery(t);
   }
 
   function decodePng(blob) {
@@ -425,8 +470,14 @@ function startApp(cdnUrl) {
     function(z, x, y) { return 'https://s3.amazonaws.com/elevation-tiles-prod/terrarium/' + z + '/' + x + '/' + y + '.png'; },
     function(z, x, y) { return 'https://elevation-tiles-prod.s3.amazonaws.com/terrarium/' + z + '/' + x + '/' + y + '.png'; }
   ];
+  const IMG_HOSTS = [
+    function(z, x, y) { return 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/' + z + '/' + y + '/' + x; },
+    function(z, x, y) { return 'https://tile.openstreetmap.org/' + z + '/' + x + '/' + y + '.png'; }
+  ];
   let netFails = 0;
   let lastNetErr = '';
+  let imgOk = 0;
+  let imgFails = 0;
   let dlActive = 0;
   const dlQueue = [];
   const DL_MAX = 6;
@@ -479,6 +530,37 @@ function startApp(cdnUrl) {
     lastNetErr = (lastErr && lastErr.message) ? lastErr.message : String(lastErr);
   }
 
+  async function fetchImagery(t) {
+    if (!settings.imagery) return;
+    const fx = ((t.tx % NZ) + NZ) % NZ;
+    const fy = Math.min(Math.max(t.ty, 0), NZ - 1);
+    for (let h = 0; h < IMG_HOSTS.length; h++) {
+      if (!tiles.has(t.key) || !settings.imagery) return;
+      const ctrl = new AbortController();
+      const timer = setTimeout(function() { ctrl.abort(); }, 12000);
+      try {
+        const resp = await fetch(IMG_HOSTS[h](zoom, fx, fy), { mode: 'cors', signal: ctrl.signal });
+        if (!resp.ok) throw new Error('HTTP ' + resp.status);
+        const blob = await resp.blob();
+        const objUrl = URL.createObjectURL(blob);
+        const tex = new BABYLON.Texture(objUrl, scene, false, false, BABYLON.Texture.TRILINEAR_SAMPLINGMODE,
+          function() { URL.revokeObjectURL(objUrl); },
+          function() { URL.revokeObjectURL(objUrl); });
+        tex.wrapU = BABYLON.Texture.CLAMP_ADDRESSMODE;
+        tex.wrapV = BABYLON.Texture.CLAMP_ADDRESSMODE;
+        if (!tiles.has(t.key) || !settings.imagery) { tex.dispose(); return; }
+        t.imgTex = tex;
+        applyImagery(t);
+        imgOk++;
+        return;
+      } catch (e) {
+      } finally {
+        clearTimeout(timer);
+      }
+    }
+    if (tiles.has(t.key)) imgFails++;
+  }
+
   function ensureTile(tx, ty, d) {
     const key = tx + ',' + ty;
     const want = lodForDist(d);
@@ -487,10 +569,11 @@ function startApp(cdnUrl) {
       if (t.lod !== want) { t.lod = want; rebuildMesh(t); }
       return;
     }
-    t = { key: key, tx: tx, ty: ty, lod: want, state: 'proc', heights: makeProcHeights(tx, ty), mesh: null };
+    t = { key: key, tx: tx, ty: ty, lod: want, state: 'proc', heights: makeProcHeights(tx, ty), mesh: null, imgTex: null, imgMat: null };
     tiles.set(key, t);
     rebuildMesh(t);
     queueDl(function() { return fetchElev(t); });
+    queueDl(function() { return fetchImagery(t); });
   }
 
   function updateStreaming(ptx, pty) {
@@ -504,6 +587,7 @@ function startApp(cdnUrl) {
       const d = Math.max(Math.abs(t.tx - ptx), Math.abs(t.ty - pty));
       if (d > CACHE) {
         if (t.mesh) t.mesh.dispose();
+        disposeTileExtras(t);
         tiles.delete(key);
       }
     }
@@ -528,7 +612,10 @@ function startApp(cdnUrl) {
     originTx = o.x;
     originTy = o.y;
     TILE_M = tileMeters(zoom) * Math.max(Math.cos(lat * DEG2RAD), 0.01);
-    for (const t of tiles.values()) { if (t.mesh) t.mesh.dispose(); }
+    for (const t of tiles.values()) {
+      if (t.mesh) t.mesh.dispose();
+      disposeTileExtras(t);
+    }
     tiles.clear();
     const f = tileFrac(lat, lon);
     const wx = (f.x - originTx - 0.5) * TILE_M;
@@ -611,8 +698,11 @@ function startApp(cdnUrl) {
   canvas.addEventListener('pointercancel', pinchEnd);
 
   // ---- time of day ----
-  const daySky = new BABYLON.Color3(0.5, 0.7, 0.95);
-  const nightSky = new BABYLON.Color3(0.02, 0.03, 0.08);
+  const dayTop = new BABYLON.Color3(0.2, 0.45, 0.85);
+  const dayHor = new BABYLON.Color3(0.7, 0.82, 0.94);
+  const nightTop = new BABYLON.Color3(0.01, 0.02, 0.06);
+  const nightHor = new BABYLON.Color3(0.05, 0.08, 0.14);
+  const sunsetHor = new BABYLON.Color3(0.98, 0.5, 0.24);
   function fmtTOD(h) {
     const hh = Math.floor(h) % 24;
     const mm = Math.floor((h - Math.floor(h)) * 60);
@@ -628,12 +718,16 @@ function startApp(cdnUrl) {
     } else {
       sun.direction = new BABYLON.Vector3(Math.sin(az), -elev, Math.cos(az) * 0.5).normalize();
     }
-    sun.intensity = 0.12 + 1.05 * daylight;
-    hemi.intensity = 0.22 + 0.35 * daylight;
-    const skyC = BABYLON.Color3.Lerp(nightSky, daySky, Math.min(daylight + 0.08, 1));
-    skyMat.emissiveColor = skyC;
-    scene.fogColor = new BABYLON.Color3(skyC.r * 0.95, skyC.g * 0.95, skyC.b * 0.95);
-    scene.clearColor = new BABYLON.Color4(skyC.r, skyC.g, skyC.b, 1);
+    sun.intensity = 0.15 + 1.1 * daylight;
+    hemi.intensity = 0.28 + 0.38 * daylight;
+    const dl = Math.min(daylight + 0.06, 1);
+    let top = BABYLON.Color3.Lerp(nightTop, dayTop, dl);
+    let hor = BABYLON.Color3.Lerp(nightHor, dayHor, dl);
+    const sunset = Math.max(0, 1 - Math.abs(elev) / 0.3);
+    if (sunset > 0) hor = BABYLON.Color3.Lerp(hor, sunsetHor, sunset * 0.65);
+    paintSky(top, hor);
+    scene.fogColor = hor;
+    scene.clearColor = new BABYLON.Color4(hor.r, hor.g, hor.b, 1);
   }
   applyTOD();
 
@@ -642,6 +736,7 @@ function startApp(cdnUrl) {
   // ---- settings modal wiring ----
   const modalWrap = document.getElementById('modalWrap');
   const optDetail = document.getElementById('optDetail');
+  const optImagery = document.getElementById('optImagery');
   const optWalk = document.getElementById('optWalk');
   const optFly = document.getElementById('optFly');
   const optTod = document.getElementById('optTod');
@@ -656,6 +751,7 @@ function startApp(cdnUrl) {
   const sensVal = document.getElementById('sensVal');
 
   optDetail.value = settings.detail;
+  optImagery.checked = settings.imagery;
   optWalk.value = settings.walkSpeed;
   optFly.value = settings.flySpeed;
   optTod.value = settings.tod;
@@ -681,6 +777,19 @@ function startApp(cdnUrl) {
   optDetail.addEventListener('change', function() {
     setQuality(optDetail.value);
     saveSettings();
+  });
+  optImagery.addEventListener('change', function() {
+    settings.imagery = optImagery.checked;
+    saveSettings();
+    for (const t of tiles.values()) {
+      if (settings.imagery) {
+        if (!t.imgTex) queueDl(function() { return fetchImagery(t); });
+        else applyImagery(t);
+      } else {
+        disposeTileExtras(t);
+        rebuildMesh(t);
+      }
+    }
   });
   optWalk.addEventListener('input', function() {
     settings.walkSpeed = parseFloat(optWalk.value) || 5;
@@ -754,6 +863,7 @@ function startApp(cdnUrl) {
       (zoomMult !== 1 ? ' Zoom:' + zoomMult.toFixed(1) + 'x' : '') +
       '<br>Tiles:' + tiles.size + ' (ring ' + RING + ')' +
       '<br>SRC: TERR ' + terr + ' / PROC ' + proc +
+      '<br>IMG: ' + (settings.imagery ? ('OK ' + imgOk + ' / FAIL ' + imgFails) : 'off') +
       '<br>NET fails:' + netFails + (lastNetErr ? ' (' + lastNetErr.slice(0, 40) + ')' : '') +
       '<br>CDN:' + cdnUrl.split('/')[2];
   });
