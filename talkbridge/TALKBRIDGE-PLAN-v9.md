@@ -1,5 +1,5 @@
-<!-- TALKBRIDGE-PLAN v21.63.0 -->
-# TALKBRIDGE MASTER PLAN v21.63.0
+<!-- TALKBRIDGE-PLAN v21.63.1 -->
+# TALKBRIDGE MASTER PLAN v21.63.1
 
 **Location:** `talkbridge/TALKBRIDGE-PLAN-v9.md` in `acmeproducts/stuff`.
 **Owner:** Confi — sole decision-maker, runs every device gate.
@@ -2038,6 +2038,8 @@ Green means allowed to push. It never means done.
 ---
 
 ## 10 · CHANGE LOG
+
+**v21.63.1 · 2026-09-30.** Governance protection only, at owner order (G61 replacement 2): `.github/workflows/talkbridge-ownership.yml` + `talkbridge/build/ownership-gate.mjs`. Every commit in a push to main or a pull request that changes or deletes `talkbridge/**`, `bridge-turn*.html`, `tb-*.js`, `tb-manifest-*` or `icon-v2-*` must be a TalkBridge commit — its message names TalkBridge, a turn·stage, or a plan version; the automated device log (`talkbridge/DEVICE-LOG.md`) is exempt. Judged per commit by first-parent diff. Proven on history: refuses `fdd61e2` (19 files), passes every TalkBridge and device-log commit since; 13-case self-test. Limit stated plainly: CI turns a push red, it cannot un-push; to make the check a hard block on merges, the owner enables branch protection on main with "TalkBridge ownership" as a required status check (a repository setting). No candidate, accepted artifact or product behaviour touched — hashes verified unchanged.
 
 **v21.63.0 · 2026-09-30.** c2 identity re-established. `fdd61e2` (another project’s release in this repository) silently reverted 28·base c2 on main two minutes after it merged — the address served c1, the worker, manifest, icons, part, gate files and this plan’s v21.62 entry were gone. Restored byte-for-byte from `15a774e` in one TalkBridge-only commit; all gates re-run on the restored bytes. Candidate identity for the device gate: sha256 `ac70346cac70`. Buried as G61 with the mechanical fix proposed: the governance gate must also watch the root TalkBridge files (`bridge-turn*.html`, `tb-*.js`, `tb-manifest-*`, `icon-*`), not only `talkbridge/**`.
 
