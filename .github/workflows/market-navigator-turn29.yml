@@ -1,4 +1,4 @@
-name: Market Navigator Turn 29 NOW Current
+name: Market Navigator Turn 29 Analysis + Health
 on:
   push:
     branches: [main]
@@ -15,40 +15,42 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
-        with:
-          node-version: '22'
-      - name: Build candidate and current-state evidence
+        with: {node-version: '22'}
+      - name: Build Analysis and Health candidate
         run: python3 market-navigator-build-turn29.py
-      - name: Record authoritative plan scope
+      - name: Correct authoritative plan scope
         run: |
           python3 - <<'PY'
           from pathlib import Path
-          p=Path('MARKET-NAVIGATOR-MASTER-PLAN.md'); s=p.read_text(); marker='## 46. Turn 29 — NOW Current descriptive dashboard'
-          if marker not in s:
-              s += '''\n\n---\n\n## 46. Turn 29 — NOW Current descriptive dashboard\n\nOwner-authorized 2026-09-29. This stage follows the failed 10–30-day predictive Trend qualification and does **not** publish predictive Trend.\n\n- NOW remains the entry point. Existing GRW/RSK/MAC entry chips gain a compact descriptive state: **▲ Positive / ▶ Neutral / ▼ Negative**, with green / grey / red redundant semantics. No new dashboard row is introduced.\n- Current state is descriptive, not predictive: each persistent index is located within its own trailing five-year empirical distribution. Lower / middle / upper terciles define the three state bands. GRW higher means more positive growth momentum; RSK higher means greater risk and therefore more negative; MAC higher means greater inflation/monetary-policy pressure and therefore more negative.\n- The classification is derived only from governed `MN-PERSISTENT-1.0.0` evidence. It adds no source, proxy, interpolation, forward fill, component, weight, or alternate index arithmetic.\n- The deterministic state and methodology are exposed to AI evidence and Health Glossary. AI may explain but not calculate or override the state.\n- The failed predictive Trend model remains excluded from production. No 10–30-day directional claim is authorized by this stage.\n- Candidate: `market-navigator-turn29-pre-ship.html`; evidence: `market-evidence/current-state-v1.json`; builder: `market-navigator-build-turn29.py`.\n- Release gates: exact Turn 28 Ship blob ancestry, deterministic rebuild, syntax, state vocabulary, forecast=false, all three governed indices present, glossary/AI evidence presence, and owner qualification before baseline promotion.\n'''
-              p.write_text(s)
+          p=Path('MARKET-NAVIGATOR-MASTER-PLAN.md');s=p.read_text();head='## 46. Turn 29 — NOW Current descriptive dashboard'
+          if head in s:
+            before=s.split(head,1)[0].rstrip()
+            s=before+'''\n\n## 46. Turn 29 — Current-state Analysis + Health; dashboard deferred\n\nOwner correction 2026-09-30. The earlier Turn 29 candidate placed Current/Trend state in the existing drill-down strip without approval. That placement is rejected and must not be promoted.\n\n- Current-state classification is retained only as governed **Analysis evidence** and **Health/Glossary methodology evidence**.\n- No Current/Trend arrow, color, label, badge, or state is added to the existing drill-down strip.\n- The future dashboard entry point remains **undefined and unimplemented** until Part B (Trend research disposition) is complete and the owner explicitly approves dashboard layout/placement.\n- Predictive `MN-TREND-1.0.0` failed production qualification and remains research-only. It must not appear in NOW, drill-down, narrative as validated forecast, Library, Print, Download, or production Health as a validated model.\n- The failed Trend V1 scheduled publisher is disabled; V1 can only be reproduced manually as research evidence.\n- Turn 29 candidate is rebuilt directly from the qualified Turn 28 Ship baseline and may alter only Analysis evidence context and Health Glossary content for descriptive Current state.\n- Candidate: `market-navigator-turn29-pre-ship.html`; evidence: `market-evidence/current-state-v1.json`; builder: `market-navigator-build-turn29.py`.\n- Release gates: exact Turn 28 Ship ancestry; deterministic rebuild; syntax; `forecast=false`; `uiPlacement=ANALYSIS_HEALTH_ONLY`; no drill-down-strip state CSS/rendering; all three governed indices present; owner qualification before baseline promotion.\n'''
+            p.write_text(s+'\n')
           PY
       - name: Static qualification
         run: |
           python3 - <<'PY'
           from pathlib import Path
           import json,re
-          p=Path('market-navigator-turn29-pre-ship.html'); assert p.exists() and p.stat().st_size>200000
+          p=Path('market-navigator-turn29-pre-ship.html');assert p.exists() and p.stat().st_size>200000
           s=p.read_text()
-          for x in ['turn29BuildMarker','MN_CURRENT_STATE_29','Current state','forecast:false','mn-current-state-v1']: assert x in s,x
-          e=json.loads(Path('market-evidence/current-state-v1.json').read_text()); assert e['forecast'] is False
+          for x in ['turn29BuildMarker','MN_CURRENT_STATE_29','Current state','forecast:false','ANALYSIS_HEALTH_ONLY']:assert x in s,x
+          assert 'TURN29_NOW_CURRENT_STATE' not in s
+          assert '#legend [data-id="growth"]::after' not in s
+          e=json.loads(Path('market-evidence/current-state-v1.json').read_text())
+          assert e['forecast'] is False and e['uiPlacement']=='ANALYSIS_HEALTH_ONLY'
           assert set(e['indices'])=={'growth','risk','macro'}
-          assert all(v['label'] in {'Positive','Neutral','Negative','Unavailable'} for v in e['indices'].values())
-          scripts=re.findall(r'<script(?: [^>]*)?>(.*?)</script>',s,re.S); Path('/tmp/mn-inline.js').write_text('\n'.join(x for x in scripts if x.strip()))
-          assert '## 46. Turn 29 — NOW Current descriptive dashboard' in Path('MARKET-NAVIGATOR-MASTER-PLAN.md').read_text()
-          print(json.dumps(e['indices'],indent=2))
+          scripts=re.findall(r'<script(?: [^>]*)?>(.*?)</script>',s,re.S);Path('/tmp/mn-inline.js').write_text('\n'.join(x for x in scripts if x.strip()))
+          plan=Path('MARKET-NAVIGATOR-MASTER-PLAN.md').read_text();assert 'dashboard deferred' in plan and 'No Current/Trend arrow' in plan
           PY
           node --check /tmp/mn-inline.js
-      - name: Commit generated candidate, evidence and plan
+      - name: Commit corrected candidate, evidence and plan
         run: |
           git add market-navigator-turn29-pre-ship.html market-evidence/current-state-v1.json MARKET-NAVIGATOR-MASTER-PLAN.md
           if git diff --cached --quiet; then exit 0; fi
           git config user.name github-actions[bot]
           git config user.email 41898282+github-actions[bot]@users.noreply.github.com
-          git commit -m 'build: qualify Turn 29 NOW current candidate and plan'
-          git push
+          git commit -m 'build: qualify Turn 29 Analysis and Health only'
+          git pull --rebase origin main
+          git push origin HEAD:main
