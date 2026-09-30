@@ -59,3 +59,28 @@ Required replacement:
 
 - the primary Analyze surface contains only the SSOT states and controls needed for normal operation;
 - durable job/event/history evidence remains stored and available to diagnostics/engineering without being rendered on the primary SSOT screen.
+
+---
+
+## 2026-09-29 — PRIMARY NAVIGATION / SEARCH / ACTIVITY NEGATIVE RULES
+
+Rejected and must not return:
+
+- separate Database and Grid primary buttons for two views of the same search result set;
+- a database-cylinder icon for the unified Search surface;
+- Grid-only bulk operations while Table exposes the same result set;
+- separate primary Report and Analyze icons;
+- Estate Catalog as a normal owner workflow under the Add to Estate action;
+- Activity as a standalone primary navigation button;
+- runtime logging that can only be inspected by leaving the application or manually manufacturing a diagnostic bundle;
+- writing raw operational logs or SQLite diagnostics into the public application repository.
+
+Required replacement:
+
+- visible primary navigation is **Report / Search / Add to Estate / AI**;
+- Report owns **Report / Analyze** subtabs;
+- Search owns **Table / Grid** views and both expose Tag / Notes / Delete / Folder bulk operations;
+- Search uses a magnifying-glass icon; Add to Estate uses a plus icon and opens Picker;
+- Log / Activity lives in Configuration with Download / Copy / Clear;
+- the structured runtime log remains local and automatically mirrors to the separately cloned private diagnostics Git repository when that checkout is configured;
+- clearing the runtime JSONL does not delete SQLite durable event history.
