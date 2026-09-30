@@ -1,0 +1,41 @@
+name: Market Navigator Trend V2 Research
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'market-navigator-trend-v2-research.py'
+      - '.github/workflows/market-navigator-trend-v2-research.yml'
+  workflow_dispatch:
+permissions:
+  contents: write
+jobs:
+  research:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with: {fetch-depth: 0}
+      - name: Run fixed Trend V2 diagnostic
+        run: python3 market-navigator-trend-v2-research.py
+      - name: Validate research-only contract
+        run: |
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+          p=Path('market-evidence/reports/trend-v2-research.json');d=json.loads(p.read_text())
+          assert d['status']=='RESEARCH_ONLY' and d['productionAuthorized'] is False
+          assert set(d['tests'])=={'macro','growth','risk'}
+          for k,v in d['tests'].items():
+            assert v['status']=='COMPLETE'
+            for h in ('10','20','30'):
+              for m in ('naive20d','institutionalV1','agreement'):
+                assert v['stats'][h][m]['directionalSignals']>0
+          PY
+      - name: Commit research evidence
+        run: |
+          git add market-evidence/reports/trend-v2-research.json
+          if git diff --cached --quiet; then exit 0; fi
+          git config user.name market-evidence-bot
+          git config user.email market-evidence-bot@users.noreply.github.com
+          git commit -m 'research: publish Trend V2 baseline comparison'
+          git pull --rebase origin main
+          git push origin HEAD:main
