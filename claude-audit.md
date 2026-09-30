@@ -37,6 +37,15 @@ Source: the postmortem of the Orbital8 UI recovery (`acmeproducts/perf`, `UI-V2-
 
 ## B · Before touching code
 
+- **B0 The repository is shared. Never assume you have it to yourself.**
+  - Never run `git add -A`, `git add .`, or `git commit -a`.
+    Stage only your own project's paths by name, e.g. `git add SOT/ devstream/`.
+  - Before every commit: `git fetch origin main && git merge --ff-only origin/main`.
+    If that fails, stop and rebase your own commits; never resolve by keeping your copy of another project's files.
+  - Never write, delete, or "restore" a file outside your project's paths.
+  - Check before pushing: `git diff --stat origin/main..HEAD` must list only your paths.
+  - Why: on 2026-09-30 a session with a stale folder pulled main, staged everything, and silently deleted another project's just-merged release (TalkBridge G61). Git did what it was told.
+
 - **B1 Establish ground truth from git, not from documents or memory.**
   - Read the history of the file I'll change.
   - Find the owner's own approvals in commit messages.
