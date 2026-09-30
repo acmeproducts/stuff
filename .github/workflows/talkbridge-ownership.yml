@@ -1,0 +1,45 @@
+name: TalkBridge ownership
+
+# G61: a commit that changes or deletes a TalkBridge file must be a TalkBridge
+# commit (its message names TalkBridge, a turn·stage, or a plan version).
+# Watches talkbridge/** and the root TalkBridge files. Judges every commit
+# in the push or pull request, one by one, by its first-parent diff.
+
+on:
+  pull_request:
+    paths:
+      - 'talkbridge/**'
+      - 'bridge-turn*.html'
+      - 'tb-*.js'
+      - 'tb-manifest-*'
+      - 'icon-v2-*'
+      - '.github/workflows/talkbridge-ownership.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'talkbridge/**'
+      - 'bridge-turn*.html'
+      - 'tb-*.js'
+      - 'tb-manifest-*'
+      - 'icon-v2-*'
+      - '.github/workflows/talkbridge-ownership.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  own:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - name: Self-test the gate
+        run: node talkbridge/build/ownership-gate.mjs --selftest
+      - name: Every commit that touches TalkBridge files must own them
+        env:
+          RANGE: ${{ github.event_name == 'pull_request' && format('{0}..{1}', github.event.pull_request.base.sha, github.event.pull_request.head.sha) || format('{0}..{1}', github.event.before, github.sha) }}
+        run: node talkbridge/build/ownership-gate.mjs --range "$RANGE"
