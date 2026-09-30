@@ -12,17 +12,14 @@
 
    Usage: node harness-diff-28b.mjs [candidate.html]  (TB_PART_OVERRIDE / TB_KEEP for mutations) */
 
-import { readFileSync, existsSync } from 'fs';
+import { readFileSync } from 'fs';
 import { JSDOM, VirtualConsole } from 'jsdom';
-import { BASE_FILE, PART, PARTS2, SYMBOLS, TAIL, HEAD_EDITS, ADDED_MARKERS, NEW_FILES, assemble, removals } from './assemble-28b.mjs';
+import { BASE_FILE, PART, SYMBOLS, TAIL, assemble, removals } from './assemble-28b.mjs';
 
 const candP = process.argv[2] || 'bridge-turn28-base.html';
 const cand = readFileSync(candP, 'utf8');
 const accepted = readFileSync(BASE_FILE, 'utf8');
 const part = process.env.TB_PART_OVERRIDE ? readFileSync(process.env.TB_PART_OVERRIDE, 'utf8') : readFileSync(PART, 'utf8');
-const parts2 = PARTS2.map((p, i) => process.env.TB_PARTS2_OVERRIDE ? readFileSync(process.env.TB_PARTS2_OVERRIDE.split(',')[i], 'utf8') : readFileSync(p, 'utf8'));
-const sw3 = readFileSync(process.env.TB_SW3 || 'tb-sw3.js', 'utf8'), sw2 = readFileSync('tb-sw2.js', 'utf8');
-const man28 = readFileSync(process.env.TB_MANIFEST || 'tb-manifest-turn28.webmanifest', 'utf8'), man26 = readFileSync('tb-manifest-turn26.webmanifest', 'utf8');
 
 let pass = 0, fail = 0;
 const T = (name, fn) => { try { fn(); pass++; console.log('  ok  ' + name); } catch (e) { fail++; console.log('FAIL  ' + name + ' — ' + ((e && e.message) || e)); } };
@@ -34,7 +31,7 @@ const inline = (html) => html.match(/<script(?![^>]*\bsrc=)[^>]*>([\s\S]*?)<\/sc
 /* ── M1 · THE REMOVAL IS EXACTLY THE DECLARED ONE ────────────────────────── */
 console.log('M1 · candidate === accepted − declared layers + FL-1, nothing else');
 const KEEP = process.env.TB_KEEP ? process.env.TB_KEEP.split(',') : [];
-T('M1.1 candidate is the assembler\'s output for this part (every removal by its banked bytes)', () => assert(cand === assemble({ part, parts2, keepRemovals: KEEP }), 'candidate is not accepted − removals + head edits + parts'));
+T('M1.1 candidate is the assembler\'s output for this part (every removal by its banked bytes)', () => assert(cand === assemble({ part, keepRemovals: KEEP }), 'candidate is not accepted − removals + part'));
 T('M1.2 every removed layer is banked and was present exactly once in the accepted bytes', () => {
   const rs = removals(); assert(rs.length === 27, 'expected 27 banked layers, got ' + rs.length);
   for (const r of rs) { assert(accepted.split(r.text).length - 1 === 1, r.file + ' not exactly once in accepted'); if (!KEEP.includes(r.file)) assert(cand.indexOf(r.text) === -1, r.file + ' still in candidate'); }
@@ -46,12 +43,11 @@ T('M1.3 the part declares exactly the six symbols and no wraps', () => {
 
 /* ── M2 · NOTHING NEW, NOTHING LEFT BEHIND ───────────────────────────────── */
 console.log('M2 · nothing new, nothing left behind');
-const markers = (js) => { const s = new Set(); const re = /\b(?:log|L|rmLog|cr3Log|p6Log|p4Log|netLog|rcLog|r8Log|lcLog|p3Log|n17Log|prLog|s2Log|f1Log)\(\s*'([a-z0-9_]+)'/g; let m; while ((m = re.exec(code(js)))) s.add(m[1]); return s; };
+const markers = (js) => { const s = new Set(); const re = /\b(?:log|rmLog|cr3Log|p6Log|p4Log|netLog|rcLog|r8Log|lcLog|p3Log|n17Log|prLog|s2Log|f1Log)\(\s*'([a-z0-9_]+)'/g; let m; while ((m = re.exec(code(js)))) s.add(m[1]); return s; };
 T('M2.1 the set of log markers in the candidate equals the accepted set (no marker added or lost)', () => {
   const a = markers(inline(accepted)), c = markers(inline(cand));
-  const added = [...c].filter((x) => !a.has(x) && !ADDED_MARKERS.includes(x)), lost = [...a].filter((x) => !c.has(x));
+  const added = [...c].filter((x) => !a.has(x)), lost = [...a].filter((x) => !c.has(x));
   assert(added.length === 0 && lost.length === 0, 'added: ' + added.join(',') + ' lost: ' + lost.join(','));
-  for (const m of ADDED_MARKERS) assert(c.has(m), 'declared marker never used: ' + m);
 });
 T('M2.2 no wrapper of a flattened symbol survives in code; each symbol is bound once', () => {
   const js = code(inline(cand));
@@ -202,14 +198,10 @@ const mask = (v, k) => {
   if (v && typeof v === 'object') { const o = {}; for (const kk of Object.keys(v).sort()) o[kk] = mask(v[kk], kk); return o; }
   return v;
 };
-/* render bookkeeping that fires on its own timers (rAF / setTimeout) — its position AND count jitter with the rig's clock (T-1 collapses bursts by frame), not with the relay path; compared as the set of markers seen, not ordered, not counted */
-const HOUSEKEEPING = new Set(['r8_menu_labels', 'p4_ctx_save_failed', 't1_coalesced', 'md1_rendered', 'rc_panel_no_body', 'rc_panel_rendered', 'rc_home_rendered']);
 function snapshot(inst, sentLists) {
   const w = inst.w;
-  const hk = {}; w.debugLog.forEach((l) => { if (HOUSEKEEPING.has(l.ev)) hk[l.ev] = true; });
   return {
-    log: w.debugLog.filter((l) => !HOUSEKEEPING.has(l.ev)).map((l) => ({ ev: l.ev, lvl: l.lvl, d: mask(l.d) })),
-    housekeeping: hk,
+    log: w.debugLog.map((l) => ({ ev: l.ev, lvl: l.lvl, d: mask(l.d) })),
     wire: sentLists.map((s) => mask(JSON.parse(s))),
     sockets: w.__sockets.map((s) => ({ url: s.url.replace(/client=[^&]*/, 'client=X'), state: s.readyState, sent: s.__sent.map((x) => mask(JSON.parse(x))) })),
     listen: Object.keys(w.LISTEN.socks),
@@ -243,83 +235,10 @@ T('M3.0 the script exercised the path: both rigs produced a substantial log, wir
   assert(snapA.X.log.length > 25 && snapA.X.wire.length > 5 && snapA.X.sockets.length >= 3 && snapA.Y.log.length > 3, 'script too thin: X ' + snapA.X.log.length + ' log, ' + snapA.X.wire.length + ' wire, ' + snapA.X.sockets.length + ' sockets; Y ' + snapA.Y.log.length + ' log');
   assert(snapA.X.log.some((l) => l.ev === 'c1_queued') && snapA.X.log.some((l) => l.ev === 'v2_retry') && snapA.X.log.some((l) => l.ev === 'pr3_dot') && snapA.X.log.some((l) => l.ev === 'bg_chat_rx') && snapA.X.log.some((l) => l.ev === 'rm_rename_received'), 'a headline marker never fired on the accepted build: ' + [...new Set(snapA.X.log.map((l) => l.ev))].join(','));
 });
-for (const who of ['X', 'Y']) for (const key of ['log', 'housekeeping', 'wire', 'sockets', 'listen', 'rooms', 'transcript', 'bgTranscript', 'call', 'dom', 'errors']) {
+for (const who of ['X', 'Y']) for (const key of ['log', 'wire', 'sockets', 'listen', 'rooms', 'transcript', 'bgTranscript', 'call', 'dom', 'errors']) {
   T('M3 ' + who + '.' + key + ' identical on both builds', () => { const out = []; diff(snapA[who][key], snapC[who][key], who + '.' + key, out); assert(out.length === 0, '\n      ' + out.join('\n      ')); });
 }
 RA.X.dom.window.close(); RA.Y.dom.window.close(); RC.X.dom.window.close(); RC.Y.dom.window.close();
-
-/* ── M4 · CANDIDATE 2: THE APP'S FACE (I-1) ──────────────────────────────── */
-console.log('M4 · the app\'s face: icons, manifest, worker, registration');
-const png = (f) => { const b = readFileSync(f); assert(b.slice(1, 4).toString() === 'PNG', f + ' is not a PNG'); return { w: b.readUInt32BE(16), h: b.readUInt32BE(20), colorType: b[25] }; };
-T('M4.1 every new file exists; the icons are PNGs of the declared sizes; the badge has an alpha channel', () => {
-  for (const f of NEW_FILES) assert(existsSync(f), 'missing ' + f);
-  for (const [f, n] of [['icon-v2-512.png', 512], ['icon-v2-192.png', 192], ['icon-v2-180.png', 180], ['icon-v2-maskable-512.png', 512], ['icon-v2-badge-96.png', 96]]) { const d = png(f); assert(d.w === n && d.h === n, f + ' is ' + d.w + 'x' + d.h); }
-  assert([4, 6].includes(png('icon-v2-badge-96.png').colorType), 'badge is not white-on-transparent (no alpha)');
-});
-T('M4.2 the head links point at the v2 set and nowhere else; every other head line is byte-identical', () => {
-  const head = (h) => h.slice(0, h.indexOf('<body>'));
-  let expect = head(accepted); for (const [a, b] of HEAD_EDITS.filter(([a]) => a.startsWith('<link'))) { assert(expect.split(a).length - 1 === 1, 'head edit target not unique: ' + a); expect = expect.replace(a, b); }
-  assert(head(cand) === expect, 'head differs beyond the three declared links');
-  assert(/tb-manifest-turn28\.webmanifest/.test(head(cand)) && /icon-v2-180\.png/.test(head(cand)) && /icon-v2-192\.png/.test(head(cand)) && !/tb-manifest-turn26|"icon-180\.png"|"icon-192\.png"/.test(head(cand)), 'old links remain');
-  assert(code(inline(cand)).indexOf('tb-manifest-turn26') === -1, 'the runtime manifest swap still points at turn26 — the head edit would be undone on launch');
-  assert(/lk\.href = 'tb-manifest-turn28\.webmanifest'/.test(cand), 'the runtime manifest swap does not point at turn28');
-});
-T('M4.3 the turn28 manifest is the turn26 manifest with only the icons changed (scope, display, name, colours identical — G25/G27)', () => {
-  const a = JSON.parse(man26), b = JSON.parse(man28);
-  for (const k of Object.keys(a)) if (k !== 'icons') assert(JSON.stringify(a[k]) === JSON.stringify(b[k]), 'manifest field changed: ' + k);
-  assert(Object.keys(b).every((k) => k in a), 'manifest field added');
-  assert(b.icons.length === 4 && b.icons.every((i) => /^icon-v2-/.test(i.src) && existsSync(i.src)) && b.icons.some((i) => i.purpose === 'maskable') && b.icons.every((i) => { const d = png(i.src); return i.sizes === d.w + 'x' + d.h; }), 'manifest icons wrong: ' + JSON.stringify(b.icons));
-});
-T('M4.4 tb-sw3.js is tb-sw2.js plus the face: every notification shown carries the v2 icon and badge; nothing else moved', () => {
-  const norm = (x) => x.split('\n').filter((l) => !/face\(|tb-sw3\.js \(28·base I-1/.test(l)).map((l) => l.replace(/face\(/g, '').replace(/\}\)\)/g, '})')).join('\n');
-  const strip = (x) => x.replace(/^\/\*[\s\S]*?\*\/\n/, '');
-  assert(strip(sw3).replace(/face\((\{[\s\S]*?\})\)/g, '$1').replace(/face\(opts\)/g, 'opts').replace(/\n\/\* I-1 \(28·base, tb-sw3\.js\)[\s\S]*?return o; \}\n/, '\n') === strip(sw2), 'tb-sw3.js differs from tb-sw2.js beyond the face');
-  const calls = [...sw3.matchAll(/showNotification\(/g)].map((m) => sw3.slice(m.index, m.index + 160));
-  assert(calls.length === 4 && calls.every((c) => /face\(/.test(c)), 'expected 4 showNotification calls all with the face, got ' + calls.length + '; without: ' + calls.filter((c) => !/face\(/.test(c)).join(' | '));
-  assert(/o\.icon = self\.registration\.scope \+ 'icon-v2-192\.png'/.test(sw3) && /o\.badge = self\.registration\.scope \+ 'icon-v2-badge-96\.png'/.test(sw3), 'face points at the wrong files');
-  assert((sw3.match(/APP_FILE = '[^']+'/) || [])[0] === (sw2.match(/APP_FILE = '[^']+'/) || [])[0], 'APP_FILE changed');
-});
-{
-  const errors = []; const vc = new VirtualConsole(); vc.on('jsdomError', () => {});
-  const regs = []; const registrations = [];
-  const dom = new JSDOM(cand, { url: 'https://acmeproducts.github.io/stuff/bridge-turn28-base.html', runScripts: 'dangerously', pretendToBeVisual: true, virtualConsole: vc, beforeParse(w) {
-    w.WebSocket = class { constructor() { this.readyState = 0; } send() {} close() {} addEventListener() {} removeEventListener() {} };
-    w.RTCPeerConnection = class { addEventListener() {} getConfiguration() { return {}; } createDataChannel() { return { readyState: 'open', send() {}, close() {}, addEventListener() {} }; } createOffer() { return Promise.resolve({}); } setLocalDescription() { return Promise.resolve(); } getStats() { return Promise.resolve({ forEach() {} }); } close() {} };
-    w.AudioContext = w.webkitAudioContext = class { constructor() { this.state = 'running'; this.destination = {}; } createMediaStreamSource() { return { connect() {} }; } createScriptProcessor() { return { connect() {}, disconnect() {} }; } createAnalyser() { return { connect() {}, disconnect() {}, getByteFrequencyData() {}, frequencyBinCount: 32 }; } resume() { return Promise.resolve(); } close() { return Promise.resolve(); } };
-    if (!w.navigator.mediaDevices) Object.defineProperty(w.navigator, 'mediaDevices', { value: {} });
-    w.navigator.mediaDevices.getUserMedia = () => Promise.reject(new Error('no hw'));
-    w.speechSynthesis = { speak() {}, cancel() {}, getVoices() { return []; }, addEventListener() {} }; w.SpeechSynthesisUtterance = class {};
-    w.Notification = class { static requestPermission() { return Promise.resolve('denied'); } }; w.Notification.permission = 'default';
-    w.fetch = () => Promise.resolve({ ok: false, status: 0, json: () => Promise.resolve({}), text: () => Promise.resolve('') });
-    w.matchMedia = () => ({ matches: false, addEventListener() {}, addListener() {} });
-    w.HTMLMediaElement.prototype.play = function () { return Promise.resolve(); };
-    /* a fake service-worker container: records what the app registers and what it retires */
-    const mkReg = (script) => ({ scope: 'https://acmeproducts.github.io/stuff/bridge-', active: { scriptURL: 'https://acmeproducts.github.io/stuff/' + script }, pushManager: { getSubscription: () => Promise.resolve(null) }, unregister() { registrations.splice(registrations.indexOf(this), 1); regs.push('unregister:' + script); return Promise.resolve(true); } });
-    registrations.push(mkReg('tb-sw.js'), mkReg('tb-sw2.js'));
-    Object.defineProperty(w.navigator, 'serviceWorker', { value: { register(url, opts) { regs.push(String(url)); const r = mkReg(String(url).replace(/^\.\//, '')); registrations.push(r); return Promise.resolve(r); }, getRegistrations() { return Promise.resolve(registrations.slice()); }, addEventListener() {}, ready: new Promise(() => {}) } });
-    w.localStorage.setItem('tb_name', 'Ann');
-    w.addEventListener('error', (e) => errors.push(String(e.message || e.error)));
-  } });
-  await sleep(1300);
-  const w = dom.window;
-  T('M4.5 the app registers onto tb-sw3.js whichever old name the code asks for; K1 underneath is untouched', () => {
-    assert(errors.length === 0, errors.join(' | '));
-    w.navigator.serviceWorker.register('./tb-sw.js'); w.navigator.serviceWorker.register('./tb-sw2.js');
-    const asked = regs.filter((r) => !/^unregister:/.test(r));
-    assert(asked.length >= 2 && asked.slice(-2).every((u) => /tb-sw3\.js$/.test(u)), 'registered: ' + JSON.stringify(regs));
-    assert(w.debugLog.some((l) => l.ev === 'i1_sw3_register'), 'I-1 did not run');
-    assert(regs.every((u) => !/tb-sw2?\.js$/.test(u)), 'an old worker name reached the browser: ' + JSON.stringify(regs));
-  });
-  T('M4.6 retirement: exact tb-sw2.js only, never tb-sw3.js, never tb-sw.js (K1 owns it), and only once the push subscription is live', () => {
-    const src = code(parts2[0]);
-    assert(/if \(\/tb-sw3\\\.js\$\/\.test\(script\)\) return;/.test(src), 'the new worker is not protected');
-    assert(/if \(!\/\\\/tb-sw2\\\.js\$\/\.test\(script\)\) return;/.test(src), 'retirement is not an exact tb-sw2.js match');
-    assert(/p3State && p3State\.sub\)\) \{ L\('i1_retire_deferred'/.test(src), 'retirement does not wait for the live subscription');
-    assert(/unsubscribe\(\)[\s\S]*unregister\(\)/.test(src), 'push subscription is not dropped before unregister');
-    assert(regs.filter((r) => /^unregister:/.test(r)).length === 0, 'retired something at boot');
-  });
-  dom.window.close();
-}
 
 console.log('\n' + pass + ' pass, ' + fail + ' fail');
 process.exit(fail ? 1 : 0);
