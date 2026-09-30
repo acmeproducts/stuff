@@ -1,0 +1,35 @@
+name: Market Navigator Turn 30 Analysis
+on:
+  push:
+    branches: [main]
+    paths: ['market-navigator-build-turn30.py','.github/workflows/market-navigator-turn30.yml']
+  workflow_dispatch:
+permissions: {contents: write}
+jobs:
+  qualify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: {node-version: '22'}
+      - name: Build
+        run: python3 market-navigator-build-turn30.py
+      - name: Qualify
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          import re
+          s=Path('market-navigator-turn30-pre-ship.html').read_text()
+          for x in ['turn30-fullsize-dual-axis','sourceSetStandalone30','maximum of two measurement types','Y1 + Y2 native units','width:100%!important;height:100%!important']: assert x in s,x
+          assert 'market-navigator-turn29-pre-ship.html' not in s
+          scripts=re.findall(r'<script(?: [^>]*)?>(.*?)</script>',s,re.S);Path('/tmp/mn30.js').write_text('\n'.join(x for x in scripts if x.strip()))
+          PY
+          node --check /tmp/mn30.js
+      - name: Commit candidate
+        run: |
+          git add market-navigator-turn30-pre-ship.html
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git commit -m 'build: qualify Turn 30 component analysis' || exit 0
+          git pull --rebase origin main
+          git push origin HEAD:main
