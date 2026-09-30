@@ -278,3 +278,23 @@ Do not patch Turn 27 forward or use it as the construction baseline. Recreate th
 ## 20. Turn 30 duplicate Analyze surface rejection — 2026-09-30
 
 Turn 30 component-analysis implementation is rejected as an application donor. It duplicated chart-surface preparation/chrome and allowed Analyze behavior to diverge from the correct chart surface. Do not patch Turn 30 forward. Standalone Analyze must call the same governed chart-surface path as the primary chart, with only host/root/series/horizon supplied as context.
+
+
+## 32. Turn 30/31 Analyze architecture rejection — 2026-09-30
+
+Turn 30 and Turn 31 standalone Analyze implementations are rejected as application donors.
+
+Turn 30 duplicated the main charting surface and independently implemented Analyze chart behavior, producing divergent legend/axis/series behavior and invalid chart combinations. Do not patch it forward.
+
+Turn 31 is also rejected. Its `chartSurface31()` shared data preparation but retained separate NOW and Analyze DOM/chrome/state/event paths, including separate legend/series containers and host-conditional behavior. Sharing data preparation or a low-level `draw()` function does **not** satisfy chart-surface reuse.
+
+Permanent prohibitions:
+
+- never describe two separately owned chart DOM trees as “the same surface” merely because they call a common function;
+- never retain separate NOW legend and Analyze series-ribbon implementations for the same analytical surface;
+- never retain separate NOW/Analyze tooltip, crosshair, axis, Add/remove, horizon, active-series, representation or footer implementations where the product requires one chart surface;
+- never qualify reuse by source-string markers alone; prove actual node/component identity across NOW -> Analyze -> NOW;
+- never patch Turn 30 or Turn 31 forward for this objective;
+- never use Turn 29 Dashboard work as an Analyze donor while Dashboard is tabled.
+
+The accepted implementation pattern for the successor is: build from Turn 28, make the correct NOW chart surface a single callable/mountable component, mount that exact component in NOW or the full-workspace Analyze host, pass root/horizon/series context, and restore the frozen NOW state on close.
