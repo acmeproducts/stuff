@@ -2072,3 +2072,8 @@ Arrows are descriptive selected-horizon recent direction only: `↑` favorable, 
 - Analysis/AI + Health/Glossary methodology evidence present;
 - owner qualification before baseline promotion.
 
+
+
+## Turn 31 — shared chart surface rebuild — 2026-09-30
+
+Owner rejected Turn 30 because Analyze duplicated the chart surface and allowed divergent legend/axis behavior. Construction baseline is owner-accepted `market-navigator-turn28-ship.html` commit `019810f5524c16a0f6f7132eba60d1bab416d100`. Turn 31 extracts one callable chart-surface preparation/axis/legend path and calls it from NOW and standalone Analyze. Analyze supplies only root series, series selection, horizon, and host. Axis contract: one family = native Y1; exactly two incompatible families = native Y1/Y2; three or more incompatible families = Indexed 100 Y1. Non-goals: no index-math, evidence, Library, Health, AI, navigation, or unrelated UI changes.

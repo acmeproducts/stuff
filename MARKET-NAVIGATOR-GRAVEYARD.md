@@ -273,3 +273,8 @@ The redesign must advance through the Master Plan program-control gates rather t
 The deployed Turn 27 candidate lineage is rejected. Owner qualification exposed three defects that mechanical qualification failed to cover: pointer hover remained locked to the selected series and a comparison-point click could write through null `priorV2` state; persistent GRW and horizon-rebased comparisons shared one indexed axis, visually crushing the approximately +1.19-point five-year GRW move; and nearby-weight robustness mixed a 100-based perturbation coordinate with the absolute persistent-index baseline, producing a false GRW `WATCH` result.
 
 Do not patch Turn 27 forward or use it as the construction baseline. Recreate the successor directly from immutable Turn 26 blob `fc61e29d76f1a7ecf1226f74e0884865dca04684` with the corrected Turn 27 delta. Qualification must include real pointer movement across multiple series, a comparison-point click with no null-state exception, separate persistent-index and Indexed-100 axes, and coordinate-correct lifecycle assertions.
+
+
+## 20. Turn 30 duplicate Analyze surface rejection — 2026-09-30
+
+Turn 30 component-analysis implementation is rejected as an application donor. It duplicated chart-surface preparation/chrome and allowed Analyze behavior to diverge from the correct chart surface. Do not patch Turn 30 forward. Standalone Analyze must call the same governed chart-surface path as the primary chart, with only host/root/series/horizon supplied as context.
