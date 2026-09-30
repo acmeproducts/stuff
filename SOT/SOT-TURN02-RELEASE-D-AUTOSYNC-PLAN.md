@@ -91,3 +91,36 @@ Candidate must prove:
 ## Delivery
 
 `install-SOT-turn02-release-d-autosync.sh` remains the Continuous SSOT runtime installer. This cleanup changes only the owner-facing Analyze wrapper and its qualification/records; no WSL runtime patch or database migration is required.
+
+---
+
+## 2026-09-29 — Primary navigation, shared Search operations, and Log / Activity
+
+**Owner report:** Table and Grid must expose the same bulk operations; Database becomes Search with a magnifying-glass icon; Report and Analyze become subtabs under Report; Estate becomes **Add to Estate** with a plus icon and no Catalog workflow; Activity leaves the primary navigation and moves into Configuration; the runtime log must be written durably and available for download, copy and clear.
+
+**Cause:** the prior convergence wrapper unified Database/Grid only at navigation level. Table still had single-row selection while Grid owned Tag / Notes / Delete / Folder bulk actions. Analyze, Estate Catalog and Activity also remained separate primary navigation concepts. Runtime JSONL existed locally and diagnostic publication existed only as a manual snapshot/publish action.
+
+**Change:**
+- primary navigation is **Report / Search / Add to Estate / AI**;
+- Report contains **Report / Analyze** subtabs while preserving the existing Report and SSOT Analyze implementations;
+- Search contains **Table / Grid** views; both use the same Tag / Notes / Delete / Folder bulk-operation functions and selection semantics;
+- Search uses a magnifying-glass icon;
+- Add to Estate uses a plus icon, always opens Picker, and suppresses Catalog from that owner workflow;
+- Activity is removed from primary navigation; Configuration gains **Log / Activity** with Download / Copy / Clear;
+- the structured runtime JSONL remains local-first and is automatically mirrored every five minutes, when configured, to `live/sot-release-d-events.jsonl` in the existing separately cloned private diagnostics Git repository;
+- clearing the Config log truncates only the structured runtime JSONL and immediately records the clear event; SQLite durable event history is not deleted.
+
+**Before / after:** visible primary buttons **7 → 4**; Search bulk-operation parity **Grid only → Table + Grid**; Activity primary button **1 → 0**; Config log controls **0 → 3**; private Git log publication **manual bundle only → automatic live JSONL + existing manual bundle**.
+
+### Acceptance
+
+- Report is first and Analyze is reachable as a Report subtab without its own primary icon.
+- Search is second and uses a magnifying-glass icon.
+- Add to Estate is third and uses a plus icon; opening it cannot land on Catalog.
+- AI remains a primary tab; Activity does not.
+- Table and Grid both expose Tag / Notes / Delete / Folder for selected search results.
+- Report rows still open the correct central Search scope.
+- Config contains Log / Activity with Download / Copy / Clear.
+- `/api/diagnostics/log` reads the structured runtime log; `/api/diagnostics/log/clear` clears that log without deleting SQLite events.
+- automatic private-repo log publication never targets the public application repository and does nothing when the private diagnostics checkout is absent.
+- complete-wrapper JavaScript parses under Node 22; autosync and qualifier compile and the Continuous SSOT qualification passes.
