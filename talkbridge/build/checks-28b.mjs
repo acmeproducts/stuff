@@ -9,7 +9,7 @@ import { JSDOM, VirtualConsole } from 'jsdom';
 const builtP = process.argv[2] && !process.argv[2].startsWith('--') ? process.argv[2] : 'bridge-turn28-base.html';
 const selftest = process.argv.includes('--selftest');
 const built = readFileSync(builtP, 'utf8');
-const MARKERS = ['GAP PART · C1-signal-queue.js', 'GAP PART · V2-relay-retry.js', 'GAP PART · C3-joiner-restart.js', 'GAP PART · C2-stall-frames.js', 'GAP PART · S2-back-absorb.js', 'GAP PART · F1-flip-keeps-sender.js', 'GAP PART · K1-device-ids.js', 'GAP PART · K2-pb-merge.js', 'GAP PART · K4-rename-lww.js', 'GAP PART · T1-render-coalesce.js', 'GAP PART · T2-log-hygiene.js', 'GAP PART · T3-wrap-map.js', 'GAP PART · D10-tag-enter.js', 'GAP PART · FL1-relay-path.js'];
+const MARKERS = ['GAP PART · C1-signal-queue.js', 'GAP PART · V2-relay-retry.js', 'GAP PART · C3-joiner-restart.js', 'GAP PART · C2-stall-frames.js', 'GAP PART · S2-back-absorb.js', 'GAP PART · F1-flip-keeps-sender.js', 'GAP PART · K1-device-ids.js', 'GAP PART · K2-pb-merge.js', 'GAP PART · K4-rename-lww.js', 'GAP PART · T1-render-coalesce.js', 'GAP PART · T2-log-hygiene.js', 'GAP PART · T3-wrap-map.js', 'GAP PART · D10-tag-enter.js', 'GAP PART · FL1-relay-path.js', 'GAP PART · I1-app-face.js'];
 
 function scripts(html) { const out = []; const re = /<script(?![^>]*\bsrc=)[^>]*>([\s\S]*?)<\/script>/gi; let m; while ((m = re.exec(html))) out.push(m[1]); return out; }
 function checkSyntax(html) { const b = scripts(html); if (!b.length) throw new Error('no inline script'); b.forEach((c, i) => { try { new vm.Script(c, { filename: 'inline-' + i + '.js' }); } catch (e) { throw new Error('inline script ' + i + ' does not parse: ' + e.message); } }); return b.length + ' inline script block(s) parse'; }
@@ -19,7 +19,7 @@ function checkStructure(html) {
   const idx = MARKERS.map((mk) => html.indexOf(mk));
   idx.forEach((i, k) => { if (i === -1) throw new Error('part missing: ' + MARKERS[k]); if (k && i < idx[k - 1]) throw new Error('parts out of order at ' + MARKERS[k]); });
   if (html.indexOf('GAP PART · D1-call-diagnostics.js') !== -1) throw new Error('the D1 instrument is present — it was declared removed');
-  return 'tags balanced, fourteen part markers in order (the thirteen of 27·post-ship, then FL-1); D1 absent';
+  return 'tags balanced, fifteen part markers in order (the thirteen of 27·post-ship, then FL-1, then I-1); D1 absent';
 }
 function checkWire(html) {
   const tail = '\n</script>\n</body>\n</html>'; const start = html.indexOf('/* ═══════════ ' + MARKERS[0]);
