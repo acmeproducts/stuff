@@ -81,6 +81,7 @@ print('PASS placement paging returns the complete active database beyond the leg
 
 ui=(HERE/'sot-turn02-release-d-source-actions.html').read_text()
 complete=(HERE/'sot-turn02-release-d-complete.html').read_text()
+autosync=(HERE/'sot-turn02-release-d-autosync.py').read_text()
 for required in ['SSOT','Current','Syncing','Problem','liveSourceProgress',
                  'SOT keeps registered sources current automatically']:
     assert required in ui,required
@@ -93,22 +94,22 @@ assert "if(live)return 'Syncing'" in ui
 print('PASS Analyze is one SSOT surface: Current / Syncing / Problem with internal history absent from the owner UI')
 print('PASS forced catalog refresh is retained while a paged placement refresh is already running')
 
-# Owner-directed report/search convergence acceptance. These checks intentionally fail
-# on the prior complete-placement baseline until the UI contract below is implemented.
 for required in [
-    'Database refreshing / rebuilding',
-    '__ssotSetRefreshBlocker',
-    '__ssotUnifySearchViews',
-    '__ssotOpenReportSearch',
-    '__ssotReportFirst',
-    'Table',
-    'Grid',
-    'UNIQUE',
-    'DUPLICATE',
-    'KEEP',
-    'EXCESS',
+    'Database refreshing / rebuilding','__ssotSetRefreshBlocker','__ssotOpenReportSearch',
+    '__ssotSearchIcon','__ssotPlusIcon','__ssotOpenReportMode','__ssotOpenAddToEstate',
+    '__ssotTableBulkHtml','__ssotRunBulk','Tag','Notes','Delete','Folder',
+    'Log / Activity','__ssotDownloadLog','__ssotCopyLog','__ssotClearLog',
+    'Table','Grid','UNIQUE','DUPLICATE','KEEP','EXCESS',
 ]:
     assert required in complete,required
+for required in [
+    '/api/diagnostics/log','/api/diagnostics/log/clear','diagnostic-log-publisher',
+    'live/sot-release-d-events.jsonl','git","-C",str(repo),"push',
+]:
+    assert required in autosync,required
 print('PASS database refresh is visibly blocked until the complete estate is applied')
-print('PASS Report is first and Database/Grid are one central Search surface with Table/Grid views')
-print('PASS report rows route directly into central Search')
+print('PASS Report is first and Report / Analyze share the Report icon')
+print('PASS Search uses a magnifying-glass icon and Table / Grid share Tag / Notes / Delete / Folder bulk operations')
+print('PASS Add to Estate uses the plus icon and opens Picker rather than Catalog')
+print('PASS Activity is removed from primary navigation and Log / Activity is available in Configuration')
+print('PASS structured runtime log exposes download/copy/clear and auto-publishes to the configured private diagnostics Git repository')
