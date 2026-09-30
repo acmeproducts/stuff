@@ -258,6 +258,11 @@ b39 incorrectly changed stationary hold into context-menu activation. Devstream 
 
 ---
 
+# 2026-09-30 — b51 fix: desktop double-click opens the tab context menu
+- Owner could not open the tab context menu. Touch double-tap and desktop right-click already worked (verified with real project data, touch and mouse); desktop double-click did nothing. Tabs now also open the same context menu on double-click, matching project rows. No other menu behavior changed.
+
+---
+
 # 2026-09-29 — b51 failed-tab blocker resolution
 
 ## Owner directive
