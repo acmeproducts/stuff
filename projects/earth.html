@@ -63,6 +63,20 @@
       <div class="sec">
         <label>Time of day <span class="val" id="todVal">12:00</span></label>
         <input type="range" id="optTod" min="0" max="24" step="0.25" value="12">
+        <label style="margin-top:6px"><input type="checkbox" id="optAutoTod" checked> Auto day/night cycle (full day = 10 min)</label>
+      </div>
+      <div class="sec">
+        <label>Weather &amp; season</label>
+        <label><input type="checkbox" id="optClouds" checked> Clouds</label>
+        <label><input type="checkbox" id="optRain"> Rain (heavier fog)</label>
+        <label style="margin-top:4px">Season</label>
+        <select id="optSeason">
+          <option value="auto">AUTO (by date)</option>
+          <option value="spring">Spring</option>
+          <option value="summer">Summer</option>
+          <option value="autumn">Autumn</option>
+          <option value="winter">Winter</option>
+        </select>
       </div>
       <div class="sec">
         <label>Jump to location</label>
@@ -107,7 +121,7 @@
 </div>
 <script>
 'use strict';
-const BUILD = 'M5-city 2026-09-30';
+const BUILD = 'M6-weather 2026-09-30';
 const errBox = document.getElementById('errBox');
 function showErr(msg) {
   errBox.style.display = 'block';
@@ -250,7 +264,7 @@ function startApp(cdnUrl) {
   });
 
   // ---- settings (persisted) ----
-  const settings = { detail: 'MED', walkSpeed: 5, flySpeed: 40, tod: 12, sens: 3000, invertY: false, imagery: true, touchCtl: 'auto' };
+  const settings = { detail: 'MED', walkSpeed: 5, flySpeed: 40, tod: 12, sens: 3000, invertY: false, imagery: true, touchCtl: 'auto', autoTod: true, clouds: true, rain: false, season: 'auto' };
   try {
     const s = JSON.parse(localStorage.getItem('earthSettings') || 'null');
     if (s) for (const k in settings) { if (typeof s[k] === typeof settings[k]) settings[k] = s[k]; }
@@ -676,6 +690,142 @@ function startApp(cdnUrl) {
     water.scaling.x = s;
     water.scaling.z = s;
   }
+
+  // ---- M6 weather + seasons: drifting billboard clouds, rain particles, fog control, season palette ----
+  const cloudTex = new BABYLON.DynamicTexture('cloudTex', { width: 128, height: 128 }, scene, true);
+  cloudTex.hasAlpha = true;
+  (function() {
+    const c = cloudTex.getContext();
+    c.clearRect(0, 0, 128, 128);
+    for (let i = 0; i < 11; i++) {
+      const bx = 24 + hash2(i * 3.7, 1.1) * 80;
+      const by = 40 + hash2(i * 5.1, 2.3) * 48;
+      const br = 16 + hash2(i * 7.3, 3.7) * 22;
+      const g = c.createRadialGradient(bx, by, 0, bx, by, br);
+      g.addColorStop(0, 'rgba(255,255,255,0.5)');
+      g.addColorStop(1, 'rgba(255,255,255,0)');
+      c.fillStyle = g;
+      c.beginPath();
+      c.arc(bx, by, br, 0, Math.PI * 2);
+      c.fill();
+    }
+    cloudTex.update();
+  })();
+
+  const cloudMat = new BABYLON.StandardMaterial('cloudMat', scene);
+  cloudMat.disableLighting = true;
+  cloudMat.diffuseColor = new BABYLON.Color3(0, 0, 0);
+  cloudMat.specularColor = new BABYLON.Color3(0, 0, 0);
+  cloudMat.emissiveColor = new BABYLON.Color3(1, 1, 1);
+  cloudMat.emissiveTexture = cloudTex;
+  cloudMat.opacityTexture = cloudTex;
+  cloudMat.backFaceCulling = false;
+
+  const cloudRoot = new BABYLON.TransformNode('cloudRoot', scene);
+  const clouds = [];
+  const CLOUD_N = 14;
+  for (let ci = 0; ci < CLOUD_N; ci++) {
+    const cl = BABYLON.MeshBuilder.CreatePlane('cl' + ci, { size: 1 }, scene);
+    cl.material = cloudMat;
+    cl.billboardMode = BABYLON.Mesh.BILLBOARDMODE_ALL;
+    cl.parent = cloudRoot;
+    cl.alwaysSelectAsActiveMesh = true;
+    const sc = 260 + hash2(ci, 9.1) * 420;
+    cl.scaling.set(sc, sc * (0.42 + hash2(ci, 4.2) * 0.3), 1);
+    clouds.push({
+      mesh: cl,
+      x: (hash2(ci, 5.5) - 0.5) * 6000,
+      z: (hash2(ci, 6.6) - 0.5) * 6000,
+      y: 620 + hash2(ci, 7.7) * 380,
+      spd: 0.7 + hash2(ci, 8.8) * 0.7
+    });
+  }
+  const WIND_X = 6, WIND_Z = 2.2;
+  function wrapBox(v, F) {
+    v = ((v % F) + F) % F;
+    return v - F / 2;
+  }
+  function updateClouds(dt) {
+    if (!cloudRoot.isEnabled()) return;
+    const F = Math.max((2 * RING + 4) * TILE_M, 3000);
+    for (const c of clouds) {
+      c.x += WIND_X * c.spd * dt;
+      c.z += WIND_Z * c.spd * dt;
+      c.mesh.position.set(
+        camera.position.x + wrapBox(c.x - camera.position.x, F),
+        c.y,
+        camera.position.z + wrapBox(c.z - camera.position.z, F));
+    }
+  }
+
+  const rainTex = new BABYLON.DynamicTexture('rainTex', { width: 16, height: 64 }, scene, true);
+  rainTex.hasAlpha = true;
+  (function() {
+    const c = rainTex.getContext();
+    c.clearRect(0, 0, 16, 64);
+    const g = c.createLinearGradient(0, 0, 0, 64);
+    g.addColorStop(0, 'rgba(230,240,255,0)');
+    g.addColorStop(0.45, 'rgba(230,240,255,0.85)');
+    g.addColorStop(1, 'rgba(230,240,255,0)');
+    c.fillStyle = g;
+    c.fillRect(5, 0, 6, 64);
+    rainTex.update();
+  })();
+
+  const rainRoot = BABYLON.MeshBuilder.CreateBox('rainRoot', { size: 0.1 }, scene);
+  rainRoot.isVisible = false;
+  const rainPS = new BABYLON.ParticleSystem('rain', 1800, scene);
+  rainPS.particleTexture = rainTex;
+  rainPS.emitter = rainRoot;
+  rainPS.minEmitBox = new BABYLON.Vector3(-24, 9, -24);
+  rainPS.maxEmitBox = new BABYLON.Vector3(24, 15, 24);
+  rainPS.direction1 = new BABYLON.Vector3(-1.5, -22, -0.6);
+  rainPS.direction2 = new BABYLON.Vector3(1.5, -26, 0.6);
+  rainPS.minLifeTime = 1.1;
+  rainPS.maxLifeTime = 1.7;
+  rainPS.minSize = 0.5;
+  rainPS.maxSize = 0.9;
+  rainPS.minScaleX = 0.05;
+  rainPS.maxScaleX = 0.1;
+  rainPS.minScaleY = 0.9;
+  rainPS.maxScaleY = 1.5;
+  rainPS.emitRate = 1300;
+  rainPS.gravity = new BABYLON.Vector3(0, -4, 0);
+  rainPS.color1 = new BABYLON.Color4(0.75, 0.82, 0.92, 0.45);
+  rainPS.color2 = new BABYLON.Color4(0.7, 0.78, 0.9, 0.35);
+  rainPS.colorDead = new BABYLON.Color4(0.7, 0.78, 0.9, 0);
+  rainPS.blendMode = BABYLON.ParticleSystem.BLENDMODE_STANDARD;
+
+  let seasonNow = 'summer';
+  function seasonFromDate() {
+    const m = new Date().getMonth();
+    if (m === 11 || m < 2) return 'winter';
+    if (m < 5) return 'spring';
+    if (m < 8) return 'summer';
+    return 'autumn';
+  }
+  const SEASON_TINT = {
+    spring: [0.85, 1.0, 0.80],
+    summer: [1.0, 1.0, 1.0],
+    autumn: [1.0, 0.74, 0.48],
+    winter: [0.80, 0.86, 0.96]
+  };
+  function applySeason() {
+    seasonNow = settings.season === 'auto' ? seasonFromDate() : settings.season;
+    const t = SEASON_TINT[seasonNow] || SEASON_TINT.summer;
+    vegMat.diffuseColor.set(t[0], t[1], t[2]);
+    terrainMat.diffuseColor.set(1 - (1 - t[0]) * 0.35, 1 - (1 - t[1]) * 0.35, 1 - (1 - t[2]) * 0.35);
+  }
+
+  function applyWeather() {
+    cloudRoot.setEnabled(!!settings.clouds);
+    if (settings.rain) { try { rainPS.start(); } catch (e) {} }
+    else { try { rainPS.stop(); } catch (e) {} }
+    scene.fogDensity = settings.rain ? 0.0012 : (settings.clouds ? 0.0005 : 0.00035);
+  }
+
+  applySeason();
+  applyWeather();
 
   // ---- M5 city: Overpass roads + buildings with procedural fallback ----
   const OVERPASS_HOSTS = [
@@ -1478,6 +1628,8 @@ function startApp(cdnUrl) {
     paintSky(top, hor);
     scene.fogColor = hor;
     scene.clearColor = new BABYLON.Color4(hor.r, hor.g, hor.b, 1);
+    const cb = 0.2 + 0.8 * dl;
+    cloudMat.emissiveColor.set(cb, cb, Math.min(cb * 1.07, 1));
   }
   applyTOD();
 
@@ -1493,6 +1645,10 @@ function startApp(cdnUrl) {
   const optSens = document.getElementById('optSens');
   const optInvertY = document.getElementById('optInvertY');
   const optTouch = document.getElementById('optTouch');
+  const optAutoTod = document.getElementById('optAutoTod');
+  const optClouds = document.getElementById('optClouds');
+  const optRain = document.getElementById('optRain');
+  const optSeason = document.getElementById('optSeason');
   const optPreset = document.getElementById('optPreset');
   const optLat = document.getElementById('optLat');
   const optLon = document.getElementById('optLon');
@@ -1509,6 +1665,10 @@ function startApp(cdnUrl) {
   optSens.value = settings.sens;
   optInvertY.checked = settings.invertY;
   optTouch.value = settings.touchCtl;
+  optAutoTod.checked = settings.autoTod;
+  optClouds.checked = settings.clouds;
+  optRain.checked = settings.rain;
+  optSeason.value = settings.season;
   walkVal.textContent = settings.walkSpeed;
   flyVal.textContent = settings.flySpeed;
   todVal.textContent = fmtTOD(settings.tod);
@@ -1559,6 +1719,8 @@ function startApp(cdnUrl) {
   });
   optTod.addEventListener('input', function() {
     settings.tod = parseFloat(optTod.value) || 0;
+    settings.autoTod = false;
+    optAutoTod.checked = false;
     todVal.textContent = fmtTOD(settings.tod);
     applyTOD();
   });
@@ -1575,6 +1737,25 @@ function startApp(cdnUrl) {
     settings.touchCtl = optTouch.value;
     saveSettings();
     updateTouchUI();
+  });
+  optAutoTod.addEventListener('change', function() {
+    settings.autoTod = optAutoTod.checked;
+    saveSettings();
+  });
+  optClouds.addEventListener('change', function() {
+    settings.clouds = optClouds.checked;
+    applyWeather();
+    saveSettings();
+  });
+  optRain.addEventListener('change', function() {
+    settings.rain = optRain.checked;
+    applyWeather();
+    saveSettings();
+  });
+  optSeason.addEventListener('change', function() {
+    settings.season = optSeason.value;
+    applySeason();
+    saveSettings();
   });
   optPreset.addEventListener('change', function() {
     if (!optPreset.value) return;
@@ -1635,6 +1816,18 @@ function startApp(cdnUrl) {
     waterDT.uOffset += dt * 0.02;
     waterDT.vOffset += dt * 0.008;
 
+    // M6: auto day/night cycle (manual slider pauses it), cloud drift, rain follows camera
+    if (settings.autoTod) {
+      settings.tod = (settings.tod + dt * 24 / 600) % 24;
+      applyTOD();
+      if (modalOpen) {
+        optTod.value = settings.tod;
+        todVal.textContent = fmtTOD(settings.tod);
+      }
+    }
+    if (settings.clouds) updateClouds(dt);
+    if (settings.rain) rainRoot.position.copyFrom(camera.position);
+
     if (!flyMode) {
       const ground = worldHeight(camera.position.x, camera.position.z) + eyeHeight;
       if (airborne) {
@@ -1680,7 +1873,7 @@ function startApp(cdnUrl) {
       '<br>Alt:' + camera.position.y.toFixed(1) + 'm' +
       '<br>Mode:' + (flyMode ? 'FLY' : 'WALK') +
       ' CTL:' + (touchOn() ? 'TOUCH' : 'KEYS') +
-      ' Time:' + fmtTOD(settings.tod) +
+      ' Time:' + fmtTOD(settings.tod) + (settings.autoTod ? 'A' : '') +
       ' Q:' + settings.detail +
       (zoomMult !== 1 ? ' Zoom:' + zoomMult.toFixed(1) + 'x' : '') +
       '<br>Tiles:' + tiles.size + ' (ring ' + RING + ')' +
@@ -1688,6 +1881,7 @@ function startApp(cdnUrl) {
       '<br>IMG: ' + (settings.imagery ? ('OK ' + imgOk + ' / FAIL ' + imgFails + ' · Imagery © Esri & contributors') : 'off') +
       '<br>LC: ' + (lcTiti > 0 ? 'TITI ' + lcTiti + ' / ' : '') + 'PROC ' + (tiles.size - lcTiti) + ' · VEG ' + vegTotal +
       '<br>OSM: ' + osmLine +
+      '<br>WX: ' + (settings.rain ? 'rain' : (settings.clouds ? 'clouds' : 'clear')) + ' · ' + seasonNow +
       '<br>NET fails:' + netFails + (lastNetErr ? ' (' + lastNetErr.slice(0, 40) + ')' : '') +
       '<br>CDN:' + cdnUrl.split('/')[2];
   });
