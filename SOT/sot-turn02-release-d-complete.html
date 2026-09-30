@@ -7,162 +7,33 @@ function installCompletePlacementRefresh(){
  const w=inner&&inner.contentWindow,d=inner&&inner.contentDocument;
  if(!w||!d||typeof w.req!=='function'||typeof w.loadPlacements!=='function')return false;
  if(w.__ssotCompletePlacementRefresh)return true;
- w.__ssotCompletePlacementRefresh=true;
- w.__ssotPlacementBusy=false;
- w.__ssotPlacementPending=false;
-
+ w.__ssotCompletePlacementRefresh=true;w.__ssotPlacementBusy=false;w.__ssotPlacementPending=false;
  const uiCss=d.createElement('style');uiCss.textContent=`
- #ssot-db-blocker{position:fixed;inset:0;z-index:100000;display:none;place-items:center;background:rgba(5,9,13,.70);backdrop-filter:blur(1px);pointer-events:auto}
- #ssot-db-blocker.on{display:grid}
- .ssot-db-blocker-toast{min-width:min(86vw,360px);max-width:86vw;padding:13px 16px;border:1px solid #6d8497;border-radius:9px;background:#15202a;color:#fff;box-shadow:0 12px 38px #000a;text-align:center;font-weight:800}
- .ssot-db-blocker-toast small{display:block;margin-top:4px;color:#aebbc6;font-weight:500}
- .ssot-search-head{display:flex;align-items:center;gap:10px;margin:0 0 9px;padding:7px 9px;border:1px solid #303943;border-radius:8px;background:#10171e}
- .ssot-search-head>b{margin-right:auto}.ssot-search-views{display:flex;gap:6px}.ssot-search-views button{padding:6px 10px}
- #Plan .plantable tbody tr{cursor:pointer}
- #Plan .plantable tbody tr:hover td{outline-color:#6a879f}
- #Plan .plantable tbody tr td:first-child{text-decoration-thickness:1px;text-underline-offset:2px}
+ #ssot-db-blocker{position:fixed;inset:0;z-index:100000;display:none;place-items:center;background:rgba(5,9,13,.70);backdrop-filter:blur(1px);pointer-events:auto}#ssot-db-blocker.on{display:grid}
+ .ssot-db-blocker-toast{min-width:min(86vw,360px);max-width:86vw;padding:13px 16px;border:1px solid #6d8497;border-radius:9px;background:#15202a;color:#fff;box-shadow:0 12px 38px #000a;text-align:center;font-weight:800}.ssot-db-blocker-toast small{display:block;margin-top:4px;color:#aebbc6;font-weight:500}
+ .ssot-search-head{display:flex;align-items:center;gap:10px;margin:0 0 9px;padding:7px 9px;border:1px solid #303943;border-radius:8px;background:#10171e}.ssot-search-head>b{margin-right:auto}.ssot-search-views{display:flex;gap:6px}.ssot-search-views button{padding:6px 10px}
+ #Plan .plantable tbody tr{cursor:pointer}#Plan .plantable tbody tr:hover td{outline-color:#6a879f}#Plan .plantable tbody tr td:first-child{text-decoration-thickness:1px;text-underline-offset:2px}
  `;d.head.appendChild(uiCss);
  const blocker=d.createElement('div');blocker.id='ssot-db-blocker';blocker.innerHTML='<div class="ssot-db-blocker-toast">Database refreshing / rebuilding<small>Loading the complete authoritative estate…</small></div>';d.body.appendChild(blocker);
  w.__ssotSetRefreshBlocker=function(on){blocker.classList.toggle('on',!!on);blocker.setAttribute('aria-hidden',on?'false':'true')};
-
- w.eval(`window.__ssotApplyPlacements=function(rows,rev){
-   placements=rows||[];
-   catalogRevision=rev??catalogRevision;
-   placementsLoadedAt=Date.now();
-   placementsRevision=snap?.job?.revision??null;
-   try{localStorage.sotPlacementsCache=JSON.stringify({model:PLACEMENT_CACHE_MODEL,revision:placementsRevision,creationRevision:creationRevision,catalogRevision:catalogRevision,ts:placementsLoadedAt,rows:placements})}catch(e){}
-   let n=document.querySelector('.pane.on')?.id;
-   if(['Database','Grid','Plan'].includes(n))render(n)
- }`);
-
- const baseFilterQuery=typeof w.filterQuery==='function'?w.filterQuery.bind(w):null;
- w.__ssotBaseFilterQuery=baseFilterQuery;
- if(baseFilterQuery){
-   w.filterQuery=function(q){
-     let m=String(q||'').trim().match(/^#report:([a-z0-9-]+)$/i);
-     if(!m)return baseFilterQuery(q);
-     let rows=w.eval('placements')||[],scope=m[1].toLowerCase(),cls=p=>String(p?.system_classification||'').toUpperCase(),retained=p=>['UNIQUE','KEEP'].includes(cls(p));
-     if(scope==='unique')return rows.filter(p=>cls(p)==='UNIQUE');
-     if(scope==='duplicate')return rows.filter(p=>['KEEP','EXCESS'].includes(cls(p)));
-     if(scope==='keep')return rows.filter(p=>cls(p)==='KEEP');
-     if(scope==='excess')return rows.filter(p=>cls(p)==='EXCESS');
-     if(scope==='estate')return rows.slice();
-     if(scope==='capacity-estate'||scope==='operations-in-play'||scope==='operations-estate')return rows.filter(retained);
-     if(scope==='capacity-open'||scope==='capacity-target'||scope==='operations-landed')return [];
-     return baseFilterQuery(q)
-   }
- }
-
- const baseShow=typeof w.show==='function'?w.show.bind(w):null;
- w.__ssotBaseShow=baseShow;
- w.__ssotSearchMode='Table';
- w.__ssotDecorateSearchSurface=function(){
-   let pane=d.getElementById(w.__ssotSearchMode==='Grid'?'Grid':'Database');if(!pane)return;
-   let host=pane.querySelector('.workbody')||pane.querySelector('.workspace')||pane;
-   let old=pane.querySelector('.ssot-search-head');if(old)old.remove();
-   let head=d.createElement('div');head.className='ssot-search-head';head.innerHTML='<b>Search</b><div class="ssot-search-views"><button class="btn '+(w.__ssotSearchMode==='Table'?'live':'')+'" type="button">Table</button><button class="btn '+(w.__ssotSearchMode==='Grid'?'live':'')+'" type="button">Grid</button></div>';
-   let buttons=head.querySelectorAll('button');buttons[0].onclick=()=>w.__ssotSetSearchView('Table');buttons[1].onclick=()=>w.__ssotSetSearchView('Grid');host.prepend(head)
- };
- w.__ssotSetSearchView=function(mode){
-   w.__ssotSearchMode=mode==='Grid'?'Grid':'Table';
-   if(baseShow)baseShow(w.__ssotSearchMode==='Grid'?'Grid':'Database');
-   let db=d.querySelector('#tabs [data-tab="Database"]'),grid=d.querySelector('#tabs [data-tab="Grid"]');
-   if(db)db.classList.add('on');if(grid)grid.classList.remove('on');
-   requestAnimationFrame(w.__ssotDecorateSearchSurface)
- };
- w.__ssotUnifySearchViews=function(){
-   let tabs=d.getElementById('tabs'),db=tabs?.querySelector('[data-tab="Database"]'),grid=tabs?.querySelector('[data-tab="Grid"]');
-   if(db){db.title='Search';db.setAttribute('aria-label','Search')}
-   if(grid){grid.style.display='none';grid.setAttribute('aria-hidden','true')}
- };
- w.__ssotReportFirst=function(){
-   let tabs=d.getElementById('tabs'),report=tabs?.querySelector('[data-tab="Plan"]');if(!tabs||!report)return;
-   report.title='Report';report.setAttribute('aria-label','Report');
-   if(tabs.firstElementChild!==report)tabs.insertBefore(report,tabs.firstElementChild)
- };
- const reportScopes={
-   Analysis:{UNIQUE:'unique',DUPLICATE:'duplicate',KEEP:'keep',EXCESS:'excess',ESTATE:'estate'},
-   Capacity:{ESTATE:'capacity-estate',OPEN:'capacity-open',TARGET:'capacity-target'},
-   Operations:{'IN PLAY':'operations-in-play',LANDED:'operations-landed',ESTATE:'operations-estate'}
- };
- w.__ssotOpenReportSearch=function(section,label){
-   let scope=reportScopes[section]?.[String(label||'').trim().toUpperCase()];if(!scope)return;
-   let token='#report:'+scope;
-   w.eval('omniDraft='+JSON.stringify(token)+';omniQuery=omniDraft;gridDraft=omniDraft;gridQuery=omniDraft;omniFolderScopes=[]');
-   w.__ssotSetSearchView('Table')
- };
- w.__ssotDecorateReportRows=function(){
-   let pane=d.getElementById('Plan');if(!pane)return;
-   let active=[...pane.querySelectorAll('.subnav button')].find(b=>b.classList.contains('on'))?.textContent.trim()||'Analysis';
-   for(const tr of pane.querySelectorAll('.plantable tbody tr')){
-     let label=tr.cells?.[0]?.textContent?.trim();if(!label||tr.dataset.ssotSearch==='1')continue;
-     if(!reportScopes[active]?.[label.toUpperCase()])continue;
-     tr.dataset.ssotSearch='1';tr.title='Open '+label+' in Search';tr.tabIndex=0;
-     tr.onclick=()=>w.__ssotOpenReportSearch(active,label);
-     tr.onkeydown=e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();w.__ssotOpenReportSearch(active,label)}}
-   }
- };
+ w.eval(`window.__ssotApplyPlacements=function(rows,rev){placements=rows||[];catalogRevision=rev??catalogRevision;placementsLoadedAt=Date.now();placementsRevision=snap?.job?.revision??null;try{localStorage.sotPlacementsCache=JSON.stringify({model:PLACEMENT_CACHE_MODEL,revision:placementsRevision,creationRevision:creationRevision,catalogRevision:catalogRevision,ts:placementsLoadedAt,rows:placements})}catch(e){}let n=document.querySelector('.pane.on')?.id;if(['Database','Grid','Plan'].includes(n))render(n)}`);
+ const baseFilterQuery=typeof w.filterQuery==='function'?w.filterQuery.bind(w):null;w.__ssotBaseFilterQuery=baseFilterQuery;
+ if(baseFilterQuery)w.filterQuery=function(q){let m=String(q||'').trim().match(/^#report:([a-z0-9-]+)$/i);if(!m)return baseFilterQuery(q);let rows=w.eval('placements')||[],scope=m[1].toLowerCase(),cls=p=>String(p?.system_classification||'').toUpperCase(),retained=p=>['UNIQUE','KEEP'].includes(cls(p));if(scope==='unique')return rows.filter(p=>cls(p)==='UNIQUE');if(scope==='duplicate')return rows.filter(p=>['KEEP','EXCESS'].includes(cls(p)));if(scope==='keep')return rows.filter(p=>cls(p)==='KEEP');if(scope==='excess')return rows.filter(p=>cls(p)==='EXCESS');if(scope==='estate')return rows.slice();if(scope==='capacity-estate'||scope==='operations-in-play'||scope==='operations-estate')return rows.filter(retained);if(scope==='capacity-open'||scope==='capacity-target'||scope==='operations-landed')return [];return baseFilterQuery(q)};
+ const baseShow=typeof w.show==='function'?w.show.bind(w):null;w.__ssotBaseShow=baseShow;w.__ssotSearchMode='Table';
+ w.__ssotDecorateSearchSurface=function(){let pane=d.getElementById(w.__ssotSearchMode==='Grid'?'Grid':'Database');if(!pane)return;let host=pane.querySelector('.workbody')||pane.querySelector('.workspace')||pane,old=pane.querySelector('.ssot-search-head');if(old){let bs=old.querySelectorAll('button');bs[0]?.classList.toggle('live',w.__ssotSearchMode==='Table');bs[1]?.classList.toggle('live',w.__ssotSearchMode==='Grid');return}let head=d.createElement('div');head.className='ssot-search-head';head.innerHTML='<b>Search</b><div class="ssot-search-views"><button class="btn '+(w.__ssotSearchMode==='Table'?'live':'')+'" type="button">Table</button><button class="btn '+(w.__ssotSearchMode==='Grid'?'live':'')+'" type="button">Grid</button></div>';let buttons=head.querySelectorAll('button');buttons[0].onclick=()=>w.__ssotSetSearchView('Table');buttons[1].onclick=()=>w.__ssotSetSearchView('Grid');host.prepend(head)};
+ w.__ssotSetSearchView=function(mode){w.__ssotSearchMode=mode==='Grid'?'Grid':'Table';if(baseShow)baseShow(w.__ssotSearchMode==='Grid'?'Grid':'Database');let db=d.querySelector('#tabs [data-tab="Database"]'),grid=d.querySelector('#tabs [data-tab="Grid"]');if(db)db.classList.add('on');if(grid)grid.classList.remove('on');requestAnimationFrame(w.__ssotDecorateSearchSurface)};
+ w.__ssotUnifySearchViews=function(){let tabs=d.getElementById('tabs'),db=tabs?.querySelector('[data-tab="Database"]'),grid=tabs?.querySelector('[data-tab="Grid"]');if(db){db.title='Search';db.setAttribute('aria-label','Search')}if(grid){grid.style.display='none';grid.setAttribute('aria-hidden','true')}};
+ w.__ssotReportFirst=function(){let tabs=d.getElementById('tabs'),report=tabs?.querySelector('[data-tab="Plan"]');if(!tabs||!report)return;report.title='Report';report.setAttribute('aria-label','Report');if(tabs.firstElementChild!==report)tabs.insertBefore(report,tabs.firstElementChild)};
+ const reportScopes={Analysis:{UNIQUE:'unique',DUPLICATE:'duplicate',KEEP:'keep',EXCESS:'excess',ESTATE:'estate'},Capacity:{ESTATE:'capacity-estate',OPEN:'capacity-open',TARGET:'capacity-target'},Operations:{'IN PLAY':'operations-in-play',LANDED:'operations-landed',ESTATE:'operations-estate'}};
+ w.__ssotOpenReportSearch=function(section,label){let scope=reportScopes[section]?.[String(label||'').trim().toUpperCase()];if(!scope)return;let token='#report:'+scope;w.eval('omniDraft='+JSON.stringify(token)+';omniQuery=omniDraft;gridDraft=omniDraft;gridQuery=omniDraft;omniFolderScopes=[]');w.__ssotSetSearchView('Table')};
+ w.__ssotDecorateReportRows=function(){let pane=d.getElementById('Plan');if(!pane)return;let active=[...pane.querySelectorAll('.subnav button')].find(b=>b.classList.contains('on'))?.textContent.trim()||'Analysis';for(const tr of pane.querySelectorAll('.plantable tbody tr')){let label=tr.cells?.[0]?.textContent?.trim();if(!label||tr.dataset.ssotSearch==='1'||!reportScopes[active]?.[label.toUpperCase()])continue;tr.dataset.ssotSearch='1';tr.title='Open '+label+' in Search';tr.tabIndex=0;tr.onclick=()=>w.__ssotOpenReportSearch(active,label);tr.onkeydown=e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();w.__ssotOpenReportSearch(active,label)}}}};
  w.__ssotUnifySearchViews();w.__ssotReportFirst();
- if(baseShow){
-   w.show=function(n){
-     if(n==='Database')return w.__ssotSetSearchView('Table');
-     if(n==='Grid')return w.__ssotSetSearchView('Grid');
-     let r=baseShow(n);requestAnimationFrame(()=>{w.__ssotUnifySearchViews();w.__ssotReportFirst();if(n==='Plan')w.__ssotDecorateReportRows()});return r
-   }
- }
- const ownerUiObserver=new MutationObserver(()=>{
-   w.__ssotUnifySearchViews();w.__ssotReportFirst();
-   if(d.getElementById('Plan')?.classList.contains('on'))w.__ssotDecorateReportRows();
-   if(d.getElementById('Database')?.classList.contains('on')||d.getElementById('Grid')?.classList.contains('on'))w.__ssotDecorateSearchSurface()
- });
- ownerUiObserver.observe(d.getElementById('tabs')||d.body,{childList:true,subtree:true});
- ownerUiObserver.observe(d.getElementById('Plan')||d.body,{childList:true,subtree:true});
-
- w.loadPlacements=async function(force=false){
-   if(w.__ssotPlacementBusy){if(force)w.__ssotPlacementPending=true;return}
-   let current=Number(w.eval('placements.length'))||0;
-   if(!force&&current)return;
-   w.__ssotPlacementBusy=true;w.__ssotSetRefreshBlocker(true);
-   try{
-     let rows=[],after=0,rev=null,total=null,pages=0;
-     while(true){
-       let z=await w.req('/api/placements/page?after='+encodeURIComponent(after)+'&limit=5000',{},30000);
-       if(!z||!z.ok)throw Error(z?.error||'Placement page failed');
-       if(rev!==null&&z.catalog_revision!==rev){w.__ssotPlacementPending=true;break}
-       rev=z.catalog_revision;total=Number(z.total);
-       let page=z.placements||[];
-       rows.push(...page);pages++;
-       if(!z.has_more)break;
-       let next=Number(z.next_after);
-       if(!Number.isFinite(next)||next<=after||pages>10000)throw Error('Placement paging did not advance');
-       after=next
-     }
-     if(!w.__ssotPlacementPending){
-       if(Number.isFinite(total)&&rows.length!==total)throw Error('Placement paging incomplete: '+rows.length+' / '+total);
-       w.__ssotApplyPlacements(rows,rev)
-     }
-   }catch(e){w.toast('Database data retrying',2500);w.__ssotPlacementPending=true}
-   finally{
-     w.__ssotPlacementBusy=false;
-     if(w.__ssotPlacementPending){
-       w.__ssotPlacementPending=false;
-       setTimeout(()=>w.loadPlacements(true),100)
-     }else w.__ssotSetRefreshBlocker(false)
-   }
- };
- w.__ssotSetRefreshBlocker(true);
- if(baseShow)baseShow('Plan');
- requestAnimationFrame(()=>{w.__ssotReportFirst();w.__ssotDecorateReportRows()});
- w.loadPlacements(true);
- return true
+ if(baseShow)w.show=function(n){if(n==='Database')return w.__ssotSetSearchView('Table');if(n==='Grid')return w.__ssotSetSearchView('Grid');let r=baseShow(n);requestAnimationFrame(()=>{w.__ssotUnifySearchViews();w.__ssotReportFirst();if(n==='Plan')w.__ssotDecorateReportRows()});return r};
+ const ownerUiObserver=new MutationObserver(()=>{w.__ssotUnifySearchViews();w.__ssotReportFirst();if(d.getElementById('Plan')?.classList.contains('on'))w.__ssotDecorateReportRows();if(d.getElementById('Database')?.classList.contains('on')||d.getElementById('Grid')?.classList.contains('on'))w.__ssotDecorateSearchSurface()});
+ for(const node of [d.getElementById('tabs'),d.getElementById('Plan'),d.getElementById('Database'),d.getElementById('Grid')])if(node)ownerUiObserver.observe(node,{childList:true,subtree:true});
+ w.loadPlacements=async function(force=false){if(w.__ssotPlacementBusy){if(force)w.__ssotPlacementPending=true;return}let current=Number(w.eval('placements.length'))||0;if(!force&&current)return;w.__ssotPlacementBusy=true;w.__ssotSetRefreshBlocker(true);try{let rows=[],after=0,rev=null,total=null,pages=0;while(true){let z=await w.req('/api/placements/page?after='+encodeURIComponent(after)+'&limit=5000',{},30000);if(!z||!z.ok)throw Error(z?.error||'Placement page failed');if(rev!==null&&z.catalog_revision!==rev){w.__ssotPlacementPending=true;break}rev=z.catalog_revision;total=Number(z.total);let page=z.placements||[];rows.push(...page);pages++;if(!z.has_more)break;let next=Number(z.next_after);if(!Number.isFinite(next)||next<=after||pages>10000)throw Error('Placement paging did not advance');after=next}if(!w.__ssotPlacementPending){if(Number.isFinite(total)&&rows.length!==total)throw Error('Placement paging incomplete: '+rows.length+' / '+total);w.__ssotApplyPlacements(rows,rev)}}catch(e){w.toast('Database data retrying',2500);w.__ssotPlacementPending=true}finally{w.__ssotPlacementBusy=false;if(w.__ssotPlacementPending){w.__ssotPlacementPending=false;setTimeout(()=>w.loadPlacements(true),100)}else w.__ssotSetRefreshBlocker(false)}};
+ w.__ssotSetRefreshBlocker(true);if(baseShow)baseShow('Plan');requestAnimationFrame(()=>{w.__ssotReportFirst();w.__ssotDecorateReportRows()});w.loadPlacements(true);return true
 }
-function arm(){
- const outerDoc=shell.contentDocument,inner=outerDoc&&outerDoc.getElementById('app');
- if(inner&&!inner.__ssotCompleteListener){
-   inner.__ssotCompleteListener=true;
-   inner.addEventListener('load',()=>setTimeout(installCompletePlacementRefresh,0))
- }
- if(!installCompletePlacementRefresh())setTimeout(arm,50)
-}
+function arm(){const outerDoc=shell.contentDocument,inner=outerDoc&&outerDoc.getElementById('app');if(inner&&!inner.__ssotCompleteListener){inner.__ssotCompleteListener=true;inner.addEventListener('load',()=>setTimeout(installCompletePlacementRefresh,0))}if(!installCompletePlacementRefresh())setTimeout(arm,50)}
 shell.addEventListener('load',arm);
 </script></body></html>
