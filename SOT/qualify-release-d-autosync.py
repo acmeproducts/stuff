@@ -73,6 +73,9 @@ assert "placementsRevision=snap?.job?.revision" not in complete
 assert "typeof snap!=='undefined'" in complete
 print('PASS observed tab decoration is idempotent and cannot self-trigger an unbounded MutationObserver loop')
 print('PASS placement apply cannot fail merely because snap is undeclared')
+assert "Job Status</button>" in complete and "Analyze</button>" not in complete
+for required in ['Analysis','Capacity','Operations','Estate','SCANNED','UNIQUE + KEEP + EXCESS','UNIQUE + KEEP','MUST BE REMOVED FROM ESTATE TO FIT TARGET','Last Synced','__ssotEstateSortBy']:assert required in complete,required
+print('PASS Report / Job Status labels and Report Analysis / Capacity / Operations / Estate are present in Complete (runtime behavior: SOT/qualify-release-d-report-estate.mjs)')
 for required in ['/api/diagnostics/log','/api/diagnostics/log/clear','diagnostic-log-publisher','live/sot-release-d-events.jsonl','git","-C",str(repo),"push','_placement_cursor_snapshots','PLACEMENT_SNAPSHOT_TTL']:assert required in autosync,required
 print('PASS database refresh is visibly blocked until the complete estate is applied')
 print('PASS Report is first and Report / Analyze share the Report icon')
