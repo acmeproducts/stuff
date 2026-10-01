@@ -48,3 +48,8 @@ Canonical test page: `SOT/sot-turn02-release-d-complete.html`. The separate Repo
 **Qualification:** baseline failed the new Complete integration gate. Chromium browser checks pass at **1280 × 900** and **412 × 915**: arithmetic, sorting/cumulative red-white cutoff, polling, Job Status/progress/Pause/Resume, Report→Search, preserved Capacity/Operations, Search Table/Grid bulk actions and Add to Estate Picker. Existing Release D engine and Continuous SSOT qualifiers pass. These are local fixture/browser results; owner-device acceptance remains unverified until the owner tests the published page against the live WSL host.
 
 **Protected:** no runtime, schema, classification, hashing, filesystem or backend files changed. Existing AI history/download and Config log functions remain in Complete unchanged.
+
+
+### Published-page phone timing check
+
+The first deployed phone run exposed Catalog briefly during Add to Estate rendering. The old Complete decorator hid Catalog only on a later animation frame and did not cover subsequent Estate renders. Complete now enforces Picker and suppresses Catalog synchronously on every Estate render, including volume refreshes. Acceptance explicitly rerenders Estate and checks that Catalog stays hidden. This preserves the previously approved Add to Estate behavior.
