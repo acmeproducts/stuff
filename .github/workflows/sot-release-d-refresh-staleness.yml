@@ -1,0 +1,41 @@
+name: SOT Release D DB Refresh Staleness
+on:
+  push:
+    paths:
+      - 'SOT/apply-release-d-refresh-staleness.py'
+      - 'SOT/qualify-release-d-refresh-staleness.py'
+      - '.github/workflows/sot-release-d-refresh-staleness.yml'
+permissions:
+  contents: write
+jobs:
+  qualify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: {python-version: '3.12'}
+      - uses: actions/setup-node@v4
+        with: {node-version: '22'}
+      - name: Apply governed change
+        run: python SOT/apply-release-d-refresh-staleness.py
+      - name: Python syntax
+        run: python -m py_compile SOT/sot-turn02-release-d-autosync.py SOT/qualify-release-d-autosync.py SOT/qualify-release-d-refresh-staleness.py
+      - name: JavaScript syntax
+        run: |
+          python - <<'PY'
+          import re,pathlib
+          s=pathlib.Path('SOT/sot-turn02-release-d-complete.html').read_text();pathlib.Path('/tmp/sot-refresh.js').write_text('\n'.join(re.findall(r'<script[^>]*>(.*?)</script>',s,re.S)))
+          PY
+          node --check /tmp/sot-refresh.js
+      - name: Existing Continuous SSOT qualification
+        run: python SOT/qualify-release-d-autosync.py
+      - name: DB refresh staleness qualification
+        run: python SOT/qualify-release-d-refresh-staleness.py
+      - name: Commit qualified change
+        run: |
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git add SOT/sot-turn02-release-d-autosync.py SOT/sot-turn02-release-d-complete.html SOT/SOT-TURN02-RELEASE-D-AUTOSYNC-PLAN.md SOT/SOT-TURN02-RELEASE-D-AUTOSYNC-GRAVEYARD.md
+          git diff --cached --quiet && exit 0
+          git commit -m 'SOT Release D: make DB refresh reconcile staleness'
+          git push
