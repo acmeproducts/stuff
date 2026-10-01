@@ -258,6 +258,12 @@ b39 incorrectly changed stationary hold into context-menu activation. Devstream 
 
 ---
 
+# 2026-10-01 — b51 fix: missing master plan no longer blocks a thread
+- Owner: "Master plan .md is missing or empty. Restore it before running this thread" kept failing tabs (e.g. projects with no recorded plan file).
+- Before every run (except the plan-creation request itself) DevStream now checks the plan file; if it is missing or empty it writes a small seed plan (ledger, releases, scope, rules, decision log, appendix), marks the project's plan as existing and records the plan path, then continues. An existing plan is never touched. The old error remains only as a last-resort guard.
+
+---
+
 # 2026-09-30 — b51 fix: desktop double-click opens the tab context menu
 - Owner could not open the tab context menu. Touch double-tap and desktop right-click already worked (verified with real project data, touch and mouse); desktop double-click did nothing. Tabs now also open the same context menu on double-click, matching project rows. No other menu behavior changed.
 
