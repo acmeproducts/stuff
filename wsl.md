@@ -1,4 +1,3 @@
-<plan>
 | Date | Stage | What happened |
 |---|---|---|
 | 2026-09-20 | DEFINE | Refined controls to four buttons (RESCUE/BACK/JUMP/FRONT); removed all automatic deadpool detection; rescue usable anytime; jump supports repeated taps for extra height; timer pauses in RESCUE_EDIT. |
@@ -8,67 +7,71 @@
 | 2026-09-27 | BUILD | Attempted Shadow Racing implementation; build attempts failed validation/timeouts. No code written. |
 | 2026-09-30 | BUILD | Attempted Shadow Racing implementation; build exceeded 8-minute timeout. No code written. |
 | 2026-09-30 | DIAGNOSE | Root cause identified: full-file writes exceed worker time limit. Shadow Racing is not present in codebase (ghost recording/replay/absent). Rhythm Rails blocked pending stable build. Strategy: incremental patch mode. |
+| 2026-10-01 | PIVOT | Owner requested creation of snowy.html using commit 193798a as baseline; cataloged features from current wsl.html for selection. Note: 193798a content not in context—using provided wsl.html as reference for feature extraction. Awaiting owner selection. |
 
-# WSL — Master Plan
+# WSL — Master Plan (Active Fork: snowy.html)
 
-Single-file mobile-first HTML app (wsl.html). This plan is the sole authority and the only memory that persists between runs. Chat history may be partial or missing.
+Single-file mobile-first HTML app pivot to **snowy.html**. This plan remains the sole authority. The owner will select features from the catalog below to port into the new baseline.
 
-## Define
+## Baseline Reference
+- **Target**: snowy.html
+- **Source baseline**: Commit 193798a (requested by owner; content pending availability)
+- **Reference catalog**: Current wsl.html features (listed below) extracted for selection
 
-**Working title:** Snowman Coal-Cart Line Rider (from owner instructions + image v3.png)
+## Feature Catalog (from current wsl.html implementation)
 
-**Purpose:** A mobile-first, single-file HTML arcade game where the player draws track, releases a snowman in a coal cart, and keeps it alive by drawing ahead or manually rescuing. No automatic "stuck/deadpool" detection exists—the player alone decides when a rescue is needed.
+### Core Mechanics
+- **Manual Track Drawing**: Touch/mouse drawing of Bezier-like line segments (tracks) with cumulative length tracking
+- **Four-Button Control Layout**: Fixed bottom-center row (RESCUE, BACK <, JUMP, FRONT >)
+- **Physics Simulation**: Gravity (1050 px/s²), drag (0.1), rolling resistance, velocity clamping (±2000), momentum-based cart movement along drawn paths
+- **State Machine**: READY → RUN → FALL → RESCUE_EDIT ↔ SUCK → OVER
 
-**Users:** Casual mobile players; short sessions; one-thumb/two-thumb play.
+### Movement & Rescue
+- **Jump System**: Initial launch from track + mid-air boost stacking (chain up to 3 for "BIG JUMP"), velocity cap (-4000), pitch-shifted audio feedback
+- **Flip Mechanics**: BACK (left/up boost) and FRONT (right/forward boost) accessible only during FALL state; adds spin and velocity changes
+- **Rescue System**: 3 charges (consumes one per use), freezes physics and timer, spawns new colored track segment (orange→blue→red gradient), enters edit mode, resumes on cart tap
+- **No Auto-Death**: Player exclusively decides when to trigger rescue; no stuck detection algorithms
 
-**Core loop:**
-1. A track exists; tap it to release the cart.
-2. Cart rolls on momentum (gravity, slope, drag).
-3. Player may press **JUMP** at any time during a run to launch into the air. Repeated JUMP taps while airborne stack height (upward velocity) for bigger arcs.
-4. If the cart leaves the track (end, gap, or jump), it enters FALL. In FALL, player may use **BACK FLIP** (short boost up/back) or **FRONT FLIP** (long forward reach) to try to catch another track.
-5. **RESCUE** can be pressed at **any time** (RUN, FALL, even READY). It consumes one charge (3 total), freezes time, spawns a new colored track under the cart (orange → blue → red per use), and enters EDIT mode to draw a replacement line. Tap the cart to resume RUN on that new line.
-6. Failure = cart falls into the black hole. Timer pauses during RESCUE_EDIT. Final score = base points (distance pages + trick bonuses + inches traveled) + (survival seconds × 10).
+### Scoring & Progression
+- **Page System**: Infinite scrolling based on screen width segments; +100 points per new page reached
+- **Distance Tracking**: Total pixels traveled converted to inches (20px = 1 inch), contributes to final score
+- **Survival Timer**: Millisecond-accurate timing paused during RESCUE_EDIT; converts to points at 10× multiplier
+- **High Score Persistence**: LocalStorage key `scl_best`
 
-**Controls (bottom center row, always visible, always tappable):**
-- **RESCUE** (left-most): Shows remaining charges "x3/x2/x1/x0". Clicking anytime consumes one charge and opens the rescue draw-mode.
-- **< BACK** (second): Only functional during FALL. Performs a back-flip (moderate height gain, short backward impulse).
-- **JUMP** (third): During RUN → launch into FALL with upward velocity. During FALL → add upward boost (cumulative, capped) to extend airtime/climb.
-- **FRONT >** (right-most): Only during FALL. Long forward flip covering more ground.
+### Obstacles & Difficulty
+- **Difficulty Levels**: Zen (0), Low (3 obstacles), Med (6), Hard (12)
+- **Obstacle Types**: 
+  - Black holes (circular pull zones, instant death on contact)
+  - Rocks (circular collision, solid)
+  - Fences (rectangular barriers, Hard mode only)
+- **Procedural Placement**: Random X positioning (800–3800px), Y variation (20%–70% screen height)
 
-**Why:** Removing automatic detection puts skill entirely in player judgment—reading oscillation, deciding when a line is unrecoverable, and conserving 3 precious rescues for true emergencies.
+### Visual & Audio
+- **Atmosphere**: Parallax starfield (80 stars), animated snowflakes (50 particles, sine-wave drift)
+- **Cart Rendering**: Snowman emoji + coal cart chassis with wheel rotation during movement, flip animation (360° spin) during tricks
+- **Death Animation**: "Black hole suck" with radial gradient, rotation, and scale-to-zero effect
+- **Audio Synthesis**: Web Audio API, 4 themes (Calm/sine, Fun/triangle, Whimsical/square-vibrato, Zen/sine-reverb), dynamic pitch mapping to jump chains
+- **UI Elements**: Floating combat text ("JUMP", "FLIP >", "+100", "NO CHARGES"), blur-resistant HUD with safe-area insets for mobile notches
 
-**Success criteria:**
-- One HTML file, no external assets.
-- Touch-first, mobile-optimized, pinch/wheel zoom preserved.
-- Jump stacking must be noticeable (visual feedback + sound pitch rise).
-- Rescue freeze must pause timer and physics; resume snaps cart to new track start.
-- No greyed/disabled buttons—always render full color; invalid presses simply no-op or harmless beep.
-- Settings persist (intensity, audio theme, difficulty).
-- Distance traveled (inches) contributes to score.
+### Settings & Persistence
+- **Settings Panel**: Modal overlay with intensity presets (Low/Med/High/Custom), physics sliders (jump 400–2000, flip 200–1200), audio theme selector, difficulty slider
+- **Persistent Storage**: `localStorage` keys `scl_settings` (JSON) and `scl_best` (int)
 
-## Current Sprint (Active)
-- **Task:** Shadow Racing (Ghost Lane) — Retry with optimized incremental build to avoid timeout. Record player X position every 50ms during RUN, persist snapshot to localStorage (key 'scl_ghost'), clamp camera X to max(camX, ghost.x) so ghost never leads the view, render translucent (globalAlpha 0.35) ghost cart sprite at interpolated ghost position. Detect overtaking (currentRunTime ≥ ghostTime && currentX > ghostX) to trigger single-floater "PERSONAL BEST" and victory beep chord ONCE per run. Ghost must survive page refresh.
-- **Constraint:** Build must complete within 8-minute worker limit; redundant comments stripped; minified variable names acceptable for new ghost module only.
+### Input & Camera
+- **Multi-touch**: Pointer API with pinch-to-zoom (0.35×–3.5×), panning camera lerp (k=4)
+- **Gesture Recognition**: Pinch distance calculation for zoom, drawing vs. tapping discrimination (10px threshold)
+- **Camera Modes**: Ready/Edit follows track end; Run/Fall follows cart with Y-offset adjustment when falling
 
-## Backlog
-- DONE (2026-09-20): Defined four-button centered layout including JUMP.
-- DONE (2026-09-20): Specified rescue works in any state (no deadpool detection).
-- DONE (2026-09-20): Jump mechanics defined (initial launch + repeated tap boost).
-- DONE (2026-09-24): Settings panel with intensity presets (Low/Med/High/Custom), audio themes (Calm/Fun/Whimsical/Zen), difficulty slider (Zen/Lo/Med/Hi), persistent storage.
-- DONE (2026-09-24): Scoring factor: inches of track covered (20 px = 1 in).
-- NEXT — **Rhythm Rails.** Fixed 110BPM background pulse; track segments store draw-timestamp relative to beat phase; when cart rolls over segment drawn within ±80ms of a beat, tint segment gold and apply +15% vx micro-boost. Audio feedback: pitch-shifted chime on-beat draw.
-- IDEA (b) OK — **Momentum Multiplier (Streak).** Consecutive "clean" landings (touching track after FALL without using RESCUE and with |vy| < impact_threshold) build a combo stack (×2, ×3, ×4). Resets on RESCUE use or crash. Adds risk/reward tension to flips without new buttons. Low cognitive load because it's passive feedback (flashing "×3" HUD) that reinforces the existing "land smoothly" skill. Implementation: counter on successful landOnTrack if no rescue used; multiply incoming baseScore additions by min(counter,4).
-- IDEA (b) OK — **Ambient Weather Whimsy.** Occasional cosmetic overlays (Aurora Borealis, Gentle Snow, Starfall) that subtly tweak physics: Aurora exerts tiny magnetic attraction toward nearest track (reduces "stuck in space" anxiety), Snow adds light drag that encourages longer tracks, Starfall creates temporary glowing bridges that disappear after one crossing. Low cognitive load because they're atmospheric variants of existing physics (just tweakers, not new rules) and can be disabled in Settings. Implementation: weather state machine, probability trigger every 30s of gameplay, lightweight shaders/particles for visual theme.
-- IDEA (c) MUNDANE — **Flake Currency.** Golden snowflakes spawn along high-arcing jump trajectories or tight curves; collect 100 to earn +1 rescue charge. Standard mobile retention mechanic; adds completionist pressure but does not deepen the core fantasy or mechanic. Low cognitive load (passive collection) but low novelty. Implementation: array of collectibles with simple AABB collision vs cart, particle burst on collect, modulo counter for extra life.
+### Safety & Polish
+- **Mobile Optimization**: `touch-action: none`, `user-select: none`, overscroll prevention, orientation change handling, env(safe-area-inset) support
+- **Visual Feedback**: Button press scaling (0.92×), track pulse animation at edit endpoint, color-coded rescue tracks with highlight stroke
 
-## Turn/Stage Ledger
-| Date | Stage | What happened |
-|---|---|---|
-| 2026-09-20 | DEFINE | Refined controls to four buttons (RESCUE/BACK/JUMP/FRONT); removed all automatic deadpool detection; rescue usable anytime; jump supports repeated taps for extra height; timer pauses in RESCUE_EDIT. |
-| 2026-09-22 | DESIGN | Proposed five engagement concepts tiered a/b/c (Shadow Racing, Rhythm Rails, Momentum Multiplier, Weather Whimsy, Flake Currency) to increase session depth without heavy UI or tutorial burden; awaiting owner selection/ordering. |
-| 2026-09-24 | SELECT | Owner selected #1 Shadow Racing and #2 Rhythm Rails for implementation. Verified current build passes all acceptance checks (persistent settings, jump stacking, rescue freeze, no disabled buttons, mobile-optimized). |
-| 2026-09-24 | IMPL | Re-reviewed the master plan and confirmed Shadow Racing (Ghost Lane) is the next concrete item; Rhythm Rails remains queued. No code was written in this checkpoint run. |
-| 2026-09-27 | BUILD | Attempted Shadow Racing implementation; build attempts failed validation/timeouts. No code written. |
-| 2026-09-30 | BUILD | Attempted Shadow Racing implementation; build exceeded 8-minute timeout. No code written. |
-| 2026-09-30 | DIAGNOSE | Root cause identified: full-file writes exceed worker time limit. Shadow Racing is not present in codebase (ghost recording/replay/absent). Rhythm Rails blocked pending stable build. Strategy: incremental patch mode. |
-</plan>
+## Pending Feature Integration
+Awaiting owner selection from catalog above to merge into snowy.html baseline. Once selected, features will be added to the Sprint section below.
+
+## Backlog (Deferred from wsl.html)
+- IDEA (a)  — **Shadow Racing (Ghost Lane)**: Record position every 50ms, translucent ghost replay, overtaking detection, "PERSONAL BEST" floater (was active sprint—now pending feature selection for snowy.html)
+- IDEA (b) OK — **Rhythm Rails**: 110BPM pulse, beat-aligned track tinting, micro-boosts
+- IDEA (b) OK — **Momentum Multiplier (Streak)**: Clean landing combo system (×2–×4)
+- IDEA (b) OK — **Weather Whimsy**: Aurora (magnetic track attraction), Snow drag, Starfall bridges
+- IDEA (c) MUNDANE — **Flake Currency**: Golden snowflakes for bonus rescue charges
