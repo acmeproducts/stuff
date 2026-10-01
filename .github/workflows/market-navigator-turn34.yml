@@ -1,0 +1,64 @@
+name: Market Navigator Turn 34 Qualify
+on:
+  push:
+    paths:
+      - 'market-navigator-turn34-governance.py'
+      - 'market-navigator-build-turn34.py'
+      - 'market-navigator-turn34-qa.mjs'
+      - '.github/workflows/market-navigator-turn34.yml'
+permissions:
+  contents: write
+jobs:
+  qualify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: {python-version: '3.12'}
+      - uses: actions/setup-node@v4
+        with: {node-version: '22'}
+      - name: Update governance first
+        run: python market-navigator-turn34-governance.py
+      - name: Build correction
+        run: python market-navigator-build-turn34.py
+      - name: Static architecture gates
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          s=Path('market-navigator-turn34-pre-ship.html').read_text(); b=Path('market-navigator-turn28-ship.html').read_text()
+          gates={
+            'one physical chart':s.count('id="chartSurface33"')==1 and s.count('id="nowChart"')==1,
+            'one legend':s.count('id="legend"')==1,
+            'no reparent': 'appendChild(surface)' not in s and 'append(surface)' not in s,
+            'selected-root isolation':'TURN33_ANALYZE_ROOT_NOT_ISOLATED' in s,
+            'interactive overlay contract':'data-contract="interactive-in-place-analyze"' in s,
+            'no rejected donors':all(x not in s for x in ['chartSurface31','TURN32_TRUE_SINGLE_SURFACE','dashboardView29']),
+            'persistent evidence unchanged':s.count('derived-indices-persistent-v1.json')==b.count('derived-indices-persistent-v1.json'),
+          }
+          for k,v in gates.items(): print(('PASS' if v else 'FAIL'),k)
+          assert all(gates.values())
+          PY
+      - name: JavaScript syntax
+        run: |
+          python - <<'PY'
+          import re,pathlib
+          s=pathlib.Path('market-navigator-turn34-pre-ship.html').read_text(); pathlib.Path('/tmp/mn34.js').write_text('\n'.join(re.findall(r'<script[^>]*>(.*?)</script>',s,re.S)))
+          PY
+          node --check /tmp/mn34.js
+      - name: Browser interaction qualification
+        run: |
+          npm ci
+          npx playwright install --with-deps chromium
+          python -m http.server 8123 >/tmp/mn34-http.log 2>&1 &
+          SERVER=$!
+          trap 'kill $SERVER || true' EXIT
+          sleep 2
+          MARKET_NAVIGATOR_URL=http://127.0.0.1:8123/market-navigator-turn34-pre-ship.html node market-navigator-turn34-qa.mjs
+      - name: Commit qualified candidate and governance
+        run: |
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git add MARKET-NAVIGATOR-MASTER-PLAN.md MARKET-NAVIGATOR-GRAVEYARD.md market-navigator-turn34-pre-ship.html
+          git diff --cached --quiet && exit 0
+          git commit -m 'Market Navigator Turn 34: qualify interactive Analyze recovery'
+          git push
