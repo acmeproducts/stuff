@@ -121,7 +121,7 @@
 </div>
 <script>
 'use strict';
-const BUILD = 'M6-weather 2026-09-30';
+const BUILD = 'M7-saveload 2026-10-01';
 const errBox = document.getElementById('errBox');
 function showErr(msg) {
   errBox.style.display = 'block';
@@ -264,7 +264,7 @@ function startApp(cdnUrl) {
   });
 
   // ---- settings (persisted) ----
-  const settings = { detail: 'MED', walkSpeed: 5, flySpeed: 40, tod: 12, sens: 3000, invertY: false, imagery: true, touchCtl: 'auto', autoTod: true, clouds: true, rain: false, season: 'auto' };
+  const settings = { detail: 'MED', walkSpeed: 5, flySpeed: 40, tod: 12, sens: 3000, invertY: false, imagery: true, touchCtl: 'auto', autoTod: true, clouds: true, rain: false, season: 'auto', fly: false };
   try {
     const s = JSON.parse(localStorage.getItem('earthSettings') || 'null');
     if (s) for (const k in settings) { if (typeof s[k] === typeof settings[k]) settings[k] = s[k]; }
@@ -1441,7 +1441,16 @@ function startApp(cdnUrl) {
     updateStreaming(lastPTx, lastPTy);
   }
 
-  teleport(SF.lat, SF.lon);
+  // M7: restore last position (full-state save/load) — fall back to SF
+  let startPos = SF;
+  try {
+    const p = JSON.parse(localStorage.getItem('earthPos') || 'null');
+    if (p && typeof p.lat === 'number' && typeof p.lon === 'number' &&
+        p.lat >= -85 && p.lat <= 85 && p.lon >= -180 && p.lon <= 180) {
+      startPos = { lat: p.lat, lon: p.lon };
+    }
+  } catch (e) {}
+  teleport(startPos.lat, startPos.lon);
 
   // ---- fly / walk ----
   const btnFly = document.getElementById('btnFly');
@@ -1450,6 +1459,8 @@ function startApp(cdnUrl) {
   }
   function setFly(v) {
     flyMode = v;
+    settings.fly = v;
+    saveSettings();
     btnFly.textContent = flyMode ? 'Walk' : 'Fly';
     if (flyMode) { vy = 0; airborne = false; }
     applySpeeds();
@@ -1596,6 +1607,7 @@ function startApp(cdnUrl) {
   });
 
   updateTouchUI();
+  if (settings.fly) setFly(true); // M7: restore saved fly mode
 
   // ---- time of day ----
   const dayTop = new BABYLON.Color3(0.2, 0.45, 0.85);
@@ -1844,6 +1856,14 @@ function startApp(cdnUrl) {
     }
   });
 
+  // M7: position save/load — throttled autosave plus save on page exit
+  let lastLat = SF.lat, lastLon = SF.lon, lastPosSave = 0;
+  function savePos(lat, lon) {
+    try { localStorage.setItem('earthPos', JSON.stringify({ lat: lat, lon: lon })); } catch (e) {}
+  }
+  window.addEventListener('pagehide', function() { savePos(lastLat, lastLon); });
+  window.addEventListener('beforeunload', function() { savePos(lastLat, lastLon); });
+
   const topHud = document.getElementById('topHud');
   scene.onBeforeRenderObservable.add(function() {
     const fps = engine.getFps().toFixed(1);
@@ -1852,6 +1872,11 @@ function startApp(cdnUrl) {
     let lon = tcfX / NZ * 360 - 180;
     lon = ((lon + 180) % 360 + 360) % 360 - 180;
     const lat = Math.atan(Math.sinh(Math.PI * (1 - 2 * tcfY / NZ))) / DEG2RAD;
+    lastLat = lat; lastLon = lon;
+    if (performance.now() - lastPosSave > 2500) {
+      lastPosSave = performance.now();
+      savePos(lat, lon);
+    }
     let terr = 0, proc = 0, lcTiti = 0, vegTotal = 0;
     for (const t of tiles.values()) {
       if (t.state === 'terr') terr++; else proc++;
