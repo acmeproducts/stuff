@@ -110,3 +110,11 @@ Freshness: Connected describes transport only. Separate evidence state Current /
 **Not changed:** schema, SSOT sync, placement paging, scanning, hashing, classification math, Search, Add to Estate, AI, logging, diagnostics, backend API contracts, other projects.
 
 **Gates:** all existing Release D gates retained plus deterministic runtime gates for labels, subtabs, relationships, DEFICIT, Estate data/columns/sort/overflow (`SOT/qualify-release-d-report-estate.py`, headless Chromium).
+
+
+## 2026-10-01 — Database stuck on the blocker (owner report)
+
+**Reported:** Database never loads; the "Database refreshing / rebuilding" blocker stays up forever.
+**Cause (reproduced):** a forced refresh calls `/api/ssot/refresh-staleness` first. A backend without that endpoint (older installed runtime) returns an error, which was treated as a load failure and retried every 100 ms with no limit, so the blocker never cleared.
+**Change:** the staleness check is now non-fatal (toast, then load continues); load failures retry at most 3 times, then stop with a visible error and release the blocker; a render error after apply no longer counts as a load failure.
+**Qualification:** new runtime gate with the staleness endpoint missing: fails on the previous page, passes now. Run the installer to get the backend that has the endpoint.

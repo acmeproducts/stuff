@@ -7,14 +7,14 @@ const sources=[['s1','/mnt/a/Photos',300,now-3600],['s2','/mnt/b/Video',250,now-
 let n=0;const P=(src,cls,gb,fp)=>({placement_id:'p'+(++n),placement_no:n,source_id:src,estate:src,path:'/x/'+n,filename:'f'+n,size:gb*GB,fingerprint:fp||'fp'+n,system_classification:cls,availability:'OK',placement_state:'ACTIVE'});
 // SCANNED 900 = UNIQUE 600 + KEEP 100 + EXCESS 200 ; ESTATE 700 ; roots retained a=300 b=250 c=150
 const placements=[P('s1','UNIQUE',300),P('s2','UNIQUE',150),P('s3','UNIQUE',150),P('s2','KEEP',100,'dup'),P('s3','EXCESS',100,'dup'),P('s2','EXCESS',100,'dup2')];
-let targetBytes=600*GB;
+let targetBytes=600*GB,stalenessMissing=false;
 const api=(u)=>{const p=u.pathname.replace(/^\/sot/,'');
  if(p==='/api/jobs')return {ok:true,jobs:[],scheduler:{}};if(p==='/api/events')return {ok:true,events:[]};if(p==='/api/sources')return {ok:true,sources};
  if(p==='/api/target')return {ok:true,target:{configured:true,path:'/mnt/t',free_bytes:targetBytes,registered_free_bytes:targetBytes}};
  if(p==='/api/health')return {ok:true,catalog_revision:1,creation_revision:1,db:{state:'healthy'}};
  if(p==='/api/placements/page')return {ok:true,catalog_revision:1,total:placements.length,placements,has_more:false,next_after:placements.length};
- if(p==='/api/ssot/refresh-staleness')return {ok:true,errors:[]};if(p==='/api/volumes')return {ok:true,volumes:[]};return {ok:true};};
-const srv=http.createServer((rq,rs)=>{const u=new URL(rq.url,'http://x');if(u.pathname.startsWith('/sot/')){rs.writeHead(200,{'content-type':'application/json'});return rs.end(JSON.stringify(api(u)))}
+ if(p==='/api/ssot/refresh-staleness')return stalenessMissing?{ok:false,error:'not found'}:{ok:true,errors:[]};if(p==='/api/volumes')return {ok:true,volumes:[]};return {ok:true};};
+const srv=http.createServer((rq,rs)=>{const u=new URL(rq.url,'http://x');if(u.pathname.startsWith('/sot/')){const j=api(u);rs.writeHead(j.ok===false?404:200,{'content-type':'application/json'});return rs.end(JSON.stringify(j))}
  const f=path.join(HERE,path.basename(u.pathname));if(!fs.existsSync(f)){rs.writeHead(404);return rs.end()}rs.writeHead(200,{'content-type':f.endsWith('.html')?'text/html':'text/plain'});rs.end(fs.readFileSync(f))});
 await new Promise(r=>srv.listen(0,'127.0.0.1',r));const port=srv.address().port,URL_=`http://127.0.0.1:${port}/sot-turn02-release-d-complete.html?api=${encodeURIComponent(`http://127.0.0.1:${port}/sot`)}`;
 const browser=await chromium.launch();
@@ -68,6 +68,8 @@ try{
  // Job Status
  await fr.evaluate(()=>__ssotOpenReportMode('Analyze'));await pg.waitForTimeout(300);ok(await fr.evaluate(()=>document.getElementById('Analyze').classList.contains('on')&&document.getElementById('Analyze').innerText.length>20),'job status pane');ok(await fr.$$eval('#Analyze .ssot-report-switch button',b=>b[1].textContent.trim()==='Job Status'&&b[1].classList.contains('on')),'job status nav');pass('Job Status renders the existing job/source status surface');
  await pg.context().close();
+ // older backend without the staleness endpoint must still load the database and release the blocker
+ stalenessMissing=true;{const o=await open(1280,900);ok(await o.fr.evaluate(()=>placements.length>0&&!document.querySelector('#ssot-db-blocker.on')),'database did not load without staleness endpoint');pass('database loads and the blocker clears when the staleness endpoint is unavailable (older backend)');await o.ctx.close()}stalenessMissing=false;
  // mobile
  const m=await open(412,915);await m.fr.evaluate(()=>setPlanTab('Estate'));await m.pg.waitForTimeout(300);
  const ov=await m.fr.evaluate(()=>({doc:document.documentElement.scrollWidth-document.documentElement.clientWidth,tbl:(()=>{let w=document.querySelector('.estate-wrap');return w.scrollWidth-w.clientWidth})(),rows:document.querySelectorAll('.estate-table tbody tr').length}));ok(ov.doc<=1&&ov.tbl<=1&&ov.rows===3,'mobile overflow '+JSON.stringify(ov));pass('Estate table usable at 412x915 without horizontal overflow');
