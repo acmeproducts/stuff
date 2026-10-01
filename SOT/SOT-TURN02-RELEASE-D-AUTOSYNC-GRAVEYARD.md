@@ -84,3 +84,7 @@ Required replacement:
 - Log / Activity lives in Configuration with Download / Copy / Clear;
 - the structured runtime log remains local and automatically mirrors to the separately cloned private diagnostics Git repository when that checkout is configured;
 - clearing the runtime JSONL does not delete SQLite durable event history.
+
+
+## 2026-10-01 — Blind Database Refresh — REJECTED
+Rejected behavior: treating Database Refresh as only a browser/SQLite placement reload. A user-requested DB refresh must first check enabled registered sources for filesystem staleness and automatically reconcile changed sources through the governed deduplicated SSOT path. Do not reintroduce a refresh control that can report a fresh database view without performing that source-freshness checkpoint.

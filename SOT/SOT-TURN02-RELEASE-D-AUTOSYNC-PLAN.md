@@ -124,3 +124,24 @@ Candidate must prove:
 - `/api/diagnostics/log` reads the structured runtime log; `/api/diagnostics/log/clear` clears that log without deleting SQLite events.
 - automatic private-repo log publication never targets the public application repository and does nothing when the private diagnostics checkout is absent.
 - complete-wrapper JavaScript parses under Node 22; autosync and qualifier compile and the Continuous SSOT qualification passes.
+
+
+## 2026-10-01 — Database Refresh is a staleness checkpoint
+
+**Owner decision:** Database Refresh must check registered sources for staleness rather than merely reload SQLite rows.
+
+### Definition of working
+1. A forced Database Refresh checks every enabled registered source using the existing governed source-freshness mechanism.
+2. Any changed/stale source is automatically sent through the existing deduplicated SSOT synchronization path; registration remains the standing permission and no Restart/approval is introduced.
+3. The placement/database refresh then loads the complete authoritative estate snapshot using the existing immutable paging path.
+4. Current sources remain Current; stale sources transition through Syncing; genuine failures remain Problem.
+5. Normal background placement refreshes do not perform an extra owner-requested staleness scan; the explicit/forced DB refresh is the checkpoint.
+6. No rehash policy, classification rules, schema, report mathematics, source identity, AI behavior, or owner navigation changes.
+
+### Release gates
+- POST `/api/ssot/refresh-staleness` checks all enabled source IDs.
+- Changed IDs invoke existing `check_source_ids` → `queue_sync` behavior and therefore existing live-work dedupe.
+- Forced `loadPlacements(true)` calls the staleness endpoint before paging placements.
+- Non-forced placement loading does not call the endpoint.
+- Existing Continuous SSOT qualification remains PASS.
+- JavaScript parses under Node 22 and Python compiles.

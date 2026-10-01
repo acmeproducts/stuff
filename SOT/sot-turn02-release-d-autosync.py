@@ -53,6 +53,12 @@ def install(srv):
         with srv.M.s.log_lock:lines=path.read_text(errors="replace").splitlines()[-limit:] if path.exists() else []
         return handler.sendj({"ok":True,"lines":lines,"count":len(lines),"publish":dict(srv._log_publish_status)})
 
+    def refresh_staleness(handler):
+        rows=srv.M.s.rows("SELECT source_id FROM sources WHERE enabled=1 ORDER BY source_id")
+        ids=[r["source_id"] for r in rows]
+        result=srv.check_source_ids(ids,"database_refresh") if ids else {"checked":[],"changed":[],"errors":[]}
+        return handler.sendj({"ok":True,"checked":result.get("checked",ids),"changed":result.get("changed",[]),"errors":result.get("errors",[]),"auto_sync":result.get("auto_sync")})
+
     def clear_log(handler):
         path=srv.M.s.log_path
         with srv.M.s.log_lock:
@@ -72,6 +78,9 @@ def install(srv):
 
     def do_POST(handler):
         path=urlparse(handler.path).path
+        if path=="/api/ssot/refresh-staleness":
+            try:return refresh_staleness(handler)
+            except Exception as e:return handler.sendj({"ok":False,"error":str(e)},500)
         if path=="/api/diagnostics/log/clear":
             try:return clear_log(handler)
             except Exception as e:return handler.sendj({"ok":False,"error":str(e)},500)
