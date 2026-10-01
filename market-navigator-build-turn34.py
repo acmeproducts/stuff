@@ -2,13 +2,17 @@ from pathlib import Path
 p=Path('market-navigator-turn33-pre-ship.html'); o=Path('market-navigator-turn34-pre-ship.html'); s=p.read_text()
 assert 'TURN33_IN_PLACE_ANALYZE' in s
 assert s.count('id="chartSurface33"')==1
-# Keep the one physical NOW chart surface. The defect was stacking: auxiliary controls
-# remained below the fixed chart surface. Promote the EXISTING shared controls only while Analyze is open.
+# Keep the one physical NOW chart surface. Promote the EXISTING shared controls while Analyze is open.
 needle='.turn33Analysis #chartSurface33{position:fixed!important;inset:8px!important;width:auto!important;height:auto!important;z-index:70!important;border-radius:9px!important}'
 assert s.count(needle)==1
-replacement=needle+'''.turn33Analysis #nowPicker,.turn33Analysis .nowMoreMenu,.turn33Analysis .aboutCard,.turn33Analysis #info{z-index:86!important}.turn33Analysis #nowPicker{position:fixed!important;top:58px!important;right:16px!important;bottom:16px!important}.turn33Analysis .nowMoreMenu{position:fixed!important;top:58px!important;right:16px!important}.turn33Analysis .aboutCard{position:fixed!important;top:58px!important;right:16px!important}.turn33Analysis #nowTip{z-index:84!important}'''
+replacement=needle+'''.turn33Analysis #nowPicker,.turn33Analysis .nowMoreMenu,.turn33Analysis #info{z-index:86!important}.turn33Analysis #nowPicker{position:fixed!important;top:58px!important;right:16px!important;bottom:16px!important}.turn33Analysis .nowMoreMenu{position:fixed!important;top:58px!important;right:16px!important}.turn33Analysis #nowTip{z-index:84!important}'''
 s=s.replace(needle,replacement,1)
-# Add runtime observability and hard interaction assertions without creating alternate handlers.
+# The source explainer is the launch surface, not part of Analyze. Close it before entering Analyze
+# so it cannot intercept the shared picker/menu controls.
+launch="async function openStandaloneAnalysis26(id){if(S.turn33Analysis)return;let surface=$('chartSurface33');"
+assert s.count(launch)==1
+s=s.replace(launch,"async function openStandaloneAnalysis26(id){if(S.turn33Analysis)return;$('nowSeriesAbout')?.classList.add('hidden');$('nowPicker')?.classList.add('hidden');$('nowMoreMenu')?.classList.add('hidden');let surface=$('chartSurface33');",1)
+# Add runtime observability and hard interaction assertions without alternate handlers.
 old="await renderV2();if(surface.parentNode!==S.turn33Analysis.parent)throw new Error('TURN33_SURFACE_REPARENTED');let ids=visibleIds25();if(ids.length!==1||ids[0]!==id)throw new Error('TURN33_ANALYZE_ROOT_NOT_ISOLATED')}"
 assert s.count(old)==1
 new="await renderV2();if(surface.parentNode!==S.turn33Analysis.parent)throw new Error('TURN33_SURFACE_REPARENTED');let ids=visibleIds25();if(ids.length!==1||ids[0]!==id)throw new Error('TURN33_ANALYZE_ROOT_NOT_ISOLATED');S.turn33Analysis.openH=S.h;S.turn33Analysis.openDisplay=S.indexDisplay||'fixed';document.body.dataset.turn34Analyze='live'}"
@@ -16,7 +20,6 @@ s=s.replace(old,new,1)
 oldclose="document.body.classList.remove('turn33Analysis');$('turn33Close')?.remove();restoreNow33(a.frozen);S.turn33Analysis=null;"
 assert s.count(oldclose)==1
 s=s.replace(oldclose,"document.body.classList.remove('turn33Analysis');delete document.body.dataset.turn34Analyze;$('turn33Close')?.remove();restoreNow33(a.frozen);S.turn33Analysis=null;",1)
-# Marker for governed qualification.
 s=s.replace('</body>','<div id="turn34Marker" class="hidden" data-contract="interactive-in-place-analyze"></div></body>',1)
 o.write_text(s)
 print('PASS Turn34 build',o.stat().st_size)
