@@ -30,3 +30,11 @@ Owner: “a ton of regressions and also extremely poor design”; mobile first; 
 Buried: repeated report cards plus warning plus table; repeating the report above Estate; raw/root/scanned bytes used for retained-capacity cutoff; over-capacity bars clamped to 100%; negative OPEN contradictory to positive deficit; flat job ledger replacing grouped actionable job workflow; all-phase blocking placement-refresh overlay without real freshness status; horizontal clipping; phone tests that only look for labels instead of checking meaningful states/actions and viewport fit.
 
 Do not forward-patch this rejected design. Restore the pre-#770 Complete bytes (qualified 59bca454 frontend) and the prior SOT workflow, remove the rejected qualifier, preserve unrelated project changes and runtime/data. Do not resurrect `sot-turn02-release-d-report-estate.html` as a delivery workaround. A disclaimer about shared roots is not a substitute for correct retained-byte accounting. A single RUNNING fixture is not proof of a complete job workflow. A successful page load is not a filesystem staleness check.
+
+
+## 2026-10-01 — Buried: separate Report/Estate wrapper (`sot-turn02-release-d-report-estate.html`)
+
+- A separate Report/Estate wrapper was the wrong release mechanism.
+- The nested wrapper (page → Complete → Source Actions → Release D) caused/complicated runtime startup.
+- Requirements retained; implementation rejected.
+- The qualified Complete surface (`sot-turn02-release-d-complete.html`) is the forward baseline; Report/Job Status/Estate are implemented inside it. Do not resurrect `sot-turn02-release-d-report-estate.html` or add another wrapper around Complete.

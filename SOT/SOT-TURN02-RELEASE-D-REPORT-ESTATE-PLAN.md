@@ -93,3 +93,20 @@ Freshness: Connected describes transport only. Separate evidence state Current /
 7. Freshness check must be directly evidenced; file additions/deletions/changes update status and auto-sync as defined. Loading errors stop visibly and retry is bounded.
 8. Preserve Search Table/Grid bulk parity, Add to Estate, AI parallel/history/download, Config Log/Activity and backend/schema/filesystem behavior unless a further explicitly approved requirement needs a scoped change.
 9. Public served identity and owner mobile acceptance are separate from lab gates. A green lab check never closes the owner's release acceptance.
+
+
+## 2026-10-01 — Release D forward: Report / Job Status / Estate in the qualified Complete surface
+
+**Owner instruction:** forward-apply the Report/Estate requirements onto current `main`, directly inside `SOT/sot-turn02-release-d-complete.html` (qualified baseline `59bca4547c7462e721d6ac878214fb22267b0bbb` + the DB-refresh staleness checkpoint already on main). No new wrapper; the old tree is reference only. The 2026-09-30 redesign-approval freeze is superseded by this explicit instruction.
+
+**Scope (exact):**
+1. **Analyze becomes Job Status.** The Report/Analyze switch reads `Report | Job Status`. The existing job/source status surface is preserved unchanged; it is not the Estate catalog.
+2. **Report → Analysis is top-down.** `SCANNED = UNIQUE + KEEP + EXCESS`; `ESTATE = UNIQUE + KEEP`; `OPEN = TARGET − ESTATE`; `TARGET = LANDED + OPEN`. Reads SCANNED, −EXCESS, = ESTATE, vs TARGET, = OPEN or DEFICIT.
+3. **Over capacity (`ESTATE > TARGET`):** no negative OPEN. A positive DEFICIT (`ESTATE − TARGET`) is shown with "MUST BE REMOVED FROM ESTATE TO FIT TARGET". The capacity bar uses Target as the boundary and draws overflow beyond it in red. Underlying data/math unchanged.
+4. **Report subtabs:** Analysis | Capacity | Operations | Estate. Capacity/Operations behavior preserved except OPEN/DEFICIT coherence.
+5. **Report → Estate:** durable catalog, one row per registered (non-soft-deleted) Estate root from the existing `/api/sources` + placement data. Columns Root / Files / Size / Last Synced / Status, sortable like the Database table, mobile usable. Files/Size are the retained (UNIQUE + KEEP) placements owned by that root so root rows sum to ESTATE. Summary above: `ESTATE | TARGET | OPEN` or `DEFICIT`. No job controls.
+6. **Fit/overflow:** cumulative retained size in the fixed canonical root order (Root A→Z); rows beyond Target are red/white. Means "beyond Target capacity in canonical order", not "delete". User sorts reorder display only; the red flag follows the root, computed from canonical order.
+
+**Not changed:** schema, SSOT sync, placement paging, scanning, hashing, classification math, Search, Add to Estate, AI, logging, diagnostics, backend API contracts, other projects.
+
+**Gates:** all existing Release D gates retained plus deterministic runtime gates for labels, subtabs, relationships, DEFICIT, Estate data/columns/sort/overflow (`SOT/qualify-release-d-report-estate.py`, headless Chromium).
