@@ -1102,6 +1102,25 @@ async function deleteThread(key){
   });
 }
 /* ---- project genesis (gg-style omni) ---- */
+/* a missing/empty master plan is repaired automatically instead of blocking the thread */
+async function ensureMasterPlan(t,codeFile,planFile){
+  const pr=sot.projects[t.project];if(!pr||!planFile)return;
+  const f=await getFile(planFile);
+  if(f&&f.content.trim()){if(!pr.planExists||!pr.planFile){pr.planExists=true;pr.planFile=pr.planFile||planFile}return}
+  const day=now().slice(0,10),name=codeFile||t.project;
+  const seed='# '+name+' — Master Plan\n\nThis plan is the sole authority for this project and the only memory that persists between runs. Chat history loses to the plan. (Auto-created '+day+' because the plan file was missing or empty.)\n\n'+
+    '## 0. TURN/STAGE LEDGER\n| Turn | Date | Status | Notes |\n|---|---|---|---|\n| 0 | '+day+' | Plan created | Seed plan; fill in as work proceeds |\n\n'+
+    '## 1. RELEASES\n1. First working version of '+name+' — TBD\n\n'+
+    '## 2. PER-RELEASE SCOPE, BUILD GATES, BACKLOG\n- Scope: TBD\n- Build gates: verify on a real device\n- Backlog: TBD\n\n'+
+    '## 3. FUTURE IDEAS\n- TBD\n\n'+
+    '## 4. IMMUTABLE WORKING RULES\n- Mobile-first\n- All diagnostics in-app\n- Update the plan before code\n- Read back and verify after every push\n- No stubs or fake data\n\n'+
+    '## 5. DECISION LOG\n- '+day+': Plan auto-created by DevStream.\n\n'+
+    '## 6. APPENDIX\n- Authority order: this plan > everything else; chat history loses to the plan\n';
+  await putFileSafe(planFile,seed,'devstream: seed master plan '+planFile);
+  pr.planFile=pr.planFile||planFile;pr.planExists=true;
+  dlog('K|master plan was missing/empty — seeded '+planFile);
+  await saveSOT('devstream: seed master plan '+t.project);
+}
 const PLAN_PROMPT=f=>'Create '+planOf(f)+' — the master plan for '+f+' — following the house planning-doc standard. Requisite sections, in order: (0) TURN/STAGE LEDGER: a table of turns/stages with status, where every future build session appends a row before touching code; (1) RELEASES: numbered release list with one-line goals; (2) per-release sections: scope (in/out), build gates (how we verify, on real devices), and backlog of deferred items; (3) FUTURE IDEAS: unscheduled parking lot; (4) IMMUTABLE WORKING RULES: mobile-first, all diagnostics in-app (never DevTools), update-plan-before-code, read-back verification after every push, no stubs or fake data; (5) DECISION LOG: dated owner decisions; (6) APPENDIX: authority order (this plan is the sole authority; chat history loses to the plan). Seed it with what is known so far about '+f+' and mark everything else TBD. Keep it tight and scannable on a phone.';
 $('projectAdd').onclick=()=>{
   if(!cfg){openModal('cfgModal');return}
@@ -1450,6 +1469,7 @@ async function runAgent(key,premarked){
     await setState(key,{state:'executing',startedAt:now(),error:''});
     if(interrupted.has(key))throw new Error('Interrupted by user');
     const codeFile=th.data.outputFile||projMain(t.project),planFile=projPlan(t.project)||th.data.planFile||planOf(codeFile);
+    if(!pend.some(m=>m.text.startsWith('Create '+planFile+' — the master plan')))await ensureMasterPlan(t,codeFile,planFile);
     const history=th.data.messages.filter(m=>m.status!=='pending').map(m=>({role:m.role==='user'?'user':'assistant',content:m.summary||m.text})).slice(-14);
     const forced=pend.find(m=>m.forcedTarget);
     const instr=pend.map(m=>m.text+(m.attachments||[]).filter(a=>a.kind==='text').map(a=>'\n\n<attachment name="'+a.name+'">\n'+a.text+'\n</attachment>').join('')).join('\n\n')+(forced?'\n\n(Required TARGET for this response: '+forced.forcedTarget+')':'');
