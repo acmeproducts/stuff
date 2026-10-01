@@ -13,3 +13,8 @@ The source cards remain useful synchronization evidence internally, but the owne
 - **Add to Estate** = registration workflow.
 
 Do not reintroduce a second owner-facing Estate catalog under Analyze/Job Status. Source synchronization behavior and durable source/job records are not removed by this UI decision.
+
+
+## 2026-09-30 — Buried separate Report/Estate delivery wrapper
+
+Do not deliver approved Report/Estate changes in a new page layered around Complete. The `fdd61e2` experiment is evidence, not the implementation baseline. Integrate directly into the qualified Complete page and hook normal render/poll paths. Do not retain Analyze as a second source catalog, mislabel scanned bytes as retained Estate, fall back from zero current target capacity to old registered free capacity, or lose Estate sort order on polling.

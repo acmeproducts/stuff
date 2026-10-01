@@ -16,7 +16,7 @@ Current Release D complete runtime on main, with Continuous SSOT, converged navi
 
 ## Scope
 
-Frontend-only candidate: `SOT/sot-turn02-release-d-report-estate.html`. It layers on the current qualified `sot-turn02-release-d-complete.html`; backend, schema 14, hashing, classification, source synchronization, job execution, Search, Add to Estate, AI, Config and filesystem behavior are unchanged.
+Frontend-only correction integrated directly into `SOT/sot-turn02-release-d-complete.html`, based on qualified `59bca4547c7462e721d6ac878214fb22267b0bbb`. No additional page or iframe layer is introduced; backend, schema 14, hashing, classification, source synchronization, job execution, Search, Add to Estate, AI, Config and filesystem behavior are unchanged.
 
 ## Mechanical acceptance
 
@@ -32,4 +32,19 @@ Frontend-only candidate: `SOT/sot-turn02-release-d-report-estate.html`. It layer
 
 ## Delivery
 
-Test candidate: `SOT/sot-turn02-release-d-report-estate.html`.
+Canonical test page: `SOT/sot-turn02-release-d-complete.html`. The separate Report/Estate experiment is superseded.
+
+
+## 2026-09-30 — Integrate the approved specification into Complete
+
+**Owner report:** “seven releases that have all failed”; the approved frontend never reached the normal Complete page.
+
+**Cause:** the Report/Estate experiment was an extra iframe wrapper, separate from Complete. Its render functions were not installed in the normal render/poll path. Complete still exposed Analyze and three Report subtabs. Report row routing also selected a nonexistent `.subnav` rather than the actual `.subtabs` element.
+
+**Change:** Complete now owns the Analysis/Estate renderers and Job Status renderer. Normal polling, placement refresh, report navigation and subtab changes use these renderers. Capacity/Operations reuse the existing implementations. Estate sorting persists across polling; all five columns sort. Zero free capacity remains zero rather than falling back to registered capacity. SCANNED opens all analyzed placements; ESTATE opens only UNIQUE/KEEP. Pause/Resume remains available in Job Status. Source/root sizes use the last successful synchronized snapshot; cumulative root capacity may include shared content, and the table explains this distinction.
+
+**Before / after:** additional delivery iframe layers **1 → 0**; Report subtabs **3 → 4**; owner-facing Analyze label in Complete **1 → 0**; sortable Estate columns **0 → 5**. Fixture: SCANNED **900 GB**, EXCESS **200 GB**, ESTATE **700 GB**, TARGET **600 GB**, DEFICIT **100 GB**. Zero current free capacity with nonzero registered free capacity correctly stays **0 GB**.
+
+**Qualification:** baseline failed the new Complete integration gate. Chromium browser checks pass at **1280 × 900** and **412 × 915**: arithmetic, sorting/cumulative red-white cutoff, polling, Job Status/progress/Pause/Resume, Report→Search, preserved Capacity/Operations, Search Table/Grid bulk actions and Add to Estate Picker. Existing Release D engine and Continuous SSOT qualifiers pass. These are local fixture/browser results; owner-device acceptance remains unverified until the owner tests the published page against the live WSL host.
+
+**Protected:** no runtime, schema, classification, hashing, filesystem or backend files changed. Existing AI history/download and Config log functions remain in Complete unchanged.
