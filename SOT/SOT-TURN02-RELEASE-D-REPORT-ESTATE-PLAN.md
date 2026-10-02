@@ -135,3 +135,14 @@ Freshness: Connected describes transport only. Separate evidence state Current /
 **Cause:** the forced refresh awaited `/api/ssot/refresh-staleness`, which walks every source before any placement page loaded.
 **Change:** the freshness check now runs in the background (its result still auto-queues changed sources through the existing SSOT path); the database loads immediately; the status pill shows "checking sources Ns".
 **Qualification:** runtime gate with a 60 s freshness check: database loads and blocker clears immediately.
+
+
+## 2026-10-02 — Local cache + delta sync (owner: "seems like a full rebuild every time")
+
+**Finding:** every page load/refresh re-downloaded all ~30k placement rows. The existing localStorage copy (full JSON, tens of MB) could not persist and blocked the UI thread when attempted; the server could only send full pages.
+**Owner decision:** all three — IndexedDB cache, revision check on open, server-side delta.
+**Change:**
+- Backend (`sot-turn02-release-d-autosync.py`, no schema change): `GET /api/placements/delta?since=<catalog_revision>` returns only added/edited rows and removed ids, computed against retained per-revision row digests (last 4 revisions, recorded whenever a full snapshot is served). Unknown/expired revision or a mostly-changed catalog returns `full:true`.
+- Browser (Complete): rows cached in IndexedDB; startup renders cached rows immediately (no blocker), then syncs by delta (unchanged revision downloads nothing); full paged load only when there is no cache, the server says full, the creation revision changed, the delta endpoint is missing (older backend) or merge counts do not match. localStorage JSON dump removed. Source-freshness scan now runs only at startup and on manual refresh (pill tap), not on every revision-change reload. Pill shows "from local cache / no changes / +N / −M changed / full load".
+**Qualification:** `SOT/qualify-release-d-placement-delta.py` (backend contract) and runtime gates for cache save, instant cached render, no-download on unchanged revision, 1-add/1-remove delta merge, server-full fallback, missing-endpoint fallback. All earlier gates retained.
+**Deploy order:** the backend endpoint needs the installer re-run (installer pin follows the merged commit). Without it the page falls back to full loads exactly as before.
