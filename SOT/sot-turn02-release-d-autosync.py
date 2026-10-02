@@ -9,6 +9,7 @@ PLACEMENT_PAGE_SIZE=5000
 PLACEMENT_PAGE_MAX=10000
 PLACEMENT_SNAPSHOT_TTL=120
 PLACEMENT_HISTORY_MAX=4
+REFRESH_COOLDOWN=300
 PLACEMENT_DELTA_FULL_RATIO=0.5
 
 def placement_digest(row):
@@ -84,10 +85,26 @@ def install(srv):
         return handler.sendj({"ok":True,"lines":lines,"count":len(lines),"publish":dict(srv._log_publish_status)})
 
     def refresh_staleness(handler):
-        rows=srv.M.s.rows("SELECT source_id FROM sources WHERE enabled=1 ORDER BY source_id")
-        ids=[r["source_id"] for r in rows]
+        force=parse_qs(urlparse(handler.path).query).get("force",["0"])[0]=="1"
+        now=time.time()
+        rows=srv.M.s.rows("SELECT source_id,metadata_checked FROM sources WHERE enabled=1 ORDER BY source_id")
+        live=set(r["source_id"] for r in srv.M.s.rows("""SELECT DISTINCT js.source_id FROM job_sources js JOIN jobs j ON j.job_id=js.job_id
+                                                         WHERE COALESCE(j.deleted,0)=0 AND j.state IN ('QUEUED','RUNNING','PAUSED','STOPPING')"""))
+        ids=[];skipped_live=[];skipped_recent=[]
+        for r in rows:
+            sid=r["source_id"]
+            if sid in live:skipped_live.append(sid)
+            elif not force and now-float(r.get("metadata_checked") or 0)<REFRESH_COOLDOWN:skipped_recent.append(sid)
+            else:ids.append(sid)
         result=srv.check_source_ids(ids,"database_refresh") if ids else {"checked":[],"changed":[],"errors":[]}
-        return handler.sendj({"ok":True,"checked":result.get("checked",ids),"changed":result.get("changed",[]),"errors":result.get("errors",[]),"auto_sync":result.get("auto_sync")})
+        details=[]
+        for sid in result.get("changed",[]):
+            ev=srv.M.s.rows("SELECT detail_json FROM events WHERE source_id=? AND event_type='source_stale' ORDER BY ts DESC LIMIT 1",(sid,))
+            try:d=json.loads(ev[0]["detail_json"]) if ev else {}
+            except Exception:d={}
+            b=d.get("baseline") or {};l=d.get("live") or {}
+            details.append({"source_id":sid,"baseline_files":b.get("files"),"live_files":l.get("files"),"baseline_bytes":b.get("bytes"),"live_bytes":l.get("bytes")})
+        return handler.sendj({"ok":True,"checked":result.get("checked",ids),"changed":result.get("changed",[]),"errors":result.get("errors",[]),"auto_sync":result.get("auto_sync"),"skipped_live":skipped_live,"skipped_recent":skipped_recent,"details":details})
 
     def clear_log(handler):
         path=srv.M.s.log_path
