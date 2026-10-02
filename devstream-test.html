@@ -195,7 +195,7 @@ body.coachMode .suggestBtn{border-color:rgba(57,197,207,.5);background:rgba(57,1
 <div id="scrim"></div>
 <div id="app">
 <aside id="sidebar">
-  <div class="bar"><span id="dot"></span><span class="brand">devstream <span class="version">v1.0 b51</span></span><span class="grow"></span><button class="btn" id="projectAdd">+ New</button><button class="btn" id="refresh">↻</button><button class="btn" id="settings">⚙</button></div>
+  <div class="bar"><span id="dot"></span><span class="brand">devstream <span class="version">v1.0 b52</span></span><span class="grow"></span><button class="btn" id="projectAdd">+ New</button><button class="btn" id="refresh">↻</button><button class="btn" id="settings">⚙</button></div>
   <div id="searchWrap"><input id="search" class="input" placeholder="Search projects & threads">
     <div class="legend"><span><i class="legendDot ok"></i>OK</span><span><i class="legendDot run"></i>Running</span><span><i class="legendDot err"></i>Error</span></div></div>
   <div id="projList"></div>
@@ -241,6 +241,8 @@ body.coachMode .suggestBtn{border-color:rgba(57,197,207,.5);background:rgba(57,1
       <button class="btn" id="vLoad" style="margin-top:6px">Load Venice models</button>
       <select id="cfgvmodel" class="input mono" style="margin-top:6px"><option value="">— load models first —</option></select>
       <div style="display:flex;gap:8px;align-items:center;margin-top:6px"><button class="btn" id="vTest">Validate &amp; save Venice</button><span class="hint" id="vStatus"></span></div></div>
+    <div class="frow"><label>Venice admin key (optional — balance only)</label><input id="cfgvadmin" class="input keyfield" type="password" autocomplete="new-password" spellcheck="false" autocapitalize="off" placeholder="used only to read DIEM balance">
+      <div style="display:flex;gap:8px;align-items:center;margin-top:6px"><button class="btn" id="vBalBtn">Check balance</button><span class="hint" id="vBalOut"></span></div></div>
     <div class="frow"><label>OpenRouter API key</label><input id="cfgorkey" class="input keyfield" type="password" autocomplete="new-password" spellcheck="false" autocapitalize="off" placeholder="sk-or-…">
       <button class="btn" id="orLoad" style="margin-top:6px">Load OpenRouter models</button>
       <select id="cfgormodel" class="input mono" style="margin-top:6px"><option value="">— load models first —</option></select>
@@ -1468,6 +1470,16 @@ async function runAgent(key,premarked){
   try{
     await setState(key,{state:'executing',startedAt:now(),error:''});
     if(interrupted.has(key))throw new Error('Interrupted by user');
+    let runChain=chain,useModel=t.model||null;
+    if(chain.includes('venice')){
+      const b=await veniceBalance().catch(()=>null),avail=b?Math.max(b.diem,0)+Math.max(b.usd,0):null,capped=Date.now()<veniceCappedUntil,alt=chain.filter(x=>x!=='venice'),empty=avail!==null&&avail<=0.02;
+      if(empty||capped){
+        if(alt.length){runChain=alt;dlog('K|venice '+(empty?'balance empty':'key spend limit reached')+' — using '+alt[0]+' for this run');toast('Venice '+(empty?'balance empty':'key capped')+' — using '+alt[0])}
+        else if(empty)throw new Error('Venice balance is empty ('+fmtBalance(b)+') and no other engine is configured. Add credits or wait for the refill.');
+      }else if(avail!==null&&avail<1&&useModel&&cfg.vmodel&&useModel!==cfg.vmodel&&eng==='venice'){
+        dlog('K|low Venice balance ('+fmtBalance(b)+') — using the default model instead of '+useModel);toast('Low DIEM — using the default model');useModel=null;
+      }
+    }
     const codeFile=th.data.outputFile||projMain(t.project),planFile=projPlan(t.project)||th.data.planFile||planOf(codeFile);
     if(!pend.some(m=>m.text.startsWith('Create '+planFile+' — the master plan')))await ensureMasterPlan(t,codeFile,planFile);
     const history=th.data.messages.filter(m=>m.status!=='pending').map(m=>({role:m.role==='user'?'user':'assistant',content:m.summary||m.text})).slice(-14);
@@ -1482,7 +1494,7 @@ async function runAgent(key,premarked){
     const patchMode=baseChars>0&&needTok>cap*0.85;
     if(patchMode)dlog('preflight: '+codeFile+' needs ~'+Math.round(needTok/1000)+'k output tokens vs '+eng+' cap '+Math.round(cap/1000)+'k → PATCH MODE');
     const res=await runJob(key,{cfg:{...cfg},codeFile,planFile,inputFile:th.data.inputFile||null,images,ghRefs,webSearch:!!t.web,patchMode,
-      system:agentSystem(codeFile,planFile,patchMode,coach),history,instr,chain,threadModel:t.model||null,threadEngine:eng,
+      system:agentSystem(codeFile,planFile,patchMode,coach),history,instr,chain:runChain,budgetMs:6*60*1000,threadModel:useModel,threadEngine:eng,
        allowPlanCreate:!sot.projects[t.project].planExists&&pend.some(m=>m.text.startsWith('Create '+planFile+' — the master plan'))});
     if(interrupted.has(key))throw new Error('Interrupted by user');
     let{summary,target,body,state,usedEng,usedModel}=res;
@@ -1499,7 +1511,7 @@ async function runAgent(key,premarked){
         if(!beforePlan||!beforePlan.content.trim())throw new Error('Master plan is missing or empty; code was not written.');
         const planInstr='Update the master plan BEFORE the code write for this request. Preserve all existing goals, decisions, open items and prior ledger rows. Append a dated ledger row for the intended build and record its acceptance checks. Return TARGET: '+planFile+' and the COMPLETE updated Markdown plan, never patch blocks. User request:\n'+instr+'\nProposed code response summary: '+summary+'\nProposed target: '+target;
         const checkpoint=await runJob(key,{cfg:{...cfg},codeFile,planFile,inputFile:th.data.inputFile||null,images:[],ghRefs:[],webSearch:false,patchMode:false,
-          system:agentSystem(codeFile,planFile,false,coach),history,instr:planInstr,chain,threadModel:t.model||null,threadEngine:eng});
+          system:agentSystem(codeFile,planFile,false,coach),history,instr:planInstr,chain:runChain,budgetMs:6*60*1000,threadModel:useModel,threadEngine:eng});
         if(interrupted.has(key))throw new Error('Interrupted by user');
         const requiredHeadings=beforePlan.content.match(/^#{1,3} .+$/gm)||[];
         if(checkpoint.target!==planFile||!checkpoint.body.startsWith('#')||checkpoint.body.length<beforePlan.content.length*0.75||/^<{7} SEARCH$/m.test(checkpoint.body)
@@ -1571,6 +1583,7 @@ async function runAgent(key,premarked){
     th.data.messages.push(emsg);outboxAdd(key,emsg);
     try{th.sha=await putFileSafe(threadPath(key),JSON.stringify(th.data,null,1),'devstream: agent error '+key,th.sha)}catch(e2){}
     delete progress[key];
+    if(/spend limit/i.test(String(e.message)))veniceCappedUntil=Date.now()+10*60*1000;
     await setState(key,{state:'error',finishedAt:now(),error:e.message});
   }finally{
     activeRuns.delete(key);
@@ -1578,9 +1591,66 @@ async function runAgent(key,premarked){
     releaseProjectRun(key);
   }
 }
+/* ---- streaming model calls with stall + budget limits (also injected into the worker) ---- */
+async function readSSE(resp,idleMs,ac){
+  const reader=resp.body.getReader(),dec=new TextDecoder();let buf='',text='';
+  const next=()=>new Promise((res,rej)=>{const t=setTimeout(()=>{try{ac.abort()}catch(e){}rej(new Error('stalled: no output for '+Math.round(idleMs/1000)+'s'))},idleMs);reader.read().then(v=>{clearTimeout(t);res(v)},e=>{clearTimeout(t);rej(e)})});
+  for(;;){
+    const r=await next();
+    if(r.done)break;
+    buf+=dec.decode(r.value,{stream:true});
+    let i;
+    while((i=buf.indexOf('\n'))>=0){
+      const line=buf.slice(0,i).trim();buf=buf.slice(i+1);
+      if(line.indexOf('data:')!==0)continue;
+      const d=line.slice(5).trim();
+      if(d==='[DONE]')return text;
+      let j;try{j=JSON.parse(d)}catch(e){continue}
+      if(j.error)throw new Error('stream error: '+String(j.error.message||j.error).slice(0,200));
+      const dl=j.choices&&j.choices[0]&&j.choices[0].delta;
+      if(dl&&typeof dl.content==='string')text+=dl.content;
+    }
+  }
+  return text;
+}
+async function streamChat(url,key,payload,idleMs,budgetMs){
+  const ac=new AbortController(),tot=setTimeout(()=>ac.abort(),budgetMs);
+  try{
+    const r=await fetch(url,{method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+key},body:JSON.stringify(Object.assign({},payload,{stream:true})),signal:ac.signal});
+    if(!r.ok){let j={};try{j=await r.json()}catch(e){}return{ok:false,status:r.status,j:j}}
+    if(!/event-stream/.test(r.headers.get('content-type')||'')){const j=await r.json();return{ok:true,text:j.choices[0].message.content}}
+    const text=await readSSE(r,idleMs,ac);
+    if(!text)throw new Error('empty response from model');
+    return{ok:true,text:text};
+  }catch(e){
+    if(ac.signal.aborted&&!/stalled/.test(String(e.message)))throw new Error('exceeded '+Math.round(budgetMs/1000)+'s time limit for this call');
+    throw e;
+  }finally{clearTimeout(tot)}
+}
+/* ---- Venice balance (DIEM/USD) used to choose engine/model ---- */
+let vBal=null,veniceCappedUntil=0;
+async function veniceBalance(force,keyOverride){
+  const key=keyOverride||(cfg&&(cfg.vadmin||cfg.vkey));if(!key)return null;
+  if(!force&&vBal&&Date.now()-vBal.at<60000)return vBal.ok?vBal:null;
+  try{
+    const r=await fetch('https://api.venice.ai/api/v1/api_keys/rate_limits',{headers:{'Authorization':'Bearer '+key},cache:'no-store'});
+    if(!r.ok)throw new Error('HTTP '+r.status);
+    const j=await r.json(),d=j.data||j,b=d.balances||{},num=v=>{const n=parseFloat(v);return isFinite(n)?n:null};
+    const diem=num(b.DIEM!==undefined?b.DIEM:b.diem),usd=num(b.USD!==undefined?b.USD:b.usd);
+    if(diem===null&&usd===null)throw new Error('no balances in response');
+    vBal={ok:true,at:Date.now(),diem:diem||0,usd:usd||0,next:d.nextEpochBegins||null};
+  }catch(e){vBal={ok:false,at:Date.now(),err:String(e.message||e)};dlog('venice balance check failed: '+vBal.err)}
+  return vBal.ok?vBal:null;
+}
+function fmtBalance(b){
+  let eta='';if(b.next){const ms=Date.parse(b.next)-Date.now();if(isFinite(ms)&&ms>0)eta=' · refills in '+Math.floor(ms/3600000)+'h'+String(Math.floor(ms%3600000/60000)).padStart(2,'0')+'m'}
+  return 'DIEM '+b.diem.toFixed(2)+' · USD '+Math.max(b.usd,0).toFixed(2)+eta;
+}
 /* ---- blob worker pool (4) ---- */
 const WORKER_SRC=`
 'use strict';
+${readSSE.toString()}
+${streamChat.toString()}
 function parseAgent(text){
   let summary='Done.',target='NONE';
   const sm=text.match(/^SUMMARY:\\s*(.+)$/m);if(sm){summary=sm[1].trim()}
@@ -1613,14 +1683,14 @@ async function ghGet(cfg,path){
   }
   return content;
 }
-async function callEngine(cfg,eng,model,system,history,user,images,webSearch,maxTok){
+async function callEngine(cfg,eng,model,system,history,user,images,webSearch,maxTok,budgetMs){
   images=images||[];
   if(eng==='anthropic-direct'){
     const parts=[...images.map(im=>({type:'image',source:{type:'base64',media_type:im.type,data:im.b64}})),{type:'text',text:user}];
     const r=await tfetch('https://api.anthropic.com/v1/messages',{method:'POST',
       headers:{'Content-Type':'application/json','x-api-key':cfg.akey,'anthropic-version':'2023-06-01','anthropic-dangerous-direct-browser-access':'true'},
       body:JSON.stringify({model:model||'claude-sonnet-4-6',max_tokens:64000,system,messages:[...history,{role:'user',content:parts}],
-        ...(webSearch?{tools:[{type:'web_search_20250305',name:'web_search',max_uses:5}]}:{})})},300000);
+        ...(webSearch?{tools:[{type:'web_search_20250305',name:'web_search',max_uses:5}]}:{})})},Math.min(budgetMs||300000,300000));
     const j=await r.json();
     if(!r.ok)throw new Error('anthropic '+r.status+': '+((j.error&&j.error.message)||'unknown'));
     return(j.content||[]).filter(b=>b.type==='text').map(b=>b.text).join('');
@@ -1635,28 +1705,27 @@ async function callEngine(cfg,eng,model,system,history,user,images,webSearch,max
   const payload={model:(eng==='openrouter'&&webSearch&&!/:online$/.test(M.model))?M.model+':online':M.model,
     max_tokens:maxTok||64000,messages:[{role:'system',content:system},...history,{role:'user',content:userContent}]};
   if(eng==='venice'&&webSearch)payload.venice_parameters={enable_web_search:'auto',include_search_results_in_stream:false};
-  let r=await tfetch(M.url,{method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+M.key},
-    body:JSON.stringify(payload)},300000);
-  let j;try{j=await r.json()}catch(e){throw new Error(eng+' non-JSON ('+r.status+')')}
-  if(!r.ok){
-    const msg=String((j.error&&(j.error.message||j.error))||'');
-    const cap=msg.match(/maximum allowed is (\d+)/);
+  const budget=Math.max(15000,Math.min(budgetMs||240000,240000));
+  let res=await streamChat(M.url,M.key,payload,90000,budget);
+  if(!res.ok){
+    const j=res.j||{},msg=String((j.error&&(j.error.message||j.error))||'');
+    const cap=msg.match(/maximum allowed is (\\d+)/);
     if(cap){ // provider caps output lower than requested — retry at its ceiling
       payload.max_tokens=parseInt(cap[1],10);
-      r=await tfetch(M.url,{method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+M.key},body:JSON.stringify(payload)},300000);
-      j=await r.json();
-      if(!r.ok)throw new Error(eng+' '+r.status+': '+((j.error&&(j.error.message||j.error))||'unknown'));
-      return j.choices[0].message.content;
+      res=await streamChat(M.url,M.key,payload,90000,budget);
+      if(!res.ok){const j2=res.j||{};throw new Error(eng+' '+res.status+': '+((j2.error&&(j2.error.message||j2.error))||'unknown'))}
+      return res.text;
     }
-    throw new Error(eng+' '+r.status+': '+msg);
+    throw new Error(eng+' '+res.status+': '+msg);
   }
-  return j.choices[0].message.content;
+  return res.text;
 }
 self.onmessage=async e=>{
   const job=e.data;
   const post=(m)=>self.postMessage({jobId:job.jobId,...m});
   try{
     const{cfg,codeFile,planFile,inputFile,system,history,instr,chain,threadModel,threadEngine}=job;
+    const t0=Date.now(),budget=job.budgetMs||360000;
     const images=[];
     for(const im of (job.images||[])){
       if(im.b64){images.push({name:im.name,type:im.type,b64:im.b64});continue}
@@ -1685,9 +1754,11 @@ self.onmessage=async e=>{
     if(baseChars>45000)post({type:'log',line:'baseline is '+Math.round(baseChars/1000)+'k chars (~'+Math.round(baseChars/3.5/1000)+'k tokens out) — engines capped at 16k output cannot rewrite this file whole'});
     let text=null,usedEng=null,usedModel=null,fails=[];
     for(const eng of chain){
+      const remaining=budget-(Date.now()-t0);
+      if(fails.length&&remaining<45000){fails.push(eng+': skipped, run time budget spent');post({type:'log',line:'run time budget spent — not trying '+eng,err:true});break}
       post({type:'log',line:'engine '+eng+' · '+(eng===threadEngine&&threadModel?threadModel:(eng==='venice'?cfg.vmodel:eng==='openrouter'?cfg.ormodel:'claude-sonnet-4-6'))+' call ('+Math.round((ctx.length+instr.length)/1000)+'k chars in)'+(job.webSearch?' +web search':'')+'…'});
       try{const selected=eng===threadEngine?threadModel:null;
-        text=await callEngine(cfg,eng,selected,system,history,ctx+'Instructions:\\n'+instr,images,job.webSearch);
+        text=await callEngine(cfg,eng,selected,system,history,ctx+'Instructions:\\n'+instr,images,job.webSearch,undefined,remaining);
         usedEng=eng;usedModel=selected||(eng==='venice'?cfg.vmodel:eng==='openrouter'?cfg.ormodel:'claude-sonnet-4-6');
         if(eng==='openrouter'&&job.webSearch&&!/:online$/.test(usedModel))usedModel+=':online';
         break}
@@ -2000,7 +2071,7 @@ function renderDeleted(body){
 }
 
 /* ---- settings / boot ---- */
-$('settings').onclick=()=>{if(cfg){$('sotPat').value=cfg.pat;$('sotOwner').value=cfg.owner;$('sotRepo').value=cfg.repo;$('sotBranch').value=cfg.branch;$('cfgProjectDir').value=cfg.projectDir||'projects';$('cfgakey').value=cfg.akey||'';$('cfgvkey').value=cfg.vkey||'';$('cfgorkey').value=cfg.orkey||'';
+$('settings').onclick=()=>{if(cfg){$('sotPat').value=cfg.pat;$('sotOwner').value=cfg.owner;$('sotRepo').value=cfg.repo;$('sotBranch').value=cfg.branch;$('cfgProjectDir').value=cfg.projectDir||'projects';$('cfgakey').value=cfg.akey||'';$('cfgvkey').value=cfg.vkey||'';$('cfgvadmin').value=cfg.vadmin||'';$('cfgorkey').value=cfg.orkey||'';
   if(cfg.vmodel)fillModels('cfgvmodel',[cfg.vmodel],cfg.vmodel);
   if(cfg.ormodel)fillModels('cfgormodel',[cfg.ormodel],cfg.ormodel);$('cfgengine').value=cfg.engine||'venice'}openModal('cfgModal');cfgTab('settings');bindAppearanceUI()};
 var MODEL_CAPS=JSON.parse(localStorage.getItem('ds_model_caps')||'{}');
@@ -2079,10 +2150,11 @@ $('sotValidate').onclick=async()=>{
     $('sotStatus').textContent=r.ok?'✓ Token OK, repo reachable':'✗ '+r.status;
   }catch(e){$('sotStatus').textContent='✗ '+e.message}
 };
+$('vBalBtn').onclick=async()=>{const o=$('vBalOut');o.textContent='Checking…';const b=await veniceBalance(true,cleanKey($('cfgvadmin').value)||cleanKey($('cfgvkey').value));o.textContent=b?fmtBalance(b):'Could not read balance'+(vBal&&vBal.err?' ('+vBal.err+')':'')};
 $('cfgSave').onclick=()=>guard(async()=>{
   const pat=$('sotPat').value.trim(),owner=$('sotOwner').value.trim(),repo=$('sotRepo').value.trim(),branch=$('sotBranch').value.trim()||'main';
   if(!pat||!owner||!repo)throw new Error('PAT, owner and repository are required');
-  cfg={pat,owner,repo,branch,projectDir:normDir($('cfgProjectDir').value),akey:cleanKey($('cfgakey').value),vkey:cleanKey($('cfgvkey').value),vmodel:$('cfgvmodel').value||'',orkey:cleanKey($('cfgorkey').value),ormodel:$('cfgormodel').value||'',engine:$('cfgengine').value};
+  cfg={pat,owner,repo,branch,projectDir:normDir($('cfgProjectDir').value),akey:cleanKey($('cfgakey').value),vkey:cleanKey($('cfgvkey').value),vadmin:cleanKey($('cfgvadmin').value),vmodel:$('cfgvmodel').value||'',orkey:cleanKey($('cfgorkey').value),ormodel:$('cfgormodel').value||'',engine:$('cfgengine').value};
   localStorage.setItem(LS,JSON.stringify(cfg));treeCache=null;
   await loadSOT();
   sot.config={engine:cfg.engine,vmodel:cfg.vmodel,ormodel:cfg.ormodel,projectDir:cfg.projectDir,appearance};   // model choices + project directory sync via SOT; keys NEVER leave this browser

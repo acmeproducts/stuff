@@ -6,8 +6,8 @@ Deploy target: `https://acmeproducts.github.io/stuff/devstream.html`
 Test target: `https://acmeproducts.github.io/stuff/devstream-test.html`
 
 ## Status
-- Current release: v1.0 b51 on devstream-test.html (2026-09-29)
-- Stage: TEST (b51)
+- Current release: v1.0 b52 on devstream-test.html (2026-10-02)
+- Stage: TEST (b52)
 
 ## Release Rules (inherited, proven)
 1. Mobile-first. All diagnostics in-app. No DevTools ever.
@@ -255,6 +255,33 @@ b39 incorrectly changed stationary hold into context-menu activation. Devstream 
 ## Graveyard
 - **G-DS-13 — Hold opens context menu:** rejected; donor behavior is double-tap context, hold-to-drag.
 - **G-DS-14 — Legacy generic #tabContext button styling:** rejected; it corrupts the donor context-menu appearance.
+
+---
+
+# 2026-10-02 — b52 run-time guardrails + Venice balance awareness
+
+## Owner report
+Runs hit the 8-minute worker kill (19 recorded failures) and burned DIEM without producing output. Venice offers an API to read DIEM balance; use it to make smarter choices.
+
+## Cause (from thread history)
+Model calls were single non-streaming requests (up to 300 s each) that could be chained across fallback engines, then killed by the 8-minute watchdog after the fact. Nothing noticed a stalled or silent model, and nothing knew the account/key balance.
+
+## Implemented
+- **Streaming model calls (Venice/OpenRouter):** output is streamed; the call aborts if no data arrives for 90 s ("stalled") or after a 240 s per-call cap. The abort actually closes the request.
+- **Run time budget:** each job gets 6 minutes across all engine attempts. Fallback engines get only the time remaining and are skipped when under 45 s remain. The 8-minute watchdog stays as a last-resort backstop.
+- **Venice balance:** reads `GET /api/v1/api_keys/rate_limits` (optional admin key, else the normal key) for DIEM/USD balance and next refill. Settings shows it with a refresh button.
+- **Smarter choices before each run:** if Venice DIEM+USD is empty, Venice is dropped from the chain (fallback engines used, or a clear "balance empty, refills in hh:mm" error instead of a doomed call). If DIEM is low (< 1.0) and the thread uses a non-default model, the run uses the owner's default Venice model instead. A "spend limit exceeded" reply marks Venice as capped for 10 minutes so retries don't repeat it.
+- Balance check failures never block a run.
+
+## Unverified
+Venice docs were not reachable from the build environment; the balance response shape follows Venice's documented `balances.DIEM/USD` and `nextEpochBegins` and is parsed defensively. Real-key behavior must be confirmed with the Settings refresh button.
+
+## Acceptance
+- **DS-B52-1:** a silent model call aborts after 90 s idle; a long call aborts at its cap; neither waits for the 8-minute watchdog.
+- **DS-B52-2:** total engine time per job never exceeds the 6-minute budget.
+- **DS-B52-3:** streamed output is assembled identically to the previous non-streamed result.
+- **DS-B52-4:** empty/low balance changes engine/model choice as above; failed balance lookups change nothing.
+- **DS-B52-5:** Settings shows balance and accepts an optional admin key.
 
 ---
 
