@@ -418,7 +418,7 @@ class Manager:
   srcs=self._source_rows();byid={x["source_id"]:x for x in srcs};src=byid.get(source_id)
   if not src:raise RuntimeError("source not found")
   root=Path(src["root"]).resolve()
-  h=hashlib.sha256();count=0;total=0;newest=0.0
+  lines=[];count=0;total=0;newest=0.0
   for cur,dirs,files in os.walk(root):
    dirs[:]=sorted(d for d in dirs if not Path(cur,d).is_symlink())
    for name in sorted(files):
@@ -428,30 +428,39 @@ class Manager:
      ps=str(p.resolve())
      if self._owner_source(ps,byid)!=source_id:continue
      st=p.stat();rel=str(p.resolve().relative_to(root))
-     line=(rel+"\0"+str(int(st.st_size))+"\0"+repr(float(st.st_mtime))+"\n").encode()
-     h.update(line);count+=1;total+=int(st.st_size);newest=max(newest,float(st.st_mtime))
+     lines.append((rel+"\0"+str(int(st.st_size))+"\0"+repr(float(st.st_mtime))+"\n").encode())
+     count+=1;total+=int(st.st_size);newest=max(newest,float(st.st_mtime))
     except OSError:continue
-  return {"digest":h.hexdigest(),"files":count,"bytes":total,"newest_mtime":newest}
+  lines.sort();h=hashlib.sha256()
+  for line in lines:h.update(line)
+  return {"v":2,"digest":h.hexdigest(),"files":count,"bytes":total,"newest_mtime":newest}
  def placement_signature(self,source_id):
   src=self.s.rows("SELECT root FROM sources WHERE source_id=?",(source_id,))
   if not src:raise RuntimeError("source not found")
-  root=Path(src[0]["root"]).resolve();h=hashlib.sha256();count=0;total=0;newest=0.0
+  root=Path(src[0]["root"]).resolve();lines=[];count=0;total=0;newest=0.0
   rows=self.s.rows("SELECT path,size,modified FROM placements WHERE source_id=? AND placement_state='ACTIVE' AND availability='AVAILABLE' ORDER BY path",(source_id,))
   for r in rows:
    try:rel=str(Path(r["path"]).resolve().relative_to(root))
    except Exception:rel=str(r["path"])
    size=int(r["size"] or 0);mtime=float(r["modified"] or 0.0)
-   h.update((rel+"\0"+str(size)+"\0"+repr(mtime)+"\n").encode());count+=1;total+=size;newest=max(newest,mtime)
-  return {"digest":h.hexdigest(),"files":count,"bytes":total,"newest_mtime":newest}
+   lines.append((rel+"\0"+str(size)+"\0"+repr(mtime)+"\n").encode());count+=1;total+=size;newest=max(newest,mtime)
+  lines.sort();h=hashlib.sha256()
+  for line in lines:h.update(line)
+  return {"v":2,"digest":h.hexdigest(),"files":count,"bytes":total,"newest_mtime":newest}
  def check_source_metadata(self,source_id):
   src=self.s.rows("SELECT * FROM sources WHERE source_id=? AND enabled=1",(source_id,))
   if not src:return {"source_id":source_id,"checked":False,"reason":"not enabled"}
   src=src[0]
   live=self.metadata_signature(source_id)
   baseline=json.loads(src["metadata_signature"]) if src["metadata_signature"] else self.placement_signature(source_id)
-  changed=live!=baseline
+  upgrade=False
+  if baseline.get("v")!=2:
+   changed=any(live[k]!=baseline.get(k) for k in ("files","bytes","newest_mtime"))
+   upgrade=not changed
+   if upgrade:baseline=live
+  else:changed=live!=baseline
   now=time.time()
-  if not src["metadata_signature"]:
+  if not src["metadata_signature"] or upgrade:
    self.s.submit("UPDATE sources SET metadata_signature=?,metadata_checked=?,stale=? WHERE source_id=?",(json.dumps(baseline,sort_keys=True),now,1 if changed else 0,source_id),True)
   else:self.s.submit("UPDATE sources SET metadata_checked=?,stale=? WHERE source_id=?",(now,1 if changed else 0,source_id),True)
   if changed:self.event("source_stale","Source metadata changed; analysis pending",None,source_id,"INFO",{"baseline":baseline,"live":live})
