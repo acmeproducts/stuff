@@ -127,3 +127,11 @@ Freshness: Connected describes transport only. Separate evidence state Current /
 **Change:** (1) blocker shows phase, count and elapsed time with a progress bar and a Hide button after 15 s; (2) a persistent status pill shows refreshing / current with last-updated time / STALE (older than 10 min, never loaded, or registered sources pending) / load failed / OFFLINE, and tapping it refreshes; (3) an unreachable or browser-blocked API is reported as OFFLINE with the exact fix (allow Local network access for this site), and the blocker releases; (4) the page iframes declare `allow="local-network-access"`.
 **Owner action required:** in Chrome, address-bar lock → Site settings → Local network access → Allow for `acmeproducts.github.io`, then reload. Code cannot grant this permission.
 **Qualification:** runtime gates for progress text, last-updated, both stale rules, and OFFLINE hint + blocker release.
+
+
+## 2026-10-02 — Source-freshness check blocked the DB load for 50 s+ (owner report)
+
+**Reported:** blocker sat on "Checking sources for changes · 51s".
+**Cause:** the forced refresh awaited `/api/ssot/refresh-staleness`, which walks every source before any placement page loaded.
+**Change:** the freshness check now runs in the background (its result still auto-queues changed sources through the existing SSOT path); the database loads immediately; the status pill shows "checking sources Ns".
+**Qualification:** runtime gate with a 60 s freshness check: database loads and blocker clears immediately.
