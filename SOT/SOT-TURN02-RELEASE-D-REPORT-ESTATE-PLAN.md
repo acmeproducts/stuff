@@ -118,3 +118,12 @@ Freshness: Connected describes transport only. Separate evidence state Current /
 **Cause (reproduced):** a forced refresh calls `/api/ssot/refresh-staleness` first. A backend without that endpoint (older installed runtime) returns an error, which was treated as a load failure and retried every 100 ms with no limit, so the blocker never cleared.
 **Change:** the staleness check is now non-fatal (toast, then load continues); load failures retry at most 3 times, then stop with a visible error and release the blocker; a render error after apply no longer counts as a load failure.
 **Qualification:** new runtime gate with the staleness endpoint missing: fails on the previous page, passes now. Run the installer to get the backend that has the endpoint.
+
+
+## 2026-10-02 — DB refresh visibility + Chrome Local Network Access (owner report)
+
+**Reported:** DB refresh appears to hang with no sign of life; Chrome DevTools lists every API request (health/jobs/events/sources/target) as Blocked by Local Network Access.
+**Cause:** the API host (`oc-ref.fell-dojo.ts.net`, a Tailscale name) resolves to a private address, so Chrome (LNA) blocks the HTTPS page's requests until the user grants "Local network access"; the page then only showed a generic reconnect state and the blocker.
+**Change:** (1) blocker shows phase, count and elapsed time with a progress bar and a Hide button after 15 s; (2) a persistent status pill shows refreshing / current with last-updated time / STALE (older than 10 min, never loaded, or registered sources pending) / load failed / OFFLINE, and tapping it refreshes; (3) an unreachable or browser-blocked API is reported as OFFLINE with the exact fix (allow Local network access for this site), and the blocker releases; (4) the page iframes declare `allow="local-network-access"`.
+**Owner action required:** in Chrome, address-bar lock → Site settings → Local network access → Allow for `acmeproducts.github.io`, then reload. Code cannot grant this permission.
+**Qualification:** runtime gates for progress text, last-updated, both stale rules, and OFFLINE hint + blocker release.

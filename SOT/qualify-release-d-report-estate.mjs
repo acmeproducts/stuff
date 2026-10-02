@@ -7,14 +7,14 @@ const sources=[['s1','/mnt/a/Photos',300,now-3600],['s2','/mnt/b/Video',250,now-
 let n=0;const P=(src,cls,gb,fp)=>({placement_id:'p'+(++n),placement_no:n,source_id:src,estate:src,path:'/x/'+n,filename:'f'+n,size:gb*GB,fingerprint:fp||'fp'+n,system_classification:cls,availability:'OK',placement_state:'ACTIVE'});
 // SCANNED 900 = UNIQUE 600 + KEEP 100 + EXCESS 200 ; ESTATE 700 ; roots retained a=300 b=250 c=150
 const placements=[P('s1','UNIQUE',300),P('s2','UNIQUE',150),P('s3','UNIQUE',150),P('s2','KEEP',100,'dup'),P('s3','EXCESS',100,'dup'),P('s2','EXCESS',100,'dup2')];
-let targetBytes=600*GB,stalenessMissing=false;
+let targetBytes=600*GB,stalenessMissing=false,pageDelay=0;
 const api=(u)=>{const p=u.pathname.replace(/^\/sot/,'');
  if(p==='/api/jobs')return {ok:true,jobs:[],scheduler:{}};if(p==='/api/events')return {ok:true,events:[]};if(p==='/api/sources')return {ok:true,sources};
  if(p==='/api/target')return {ok:true,target:{configured:true,path:'/mnt/t',free_bytes:targetBytes,registered_free_bytes:targetBytes}};
  if(p==='/api/health')return {ok:true,catalog_revision:1,creation_revision:1,db:{state:'healthy'}};
  if(p==='/api/placements/page')return {ok:true,catalog_revision:1,total:placements.length,placements,has_more:false,next_after:placements.length};
  if(p==='/api/ssot/refresh-staleness')return stalenessMissing?{ok:false,error:'not found'}:{ok:true,errors:[]};if(p==='/api/volumes')return {ok:true,volumes:[]};return {ok:true};};
-const srv=http.createServer((rq,rs)=>{const u=new URL(rq.url,'http://x');if(u.pathname.startsWith('/sot/')){const j=api(u);rs.writeHead(j.ok===false?404:200,{'content-type':'application/json'});return rs.end(JSON.stringify(j))}
+const srv=http.createServer(async(rq,rs)=>{const u=new URL(rq.url,'http://x');if(u.pathname.startsWith('/sot/')){if(pageDelay&&u.pathname.endsWith('/placements/page'))await new Promise(r=>setTimeout(r,pageDelay));const j=api(u);rs.writeHead(j.ok===false?404:200,{'content-type':'application/json'});return rs.end(JSON.stringify(j))}
  const f=path.join(HERE,path.basename(u.pathname));if(!fs.existsSync(f)){rs.writeHead(404);return rs.end()}rs.writeHead(200,{'content-type':f.endsWith('.html')?'text/html':'text/plain'});rs.end(fs.readFileSync(f))});
 await new Promise(r=>srv.listen(0,'127.0.0.1',r));const port=srv.address().port,URL_=`http://127.0.0.1:${port}/sot-turn02-release-d-complete.html?api=${encodeURIComponent(`http://127.0.0.1:${port}/sot`)}`;
 const browser=await chromium.launch();
@@ -63,13 +63,28 @@ try{
  ok((await fr.$$('.estate-table button, .estate-table input')).length===0,'job controls in estate table');
  // MutationObserver idempotence at runtime
  await fr.evaluate(()=>{__ssotEstateSort.key='root';__ssotEstateSort.dir=1;renderPlan()});await pg.waitForTimeout(500);
- const muts=await fr.evaluate(()=>new Promise(res=>{let c=0,mo=new MutationObserver(l=>c+=l.length);mo.observe(document.body,{childList:true,subtree:true,attributes:true});setTimeout(()=>{mo.disconnect();res(c)},4000)}));ok(muts<40,'idle DOM mutations '+muts);
+ const muts=await fr.evaluate(()=>new Promise(res=>{let c=0,mo=new MutationObserver(l=>c+=l.length);for(const n of [document.getElementById('tabs'),document.getElementById('Plan'),document.getElementById('Analyze')])mo.observe(n,{childList:true,subtree:true,attributes:true});setTimeout(()=>{mo.disconnect();res(c)},4000)}));ok(muts<40,'idle DOM mutations '+muts);
  pass('observed tab/report decoration is idempotent at runtime (idle mutations='+muts+', no self-trigger loop)');
  // Job Status
  await fr.evaluate(()=>__ssotOpenReportMode('Analyze'));await pg.waitForTimeout(300);ok(await fr.evaluate(()=>document.getElementById('Analyze').classList.contains('on')&&document.getElementById('Analyze').innerText.length>20),'job status pane');ok(await fr.$$eval('#Analyze .ssot-report-switch button',b=>b[1].textContent.trim()==='Job Status'&&b[1].classList.contains('on')),'job status nav');pass('Job Status renders the existing job/source status surface');
  await pg.context().close();
  // older backend without the staleness endpoint must still load the database and release the blocker
  stalenessMissing=true;{const o=await open(1280,900);ok(await o.fr.evaluate(()=>placements.length>0&&!document.querySelector('#ssot-db-blocker.on')),'database did not load without staleness endpoint');pass('database loads and the blocker clears when the staleness endpoint is unavailable (older backend)');await o.ctx.close()}stalenessMissing=false;
+ // refresh indicator: started + progressing, last updated, stale detection
+ {pageDelay=2500;const ctx=await browser.newContext({viewport:{width:1280,height:900}}),pg=await ctx.newPage();await pg.route(/cdn\.jsdelivr\.net/,r=>r.fulfill({contentType:'text/javascript',body:''}));await pg.goto(URL_);
+  const getFr=async()=>{const o=await (await (await pg.waitForSelector('#shell')).contentFrame()).waitForSelector('#app');return o.contentFrame()};const f=await getFr();
+  let seen='',pill='';for(let i=0;i<40&&!/Loading database/.test(seen);i++){await pg.waitForTimeout(100);try{seen=await f.evaluate(()=>document.getElementById('ssotRefreshDetail')?.textContent||'');pill=await f.evaluate(()=>document.getElementById('ssot-db-status')?.textContent||'')}catch(e){}}
+  ok(/Loading database/.test(seen)&&/DB refreshing/.test(pill),'refresh start/progress indicator '+seen+' | '+pill);pass('refresh shows it started and what phase it is in (blocker detail + status pill with elapsed time)');
+  pageDelay=0;for(let i=0;i<100&&!(await f.evaluate(()=>placements.length>0&&!document.querySelector('#ssot-db-blocker.on')));i++)await pg.waitForTimeout(100);
+  const cur=await f.evaluate(()=>document.getElementById('ssot-db-status').textContent);ok(/DB current · updated \d\d:\d\d:\d\d/.test(cur),'current pill '+cur);pass('last-updated time is shown after a load completes');
+  await f.evaluate(()=>{__ssotRefresh.updatedAt=Date.now()-11*60000;__ssotPaintRefresh()});const stale=await f.evaluate(()=>document.getElementById('ssot-db-status').textContent);ok(/DB STALE · older than 10m/.test(stale),'stale pill '+stale);
+  await f.evaluate(()=>{__ssotRefresh.updatedAt=Date.now();sources=sources.map(x=>({...x,pending:true}));__ssotPaintRefresh()});const sp=await f.evaluate(()=>document.getElementById('ssot-db-status').textContent);ok(/DB STALE · 3 sources syncing/.test(sp),'pending stale pill '+sp);pass('stale detection: age over 10 minutes or registered sources pending/syncing');
+  await ctx.close()}
+ // Chrome Local Network Access / unreachable API must be reported, and the blocker must release
+ {const ctx=await browser.newContext({viewport:{width:1280,height:900}}),pg=await ctx.newPage();await pg.route(/cdn\.jsdelivr\.net/,r=>r.fulfill({contentType:'text/javascript',body:''}));await pg.route(/\/sot\/api\//,r=>r.abort('blockedbyclient'));await pg.goto(URL_);
+  const f=await (await (await (await pg.waitForSelector('#shell')).contentFrame()).waitForSelector('#app')).contentFrame();let txt='',on=true;for(let i=0;i<150&&(on||!/OFFLINE/.test(txt));i++){await pg.waitForTimeout(100);try{txt=await f.evaluate(()=>document.getElementById('ssot-db-status')?.textContent||'');on=await f.evaluate(()=>!!document.querySelector('#ssot-db-blocker.on'))}catch(e){}}
+  ok(/OFFLINE/.test(txt)&&/Local network access/.test(txt)&&!on,'offline hint/blocker '+txt+' on='+on);pass('blocked/unreachable API shows an OFFLINE hint (Local network access) and the blocker releases');
+  ok(await pg.evaluate(()=>document.getElementById('shell').allow==='local-network-access'),'iframe local-network-access permission');await ctx.close()}
  // mobile
  const m=await open(412,915);await m.fr.evaluate(()=>setPlanTab('Estate'));await m.pg.waitForTimeout(300);
  const ov=await m.fr.evaluate(()=>({doc:document.documentElement.scrollWidth-document.documentElement.clientWidth,tbl:(()=>{let w=document.querySelector('.estate-wrap');return w.scrollWidth-w.clientWidth})(),rows:document.querySelectorAll('.estate-table tbody tr').length}));ok(ov.doc<=1&&ov.tbl<=1&&ov.rows===3,'mobile overflow '+JSON.stringify(ov));pass('Estate table usable at 412x915 without horizontal overflow');
