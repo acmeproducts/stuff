@@ -181,6 +181,7 @@ body.cl-empty-room .half{visibility:hidden}.kb.open,.kbin{max-height:calc(50dvh 
 .cl-bt-card{background:#fff;border-radius:16px;box-shadow:0 8px 30px rgba(15,23,42,.25);width:100%;max-width:520px;max-height:100%;overflow:auto;padding:12px 14px;color:#0f172a;font-size:14px}
 .cl-bt-head{display:flex;align-items:center;gap:8px;margin-bottom:6px}.cl-bt-head b{flex:1;font-size:15px}
 .cl-bt-head button{min-width:40px;min-height:40px;border:0;border-radius:10px;background:#eff6ff;color:#1d4ed8;font-size:14px;padding:0 10px}
+.cl-bt-ai{margin:8px 0 2px}.cl-bt-ai.off{font-size:11px;color:#94a3b8}.cl-bt-ai-head{display:flex;gap:6px;align-items:center}.cl-bt-reason{font-size:13px;color:#334155;margin-top:4px}.cl-bt-sugg{margin-top:8px;padding:8px;border-radius:10px;background:#eff6ff}.cl-bt-use{margin-top:6px;min-height:36px;border:0;border-radius:10px;background:linear-gradient(135deg,rgba(96,165,250,.95),rgba(59,130,246,.95));color:#fff;padding:0 12px}.cl-bt-by{font-size:10px;color:#94a3b8;margin-top:4px}.cl-bt-verdict.secondary{opacity:.7;font-weight:600}
 .cl-tabs{display:flex;gap:6px;margin-bottom:10px}#cl-rail .cl-tab{flex:1;min-height:40px;border-radius:10px}#cl-rail .cl-tab.on{background:#2e8b8b;color:#fff;border-color:#2e8b8b}
 .cl-bt-grid{width:100%;border-collapse:collapse;margin-top:8px;font-size:14px}.cl-bt-grid th,.cl-bt-grid td{text-align:left;vertical-align:top;padding:7px 8px}.cl-bt-grid th{font-size:11px;font-weight:700;color:#475569;text-transform:uppercase;letter-spacing:.04em;white-space:nowrap}.cl-bt-grid th{width:1%}.cl-bt-grid .cl-bt-lang{font-size:11px;font-weight:500;color:#64748b;text-transform:none;letter-spacing:0;margin-top:2px;white-space:normal;max-width:96px}.cl-bt-grid tr:nth-child(odd){background:#f1f5f9}.cl-bt-grid tr:nth-child(even){background:#fff}
 .cl-bt-sec{margin:8px 0}.cl-bt-lbl{font-size:11px;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:.05em;margin-bottom:3px}
@@ -1633,8 +1634,9 @@ function dgLangParam(room) {
         var v=e.via;row('Route',v?(v.input==='voice'?'Voice':'Keyboard'):'—',!v?'Not recorded (message older than r7)':v.input!=='voice'?'Typed on the '+e.side+' keyboard':
             'Mic channel: '+v.pipe+' ('+name(langOf(v.pipe))+'), heard as '+name(v.heardAs)+', confidence '+v.conf+', mode '+v.mode+', decided by '+({owner:'mic owner (ask mode)','only-open-side':'only open mic',scored:'score'}[v.reason]||v.reason)+(v.score!=null?' '+v.score+(v.runnerUp!=null?' vs '+v.runnerUp:''):''));
         var report={verdict:'',score:null};
+        var aiBox=document.createElement('div');aiBox.className='cl-bt-ai';card.insertBefore(aiBox,tbl);
         x.onclick=function(){ov.remove()};ov.addEventListener('click',function(ev){if(ev.target===ov)ov.remove()});
-        copy.onclick=function(){var txt=rows.map(function(r){return r.label+' ('+r.lang+'): '+r.text}).join('\n')+'\nResult: '+report.verdict+(report.score!=null?' ('+Math.round(report.score*100)+'%)':'');
+        copy.onclick=function(){var txt=rows.map(function(r){return r.label+' ('+r.lang+'): '+r.text}).join('\n')+'\nResult: '+report.verdict+(report.score!=null?' ('+Math.round(report.score*100)+'%)':'')+(report.ai?'\nAI: '+report.ai.verdict+(report.ai.reason?' — '+report.ai.reason:'')+(report.ai.suggestion?'\nAI suggestion: '+report.ai.suggestion:''):'');
             navigator.clipboard.writeText(txt).then(function(){copy.textContent='Copied';setTimeout(function(){copy.textContent='Copy'},1400)}).catch(function(){copy.textContent='Copy failed'})};
         shell.appendChild(ov);x.focus();
         function finish(back,lang,note){
@@ -1642,6 +1644,25 @@ function dgLangParam(room) {
             var sc=btScore(spoken,back),v=btVerdict(sc);rBack.set(name(lang)+(note?' · '+note:''),back);report.score=sc;report.verdict=v;
             verdict.className='cl-bt-verdict '+v;verdict.textContent=(v==='match'?'Match':v==='partial'?'Partial':'Miss')+' · '+Math.round(sc*100)+'%';
             log('bt_check',{outcome:'ok',verdict:v,score:+sc.toFixed(2),spokenLang:lang,src:e.src,tgt:e.tgt,rewritten:rewritten,chars:String(spoken).length},v==='miss'?'warn':'ok');
+            aiPart(lang);
+        }
+        /* r15: AI judges meaning. Its verdict leads; the wording score stays as a secondary line. */
+        function aiPart(lang){
+            if(!portal.aiReady()){aiBox.textContent='AI review: add a key in Settings → AI keys';aiBox.className='cl-bt-ai off';return}
+            verdict.textContent='Wording '+verdict.textContent;verdict.classList.add('secondary');
+            var head=document.createElement('div');head.className='cl-bt-ai-head';var av=document.createElement('span');av.className='cl-bt-verdict wait';av.textContent='AI: checking meaning…';head.appendChild(av);aiBox.replaceChildren(head);
+            portal.aiReview(spoken,lang,e.tr,e.tgt).then(function(a){
+                if(!ov.isConnected)return;
+                av.className='cl-bt-verdict '+a.verdict;av.textContent='AI: '+(a.verdict==='match'?'Match':a.verdict==='partial'?'Partial':'Miss');
+                report.ai=a;var rr=document.createElement('div');rr.className='cl-bt-reason';rr.textContent=a.reason;aiBox.appendChild(rr);
+                if(a.suggestion&&norm(a.suggestion)!==norm(e.tr)){
+                    var sg=document.createElement('div');sg.className='cl-bt-sugg';var sl=document.createElement('div');sl.className='cl-bt-lbl';sl.textContent='Suggested · '+name(e.tgt);var st=document.createElement('div');st.textContent=a.suggestion;sg.append(sl,st);
+                    var use=document.createElement('button');use.type='button';use.className='cl-bt-use';use.textContent='Use this translation';
+                    use.onclick=function(){use.disabled=true;portal.replaceTranslation(e.id,a.suggestion,'ai:'+a.provider).then(function(ok){if(!ok){use.disabled=false;return}use.textContent='Replaced ✓';rTarget.set(null,a.suggestion);speakIfOn(e.side,a.suggestion,e.tgt)}).catch(function(err){use.disabled=false;use.textContent='Could not replace';log('ai_fix_applied',{outcome:'error',e:String(err&&err.message).slice(0,60)},'error')})};
+                    sg.appendChild(use);aiBox.appendChild(sg);
+                }
+                var by=document.createElement('div');by.className='cl-bt-by';by.textContent=a.provider+' · '+a.model;aiBox.appendChild(by);
+            }).catch(function(err){if(!ov.isConnected)return;av.className='cl-bt-verdict miss';av.textContent='AI check failed';var rr=document.createElement('div');rr.className='cl-bt-reason';rr.textContent=String(err&&err.message||err);aiBox.appendChild(rr);report.ai={verdict:'failed',reason:String(err&&err.message||err)}});
         }
         if(!e.tr){verdict.className='cl-bt-verdict miss';verdict.textContent='No translation';report.verdict='no translation';rBack.set('—','—');return}
         /* Latin-script speech that detection can't name: most often the other side's language. */
@@ -1652,7 +1673,7 @@ function dgLangParam(room) {
             if(lang===e.tgt){finish(e.tr,lang,'same as target');return}
             return translateWithRetry(e.tr,e.tgt,lang,1).then(function(r){
                 if(!ov.isConnected)return;
-                if(!r.ok){rBack.set(name(lang),'(back-translation failed)');verdict.className='cl-bt-verdict miss';verdict.textContent='Check failed';report.verdict='check failed';log('bt_check',{outcome:'error',spokenLang:lang,tgt:e.tgt},'error');return}
+                if(!r.ok){rBack.set(name(lang),'(back-translation failed)');verdict.className='cl-bt-verdict miss';verdict.textContent='Check failed';report.verdict='check failed';log('bt_check',{outcome:'error',spokenLang:lang,tgt:e.tgt},'error');aiPart(lang);return}
                 finish(r.text,lang);
             });
         });
@@ -1757,7 +1778,7 @@ function dgLangParam(room) {
     var candidateTxn={south:null,north:null},compAnchor={south:null,north:null};
     var pendingConversion={south:null,north:null},undoEdit={south:null,north:null};
     var predictionTxn={south:null,north:null};
-    var CHAT_BUILD='chat-test-audio-r14';
+    var CHAT_BUILD='chat-test-audio-r15';
     var UNDO_LABEL={en:'Undo',th:'เลิกทำ',es:'Deshacer',fr:'Annuler',de:'Rückgängig',
         it:'Annulla',pt:'Desfazer',nl:'Ongedaan maken',sv:'Ångra',pl:'Cofnij',tr:'Geri al',
         ru:'Отменить',ar:'تراجع',hi:'पूर्ववत करें',vi:'Hoàn tác',id:'Urungkan',ms:'Buat asal',
@@ -2745,6 +2766,31 @@ var portal=(function(){
  }
  function retryMessage(id){if(!visible())return;var m=HIST.find(function(x){return x.id===id});if(!m)return;return action(function(){return processMessage({roomId:active.id,side:m.side,src:m.ownerLang||m.src,tgt:m.tgt,gen:generation},id)})}
  function decorateMessage(e,hdr){if(!e.status||e.status==='complete')return;var busy=jobs.has((active&&active.id)+'|'+e.id);var b=button(busy?'Translating…':'Retry translation',function(){return retryMessage(e.id)},'cl-message-retry');b.disabled=busy;hdr.appendChild(b)}
+ /* r15: AI review for the translation check. Runs only when the owner opens a check. Venice first, OpenRouter as
+    backup, using the keys validated in Settings → AI keys. Returns {verdict, reason, suggestion, provider, model}. */
+ function aiReady(){var c=aiCfg();return !!((c.vkey&&c.vmodel)||(c.orkey&&c.ormodel))}
+ async function aiReview(spoken,spokenLang,translation,tgtLang){
+  var c=aiCfg(),order=[];if(c.vkey&&c.vmodel)order.push({id:'venice',url:'https://api.venice.ai/api/v1/chat/completions',key:c.vkey,model:c.vmodel});
+  if(c.orkey&&c.ormodel)order.push({id:'openrouter',url:'https://openrouter.ai/api/v1/chat/completions',key:c.orkey,model:c.ormodel});
+  if(!order.length)throw new Error('no AI key — add one in Settings → AI keys');
+  var sys='You check spoken-conversation translations for meaning. Reply with JSON only, no prose: {"verdict":"match"|"partial"|"miss","reason":"<one short sentence in English>","suggestion":"<better translation in the target language, or empty if verdict is match>"}. match = same meaning (wording may differ); partial = meaning mostly kept but something is lost, added or changed (tone, contrast words, politeness, numbers, names); miss = meaning wrong. Keep the suggestion natural and conversational.';
+  var user='Source language: '+(LANG_NAMES[spokenLang]||spokenLang)+'\nSpoken: '+spoken+'\nTarget language: '+(LANG_NAMES[tgtLang]||tgtLang)+'\nTranslation: '+translation;
+  var lastErr=null;
+  for(var i=0;i<order.length;i++){var o=order[i],t0=Date.now();
+   try{var body={model:o.model,max_tokens:400,temperature:0,messages:[{role:'system',content:sys},{role:'user',content:user}]};if(o.id==='venice')body.venice_parameters={include_venice_system_prompt:false};
+    var r=await fetch(o.url,{method:'POST',cache:'no-store',headers:{'Content-Type':'application/json','Authorization':'Bearer '+o.key},body:JSON.stringify(body)});
+    var j={};try{j=await r.json()}catch(e){}
+    if(!r.ok)throw new Error(o.id+' '+r.status+(r.status===402?' (credits/plan)':r.status===401?' (key rejected)':''));
+    var txt=String(j.choices&&j.choices[0]&&j.choices[0].message&&j.choices[0].message.content||'').replace(/<think>[\s\S]*?<\/think>/g,'');
+    var m=txt.match(/\{[\s\S]*\}/);if(!m)throw new Error(o.id+' gave no JSON');
+    var out=JSON.parse(m[0]),v=String(out.verdict||'').toLowerCase();if(['match','partial','miss'].indexOf(v)<0)throw new Error(o.id+' gave no verdict');
+    log('ai_review',{outcome:'ok',provider:o.id,model:o.model,verdict:v,ms:Date.now()-t0,suggested:!!(out.suggestion&&v!=='match')},v==='miss'?'warn':'ok');
+    return {verdict:v,reason:String(out.reason||'').slice(0,240),suggestion:v==='match'?'':String(out.suggestion||'').trim(),provider:o.id,model:o.model};
+   }catch(e){lastErr=e;log('ai_review',{outcome:'error',provider:o.id,model:o.model,ms:Date.now()-t0,e:String(e.message).slice(0,80)},'error')}
+  }
+  throw lastErr;
+ }
+ function replaceTranslation(id,text,meta){if(!active||!writer)return Promise.resolve(false);var rid=active.id;return track(change('rooms',rid,function(r){if(!r)return;var m=r.messages.find(function(x){return x.id===id});if(!m)return;if(m.trOriginal==null)m.trOriginal=m.tr;m.tr=text;m.trBy=meta||'ai';r.updatedAt=Date.now();r.revision++;return r})).then(function(){return refresh(rid)}).then(function(){log('ai_fix_applied',{outcome:'ok'},'ok');return true})}
  function deleteMessage(id){if(!active||!writer||opened)return;var rid=active.id;action(async function(){await track(change('rooms',rid,function(r){if(!r)return;r.messages=r.messages.filter(function(m){return m.id!==id});return r}));await refresh(rid)});}
  function loadAssets(r){Array.from(new Set([r.southLang,r.northLang])).forEach(function(lang){if(getDict(lang)&&getBigram(lang))return;var base='https://raw.githubusercontent.com/acmeproducts/stuff/main/dict/';fetch(base+lang+'.json').then(function(x){if(!x.ok)throw new Error();return x.json()}).then(function(words){if(!Array.isArray(words))return;dictCache[lang]=words;lmMemo={};try{localStorage.setItem('duck_dict_'+lang,JSON.stringify(words))}catch(e){}if(INPUT.mode==='kb')updateAutocomplete(INPUT.owner)}).catch(function(){});fetch(base+'bigram-'+lang+'.json').then(function(x){if(!x.ok)throw new Error();return x.json()}).then(function(bg){bgCache[lang]=bg;lmMemo={};if(INPUT.mode==='kb')updatePredictions(INPUT.owner)}).catch(function(){});});}
  function older(side){pages[side]+=100;renderPanel(side)}
@@ -2764,7 +2810,7 @@ var portal=(function(){
   await new Promise(function(resolve){navigator.locks.request('chatlink-audio-test-writer',{ifAvailable:true},async function(lock){writer=!!lock;resolve();if(lock)await new Promise(function(r){releaseLock=r})}).catch(function(e){showError(e);resolve()});});
   await openDB();rooms=await read('rooms');var last=await read('state','activeRoomId'),id=new URL(location.href).searchParams.get('room')||(last&&last.value),r=id?await read('rooms',id):null;setActive(r&&!r.trashedAt?r:null);if(id&&!active)showError(new Error('That conversation is unavailable. Choose one from the menu.'));if(!active||!writer)await open();document.documentElement.dataset.chatlinkReady='true';
  }
- return {start:start,open:open,select:select,submit:submit,scheduleDraft:scheduleDraft,deleteMessage:deleteMessage,decorateMessage:decorateMessage,older:older,pageSize:function(s){return pages[s]},visible:visible,flush:flush};
+ return {start:start,open:open,select:select,submit:submit,scheduleDraft:scheduleDraft,deleteMessage:deleteMessage,aiReady:aiReady,aiReview:aiReview,replaceTranslation:replaceTranslation,decorateMessage:decorateMessage,older:older,pageSize:function(s){return pages[s]},visible:visible,flush:flush};
 })();
 
     function startChatlink(){boot();portal.start().catch(function(e){document.getElementById('cl-save-state').textContent='Storage unavailable';document.getElementById('cl-error').textContent=e.message;document.getElementById('cl-error').classList.add('show');});}

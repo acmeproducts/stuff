@@ -139,3 +139,27 @@ test('r14: double TAP (touch) opens the rail and it stays open',async({page})=>{
  await page.locator('#cl-menu').evaluate(b=>b.click());await page.waitForFunction(()=>document.body.classList.contains('cl-open'));
  await page.waitForTimeout(700);await page.locator('#cl-cover').evaluate(c=>c.click());assert.equal(await page.evaluate(()=>document.body.classList.contains('cl-open')),false,'a later tap outside still closes it');
 });
+test('r15: AI grades meaning in the check and its suggested fix replaces the translation',async({page})=>{
+ await page.route('https://translate.googleapis.com/**',route=>{const u=new URL(route.request().url()),q=u.searchParams.get('q');return route.fulfill({json:[[[u.searchParams.get('sl')==='en'?'잠들 뻔했어요':'I almost fell asleep',q]]]})});
+ let venice=0,or=0,bodies=[];
+ await page.route('https://api.venice.ai/**',route=>{venice++;return route.fulfill({status:402,json:{error:'credits'}})});
+ await page.route('https://openrouter.ai/**',route=>{or++;bodies.push(route.request().postData());return route.fulfill({json:{choices:[{message:{content:'<think>x</think>{"verdict":"partial","reason":"Dropped \\"but\\" — the contrast is lost.","suggestion":"I almost fell asleep, but"}'}}]}})});
+ await page.evaluate(()=>localStorage.setItem('chat_ai_cfg',JSON.stringify({vkey:'vk-secret',vmodel:'v-m',orkey:'or-secret',ormodel:'o-m'})));
+ await create(page,'AIcheck','en','ko');await send(page,'north','잠들 뻔했어요 하지만');await settled(page,1);
+ const h=page.locator('#tx-north .bhdr').first();await h.scrollIntoViewIfNeeded();const b=await h.boundingBox(),cx=b.x+b.width-12,cy=b.y+b.height/2;
+ await page.mouse.click(cx,cy);await page.waitForTimeout(60);await page.mouse.click(cx,cy);
+ const ov=page.locator('.half.north .cl-bt');await ov.waitFor();await ov.getByText('AI: Partial').waitFor({timeout:5000});
+ assert.equal(venice,1);assert.equal(or,1,'falls back to OpenRouter after Venice 402');
+ assert.ok(await ov.getByText('Dropped "but" — the contrast is lost.').isVisible());assert.ok(await ov.getByText(/^Wording /).count());
+ assert.ok(JSON.parse(bodies[0]).messages[1].content.includes('Spoken: 잠들 뻔했어요 하지만'));
+ await ov.getByRole('button',{name:'Use this translation'}).click();await ov.getByText('Replaced ✓').waitFor();
+ assert.deepEqual(await page.evaluate(()=>[HIST[0].tr,HIST[0].trOriginal,HIST[0].trBy]),['I almost fell asleep, but','I almost fell asleep','ai:openrouter']);
+ const logs=await page.evaluate(()=>JSON.stringify(debugLog));assert.ok(!logs.includes('vk-secret')&&!logs.includes('or-secret'),'keys never logged');
+ assert.ok(await page.evaluate(()=>debugLog.some(e=>e.ev==='ai_review'&&e.d.outcome==='ok'&&e.d.provider==='openrouter')));
+});
+test('r15: without AI keys the check says how to enable AI and makes no AI call',async({page})=>{
+ let calls=0;await page.route('https://api.venice.ai/**',r=>{calls++;return r.abort()});await page.route('https://openrouter.ai/**',r=>{calls++;return r.abort()});
+ await create(page,'NoAI');await send(page,'south','hello friend');await settled(page,1);
+ const h=page.locator('#tx-south .bhdr').first();await h.scrollIntoViewIfNeeded();const b=await h.boundingBox();await page.mouse.click(b.x+10,b.y+b.height/2);await page.waitForTimeout(60);await page.mouse.click(b.x+10,b.y+b.height/2);
+ const ov=page.locator('.half.south .cl-bt');await ov.getByText('AI review: add a key in Settings → AI keys').waitFor({timeout:5000});assert.equal(calls,0);
+});
