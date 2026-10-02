@@ -511,3 +511,14 @@ One message per spoken turn is unchanged.
 - Without a key, the check says "AI review: add a key in Settings → AI keys" and makes no call.
 
 **Gates (lab, mocked providers).** 20/20 controller tests. Ask mode: 31/31, including 2 r15 scenarios (Venice 402 → OpenRouter, apply fix; no key → no call). Open mode: 32/32. Keyboard: 32/32. **Not verified:** real model output quality and cost on the owner's keys.
+
+
+### chat-test backlog (owner, 2026-10-02)
+
+The owner confirmed that TTS and STT work on r15.
+
+1. **Changing languages on a saved conversation differs by phone.** Android allows it; iPhone does not. The code disables both language pickers once a conversation has messages (by design, so history keeps its languages). To check: whether Android Chrome lets a disabled picker be changed, or whether that Android room had no messages yet. Decide one behaviour for both.
+2. **Venice validation differs by phone.** iPhone says "not enough credits" (402); Android validates the same key. To check: the selected model (each phone defaults to the first loaded model, so they may differ) and the key actually used (Android may be prefilled from devstream). Show the model and the masked key in the result.
+3. **Password-manager pollution.** Key fields are `type=password`, so Chrome offers to save them as passwords, which leaves junk in the password manager. Needed:
+   - A standard review and remediation of every field that triggers a save prompt. Only real passwords should be password fields.
+   - Owner direction: don't build our own key store in localStorage. Use the browser's own credential storage and sync across devices (e.g. the Credential Management API, `PasswordCredential`, stored deliberately under a clear name per service). Check first whether it is supported on iPhone Safari/Chrome, which may need a fallback.
