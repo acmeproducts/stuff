@@ -28,5 +28,5 @@ class S:
  def check_source_ids(self,ids,reason):self.checked.append((list(ids),reason));return {'checked':list(ids),'changed':['b'],'errors':[]}
 s=S();m=load(HERE/'sot-turn02-release-d-autosync.py');m.install(s);h=s.H();z=h.do_POST();assert s.checked==[(['a','b'],'database_refresh')],s.checked;assert z['changed']==['b'];assert s.M.enqueued[-1]==['b'],s.M.enqueued
 print('PASS DB refresh checks every enabled source and stale source auto-queues through existing SSOT path')
-ui=(HERE/'sot-turn02-release-d-complete.html').read_text();assert "if(force)w.__ssotCheckSources();" in ui and "await w.req('/api/ssot/refresh-staleness'" in ui and "let rows=[],after=0" in ui;assert ui.count("/api/ssot/refresh-staleness")==1
-print('PASS only forced DB placement refresh invokes the staleness checkpoint, in the background so it never blocks loading')
+ui=(HERE/'sot-turn02-release-d-complete.html').read_text();assert "w.__ssotCheckSources();w.loadPlacements(true)" in ui and "await w.req('/api/ssot/refresh-staleness'" in ui and "let rows=[],after=0" in ui and "if(force)w.__ssotCheckSources()" not in ui;assert ui.count("/api/ssot/refresh-staleness")==1
+print('PASS the staleness checkpoint runs only at startup and on manual refresh, in the background, never blocking loading')

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-import importlib.util,json,os,shutil,subprocess,sys,threading,time
+import collections,hashlib,importlib.util,json,os,shutil,subprocess,sys,threading,time
 from http.server import ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import parse_qs,urlparse
@@ -8,6 +8,11 @@ LIVE_STATES=("QUEUED","RUNNING","PAUSED","STOPPING")
 PLACEMENT_PAGE_SIZE=5000
 PLACEMENT_PAGE_MAX=10000
 PLACEMENT_SNAPSHOT_TTL=120
+PLACEMENT_HISTORY_MAX=4
+PLACEMENT_DELTA_FULL_RATIO=0.5
+
+def placement_digest(row):
+    return hashlib.blake2b(json.dumps(row,sort_keys=True,default=str,separators=(',',':')).encode(),digest_size=8).hexdigest()
 LOG_PUBLISH_INTERVAL=max(60,int(os.environ.get("SOT_LOG_PUBLISH_INTERVAL","300")))
 
 def install(srv):
@@ -18,6 +23,12 @@ def install(srv):
     srv._log_publish_status={"configured":False,"last_publish":None,"last_error":None,"published":False}
     srv._placement_snapshot_lock=threading.RLock()
     srv._placement_cursor_snapshots={}
+    srv._placement_history=collections.OrderedDict()
+
+    def remember_placements(rev,rows):
+        srv._placement_history[rev]={r['placement_id']:placement_digest(r) for r in rows}
+        srv._placement_history.move_to_end(rev)
+        while len(srv._placement_history)>PLACEMENT_HISTORY_MAX:srv._placement_history.popitem(last=False)
 
     def placement_page(handler):
         u=urlparse(handler.path);q=parse_qs(u.query)
@@ -34,6 +45,7 @@ def install(srv):
             if snap is None:
                 rows=srv.M.s.rows("SELECT * FROM placements WHERE placement_state='ACTIVE' ORDER BY placement_no")
                 snap={"created":now,"catalog_revision":srv.M.s.catalog_revision(),"placements":rows}
+                remember_placements(snap["catalog_revision"],rows)
             rows=snap["placements"]
             start=0
             if after:
@@ -44,6 +56,24 @@ def install(srv):
             if has_more and page:
                 srv._placement_cursor_snapshots[next_after]=snap
         return handler.sendj({"ok":True,"catalog_revision":snap["catalog_revision"],"total":len(rows),"page_size":len(page),"has_more":has_more,"next_after":next_after,"placements":page})
+
+    def placement_delta(handler):
+        q=parse_qs(urlparse(handler.path).query)
+        try:since=int(q.get("since",[""])[0])
+        except Exception:return handler.sendj({"ok":True,"full":True,"reason":"since required"})
+        with srv._placement_snapshot_lock:
+            rev=srv.M.s.catalog_revision()
+            if rev==since:return handler.sendj({"ok":True,"full":False,"unchanged":True,"catalog_revision":rev,"upserts":[],"removed":[]})
+            old=srv._placement_history.get(since)
+            rows=srv.M.s.rows("SELECT * FROM placements WHERE placement_state='ACTIVE' ORDER BY placement_no")
+            cur={r["placement_id"]:placement_digest(r) for r in rows}
+            srv._placement_history[rev]=cur;srv._placement_history.move_to_end(rev)
+            while len(srv._placement_history)>PLACEMENT_HISTORY_MAX:srv._placement_history.popitem(last=False)
+            if old is None:return handler.sendj({"ok":True,"full":True,"reason":"revision not retained","catalog_revision":rev,"total":len(rows)})
+            upserts=[r for r in rows if old.get(r["placement_id"])!=cur[r["placement_id"]]]
+            removed=[i for i in old if i not in cur]
+            if len(upserts)+len(removed)>max(1,len(rows))*PLACEMENT_DELTA_FULL_RATIO:return handler.sendj({"ok":True,"full":True,"reason":"large change","catalog_revision":rev,"total":len(rows)})
+        return handler.sendj({"ok":True,"full":False,"unchanged":False,"catalog_revision":rev,"total":len(rows),"upserts":upserts,"removed":removed})
 
     def log_tail(handler):
         u=urlparse(handler.path);q=parse_qs(u.query)
@@ -70,6 +100,9 @@ def install(srv):
         path=urlparse(handler.path).path
         if path=="/api/placements/page":
             try:return placement_page(handler)
+            except Exception as e:return handler.sendj({"ok":False,"error":str(e)},500)
+        if path=="/api/placements/delta":
+            try:return placement_delta(handler)
             except Exception as e:return handler.sendj({"ok":False,"error":str(e)},500)
         if path=="/api/diagnostics/log":
             try:return log_tail(handler)
