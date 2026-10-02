@@ -496,3 +496,18 @@ One message per spoken turn is unchanged.
 **Evidence.** Emulated phones: r13 open=false on both; r14 open=true on both. A new touch scenario (touchscreen.tap ×2) asserts the rail stays open and that a later cover tap still closes it.
 
 **Gates (lab).** 20/20 controller tests. Ask mode: 29/29. Open mode: 30/30. Keyboard: 32/32. **Not verified on the owner's real phone.**
+
+
+### chat-test r15: AI meaning check and suggested fix in the translation check (2026-10-02)
+
+**Owner request.** Use AI to judge back-translation accuracy and help correct it. Approved design: AI runs only when the owner opens a check, using the saved Venice key with OpenRouter as backup.
+
+**Change.**
+- When a translation check opens and an AI key is saved, the app asks the model (chat completions, temperature 0) for `{verdict, reason, suggestion}` on meaning, given the spoken text and the translation. Venice is tried first; OpenRouter is used if Venice fails (e.g. 402).
+- The AI verdict (Match/Partial/Miss) and its one-line reason lead the check. The character score stays as a secondary "Wording" line.
+- If the AI suggests a different translation, "Use this translation" replaces the message's translation. The original is kept in `trOriginal`, the source in `trBy` (`ai:<provider>`), and the new text is read aloud if read-aloud is on.
+- Copy includes the AI verdict, reason and suggestion.
+- Logged as `ai_review` and `ai_fix_applied` with provider, model, verdict and ms. Keys and text are never logged.
+- Without a key, the check says "AI review: add a key in Settings → AI keys" and makes no call.
+
+**Gates (lab, mocked providers).** 20/20 controller tests. Ask mode: 31/31, including 2 r15 scenarios (Venice 402 → OpenRouter, apply fix; no key → no call). Open mode: 32/32. Keyboard: 32/32. **Not verified:** real model output quality and cost on the owner's keys.
