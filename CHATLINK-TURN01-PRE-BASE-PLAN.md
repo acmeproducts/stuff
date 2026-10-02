@@ -483,3 +483,16 @@ Ownership metadata (side, generation, source/target language, time, confidence, 
 One message per spoken turn is unchanged.
 
 **Gates (lab).** 20/20 controller tests. Ask mode: 28/28, including the r13 scenario. Open mode: 29/29. Keyboard: 32/32. **Not verified on the phone:** real interim-result timing and how the live bubble feels in conversation.
+
+
+### chat-test r14: double-tap rail works on phones (2026-10-02)
+
+**Owner report.** Double-tapping does nothing on the phone.
+
+**Cause (reproduced on emulated Pixel 7 and iPhone 13 touchscreens).** The second tap's `pointerup` opens the rail. The browser's follow-up `click` for that same tap then arrives at the same spot, which by now is the rail's cover (`#cl-cover`), and a cover click closes the rail, so the rail opens and shuts instantly. Mouse tests in the lab never showed this, because a mouse click targets the element under the press.
+
+**Change.** For 600 ms after a double-tap opens the rail, one click on the cover is ignored (logged `rail_ghost_click_ignored`). Later taps on the cover still close the rail.
+
+**Evidence.** Emulated phones: r13 open=false on both; r14 open=true on both. A new touch scenario (touchscreen.tap ×2) asserts the rail stays open and that a later cover tap still closes it.
+
+**Gates (lab).** 20/20 controller tests. Ask mode: 29/29. Open mode: 30/30. Keyboard: 32/32. **Not verified on the owner's real phone.**
