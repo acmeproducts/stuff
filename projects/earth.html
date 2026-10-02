@@ -9,7 +9,12 @@
   #renderCanvas { width:100%; height:100%; outline:none; display:block; }
   #hud { position:absolute; top:0; left:0; width:100%; height:100%; pointer-events:none; }
   #topHud { position:absolute; top:8px; left:8px; color:#0f0; background:rgba(0,0,0,0.45); font-family:monospace; font-size:15px; text-shadow:1px 1px 0 #000; line-height:1.45; padding:6px 8px; border-radius:4px; max-width:92vw; }
-  #errBox { position:absolute; bottom:8px; left:8px; right:8px; color:#f66; background:rgba(0,0,0,0.75); font-family:monospace; font-size:13px; padding:8px; border-radius:4px; max-height:30%; overflow:auto; display:none; pointer-events:auto; white-space:pre-wrap; cursor:pointer; }
+  #errBox { position:absolute; bottom:8px; left:8px; right:8px; color:#f66; background:rgba(0,0,0,0.85); font-family:monospace; font-size:13px; padding:8px; border-radius:4px; max-height:44%; display:none; pointer-events:auto; z-index:6; }
+  #errHead { display:flex; justify-content:space-between; align-items:center; gap:6px; margin-bottom:6px; }
+  #errTitle { color:#ff9; font-weight:bold; }
+  #errBtns { display:flex; gap:6px; }
+  #errBtns button { font-size:12px; padding:6px 10px; }
+  #errLines { max-height:32vh; overflow:auto; white-space:pre-wrap; }
   #controls { position:absolute; bottom:8px; right:8px; pointer-events:auto; display:flex; flex-direction:column; gap:6px; align-items:flex-end; }
   button { font-family:monospace; font-size:15px; padding:10px 14px; border:none; border-radius:4px; background:rgba(255,255,255,0.88); color:#000; touch-action:manipulation; }
   button:active { background:rgba(200,200,200,0.95); }
@@ -36,11 +41,15 @@
 <canvas id="renderCanvas"></canvas>
 <div id="hud">
   <div id="topHud">Loading...</div>
-  <div id="errBox"></div>
+  <div id="errBox">
+    <div id="errHead"><span id="errTitle">ERROR LOG (0)</span><span id="errBtns"><button id="btnLogCopy">COPY</button><button id="btnLogSave">SAVE</button><button id="btnLogClear">CLEAR</button><button id="btnLogHide">HIDE</button></span></div>
+    <div id="errLines"></div>
+  </div>
   <button id="btnGear">&#9881;</button>
   <div id="stickBase"><div id="stickKnob"></div></div>
   <button id="btnJumpTouch">JUMP</button>
   <div id="controls">
+    <button id="btnLog">LOG</button>
     <button id="btnFly">Fly</button>
   </div>
   <div id="modalWrap">
@@ -121,23 +130,84 @@
 </div>
 <script>
 'use strict';
-const BUILD = 'M7-saveload 2026-10-01';
+const BUILD = 'M7.1-errlog 2026-10-02';
 const errBox = document.getElementById('errBox');
-function showErr(msg) {
-  errBox.style.display = 'block';
-  const lines = (errBox.textContent + msg + '\n').split('\n');
-  errBox.textContent = lines.slice(-9).join('\n');
+const errLines = document.getElementById('errLines');
+const errTitle = document.getElementById('errTitle');
+const errLog = [];
+const ERR_MAX = 400;
+function stamp() { return new Date().toISOString().slice(11, 19); }
+function renderErr() {
+  errTitle.textContent = 'ERROR LOG (' + errLog.length + ')';
+  errLines.textContent = errLog.slice(-14).join('\n');
 }
-errBox.addEventListener('click', function() {
-  errBox.textContent = '';
-  errBox.style.display = 'none';
-});
+function logLine(kind, msg) {
+  errLog.push('[' + stamp() + '] ' + kind + ': ' + msg);
+  if (errLog.length > ERR_MAX) errLog.splice(0, errLog.length - ERR_MAX);
+  renderErr();
+}
+function showErr(msg) {
+  logLine('ERR', msg);
+  errBox.style.display = 'block';
+}
 window.onerror = function(msg, src, line, col, err) {
-  showErr('ERR: ' + msg + ' @' + line + ':' + col);
+  showErr(msg + ' @' + line + ':' + col + (src ? ' ' + src.split('/').pop() : ''));
   return false;
 };
 window.addEventListener('unhandledrejection', function(e) {
-  showErr('PROMISE: ' + (e.reason && e.reason.stack ? e.reason.stack : e.reason));
+  showErr('PROMISE ' + (e.reason && e.reason.stack ? e.reason.stack : e.reason));
+});
+function logText() {
+  return 'Earth Explorer ' + BUILD + '\n' + new Date().toISOString() + '\nUA: ' + navigator.userAgent +
+    '\n\n' + (errLog.length ? errLog.join('\n') : '(no errors logged)') + '\n';
+}
+document.getElementById('btnLogCopy').addEventListener('click', function() {
+  const txt = logText();
+  function done(ok) {
+    errTitle.textContent = (ok ? 'COPIED ' : 'COPY FAILED ') + '(' + errLog.length + ')';
+    setTimeout(renderErr, 1200);
+  }
+  function fallback() {
+    try {
+      const ta = document.createElement('textarea');
+      ta.value = txt;
+      ta.style.position = 'fixed';
+      ta.style.opacity = '0';
+      document.body.appendChild(ta);
+      ta.select();
+      document.execCommand('copy');
+      document.body.removeChild(ta);
+      done(true);
+    } catch (e2) { done(false); }
+  }
+  try {
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(txt).then(function() { done(true); }, fallback);
+    } else fallback();
+  } catch (e) { fallback(); }
+});
+document.getElementById('btnLogSave').addEventListener('click', function() {
+  try {
+    const blob = new Blob([logText()], { type: 'text/plain' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'earth-error-log-' + new Date().toISOString().slice(0, 19).replace(/[:T]/g, '-') + '.txt';
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    setTimeout(function() { URL.revokeObjectURL(url); }, 2000);
+  } catch (e) { showErr('SAVE ' + (e && e.message ? e.message : e)); }
+});
+document.getElementById('btnLogClear').addEventListener('click', function() {
+  errLog.length = 0;
+  renderErr();
+});
+document.getElementById('btnLogHide').addEventListener('click', function() {
+  errBox.style.display = 'none';
+});
+document.getElementById('btnLog').addEventListener('click', function() {
+  errBox.style.display = (errBox.style.display === 'block') ? 'none' : 'block';
 });
 
 const CDN_URLS = [
@@ -525,6 +595,7 @@ function startApp(cdnUrl) {
           clearTimeout(timer);
         }
       }
+      logLine('LC', 'STAC discovery failed on all endpoints');
       return null;
     })();
     return lcmState.promise;
@@ -559,6 +630,7 @@ function startApp(cdnUrl) {
       scatterTile(t);
     } catch (e) {
       cogFails++;
+      if (cogFails <= 3) logLine('LC', 'tile ' + t.key + ': ' + (e && e.message ? e.message : String(e)));
       if (cogFails >= 3) lcmState.href = null; // circuit breaker: stop hammering a dead endpoint
     } finally {
       clearTimeout(timer);
@@ -1124,6 +1196,7 @@ function startApp(cdnUrl) {
     }
     osmConsecFails++;
     if (osmConsecFails >= 3) osmBroken = true;
+    logLine('OSM', 'area ' + key + ' failed (procedural city used)' + (osmBroken ? ' [circuit open]' : ''));
     cityData.set(key, { proc: true });
     mountCity(ax, ay, key);
   }
@@ -1318,6 +1391,7 @@ function startApp(cdnUrl) {
     t.state = 'proc';
     netFails++;
     lastNetErr = (lastErr && lastErr.message) ? lastErr.message : String(lastErr);
+    logLine('NET', 'elev tile ' + t.key + ': ' + lastNetErr);
   }
 
   async function fetchImagery(t) {
@@ -1348,7 +1422,7 @@ function startApp(cdnUrl) {
         clearTimeout(timer);
       }
     }
-    if (tiles.has(t.key)) imgFails++;
+    if (tiles.has(t.key)) { imgFails++; logLine('IMG', 'tile ' + t.key + ' failed on all hosts'); }
   }
 
   function ensureTile(tx, ty, d) {
