@@ -1,14 +1,14 @@
 #!/usr/bin/env bash
 set -Eeuo pipefail
-REF="e1f3b4956dfd13237562f4fe03e8098691ea8102"
+REF="a9302212e3ddd6b844fc66826e19ed3d3bae1262"
 BASE="https://raw.githubusercontent.com/acmeproducts/stuff/$REF/SOT"
 ROOT="$HOME/.sot-turn02/release-d/SOT"
 UNIT="$HOME/.config/systemd/user/sot-turn02-release-d.service"
 TMP="$(mktemp -d)"
 trap 'rm -rf "$TMP"' EXIT
 mkdir -p "$ROOT" "$HOME/.config/systemd/user"
-for f in sot-turn02-release-d-autosync.py sot-turn02-release-d.service qualify-release-d-autosync.py sot-turn02-release-d-source-actions.html sot-turn02-release-d-complete.html; do curl -fsSL "$BASE/$f" -o "$TMP/$f"; done
-python3 -m py_compile "$TMP/sot-turn02-release-d-autosync.py" "$TMP/qualify-release-d-autosync.py"
+for f in sot-turn02-release-d-engine.py sot-turn02-release-d-autosync.py sot-turn02-release-d.service qualify-release-d-autosync.py sot-turn02-release-d-source-actions.html sot-turn02-release-d-complete.html; do curl -fsSL "$BASE/$f" -o "$TMP/$f"; done
+python3 -m py_compile "$TMP/sot-turn02-release-d-engine.py" "$TMP/sot-turn02-release-d-autosync.py" "$TMP/qualify-release-d-autosync.py"
 python3 "$TMP/qualify-release-d-autosync.py"
 python3 - "$TMP/sot-turn02-release-d-complete.html" "$TMP/complete.js" <<'PY'
 from pathlib import Path
@@ -17,6 +17,7 @@ s=Path(sys.argv[1]).read_text();js=s.split("<script>",1)[1].split("</script>",1)
 PY
 node --check "$TMP/complete.js"
 echo "PASS final wrapper JavaScript parses under Node"
+install -m 0644 "$TMP/sot-turn02-release-d-engine.py" "$ROOT/sot-turn02-release-d-engine.py"
 install -m 0644 "$TMP/sot-turn02-release-d-autosync.py" "$ROOT/sot-turn02-release-d-autosync.py"
 install -m 0644 "$TMP/qualify-release-d-autosync.py" "$ROOT/qualify-release-d-autosync.py"
 install -m 0644 "$TMP/sot-turn02-release-d-source-actions.html" "$ROOT/sot-turn02-release-d-source-actions.html"
