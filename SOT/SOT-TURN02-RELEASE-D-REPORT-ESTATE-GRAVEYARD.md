@@ -38,3 +38,4 @@ Do not forward-patch this rejected design. Restore the pre-#770 Complete bytes (
 - The nested wrapper (page → Complete → Source Actions → Release D) caused/complicated runtime startup.
 - Requirements retained; implementation rejected.
 - The qualified Complete surface (`sot-turn02-release-d-complete.html`) is the forward baseline; Report/Job Status/Estate are implemented inside it. Do not resurrect `sot-turn02-release-d-report-estate.html` or add another wrapper around Complete.
+- The one-time `apply-release-d-refresh-staleness.py` step and the workflow's auto-commit-to-main step are retired; the change lives in the repo and CI only verifies.

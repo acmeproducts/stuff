@@ -162,3 +162,8 @@ Freshness: Connected describes transport only. Separate evidence state Current /
 **Cause:** the stored (placement-based) signature hashed files in SQL path order; the live signature hashed them in directory-walk order. For any tree with sub-folders the two orders differ, so the digests never match and the source is "changed" forever.
 **Change (engine, no schema change):** both signatures now sort their lines before hashing and carry `v:2`. A legacy baseline (no `v`) with equal files/bytes/newest_mtime is upgraded silently instead of triggering a sync; any real difference still marks the source stale.
 **Qualification:** `SOT/qualify-release-d-signature.py` (real engine + real scan, nested folders): failed on the old engine (same counts, different digest), passes now; adds/removes/edits still detected.
+
+## 2026-10-02 — CI: retire stale one-time apply step from the DB Refresh Staleness workflow
+
+**Evidence:** that workflow has failed on every run since #779 at its first step (the one-time apply script asserts a pattern that no longer exists because the change is already in the repo). The gates themselves pass.
+**Change:** the workflow now only runs the gates (no apply, no auto-commit, read-only permissions).
