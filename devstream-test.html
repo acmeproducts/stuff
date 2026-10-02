@@ -102,6 +102,19 @@ body.touchDragging{touch-action:none;overscroll-behavior:none}body.touchDragging
 .compose{display:flex;gap:8px;align-items:flex-end}
 .compose textarea{flex:1;resize:none;min-height:44px;max-height:130px}
 .foot{display:flex;justify-content:space-between;align-items:center;font-size:10px;color:var(--dim);padding:6px 2px 0;gap:8px}
+#pendingBar,#typing,#runPending{display:none!important}
+#taskStrip{display:none;padding:9px 12px;border-top:1px solid var(--line);background:var(--panel);font-size:12px}
+#taskStrip.on{display:block}
+.tsRow{display:flex;align-items:center;gap:8px}
+.tsTab{font-weight:600;font-size:13px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:48%}
+.tsState{color:var(--dim);white-space:nowrap}
+#taskStrip.run .tsState{color:var(--run)}#taskStrip.fail .tsState{color:var(--err)}#taskStrip.ok .tsState{color:var(--ok)}
+.tsSteps{display:flex;gap:4px;margin:7px 0 5px}
+.tsSteps span{flex:1;text-align:center;padding:3px 0;border-radius:10px;background:var(--panel2);color:var(--dim);font-size:11px;border:1px solid transparent}
+.tsSteps span.done{color:var(--ok)}
+.tsSteps span.active{color:var(--run);border-color:var(--run)}
+#taskStrip.fail .tsSteps span.active{color:var(--err);border-color:var(--err)}
+.tsDetail{color:var(--dim);line-height:1.4;word-break:break-word}
 #suggestions{display:flex;gap:7px;overflow-x:auto;padding:0 0 8px;scrollbar-width:none}
 #suggestions::-webkit-scrollbar{display:none}
 .suggestBtn{flex:0 0 auto;min-height:36px;padding:7px 11px;border:1px solid var(--line);border-radius:18px;background:var(--panel2);color:var(--text);font-size:12px;text-align:left}
@@ -195,7 +208,7 @@ body.coachMode .suggestBtn{border-color:rgba(57,197,207,.5);background:rgba(57,1
 <div id="scrim"></div>
 <div id="app">
 <aside id="sidebar">
-  <div class="bar"><span id="dot"></span><span class="brand">devstream <span class="version">v1.0 b52</span></span><span class="grow"></span><button class="btn" id="projectAdd">+ New</button><button class="btn" id="refresh">↻</button><button class="btn" id="settings">⚙</button></div>
+  <div class="bar"><span id="dot"></span><span class="brand">devstream <span class="version">v1.0 b53</span></span><span class="grow"></span><button class="btn" id="projectAdd">+ New</button><button class="btn" id="refresh">↻</button><button class="btn" id="settings">⚙</button></div>
   <div id="searchWrap"><input id="search" class="input" placeholder="Search projects & threads">
     <div class="legend"><span><i class="legendDot ok"></i>OK</span><span><i class="legendDot run"></i>Running</span><span><i class="legendDot err"></i>Error</span></div></div>
   <div id="projList"></div>
@@ -214,6 +227,7 @@ body.coachMode .suggestBtn{border-color:rgba(57,197,207,.5);background:rgba(57,1
     <div id="messages"></div>
     <div id="pendingBar" style="display:none;padding:8px 14px;background:rgba(227,160,8,.14);border-top:1px solid var(--run);color:var(--run);font-size:12px;align-items:center;gap:8px"><span id="pendingBarText"></span><button class="btn" id="pendingRun" style="margin-left:auto;min-height:32px">▶ run now</button></div>
   <div id="typing"><span class="spin"></span><span id="typingText">Agent is working…</span><span id="typingElapsed" class="mono" style="margin-left:auto"></span><button class="btn" id="interrupt" title="Stop the current agent run">■ Stop</button></div>
+    <div id="taskStrip"><div class="tsRow"><span class="tsTab" id="tsTab"></span><span class="tsState" id="tsState"></span><span class="grow"></span><button class="btn" id="tsSec" style="display:none"></button><button class="btn primary" id="tsAct"></button></div><div class="tsSteps" id="tsSteps"><span>Saved</span><span>Queued</span><span>Working</span><span>Done</span></div><div class="tsDetail" id="tsDetail"></div></div>
     <div id="composer"><div id="suggestions" aria-label="Suggested next tasks"></div><div id="attachList" style="display:flex;gap:6px;flex-wrap:wrap;padding:0 0 6px"></div>
     <div class="compose"><button id="attachBtn" class="btn" title="Attach">📎</button><input type="file" id="attachInput" multiple style="display:none" accept="image/*,.txt,.md,.html,.js,.json,.css,.csv,.py,.xml,.svg"><textarea id="message" class="input" rows="2" placeholder="Questions, ideas, feedback — or say build it"></textarea><button id="send" class="btn primary">Send</button></div>
     <div class="foot"><span>Enter sends · Shift+Enter newline</span><span style="display:flex;gap:6px;align-items:center"><button id="webToggle" style="font-size:12px;min-height:34px;padding:4px 12px;border:1px solid var(--line);border-radius:17px;background:var(--panel2);color:var(--dim)">🌐 web</button><button id="engineFoot" style="color:var(--accent);font-size:12px;min-height:34px;padding:4px 12px;border:1px solid var(--accent);border-radius:17px;background:var(--panel2)"></button></span></div></div>
@@ -999,7 +1013,7 @@ function renderChat(force){
   wb.style.color=t.web?'var(--accent)':'var(--dim)';wb.style.borderColor=t.web?'var(--accent)':'var(--line)';
   wb.textContent=t.web?'🌐 web ON':'🌐 web';
   const pendN=d.messages.filter(m=>m.status==='pending').length;
-  renderSuggestions(key,coach,pendN);
+  renderSuggestions(key,coach,pendN);renderTaskStrip();
   $('runPending').style.display=pendN&&t.state!=='executing'?'inline-flex':'none';
   const pb=$('pendingBar');
   if(pendN&&t.state!=='executing'){pb.style.display='flex';$('pendingBarText').textContent=pendN+' queued message'+(pendN===1?'':'s')+' — not yet run'}
@@ -1304,7 +1318,7 @@ function renderSuggestions(key,coach,pendN){
   else items=hasWork
     ?[{label:'Continue next plan item',prompt:'Continue with the next concrete item in the master plan. Preserve completed work and verify the result.'},{label:'Test current build',prompt:'Test the current build against the master plan acceptance checks and fix the highest priority issue.'},{label:'Review status',prompt:'Review the master plan and current implementation, then summarize progress, risks, and the next task.'}]
     :[{label:'Build first version',prompt:'Build the smallest working first version that advances the master plan.'},{label:'Review objective',prompt:'Review the master plan and summarize the objective, constraints, and next concrete task.'},{label:'Define acceptance checks',prompt:'Add clear acceptance checks for the current objective to the master plan.'}];
-  box.innerHTML='';
+  items=items.filter(i=>i.action!=='run');box.innerHTML='';
   items.forEach(item=>{const b=document.createElement('button');b.type='button';b.className='suggestBtn';b.textContent=item.label;
     b.onclick=()=>useSuggestion(item);box.appendChild(b)});
 }
@@ -1832,6 +1846,31 @@ setInterval(()=>{ // watchdog
     }
   });
 },30000);
+/* one task strip above compose: lifecycle Saved → Queued → Working → Done, one primary action */
+function renderTaskStrip(){
+  const el=$('taskStrip');if(!el)return;
+  const key=activeKey,t=key&&sot.threads[key],d=key&&threads[key]&&threads[key].data,sg=$('suggestions');
+  if(!t||!d||view!=='chat'){el.className='';return}
+  const coach=!!(sot.projects[t.project]&&sot.projects[t.project].coachMode),p=progress[key];
+  const pendN=d.messages.filter(m=>m.status==='pending').length,stalled=isStalled(t),running=t.state==='executing'&&!stalled,failed=isBlocked(t),
+    saving=!!(scheduledRuns.has(key)||savingMessages[key]>0),recentDone=t.state==='ok'&&!pendN&&t.finishedAt&&Date.now()-new Date(t.finishedAt)<5*60000;
+  let mode='',step=-1,state='',detail='',act=null,sec=null;
+  if(saving&&!running){mode='run';step=0;state='Saving your message…'}
+  else if(running){mode='run';step=2;state=coach?'Working on your idea…':'Working';const st=(p&&p.started)||new Date(t.startedAt).getTime();detail=(coach?'':((p&&p.line)||'running (started on another device or before reload)')+' · ')+Math.round((Date.now()-st)/1000)+'s';act={label:'■ Stop',fn:()=>interruptAgent(key)}}
+  else if(stalled){mode='fail';step=2;state='Stalled';detail='No activity for 10+ minutes. Reset it, then retry.';act={label:'Reset',fn:()=>guard(async()=>{t.state='error';t.error='stalled — reset by owner';t.finishedAt=now();await saveSOT('devstream: reset stalled '+key);renderTabs();renderSidebar();renderTaskStrip()})}}
+  else if(failed){mode='fail';step=2;state=coach?'Needs help':'Failed';detail=String(t.error||'The last run failed.').slice(0,160);act={label:'↻ Retry',fn:()=>disposeBlocker(key,'retry')};sec={label:'Resolve ›',fn:()=>{openTabContext(key,$('tsSec'));const b=document.querySelector('#tabContext [data-c=blocker]');if(b)b.click()}}}
+  else if(pendN){mode='wait';step=1;state='Waiting to start';const owner=activeProjectRuns.get(t.project),q=projectRunQueues[t.project];
+    detail=owner&&owner!==key?'Another tab ('+tabName(sot.threads[owner]||{})+') is building. This project builds one thing at a time — yours starts automatically after.':(q&&q.includes(key))?'Queued — starts automatically when the current build finishes.':'Your message is saved but not running yet. Tap Start.';
+    act={label:coach?'▶ Continue':'▶ Start',fn:()=>dispatch(key)}}
+  else if(recentDone){mode='ok';step=4;state='Done';detail='Finished '+rel(t.finishedAt)}
+  if(!mode){el.className='';if(sg)sg.style.display='';return}
+  if(sg)sg.style.display=mode==='ok'?'':'none';
+  el.className='on '+mode;
+  $('tsTab').textContent=tabName(t);$('tsState').textContent=state;$('tsDetail').textContent=detail;
+  [...$('tsSteps').children].forEach((s,i)=>{s.className=i<step?'done':(i===step?'active':'');s.textContent=(i<step?'✓ ':'')+['Saved','Queued','Working','Done'][i]});
+  const a=$('tsAct'),b=$('tsSec');a.textContent=act?act.label:'';a.style.display=act?'':'none';a.onclick=act?act.fn:null;
+  b.textContent=sec?sec.label:'';b.style.display=sec?'':'none';b.onclick=sec?sec.fn:null;
+}
 function renderProgress(){
   if(!activeKey)return;const t=sot.threads[activeKey];const p=progress[activeKey];
   const tt=$('typingText'),te=$('typingElapsed');if(!tt)return;
@@ -1843,7 +1882,7 @@ function renderProgress(){
     te.textContent=Math.round((Date.now()-st)/1000)+'s';
   }
 }
-setInterval(renderProgress,1000);
+setInterval(()=>{renderProgress();renderTaskStrip()},1000);
 function renderWorkload(){
   const n=pool.filter(p=>p.busy).length+jobQ.length;
   const el=document.getElementById('pill');

@@ -6,8 +6,8 @@ Deploy target: `https://acmeproducts.github.io/stuff/devstream.html`
 Test target: `https://acmeproducts.github.io/stuff/devstream-test.html`
 
 ## Status
-- Current release: v1.0 b52 on devstream-test.html (2026-10-02)
-- Stage: TEST (b52)
+- Current release: v1.0 b53 on devstream-test.html (2026-10-02)
+- Stage: TEST (b53)
 
 ## Release Rules (inherited, proven)
 1. Mobile-first. All diagnostics in-app. No DevTools ever.
@@ -255,6 +255,34 @@ b39 incorrectly changed stationary hold into context-menu activation. Devstream 
 ## Graveyard
 - **G-DS-13 — Hold opens context menu:** rejected; donor behavior is double-tap context, hold-to-drag.
 - **G-DS-14 — Legacy generic #tabContext button styling:** rejected; it corrupts the donor context-menu appearance.
+
+---
+
+# 2026-10-02 — b53 one task strip (clear lifecycle above compose)
+
+## Owner report
+The screen had a tab row at the top plus several different bars above the compose box (queued-messages bar, working bar, suggestion chips, a header ▶ button) and it was unclear which controlled what or what state a task was in.
+
+## Cause
+Task state was shown in four places with three different run buttons (header ▶, "run now" bar, "Run queued work" chip) and no single statement of where a task was in its life.
+
+## Implemented
+- **One strip directly above the compose box**, always about the selected tab (it names the tab). It shows the lifecycle as four steps — Saved → Queued → Working → Done — with the current step highlighted, one plain sentence, and exactly one primary button:
+  - Saving your message… (no button)
+  - Waiting to start — says why (another tab in this project is building and this starts automatically; or saved but not running) — **▶ Start**
+  - Working — live progress line and elapsed time — **■ Stop**
+  - Failed — short error text — **↻ Retry** (same audited retry as the blocker menu) and **Resolve ›** (opens the tab's Resolve blocker menu)
+  - Stalled (no activity 10+ min) — **Reset**
+  - Done — shown for 5 minutes after success
+- Removed the duplicates: queued-messages bar, working bar and header ▶ are hidden; suggestion chips no longer contain a second "run" button and are shown only when nothing is queued, running or failed.
+- The top row is unchanged: it is the project's tabs; the header names project · tab and status.
+- No change to run mechanics, queueing, or persistence.
+
+## Acceptance
+- **DS-B53-1:** exactly one status strip above compose; it names the selected tab.
+- **DS-B53-2:** each state above shows the right step, sentence and single primary button.
+- **DS-B53-3:** Start/Stop/Retry/Reset/Resolve perform the same actions as before.
+- **DS-B53-4:** old queued/working bars and header ▶ no longer appear; suggestions hidden while a task is queued/running/failed.
 
 ---
 
