@@ -130,3 +130,12 @@ test('r13: live bubble while speaking; translation is ready (cached) when the tu
  const full='하마터면 잠들 뻔했어요. 하지만 이제 출근할 시간이에요.';
  assert.equal(await page.evaluate(()=>HIST[0].tr),'EN:'+full);assert.equal(calls[full],1,'full turn translated once, in the background, then reused');
 });
+test('r14: double TAP (touch) opens the rail and it stays open',async({page})=>{
+ await create(page,'Touch');await page.evaluate(()=>{for(let i=0;i<6;i++)HIST.push({id:'t'+i,side:i%2?'north':'south',text:'message '+i,src:'en',tgt:'th',ts:Date.now(),tr:'x '+i,status:'complete'});renderAll()});
+ const pt=await page.evaluate(()=>{const r=document.getElementById('tx-south').getBoundingClientRect();for(let y=r.top+10;y<r.bottom-10;y+=8)for(let x=r.left+10;x<r.right-10;x+=8){const e=document.elementFromPoint(x,y);if(e&&(e.id==='tx-south'||e.classList.contains('row')))return {x,y}}return null});
+ await page.touchscreen.tap(pt.x,pt.y);await page.waitForTimeout(120);await page.touchscreen.tap(pt.x,pt.y);await page.waitForTimeout(800);
+ assert.equal(await page.evaluate(()=>document.body.classList.contains('cl-open')),true,'rail still open after the browser\'s follow-up click');
+ await page.locator('#cl-close').tap();await page.waitForFunction(()=>!document.body.classList.contains('cl-open'));
+ await page.locator('#cl-menu').evaluate(b=>b.click());await page.waitForFunction(()=>document.body.classList.contains('cl-open'));
+ await page.waitForTimeout(700);await page.locator('#cl-cover').evaluate(c=>c.click());assert.equal(await page.evaluate(()=>document.body.classList.contains('cl-open')),false,'a later tap outside still closes it');
+});
