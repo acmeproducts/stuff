@@ -1,7 +1,11 @@
-name: Market Navigator Turn 34 Qualify
+name: Market Navigator Turn 34 Rollback Qualify
 on:
   push:
-    paths: ['market-navigator-turn34-governance.py','market-navigator-build-turn34.py','market-navigator-turn34-qa.mjs','.github/workflows/market-navigator-turn34.yml']
+    paths:
+      - 'market-navigator-turn34-governance.py'
+      - 'market-navigator-build-turn34.py'
+      - 'market-navigator-turn34-qa.mjs'
+      - '.github/workflows/market-navigator-turn34.yml'
 permissions: {contents: write}
 jobs:
   qualify:
@@ -15,48 +19,35 @@ jobs:
         with: {node-version: '22'}
       - name: Governance
         run: python market-navigator-turn34-governance.py
-      - name: Build from accepted Turn 28
+      - name: Restore exact accepted Turn 28
         run: python market-navigator-build-turn34.py
-      - name: Architecture proof
-        run: |
-          python - <<'PY'
-          from pathlib import Path
-          s=Path('market-navigator-turn34-pre-ship.html').read_text(); b=Path('market-navigator-turn28-ship.html').read_text()
-          gates={
-            'one public MNChart':s.count('const MNChart={')==1 and 'window.MNChart=MNChart' in s,
-            'canonical fields':all(x in s for x in ['timeHorizon','displayMode','yAxis','activeSeries','presentation']),
-            'NOW canonical chartSpec':"target:$('nowChart')" in s and 'r=await MNChart.open(chartSpec)' in s,
-            'Analyze canonical chartSpec':"target:$('standaloneAnalysis26')" in s and s.count('r=await MNChart.open(chartSpec)')>=2,
-            'duplicate standalone preparation removed':'async function sourceSetStandalone26' not in s,
-            'no state-impersonation shim':all(x not in s for x in ['S.turn33Analysis','surfaceMode32','chartSurface31','TURN32_TRUE_SINGLE_SURFACE']),
-            'persistent evidence path unchanged':s.count('derived-indices-persistent-v1.json')==b.count('derived-indices-persistent-v1.json'),
-            'contract marker':'MNChart-one-callable-controller' in s,
-          }
-          for k,v in gates.items(): print(('PASS' if v else 'FAIL'),k)
-          assert all(gates.values())
-          PY
+      - name: Exact artifact identity
+        run: cmp -s market-navigator-turn28-ship.html market-navigator-turn34-pre-ship.html
       - name: JavaScript syntax
         run: |
           python - <<'PY'
-          import re,pathlib
-          s=pathlib.Path('market-navigator-turn34-pre-ship.html').read_text();pathlib.Path('/tmp/mn34.js').write_text('\n'.join(re.findall(r'<script[^>]*>(.*?)</script>',s,re.S)))
+          import re, pathlib
+          s = pathlib.Path('market-navigator-turn34-pre-ship.html').read_text()
+          pathlib.Path('/tmp/mn34.js').write_text('\n'.join(re.findall(r'<script[^>]*>(.*?)</script>', s, re.S)))
           PY
           node --check /tmp/mn34.js
-      - name: Behavioral mathematics and parity proof
+      - name: NOW runtime smoke
         run: |
           npm ci
           npm install --no-save playwright@1.63.0
           npx playwright install --with-deps chromium
           python -m http.server 8123 >/tmp/mn34-http.log 2>&1 &
-          SERVER=$!; trap 'kill $SERVER || true' EXIT; sleep 2
+          SERVER=$!
+          trap 'kill $SERVER || true' EXIT
+          sleep 2
           MARKET_NAVIGATOR_URL=http://127.0.0.1:8123/market-navigator-turn34-pre-ship.html node market-navigator-turn34-qa.mjs
-      - name: Commit only after all proof passes
+      - name: Commit qualified rollback
         run: |
           git config user.name github-actions[bot]
           git config user.email 41898282+github-actions[bot]@users.noreply.github.com
           git add MARKET-NAVIGATOR-MASTER-PLAN.md MARKET-NAVIGATOR-GRAVEYARD.md market-navigator-turn34-pre-ship.html
           git diff --cached --quiet && exit 0
-          git commit -m 'Market Navigator Turn 34: canonical MNChart chartSpec controller'
+          git commit -m 'Market Navigator Turn 34: restore accepted Turn 28 byte-for-byte'
           git fetch origin main
           git rebase origin/main
           git push origin HEAD:main

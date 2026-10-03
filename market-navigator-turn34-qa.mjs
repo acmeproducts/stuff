@@ -1,9 +1,55 @@
-import assert from'node:assert/strict';import{createRequire}from'node:module';const{chromium}=createRequire(import.meta.url)('playwright');
-const u=process.env.MARKET_NAVIGATOR_URL||'http://127.0.0.1:8123/market-navigator-turn34-pre-ship.html',b=await chromium.launch({headless:true}),c=await b.newContext({viewport:{width:1280,height:800}}),p=await c.newPage(),errors=[];p.on('pageerror',e=>errors.push(e.message));p.on('console',m=>{if(m.type()==='error')errors.push(m.text())});await p.route('https://cdn.jsdelivr.net/npm/marked/marked.min.js',r=>r.fulfill({body:"window.marked={parse:s=>s}"}));await p.route('https://cdn.jsdelivr.net/npm/dompurify@3.1.6/dist/purify.min.js',r=>r.fulfill({body:'window.DOMPurify={sanitize:s=>s}'}));
-await p.goto(u,{waitUntil:'networkidle'});await p.waitForFunction(()=>window.__mnShip25?.ready?.()&&window.MNChart&&document.querySelector('#legend [data-id="risk"]'));
-const eq=await p.evaluate(async()=>{let q={target:document.getElementById('nowChart'),root:'risk',series:['risk'],timeHorizon:'5YR',displayMode:'fixed',yAxis:{mode:'auto',y1:null,y2:null},activeSeries:'risk',presentation:{size:'full'}},a=await MNChart.prepare(q),b=await MNChart.prepare({...q,target:document.getElementById('standaloneAnalysis26')});return{a:a.sets.map(s=>s.a.map(p=>[p.t,p.v,p.raw])),b:b.sets.map(s=>s.a.map(p=>[p.t,p.v,p.raw])),ma:a.mode,mb:b.mode}});assert.deepEqual(eq.a,eq.b);assert.equal(eq.ma,eq.mb);
-await p.locator('#legend [data-id="risk"]').click();await p.waitForFunction(()=>window.__mnShip25.nowState()?.root==='risk');let fixed=await p.evaluate(()=>window.__mnShip25.nowState().chart.series.find(x=>x.id==='risk').points.map(x=>x.v));let sel=p.locator('#nowIndexDisplay');assert(await sel.count(),'NOW Fixed/Horizon selector');assert.deepEqual((await sel.locator('option').allTextContents()).map(x=>x.trim()),['Fixed','Horizon']);await sel.selectOption('rebase');await p.waitForTimeout(500);let rebased=await p.evaluate(()=>window.__mnShip25.nowState().chart.series.find(x=>x.id==='risk').points.map(x=>x.v));assert.notDeepEqual(rebased,fixed,'NOW plotted points must change');assert(Math.abs(rebased[0]-100)<1e-8,'NOW Horizon starts 100');await sel.selectOption('fixed');await p.waitForTimeout(300);
-await p.evaluate(()=>window.openStandaloneAnalysis26('risk'));await p.waitForSelector('#standaloneAnalysis26:not(.hidden)');await p.waitForTimeout(300);let ast=await p.evaluate(()=>window.__mn34AnalysisState());assert(ast&&ast.root==='risk','Analyze root/state must be risk');let af=ast.chart.series.find(x=>x.id==='risk').points.map(x=>x.v);let ad=p.locator('#analysisDisplay34');assert(await ad.count(),'Analyze Fixed/Horizon selector');await ad.selectOption('rebase');await p.waitForTimeout(500);ast=await p.evaluate(()=>window.__mn34AnalysisState());let ar=ast.chart.series.find(x=>x.id==='risk').points.map(x=>x.v);assert.notDeepEqual(ar,af,'Analyze plotted points must change');assert(Math.abs(ar[0]-100)<1e-8,'Analyze Horizon starts 100');
-let nowH=await p.evaluate(()=>window.__mnShip25.horizon());let ah=p.locator('#standaloneAnalysis26 [data-analysis-h]').filter({hasText:nowH==='1YR'?'3YR':'1YR'}).first();if(await ah.count()){await ah.click();await p.waitForTimeout(400);assert.equal(await p.evaluate(()=>window.__mnShip25.horizon()),nowH,'Analyze must not mutate NOW horizon')}
-await p.click('#analysisAdd26');await p.waitForSelector('#analysisPicker26:not(.hidden)');let add=p.locator('#analysisPicker26 [data-analysis-add]:not([disabled])').first();if(await add.count()){let id=await add.getAttribute('data-analysis-add');await add.click();await p.waitForTimeout(500);assert((await p.evaluate(()=>window.__mn34AnalysisState().series.length))>=2);let rm=p.locator(`#seriesBar [data-analysis-rm="${id}"]`);if(await rm.count()){await rm.click();await p.waitForTimeout(300)}}
-await p.click('#analysisClose26');await p.waitForFunction(()=>document.getElementById('standaloneAnalysis26').classList.contains('hidden'));assert.equal(await p.evaluate(()=>window.__mnShip25.horizon()),nowH);assert.equal(errors.length,0,errors.join(' | '));console.log('PASS Turn34 canonical MNChart chartSpec + real Fixed/Horizon mathematics + Analyze-local state');await c.close();await b.close();
+import assert from 'node:assert/strict';
+import fs from 'node:fs';
+import { createRequire } from 'node:module';
+const { chromium } = createRequire(import.meta.url)('playwright');
+
+const base = fs.readFileSync('market-navigator-turn28-ship.html');
+const cand = fs.readFileSync('market-navigator-turn34-pre-ship.html');
+assert.deepEqual(cand, base, 'rollback candidate must be byte-identical to accepted Turn28');
+
+const url = process.env.MARKET_NAVIGATOR_URL || 'http://127.0.0.1:8123/market-navigator-turn34-pre-ship.html';
+const browser = await chromium.launch({ headless: true });
+const context = await browser.newContext({ viewport: { width: 1440, height: 900 } });
+const page = await context.newPage();
+const errors = [];
+page.on('pageerror', e => errors.push(e.message));
+page.on('console', m => { if (m.type() === 'error') errors.push(m.text()); });
+await page.route('https://cdn.jsdelivr.net/npm/marked/marked.min.js', r => r.fulfill({ body: "window.marked={parse:s=>s}" }));
+await page.route('https://cdn.jsdelivr.net/npm/dompurify@3.1.6/dist/purify.min.js', r => r.fulfill({ body: 'window.DOMPurify={sanitize:s=>s}' }));
+
+await page.goto(url, { waitUntil: 'networkidle' });
+await page.waitForFunction(() => window.__mnShip25?.ready?.() && document.querySelector('#nowChart'));
+
+const before = await page.evaluate(() => ({
+  canvas: !!document.querySelector('#nowChart'),
+  legend: document.querySelectorAll('#legend [data-id]').length,
+  add: !!document.querySelector('#nowAddSeries'),
+  display: !!document.querySelector('#nowIndexDisplay'),
+  horizon: window.__mnShip25?.horizon?.()
+}));
+assert(before.canvas, 'NOW chart missing');
+assert(before.legend > 0, 'NOW legend missing');
+assert(before.add, 'NOW Add control missing');
+assert(before.display, 'NOW display selector missing');
+
+const currentH = before.horizon;
+const target = currentH === '1YR' ? '3YR' : '1YR';
+const hbtn = page.locator('[data-h]').filter({ hasText: target }).first();
+if (await hbtn.count()) {
+  await hbtn.click();
+  await page.waitForTimeout(350);
+  assert.equal(await page.evaluate(() => window.__mnShip25?.horizon?.()), target, 'NOW horizon interaction failed');
+}
+
+const legend = page.locator('#legend [data-id]:not([disabled])');
+if (await legend.count() > 1) {
+  const id = await legend.nth(1).getAttribute('data-id');
+  await legend.nth(1).click();
+  await page.waitForTimeout(250);
+  assert.equal(await page.evaluate(() => window.__mnShip25?.nowState?.()?.active), id, 'NOW legend activation failed');
+}
+
+assert.equal(errors.length, 0, errors.join(' | '));
+console.log('PASS Turn34 rollback: exact Turn28 bytes + NOW runtime smoke');
+await context.close();
+await browser.close();
