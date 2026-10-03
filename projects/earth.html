@@ -130,7 +130,7 @@
 </div>
 <script>
 'use strict';
-const BUILD = 'M7.3-touchfix 2026-10-03';
+const BUILD = 'M7.4-touchlive 2026-10-03';
 const errBox = document.getElementById('errBox');
 const errLines = document.getElementById('errLines');
 const errTitle = document.getElementById('errTitle');
@@ -264,7 +264,7 @@ async function loadBabylon() {
 })();
 
 function startApp(cdnUrl) {
-  logLine('BOOT', BUILD + ' via ' + cdnUrl.split('/')[2]);
+  logLine('BOOT', BUILD + ' via ' + cdnUrl.split('/')[2] + ' tps:' + (navigator.maxTouchPoints || 0) + (window.matchMedia && window.matchMedia('(pointer: coarse)').matches ? ' coarse' : ''));
   const canvas = document.getElementById('renderCanvas');
   const engine = new BABYLON.Engine(canvas, true, { preserveDrawingBuffer: true, stencil: true });
   const scene = new BABYLON.Scene(engine);
@@ -1451,13 +1451,22 @@ function startApp(cdnUrl) {
     const want = lodForDist(d);
     let t = tiles.get(key);
     if (t) {
-      if (t.lod !== want) { t.lod = want; rebuildMesh(t); }
+      if (t.lod !== want) {
+        t.lod = want;
+        try { rebuildMesh(t); } catch (e) { logLine('TILE', 'lod ' + key + ': ' + (e && e.message ? e.message : String(e))); }
+      }
       return;
     }
     t = { key: key, tx: tx, ty: ty, lod: want, state: 'proc', heights: makeProcHeights(tx, ty), mesh: null, imgTex: null, imgMat: null, biome: null, lcSrc: 'proc', treeMesh: null, grassMesh: null, vegCount: 0 };
-    t.biome = computeProcBiome(t);
     tiles.set(key, t);
-    rebuildMesh(t);
+    // M7.4: a tile-build failure must never abort startup or streaming —
+    // log one line and leave the tile unbuilt (height sampling still works).
+    try {
+      t.biome = computeProcBiome(t);
+      rebuildMesh(t);
+    } catch (e) {
+      logLine('TILE', 'build ' + key + ': ' + (e && e.message ? e.message : String(e)));
+    }
     scatterTile(t);
     queueDl(function() { return fetchElev(t); });
     queueDl(function() { return fetchImagery(t); });
@@ -1589,7 +1598,16 @@ function startApp(cdnUrl) {
   const others = new Map();   // non-stick touch pointers
   const look = { id: -1, lastX: 0, lastY: 0 };
   let pinchD0 = 0, pinchZ0 = 1;
-  let touchActive = false;    // AUTO mode: set on first real touch
+  // M7.4: on touch-first devices (phones/tablets) engage touch controls at
+  // startup so the stick + jump are visible before the first touch; a first
+  // real touch still re-engages on any device (AUTO), and OFF always wins.
+  let touchActive = false;
+  try {
+    touchActive = window.matchMedia ? window.matchMedia('(pointer: coarse)').matches
+      : (('ontouchstart' in window) || (navigator.maxTouchPoints || 0) > 0);
+  } catch (e) {
+    touchActive = ('ontouchstart' in window);
+  }
   let modalOpen = false;
   let sawTouchPtr = false;    // pointer events with pointerType 'touch' seen
   // M7.3 session-once diagnostics: the exported log shows exactly which touch
@@ -1615,16 +1633,29 @@ function startApp(cdnUrl) {
     stickBase.style.display = 'none';
   }
 
+  // M7.4: when touch controls are on but the stick is idle, keep a dim docked
+  // stick ring visible at bottom-left so the control is discoverable; touching
+  // the left half still floats the stick to the thumb at full opacity.
+  function dockStick() {
+    stickBase.style.opacity = '0.35';
+    stickBase.style.display = 'block';
+    stickBase.style.left = '86px';
+    stickBase.style.top = (window.innerHeight - 150) + 'px';
+    moveKnob(0, 0);
+  }
+
   function updateTouchUI() {
     const show = touchOn() && !modalOpen && errBox.style.display !== 'block';
     btnJumpTouch.style.display = (show && !flyMode) ? 'block' : 'none';
     if (!show) releaseAllRoles();
+    else if (stick.id === -1) dockStick();
   }
   touchUIHook = updateTouchUI;
   document.getElementById('btnLog').addEventListener('click', updateTouchUI);
   document.getElementById('btnLogHide').addEventListener('click', updateTouchUI);
 
   function showStickAt(x, y) {
+    stickBase.style.opacity = '0.9';
     stickBase.style.display = 'block';
     stickBase.style.left = x + 'px';
     stickBase.style.top = y + 'px';
@@ -1636,7 +1667,7 @@ function startApp(cdnUrl) {
   // M7.3: unified touch handlers driven by pointer events (primary) with a
   // touch-event fallback for any browser where pointer events misbehave.
   function touchDown(id, x, y) {
-    if (settings.touchCtl === 'off') return;
+    if (settings.touchCtl === 'off') { noteTouch('disabled-in-settings'); return; }
     if (document.pointerLockElement && document.exitPointerLock) {
       // a live pointer lock freezes touch coordinates — always break it on touch
       try { document.exitPointerLock(); } catch (e) {}
@@ -1710,7 +1741,7 @@ function startApp(cdnUrl) {
   function touchUp(id) {
     if (id === stick.id) {
       stick.id = -1; stick.vx = 0; stick.vy = 0;
-      stickBase.style.display = 'none';
+      updateTouchUI(); // re-dock the idle stick ring (M7.4)
     }
     if (others.has(id)) {
       others.delete(id);
@@ -2089,7 +2120,7 @@ function startApp(cdnUrl) {
     }
     prevRotX = camera.rotation.x;
   });
-  window.addEventListener('resize', function() { engine.resize(); });
+  window.addEventListener('resize', function() { engine.resize(); updateTouchUI(); });
 }
 </script>
 </body>
