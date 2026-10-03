@@ -159,6 +159,61 @@ On any stage failure:
 
 No rescue chains on a failing architectural candidate.
 
+
+## Additional controls added after Review Round 1
+
+### Source-control and stage isolation
+- Each stage gets its own candidate file and its own qualification workflow.
+- A failed stage candidate is never patched forward into the next attempt.
+- Only Market Navigator paths may be changed.
+- Before each commit, main must be refreshed fast-forward-only; any conflict stops work.
+- Every stage commit must contain the stage evidence/plan record with the product delta.
+- The owner-facing last-known-good file is never overwritten during development.
+
+### Canonical surface fingerprint
+Before Stage 2, record a fingerprint of the accepted NOW surface:
+- canonical subtree HTML structure;
+- class list and relevant computed-style values;
+- bounding boxes;
+- z-index/stacking relationships;
+- control order and text;
+- canvas plot rectangle;
+- selector/event inventory.
+
+For NOW, any structural or style fingerprint change is release-blocking unless the owner explicitly approved that exact visible change.
+
+### Deterministic visual comparison
+Visual qualification uses fixed evidence data and fixed fonts/environment. Dynamic canvas/date areas may only be masked when the underlying resolved arrays and plot geometry are independently compared. No mask may cover chart chrome, controls, legend, footer, modal edges, or navigation.
+
+### Adversarial state isolation
+Tests must prove the controller does not secretly depend on shared globals:
+- freeze or proxy NOW state while Analyze changes;
+- mutate Analyze rapidly while asserting NOW state remains byte-for-byte unchanged;
+- run both instances concurrently with different roots/horizons/display modes;
+- destroy/recreate Analyze repeatedly and assert no listeners/state leak;
+- rapid horizon changes, Add while data is resolving, and navigation to Library while Analyze is loading.
+
+### Clone safety
+Analyze may clone only the canonical chart subtree. The clone must:
+- remap IDs or use root-scoped roles so there are no duplicate document IDs;
+- use the same CSS rules, not Analyze-specific copies;
+- use the same controller event binding;
+- contain no consumer-name branches in chart mathematics/state transitions;
+- prove that identical chartSpec inputs resolve to identical datasets in NOW and Analyze.
+
+### Library independence proof
+A class toggle is not enough. Qualification must prove:
+- Library receives pointer/keyboard input while Analyze is parked;
+- Analyze has no visible pixels or active hit targets over Library;
+- Library scrolling, analysis selection, Plain/Standard/Technical and composer controls work;
+- returning to NOW restores Analyze without reinitializing its chart state.
+
+### Batch Add atomicity proof
+Tests must stage selections in at least three tabs, change search text, cancel once, close with X once, then apply with OK once. Before OK, chart state must be unchanged. After OK, all and only staged eligible series appear once in deterministic order.
+
+### Performance/lifecycle guard
+Create/update/resize/destroy cycles are repeated at least 25 times in browser qualification. Listener counts, instance counts and DOM node counts must return to baseline after destroy. No release if the controller leaks instance state or event handlers.
+
 ## Non-goals
 No chart redesign, index-math change, Dashboard work, Health/source change, Library redesign, AI change, or unrelated cleanup.
 
@@ -172,4 +227,28 @@ Provide:
 - owner qualification required before promotion
 
 ## Review log
-Pending manager and red-team review.
+
+### Round 1 — Manager review: NOT CLEARED
+Findings:
+1. The plan did not define stage-level source-control isolation or prevent another rescue-patch chain.
+2. "Pixel/geometry" was not specific enough to prevent masking or screenshot-only false confidence.
+3. Clone safety, duplicate IDs and simultaneous-instance lifecycle were not explicitly controlled.
+4. Library independence was stated as behavior but not tested at input/hit-target level.
+5. There was no stress/race/leak gate.
+
+Required changes were added under Additional controls after Review Round 1.
+
+### Round 1 — Red-team review: NOT CLEARED
+Attack paths identified:
+1. A candidate could pass screenshots while using the wrong data or masking meaningful regions.
+2. A controller could still read/write globals and appear isolated under ordinary click tests.
+3. Analyze could be a visually similar clone with duplicate IDs, divergent handlers or consumer-specific branches.
+4. Batch Add could mutate state before OK yet still end with the expected final list.
+5. Parking Analyze could hide pixels while leaving an invisible layer intercepting Library input.
+6. Repeated create/destroy or rapid async actions could expose leaks and races missed by steady-state tests.
+
+Countermeasures were added: deterministic visual fixtures, analytical-array comparison, global-state proxies, clone/ID rules, atomic Add assertions, hit-target checks, and lifecycle/race stress.
+
+### Round 1 disposition
+Plan revised. Proceed to Manager Review Round 2.
+
