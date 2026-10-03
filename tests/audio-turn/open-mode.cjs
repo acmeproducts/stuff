@@ -20,6 +20,36 @@ assert.ok((await events(page,'transcript-rejected')).some(d=>d.reason==='echo'))
  assert.equal((await events(page,'stt-submit-resumed')).filter(d=>d.outcome==='ok').length,1);
  assert.equal(await page.locator('#audio-test-controls').count(),0,'old experiment removed');
 });
+test('open mode: read-aloud stays on while the North keyboard opens and both sides talk',async({page})=>{
+ await page.evaluate(()=>{window.ttsLog=[];speechSynthesis.speak=u=>{window.ttsLog.push(u.text);setTimeout(()=>{u.onstart&&u.onstart();setTimeout(()=>u.onend&&u.onend(),20)},10)}});
+ const s=await openRoom(page,'TtsStays');
+ await page.locator('#strip-north .tts').click();
+ assert.equal(await page.locator('#strip-north .tts').getAttribute('data-on'),'true');
+ await page.locator('#in-north').focus();
+ await page.waitForFunction(()=>INPUT.owner==='north'&&INPUT.mode==='kb');
+ assert.equal(await page.locator('#strip-north .tts').getAttribute('data-on'),'true','button stays on after the North keyboard opens');
+ final(s.south,'hello friend',.93);await settled(page,1);
+ await page.waitForFunction(()=>window.ttsLog.length===1,null,{timeout:4000});
+ assert.equal(await page.locator('#strip-north .tts').getAttribute('data-on'),'true','button stays on after a message is read');
+ await send(page,'south','second message');await settled(page,2);
+ await page.waitForFunction(()=>window.ttsLog.length===2,null,{timeout:4000});
+ await page.locator('#strip-south .tts').click();
+ await page.locator('#in-north').focus();await page.waitForFunction(()=>INPUT.owner==='north'&&INPUT.mode==='kb');
+ await send(page,'north','สวัสดีครับ');await settled(page,3);
+ await page.waitForFunction(()=>window.ttsLog.length===3,null,{timeout:4000});
+ for(const side of ['south','north'])assert.equal(await page.locator('#strip-'+side+' .tts').getAttribute('data-on'),'true','button stays on: '+side);
+});
+test('open mode: opening the North keyboard does not cut read-aloud that is playing',async({page})=>{
+ await page.evaluate(()=>{window.ttsLog=[];window.cancels=0;const c=speechSynthesis.cancel.bind(speechSynthesis);speechSynthesis.cancel=function(){window.cancels++;return c()};speechSynthesis.speak=u=>{window.ttsLog.push(u.text);setTimeout(()=>u.onstart&&u.onstart(),10)}});
+ const s=await openRoom(page,'TtsMid');
+ await page.locator('#strip-north .tts').click();
+ final(s.south,'hello friend',.93);await settled(page,1);
+ await page.waitForFunction(()=>window.ttsLog.length===1&&audioTurn.state().phase==='playing');
+ const before=await page.evaluate(()=>window.cancels);
+ await page.locator('#in-north').focus();await page.waitForFunction(()=>INPUT.owner==='north'&&INPUT.mode==='kb');
+ assert.equal(await page.evaluate(()=>audioTurn.state().phase),'playing','read-aloud still playing after the North keyboard opens');
+ assert.equal(await page.evaluate(()=>window.cancels),before,'keyboard open did not cancel speech');
+});
 test('open mode: mute, typing keeps mics, portal closes and reopens them, unsure goes to compose',async({page})=>{
  const s=await openRoom(page,'Mute');
  await page.locator('#strip-south .micbtn').click();await page.waitForFunction(()=>!mic.south.on&&mic.north.on);

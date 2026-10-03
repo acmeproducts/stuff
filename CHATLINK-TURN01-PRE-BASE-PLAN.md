@@ -550,3 +550,15 @@ Recorded, not scheduled.
 2. **Malay is treated as Indonesian.** Make Malay a separate, distinct language. Both languages are needed.
 3. **Keyboard coverage review.** Audit every supported language and make coverage full and complete. Start with Vietnamese, Indonesian and Khmer (Cambodian).
 4. **TTS turns off when the keyboard is extended for North.** When both sides are talking, TTS switches off even though it was on beforehand. It must stay on.
+
+### chat-test: backlog item 4, TTS cut when the keyboard opens (2026-10-03)
+
+**Owner report.** With the keyboard open on North and both sides talking, read-aloud turns off though it was on.
+
+**Cause (reproduced in the lab).** Opening a keyboard runs the input teardown, which cancelled any speech still playing. In open mode that cut the read-aloud mid-sentence. The speaker button state was never the problem.
+
+**Change.** In open mode, a keyboard or mic handover no longer cancels speech. Room switch, closing the portal and the other lifecycle events still do. Ask mode behaves as before.
+
+**Check added first.** "open mode: opening the North keyboard does not cut read-aloud that is playing" failed before the change (phase `idle` instead of `playing`) and passes after. A second check confirms the speaker buttons stay on across keyboard opens and messages from both sides.
+
+**Gates (lab).** Open mode 36/36. Ask mode 33/33. Controller 20/20. Keyboard 32/32. **Not verified:** a real phone with the real speech engine.
