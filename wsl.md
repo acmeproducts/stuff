@@ -84,3 +84,4 @@ Write **wsl.html Chunk 1 (a focused patch; wsl.html is 33 KB, so whole-file writ
 | Date | Tab | Result | What | Commit |
 |---|---|---|---|---|
 | 2026-10-03 10:05 | wsl.html | built wsl.html | We mistakenly targeted a non-existent snow1.html file and hit model timeouts; the fix is to write directly to wsl.html (33 KB) with the owne | b0e9ab1 |
+| 2026-10-03 10:09 | wsl.html | failed | The AI account is out of credit or at its spending limit. |  |
