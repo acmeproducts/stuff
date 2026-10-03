@@ -1,4 +1,3 @@
-<plan>
 | Date | Stage | What happened |
 |---|---|---|
 | 2026-09-20 | DEFINE | Refined controls to four buttons (RESCUE/BACK/JUMP/FRONT); removed all automatic deadpool detection; rescue usable anytime; jump supports repeated taps for extra height; timer pauses in RESCUE_EDIT. |
@@ -14,10 +13,11 @@
 | 2026-10-01 | DELTA | Owner confirmed snow1.html baseline exists and requested high-level delta list (max 10 items) between wsl.html (reference) and snow1.html (target). Compiled 10 major system groups for selective porting. |
 | 2026-10-01 | SELECT | Owner selected items 1, 8, 9, and 10 for porting to snow1.html: (1) Multi-Track Drawing System, (8) Scoring & Persistence, (9) Rescue System, (10) Mobile UX Suite. Items 2-7 excluded for this sprint. |
 | 2026-10-01 | PIVOT | Owner rejected fixed button bar (clunky, real-estate waste). Requests: gesture-based controls, revert to snow-v1 simplicity (physics/background), new Style Score metric based on average track margin ahead of cart. Updated sprint scope below. |
+| 2026-10-03 | CORRECTION | Plan cleanup after repeated "Unexpected output path snow1.html" failures. Facts corrected: there is no snow1.html (the file is snow-v1.html, reference only); the build target is wsl.html; wsl.html is 33 KB, not >400 KB, so size is not the cause of the 8-minute timeouts (slow/stalled model calls were). Commit 193798a is the tab named 193798a, not a missing file. Earlier rows are left as written (history); owner decisions are unchanged. |
 
-# WSL — Master Plan (Active Target: snow1.html)
+# WSL — Master Plan (Active Target: wsl.html)
 
-Single-file mobile-first HTML app. Baseline shifting to **snow1.html** using current wsl.html as the authoritative reference catalog.
+Single-file mobile-first HTML app. Build target is **wsl.html** (the project file DevStream writes). **snow-v1.html** (21 KB) is the reference for the simple physics/background look to revert to. There is no snow1.html.
 
 ## Sprint Pivot: "Gestures & Style" (Owner Direction)
 **Date:** 2026-10-01
@@ -65,12 +65,17 @@ At game over:
 **UX:** Mini "Flow" bar appears under timer (teal color) filling as margin grows; turns gold when >1 screen ahead.
 
 ## Immediate Next Step
-Write **snow1.html Chunk 1 (<90KB):**
+Write **wsl.html Chunk 1 (a focused patch; wsl.html is 33 KB, so whole-file writes are fine):**
 - Skeleton HTML/CSS (no button bar, safe-area support).
 - Canvas setup with gesture recognizer (tap/swipe/long-press discrimination).
 - Multi-Track drawing core (arc-length, nearest-point).
 - Basic snow-v1 style background (static stars, simple snow overlay).
 - Minimal HUD: Score | Flow Bar | Timer (no buttons).
 
-*Blocked until executed:* Chunk 2 will add Rescue long-press logic and Flow telemetry; Chunk 3 adds persistence and end-game stats.
-</plan>
+*Next after Chunk 1:* Chunk 2 will add Rescue long-press logic and Flow telemetry; Chunk 3 adds persistence and end-game stats.
+## GRAVEYARD (rejected or disproven — do not bring back without owner approval)
+- Fixed 4-button bottom control bar (RESCUE/BACK/JUMP/FRONT) — rejected by owner (clunky, wastes space).
+- Automatic deadpool detection — removed (2026-09-20).
+- **snow1.html as a build target** — never existed; typo/hallucination for snow-v1.html. Disproven 2026-10-03.
+- "wsl.html is over 400 KB so full-file writes time out" — false (33 KB). Disproven 2026-10-03.
+- "Commit 193798a unavailable" — false; it is a tab name. Disproven 2026-10-03.
