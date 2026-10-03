@@ -6,8 +6,8 @@ Deploy target: `https://acmeproducts.github.io/stuff/devstream.html`
 Test target: `https://acmeproducts.github.io/stuff/devstream-test.html`
 
 ## Status
-- Current release: v1.0 b53 on devstream-test.html (2026-10-02)
-- Stage: TEST (b53)
+- Current release: v1.0 b56 on devstream-test.html (2026-10-03)
+- Stage: TEST (b56)
 
 ## Release Rules (inherited, proven)
 1. Mobile-first. All diagnostics in-app. No DevTools ever.
@@ -255,6 +255,91 @@ b39 incorrectly changed stationary hold into context-menu activation. Devstream 
 ## Graveyard
 - **G-DS-13 — Hold opens context menu:** rejected; donor behavior is double-tap context, hold-to-drag.
 - **G-DS-14 — Legacy generic #tabContext button styling:** rejected; it corrupts the donor context-menu appearance.
+
+---
+
+# 2026-10-03 — b56 Snowman cleanup: what it took, and what the app now prevents
+
+## Owner report (screenshot of Snowman · wsl.html)
+Reset and Send buttons unreadable; tab dot yellow while the status said Stalled in red; coach suggestion chips gone; repeated vague "I couldn't finish that step" messages; plan suspected poisoned. "Use this project as the example of what it takes to clean this up."
+
+## Findings (Snowman, evidence from repo)
+1. **Plan named a file that does not exist.** wsl.md said "Active Target: snow1.html" and "snow1.html baseline exists". The repo has `snow-v1.html` and `wsl.html`; there is no `snow1.html`. The project builds `wsl.html`. Every run the model obeyed the plan, wrote `snow1.html`, and the app refused ("Unexpected output path") — a loop no retry could fix.
+2. **The plan file itself was wrapped in `<plan>…</plan>` tags** (the model echoed the wrapper the app puts around the plan in its prompt). The plan-update safety check requires the new plan to start with `#`, so every plan update that copied the wrapper failed validation (16 recorded "Plan checkpoint failed validation" failures).
+3. **Plan carried false facts from earlier failures**: "wsl.html > 400 KB" (it is 33 KB) and "previous commit 193798a unavailable". Every run was told these, so it kept planning around them instead of building.
+4. **Stuck state.** The tab was marked executing from 08:27 with nothing running (stalled); a pending owner message sat "waiting" for an hour.
+5. **Five identical vague failure messages** in the chat hid the real reason.
+6. **Button text contrast:** primary buttons used a fixed dark text colour; on the Warm preset the accent is dark teal → unreadable.
+7. **Three different status vocabularies:** tab dot (yellow, "executing"), strip (red, "Stalled"), header pill ("Working").
+8. **Coach chips were hidden** whenever the strip showed anything (my b53 regression).
+
+## Fixed in the app
+- Primary-button text colour is computed from the accent colour (readable on every preset).
+- One status function: a stalled run is red everywhere (tab dot, project dot, header pill "Stalled", strip).
+- Suggestion chips always visible again (only the duplicate "run" chip stays removed — the strip has the button).
+- Stalled: one **↻ Retry** button (resets the stuck state and restarts) instead of Reset-then-retry.
+- Wrong target file: the agent is told the only writable files are the project's build file and plan file, and that a plan naming anything else is wrong. If a reply still targets another file, the app re-asks the model once with the correction before failing.
+- Plan updates: wrapper tags are stripped before validation and saving, and the check now accepts a plan starting with a heading or the ledger table.
+- Identical consecutive failures are not appended again; failure text in coach mode now says the real reason in plain words (out of credit, timed out, plan points at the wrong file, …).
+
+## Fixed in the project data
+- wsl.md corrected: stray `<plan>` wrapper tags removed; Active Target = `wsl.html`; `snow-v1.html` recorded as the simplicity reference; false size/commit claims removed; graveyard and correction entry added. Owner decisions (selected features, gesture scheme, rejected button bar, Flow score) preserved.
+
+## Acceptance
+- **DS-B56-1:** primary button text meets contrast on dark, light, high-contrast and warm presets.
+- **DS-B56-2:** a stalled tab shows red/Stalled in the dot, pill and strip.
+- **DS-B56-3:** suggestion chips visible in every state except frozen.
+- **DS-B56-4:** stalled → Retry resets and restarts in one tap.
+- **DS-B56-5:** a reply targeting a non-project file triggers one automatic corrected re-ask.
+- **DS-B56-7:** a plan update wrapped in plan tags is cleaned and passes the safety check.
+- **DS-B56-6:** repeated identical failures add no new chat messages; coach failure text states the cause.
+
+---
+
+# 2026-10-03 — b55 live progress in the task strip
+
+## Owner report
+While a task ran, the strip only said "Working on your idea…" and an elapsed-seconds counter. Nothing said what was happening or whether anything was moving.
+
+## Implemented
+- **Real activity sentence** in the strip while a run is working: Saving your message → Reading the plan and code → Updating the plan before changing code → Asking <model> (size of context) → waiting for the first words / thinking (reasoning size) / writing the reply (characters received so far) → Reading the model's answer → Applying edits → Saving. Coach mode uses the same steps in friendlier words without model names or numbers.
+- **Progress bar** under the steps, driven by those phases; while the model writes it advances with the characters actually received.
+- **"Last activity" line**: elapsed time plus seconds since anything last happened; turns red after 45 s of silence.
+- Streaming progress is sent from the worker as a lightweight signal, not written to the diagnostic log.
+- Static "Working on your idea…" removed.
+
+## Acceptance
+- **DS-B55-1:** the activity sentence changes as the run moves through its phases.
+- **DS-B55-2:** while a model streams, the sentence and bar reflect characters actually received.
+- **DS-B55-3:** the strip shows seconds since last activity and flags 45 s of silence.
+- **DS-B55-4:** coach mode shows friendly step text, never a fixed message.
+- **DS-B55-5:** stream progress does not add entries to the persistent log.
+
+---
+
+# 2026-10-03 — b54 one active tab per project + goals modal when no plan
+
+## Owner directive
+Failed-tab blockers were a workaround for a deeper problem: several tabs in one project could run, fail, queue and collide. Allow only **one active tab per project**. The active tab is always first and is the tab shown when the project is selected. All other tabs are frozen, for reference only. The active tab sees all project activity across tabs for context. If a project has no plan, ask the owner for the goals in a modal.
+
+## Implemented
+- **Active tab:** each project stores `activeTab`. It is always first in the tab row and is what opens when a project is selected. Existing projects migrate automatically (the running tab, else the first tab, becomes active; the rest are frozen). A new tab becomes active, unless the current active tab is mid-run, in which case creation is refused with a message.
+- **Frozen tabs:** shown with a plain "‖" glyph instead of a status dot, never red, never counted as errors. Opening one shows its chat read-only; the compose box is replaced by "Reference only — Make active". Sending and running from a frozen tab are blocked. **Make active** (also in the tab menu) swaps the baton and is refused while the current active tab is saving, queued or running.
+- **Project context:** a run on the active tab includes a short digest of the latest messages from the project's other tabs, so the active tab sees activity across tabs.
+- **Removed:** the Resolve blocker menu/submenu and the strip's Resolve button, and the disposition code. A failure is simply the active tab's current run: Retry or Stop. Older recorded dispositions are ignored.
+- **No-plan modal:** before a run, if the project's plan file is missing or empty, a modal asks "Enter a brief description of the goals and objectives of this application". Saving writes a starter plan containing that text (written by the app, no model call) and the run continues. Cancel leaves the message saved and the run not started (Start asks again). This replaces the silent auto-seed from the earlier fix.
+
+## Acceptance
+- **DS-B54-1:** the active tab is first and is what opens when a project is selected.
+- **DS-B54-2:** only the active tab can send/run; frozen tabs are read-only with Make active.
+- **DS-B54-3:** Make active is refused while the active tab is working.
+- **DS-B54-4:** frozen tabs are never red; project error counts include only the active tab.
+- **DS-B54-5:** no Resolve blocker UI remains.
+- **DS-B54-6:** missing/empty plan shows the goals modal; Save creates the plan and continues; Cancel does not run.
+- **DS-B54-7:** existing plans are never touched.
+
+## Owner style rule (2026-10-03)
+No cartoon/emoji icons anywhere in the UI; plain text glyphs only. Applied in b54: attach `+`, documents `≡`, images `▣`, web toggle plain text, suggestion chips text only, agent reply markers `▸ ✓ !`, password reveal `show/hide`, frozen tab `‖`.
 
 ---
 

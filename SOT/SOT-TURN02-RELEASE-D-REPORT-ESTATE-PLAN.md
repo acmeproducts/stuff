@@ -179,3 +179,9 @@ Freshness: Connected describes transport only. Separate evidence state Current /
 - EXCESS is purple, DEFICIT stays red (bars and legend).
 - Nested frames allow clipboard-write.
 **Qualification:** `qualify-release-d-report-estate.mjs` rewritten for the Waterfall and extended (geometry, colors, chip behavior, copy, cache reuse, long-name truncation on mobile).
+
+## 2026-10-03 — Owner review 2: two charts only; Estate cut-off contiguous
+
+**Evidence (owner screenshots):** the Waterfall repeated the same numbers across many bars; the Estate red cut-off was scattered when sorted by size descending.
+**Change:** Report = two bar charts. Chart 1 SCANNED: UNIQUE / KEEP / DEFICIT / EXCESS, each with files · size | %files · %size, DEFICIT carved from the end of the retained bar beyond TARGET; rows and bar segments open just that section in Search (DEFICIT = retained files in the roots beyond TARGET). Chart 2 TARGET = 100%: IN PLAY / LANDED (both open Search) and AVAILABLE or DEFICIT as % of TARGET. Estate cut-off is now counted cumulatively in the order shown, so the red block is always one contiguous run at the bottom. Subtabs: Summary / Estate.
+**Qualification:** `qualify-release-d-report-estate.mjs` rewritten for the two charts (numbers, geometry, colors, clicks, contiguous cut-off under six sort orders).
