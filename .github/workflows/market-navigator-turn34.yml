@@ -1,13 +1,8 @@
 name: Market Navigator Turn 34 Qualify
 on:
   push:
-    paths:
-      - 'market-navigator-turn34-governance.py'
-      - 'market-navigator-build-turn34.py'
-      - 'market-navigator-turn34-qa.mjs'
-      - '.github/workflows/market-navigator-turn34.yml'
-permissions:
-  contents: write
+    paths: ['market-navigator-turn34-governance.py','market-navigator-build-turn34.py','market-navigator-turn34-qa.mjs','.github/workflows/market-navigator-turn34.yml']
+permissions: {contents: write}
 jobs:
   qualify:
     runs-on: ubuntu-latest
@@ -17,23 +12,23 @@ jobs:
         with: {python-version: '3.12'}
       - uses: actions/setup-node@v4
         with: {node-version: '22'}
-      - name: Update governance first
+      - name: Governance
         run: python market-navigator-turn34-governance.py
-      - name: Build correction
+      - name: Build from accepted Turn 28
         run: python market-navigator-build-turn34.py
-      - name: Static architecture gates
+      - name: Architecture proof
         run: |
           python - <<'PY'
           from pathlib import Path
           s=Path('market-navigator-turn34-pre-ship.html').read_text(); b=Path('market-navigator-turn28-ship.html').read_text()
           gates={
-            'one physical chart':s.count('id="chartSurface33"')==1 and s.count('id="nowChart"')==1,
-            'one legend':s.count('id="legend"')==1,
-            'no reparent': 'appendChild(surface)' not in s and 'append(surface)' not in s,
-            'selected-root isolation':'TURN33_ANALYZE_ROOT_NOT_ISOLATED' in s,
-            'interactive overlay contract':'data-contract="interactive-in-place-analyze"' in s,
-            'no rejected donors':all(x not in s for x in ['chartSurface31','TURN32_TRUE_SINGLE_SURFACE','dashboardView29']),
-            'persistent evidence unchanged':s.count('derived-indices-persistent-v1.json')==b.count('derived-indices-persistent-v1.json'),
+            'one controller definition':s.count('const MNChart34={')==1,
+            'NOW exact call string':"MNChart34.open({target:'now',root:k,series:ids,horizon:S.h,display:S.indexDisplay||'fixed',active:S.nowActive})" in s,
+            'Analyze exact call string':"MNChart34.open({target:'analysis',root:S.analysisRoot,series:[...S.analysisSeries],horizon:h,display,active:S.analysisActive})" in s,
+            'duplicate standalone preparation removed':'async function sourceSetStandalone26' not in s,
+            'no state-impersonation shim':all(x not in s for x in ['S.turn33Analysis','surfaceMode32','chartSurface31','TURN32_TRUE_SINGLE_SURFACE']),
+            'persistent evidence path unchanged':s.count('derived-indices-persistent-v1.json')==b.count('derived-indices-persistent-v1.json'),
+            'new contract marker':'MNChart34-one-callable-controller' in s,
           }
           for k,v in gates.items(): print(('PASS' if v else 'FAIL'),k)
           assert all(gates.values())
@@ -42,39 +37,22 @@ jobs:
         run: |
           python - <<'PY'
           import re,pathlib
-          s=pathlib.Path('market-navigator-turn34-pre-ship.html').read_text(); pathlib.Path('/tmp/mn34.js').write_text('\n'.join(re.findall(r'<script[^>]*>(.*?)</script>',s,re.S)))
+          s=pathlib.Path('market-navigator-turn34-pre-ship.html').read_text();pathlib.Path('/tmp/mn34.js').write_text('\n'.join(re.findall(r'<script[^>]*>(.*?)</script>',s,re.S)))
           PY
           node --check /tmp/mn34.js
-      - name: Browser interaction qualification
+      - name: Behavioral mathematics and parity proof
         run: |
           npm ci
           npm install --no-save playwright@1.63.0
           npx playwright install --with-deps chromium
           python -m http.server 8123 >/tmp/mn34-http.log 2>&1 &
-          SERVER=$!
-          trap 'kill $SERVER || true' EXIT
-          sleep 2
+          SERVER=$!; trap 'kill $SERVER || true' EXIT; sleep 2
           MARKET_NAVIGATOR_URL=http://127.0.0.1:8123/market-navigator-turn34-pre-ship.html node market-navigator-turn34-qa.mjs
-      - name: Mark Turn 34 qualified
-        run: |
-          python - <<'PY'
-          from pathlib import Path
-          p=Path('MARKET-NAVIGATOR-MASTER-PLAN.md'); s=p.read_text()
-          old='### Current disposition — BUILDING, NOT AT PARITY'
-          new='### Current disposition — QUALIFIED / ANALYZE AT NOW BEHAVIORAL PARITY'
-          assert old in s
-          s=s.replace(old,new,1)
-          marker='### Baseline and scope'
-          note='''### Qualification result — PASS\n- Turn 34 passed the release-blocking browser interaction gate: selected-series isolation, horizon switching, Fixed/Horizon, Add, eligible Y1+Y2, source explainer, crosshair/tooltip, comparison removal, More actions, close, exact NOW-state restoration, and zero page/console errors.\n- Static architecture and JavaScript syntax gates also passed.\n- Candidate: `market-navigator-turn34-pre-ship.html`.\n\n'''
-          assert marker in s
-          s=s.replace(marker,note+marker,1)
-          p.write_text(s)
-          PY
-      - name: Commit qualified candidate and governance
+      - name: Commit only after all proof passes
         run: |
           git config user.name github-actions[bot]
           git config user.email 41898282+github-actions[bot]@users.noreply.github.com
           git add MARKET-NAVIGATOR-MASTER-PLAN.md MARKET-NAVIGATOR-GRAVEYARD.md market-navigator-turn34-pre-ship.html
           git diff --cached --quiet && exit 0
-          git commit -m 'Market Navigator Turn 34: qualify interactive Analyze recovery'
+          git commit -m 'Market Navigator Turn 34: one callable chart controller'
           git push
