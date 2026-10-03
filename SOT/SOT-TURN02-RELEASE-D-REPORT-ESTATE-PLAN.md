@@ -185,3 +185,9 @@ Freshness: Connected describes transport only. Separate evidence state Current /
 **Evidence (owner screenshots):** the Waterfall repeated the same numbers across many bars; the Estate red cut-off was scattered when sorted by size descending.
 **Change:** Report = two bar charts. Chart 1 SCANNED: UNIQUE / KEEP / DEFICIT / EXCESS, each with files · size | %files · %size, DEFICIT carved from the end of the retained bar beyond TARGET; rows and bar segments open just that section in Search (DEFICIT = retained files in the roots beyond TARGET). Chart 2 TARGET = 100%: IN PLAY / LANDED (both open Search) and AVAILABLE or DEFICIT as % of TARGET. Estate cut-off is now counted cumulatively in the order shown, so the red block is always one contiguous run at the bottom. Subtabs: Summary / Estate.
 **Qualification:** `qualify-release-d-report-estate.mjs` rewritten for the two charts (numbers, geometry, colors, clicks, contiguous cut-off under six sort orders).
+
+## 2026-10-03 — Owner review 3: no tables; details in a popup per section
+
+**Evidence (owner screenshot):** the tables under the two charts repeated what a section popup is specified to show.
+**Change:** the two charts keep only the bar and a row of tappable section chips (UNIQUE / KEEP / DEFICIT / EXCESS; IN PLAY / LANDED / DEFICIT or AVAILABLE). Tapping a bar segment or chip opens the popup with files · size · %files · %size (chart 2: files · size · % of TARGET). The popup offers "Open in Search" for sections that have a file scope (UNIQUE, KEEP, DEFICIT, EXCESS, IN PLAY, LANDED).
+**Qualification:** `qualify-release-d-report-estate.mjs` reads every popup and opens each section's Search.

@@ -6,8 +6,8 @@ Deploy target: `https://acmeproducts.github.io/stuff/devstream.html`
 Test target: `https://acmeproducts.github.io/stuff/devstream-test.html`
 
 ## Status
-- Current release: v1.0 b56 on devstream-test.html (2026-10-03)
-- Stage: TEST (b56)
+- Current release: v1.0 b57 on devstream-test.html (2026-10-03)
+- Stage: TEST (b57)
 
 ## Release Rules (inherited, proven)
 1. Mobile-first. All diagnostics in-app. No DevTools ever.
@@ -255,6 +255,33 @@ b39 incorrectly changed stationary hold into context-menu activation. Devstream 
 ## Graveyard
 - **G-DS-13 — Hold opens context menu:** rejected; donor behavior is double-tap context, hold-to-drag.
 - **G-DS-14 — Legacy generic #tabContext button styling:** rejected; it corrupts the donor context-menu appearance.
+
+---
+
+# 2026-10-03 — b57 Release 1: simplify — one message = one run; Working / Done / Failed only
+
+## Owner directive
+The screen was non-functional and too complex: runs stuck as "Stalled", messages "waiting", failure bubbles, several status words and colours. Simplify (owner approved the proposal: "go").
+
+## Model
+- A message starts a run immediately. A run is **Working**, **Done** or **Failed** — nothing else is shown.
+- **Heartbeat:** a running tab stamps a heartbeat in the shared status file every minute. Any device that sees a "running" tab with no local run and no heartbeat for 3 minutes marks it **Failed: interrupted** automatically (checked at load and every 20 s). There is no manual Stalled/Reset step.
+- **One bar above compose**, only when something is running or needs action: Working = activity sentence + progress bar + Stop; Failed = plain reason + **Run again**; Not started = **Run**. Nothing is shown when idle or done. The four-step chip row and the Done strip are removed.
+- **Three colours from the last run** everywhere (green done, amber working, red failed; grey for frozen/idle).
+- Pending messages are labelled "running" or "not run yet" (no "waiting"/"queued").
+- **The plan is a log the app writes.** Code builds no longer make a second model call to rewrite the plan. After each build the app appends one row (date, tab, result, what, commit) to a "RUN LOG" table at the end of the plan; failures are appended the same way. The model only rewrites the plan when the owner explicitly asks it to edit the plan.
+- Stuck Snowman/earth runs clear themselves on load as "interrupted"; no data hand-editing.
+
+## Removed from view
+Stalled/Reset, queued/waiting labels, the lifecycle chips, the Done strip, the plan-check model call and its failure class ("Plan checkpoint failed validation", "Plan read-back failed").
+
+## Acceptance
+- **DS-B57-1:** a running tab with a fresh heartbeat or a local run is never marked interrupted.
+- **DS-B57-2:** a running tab with no local run and a heartbeat older than 3 minutes becomes Failed: interrupted automatically.
+- **DS-B57-3:** the bar appears only for running / failed / not started and offers exactly one action.
+- **DS-B57-4:** a successful code build appends one run-log row to the plan and makes no plan-rewrite model call.
+- **DS-B57-5:** a failed run appends a short failure row to the plan; logging failures never fail the run.
+- **DS-B57-6:** pending user messages read "running" or "not run yet".
 
 ---
 

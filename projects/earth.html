@@ -6,7 +6,7 @@
 <title>Earth Explorer</title>
 <style>
   html, body { margin:0; padding:0; width:100%; height:100%; overflow:hidden; background:#000; touch-action:none; user-select:none; -webkit-user-select:none; }
-  #renderCanvas { width:100%; height:100%; outline:none; display:block; }
+  #renderCanvas { width:100%; height:100%; outline:none; display:block; touch-action:none; }
   #hud { position:absolute; top:0; left:0; width:100%; height:100%; pointer-events:none; }
   #topHud { position:absolute; top:8px; left:8px; color:#0f0; background:rgba(0,0,0,0.45); font-family:monospace; font-size:15px; text-shadow:1px 1px 0 #000; line-height:1.45; padding:6px 8px; border-radius:4px; max-width:92vw; }
   #errBox { position:absolute; bottom:8px; left:8px; right:8px; color:#f66; background:rgba(0,0,0,0.88); font-family:monospace; font-size:13px; padding:8px; border-radius:4px; max-height:62%; display:none; pointer-events:auto; z-index:12; }
@@ -130,7 +130,7 @@
 </div>
 <script>
 'use strict';
-const BUILD = 'M7.2-vegfx 2026-10-02';
+const BUILD = 'M7.4-touchlive 2026-10-03';
 const errBox = document.getElementById('errBox');
 const errLines = document.getElementById('errLines');
 const errTitle = document.getElementById('errTitle');
@@ -264,7 +264,7 @@ async function loadBabylon() {
 })();
 
 function startApp(cdnUrl) {
-  logLine('BOOT', BUILD + ' via ' + cdnUrl.split('/')[2]);
+  logLine('BOOT', BUILD + ' via ' + cdnUrl.split('/')[2] + ' tps:' + (navigator.maxTouchPoints || 0) + (window.matchMedia && window.matchMedia('(pointer: coarse)').matches ? ' coarse' : ''));
   const canvas = document.getElementById('renderCanvas');
   const engine = new BABYLON.Engine(canvas, true, { preserveDrawingBuffer: true, stencil: true });
   const scene = new BABYLON.Scene(engine);
@@ -336,7 +336,13 @@ function startApp(cdnUrl) {
   } catch (e) {}
 
   canvas.addEventListener('contextmenu', function(e) { e.preventDefault(); });
+  // M7.3: pointer lock is a desktop-mouse feature. A touch tap also fires a
+  // synthetic click — if that engages pointer lock (Chrome/Android supports it),
+  // touch pointermove coordinates freeze and the sticks go dead. Guard hard.
+  let lastDownType = 'mouse';
+  canvas.addEventListener('pointerdown', function(e) { lastDownType = e.pointerType || 'mouse'; }, true);
   canvas.addEventListener('click', function() {
+    if (lastDownType === 'touch') return;
     if (!document.pointerLockElement && canvas.requestPointerLock) {
       try {
         const p = canvas.requestPointerLock();
@@ -1445,13 +1451,22 @@ function startApp(cdnUrl) {
     const want = lodForDist(d);
     let t = tiles.get(key);
     if (t) {
-      if (t.lod !== want) { t.lod = want; rebuildMesh(t); }
+      if (t.lod !== want) {
+        t.lod = want;
+        try { rebuildMesh(t); } catch (e) { logLine('TILE', 'lod ' + key + ': ' + (e && e.message ? e.message : String(e))); }
+      }
       return;
     }
     t = { key: key, tx: tx, ty: ty, lod: want, state: 'proc', heights: makeProcHeights(tx, ty), mesh: null, imgTex: null, imgMat: null, biome: null, lcSrc: 'proc', treeMesh: null, grassMesh: null, vegCount: 0 };
-    t.biome = computeProcBiome(t);
     tiles.set(key, t);
-    rebuildMesh(t);
+    // M7.4: a tile-build failure must never abort startup or streaming —
+    // log one line and leave the tile unbuilt (height sampling still works).
+    try {
+      t.biome = computeProcBiome(t);
+      rebuildMesh(t);
+    } catch (e) {
+      logLine('TILE', 'build ' + key + ': ' + (e && e.message ? e.message : String(e)));
+    }
     scatterTile(t);
     queueDl(function() { return fetchElev(t); });
     queueDl(function() { return fetchImagery(t); });
@@ -1578,12 +1593,31 @@ function startApp(cdnUrl) {
   const stickKnob = document.getElementById('stickKnob');
   const btnJumpTouch = document.getElementById('btnJumpTouch');
   const STICK_R = 55;
+  const TOUCH_LOOK_GAIN = 6; // touch look was ~6x too slow vs the desktop damping value
   const stick = { id: -1, baseX: 0, baseY: 0, vx: 0, vy: 0 };
   const others = new Map();   // non-stick touch pointers
   const look = { id: -1, lastX: 0, lastY: 0 };
   let pinchD0 = 0, pinchZ0 = 1;
-  let touchActive = false;    // AUTO mode: set on first real touch
+  // M7.4: on touch-first devices (phones/tablets) engage touch controls at
+  // startup so the stick + jump are visible before the first touch; a first
+  // real touch still re-engages on any device (AUTO), and OFF always wins.
+  let touchActive = false;
+  try {
+    touchActive = window.matchMedia ? window.matchMedia('(pointer: coarse)').matches
+      : (('ontouchstart' in window) || (navigator.maxTouchPoints || 0) > 0);
+  } catch (e) {
+    touchActive = ('ontouchstart' in window);
+  }
   let modalOpen = false;
+  let sawTouchPtr = false;    // pointer events with pointerType 'touch' seen
+  // M7.3 session-once diagnostics: the exported log shows exactly which touch
+  // stages fired on the device (input / stick / look / pinch / jump / fallback).
+  const touchSeen = {};
+  function noteTouch(kind) {
+    if (touchSeen[kind]) return;
+    touchSeen[kind] = true;
+    logLine('TOUCH', kind + (window.PointerEvent ? ' [PE]' : ' [no-PE]'));
+  }
 
   function touchOn() {
     if (settings.touchCtl === 'off') return false;
@@ -1599,16 +1633,29 @@ function startApp(cdnUrl) {
     stickBase.style.display = 'none';
   }
 
+  // M7.4: when touch controls are on but the stick is idle, keep a dim docked
+  // stick ring visible at bottom-left so the control is discoverable; touching
+  // the left half still floats the stick to the thumb at full opacity.
+  function dockStick() {
+    stickBase.style.opacity = '0.35';
+    stickBase.style.display = 'block';
+    stickBase.style.left = '86px';
+    stickBase.style.top = (window.innerHeight - 150) + 'px';
+    moveKnob(0, 0);
+  }
+
   function updateTouchUI() {
     const show = touchOn() && !modalOpen && errBox.style.display !== 'block';
     btnJumpTouch.style.display = (show && !flyMode) ? 'block' : 'none';
     if (!show) releaseAllRoles();
+    else if (stick.id === -1) dockStick();
   }
   touchUIHook = updateTouchUI;
   document.getElementById('btnLog').addEventListener('click', updateTouchUI);
   document.getElementById('btnLogHide').addEventListener('click', updateTouchUI);
 
   function showStickAt(x, y) {
+    stickBase.style.opacity = '0.9';
     stickBase.style.display = 'block';
     stickBase.style.left = x + 'px';
     stickBase.style.top = y + 'px';
@@ -1617,66 +1664,87 @@ function startApp(cdnUrl) {
     stickKnob.style.transform = 'translate(' + nx + 'px,' + ny + 'px)';
   }
 
-  canvas.addEventListener('pointerdown', function(e) {
-    if (e.pointerType !== 'touch') return;
-    if (settings.touchCtl === 'off') return;
+  // M7.3: unified touch handlers driven by pointer events (primary) with a
+  // touch-event fallback for any browser where pointer events misbehave.
+  function touchDown(id, x, y) {
+    if (settings.touchCtl === 'off') { noteTouch('disabled-in-settings'); return; }
+    if (document.pointerLockElement && document.exitPointerLock) {
+      // a live pointer lock freezes touch coordinates — always break it on touch
+      try { document.exitPointerLock(); } catch (e) {}
+    }
     if (!touchActive) { touchActive = true; updateTouchUI(); }
+    noteTouch('input');
     if (modalOpen) return;
-    try { canvas.setPointerCapture(e.pointerId); } catch (err) {}
-    if (stick.id === -1 && e.clientX < window.innerWidth * 0.45) {
-      stick.id = e.pointerId;
-      stick.baseX = e.clientX; stick.baseY = e.clientY;
+    if (stick.id === -1 && x < window.innerWidth * 0.45) {
+      stick.id = id;
+      stick.baseX = x; stick.baseY = y;
       stick.vx = 0; stick.vy = 0;
-      showStickAt(e.clientX, e.clientY);
+      noteTouch('stick');
+      showStickAt(x, y);
       moveKnob(0, 0);
     } else {
-      others.set(e.pointerId, { x: e.clientX, y: e.clientY });
+      others.set(id, { x: x, y: y });
       if (others.size === 1) {
-        look.id = e.pointerId;
-        look.lastX = e.clientX; look.lastY = e.clientY;
+        look.id = id;
+        look.lastX = x; look.lastY = y;
+        noteTouch('look');
       } else if (others.size === 2) {
+        noteTouch('pinch');
         const p = [];
         for (const v of others.values()) p.push(v);
         pinchD0 = Math.hypot(p[0].x - p[1].x, p[0].y - p[1].y);
         pinchZ0 = zoomMult;
       }
     }
+  }
+
+  canvas.addEventListener('pointerdown', function(e) {
+    if (e.pointerType !== 'touch') return;
+    sawTouchPtr = true;
+    e.preventDefault(); // no synthetic click → no pointer lock, no double-tap zoom
+    try { canvas.setPointerCapture(e.pointerId); } catch (err) {}
+    touchDown(e.pointerId, e.clientX, e.clientY);
   });
 
-  canvas.addEventListener('pointermove', function(e) {
-    if (e.pointerId === stick.id) {
-      const dx = e.clientX - stick.baseX;
-      const dy = e.clientY - stick.baseY;
+  function touchMove(id, x, y) {
+    if (id === stick.id) {
+      const dx = x - stick.baseX;
+      const dy = y - stick.baseY;
       const mag = Math.hypot(dx, dy);
       let nx = dx, ny = dy;
       if (mag > STICK_R) { nx = dx / mag * STICK_R; ny = dy / mag * STICK_R; }
       stick.vx = nx / STICK_R;
       stick.vy = ny / STICK_R;
       moveKnob(nx, ny);
-    } else if (others.has(e.pointerId)) {
-      others.set(e.pointerId, { x: e.clientX, y: e.clientY });
+    } else if (others.has(id)) {
+      others.set(id, { x: x, y: y });
       if (others.size === 2 && pinchD0 > 0) {
         const p = [];
         for (const v of others.values()) p.push(v);
         const d = Math.hypot(p[0].x - p[1].x, p[0].y - p[1].y);
         if (d > 0) setZoom(pinchZ0 * d / pinchD0);
-      } else if (others.size === 1 && e.pointerId === look.id) {
-        const dx = e.clientX - look.lastX;
-        const dy = e.clientY - look.lastY;
-        look.lastX = e.clientX; look.lastY = e.clientY;
-        camera.rotation.y += dx / settings.sens;
-        camera.rotation.x += dy / settings.sens; // invert-Y handled by the shared render-loop flip
+      } else if (others.size === 1 && id === look.id) {
+        const dx = x - look.lastX;
+        const dy = y - look.lastY;
+        look.lastX = x; look.lastY = y;
+        camera.rotation.y += dx * TOUCH_LOOK_GAIN / settings.sens;
+        camera.rotation.x += dy * TOUCH_LOOK_GAIN / settings.sens; // invert-Y handled by the shared render-loop flip
       }
     }
+  }
+
+  canvas.addEventListener('pointermove', function(e) {
+    if (e.pointerType !== 'touch') return;
+    touchMove(e.pointerId, e.clientX, e.clientY);
   });
 
-  function releasePointer(e) {
-    if (e.pointerId === stick.id) {
+  function touchUp(id) {
+    if (id === stick.id) {
       stick.id = -1; stick.vx = 0; stick.vy = 0;
-      stickBase.style.display = 'none';
+      updateTouchUI(); // re-dock the idle stick ring (M7.4)
     }
-    if (others.has(e.pointerId)) {
-      others.delete(e.pointerId);
+    if (others.has(id)) {
+      others.delete(id);
       if (others.size === 1) {
         const entry = others.entries().next().value;
         look.id = entry[0];
@@ -1687,11 +1755,51 @@ function startApp(cdnUrl) {
       if (others.size < 2) pinchD0 = 0;
     }
   }
+  function releasePointer(e) {
+    if (e.pointerType !== 'touch') return;
+    touchUp(e.pointerId);
+  }
   canvas.addEventListener('pointerup', releasePointer);
   canvas.addEventListener('pointercancel', releasePointer);
 
+  // Fallback: if no pointer-event touch arrives shortly after the first
+  // touchstart, drive the same state machine from touch events instead.
+  let touchFallback = false;
+  canvas.addEventListener('touchstart', function(ev) {
+    if (sawTouchPtr) return;
+    const pts = [];
+    for (let i = 0; i < ev.changedTouches.length; i++) {
+      const t = ev.changedTouches[i];
+      pts.push({ id: 10000 + t.identifier, x: t.clientX, y: t.clientY });
+    }
+    setTimeout(function() {
+      if (sawTouchPtr) return;
+      if (!touchFallback) { touchFallback = true; noteTouch('fallback'); }
+      for (const p of pts) touchDown(p.id, p.x, p.y);
+    }, 80);
+    ev.preventDefault();
+  }, { passive: false });
+  canvas.addEventListener('touchmove', function(ev) {
+    if (!touchFallback || sawTouchPtr) return;
+    ev.preventDefault();
+    for (let i = 0; i < ev.changedTouches.length; i++) {
+      const t = ev.changedTouches[i];
+      touchMove(10000 + t.identifier, t.clientX, t.clientY);
+    }
+  }, { passive: false });
+  function touchFallbackUp(ev) {
+    if (!touchFallback || sawTouchPtr) return;
+    ev.preventDefault();
+    for (let i = 0; i < ev.changedTouches.length; i++) {
+      touchUp(10000 + ev.changedTouches[i].identifier);
+    }
+  }
+  canvas.addEventListener('touchend', touchFallbackUp, { passive: false });
+  canvas.addEventListener('touchcancel', touchFallbackUp, { passive: false });
+
   btnJumpTouch.addEventListener('pointerdown', function(e) {
     e.preventDefault();
+    noteTouch('jump');
     if (!flyMode && !airborne) {
       vy = JUMP_V;
       airborne = true;
@@ -2012,7 +2120,7 @@ function startApp(cdnUrl) {
     }
     prevRotX = camera.rotation.x;
   });
-  window.addEventListener('resize', function() { engine.resize(); });
+  window.addEventListener('resize', function() { engine.resize(); updateTouchUI(); });
 }
 </script>
 </body>
