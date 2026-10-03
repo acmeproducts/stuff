@@ -2266,3 +2266,86 @@ These are implementation defaults, not new product concepts:
 15. live Pages smoke succeeds.
 
 No candidate is accepted until owner qualification.
+
+## 36. Turn 36 — REAL reusable chart component — 2026-10-03
+
+### Owner disposition
+Turn 35 is rejected. It was not a real callable chart module: it wrapped shared data preparation/paint while NOW and Analyze continued to own separate chart DOM, legend, controls, interaction wiring and state mutation. That architecture does not satisfy NOW <> Analyze reuse.
+
+### Construction baseline
+Rebuild from the accepted post-ship last-known-good only:
+- `market-navigator-turn28-post-ship.html`
+- commit `996e9a71b72db5bfbea3ba77750077daaa2fb7ab`
+- blob `9ce7f67451f9e1b7804927ce5c56adb667614724`
+
+Turn 35 is not an implementation donor.
+
+### Required architecture
+Implement one actual multi-instance `MNChart` component.
+
+Each `MNChart.open(spec)` call creates an independent chart instance with its own:
+- chart state;
+- DOM tree;
+- horizon controls;
+- legend / active-series controls;
+- Add modal;
+- canvas;
+- crosshair / tooltip;
+- Fixed/Horizon control;
+- Indexed 100 / Y1+Y2 control;
+- footer/meta;
+- event listeners and lifecycle.
+
+NOW and Analyze are consumers of this exact component. Neither consumer may implement or duplicate chart behavior. Consumers may own only workspace concerns outside the chart component (NOW breadcrumb/navigation; Analyze modal shell/X and analysis actions).
+
+### Public contract
+`MNChart.open(spec)` where `spec` contains:
+- `target` — consumer container;
+- `root`;
+- `series`;
+- `timeHorizon`;
+- `displayMode`;
+- `representation`;
+- `activeSeries`;
+- `presentation`;
+- callbacks for state changes / source info where required.
+
+Returned instance:
+- `update(nextSpec)`;
+- `getState()`;
+- `resize()`;
+- `destroy()`.
+
+All chart state transitions happen inside the instance and are emitted outward through callbacks. The component must not read or write NOW/Analyze global chart state directly.
+
+### Retained product corrections
+The Turn 35 product requirements remain required, but must now be implemented inside the real component:
+- Analyze belongs to NOW and is parked while Library is active, preserving state;
+- Library and NOW remain independent;
+- Add is one shared component-owned batch picker;
+- exact tabs `Risk | Growth | Macro | Other`;
+- alphabetical rows;
+- checkbox multi-select;
+- OK applies all staged additions;
+- Cancel and X make no changes;
+- search preserves staged selections;
+- existing series excluded.
+
+### Release-blocking architecture proof
+1. exactly one live implementation of chart horizon controls;
+2. exactly one live implementation of legend/active/removal;
+3. exactly one live implementation of batch Add;
+4. exactly one live implementation of canvas renderer/crosshair/tooltip;
+5. exactly one live implementation of Fixed/Horizon and Y1+Y2 logic;
+6. NOW and Analyze each instantiate `MNChart.open(spec)`;
+7. no NOW/Analyze-specific chart renderer, legend renderer, picker renderer or horizon renderer remains on the live path;
+8. changing Analyze horizon/series/display/representation cannot mutate NOW instance state;
+9. changing NOW cannot mutate Analyze instance state;
+10. two simultaneous instances with identical analytical inputs resolve point-for-point identical datasets;
+11. destroy/recreate one instance leaves the other intact;
+12. accepted post-ship Library Plain/Standard/Technical rendering remains unchanged;
+13. NOW visual geometry remains equivalent to accepted post-ship;
+14. Analyze-to-Library parking behavior and batch Add behavior pass real browser interaction tests;
+15. JavaScript syntax, runtime errors and live Pages smoke pass.
+
+No source-string-only or wrapper-level proof can satisfy these gates.

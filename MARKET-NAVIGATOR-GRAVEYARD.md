@@ -331,3 +331,8 @@ Permanent rollback rule: do not recreate an accepted screen through new chart co
 The rollback to `market-navigator-turn28-ship.html` was itself rejected because it predates the accepted post-ship correction for the Library Plain / Standard / Technical interpretation controls. The correct last-known-good is `market-navigator-turn28-post-ship.html` at commit `996e9a71b72db5bfbea3ba77750077daaa2fb7ab`, blob `9ce7f67451f9e1b7804927ce5c56adb667614724`.
 
 Permanent rule: establish the latest owner-accepted corrective commit in file history before choosing a rollback baseline. A formally named "ship" artifact is not automatically the latest accepted baseline when an accepted post-ship correction exists.
+
+## Turn 35 wrapper-as-module — REJECTED 2026-10-03
+Turn 35 is rejected as an architectural donor. Its `MNChart35` shared preparation and paint but NOW and Analyze still owned separate chart DOM, legend rendering, horizon controls, Add wiring, active-series state and consumer-specific render functions. A shared helper around duplicate consumers is not a callable chart component.
+
+Permanent rule: NOW <> Analyze reuse requires one component that owns chart state, DOM, controls, interactions and rendering per instance. Consumer code may pass specs and receive state-change callbacks, but may not reimplement chart behavior.
