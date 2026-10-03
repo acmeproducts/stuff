@@ -6,8 +6,8 @@ Deploy target: `https://acmeproducts.github.io/stuff/devstream.html`
 Test target: `https://acmeproducts.github.io/stuff/devstream-test.html`
 
 ## Status
-- Current release: v1.0 b57 on devstream-test.html (2026-10-03)
-- Stage: TEST (b57)
+- Current release: v1.0 b58 on devstream-test.html (2026-10-03)
+- Stage: TEST (b58)
 
 ## Release Rules (inherited, proven)
 1. Mobile-first. All diagnostics in-app. No DevTools ever.
@@ -255,6 +255,30 @@ b39 incorrectly changed stationary hold into context-menu activation. Devstream 
 ## Graveyard
 - **G-DS-13 — Hold opens context menu:** rejected; donor behavior is double-tap context, hold-to-drag.
 - **G-DS-14 — Legacy generic #tabContext button styling:** rejected; it corrupts the donor context-menu appearance.
+
+---
+
+# 2026-10-03 — b58 wrong-format replies: root cause removed
+
+## Owner report
+earth · build kept ending in "engine returned SEARCH/REPLACE blocks for projects/earth.md, which is not the patched file — nothing written" (screenshot + persistent log). Owner: eliminate the root cause, not the symptom.
+
+## Cause
+earth.html is ~190 KB, so every run is in patch mode and the model answers with SEARCH/REPLACE edit blocks. The app only knew how to apply edit blocks to the project's code file. When the model edited the plan (or any other allowed file) the same way, the app threw the reply away and failed the run — each failure cost a full model call on 150–190 KB of context.
+
+## Fix
+- Edit blocks are applied to whichever allowed file the reply names (code or plan), in patch mode or not. A reply is only rejected if its blocks do not match the file's text (and then the message says which block failed).
+- Persistent log: the build tag on each event now follows the app's version label (events were all tagged b51).
+
+## Also found in the log (not changed here)
+- earth.html (190 KB) means ~55k tokens in per run with Kimi K3; most "Run again" attempts are expensive. Splitting the file or a smaller reference is the real cost fix.
+- Shared status-file writes still collide ("status save failed … 409"); heartbeat writes can lose that race. Planned next: merge-on-conflict for status writes.
+
+## Acceptance
+- **DS-B58-1:** a patch-block reply targeting the plan edits the plan.
+- **DS-B58-2:** a patch-block reply targeting the code file still works in patch mode.
+- **DS-B58-3:** blocks that do not match the file are rejected with the failing block named; nothing written.
+- **DS-B58-4:** log events carry the current build tag.
 
 ---
 
