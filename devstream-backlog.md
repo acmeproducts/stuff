@@ -6,8 +6,8 @@ Deploy target: `https://acmeproducts.github.io/stuff/devstream.html`
 Test target: `https://acmeproducts.github.io/stuff/devstream-test.html`
 
 ## Status
-- Current release: v1.0 b59 on devstream-test.html (2026-10-03)
-- Stage: TEST (b59)
+- Current release: v1.0 b61 on devstream-test.html (2026-10-03)
+- Stage: TEST (b61)
 
 ## Release Rules (inherited, proven)
 1. Mobile-first. All diagnostics in-app. No DevTools ever.
@@ -255,6 +255,38 @@ b39 incorrectly changed stationary hold into context-menu activation. Devstream 
 ## Graveyard
 - **G-DS-13 — Hold opens context menu:** rejected; donor behavior is double-tap context, hold-to-drag.
 - **G-DS-14 — Legacy generic #tabContext button styling:** rejected; it corrupts the donor context-menu appearance.
+
+---
+
+# 2026-10-03 — b61 test-link requests tolerate typos and plain phrasing
+
+## Owner report
+"give me a test iurl" went to the engine and got a how-to-host essay. b60 only matched the exact words "url"/"link".
+
+## Fix
+- The test-link request matcher also accepts typos (iurl, ulr, uel, rul), "address", and phrasing like "test it", "play it", "how do I test/play/try it", "where can I open it".
+- Still never fires on messages that ask for work (build, add, fix …).
+
+## Acceptance
+- **DS-B61-1:** "give me a test iurl" returns the link, no run.
+- **DS-B61-2:** "how do i test it" returns the link, no run.
+- **DS-B61-3:** "add a test link button" still goes to the engine.
+
+---
+
+# 2026-10-03 — b60 the app gives the test link itself
+
+## Owner report
+Asked a tab for a test URL several times; the engine answered with feature ideas instead.
+
+## Fix
+- A short message asking for the test URL / link / preview is answered by the app instantly: the link to this project's page, no engine call, no cost. Messages that ask for work (build, add, fix …) are unchanged.
+- Works on a frozen-free active tab only (same as any message).
+
+## Acceptance
+- **DS-B60-1:** "give me a test url" gets the project's link back, no run starts, no engine call.
+- **DS-B60-2:** "add a test link button" still goes to the engine as a normal task.
+- **DS-B60-3:** the link points at the project's main file on GitHub Pages.
 
 ---
 

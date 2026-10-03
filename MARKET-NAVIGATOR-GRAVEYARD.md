@@ -321,3 +321,8 @@ Permanent rules:
 
 ## Turn 34 non-reusable chart contracts — REJECTED 2026-10-03
 Permanently rejected: context-specific chart object names or property aliases; chart components that depend on NOW/Analyze global state; treating a shared renderer as a reusable chart while callers retain separate mathematics; hard-coded full-screen geometry that prevents small multiples; Dashboard/Analyze-specific copies of series preparation, Fixed/Horizon, Y-axis or rendering logic; and qualification based on control values or screenshots rather than resolved/plotted data. Required replacement is one multi-instance responsive `MNChart` contract with shared `MNData`, resolver, layout and renderer layers.
+
+## Turn 34 visual/functional NOW regression — REJECTED 2026-10-03
+The owner rejected Turn 34 because NOW no longer matched the last-known-good application visually or functionally. Recovery must restore accepted `market-navigator-turn28-ship.html` (commit `019810f5524c16a0f6f7132eba60d1bab416d100`, blob `544661884a412c57aac08fada4f961012a4bc496`) byte-for-byte.
+
+Permanent rollback rule: do not recreate an accepted screen through new chart code, adapters, responsive abstractions, or approximate CSS. Restore the accepted artifact itself first. Rejected Turn 33/34 implementations are not donors for this rollback.

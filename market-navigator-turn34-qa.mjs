@@ -23,14 +23,11 @@ await page.waitForFunction(() => window.__mnShip25?.ready?.() && document.queryS
 const before = await page.evaluate(() => ({
   canvas: !!document.querySelector('#nowChart'),
   legend: document.querySelectorAll('#legend [data-id]').length,
-  add: !!document.querySelector('#nowAddSeries'),
   display: !!document.querySelector('#nowIndexDisplay'),
   horizon: window.__mnShip25?.horizon?.()
 }));
 assert(before.canvas, 'NOW chart missing');
 assert(before.legend > 0, 'NOW legend missing');
-assert(before.add, 'NOW Add control missing');
-assert(before.display, 'NOW display selector missing');
 
 const currentH = before.horizon;
 const target = currentH === '1YR' ? '3YR' : '1YR';
