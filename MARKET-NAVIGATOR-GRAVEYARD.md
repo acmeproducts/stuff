@@ -310,3 +310,11 @@ Permanent rules:
 - Analyze must be an in-place presentation/state mode of the existing chart, or a future explicitly approved component architecture, not a DOM relocation trick;
 - qualification must test the main chart **after Analyze closes**, including horizon, active series, Add availability and rendering;
 - Turn 30, Turn 31 and Turn 32 are all rejected donors for Analyze.
+
+
+### Turn 33 interaction-inert Analyze candidate — REJECTED 2026-10-01
+- Rejected because the full-workspace presentation placed the existing chart above auxiliary controls/overlays and qualification did not exercise real user interactions.
+- Observed failures: `+ Add` inert/hidden, horizon interaction ineffective, Fixed/Horizon ineffective; sophisticated Analyze behavior therefore unqualified.
+- Prohibition: do not accept static architecture gates as proof that Analyze works. Every Analyze release must execute browser interaction gates for Add, horizon, display mode, Y1/Y2, source explainer, crosshair/tooltip, More/actions, series removal, close/restore and runtime errors.
+- Prohibition: Analyze may not be a reduced-function clone or presentation shell. It must expose the same live NOW chart controls/handlers; parity is behavioral, not visual or DOM-presence-only.
+- Salvageable only: selected-root isolation and frozen NOW-state concept, subject to browser qualification.
