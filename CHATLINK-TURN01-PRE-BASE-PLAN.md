@@ -581,4 +581,4 @@ Recorded, not scheduled.
 
 **Check added first.** "Malay and Indonesian are sibling languages…" failed before the change (the Indonesian sentence came back rewritten) and passes after. Open mode 37/37, ask mode 33/33, controller 20/20. **Not verified:** a real phone.
 
-**Separate finding, not fixed.** English to Malay "I'm saying something simple" gave "Saya mengatakan sesuatu yang mudah"; a Malay speaker called it a terrible translation. This is Google's machine translation (missing "sedang" for the progressive), not language handling. It belongs with the backlogged paid AI translation trial (Claude or Gemini) for field testing of quality versus cost.
+**Separate finding, not fixed.** English to Malay "I'm saying something simple" gave "Saya mengatakan sesuatu yang mudah"; a Malay speaker called it a terrible translation. Cause not verified. It may be the provider's output (the progressive "sedang" is missing) or something in our path. Not language handling as far as the Malay/Indonesian fix goes. See `TRANSLATION-OVERLAY-PROPOSAL.md` for the proposed overlay of approved translations and a per-language check.
