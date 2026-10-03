@@ -28,7 +28,7 @@ const MNChart34={
   }
   let available=sets.filter(z=>z.a.length),plan=axisPlan(available.map(z=>z.id)),mode=plan.mode;
   if(display==='fixed'&&IDX.includes(root)&&sets.length>1){mode='dual';sets.forEach(z=>{z.axis=z.id===root?0:1;z.axisLabel=z.id===root?'Persistent Index':'Indexed 100';if(z.id!==root)z.a=z.a.map(q=>({...q,v:Number.isFinite(+q.idx)?+q.idx:+q.v}))})}
-  else sets.forEach(z=>{z.axis=mode==='dual'?(plan.map[z.id]||0):0;z.axisLabel=mode==='indexed'?'Indexed 100':(z.unit||z.label);z.a=z.a.map(q=>({...q,v:mode==='indexed'?(Number.isFinite(+q.idx)?+q.idx:+q.v):+q.raw}))});
+  else sets.forEach(z=>{z.axis=mode==='dual'?(plan.map[z.id]||0):0;z.axisLabel=mode==='indexed'?'Indexed 100':(z.unit||z.label);z.a=z.a.map(q=>({...q,v:(display==='rebase'&&IDX.includes(z.id))?+q.v:(mode==='indexed'?(Number.isFinite(+q.idx)?+q.idx:+q.v):+q.raw)}))});
   let chosen=sets.some(z=>z.id===active&&z.a.length)?active:(available[0]?.id||root);
   return{root,series:[...series],horizon,display,active:chosen,w,sets,mode,plan};
  },
