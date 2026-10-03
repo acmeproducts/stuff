@@ -2170,41 +2170,71 @@ There is no Analyze chart canvas, legend, series ribbon, tooltip, axis engine, r
 
 Any failure blocks release. Mechanical CI success is not owner acceptance.
 
+## 34. Turn 34 — reusable responsive MNChart component (owner approved 2026-10-03)
 
-## 34. Turn 34 — Analyze interaction recovery (owner authorized 2026-10-01)
+### Current disposition — REBUILDING FROM ACCEPTED TURN 28
+The prior Turn 33/34 approach is rejected. RCA: Analyze impersonated NOW by mutating global NOW state and adding Analyze-specific branches to NOW helpers. One canvas/renderer did not equal one reusable chart. Fixed/Horizon consequently diverged while superficial control-state tests stayed green.
 
-### Current disposition — QUALIFIED / ANALYZE AT NOW BEHAVIORAL PARITY
-- The 2026-10-01 Turn 34 browser qualification failed at the behavioral-interaction gate. Therefore Analyze is **not yet at parity with NOW** and no candidate is owner-ready.
-- Static architecture, JavaScript syntax, governance and build gates passed; those passes do not override the failed behavioral gate.
-- Construction continues until the complete behavioral parity gate below passes. Do not stop at partial parity and do not hand an unqualified candidate to the owner.
+### Architectural objective
+Create one context-independent, multi-instance `MNChart` component. NOW and Analyze are the first two consumers. Future Dashboard small multiples, Library/print, comparisons, or other surfaces must be able to use the same component without adding chart mathematics or copying chart code.
 
-### Qualification result — PASS
-- Turn 34 passed the release-blocking browser interaction gate: selected-series isolation, horizon switching, Fixed/Horizon, Add, eligible Y1+Y2, source explainer, crosshair/tooltip, comparison removal, More actions, close, exact NOW-state restoration, and zero page/console errors.
-- Static architecture and JavaScript syntax gates also passed.
-- Candidate: `market-navigator-turn34-pre-ship.html`.
+### Single public contract
+Every consumer constructs the same `chartSpec` shape and calls the same API:
 
-### Baseline and scope
-- Turn 33 remains a rejected/recovery candidate until this section passes all gates.
-- Preserve the accepted Turn 28 main chart behavior and Turn 33 selected-root isolation.
-- No Dashboard, index mathematics, source, Health, glossary, AI commentary, or unrelated UI changes.
+`MNChart.open(chartSpec)`
+
+`chartSpec` fields, with identical names in every context:
+- `target` — DOM container owned by the consumer.
+- `root` — root index/component/series identifier.
+- `series` — ordered series identifiers.
+- `timeHorizon` — governed horizon such as `1YR`, `3YR`, `5YR`.
+- `displayMode` — `fixed` or `horizon`.
+- `yAxis` — `{mode:'auto'|'indexed'|'native'|'dual', y1:null|axisSpec, y2:null|axisSpec}`.
+- `activeSeries` — selected/focused series.
+- `presentation` — `{size:'full'|'compact'|'micro', controls, legend, crosshair, tooltip, labels}`.
+
+No NOW-specific or Analyze-specific aliases (`S.h`, `analysisH26`, `indexDisplay`, etc.) may enter `MNChart`; adapters translate application state into `chartSpec` before the call.
+
+### Component layers
+1. `MNData` — shared cached retrieval of canonical index/component/market series; multiple charts must not refetch identical data independently.
+2. `MNChart.resolve(chartSpec)` — the only owner of date-window resolution, series preparation, Fixed/Horizon mathematics, measurement-family detection, Y1/Y2 assignment, axis domains, missing-observation treatment and resolved datasets.
+3. `MNChart.layout(resolvedChart, bounds)` — responsive geometry only: plot rectangle, tick/label density, legend geometry, line widths, font sizes and interaction targets. No financial/index mathematics.
+4. `MNChart.render(resolvedChart, layout)` — paint only. No data transformation or axis-policy decisions.
+5. `MNChart.open(chartSpec)` — creates and returns an independent chart instance with `update(nextSpec)`, `resize()`, `exportData()`, `print()` and `destroy()`.
+
+### Multi-instance and scaling rule
+- `MNChart` must not depend on global NOW/Analyze chart state.
+- Each instance owns `spec`, `resolved`, `layout` and DOM/canvas resources.
+- Container dimensions are authoritative. Use `ResizeObserver`; normal callers do not hard-code pixel dimensions.
+- `presentation.size` changes information density, not data or mathematics.
+- `full`: full axes/labels/legend/interactions/controls.
+- `compact`: reduced ticks/labels and compact interaction treatment.
+- `micro`: chart-first small-multiple rendering; axes/legend may be suppressed while the resolved data remains identical.
+- The same `chartSpec` analytical fields rendered at full/compact/micro must resolve to identical datasets.
+
+### Required consumer calls
+NOW and Analyze must each construct a `chartSpec` and invoke exactly `MNChart.open(chartSpec)` for creation and `chart.update(chartSpec)` for changes. Future Dashboard usage is the same API; e.g. RSK/GRW/MAC small multiples are three independent `MNChart.open(chartSpec)` instances.
 
 ### Required behavior
-1. Analyze opens full-workspace with exactly the selected component/index as the initial series.
-2. The Analyze presentation uses the existing NOW chart surface in place; no cloned chart/legend/renderer.
-3. `+ Add` must open the existing shared Add-Series picker above the Analyze surface; adding a valid series must immediately render it.
-4. Horizon buttons must be live in Analyze and change the chart horizon/data without changing the frozen underlying NOW state.
-5. The Fixed/Horizon display selector must be live where applicable and must re-render immediately.
-6. Existing representation/axis behavior is retained: Indexed 100 and native Y1/Y2 rules remain governed by measurement families; two families may use Y1+Y2 and invalid combinations must not silently render.
-7. More/actions, picker/about overlays, crosshair/tooltip, legend selection/removal and X close must remain interactive above the full-workspace surface.
-8. Closing Analyze restores the exact frozen NOW state.
-9. Analyze is not a reduced chart mode. Except for navigation/drill context and the modal X, every chart capability available on NOW must be the same live control/handler on Analyze: horizons, Fixed/Horizon, Indexed 100/Y1+Y2, Add, legend focus/removal, source explainer, crosshair/tooltip, More, AI POV, Data, Print and Markdown/CSV/JSON downloads. No Analyze-specific substitute implementation is permitted.
+1. NOW remains behaviorally equivalent to accepted Turn 28.
+2. Analyze opens full-size with exactly the selected root and uses the same `MNChart` contract.
+3. Analyze time horizon/display/Y-axis/series state is local to its chart instance and cannot mutate NOW.
+4. Fixed uses canonical persistent governed-index values; Horizon rebases that same canonical series to 100 at the visible start.
+5. Y1+Y2 uses the same measurement-family/axis resolver in every context.
+6. `+ Add`, focus/removal, source explainer, crosshair/tooltip, More/actions, AI POV, Data, Print and downloads operate through instance state rather than NOW/Analyze-specific chart implementations.
+7. Closing/destroying Analyze leaves NOW analytical and rendered state unchanged.
 
-### Release-blocking qualification
-- Browser test must open Analyze from a real component and prove one initial series.
-- Browser test must exercise a different horizon, Fixed/Horizon, Add, legend removal, source explainer, crosshair/tooltip and, when eligible, Y1+Y2.
-- Browser test must prove the existing NOW More menu remains live in Analyze and contains AI POV / Data / Print / Download Markdown / Download CSV / Download JSON.
-- Browser test must close Analyze and prove the exact frozen NOW horizon, display mode, comparison set and root are restored, then reopen without state leakage.
-- Browser test must fail on page errors/console errors.
-- Static gates must prove one NOW canvas, one NOW legend, no Turn 30/31/32 donor architecture, no chart reparenting, and unchanged persistent-index mathematics/data sources.
-- A static-only PASS or a control-presence-only PASS is prohibited; qualification must activate the real shared controls.
-- **Completion rule:** parity is binary. Turn 34 advances only when the entire behavioral gate passes; otherwise continue building.
+### Release-blocking proof
+- **Identity:** exactly one `MNChart` implementation and one `chartSpec` schema; NOW and Analyze both call `MNChart.open(chartSpec)` / `chart.update(chartSpec)`.
+- **No shortcut:** no Analyze rewriting of NOW chart state; no Analyze branch in NOW series preparation; no duplicate standalone preparation engine.
+- **Mathematics:** capture actual plotted arrays. Horizon observation #1 must equal 100 and differ from Fixed where canonical values differ. Canonical evidence must remain unchanged.
+- **Cross-context equivalence:** identical analytical `chartSpec` inputs in two independent instances must produce point-for-point equal resolved datasets, axis assignments and domains.
+- **Responsive equivalence:** render identical analytical inputs at approximately 1200x650, 600x350, 320x180 and 180x100; no overflow/runtime failure/data mutation, and resolved datasets remain identical.
+- **Concurrency:** render at least RSK, GRW and MAC simultaneously; changing horizon/display/series on one instance must not alter either other instance.
+- **Y-axis:** prove actual Y1/Y2 assignment, units, domains and plotted values for an eligible mixed-measurement comparison.
+- **Lifecycle:** create → resize → update → export → destroy → recreate without leaked listeners/state or runtime errors.
+- **Interaction:** horizon, Fixed/Horizon, Add/remove, explainer, crosshair, More and close/restore all exercised behaviorally.
+- Control-presence, selector-value, screenshot similarity or one-canvas tests cannot satisfy behavioral gates.
+
+### Extensibility acceptance example
+A future dashboard must be able to create independent RSK, GRW and MAC small multiples solely by supplying three `chartSpec` objects with `presentation.size:'compact'` or `'micro'`. No dashboard-specific chart mathematics, series transformation, axis resolver or renderer is permitted.

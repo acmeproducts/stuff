@@ -318,3 +318,6 @@ Permanent rules:
 - Prohibition: do not accept static architecture gates as proof that Analyze works. Every Analyze release must execute browser interaction gates for Add, horizon, display mode, Y1/Y2, source explainer, crosshair/tooltip, More/actions, series removal, close/restore and runtime errors.
 - Prohibition: Analyze may not be a reduced-function clone or presentation shell. It must expose the same live NOW chart controls/handlers; parity is behavioral, not visual or DOM-presence-only.
 - Salvageable only: selected-root isolation and frozen NOW-state concept, subject to browser qualification.
+
+## Turn 34 non-reusable chart contracts — REJECTED 2026-10-03
+Permanently rejected: context-specific chart object names or property aliases; chart components that depend on NOW/Analyze global state; treating a shared renderer as a reusable chart while callers retain separate mathematics; hard-coded full-screen geometry that prevents small multiples; Dashboard/Analyze-specific copies of series preparation, Fixed/Horizon, Y-axis or rendering logic; and qualification based on control values or screenshots rather than resolved/plotted data. Required replacement is one multi-instance responsive `MNChart` contract with shared `MNData`, resolver, layout and renderer layers.
