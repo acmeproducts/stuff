@@ -167,3 +167,15 @@ Freshness: Connected describes transport only. Separate evidence state Current /
 
 **Evidence:** that workflow has failed on every run since #779 at its first step (the one-time apply script asserts a pattern that no longer exists because the change is already in the repo). The gates themselves pass.
 **Change:** the workflow now only runs the gates (no apply, no auto-commit, read-only permissions).
+
+## 2026-10-03 — Owner review: Estate truncation/copy, Search speed + copy + automatic count chip, one Waterfall report, Excess vs Deficit colors
+
+**Evidence (owner screenshots, mobile):** Estate root names overflowed into the next column; tapping Estate fields copied nothing; switching to Search lagged (36k rows re-filtered and re-sorted on every switch, ~0.45 s on desktop); the Search count chip showed a stale selection (3171) after the search changed to 327 results; Excess and Deficit shared one red.
+**Change (Complete surface only):**
+- Estate cells truncate with an ellipsis, show the full value on hover, copy on tap; one shared copy path (Search cells, filenames, Estate) that never copies blank and flashes the cell.
+- Search: filter and sort results cached per loaded database, table reused when nothing changed (switch back ≈ instant, repeat search instant, warmed after each load).
+- Count chip is automatic: "N results" follows the search; × clears the search. Tapping the # cell selects specific rows ("N selected", × clears them); selections outside the new result set are dropped. "Select all results" removed. Tapping any other cell copies instead of selecting.
+- Analysis + Capacity + Operations merged into one Waterfall (SCAN → ESTATE → ESTATE VS TARGET → OPERATIONS) with a shared TARGET line; subtabs are now Waterfall / Estate; rows still open their Search scope.
+- EXCESS is purple, DEFICIT stays red (bars and legend).
+- Nested frames allow clipboard-write.
+**Qualification:** `qualify-release-d-report-estate.mjs` rewritten for the Waterfall and extended (geometry, colors, chip behavior, copy, cache reuse, long-name truncation on mobile).
