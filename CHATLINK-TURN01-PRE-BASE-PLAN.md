@@ -540,3 +540,13 @@ The owner confirmed that TTS and STT work on r15.
 **Not done.** The junk password entries Chrome already saved from the old password fields must be deleted by the owner in Chrome's password manager (Settings → Passwords). I cannot remove them.
 
 **Gates (lab).** 20/20 controller tests. Ask mode: 33/33, including 2 r16 scenarios. Open mode: 34/34. Keyboard: 32/32. The password-manager scenario uses a mocked `navigator.credentials`. **Not verified:** the real Chrome prompt and sync on the owner's devices.
+
+
+### chat-test backlog (owner, 2026-10-03)
+
+Recorded, not scheduled.
+
+1. **Chinese keyboard.** Simplified pinyin input like Gboard, with next-word prediction and learning. Per the plan's scope note, Chinese enhancements come last, after the wider language rollout (items 2–3).
+2. **Malay is treated as Indonesian.** Make Malay a separate, distinct language. Both languages are needed.
+3. **Keyboard coverage review.** Audit every supported language and make coverage full and complete. Start with Vietnamese, Indonesian and Khmer (Cambodian).
+4. **TTS turns off when the keyboard is extended for North.** When both sides are talking, TTS switches off even though it was on beforehand. It must stay on.
