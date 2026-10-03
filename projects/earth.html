@@ -118,7 +118,7 @@
           <option value="off">OFF</option>
         </select>
         <div class="keys" style="margin-top:6px">
-          WASD move &middot; mouse drag / pointer-lock look &middot; wheel &amp; pinch zoom &middot; F fly/walk<br>
+          WASD move &middot; right-half drag look &middot; wheel &amp; pinch zoom &middot; F fly/walk<br>
           Stick: left-half drag (mouse or thumb) = move &middot; right-half drag = look &middot; pinch/wheel = zoom &middot; JUMP button (walk)
         </div>
       </div>
@@ -130,7 +130,7 @@
 </div>
 <script>
 'use strict';
-const BUILD = 'M7.5-stickdesk 2026-10-03';
+const BUILD = 'M7.6-unified 2026-10-03';
 const errBox = document.getElementById('errBox');
 const errLines = document.getElementById('errLines');
 const errTitle = document.getElementById('errTitle');
@@ -338,22 +338,10 @@ function startApp(cdnUrl) {
   } catch (e) {}
 
   canvas.addEventListener('contextmenu', function(e) { e.preventDefault(); });
-  // M7.3: pointer lock is a desktop-mouse feature. A touch tap also fires a
-  // synthetic click — if that engages pointer lock (Chrome/Android supports it),
-  // touch pointermove coordinates freeze and the sticks go dead. Guard hard.
-  let lastDownType = 'mouse';
-  let stickConsumedClick = false; // M7.5: grabbing the on-screen stick must not engage pointer lock
-  canvas.addEventListener('pointerdown', function(e) { lastDownType = e.pointerType || 'mouse'; }, true);
-  canvas.addEventListener('click', function() {
-    if (lastDownType === 'touch') return;
-    if (stickConsumedClick) { stickConsumedClick = false; return; }
-    if (!document.pointerLockElement && canvas.requestPointerLock) {
-      try {
-        const p = canvas.requestPointerLock();
-        if (p && p.catch) p.catch(function() {});
-      } catch (e) {}
-    }
-  });
+  // M7.6: pointer lock removed entirely — desktop and mobile now share ONE
+  // identical control scheme (left-half drag = move stick, right-half drag =
+  // look, wheel/pinch = zoom, JUMP button). Pointer lock caused desktop/mobile
+  // divergence and froze the on-screen stick whenever it engaged.
 
   // ---- settings (persisted) ----
   const settings = { detail: 'MED', walkSpeed: 5, flySpeed: 40, tod: 12, sens: 3000, invertY: false, imagery: true, touchCtl: 'auto', autoTod: true, clouds: true, rain: false, season: 'auto', fly: false };
@@ -1672,10 +1660,6 @@ function startApp(cdnUrl) {
   // touch-event fallback for any browser where pointer events misbehave.
   function touchDown(id, x, y) {
     if (settings.touchCtl === 'off') { noteTouch('disabled-in-settings'); return; }
-    if (document.pointerLockElement && document.exitPointerLock) {
-      // a live pointer lock freezes touch coordinates — always break it on touch
-      try { document.exitPointerLock(); } catch (e) {}
-    }
     if (!touchActive) { touchActive = true; updateTouchUI(); }
     noteTouch('input');
     if (modalOpen) return;
@@ -1703,10 +1687,9 @@ function startApp(cdnUrl) {
   }
 
   canvas.addEventListener('pointerdown', function(e) {
-    // M7.5: mouse and touch share one role machine — identical controls everywhere.
-    if (document.pointerLockElement) return; // locked: movement-look owns the mouse
+    // M7.6: mouse, pen and touch share one role machine — identical controls everywhere.
     if (e.pointerType === 'mouse' && e.button !== 0) return;
-    e.preventDefault(); // no synthetic click → no pointer lock, no double-tap zoom
+    e.preventDefault(); // no double-tap zoom / text selection
     try { canvas.setPointerCapture(e.pointerId); } catch (err) {}
     if (e.pointerType === 'touch') {
       sawTouchPtr = true;
@@ -1716,7 +1699,6 @@ function startApp(cdnUrl) {
     // mouse/pen: left half grabs the on-screen stick (when controls are on),
     // anywhere else starts a look drag — the same roles thumbs use on mobile
     if (touchOn() && !modalOpen && stick.id === -1 && e.clientX < window.innerWidth * 0.45) {
-      stickConsumedClick = true;
       stick.id = e.pointerId;
       stick.baseX = e.clientX; stick.baseY = e.clientY;
       stick.vx = 0; stick.vy = 0;
@@ -1760,12 +1742,6 @@ function startApp(cdnUrl) {
   }
 
   canvas.addEventListener('pointermove', function(e) {
-    if (document.pointerLockElement === canvas && e.pointerType === 'mouse') {
-      // M7.5: pointer-locked look (desktop) — same sensitivity math as drag-look
-      camera.rotation.y += (e.movementX || 0) * TOUCH_LOOK_GAIN / settings.sens;
-      camera.rotation.x += (e.movementY || 0) * TOUCH_LOOK_GAIN / settings.sens;
-      return;
-    }
     touchMove(e.pointerId, e.clientX, e.clientY);
   });
 
