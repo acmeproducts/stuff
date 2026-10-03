@@ -365,7 +365,7 @@ T('M3g.2 the map names the chains this release added, innermost first', () => {
   assert(last('log') === 'T2-log-hygiene.js' && (m.log || []).includes('K2-pb-merge.js'), 'log chain: ' + JSON.stringify(m.log));
   assert(last('renderTranscript') === 'T1-render-coalesce.js' && last('renderPanel') === 'T1-render-coalesce.js', 'render chain: ' + JSON.stringify(m.renderPanel));
   assert(last('uid') === 'K1-device-ids.js' && last('pbWriteBack') === 'K2-pb-merge.js' && last('onRoomNameSignal') === 'K4-rename-lww.js', 'K chains missing');
-  assert((process.env.TB_SKIP_M1 || (m.handleRelay || []).length >= 4) && (m['CALL.runRecovery'] || []).includes('C3-joiner-restart.js'), 'deep chains missing');
+  assert((process.env.TB_SKIP_M1 || (m.handleRelay || []).length >= 4) && (process.env.TB_FLAT_CALL ? !(m['CALL.runRecovery'] || []).length : (m['CALL.runRecovery'] || []).includes('C3-joiner-restart.js')), 'deep chains missing');
 });
 T('M3g.3 every symbol in the map resolves to a live top-level function — locals sharing a name are not counted', () => {
   const bad = Object.keys(R.w.TB_WRAP_MAP).filter((k) => { const [a, b] = k.split('.'); const v = b ? (R.w[a] && R.w[a][b]) : R.w[a]; return typeof v !== 'function'; });
@@ -472,7 +472,8 @@ T('M4.2 S-2: back during a call is absorbed', () => {
   assert(A.w.history.length >= before && (saw(A, 's2_back_absorbed').length >= 1 || A.w.history.state && A.w.history.state.tbCall === 1), 'S-2 not live');
 });
 T('M4.3 F-1, V-2, V-3, V-4 wrappers installed', () => {
-  assert(/_camSenders\.apply/.test(String(A.w.camSenders)) && (process.env.TB_SKIP_M1 ? /v2Schedule/.test(String(A.w.relayConnect)) : /_relayConnect\.apply/.test(String(A.w.relayConnect))) && /_runRecovery/.test(String(A.w.CALL.runRecovery)) && /_start\.apply/.test(String(A.w.CALL.startVideoWatchdog)), 'a carried wrapper is missing');
+  if (process.env.TB_FLAT_CALL) assert(/__tbVideoSender/.test(String(A.w.camSenders)) && /v2Schedule/.test(String(A.w.relayConnect)) && /C3_HOLD_MS/.test(String(A.w.CALL.runRecovery)) && /C2_STILL/.test(String(A.w.CALL.startVideoWatchdog)), 'a flattened call symbol is not the FL-2 function (TB_FLAT_CALL: the F-1/V-3/V-4 effects live in FL-2)');
+  else assert(/_camSenders\.apply/.test(String(A.w.camSenders)) && (process.env.TB_SKIP_M1 ? /v2Schedule/.test(String(A.w.relayConnect)) : /_relayConnect\.apply/.test(String(A.w.relayConnect))) && /_runRecovery/.test(String(A.w.CALL.runRecovery)) && /_start\.apply/.test(String(A.w.CALL.startVideoWatchdog)), 'a carried wrapper is missing');
 });
 CA.active = false;
 
