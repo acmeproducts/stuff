@@ -187,3 +187,4 @@ Build the full walkable, streamed 3D Earth described in the reference README as 
 | 2026-10-03 10:14 | build | built projects/earth.html | Fixed the mobile controls — the root cause was taps engaging pointer lock (freezing touch coordinates) plus a far-too-slow look drag; also a | 7179557 |
 | 2026-10-03 10:15 | build | built projects/earth.html | Mobile controls are now impossible to miss — on a phone the move-stick ring and JUMP button are on screen from the moment the app loads (no  | 2108d20 |
 | 2026-10-03 10:58 | build | built projects/earth.html | Desktop now has the same controls as mobile — always-visible stick + JUMP, mouse-drag on the left half drives the stick, drag elsewhere look | d2832e3 |
+| 2026-10-03 11:01 | build | failed | I couldn't finish that step (engine returned SEARCH/REPLACE blocks for projects/earth.md, which is not the patched file — nothing). |  |
