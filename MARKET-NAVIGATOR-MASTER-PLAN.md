@@ -2170,29 +2170,29 @@ There is no Analyze chart canvas, legend, series ribbon, tooltip, axis engine, r
 
 Any failure blocks release. Mechanical CI success is not owner acceptance.
 
-## 34. Turn 34 — REJECTED / EXACT LAST-KNOWN-GOOD RESTORE — 2026-10-03
+## 34. Turn 34 — REJECTED / RESTORE ACCEPTED NOW — 2026-10-03
 
 ### Owner disposition
-Turn 34 is rejected. The candidate broke NOW visually and functionally. The recovery requirement is an exact restoration of the accepted last-known-good application, not another approximation or forward patch.
+Turn 34 is rejected. The candidate changed the accepted NOW surface visually and functionally. The immediate recovery requirement is not another forward patch or redesign: restore the accepted Turn 28 application byte-for-byte.
 
 ### Recovery baseline
 - Accepted source: `market-navigator-turn28-ship.html`
 - Accepted commit: `019810f5524c16a0f6f7132eba60d1bab416d100`
 - Accepted blob: `544661884a412c57aac08fada4f961012a4bc496`
-- Recovery artifact: `market-navigator-turn34-pre-ship.html`
-- Required identity: recovery artifact bytes equal the accepted Turn 28 ship bytes exactly.
+- Recovery candidate: `market-navigator-turn34-pre-ship.html`
+- Required identity: recovery candidate bytes must equal the accepted Turn 28 ship bytes exactly.
 
-### Definition of working
-- NOW is pixel-identical to the accepted last-known-good NOW because the accepted artifact itself is restored.
-- NOW behavior is the accepted last-known-good behavior.
-- No Turn 33/34 chart controller, adapter, component, layout rewrite, or CSS approximation remains in the recovery artifact.
-- No unrelated application change is authorized.
+### Owner definition of working
+- NOW must be a pixel-perfect rendition of the last-known-good accepted NOW.
+- NOW behavior must be the same as the last-known-good accepted NOW.
+- No Turn 33/34 chart-controller/component code may remain in the recovery artifact.
+- No visual, chart, data, index, navigation, Library, Health, Analyze, or interaction delta is authorized in this rollback.
 
-### Qualification
-1. exact byte identity with accepted Turn 28;
-2. JavaScript syntax pass;
-3. boot/runtime smoke pass;
-4. existing NOW chart + legend + horizon interaction operate;
-5. Pages deploy succeeds.
+### Mechanical recovery gates
+1. candidate bytes equal `market-navigator-turn28-ship.html` exactly;
+2. JavaScript syntax passes;
+3. candidate boots without runtime/page errors;
+4. ordinary NOW horizon, legend activation, display selector, Add control, and chart render remain operable;
+5. Pages candidate returns successfully.
 
-Turn 34 chart-architecture work is rejected and is not part of this rollback.
+Turn 34 component/reuse work is closed as rejected. Any future chart-architecture work must begin again from the accepted baseline under a separately approved scope; it may not alter the recovered NOW during this rollback.
