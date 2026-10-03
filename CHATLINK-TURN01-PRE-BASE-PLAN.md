@@ -634,3 +634,7 @@ Malay and Indonesian are confirmed to have different speech, voice and translati
 **Verified.** The page logic only, in the lab against a stand-in connection whose accept list I made up for the test. **Not verified:** any real Deepgram result. The real answer comes from running it once on the owner's device: https://acmeproducts.github.io/stuff/langprobe.html
 
 **Next.** The owner's results decide what is a real gap. Nothing else is queued; the rolled-back fixes return one at a time, each tested on a device first.
+
+### Language probe: real Deepgram result (2026-10-03, owner's device)
+
+20 of 23 languages are accepted on Nova-3. **Not supported on either model: Filipino (`fil`), Khmer (`km`), Lao (`lo`).** Everything else, including Thai, Korean, Chinese, Arabic, Vietnamese, Malay and Indonesian, is fine. The probe now also tries alternate codes (`tl`, `fil-PH`, `km-KH`, `lo-LA`) in case Deepgram lists them differently.
