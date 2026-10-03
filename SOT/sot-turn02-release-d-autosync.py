@@ -130,6 +130,9 @@ def install(srv):
         path=urlparse(handler.path).path
         if path=="/api/ssot/refresh-staleness":
             try:return refresh_staleness(handler)
+            except BrokenPipeError:
+                print("Client disconnected before staleness data could be returned.")
+                return None
             except Exception as e:return handler.sendj({"ok":False,"error":str(e)},500)
         if path=="/api/diagnostics/log/clear":
             try:return clear_log(handler)
