@@ -638,3 +638,15 @@ Malay and Indonesian are confirmed to have different speech, voice and translati
 ### Language probe: real Deepgram result (2026-10-03, owner's device)
 
 20 of 23 languages are accepted on Nova-3. **Not supported on either model: Filipino (`fil`), Khmer (`km`), Lao (`lo`).** Everything else, including Thai, Korean, Chinese, Arabic, Vietnamese, Malay and Indonesian, is fine. The probe now also tries alternate codes (`tl`, `fil-PH`, `km-KH`, `lo-LA`) in case Deepgram lists them differently.
+
+### chat-test: Filipino speech code (2026-10-03)
+
+**Owner report.** The app used `fil` for Filipino speech; Deepgram wants `tl`.
+
+**Evidence.** Probe on the owner's device: `fil` and `fil-PH` rejected on Nova-3 and Nova-2; `tl` accepted on Nova-3. Deepgram's changelog lists Tagalog as `tl`.
+
+**Change.** Filipino speech now connects with `tl`. Nothing else changed (translation already used `tl`; read-aloud stays `fil-PH`).
+
+**Check added first.** "Filipino listens with the code Deepgram accepts (tl), never fil" fails without the change and passes with it. Open mode 35/35, ask mode 33/33, keyboard 32/32, controller 20/20. **Not verified:** speaking Filipino on a phone.
+
+**Still unsupported by Deepgram:** Khmer and Lao.

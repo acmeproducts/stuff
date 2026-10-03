@@ -20,6 +20,12 @@ assert.ok((await events(page,'transcript-rejected')).some(d=>d.reason==='echo'))
  assert.equal((await events(page,'stt-submit-resumed')).filter(d=>d.outcome==='ok').length,1);
  assert.equal(await page.locator('#audio-test-controls').count(),0,'old experiment removed');
 });
+test('Filipino listens with the code Deepgram accepts (tl), never fil',async({page})=>{
+ await page.evaluate(()=>{localStorage.setItem('tb_dg_key','synthetic-key');localStorage.setItem('chat_test_audio',JSON.stringify({mode:'open',tones:true,resumeMs:300}))});
+ await create(page,'FilRoom','en','fil');await page.waitForFunction(()=>mic.south.active&&mic.north.active);
+ assert.ok(page.testSockets.some(w=>w.url().includes('language=tl&')),'a speech connection uses tl');
+ assert.equal(page.testSockets.filter(w=>w.url().includes('language=fil')).length,0,'no speech connection uses fil');
+});
 test('open mode: mute, typing keeps mics, portal closes and reopens them, unsure goes to compose',async({page})=>{
  const s=await openRoom(page,'Mute');
  await page.locator('#strip-south .micbtn').click();await page.waitForFunction(()=>!mic.south.on&&mic.north.on);
