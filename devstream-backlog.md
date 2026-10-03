@@ -6,8 +6,8 @@ Deploy target: `https://acmeproducts.github.io/stuff/devstream.html`
 Test target: `https://acmeproducts.github.io/stuff/devstream-test.html`
 
 ## Status
-- Current release: v1.0 b54 on devstream-test.html (2026-10-03)
-- Stage: TEST (b54)
+- Current release: v1.0 b55 on devstream-test.html (2026-10-03)
+- Stage: TEST (b55)
 
 ## Release Rules (inherited, proven)
 1. Mobile-first. All diagnostics in-app. No DevTools ever.
@@ -255,6 +255,27 @@ b39 incorrectly changed stationary hold into context-menu activation. Devstream 
 ## Graveyard
 - **G-DS-13 — Hold opens context menu:** rejected; donor behavior is double-tap context, hold-to-drag.
 - **G-DS-14 — Legacy generic #tabContext button styling:** rejected; it corrupts the donor context-menu appearance.
+
+---
+
+# 2026-10-03 — b55 live progress in the task strip
+
+## Owner report
+While a task ran, the strip only said "Working on your idea…" and an elapsed-seconds counter. Nothing said what was happening or whether anything was moving.
+
+## Implemented
+- **Real activity sentence** in the strip while a run is working: Saving your message → Reading the plan and code → Updating the plan before changing code → Asking <model> (size of context) → waiting for the first words / thinking (reasoning size) / writing the reply (characters received so far) → Reading the model's answer → Applying edits → Saving. Coach mode uses the same steps in friendlier words without model names or numbers.
+- **Progress bar** under the steps, driven by those phases; while the model writes it advances with the characters actually received.
+- **"Last activity" line**: elapsed time plus seconds since anything last happened; turns red after 45 s of silence.
+- Streaming progress is sent from the worker as a lightweight signal, not written to the diagnostic log.
+- Static "Working on your idea…" removed.
+
+## Acceptance
+- **DS-B55-1:** the activity sentence changes as the run moves through its phases.
+- **DS-B55-2:** while a model streams, the sentence and bar reflect characters actually received.
+- **DS-B55-3:** the strip shows seconds since last activity and flags 45 s of silence.
+- **DS-B55-4:** coach mode shows friendly step text, never a fixed message.
+- **DS-B55-5:** stream progress does not add entries to the persistent log.
 
 ---
 
