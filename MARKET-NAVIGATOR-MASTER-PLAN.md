@@ -2349,3 +2349,33 @@ The Turn 35 product requirements remain required, but must now be implemented in
 15. JavaScript syntax, runtime errors and live Pages smoke pass.
 
 No source-string-only or wrapper-level proof can satisfy these gates.
+
+## 37. Turn 36 owner rejection / immediate rollback — 2026-10-03
+
+### Owner report
+Turn 36 is rejected because NOW is unusable.
+
+### Disposition
+Turn 36 is rejected in full and is not a donor.
+
+### Immediate recovery
+Restore the owner-accepted last-known-good application byte-for-byte:
+- source: `market-navigator-turn28-post-ship.html`
+- approved commit: `996e9a71b72db5bfbea3ba77750077daaa2fb7ab`
+- blob: `9ce7f67451f9e1b7804927ce5c56adb667614724`
+
+The current owner test target `market-navigator-turn36-pre-ship.html` is reverted to those exact accepted bytes so the same URL returns to a usable state.
+
+### Definition of working
+- NOW is exactly the accepted Turn 28 post-ship application.
+- Library retains the accepted Plain / Standard / Technical correction.
+- No Turn 35/36 callable-component code, DOM replacement, layout rewrite, renderer replacement, or picker rewrite remains in the rollback artifact.
+- No other product behavior changes.
+
+### Automated rollback gate
+- `market-navigator-turn36-pre-ship.html` blob must equal `9ce7f67451f9e1b7804927ce5c56adb667614724` exactly.
+- JavaScript syntax and runtime behavior are inherited from that byte-identical accepted artifact.
+- Pages deployment must complete before the rollback is called live.
+
+### Next architecture rule
+Do not attempt another NOW modularization by replacing NOW's accepted DOM or renderer. Any future callable extraction must preserve NOW at the presentation/behavior boundary first, with a failing visual and interaction regression suite written against the accepted baseline before implementation.

@@ -336,3 +336,10 @@ Permanent rule: establish the latest owner-accepted corrective commit in file hi
 Turn 35 is rejected as an architectural donor. Its `MNChart35` shared preparation and paint but NOW and Analyze still owned separate chart DOM, legend rendering, horizon controls, Add wiring, active-series state and consumer-specific render functions. A shared helper around duplicate consumers is not a callable chart component.
 
 Permanent rule: NOW <> Analyze reuse requires one component that owns chart state, DOM, controls, interactions and rendering per instance. Consumer code may pass specs and receive state-change callbacks, but may not reimplement chart behavior.
+
+## Turn 36 component rewrite — REJECTED 2026-10-03
+Owner qualification rejected Turn 36 because NOW became unusable.
+
+Turn 36 replaced the accepted NOW surface with a newly generated component-owned DOM and renderer. Lab qualification did not protect the accepted visual and interaction contract. The approach is rejected and must not be used as a donor.
+
+Permanent prohibition: do not prove reuse by replacing the accepted NOW presentation with a new generic component surface. The next modularization attempt must start from the accepted NOW implementation, preserve its rendered structure and behavior, and extract callable boundaries behind that accepted surface rather than recreating it.
