@@ -2173,10 +2173,15 @@ Any failure blocks release. Mechanical CI success is not owner acceptance.
 
 ## 34. Turn 34 — Analyze interaction recovery (owner authorized 2026-10-01)
 
-### Current disposition — BUILDING, NOT AT PARITY
+### Current disposition — QUALIFIED / ANALYZE AT NOW BEHAVIORAL PARITY
 - The 2026-10-01 Turn 34 browser qualification failed at the behavioral-interaction gate. Therefore Analyze is **not yet at parity with NOW** and no candidate is owner-ready.
 - Static architecture, JavaScript syntax, governance and build gates passed; those passes do not override the failed behavioral gate.
 - Construction continues until the complete behavioral parity gate below passes. Do not stop at partial parity and do not hand an unqualified candidate to the owner.
+
+### Qualification result — PASS
+- Turn 34 passed the release-blocking browser interaction gate: selected-series isolation, horizon switching, Fixed/Horizon, Add, eligible Y1+Y2, source explainer, crosshair/tooltip, comparison removal, More actions, close, exact NOW-state restoration, and zero page/console errors.
+- Static architecture and JavaScript syntax gates also passed.
+- Candidate: `market-navigator-turn34-pre-ship.html`.
 
 ### Baseline and scope
 - Turn 33 remains a rejected/recovery candidate until this section passes all gates.
