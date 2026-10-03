@@ -208,7 +208,7 @@ body.coachMode .suggestBtn{border-color:rgba(57,197,207,.5);background:rgba(57,1
 <div id="scrim"></div>
 <div id="app">
 <aside id="sidebar">
-  <div class="bar"><span id="dot"></span><span class="brand">devstream <span class="version">v1.0 b58</span></span><span class="grow"></span><button class="btn" id="projectAdd">+ New</button><button class="btn" id="refresh">↻</button><button class="btn" id="settings">⚙</button></div>
+  <div class="bar"><span id="dot"></span><span class="brand">devstream <span class="version">v1.0 b59</span></span><span class="grow"></span><button class="btn" id="projectAdd">+ New</button><button class="btn" id="refresh">↻</button><button class="btn" id="settings">⚙</button></div>
   <div id="searchWrap"><input id="search" class="input" placeholder="Search projects & threads">
     <div class="legend"><span><i class="legendDot ok"></i>OK</span><span><i class="legendDot run"></i>Running</span><span><i class="legendDot err"></i>Error</span></div></div>
   <div id="projList"></div>
@@ -794,6 +794,9 @@ function makeTabDropZone(index){
 function renderTabs(){
   const ts=$('projectTabs');ts.innerHTML='';
   if(!activeProject)return;
+  const tabOf=e=>{const el=e.target.closest&&e.target.closest('.tab[data-thread-key]');return el&&!e.target.closest('.tabClose')?el:null};
+  ts.oncontextmenu=e=>{const el=tabOf(e);if(!el)return;e.preventDefault();e.stopPropagation();if(window.__scTouch)return;openTabContext(el.dataset.threadKey,el)};
+  ts.ondblclick=e=>{const el=tabOf(e);if(!el)return;e.preventDefault();e.stopPropagation();openTabContext(el.dataset.threadKey,el)};
   const live=projectThreads().filter(k=>!sot.threads[k].deleted);
   const deleted=projectThreads().filter(k=>sot.threads[k].deleted);
   live.forEach((k,i)=>{
@@ -803,11 +806,9 @@ function renderTabs(){
     if(t.style){if(t.style.bg)el.style.background=t.style.bg;if(t.style.fg)el.style.color=t.style.fg;if(t.style.size)el.style.fontSize=t.style.size+'px'}
     if(isFrozen(t))el.classList.add('frozen');el.innerHTML=(isFrozen(t)?'<span class="lock" title="Frozen — reference only">‖</span>':'<span class="dot '+(viewState(t)||'idle')+'"></span>')+'<span class="tname">'+esc(tabName(t))+'</span><button class="tabClose" title="Soft delete → Recycle Bin">×</button>';
     el.querySelector('.tabClose').onclick=e=>{e.stopPropagation();softDeleteThread(k)};
-    el.onclick=()=>{if(Date.now()>=tabDragSuppressUntil)openThread(k)};
+    el.onclick=()=>{if(Date.now()>=tabDragSuppressUntil&&k!==activeKey)openThread(k)};
     el.ondragstart=e=>{tabDragKey=k;el.classList.add('dragging');e.dataTransfer.effectAllowed='move';e.dataTransfer.setData('text/devstream-tab',k)};
     el.ondragend=()=>{tabDragKey='';clearTabDragUI()};
-    el.addEventListener('contextmenu',e=>{e.preventDefault();e.stopPropagation();if(window.__scTouch)return;openTabContext(k,el)});
-    el.ondblclick=e=>{if(e.target.closest('.tabClose'))return;e.preventDefault();e.stopPropagation();openTabContext(k,el)};
     ts.appendChild(el);
   });
   ts.appendChild(makeTabDropZone(live.length));
