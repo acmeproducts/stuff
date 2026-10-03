@@ -79,3 +79,8 @@ Write **wsl.html Chunk 1 (a focused patch; wsl.html is 33 KB, so whole-file writ
 - **snow1.html as a build target** — never existed; typo/hallucination for snow-v1.html. Disproven 2026-10-03.
 - "wsl.html is over 400 KB so full-file writes time out" — false (33 KB). Disproven 2026-10-03.
 - "Commit 193798a unavailable" — false; it is a tab name. Disproven 2026-10-03.
+
+## RUN LOG (written by DevStream)
+| Date | Tab | Result | What | Commit |
+|---|---|---|---|---|
+| 2026-10-03 10:05 | wsl.html | built wsl.html | We mistakenly targeted a non-existent snow1.html file and hit model timeouts; the fix is to write directly to wsl.html (33 KB) with the owne | b0e9ab1 |
