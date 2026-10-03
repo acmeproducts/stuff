@@ -6,8 +6,8 @@ Deploy target: `https://acmeproducts.github.io/stuff/devstream.html`
 Test target: `https://acmeproducts.github.io/stuff/devstream-test.html`
 
 ## Status
-- Current release: v1.0 b54 on devstream-test.html (2026-10-03)
-- Stage: TEST (b54)
+- Current release: v1.0 b56 on devstream-test.html (2026-10-03)
+- Stage: TEST (b56)
 
 ## Release Rules (inherited, proven)
 1. Mobile-first. All diagnostics in-app. No DevTools ever.
@@ -255,6 +255,65 @@ b39 incorrectly changed stationary hold into context-menu activation. Devstream 
 ## Graveyard
 - **G-DS-13 — Hold opens context menu:** rejected; donor behavior is double-tap context, hold-to-drag.
 - **G-DS-14 — Legacy generic #tabContext button styling:** rejected; it corrupts the donor context-menu appearance.
+
+---
+
+# 2026-10-03 — b56 Snowman cleanup: what it took, and what the app now prevents
+
+## Owner report (screenshot of Snowman · wsl.html)
+Reset and Send buttons unreadable; tab dot yellow while the status said Stalled in red; coach suggestion chips gone; repeated vague "I couldn't finish that step" messages; plan suspected poisoned. "Use this project as the example of what it takes to clean this up."
+
+## Findings (Snowman, evidence from repo)
+1. **Plan named a file that does not exist.** wsl.md said "Active Target: snow1.html" and "snow1.html baseline exists". The repo has `snow-v1.html` and `wsl.html`; there is no `snow1.html`. The project builds `wsl.html`. Every run the model obeyed the plan, wrote `snow1.html`, and the app refused ("Unexpected output path") — a loop no retry could fix.
+2. **The plan file itself was wrapped in `<plan>…</plan>` tags** (the model echoed the wrapper the app puts around the plan in its prompt). The plan-update safety check requires the new plan to start with `#`, so every plan update that copied the wrapper failed validation (16 recorded "Plan checkpoint failed validation" failures).
+3. **Plan carried false facts from earlier failures**: "wsl.html > 400 KB" (it is 33 KB) and "previous commit 193798a unavailable". Every run was told these, so it kept planning around them instead of building.
+4. **Stuck state.** The tab was marked executing from 08:27 with nothing running (stalled); a pending owner message sat "waiting" for an hour.
+5. **Five identical vague failure messages** in the chat hid the real reason.
+6. **Button text contrast:** primary buttons used a fixed dark text colour; on the Warm preset the accent is dark teal → unreadable.
+7. **Three different status vocabularies:** tab dot (yellow, "executing"), strip (red, "Stalled"), header pill ("Working").
+8. **Coach chips were hidden** whenever the strip showed anything (my b53 regression).
+
+## Fixed in the app
+- Primary-button text colour is computed from the accent colour (readable on every preset).
+- One status function: a stalled run is red everywhere (tab dot, project dot, header pill "Stalled", strip).
+- Suggestion chips always visible again (only the duplicate "run" chip stays removed — the strip has the button).
+- Stalled: one **↻ Retry** button (resets the stuck state and restarts) instead of Reset-then-retry.
+- Wrong target file: the agent is told the only writable files are the project's build file and plan file, and that a plan naming anything else is wrong. If a reply still targets another file, the app re-asks the model once with the correction before failing.
+- Plan updates: wrapper tags are stripped before validation and saving, and the check now accepts a plan starting with a heading or the ledger table.
+- Identical consecutive failures are not appended again; failure text in coach mode now says the real reason in plain words (out of credit, timed out, plan points at the wrong file, …).
+
+## Fixed in the project data
+- wsl.md corrected: stray `<plan>` wrapper tags removed; Active Target = `wsl.html`; `snow-v1.html` recorded as the simplicity reference; false size/commit claims removed; graveyard and correction entry added. Owner decisions (selected features, gesture scheme, rejected button bar, Flow score) preserved.
+
+## Acceptance
+- **DS-B56-1:** primary button text meets contrast on dark, light, high-contrast and warm presets.
+- **DS-B56-2:** a stalled tab shows red/Stalled in the dot, pill and strip.
+- **DS-B56-3:** suggestion chips visible in every state except frozen.
+- **DS-B56-4:** stalled → Retry resets and restarts in one tap.
+- **DS-B56-5:** a reply targeting a non-project file triggers one automatic corrected re-ask.
+- **DS-B56-7:** a plan update wrapped in plan tags is cleaned and passes the safety check.
+- **DS-B56-6:** repeated identical failures add no new chat messages; coach failure text states the cause.
+
+---
+
+# 2026-10-03 — b55 live progress in the task strip
+
+## Owner report
+While a task ran, the strip only said "Working on your idea…" and an elapsed-seconds counter. Nothing said what was happening or whether anything was moving.
+
+## Implemented
+- **Real activity sentence** in the strip while a run is working: Saving your message → Reading the plan and code → Updating the plan before changing code → Asking <model> (size of context) → waiting for the first words / thinking (reasoning size) / writing the reply (characters received so far) → Reading the model's answer → Applying edits → Saving. Coach mode uses the same steps in friendlier words without model names or numbers.
+- **Progress bar** under the steps, driven by those phases; while the model writes it advances with the characters actually received.
+- **"Last activity" line**: elapsed time plus seconds since anything last happened; turns red after 45 s of silence.
+- Streaming progress is sent from the worker as a lightweight signal, not written to the diagnostic log.
+- Static "Working on your idea…" removed.
+
+## Acceptance
+- **DS-B55-1:** the activity sentence changes as the run moves through its phases.
+- **DS-B55-2:** while a model streams, the sentence and bar reflect characters actually received.
+- **DS-B55-3:** the strip shows seconds since last activity and flags 45 s of silence.
+- **DS-B55-4:** coach mode shows friendly step text, never a fixed message.
+- **DS-B55-5:** stream progress does not add entries to the persistent log.
 
 ---
 
