@@ -184,3 +184,4 @@ Build the full walkable, streamed 3D Earth described in the reference README as 
 | Date | Tab | Result | What | Commit |
 |---|---|---|---|---|
 | 2026-10-03 10:02 | build | failed | I couldn't finish that step (engine returned SEARCH/REPLACE blocks for projects/earth.md, which is not the patched file — nothing). |  |
+| 2026-10-03 10:14 | build | built projects/earth.html | Fixed the mobile controls — the root cause was taps engaging pointer lock (freezing touch coordinates) plus a far-too-slow look drag; also a | 7179557 |
