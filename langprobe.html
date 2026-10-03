@@ -1,0 +1,56 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Language probe</title>
+<style>
+body{font:15px -apple-system,system-ui,sans-serif;margin:0;padding:16px;background:#f6f1e9;color:#254c4c}
+h1{font-size:18px;margin:0 0 6px}p{margin:6px 0;color:#55716b}
+button{font:inherit;padding:10px 16px;border-radius:10px;border:0;background:#2e8b8b;color:#fff;margin:8px 8px 8px 0}
+button:disabled{opacity:.5}input{font:inherit;padding:8px;width:100%;box-sizing:border-box;margin:6px 0}
+table{border-collapse:collapse;width:100%;margin-top:10px;background:#fff}td,th{border-bottom:1px solid #e6dfd5;padding:7px 6px;text-align:left}
+.ok{color:#15803d;font-weight:600}.no{color:#b91c1c;font-weight:600}.mid{color:#a16207;font-weight:600}
+</style></head><body>
+<h1>Language probe</h1>
+<p>Checks which languages Deepgram accepts for live speech. Connects and disconnects only: no audio is sent and nothing is stored. Uses the key already saved in this browser.</p>
+<div id="keybox" hidden><p>No key found in this browser. Paste one (used for this run only, never saved):</p><input id="key" type="password" autocomplete="off" placeholder="Deepgram key"></div>
+<button id="run">Run probe</button><button id="copy" disabled>Copy results</button>
+<div id="status"></div>
+<table id="t"><thead><tr><th>Language</th><th>Code</th><th>Nova-3</th><th>Nova-2</th><th>Verdict</th></tr></thead><tbody></tbody></table>
+<script>
+var LANGS=[['en','English','en-US'],['th','Thai','th'],['es','Spanish','es'],['ja','Japanese','ja'],['ko','Korean','ko'],['zh','Chinese (Simplified)','zh-CN'],['ar','Arabic','ar'],['hi','Hindi','hi'],['ru','Russian','ru'],['fr','French','fr'],['de','German','de'],['it','Italian','it'],['pt','Portuguese','pt-BR'],['vi','Vietnamese','vi'],['id','Indonesian','id'],['ms','Malay','ms'],['fil','Filipino','fil'],['nl','Dutch','nl'],['sv','Swedish','sv'],['pl','Polish','pl'],['tr','Turkish','tr'],['km','Khmer','km'],['lo','Lao','lo']];
+var TIMEOUT=7000;
+function savedKey(){try{return(localStorage.getItem('tb_dg_key')||'').trim()}catch(e){return ''}}
+function probe(key,model,code){
+  return new Promise(function(resolve){
+    var done=false,ws,timer;
+    function finish(r){if(done)return;done=true;clearTimeout(timer);try{ws&&ws.close()}catch(e){}resolve(r)}
+    try{ws=new WebSocket('wss://api.deepgram.com/v1/listen?model='+model+'&language='+encodeURIComponent(code)+'&encoding=linear16&sample_rate=16000&channels=1',['token',key])}catch(e){return finish('error')}
+    ws.onopen=function(){finish('yes')};
+    ws.onerror=function(){finish('no')};
+    ws.onclose=function(){finish('no')};
+    timer=setTimeout(function(){finish('timeout')},TIMEOUT);
+  });
+}
+function cell(v){return v==='yes'?'<span class="ok">accepted</span>':v==='no'?'<span class="no">rejected</span>':v==='-'?'-':'<span class="mid">'+v+'</span>'}
+var rows=[];
+async function run(){
+  var key=savedKey()||document.getElementById('key').value.trim();
+  if(!key){document.getElementById('keybox').hidden=false;document.getElementById('status').textContent='Enter a key first.';return}
+  document.getElementById('run').disabled=true;document.getElementById('copy').disabled=true;rows=[];
+  var tb=document.querySelector('#t tbody');tb.innerHTML='';
+  for(var i=0;i<LANGS.length;i++){
+    var L=LANGS[i];document.getElementById('status').textContent='Checking '+L[1]+' ('+(i+1)+'/'+LANGS.length+')';
+    var n3=await probe(key,'nova-3',L[2]);
+    var n2=n3==='yes'?'-':await probe(key,'nova-2',L[2]);
+    var verdict=n3==='yes'?'OK':n2==='yes'?'Nova-2 only':(n3==='no'&&n2==='no')?'NOT SUPPORTED':'UNCLEAR (retry)';
+    rows.push({lang:L[1],code:L[2],nova3:n3,nova2:n2,verdict:verdict});
+    var tr=document.createElement('tr');tr.innerHTML='<td>'+L[1]+'</td><td>'+L[2]+'</td><td>'+cell(n3)+'</td><td>'+cell(n2)+'</td><td>'+(verdict==='OK'?'<span class="ok">OK</span>':'<b>'+verdict+'</b>')+'</td>';tb.appendChild(tr);
+  }
+  var bad=rows.filter(function(r){return r.verdict!=='OK'});
+  document.getElementById('status').textContent='Done. '+(rows.length-bad.length)+' of '+rows.length+' OK'+(bad.length?'. Not OK: '+bad.map(function(r){return r.lang}).join(', '):'.');
+  document.getElementById('run').disabled=false;document.getElementById('copy').disabled=false;
+  window.PROBE_RESULT=rows;
+}
+document.getElementById('run').onclick=run;
+document.getElementById('copy').onclick=function(){var t=rows.map(function(r){return r.lang+' ('+r.code+'): nova-3 '+r.nova3+', nova-2 '+r.nova2+' -> '+r.verdict}).join('\n');if(navigator.clipboard)navigator.clipboard.writeText(t).then(function(){document.getElementById('status').textContent='Copied.'})};
+if(!savedKey())document.getElementById('keybox').hidden=false;
+</script></body></html>

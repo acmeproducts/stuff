@@ -624,3 +624,13 @@ Malay and Indonesian are confirmed to have different speech, voice and translati
 2. Indonesian rewritten into Malay in a Malay room (cause found).
 3. Khmer and Lao: no speech engine (Deepgram does not support them).
 4. Language coverage check.
+
+### Language probe: which languages does Deepgram accept (2026-10-03)
+
+**Owner direction.** Find out whether Khmer and Lao are the only transcription gaps. Do not change the app.
+
+**What.** `langprobe.html` is a separate page; `chat-test.html` is untouched. For each of the 23 languages it opens a Deepgram connection on Nova-3, then Nova-2 if Nova-3 refuses, and closes it. No audio is sent and nothing is stored. It uses the key already saved in the browser (or one pasted for that run). Verdict per language: OK, Nova-2 only, NOT SUPPORTED, or UNCLEAR (retry).
+
+**Verified.** The page logic only, in the lab against a stand-in connection whose accept list I made up for the test. **Not verified:** any real Deepgram result. The real answer comes from running it once on the owner's device: https://acmeproducts.github.io/stuff/langprobe.html
+
+**Next.** The owner's results decide what is a real gap. Nothing else is queued; the rolled-back fixes return one at a time, each tested on a device first.
