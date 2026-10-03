@@ -612,3 +612,15 @@ Malay and Indonesian are confirmed to have different speech, voice and translati
 **Still open, not fixable by a small change.**
 - **Khmer and Lao speech and dictionaries.** Needs a different speech engine, for example the browser's own speech recognition (Chrome lists Khmer and Lao; not verified), and a word list per language. That is a new engine, so it needs the owner's go.
 - **Chinese dictionary.** Part of the pinyin keyboard item.
+
+### chat-test: ROLLED BACK to r16 (2026-10-03)
+
+**Owner direction.** None of the changes made after r16 had been tested on a device. Go back to the last known good.
+
+**Done.** `chat-test.html` and the audio-turn tests are restored byte-for-byte to commit `a568a3b` (r16). The language-check test is removed. Reverted, all untested on a device: TTS kept playing when a keyboard opens (#791), Malay/Indonesian words kept (#794), language coverage check hook (#796), Khmer/Lao voices and no-speech-connection (#797).
+
+**What stays true.** The findings in the entries above are still valid as analysis, but their fixes are not in the app. They go back on the backlog, to be re-applied one at a time, each tested on a device before the next:
+1. TTS cut when the keyboard opens (cause reproduced in the lab).
+2. Indonesian rewritten into Malay in a Malay room (cause found).
+3. Khmer and Lao: no speech engine (Deepgram does not support them).
+4. Language coverage check.
