@@ -1,0 +1,28 @@
+name: Market Navigator Turn 36 Qualify
+on:
+  push:
+    paths: ['market-navigator-turn36-pre-ship.html','market-navigator-build-turn36.py','market-navigator-turn36-qa.mjs','.github/workflows/market-navigator-turn36.yml']
+permissions: {contents: read}
+jobs:
+  qualify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: {python-version: '3.12'}
+      - uses: actions/setup-node@v4
+        with: {node-version: '22'}
+      - run: python market-navigator-build-turn36.py
+      - run: |
+          python - <<'PY'
+          import re,pathlib
+          s=pathlib.Path('market-navigator-turn36-pre-ship.html').read_text();pathlib.Path('/tmp/mn36.js').write_text('\n'.join(re.findall(r'<script[^>]*>(.*?)</script>',s,re.S)))
+          PY
+          node --check /tmp/mn36.js
+      - run: |
+          npm ci
+          npm install --no-save playwright@1.63.0
+          npx playwright install --with-deps chromium
+          python -m http.server 8123 >/tmp/mn36-http.log 2>&1 &
+          SERVER=$!; trap 'kill $SERVER || true' EXIT; sleep 2
+          MARKET_NAVIGATOR_URL=http://127.0.0.1:8123/market-navigator-turn36-pre-ship.html node market-navigator-turn36-qa.mjs
