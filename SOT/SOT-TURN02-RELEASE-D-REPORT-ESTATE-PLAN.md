@@ -191,3 +191,10 @@ Freshness: Connected describes transport only. Separate evidence state Current /
 **Evidence (owner screenshot):** the tables under the two charts repeated what a section popup is specified to show.
 **Change:** the two charts keep only the bar and a row of tappable section chips (UNIQUE / KEEP / DEFICIT / EXCESS; IN PLAY / LANDED / DEFICIT or AVAILABLE). Tapping a bar segment or chip opens the popup with files · size · %files · %size (chart 2: files · size · % of TARGET). The popup offers "Open in Search" for sections that have a file scope (UNIQUE, KEEP, DEFICIT, EXCESS, IN PLAY, LANDED).
 **Qualification:** `qualify-release-d-report-estate.mjs` reads every popup and opens each section's Search.
+
+## 2026-10-03 — Search table: Row column, grouping, column order, search exclusion
+
+**Requirement (owner):** result rows numbered 1..N; long-press a column to open a modal with Group checkbox, drag-and-drop column order, exclude-from-search; choices persist; groups collapse with a chevron (example: group by Estate › Fingerprint, sorted Modified descending).
+**Decisions (owner answers):** new first "Row" column that renumbers live (numbering is continuous through groups); one drag list, checked Group columns nest in list order; groups ordered ascending, rows inside ordered by the chosen sort column/direction; persisted per device (localStorage `sotDbLayout`).
+**Change (Complete surface only):** Row column (tap it to select a row); long-press (or right-click) a header opens the Columns modal (Group / Search checkboxes, ☰ drag handle, Reset); group headers show chevron, field, value, file count and size, start collapsed, nest by level, date fields group by day; 600-row window with "Show 600 more"; "Search" unchecked removes the column from free-text search only (`field:value` still works); layout is part of the render cache key.
+**Qualification:** runtime qualifier covers row numbering, long-press (no accidental sort), grouping/collapse/expand, persistence across reload, drag reorder, exclusion, reset.

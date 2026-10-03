@@ -25,7 +25,7 @@ async function open(vw,vh){const ctx=await browser.newContext({viewport:{width:v
  ok(fr,'runtime did not start');await fr.waitForSelector('#Plan .subtabs');return {ctx,pg,fr}}
 const txt=(fr,sel)=>fr.$eval(sel,e=>e.innerText);
 try{
- const {ctx:ctx0,pg,fr}=await open(1280,900);
+ let {ctx:ctx0,pg,fr}=await open(1280,900);
  // 1 labels
  const sw=await fr.$$eval('.ssot-report-switch button',b=>b.map(x=>x.textContent.trim()));ok(JSON.stringify(sw)==='["Report","Job Status"]','switch labels '+sw);
  const vis=await fr.evaluate(()=>[...document.querySelectorAll('button,a,[role=tab]')].filter(e=>e.offsetParent&&/analyze/i.test(e.textContent)).map(e=>e.textContent));ok(!vis.length,'visible Analyze label: '+vis);
@@ -102,6 +102,47 @@ try{
   const same=await fr.evaluate(()=>{const a=filterQuery('excess'),b=filterQuery('excess'),s1=sortRows(a),s2=sortRows(a);return a===b&&s1===s2});ok(same,'search/sort results are not cached');
   const kept=await fr.evaluate(async()=>{const el=document.querySelector('#Database .dbgrid');show('Plan');await new Promise(r=>setTimeout(r,50));show('Database');await new Promise(r=>setTimeout(r,50));return el===document.querySelector('#Database .dbgrid')});ok(kept,'switching back to Search rebuilt the table');
   pass('search and sort results are cached per loaded database and switching back to Search reuses the rendered table (no rebuild)')}
+ // Search table layout: row numbers, long-press columns modal, grouping, order, search exclusion, persistence
+ {await fr.evaluate(()=>{omniDraft='';omniQuery='';show('Database')});await pg.waitForTimeout(500);
+  const rowNos=()=>fr.$$eval('#Database tbody tr[data-pid] td.rownum',e=>e.map(x=>x.textContent.trim()));
+  const heads=()=>fr.$$eval('#Database thead th',e=>e.map(x=>x.dataset.f||x.textContent.trim()));
+  ok((await heads())[0]==='Row'&&(await rowNos()).join()==='1,2,3,4,5,6','row numbers 1..N '+await rowNos());
+  await fr.evaluate(()=>{omniDraft='excess';omniQuery='excess';renderDatabase()});await pg.waitForTimeout(400);ok((await rowNos()).join()==='1,2','row numbers renumber with the search '+await rowNos());
+  await fr.evaluate(()=>{omniDraft='';omniQuery='';renderDatabase()});await pg.waitForTimeout(400);
+  pass('search results carry a Row column numbered 1..N that renumbers with every search');
+  const hold=async(f)=>{const b=await fr.locator('#Database th[data-f="'+f+'"]').boundingBox();await pg.mouse.move(b.x+b.width/2-6,b.y+b.height/2);await pg.mouse.down();await pg.waitForTimeout(800);await pg.mouse.up();await pg.waitForTimeout(250)};
+  const sortBefore=await fr.evaluate(()=>sortField+sortDir);await hold('filename');ok(await fr.$('#ssotColList .colrow[data-f="filename"].focus'),'long press did not open the columns modal');ok(await fr.evaluate(()=>sortField+sortDir)===sortBefore,'long press must not sort');
+  pass('long-pressing a column header opens the Columns modal (and does not sort)');
+  const tick=(f,k)=>fr.locator('#ssotColList .colrow[data-f="'+f+'"] input[data-k="'+k+'"]').click();
+  await tick('estate','g');await tick('fingerprint','g');await pg.waitForTimeout(300);
+  const info=await fr.$eval('#ssotColInfo',e=>e.textContent);ok(/Group by Estate › Fingerprint/.test(info),'group info '+info);
+  await fr.click('#modalcancel');await pg.waitForTimeout(300);
+  let grp=await fr.$$eval('#Database tbody tr.ssot-grp',e=>e.map(x=>x.innerText.replace(/\s+/g,' ').trim()));ok(grp.length===3&&/Estate s1/.test(grp[0])&&/1 file/.test(grp[0])&&(await rowNos()).length===0,'groups collapsed by default '+JSON.stringify(grp));
+  await fr.click('#Database tbody tr.ssot-grp:nth-child(1)');await pg.waitForTimeout(250);
+  const lvl2=await fr.$$eval('#Database tbody tr.ssot-grp',e=>e.map(x=>x.innerText.replace(/\s+/g,' ').trim()+'|'+x.querySelector('.chev').textContent));ok(lvl2.length>3&&/▾/.test(lvl2[0])&&/Fingerprint/.test(lvl2[1]),'expand shows nested fingerprint groups '+JSON.stringify(lvl2));
+  await fr.click('#Database tbody tr.ssot-grp:nth-child(2)');await pg.waitForTimeout(250);const nums=await rowNos();ok(nums.length>=1&&nums.every(n=>/^\d+$/.test(n)),'rows under an expanded group are numbered '+nums);
+  await fr.click('#Database tbody tr.ssot-grp:nth-child(1)');await pg.waitForTimeout(250);ok((await fr.$$('#Database tbody tr.ssot-grp')).length===3,'collapse again');
+  pass('group by Estate › Fingerprint: groups start collapsed, chevron expands nested groups with counts and size, rows stay numbered');
+  const saved=await fr.evaluate(()=>localStorage.sotDbLayout);ok(/"groups":\["estate","fingerprint"\]/.test(saved),'persisted '+saved);
+  await pg.reload();let fr2;for(let i=0;i<100;i++){try{const o=await (await (await pg.waitForSelector('#shell')).contentFrame()).waitForSelector('#app');fr2=await o.contentFrame();if(await fr2.evaluate(()=>!!window.__ssotCompletePlacementRefresh&&window.placements.length>0&&!document.querySelector('#ssot-db-blocker.on')))break}catch(e){}await pg.waitForTimeout(100)}
+  await fr2.evaluate(()=>show('Database'));await pg.waitForTimeout(600);ok((await fr2.$$('#Database tbody tr.ssot-grp')).length===3,'grouping did not persist after reload');pass('layout choices persist across reloads');
+  // drag Estate above Filename
+  await fr2.evaluate(()=>__ssotColumnsModal('estate'));await pg.waitForTimeout(300);
+  const hb=await fr2.locator('#ssotColList .colrow[data-f="estate"] .h').boundingBox(),tb=await fr2.locator('#ssotColList .colrow[data-f="path"]').boundingBox();
+  await pg.mouse.move(hb.x+hb.width/2,hb.y+hb.height/2);await pg.mouse.down();await pg.mouse.move(hb.x+hb.width/2,tb.y+2,{steps:8});await pg.mouse.up();await pg.waitForTimeout(300);
+  const ord=await fr2.$$eval('#ssotColList .colrow',e=>e.map(x=>x.dataset.f));ok(ord.indexOf('estate')<ord.indexOf('path'),'drag reorder: estate should now be before Folder: '+ord);
+  // exclude Estate from free-text search
+  await fr2.locator('#ssotColList .colrow[data-f="estate"] input[data-k="s"]').click();await pg.waitForTimeout(200);
+  await fr2.click('#modalcancel');await pg.waitForTimeout(300);
+  {const h=await fr2.$$eval('#Database thead th[data-f]',e=>e.map(x=>x.dataset.f));ok(h.indexOf('estate')<h.indexOf('path'),'column order applied '+h)}
+  const hit=async(q)=>fr2.evaluate(q=>{omniDraft=omniQuery=q;return filterQuery(q).length},q);
+  const withEx=await hit('s2'),qual=await hit('estate:s2');ok(withEx===0&&qual>0,'excluded column ignored by free text but still searchable by name: '+withEx+'/'+qual);
+  await fr2.evaluate(()=>{omniDraft='';omniQuery=''});
+  pass('column order by drag, per-column "Search" exclusion (free text ignores it; field:value still works)');
+  await fr2.evaluate(()=>{__ssotColumnsModal();document.getElementById('ssotColReset').click()});await pg.waitForTimeout(300);
+  ok(JSON.parse(await fr2.evaluate(()=>localStorage.sotDbLayout)).groups.length===0,'reset');await fr2.click('#modalcancel');await pg.waitForTimeout(200);
+  pass('Reset columns restores order, grouping and search');
+  fr=fr2}
  // Job Status
  await fr.evaluate(()=>__ssotOpenReportMode('Analyze'));await pg.waitForTimeout(300);ok(await fr.evaluate(()=>document.getElementById('Analyze').classList.contains('on')&&document.getElementById('Analyze').innerText.length>20),'job status pane');ok(await fr.$$eval('#Analyze .ssot-report-switch button',b=>b[1].textContent.trim()==='Job Status'&&b[1].classList.contains('on')),'job status nav');pass('Job Status renders the existing job/source status surface');
  await pg.context().close();

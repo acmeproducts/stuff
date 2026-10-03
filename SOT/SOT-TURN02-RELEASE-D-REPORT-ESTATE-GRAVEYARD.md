@@ -42,3 +42,4 @@ Do not forward-patch this rejected design. Restore the pre-#770 Complete bytes (
 - The separate Analysis / Capacity / Operations subtabs and the "Select all results" step are retired in favor of one Waterfall and an automatic result chip.
 - The multi-bar Waterfall (separate UNIQUE / KEEP / EXCESS / ESTATE bars, section headers, legend) is retired: redundant. Replaced by two charts. Estate red is no longer pinned to canonical root order when sorted; it is counted in the order shown.
 - The per-chart number tables (replaced by section popups).
+- Tap-any-# selection: the row selector is now the Row number cell (the permanent database # remains a normal column).
