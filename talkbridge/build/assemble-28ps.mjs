@@ -1,7 +1,8 @@
 #!/usr/bin/env node
 /* 28·pre-ship assembler — FLATTENING, cluster 2: the call (§7.16, §0c-1),
    plus two declared additions at the owner's order (2026-10-03, "OK GO"):
-   X-1 the translation check card, G-1 Google-first translation.
+   X-2 the translation check (one tap on a header button; chat-test's card), G-1 Google-first translation.
+   Candidate 2: X-1's double-tap gesture replaced by X-2 at the owner's order (2026-10-03).
 
    Input : the 28·base candidate 2 bytes (sha-checked; the owner's device
            gate on it is still open — the plan records that this stage was
@@ -9,7 +10,7 @@
    Output: bridge-turn28-pre-ship.html = those bytes MINUS every layer named
            in talkbridge/fixtures/flatten/28ps/removals.json (each removed by
            its exact banked text, exactly once) PLUS three appended parts:
-           FL-2 (the call, flat), X-1, G-1.                                   */
+           FL-2 (the call, flat), X-2, G-1.                                   */
 import crypto from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
@@ -21,10 +22,10 @@ export const BASE_FILE = 'bridge-turn28-base.html';
 export const BASE_SHA = 'ac70346cac704aadd53a08c789b59b522ac1682693073605858cc1436cb32321';
 export const FIXTURES = 'talkbridge/fixtures/flatten/28ps';
 export const MANIFEST = FIXTURES + '/removals.json';
-export const PARTS = ['talkbridge/parts/fl2-call.js', 'talkbridge/parts/x1-check-card.js', 'talkbridge/parts/g1-google-first.js'];
+export const PARTS = ['talkbridge/parts/fl2-call.js', 'talkbridge/parts/x2-check-button.js', 'talkbridge/parts/g1-google-first.js'];
 export const SYMBOLS = ['CALL.keys', 'CALL.start', 'CALL.onIncoming', 'CALL.accept', 'CALL.onAccepted', 'CALL.mount', 'CALL.onSignal', 'CALL.runRecovery', 'CALL.startVideoWatchdog', 'CALL.stopVideoWatchdog', 'CALL.toggleMic', 'CALL.hangUp', 'CALL.teardown', 'camSenders', 'replaceSenderTrack', 'CALL.setupPC', 'CALL.toggleCam'];
 /* log markers the two additions bring; FL-2 brings none */
-export const ADDED_MARKERS = ['bt_check', 'x1_card', 'trans_ok', 'trans_fallback'];
+export const ADDED_MARKERS = ['bt_check', 'trans_ok', 'trans_fallback'];
 export const OUT_FILE = 'bridge-turn28-pre-ship.html';
 export const TAIL = '\n</script>\n</body>\n</html>';
 
