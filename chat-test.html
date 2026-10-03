@@ -264,8 +264,7 @@ var LANGS={
   id:{flag:'🇮🇩',name:'Indonesian',tts:'id-ID'},ms:{flag:'🇲🇾',name:'Malay',tts:'ms-MY'},
   fil:{flag:'🇵🇭',name:'Filipino',tts:'fil-PH'},nl:{flag:'🇳🇱',name:'Dutch',tts:'nl-NL'},
   sv:{flag:'🇸🇪',name:'Swedish',tts:'sv-SE'},pl:{flag:'🇵🇱',name:'Polish',tts:'pl-PL'},
-  tr:{flag:'🇹🇷',name:'Turkish',tts:'tr-TR'},
-  km:{flag:'🇰🇭',name:'Khmer',tts:'km-KH'},lo:{flag:'🇱🇦',name:'Lao',tts:'lo-LA'}
+  tr:{flag:'🇹🇷',name:'Turkish',tts:'tr-TR'}
 };
 /* ===== bridge27: LANG_ORDER ===== */
 var LANG_ORDER=['en','th','es','ja','ko','zh','ar','hi','ru','fr','de','it','pt','vi','id','ms','fil','nl','sv','pl','tr'];
@@ -517,7 +516,7 @@ function speakText(text,lang){
   rec('user-mute','ok',{side:side,before:before,after:muted[side]?'muted':'open'});
   sync();return true;
  }
- function wantsMic(side){return openMode()&&roomReady()&&!muted[side]&&!!DG_LANGS[langs()[side]]}
+ function wantsMic(side){return openMode()&&roomReady()&&!muted[side]}
  function keepsMic(why){return openMode()&&!LIFECYCLE.test(why)}
  function afterTeardown(why){
   if(LIFECYCLE.test(why)){gen++;if(pend){clearTimeout(pend.timer);rec('stale-session','blocked',{reason:'discarded',items:pend.items.length});pend=null}last={side:null,ts:0};if(why==='room switch'){muted={south:false,north:false}}}
@@ -775,8 +774,6 @@ function langMode(room) { return (room && room.myLangMode === 'auto') ? 'auto' :
 function resolveEffectiveLang(room, detected) {
   var mine = room.myLang;
   if (!detected || detected === mine) return { srcLang: mine, normalizeFrom: null };
-  /* Malay and Indonesian are near-identical to a detector. The room's choice decides; the speaker's words are kept, never rewritten into the sibling. */
-  if ((mine === 'ms' && detected === 'id') || (mine === 'id' && detected === 'ms')) return { srcLang: mine, normalizeFrom: null };
   if (langMode(room) === 'auto') return { srcLang: detected, normalizeFrom: null };
   return { srcLang: mine, normalizeFrom: detected };
 }
@@ -1161,7 +1158,6 @@ function dgLangParam(room) {
             if(!stream){diag(side+': no mic stream',true);return}
 
             var room=sideAsRoom(side);
-            if(!DG_LANGS[room.myLang]){diag(side+': speech is not available for '+room.myLang+' — type instead',true);toastMsg((LANG_NAMES[room.myLang]||room.myLang)+': speech is not available yet. Type instead.');return}
             var lang=dgLangParam(room);
             var myGen=P.gen.n;
             var url='wss://api.deepgram.com/v1/listen?model=nova-3&language='+encodeURIComponent(lang)+
@@ -1355,7 +1351,7 @@ function dgLangParam(room) {
             paintIdle(s);
         });
         INPUT.owner=null;INPUT.mode=null;
-        try{if(window.speechSynthesis&&!window.audioTurn.keepsMic(why))speechSynthesis.cancel()}catch(e){}
+        try{if(window.speechSynthesis)speechSynthesis.cancel()}catch(e){}
         clearAsk();
         diag('teardown ('+why+')');
         window.audioTurn.afterTeardown(why);
@@ -2502,8 +2498,6 @@ function dgLangParam(room) {
     var LANG_FLAGS={en:'🇺🇸',th:'🇹🇭',es:'🇪🇸',ja:'🇯🇵',ko:'🇰🇷',zh:'🇨🇳',ar:'🇸🇦',hi:'🇮🇳',ru:'🇷🇺',
       fr:'🇫🇷',de:'🇩🇪',it:'🇮🇹',pt:'🇧🇷',vi:'🇻🇳',id:'🇮🇩',ms:'🇲🇾',fil:'🇵🇭',nl:'🇳🇱',sv:'🇸🇪',
       pl:'🇵🇱',tr:'🇹🇷',km:'🇰🇭',lo:'🇱🇦'};
-    /* Language check: one row per selectable language; null means that part is missing. Read-only. */
-    window.langCheck=function(){return Object.keys(LANG_NAMES).map(function(c){var g=LANGS[c];return{code:c,name:LANG_NAMES[c],flag:LANG_FLAGS[c]||null,tts:g?g.tts:null,stt:DG_LANGS[c]||null,keyboard:(LANG_KB[c]&&LAYOUTS[LANG_KB[c]])?LANG_KB[c]:null}})};
     var SWATCHES=['#eff6ff','#f0fdf4','#fef3c7','#fee2e2','#f3e8ff','#ffffff'];
 
     var MIC_SVG=(function(s){return(
