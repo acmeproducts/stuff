@@ -214,6 +214,41 @@ Tests must stage selections in at least three tabs, change search text, cancel o
 ### Performance/lifecycle guard
 Create/update/resize/destroy cycles are repeated at least 25 times in browser qualification. Listener counts, instance counts and DOM node counts must return to baseline after destroy. No release if the controller leaks instance state or event handlers.
 
+## Additional controls added after Review Round 2
+
+### True-module proof
+Shadow parity cannot be achieved by simply calling legacy chart entrypoints.
+- The controller may use shared canonical data-access primitives.
+- It may not call legacy NOW/Analyze state-transition, series-preparation, axis-policy, picker-state, or render-orchestration functions.
+- A dependency/code-search gate records every legacy function referenced by the controller. Any chart-behavior dependency blocks Stage 2.
+- Consumer identity such as NOW or Analyze may not enter chart mathematics or state-transition code. Presentation capability flags are allowed only for visibility/density.
+
+### Event ownership proof at NOW cutover
+Stage 5 must prove exactly one live handler path per chart operation.
+- legacy chart event handlers are detached or gated off before controller activation;
+- listener instrumentation records one transition per user action;
+- double-render, double-Add, duplicate horizon updates and duplicate tooltip events block release.
+
+### Analytical coverage matrix
+Parity must cover RSK, GRW and MAC; every supported horizon; Fixed and Horizon; index-only, component-only, market-comparison and mixed measurement-family cases; eligible Y1+Y2; unavailable-series cases; and at least one irregular/low-frequency series.
+Compare series order, timestamps, native values, indexed values, axis assignments, domains and final plotted coordinates.
+
+### Visual acceptance thresholds
+At reference viewports:
+- NOW chrome/control DOM structure is exact;
+- target is exact geometry equality; any sub-pixel browser rounding difference must be documented and separately approved before release;
+- text/control order and visibility are exact;
+- no new overflow or clipping;
+- no unmasked chrome raster differences;
+- canvas is also validated by deterministic plotted-coordinate comparison.
+No subjective "close enough" result clears a failed gate.
+
+### Immutable accepted baseline
+`market-navigator-turn28-post-ship.html` is read-only for this program. Development uses new stage candidates only.
+
+### Immediate rejection rule
+Any owner-visible NOW regression causes immediate rejection and rollback to the accepted baseline in the same session. Do not diagnose by forward-patching the rejected candidate.
+
 ## Non-goals
 No chart redesign, index-math change, Dashboard work, Health/source change, Library redesign, AI change, or unrelated cleanup.
 
@@ -252,3 +287,33 @@ Countermeasures were added: deterministic visual fixtures, analytical-array comp
 ### Round 1 disposition
 Plan revised. Proceed to Manager Review Round 2.
 
+
+
+### Round 2 — Manager review: CLEARED
+Review focus: scope control, sequencing, rollback, evidence, source-control safety, owner acceptance, and whether the plan can reach a true callable implementation without placing NOW at unnecessary risk.
+
+Two final clarifications were required:
+1. prove single event ownership at NOW cutover so legacy and controller handlers cannot both fire;
+2. define visual acceptance as baseline equality rather than subjective similarity.
+
+Both are now explicit. Manager disposition: CLEARED FOR OWNER PLAN REVIEW. This is not authorization to implement.
+
+### Round 2 — Red-team review: CLEARED
+Adversarial checks against the revised plan:
+- wrapper masquerading as module: blocked by legacy-dependency gate;
+- consumer-specific math hidden inside one class: blocked by no-consumer-identity rule;
+- screenshots passing with wrong data: blocked by analytical matrix and plotted-coordinate checks;
+- duplicate handlers after attach: blocked by event-ownership instrumentation;
+- global-state leakage: blocked by frozen/proxied concurrent-instance tests;
+- hidden Analyze overlay intercepting Library: blocked by pointer/keyboard hit-target tests;
+- Add changing state before OK: blocked by staged-state atomicity test;
+- async/race/leak failures: blocked by rapid-action and repeated lifecycle tests;
+- accidental modification of accepted baseline: blocked by read-only baseline rule;
+- rescue-patch chain after owner rejection: blocked by immediate rejection/rollback rule.
+
+No unresolved release-blocking gap remains. Red-team disposition: CLEARED FOR OWNER PLAN REVIEW. This is not authorization to implement.
+
+### Final review disposition
+- MANAGER: CLEARED
+- RED TEAM: CLEARED
+- PRODUCT IMPLEMENTATION: NOT STARTED / AWAITING OWNER APPROVAL OF THIS PLAN
