@@ -343,3 +343,32 @@ Owner qualification rejected Turn 36 because NOW became unusable.
 Turn 36 replaced the accepted NOW surface with a newly generated component-owned DOM and renderer. Lab qualification did not protect the accepted visual and interaction contract. The approach is rejected and must not be used as a donor.
 
 Permanent prohibition: do not prove reuse by replacing the accepted NOW presentation with a new generic component surface. The next modularization attempt must start from the accepted NOW implementation, preserve its rendered structure and behavior, and extract callable boundaries behind that accepted surface rather than recreating it.
+
+## Turn 31–36 modularization failure pattern — PERMANENTLY REJECTED 2026-10-03
+
+This entire sequence is retained as evidence, not as implementation material.
+
+### What failed
+- Shared helpers were mislabeled as a callable module while NOW and Analyze still owned separate behavior.
+- Later attempts over-corrected by moving, cloning, or rebuilding the accepted NOW surface.
+- Candidate qualification focused on intended architecture and selected interactions instead of proving equivalence to the accepted owner-visible product.
+- Visual/geometry parity was not a release-blocking gate.
+- Hidden global and DOM dependencies were changed too broadly instead of mapped and retired incrementally.
+- User-facing fixes were mixed into architecture migration, increasing blast radius.
+- Failed architectural candidates were patched forward through syntax, boot, geometry, and interaction defects instead of being discarded.
+- A lab-green result was allowed to create false confidence even though owner-visible NOW had regressed badly.
+
+### Permanent prohibitions
+1. Do not replace, regenerate, reparent, or redesign accepted NOW markup/CSS merely to obtain reuse.
+2. Do not call shared preparation/paint helpers a reusable module if consumers still own parallel chart state transitions, axis logic, picker behavior, or event handling.
+3. Do not use Turn 31, 32, 33, 34, 35, or 36 code as a donor.
+4. Do not advance any NOW refactor without a baseline differential suite that protects visual geometry, interaction traces, and resolved analytical arrays.
+5. Do not allow a candidate to pass on screenshots alone; wrong data or wrong plotted coordinates must fail independently.
+6. Do not let Analyze or any second instance write through NOW globals.
+7. Do not permit duplicate live event-handler paths during migration.
+8. Do not forward-patch a failed migration stage. Discard it and return to the last passed stage.
+9. Do not overwrite the accepted post-ship baseline.
+10. Do not describe lab qualification as owner acceptance.
+
+### Required successor pattern
+The only allowed successor is the staged attach-controller approach documented in `MARKET-NAVIGATOR-TURN37-RCA-PLAN.md`: characterize the accepted baseline first, map dependencies, prove a non-driving shadow controller, drive Analyze before NOW, add shared batch Add after isolation passes, then attach the same controller to the existing NOW DOM and retire legacy paths only after full differential parity.
