@@ -1,5 +1,5 @@
-<!-- TALKBRIDGE-PLAN v21.63.2 -->
-# TALKBRIDGE MASTER PLAN v21.63.2
+<!-- TALKBRIDGE-PLAN v21.64.0 -->
+# TALKBRIDGE MASTER PLAN v21.64.0
 
 **Location:** `talkbridge/TALKBRIDGE-PLAN-v9.md` in `acmeproducts/stuff`.
 **Owner:** Confi — sole decision-maker, runs every device gate.
@@ -2038,6 +2038,8 @@ Green means allowed to push. It never means done.
 ---
 
 ## 10 · CHANGE LOG
+
+**v21.64.0 · 2026-10-03.** §7.18 added at the owner's request: PROPOSAL, for discussion, not scheduled — a translation overlay that learns (owner draft) with the builder's notes on storage (the phrasebook file already is the per-pair exportable store), on the local-lookup layer that checks a refined translation without the provider, on what "accept" means on the wire, on provenance fields, and on the earliest honest slot.
 
 **v21.63.2 · 2026-09-30.** Ownership workflow: the pull_request trigger loses its path filter so the check runs on every PR (a required check that never runs blocks the PR forever). Prerequisite for making "TalkBridge ownership" a required check on main.
 
@@ -5285,4 +5287,75 @@ Strings live inside the renderers. Until 28·post-ship gives each renderer one
 owner (§7.16 clusters 4–5) a string table would be wired through the same
 layer cake this project is dismantling. Localization is the first feature
 built on the flattened code, which is also its proof.
+
+────────────────────────────────────────────────────────────────────────
+## §7.18 PROPOSAL — A TRANSLATION OVERLAY THAT LEARNS (owner draft 2026-10-03; FOR DISCUSSION, not scheduled)
+────────────────────────────────────────────────────────────────────────
+### The owner's draft, verbatim in substance
+Idea. Keep the machine translation as the base. Put a layer of approved
+phrases on top of it, like a mask. If the mask has a better answer, it wins.
+Otherwise the base shows through.
+
+Why combine the two. TalkBridge's curated phrasebook is high quality but
+covers only what someone wrote down. chat-test's AI check finds bad
+translations and suggests fixes, but those fixes are thrown away after one
+use. Joined together, every fix becomes a permanent improvement. The system
+should learn better translations and use them in lieu of repeating
+translations from an outdated, poorly trained or too-formal corpus.
+
+How it works, in order, for each message:
+1. Look for the phrase in the overlay: exact match first, then close match.
+2. If there is no hit, use the normal machine translation.
+3. If the AI check flags a problem, show the suggested fix.
+4. When a person accepts a fix, or a native speaker corrects one, save it to
+   the overlay for that language pair.
+
+Rules to keep it safe:
+- Trust levels: native-speaker corrections beat AI fixes, and AI fixes beat
+  plain machine output. An AI fix is only a suggestion until a person
+  accepts it.
+- Each entry is tied to one language pair and direction. Malay and
+  Indonesian never share entries.
+- Show where an answer came from (overlay or machine) so mistakes can be
+  traced.
+- The overlay is a plain exportable file and can be reviewed, edited or
+  turned off. It cannot be silently corrupted by one bad AI answer.
+
+Where it helps first: everyday phrases and the look-alike language pairs.
+Open questions (owner): where the overlay is stored and whether TalkBridge
+and chat-test share one file; who approves entries; whether the paid AI
+check is needed, since the overlay alone fixes repeat mistakes.
+
+### Builder's notes toward the discussion (facts from the code, not decisions)
+- STORAGE TODAY. TalkBridge's phrasebook is one JSON file per language pair
+  and direction in this repository (`phrasebook/phrasebook-<src>-<tgt>-<ver>.json`,
+  GitHub is the source of truth, written with the owner's token, with a
+  per-phone cache and the K-2 merge). That file already IS "a plain
+  exportable file, per pair and direction, reviewable in git". The overlay
+  can be a second kind of card in the same file (or a sibling file with the
+  same envelope) rather than a new store. chat-test keeps its rooms in the
+  browser's IndexedDB only; it has no shared store, so sharing means
+  chat-test reading the same repository file.
+- THE "OTHER LAYER" THE OWNER ASKED ABOUT. A refined translation does not
+  need the provider to be checked again: the overlay lookup itself is the
+  check. Exact match is a string key; close match is the same wording score
+  the check card already computes (bigram overlap), run locally against the
+  pair's entries before any network call. So step 1 costs nothing on the
+  wire, and a hit also answers the back-translation card without a round
+  trip (the overlay entry carries its own verified back-translation).
+- WHAT "ACCEPT" MEANS ON THE WIRE. A translation is already delivered to the
+  partner when the fix is accepted. The overlay improves the NEXT time;
+  whether the current message is re-sent corrected is a separate rule
+  (see the §7.16-era note on "Use this translation"), to be decided here.
+- TRUST AND PROVENANCE map cleanly onto the phrasebook card's existing
+  fields: `createdBy`, `updatedBy`, `clarifyChain` (the history of edits),
+  `backtranslate.verdict`. An overlay entry would add `source` (native /
+  ai:<provider> / machine), `pair`, `direction`, `hits`, `lastUsed`.
+- SEQUENCE. Depends on the Google-first translator and the check card
+  (28·pre-ship c2) and on localization's string table for the "where this
+  came from" marker (30·base). Earliest honest slot: after 30·base, before
+  beta readiness, as its own stage; or after beta as the first post-beta
+  feature. Not placed until the owner decides.
+- THE PAID AI CHECK. Optional by construction: without keys, steps 1, 2 and
+  4 (native corrections) still work; step 3 is what the keys buy.
 
