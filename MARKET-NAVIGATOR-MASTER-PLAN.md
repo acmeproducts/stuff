@@ -2379,3 +2379,11 @@ The current owner test target `market-navigator-turn36-pre-ship.html` is reverte
 
 ### Next architecture rule
 Do not attempt another NOW modularization by replacing NOW's accepted DOM or renderer. Any future callable extraction must preserve NOW at the presentation/behavior boundary first, with a failing visual and interaction regression suite written against the accepted baseline before implementation.
+
+## 38. Turn 37 — RCA and controlled NOW modularization recovery plan — 2026-10-03
+Status: PLAN ONLY. No product implementation is authorized until owner review.
+
+Detailed RCA, staged recovery design, differential gates, failure rules, and review record:
+`MARKET-NAVIGATOR-TURN37-RCA-PLAN.md`
+
+This plan supersedes the Turn 31–36 modularization approaches. Those turns remain evidence only and are not implementation donors.
