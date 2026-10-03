@@ -570,3 +570,15 @@ Recorded, not scheduled.
 **Finding.** Not reproduced in `chat-test.html`. Malay (`ms`) and Indonesian (`id`) are separate in the language list, speech recognition (`ms` and `id`), read-aloud (`ms-MY` and `id-ID`), translation codes, keyboard layout and dictionary files (`dict/ms.json`, `dict/id.json`, about 60% shared words). Deepgram Nova-3 lists both languages. No code changed.
 
 **Still open.** The owner's symptom is not yet pinned to a place. Next step is an on-device trial with Malay speech and typing, with the debug log copied from the app, to see where it becomes Indonesian. Not verified on a real phone.
+
+### chat-test: backlog item 2 update, Indonesian rewritten into Malay (2026-10-03)
+
+**Owner evidence (device log).** Indonesian speech "Ini sistem yang simple" in a Malay room was logged as Normalized (Malay): "Ini adalah sistem yang mudah". The words were changed.
+
+**Cause.** The text is checked by a language detector, which reported Indonesian. The room said Malay, so the app "normalized" by translating Indonesian into Malay. A detector cannot reliably tell the two apart, and the rewrite replaced what the speaker said.
+
+**Change.** Malay and Indonesian are treated as sibling languages at that one step: the room's chosen language decides, and the speaker's words are kept unchanged, in both directions. Everything else already kept them distinct (list, speech recognition, read-aloud, keyboard, dictionary).
+
+**Check added first.** "Malay and Indonesian are sibling languages…" failed before the change (the Indonesian sentence came back rewritten) and passes after. Open mode 37/37, ask mode 33/33, controller 20/20. **Not verified:** a real phone.
+
+**Separate finding, not fixed.** English to Malay "I'm saying something simple" gave "Saya mengatakan sesuatu yang mudah"; a Malay speaker called it a terrible translation. This is Google's machine translation (missing "sedang" for the progressive), not language handling. It belongs with the backlogged paid AI translation trial (Claude or Gemini) for field testing of quality versus cost.

@@ -50,6 +50,12 @@ test('open mode: opening the North keyboard does not cut read-aloud that is play
  assert.equal(await page.evaluate(()=>audioTurn.state().phase),'playing','read-aloud still playing after the North keyboard opens');
  assert.equal(await page.evaluate(()=>window.cancels),before,'keyboard open did not cancel speech');
 });
+test('Malay and Indonesian are sibling languages: speech in one is never rewritten into the other',async({page})=>{
+ await openRoom(page,'MsId');
+ const run=(mine,detected,text)=>page.evaluate(async([mine,detected,text])=>{let calls=0;const orig=window.translateWithRetry;window.translateWithRetry=async(t,f,to)=>{calls++;return{ok:true,text:'REWRITTEN '+t}};try{const r=await normalizeOutgoing({myLang:mine,theirLang:'en',myLangMode:'fixed'},text,detected);return Object.assign({calls:calls},r)}finally{window.translateWithRetry=orig}},[mine,detected,text]);
+ let r=await run('ms','id','Ini adalah sistem yang sederhana');assert.equal(r.text,'Ini adalah sistem yang sederhana','Indonesian words kept in a Malay room');assert.equal(r.lang,'ms');assert.equal(r.calls,0);
+ r=await run('id','ms','Ini adalah sistem yang mudah');assert.equal(r.text,'Ini adalah sistem yang mudah','Malay words kept in an Indonesian room');assert.equal(r.lang,'id');assert.equal(r.calls,0);
+});
 test('open mode: mute, typing keeps mics, portal closes and reopens them, unsure goes to compose',async({page})=>{
  const s=await openRoom(page,'Mute');
  await page.locator('#strip-south .micbtn').click();await page.waitForFunction(()=>!mic.south.on&&mic.north.on);
