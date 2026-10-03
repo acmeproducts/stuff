@@ -6,8 +6,8 @@ Deploy target: `https://acmeproducts.github.io/stuff/devstream.html`
 Test target: `https://acmeproducts.github.io/stuff/devstream-test.html`
 
 ## Status
-- Current release: v1.0 b60 on devstream-test.html (2026-10-03)
-- Stage: TEST (b60)
+- Current release: v1.0 b61 on devstream-test.html (2026-10-03)
+- Stage: TEST (b61)
 
 ## Release Rules (inherited, proven)
 1. Mobile-first. All diagnostics in-app. No DevTools ever.
@@ -255,6 +255,22 @@ b39 incorrectly changed stationary hold into context-menu activation. Devstream 
 ## Graveyard
 - **G-DS-13 — Hold opens context menu:** rejected; donor behavior is double-tap context, hold-to-drag.
 - **G-DS-14 — Legacy generic #tabContext button styling:** rejected; it corrupts the donor context-menu appearance.
+
+---
+
+# 2026-10-03 — b61 test-link requests tolerate typos and plain phrasing
+
+## Owner report
+"give me a test iurl" went to the engine and got a how-to-host essay. b60 only matched the exact words "url"/"link".
+
+## Fix
+- The test-link request matcher also accepts typos (iurl, ulr, uel, rul), "address", and phrasing like "test it", "play it", "how do I test/play/try it", "where can I open it".
+- Still never fires on messages that ask for work (build, add, fix …).
+
+## Acceptance
+- **DS-B61-1:** "give me a test iurl" returns the link, no run.
+- **DS-B61-2:** "how do i test it" returns the link, no run.
+- **DS-B61-3:** "add a test link button" still goes to the engine.
 
 ---
 
