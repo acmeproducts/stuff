@@ -512,9 +512,8 @@ function drawHole(){
   ctx.fillStyle='#000';ctx.beginPath();ctx.arc(hole.x,hole.y,26,0,Math.PI*2);ctx.fill();
 }
 
-// Gesture handling
+// Gesture handling – simplified: pinch‑zoom removed, double‑tap for jump
 var gesture={active:false,startX:0,startY:0,startT:0,mode:'none',longFired:false,longTimer:null};
-var pinchStartDist=0,startZoom=1;
 var tapCount=0,firstTapTime=0;
 
 function clearGesture(){
@@ -525,10 +524,6 @@ cvs.addEventListener('pointerdown',function(e){
   if(e.target.closest('#btnSettings')||e.target.closest('#settingsPanel')||elOverlay.style.display==='flex')return;
   e.preventDefault();
   pointers.set(e.pointerId,{x:e.clientX,y:e.clientY});
-  if(pointers.size===2){
-    var pts=Array.from(pointers.values()),dx=pts[0].x-pts[1].x,dy=pts[0].y-pts[1].y;
-    pinchStartDist=Math.hypot(dx,dy);startZoom=zoom;clearGesture();return;
-  }
   gesture.active=true;gesture.startX=e.clientX;gesture.startY=e.clientY;gesture.startT=performance.now();gesture.mode='none';gesture.longFired=false;
   gesture.longTimer=setTimeout(function(){
     if(!gesture.active||gesture.mode!=='none')return;
@@ -540,11 +535,6 @@ cvs.addEventListener('pointerdown',function(e){
 
 window.addEventListener('pointermove',function(e){
   pointers.set(e.pointerId,{x:e.clientX,y:e.clientY});
-  if(pointers.size===2&&pinchStartDist>0){
-    var pts=Array.from(pointers.values()),dx=pts[0].x-pts[1].x,dy=pts[0].y-pts[1].y;
-    zoom=Math.max(0.35,Math.min(3.5,startZoom*Math.hypot(dx,dy)/pinchStartDist));
-    resize();return;
-  }
   if(!gesture.active)return;
   var dx=e.clientX-gesture.startX,dy=e.clientY-gesture.startY,dist=Math.hypot(dx,dy);
   if(gesture.mode==='none' && dist>12){
@@ -557,12 +547,12 @@ window.addEventListener('pointermove',function(e){
 },{passive:false});
 
 window.addEventListener('pointerup',function(e){
-  pointers.delete(e.pointerId);if(pointers.size<2)pinchStartDist=0;
+  pointers.delete(e.pointerId);
   if(!gesture.active)return;
   var dt=performance.now()-gesture.startT;
   var dx=e.clientX-gesture.startX,dy=e.clientY-gesture.startY,dist=Math.hypot(dx,dy);
   if(elOverlay.style.display==='flex'){reset();clearGesture();return;}
-  // Double‑tap detection for jump
+  // Double‑tap for jump
   if(gesture.mode==='none' && !gesture.longFired && dist<15 && dt<200){
     var now=performance.now();
     if(now-firstTapTime<300 && ++tapCount===2){
@@ -590,7 +580,7 @@ window.addEventListener('pointerup',function(e){
   }
   clearGesture();
 });
-window.addEventListener('pointercancel',function(){pointers.clear();pinchStartDist=0;clearGesture();});
+window.addEventListener('pointercancel',function(){pointers.clear();clearGesture();});
 
 // Settings UI
 btnSettings.addEventListener('click',function(){settingsPanel.style.display='flex';});
@@ -622,7 +612,6 @@ flipSlider.addEventListener('input',function(){
   document.querySelectorAll('.preset-btn').forEach(b=>b.classList.remove('active'));
   document.querySelector('[data-preset="custom"]').classList.add('active');
 });
-// Removed wheel‑zoom to avoid conflict with tap gestures
 
 loadSettings();
 resize();reset();
