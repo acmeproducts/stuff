@@ -6,8 +6,8 @@ Deploy target: `https://acmeproducts.github.io/stuff/devstream.html`
 Test target: `https://acmeproducts.github.io/stuff/devstream-test.html`
 
 ## Status
-- Current release: v1.0 b58 on devstream-test.html (2026-10-03)
-- Stage: TEST (b58)
+- Current release: v1.0 b59 on devstream-test.html (2026-10-03)
+- Stage: TEST (b59)
 
 ## Release Rules (inherited, proven)
 1. Mobile-first. All diagnostics in-app. No DevTools ever.
@@ -255,6 +255,26 @@ b39 incorrectly changed stationary hold into context-menu activation. Devstream 
 ## Graveyard
 - **G-DS-13 — Hold opens context menu:** rejected; donor behavior is double-tap context, hold-to-drag.
 - **G-DS-14 — Legacy generic #tabContext button styling:** rejected; it corrupts the donor context-menu appearance.
+
+---
+
+# 2026-10-03 — b59 tab menu works again (double-click / right-click)
+
+## Owner report
+Could not open the tab menu on a tab.
+
+## Cause
+Clicking a tab reloaded its thread and redrew every tab, even the tab already open. The redraw replaced the tab under the pointer between the two clicks, so a double-click never registered. The thread also flashed "Loading…".
+
+## Fix
+- Clicking the tab that is already open does nothing (no reload, no redraw).
+- Double-click and right-click are caught on the tab bar itself, so a redraw cannot lose them.
+
+## Acceptance
+- **DS-B59-1:** double-click on the open tab opens the tab menu.
+- **DS-B59-2:** double-click on a frozen tab opens the tab menu.
+- **DS-B59-3:** right-click on either tab opens the tab menu.
+- **DS-B59-4:** clicking the open tab does not reload its thread.
 
 ---
 
