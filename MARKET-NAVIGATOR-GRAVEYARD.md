@@ -326,3 +326,8 @@ Permanently rejected: context-specific chart object names or property aliases; c
 The owner rejected Turn 34 because NOW no longer matched the last-known-good application visually or functionally. Recovery must restore accepted `market-navigator-turn28-ship.html` (commit `019810f5524c16a0f6f7132eba60d1bab416d100`, blob `544661884a412c57aac08fada4f961012a4bc496`) byte-for-byte.
 
 Permanent rollback rule: do not recreate an accepted screen through new chart code, adapters, responsive abstractions, or approximate CSS. Restore the accepted artifact itself first. Rejected Turn 33/34 implementations are not donors for this rollback.
+
+## Turn 34 wrong rollback baseline — REJECTED 2026-10-03
+The rollback to `market-navigator-turn28-ship.html` was itself rejected because it predates the accepted post-ship correction for the Library Plain / Standard / Technical interpretation controls. The correct last-known-good is `market-navigator-turn28-post-ship.html` at commit `996e9a71b72db5bfbea3ba77750077daaa2fb7ab`, blob `9ce7f67451f9e1b7804927ce5c56adb667614724`.
+
+Permanent rule: establish the latest owner-accepted corrective commit in file history before choosing a rollback baseline. A formally named "ship" artifact is not automatically the latest accepted baseline when an accepted post-ship correction exists.

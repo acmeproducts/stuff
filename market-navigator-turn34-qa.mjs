@@ -3,9 +3,9 @@ import fs from 'node:fs';
 import { createRequire } from 'node:module';
 const { chromium } = createRequire(import.meta.url)('playwright');
 
-const base = fs.readFileSync('market-navigator-turn28-ship.html');
+const base = fs.readFileSync('market-navigator-turn28-post-ship.html');
 const cand = fs.readFileSync('market-navigator-turn34-pre-ship.html');
-assert.deepEqual(cand, base, 'rollback candidate must be byte-identical to accepted Turn28');
+assert.deepEqual(cand, base, 'rollback candidate must be byte-identical to accepted Turn28 post-ship');
 
 const url = process.env.MARKET_NAVIGATOR_URL || 'http://127.0.0.1:8123/market-navigator-turn34-pre-ship.html';
 const browser = await chromium.launch({ headless: true });
