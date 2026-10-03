@@ -56,6 +56,14 @@ test('Malay and Indonesian are sibling languages: speech in one is never rewritt
  let r=await run('ms','id','Ini adalah sistem yang sederhana');assert.equal(r.text,'Ini adalah sistem yang sederhana','Indonesian words kept in a Malay room');assert.equal(r.lang,'ms');assert.equal(r.calls,0);
  r=await run('id','ms','Ini adalah sistem yang mudah');assert.equal(r.text,'Ini adalah sistem yang mudah','Malay words kept in an Indonesian room');assert.equal(r.lang,'id');assert.equal(r.calls,0);
 });
+test('a language with no speech engine (Khmer) never opens a speech connection; the other side still listens and read-aloud has a voice code',async({page})=>{
+ await page.evaluate(()=>{localStorage.setItem('tb_dg_key','synthetic-key');localStorage.setItem('chat_test_audio',JSON.stringify({mode:'open',tones:true,resumeMs:300}))});
+ await create(page,'KmRoom','en','km');await page.waitForFunction(()=>mic.south.active);await page.waitForTimeout(1500);
+ assert.equal(page.testSockets.filter(w=>w.url().includes('language=km')).length,0,'no speech connection for Khmer');
+ assert.ok(page.testSockets.some(w=>w.url().includes('language=en-US')),'English side still listens');
+ const rows=await page.evaluate(()=>window.langCheck());assert.equal(rows.find(r=>r.code==='km').tts,'km-KH');assert.equal(rows.find(r=>r.code==='lo').tts,'lo-LA');
+ assert.equal(await page.evaluate(()=>mic.north.active),false,'Khmer mic is not claimed as listening');
+});
 test('open mode: mute, typing keeps mics, portal closes and reopens them, unsure goes to compose',async({page})=>{
  const s=await openRoom(page,'Mute');
  await page.locator('#strip-south .micbtn').click();await page.waitForFunction(()=>!mic.south.on&&mic.north.on);
