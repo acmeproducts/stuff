@@ -2169,3 +2169,37 @@ There is no Analyze chart canvas, legend, series ribbon, tooltip, axis engine, r
 12. Live Pages smoke returns HTTP 200 for the cache-busted candidate.
 
 Any failure blocks release. Mechanical CI success is not owner acceptance.
+
+
+## 34. Turn 34 — Analyze interaction recovery (owner authorized 2026-10-01)
+
+### Current disposition — BUILDING, NOT AT PARITY
+- The 2026-10-01 Turn 34 browser qualification failed at the behavioral-interaction gate. Therefore Analyze is **not yet at parity with NOW** and no candidate is owner-ready.
+- Static architecture, JavaScript syntax, governance and build gates passed; those passes do not override the failed behavioral gate.
+- Construction continues until the complete behavioral parity gate below passes. Do not stop at partial parity and do not hand an unqualified candidate to the owner.
+
+### Baseline and scope
+- Turn 33 remains a rejected/recovery candidate until this section passes all gates.
+- Preserve the accepted Turn 28 main chart behavior and Turn 33 selected-root isolation.
+- No Dashboard, index mathematics, source, Health, glossary, AI commentary, or unrelated UI changes.
+
+### Required behavior
+1. Analyze opens full-workspace with exactly the selected component/index as the initial series.
+2. The Analyze presentation uses the existing NOW chart surface in place; no cloned chart/legend/renderer.
+3. `+ Add` must open the existing shared Add-Series picker above the Analyze surface; adding a valid series must immediately render it.
+4. Horizon buttons must be live in Analyze and change the chart horizon/data without changing the frozen underlying NOW state.
+5. The Fixed/Horizon display selector must be live where applicable and must re-render immediately.
+6. Existing representation/axis behavior is retained: Indexed 100 and native Y1/Y2 rules remain governed by measurement families; two families may use Y1+Y2 and invalid combinations must not silently render.
+7. More/actions, picker/about overlays, crosshair/tooltip, legend selection/removal and X close must remain interactive above the full-workspace surface.
+8. Closing Analyze restores the exact frozen NOW state.
+9. Analyze is not a reduced chart mode. Except for navigation/drill context and the modal X, every chart capability available on NOW must be the same live control/handler on Analyze: horizons, Fixed/Horizon, Indexed 100/Y1+Y2, Add, legend focus/removal, source explainer, crosshair/tooltip, More, AI POV, Data, Print and Markdown/CSV/JSON downloads. No Analyze-specific substitute implementation is permitted.
+
+### Release-blocking qualification
+- Browser test must open Analyze from a real component and prove one initial series.
+- Browser test must exercise a different horizon, Fixed/Horizon, Add, legend removal, source explainer, crosshair/tooltip and, when eligible, Y1+Y2.
+- Browser test must prove the existing NOW More menu remains live in Analyze and contains AI POV / Data / Print / Download Markdown / Download CSV / Download JSON.
+- Browser test must close Analyze and prove the exact frozen NOW horizon, display mode, comparison set and root are restored, then reopen without state leakage.
+- Browser test must fail on page errors/console errors.
+- Static gates must prove one NOW canvas, one NOW legend, no Turn 30/31/32 donor architecture, no chart reparenting, and unchanged persistent-index mathematics/data sources.
+- A static-only PASS or a control-presence-only PASS is prohibited; qualification must activate the real shared controls.
+- **Completion rule:** parity is binary. Turn 34 advances only when the entire behavioral gate passes; otherwise continue building.
