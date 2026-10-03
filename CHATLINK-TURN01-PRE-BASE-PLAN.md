@@ -540,3 +540,33 @@ The owner confirmed that TTS and STT work on r15.
 **Not done.** The junk password entries Chrome already saved from the old password fields must be deleted by the owner in Chrome's password manager (Settings → Passwords). I cannot remove them.
 
 **Gates (lab).** 20/20 controller tests. Ask mode: 33/33, including 2 r16 scenarios. Open mode: 34/34. Keyboard: 32/32. The password-manager scenario uses a mocked `navigator.credentials`. **Not verified:** the real Chrome prompt and sync on the owner's devices.
+
+
+### chat-test backlog (owner, 2026-10-03)
+
+Recorded, not scheduled.
+
+1. **Chinese keyboard.** Simplified pinyin input like Gboard, with next-word prediction and learning. Per the plan's scope note, Chinese enhancements come last, after the wider language rollout (items 2–3).
+2. **Malay is treated as Indonesian.** Make Malay a separate, distinct language. Both languages are needed.
+3. **Keyboard coverage review.** Audit every supported language and make coverage full and complete. Start with Vietnamese, Indonesian and Khmer (Cambodian).
+4. **TTS turns off when the keyboard is extended for North.** When both sides are talking, TTS switches off even though it was on beforehand. It must stay on.
+
+### chat-test: backlog item 4, TTS cut when the keyboard opens (2026-10-03)
+
+**Owner report.** With the keyboard open on North and both sides talking, read-aloud turns off though it was on.
+
+**Cause (reproduced in the lab).** Opening a keyboard runs the input teardown, which cancelled any speech still playing. In open mode that cut the read-aloud mid-sentence. The speaker button state was never the problem.
+
+**Change.** In open mode, a keyboard or mic handover no longer cancels speech. Room switch, closing the portal and the other lifecycle events still do. Ask mode behaves as before.
+
+**Check added first.** "open mode: opening the North keyboard does not cut read-aloud that is playing" failed before the change (phase `idle` instead of `playing`) and passes after. A second check confirms the speaker buttons stay on across keyboard opens and messages from both sides.
+
+**Gates (lab).** Open mode 36/36. Ask mode 33/33. Controller 20/20. Keyboard 32/32. **Not verified:** a real phone with the real speech engine.
+
+### chat-test: backlog item 2, Malay treated as Indonesian (2026-10-03)
+
+**Owner report.** Malay is being treated as Indonesian.
+
+**Finding.** Not reproduced in `chat-test.html`. Malay (`ms`) and Indonesian (`id`) are separate in the language list, speech recognition (`ms` and `id`), read-aloud (`ms-MY` and `id-ID`), translation codes, keyboard layout and dictionary files (`dict/ms.json`, `dict/id.json`, about 60% shared words). Deepgram Nova-3 lists both languages. No code changed.
+
+**Still open.** The owner's symptom is not yet pinned to a place. Next step is an on-device trial with Malay speech and typing, with the debug log copied from the app, to see where it becomes Indonesian. Not verified on a real phone.
