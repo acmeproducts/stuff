@@ -113,13 +113,13 @@
         <label style="margin-top:6px"><input type="checkbox" id="optInvertY"> Invert Y axis</label>
         <label style="margin-top:8px">Touch controls</label>
         <select id="optTouch">
-          <option value="auto">AUTO (show on first touch)</option>
+          <option value="auto">AUTO (always on, desktop + mobile)</option>
           <option value="on">ON</option>
           <option value="off">OFF</option>
         </select>
         <div class="keys" style="margin-top:6px">
           WASD move &middot; mouse drag / pointer-lock look &middot; wheel &amp; pinch zoom &middot; F fly/walk<br>
-          Touch: left-half thumb = move stick &middot; right-half drag = look &middot; pinch = zoom &middot; JUMP button (walk)
+          Stick: left-half drag (mouse or thumb) = move &middot; right-half drag = look &middot; pinch/wheel = zoom &middot; JUMP button (walk)
         </div>
       </div>
       <div id="modalBtns">
@@ -130,7 +130,7 @@
 </div>
 <script>
 'use strict';
-const BUILD = 'M7.4-touchlive 2026-10-03';
+const BUILD = 'M7.5-stickdesk 2026-10-03';
 const errBox = document.getElementById('errBox');
 const errLines = document.getElementById('errLines');
 const errTitle = document.getElementById('errTitle');
@@ -331,7 +331,9 @@ function startApp(cdnUrl) {
   try {
     if (camera.inputs && camera.inputs.attached) {
       if (camera.inputs.attached.touch) camera.inputs.remove(camera.inputs.attached.touch);
-      if (camera.inputs.attached.mouse) camera.inputs.attached.mouse.touchEnabled = false;
+      // M7.5: mouse input removed too — ALL pointer input (mouse + touch) now flows
+      // through one shared role machine so desktop and mobile behave identically.
+      if (camera.inputs.attached.mouse) camera.inputs.remove(camera.inputs.attached.mouse);
     }
   } catch (e) {}
 
@@ -340,9 +342,11 @@ function startApp(cdnUrl) {
   // synthetic click — if that engages pointer lock (Chrome/Android supports it),
   // touch pointermove coordinates freeze and the sticks go dead. Guard hard.
   let lastDownType = 'mouse';
+  let stickConsumedClick = false; // M7.5: grabbing the on-screen stick must not engage pointer lock
   canvas.addEventListener('pointerdown', function(e) { lastDownType = e.pointerType || 'mouse'; }, true);
   canvas.addEventListener('click', function() {
     if (lastDownType === 'touch') return;
+    if (stickConsumedClick) { stickConsumedClick = false; return; }
     if (!document.pointerLockElement && canvas.requestPointerLock) {
       try {
         const p = canvas.requestPointerLock();
@@ -1620,9 +1624,9 @@ function startApp(cdnUrl) {
   }
 
   function touchOn() {
+    // M7.5: AUTO = always on — the same on-screen controls on desktop and mobile; OFF hides them
     if (settings.touchCtl === 'off') return false;
-    if (settings.touchCtl === 'on') return true;
-    return touchActive;
+    return true;
   }
 
   function releaseAllRoles() {
@@ -1699,11 +1703,33 @@ function startApp(cdnUrl) {
   }
 
   canvas.addEventListener('pointerdown', function(e) {
-    if (e.pointerType !== 'touch') return;
-    sawTouchPtr = true;
+    // M7.5: mouse and touch share one role machine — identical controls everywhere.
+    if (document.pointerLockElement) return; // locked: movement-look owns the mouse
+    if (e.pointerType === 'mouse' && e.button !== 0) return;
     e.preventDefault(); // no synthetic click → no pointer lock, no double-tap zoom
     try { canvas.setPointerCapture(e.pointerId); } catch (err) {}
-    touchDown(e.pointerId, e.clientX, e.clientY);
+    if (e.pointerType === 'touch') {
+      sawTouchPtr = true;
+      touchDown(e.pointerId, e.clientX, e.clientY);
+      return;
+    }
+    // mouse/pen: left half grabs the on-screen stick (when controls are on),
+    // anywhere else starts a look drag — the same roles thumbs use on mobile
+    if (touchOn() && !modalOpen && stick.id === -1 && e.clientX < window.innerWidth * 0.45) {
+      stickConsumedClick = true;
+      stick.id = e.pointerId;
+      stick.baseX = e.clientX; stick.baseY = e.clientY;
+      stick.vx = 0; stick.vy = 0;
+      noteTouch('mousestick');
+      showStickAt(e.clientX, e.clientY);
+      moveKnob(0, 0);
+    } else {
+      others.set(e.pointerId, { x: e.clientX, y: e.clientY });
+      if (others.size === 1) {
+        look.id = e.pointerId;
+        look.lastX = e.clientX; look.lastY = e.clientY;
+      }
+    }
   });
 
   function touchMove(id, x, y) {
@@ -1734,7 +1760,12 @@ function startApp(cdnUrl) {
   }
 
   canvas.addEventListener('pointermove', function(e) {
-    if (e.pointerType !== 'touch') return;
+    if (document.pointerLockElement === canvas && e.pointerType === 'mouse') {
+      // M7.5: pointer-locked look (desktop) — same sensitivity math as drag-look
+      camera.rotation.y += (e.movementX || 0) * TOUCH_LOOK_GAIN / settings.sens;
+      camera.rotation.x += (e.movementY || 0) * TOUCH_LOOK_GAIN / settings.sens;
+      return;
+    }
     touchMove(e.pointerId, e.clientX, e.clientY);
   });
 
@@ -1756,8 +1787,9 @@ function startApp(cdnUrl) {
     }
   }
   function releasePointer(e) {
-    if (e.pointerType !== 'touch') return;
-    touchUp(e.pointerId);
+    if (e.pointerType === 'touch' || e.pointerId === stick.id || others.has(e.pointerId)) {
+      touchUp(e.pointerId); // M7.5: roles can now be held by mouse/pen pointers too
+    }
   }
   canvas.addEventListener('pointerup', releasePointer);
   canvas.addEventListener('pointercancel', releasePointer);
@@ -2097,7 +2129,7 @@ function startApp(cdnUrl) {
       '<br>Lat:' + lat.toFixed(5) + ' Lon:' + lon.toFixed(5) +
       '<br>Alt:' + camera.position.y.toFixed(1) + 'm' +
       '<br>Mode:' + (flyMode ? 'FLY' : 'WALK') +
-      ' CTL:' + (touchOn() ? 'TOUCH' : 'KEYS') +
+      ' CTL:' + (touchOn() ? 'STICK' : 'KEYS') +
       ' Time:' + fmtTOD(settings.tod) + (settings.autoTod ? 'A' : '') +
       ' Q:' + settings.detail +
       (zoomMult !== 1 ? ' Zoom:' + zoomMult.toFixed(1) + 'x' : '') +
