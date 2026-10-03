@@ -4,7 +4,7 @@ const fs=require('node:fs'),path=require('node:path'),assert=require('node:asser
 const {chromium}=require('playwright');
 const root=path.join(__dirname,'../..');
 // Gaps the owner knows about. A gap not on this list fails the check; a listed gap that gets fixed also fails, so the list stays honest.
-const KNOWN={km:['stt','tts','dict'],lo:['stt','tts','dict'],zh:['dict']};
+const KNOWN={km:['stt','dict'],lo:['stt','dict'],zh:['dict']};
 (async()=>{
  const b=await chromium.launch({channel:process.env.CHAT_BROWSER_CHANNEL||undefined});const page=await b.newPage();
  await page.goto('file://'+path.join(root,'chat-test.html'));await page.waitForFunction(()=>typeof window.langCheck==='function');

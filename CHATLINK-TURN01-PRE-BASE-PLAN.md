@@ -596,3 +596,19 @@ Recorded, not scheduled.
 Malay and Indonesian are confirmed to have different speech, voice and translation codes.
 
 **Not done yet.** Look-alike pair tests beyond Malay/Indonesian, the in-app "language check" button, the overlay itself, and the native-speaker phrase lists. Open mode 37/37, keyboard 32/32.
+
+### chat-test: language check, fixes (2026-10-03)
+
+**Owner direction.** Fix the gaps the language check found.
+
+**Evidence.** Deepgram does not support Khmer or Lao (a published benchmark shows 100% word error on both for Nova-2; Nova-3's list does not include them). A room set to either sent a bogus language code to Deepgram.
+
+**Changes.**
+1. Khmer and Lao now have read-aloud voice codes (`km-KH`, `lo-LA`). Whether a phone has those voices installed is not verified.
+2. A side whose language has no speech engine is no longer opened for listening, and pressing its mic shows "speech is not available yet, type instead". The other side keeps listening. Typing works as before.
+
+**Check added first.** "a language with no speech engine (Khmer)…" failed before (a Khmer speech connection was opened) and passes after. Open mode 38/38, ask mode 33/33, keyboard 32/32, controller 20/20, language check OK.
+
+**Still open, not fixable by a small change.**
+- **Khmer and Lao speech and dictionaries.** Needs a different speech engine, for example the browser's own speech recognition (Chrome lists Khmer and Lao; not verified), and a word list per language. That is a new engine, so it needs the owner's go.
+- **Chinese dictionary.** Part of the pinyin keyboard item.
