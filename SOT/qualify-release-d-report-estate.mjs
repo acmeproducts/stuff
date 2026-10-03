@@ -25,29 +25,31 @@ async function open(vw,vh){const ctx=await browser.newContext({viewport:{width:v
  ok(fr,'runtime did not start');await fr.waitForSelector('#Plan .subtabs');return {ctx,pg,fr}}
 const txt=(fr,sel)=>fr.$eval(sel,e=>e.innerText);
 try{
- const {pg,fr}=await open(1280,900);
+ const {ctx:ctx0,pg,fr}=await open(1280,900);
  // 1 labels
  const sw=await fr.$$eval('.ssot-report-switch button',b=>b.map(x=>x.textContent.trim()));ok(JSON.stringify(sw)==='["Report","Job Status"]','switch labels '+sw);
  const vis=await fr.evaluate(()=>[...document.querySelectorAll('button,a,[role=tab]')].filter(e=>e.offsetParent&&/analyze/i.test(e.textContent)).map(e=>e.textContent));ok(!vis.length,'visible Analyze label: '+vis);
  pass('Report / Job Status labels present; Analyze is not an owner-facing label');
  // 2 subtabs
- const tabs=await fr.$$eval('#Plan .subtabs button',b=>b.map(x=>x.textContent.trim()));ok(JSON.stringify(tabs)==='["Analysis","Capacity","Operations","Estate"]','subtabs '+tabs);pass('Report contains Analysis / Capacity / Operations / Estate');
- // 3/4/5 relationships + over capacity
- const an=await txt(fr,'#Plan');ok(/SCANNED[\s\S]*= UNIQUE \+ KEEP \+ EXCESS/.test(an),'SCANNED relation');pass('SCANNED = UNIQUE + KEEP + EXCESS represented');
- ok(/ESTATE[\s\S]*= UNIQUE \+ KEEP\b/.test(an),'ESTATE relation');pass('ESTATE = UNIQUE + KEEP represented');
- const cells=await fr.$$eval('#Plan .plantable tbody tr',r=>Object.fromEntries(r.map(x=>[x.dataset.label,x.cells[2].textContent.trim()])));
- ok(cells.SCANNED==='900.0 GB'&&cells.ESTATE==='700.0 GB'&&cells.TARGET==='600.0 GB'&&cells.DEFICIT==='100.0 GB'&&cells.EXCESS==='200.0 GB'&&!('OPEN' in cells),'analysis arithmetic '+JSON.stringify(cells));
+ const tabs=await fr.$$eval('#Plan .subtabs button',b=>b.map(x=>x.textContent.trim()));ok(JSON.stringify(tabs)==='["Waterfall","Estate"]','subtabs '+tabs);pass('Analysis / Capacity / Operations are one Waterfall report (plus Estate)');
+ const an=await txt(fr,'#Plan');for(const sec of ['SCAN → ESTATE','ESTATE VS TARGET','OPERATIONS'])ok(an.includes(sec),'waterfall section '+sec);
+ ok(/SCANNED[\s\S]*= UNIQUE \+ KEEP \+ EXCESS/.test(an),'SCANNED relation');ok(/ESTATE[\s\S]*= UNIQUE \+ KEEP\b/.test(an),'ESTATE relation');ok(/= IN PLAY \+ LANDED/.test(an),'operations relation');
+ pass('one waterfall: SCANNED = UNIQUE + KEEP + EXCESS → ESTATE = UNIQUE + KEEP → vs TARGET → OPERATIONS (IN PLAY + LANDED)');
+ const wf=()=>fr.$$eval('#Plan .wf-row',r=>r.map(x=>[x.dataset.section+':'+x.dataset.label,x.querySelector('.wf-s').textContent.trim()]));
+ const cells=Object.fromEntries(await wf());
+ ok(cells['Analysis:SCANNED']==='900.0 GB'&&cells['Analysis:ESTATE']==='700.0 GB'&&cells['Capacity:TARGET']==='600.0 GB'&&cells['Capacity:DEFICIT']==='100.0 GB'&&cells['Analysis:EXCESS']==='200.0 GB'&&cells['Operations:ESTATE']==='700.0 GB'&&!('Capacity:OPEN' in cells),'waterfall arithmetic '+JSON.stringify(cells));
  ok(/DEFICIT 100\.0 GB MUST BE REMOVED FROM ESTATE TO FIT TARGET/.test(an),'deficit banner');ok(!/-\s?\d+(\.\d+)? GB/.test(an),'negative size shown');
- await fr.evaluate(()=>__ssotOpenReportMode('Report'));await fr.click('#Plan .subtabs button:nth-child(2)');const cap=await txt(fr,'#Plan');
- const capLabels=await fr.$$eval('#Plan .plantable tbody tr',r=>r.map(x=>x.dataset.label));ok(capLabels.includes('DEFICIT')&&!capLabels.includes('OPEN')&&!/-\s?\d/.test(cap),'capacity over: positive DEFICIT, no OPEN row '+capLabels);
- const bar=await fr.evaluate(()=>{const b=document.querySelector('#Plan .stackbar'),r=b.getBoundingClientRect(),seg=b.querySelector('.stackseg.deficit'),m=b.querySelector('.targetmark'),e=b.querySelector('.stackseg.estate');return {red:seg&&getComputedStyle(seg).backgroundColor,w:seg&&seg.getBoundingClientRect().width/r.width,mark:m&&(m.getBoundingClientRect().left-r.left)/r.width,est:e.getBoundingClientRect().width/r.width}});
- ok(bar.red==='rgb(239, 68, 68)'&&Math.abs(bar.mark-600/700)<.02&&Math.abs(bar.est-600/700)<.02&&Math.abs(bar.w-100/700)<.02,'capacity bar '+JSON.stringify(bar));
- pass('over-capacity state produces positive DEFICIT (no negative OPEN); bar shows Target boundary with red overflow');
- targetBytes=800*GB;await fr.evaluate(()=>dataPoll());await pg.waitForTimeout(400);const cap2=await txt(fr,'#Plan');const l2=await fr.$$eval('#Plan .plantable tbody tr',r=>r.map(x=>x.dataset.label));ok(l2.includes('OPEN')&&!l2.includes('DEFICIT')&&!/DEFICIT/.test(cap2),'under-capacity OPEN: '+l2);
- await fr.evaluate(()=>setPlanTab('Analysis'));const an2=await txt(fr,'#Plan');const l3=await fr.$$eval('#Plan .plantable tbody tr',r=>r.map(x=>x.dataset.label));ok(l3.includes('OPEN')&&!l3.includes('DEFICIT')&&!/DEFICIT/.test(an2),'analysis OPEN');pass('under-capacity state shows positive OPEN');
- targetBytes=600*GB;await fr.evaluate(()=>dataPoll());
- // Operations preserved
- await fr.evaluate(()=>setPlanTab('Operations'));const ops=await txt(fr,'#Plan');ok(/IN PLAY/.test(ops)&&/LANDED/.test(ops),'operations');ok((await fr.$$('#Plan .subtabs button')).length===4,'operations subtabs');pass('Operations preserved with four-subtab navigation');
+ const g=await fr.evaluate(()=>{const row=l=>document.querySelector('#Plan .wf-row[data-label="'+l+'"]'),tr=r=>r.querySelector('.wf-track').getBoundingClientRect(),frac=(r,sel)=>{const e=r.querySelector(sel);if(!e)return null;const b=e.getBoundingClientRect(),t=tr(r);return {l:(b.left-t.left)/t.width,w:b.width/t.width,bg:getComputedStyle(e).backgroundColor}};
+  const est=document.querySelectorAll('#Plan .wf-row[data-label="ESTATE"]')[0],d=row('DEFICIT'),m=d.querySelector('.wf-target').getBoundingClientRect(),t=tr(d);
+  return {estIn:frac(est,'.wf-bar.estate'),estOver:frac(est,'.wf-bar.deficit'),def:frac(d,'.wf-bar.deficit'),mark:(m.left-t.left)/t.width,excess:frac(row('EXCESS'),'.wf-bar.excess'),legendEx:getComputedStyle(document.querySelector('.wf-legend .swatch.excess')).backgroundColor,legendDef:getComputedStyle(document.querySelector('.wf-legend .swatch.deficit')).backgroundColor}});
+ const near=(a,b)=>Math.abs(a-b)<.02;
+ ok(near(g.estIn.w,600/900)&&near(g.estOver.l,600/900)&&near(g.estOver.w,100/900)&&near(g.def.l,600/900)&&near(g.def.w,100/900)&&near(g.mark,600/900),'waterfall geometry '+JSON.stringify(g));
+ ok(g.estOver.bg==='rgb(239, 68, 68)'&&g.def.bg==='rgb(239, 68, 68)','deficit is red');ok(g.excess.bg==='rgb(181, 124, 240)'&&g.legendEx==='rgb(181, 124, 240)'&&g.legendDef==='rgb(239, 68, 68)'&&g.legendEx!==g.legendDef,'excess and deficit must have different colors '+JSON.stringify(g));
+ pass('over-capacity: positive DEFICIT (no negative OPEN); red overflow beyond the TARGET line inside the ESTATE bar');pass('EXCESS (purple) and DEFICIT (red) have different bar and legend colors');
+ targetBytes=800*GB;await fr.evaluate(()=>dataPoll());await pg.waitForTimeout(400);const c2=Object.fromEntries(await wf());ok(c2['Capacity:OPEN']==='100.0 GB'&&!('Capacity:DEFICIT' in c2)&&!/DEFICIT/.test(await txt(fr,'#Plan')),'under-capacity OPEN: '+JSON.stringify(c2));pass('under-capacity state shows positive OPEN');
+ targetBytes=600*GB;await fr.evaluate(()=>dataPoll());await pg.waitForTimeout(400);
+ await fr.evaluate(()=>{document.querySelector('#Plan .wf-row[data-label="EXCESS"]').click()});await pg.waitForTimeout(400);ok(await fr.evaluate(()=>document.getElementById('Database').classList.contains('on')&&omniQuery==='#report:excess'),'waterfall row opens its search');pass('waterfall rows open the matching Search scope');
+ await fr.evaluate(()=>{omniDraft='';omniQuery='';show('Plan')});await pg.waitForTimeout(300);
  // Estate
  await fr.evaluate(()=>setPlanTab('Estate'));const heads=await fr.$$eval('.estate-table th',h=>h.map(x=>x.textContent.replace(/[▲▼]/g,'').trim()));ok(JSON.stringify(heads)==='["Root","Files","Size","Last Synced","Status"]','heads '+heads);
  const rowsOf=()=>fr.$$eval('.estate-table tbody tr',r=>r.map(x=>({root:x.cells[0].textContent,files:x.cells[1].textContent,size:x.cells[2].textContent,synced:x.cells[3].textContent,status:x.cells[4].textContent,bg:getComputedStyle(x.cells[0]).backgroundColor,fg:getComputedStyle(x.cells[0]).color})));
@@ -62,10 +64,30 @@ try{
  ok(await order('size')==='Archive,Video,Photos','size asc');ok(await order('size')==='Photos,Video,Archive','size desc');ok(await order('files')==='Photos,Archive,Video','files asc');ok(await order('synced')==='Archive,Video,Photos','synced asc');await fr.evaluate(()=>{__ssotEstateSort.key='root';__ssotEstateSort.dir=-1;renderPlan()});const rd=await rowsOf();ok(rd[0].root.endsWith('Archive')&&rd[0].bg===red,'root desc keeps red flag on the over-capacity root: '+JSON.stringify(rd[0]));
  pass('Estate columns sort; red/white follows the root (canonical order), not the arbitrary sort position');
  ok((await fr.$$('.estate-table button, .estate-table input')).length===0,'job controls in estate table');
+ {const cs=await fr.$eval('.estate-table td.estate-root',e=>{const c=getComputedStyle(e);return {o:c.textOverflow,w:c.whiteSpace,t:e.title,copy:e.dataset.copy}});ok(cs.o==='ellipsis'&&cs.w==='nowrap'&&/tap to copy/.test(cs.t)&&cs.copy.startsWith('/mnt/'),'estate root truncation/hover/copy attrs '+JSON.stringify(cs));
+  await ctx0.grantPermissions(['clipboard-read','clipboard-write']);await fr.click('.estate-table tbody tr:nth-child(2) td.estate-root');await pg.waitForTimeout(300);const copied=await pg.evaluate(()=>navigator.clipboard.readText());ok(copied===await fr.$eval('.estate-table tbody tr:nth-child(2) td.estate-root',e=>e.dataset.copy)&&copied.startsWith('/mnt/'),'estate tap-to-copy clipboard: '+copied);ok(await fr.evaluate(()=>[...document.querySelectorAll('.toast')].some(t=>/^Copied: \/mnt\//.test(t.textContent))),'copy toast');
+  pass('Estate cells truncate with an ellipsis, show the full value on hover, and copy it on tap')}
  // MutationObserver idempotence at runtime
  await fr.evaluate(()=>{__ssotEstateSort.key='root';__ssotEstateSort.dir=1;renderPlan()});await pg.waitForTimeout(500);
  const muts=await fr.evaluate(()=>new Promise(res=>{let c=0,mo=new MutationObserver(l=>c+=l.length);for(const n of [document.getElementById('tabs'),document.getElementById('Plan'),document.getElementById('Analyze')])mo.observe(n,{childList:true,subtree:true,attributes:true});setTimeout(()=>{mo.disconnect();res(c)},4000)}));ok(muts<40,'idle DOM mutations '+muts);
  pass('observed tab/report decoration is idempotent at runtime (idle mutations='+muts+', no self-trigger loop)');
+ // Search (Database): copy on tap, automatic result chip, cached switching
+ {await fr.evaluate(()=>{omniDraft='';omniQuery='';show('Database')});await pg.waitForTimeout(500);
+  const chip=()=>fr.$eval('.ssot-bulk .selection-count',e=>e.innerText.replace(/\s+/g,' ').trim());
+  ok(await chip()==='6 results ×','initial chip '+await chip());ok(!(await fr.evaluate(()=>/Select all results/.test(document.querySelector('.ssot-bulk').innerText))),'select-all button removed');
+  await fr.evaluate(()=>{omniDraft='excess';omniQuery='excess';renderDatabase()});await pg.waitForTimeout(400);ok(await chip()==='2 results ×','chip follows the search '+await chip());
+  await fr.evaluate(()=>{omniDraft='consolidate';omniQuery='consolidate';renderDatabase()});await pg.waitForTimeout(400);ok(await chip()==='0 results ×','chip follows a second search '+await chip());
+  await fr.evaluate(()=>{omniDraft='';omniQuery='';renderDatabase()});await pg.waitForTimeout(400);ok(await chip()==='6 results ×','chip returns '+await chip());
+  pass('the count chip follows the current search automatically (no Select all step) and updates on every change');
+  await fr.click('#Database tbody tr:nth-child(1) td:nth-child(1)');await pg.waitForTimeout(200);ok(await chip()==='1 selected ×','tap # selects '+await chip());
+  await fr.evaluate(()=>{omniDraft='unique';omniQuery='unique';renderDatabase()});await pg.waitForTimeout(400);ok(await chip()==='3 results ×','stale selection is dropped when the search changes: '+await chip());
+  await fr.click('#Database tbody tr:nth-child(1) td:nth-child(4)');await pg.waitForTimeout(300);ok(await chip()==='3 results ×','tapping a data cell must copy, not select '+await chip());
+  const cp=await pg.evaluate(()=>navigator.clipboard.readText());ok(cp.length>0,'database cell tap copied nothing');ok(await fr.evaluate(()=>[...document.querySelectorAll('.toast')].some(t=>/^Copied: \S/.test(t.textContent))),'database copy toast');
+  pass('tapping a Database field copies it (never blank) and does not toggle row selection; tapping # selects');
+  await fr.click('.ssot-bulk .selection-count button');await pg.waitForTimeout(400);ok(await fr.evaluate(()=>omniQuery==='')&&await chip()==='6 results ×','chip x clears the search');pass('chip x clears the search');
+  const same=await fr.evaluate(()=>{const a=filterQuery('excess'),b=filterQuery('excess'),s1=sortRows(a),s2=sortRows(a);return a===b&&s1===s2});ok(same,'search/sort results are not cached');
+  const kept=await fr.evaluate(async()=>{const el=document.querySelector('#Database .dbgrid');show('Plan');await new Promise(r=>setTimeout(r,50));show('Database');await new Promise(r=>setTimeout(r,50));return el===document.querySelector('#Database .dbgrid')});ok(kept,'switching back to Search rebuilt the table');
+  pass('search and sort results are cached per loaded database and switching back to Search reuses the rendered table (no rebuild)')}
  // Job Status
  await fr.evaluate(()=>__ssotOpenReportMode('Analyze'));await pg.waitForTimeout(300);ok(await fr.evaluate(()=>document.getElementById('Analyze').classList.contains('on')&&document.getElementById('Analyze').innerText.length>20),'job status pane');ok(await fr.$$eval('#Analyze .ssot-report-switch button',b=>b[1].textContent.trim()==='Job Status'&&b[1].classList.contains('on')),'job status nav');pass('Job Status renders the existing job/source status surface');
  await pg.context().close();
@@ -106,10 +128,13 @@ try{
  {const ctx=await browser.newContext({viewport:{width:1280,height:900}}),pg=await ctx.newPage();await pg.route(/cdn\.jsdelivr\.net/,r=>r.fulfill({contentType:'text/javascript',body:''}));await pg.route(/\/sot\/api\//,r=>r.abort('blockedbyclient'));await pg.goto(URL_);
   const f=await (await (await (await pg.waitForSelector('#shell')).contentFrame()).waitForSelector('#app')).contentFrame();let txt='',on=true;for(let i=0;i<150&&(on||!/OFFLINE/.test(txt));i++){await pg.waitForTimeout(100);try{txt=await f.evaluate(()=>document.getElementById('ssot-db-status')?.textContent||'');on=await f.evaluate(()=>!!document.querySelector('#ssot-db-blocker.on'))}catch(e){}}
   ok(/OFFLINE/.test(txt)&&/Local network access/.test(txt)&&!on,'offline hint/blocker '+txt+' on='+on);pass('blocked/unreachable API shows an OFFLINE hint (Local network access) and the blocker releases');
-  ok(await pg.evaluate(()=>document.getElementById('shell').allow==='local-network-access'),'iframe local-network-access permission');await ctx.close()}
+  ok(await pg.evaluate(()=>/local-network-access/.test(document.getElementById('shell').allow)&&/clipboard-write/.test(document.getElementById('shell').allow)),'iframe local-network-access permission');await ctx.close()}
  // mobile
  const m=await open(412,915);await m.fr.evaluate(()=>setPlanTab('Estate'));await m.pg.waitForTimeout(300);
+ const lg=await m.fr.evaluate(()=>{sources[0].root='/mnt/a/'+'very-long-folder-name-'.repeat(6);setPlanTab('Estate');const tr=document.querySelectorAll('.estate-table tbody tr')[0],c=tr.cells,r=[...c].map(x=>x.getBoundingClientRect());return {txt:c[0].textContent.length,cut:c[0].scrollWidth>c[0].clientWidth,h:tr.getBoundingClientRect().height,noOverlap:r[1].left>=r[0].right-1&&r[2].left>=r[1].right-1}});
+ ok(lg.txt>100&&lg.cut&&lg.noOverlap&&lg.h<40,'long root must truncate on mobile '+JSON.stringify(lg));pass('long Estate root names truncate on mobile and no longer overlap the next column');
  const ov=await m.fr.evaluate(()=>({doc:document.documentElement.scrollWidth-document.documentElement.clientWidth,tbl:(()=>{let w=document.querySelector('.estate-wrap');return w.scrollWidth-w.clientWidth})(),rows:document.querySelectorAll('.estate-table tbody tr').length}));ok(ov.doc<=1&&ov.tbl<=1&&ov.rows===3,'mobile overflow '+JSON.stringify(ov));pass('Estate table usable at 412x915 without horizontal overflow');
- if(process.env.SOT_SHOTS){await m.pg.screenshot({path:process.env.SOT_SHOTS+'/estate-mobile.png'});await m.fr.evaluate(()=>setPlanTab('Analysis'));await m.pg.waitForTimeout(300);await m.pg.screenshot({path:process.env.SOT_SHOTS+'/analysis-mobile.png'})}
+ if(process.env.SOT_SHOTS){await m.pg.screenshot({path:process.env.SOT_SHOTS+'/estate-mobile.png'});await m.fr.evaluate(()=>setPlanTab('Waterfall'));await m.pg.waitForTimeout(300);await m.pg.screenshot({path:process.env.SOT_SHOTS+'/analysis-mobile.png'})}
+ await m.fr.evaluate(()=>setPlanTab('Waterfall'));await m.pg.waitForTimeout(300);const wo=await m.fr.evaluate(()=>document.documentElement.scrollWidth-document.documentElement.clientWidth+document.querySelector('#Plan').scrollWidth-document.querySelector('#Plan').clientWidth);ok(wo<=2,'waterfall overflows horizontally on mobile: '+wo);pass('Waterfall report fits 412x915 without horizontal overflow');
  await m.ctx.close();
 }finally{await browser.close();srv.close()}
