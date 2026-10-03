@@ -12,6 +12,7 @@ def one(a,b,label):
  if n!=1: raise SystemExit(f'{label}: expected 1 got {n}')
  s=s.replace(a,b,1)
 module=r'''/* TURN34_ONE_CALLABLE_CHART_CONTROLLER */
+function mnRebase34(curve){let a=(curve||[]).map(p=>({t:+p.t,v:+p.v,idx:+p.v,raw:+p.v,sourceT:+p.t}));if(!a.length)return a;let base=a[0].raw;if(!Number.isFinite(base)||base===0)return a;return a.map(p=>({...p,v:100*p.raw/base,idx:100*p.raw/base}))}
 const MNChart34={
  async prepare({root,series,horizon,display='fixed',active}){
   let parent=IDX.includes(root)?root:(IDX.find(k=>(S.def.indices[k]?.components||[]).some(c=>c.id===root))||S.index||'risk');
@@ -19,7 +20,7 @@ const MNChart34={
   for(let id of series){
    if(IDX.includes(id)){
     let x=S.derived.indices[id].horizons[horizon],curve=x?.curve||[];
-    let a=display==='rebase'?rebasePersistent28(curve):curve.map(p=>({t:+p.t,v:+p.v,idx:+p.v,raw:+p.v,sourceT:+p.t}));
+    let a=display==='rebase'?mnRebase34(curve):curve.map(p=>({t:+p.t,v:+p.v,idx:+p.v,raw:+p.v,sourceT:+p.t}));
     sets.push({id,label:AB[id],full:S.def.indices[id].name,unit:'Index',color:colors[id],renderType:'line',a});
    }else{
     try{let src=await getSeries(id);sets.push({id,label:label(id),full:name(id),unit:unit(id),color:colors[id],renderType:'line',a:nativeIndexed(src,w)})}
