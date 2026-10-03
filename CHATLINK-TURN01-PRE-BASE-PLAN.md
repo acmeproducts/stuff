@@ -582,3 +582,17 @@ Recorded, not scheduled.
 **Check added first.** "Malay and Indonesian are sibling languages…" failed before the change (the Indonesian sentence came back rewritten) and passes after. Open mode 37/37, ask mode 33/33, controller 20/20. **Not verified:** a real phone.
 
 **Separate finding, not fixed.** English to Malay "I'm saying something simple" gave "Saya mengatakan sesuatu yang mudah"; a Malay speaker called it a terrible translation. Cause not verified. It may be the provider's output (the progressive "sedang" is missing) or something in our path. Not language handling as far as the Malay/Indonesian fix goes. See `TRANSLATION-OVERLAY-PROPOSAL.md` for the proposed overlay of approved translations and a per-language check.
+
+### chat-test: language check, step 1 of the overlay proposal (2026-10-03)
+
+**What.** `tests/language-check/check.cjs` lists every selectable language (23) with its flag, speech-recognition code, read-aloud voice, keyboard and dictionary, and fails on any gap that is not on a written known-gaps list. A small read-only hook, `window.langCheck()`, exposes the table from the app. No behavior change.
+
+**Run.** `NODE_PATH=$(npm root -g) CHAT_BROWSER_CHANNEL=chromium node tests/language-check/check.cjs`
+
+**Result.** 20 of 23 languages are complete. Known gaps:
+- **Khmer and Lao:** selectable, and have keyboards, but no speech-recognition code, no read-aloud voice entry and no dictionary. A room set to either will likely fail on the microphone; typing works. Not verified on a phone; whether Deepgram supports them is not confirmed.
+- **Chinese (Simplified):** no dictionary, so no word prediction. This is the pinyin keyboard backlog item.
+
+Malay and Indonesian are confirmed to have different speech, voice and translation codes.
+
+**Not done yet.** Look-alike pair tests beyond Malay/Indonesian, the in-app "language check" button, the overlay itself, and the native-speaker phrase lists. Open mode 37/37, keyboard 32/32.
