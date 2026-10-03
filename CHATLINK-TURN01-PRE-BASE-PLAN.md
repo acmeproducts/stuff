@@ -562,3 +562,11 @@ Recorded, not scheduled.
 **Check added first.** "open mode: opening the North keyboard does not cut read-aloud that is playing" failed before the change (phase `idle` instead of `playing`) and passes after. A second check confirms the speaker buttons stay on across keyboard opens and messages from both sides.
 
 **Gates (lab).** Open mode 36/36. Ask mode 33/33. Controller 20/20. Keyboard 32/32. **Not verified:** a real phone with the real speech engine.
+
+### chat-test: backlog item 2, Malay treated as Indonesian (2026-10-03)
+
+**Owner report.** Malay is being treated as Indonesian.
+
+**Finding.** Not reproduced in `chat-test.html`. Malay (`ms`) and Indonesian (`id`) are separate in the language list, speech recognition (`ms` and `id`), read-aloud (`ms-MY` and `id-ID`), translation codes, keyboard layout and dictionary files (`dict/ms.json`, `dict/id.json`, about 60% shared words). Deepgram Nova-3 lists both languages. No code changed.
+
+**Still open.** The owner's symptom is not yet pinned to a place. Next step is an on-device trial with Malay speech and typing, with the debug log copied from the app, to see where it becomes Indonesian. Not verified on a real phone.
