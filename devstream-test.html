@@ -208,7 +208,7 @@ body.coachMode .suggestBtn{border-color:rgba(57,197,207,.5);background:rgba(57,1
 <div id="scrim"></div>
 <div id="app">
 <aside id="sidebar">
-  <div class="bar"><span id="dot"></span><span class="brand">devstream <span class="version">v1.0 b57</span></span><span class="grow"></span><button class="btn" id="projectAdd">+ New</button><button class="btn" id="refresh">↻</button><button class="btn" id="settings">⚙</button></div>
+  <div class="bar"><span id="dot"></span><span class="brand">devstream <span class="version">v1.0 b58</span></span><span class="grow"></span><button class="btn" id="projectAdd">+ New</button><button class="btn" id="refresh">↻</button><button class="btn" id="settings">⚙</button></div>
   <div id="searchWrap"><input id="search" class="input" placeholder="Search projects & threads">
     <div class="legend"><span><i class="legendDot ok"></i>OK</span><span><i class="legendDot run"></i>Running</span><span><i class="legendDot err"></i>Error</span></div></div>
   <div id="projList"></div>
@@ -485,7 +485,7 @@ function saveSOT(msg){
 }
 function dlog(line,cls,local){try{if(!local)dsFromDlog(line,cls)}catch(x){}const e=new Date().toISOString().slice(11,23)+' '+line;debug.push(cls?cls+'|'+e:e);if(debug.length>500)debug=debug.slice(-500);try{sessionStorage.setItem('ds_debug',JSON.stringify(debug))}catch(x){}const o=document.getElementById('debugOut');if(o){o.innerHTML=debugHtml();o.scrollTop=o.scrollHeight}}
 /* ---- persistent diagnostics (b51): sanitized JSONL batched to devstream/logs/ ---- */
-const DS_BUILD='b51',DS_LOG_CUR='devstream/logs/current.jsonl',DS_LOG_PREV='devstream/logs/previous.jsonl',DS_LOG_MAX=150*1024,DS_Q_MAX=400,DS_Q_KEY='ds_logq';
+const DS_BUILD=((document.querySelector('.version')||{}).textContent||'').replace(/^.*(b\d+).*$/,'$1')||'b?',DS_LOG_CUR='devstream/logs/current.jsonl',DS_LOG_PREV='devstream/logs/previous.jsonl',DS_LOG_MAX=150*1024,DS_Q_MAX=400,DS_Q_KEY='ds_logq';
 const DS_FIELDS={st:1,ms:1,attempt:1,conflict:1,count:1,ok:1,rejected:1,bytes:1,type:1,ext:1,reason:1,op:1,state:1,proj:1,thr:1,err:1};
 let dsQ=[],dsSeq=0,dsTimer=null,dsLastFlush=0,dsFails=0,dsFlushStatus='idle',dsChain=Promise.resolve();const dsSession=Date.now().toString(36);
 try{dsQ=JSON.parse(localStorage.getItem(DS_Q_KEY)||'[]');if(!Array.isArray(dsQ))dsQ=[]}catch(e){dsQ=[]}
@@ -1610,16 +1610,15 @@ async function runAgent(key,premarked){
       if(target===planFile)body=stripPlanTags(body);
       const prev=await getFile(target).catch(()=>null);
       const prevLen=prev?prev.content.length:0;
-      if(patchMode&&target===codeFile){
-        if(!prev)throw new Error('patch mode requires the file to exist');
+      if((patchMode&&target===codeFile)||/^<{7} SEARCH$/m.test(body)){
+        if(!prev)throw new Error('edit blocks need the existing file '+target);
         const pr=applyPatchBlocks(prev.content,body);
         if(!pr.total)throw new Error('patch mode: engine returned no SEARCH/REPLACE blocks');
         if(pr.fails.length)throw new Error('patch rejected — '+pr.fails.join('; ')+' — nothing written');
         body=pr.text;
         reply+='\n▸ Patch mode: '+pr.applied+' edit block(s) applied';
         dlog('patch: '+pr.applied+'/'+pr.total+' blocks applied to '+target);
-      } else if(/^<{7} SEARCH$/m.test(body))throw new Error('engine returned SEARCH/REPLACE blocks for '+target+', which is not the patched file — nothing written');
-      else if(body.length<80)throw new Error('agent returned no usable file content for '+target);
+      } else if(body.length<80)throw new Error('agent returned no usable file content for '+target);
       if(interrupted.has(key))throw new Error('Interrupted by user');
       progress[key]={line:'committing '+target+' ('+Math.round(body.length/1000)+'k)',at:Date.now(),started:(progress[key]||{}).started};renderProgress();
       await putFileSafe(target,body,'devstream agent: '+key+' — '+summary.slice(0,60),prev?prev.sha:null);
