@@ -2197,3 +2197,72 @@ The prior rollback selected the wrong baseline. `market-navigator-turn28-ship.ht
 5. Pages deploy succeeds.
 
 The earlier rollback-to-`turn28-ship` choice is superseded as an incorrect baseline selection.
+
+## 35. Turn 35 — callable chart continuation + NOW/Library isolation + grouped batch Add — 2026-10-03
+
+### Owner authorization and baseline
+Owner authorized the next release on 2026-10-03 as a continuation of the callable/modular NOW effort, with two concrete product corrections.
+
+Construction baseline is the exact accepted post-ship last-known-good:
+- `market-navigator-turn28-post-ship.html`
+- commit `996e9a71b72db5bfbea3ba77750077daaa2fb7ab`
+- blob `9ce7f67451f9e1b7804927ce5c56adb667614724`
+
+Rejected Turn 30/31/32/33/34 candidates are not donors.
+
+### Scope A — callable chart continuation without visual regression
+Refactor only enough to make the accepted chart behavior callable from a consumer-owned context while preserving the accepted post-ship NOW pixels and behavior. The callable path must own chart rendering/state handoff rather than requiring a consumer to impersonate another view's global state. NOW remains the reference presentation. Analyze uses the callable path as an independent consumer. No chart mathematics, persistent-index construction, source identity, Library presentation, or accepted NOW geometry changes are authorized.
+
+### Scope B — NOW and Library are independent workspaces
+Current defect: when Analyze is open from NOW and the user navigates to Library, the Analyze modal remains above Library and blocks it.
+
+Required behavior:
+- Analyze is owned by NOW, not by the global application shell.
+- Navigating from NOW/Analyze to Library shows Library immediately and completely.
+- Analyze state is preserved while Library is active; Library does not mutate or destroy it.
+- Returning to NOW restores the still-open Analyze state exactly where the user left it.
+- Closing Analyze affects only Analyze.
+- NOW state and Library state remain independent in both directions.
+
+### Scope C — grouped multi-select Add modal
+The chart Add workflow becomes one shared consumer behavior for NOW and Analyze.
+
+When `+ Add` opens:
+- retain X close;
+- top controls include `OK` and `Cancel`;
+- X and Cancel close with no chart update;
+- candidates are grouped into tabs in this exact order: `Risk | Growth | Macro | Other`;
+- Risk/Growth/Macro contain their governed index plus governed component series; Other contains remaining eligible catalog series;
+- rows are alphabetically sorted by display label, then identifier as deterministic tie-breaker;
+- each eligible row has a checkbox;
+- already-present chart series are not offered as new additions;
+- checkbox changes are staged only in the picker;
+- OK adds all checked eligible series in one atomic chart update, preserving deterministic tab/list ordering;
+- no repeated reopen/add cycle is required to add multiple series;
+- search filters the active tab without changing staged selections.
+
+### Decisions used for this release
+These are implementation defaults, not new product concepts:
+1. The grouped batch Add behavior applies to both NOW and Analyze so callable consumers do not diverge.
+2. X and Cancel are identical non-mutating dismissals.
+3. The picker adds only; removal remains on existing series chips/legend controls.
+4. Analyze is parked, not destroyed, while Library is active; returning to NOW resumes it.
+
+### Release-blocking gates
+1. candidate ancestry is exact accepted Turn 28 post-ship;
+2. accepted Plain / Standard / Technical Library control styling remains present and functional;
+3. opening Analyze, navigating to Library, and returning to NOW proves Library is unobstructed and Analyze state survives unchanged;
+4. closing Analyze after the round trip does not alter Library or frozen NOW state;
+5. NOW and Analyze both invoke the same callable chart path for chart preparation/rendering;
+6. no consumer rewrites another consumer's chart state;
+7. Add picker shows Risk/Growth/Macro/Other in exact order;
+8. each tab is alphabetically sorted and deterministic;
+9. multiple checkboxes can be staged across tabs and one OK adds all selected series;
+10. X and Cancel make zero series-state changes;
+11. existing series are excluded from additions;
+12. search preserves staged selections;
+13. retained NOW horizon, legend/focus, Fixed/Horizon, Y1+Y2, crosshair/tooltip, More/actions and existing Library interpretation controls remain operational;
+14. JavaScript syntax and runtime error gates pass;
+15. live Pages smoke succeeds.
+
+No candidate is accepted until owner qualification.
