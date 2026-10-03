@@ -163,3 +163,32 @@ test('r15: without AI keys the check says how to enable AI and makes no AI call'
  const h=page.locator('#tx-south .bhdr').first();await h.scrollIntoViewIfNeeded();const b=await h.boundingBox();await page.mouse.click(b.x+10,b.y+b.height/2);await page.waitForTimeout(60);await page.mouse.click(b.x+10,b.y+b.height/2);
  const ov=page.locator('.half.south .cl-bt');await ov.getByText('AI review: add a key in Settings → AI keys').waitFor({timeout:5000});assert.equal(calls,0);
 });
+test('r16: no password fields; keys masked; languages editable with history kept; validation names model and key',async({page})=>{
+ await page.route('https://api.venice.ai/**',route=>route.request().url().endsWith('/models')?route.fulfill({json:{data:[{id:'m-a'},{id:'m-b'}]}}):route.fulfill({status:402,json:{error:'credits'}}));
+ await create(page,'Tri');await send(page,'south','hello friend');await settled(page,1);
+ await menu(page);await page.locator('#cl-settings').click();
+ assert.equal(await page.locator('#cl-rail input[type=password]').count(),0,'device tab: no password inputs');
+ assert.equal(await page.getByLabel('Deepgram key').evaluate(i=>[i.type,getComputedStyle(i).webkitTextSecurity].join()),'text,disc');
+ await page.getByRole('button',{name:'AI keys',exact:true}).click();assert.equal(await page.locator('#cl-rail input[type=password]').count(),0,'AI tab: no password inputs');
+ await page.getByLabel('Venice API key').fill('vk-1234567890abcd');await page.getByRole('button',{name:'Load Venice models',exact:true}).click();await page.getByText('2 models loaded').waitFor();
+ await page.getByLabel('Venice model').selectOption('m-b');await page.getByRole('button',{name:'Validate & save Venice',exact:true}).click();
+ await page.getByText('checked model m-b with key vk-1…abcd').waitFor();
+ await page.getByRole('button',{name:'Back to conversations',exact:true}).click();await page.getByRole('button',{name:'Edit Tri',exact:true}).click();
+ assert.ok(await page.getByLabel('Partner · North',{exact:true}).isEnabled());
+ await page.getByLabel('Partner · North',{exact:true}).selectOption('ko');await page.getByRole('button',{name:'Save changes',exact:true}).click();
+ await page.waitForFunction(()=>!document.body.classList.contains('cl-open'));
+ assert.deepEqual(await page.evaluate(()=>[langOf('north'),HIST[0].tgt,HIST[0].tr]),['ko','th','สวัสดีเพื่อน'],'old message keeps its languages');
+});
+test('r16: keys are saved to and restored from the browser password manager as one named entry',async({page})=>{
+ await page.evaluate(()=>{window.__stored=null;window.PasswordCredential=function(d){Object.assign(this,d);this.type='password'};
+  navigator.credentials.store=async c=>{window.__stored=c;return c};navigator.credentials.get=async o=>window.__stored;
+  localStorage.setItem('tb_dg_key','dg-key-1');localStorage.setItem('chat_ai_cfg',JSON.stringify({vkey:'vk',vmodel:'vm',orkey:'',ormodel:''}))});
+ await create(page,'Sync');await menu(page);await page.locator('#cl-settings').click();await page.getByRole('button',{name:'AI keys',exact:true}).click();
+ await page.getByRole('button',{name:'Save keys to password manager',exact:true}).click();await page.getByText(/sent to the password manager/).waitFor();
+ const st=await page.evaluate(()=>({id:__stored.id,name:__stored.name,p:JSON.parse(__stored.password)}));
+ assert.equal(st.id,'Chatlink API keys');assert.deepEqual(st.p,{chatlink:1,dg:'dg-key-1',vkey:'vk',vmodel:'vm',orkey:'',ormodel:''});
+ await page.evaluate(()=>{localStorage.removeItem('tb_dg_key');localStorage.removeItem('chat_ai_cfg')});
+ await page.getByRole('button',{name:'Restore keys from password manager',exact:true}).click();
+ await page.waitForFunction(()=>localStorage.getItem('tb_dg_key')==='dg-key-1');assert.equal(await page.evaluate(()=>JSON.parse(localStorage.getItem('chat_ai_cfg')).vkey),'vk');
+ assert.ok(!(await page.evaluate(()=>JSON.stringify(debugLog))).includes('dg-key-1'),'keys never logged');
+});

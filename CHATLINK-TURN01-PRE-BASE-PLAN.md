@@ -522,3 +522,21 @@ The owner confirmed that TTS and STT work on r15.
 3. **Password-manager pollution.** Key fields are `type=password`, so Chrome offers to save them as passwords, which leaves junk in the password manager. Needed:
    - A standard review and remediation of every field that triggers a save prompt. Only real passwords should be password fields.
    - Owner direction: don't build our own key store in localStorage. Use the browser's own credential storage and sync across devices (e.g. the Credential Management API, `PasswordCredential`, stored deliberately under a clear name per service). Check first whether it is supported on iPhone Safari/Chrome, which may need a fallback.
+
+
+### chat-test r16: backlog items 1–3 (2026-10-03)
+
+**Owner decisions.**
+1. Changing languages on a saved conversation is allowed, because some people are tri-lingual.
+2. Validation must show which model and key were checked.
+3. Remove password-field prompts, and use the browser's password manager and sync instead of a home-grown store.
+
+**Changes.**
+1. The language pickers stay enabled for conversations with messages. Earlier messages keep the languages they were spoken in (each message stores src/tgt), and a note says so. The base-suite assertion "Partner disabled" is flipped in the chat-test wrapper per this decision.
+2. Venice/OpenRouter validation results now read "✓ verified & saved: <model> · key abcd…wxyz" or "✗ <error> — checked model <m> with key abcd…wxyz". Keys are masked to their first and last 4 characters.
+3. *No password fields remain.* The Deepgram, Venice and OpenRouter key fields are masked text fields (`-webkit-text-security: disc`, autocomplete off, password-manager ignore hints), so Chrome no longer offers to save them.
+4. *Deliberate sync.* AI keys tab → "Save keys to password manager" stores ONE named entry, "Chatlink API keys", through the Credential Management API (`PasswordCredential`). Chrome syncs it across signed-in devices. "Restore keys from password manager" asks the browser for it and refills this device. On browsers without the API (iPhone), a note says keys stay on this device. The app still keeps a working copy locally, because it needs the keys to run. Keys are never logged.
+
+**Not done.** The junk password entries Chrome already saved from the old password fields must be deleted by the owner in Chrome's password manager (Settings → Passwords). I cannot remove them.
+
+**Gates (lab).** 20/20 controller tests. Ask mode: 33/33, including 2 r16 scenarios. Open mode: 34/34. Keyboard: 32/32. The password-manager scenario uses a mocked `navigator.credentials`. **Not verified:** the real Chrome prompt and sync on the owner's devices.
