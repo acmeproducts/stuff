@@ -279,6 +279,9 @@ Failed-tab blockers were a workaround for a deeper problem: several tabs in one 
 - **DS-B54-6:** missing/empty plan shows the goals modal; Save creates the plan and continues; Cancel does not run.
 - **DS-B54-7:** existing plans are never touched.
 
+## Owner style rule (2026-10-03)
+No cartoon/emoji icons anywhere in the UI; plain text glyphs only. Applied in b54: attach `+`, documents `≡`, images `▣`, web toggle plain text, suggestion chips text only, agent reply markers `▸ ✓ !`, password reveal `show/hide`, frozen tab `‖`.
+
 ---
 
 # 2026-10-02 — b53 one task strip (clear lifecycle above compose)
