@@ -6,8 +6,8 @@ Deploy target: `https://acmeproducts.github.io/stuff/devstream.html`
 Test target: `https://acmeproducts.github.io/stuff/devstream-test.html`
 
 ## Status
-- Current release: v1.0 b53 on devstream-test.html (2026-10-02)
-- Stage: TEST (b53)
+- Current release: v1.0 b54 on devstream-test.html (2026-10-03)
+- Stage: TEST (b54)
 
 ## Release Rules (inherited, proven)
 1. Mobile-first. All diagnostics in-app. No DevTools ever.
@@ -255,6 +255,32 @@ b39 incorrectly changed stationary hold into context-menu activation. Devstream 
 ## Graveyard
 - **G-DS-13 — Hold opens context menu:** rejected; donor behavior is double-tap context, hold-to-drag.
 - **G-DS-14 — Legacy generic #tabContext button styling:** rejected; it corrupts the donor context-menu appearance.
+
+---
+
+# 2026-10-03 — b54 one active tab per project + goals modal when no plan
+
+## Owner directive
+Failed-tab blockers were a workaround for a deeper problem: several tabs in one project could run, fail, queue and collide. Allow only **one active tab per project**. The active tab is always first and is the tab shown when the project is selected. All other tabs are frozen, for reference only. The active tab sees all project activity across tabs for context. If a project has no plan, ask the owner for the goals in a modal.
+
+## Implemented
+- **Active tab:** each project stores `activeTab`. It is always first in the tab row and is what opens when a project is selected. Existing projects migrate automatically (the running tab, else the first tab, becomes active; the rest are frozen). A new tab becomes active, unless the current active tab is mid-run, in which case creation is refused with a message.
+- **Frozen tabs:** shown with a plain "‖" glyph instead of a status dot, never red, never counted as errors. Opening one shows its chat read-only; the compose box is replaced by "Reference only — Make active". Sending and running from a frozen tab are blocked. **Make active** (also in the tab menu) swaps the baton and is refused while the current active tab is saving, queued or running.
+- **Project context:** a run on the active tab includes a short digest of the latest messages from the project's other tabs, so the active tab sees activity across tabs.
+- **Removed:** the Resolve blocker menu/submenu and the strip's Resolve button, and the disposition code. A failure is simply the active tab's current run: Retry or Stop. Older recorded dispositions are ignored.
+- **No-plan modal:** before a run, if the project's plan file is missing or empty, a modal asks "Enter a brief description of the goals and objectives of this application". Saving writes a starter plan containing that text (written by the app, no model call) and the run continues. Cancel leaves the message saved and the run not started (Start asks again). This replaces the silent auto-seed from the earlier fix.
+
+## Acceptance
+- **DS-B54-1:** the active tab is first and is what opens when a project is selected.
+- **DS-B54-2:** only the active tab can send/run; frozen tabs are read-only with Make active.
+- **DS-B54-3:** Make active is refused while the active tab is working.
+- **DS-B54-4:** frozen tabs are never red; project error counts include only the active tab.
+- **DS-B54-5:** no Resolve blocker UI remains.
+- **DS-B54-6:** missing/empty plan shows the goals modal; Save creates the plan and continues; Cancel does not run.
+- **DS-B54-7:** existing plans are never touched.
+
+## Owner style rule (2026-10-03)
+No cartoon/emoji icons anywhere in the UI; plain text glyphs only. Applied in b54: attach `+`, documents `≡`, images `▣`, web toggle plain text, suggestion chips text only, agent reply markers `▸ ✓ !`, password reveal `show/hide`, frozen tab `‖`.
 
 ---
 
