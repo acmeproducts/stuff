@@ -305,17 +305,6 @@ on the clean fix, when scheduled: room CREATION gets a name field that
 SUGGESTS the standing name but can be overridden per room (e.g. "Mr Jones"
 for formal invites); the invite carries that room's name.
 
-Owner backlog adds, 2026-10-03 (recorded, not scheduled):
-(B-9a) Chinese keyboard (part B of the plan): simplified pinyin input like
-Gboard, with next-word prediction and learning.
-(B-9b) Malay is currently treated as Indonesian. It must be a separate,
-distinct language; both languages needed.
-(B-9c) Keyboard coverage review, starting with Vietnamese, Indonesian and
-Khmer (Cambodian): audit every supported language and make coverage full and
-complete.
-(B-9d) Extended keyboard (e.g. North): when both sides are talking, TTS turns
-off even though it was on beforehand. It must stay on.
-
 ---
 
 ## 3 · RELEASE 9 — PHRASEBOOK: TARGET MIRRORS SOURCE
