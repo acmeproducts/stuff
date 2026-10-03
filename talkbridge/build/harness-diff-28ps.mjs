@@ -9,7 +9,7 @@
    hidden phone; the keys. Then every phone's ordered log, wire, sockets,
    rooms, transcript, call state, caller screen and room view are compared.
    Any difference is red and printed. Structural sections prove the removal
-   and the contract. X-1 and G-1, the two declared additions, get their own
+   and the contract. X-2 and G-1, the two declared additions, get their own
    functional sections. Every gate is mutation-tested by build/mutate-28ps.mjs.
 
    Usage: node harness-diff-28ps.mjs [candidate.html]
@@ -23,7 +23,7 @@ const candP = process.argv[2] || 'bridge-turn28-pre-ship.html';
 const cand = readFileSync(candP, 'utf8');
 const accepted = readFileSync(BASE_FILE, 'utf8');
 const parts = PARTS.map((p, i) => process.env.TB_PARTS_OVERRIDE ? readFileSync(process.env.TB_PARTS_OVERRIDE.split(',')[i], 'utf8') : readFileSync(p, 'utf8'));
-const [fl2, x1, g1] = parts;
+const [fl2, x1, g1] = parts;                                              /* x1 is the X slot: X-2 since candidate 2 */
 
 let pass = 0, fail = 0;
 const T = (name, fn) => { try { fn(); pass++; console.log('  ok  ' + name); } catch (e) { fail++; console.log('FAIL  ' + name + ' — ' + ((e && e.message) || e)); } };
@@ -34,17 +34,17 @@ const code = (s) => s.replace(/\/\*[\s\S]*?\*\//g, '');
 const inline = (html) => html.match(/<script(?![^>]*\bsrc=)[^>]*>([\s\S]*?)<\/script>/i)[1];
 
 /* ── M1 · THE REMOVAL IS EXACTLY THE DECLARED ONE ────────────────────────── */
-console.log('M1 · candidate === 28·base − declared layers + FL-2 + X-1 + G-1, nothing else');
+console.log('M1 · candidate === 28·base − declared layers + FL-2 + X-2 + G-1, nothing else');
 const KEEP = process.env.TB_KEEP ? process.env.TB_KEEP.split(',') : [];
 T('M1.1 candidate is the assembler\'s output for these parts (every removal by its banked bytes)', () => assert(cand === assemble({ parts, keepRemovals: KEEP }), 'candidate is not base − removals + parts'));
 T('M1.2 every removed layer is banked and was present exactly once in the base bytes', () => {
   const rs = removals(); assert(rs.length === 34, 'expected 34 banked layers, got ' + rs.length);
   for (const r of rs) { assert(accepted.split(r.text).length - 1 === 1, r.file + ' not exactly once in base'); if (!KEEP.includes(r.file)) assert(cand.indexOf(r.text) === -1, r.file + ' still in candidate'); }
 });
-T('M1.3 the parts declare their contracts: FL-2 replaces the fifteen call symbols and wraps nothing; X-1 wraps nothing; G-1 wraps only translateWithRetry', () => {
+T('M1.3 the parts declare their contracts: FL-2 replaces the fifteen call symbols and wraps nothing; X-2 wraps only wireMsg; G-1 wraps only translateWithRetry', () => {
   const c = (p) => p.slice(p.indexOf('@contract'), p.indexOf('*/', p.indexOf('@contract')));
   assert(/replaces:\s*CALL\.keys, CALL\.start, CALL\.onIncoming, CALL\.accept, CALL\.onAccepted, CALL\.mount, CALL\.onSignal, CALL\.runRecovery, CALL\.startVideoWatchdog, CALL\.stopVideoWatchdog, CALL\.toggleMic, CALL\.hangUp, CALL\.teardown, camSenders, replaceSenderTrack/.test(c(fl2)) && /wraps:\s*\(none\)/.test(c(fl2)), 'FL-2 contract mismatch');
-  assert(/replaces:\s*\(none\)/.test(c(x1)) && /wraps:\s*\(none\)/.test(c(x1)), 'X-1 contract mismatch');
+  assert(/replaces:\s*\(none\)/.test(c(x1)) && /wraps:\s*wireMsg\s*$/m.test(c(x1)), 'X-2 contract mismatch');
   assert(/replaces:\s*\(none\)/.test(c(g1)) && /wraps:\s*translateWithRetry\s*$/m.test(c(g1)), 'G-1 contract mismatch');
 });
 
@@ -74,10 +74,10 @@ T('M2.3 nothing new on the wire or in the credential path (G19/G20): FL-2 adds n
   assert(!/credentials\/generate|iceServers|transport=tcp|turns?:|tb_gh_pat|Authorization|fetch\(/.test(c), 'FL-2 has a credential, ICE or network path');
   const types = (s) => { const t = new Set(); let m; const re = /type:\s*'([a-z-]+)'/g; while ((m = re.exec(s))) t.add(m[1]); return t; };
   const base = types(code(inline(accepted))); const added = [...types(c)].filter((t) => !base.has(t)); assert(added.length === 0, 'new message type: ' + added.join(','));
-  assert(!/relaySend|type:\s*'/.test(code(x1) + code(g1)), 'X-1 or G-1 touches the wire');
+  assert(!/relaySend|type:\s*'/.test(code(x1).replace(/\.type='button'/g, '') + code(g1)), 'X-2 or G-1 touches the wire');
   const hosts = new Set(); let m; const re = /https:\/\/([a-z0-9.-]+)\//g; for (const p of [x1, g1]) while ((m = re.exec(code(p)))) hosts.add(m[1]);
   assert([...hosts].every((h) => h === 'translate.googleapis.com'), 'an undeclared host: ' + [...hosts].join(','));
-  assert(!/localStorage|tb_dg_key|tb_cf_|venice|openrouter|apiKey|api_key/i.test(code(x1) + code(g1)), 'X-1 or G-1 touches stored keys or an AI tier');
+  assert(!/localStorage|tb_dg_key|tb_cf_|venice|openrouter|apiKey|api_key/i.test(code(x1) + code(g1)), 'X-2 or G-1 touches stored keys or an AI tier');
 });
 
 /* ── M3 · DIFFERENTIAL ───────────────────────────────────────────────────── */
@@ -307,6 +307,7 @@ const mask = (v, k) => {
   if (v && typeof v === 'object') { const o = {}; for (const kk of Object.keys(v).sort()) o[kk] = mask(v[kk], kk); return o; }
   return v;
 };
+const CHECK_BTN = /<button class="tr-act-btn" data-hact="check" title="Translation check">[\s\S]*?<\/button>/g;
 const HOUSEKEEPING = new Set(['r8_menu_labels', 'p4_ctx_save_failed', 't1_coalesced', 'md1_rendered', 'rc_panel_no_body', 'rc_panel_rendered', 'rc_home_rendered']);
 function snapshot(inst, sentLists, R) {
   const w = inst.w, C = w.CALL;
@@ -323,7 +324,7 @@ function snapshot(inst, sentLists, R) {
     call: { active: !!C.active, caller: !!C.caller, kind: C.kind, micOn: C.micOn, camOn: C.camOn, accepted: !!C.accepted, ringPending: mask(C.ringPending || null), recoveryStep: C.recoveryStep, recoveryLock: !!C.recoveryLock, c3Pending: !!C._c3Pending, c2Timer: !!C.c2Timer, videoWatch: !!C.videoWatchTimer, pc: !!C.pc, stream: !!C.stream, endedAt: C.endedAt ? 'N' : null, startTs: C.startTs ? 'N' : null, pushed: !!C.pushed, chatMicWasOn: !!C._chatMicWasOn, swap: !!w.TB_SWAP },
     pcs: mask(w.__pcs.map((p) => ({ ops: p.__ops, state: p.connectionState, cands: p.__cands.length, senders: p.__senders.map((s) => ({ kind: s.track ? s.track.kind : null, replaced: s.__replaced || 0, tagged: !!s.__tbVideoSender })) }))),
     keys: mask(R.keys || []), n10: R.n10 || [], flip: R.flip || [], ring: R.ring || null, ring2: R.ring2 || null,
-    dom: (w.document.getElementById('transcript') || {}).innerHTML || '',
+    dom: ((w.document.getElementById('transcript') || {}).innerHTML || '').replace(CHECK_BTN, ''),   /* X-2's declared addition is masked here and proved in M3.X */
     room: { cls: w.document.getElementById('scr-room').className, timer: w.document.getElementById('rz-timer').textContent, band: w.document.getElementById('call-band').className, mic: w.document.getElementById('rb-mic').className, cam: w.document.getElementById('rb-cam').className, ring: w.document.getElementById('ring-overlay').className, children: [...w.document.getElementById('scr-room').children].map((c) => c.id || c.className).sort() },
     errors: inst.errors.slice()
   };
@@ -361,6 +362,14 @@ for (const who of ['X', 'Y']) for (const key of KEYS) {
   if (key === 'room' && who === 'X') continue;
   T('M3 ' + who + '.' + key + ' identical on both builds', () => { const out = []; diff(snapA[who][key], snapC[who][key], who + '.' + key, out); assert(out.length === 0, '\n      ' + out.join('\n      ')); });
 }
+T('M3 X.dom/Y.dom: the only addition to the rendered room is X-2\'s check button, one per bubble header, after Clarify; the base build has none', () => {
+  for (const [inst, who] of [[RC.X, 'X'], [RC.Y, 'Y']]) {
+    const t = inst.w.document.getElementById('transcript'); const bubbles = t.querySelectorAll('.msg .head-acts').length, btns = t.querySelectorAll('.head-acts [data-hact=check]').length;
+    assert(bubbles > 0 && btns === bubbles, who + ': ' + btns + ' check buttons for ' + bubbles + ' headers');
+    t.querySelectorAll('.head-acts [data-hact=check]').forEach((b) => assert(b.previousElementSibling && b.previousElementSibling.getAttribute('data-hact') === 'clar' && !b.nextElementSibling, who + ': the button is not last, after Clarify'));
+  }
+  assert(RA.X.w.document.querySelectorAll('[data-hact=check]').length === 0, 'the base build grew a check button');
+});
 T('M3 X.room identical on both builds except the one recorded difference: the caller screen is appended to #scr-room from FL-2\'s position (same parent, same children, same z-index)', () => {
   const a = snapA.X.room, c = snapC.X.room; const out = []; diff(a, c, 'X.room', out); assert(out.length === 0, '\n      ' + out.join('\n      '));
   const idsA = [...RA.X.w.document.getElementById('scr-room').children].map((x) => x.id || x.className), idsC = [...RC.X.w.document.getElementById('scr-room').children].map((x) => x.id || x.className);
@@ -369,74 +378,92 @@ T('M3 X.room identical on both builds except the one recorded difference: the ca
   assert(/#n10-out\{[^}]*z-index:80/.test(fl2), 'the caller screen z-index moved');
 });
 
-/* ── M4 · X-1 THE TRANSLATION CHECK CARD (candidate only) ────────────────── */
-console.log('M4 · X-1: double-tap a bubble header → translation check card');
+/* ── M4 · X-2 THE TRANSLATION CHECK, ONE TAP (candidate only) ─────────────── */
+console.log('M4 · X-2: tap the header → the fourth button → chat-test\'s card, pixel for pixel');
 const W = RC.X.w, D = W.document;
 const google = (text) => Promise.resolve({ ok: true, status: 200, json: () => Promise.resolve([[[text, 'src', null, null]], null, 'th']) });
 const mymem = (text) => Promise.resolve({ ok: true, status: 200, json: () => Promise.resolve({ responseStatus: 200, responseData: { translatedText: text } }) });
-const tap = (el, x, y, type) => { const ev = new W.MouseEvent(type || 'pointerup', { bubbles: true, cancelable: true, clientX: x, clientY: y }); el.dispatchEvent(ev); };
-const meta = (id) => D.querySelector('.msg[data-id="' + id + '"] .meta');
+const click = (el) => el.dispatchEvent(new W.MouseEvent('click', { bubbles: true, cancelable: true }));
+const msg = (id) => D.querySelector('.msg[data-id="' + id + '"]');
+const card = () => D.querySelector('#scr-room > .cl-bt');
+const ctLines = readFileSync('chat-test.html', 'utf8').split('\n');
 W.debugLog.length = 0; W.__fetches.length = 0;
-await TA('M4.1 two taps on the same header inside 350 ms / 30 px open the card with Spoken, Translation and a back-translation scored Match', async () => {
-  /* cm-y2 is Bo's message as Ann's phone holds it: spoken in Thai, translated to English; the check translates the English back to Thai */
+T('M4.0 the card\'s CSS is chat-test.html\'s, byte for byte: every .cl-bt rule of chat-test appears verbatim in the candidate, and the candidate has no other .cl-bt rule', () => {
+  const rules = ctLines.filter((l) => /^\.cl-bt/.test(l) && !/^\.cl-jump|^\.cl-tabs/.test(l));
+  assert(rules.length === 9, 'chat-test.html moved: ' + rules.length + ' .cl-bt rule lines');
+  for (const r of rules) assert(cand.indexOf(r) !== -1, 'a chat-test rule is missing or altered: ' + r.slice(0, 60));
+  const mine = code(x1).split('\n').filter((l) => /^\s*'\.cl-bt/.test(l)).map((l) => l.trim().replace(/^'|',$/g, '').replace(/\\'/g, "'").replace(/\\\\/g, '\\'));
+  assert(mine.length === rules.length && mine.every((m, i) => m === rules[i]), 'the part carries a rule chat-test does not, or in another order');
+  assert(!/btScore\s*=\s*function|btVerdict\s*=\s*function/.test(code(x1)) && code(x1).includes("var clean=function(t){return String(t||'').toLowerCase().replace(/[\\s\\p{P}\\p{S}]+/gu,'')};") && code(x1).includes("function btVerdict(score){return score>=0.8?'match':score>=0.5?'partial':'miss'}"), 'btScore/btVerdict are not chat-test\'s');
+  const ct = readFileSync('chat-test.html', 'utf8');
+  for (const line of ["var head=document.createElement('div');head.className='cl-bt-head';var ttl=document.createElement('b');ttl.textContent='Translation check';", "var verdict=document.createElement('span');verdict.className='cl-bt-verdict wait';verdict.textContent='Checking…';card.appendChild(verdict);", "how.textContent='Score compares the wording of Spoken and Back-translation, not meaning. Same meaning in different words scores lower.'", "verdict.textContent=(v==='match'?'Match':v==='partial'?'Partial':'Miss')+' · '+Math.round(sc*100)+'%';"]) assert(ct.includes(line) && code(x1).includes(line), 'card line differs from chat-test: ' + line.slice(0, 50));
+});
+await TA('M4.1 a tap on the header shows the action row with a fourth button after Clarify (circle, counter-clockwise arrow); one tap on it opens the card in #scr-room: title, Copy, ✕, "Checking…", Spoken / Back-translation / Target / Route, the note', async () => {
   W.__fetchPlan = (u) => /translate\.googleapis\.com/.test(u) ? google('are you still there') : null;
-  const m = meta('cm-y2'); assert(m, 'no header for cm-y2');
-  tap(m, 100, 100); tick(120); tap(m, 104, 103);
-  const card = D.getElementById('m-x1'); assert(card && card.classList.contains('show'), 'card did not open');
-  assert(D.getElementById('x1-src').textContent === 'still there?' && D.getElementById('x1-tr').textContent === 'still there?', 'rows wrong: ' + D.getElementById('x1-src').textContent + ' / ' + D.getElementById('x1-tr').textContent);
-  assert(/Thai/.test(D.getElementById('x1-sl').textContent) && /English/.test(D.getElementById('x1-tl').textContent), 'language labels: ' + D.getElementById('x1-sl').textContent + ' ' + D.getElementById('x1-tl').textContent);
-  assert(/Checking/.test(D.getElementById('x1-bt').textContent) && D.getElementById('x1-score').style.display === 'none', 'the card did not wait for the back-translation');
+  const node = msg('cm-y2'); assert(node, 'no bubble cm-y2');
+  node.classList.remove('active'); click(node.querySelector('.meta')); assert(node.classList.contains('active'), 'header tap no longer shows the action row');
+  const acts = [...node.querySelectorAll('.head-acts [data-hact]')].map((b) => b.getAttribute('data-hact'));
+  assert(acts.join(',') === 'save,del,clar,check', 'action row: ' + acts.join(','));
+  const btn = node.querySelector('[data-hact=check]');
+  assert(btn.classList.contains('tr-act-btn') && btn.title === 'Translation check' && /polyline points="1 4 1 10 7 10"/.test(btn.innerHTML) && /M3\.51 15a9 9 0 1 0 \.49-4\.2/.test(btn.innerHTML) && /width="14" height="14"/.test(btn.innerHTML), 'the button is not the 14 px circle-with-counter-clockwise-arrow in the header style');
+  click(btn);
+  const c = card(); assert(c && c.getAttribute('role') === 'dialog' && c.getAttribute('aria-label') === 'Translation check', 'card did not open in #scr-room');
+  assert(node.classList.contains('active'), 'the check tap collapsed the action row (stopPropagation lost)');
+  const head = c.querySelector('.cl-bt-card > .cl-bt-head'); assert(head && head.children.length === 3 && head.children[0].tagName === 'B' && head.children[0].textContent === 'Translation check' && head.children[1].textContent === 'Copy' && head.children[2].textContent === '✕' && head.children[2].getAttribute('aria-label') === 'Close', 'head differs');
+  const v = c.querySelector('.cl-bt-verdict'); assert(v.className === 'cl-bt-verdict wait' && v.textContent === 'Checking…', 'verdict pill: ' + v.className + ' ' + v.textContent);
+  const rows = [...c.querySelectorAll('table.cl-bt-grid tbody tr')].map((tr) => [tr.children[0].firstChild.textContent, tr.querySelector('.cl-bt-lang').textContent, tr.children[1].textContent]);
+  assert(JSON.stringify(rows) === JSON.stringify([['Spoken', 'Thai', 'still there?'], ['Back-translation', '…', '…'], ['Target', 'English', 'still there?'], ['Route', 'Keyboard', 'Typed on the keyboard']]), 'rows: ' + JSON.stringify(rows));
+  const order = [...c.querySelector('.cl-bt-card').children].map((x) => x.className || x.tagName); assert(order.join('|') === 'cl-bt-head|cl-bt-verdict wait|cl-bt-grid|DIV', 'card children order: ' + order.join('|'));
+  assert(c.querySelector('.cl-bt-card > div:last-child').textContent === 'Score compares the wording of Spoken and Back-translation, not meaning. Same meaning in different words scores lower.', 'the note differs');
   await sleep(30);
-  assert(D.getElementById('x1-bt').textContent === 'are you still there', 'back-translation: ' + D.getElementById('x1-bt').textContent);
-  const score = W.x1Score('still there?', 'are you still there'); assert(score >= 0.5 && score < 0.8, 'fixture score drifted: ' + score);
-  const sc = D.getElementById('x1-score'); assert(sc.style.display !== 'none' && sc.textContent === 'Partial · ' + Math.round(score * 100) + '%' && sc.classList.contains('partial'), 'score: ' + sc.textContent + ' ' + sc.className);
-  const bt = W.debugLog.filter((l) => l.ev === 'bt_check'); assert(bt.length === 1 && bt[0].d.ok === true && bt[0].d.verdict === 'partial' && bt[0].d.score === Math.round(score * 100) / 100 && bt[0].d.id === 'cm-y2', 'bt_check: ' + JSON.stringify(bt));
-  assert(W.debugLog.some((l) => l.ev === 'x1_card' && l.d.id === 'cm-y2'), 'no x1_card log');
+  const rows2 = [...c.querySelectorAll('tbody tr')].map((tr) => [tr.querySelector('.cl-bt-lang').textContent, tr.children[1].textContent]);
+  assert(rows2[1][0] === 'Thai' && rows2[1][1] === 'are you still there', 'back-translation row: ' + JSON.stringify(rows2[1]));
+  const score = W.btScore('still there?', 'are you still there'); assert(score >= 0.5 && score < 0.8, 'fixture score drifted: ' + score);
+  assert(v.className === 'cl-bt-verdict partial' && v.textContent === 'Partial · ' + Math.round(score * 100) + '%', 'verdict: ' + v.className + ' ' + v.textContent);
+  const bt = W.debugLog.filter((l) => l.ev === 'bt_check'); assert(bt.length === 1 && bt[0].lvl === 'ok' && JSON.stringify(bt[0].d) === JSON.stringify({ outcome: 'ok', verdict: 'partial', score: +score.toFixed(2), spokenLang: 'th', src: 'th', tgt: 'en', rewritten: false, chars: 12 }), 'bt_check: ' + JSON.stringify(bt));
   assert(W.__fetches.length === 1 && /sl=en&tl=th&dt=t&q=still%20there%3F$/.test(W.__fetches[0]), 'the back-translation did not go en→th through the translator once: ' + JSON.stringify(W.__fetches));
 });
-await TA('M4.2 Copy puts the three lines and the verdict on the clipboard; Close hides the card', async () => {
-  D.getElementById('x1-copy').click(); await sleep(5);
-  assert(W.__clip.length === 1 && /^Spoken \(th\): still there\?\nTranslation \(en\): still there\?\nBack-translation: are you still there\nPartial · \d+%$/.test(W.__clip[0]), 'clipboard: ' + JSON.stringify(W.__clip));
-  D.getElementById('x1-close').click();
-  assert(!D.getElementById('m-x1').classList.contains('show'), 'card still open');
+await TA('M4.2 Copy writes chat-test\'s report ("Label (lang): text" per row, then "Result: verdict (NN%)") and says Copied; ✕ closes; a tap on the scrim closes; a second open replaces the first', async () => {
+  const c = card(); click(c.querySelector('.cl-bt-head button')); await sleep(5);
+  const score = W.btScore('still there?', 'are you still there');
+  assert(W.__clip.length === 1 && W.__clip[0] === 'Spoken (Thai): still there?\nBack-translation (Thai): are you still there\nTarget (English): still there?\nRoute (Keyboard): Typed on the keyboard\nResult: partial (' + Math.round(score * 100) + '%)', 'clipboard: ' + JSON.stringify(W.__clip));
+  assert(c.querySelector('.cl-bt-head button').textContent === 'Copied', 'Copy did not say Copied');
+  click(c.querySelectorAll('.cl-bt-head button')[1]); assert(!card(), '✕ did not close');
+  click(msg('cm-y2').querySelector('[data-hact=check]')); assert(card(), 'did not reopen'); click(msg('cm-y1').querySelector('.meta')); click(msg('cm-y1').querySelector('[data-hact=check]'));
+  assert(D.querySelectorAll('#scr-room > .cl-bt').length === 1 && card().querySelector('tbody tr td').textContent === 'hi', 'a second open did not replace the first');
+  card().dispatchEvent(new W.MouseEvent('click', { bubbles: true })); assert(!card(), 'scrim tap did not close');
 });
-await TA('M4.3 a single tap, taps 400 ms apart, taps on two different bubbles, taps far apart, and taps on a header button or receipt never open the card', async () => {
-  const m1 = meta('cm-y2'), m2 = meta('cm-y1'); const card = D.getElementById('m-x1');
-  tap(m1, 10, 10); assert(!card.classList.contains('show'), 'single tap opened');
-  tick(400); tap(m1, 10, 10); assert(!card.classList.contains('show'), 'slow second tap opened');
-  tap(m2, 10, 10); tick(50); assert(!card.classList.contains('show'), 'different bubble opened');
-  tap(m1, 10, 10); tick(50); tap(m1, 60, 10); assert(!card.classList.contains('show'), 'far second tap opened');
-  const btn = m1.querySelector('[data-hact]'); tap(btn, 10, 10); tick(50); tap(btn, 10, 10); assert(!card.classList.contains('show'), 'button double-tap opened');
-  const rc = m1.querySelector('[data-receipt]'); if (rc) { tap(rc, 10, 10); tick(50); tap(rc, 10, 10); assert(!card.classList.contains('show'), 'receipt double-tap opened'); }
-  tap(m1, 10, 10); tick(50); tap(m1, 10, 10); assert(card.classList.contains('show'), 'a fresh pair after all that no longer opens'); D.getElementById('x1-close').click();
+await TA('M4.3 the base header buttons still work (save, clarify, delete wired by the base); the header\'s single tap still toggles the row; no double-tap listener remains', async () => {
+  const node = msg('cm-y2'), m1 = node.querySelector('.meta');
+  node.classList.add('active'); click(m1); assert(!node.classList.contains('active'), 'second tap did not hide the row');
+  click(node.querySelector('[data-hact=clar]')); assert(D.getElementById('m-clarify').classList.contains('show') && !card(), 'Clarify broke or opened the check'); D.getElementById('m-clarify').classList.remove('show');
+  assert(!/pointerup|X1_MS|x1Open/.test(code(x1)), 'the double-tap gesture survives');
+  W.wireMsg(node, W.transcript.filter((t) => t.id === 'cm-y2')[0]);                 /* a re-wire of the same node must not add a second button */
+  assert(node.querySelectorAll('[data-hact=check]').length === 1, 'the button was added twice');
 });
-await TA('M4.4 the header\'s own single tap still highlights the bubble, and the header buttons still work (nothing existing moved)', async () => {
-  const node = D.querySelector('.msg[data-id="cm-y2"]'), m1 = meta('cm-y2');
-  node.classList.remove('active'); m1.dispatchEvent(new W.MouseEvent('click', { bubbles: true })); assert(node.classList.contains('active'), 'single tap no longer highlights');
-  m1.dispatchEvent(new W.MouseEvent('click', { bubbles: true })); assert(!node.classList.contains('active'), 'second click did not un-highlight');
-  m1.querySelector('[data-hact=clar]').dispatchEvent(new W.MouseEvent('click', { bubbles: true })); assert(D.getElementById('m-clarify').classList.contains('show'), 'Clarify button broke'); D.getElementById('m-clarify').classList.remove('show');
-  assert(!D.getElementById('m-x1').classList.contains('show'), 'the card opened on a button click');
-});
-await TA('M4.5 scoring: identical wording is 1, reordered words still match, a different sentence misses, a near sentence is partial; thresholds 0.8 / 0.5; the verdict ignores case and punctuation', async () => {
-  const s = W.x1Score, v = W.x1Verdict;
-  assert(s('hello there', 'hello there') === 1 && v(1) === 'match', 'identical');
-  assert(s('Hello, there!', 'hello there') === 1, 'case/punctuation');
-  assert(s('the red car', 'red car the') >= 0.8, 'reordered: ' + s('the red car', 'red car the'));
-  assert(s('good morning everyone', 'the cat sat down') < 0.3 && v(s('good morning everyone', 'the cat sat down')) === 'miss', 'different: ' + s('good morning everyone', 'the cat sat down'));
+await TA('M4.4 scoring is chat-test\'s: identical wording is 1, whitespace and punctuation ignored, thresholds 0.8 / 0.5, empty is 0', async () => {
+  const s = W.btScore, v = W.btVerdict;
+  assert(s('hello there', 'hello there') === 1 && s('Hello, there!', 'hellothere') === 1, 'identical / punctuation');
+  assert(s('good morning everyone', 'the cat sat down') < 0.3 && v(s('good morning everyone', 'the cat sat down')) === 'miss', 'different');
   const p = s('I will meet you at the station tomorrow', 'I meet you at the station tomorrow morning'); assert(p >= 0.5 && p < 0.95, 'near: ' + p);
   assert(v(0.8) === 'match' && v(0.79) === 'partial' && v(0.5) === 'partial' && v(0.49) === 'miss', 'thresholds');
-  assert(s('', '') === 1 && s('a', '') === 0 && s('', 'a') === 0, 'empty cases');
+  assert(s('', '') === 0 && s('a', '') === 0, 'empty cases');
 });
-await TA('M4.6 a failed back-translation says so and logs bt_check ok:false; a same-language entry asks nothing of the network', async () => {
+await TA('M4.5 a failed back-translation says "Check failed" with "(back-translation failed)" and logs bt_check outcome:error; same language finishes on the target with "same as target" and no request; no translation says so', async () => {
   W.__fetchPlan = () => Promise.reject(new Error('offline')); W.debugLog.length = 0; W.__fetches.length = 0;
-  W.x1Open({ id: 'zz-1', kind: 'chat', who: 'me', sourceText: 'rain later', translatedText: 'ฝนตก', srcLang: 'en', tgtLang: 'th' }); await sleep(900);
-  assert(D.getElementById('x1-bt').textContent === 'Back-translation unavailable', 'bt: ' + D.getElementById('x1-bt').textContent);
-  const bt = W.debugLog.filter((l) => l.ev === 'bt_check'); assert(bt.length === 1 && bt[0].d.ok === false, 'bt_check: ' + JSON.stringify(bt));
-  assert(W.__fetches.filter((u) => /googleapis/.test(u)).length === 1 && W.__fetches.filter((u) => /mymemory/.test(u)).length === 2, 'provider order on failure (google once, then mymemory with one retry): ' + JSON.stringify(W.__fetches));
-  W.x1Close(); W.__fetches.length = 0;
-  W.x1Open({ id: 'zz-2', kind: 'chat', who: 'me', sourceText: 'same', translatedText: 'same', srcLang: 'en', tgtLang: 'en' }); await sleep(10);
-  assert(W.__fetches.length === 0 && D.getElementById('x1-bt').textContent === '(same language)', 'same-language entry hit the network or said the wrong thing');
-  W.x1Close();
+  W.backCheck({ id: 'zz-1', kind: 'chat', who: 'me', origin: 'spoken', sourceText: 'rain later', translatedText: 'ฝนตก', srcLang: 'en', tgtLang: 'th' }); await sleep(900);
+  let c = card(); const rows = [...c.querySelectorAll('tbody tr')].map((tr) => [tr.children[0].firstChild.textContent, tr.querySelector('.cl-bt-lang').textContent, tr.children[1].textContent]);
+  assert(rows[1][1] === 'English' && rows[1][2] === '(back-translation failed)' && rows[3][1] === 'Voice' && rows[3][2] === 'Spoken into the microphone', 'rows: ' + JSON.stringify(rows));
+  assert(c.querySelector('.cl-bt-verdict').className === 'cl-bt-verdict miss' && c.querySelector('.cl-bt-verdict').textContent === 'Check failed', 'verdict after failure');
+  const bt = W.debugLog.filter((l) => l.ev === 'bt_check'); assert(bt.length === 1 && bt[0].lvl === 'error' && JSON.stringify(bt[0].d) === JSON.stringify({ outcome: 'error', spokenLang: 'en', tgt: 'th' }), 'bt_check: ' + JSON.stringify(bt));
+  assert(W.__fetches.filter((u) => /googleapis/.test(u)).length === 1 && W.__fetches.filter((u) => /mymemory/.test(u)).length === 2, 'provider order on failure: ' + JSON.stringify(W.__fetches));
+  c.remove(); W.__fetches.length = 0; W.debugLog.length = 0;
+  W.backCheck({ id: 'zz-2', kind: 'chat', who: 'me', origin: 'phrase', sourceText: 'same words', translatedText: 'same words', srcLang: 'en', tgtLang: 'en' }); await sleep(10);
+  c = card(); assert(W.__fetches.length === 0 && c.querySelector('tbody tr:nth-child(2) .cl-bt-lang').textContent === 'English · same as target' && c.querySelector('.cl-bt-verdict').textContent === 'Match · 100%' && c.querySelector('tbody tr:nth-child(4) .cl-bt-lang').textContent === 'Phrasebook', 'same-language card: ' + c.querySelector('tbody tr:nth-child(2) .cl-bt-lang').textContent + ' / ' + c.querySelector('.cl-bt-verdict').textContent);
+  c.remove();
+  W.backCheck({ id: 'zz-3', kind: 'chat', who: 'me', sourceText: 'untranslated', translatedText: '', srcLang: 'en', tgtLang: 'th' }); await sleep(10);
+  c = card(); assert(c.querySelector('.cl-bt-verdict').textContent === 'No translation' && c.querySelector('tbody tr:nth-child(2) td').textContent === '—' && c.querySelector('tbody tr:nth-child(3) td').textContent === '(no translation yet)' && W.__fetches.length === 0, 'no-translation card');
+  c.remove();
 });
 
 /* ── M5 · G-1 GOOGLE FIRST, MYMEMORY FALLBACK (candidate only) ───────────── */
