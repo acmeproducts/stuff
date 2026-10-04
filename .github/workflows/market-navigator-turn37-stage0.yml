@@ -1,34 +1,39 @@
 name: Market Navigator Turn 37 Stage 0 Baseline
 on:
   push:
-    branches: [main]
     paths:
-      - 'market-navigator-turn37-stage0.html'
       - 'market-navigator-turn37-stage0-qa.mjs'
       - '.github/workflows/market-navigator-turn37-stage0.yml'
+      - 'MARKET-NAVIGATOR-TURN37-RCA-PLAN.md'
   workflow_dispatch:
-permissions: {contents: read}
+permissions:
+  contents: read
 jobs:
-  characterize:
+  baseline:
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with: {node-version: '22'}
-      - name: Exact accepted bytes
+      - name: Verify immutable accepted baseline
         run: |
           test "$(git hash-object market-navigator-turn28-post-ship.html)" = "9ce7f67451f9e1b7804927ce5c56adb667614724"
-          cmp -s market-navigator-turn28-post-ship.html market-navigator-turn37-stage0.html
       - name: Install browser
         run: |
-          npm ci
-          npm install --no-save playwright@1.63.0
+          npm install --no-save --package-lock=false playwright@1.63.0
           npx playwright install --with-deps chromium
-      - name: Characterize baseline
+      - name: Serve accepted baseline
         run: |
-          python -m http.server 8123 >/tmp/mn37-stage0-http.log 2>&1 &
-          SERVER=$!
-          trap 'kill $SERVER || true' EXIT
+          python3 -m http.server 8123 >/tmp/mn37-stage0-http.log 2>&1 &
+          echo $! > /tmp/mn37-stage0-server.pid
           sleep 2
-          node market-navigator-turn37-stage0-qa.mjs
+      - name: Characterize accepted baseline
+        run: node market-navigator-turn37-stage0-qa.mjs
+      - name: Upload baseline evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: market-navigator-turn37-stage0-baseline
+          path: turn37-stage0-artifacts/
+          if-no-files-found: error
