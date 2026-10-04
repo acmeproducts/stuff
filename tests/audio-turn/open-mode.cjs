@@ -89,6 +89,18 @@ test('Lao has the same browser-engine path and Khmer/Lao have read-aloud voice c
  assert.equal(rows.find(r=>r.code==='km').stt,'browser:km-KH');assert.equal(rows.find(r=>r.code==='lo').stt,'browser:lo-LA');
  assert.equal(rows.find(r=>r.code==='fil').stt,'tl');
 });
+test('Vietnamese tone keys compose with the vowel before them and replace an existing tone',async({page})=>{
+ await page.evaluate(()=>{localStorage.setItem('tb_dg_key','synthetic-key');localStorage.setItem('chat_test_audio',JSON.stringify({mode:'open',tones:true,resumeMs:300}))});await create(page,'ViRoom','en','vi');await page.waitForFunction(()=>mic.south.active&&mic.north.active);
+ await page.evaluate(()=>{const s=document.getElementById('in-north');s.value='';s.setSelectionRange(0,0)});
+ const typed=await page.evaluate(()=>{const out=[];const val=()=>document.getElementById('in-north').value;
+  press('north','a');press('north','\u0301');out.push(val());            // a + acute -> á
+  press('north','\u0300');out.push(val());                              // á + grave -> à (replaced, not stacked)
+  press('north','\u0323');out.push(val());                              // à + dot -> ạ
+  press('north','ê');press('north','\u0323');out.push(val());           // ê + dot -> ệ
+  press('north','b');press('north','\u0301');out.push(val());           // consonant: tone ignored
+  return out});
+ assert.deepEqual(typed,['á','à','ạ','ạệ','ạệb'].map(x=>x.normalize('NFC')));
+});
 test('open mode: mute, typing keeps mics, portal closes and reopens them, unsure goes to compose',async({page})=>{
  const s=await openRoom(page,'Mute');
  await page.locator('#strip-south .micbtn').click();await page.waitForFunction(()=>!mic.south.on&&mic.north.on);

@@ -932,8 +932,8 @@ function dgLangParam(room) {
     var LAYOUTS={
         latin:{rows:[['q','w','e','r','t','y','u','i','o','p'],['a','s','d','f','g','h','j','k','l'],['SHIFT','z','x','c','v','b','n','m','BKSP']],
                shift:[['Q','W','E','R','T','Y','U','I','O','P'],['A','S','D','F','G','H','J','K','L'],['SHIFT','Z','X','C','V','B','N','M','BKSP']]},
-        vi:{rows:[['q','w','e','r','t','y','u','i','o','p'],['a','s','d','f','g','h','j','k','l'],['SHIFT','z','x','c','v','b','n','m','BKSP'],['ă','â','ê','ô','ơ','ư','đ','á','à','ả']],
-            shift:[['Q','W','E','R','T','Y','U','I','O','P'],['A','S','D','F','G','H','J','K','L'],['SHIFT','Z','X','C','V','B','N','M','BKSP'],['Ă','Â','Ê','Ô','Ơ','Ư','Đ','ã','ạ','ầ']]},
+        vi:{rows:[['q','w','e','r','t','y','u','i','o','p'],['a','s','d','f','g','h','j','k','l'],['SHIFT','z','x','c','v','b','n','m','BKSP'],['ă','â','ê','ô','ơ','ư','đ']],
+            shift:[['Q','W','E','R','T','Y','U','I','O','P'],['A','S','D','F','G','H','J','K','L'],['SHIFT','Z','X','C','V','B','N','M','BKSP'],['Ă','Â','Ê','Ô','Ơ','Ư','Đ']]},
         th:{rows:[['ๆ','ไ','ำ','พ','ะ','ั','ี','ร','น','ย'],['ฟ','ห','ก','ด','เ','้','่','า','ส','ว'],['SHIFT','ผ','ป','แ','อ','ิ','ื','ท','ม','BKSP'],['ใ','ฝ','ล','ง','ข','ช','ต','จ','ค','ษ']],
             shift:[['๑','๒','๓','๔','๕','๖','๗','๘','๙','๐'],['ฤ','ฆ','ฏ','โ','ฌ','็','๋','ษ','ศ','ซ'],['SHIFT','(',')','ฉ','ฮ','ฺ','์','?','ฒ','BKSP'],['ฬ','ฦ','ฑ','ธ','ณ','ญ','ฐ','ฯ','ฃ','ฅ']]},
         km:{rows:[['ក','ខ','គ','ឃ','ង','ច','ឆ','ជ','ឈ','ញ'],['ដ','ឋ','ឌ','ឍ','ណ','ត','ថ','ទ','ធ','ន'],['SHIFT','ប','ផ','ព','ភ','ម','យ','រ','ល','BKSP'],['វ','ស','ហ','ឡ','អ','ា','ិ','ី','ុ','ូ']],
@@ -1821,6 +1821,24 @@ function dgLangParam(room) {
                  ru:'ru',ar:'ar',hi:'hi',th:'th',km:'km',lo:'lo',vi:'vi',id:'latin',ms:'latin',fil:'latin',
                  ja:'latin',ko:'ko',zh:'latin'};
     function layoutNameFor(code){return LANG_KB[code]||'latin'}
+    /* Keyboard coverage (audit of dict/<lang>.json, 2026-10-04): letters native to each language that the base layout lacked, added as extra rows. Vietnamese gets the five tone marks, which compose with the vowel before them. */
+    var EXTRA_KEYS={th:['บ','ถ','ึ','ุ','ู','๊','ภ','ฎ','ๅ','ํ'],ar:['د'],hi:['ष','ः','ॅ'],ru:['ё','ъ'],fr:['â','ï','ë'],pt:['à'],nl:['ë','é','ï','è','ö','ü','á','ó','í'],tr:['â','î','û'],
+        km:['ើ','ួ','ឹ','ៀ','ឺ','ៈ','ឧ','ឯ','ឥ','ឱ','ឿ','ឰ','ឦ'],lo:['ຽ'],vi:['\u0301','\u0300','\u0309','\u0303','\u0323']};
+    Object.keys(EXTRA_KEYS).forEach(function(c){
+        var name=LANG_KB[c];if(!name||name==='latin'){name=c;LANG_KB[c]=c}
+        var base=LAYOUTS[name]||LAYOUTS.latin,L={rows:base.rows.map(function(r){return r.slice()}),shift:(base.shift||base.rows).map(function(r){return r.slice()})},ex=EXTRA_KEYS[c];
+        for(var i=0;i<ex.length;i+=10){var chunk=ex.slice(i,i+10);L.rows.push(chunk);L.shift.push(chunk.map(function(k){return k.toUpperCase()}))}
+        LAYOUTS[name]=L;
+    });
+    function keyLabel(k){k=String(k);return /^[\u0300-\u036f]$/.test(k)?'\u25cc'+k:k.replace(/[&<>]/g,'')}
+    var VI_TONES=/[\u0300\u0301\u0303\u0309\u0323]/g;
+    function viTone(side,mark){
+        var ta=inputEl(side),s=ta.selectionStart;if(!s)return;
+        var stripped=ta.value.slice(s-1,s).normalize('NFD').replace(VI_TONES,'').normalize('NFC');
+        if(!/^[aăâeêioôơuưyAĂÂEÊIOÔƠUƯY]$/.test(stripped))return;     // a tone mark only applies to a vowel
+        var composed=(stripped+mark).normalize('NFC');if(composed.length!==1)return;
+        replaceComp(side,1,composed);portal.scheduleDraft();
+    }
 
     var shifted={south:false,north:false},numMode={south:false,north:false};
     var comp={south:{raw:'',kana:'',ko:null},north:{raw:'',kana:'',ko:null}};
@@ -1927,7 +1945,7 @@ function dgLangParam(room) {
             r.forEach(function(k){
                 if(k==='SHIFT')html+='<button type="button" class="key fn" data-k="SHIFT">⇧</button>';
                 else if(k==='BKSP')html+='<button type="button" class="key fn" data-k="BKSP">⌫</button>';
-                else html+='<button type="button" class="key" data-k="'+String(k).replace(/"/g,'&quot;')+'">'+String(k).replace(/[&<>]/g,'')+'</button>';
+                else html+='<button type="button" class="key" data-k="'+String(k).replace(/"/g,'&quot;')+'">'+keyLabel(k)+'</button>';
             });
             html+='</div>';
         });
@@ -2022,7 +2040,7 @@ function dgLangParam(room) {
             if(i>=flat.length)return;
             var k=flat[i++];
             btn.dataset.k=String(k);
-            btn.textContent=String(k).replace(/[&<>]/g,'');
+            btn.textContent=keyLabel(k);
         });
     }
     /* item 12: key-preview popup. Positioned in the key container's own
@@ -2463,6 +2481,7 @@ function dgLangParam(room) {
             updateAutocomplete(side);
             return;
         }
+        if(lang==='vi'&&/^[\u0300\u0301\u0303\u0309\u0323]$/.test(k)){flushComp(side);viTone(side,k);updateAutocomplete(side);return}
         var prevLen=compText(side).length;
         if(ime==='ko'){
             if(!comp[side].ko)comp[side].ko=newKoState();
@@ -2550,7 +2569,8 @@ function dgLangParam(room) {
       fr:'🇫🇷',de:'🇩🇪',it:'🇮🇹',pt:'🇧🇷',vi:'🇻🇳',id:'🇮🇩',ms:'🇲🇾',fil:'🇵🇭',nl:'🇳🇱',sv:'🇸🇪',
       pl:'🇵🇱',tr:'🇹🇷',km:'🇰🇭',lo:'🇱🇦'};
     /* Language check: one row per selectable language; null means that part is missing. Read-only. */
-    window.langCheck=function(){return Object.keys(LANG_NAMES).map(function(c){var g=LANGS[c];return{code:c,name:LANG_NAMES[c],flag:LANG_FLAGS[c]||null,tts:g?g.tts:null,stt:DG_LANGS[c]||(BROWSER_STT[c]?'browser:'+BROWSER_STT[c]:null),keyboard:(LANG_KB[c]&&LAYOUTS[LANG_KB[c]])?LANG_KB[c]:null}})};
+    window.langCheck=function(){return Object.keys(LANG_NAMES).map(function(c){var g=LANGS[c];return{code:c,name:LANG_NAMES[c],flag:LANG_FLAGS[c]||null,tts:g?g.tts:null,stt:DG_LANGS[c]||(BROWSER_STT[c]?'browser:'+BROWSER_STT[c]:null),keyboard:(LANG_KB[c]&&LAYOUTS[LANG_KB[c]])?LANG_KB[c]:null,keys:keyChars(c)}})};
+    function keyChars(c){var L=LAYOUTS[LANG_KB[c]];if(!L)return null;var out={};[L.rows,L.shift||[]].forEach(function(rows){rows.forEach(function(r){r.forEach(function(k){if(typeof k==='string'&&k.length&&!/^[A-Z_]{2,}$/.test(k))Array.from(k).forEach(function(ch){out[ch]=1})})})});return Object.keys(out).join('')}
     var SWATCHES=['#eff6ff','#f0fdf4','#fef3c7','#fee2e2','#f3e8ff','#ffffff'];
 
     var MIC_SVG=(function(s){return(
