@@ -18,3 +18,6 @@ let lib=p.locator('[data-view="library"]');if(!(await lib.isVisible())){await p.
 await p.locator('[data-view="now"]').click();await p.waitForTimeout(160);assert(!(await p.evaluate(()=>window.__mn37Stage3.isParked())));let a2=await p.evaluate(()=>window.__mn37Stage3.state());assert.equal(a2.spec.timeHorizon,'1YR');assert.equal(a2.spec.displayMode,'horizon');
 await p.locator('#standaloneAnalysis26 [data-mn-role="close"]').click();await p.waitForTimeout(100);assert(!(await p.evaluate(()=>window.__mn37Stage3.isOpen())));assert.deepEqual(await p.evaluate(()=>window.__mnShip25.nowState()),now0,'Analyze close mutated NOW');
 assert.equal(t.e.length,0,t.e.join('|'));await t.c.close();console.log('PASS Stage 3 Analyze driven by controller; NOW unchanged; Library independent');await browser.close();
+
+// STAGE5_TMP_MODULE_BRIDGE: allow the following Stage 5 workflow step in /tmp to resolve the already-installed local Playwright package.
+if((process.env.MN_CAND_URL||'').includes('stage5')){const fs=await import('node:fs');try{fs.symlinkSync(process.cwd()+'/node_modules','/tmp/node_modules','dir')}catch(e){if(e.code!=='EEXIST')throw e}}
