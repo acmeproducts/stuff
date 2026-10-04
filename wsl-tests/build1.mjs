@@ -14,7 +14,7 @@ for(const vp of [{n:'phone',w:390,h:800},{n:'desktop',w:1280,h:800}]){
   await p.evaluate(()=>{
     window.__ptr=(type,id,x,y)=>document.getElementById('game').dispatchEvent(new PointerEvent(type,{pointerId:id,clientX:x,clientY:y,bubbles:true,cancelable:true,isPrimary:id===1,pointerType:'touch'}));
     window.__sleep=ms=>new Promise(r=>setTimeout(r,ms));
-    window.__scr=(wx,wy)=>{const s=window.__wsl();return{x:(wx-s.camX)*s.zoom,y:(wy-s.camY)*s.zoom};};
+    window.__scr=(wx,wy)=>{const s=window.__wsl();return{x:(wx-s.camX)*(s.zoomE||s.zoom),y:(wy-s.camY)*(s.zoomE||s.zoom)};};
     window.__drag=async(x0,y0,x1,y1,steps,ms)=>{__ptr('pointerdown',1,x0,y0);for(let i=1;i<=steps;i++){await __sleep(ms/steps);__ptr('pointermove',1,x0+(x1-x0)*i/steps,y0+(y1-y0)*i/steps);}__ptr('pointerup',1,x1,y1);};
     window.__tap=async(x,y)=>{__ptr('pointerdown',1,x,y);await __sleep(60);__ptr('pointerup',1,x,y);};
     window.__pinch=async(d0,d1,cx,cy)=>{__ptr('pointerdown',1,cx-d0/2,cy);__ptr('pointerdown',2,cx+d0/2,cy);for(let i=1;i<=10;i++){await __sleep(16);const d=d0+(d1-d0)*i/10;__ptr('pointermove',1,cx-d/2,cy);__ptr('pointermove',2,cx+d/2,cy);}__ptr('pointerup',2,cx+d1/2,cy);__ptr('pointerup',1,cx-d1/2,cy);};
@@ -43,7 +43,7 @@ for(const vp of [{n:'phone',w:390,h:800},{n:'desktop',w:1280,h:800}]){
   await p.reload();await p.waitForTimeout(500);
   await p.evaluate(()=>{window.__ptr=(type,id,x,y)=>document.getElementById('game').dispatchEvent(new PointerEvent(type,{pointerId:id,clientX:x,clientY:y,bubbles:true,cancelable:true,isPrimary:id===1,pointerType:'touch'}));
     window.__sleep=ms=>new Promise(r=>setTimeout(r,ms));
-    window.__scr=(wx,wy)=>{const s=window.__wsl();return{x:(wx-s.camX)*s.zoom,y:(wy-s.camY)*s.zoom};};
+    window.__scr=(wx,wy)=>{const s=window.__wsl();return{x:(wx-s.camX)*(s.zoomE||s.zoom),y:(wy-s.camY)*(s.zoomE||s.zoom)};};
     window.__drag=async(x0,y0,x1,y1,steps,ms)=>{__ptr('pointerdown',1,x0,y0);for(let i=1;i<=steps;i++){await __sleep(ms/steps);__ptr('pointermove',1,x0+(x1-x0)*i/steps,y0+(y1-y0)*i/steps);}__ptr('pointerup',1,x1,y1);};
     window.__tap=async(x,y)=>{__ptr('pointerdown',1,x,y);await __sleep(60);__ptr('pointerup',1,x,y);};
     window.__pinch=async(d0,d1,cx,cy)=>{__ptr('pointerdown',1,cx-d0/2,cy);__ptr('pointerdown',2,cx+d0/2,cy);for(let i=1;i<=10;i++){await __sleep(16);const d=d0+(d1-d0)*i/10;__ptr('pointermove',1,cx-d/2,cy);__ptr('pointermove',2,cx+d/2,cy);}__ptr('pointerup',2,cx+d1/2,cy);__ptr('pointerup',1,cx-d1/2,cy);};
