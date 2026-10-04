@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-/* The four pre-push structural checks for 28·pre-ship (flattened call, X-2,
+/* The four pre-push structural checks for 28·pre-ship (flattened call, X-3,
    G-1): syntax, HTML structure, wire, runtime. `--selftest` feeds every
    check a deliberately broken copy and fails unless the check rejects it. */
 import { readFileSync } from 'fs';
@@ -9,7 +9,7 @@ import { JSDOM, VirtualConsole } from 'jsdom';
 const builtP = process.argv[2] && !process.argv[2].startsWith('--') ? process.argv[2] : 'bridge-turn28-pre-ship.html';
 const selftest = process.argv.includes('--selftest');
 const built = readFileSync(builtP, 'utf8');
-const MARKERS = ['A-session-and-transcription', 'B-language-resolution', 'C-call-recovery', 'E-speech-sequence', 'F-transcript-proof', 'R-room-card', 'J-joiner-shell', 'L-room-lifecycle', 'T-net-robustness', 'M-room-menu', 'S-receipts', 'RB-ribbon', 'R8-fine-touches', 'NP-no-password', 'LG-legibility', 'R8b-call-surface', 'R9-phrasebook-mirror', 'C1-signal-queue', 'V2-relay-retry', 'C3-joiner-restart', 'C2-stall-frames', 'S2-back-absorb', 'F1-flip-keeps-sender', 'K1-device-ids', 'K2-pb-merge', 'K4-rename-lww', 'T1-render-coalesce', 'T2-log-hygiene', 'T3-wrap-map', 'D10-tag-enter', 'FL1-relay-path', 'I1-app-face', 'FL2-call', 'X2-check-button', 'G1-google-first'].map((n) => 'GAP PART · ' + n + '.js');
+const MARKERS = ['A-session-and-transcription', 'B-language-resolution', 'C-call-recovery', 'E-speech-sequence', 'F-transcript-proof', 'R-room-card', 'J-joiner-shell', 'L-room-lifecycle', 'T-net-robustness', 'M-room-menu', 'S-receipts', 'RB-ribbon', 'R8-fine-touches', 'NP-no-password', 'LG-legibility', 'R8b-call-surface', 'R9-phrasebook-mirror', 'C1-signal-queue', 'V2-relay-retry', 'C3-joiner-restart', 'C2-stall-frames', 'S2-back-absorb', 'F1-flip-keeps-sender', 'K1-device-ids', 'K2-pb-merge', 'K4-rename-lww', 'T1-render-coalesce', 'T2-log-hygiene', 'T3-wrap-map', 'D10-tag-enter', 'FL1-relay-path', 'I1-app-face', 'FL2-call', 'X3-check-said', 'G1-google-first'].map((n) => 'GAP PART · ' + n + '.js');
 const CALL_SYMBOLS = ['CALL.keys', 'CALL.start', 'CALL.onIncoming', 'CALL.accept', 'CALL.onAccepted', 'CALL.mount', 'CALL.onSignal', 'CALL.runRecovery', 'CALL.startVideoWatchdog', 'CALL.stopVideoWatchdog', 'CALL.toggleMic', 'CALL.hangUp', 'CALL.teardown', 'camSenders', 'replaceSenderTrack'];
 
 function scripts(html) { const out = []; const re = /<script(?![^>]*\bsrc=)[^>]*>([\s\S]*?)<\/script>/gi; let m; while ((m = re.exec(html))) out.push(m[1]); return out; }
@@ -70,19 +70,20 @@ async function checkRuntime(html) {
   if (!/callStartCore|callAcceptCore/.test(String(w.CALL.start) + String(w.CALL.accept)) || /_start\.apply|_accept\.apply/.test(String(w.CALL.start) + String(w.CALL.accept))) throw new Error('a wrapper chain survives on start/accept');
   if (!/_translateWithRetry/.test(String(w.translateWithRetry)) || !/googleapis/.test(String(w.translateWithRetry))) throw new Error('translateWithRetry is not the G-1 wrapper');
   if (!w.document.getElementById('n10-out') || w.document.getElementById('n10-out').parentNode.id !== 'scr-room') throw new Error('the caller screen is not mounted in #scr-room');
-  if (typeof w.backCheck !== 'function' || !/_wireMsg/.test(String(w.wireMsg)) || !/data-hact', 'check'/.test(String(w.wireMsg))) throw new Error('the translation check button (X-2) is not installed on wireMsg');
-  if (!w.TB_WRAP_MAP.wireMsg || w.TB_WRAP_MAP.wireMsg.slice(-1)[0] !== 'X2-check-button.js') throw new Error('X-2 is not the outermost wireMsg layer: ' + JSON.stringify(w.TB_WRAP_MAP.wireMsg));
+  if (typeof w.backCheck !== 'function' || !/_wireMsg/.test(String(w.wireMsg)) || !/data-hact', 'check'/.test(String(w.wireMsg))) throw new Error('the translation check button (X-3) is not installed on wireMsg');
+  for (const [sym, fn] of [['wireMsg', w.wireMsg], ['normalizeOutgoing', w.normalizeOutgoing], ['appendMsgDom', w.appendMsgDom]]) { const ch = w.TB_WRAP_MAP[sym]; if (!ch || ch.slice(-1)[0] !== 'X3-check-said.js') throw new Error('X-3 is not the outermost ' + sym + ' layer: ' + JSON.stringify(ch)); }
+  if (!/x3Pending/.test(String(w.normalizeOutgoing)) || !/said_kept/.test(String(w.appendMsgDom))) throw new Error('X-3 hooks are not the said-keeping ones');
   if (!/_pbAddTagTo/.test(String(w.pbAddTagTo))) throw new Error('pbAddTagTo is not the D-10 wrapper');
   if (typeof w.tbSwapTap !== 'function' || typeof w.tbFlipCamera !== 'function') throw new Error('c5 video surface missing');
   if (!/c1_queued/.test(String(w.relaySend)) || !/handleRelayCore/.test(String(w.handleRelay))) throw new Error('FL-1 is no longer in place');
   dom.window.close();
-  return 'boots clean; the fifteen call symbols are flat (no wrap_map entry beyond the FL-2 definition, FL-2 bodies); FL-1 and D-10 still in place; caller screen in #scr-room; X-2 check button on wireMsg; G-1 wraps the translator';
+  return 'boots clean; the fifteen call symbols are flat (no wrap_map entry beyond the FL-2 definition, FL-2 bodies); FL-1 and D-10 still in place; caller screen in #scr-room; X-3 check button on wireMsg, said hooks on normalizeOutgoing/appendMsgDom; G-1 wraps the translator';
 }
 const CHECKS = [
   { id: '1 syntax', run: checkSyntax, break: (h) => h.replace('var C3_HOLD_MS = 8000;', 'var C3_HOLD_MS = 8000; {{{') },
-  { id: '2 structure', run: checkStructure, break: (h) => h.replace('GAP PART · X2-check-button.js', 'GAP PART · X2-gone.js') },
+  { id: '2 structure', run: checkStructure, break: (h) => h.replace('GAP PART · X3-check-said.js', 'GAP PART · X3-gone.js') },
   { id: '3 wire', run: checkWire, break: (h) => h.replace('function callStartCore(kind) {', "function callStartCore(kind) { document.getElementById('no-such-element');") },
-  { id: '4 runtime', run: checkRuntime, break: (h) => h.replace('/* ═══════════ GAP PART · X2-check-button.js', "var _flS = CALL.start; CALL.start = function () { return _flS.apply(this, arguments); };\n/* ═══════════ GAP PART · X2-check-button.js") }
+  { id: '4 runtime', run: checkRuntime, break: (h) => h.replace('/* ═══════════ GAP PART · X3-check-said.js', "var _flS = CALL.start; CALL.start = function () { return _flS.apply(this, arguments); };\n/* ═══════════ GAP PART · X3-check-said.js") }
 ];
 let fail = 0;
 for (const c of CHECKS) { try { console.log('  ok  ' + c.id + ' — ' + await c.run(built)); } catch (e) { console.log('FAIL  ' + c.id + ' — ' + ((e && e.message) || e)); fail++; } }
