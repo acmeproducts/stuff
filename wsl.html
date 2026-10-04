@@ -73,7 +73,6 @@
   <h3>Mode</h3><div class="row"><button class="opt" data-mode="regular">Regular</button><button class="opt" data-mode="zen">Zen</button></div>
   <h3>Intensity</h3><div class="row"><button class="opt" data-preset="low">Low</button><button class="opt" data-preset="med">Med</button><button class="opt" data-preset="high">High</button><button class="opt" data-preset="custom">Custom</button></div>
   <div class="slr"><span>Jump</span><input type="range" id="jumpForce" min="400" max="2000" step="50"><span class="v" id="jumpVal"></span></div>
-  <div class="slr"><span>Flip</span><input type="range" id="flipForce" min="300" max="1200" step="50"><span class="v" id="flipVal"></span></div>
   <h3>Audio vibe</h3><div class="row"><button class="opt" data-audio="calm">Calm</button><button class="opt" data-audio="fun">Fun</button><button class="opt" data-audio="whimsical">Whimsical</button><button class="opt" data-audio="zen">Zen</button></div>
   <button id="closeSettings">SAVE &amp; CLOSE</button></div>
 <script>
@@ -110,15 +109,15 @@ var charges=3,survival=0,distPx=0,flowSamples=[],flowSum=0,flowN=0,flowT=0,flowB
 var chain=0,lastTapT=0,lp=null,resPrev=0;
 var MAXCHARGES=3,LONGPRESS_MS=800,CHAIN_MS=450,BIGJUMP=1.6,FLOW_EVERY=0.5;
 
-var G=1050,DRAG=0.12,ROLL=5,VMAX=1600;
+var G=1050,SLOPEK=0.45,DRAG=0.2,ROLL=30,VMAX=1300;
 var PROGRESS_THRESHOLD=80,PROGRESS_LIMIT=4.0;
 var lastProgressX=0,noProgressT=0;
 var AC=null;
-var PRESETS={low:{jump:500,flip:450},med:{jump:800,flip:700},high:{jump:1200,flip:1000}};
-var cfg={mode:null,preset:'med',jump:800,flip:700,audio:'fun'};
+var PRESETS={low:{jump:500},med:{jump:800},high:{jump:1200}};
+var cfg={mode:null,preset:'med',jump:800,audio:'fun'};
 var paused=false,TIMESCALE_ZEN=0.75,lastOn={track:0,s:0};
 try{var sv=JSON.parse(localStorage.getItem('wsl_settings')||'{}');for(var k in sv)if(k in cfg)cfg[k]=sv[k];}catch(e){}
-if(PRESETS[cfg.preset]){cfg.jump=PRESETS[cfg.preset].jump;cfg.flip=PRESETS[cfg.preset].flip;}
+if(PRESETS[cfg.preset])cfg.jump=PRESETS[cfg.preset].jump;
 function saveCfg(){try{localStorage.setItem('wsl_settings',JSON.stringify(cfg));}catch(e){}}
 function zen(){return cfg.mode==='zen';}
 var THEMES={calm:{type:'sine',mult:0.8,gain:0.06,dur:1.4},fun:{type:'triangle',mult:1,gain:0.07,dur:1},whimsical:{type:'square',mult:1.5,gain:0.035,dur:0.8},zen:{type:'sine',mult:0.5,gain:0.05,dur:2.4}};
@@ -223,7 +222,7 @@ function reset(){
   lastProgressX=cart.x;noProgressT=0;zoom=1;
   snapCamera();
   elOverlay.style.display='none';
-  setHint('Draw to extend • Tap the track to ride • Pinch to zoom');
+  setHint('Draw • Tap the track to ride • Pinch to zoom');
   beep(600,80);
 }
 function snapCamera(){
@@ -235,17 +234,17 @@ function release(s,trackIdx){
   state=ST.RUN;cart.track=trackIdx||0;cart.s=s;cart.v=2;cart.flip=0;cart.flipAng=0;
   var p=pointAt(cart.track,cart.s);cart.x=p.x;cart.y=p.y;cart.ang=p.ang;
   lastProgressX=cart.x;noProgressT=0;
-  setHint('Tap = Jump • Swipe ← → = Flip • Hold = Rescue');
+  setHint('Tap = jump & flip • Hold = rescue • Pinch = zoom');
   beep(520,100);
 }
 function startFallOffTrack(reason){
   var tr=tracks[cart.track];
   var p=tr?pointAt(cart.track,Math.max(0,Math.min(tr.totalLen,cart.s))):{x:cart.x,y:cart.y,ang:cart.ang};
   fall.vx=Math.cos(cart.ang)*cart.v;fall.vy=Math.sin(cart.ang)*cart.v;
-  fall.rot=cart.ang;fall.spin=fall.vx>=0?10:-10;fall.t=0;
+  fall.rot=cart.ang;fall.spin=fall.vx>=0?10:-10;fall.t=0;fall.grace=0.15;
   hole.x=p.x+(fall.vx>=0?260:-260);hole.y=p.y+140;
   state=ST.FALL;
-  setHint('Swipe ← → to flip • Hold = Rescue line');
+  setHint('Draw to catch the cart • Hold = rescue');
   diagExtra=reason||'fall';
   beep(160,200);
 }
@@ -264,19 +263,9 @@ function doJump(){
   if(state!==ST.RUN)return;
   fall.vx=Math.cos(cart.ang)*cart.v;fall.vy=Math.sin(cart.ang)*cart.v-cfg.jump;
   fall.rot=cart.ang;fall.spin=0;fall.t=0;fall.grace=0.12;
-  cart.flip=0;cart.flipAng=0;cart.flipDir=1;
+  // the jump spins the way the cart is travelling: forward momentum = front flip, backward = back flip
+  cart.flip=1;cart.flipAng=0;cart.flipDir=cart.v<0?-1:1;
   state=ST.FALL;diagExtra='jump';beep(520,140);
-}
-function triggerFlip(dir){
-  if(state===ST.RUN){
-    fall.vx=Math.cos(cart.ang)*cart.v;fall.vy=Math.sin(cart.ang)*cart.v-cfg.flip;
-    fall.rot=cart.ang;fall.spin=0;fall.t=0;fall.grace=0.12;
-    cart.flip=1;cart.flipAng=0;cart.flipDir=dir;
-    state=ST.FALL;diagExtra='flip';beep(440,120);beep(660,120);
-  }else if(state===ST.FALL&&cart.flip===0){
-    cart.flip=1;cart.flipAng=0;cart.flipDir=dir;diagExtra='360!';
-    beep(440,120);beep(660,120);
-  }
 }
 function startRescue(x,y){
   if((state!==ST.RUN&&state!==ST.FALL)||(charges<=0&&!zen()))return false;
@@ -294,7 +283,7 @@ function endRescue(){
   var ang=pointAt(idx,0).ang,vx,vy;
   if(resPrev===ST.FALL){vx=fall.vx;vy=fall.vy;}else{vx=Math.cos(cart.ang)*cart.v;vy=Math.sin(cart.ang)*cart.v;}
   var dot=vx*Math.cos(ang)+vy*Math.sin(ang);
-  cart.track=idx;cart.s=0;cart.v=Math.min(VMAX,Math.max(200,dot));
+  cart.track=idx;cart.s=0;cart.v=Math.min(VMAX,Math.max(60,dot));
   var p=pointAt(idx,0);cart.x=p.x;cart.y=p.y;cart.ang=p.ang;
   cart.flip=0;cart.flipAng=0;state=ST.RUN;stuckT=0;noProgressT=0;lastProgressX=cart.x;
   setHint('Draw ahead • Hold = Rescue');beep(700,100);
@@ -308,7 +297,7 @@ function landOnTrack(ti,s){
   state=ST.RUN;stuckT=0;noProgressT=0;
   if(cart.x>lastProgressX)lastProgressX=cart.x;
   if(cart.flip===2){
-    var bonus=tracks[ti]&&tracks[ti].rescue?500:1000;
+    var bonus=tracks[ti]&&tracks[ti].rescue?50:100;
     addFloater(cart.x,cart.y-60,'+'+bonus,'#ffd700');
     score+=bonus;beep(1100,120);
   }
@@ -354,7 +343,7 @@ function update(dt){
     var tr=tracks[cart.track];
     if(!tr||tr.pts.length<2){startFallOffTrack('notrack');return;}
     var p0=pointAt(cart.track,cart.s);
-    var acc=G*Math.sin(p0.ang)-DRAG*cart.v-(cart.v>0?ROLL:(cart.v<0?-ROLL:0));
+    var acc=G*SLOPEK*Math.sin(p0.ang)-DRAG*cart.v-(cart.v>0?ROLL:(cart.v<0?-ROLL:0));
     cart.v+=acc*dt;
     if(cart.v>VMAX)cart.v=VMAX;else if(cart.v<-VMAX)cart.v=-VMAX;
     cart.s+=cart.v*dt;distPx+=Math.abs(cart.v*dt);
@@ -474,99 +463,100 @@ function drawHole(){
   ctx.fillStyle='#000';ctx.beginPath();ctx.arc(hole.x,hole.y,22,0,7);ctx.fill();
 }
 
+// ---- Touch gestures: one clear rule per finger count, nothing is guessed from speed ----
+// 1 finger : drag = draw (immediate) | quick tap = jump (spins with the cart's momentum) | hold still 800 ms = rescue
+// 2 fingers: pinch = zoom (nothing else)
 var ZMIN=0.35,ZMAX=3.5;
-var TAP_MS=200,TAP_PX=15,SWIPE_PX=40,SWIPE_V=0.3;
-var drawing=false,moved=false,downX=0,downY=0,downT=0,mode='none',multi=false,pinchStartDist=0,startZoom=1;
+var TAP_MS=200,TAP_PX=12,PINCH_PX=30;
+var g={phase:'idle',id:0,x0:0,y0:0,t0:0,moved:false,mode:'none',cx0:0,cy0:0,d0:1,z0:1,kind:'none',mv:0};
 function cancelLP(){lp=null;}
-var twoTap=null;
 function checkLP(){
-  if(!lp||multi||mode!=='none'||moved){lp=null;return;}
-  if(performance.now()-lp.t0>=LONGPRESS_MS){
-    var x=lp.x,y=lp.y;lp=null;
-    if(startRescue(x,y)){mode='rescue';drawing=true;}
-  }
+  if(!lp)return;
+  if(g.phase!=='one'||g.moved||g.mode!=='none'){lp=null;return;}
+  if(performance.now()-lp.t0>=LONGPRESS_MS){var x=lp.x,y=lp.y;lp=null;if(startRescue(x,y))g.mode='rescue';}
 }
+function pair(){
+  var ps=Array.from(pointers.values()),a=ps[0],b=ps[1];
+  return{cx:(a.x+b.x)/2,cy:(a.y+b.y)/2,d:Math.hypot(a.x-b.x,a.y-b.y)||1};
+}
+function gestureReset(){g.phase='idle';g.mode='none';g.kind='none';g.moved=false;lp=null;pendingSwitch=null;}
 
 window.addEventListener('pointerdown',function(e){
   if(paused||e.target.closest('#btnSettings,#settingsPanel,#modeSel'))return;
   pointers.set(e.pointerId,{x:e.clientX,y:e.clientY});
-  if(pointers.size>=2){
-    var pts=Array.from(pointers.values()),dx=pts[0].x-pts[1].x,dy=pts[0].y-pts[1].y;
-    pinchStartDist=Math.hypot(dx,dy)||1;startZoom=zoom;drawing=false;multi=true;mode='none';
-    if(!twoTap)twoTap={t0:performance.now(),cx:(pts[0].x+pts[1].x)/2,cy:(pts[0].y+pts[1].y)/2,d0:pinchStartDist,ok:true};
-    pendingSwitch=null;cancelLP();if(state===ST.RESCUE)endRescue();return;
-  }
-  multi=false;
-  downX=e.clientX;downY=e.clientY;downT=performance.now();moved=false;mode='none';
-  if(state===ST.OVER){reset();return;}
-  if(state===ST.RUN||state===ST.FALL)lp={x:e.clientX,y:e.clientY,t0:performance.now()};
-  if(state===ST.READY||state===ST.RUN||state===ST.FALL){
+  if(g.phase==='idle'){
+    if(state===ST.OVER){reset();g.phase='ignore';return;}
+    g.phase='one';g.id=e.pointerId;g.x0=e.clientX;g.y0=e.clientY;g.t0=performance.now();g.moved=false;g.mode='none';
+    if(state===ST.RUN||state===ST.FALL)lp={x:e.clientX,y:e.clientY,t0:g.t0};
     var w=toWorld(e.clientX,e.clientY);
     if(state===ST.RUN&&cart.v<-6&&w.y>cart.y+40){
       tracks.push(mkTrack());editTrack=tracks.length-1;addPoint(editTrack,w.x,w.y);
-      pendingSwitch={track:editTrack,px:w.x,py:w.y};drawing=true;mode='draw';return;
+      pendingSwitch={track:editTrack,px:w.x,py:w.y};g.mode='draw';g.moved=true;cancelLP();
     }
-    drawing=true;
+    return;
+  }
+  if(g.phase==='one'&&pointers.size>=2){
+    if(g.mode==='rescue')endRescue();
+    cancelLP();pendingSwitch=null;
+    var q=pair();g.phase='two';g.kind='none';g.cx0=q.cx;g.cy0=q.cy;g.d0=q.d;g.z0=zoom;g.t0=performance.now();g.mv=0;
   }
 },{passive:false});
 
 window.addEventListener('pointermove',function(e){
-  if(paused)return;
+  if(!pointers.has(e.pointerId))return;
   pointers.set(e.pointerId,{x:e.clientX,y:e.clientY});
-  if(pointers.size>=2&&pinchStartDist>0){
-    var pts=Array.from(pointers.values()),dx=pts[0].x-pts[1].x,dy=pts[0].y-pts[1].y;
-    if(twoTap&&Math.abs(Math.hypot(dx,dy)-twoTap.d0)>25)twoTap.ok=false;
-    zoom=Math.max(ZMIN,Math.min(ZMAX,startZoom*Math.hypot(dx,dy)/pinchStartDist));
-    applyTransform();return;
-  }
-  if(!drawing||multi)return;
-  var mx=e.clientX-downX,my=e.clientY-downY,md=Math.hypot(mx,my);
-  if(mode==='rescue'){var wr=toWorld(e.clientX,e.clientY);addPoint(editTrack,wr.x,wr.y);return;}
-  if(!moved&&md>10){
-    moved=true;cancelLP();
-    var dt=Math.max(1,performance.now()-downT);
-    // fast, mostly horizontal flick while the cart is moving = flip; anything else = draw
-    mode=((state===ST.RUN||state===ST.FALL)&&md/dt>SWIPE_V&&Math.abs(mx)>Math.abs(my)*1.5)?'swipe':'draw';
-  }
-  if(mode==='swipe'){
-    if(Math.abs(mx)>=SWIPE_PX){triggerFlip(mx>0?1:-1);mode='done';drawing=false;}
-    return;
-  }
-  if(mode==='draw'){
-    var w=toWorld(e.clientX,e.clientY);addPoint(editTrack,w.x,w.y);
-    if(pendingSwitch&&tracks[pendingSwitch.track].pts.length>=2){
-      var tr=tracks[pendingSwitch.track],dx=cart.x-pendingSwitch.px,dy=cart.y-pendingSwitch.py;
-      if(Math.hypot(dx,dy)<90){
-        var ang1=Math.atan2(tr.pts[1].y-tr.pts[0].y,tr.pts[1].x-tr.pts[0].x);
-        cart.track=pendingSwitch.track;cart.s=0;cart.ang=ang1;
-        cart.v=Math.min(VMAX,Math.max(-VMAX,cart.v));
-        var p=pointAt(0,0);cart.x=p.x;cart.y=p.y;tr.color='#8cff5a';
-      }pendingSwitch=null;
+  if(paused)return;
+  if(g.phase==='one'){
+    if(e.pointerId!==g.id)return;
+    if(g.mode==='rescue'){var wr=toWorld(e.clientX,e.clientY);addPoint(editTrack,wr.x,wr.y);return;}
+    if(!g.moved&&Math.hypot(e.clientX-g.x0,e.clientY-g.y0)>TAP_PX){g.moved=true;cancelLP();g.mode='draw';}
+    if(g.mode==='draw'&&(state===ST.READY||state===ST.RUN||state===ST.FALL)){
+      var w=toWorld(e.clientX,e.clientY);addPoint(editTrack,w.x,w.y);
+      if(pendingSwitch&&tracks[pendingSwitch.track].pts.length>=2){
+        var tr=tracks[pendingSwitch.track],dx=cart.x-pendingSwitch.px,dy=cart.y-pendingSwitch.py;
+        if(Math.hypot(dx,dy)<90){
+          var ang1=Math.atan2(tr.pts[1].y-tr.pts[0].y,tr.pts[1].x-tr.pts[0].x);
+          cart.track=pendingSwitch.track;cart.s=0;cart.ang=ang1;
+          cart.v=Math.min(VMAX,Math.max(-VMAX,cart.v));
+          var p=pointAt(0,0);cart.x=p.x;cart.y=p.y;tr.color='#8cff5a';
+        }pendingSwitch=null;
+      }
     }
+  }else if(g.phase==='two'&&pointers.size>=2){
+    var q=pair(),dd=q.d-g.d0,dcx=q.cx-g.cx0,dcy=q.cy-g.cy0;
+    g.mv=Math.max(g.mv,Math.abs(dd),Math.hypot(dcx,dcy));
+    if(g.kind==='none'){
+      if(Math.abs(dd)>PINCH_PX&&Math.abs(dd)>Math.abs(dcx))g.kind='pinch';
+    }
+    if(g.kind==='pinch'){zoom=Math.max(ZMIN,Math.min(ZMAX,g.z0*q.d/g.d0));applyTransform();}
   }
 },{passive:false});
 
-window.addEventListener('pointerup',function(e){
-  pointers.delete(e.pointerId);if(pointers.size<2)pinchStartDist=0;
-  if(multi){
-    if(pointers.size===0){
-      multi=false;
-      if(twoTap&&twoTap.ok&&performance.now()-twoTap.t0<=300&&state!==ST.RESCUE&&startRescue(twoTap.cx,twoTap.cy))endRescue();
-      twoTap=null;
+function gestureEnd(e){
+  pointers.delete(e.pointerId);
+  if(g.phase==='one'){
+    if(e.pointerId!==g.id)return;
+    cancelLP();
+    if(g.mode==='rescue'){endRescue();}
+    else if(!g.moved&&performance.now()-g.t0<=TAP_MS&&Math.hypot(e.clientX-g.x0,e.clientY-g.y0)<=TAP_PX){
+      if(state===ST.READY){
+        var w=toWorld(e.clientX,e.clientY),best=nearestOnAnyTrack(w.x,w.y);
+        if(best.d<50)release(best.s,best.track);
+        else addFloater(w.x,w.y,'Tap the track','#ffd76a');
+      }else if(state===ST.RUN||state===ST.FALL){if(!chainTap()&&state===ST.RUN)doJump();}
     }
-    drawing=false;return;
-  }
-  cancelLP();
-  if(mode==='rescue'){mode='none';drawing=false;endRescue();return;}
-  var wasDrawing=drawing,wasMoved=moved;drawing=false;
-  if(!wasDrawing||wasMoved||Math.hypot(e.clientX-downX,e.clientY-downY)>TAP_PX)return;
-  if(state===ST.READY){
-    var w=toWorld(e.clientX,e.clientY),best=nearestOnAnyTrack(w.x,w.y);
-    if(best.d<50)release(best.s,best.track);
-    else addFloater(w.x,w.y,'Tap the track','#ffd76a');
-  }else if((state===ST.RUN||state===ST.FALL)&&performance.now()-downT<=TAP_MS){if(!chainTap()&&state===ST.RUN)doJump();}
+    gestureReset();
+  }else if(g.phase==='two'){
+    if(pointers.size===0){
+      gestureReset();
+    }
+  }else if(pointers.size===0){gestureReset();}
+}
+window.addEventListener('pointerup',gestureEnd);
+window.addEventListener('pointercancel',function(){
+  if(state===ST.RESCUE)endRescue();
+  pointers.clear();gestureReset();
 });
-window.addEventListener('pointercancel',function(){twoTap=null;cancelLP();if(state===ST.RESCUE)endRescue();drawing=false;multi=false;mode='none';pointers.clear();pinchStartDist=0;});
 
 window.addEventListener('wheel',function(e){
   if(e.ctrlKey||e.metaKey){e.preventDefault();zoom=Math.max(ZMIN,Math.min(ZMAX,zoom*(e.deltaY>0?0.9:1.1)));applyTransform();}
@@ -608,8 +598,8 @@ function syncUI(){
   $('[data-mode]').forEach(function(b){b.classList.toggle('on',b.getAttribute('data-mode')===cfg.mode);});
   $('[data-preset]').forEach(function(b){b.classList.toggle('on',b.getAttribute('data-preset')===cfg.preset);});
   $('[data-audio]').forEach(function(b){b.classList.toggle('on',b.getAttribute('data-audio')===cfg.audio);});
-  document.getElementById('jumpForce').value=cfg.jump;document.getElementById('flipForce').value=cfg.flip;
-  document.getElementById('jumpVal').textContent=cfg.jump;document.getElementById('flipVal').textContent=cfg.flip;
+  document.getElementById('jumpForce').value=cfg.jump;
+  document.getElementById('jumpVal').textContent=cfg.jump;
   document.getElementById('modeSel').style.display=cfg.mode?'none':'flex';
   paused=!cfg.mode||pn.style.display==='flex';
 }
@@ -619,12 +609,13 @@ document.getElementById('modeZen').addEventListener('click',function(){setMode('
 document.getElementById('btnSettings').addEventListener('click',function(){document.getElementById('settingsPanel').style.display='flex';syncUI();});
 document.getElementById('closeSettings').addEventListener('click',function(){document.getElementById('settingsPanel').style.display='none';saveCfg();syncUI();});
 $('[data-mode]').forEach(function(b){b.addEventListener('click',function(){setMode(b.getAttribute('data-mode'));});});
-$('[data-preset]').forEach(function(b){b.addEventListener('click',function(){var p=b.getAttribute('data-preset');cfg.preset=p;if(PRESETS[p]){cfg.jump=PRESETS[p].jump;cfg.flip=PRESETS[p].flip;}saveCfg();syncUI();});});
+$('[data-preset]').forEach(function(b){b.addEventListener('click',function(){var p=b.getAttribute('data-preset');cfg.preset=p;if(PRESETS[p])cfg.jump=PRESETS[p].jump;saveCfg();syncUI();});});
 $('[data-audio]').forEach(function(b){b.addEventListener('click',function(){cfg.audio=b.getAttribute('data-audio');saveCfg();syncUI();beep(660,120);});});
 document.getElementById('jumpForce').addEventListener('input',function(e){cfg.jump=+e.target.value;cfg.preset='custom';saveCfg();syncUI();});
-document.getElementById('flipForce').addEventListener('input',function(e){cfg.flip=+e.target.value;cfg.preset='custom';saveCfg();syncUI();});
 syncUI();
-window.__wsl=function(){var t=tracks[0];return{state:state,zoom:zoom,camX:camX,camY:camY,score:score,flip:cart.flip,flipDir:cart.flipDir,charges:charges,timer:survival,dist:distPx,flow:(flowSamples.length?flowSamples.reduce(function(a,b){return a+b;},0)/flowSamples.length:0),cartTrack:cart.track,mode:cfg.mode,preset:cfg.preset,jump:cfg.jump,flipF:cfg.flip,audio:cfg.audio,theme:theme(),paused:paused,chain:chain,vy:fall.vy,cart:{x:cart.x,y:cart.y,v:cart.v},pts:t?t.pts.slice():[],ntracks:tracks.length};};
+window.__wsl=function(){var t=tracks[0];return{state:state,zoom:zoom,camX:camX,camY:camY,score:score,flip:cart.flip,flipDir:cart.flipDir,charges:charges,timer:survival,dist:distPx,flow:(flowSamples.length?flowSamples.reduce(function(a,b){return a+b;},0)/flowSamples.length:0),cartTrack:cart.track,gphase:g.phase,mode:cfg.mode,preset:cfg.preset,jump:cfg.jump,audio:cfg.audio,theme:theme(),paused:paused,chain:chain,vy:fall.vy,cart:{x:cart.x,y:cart.y,v:cart.v},pts:t?t.pts.slice():[],ntracks:tracks.length,npts:tracks.reduce(function(n,t){return n+t.pts.length;},0)};};
+window.__wslLoad=function(pts){reset();var t=tracks[0];t.pts=[];t.cum=[0];t.totalLen=0;pts.forEach(function(p){addPoint(0,p.x,p.y);});var p0=pointAt(0,0);cart.x=p0.x;cart.y=p0.y;cart.ang=p0.ang;};
+window.__wslSetV=function(v){cart.v=v;};
 resize();reset();requestAnimationFrame(loop);
 })();
 </script>

@@ -17,6 +17,17 @@ Change: wsl.html restored byte-for-byte from snow-v1.html, then built up in thre
 - Known baseline item kept (not changed without owner say): automatic no-progress/stuck fall ("deadpool") is still in the baseline; owner removed it from earlier builds on 2026-09-20.
 - Rescue is unavailable in Build 1 (button removed, long-press arrives in Build 2).
 
+- **Gestures rebuilt + speed fix (2026-10-04, owner report: "touch gestures cancel each other out; when it loses speed it regains it too quickly"):**
+  - Cause (gestures): one finger had to guess between draw, flip, jump and rescue from speed and timing, with a waiting window that delayed drawing and a second finger that cancelled the first.
+  - New rules, one per finger count, nothing guessed: **1 finger** drag = draw (immediate), quick tap = jump (3 quick taps = big jump), hold still 800 ms = rescue. **2 fingers** pinch = zoom, both fingers swipe left/right = back/front flip, quick two-finger tap = rescue. Chosen by finger count and by movement, never by speed.
+  - Cause (speed): slope pull 1050 px/s² with almost no drag or rolling friction; flat track kept full speed; rescue gave a free 200 px/s floor. Change: slope pull ×0.45, drag 0.12→0.2, rolling friction 5→30, top speed 1600→1300, rescue floor 200→60. Before: 100→500 px/s in 0.9 s, peak 1231, flat track kept 700. After: 2.9 s, peak 788, flat track 363 after 2.5 s.
+  - Side bug found by the new physics and fixed: a slow cart falling off a track end landed on the same end again forever; 0.15 s landing grace added.
+  - Tests: `gestures.mjs` (arbitration + 60-gesture fuzz), `physics.mjs`; build1 flip tests now two-finger.
+  - Superseded: the single-finger swipe-flip and the 250 ms swipe window (unmerged branch commit dad8f0f65) — buried.
+
+- **Gestures simplified (2026-10-04, owner decision):** two-finger swipe flip and two-finger tap rescue removed (rescue is already hold; flips follow momentum). Final set: 1 finger drag = draw, tap = jump (spins front when moving forward, back when moving backward), hold still 800 ms = rescue; 2 fingers = pinch zoom only. Flip slider removed from settings (presets set jump only). Landing a flip now scores +100 (+50 on a rescue line), down from +1000/+500, because every jump flips and the old value would pay 1000 per tap. Tests updated; build1 now checks forward/backward spin.
+- Buried: two-finger swipe flip, two-finger tap rescue, mid-air flip gestures, Flip strength slider.
+
 ## RUN LOG (written by DevStream)
 | Date | Tab | Result | What | Commit |
 |---|---|---|---|---|

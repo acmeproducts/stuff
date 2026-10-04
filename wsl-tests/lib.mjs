@@ -11,6 +11,7 @@ export const HELPERS=()=>{
   window.__tap=async(x,y)=>{__ptr('pointerdown',1,x,y);await __sleep(60);__ptr('pointerup',1,x,y);};
   window.__hold=async(x,y,ms)=>{__ptr('pointerdown',1,x,y);await __sleep(ms);__ptr('pointerup',1,x,y);};
   window.__pinch=async(d0,d1,cx,cy)=>{__ptr('pointerdown',1,cx-d0/2,cy);__ptr('pointerdown',2,cx+d0/2,cy);for(let i=1;i<=10;i++){await __sleep(16);const d=d0+(d1-d0)*i/10;__ptr('pointermove',1,cx-d/2,cy);__ptr('pointermove',2,cx+d/2,cy);}__ptr('pointerup',2,cx+d1/2,cy);__ptr('pointerup',1,cx-d1/2,cy);};
+  window.__swipe2=async(dx,ms,cx=200,cy=300)=>{__ptr('pointerdown',1,cx-30,cy);__ptr('pointerdown',2,cx+30,cy);const n=6;for(let i=1;i<=n;i++){await __sleep(ms/n);__ptr('pointermove',1,cx-30+dx*i/n,cy);__ptr('pointermove',2,cx+30+dx*i/n,cy);}__ptr('pointerup',2,cx+30+dx,cy);__ptr('pointerup',1,cx-30+dx,cy);};
   window.__release=async()=>{const s=window.__wsl();const m=s.pts[Math.floor(s.pts.length/2)];const q=__scr(m.x,m.y);await __tap(q.x,q.y);};
 };
 export async function fresh(p,release=true){await p.reload();await p.waitForTimeout(400);await p.evaluate(HELPERS);if(release){await p.evaluate(()=>__release());await p.waitForTimeout(120);}}
