@@ -107,7 +107,7 @@ var stuckT=0,diagT=0,diagExtra='',fpsEMA=60,lastT=0,errShown=0;
 var pendingSwitch=null;
 var pointers=new Map();
 var charges=3,survival=0,distPx=0,flowSamples=[],flowSum=0,flowN=0,flowT=0,flowBonus=0;
-var chain=0,lastTapT=0,lp=null,resPrev=0;
+var chain=0,lastTapT=0,lp=null,resPrev=0,lastResult=null,PX_PER_INCH=20;
 var MAXCHARGES=3,LONGPRESS_MS=800,CHAIN_MS=450,BIGJUMP=1.6,FLOW_EVERY=0.5;
 
 var G=1050,SLOPEK=0.45,DRAG=0.2,ROLL=30,VMAX=1300,RESCUE_MINV=60;
@@ -350,11 +350,15 @@ function die(){
 }
 function gameOver(){
   state=ST.OVER;
-  var avg=flowN?flowSum/flowN:0;flowBonus=Math.round(avg*10*100);score+=flowBonus;
+  var avg=flowN?flowSum/flowN:0;flowBonus=Math.round(avg*10*100);
+  // Final score = base (pages + trick bonuses) + distance inches + survival seconds x 10 + Flow bonus
+  var base=score,distPts=Math.floor(distPx/PX_PER_INCH),timePts=Math.floor(survival*10);
+  score=base+distPts+timePts+flowBonus;
+  lastResult={base:base,dist:distPts,distPx:distPx,time:timePts,seconds:survival,flow:flowBonus,final:score};
   if(!zen()&&score>best){best=score;try{localStorage.setItem('scl_best',String(best));}catch(e){}}
   elFinal.textContent=score+' PTS';
   elFinalBest.textContent='Best: '+best+' • Pages: '+maxPage;
-  elStats.textContent='Flow +'+flowBonus+' • Distance '+Math.floor(distPx/96)+'″ • Time '+fmt(survival);
+  elStats.textContent='Base '+lastResult.base+' • '+lastResult.dist+'″ • Time '+fmt(survival)+' ×10 • Flow +'+flowBonus;
   elOverlay.style.display='flex';
   setHint('');
 }
@@ -606,7 +610,7 @@ function hud(){
   elDist.style.display=z?'none':'';elTimer.style.display=z?'none':'';elResc.style.display=z?'none':'';
   elFlow.style.opacity=z?'.55':'1';
   var avg=0;for(var i=0;i<flowSamples.length;i++)avg+=flowSamples[i];avg=flowSamples.length?avg/flowSamples.length:0;
-  elDist.textContent=Math.floor(distPx/96)+'″';
+  elDist.textContent=Math.floor(distPx/PX_PER_INCH)+'″';
   elFlow.textContent='FLOW '+avg.toFixed(1);
   elTimer.textContent=fmt(survival);
   elResc.textContent='⛑ '+charges;
@@ -649,7 +653,7 @@ $('[data-momentum]').forEach(function(b){b.addEventListener('click',function(){c
 $('[data-audio]').forEach(function(b){b.addEventListener('click',function(){cfg.audio=b.getAttribute('data-audio');saveCfg();syncUI();beep(660,120);});});
 document.getElementById('jumpForce').addEventListener('input',function(e){cfg.jump=+e.target.value;cfg.preset='custom';saveCfg();syncUI();});
 syncUI();
-window.__wsl=function(){var t=tracks[0];return{state:state,zoom:zoom,camX:camX,camY:camY,score:score,flip:cart.flip,flipDir:cart.flipDir,charges:charges,timer:survival,dist:distPx,flow:(flowSamples.length?flowSamples.reduce(function(a,b){return a+b;},0)/flowSamples.length:0),cartTrack:cart.track,gphase:g.phase,mode:cfg.mode,preset:cfg.preset,jump:cfg.jump,momentum:cfg.momentum,audio:cfg.audio,theme:theme(),paused:paused,chain:chain,vy:fall.vy,cart:{x:cart.x,y:cart.y,v:cart.v},pts:t?t.pts.slice():[],ntracks:tracks.length,npts:tracks.reduce(function(n,t){return n+t.pts.length;},0)};};
+window.__wsl=function(){var t=tracks[0];return{state:state,zoom:zoom,camX:camX,camY:camY,score:score,flip:cart.flip,flipDir:cart.flipDir,charges:charges,timer:survival,dist:distPx,flow:(flowSamples.length?flowSamples.reduce(function(a,b){return a+b;},0)/flowSamples.length:0),cartTrack:cart.track,gphase:g.phase,mode:cfg.mode,preset:cfg.preset,jump:cfg.jump,momentum:cfg.momentum,audio:cfg.audio,theme:theme(),paused:paused,chain:chain,vy:fall.vy,cart:{x:cart.x,y:cart.y,v:cart.v},pts:t?t.pts.slice():[],ntracks:tracks.length,last:lastResult,npts:tracks.reduce(function(n,t){return n+t.pts.length;},0)};};
 window.__wslLoad=function(pts){reset();var t=tracks[0];t.pts=[];t.cum=[0];t.totalLen=0;t.raw=[];t.segEnd=[];pts.forEach(function(p){addPoint(0,p.x,p.y);});var p0=pointAt(0,0);cart.x=p0.x;cart.y=p0.y;cart.ang=p0.ang;};
 window.__wslSetV=function(v){cart.v=v;};
 resize();reset();requestAnimationFrame(loop);

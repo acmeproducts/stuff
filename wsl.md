@@ -34,6 +34,12 @@ Change: wsl.html restored byte-for-byte from snow-v1.html, then built up in thre
   - Momentum option in ⚙️: **Earned** (default; the slower, build-it-up physics) or **Classic** (the original fast, light-friction physics). Saved on device; applies in Regular and Zen. Measured: Earned 100→500 px/s in 2.8 s, peak 702; Classic 0.94 s, peak 1381.
   - Tests: `curves.mjs` (smoothness, option persists), `physics.mjs` now checks both modes. Test seeding of saved settings moved to load-then-reload (the early init-script write was dropping the value ~5% of the time; the app's own saving was 0 failures in 48 reloads).
 
+- **Scoring model restored (2026-10-04, owner report: "the scoring models got wiped out somehow"):**
+  - Found from history (build 334c3057 and the 2018565c plan text): final score = base (+100 per screen travelled, plus trick bonuses) + distance in inches (20 px per inch) + survival seconds × 10, with a game-over breakdown line "Base · inches · Time ×10 · Best". The Build 1 reset to snow-v1 dropped the distance and time points and the breakdown; Build 2 showed distance and time on screen but never scored them, and counted inches at 96 px.
+  - Restored: final = base + distance points + time points + Flow bonus; breakdown "Base X • N″ • Time m:ss ×10 • Flow +F"; best score saves the final; inches back to 20 px per inch (HUD and scoring agree). Before: a run scored only its Flow bonus (222 pts, distance and time ignored). After: all parts add up (checked 542 = 0 + 16 + 37 + 489). Test: `scoring.mjs`.
+  - Not restored: trick bonuses stay +100 (+50 on a rescue line) instead of the old +1000/+500, because every jump now flips (see gestures entry). Rescue-line colours orange → blue → red per use (2018565c) are also gone.
+  - Observation: Flow (1000 × average screens ahead) is far larger than distance and time points; owner may want it scaled.
+
 ## RUN LOG (written by DevStream)
 | Date | Tab | Result | What | Commit |
 |---|---|---|---|---|
