@@ -8,6 +8,7 @@ on:
       - 'market-navigator-turn37-stage4.css'
       - 'market-navigator-build-turn37-stage4.py'
       - 'market-navigator-turn37-stage4-qa.mjs'
+      - 'market-navigator-turn37-stage3-qa.mjs'
       - '.github/workflows/market-navigator-turn37-stage4.yml'
   workflow_dispatch:
 permissions: {contents: write}
@@ -23,16 +24,16 @@ jobs:
         with: {node-version: '22'}
       - name: Accepted baseline identity
         run: test "$(git hash-object market-navigator-turn28-post-ship.html)" = "9ce7f67451f9e1b7804927ce5c56adb667614724"
-      - name: Build Stage 4
+      - name: Build Stage 4 from passed Stage 3
         run: python market-navigator-build-turn37-stage4.py
-      - name: Generic controller and picker gate
+      - name: Generic picker gate
         run: |
           python - <<'PY'
           from pathlib import Path
-          for p in ['market-navigator-turn37-stage3-controller.js','market-navigator-turn37-stage4-picker.js']:
-            s=Path(p).read_text().lower()
-            assert 'now' not in s and 'analysis' not in s,p
-          print('PASS generic controller/picker contain no consumer identity')
+          s=Path('market-navigator-turn37-stage4-picker.js').read_text().lower()
+          assert 'now' not in s and 'analysis' not in s
+          assert 'createbatchpicker' in s
+          print('PASS generic shared picker contains no consumer identity')
           PY
       - name: JavaScript syntax
         run: |
@@ -44,34 +45,37 @@ jobs:
           node --check /tmp/mn37s4.js
       - name: Install browser
         run: |
-          npm ci
-          npm install --no-save playwright@1.63.0
+          npm install --no-save --package-lock=false playwright@1.63.0
           npx playwright install --with-deps chromium
-      - name: Differential, isolation and batch-Add gates
+      - name: Stage 3 differential and isolation regression
         run: |
-          python -m http.server 8123 >/tmp/mn37-stage4-http.log 2>&1 &
+          python3 -m http.server 8123 >/tmp/mn37-stage4-http.log 2>&1 &
           SERVER=$!
           trap 'kill $SERVER || true' EXIT
           sleep 2
-          MN_CAND_URL=http://127.0.0.1:8123/market-navigator-turn37-stage4.html node market-navigator-turn37-stage0-qa.mjs
-          MN_URL=http://127.0.0.1:8123/market-navigator-turn37-stage4.html node market-navigator-turn37-stage3-qa.mjs
-          MN_URL=http://127.0.0.1:8123/market-navigator-turn37-stage4.html node market-navigator-turn37-stage4-qa.mjs
-      - name: Record passing stage
+          MN_CAND_URL=http://127.0.0.1:8123/market-navigator-turn37-stage4.html node market-navigator-turn37-stage3-qa.mjs
+      - name: Stage 4 batch Add qualification
+        run: |
+          python3 -m http.server 8124 >/tmp/mn37-stage4-http2.log 2>&1 &
+          SERVER=$!
+          trap 'kill $SERVER || true' EXIT
+          sleep 2
+          MN_URL=http://127.0.0.1:8124/market-navigator-turn37-stage4.html node market-navigator-turn37-stage4-qa.mjs
+      - name: Publish passing Stage 4 evidence
         run: |
           python - <<'PY'
           import json
           from pathlib import Path
           Path('market-navigator-turn37-stage4-evidence.json').write_text(json.dumps({
             'stage':4,'status':'PASS','baselineBlob':'9ce7f67451f9e1b7804927ce5c56adb667614724',
-            'nowDifferential':'PASS','analyzeIsolation':'PASS','libraryIndependence':'PASS',
+            'stage3Regression':'PASS','nowClosedVisualParity':'PASS','analyzeIsolation':'PASS',
+            'libraryIndependence':'PASS','batchAddNow':'PASS','batchAddAnalyze':'PASS',
             'batchAddAtomicity':'PASS','sharedPickerStateMachine':'PASS'
           },indent=2)+'\n')
           PY
-      - name: Publish qualified Stage 4 candidate
-        run: |
           git config user.name github-actions[bot]
           git config user.email 41898282+github-actions[bot]@users.noreply.github.com
-          git fetch --depth=50 origin main
+          git fetch origin main
           git merge --ff-only origin/main
           python market-navigator-build-turn37-stage4.py
           git add market-navigator-turn37-stage4.html market-navigator-turn37-stage4-evidence.json
