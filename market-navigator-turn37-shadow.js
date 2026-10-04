@@ -39,7 +39,7 @@ const MNChartController37=(()=>{
     let mode=spec.representation==='dual'&&dualEligible?'dual':'indexed';
     const out=sets.map(z=>{
       const q={id:z.id,axis:mode==='dual'&&z.id===active&&!IDX.includes(z.id)?1:0,axisLabel:'Indexed 100',unit:z.unit,a:z.a.map(copyPoint)};
-      if(q.axis===1){q.a=q.a.map(p=>({...p,v:+p.raw}));q.axisLabel=q.unit||'Native'}
+      if(q.axis===1){q.a=q.a.map(p=>({...p,v:+p.raw}));q.axisLabel=q.unit||'Native'}else if(spec.root===null)q.axisLabel=q.unit||'Index'
       return q;
     });
     return{root:spec.root||null,series:ids,active,window:{...w},mode,dualEligible,sets:out,axisPolicy:axisPolicy(ids)};
