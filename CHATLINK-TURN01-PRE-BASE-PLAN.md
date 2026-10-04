@@ -671,3 +671,15 @@ Malay and Indonesian are confirmed to have different speech, voice and translati
 **Gates before any build.** Each step lab-tested with a check written first, tested on a device by the owner before the next step. Not touched until the language rollout (backlog items 2 and 3) is done, per the owner's sequencing.
 
 **Not verified.** Candidate quality, data size and phone performance. All unmeasured.
+
+### chat-test: TTS cut when the keyboard opens, re-applied alone (2026-10-04)
+
+**Why.** This fix was rolled back with the rest of the untested changes on 2026-10-03, which brought the owner's bug back. Owner asked for it to be re-applied by itself.
+
+**Cause (reproduced in the lab).** Opening a keyboard ran the input teardown, which cancelled speech still playing, so read-aloud stopped mid-sentence in open mode.
+
+**Change.** One line: in open mode a keyboard or mic handover no longer cancels speech. Room switch, closing the portal and the other lifecycle events still do. Ask mode is unchanged.
+
+**Check added first.** "opening the North keyboard does not cut read-aloud that is playing, and the speaker button stays on" failed before the change (phase `idle` instead of `playing`) and passes after. Open mode 36/36, ask mode 33/33, keyboard 32/32, controller 20/20. **Not verified:** a real phone. **Owner to test:** turn read-aloud on for North, have South speak, and open North's keyboard while it is reading; the reading should continue.
+
+**Still rolled back, one at a time later:** Indonesian/Malay word rewrite, language coverage check, Khmer and Lao handling.
