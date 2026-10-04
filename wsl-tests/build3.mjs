@@ -2,7 +2,7 @@
 import {launch,VIEWPORTS,HELPERS,fresh,reporter} from './lib.mjs';
 const file=process.argv[2]||'wsl.html';const url='file://'+process.cwd()+'/'+file;
 const {ok,done}=reporter();const b=await launch();
-const seed=(p,obj)=>p.addInitScript(o=>{try{if(!sessionStorage.getItem('__seeded')){localStorage.setItem('wsl_settings',JSON.stringify(o));sessionStorage.setItem('__seeded','1');}}catch(e){}},obj);
+const seed=(p,obj)=>p.addInitScript(o=>{try{if(!localStorage.getItem('wsl_settings'))localStorage.setItem('wsl_settings',JSON.stringify(o));}catch(e){}},obj);
 const steep=p=>p.evaluate(()=>{const s=__wsl();const e=s.pts[s.pts.length-1];const q=__scr(e.x,e.y);return __drag(q.x,q.y,q.x+30,innerHeight-20,14,400);});
 for(const vp of VIEWPORTS){
   console.log('--- '+vp.n);
