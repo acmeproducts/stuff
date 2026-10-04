@@ -41,6 +41,7 @@ select.input{appearance:auto}
 .card.active{border-color:var(--accent)}
 .cttl{font-weight:600;display:flex;align-items:center;gap:8px;font-size:14px}
 .csub{font-size:12px;color:var(--dim);margin-top:3px}
+.appActions{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-top:10px}.appActions .openApp{margin-top:0}.softBtn{padding:9px 14px;border:1px solid var(--line);border-radius:10px;color:var(--text)!important;font-weight:700;font-size:13px;text-decoration:none;background:var(--panel2)}
 .openApp{display:inline-block;margin-top:10px;padding:11px 18px;border-radius:10px;background:var(--accent);color:var(--onaccent,#fff)!important;font-weight:800;text-decoration:none}.detailsLink{color:var(--dim);font-size:11px;text-decoration:underline;margin-left:8px}.detailsBox{margin-top:8px;padding:8px 10px;border:1px solid var(--line);border-radius:8px;font-size:11px;white-space:pre-wrap;word-break:break-word;color:var(--dim);font-family:ui-monospace,Menlo,monospace}
 #navTabs{display:flex;border-bottom:1px solid var(--line)}.navtab{flex:1;min-height:42px;padding:0 6px;background:none;border:0;border-bottom:3px solid transparent;color:var(--dim);font-weight:700;font-size:14px;display:flex;align-items:center;justify-content:center;gap:6px}.navtab.on{color:var(--accent);border-bottom-color:var(--accent)}#navBadge .badge{margin-left:2px}
 #projSort{display:flex;gap:6px;padding:8px 10px 0}#projSort button{flex:1;min-height:34px;border:1px solid var(--line);border-radius:17px;background:none;color:var(--dim);font-size:12px;font-weight:700}#projSort button.on{color:var(--onaccent,#fff);background:var(--accent);border-color:var(--accent)}
@@ -211,7 +212,7 @@ body.coachMode .suggestBtn{border-color:rgba(57,197,207,.5);background:rgba(57,1
 <div id="scrim"></div>
 <div id="app">
 <aside id="sidebar">
-  <div class="bar"><span id="dot"></span><span class="brand">devstream <span class="version">v1.0 b65</span></span><span class="grow"></span><button class="btn" id="projectAdd">+ New</button><button class="btn" id="refresh">↻</button></div>
+  <div class="bar"><span id="dot"></span><span class="brand">devstream <span class="version">v1.0 b66</span></span><span class="grow"></span><button class="btn" id="projectAdd">+ New</button><button class="btn" id="refresh">↻</button></div>
   <div id="navTabs"><button class="navtab" id="navDash">Dashboard<span id="navBadge"></span></button><button class="navtab" id="navProj">Projects</button><button class="navtab" id="settings">Config</button></div>
   <div id="searchWrap"><input id="search" class="input" placeholder="Search projects & threads">
     <div class="legend"><span><i class="legendDot ok"></i>OK</span><span><i class="legendDot run"></i>Running</span><span><i class="legendDot err"></i>Error</span></div></div>
@@ -1075,6 +1076,7 @@ function renderChat(force){
   if(sig===chatSig&&!force)return; chatSig=sig;
   const keepScroll=c.scrollTop;
   c.innerHTML='';
+  let lastBuildIdx=-1;d.messages.forEach((m,i)=>{if(m.role==='agent'&&m.commit&&m.target&&/\.html?$/i.test(m.target)&&!m.undone)lastBuildIdx=i});
   d.messages.forEach((m,mi)=>{
     if(coach&&m.hiddenInCoach)return;
     const el=document.createElement('div');
@@ -1086,14 +1088,72 @@ function renderChat(force){
     const hasDetails=m.role==='agent'&&(String(m.text||'').trim()!==fm.text||techParts.length);
     if(hasDetails)meta+='<a class="detailsLink" href="#">Details</a>';
     let attHtml='';(m.attachments||[]).forEach(a=>{attHtml+=a.kind==='image'?'<img class="att" '+(a.id?'data-attid="'+esc(a.id)+'"':'src="'+esc(a.url)+'"')+' alt="'+esc(a.name)+'">':'<div class="mmeta">≡ '+esc(a.name)+' ('+Math.round((a.text||'').length/1000)+'k)</div>'});
+    const isLastBuild=mi===lastBuildIdx&&!frozen&&m.target;
     const openBtn=fm.url?'<a class="openApp" href="#" data-url="'+esc(fm.url)+'">Open your app</a>':'';
-    el.innerHTML='<button class="msgDelete" type="button" title="Permanently remove message" aria-label="Permanently remove message">×</button>'+linkify(fm.text)+(openBtn?'<div>'+openBtn+'</div>':'')+attHtml+meta+'</div>'+(hasDetails?'<div class="detailsBox" style="display:none">'+esc(String(m.text||''))+(techParts.length?'\n\n'+esc(techParts.join(' · ')):'')+'</div>':'');
+    const softBtns=isLastBuild?'<a class="softBtn" href="#" data-act="wrong">Something’s wrong</a><a class="softBtn" href="#" data-act="undo">Undo</a>':'';
+    el.innerHTML='<button class="msgDelete" type="button" title="Permanently remove message" aria-label="Permanently remove message">×</button>'+linkify(fm.text)+((openBtn||softBtns)?'<div class="appActions">'+openBtn+softBtns+'</div>':'')+attHtml+meta+'</div>'+(hasDetails?'<div class="detailsBox" style="display:none">'+esc(String(m.text||''))+(techParts.length?'\n\n'+esc(techParts.join(' · ')):'')+'</div>':'');
+    el.querySelectorAll('.softBtn').forEach(b=>b.onclick=e=>{e.preventDefault();e.stopPropagation();if(b.dataset.act==='undo')undoChange(key,mi);else reportProblem(key,m.target)});
     const dl=el.querySelector('.detailsLink');if(dl)dl.onclick=e=>{e.preventDefault();e.stopPropagation();const bx=el.querySelector('.detailsBox');bx.style.display=bx.style.display==='none'?'block':'none'};
     el.querySelector('.msgDelete').onclick=()=>confirmDeleteMessage(key,mi);
     c.appendChild(el);
   });
   c.querySelectorAll('img[data-attid]').forEach(hydrateAttImg);
   c.scrollTop=atBottom?c.scrollHeight:keepScroll;
+}
+/* ---- undo + report a problem ---- */
+async function fileAtCommit(path,sha){
+  const j=await gh('contents/'+path+'?ref='+encodeURIComponent(sha),{allow404:true});if(!j)return null;
+  let c=j.content?dec(j.content):'';
+  if(!c&&j.size>0){const r=await lfetch('gh-raw','https://api.github.com/repos/'+repoFull()+'/contents/'+path+'?ref='+encodeURIComponent(sha),{cache:'no-store',headers:{'Authorization':'Bearer '+cfg.pat,'Accept':'application/vnd.github.raw+json'}});if(!r.ok)throw new Error('Could not read the earlier version.');c=await r.text()}
+  return c;
+}
+async function undoChange(key,mi){
+  const th=threads[key],t=sot.threads[key],m=th&&th.data.messages[mi];if(!m||!m.commit||!m.target||m.undone)return;
+  if(t.state==='executing'||activeRuns.has(key)){toast('Wait for the current work to finish first.');return}
+  if(!confirm('Go back to how your app was before this change?'))return;
+  await guard(async()=>{
+    const cur=await gh('commits?path='+encodeURIComponent(m.target)+'&sha='+encodeURIComponent(cfg.branch)+'&per_page=1');
+    if(!cur||!cur.length||!String(cur[0].sha).startsWith(m.commit.slice(0,10)))throw new Error('That change has since been built on, so it can’t be undone in one step.');
+    const c=await gh('commits/'+m.commit),parent=c.parents&&c.parents[0]&&c.parents[0].sha;
+    if(!parent)throw new Error('There is no earlier version to go back to.');
+    const old=await fileAtCommit(m.target,parent);if(old==null||old.length<20)throw new Error('There is no earlier version to go back to.');
+    const cf=await getFile(m.target);
+    await putFileSafe(m.target,old,'devstream: undo — '+String(m.summary||'last change').slice(0,50),cf?cf.sha:null);
+    const nc=pathCommit[m.target]||null,url='https://'+cfg.owner+'.github.io/'+cfg.repo+'/'+m.target+'?cb='+Date.now();
+    m.undone=true;
+    const um={role:'agent',text:'✓ Undid: '+(m.summary||'the last change')+'\nDiff: https://github.com/'+repoFull()+'/commit/'+nc+'\nTest: '+url,coachText:'Done — your app is back to how it was before “'+(m.summary||'that change')+'”.\nPlay it: '+url,summary:'Undid: '+(m.summary||'the last change'),ts:now(),commit:nc||undefined,target:m.target};
+    th.data.messages.push(um);outboxAdd(key,um);
+    th.sha=await putFileSafe(threadPath(key),JSON.stringify(th.data,null,1),'devstream: undo '+key,th.sha);
+    await setState(key,{testUrl:url});
+    await appendPlanLog(projPlan(t.project)||th.data.planFile||planOf(m.target),tabName(t),'undone '+m.target,m.summary||'',nc).catch(()=>{});
+    chatSig='';renderChat(true);toast('Undone');
+  });
+}
+function probeApp(html,ms){
+  return new Promise(resolve=>{
+    const id='p'+Math.random().toString(36).slice(2),errs=[];
+    const hook='<script>(function(){function s(m){try{parent.postMessage({dsProbe:"'+id+'",m:String(m).slice(0,200)},"*")}catch(e){}}window.addEventListener("error",function(e){s((e.message||"error")+(e.lineno?" (line "+e.lineno+")":""))});window.addEventListener("unhandledrejection",function(e){s("Unhandled: "+(e.reason&&e.reason.message||e.reason))});var ce=console.error;console.error=function(){s([].slice.call(arguments).join(" "));return ce.apply(console,arguments)}})();<\/script>';
+    const f=document.createElement('iframe');f.setAttribute('sandbox','allow-scripts');
+    f.style.cssText='position:fixed;left:-9999px;top:0;width:800px;height:600px;border:0;opacity:0;pointer-events:none';
+    const on=ev=>{const d=ev.data;if(d&&d.dsProbe===id&&errs.length<6&&!errs.includes(d.m)&&!/localStorage|sessionStorage|indexedDB|SecurityError|document\.cookie|ResizeObserver|^Script error/i.test(d.m))errs.push(d.m)};
+    window.addEventListener('message',on);
+    f.srcdoc=/<head[^>]*>/i.test(html)?html.replace(/<head[^>]*>/i,m=>m+hook):hook+html;
+    document.body.appendChild(f);
+    setTimeout(()=>{window.removeEventListener('message',on);try{f.remove()}catch(e){}resolve(errs)},ms||4500);
+  });
+}
+async function reportProblem(key,target){
+  const t=sot.threads[key];if(!t||t.state==='executing'){toast('Wait for the current work to finish first.');return}
+  toast('Running your app to look for problems…');
+  let errs=[];
+  try{const f=await getFile(target);if(f)errs=await probeApp(f.content,4500)}catch(e){}
+  if(errs.length){
+    $('message').value='Something is wrong. When I run it, it shows these problems:\n'+errs.map(e=>'• '+e).join('\n')+'\nPlease fix it.';
+    sendMessage();
+  }else{
+    toast('I ran it and nothing broke on its own. Tell me what looks wrong.');
+    const mb=$('message');mb.value='Something looks wrong: ';mb.focus();mb.setSelectionRange(mb.value.length,mb.value.length);
+  }
 }
 async function confirmDeleteMessage(key,index){
   const th=threads[key];if(!th||!th.data.messages[index])return;

@@ -6,8 +6,8 @@ Deploy target: `https://acmeproducts.github.io/stuff/devstream.html`
 Test target: `https://acmeproducts.github.io/stuff/devstream-test.html`
 
 ## Status
-- Current release: v1.0 b65 on devstream-test.html (2026-10-03)
-- Stage: TEST (b65)
+- Current release: v1.0 b66 on devstream-test.html (2026-10-03)
+- Stage: TEST (b66)
 
 ## Release Rules (inherited, proven)
 1. Mobile-first. All diagnostics in-app. No DevTools ever.
@@ -255,6 +255,27 @@ b39 incorrectly changed stationary hold into context-menu activation. Devstream 
 ## Graveyard
 - **G-DS-13 — Hold opens context menu:** rejected; donor behavior is double-tap context, hold-to-drag.
 - **G-DS-14 — Legacy generic #tabContext button styling:** rejected; it corrupts the donor context-menu appearance.
+
+---
+
+# 2026-10-04 — b66 Undo last change + "Something's wrong" (the app checks for you)
+
+## Owner report
+Non-developers need a safe way back from a bad build and should never have to copy console logs to report one.
+
+## Change
+- Under the newest finished build: **Open your app**, **Something’s wrong**, **Undo**.
+- **Undo** puts the file back to exactly how it was before that build (saved as a new version, nothing is erased). Allowed only while that build is still the latest one for the file; otherwise it says plainly that newer changes were built on top.
+- **Something’s wrong** runs the built page inside a sandboxed, invisible frame for a few seconds and collects the errors it throws. If it finds any, it sends them to the AI as your next message and the fix starts. If it finds none, it opens your message box with "Something looks wrong:" so you can say what you see.
+- The frame is sandboxed (no access to the app's saved keys). Pages that need browser storage may show storage errors in the frame; those are ignored.
+- Not covered: problems that only appear after you click or play for a while.
+
+## Acceptance
+- **DS-B66-1:** the newest build bubble shows Open / Something’s wrong / Undo; older bubbles show only Open.
+- **DS-B66-2:** Undo restores the previous file content, adds an "Undid" message, and removes Undo from the undone build.
+- **DS-B66-3:** Undo is refused if the file changed since that build; nothing is written.
+- **DS-B66-4:** Something’s wrong on a page that throws sends the errors as a message and starts a run.
+- **DS-B66-5:** Something’s wrong on a healthy page sends nothing and opens the message box.
 
 ---
 
