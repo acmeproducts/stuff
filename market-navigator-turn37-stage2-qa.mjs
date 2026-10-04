@@ -40,6 +40,7 @@ for(const vp of V){
 // Analytical parity across indices/horizons/display modes in candidate.
 const d=await setup(CAND,{width:1440,height:900}),p=d.p;await p.waitForFunction(()=>window.MNChartController37&&window.__mn37Shadow);
 for(const root of ['risk','growth','macro']){
+ if((await p.evaluate(()=>window.__mnShip25.level()))!==1){const env=p.locator('#crumbEnvironment');if(await env.count()){await env.click();await p.waitForTimeout(180)}}
  await p.locator('#legend [data-id="'+root+'"]').click();await p.waitForTimeout(180);
  for(const h of ['5D','YTD','1YR','3YR','5YR']){
   await p.locator('#hzs [data-h="'+h+'"]').click();await p.waitForTimeout(180);
