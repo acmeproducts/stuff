@@ -6,8 +6,8 @@ Deploy target: `https://acmeproducts.github.io/stuff/devstream.html`
 Test target: `https://acmeproducts.github.io/stuff/devstream-test.html`
 
 ## Status
-- Current release: v1.0 b61 on devstream-test.html (2026-10-03)
-- Stage: TEST (b61)
+- Current release: v1.0 b62 on devstream-test.html (2026-10-03)
+- Stage: TEST (b62)
 
 ## Release Rules (inherited, proven)
 1. Mobile-first. All diagnostics in-app. No DevTools ever.
@@ -255,6 +255,28 @@ b39 incorrectly changed stationary hold into context-menu activation. Devstream 
 ## Graveyard
 - **G-DS-13 — Hold opens context menu:** rejected; donor behavior is double-tap context, hold-to-drag.
 - **G-DS-14 — Legacy generic #tabContext button styling:** rejected; it corrupts the donor context-menu appearance.
+
+---
+
+# 2026-10-03 — b62 top tabs (Dashboard | Projects | Config), Latest / Custom project order, action dashboard
+
+## Owner report
+Wants Latest and Custom tabs for projects (Custom = the dragged order; Latest = last updated). Dislikes the Dashboard: a mashup of project screen and status screen, repeats what the project cards show. Wants it clickable, taking you somewhere to do something; and Dashboard / Projects / Config as tabs at the top instead of a card.
+
+## Change
+- Top tabs in the sidebar: Dashboard | Projects | Config. Config opens the settings. The Dashboard card and the gear button are gone.
+- Above the project list: Latest | Custom. Latest orders by last update; Custom is the drag order and the only mode where projects can be dragged. The choice is remembered.
+- New Dashboard, every row opens something: Needs you (failed / stopped runs → opens that tab), Running now (live activity → opens the tab), Recently finished (→ opens the tab, with a Play link), Engines (Venice balance → opens Config), Recycle bin (as before).
+- Removed from the Dashboard: per-project sections, filter chips, sort chip and per-project notes (they repeated the project cards). Project notes have no screen now.
+
+## Acceptance
+- **DS-B62-1:** top tabs Dashboard | Projects | Config exist; no Dashboard card, no gear.
+- **DS-B62-2:** Latest orders by last update; Custom keeps the dragged order; the choice survives a reload.
+- **DS-B62-3:** projects drag only in Custom.
+- **DS-B62-4:** Dashboard lists failed/stopped tabs under Needs you; clicking opens that tab.
+- **DS-B62-5:** Dashboard lists running tabs under Running now; clicking opens that tab.
+- **DS-B62-6:** the Engines row opens Config.
+- **DS-B62-7:** Config tab opens settings.
 
 ---
 

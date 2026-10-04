@@ -41,7 +41,9 @@ select.input{appearance:auto}
 .card.active{border-color:var(--accent)}
 .cttl{font-weight:600;display:flex;align-items:center;gap:8px;font-size:14px}
 .csub{font-size:12px;color:var(--dim);margin-top:3px}
-#dashcard{border-color:var(--accent);background:linear-gradient(160deg,rgba(57,197,207,.10),transparent 60%),var(--panel2)}
+#navTabs{display:flex;border-bottom:1px solid var(--line)}.navtab{flex:1;min-height:42px;padding:0 6px;background:none;border:0;border-bottom:3px solid transparent;color:var(--dim);font-weight:700;font-size:14px;display:flex;align-items:center;justify-content:center;gap:6px}.navtab.on{color:var(--accent);border-bottom-color:var(--accent)}#navBadge .badge{margin-left:2px}
+#projSort{display:flex;gap:6px;padding:8px 10px 0}#projSort button{flex:1;min-height:34px;border:1px solid var(--line);border-radius:17px;background:none;color:var(--dim);font-size:12px;font-weight:700}#projSort button.on{color:var(--onaccent,#fff);background:var(--accent);border-color:var(--accent)}
+#dashChips{display:none}.dh{display:flex;align-items:center;gap:8px;font-size:12px;font-weight:800;color:var(--dim);text-transform:uppercase;letter-spacing:.04em;margin:14px 0 8px}.dh:first-child{margin-top:0}.trow{cursor:pointer}.trow .go{color:var(--dim);font-size:18px;flex-shrink:0}.trow a.play{color:var(--accent);font-size:12px;font-weight:700;padding:6px}.dclear{color:var(--dim);font-size:13px;padding:6px 2px}
 .badge{font-size:11px;padding:2px 8px;border-radius:999px;font-weight:600}
 .badge.run{background:rgba(227,160,8,.18);color:var(--run)}
 .badge.err{background:rgba(248,81,73,.18);color:var(--err)}
@@ -208,9 +210,11 @@ body.coachMode .suggestBtn{border-color:rgba(57,197,207,.5);background:rgba(57,1
 <div id="scrim"></div>
 <div id="app">
 <aside id="sidebar">
-  <div class="bar"><span id="dot"></span><span class="brand">devstream <span class="version">v1.0 b61</span></span><span class="grow"></span><button class="btn" id="projectAdd">+ New</button><button class="btn" id="refresh">↻</button><button class="btn" id="settings">⚙</button></div>
+  <div class="bar"><span id="dot"></span><span class="brand">devstream <span class="version">v1.0 b62</span></span><span class="grow"></span><button class="btn" id="projectAdd">+ New</button><button class="btn" id="refresh">↻</button></div>
+  <div id="navTabs"><button class="navtab" id="navDash">Dashboard<span id="navBadge"></span></button><button class="navtab" id="navProj">Projects</button><button class="navtab" id="settings">Config</button></div>
   <div id="searchWrap"><input id="search" class="input" placeholder="Search projects & threads">
     <div class="legend"><span><i class="legendDot ok"></i>OK</span><span><i class="legendDot run"></i>Running</span><span><i class="legendDot err"></i>Error</span></div></div>
+  <div id="projSort"><button data-s="latest">Latest</button><button data-s="custom">Custom</button></div>
   <div id="projList"></div>
 </aside>
 <main id="main">
@@ -684,6 +688,7 @@ function showView(v){
   $('pill').style.display=v==='chat'?'':'none';
   $('dashRefresh').style.display=v==='dash'?'':'none';
   if(v!=='chat')$('runPending').style.display='none';
+  $('navDash').classList.toggle('on',v==='dash');$('navProj').classList.toggle('on',v!=='dash');
 }
 $('menu').onclick=()=>sideOpen(true);$('scrim').onclick=()=>sideOpen(false);
 function normalizeProjectOrder(){
@@ -692,21 +697,27 @@ function normalizeProjectOrder(){
   keys.forEach(p=>{if(!seen.has(p)){seen.add(p);order.push(p)}});
   sot.projectOrder=order;return order;
 }
+let projSort=(()=>{try{return localStorage.getItem('ds_projsort')==='custom'?'custom':'latest'}catch(x){return'latest'}})();
+document.querySelectorAll('#projSort button').forEach(b=>b.onclick=()=>{projSort=b.dataset.s;try{localStorage.setItem('ds_projsort',projSort)}catch(x){}renderSidebar()});
+$('navDash').onclick=()=>{sideOpen(false);openDash()};
+$('navProj').onclick=()=>{if(view!=='dash')return;const ok=p=>p&&sot.projects[p]&&!sot.projects[p].deleted;const p=ok(activeProject)?activeProject:normalizeProjectOrder().find(ok);if(p)openProject(p);else{showView('empty');renderSidebar()}};
 function renderSidebar(){
   const q=($('search').value||'').toLowerCase();
   const pl=$('projList');pl.innerHTML='';
   const live=Object.values(sot.threads).filter(t=>!t.deleted);
   const runs=live.filter(t=>t.state==='executing'&&!isStalled(t)).length;
-  const errs=live.filter(t=>isBlocked(t)).length;
-  const dc=document.createElement('div');dc.className='card';dc.id='dashcard';
-  dc.innerHTML='<div class="cttl">Dashboard<span class="grow"></span>'+(runs?'<span class="badge run">'+runs+'</span>':'')+(errs?'<span class="badge err">'+errs+'</span>':'')+'</div><div class="csub">'+Object.keys(sot.projects).length+' projects · '+Object.keys(sot.threads).length+' threads</div>';
-  dc.onclick=()=>{sideOpen(false);openDash()};pl.appendChild(dc);
+  const errs=live.filter(t=>isBlocked(t)||isStalled(t)).length;
+  $('navBadge').innerHTML=(runs?'<span class="badge run">'+runs+'</span>':'')+(errs?'<span class="badge err">'+errs+'</span>':'');
+  $('navDash').classList.toggle('on',view==='dash');$('navProj').classList.toggle('on',view!=='dash');
+  document.querySelectorAll('#projSort button').forEach(b=>b.classList.toggle('on',b.dataset.s===projSort));
   renderDeletedProjectsRail(pl,q);
-  normalizeProjectOrder().filter(p=>!sot.projects[p].deleted).forEach(p=>{
+  const shown=normalizeProjectOrder().filter(p=>!sot.projects[p].deleted);
+  if(projSort==='latest')shown.sort((a,b)=>(Date.parse(sot.projects[b].lastTouched)||0)-(Date.parse(sot.projects[a].lastTouched)||0));
+  shown.forEach(p=>{
     const th=Object.entries(sot.threads).filter(([k,t])=>t.project===p&&!t.deleted);
     if(q&&!(p.toLowerCase().includes(q)||th.some(([k,t])=>(tabName(t)+' '+(t.file||'')).toLowerCase().includes(q))))return;
     const pr=sot.projects[p];
-    const d=document.createElement('div');d.className='card projectDrop'+(p===activeProject?' active':'');d.dataset.project=p;d.draggable=true;
+    const d=document.createElement('div');d.className='card projectDrop'+(p===activeProject?' active':'');d.dataset.project=p;d.draggable=projSort==='custom';
     if(pr.style){if(pr.style.bg)d.style.background=pr.style.bg;if(pr.style.fg)d.style.color=pr.style.fg;if(pr.style.size)d.style.fontSize=pr.style.size+'px'}
     const plan=pr.planFile;
     d.innerHTML='<div class="cttl"><span class="dot '+projState(p)+'"></span><span class="grow projectName" style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+esc(p)+'</span>'+
@@ -1990,7 +2001,7 @@ function renderProgress(){
     te.textContent=Math.round((Date.now()-st)/1000)+'s';
   }
 }
-setInterval(()=>{renderProgress();renderTaskStrip()},1000);
+let dashTick=0;setInterval(()=>{renderProgress();renderTaskStrip();if(view==='dash'&&++dashTick%5===0)renderDash()},1000);
 function renderWorkload(){
   const n=pool.filter(p=>p.busy).length+jobQ.length;
   const el=document.getElementById('pill');
@@ -2119,81 +2130,31 @@ function openDash(){
 }
 $('dashRefresh').onclick=()=>guard(async()=>{await loadSOT();renderDash();renderSidebar();toast('Refreshed')});
 function chip(l,on,fn){const c=document.createElement('div');c.className='chip'+(on?' on':'');c.textContent=l;c.onclick=fn;return c}
+function dashRow(dot,title,sub,subCls,onclick,extra){
+  const r=document.createElement('div');r.className='trow';
+  r.innerHTML='<span class="dot '+dot+'"></span><div class="ti"><div class="tf">'+title+'</div><div class="'+(subCls||'tt')+'">'+sub+'</div></div>'+(extra||'')+'<span class="go">›</span>';
+  r.onclick=onclick;return r;
+}
 function renderDash(){
-  const ch=$('dashChips');ch.innerHTML='';
-  [['all','All'],['executing','Running'],['error','Errors'],['ok','OK'],['idle','Idle']].forEach(([v,l])=>ch.appendChild(chip(l,dashFilter===v,()=>{dashFilter=v;renderDash()})));
-  ch.appendChild(chip('Sort: '+({last:'last run',state:'state',file:'file'})[dashSort],true,()=>{dashSort={last:'state',state:'file',file:'last'}[dashSort];renderDash()}));
-  const body=$('dashBody');body.innerHTML='';
+  const body=$('dashBody'),keep=body.scrollTop;body.innerHTML='';$('dashChips').innerHTML='';
+  const rows=Object.entries(sot.threads).filter(([k,t])=>!t.deleted&&!(sot.projects[t.project]||{}).deleted&&!/^devstream\//.test(t.file||''));
+  const head=(label,n,cls)=>{const h=document.createElement('div');h.className='dh';h.innerHTML=label+(n?'<span class="badge '+(cls||'run')+'">'+n+'</span>':'');body.appendChild(h)};
+  const name=t=>esc(t.project)+' · '+esc(tabName(t));
+  const need=rows.filter(([k,t])=>!isFrozen(t)&&(isBlocked(t)||isStalled(t))).sort((a,b)=>(b[1].finishedAt||b[1].startedAt||'').localeCompare(a[1].finishedAt||a[1].startedAt||''));
+  const run=rows.filter(([k,t])=>t.state==='executing'&&!isStalled(t));
+  const done=rows.filter(([k,t])=>t.state==='ok'&&t.finishedAt).sort((a,b)=>b[1].finishedAt.localeCompare(a[1].finishedAt)).slice(0,6);
+  if(need.length){head('Needs you',need.length,'err');need.forEach(([k,t])=>body.appendChild(dashRow('error',name(t),isStalled(t)?'Stopped — nothing is running. Open it and tap Run again.':esc(friendlyError(t.error)),'terr',()=>openProject(t.project,k))))}
+  if(run.length){head('Running now',run.length,'run');run.forEach(([k,t])=>{const a=describeActivity(k,t,false,progress[k]);body.appendChild(dashRow('executing',name(t),esc(a.text)+' · '+esc(a.sub),'tt',()=>openProject(t.project,k)))})}
+  if(!need.length&&!run.length){const c=document.createElement('div');c.className='dclear';c.textContent='All clear — nothing needs you and nothing is running.';body.appendChild(c)}
+  if(done.length){head('Recently finished');done.forEach(([k,t])=>{
+    const r=dashRow('ok',name(t),esc(rel(t.finishedAt))+(t.lastCommit?' · saved':''),'tt',()=>openProject(t.project,k),t.testUrl?'<a class="play" data-url="'+esc(t.testUrl)+'" href="#">Play ↗</a>':'');
+    const pa=r.querySelector('a.play');if(pa)pa.onclick=e=>e.stopPropagation();body.appendChild(r)})}
+  head('Engines');
+  const er=dashRow('idle','AI engine','checking…','tt',()=>$('settings').click());body.appendChild(er);
+  if(!(cfg&&(cfg.vkey||cfg.orkey||cfg.akey)))er.querySelector('.tt').textContent='No engine set up — tap to add one';
+  else veniceBalance().then(b=>{const el=er.querySelector('.tt');if(!el)return;el.textContent=b?'Venice · '+fmtBalance(b):'Tap to check engine settings';er.querySelector('.dot').className='dot '+(b&&b.diem+b.usd<=0.02?'error':'ok')}).catch(()=>{});
   renderDeleted(body);
-  const projs=Object.keys(sot.projects).filter(p=>!sot.projects[p].deleted).sort();
-  if(!projs.length){const e=document.createElement('div');e.className='csub';e.textContent='No projects yet.';body.appendChild(e);return}
-  projs.forEach(p=>{
-    const pr=sot.projects[p];
-    let rows=Object.entries(sot.threads).filter(([k,t])=>t.project===p&&!t.deleted);
-    if(dashFilter!=='all')rows=rows.filter(([k,t])=>(viewState(t)||'idle')===dashFilter);
-    const sec=document.createElement('div');sec.className='dsec';
-    const runs=rows.filter(([k,t])=>t.state==='executing'&&!isStalled(t)).length;
-    const open=secOpen[p]===true;
-    sec.innerHTML='<div class="dpttl"><button class="pchev'+(open?' open':'')+'">▶</button>'+
-      '<span class="dot '+projState(p)+'"></span><span class="grow" style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+esc(p)+'</span>'+
-      (runs?'<span class="badge run">'+runs+' running</span>':'')+
-      '<button class="ibtn doc '+(pr.planFile&&pr.planExists?'':'off')+'" title="Open plan">'+ICON_DOC+'</button>'+
-      '<button class="ibtn trash" title="Delete project">'+ICON_TRASH+'</button></div>'+
-      '<div class="dpsub">Last touched '+rel(pr.lastTouched)+' · '+rows.length+' tab'+(rows.length===1?'':'s')+'</div>';
-    sec.querySelector('.ibtn.doc').onclick=e=>{e.stopPropagation();openPlan(p)};
-    sec.querySelector('.ibtn.trash').onclick=e=>{e.stopPropagation();softDeleteProject(p)};
-    const tabWrap=document.createElement('div');tabWrap.style.display=open?'block':'none';
-    const chev=sec.querySelector('.pchev');
-    const toggle=()=>{const on=tabWrap.style.display==='none';tabWrap.style.display=on?'block':'none';
-      chev.classList.toggle('open',on);secOpen[p]=on;saveSecOpen()};
-    chev.onclick=e=>{e.stopPropagation();toggle()};
-    sec.querySelector('.dpttl .grow').onclick=toggle;
-    const sorters={last:(a,b)=>(b[1].finishedAt||b[1].startedAt||'').localeCompare(a[1].finishedAt||a[1].startedAt||''),
-      state:(a,b)=>(a[1].state||'').localeCompare(b[1].state||''),file:(a,b)=>a[1].file.localeCompare(b[1].file)};
-    rows.sort(sorters[dashSort]);
-    rows.forEach(([k,t])=>{
-      const corrupt=/^devstream\//.test(t.file||'');
-      const r=document.createElement('div');r.className='trow';
-      if(corrupt){
-        r.innerHTML='<span class="dot error"></span><div class="ti"><div class="tf mono">[corrupt legacy thread] '+esc(t.file)+'</div><div class="tt">bad metadata from an early build</div></div><button class="recBtn danger">Purge</button>';
-        r.querySelector('button').onclick=e=>{e.stopPropagation();hardDeleteThread(k)};
-        tabWrap.appendChild(r);return;
-      }
-      const stalled=isStalled(t);
-      r.innerHTML='<span class="dot '+(stalled?'error':(viewState(t)||'idle'))+'"></span><div class="ti">'+
-        '<div class="tf">'+esc(tabName(t))+' <span class="mono" style="opacity:.6;font-weight:400">'+esc(t.file||'')+'</span></div>'+
-        '<div class="tt">'+(stalled?'STALLED '+stallAge(t)+' (was executing)':(isFrozen(t)?'frozen':(viewState(t)||'idle'))+' · '+(t.engine||'venice')+' · '+rel(t.finishedAt||t.startedAt))+'</div>'+
-        (t.error&&!isFrozen(t)?'<div class="terr">'+esc(t.error)+'</div>':'')+'</div>'+
-        (stalled?'<button class="recBtn">Reset</button>':'');
-      if(stalled)r.querySelector('.recBtn').onclick=e=>{e.stopPropagation();guard(async()=>{
-        t.state='error';t.error='stalled — reset by owner';t.finishedAt=now();
-        await saveSOT('devstream: reset stalled '+k);renderDash();renderSidebar();toast('Reset — open the thread and ▶ to retry')})};
-      const ee=r.querySelector('.terr');
-      if(ee)ee.onclick=e=>{e.stopPropagation();ee.classList.toggle('x')};
-      r.onclick=()=>openProject(t.project,k);
-      tabWrap.appendChild(r);
-    });
-    if(!rows.length){
-      const cta=document.createElement('button');cta.className='btn';cta.textContent='+ start a thread in '+p;
-      cta.style.marginBottom='8px';
-      cta.onclick=()=>{openProject(p);newThreadForProject()};
-      tabWrap.appendChild(cta);
-    }
-    sec.appendChild(tabWrap);
-    const nd=document.createElement('div');nd.className='notes';
-    nd.innerHTML='<textarea class="input" placeholder="Notes for '+esc(p)+'… (Enter saves, Shift+Enter newline)">'+esc(pr.notes||'')+'</textarea><div class="nhint"></div>';
-    const ta=nd.querySelector('textarea'),hint=nd.querySelector('.nhint');
-    const saveNotes=()=>{
-      if(ta.value===(pr.notes||''))return;
-      pr.notes=ta.value;hint.textContent='saving…';
-      guard(async()=>{await saveSOT('devstream: notes '+p)}).then(ok=>{hint.textContent=ok?'saved '+new Date().toLocaleTimeString():'not saved';
-        setTimeout(()=>{if(hint.textContent.indexOf('saved')===0)hint.textContent=''},2500)});
-    };
-    ta.addEventListener('keydown',e=>{if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();ta.blur()}});
-    ta.addEventListener('blur',saveNotes);
-    sec.appendChild(nd);
-    body.appendChild(sec);
-  });
+  body.scrollTop=keep;
 }
 
 function renderDeleted(body){
