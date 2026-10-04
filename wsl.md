@@ -6,6 +6,16 @@
 
 *(The code that follows this summary in the original message is the complete, correct wsl.html from the previous successful build; no rewrite needed.)*
 
+## BUILD PLAN (owner-approved 2026-10-04) — baseline: snow-v1.html
+Owner report: wsl.html not runnable; DevStream "syntax fixes" had stripped the game logic (update() was an empty stub). Cause: wsl.html's lineage was uncertain; fixes were forward-patched.
+Change: wsl.html restored byte-for-byte from snow-v1.html, then built up in three builds. Tests: `node wsl-tests/build1.mjs` (phone + desktop sizes).
+
+- **Build 1 (Must) — DONE:** button bar removed; fading hint pill; gestures (tap = jump, fast swipe ← → = back/front flip incl. jump+flip from the track, drag = draw, tap on track = release); pinch zoom 0.35×–3.5× that never triggers other gestures; baseline game kept. Before: current wsl.html failed 2/2 load checks (no game logic). After: 33/33 checks pass.
+- **Build 2 (Should):** long-press rescue (3 charges, physics freeze, fill ring); multi-track + rescue branches; Flow score + bar; survival timer, distance, best; jump-chain taps.
+- **Build 3 (Could):** settings gear (Low/Med/High presets, jump/flip sliders); **audio vibes** (Calm, Fun, Whimsical, Zen); **start-up mode choice Regular / Zen** (Zen: no game over/hole death, no timer or best, gentle return to last track, unlimited rescue, softer Flow display, Zen audio); two-finger-tap rescue; rotation handling; threshold tuning.
+- Known baseline item kept (not changed without owner say): automatic no-progress/stuck fall ("deadpool") is still in the baseline; owner removed it from earlier builds on 2026-09-20.
+- Rescue is unavailable in Build 1 (button removed, long-press arrives in Build 2).
+
 ## RUN LOG (written by DevStream)
 | Date | Tab | Result | What | Commit |
 |---|---|---|---|---|
