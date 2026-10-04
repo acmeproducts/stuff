@@ -1,0 +1,34 @@
+name: Market Navigator Turn 37 Stage 0 Baseline
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'market-navigator-turn37-stage0.html'
+      - 'market-navigator-turn37-stage0-qa.mjs'
+      - '.github/workflows/market-navigator-turn37-stage0.yml'
+  workflow_dispatch:
+permissions: {contents: read}
+jobs:
+  characterize:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: {node-version: '22'}
+      - name: Exact accepted bytes
+        run: |
+          test "$(git hash-object market-navigator-turn28-post-ship.html)" = "9ce7f67451f9e1b7804927ce5c56adb667614724"
+          cmp -s market-navigator-turn28-post-ship.html market-navigator-turn37-stage0.html
+      - name: Install browser
+        run: |
+          npm ci
+          npm install --no-save playwright@1.63.0
+          npx playwright install --with-deps chromium
+      - name: Characterize baseline
+        run: |
+          python -m http.server 8123 >/tmp/mn37-stage0-http.log 2>&1 &
+          SERVER=$!
+          trap 'kill $SERVER || true' EXIT
+          sleep 2
+          node market-navigator-turn37-stage0-qa.mjs
