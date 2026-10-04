@@ -210,7 +210,7 @@ body.coachMode .suggestBtn{border-color:rgba(57,197,207,.5);background:rgba(57,1
 <div id="scrim"></div>
 <div id="app">
 <aside id="sidebar">
-  <div class="bar"><span id="dot"></span><span class="brand">devstream <span class="version">v1.0 b62</span></span><span class="grow"></span><button class="btn" id="projectAdd">+ New</button><button class="btn" id="refresh">↻</button></div>
+  <div class="bar"><span id="dot"></span><span class="brand">devstream <span class="version">v1.0 b63</span></span><span class="grow"></span><button class="btn" id="projectAdd">+ New</button><button class="btn" id="refresh">↻</button></div>
   <div id="navTabs"><button class="navtab" id="navDash">Dashboard<span id="navBadge"></span></button><button class="navtab" id="navProj">Projects</button><button class="navtab" id="settings">Config</button></div>
   <div id="searchWrap"><input id="search" class="input" placeholder="Search projects & threads">
     <div class="legend"><span><i class="legendDot ok"></i>OK</span><span><i class="legendDot run"></i>Running</span><span><i class="legendDot err"></i>Error</span></div></div>
@@ -406,10 +406,14 @@ const OUTBOX_LS='ds_outbox_v1';
 let outbox=JSON.parse(localStorage.getItem(OUTBOX_LS)||'{}');
 function saveOutbox(){try{localStorage.setItem(OUTBOX_LS,JSON.stringify(outbox))}catch(e){}}
 const msgSig=m=>(m.role||'')+'|'+(m.ts||'')+'|'+((m.text||'').slice(0,120));
+const doneSigs=new Set();
+function fwdStatus(m){if(m&&m.status==='pending'&&doneSigs.has(msgSig(m)))m.status='done';return m}
+function mergeCopy(into,other){if(into&&other&&other.status==='done')into.status='done';return fwdStatus(into)}
 function outboxAdd(key,m){const a=(outbox[key]=outbox[key]||[]);a.push(m);if(a.length>50)outbox[key]=a.slice(-50);saveOutbox()}
 function mergeMessages(key,remote){
   const list=(remote||[]).slice();
-  const seen={};list.forEach(m=>seen[msgSig(m)]=1);
+  const seen={};list.forEach(m=>{fwdStatus(m);seen[msgSig(m)]=m});
+  (outbox[key]||[]).forEach(m=>{const r=seen[msgSig(m)];if(r)mergeCopy(r,m)});
   const keep=(outbox[key]||[]).filter(m=>!seen[msgSig(m)]);
   if(keep.length!==(outbox[key]||[]).length){if(keep.length)outbox[key]=keep;else delete outbox[key];saveOutbox()}
   keep.forEach(m=>list.push(m));
@@ -453,7 +457,8 @@ const pathQueues={},pathLastSha={},pathCommit={},threadDeleteTombstones={};
 function isThreadDataPath(path){return path.startsWith('devstream/threads/')&&path.endsWith('.json')}
 function reconcileThreadContent(remoteContent,localContent,path){
   const remote=JSON.parse(remoteContent||'{}'),local=JSON.parse(localContent||'{}'),merged={...remote,...local},messages=[],seen=new Set(),deleted=threadDeleteTombstones[path]||new Set();
-  [...(remote.messages||[]),...(local.messages||[])].forEach(m=>{const sig=msgSig(m);if(!deleted.has(sig)&&!seen.has(sig)){seen.add(sig);messages.push(m)}});
+  const bySig={};
+  [...(remote.messages||[]),...(local.messages||[])].forEach(m=>{const sig=msgSig(m);if(deleted.has(sig))return;if(!seen.has(sig)){seen.add(sig);messages.push(m);bySig[sig]=m;fwdStatus(m)}else mergeCopy(bySig[sig],m)});
   messages.sort((x,y)=>String(x.ts||'').localeCompare(String(y.ts||'')));merged.messages=messages;return JSON.stringify(merged,null,1);
 }
 function putFileSafe(path,content,message,expectedSha){
@@ -1378,7 +1383,7 @@ function useSuggestion(item){
 /* ---- send / dispatch ---- */
 const activeRuns=new Set(),scheduledRuns=new Set(),savingMessages={};
 const activeProjectRuns=new Map(),projectRunQueues={};
-function hasPending(key){const th=threads[key];return !!(th&&th.data.messages.some(m=>m.role==='user'&&m.status==='pending'))}
+function hasPending(key){const th=threads[key];return !!(th&&th.data.messages.some(m=>m.role==='user'&&fwdStatus(m).status==='pending'))}
 function queueProjectRun(key){
   const t=sot.threads[key];if(!t||t.deleted)return;
   const q=projectRunQueues[t.project]||(projectRunQueues[t.project]=[]);
@@ -1562,7 +1567,7 @@ async function runAgent(key,premarked){
   const coach=!!sot.projects[t.project]?.coachMode;
   if(activeRuns.has(key)||(t.state==='executing'&&!premarked)){toast('This thread is already building');releaseProjectRun(key);return}
   activeRuns.add(key);
-  const pend=th.data.messages.filter(m=>m.role==='user'&&m.status==='pending');
+  const pend=th.data.messages.filter(m=>m.role==='user'&&fwdStatus(m).status==='pending');
   if(!pend.length){activeRuns.delete(key);releaseProjectRun(key);toast('Nothing pending');return}
   const eng=t.engine||'venice';
   const chain=[eng,...['venice','openrouter','anthropic-direct'].filter(x=>x!==eng)]
@@ -1657,7 +1662,7 @@ async function runAgent(key,premarked){
       reply=(body||reply)+'\nℹ No file written — answer only.';
       if(!followedContract)reply+='\n! Engine ignored the build contract (no SUMMARY/TARGET markers) — consider a stronger model for this thread (tap the engine chip).';
     }
-    pend.forEach(m=>{m.status='done';delete m.forcedTarget});
+    pend.forEach(m=>{m.status='done';doneSigs.add(msgSig(m));delete m.forcedTarget});
     if(ing.length)reply='▸ Ingested from GitHub: '+ing.map(i=>i.path+' ('+i.k+'k)').join(', ')+'\n'+reply;
     if(ing.length&&/can(?:no|')t\s+(?:access|retrieve|fetch|read|open)|unable to (?:access|retrieve|fetch|read)|don'?t have access/i.test(reply))
       reply+='\n! The engine claimed it cannot access GitHub, but '+ing.length+' file(s) WERE supplied in its context — that is a model failure, not a fetch failure. Switch this thread to a stronger model via the engine chip.';

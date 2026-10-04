@@ -6,8 +6,8 @@ Deploy target: `https://acmeproducts.github.io/stuff/devstream.html`
 Test target: `https://acmeproducts.github.io/stuff/devstream-test.html`
 
 ## Status
-- Current release: v1.0 b62 on devstream-test.html (2026-10-03)
-- Stage: TEST (b62)
+- Current release: v1.0 b63 on devstream-test.html (2026-10-03)
+- Stage: TEST (b63)
 
 ## Release Rules (inherited, proven)
 1. Mobile-first. All diagnostics in-app. No DevTools ever.
@@ -255,6 +255,27 @@ b39 incorrectly changed stationary hold into context-menu activation. Devstream 
 ## Graveyard
 - **G-DS-13 — Hold opens context menu:** rejected; donor behavior is double-tap context, hold-to-drag.
 - **G-DS-14 — Legacy generic #tabContext button styling:** rejected; it corrupts the donor context-menu appearance.
+
+---
+
+# 2026-10-04 — b63 one message = one run (a saved-thread conflict no longer re-runs finished work)
+
+## Owner report
+Chat showed "Fixed … Play it: <link>" while the strip said "Working — Writing the changes…". The page that link opened was broken (`update is not defined`). Owner: the sequence is backwards; do not fix the Snowman app, find the sequence problem.
+
+## Cause (from the repo's own log and git history)
+- One message ("continue") produced three commits of wsl.html in 6 minutes (17:44, 17:47, 17:50), each announced as "Fixed … / Play it". Log: Snowman run T7 finished 00:44:39, run T12 dispatched 00:44:49, T13 at 00:47:46 — no user message in between. Duck/bugsbunny re-ran every ~8 s the same way.
+- Order inside a run: commit the file → post the reply and test link → mark the user message done → save the thread file. When that save hits a 409 conflict, the merge keeps the copy already on GitHub, which still says "pending", and drops the local "done". The message looks unrun, so the app runs it again — rewriting the whole file again. Each rewrite dropped a different function, so each run "fixed" what the last one broke.
+- The link in the reply is therefore real but already stale: a newer run is writing over it.
+
+## Fix
+- Message status can only move forward (pending → done). Merging two copies of a message, or reloading a thread, never turns done back into pending; the session also remembers which messages it already ran.
+- Not changed: whole-file rewrites by the engine (separate cost/quality issue); the Snowman app itself.
+
+## Acceptance
+- **DS-B63-1:** when the thread save conflicts, one message still produces exactly one run.
+- **DS-B63-2:** the user message ends "done" locally and on GitHub.
+- **DS-B63-3:** reloading the thread afterwards does not bring the message back to pending.
 
 ---
 
