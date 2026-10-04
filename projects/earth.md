@@ -199,3 +199,4 @@ Build the full walkable, streamed 3D Earth described in the reference README as 
 | 2026-10-03 11:21 | build | built projects/earth.html | Desktop and mobile now share one identical control scheme — always-visible stick + JUMP, drag anywhere right to look — by removing pointer l | 5c1104e |
 | 2026-10-03 11:23 | build | failed | I couldn't finish that step (engine returned SEARCH/REPLACE blocks for projects/earth.md, which is not the patched file — nothing). |  |
 | 2026-10-04 14:47 | build | built projects/earth.html | M7.7 landed — a ▶ RUN start overlay (engine loads behind it, rendering starts only on tap, with a fatal-error escape so failures are never h | 8b939bf |
+| 2026-10-04 14:56 | build | built projects/earth.html | Thank you — "daytime and still nothing" rules out the night-sky theory, so this build fixes the most likely real culprit: if a satellite pho | a557f02 |
