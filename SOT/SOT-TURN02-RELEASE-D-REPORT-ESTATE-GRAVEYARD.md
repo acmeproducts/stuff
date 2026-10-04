@@ -44,3 +44,4 @@ Do not forward-patch this rejected design. Restore the pre-#770 Complete bytes (
 - The per-chart number tables (replaced by section popups).
 - Tap-any-# selection: the row selector is now the Row number cell (the permanent database # remains a normal column).
 - A new "duplicate" field was considered and rejected: Class already carries it.
+- Full-length fingerprint display in rows and group headers.

@@ -119,7 +119,7 @@ try{
   await fr.click('#modalcancel');await pg.waitForTimeout(300);
   let grp=await fr.$$eval('#Database tbody tr.ssot-grp',e=>e.map(x=>x.innerText.replace(/\s+/g,' ').trim()));ok(grp.length===3&&/Estate s1/.test(grp[0])&&/1 file/.test(grp[0])&&(await rowNos()).length===0,'groups collapsed by default '+JSON.stringify(grp));
   await fr.click('#Database tbody tr.ssot-grp:nth-child(1)');await pg.waitForTimeout(250);
-  const lvl2=await fr.$$eval('#Database tbody tr.ssot-grp',e=>e.map(x=>x.innerText.replace(/\s+/g,' ').trim()+'|'+x.querySelector('.chev').textContent));ok(lvl2.length>3&&/▾/.test(lvl2[0])&&/Fingerprint/.test(lvl2[1]),'expand shows nested fingerprint groups '+JSON.stringify(lvl2));
+  const lvl2=await fr.$$eval('#Database tbody tr.ssot-grp',e=>e.map(x=>x.innerText.replace(/\s+/g,' ').trim()+'|'+x.querySelector('.chev').textContent));ok(lvl2.length>3&&/▾/.test(lvl2[0])&&/fp1/.test(lvl2[1]),'expand shows nested fingerprint groups '+JSON.stringify(lvl2));
   await fr.click('#Database tbody tr.ssot-grp:nth-child(2)');await pg.waitForTimeout(250);const nums=await rowNos();ok(nums.length>=1&&nums.every(n=>/^\d+$/.test(n)),'rows under an expanded group are numbered '+nums);
   await fr.click('#Database tbody tr.ssot-grp:nth-child(1)');await pg.waitForTimeout(250);ok((await fr.$$('#Database tbody tr.ssot-grp')).length===3,'collapse again');
   pass('group by Estate › Fingerprint: groups start collapsed, chevron expands nested groups with counts and size, rows stay numbered');
@@ -150,6 +150,11 @@ try{
   const gh=await fr.$$eval('#Database tbody tr.ssot-grp',e=>e.map(x=>x.innerText.replace(/\s+/g,' ').trim()));ok(gh.length===2&&/2 copies/.test(gh[0])&&/100\.0 GB reclaimable/.test(gh[0])&&/in s2, s3|in s3, s2/.test(gh[0])&&/1 copy/.test(gh[1]),'duplicate group headers '+JSON.stringify(gh));
   await fr.click('#Database tbody tr.ssot-grp:nth-child(1)');await pg.waitForTimeout(250);
   const cls=await fr.$$eval('#Database tbody tr[data-pid]',r=>r.map(x=>x.innerText));ok(cls.length===2&&/KEEP/.test(cls[0])&&/EXCESS/.test(cls[1]),'KEEP first, EXCESS after '+JSON.stringify(cls));
+  ok(await fr.$eval('.ssot-search-head button:has-text("Duplicates")',b=>b.classList.contains('live')),'Duplicates button must light up while the preset is active');
+  ok(await fr.evaluate(()=>__ssotShort('4b9933ed09dac1286df5eda037c4d2f955b9dbabcdef0123',10)==='4b9933ed09…'&&__ssotShort('dup',10)==='dup'),'fingerprint truncation helper');
+  ok(/^▸dup 2 copies/.test(gh[0]),'short fingerprint first, then copies/reclaimable '+gh[0]);
+  await fr.evaluate(()=>{omniDraft=omniQuery='excess';renderDatabase()});await pg.waitForTimeout(300);ok(!(await fr.$eval('.ssot-search-head button:has-text("Duplicates")',b=>b.classList.contains('live'))),'Duplicates button must go dark once the search changes');
+  await fr.evaluate(()=>__ssotDuplicates());await pg.waitForTimeout(300);
   pass('Duplicates preset: only KEEP/EXCESS files, grouped by fingerprint, biggest reclaimable first, header shows copies / reclaimable / estates, KEEP listed before its EXCESS copies');
   await fr.evaluate(()=>{__ssotColumnsModal();document.getElementById('ssotColReset').click()});await pg.waitForTimeout(300);await fr.click('#modalcancel');await fr.evaluate(()=>{omniDraft='';omniQuery='';sortField='placement_no';sortDir=-1;renderDatabase()});await pg.waitForTimeout(300)}
  // Job Status
