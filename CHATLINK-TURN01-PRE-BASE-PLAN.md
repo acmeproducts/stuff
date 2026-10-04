@@ -546,7 +546,7 @@ The owner confirmed that TTS and STT work on r15.
 
 Recorded, not scheduled.
 
-1. **Chinese keyboard.** Simplified pinyin input like Gboard, with next-word prediction and learning. Per the plan's scope note, Chinese enhancements come last, after the wider language rollout (items 2–3).
+1. **Chinese keyboard (Track B, originated in `duck.md`).** Simplified pinyin input like Gboard, with next-word prediction and learning. Per the plan's scope note, Chinese enhancements come last, after the wider language rollout (items 2–3). Scope and source decision: see "Track B scope" at the end of this file.
 2. **Malay is treated as Indonesian.** Make Malay a separate, distinct language. Both languages are needed.
 3. **Keyboard coverage review.** Audit every supported language and make coverage full and complete. Start with Vietnamese, Indonesian and Khmer (Cambodian).
 4. **TTS turns off when the keyboard is extended for North.** When both sides are talking, TTS switches off even though it was on beforehand. It must stay on.
@@ -650,3 +650,24 @@ Malay and Indonesian are confirmed to have different speech, voice and translati
 **Check added first.** "Filipino listens with the code Deepgram accepts (tl), never fil" fails without the change and passes with it. Open mode 35/35, ask mode 33/33, keyboard 32/32, controller 20/20. **Not verified:** speaking Filipino on a phone.
 
 **Still unsupported by Deepgram:** Khmer and Lao.
+
+### Track B scope: Simplified Chinese pinyin input (2026-10-04)
+
+**Origin.** `duck.md` Track B: pinyin to ranked candidate selection is an input engine, not a bigger word list, sequenced after Track A (dictionaries, shipped for 20 of 23 languages). Engine choice was left open. **Owner delegated the choice (2026-10-04).** Nothing is built.
+
+**Decision: a small in-browser engine built from open data, not a native engine.**
+- Word list with readings, ranked by frequency: the jieba word list (MIT) with each word's pinyin generated once at build time by pinyin-pro (MIT). Published as `dict/zh.json`, the same pattern as every other dictionary.
+- Segmenting typed pinyin into syllables, and looking up ranked candidates, runs in plain JavaScript in the page. Works offline, no native build, no server.
+- Next-word prediction and learning reuse the app's existing learned-word-pair mechanism (`dict/bigram-<lang>.json` pattern), so the keyboard improves with use, as asked.
+- Why not the alternatives. libgooglepinyin (Apache-2.0) is a native C++ engine that would need compiling to WebAssembly. Rime is also native, and I found no evidence of a ready browser build. Both add a build toolchain and a large asset for a single language.
+- **Fallback if lab quality is poor on full sentences:** compile libgooglepinyin to WebAssembly. Revisit only on evidence.
+
+**Scope.**
+1. Build `dict/zh.json` with readings (data only).
+2. Pinyin input on the Chinese side's keyboard: type pinyin, see ranked candidates, tap to commit; learning from commits.
+3. Next-word prediction after a committed word.
+4. Existing Chinese histories must keep importing and displaying (already required by the plan).
+
+**Gates before any build.** Each step lab-tested with a check written first, tested on a device by the owner before the next step. Not touched until the language rollout (backlog items 2 and 3) is done, per the owner's sequencing.
+
+**Not verified.** Candidate quality, data size and phone performance. All unmeasured.
