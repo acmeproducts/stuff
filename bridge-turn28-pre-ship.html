@@ -9912,35 +9912,53 @@ function replaceSenderTrack(sender, track) {
 }
 
 
-/* ═══════════ GAP PART · X2-check-button.js ═══════════ */
+/* ═══════════ GAP PART · X3-check-said.js ═══════════ */
 /* @contract
    replaces: (none)
-   wraps: wireMsg
-   adds: btScore, btVerdict, backCheck
+   wraps: wireMsg, normalizeOutgoing, appendMsgDom
+   adds: btScore, btVerdict, backCheck, x3Pending
 */
 /* ─────────────────────────────────────────────────────────────────────────────
-   X-2 · THE TRANSLATION CHECK, ONE TAP (owner, 2026-10-03)
+   X-3 · THE TRANSLATION CHECK — WHAT WAS SAID, WHAT WAS NORMALIZED, WHAT WAS
+         DELIVERED (owner, 2026-10-03, "GO build this as 28 pre-ship c3")
 
-   c1's double-tap worked but was hard to land. The owner's ruling: tap the
-   bubble header once (as today, the action row appears) and a fourth button —
-   a circle with a counter-clockwise arrow — sits next to Clarify. One tap on
-   it opens the check. The card is chat-test.html's card: its CSS rules are
-   copied byte for byte below (the harness proves each rule against
-   chat-test.html), its DOM is built the same way, in the same order, with the
-   same words — title, Copy, ✕, the verdict pill, the zebra table (Spoken /
-   Back-translation / Target / Route), the one-line note on what the score
-   means. btScore and btVerdict are chat-test's, verbatim.
+   c2 (X-2) put the check behind one header button and used chat-test's card.
+   Its first real use found a gap in the record, not in the translation:
+   normalization (by design — code switching: a Korean speaker who drops into
+   English still means it as Korean speech) rewrites what the microphone heard
+   into the speaker's own language BEFORE the base ever sees it, and the base
+   keeps only the rewrite. So when English was spoken into the Korean phone the
+   card could show only the Korean, and its score covered only the Korean →
+   English → Korean loop. The English itself was kept nowhere.
 
-   Left out, by the owner's standing ruling: the AI review (chat-test r15) —
-   TalkBridge has no AI tier, so neither the AI box nor its "add a key" line.
-   The Route row says what TalkBridge knows about a message: voice, keyboard
-   or phrasebook.
+   c3 keeps it, and scores both. Two hooks, neither replacing anything:
+     normalizeOutgoing  — when the rewrite differs from what came in, the heard
+                          words and their language are held for the message
+                          about to be born (one pending record, 60 s);
+     appendMsgDom       — the first own message whose text IS that rewrite
+                          takes the record as `said` / `saidLang`, saved with
+                          the transcript, logged once as `said_kept`.
+   Both paths (in-call speech via onDGFinal, chat via sendChatText) create
+   their entry and then call appendMsgDom, so one hook covers both.
 
-   wireMsg is wrapped (hook, never replace): the base wires its three buttons,
-   then this part inserts the fourth after Clarify. Nothing else moves.
+   The card, in the owner's own layout (ASCII, 2026-10-03):
+     SAID              source 1 — what was heard, in its language
+     NORMALIZED        source 2 — the rewrite (only when there was one)
+     TRANSLATED        the target — what the partner received
+     BACK-TRANSLATION  the target brought back into the normalized language
+     ROUTE
+     Said vs Translated        comp 1 — direct when SAID is already in the
+                                        target's language, else via a
+                                        back-translation into SAID's language
+     Normalized vs Translated  comp 2 — NORMALIZED vs BACK-TRANSLATION
+   With no rewrite there is one source and one comparison.
+
+   chat-test's card CSS is still copied byte for byte (the harness proves each
+   rule against chat-test.html); btScore / btVerdict are chat-test's, verbatim;
+   the AI review stays out (no AI tier). The header button is c2's.
    ───────────────────────────────────────────────────────────────────────────── */
 (function () {
-  if (typeof wireMsg !== 'function' || typeof translateWithRetry !== 'function') return;
+  if (typeof wireMsg !== 'function' || typeof translateWithRetry !== 'function' || typeof normalizeOutgoing !== 'function' || typeof appendMsgDom !== 'function') return;
   var st = document.createElement('style');
   st.textContent = [
     '.cl-bt{position:absolute;inset:0;z-index:20;background:rgba(15,23,42,.35);display:flex;align-items:center;justify-content:center;padding:12px}',
@@ -9966,7 +9984,35 @@ function replaceSenderTrack(sender, track) {
   }
   function btVerdict(score){return score>=0.8?'match':score>=0.5?'partial':'miss'}
 
-  /* chat-test.html · backCheck, the same card: shell is the room screen; no AI box; Route from TalkBridge's own record */
+  /* ── the record: what was heard, kept beside the rewrite ─────────────────── */
+  var x3Pending = null;                       /* { said, saidLang, normalized, at } — one message in flight at a time */
+  var X3_PENDING_MS = 60000;
+  var _normalizeOutgoing = normalizeOutgoing;
+  normalizeOutgoing = async function (room, text, knownLang) {
+    var r = await _normalizeOutgoing.apply(this, arguments);
+    try {
+      var inT = norm(text || ''), outT = norm((r && r.text) || '');
+      if (inT && outT && inT.toLowerCase() !== outT.toLowerCase()) x3Pending = { said: inT, saidLang: (r && r.detected) || knownLang || '', normalized: outT, at: Date.now() };
+    } catch (_) {}
+    return r;
+  };
+  var _appendMsgDom = appendMsgDom;
+  appendMsgDom = function (e, batch) {
+    try {
+      var p = x3Pending;
+      if (p && e && e.who === 'me' && e.kind !== 'sys' && !e.said) {
+        if (Date.now() - p.at > X3_PENDING_MS) x3Pending = null;
+        else if (norm(e.sourceText || '').toLowerCase() === p.normalized.toLowerCase()) {
+          e.said = p.said; e.saidLang = p.saidLang; x3Pending = null;
+          try { saveTr(); } catch (_) {}
+          log('said_kept', { id: e.id, lang: e.saidLang, chars: e.said.length }, 'ok');
+        }
+      }
+    } catch (_) {}
+    return _appendMsgDom.apply(this, arguments);
+  };
+
+  /* ── the card, in the owner's layout; chat-test's CSS, words and scoring ──── */
   function backCheck(e){
       var shell=document.getElementById('scr-room')||document.body,old=shell.querySelector('.cl-bt');if(old)old.remove();
       var ov=document.createElement('div');ov.className='cl-bt';ov.setAttribute('role','dialog');ov.setAttribute('aria-label','Translation check');
@@ -9974,34 +10020,53 @@ function replaceSenderTrack(sender, track) {
       var head=document.createElement('div');head.className='cl-bt-head';var ttl=document.createElement('b');ttl.textContent='Translation check';
       var copy=document.createElement('button');copy.type='button';copy.textContent='Copy';var x=document.createElement('button');x.type='button';x.textContent='✕';x.setAttribute('aria-label','Close');
       head.append(ttl,copy,x);card.appendChild(head);
-      var verdict=document.createElement('span');verdict.className='cl-bt-verdict wait';verdict.textContent='Checking…';card.appendChild(verdict);
       var tbl=document.createElement('table');tbl.className='cl-bt-grid';var tb=document.createElement('tbody');tbl.appendChild(tb);card.appendChild(tbl);
       var rows=[];
       function row(label,lang,text){var tr=document.createElement('tr'),a=document.createElement('th'),b=document.createElement('div'),c=document.createElement('td');a.textContent=label;b.textContent=lang;b.className='cl-bt-lang';a.appendChild(b);c.textContent=text;tr.append(a,c);tb.appendChild(tr);var r={label:label,lang:lang,text:text,tr:tr,set:function(l,t){if(l!=null){this.lang=l;b.textContent=l}if(t!=null){this.text=t;c.textContent=t}}};rows.push(r);return r}
-      var how=document.createElement('div');how.style.cssText='font-size:11px;color:#64748b;margin-top:8px';how.textContent='Score compares the wording of Spoken and Back-translation, not meaning. Same meaning in different words scores lower.';card.appendChild(how);
       var name=function(c){return c?gL(c).name:'?'};
-      var spoken=e.sourceText||'';
-      var rSpoken=row('Spoken',name(e.srcLang),spoken),rBack=row('Back-translation','…','…'),rTarget=row('Target',name(e.tgtLang),e.translatedText||'(no translation yet)');
+      var rewritten=!!(e.said&&norm(e.said).toLowerCase()!==norm(e.sourceText||'').toLowerCase());
+      var said=rewritten?e.said:(e.sourceText||''),saidLang=rewritten?(e.saidLang||e.srcLang):e.srcLang;
+      var normalized=e.sourceText||'',normLang=e.srcLang;
+      var target=e.translatedText||'',tgtLang=e.tgtLang;
+      row('Said',name(saidLang),said);
+      if(rewritten)row('Normalized',name(normLang),normalized);
+      row('Translated',name(tgtLang),target||'(no translation yet)');
+      var rBack=row('Back-translation','…','…');
       row('Route',e.origin==='spoken'?'Voice':e.origin==='phrase'?'Phrasebook':'Keyboard',e.origin==='spoken'?'Spoken into the microphone':e.origin==='phrase'?'Sent from the phrasebook':'Typed on the keyboard');
-      var report={verdict:'',score:null};
+      /* the results, one line per comparison, in the owner's order */
+      var res=document.createElement('div');res.className='cl-bt-sec';card.appendChild(res);
+      function resultLine(label){var d=document.createElement('div');d.style.cssText='display:flex;align-items:center;gap:8px;margin-top:6px';var l=document.createElement('span');l.textContent=label;l.style.cssText='flex:1;font-size:13px';var v=document.createElement('span');v.className='cl-bt-verdict wait';v.textContent='Checking…';d.append(l,v);res.appendChild(d);return {label:label,pill:v,verdict:'',score:null,set:function(sc,txt){this.score=sc;this.verdict=txt||btVerdict(sc);v.className='cl-bt-verdict '+this.verdict;v.textContent=txt?txt:((this.verdict==='match'?'Match':this.verdict==='partial'?'Partial':'Miss')+' · '+Math.round(sc*100)+'%')},fail:function(txt){this.verdict=txt.toLowerCase();v.className='cl-bt-verdict miss';v.textContent=txt}}}
+      var comp1=resultLine('Said vs Translated');
+      var comp2=rewritten?resultLine('Normalized vs Translated'):null;
+      var report={comps:[comp1].concat(comp2?[comp2]:[])};
       x.onclick=function(){ov.remove()};ov.addEventListener('click',function(ev){if(ev.target===ov)ov.remove()});
-      copy.onclick=function(){var txt=rows.map(function(r){return r.label+' ('+r.lang+'): '+r.text}).join('\n')+'\nResult: '+report.verdict+(report.score!=null?' ('+Math.round(report.score*100)+'%)':'');
+      copy.onclick=function(){var txt=rows.map(function(r){return r.label+' ('+r.lang+'): '+r.text}).join('\n')+report.comps.map(function(c){return '\n'+c.label+': '+c.verdict+(c.score!=null?' ('+Math.round(c.score*100)+'%)':'')}).join('');
           navigator.clipboard.writeText(txt).then(function(){copy.textContent='Copied';setTimeout(function(){copy.textContent='Copy'},1400)}).catch(function(){copy.textContent='Copy failed'})};
       shell.appendChild(ov);x.focus();
-      function finish(back,lang,note){
-          if(!ov.isConnected)return;
-          var sc=btScore(spoken,back),v=btVerdict(sc);rBack.set(name(lang)+(note?' · '+note:''),back);report.score=sc;report.verdict=v;
-          verdict.className='cl-bt-verdict '+v;verdict.textContent=(v==='match'?'Match':v==='partial'?'Partial':'Miss')+' · '+Math.round(sc*100)+'%';
-          log('bt_check',{outcome:'ok',verdict:v,score:+sc.toFixed(2),spokenLang:lang,src:e.srcLang,tgt:e.tgtLang,rewritten:false,chars:String(spoken).length},v==='miss'?'warn':'ok');
+      function done(){
+          var failed=report.comps.some(function(c){return c.score==null});
+          var d={outcome:failed?'error':'ok',rewritten:rewritten,saidLang:saidLang,src:normLang,tgt:tgtLang,chars:String(said).length,said:comp1.score==null?null:+comp1.score.toFixed(2),saidVerdict:comp1.verdict};
+          if(comp2){d.normalized=comp2.score==null?null:+comp2.score.toFixed(2);d.normalizedVerdict=comp2.verdict}
+          /* chat-test's fields keep their names: verdict / score are the headline comparison, Said vs Translated */
+          d.verdict=comp1.verdict;d.score=d.said;
+          log('bt_check',d,failed?'error':(d.verdict==='miss'||(comp2&&comp2.verdict==='miss'))?'warn':'ok');
       }
-      if(!e.translatedText){verdict.className='cl-bt-verdict miss';verdict.textContent='No translation';report.verdict='no translation';rBack.set('—','—');return}
-      var lang=e.srcLang;
-      if(lang===e.tgtLang){finish(e.translatedText,lang,'same as target');return}
-      translateWithRetry(e.translatedText,e.tgtLang,lang,1).then(function(r){
+      if(!target){report.comps.forEach(function(c){c.fail('No translation')});rBack.set('—','—');log('bt_check',{outcome:'ok',verdict:'no translation',rewritten:rewritten,saidLang:saidLang,src:normLang,tgt:tgtLang},'warn');return}
+      /* the back-translation into the normalized language (a second one into SAID's language only when SAID is in a third language) */
+      var back=function(lang){return lang===tgtLang?Promise.resolve({ok:true,text:target,direct:true}):translateWithRetry(target,tgtLang,lang,1)};
+      var pNorm=back(normLang);
+      var pSaid=(saidLang===normLang)?pNorm:back(saidLang);
+      pNorm.then(function(r){
           if(!ov.isConnected)return;
-          if(!r.ok){rBack.set(name(lang),'(back-translation failed)');verdict.className='cl-bt-verdict miss';verdict.textContent='Check failed';report.verdict='check failed';log('bt_check',{outcome:'error',spokenLang:lang,tgt:e.tgtLang},'error');return}
-          finish(r.text,lang);
-      });
+          if(!r.ok){rBack.set(name(normLang),'(back-translation failed)');if(comp2)comp2.fail('Check failed');if(saidLang===normLang)comp1.fail('Check failed')}
+          else{rBack.set(name(normLang)+(r.direct?' · same as target':''),r.text);if(comp2)comp2.set(btScore(normalized,r.text));if(saidLang===normLang)comp1.set(btScore(said,r.text))}
+          if(saidLang===normLang){done();return}
+          return pSaid.then(function(r2){
+              if(!ov.isConnected)return;
+              if(!r2.ok)comp1.fail('Check failed');else comp1.set(btScore(said,r2.text));
+              done();
+          });
+      }).catch(function(){if(!ov.isConnected)return;report.comps.forEach(function(c){c.fail('Check failed')});log('bt_check',{outcome:'error',saidLang:saidLang,src:normLang,tgt:tgtLang},'error')});
   }
 
   var _wireMsg = wireMsg;
@@ -10018,7 +10083,7 @@ function replaceSenderTrack(sender, track) {
     } catch (_) {}
     return r;
   };
-  window.btScore = btScore; window.btVerdict = btVerdict; window.backCheck = backCheck;
+  window.btScore = btScore; window.btVerdict = btVerdict; window.backCheck = backCheck; window.x3Pending = function () { return x3Pending; };
 })();
 
 
