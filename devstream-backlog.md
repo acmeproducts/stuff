@@ -6,8 +6,8 @@ Deploy target: `https://acmeproducts.github.io/stuff/devstream.html`
 Test target: `https://acmeproducts.github.io/stuff/devstream-test.html`
 
 ## Status
-- Current release: v1.0 b63 on devstream-test.html (2026-10-03)
-- Stage: TEST (b63)
+- Current release: v1.0 b64 on devstream-test.html (2026-10-03)
+- Stage: TEST (b64)
 
 ## Release Rules (inherited, proven)
 1. Mobile-first. All diagnostics in-app. No DevTools ever.
@@ -255,6 +255,24 @@ b39 incorrectly changed stationary hold into context-menu activation. Devstream 
 ## Graveyard
 - **G-DS-13 — Hold opens context menu:** rejected; donor behavior is double-tap context, hold-to-drag.
 - **G-DS-14 — Legacy generic #tabContext button styling:** rejected; it corrupts the donor context-menu appearance.
+
+---
+
+# 2026-10-04 — b64 a build that would break is not saved or linked
+
+## Owner report
+"Play it" links led to a page that failed immediately (`update is not defined`, earlier a syntax error). The app announced the build as ready without checking it.
+
+## Change
+- Before any HTML build is committed, the app checks the new file: (1) every inline script must parse (a stray brace or missing bracket is caught); (2) a function that existed before and is still called, but no longer exists, is flagged. Functions removed together with all their calls are fine.
+- If a check fails the file is not saved and no link is posted. The run shows "Needs help" with the plain reason, the working version stays in place, and Run again retries.
+- Not checked: runtime behaviour that is only visible when the page runs (needs a real browser); plan (.md) files.
+
+## Acceptance
+- **DS-B64-1:** a rewrite that drops a still-used function is refused; file unchanged.
+- **DS-B64-2:** a rewrite with a syntax error is refused; file unchanged.
+- **DS-B64-3:** a sound rewrite is saved with its link.
+- **DS-B64-4:** removing a function together with its calls is allowed.
 
 ---
 
