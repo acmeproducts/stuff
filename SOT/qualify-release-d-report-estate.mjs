@@ -143,6 +143,15 @@ try{
   ok(JSON.parse(await fr2.evaluate(()=>localStorage.sotDbLayout)).groups.length===0,'reset');await fr2.click('#modalcancel');await pg.waitForTimeout(200);
   pass('Reset columns restores order, grouping and search');
   fr=fr2}
+ // Duplicates preset
+ {await fr.evaluate(()=>{omniDraft='';omniQuery='';show('Database')});await pg.waitForTimeout(500);
+  await fr.click('.ssot-search-head button:has-text("Duplicates")');await pg.waitForTimeout(600);
+  const q=await fr.evaluate(()=>[omniQuery,sortField,sortDir,JSON.stringify(__ssotLayout.groups)]);ok(q[0]==='class:keep OR class:excess'&&q[1]==='system_classification'&&q[2]===-1&&q[3]==='["fingerprint"]','preset state '+q);
+  const gh=await fr.$$eval('#Database tbody tr.ssot-grp',e=>e.map(x=>x.innerText.replace(/\s+/g,' ').trim()));ok(gh.length===2&&/2 copies/.test(gh[0])&&/100\.0 GB reclaimable/.test(gh[0])&&/in s2, s3|in s3, s2/.test(gh[0])&&/1 copy/.test(gh[1]),'duplicate group headers '+JSON.stringify(gh));
+  await fr.click('#Database tbody tr.ssot-grp:nth-child(1)');await pg.waitForTimeout(250);
+  const cls=await fr.$$eval('#Database tbody tr[data-pid]',r=>r.map(x=>x.innerText));ok(cls.length===2&&/KEEP/.test(cls[0])&&/EXCESS/.test(cls[1]),'KEEP first, EXCESS after '+JSON.stringify(cls));
+  pass('Duplicates preset: only KEEP/EXCESS files, grouped by fingerprint, biggest reclaimable first, header shows copies / reclaimable / estates, KEEP listed before its EXCESS copies');
+  await fr.evaluate(()=>{__ssotColumnsModal();document.getElementById('ssotColReset').click()});await pg.waitForTimeout(300);await fr.click('#modalcancel');await fr.evaluate(()=>{omniDraft='';omniQuery='';sortField='placement_no';sortDir=-1;renderDatabase()});await pg.waitForTimeout(300)}
  // Job Status
  await fr.evaluate(()=>__ssotOpenReportMode('Analyze'));await pg.waitForTimeout(300);ok(await fr.evaluate(()=>document.getElementById('Analyze').classList.contains('on')&&document.getElementById('Analyze').innerText.length>20),'job status pane');ok(await fr.$$eval('#Analyze .ssot-report-switch button',b=>b[1].textContent.trim()==='Job Status'&&b[1].classList.contains('on')),'job status nav');pass('Job Status renders the existing job/source status surface');
  await pg.context().close();
