@@ -24,7 +24,7 @@
         hz.querySelectorAll('[data-h]').forEach(b=>b.onclick=()=>update({timeHorizon:b.dataset.h},'horizon'));
       }
       if(legend){
-        legend.innerHTML=r.sets.map(z=>'<button class="lg '+(z.id===ctl.spec.activeSeries?'active':'')+' '+(z.a.length?'':'empty')+'" data-id="'+esc(z.id)+'" '+(z.a.length?'':'disabled aria-disabled="true"')+'>'+legendSample(z)+esc(z.label)+(z.id===ctl.spec.root?'':'<span class="nowRemove" data-rm="'+esc(z.id)+'" aria-label="Remove '+esc(z.label)+'">×</span>')+'</button>').join('')+(options.showAdd===false?'':'<button class="lg nowAddChip" data-controller-add>+ Add</button>');
+        legend.innerHTML=r.sets.map(z=>'<button class="lg '+(z.id===ctl.spec.activeSeries?'active':'')+' '+(z.a.length?'':'empty')+'" data-id="'+esc(z.id)+'" '+(z.a.length?'':'disabled aria-disabled="true"')+'>'+legendSample(z)+esc(z.label)+(z.id===ctl.spec.root?'':'<span class="'+esc(options.removeClass||'seriesX')+'" data-rm="'+esc(z.id)+'" aria-label="Remove '+esc(z.label)+'">×</span>')+'</button>').join('')+(options.showAdd===false?'':'<button class="'+esc(options.addClass||'lg')+'" data-controller-add>+ Add</button>');
         legend.querySelectorAll('[data-id]').forEach(b=>b.onclick=e=>{if(e.target.closest('[data-rm]')||b.disabled)return;update({activeSeries:b.dataset.id},'active')});
         legend.querySelectorAll('[data-rm]').forEach(x=>x.onclick=e=>{e.stopPropagation();const id=x.dataset.rm,next=ctl.spec.series.filter(v=>v!==id);update({series:next,activeSeries:ctl.spec.activeSeries===id?ctl.spec.root:ctl.spec.activeSeries},'remove')});
         const add=legend.querySelector('[data-controller-add]');if(add)add.onclick=()=>options.onAdd?.(instance);
