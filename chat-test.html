@@ -449,6 +449,11 @@ function speakText(text,lang){
  function scriptOf(text){let best=null,n=0;for(const k in SCRIPT_RE){const m=String(text).match(SCRIPT_RE[k]);const c=m?m.length:0;if(c>n){n=c;best=k}}return best}
  function scriptSide(text){const sc=scriptOf(text);if(!sc)return null;const l=langs(),hit=SIDES.filter(s=>(SCRIPT[l[s]]||'latin')===sc||(sc==='han'&&l[s]==='ja'));return hit.length===1?hit[0]:null}
  function langCode(lang,alt){let c=lang;if(!c&&alt&&Array.isArray(alt.languages)&&alt.languages[0])c=alt.languages[0];return c?String(c).toLowerCase().split('-')[0]:null}
+ function wordSide(text){const l=langs(),a=hooks&&hooks.words?hooks.words(l.south):null,b=hooks&&hooks.words?hooks.words(l.north):null;if(!a||!b||l.south===l.north)return null;
+  const tk=String(text).toLowerCase().match(/[\p{L}\p{M}]+(?:'[\p{L}\p{M}]+)?/gu)||[];let south=0,north=0;
+  tk.forEach(t=>{const x=a.has(t),y=b.has(t);if(x&&!y)south++;else if(y&&!x)north++});
+  return south===north?null:{side:south>north?'south':'north',south:south,north:north};
+ }
  function sideForLang(code){const l=langs();const hit=SIDES.filter(s=>l[s]===code);return hit.length===1?hit[0]:null}
 
  function heard(pipe,text,lang,alt){
@@ -479,6 +484,11 @@ function speakText(text,lang){
   if(last.side){const age=t-last.ts;if(age<c.lockMs&&score[last.side]!=null)score[last.side]+=0.15;else{const o=last.side==='south'?'north':'south';if(age<c.turnMs&&score[o]!=null)score[o]+=0.05}}
   const ranked=Object.keys(score).sort((a,b)=>score[b]-score[a]);
   const top=ranked[0],second=ranked[1];
+  /* Both channels returned the same speech (look-alike languages such as English/Filipino or Malay/Indonesian): the channel that transcribed it proves nothing, so the words decide. Words that fit neither or both languages change nothing. */
+  if(top&&second&&score[top]>=c.threshold&&score[second]>=c.threshold&&dice(clean(best[top].text),clean(best[second].text))>=0.8){
+   const w=wordSide(best[top].text);
+   if(w){rec('owner-by-words','ok',{side:w.side,south:w.south,north:w.north});deliver(w.side,best[w.side],'words',{score:+score[w.side].toFixed(2),runnerUp:+score[w.side==='south'?'north':'south'].toFixed(2)});return}
+  }
   if(top&&score[top]>=c.threshold&&(!second||score[top]-score[second]>=c.margin)){deliver(top,best[top],'scored',{score:+score[top].toFixed(2),runnerUp:second?+score[second].toFixed(2):null});return}
   const side=top||p.items[0].pipe,item=best[side]||p.items[0];
   rec('low-confidence-owner','blocked',{side:side,score:top?+score[top].toFixed(2):null,runnerUp:second?+score[second].toFixed(2):null,reason:'placed-in-compose'});
@@ -2599,7 +2609,9 @@ function dgLangParam(room) {
             ov.querySelector('.ask-no').addEventListener('click',function(){resolveAsk(false)});
         });
 
+        var wordSets={};
         window.audioTurn.bind({mic:mic,langOf:langOf,diag:diag,toast:toastMsg,
+            words:function(lang){var d=getDict(lang);if(!d||!d.length)return null;if(!wordSets[lang]||wordSets[lang].n!==d.length)wordSets[lang]={n:d.length,set:new Set(d.map(function(w){return String(w).toLowerCase()}))};return wordSets[lang].set},
             send:function(side,text,via){window.__clVia=via||null;try{sendFrom(side,text,true)}finally{window.__clVia=null}},
             ownsMic:function(side){return INPUT.owner===side&&INPUT.mode==='mic'},
             paint:function(side,on){if(on)paintActive(side,'mic');else{var m=document.querySelector('#strip-'+side+' .micbtn');if(m){m.classList.add('off');m.dataset.on='false';m.dataset.owned='false'}}},

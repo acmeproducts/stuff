@@ -36,6 +36,21 @@ test('open mode: opening the North keyboard does not cut read-aloud that is play
  assert.equal(await page.evaluate(()=>audioTurn.state().phase),'playing','read-aloud still playing after the North keyboard opens');
  assert.equal(await page.locator('#strip-north .tts').getAttribute('data-on'),'true','speaker button stays on');
 });
+test('open mode: English and Filipino channels both hear the same speech; the words decide who spoke, ties still go to compose',async({page})=>{
+ await page.evaluate(()=>{localStorage.setItem('tb_dg_key','synthetic-key');localStorage.setItem('chat_test_audio',JSON.stringify({mode:'open',tones:true,resumeMs:300}))});
+ await page.route(/\/dict\/(en|fil)\.json/,route=>{const l=/\/dict\/(en|fil)\.json/.exec(route.request().url())[1];return route.fulfill({path:require('node:path').join(__dirname,'../../dict/'+l+'.json'),contentType:'application/json',headers:{'access-control-allow-origin':'*'}})});
+ await create(page,'EnFil','en','fil');await page.waitForFunction(()=>mic.south.active&&mic.north.active);
+ await page.waitForFunction(()=>{try{return JSON.parse(localStorage.getItem('duck_dict_fil')||'[]').length===10636&&JSON.parse(localStorage.getItem('duck_dict_en')||'[]').length===17523}catch(e){return false}},null,{timeout:15000});
+ const sock=l=>page.testSockets.filter(w=>w.url().includes('language='+l)).slice(-1)[0];
+ const both=(text,sc,nc)=>{final(sock('en-US'),text,sc);final(sock('tl'),text,nc)};
+ both('I would like to order a coffee please',.99,.97);await settled(page,1);
+ assert.equal(await page.evaluate(()=>HIST[0].side),'south','English words go to South even though the Filipino channel scored almost the same');
+ both('Gusto ko ng kape pakiusap',.96,.97);await settled(page,2);
+ assert.equal(await page.evaluate(()=>HIST[1].side),'north','Filipino words go to North');
+ await page.waitForTimeout(1700);both('Okay thank you',.99,.97);await page.waitForTimeout(1500);
+ assert.equal(await page.evaluate(()=>HIST.length),2,'words that fit both languages are not guessed: they go to compose as before');
+ assert.ok((await events(page,'low-confidence-owner')).length>=1);
+});
 test('open mode: mute, typing keeps mics, portal closes and reopens them, unsure goes to compose',async({page})=>{
  const s=await openRoom(page,'Mute');
  await page.locator('#strip-south .micbtn').click();await page.waitForFunction(()=>!mic.south.on&&mic.north.on);
