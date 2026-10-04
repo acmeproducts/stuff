@@ -6,8 +6,8 @@ Deploy target: `https://acmeproducts.github.io/stuff/devstream.html`
 Test target: `https://acmeproducts.github.io/stuff/devstream-test.html`
 
 ## Status
-- Current release: v1.0 b68 on devstream-test.html (2026-10-04)
-- Stage: TEST (b68)
+- Current release: v1.0 b69 on devstream-test.html (2026-10-04)
+- Stage: TEST (b69)
 
 ## Release Rules (inherited, proven)
 1. Mobile-first. All diagnostics in-app. No DevTools ever.
@@ -255,6 +255,27 @@ b39 incorrectly changed stationary hold into context-menu activation. Devstream 
 ## Graveyard
 - **G-DS-13 — Hold opens context menu:** rejected; donor behavior is double-tap context, hold-to-drag.
 - **G-DS-14 — Legacy generic #tabContext button styling:** rejected; it corrupts the donor context-menu appearance.
+
+---
+
+# 2026-10-04 — b69 cloud runner REJECTED and removed; screen stays on during a run
+
+## Owner report
+The cloud runner (b68) needed per-device setup (an access code on each device), repo secrets and a GitHub workflow. Owner: "this is a joke… not doing device specific setups… I hate gh workflow it breaks and I get spammed." Rejected the same session.
+
+## Change
+- Removed the whole cloud runner (`devstream/runner/`, its deploy workflow, the Config row, all page code). The Worker already deployed on Cloudflare is inert (no secrets, refuses every call); delete it from the Cloudflare dashboard if wanted.
+- Kept from b68: a failed or stopped run is no longer silently started again; a status write that collides with another device now merges.
+- New, zero setup: while a run is going the page asks the phone to keep the screen on (Screen Wake Lock), so the phone does not sleep and pause the page. Banner says so.
+- Limit (unchanged): runs live in the page. Locking the phone manually or closing the page still stops them.
+
+## Acceptance
+- **DS-B69-1:** while a run is active the screen wake lock is held; it is released when no run is active.
+- **DS-B69-2:** a failed run is not started again by itself (was DS-B68-8).
+- **DS-B69-3:** no cloud-runner code, config row or workflow remains.
+
+## Graveyard
+- **G-DS-17 — Cloud runner (Cloudflare Worker + access code + secrets + deploy workflow):** rejected 2026-10-04. Reason: per-device setup and a GitHub workflow. Do not bring back without a design that needs no per-device step and no workflow.
 
 ---
 
