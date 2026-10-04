@@ -316,7 +316,7 @@ No unresolved release-blocking gap remains. Red-team disposition: CLEARED FOR OW
 ### Final review disposition
 - MANAGER: CLEARED
 - RED TEAM: CLEARED
-- PRODUCT IMPLEMENTATION: OWNER APPROVED 2026-10-04 / STAGE 0 PASS / STAGE 1 IN PROGRESS
+- PRODUCT IMPLEMENTATION: OWNER APPROVED 2026-10-04 / STAGES 0–1 PASS / STAGE 2 IN PROGRESS
 
 
 ### Execution record — Stage 0
@@ -326,3 +326,10 @@ No unresolved release-blocking gap remains. Red-team disposition: CLEARED FOR OW
 - Screenshots and JSON characterization uploaded as workflow evidence.
 - Initial harness failure on narrow viewports was caused by the accepted rail being intentionally collapsed; the harness was corrected to open the rail before testing Library. No product code was changed.
 - Passing run: GitHub Actions run `37194989755`.
+
+
+### Execution record — Stage 1
+- Dependency/seam map: PASS.
+- Accepted chart operations, chart-related state keys, DOM roles, consumer/application boundaries and future controller ownership are recorded in `market-navigator-turn37-stage1-map.json`.
+- The initial map gate failure was a test-regex defect that matched `health` as if it were the horizon key `h`; only the gate matcher was corrected. No product code changed.
+- Passing run: GitHub Actions run `37195154351`.

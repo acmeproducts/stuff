@@ -1,82 +1,38 @@
 name: Market Navigator Turn 37 Stage 2 Shadow
 on:
   push:
-    branches: [main]
     paths:
-      - 'market-navigator-turn37-shadow.js'
-      - 'market-navigator-build-turn37-stage2.py'
+      - 'market-navigator-turn37-stage2-shadow.html'
+      - 'market-navigator-turn37-stage2-gate.mjs'
       - 'market-navigator-turn37-stage2-qa.mjs'
       - '.github/workflows/market-navigator-turn37-stage2.yml'
   workflow_dispatch:
-permissions: {contents: write}
+permissions: {contents: read}
 jobs:
   shadow:
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
       - uses: actions/checkout@v4
-        with: {fetch-depth: 0}
-      - uses: actions/setup-python@v5
-        with: {python-version: '3.12'}
       - uses: actions/setup-node@v4
         with: {node-version: '22'}
-      - name: Accepted baseline identity
+      - name: Verify accepted baseline
         run: test "$(git hash-object market-navigator-turn28-post-ship.html)" = "9ce7f67451f9e1b7804927ce5c56adb667614724"
-      - name: Build shadow candidate
-        run: python market-navigator-build-turn37-stage2.py
-      - name: True-module dependency gate
-        run: |
-          python - <<'PY'
-          from pathlib import Path
-          s=Path('market-navigator-turn37-shadow.js').read_text()
-          module=s.split('window.MNChartController37=')[0]
-          forbidden=['renderV1(','openV2(','renderV2(','sourceSet25(','removeNowSeries25(','setNowFooter(','wireNowHz(','axisPlan(','draw(','captureNowState(','openNowPicker25(','renderNowPicker25(','renderStandaloneAnalysis26(','sourceSetStandalone26(','renderAnalysisHz26(','openAnalysisPicker26(','renderAnalysisPicker26(']
-          bad=[x for x in forbidden if x in module]
-          assert not bad,bad
-          assert 'now' not in module.lower().replace('known','')
-          assert 'analysis' not in module.lower()
-          print('PASS shadow controller does not call legacy chart behavior or name consumers')
-          PY
+      - name: Source isolation gate
+        run: node market-navigator-turn37-stage2-gate.mjs
       - name: JavaScript syntax
         run: |
-          python - <<'PY'
-          import re,pathlib
-          s=pathlib.Path('market-navigator-turn37-stage2.html').read_text()
-          pathlib.Path('/tmp/mn37s2.js').write_text('\n'.join(re.findall(r'<script[^>]*>(.*?)</script>',s,re.S)))
-          PY
-          node --check /tmp/mn37s2.js
+          node - <<'JS'
+          const fs=require('fs'),vm=require('vm'),s=fs.readFileSync('market-navigator-turn37-stage2-shadow.html','utf8');
+          for(const [i,m] of [...s.matchAll(/<script([^>]*)>([\s\S]*?)<\/script>/gi)].entries())if(!/\bsrc\s*=/.test(m[1])&&m[2].trim())new vm.Script(m[2],{filename:'stage2-'+i+'.js'});
+          console.log('PASS JS syntax');
+          JS
       - name: Install browser
         run: |
-          npm ci
-          npm install --no-save playwright@1.63.0
+          npm install --no-save --package-lock=false playwright@1.63.0
           npx playwright install --with-deps chromium
-      - name: Baseline visual and interaction differential
+      - name: Differential qualification
         run: |
-          python -m http.server 8123 >/tmp/mn37-stage2-http.log 2>&1 &
-          SERVER=$!
-          trap 'kill $SERVER || true' EXIT
-          sleep 2
-          MN_CAND_URL=http://127.0.0.1:8123/market-navigator-turn37-stage2.html node market-navigator-turn37-stage0-qa.mjs
-          MN_URL=http://127.0.0.1:8123/market-navigator-turn37-stage2.html node market-navigator-turn37-stage2-qa.mjs
-      - name: Record passing stage
-        run: |
-          python - <<'PY'
-          import json
-          from pathlib import Path
-          Path('market-navigator-turn37-stage2-evidence.json').write_text(json.dumps({
-            'stage':2,'status':'PASS','baselineBlob':'9ce7f67451f9e1b7804927ce5c56adb667614724',
-            'visualDifferential':'PASS','interactionDifferential':'PASS','shadowParity':'PASS',
-            'scope':'non-driving shadow controller; accepted NOW remains authoritative'
-          },indent=2)+'\n')
-          PY
-      - name: Publish qualified stage candidate
-        run: |
-          git config user.name github-actions[bot]
-          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
-          git fetch origin main
-          git merge --ff-only origin/main
-          python market-navigator-build-turn37-stage2.py
-          git add market-navigator-turn37-stage2.html market-navigator-turn37-stage2-evidence.json
-          git diff --cached --quiet && exit 0
-          git commit -m 'Market Navigator Turn 37 Stage 2: qualify shadow controller'
-          git push origin HEAD:main
+          python3 -m http.server 8123 >/tmp/mn37-stage2-http.log 2>&1 &
+          SERVER=$!; trap 'kill $SERVER || true' EXIT; sleep 2
+          node market-navigator-turn37-stage2-qa.mjs
