@@ -2,6 +2,10 @@
 from pathlib import Path
 
 src=Path('market-navigator-turn37-stage5.html').read_text()
+decl="let openStandaloneAnalysis26,closeStandaloneAnalysis26,standaloneAnalysisState26;"
+strict="(()=>{'use strict';"
+if strict not in src: raise SystemExit('strict runtime anchor missing')
+src=src.replace(strict,strict+decl,1)
 picker=Path('market-navigator-turn37-stage6-picker.js').read_text()
 unified=Path('market-navigator-turn37-stage6-unified.js').read_text()
 

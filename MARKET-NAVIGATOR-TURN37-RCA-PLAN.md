@@ -396,3 +396,10 @@ No unresolved release-blocking gap remains. Red-team disposition: CLEARED FOR OW
 - The next Stage 6 attempt passed build, source-retirement and JavaScript syntax, then failed because the candidate never reached the established ready state.
 - No candidate was published.
 - A read-only browser diagnostic was added to capture the exact runtime exception before any Stage 6 product correction is attempted.
+
+
+#### Stage 6 boot RCA — strict-scope compatibility names
+- Diagnostic proved the first runtime failure was `openStandaloneAnalysis26 is not defined`.
+- Cause: the accepted application executes inside a strict-mode IIFE. Stage 6 correctly removed the legacy Analyze implementation, but the later controller adapter assigns the compatibility name. In strict mode that assignment requires the name to have been declared first.
+- Correction: declare only the three compatibility names (`openStandaloneAnalysis26`, `closeStandaloneAnalysis26`, `standaloneAnalysisState26`) at the application scope; the first two are assigned to the controller-backed Analyze adapter and the third is a thin read-only snapshot wrapper.
+- No legacy Analyze renderer, series preparation, horizon renderer, or picker is restored.

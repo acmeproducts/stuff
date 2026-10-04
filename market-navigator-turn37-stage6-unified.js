@@ -2,6 +2,7 @@
 (()=>{
   const api=window.MNChartController37,counts={total:0,byReason:{}};
   window.__mn37Shadow={resolve:spec=>api.resolve(spec)};
+  standaloneAnalysisState26=()=>S.analysisChartState?JSON.parse(JSON.stringify(S.analysisChartState)):mnxShipState({});
   let nowController=null;
 
   function decorate(r){
