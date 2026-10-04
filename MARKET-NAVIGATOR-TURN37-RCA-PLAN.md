@@ -316,7 +316,7 @@ No unresolved release-blocking gap remains. Red-team disposition: CLEARED FOR OW
 ### Final review disposition
 - MANAGER: CLEARED
 - RED TEAM: CLEARED
-- PRODUCT IMPLEMENTATION: OWNER APPROVED 2026-10-04 / STAGES 0–2 PASS / STAGE 3 IN PROGRESS
+- PRODUCT IMPLEMENTATION: OWNER APPROVED 2026-10-04 / STAGES 0–3 PASS / STAGE 4 IN PROGRESS
 
 
 ### Execution record — Stage 0
@@ -343,3 +343,18 @@ No unresolved release-blocking gap remains. Red-team disposition: CLEARED FOR OW
 - Shadow analytical output matches accepted NOW point-for-point for RSK/GRW/MAC across 5D/YTD/1YR/3YR/5YR and Fixed/Horizon, plus standalone Analyze root parity.
 - The first Stage 2 harness run failed only because the test stayed inside RSK while attempting to click GRW; the harness was corrected to return to ENV between root tests. No product code changed.
 - Passing run: GitHub Actions run `37195390457`.
+
+
+### Execution record — Stage 3
+- Analyze driven by the shared controller while NOW remains on the accepted path: PASS.
+- NOW DOM/state/geometry and plotted canvas remained baseline-equivalent at 1887×800, 1440×900, 800×1280 and 412×915.
+- Analyze horizon/display changes did not mutate NOW state.
+- Library remained usable while Analyze was parked; returning to NOW restored the same Analyze state.
+- Accepted Plain / Standard / Technical controls remained intact.
+- The latest apparent Stage 3 failure was isolated to raw PNG file-byte nondeterminism at the 412px viewport; product DOM/state/geometry and canvas output matched. The flaky PNG-byte assertion was replaced with exact DOM/state/geometry plus exact canvas comparison. No product code changed.
+- Passing run after harness correction: GitHub Actions run 37197667596.
+
+### Execution record — Stage 4
+- Status: IN PROGRESS.
+- Scope is limited to the shared grouped batch Add state machine and its NOW/Analyze adapters.
+- NOW chart rendering/controller cutover remains explicitly out of scope until Stage 4 passes.
