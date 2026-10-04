@@ -390,70 +390,6 @@ function gameOver(){
   elHint.textContent='';
 }
 function addFloater(x,y,text,color){floaters.push({x:x,y:y,text:text,color:color||'#fff',t:0});}
-function update(dt){
-  if(isTiming&&(state===ST.RUN||state===ST.FALL)){
-    var now=performance.now();var cur=survivalSeconds+(now-runStartTime)/1000;
-    elTimer.textContent=formatTime(Math.floor(cur));
-  }else elTimer.textContent=formatTime(Math.floor(survivalSeconds));
-  if(state===ST.RUN){
-    flowInterval+=dt;
-    if(flowInterval>=FLOW_SAMPLE_EVERY){
-      flowInterval-=FLOW_SAMPLE_EVERY;
-      var margin=tracks[cart.track].totalLen-cart.s;
-      flowSamples.push(margin/(W||1));
-      if(flowSamples.length>20)flowSamples.shift();
-    }
-  }
-  updateScoreDisplay();
-  if(state===ST.RESCUE_EDIT){
-    camX+=(cart.x-W*0.35/zoom - camX)*Math.min(1,dt*4);
-    camY+=(cart.y-H*0.55/zoom - camY)*Math.min(1,dt*4);
-    return;
-  }
-  var tx,ty;
-  if(state===ST.READY){var e=tracks[editTrack].pts[tracks[editTrack].pts.length-1];tx=e.x-W*0.58/zoom;ty=e.y-H*0.55/zoom;}
-  else if(state===ST.RUN||state===ST.FALL){tx=cart.x-W*0.35/zoom;ty=cart.y-H*0.55/zoom;
-    if(state===ST.FALL && cart.y<camY+H*0.2)ty=cart.y-H*0.3/zoom;}
-  else if(state===ST.SUCK||state===ST.OVER){tx=camX;ty=camY;}
-  var k=Math.min(1,dt*4);camX+=(tx-camX)*k;camY+=(ty-camY)*k;
-  if(state===ST.RUN){
-    var tr=tracks[cart.track];
-    if(!tr||tr.pts.length<2){startFallOffTrack();return;}
-    var p0=pointAt(cart.track,cart.s);
-    var acc=G*Math.sin(p0.ang)-DRAG*cart.v-(cart.v>0?ROLL:(cart.v<0?-ROLL:0));
-    cart.v+=acc*dt;
-    if(cart.v>VMAX)cart.v=VMAX;else if(cart.v<-VMAX)cart.v=-VMAX;
-    var ds=cart.v*dt;cart.s+=ds;totalDistancePx+=Math.abs(ds);
-    if(cart.s>tr.totalLen&&cart.v>0){startFallOffTrack();return;}
-    var p=pointAt(cart.track,cart.s);cart.x=p.x;cart.y=p.y;cart.ang=p.ang;
-    var page=Math.floor(cart.x/pageW);
-    if(page>maxPage){maxPage=page;baseScore+=100;addFloater(cart.x,cart.y-50,'+100','#8cff5a');beep(880,100);}
-  }else if(state===ST.FALL){
-    fall.t+=dt;
-    if(fall.grace>0)fall.grace-=dt;
-    if(cart.flip===1){
-      cart.flipAng+= (Math.PI*2)/0.5 * dt;
-      if(cart.flipAng>=Math.PI*2){cart.flip=2;cart.flipAng=Math.PI*2;}
-    }
-    fall.vy+=G*dt;fall.vx*=0.998;
-    cart.x+=fall.vx*dt;cart.y+=fall.vy*dt;cart.ang+=fall.spin*dt;
-    var land=nearestOnAnyTrack(cart.x,cart.y);
-    if(fall.grace<=0 && land.d<38 && land.d<Math.abs(fall.vy)*0.06+16 && fall.vy>0){
-      landOnTrack(land.track,land.s);return;
-    }
-    if(cart.y>Math.max(H/zoom,camY+H/zoom)+500 || fall.t>10){
-      hole.x=cart.x;hole.y=cart.y+200;die();
-    }
-  }else if(state===ST.SUCK){
-    suck.t+=dt;
-    var dx=hole.x-cart.x,dy=hole.y-cart.y,d=Math.hypot(dx,dy)||1;
-    var pull=600+suck.t*2000;
-    cart.x+=dx/d*pull*dt;cart.y+=dy/d*pull*dt;
-    suck.rot+=22*dt;cart.ang=suck.rot;
-    suck.scale=Math.max(0,1-suck.t*2);
-    if(suck.t>0.8||suck.scale<=0.02)gameOver();
-  }
-}
 function draw(){
   ctx.save();
   ctx.setTransform(DPR*zoom,0,0,DPR*zoom,-camX*DPR*zoom,-camY*DPR*zoom);
@@ -499,6 +435,21 @@ function drawHole(){
   grd.addColorStop(0,'rgba(0,0,0,1)');grd.addColorStop(0.5,'rgba(40,0,70,.95)');grd.addColorStop(1,'rgba(130,60,255,0)');
   ctx.fillStyle=grd;ctx.beginPath();ctx.arc(hole.x,hole.y,90,0,Math.PI*2);ctx.fill();
   ctx.fillStyle='#000';ctx.beginPath();ctx.arc(hole.x,hole.y,26,0,Math.PI*2);ctx.fill();
+}
+// Simple placeholder cart drawing
+function drawCart(x,y,ang,scale){
+  ctx.save();
+  ctx.translate(x,y);
+  ctx.rotate(ang);
+  ctx.scale(scale,scale);
+  ctx.fillStyle='#fff';
+  ctx.beginPath();
+  ctx.moveTo(-10,-5);
+  ctx.lineTo(10,0);
+  ctx.lineTo(-10,5);
+  ctx.closePath();
+  ctx.fill();
+  ctx.restore();
 }
 
 // Gesture handling – simplified: pinch‑zoom removed, double‑tap for jump
