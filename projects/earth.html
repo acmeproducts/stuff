@@ -59,6 +59,7 @@
   <div id="stickBase"><div id="stickKnob"></div></div>
   <button id="btnJumpTouch">JUMP</button>
   <div id="controls">
+    <button id="btnHome">Home</button>
     <button id="btnLog">LOG</button>
     <button id="btnFly">Fly</button>
   </div>
@@ -140,7 +141,7 @@
 </div>
 <script>
 'use strict';
-const BUILD = 'M7.7-runbtn 2026-10-04';
+const BUILD = 'M7.8-seefx 2026-10-04';
 const errBox = document.getElementById('errBox');
 const errLines = document.getElementById('errLines');
 const errTitle = document.getElementById('errTitle');
@@ -261,8 +262,16 @@ async function loadBabylon() {
   throw new Error('All Babylon CDNs failed (' + (lastErr ? lastErr.message : 'unknown') + ')');
 }
 
+let bootDone = false;
 (function init() {
   // M7.7: on a fatal, drop the start overlay so the error log is never hidden behind it
+  // M7.8: if the engine has not booted after 15s, say so in the log and on the overlay
+  setTimeout(function() {
+    if (bootDone) return;
+    logLine('BOOT', 'engine still loading after 15s (slow or blocked CDN?)');
+    const sub = document.getElementById('runSub');
+    if (sub) sub.textContent = 'still loading — slow network? if it never starts, reload; details in LOG once running';
+  }, 15000);
   function fatal(e) {
     showErr('FATAL: ' + (e && e.stack ? e.stack : e));
     const ov = document.getElementById('runOverlay');
@@ -278,6 +287,7 @@ async function loadBabylon() {
 })();
 
 function startApp(cdnUrl) {
+  bootDone = true;
   logLine('BOOT', BUILD + ' via ' + cdnUrl.split('/')[2] + ' tps:' + (navigator.maxTouchPoints || 0) + (window.matchMedia && window.matchMedia('(pointer: coarse)').matches ? ' coarse' : ''));
   const canvas = document.getElementById('renderCanvas');
   const engine = new BABYLON.Engine(canvas, true, { preserveDrawingBuffer: true, stencil: true });
@@ -1436,7 +1446,21 @@ function startApp(cdnUrl) {
         const objUrl = URL.createObjectURL(blob);
         const tex = new BABYLON.Texture(objUrl, scene, false, false, BABYLON.Texture.TRILINEAR_SAMPLINGMODE,
           function() { URL.revokeObjectURL(objUrl); },
-          function() { URL.revokeObjectURL(objUrl); });
+          function() {
+            URL.revokeObjectURL(objUrl);
+            // M7.8: a broken image must never make the terrain mesh invisible
+            // (a not-ready texture stops the whole mesh from rendering) —
+            // revert this tile to its vertex-color appearance instead
+            try {
+              if (t.imgTex === tex) {
+                t.imgTex = null;
+                imgFails++;
+                logLine('IMG', 'texture decode failed tile ' + t.key + ' — colors restored');
+                if (tiles.has(t.key) && t.mesh) rebuildMesh(t);
+              }
+              tex.dispose();
+            } catch (e2) {}
+          });
         tex.wrapU = BABYLON.Texture.CLAMP_ADDRESSMODE;
         tex.wrapV = BABYLON.Texture.CLAMP_ADDRESSMODE;
         if (!tiles.has(t.key) || !settings.imagery) { tex.dispose(); return; }
@@ -1577,6 +1601,12 @@ function startApp(cdnUrl) {
     updateTouchUI();
   }
   btnFly.addEventListener('click', function() { setFly(!flyMode); });
+  // M7.8: Home button — one tap back to San Francisco in case a saved
+  // position ever strands the player somewhere with no terrain in sight
+  document.getElementById('btnHome').addEventListener('click', function() {
+    teleport(SF.lat, SF.lon);
+    logLine('HOME', 'returned to San Francisco');
+  });
   document.addEventListener('keydown', function(e) {
     if (e.key === 'f' || e.key === 'F') setFly(!flyMode);
   });
@@ -1834,8 +1864,8 @@ function startApp(cdnUrl) {
   // ---- time of day ----
   const dayTop = new BABYLON.Color3(0.2, 0.45, 0.85);
   const dayHor = new BABYLON.Color3(0.7, 0.82, 0.94);
-  const nightTop = new BABYLON.Color3(0.01, 0.02, 0.06);
-  const nightHor = new BABYLON.Color3(0.05, 0.08, 0.14);
+  const nightTop = new BABYLON.Color3(0.06, 0.08, 0.16);
+  const nightHor = new BABYLON.Color3(0.14, 0.18, 0.27);
   const sunsetHor = new BABYLON.Color3(0.98, 0.5, 0.24);
   function fmtTOD(h) {
     const hh = Math.floor(h) % 24;
@@ -1852,8 +1882,9 @@ function startApp(cdnUrl) {
     } else {
       sun.direction = new BABYLON.Vector3(Math.sin(az), -elev, Math.cos(az) * 0.5).normalize();
     }
-    sun.intensity = 0.15 + 1.1 * daylight;
-    hemi.intensity = 0.28 + 0.38 * daylight;
+    // M7.8: moonlight floors — night is dim but never pitch black
+    sun.intensity = 0.35 + 0.9 * daylight;
+    hemi.intensity = 0.5 + 0.3 * daylight;
     const dl = Math.min(daylight + 0.06, 1);
     let top = BABYLON.Color3.Lerp(nightTop, dayTop, dl);
     let hor = BABYLON.Color3.Lerp(nightHor, dayHor, dl);
@@ -2104,11 +2135,12 @@ function startApp(cdnUrl) {
       lastPosSave = performance.now();
       savePos(lat, lon);
     }
-    let terr = 0, proc = 0, lcTiti = 0, vegTotal = 0;
+    let terr = 0, proc = 0, lcTiti = 0, vegTotal = 0, built = 0;
     for (const t of tiles.values()) {
       if (t.state === 'terr') terr++; else proc++;
       if (t.lcSrc === 'titi') lcTiti++;
       vegTotal += t.vegCount || 0;
+      if (t.mesh) built++;
     }
     let osmAreas = 0, osmProcAreas = 0, osmFeats = 0;
     for (const a of cityLive.values()) {
@@ -2128,7 +2160,7 @@ function startApp(cdnUrl) {
       ' Time:' + fmtTOD(settings.tod) + (settings.autoTod ? 'A' : '') +
       ' Q:' + settings.detail +
       (zoomMult !== 1 ? ' Zoom:' + zoomMult.toFixed(1) + 'x' : '') +
-      '<br>Tiles:' + tiles.size + ' (ring ' + RING + ')' +
+      '<br>Tiles:' + built + '/' + tiles.size + ' (ring ' + RING + ')' +
       '<br>SRC: TERR ' + terr + ' / PROC ' + proc +
       '<br>IMG: ' + (settings.imagery ? ('OK ' + imgOk + ' / FAIL ' + imgFails + ' · Imagery © Esri & contributors') : 'off') +
       '<br>LC: ' + (lcTiti > 0 ? 'TITI ' + lcTiti + ' / ' : '') + 'PROC ' + (tiles.size - lcTiti) + ' · VEG ' + vegTotal +
@@ -2143,8 +2175,20 @@ function startApp(cdnUrl) {
   });
 
   let prevRotX = camera.rotation.x;
+  let renderFrames = 0;
   function renderFrame() {
     scene.render();
+    renderFrames++;
+    if (renderFrames === 12) {
+      // M7.8: one-time "what the camera sees" snapshot for the exportable log
+      let tb = 0;
+      for (const t of tiles.values()) { if (t.mesh) tb++; }
+      logLine('RENDER', 'meshes:' + scene.meshes.length + ' tiles:' + tb + '/' + tiles.size +
+        ' cam:' + camera.position.x.toFixed(0) + ',' + camera.position.y.toFixed(1) + ',' + camera.position.z.toFixed(0) +
+        ' rot:' + camera.rotation.x.toFixed(2) + ',' + camera.rotation.y.toFixed(2) +
+        ' tod:' + fmtTOD(settings.tod) + ' fog:' + scene.fogDensity.toFixed(5) +
+        ' img:' + imgOk + 'ok/' + imgFails + 'fail @' + lastLat.toFixed(4) + ',' + lastLon.toFixed(4));
+    }
     if (settings.invertY) {
       const dx = camera.rotation.x - prevRotX;
       if (dx !== 0) camera.rotation.x = prevRotX - dx;
@@ -2156,12 +2200,22 @@ function startApp(cdnUrl) {
   const btnRun = document.getElementById('btnRun');
   btnRun.disabled = false;
   btnRun.textContent = '▶ RUN';
-  document.getElementById('runSub').textContent = BUILD + ' · ready';
-  btnRun.addEventListener('click', function() {
+  document.getElementById('runSub').textContent = BUILD + ' · ready — tap anywhere';
+  // M7.8: guarded start — the button, a tap anywhere on the overlay, Enter or
+  // Space all start the loop, and it can never double-start
+  let started = false;
+  function startRun(how) {
+    if (started) return;
+    started = true;
     const ov = document.getElementById('runOverlay');
     if (ov) ov.style.display = 'none';
-    logLine('RUN', 'render loop started by user');
+    logLine('RUN', 'render loop started by ' + how);
     engine.runRenderLoop(renderFrame);
+  }
+  btnRun.addEventListener('click', function(e) { e.stopPropagation(); startRun('button'); });
+  document.getElementById('runOverlay').addEventListener('click', function() { startRun('tap'); });
+  window.addEventListener('keydown', function(e) {
+    if (!started && (e.key === 'Enter' || e.key === ' ')) startRun('key');
   });
   window.addEventListener('resize', function() { engine.resize(); updateTouchUI(); });
 }
