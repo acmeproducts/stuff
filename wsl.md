@@ -47,6 +47,10 @@ Change: wsl.html restored byte-for-byte from snow-v1.html, then built up in thre
   - Replay: the game records the cart ~30×/s and every track point as it was drawn. After game over a **▶ Replay** button (also ⚙️ → Replay session, which works in Zen and mid-run). Sequence: whole journey fitted on screen with START/END markers and a dashed path (2.2 s) → eased zoom to the start (2.4 s) → playback with the track being drawn again and the cart following. Controls: speed 1×/2×/4×, Skip ▸ (next phase; ↻ Again at the end), ✕ Close (restores the finished game or resumes the session exactly). Input is ignored during replay. Tests: `replay.mjs`; launch check added to `physics.mjs`.
   - Not in replay: floating text (+100 etc.) and sound.
 
+- **Characters + mid-flight landing burst (2026-10-04, owner request).**
+  - Settings → Character: 16 choices to replace the snowman on the cart (snowman, penguin, fox, cat, dog, panda, duck, Santa, robot, alien, ghost, pumpkin, pizza, potato, rocket, ball). Saved on device; also shown on the game-over screen and in replays.
+  - Tap the character while it is in the air (within about 60 px of it) to arm a burst (cyan ring + "BURST READY"). On landing it gets +450 px/s on top of its normal speed, which fades out in about a second and a half (time constant 0.45 s). The normal momentum is not changed, so speed returns to what physics gives. One burst per flight; tapping elsewhere in the air still does the quick-tap chain boost. Test: `character.mjs` (burst carried it 150-200 px further in the next second; landing speed unchanged within 1%; burst 0 after 3 s).
+
 ## RUN LOG (written by DevStream)
 | Date | Tab | Result | What | Commit |
 |---|---|---|---|---|

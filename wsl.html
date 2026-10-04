@@ -72,7 +72,7 @@
 <div id="hint">Draw to extend • Tap ON track to release ⛄🛒</div>
 <div id="diag">boot…</div>
 <div id="err"></div>
-<div id="overlay"><h1>⛄🛒 → 🕳️</h1><div class="big" id="finalScore">0</div><p id="finalBest"></p><p id="finalStats"></p><button class="opt" id="btnReplay" style="margin-top:10px;flex:none;min-width:160px">▶ Replay</button><div class="cta">TAP TO RIDE AGAIN</div></div>
+<div id="overlay"><h1><span id="ovChar">⛄</span>🛒 → 🕳️</h1><div class="big" id="finalScore">0</div><p id="finalBest"></p><p id="finalStats"></p><button class="opt" id="btnReplay" style="margin-top:10px;flex:none;min-width:160px">▶ Replay</button><div class="cta">TAP TO RIDE AGAIN</div></div>
 
 <div id="modeSel"><h1>⛄ Choose your ride</h1><p>Zen is endless and calm: no game over, no score, soft sound. You can switch any time in ⚙️.</p>
   <div class="row"><button class="opt big" id="modeRegular">Regular</button><button class="opt big" id="modeZen">Zen</button></div></div>
@@ -80,6 +80,7 @@
   <h3>Mode</h3><div class="row"><button class="opt" data-mode="regular">Regular</button><button class="opt" data-mode="zen">Zen</button></div>
   <h3>Intensity</h3><div class="row"><button class="opt" data-preset="low">Low</button><button class="opt" data-preset="med">Med</button><button class="opt" data-preset="high">High</button><button class="opt" data-preset="custom">Custom</button></div>
   <div class="slr"><span>Jump</span><input type="range" id="jumpForce" min="400" max="2000" step="50"><span class="v" id="jumpVal"></span></div>
+  <h3>Character</h3><div class="row" id="charRow"></div>
   <h3>Momentum</h3><div class="row"><button class="opt" data-momentum="earned">Earned</button><button class="opt" data-momentum="classic">Classic</button></div>
   <h3>Replay</h3><div class="row"><button class="opt" id="btnReplaySession">▶ Replay session</button></div>
   <h3>Audio vibe</h3><div class="row"><button class="opt" data-audio="calm">Calm</button><button class="opt" data-audio="fun">Fun</button><button class="opt" data-audio="whimsical">Whimsical</button><button class="opt" data-audio="zen">Zen</button></div>
@@ -104,7 +105,7 @@ var STNAME=['READY','RUN','FALL','SUCK','OVER','RESCUE'];
 var state=ST.READY;
 
 var tracks=[],editTrack=0;
-var cart={track:0,s:0,v:0,x:0,y:0,ang:0,flip:0,flipAng:0,flipDir:1};
+var cart={track:0,s:0,v:0,x:0,y:0,ang:0,flip:0,flipAng:0,flipDir:1,armed:false,burst:0};
 var fall={vx:0,vy:0,rot:0,spin:0,t:0,grace:0};
 var hole={x:0,y:0};
 var suck={t:0,scale:1,rot:0};
@@ -124,7 +125,7 @@ function recSample(){
   rec.samples.push([rec.t,cart.x,cart.y,cart.ang,(state===ST.FALL&&cart.flip>0)?cart.flipAng:0,state,(state===ST.SUCK?suck.scale:1),hole.x,hole.y]);
 }
 function recLog(ti,x,y,c,r){if(rec&&!replay&&rec.log.length<REC_MAX*3)rec.log.push([rec.t,ti,x,y,c,r]);}
-var MAXCHARGES=3,LONGPRESS_MS=800,CHAIN_MS=450,BIGJUMP=1.6,FLOW_EVERY=0.5;
+var BURST_V=450,BURST_TAU=0.45,HIT_R=60,MAXCHARGES=3,LONGPRESS_MS=800,CHAIN_MS=450,BIGJUMP=1.6,FLOW_EVERY=0.5;
 
 var G=1050,SLOPEK=0.45,DRAG=0.2,ROLL=30,VMAX=1300,RESCUE_MINV=60,LAUNCH_V=320;
 // Earned: speed has to be built and bleeds away. Classic: the original fast, nearly frictionless feel.
@@ -134,7 +135,9 @@ var PROGRESS_THRESHOLD=80,PROGRESS_LIMIT=4.0;
 var lastProgressX=0,noProgressT=0;
 var AC=null;
 var PRESETS={low:{jump:500},med:{jump:800},high:{jump:1200}};
-var cfg={mode:null,preset:'med',jump:800,audio:'fun',momentum:'earned'};
+var CHARS=[['snowman','⛄'],['penguin','🐧'],['fox','🦊'],['cat','🐱'],['dog','🐶'],['panda','🐼'],['duck','🦆'],['santa','🎅'],['robot','🤖'],['alien','👽'],['ghost','👻'],['pumpkin','🎃'],['pizza','🍕'],['potato','🥔'],['rocket','🚀'],['ball','⚽']];
+function charEmoji(){for(var i=0;i<CHARS.length;i++)if(CHARS[i][0]===cfg.character)return CHARS[i][1];return '⛄';}
+var cfg={mode:null,preset:'med',jump:800,audio:'fun',momentum:'earned',character:'snowman'};
 var paused=false,TIMESCALE_ZEN=0.75,lastOn={track:0,s:0};
 try{var sv=JSON.parse(localStorage.getItem('wsl_settings')||'{}');for(var k in sv)if(k in cfg)cfg[k]=sv[k];}catch(e){}
 if(PRESETS[cfg.preset])cfg.jump=PRESETS[cfg.preset].jump;
@@ -267,7 +270,7 @@ function reset(){
   var y0=H*0.38;
   addPoint(0,W*0.10,y0);addPoint(0,W*0.35,y0+40);addPoint(0,W*0.60,y0+90);
   state=ST.READY;
-  cart={track:0,s:0,v:0,x:0,y:0,ang:0,flip:0,flipAng:0,flipDir:1};
+  cart={track:0,s:0,v:0,x:0,y:0,ang:0,flip:0,flipAng:0,flipDir:1,armed:false,burst:0};
   var p=pointAt(0,0);cart.x=p.x;cart.y=p.y;cart.ang=p.ang;
   score=0;maxPage=0;floaters=[];charges=MAXCHARGES;survival=0;distPx=0;flowSamples=[];flowSum=0;flowN=0;flowT=0;flowBonus=0;chain=0;lastTapT=0;lp=null;stuckT=0;fall.t=0;pendingSwitch=null;
   lastProgressX=cart.x;noProgressT=0;zoom=1;
@@ -282,7 +285,7 @@ function snapCamera(){
 }
 function release(s,trackIdx){
   if(state!==ST.READY)return;
-  state=ST.RUN;cart.track=trackIdx||0;cart.s=s;cart.v=LAUNCH_V;cart.flip=0;cart.flipAng=0;
+  state=ST.RUN;cart.track=trackIdx||0;cart.s=s;cart.v=LAUNCH_V;cart.flip=0;cart.flipAng=0;cart.burst=0;cart.armed=false;
   var p=pointAt(cart.track,cart.s);cart.x=p.x;cart.y=p.y;cart.ang=p.ang;
   lastProgressX=cart.x;noProgressT=0;
   setHint('Tap = jump & flip • Hold = rescue • Pinch = zoom');
@@ -292,12 +295,17 @@ function startFallOffTrack(reason){
   var tr=tracks[cart.track];
   var p=tr?pointAt(cart.track,Math.max(0,Math.min(tr.totalLen,cart.s))):{x:cart.x,y:cart.y,ang:cart.ang};
   fall.vx=Math.cos(cart.ang)*cart.v;fall.vy=Math.sin(cart.ang)*cart.v;
-  fall.rot=cart.ang;fall.spin=fall.vx>=0?10:-10;fall.t=0;fall.grace=0.15;
+  fall.rot=cart.ang;fall.spin=fall.vx>=0?10:-10;fall.t=0;fall.grace=0.15;cart.armed=false;cart.burst=0;
   hole.x=p.x+(fall.vx>=0?260:-260);hole.y=p.y+140;
   state=ST.FALL;
   setHint('Draw to catch the cart • Hold = rescue');
   diagExtra=reason||'fall';
   beep(160,200);
+}
+function hitCart(px,py){var sx=(cart.x-camX)*zoom,sy=(cart.y-camY)*zoom;return Math.hypot(px-sx,py-sy)<=HIT_R;}
+function armBurst(){
+  if(state!==ST.FALL||cart.armed)return;
+  cart.armed=true;addFloater(cart.x,cart.y-60,'BURST READY','#00eaff');beep(740,90);
 }
 function chainTap(){
   var now=performance.now();
@@ -315,7 +323,7 @@ function doJump(){
   fall.vx=Math.cos(cart.ang)*cart.v;fall.vy=Math.sin(cart.ang)*cart.v-cfg.jump;
   fall.rot=cart.ang;fall.spin=0;fall.t=0;fall.grace=0.12;
   // the jump spins the way the cart is travelling: forward momentum = front flip, backward = back flip
-  cart.flip=1;cart.flipAng=0;cart.flipDir=cart.v<0?-1:1;
+  cart.flip=1;cart.flipAng=0;cart.flipDir=cart.v<0?-1:1;cart.armed=false;cart.burst=0;
   state=ST.FALL;diagExtra='jump';beep(520,140);
 }
 function startRescue(x,y){
@@ -336,7 +344,7 @@ function endRescue(){
   var dot=vx*Math.cos(ang)+vy*Math.sin(ang);
   cart.track=idx;cart.s=0;cart.v=Math.min(VMAX,Math.max(RESCUE_MINV,dot));
   var p=pointAt(idx,0);cart.x=p.x;cart.y=p.y;cart.ang=p.ang;
-  cart.flip=0;cart.flipAng=0;state=ST.RUN;stuckT=0;noProgressT=0;lastProgressX=cart.x;
+  cart.flip=0;cart.flipAng=0;cart.burst=0;cart.armed=false;state=ST.RUN;stuckT=0;noProgressT=0;lastProgressX=cart.x;
   setHint('Draw ahead • Hold = Rescue');beep(700,100);
 }
 function landOnTrack(ti,s){
@@ -353,12 +361,14 @@ function landOnTrack(ti,s){
     score+=bonus;beep(1100,120);
   }
   cart.flip=0;cart.flipAng=0;
+  cart.burst=0;
+  if(cart.armed){cart.burst=BURST_V;cart.armed=false;addFloater(cart.x,cart.y-60,'BURST!','#00eaff');beep(980,140);}
 }
 function gentleReturn(){
   var ti=Math.min(lastOn.track,tracks.length-1),tr=tracks[ti];
   if(!tr||tr.pts.length<2){ti=0;tr=tracks[0];}
   cart.track=ti;cart.s=Math.max(0,Math.min(tr.totalLen,lastOn.s)-80);cart.v=60;
-  var p=pointAt(ti,cart.s);cart.x=p.x;cart.y=p.y;cart.ang=p.ang;cart.flip=0;cart.flipAng=0;
+  var p=pointAt(ti,cart.s);cart.x=p.x;cart.y=p.y;cart.ang=p.ang;cart.flip=0;cart.flipAng=0;cart.burst=0;cart.armed=false;
   state=ST.RUN;stuckT=0;noProgressT=0;lastProgressX=cart.x;
   addFloater(cart.x,cart.y-50,'welcome back','#bfe9ff');setHint('Draw more track ahead');beep(520,200);
 }
@@ -401,7 +411,9 @@ function update(dt){
     var acc=G*SLOPEK*Math.sin(p0.ang)-DRAG*cart.v-(cart.v>0?ROLL:(cart.v<0?-ROLL:0));
     cart.v+=acc*dt;
     if(cart.v>VMAX)cart.v=VMAX;else if(cart.v<-VMAX)cart.v=-VMAX;
-    cart.s+=cart.v*dt;distPx+=Math.abs(cart.v*dt);
+    var vb=cart.v+(cart.v<0?-1:1)*cart.burst;
+    cart.s+=vb*dt;distPx+=Math.abs(vb*dt);
+    if(cart.burst>0){cart.burst*=Math.exp(-dt/BURST_TAU);if(cart.burst<5)cart.burst=0;}
     flowT+=dt;if(flowT>=FLOW_EVERY){flowT-=FLOW_EVERY;var m=Math.max(0,(tr.totalLen-cart.s)/(W||1));flowSamples.push(m);if(flowSamples.length>20)flowSamples.shift();flowSum+=m;flowN++;}
     if(cart.s>=tr.totalLen-0.5&&cart.v>0){startFallOffTrack('end');return;}
     if(cart.s<=0.5&&cart.v<0){startFallOffTrack('start');return;}
@@ -457,6 +469,7 @@ function draw(){
   var scl=(state===ST.SUCK)?suck.scale:1;
   var ang=cart.ang+((state===ST.FALL&&cart.flip>0)?cart.flipAng:0);
   drawCart(cart.x,cart.y,ang,scl);
+  if(cart.armed&&state===ST.FALL){ctx.strokeStyle='rgba(0,234,255,'+(0.55+0.35*Math.sin(performance.now()/90))+')';ctx.lineWidth=4/zoom;ctx.beginPath();ctx.arc(cart.x,cart.y-10,34,0,7);ctx.stroke();}
   if(state===ST.FALL||state===ST.SUCK||state===ST.OVER)drawHole();
   for(i=0;i<floaters.length;i++){
     var f=floaters[i];f.t+=0.016;
@@ -507,7 +520,7 @@ function drawCart(x,y,a,s){
   ctx.fillStyle='#101014';
   ctx.beginPath();ctx.arc(-8,-16,4,0,7);ctx.arc(0,-18,5,0,7);ctx.arc(8,-16,4,0,7);ctx.fill();
   ctx.font='24px system-ui,sans-serif';ctx.textAlign='center';ctx.textBaseline='bottom';
-  ctx.fillText('⛄',0,-18);
+  ctx.fillText(charEmoji(),0,-18);
   ctx.restore();
 }
 function drawHole(){
@@ -601,7 +614,7 @@ function gestureEnd(e){
         var w=toWorld(e.clientX,e.clientY),best=nearestOnAnyTrack(w.x,w.y);
         if(best.d<50)release(best.s,best.track);
         else addFloater(w.x,w.y,'Tap the track','#ffd76a');
-      }else if(state===ST.RUN||state===ST.FALL){if(!chainTap()&&state===ST.RUN)doJump();}
+      }else if(state===ST.RUN||state===ST.FALL){if(state===ST.FALL&&hitCart(e.clientX,e.clientY))armBurst();else if(!chainTap()&&state===ST.RUN)doJump();}
     }
     gestureReset();
   }else if(g.phase==='two'){
@@ -766,6 +779,8 @@ function syncUI(){
   var pn=document.getElementById('settingsPanel');
   $('[data-mode]').forEach(function(b){b.classList.toggle('on',b.getAttribute('data-mode')===cfg.mode);});
   $('[data-preset]').forEach(function(b){b.classList.toggle('on',b.getAttribute('data-preset')===cfg.preset);});
+  $('[data-char]').forEach(function(b){b.classList.toggle('on',b.getAttribute('data-char')===cfg.character);});
+  document.getElementById('ovChar').textContent=charEmoji();
   $('[data-momentum]').forEach(function(b){b.classList.toggle('on',b.getAttribute('data-momentum')===cfg.momentum);});
   $('[data-audio]').forEach(function(b){b.classList.toggle('on',b.getAttribute('data-audio')===cfg.audio);});
   document.getElementById('jumpForce').value=cfg.jump;
@@ -780,6 +795,9 @@ document.getElementById('btnSettings').addEventListener('click',function(){docum
 document.getElementById('closeSettings').addEventListener('click',function(){document.getElementById('settingsPanel').style.display='none';saveCfg();syncUI();});
 $('[data-mode]').forEach(function(b){b.addEventListener('click',function(){setMode(b.getAttribute('data-mode'));});});
 $('[data-preset]').forEach(function(b){b.addEventListener('click',function(){var p=b.getAttribute('data-preset');cfg.preset=p;if(PRESETS[p])cfg.jump=PRESETS[p].jump;saveCfg();syncUI();});});
+(function(){var row=document.getElementById('charRow');
+  CHARS.forEach(function(c){var b=document.createElement('button');b.className='opt';b.style.cssText='flex:none;min-width:0;width:56px;padding:8px 0;font-size:26px';b.setAttribute('data-char',c[0]);b.setAttribute('aria-label',c[0]);b.textContent=c[1];
+    b.addEventListener('click',function(){cfg.character=c[0];saveCfg();syncUI();});row.appendChild(b);});})();
 $('[data-momentum]').forEach(function(b){b.addEventListener('click',function(){cfg.momentum=b.getAttribute('data-momentum');applyMomentum();saveCfg();syncUI();});});
 $('[data-audio]').forEach(function(b){b.addEventListener('click',function(){cfg.audio=b.getAttribute('data-audio');saveCfg();syncUI();beep(660,120);});});
 document.getElementById('jumpForce').addEventListener('input',function(e){cfg.jump=+e.target.value;cfg.preset='custom';saveCfg();syncUI();});
@@ -796,7 +814,7 @@ function replayInfo(){
   for(var j=0;j<2;j++){var sx=(c[j][0]-camX)*zoom,sy=(c[j][1]-camY)*zoom;if(sx<0||sx>W||sy<0||sy>H)ok=false;}
   return{active:true,phase:replay.phase,speed:replay.speed,tracksPts:n,fit:ok};
 }
-window.__wsl=function(){var t=tracks[0];return{state:state,zoom:zoom,camX:camX,camY:camY,score:score,flip:cart.flip,flipDir:cart.flipDir,charges:charges,timer:survival,dist:distPx,flow:(flowSamples.length?flowSamples.reduce(function(a,b){return a+b;},0)/flowSamples.length:0),cartTrack:cart.track,gphase:g.phase,mode:cfg.mode,preset:cfg.preset,jump:cfg.jump,momentum:cfg.momentum,audio:cfg.audio,theme:theme(),paused:paused,chain:chain,vy:fall.vy,cart:{x:cart.x,y:cart.y,v:cart.v},pts:t?t.pts.slice():[],ntracks:tracks.length,last:lastResult,rec:rec?{n:rec.samples.length,duration:rec.t}:null,replay:replayInfo(),npts:tracks.reduce(function(n,t){return n+t.pts.length;},0)};};
+window.__wsl=function(){var t=tracks[0];return{state:state,zoom:zoom,camX:camX,camY:camY,score:score,flip:cart.flip,flipDir:cart.flipDir,charges:charges,timer:survival,dist:distPx,flow:(flowSamples.length?flowSamples.reduce(function(a,b){return a+b;},0)/flowSamples.length:0),cartTrack:cart.track,gphase:g.phase,mode:cfg.mode,preset:cfg.preset,jump:cfg.jump,momentum:cfg.momentum,character:cfg.character,armed:cart.armed,burst:Math.round(cart.burst||0),audio:cfg.audio,theme:theme(),paused:paused,chain:chain,vy:fall.vy,cart:{x:cart.x,y:cart.y,v:cart.v},pts:t?t.pts.slice():[],ntracks:tracks.length,last:lastResult,rec:rec?{n:rec.samples.length,duration:rec.t}:null,replay:replayInfo(),npts:tracks.reduce(function(n,t){return n+t.pts.length;},0)};};
 window.__wslLoad=function(pts){reset();var t=tracks[0];t.pts=[];t.cum=[0];t.totalLen=0;t.raw=[];t.segEnd=[];pts.forEach(function(p){addPoint(0,p.x,p.y);});var p0=pointAt(0,0);cart.x=p0.x;cart.y=p0.y;cart.ang=p0.ang;};
 window.__wslSetV=function(v){cart.v=v;};
 resize();reset();requestAnimationFrame(loop);
