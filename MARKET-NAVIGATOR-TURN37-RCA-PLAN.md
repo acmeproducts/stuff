@@ -316,4 +316,13 @@ No unresolved release-blocking gap remains. Red-team disposition: CLEARED FOR OW
 ### Final review disposition
 - MANAGER: CLEARED
 - RED TEAM: CLEARED
-- PRODUCT IMPLEMENTATION: OWNER APPROVED 2026-10-04 / STAGE 0 IN PROGRESS
+- PRODUCT IMPLEMENTATION: OWNER APPROVED 2026-10-04 / STAGE 0 PASS / STAGE 1 IN PROGRESS
+
+
+### Execution record — Stage 0
+- Baseline characterization workflow: PASS.
+- Accepted blob verified exactly: `9ce7f67451f9e1b7804927ce5c56adb667614724`.
+- Viewports characterized: 1887×800, 1440×900, 800×1280, 412×915.
+- Screenshots and JSON characterization uploaded as workflow evidence.
+- Initial harness failure on narrow viewports was caused by the accepted rail being intentionally collapsed; the harness was corrected to open the rail before testing Library. No product code was changed.
+- Passing run: GitHub Actions run `37194989755`.
