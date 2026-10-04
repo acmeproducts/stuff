@@ -34,5 +34,5 @@ function start(){
  return ctl
 }
 const timer=setInterval(()=>{if(window.__mnShip25?.ready?.()){clearInterval(timer);start()}},20);
-window.__mn37Stage5={controller:()=>ctl,state:()=>ctl?.getState()||null,counts:()=>JSON.parse(JSON.stringify(counts)),picker:()=>picker?.getState()||null,parity:()=>window.__mn37Shadow.compareNow(),ready:()=>!!ctl};
+window.__mn37Stage5={controller:()=>ctl,state:()=>ctl?.getState()||null,counts:()=>JSON.parse(JSON.stringify(counts)),picker:()=>picker?.getState()||null,parity:async()=>{const live=ctl?.getState()?.resolved,shadow=await window.__mn37Shadow.resolveNow();return{equal:JSON.stringify(live)===JSON.stringify(shadow),live,shadow}},ready:()=>!!ctl};
 })();
