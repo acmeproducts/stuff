@@ -1841,7 +1841,7 @@ function dgLangParam(room) {
     }
 
     var shifted={south:false,north:false},numMode={south:false,north:false};
-    var comp={south:{raw:'',kana:'',ko:null},north:{raw:'',kana:'',ko:null}};
+    var comp={south:{raw:'',kana:'',ko:null,py:''},north:{raw:'',kana:'',ko:null,py:''}};
     var cands={south:[],north:[]},candIdx={south:-1,north:-1};
     var editRev={south:0,north:0},conversionRev={south:0,north:0};
     var candidateTxn={south:null,north:null},compAnchor={south:null,north:null};
@@ -1875,11 +1875,11 @@ function dgLangParam(room) {
         editRev[side]++;undoEdit[side]=null;invalidateCandidates(side);
     }
     function resetComposition(side){
-        comp[side]={raw:'',kana:'',ko:null};compAnchor[side]=null;
+        comp[side]={raw:'',kana:'',ko:null,py:''};compAnchor[side]=null;
         invalidateCandidates(side);
     }
     function clearDraft(side){
-        resetComposition(side);
+        zhPrev[side]='';resetComposition(side);
         var ta=inputEl(side);ta.value='';ta.setSelectionRange(0,0);
         changedDraft(side);updateClear(side);
     }
@@ -1956,7 +1956,7 @@ function dgLangParam(room) {
             '<button type="button" class="key fn" data-k="CLOSE">✕</button></div>';
         el.querySelector('.kkeys').innerHTML=html+'<svg class="swype-trail" id="trail-'+side+'"></svg><div class="kpop" id="kpop-'+side+'"></div>';
         el.querySelector('.klang').textContent=(LANG_NAMES[langOf(side)]||langOf(side))+
-            (langOf(side)==='ja'?' · romaji→kana':(langOf(side)==='ko'?' · 두벌식':''));
+            (langOf(side)==='ja'?' · romaji→kana':(langOf(side)==='ko'?' · 두벌식':(langOf(side)==='zh'&&pyMap?' · pinyin':'')));
         wireKeyboard(side);
         paintCands(side);
     }
@@ -2321,6 +2321,63 @@ function dgLangParam(room) {
         try{dictCache[lang]=JSON.parse(raw)}catch(e){return null}
         return dictCache[lang];
     }
+    /* ===== Simplified Chinese pinyin input (Track B, 2026-10-04) =====
+       dict/zh-pinyin.json maps tone-less pinyin to ranked words (jieba frequencies, pypinyin readings; MIT).
+       Letters build a pinyin buffer shown in the field; candidates are the words for the whole buffer, then for its longest
+       prefixes. Picking a word replaces that part of the buffer; the rest keeps composing. Every pick is learned on this device
+       (word counts and word pairs) and re-ranks later candidates and offers next words. Memory for the map, localStorage for learning. */
+    var pyMap=null,pyLoading=false;
+    window.zhReady=function(){return !!pyMap};
+    function loadPinyin(){
+        if(pyMap||pyLoading)return;pyLoading=true;
+        fetch('https://raw.githubusercontent.com/acmeproducts/stuff/main/dict/zh-pinyin.json').then(function(r){if(!r.ok)throw new Error(r.status);return r.json()})
+            .then(function(m){if(m&&typeof m==='object'){pyMap=m;diag('pinyin data ready: '+Object.keys(m).length+' syllable strings');if(INPUT.owner&&INPUT.mode==='kb')renderKeys(INPUT.owner)}})
+            .catch(function(e){pyLoading=false;diag('pinyin data unavailable ('+e.message+') — plain typing',true)});
+    }
+    var zhLearn=(function(){var d=null;try{d=JSON.parse(localStorage.getItem('duck_zh_learn'))}catch(e){}return d&&d.w&&d.b?d:{w:{},b:{}}})();
+    var zhPrev={south:'',north:''};
+    function zhSave(){try{localStorage.setItem('duck_zh_learn',JSON.stringify(zhLearn))}catch(e){}}
+    function zhRecord(side,word){
+        var p=zhPrev[side];zhLearn.w[word]=(zhLearn.w[word]||0)+1;
+        if(p){var b=zhLearn.b[p]||(zhLearn.b[p]={});b[word]=(b[word]||0)+1}
+        zhPrev[side]=word;
+        if(Object.keys(zhLearn.w).length>4000){zhLearn.w={};zhLearn.b={}}   // keeps storage bounded
+        zhSave();
+    }
+    function zhNext(prev){var b=prev&&zhLearn.b[prev];if(!b)return[];return Object.keys(b).sort(function(x,y){return b[y]-b[x]}).slice(0,5)}
+    function zhCandidates(buf){
+        var out=[],seen={},lens=0;
+        for(var i=buf.length;i>=1&&lens<3&&out.length<12;i--){
+            var lst=pyMap[buf.slice(0,i)];if(!lst)continue;lens++;
+            var ranked=lst.map(function(w,idx){return{w:w,idx:idx,n:zhLearn.w[w]||0}}).sort(function(a,b){return b.n-a.n||a.idx-b.idx});
+            ranked.slice(0,i===buf.length?9:5).forEach(function(r){var k=r.w+'|'+i;if(!seen[k]){seen[k]=1;out.push({text:r.w,len:i})}});
+        }
+        return out.slice(0,12);
+    }
+    function zhOffer(side){
+        var buf=comp[side].py;if(!buf){zhIdle(side);return}
+        var items=zhCandidates(buf),ta=inputEl(side);
+        offerCandidates(side,items.map(function(i){return i.text}),'pinyin',ta.selectionStart-buf.length,ta.selectionStart);
+        if(candidateTxn[side])candidateTxn[side].items=items;
+    }
+    function zhIdle(side){
+        var ta=inputEl(side),sel=ta.selectionStart;
+        if(!ta.value)zhPrev[side]='';
+        var nx=zhPrev[side]&&ta.value.slice(0,sel).slice(-zhPrev[side].length)===zhPrev[side]?zhNext(zhPrev[side]):[];
+        if(nx.length&&sel===ta.selectionEnd)offerCandidates(side,nx,'zhnext',sel,sel);else invalidateCandidates(side);
+    }
+    function pickPinyin(side,i,transaction){
+        var item=transaction.items&&transaction.items[i];if(!item||!compositionMatches(side))return;
+        var py=comp[side].py,rest=py.slice(item.len),ta=inputEl(side);
+        replaceComp(side,py.length,item.text+rest);
+        zhRecord(side,item.text);
+        if(rest){comp[side].py=rest;compAnchor[side]={value:ta.value,end:ta.selectionStart,lang:langOf(side)};zhOffer(side)}
+        else{comp[side].py='';compAnchor[side]=null;zhIdle(side)}
+    }
+    function zhCommitFirst(side){
+        var t=candidateTxn[side];
+        if(t&&t.kind==='pinyin'&&t.items&&t.items.length)pickPinyin(side,0,t);else flushComp(side);
+    }
     function currentWordFragment(side){
         var ta=inputEl(side);if(!ta)return'';
         var s=ta.selectionStart,text=ta.value.slice(0,s);
@@ -2328,8 +2385,9 @@ function dgLangParam(room) {
         return m?m[0]:'';
     }
     function updateAutocomplete(side){
-        if(comp[side].ko||comp[side].raw||comp[side].kana)return;   // IME composition owns the bar
+        if(comp[side].ko||comp[side].raw||comp[side].kana||comp[side].py)return;   // IME composition owns the bar
         var lang=langOf(side);
+        if(lang==='zh'&&pyMap){zhIdle(side);return}
         var dict=getDict(lang);
         if(!dict){invalidateCandidates(side);return}
         var ta=inputEl(side);
@@ -2348,6 +2406,7 @@ function dgLangParam(room) {
     function compText(side){
         var c=comp[side];
         if(c.ko)return hgSyll(c.ko);
+        if(c.py)return c.py;
         if(c.kana||c.raw)return c.kana+romajiTail(c.raw);
         return '';
     }
@@ -2438,7 +2497,7 @@ function dgLangParam(room) {
         var t=compText(side);
         if(!t||!compositionMatches(side)){resetComposition(side);return}
         var c=comp[side];
-        var final=c.ko?hgSyll(c.ko):romajiToKana(c.raw);
+        var final=c.ko?hgSyll(c.ko):(c.py?c.py:romajiToKana(c.raw));
         replaceComp(side,t.length,final);
         resetComposition(side);
     }
@@ -2450,16 +2509,18 @@ function dgLangParam(room) {
     }
     function press(side,k){
         syncEditorSelection(side);
-        var lang=langOf(side),ime=numMode[side]?null:(lang==='ko'?'ko':(lang==='ja'?'ja':null));
+        var lang=langOf(side),ime=numMode[side]?null:(lang==='ko'?'ko':(lang==='ja'?'ja':(lang==='zh'&&pyMap?'zh':null)));
         if(k==='SHIFT'){shifted[side]=!shifted[side];renderKeys(side);return}
         if(k==='NUM'){flushComp(side);numMode[side]=!numMode[side];shifted[side]=false;renderKeys(side);return}
         if(k==='CLOSE'){teardown('kb-close');return}
         if(k==='ENTER'){
+            if(ime==='zh'&&comp[side].py){zhCommitFirst(side);return}
             if(cands[side].length&&candIdx[side]>=0){pickCand(side,candIdx[side]);return}
             sendTyped(side);return;
         }
         if(k==='BKSP'){
             var prev=compText(side).length;
+            if(ime==='zh'&&comp[side].py){comp[side].py=comp[side].py.slice(0,-1);paintComp(side,prev);zhOffer(side);return}
             if(ime==='ko'&&comp[side].ko){
                 var r=koBackspace(comp[side].ko);
                 comp[side].ko=(r.state.cho===null&&r.state.jung===null)?null:r.state;
@@ -2473,6 +2534,7 @@ function dgLangParam(room) {
             backspaceAt(side);updateAutocomplete(side);return;
         }
         if(k===' '){
+            if(ime==='zh'&&comp[side].py){zhCommitFirst(side);return}
             if(ime==='ja'&&(comp[side].raw||comp[side].kana)){convertJa(side);return}
             var acceptedSwipe=candidateTxn[side]&&candidateTxn[side].kind==='swipe'&&
                 snapshotMatches(side,candidateTxn[side].snapshot);
@@ -2492,6 +2554,12 @@ function dgLangParam(room) {
             if(shifted[side]){shifted[side]=false;renderKeys(side)}
             return;
         }
+        if(ime==='zh'&&/^[a-zA-Z]$/.test(k)){
+            comp[side].py+=k.toLowerCase();paintComp(side,prevLen);zhOffer(side);
+            if(shifted[side]){shifted[side]=false;relabelKeysOnly(side)}
+            return;
+        }
+        if(ime==='zh'&&comp[side].py)zhCommitFirst(side);   // punctuation after pinyin commits the first word
         if(ime==='ja'&&/^[a-zA-Z.,-]$/.test(k)){
             comp[side].raw+=k.toLowerCase();
             var tail=romajiTail(comp[side].raw);
@@ -2517,6 +2585,8 @@ function dgLangParam(room) {
             return;
         }
         var c=cands[side][i];if(c==null)return;
+        if(transaction.kind==='pinyin'){pickPinyin(side,i,transaction);return}
+        if(transaction.kind==='zhnext'){insertAt(side,c);zhRecord(side,c);zhIdle(side);return}
         var before=editorSnapshot(side),ta=inputEl(side),end=transaction.end;
         var separator=transaction.kind==='composition'?'':' ';
         // Reuse an existing separator instead of introducing a double space.
@@ -2706,6 +2776,7 @@ function dgLangParam(room) {
            without requiring the user to open chat-admin first */
         var DICT_BASE='https://raw.githubusercontent.com/acmeproducts/stuff/main/dict/';
         [langOf('south'),langOf('north')].forEach(function(lang){
+            if(lang==='zh')loadPinyin();
             fetch(DICT_BASE+lang+'.json?v='+Date.now())
                 .then(function(r){if(!r.ok)throw new Error(r.status);return r.text()})
                 .then(function(text){
@@ -2889,7 +2960,7 @@ var portal=(function(){
  }
  function replaceTranslation(id,text,meta){if(!active||!writer)return Promise.resolve(false);var rid=active.id;return track(change('rooms',rid,function(r){if(!r)return;var m=r.messages.find(function(x){return x.id===id});if(!m)return;if(m.trOriginal==null)m.trOriginal=m.tr;m.tr=text;m.trBy=meta||'ai';r.updatedAt=Date.now();r.revision++;return r})).then(function(){return refresh(rid)}).then(function(){log('ai_fix_applied',{outcome:'ok'},'ok');return true})}
  function deleteMessage(id){if(!active||!writer||opened)return;var rid=active.id;action(async function(){await track(change('rooms',rid,function(r){if(!r)return;r.messages=r.messages.filter(function(m){return m.id!==id});return r}));await refresh(rid)});}
- function loadAssets(r){Array.from(new Set([r.southLang,r.northLang])).forEach(function(lang){if(getDict(lang)&&getBigram(lang))return;var base='https://raw.githubusercontent.com/acmeproducts/stuff/main/dict/';fetch(base+lang+'.json').then(function(x){if(!x.ok)throw new Error();return x.json()}).then(function(words){if(!Array.isArray(words))return;dictCache[lang]=words;lmMemo={};try{localStorage.setItem('duck_dict_'+lang,JSON.stringify(words))}catch(e){}if(INPUT.mode==='kb')updateAutocomplete(INPUT.owner)}).catch(function(){});fetch(base+'bigram-'+lang+'.json').then(function(x){if(!x.ok)throw new Error();return x.json()}).then(function(bg){bgCache[lang]=bg;lmMemo={};if(INPUT.mode==='kb')updatePredictions(INPUT.owner)}).catch(function(){});});}
+ function loadAssets(r){Array.from(new Set([r.southLang,r.northLang])).forEach(function(lang){if(lang==='zh')loadPinyin();if(getDict(lang)&&getBigram(lang))return;var base='https://raw.githubusercontent.com/acmeproducts/stuff/main/dict/';fetch(base+lang+'.json').then(function(x){if(!x.ok)throw new Error();return x.json()}).then(function(words){if(!Array.isArray(words))return;dictCache[lang]=words;lmMemo={};try{localStorage.setItem('duck_dict_'+lang,JSON.stringify(words))}catch(e){}if(INPUT.mode==='kb')updateAutocomplete(INPUT.owner)}).catch(function(){});fetch(base+'bigram-'+lang+'.json').then(function(x){if(!x.ok)throw new Error();return x.json()}).then(function(bg){bgCache[lang]=bg;lmMemo={};if(INPUT.mode==='kb')updatePredictions(INPUT.owner)}).catch(function(){});});}
  function older(side){pages[side]+=100;renderPanel(side)}
  function visible(){return !!active&&writer&&!opened}
  function guardMicrophoneStarts(){['south','north'].forEach(function(side){var p=mic[side],start=p.start,stop=p.hardStop,serial=Promise.resolve(),epoch=0;
