@@ -25,7 +25,7 @@ function mn37EnsureAnalysisSurface(){
   const modal=$('standaloneAnalysis26');let surface=modal.querySelector('#mn37AnalysisSurface');if(surface)return surface;
   modal.replaceChildren();
   surface=document.querySelector('#view-now .chartCard').cloneNode(true);surface.id='mn37AnalysisSurface';surface.classList.add('modalCard','analysis');
-  const ids={nowCrumb:'standaloneAnalysisTitle26',hzs:'analysisHz',legend:'seriesBar',nowWrap:'analysisWrap',nowChart:'analysisChart',nowTip:'analysisTip',nowMeta:'analysisMeta26',nowMoreBtn:'analysisMore26'};
+  const ids={nowChrome:'analysisChrome37',nowCrumb:'standaloneAnalysisTitle26',hzs:'analysisHz',legend:'seriesBar',nowWrap:'analysisWrap',nowChart:'analysisChart',indexInfoBtn:'analysisInfoBtn37',nowTip:'analysisTip',nowMeta:'analysisMeta26',nowMoreBtn:'analysisMore26'};
   for(const [from,to] of Object.entries(ids)){const e=surface.querySelector('#'+from);if(e)e.id=to}
   const close=document.createElement('button');close.id='mn37AnalysisClose';close.className='btn mn37AnalysisClose';close.setAttribute('aria-label','Close analysis');close.textContent='×';close.onclick=()=>closeStandaloneAnalysis26();surface.appendChild(close);
   mn37AnalysisMenu(surface);modal.appendChild(surface);return surface;
