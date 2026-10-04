@@ -49,8 +49,8 @@
     function getState(){return state()}
     function getResolved(){return lastResolved}
     function destroy(){destroyed=true;renderSeq++;options.onDestroy?.(instance);ctl.destroy()}
-    const instance={update,render,getState,getResolved,rendererSetActive,destroy,get root(){return root}};
-    render('attach');
+    const instance={update,render,getState,getResolved,rendererSetActive,destroy,get root(){return root},ready:null};
+    instance.ready=render('attach');
     return instance;
   };
 })();
