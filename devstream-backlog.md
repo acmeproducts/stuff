@@ -6,8 +6,8 @@ Deploy target: `https://acmeproducts.github.io/stuff/devstream.html`
 Test target: `https://acmeproducts.github.io/stuff/devstream-test.html`
 
 ## Status
-- Current release: v1.0 b69 on devstream-test.html (2026-10-04)
-- Stage: TEST (b69)
+- Current release: v1.0 b70 on devstream-test.html (2026-10-04)
+- Stage: TEST (b70)
 
 ## Release Rules (inherited, proven)
 1. Mobile-first. All diagnostics in-app. No DevTools ever.
@@ -258,6 +258,32 @@ b39 incorrectly changed stationary hold into context-menu activation. Devstream 
 
 ---
 
+# 2026-10-04 — b70 cloud runner back, the standard way: your keys from Config, nothing else to set up
+
+## Owner report
+b68's runner needed an access code per device, repo secrets and a GitHub workflow — rejected (b69). Owner: "I want to keep it standard — I always paste my keys into a config section and it is saved in local storage."
+
+## Change (supersedes G-DS-17)
+- The same Cloudflare runner, but with no extra setup: the page sends the keys already saved in Config with each job; the runner uses them for that job only and keeps nothing. No access code, no secrets, no per-device step.
+- The runner accepts a job only if the GitHub token in it can push to the owner's repo (`acmeproducts`).
+- Turns on by itself when a GitHub token and at least one AI key are saved. Config has one checkbox "Run in the cloud" (on by default).
+- The deploy workflow now only deploys and checks health; it runs only when files under `devstream/runner/` change (not on normal DevStream changes) and has no secret steps.
+- Falls back to running in the page if the runner can't be reached.
+- Kept: no silent re-runs after a failure; status writes merge on conflict; screen stays on while a run is going in the page.
+
+## Limits
+- Notifications still need the page open; reopening shows Done / Needs you at once. A run is capped at about 13 minutes.
+
+## Acceptance
+- **DS-B70-1:** with a GitHub token and an AI key saved, a run is handed to the cloud with no further setup, and the keys in the job are the ones from Config.
+- **DS-B70-2:** the run finishes with the page closed; reopening shows Ready and nothing re-runs.
+- **DS-B70-3:** a bad build is refused and retried quietly in the cloud; the app file stays unchanged.
+- **DS-B70-4:** Stop reaches the cloud and leaves the message queued.
+- **DS-B70-5:** unreachable runner → the page runs it itself. No AI key saved → the runner is not used.
+- **DS-B70-6:** the runner refuses a token that cannot push to the owner's repo, another owner's repo, and odd repo names; keys are not kept after the job.
+
+---
+
 # 2026-10-04 — b69 cloud runner REJECTED and removed; screen stays on during a run
 
 ## Owner report
@@ -275,7 +301,7 @@ The cloud runner (b68) needed per-device setup (an access code on each device), 
 - **DS-B69-3:** no cloud-runner code, config row or workflow remains.
 
 ## Graveyard
-- **G-DS-17 — Cloud runner (Cloudflare Worker + access code + secrets + deploy workflow):** rejected 2026-10-04. Reason: per-device setup and a GitHub workflow. Do not bring back without a design that needs no per-device step and no workflow.
+- **G-DS-17 — Cloud runner with an access code per device + repo secrets (b68 design):** rejected 2026-10-04. Reason: per-device setup. Superseded by b70, which uses the keys already saved in Config.
 
 ---
 
