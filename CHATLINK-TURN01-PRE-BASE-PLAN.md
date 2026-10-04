@@ -709,3 +709,18 @@ Malay and Indonesian are confirmed to have different speech, voice and translati
 ### Khmer and Lao word lists (2026-10-04)
 
 `dict/km.json` (32,369 words) and `dict/lo.json` (30,549 words) added so typing suggestions work for both languages, the same way as the other 20. Sources and licences (MIT for Khmer, LGPL for Lao) are in `dict/NOTICE-km-lo.md`. Data only; no app code changed. **Not verified:** suggestion quality on a phone. Not yet word-pair (next-word) data; only English has that today.
+
+### chat-test: Khmer and Lao speech, voices and language check (2026-10-04)
+
+**Owner direction.** Fix all remaining items; required.
+
+**Evidence.** Deepgram rejects Khmer and Lao (owner's probe run, 2026-10-03). Both need another engine at no cost.
+
+**Changes.**
+1. **Speech.** A room side set to Khmer or Lao now listens with the browser's own speech engine (`km-KH`, `lo-LA`) instead of Deepgram. Final phrases go through the same routing as every other language. The engine restarts itself after pauses, ignores speech while read-aloud is playing, and stops cleanly with a message ("speech is not supported in this browser, type instead") if the browser lacks the language. Works on Android Chrome where the engine exists; on iPhone the browser engine does not list these languages, so those users type. **Not verified on any phone.**
+2. **Voices.** Khmer and Lao read-aloud codes (`km-KH`, `lo-LA`). Whether a phone has the voices installed is not verified.
+3. **Language check.** `window.langCheck()` plus `tests/language-check/check.cjs` list all 23 languages with flag, speech, voice, keyboard and dictionary, and fail on any gap not on the known list. Known gap now: Chinese has no dictionary (Track B).
+
+**Checks added first.** Both Khmer and Lao scenarios failed before. Open mode 40/40, ask mode 33/33, keyboard 32/32, controller 20/20, language check OK.
+
+**Owner to test (Android Chrome).** Set North to Khmer, allow the microphone, speak Khmer: the text should appear on North and translate for South. If Chrome does not support Khmer on that phone, a toast says so. Whisper in the browser remains the later option if the browser engine is not good enough.
