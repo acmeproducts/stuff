@@ -316,7 +316,7 @@ No unresolved release-blocking gap remains. Red-team disposition: CLEARED FOR OW
 ### Final review disposition
 - MANAGER: CLEARED
 - RED TEAM: CLEARED
-- PRODUCT IMPLEMENTATION: OWNER APPROVED 2026-10-04 / STAGES 0–4 PASS / STAGE 5 BLOCKED PENDING OWNER GO
+- PRODUCT IMPLEMENTATION: OWNER APPROVED 2026-10-04 / STAGES 0–5 PASS / STAGE 6 IN PROGRESS
 
 
 ### Execution record — Stage 0
@@ -367,3 +367,20 @@ No unresolved release-blocking gap remains. Red-team disposition: CLEARED FOR OW
 - Passing workflow: GitHub Actions run 37202063237.
 - Qualified candidate commit: 124e281f4d50b45449aa2dcea55db9301d599c33.
 - Stage 5 remains blocked until explicit owner go.
+
+
+### Execution record — Stage 5
+- Controlled NOW cutover to the shared controller: PASS.
+- Accepted NOW visual/geometry regression gates passed across protected viewports.
+- Live controller analytical output matched the shadow resolver.
+- Event ownership gate passed.
+- Analyze isolation, Library independence and shared batch Add remained green.
+- Passing workflow: GitHub Actions run 37205146976.
+- Passing commit: 1e0cda8485ed5a7a88c0f1a34a3550ba274c43ec.
+
+### Execution record — Stage 6
+- Status: IN PROGRESS.
+- Owner authorized removal of deprecated/duplicate chart code and end-to-end testing.
+- Scope: retire the superseded NOW render/data/picker paths and superseded Analyze render/data/picker paths; retain the accepted DOM/CSS and shared low-level draw primitive.
+- One unified controller attach path must own NOW and Analyze state transitions, horizon/series/display changes, batch Add, lifecycle and rendering inputs.
+- Full Stage 3 differential/Library gates plus Stage 6 event/data/Add/lifecycle gates are mandatory before an owner test URL is produced.

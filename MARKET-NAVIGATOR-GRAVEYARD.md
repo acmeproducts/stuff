@@ -372,3 +372,18 @@ This entire sequence is retained as evidence, not as implementation material.
 
 ### Required successor pattern
 The only allowed successor is the staged attach-controller approach documented in `MARKET-NAVIGATOR-TURN37-RCA-PLAN.md`: characterize the accepted baseline first, map dependencies, prove a non-driving shadow controller, drive Analyze before NOW, add shared batch Add after isolation passes, then attach the same controller to the existing NOW DOM and retire legacy paths only after full differential parity.
+
+
+## Turn 37 Stage 6 deprecated chart paths — RETIREMENT AUTHORIZED 2026-10-04
+The owner authorized removal after Stage 5 passed.
+
+Retired from the Stage 6 candidate:
+- legacy `renderV1` / `renderV2` implementations;
+- legacy NOW series preparation (`visibleIds25`, `sourceSet25`, `removeNowSeries25`);
+- legacy NOW horizon/footer/picker control paths;
+- legacy standalone Analyze series preparation, horizon renderer and single-add picker;
+- Stage 4 NOW adapter and Stage 5 legacy-render bridge.
+
+These paths are not donors and must not be reintroduced. Compatibility names such as `renderV1` or `renderV2` may exist only as thin calls into the shared controller, never as independent chart implementations.
+
+The accepted chart DOM/CSS and shared low-level `draw()` painter remain governed presentation primitives; their retention is deliberate and is not duplicate chart state/mathematics.

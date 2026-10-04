@@ -1,0 +1,90 @@
+name: Market Navigator Turn 37 Stage 6 Retire Legacy Chart
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'market-navigator-turn37-stage6-picker.js'
+      - 'market-navigator-turn37-stage6-unified.js'
+      - 'market-navigator-build-turn37-stage6.py'
+      - 'market-navigator-turn37-stage6-qa.mjs'
+      - '.github/workflows/market-navigator-turn37-stage6.yml'
+  workflow_dispatch:
+permissions: {contents: write}
+jobs:
+  qualify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: {python-version: '3.12'}
+      - uses: actions/setup-node@v4
+        with: {node-version: '22'}
+      - name: Accepted baseline identity
+        run: test "$(git hash-object market-navigator-turn28-post-ship.html)" = "9ce7f67451f9e1b7804927ce5c56adb667614724"
+      - name: Build Stage 6
+        run: python market-navigator-build-turn37-stage6.py
+      - name: Source retirement gate
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          s=Path('market-navigator-turn37-stage6.html').read_text()
+          banned=[
+            'function renderV1(){','async function renderV2(){','async function sourceSet25(',
+            'function visibleIds25(){','visibleIds25()','function removeNowSeries25(',
+            'function wireNowHz(){','function setNowFooter(','function legend(sets){',
+            'function standaloneAnalysisState26(){','async function sourceSetStandalone26(',
+            'function renderAnalysisHz26(){','async function renderStandaloneAnalysis26(){',
+            'async function openAnalysisPicker26(){','async function renderAnalysisPicker26(){',
+            '/* TURN37_STAGE5_NOW_CUTOVER */','/* TURN37_STAGE4_NOW_BATCH_ADAPTER */'
+          ]
+          found=[x for x in banned if x in s]
+          assert not found, found
+          assert 'TURN37_STAGE6_UNIFIED_CONTROLLER' in s
+          assert s.count('api.attach=function')==1, s.count('api.attach=function')
+          print('PASS Stage 6 source retirement / single attach owner')
+          PY
+      - name: JavaScript syntax
+        run: |
+          python - <<'PY'
+          import re,pathlib
+          s=pathlib.Path('market-navigator-turn37-stage6.html').read_text()
+          pathlib.Path('/tmp/mn37s6.js').write_text('\n'.join(re.findall(r'<script[^>]*>(.*?)</script>',s,re.S)))
+          PY
+          node --check /tmp/mn37s6.js
+      - name: Install browser
+        run: |
+          npm install --no-save --package-lock=false playwright@1.63.0
+          npx playwright install --with-deps chromium
+      - name: Full browser qualification
+        run: |
+          python3 -m http.server 8123 >/tmp/mn37-stage6-http.log 2>&1 &
+          SERVER=$!
+          trap 'kill $SERVER || true' EXIT
+          sleep 2
+          MN_CAND_URL=http://127.0.0.1:8123/market-navigator-turn37-stage6.html node market-navigator-turn37-stage3-qa.mjs
+          MN_URL=http://127.0.0.1:8123/market-navigator-turn37-stage6.html node market-navigator-turn37-stage6-qa.mjs
+      - name: Publish passing Stage 6
+        run: |
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          Path('market-navigator-turn37-stage6-evidence.json').write_text(json.dumps({
+            'stage':6,'status':'PASS',
+            'baselineBlob':'9ce7f67451f9e1b7804927ce5c56adb667614724',
+            'legacyPathsRetired':'PASS','singleAttachOwner':'PASS',
+            'nowVisualGeometryParity':'PASS','nowDataParity':'PASS',
+            'eventOwnership':'PASS','batchAddAtomicity':'PASS',
+            'analyzeIsolation':'PASS','libraryIndependence':'PASS',
+            'lifecycle25x':'PASS','plainStandardTechnical':'PASS'
+          },indent=2)+'\n')
+          PY
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git fetch origin main
+          git merge --ff-only origin/main
+          python market-navigator-build-turn37-stage6.py
+          git add market-navigator-turn37-stage6.html market-navigator-turn37-stage6-evidence.json
+          git diff --cached --quiet && exit 0
+          git commit -m 'Market Navigator Turn 37 Stage 6: qualify retired legacy chart paths'
+          git push origin HEAD:main
