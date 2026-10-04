@@ -1,0 +1,60 @@
+import assert from 'node:assert/strict';
+import { createRequire } from 'node:module';
+const { chromium }=createRequire(import.meta.url)('playwright');
+const url=process.env.MN_URL||'http://127.0.0.1:8123/market-navigator-turn37-stage3.html';
+const browser=await chromium.launch({headless:true});
+const context=await browser.newContext({viewport:{width:1440,height:900},deviceScaleFactor:1});
+const page=await context.newPage(),errors=[];
+page.on('pageerror',e=>errors.push('page:'+e.message));
+page.on('console',m=>{if(m.type()==='error')errors.push('console:'+m.text())});
+await page.route('https://cdn.jsdelivr.net/npm/marked/marked.min.js',r=>r.fulfill({body:'window.marked={parse:s=>s}'}));
+await page.route('https://cdn.jsdelivr.net/npm/dompurify@3.1.6/dist/purify.min.js',r=>r.fulfill({body:'window.DOMPurify={sanitize:s=>s}'}));
+await page.goto(url,{waitUntil:'networkidle'});
+await page.waitForFunction(()=>window.__mnShip25?.ready?.()&&window.__mn37Stage3);
+function normalize(x){
+  if(Array.isArray(x))return x.map(normalize);
+  if(x&&typeof x==='object'){const o={};for(const[k,v]of Object.entries(x))if(k!=='capturedAt')o[k]=normalize(v);return o}
+  return x;
+}
+async function nowState(){return normalize(await page.evaluate(()=>window.__mnShip25?.nowState?.()||null))}
+const before=await nowState();
+await page.evaluate(()=>window.__mn37Stage3.open('risk'));
+await page.waitForSelector('#mn37AnalysisSurface');
+await page.waitForFunction(()=>window.__mn37Stage3.state()?.root==='risk');
+assert.deepEqual((await page.evaluate(()=>window.__mn37Stage3.state().series)),['risk']);
+const dups=await page.evaluate(()=>{const ids=[...document.querySelectorAll('[id]')].map(e=>e.id),m={};for(const id of ids)m[id]=(m[id]||0)+1;return Object.entries(m).filter(([,n])=>n>1)});
+assert.deepEqual(dups,[],'duplicate document IDs');
+await page.locator('#analysisHz [data-h="1YR"]').click();await page.waitForTimeout(200);
+assert.equal((await page.evaluate(()=>window.__mn37Stage3.state())).timeHorizon,'1YR');
+const disp=page.locator('#analysisMeta26 [data-controller-display]');await disp.selectOption('horizon');await page.waitForTimeout(200);
+assert.equal((await page.evaluate(()=>window.__mn37Stage3.state())).displayMode,'horizon');
+const resolved=await page.evaluate(()=>window.__mn37Stage3.resolved());
+const root=resolved.sets.find(z=>z.id==='risk');assert(root&&root.a.length);assert(Math.abs(root.a[0].v-100)<1e-9,'horizon first point not 100');
+assert.deepEqual(await nowState(),before,'Analyze mutated NOW');
+const canvas=page.locator('#analysisChart'),box=await canvas.boundingBox();assert(box);
+await page.mouse.move(box.x+box.width*.55,box.y+box.height*.45);await page.waitForTimeout(100);
+assert.notEqual(await page.locator('#analysisTip').evaluate(e=>getComputedStyle(e).display),'none','Analyze tooltip did not respond');
+await page.locator('#analysisMore26').click();await page.waitForTimeout(50);
+assert.equal(await page.locator('#mn37AnalysisMenu').evaluate(e=>!e.classList.contains('hidden')),true);
+assert.deepEqual((await page.locator('#mn37AnalysisMenu button').allTextContents()).map(x=>x.trim()),['AI POV','Data','Print','Download Markdown','Download CSV','Download JSON']);
+const analysisStateBeforeLibrary=await page.evaluate(()=>window.__mn37Stage3.state());
+await page.click('[data-view="library"]');await page.waitForTimeout(120);
+assert.equal(await page.locator('#view-library').evaluate(e=>e.classList.contains('on')),true);
+assert.equal(await page.locator('#standaloneAnalysis26').evaluate(e=>getComputedStyle(e).display),'none');
+assert.equal(await page.locator('#standaloneAnalysis26').evaluate(e=>getComputedStyle(e).pointerEvents),'none');
+const centerOwner=await page.evaluate(()=>{const e=document.elementFromPoint(innerWidth/2,innerHeight/2);return e?.closest('#standaloneAnalysis26')?'analysis':e?.closest('#view-library')?'library':e?.id||e?.className||e?.tagName});
+assert.notEqual(centerOwner,'analysis','parked Analyze still owns hit target');
+await page.locator('#libSearch').fill('test');assert.equal(await page.locator('#libSearch').inputValue(),'test');
+assert.equal(await page.locator('#interpretTabs27 [data-interpret27]').count(),3);
+await page.click('[data-view="now"]');await page.waitForTimeout(120);
+assert.equal(await page.evaluate(()=>window.__mn37Stage3.parked()),false);
+assert.deepEqual(await page.evaluate(()=>window.__mn37Stage3.state()),analysisStateBeforeLibrary,'Analyze state changed across Library roundtrip');
+assert.deepEqual(await nowState(),before,'Library/Analyze roundtrip mutated NOW');
+await page.click('#mn37AnalysisClose');await page.waitForTimeout(100);
+assert.equal(await page.locator('#standaloneAnalysis26').evaluate(e=>e.classList.contains('hidden')),true);
+assert.equal(await page.evaluate(()=>window.__mn37Stage3.state()),null);
+assert.deepEqual(await nowState(),before,'Analyze close mutated NOW');
+for(let i=0;i<5;i++){await page.evaluate(()=>window.__mn37Stage3.open('growth'));await page.waitForFunction(()=>window.__mn37Stage3.state()?.root==='growth');await page.evaluate(()=>window.__mn37Stage3.close())}
+assert.equal(errors.length,0,errors.join(' | '));
+console.log('PASS Turn37 Stage3 Analyze controller + NOW isolation + Library independence');
+await context.close();await browser.close();
