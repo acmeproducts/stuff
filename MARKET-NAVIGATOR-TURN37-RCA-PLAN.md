@@ -390,3 +390,9 @@ No unresolved release-blocking gap remains. Red-team disposition: CLEARED FOR OW
 - The first Stage 6 run stopped at the source-retirement gate before syntax/browser execution because a second legacy `renderV2` definition sat outside the first removal range.
 - No Stage 6 product candidate was published or owner-facing.
 - The builder was corrected only to remove that exact remaining deprecated range, then the stage restarts from the same passed Stage 5 source.
+
+
+#### Stage 6 gate note — boot diagnostic
+- The next Stage 6 attempt passed build, source-retirement and JavaScript syntax, then failed because the candidate never reached the established ready state.
+- No candidate was published.
+- A read-only browser diagnostic was added to capture the exact runtime exception before any Stage 6 product correction is attempted.
