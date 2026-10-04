@@ -6,8 +6,8 @@ Deploy target: `https://acmeproducts.github.io/stuff/devstream.html`
 Test target: `https://acmeproducts.github.io/stuff/devstream-test.html`
 
 ## Status
-- Current release: v1.0 b70 on devstream-test.html (2026-10-04)
-- Stage: TEST (b70)
+- Current release: v1.0 b71 on devstream-test.html (2026-10-04)
+- Stage: TEST (b71)
 
 ## Release Rules (inherited, proven)
 1. Mobile-first. All diagnostics in-app. No DevTools ever.
@@ -255,6 +255,22 @@ b39 incorrectly changed stationary hold into context-menu activation. Devstream 
 ## Graveyard
 - **G-DS-13 — Hold opens context menu:** rejected; donor behavior is double-tap context, hold-to-drag.
 - **G-DS-14 — Legacy generic #tabContext button styling:** rejected; it corrupts the donor context-menu appearance.
+
+---
+
+# 2026-10-04 — b71 the working banner replaces the compose row
+
+## Owner report
+The transcript and the status line overlapped on screen, and the banner plus compose box wasted vertical space. Owner idea: show the banner in place of the compose strip while a job runs; Stop brings the compose strip back.
+
+## Change
+- While a run is going, the banner takes the compose row's place (suggestion chips, attach, text box and footer are hidden), with a larger Stop button. The transcript gets the freed space and scrolls to the latest message so nothing sits under the banner.
+- When the run ends or is stopped, the compose row returns; Ready / Couldn't finish banners still show above it as before.
+- Trade-off accepted: no typing or queued messages while a run is going.
+
+## Acceptance
+- **DS-B71-1:** while running, the compose row is hidden and the banner is shown in its place; the last transcript message is fully visible above it.
+- **DS-B71-2:** Stop (or the run ending) brings the compose row back.
 
 ---
 
