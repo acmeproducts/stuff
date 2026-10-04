@@ -12,7 +12,7 @@
       full:IDX.includes(z.id)?S.def.indices[z.id]?.name:name(z.id),
       color:seriesColor(z.id),
       renderType:'line',
-      axisLabel:z.axis===1?(z.unit||'Native'):(r.mode==='indexed'?'Indexed 100':(z.unit||'Index'))
+      axisLabel:z.axis===1?(z.unit||'Native'):(r.root===null?(z.unit||'Index'):(r.mode==='indexed'?'Indexed 100':(z.unit||'Index')))
     }))
   }
   function resolveRefs(root){
@@ -155,7 +155,7 @@
       renderTitle:()=>renderNowCrumb(),
       onInfo:id=>showNowSeriesInfo25(id),
       onMore:()=>$('nowMoreMenu').classList.toggle('hidden'),
-      onAfterRender:(st,r,sets)=>{mirrorNow(st);captureNowState(sets,r.w,r.mode);S.nowPaint25={sets,w:r.w,mode:r.mode}},
+      onAfterRender:(st,r,sets)=>{mirrorNow(st);captureNowState(sets,r.w,r.mode);if(st.root===null&&S.nowChartState){S.nowChartState.active=null;if(S.nowChartState.chart)S.nowChartState.chart.active=null}S.nowPaint25={sets,w:r.w,mode:r.mode}},
       onStateChange:()=>{}
     });
     window.__mn37NowController=nowController;return nowController
