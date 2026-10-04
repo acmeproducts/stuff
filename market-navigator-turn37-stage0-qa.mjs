@@ -114,8 +114,10 @@ for(const vp of viewports){
   await page.evaluate(()=>window.__mnStandalone26.close());
   assert(await page.locator('#standaloneAnalysis26').evaluate(e=>e.classList.contains('hidden')));
 
-  // Library interpretation controls.
-  await page.click('[data-view="library"]');await page.waitForTimeout(150);
+  // Library interpretation controls. On narrow baseline viewports the rail is intentionally collapsed.
+  const libraryNav=page.locator('[data-view="library"]');
+  if(!(await libraryNav.isVisible())){await page.click('#toggle');await page.waitForTimeout(200)}
+  await libraryNav.click();await page.waitForTimeout(150);
   const modes=await page.locator('#interpretTabs27 [data-interpret27]').allTextContents();
   assert.deepEqual(modes.map(x=>x.trim()),['Plain','Standard','Technical']);
   trace.push({step:'library',modes:modes.map(x=>x.trim())});
