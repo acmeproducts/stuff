@@ -264,7 +264,8 @@ var LANGS={
   id:{flag:'🇮🇩',name:'Indonesian',tts:'id-ID'},ms:{flag:'🇲🇾',name:'Malay',tts:'ms-MY'},
   fil:{flag:'🇵🇭',name:'Filipino',tts:'fil-PH'},nl:{flag:'🇳🇱',name:'Dutch',tts:'nl-NL'},
   sv:{flag:'🇸🇪',name:'Swedish',tts:'sv-SE'},pl:{flag:'🇵🇱',name:'Polish',tts:'pl-PL'},
-  tr:{flag:'🇹🇷',name:'Turkish',tts:'tr-TR'}
+  tr:{flag:'🇹🇷',name:'Turkish',tts:'tr-TR'},
+  km:{flag:'🇰🇭',name:'Khmer',tts:'km-KH'},lo:{flag:'🇱🇦',name:'Lao',tts:'lo-LA'}
 };
 /* ===== bridge27: LANG_ORDER ===== */
 var LANG_ORDER=['en','th','es','ja','ko','zh','ar','hi','ru','fr','de','it','pt','vi','id','ms','fil','nl','sv','pl','tr'];
@@ -827,6 +828,8 @@ async function normalizeOutgoing(room, text, knownLang) {
   return { text: srcText, lang: srcLang, detected: detected };
 }
 /* ===== bridge27: DG_LANGS ===== */
+/* Languages Deepgram does not accept (probe, 2026-10-03): the browser's own speech engine is used where it has them (Android Chrome). */
+var BROWSER_STT={km:'km-KH',lo:'lo-LA'};
 var DG_LANGS={en:'en-US',th:'th',ja:'ja',ko:'ko',zh:'zh-CN',ar:'ar',hi:'hi',ru:'ru',fr:'fr',de:'de',es:'es',it:'it',pt:'pt-BR',vi:'vi',id:'id',ms:'ms',fil:'tl',nl:'nl',sv:'sv',pl:'pl',tr:'tr'};
 /* ===== bridge27: DG_MULTI_LANGS ===== */
 var DG_MULTI_LANGS = ['en', 'es', 'fr', 'de', 'hi', 'it', 'ja', 'nl', 'ru', 'pt'];
@@ -1155,14 +1158,50 @@ function dgLangParam(room) {
         function stopSocket(){
             P.gen.bump();
             if(window.clLive)window.clLive(side,'','',0);
+            if(P.sr){var srr=P.sr;P.sr=null;srr.onend=null;srr.onresult=null;srr.onerror=null;try{srr.abort()}catch(e){}}
             if(P.ws){try{P.ws.close()}catch(e){}}
             if(P.enWs){try{P.enWs.close()}catch(e){}}
             P.ws=null; P.enWs=null; P.active=false;
             stopAudio(); stopWatchdog();
         }
 
+        function browserListen(rl){
+            var SR=window.SpeechRecognition||window.webkitSpeechRecognition,code=BROWSER_STT[rl];
+            var lname=(LANG_NAMES[rl]||rl);
+            function unavailable(why){diag(side+': speech is not available for '+lname+' ('+why+') — type instead',true);toastMsg(lname+': speech is not supported in this browser. Type instead.')}
+            if(!SR||!code){unavailable('no browser speech engine');return}
+            if(P.sr||P.active)return;
+            if(P.stream){P.stream.getTracks().forEach(function(t){try{t.stop()}catch(e){}});P.stream=null}   // the browser engine owns the microphone itself
+            var myGen=P.gen.n,rec=new SR(),dead=false;
+            rec.lang=code;rec.continuous=true;rec.interimResults=true;P.sr=rec;
+            function live(){return P.sr===rec&&P.gen.is(myGen)&&P.on}
+            rec.onresult=function(ev){
+                if(!live())return;
+                for(var i=ev.resultIndex;i<ev.results.length;i++){
+                    var r=ev.results[i],a=r&&r[0];if(!a||!a.transcript)continue;
+                    if(!r.isFinal){if(window.clLive)window.clLive(side,'',String(a.transcript),0.6);continue}
+                    var t=String(a.transcript).trim();if(!t)continue;
+                    if(window.clLive)window.clLive(side,'','',0);
+                    if(!window.audioTurn.admit(side)){log('sr_dropped',{side:side,lang:rl,reason:'read-aloud'},'info');continue}
+                    var conf=typeof a.confidence==='number'&&a.confidence>0?a.confidence:0.8;
+                    log('sr_final',{side:side,lang:rl,chars:t.length,conf:+conf.toFixed(2)},'info');
+                    onFinal(t,rl,{confidence:conf});
+                }
+            };
+            rec.onerror=function(ev){
+                var e=ev&&ev.error;log('sr_error',{side:side,lang:rl,error:e},'warn');
+                if(e==='language-not-supported'||e==='service-not-allowed'||e==='not-allowed'||e==='audio-capture'){dead=true;unavailable(e)}
+            };
+            rec.onend=function(){
+                if(!live()||dead){if(P.sr===rec){P.sr=null;P.active=false}return}
+                setTimeout(function(){if(live()&&!dead){try{rec.start()}catch(e){}}},300);   // the engine stops itself after a pause; keep listening
+            };
+            try{rec.start();P.active=true;log('sr_open',{side:side,lang:rl,code:code},'ok');diag(side+': listening (browser speech) in '+code)}
+            catch(e){P.sr=null;unavailable(e.message||'start failed')}
+        }
         function connect(){
             if(!P.on)return;
+            if(!DG_LANGS[sideAsRoom(side).myLang]){browserListen(sideAsRoom(side).myLang);return}
             var key=dgKey();
             if(!key){diag(side+': Deepgram key missing — add it in Settings → Calling & Sync Keys',true);return}
             if(P.active||(P.ws&&P.ws.readyState<2))return;
@@ -2510,6 +2549,8 @@ function dgLangParam(room) {
     var LANG_FLAGS={en:'🇺🇸',th:'🇹🇭',es:'🇪🇸',ja:'🇯🇵',ko:'🇰🇷',zh:'🇨🇳',ar:'🇸🇦',hi:'🇮🇳',ru:'🇷🇺',
       fr:'🇫🇷',de:'🇩🇪',it:'🇮🇹',pt:'🇧🇷',vi:'🇻🇳',id:'🇮🇩',ms:'🇲🇾',fil:'🇵🇭',nl:'🇳🇱',sv:'🇸🇪',
       pl:'🇵🇱',tr:'🇹🇷',km:'🇰🇭',lo:'🇱🇦'};
+    /* Language check: one row per selectable language; null means that part is missing. Read-only. */
+    window.langCheck=function(){return Object.keys(LANG_NAMES).map(function(c){var g=LANGS[c];return{code:c,name:LANG_NAMES[c],flag:LANG_FLAGS[c]||null,tts:g?g.tts:null,stt:DG_LANGS[c]||(BROWSER_STT[c]?'browser:'+BROWSER_STT[c]:null),keyboard:(LANG_KB[c]&&LAYOUTS[LANG_KB[c]])?LANG_KB[c]:null}})};
     var SWATCHES=['#eff6ff','#f0fdf4','#fef3c7','#fee2e2','#f3e8ff','#ffffff'];
 
     var MIC_SVG=(function(s){return(

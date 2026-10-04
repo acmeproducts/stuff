@@ -65,6 +65,30 @@ test('Malay room: speech heard on the Malay channel is never rewritten (voice tr
  const r2=await page.evaluate(()=>normalizeOutgoing({myLang:'id',theirLang:'en',myLangMode:'fixed'},'Ini adalah sistem yang mudah','ms'));
  assert.equal(r2.text,'Ini adalah sistem yang mudah');assert.equal(r2.lang,'id');
 });
+test('Khmer uses the browser speech engine: no Deepgram connection, English side still listens, a spoken Khmer turn goes to North; an unsupported browser says so and stops',async({page})=>{
+ await page.evaluate(()=>{localStorage.setItem('tb_dg_key','synthetic-key');localStorage.setItem('chat_test_audio',JSON.stringify({mode:'open',tones:true,resumeMs:300}));window.srs=[];window.SpeechRecognition=class{constructor(){this.started=0;window.srs.push(this)}start(){this.started++}stop(){}abort(){}};window.webkitSpeechRecognition=window.SpeechRecognition});
+ await create(page,'KmRoom','en','km');await page.waitForFunction(()=>mic.south.active&&window.srs.some(r=>r.started>0));
+ assert.equal(page.testSockets.filter(w=>w.url().includes('language=km')).length,0,'no Deepgram connection for Khmer');
+ assert.ok(page.testSockets.some(w=>w.url().includes('language=en-US')),'English side still listens');
+ assert.equal(await page.evaluate(()=>window.srs[0].lang),'km-KH');
+ await page.evaluate(()=>{const r=window.srs[0];const a=[{transcript:'សួស្តី',confidence:0.9}];a.isFinal=true;r.onresult({resultIndex:0,results:[a]})});
+ await settled(page,1);
+ assert.equal(await page.evaluate(()=>HIST[0].side),'north');assert.equal(await page.evaluate(()=>HIST[0].original),'សួស្តី');
+ const n=await page.evaluate(()=>window.srs.length);const started=await page.evaluate(()=>window.srs[0].started);
+ await page.evaluate(()=>{window.srs[0].onerror({error:'language-not-supported'});window.srs[0].onend()});
+ await page.waitForTimeout(900);
+ assert.equal(await page.evaluate(()=>window.srs[0].started),started,'no restart loop after language-not-supported');
+ assert.match(await page.evaluate(()=>document.getElementById('toast').textContent),/not supported|type/i);
+});
+test('Lao has the same browser-engine path and Khmer/Lao have read-aloud voice codes',async({page})=>{
+ await page.evaluate(()=>{localStorage.setItem('tb_dg_key','synthetic-key');localStorage.setItem('chat_test_audio',JSON.stringify({mode:'open',tones:true,resumeMs:300}));window.srs=[];window.SpeechRecognition=class{constructor(){this.started=0;window.srs.push(this)}start(){this.started++}stop(){}abort(){}};window.webkitSpeechRecognition=window.SpeechRecognition});
+ await create(page,'LoRoom','en','lo');await page.waitForFunction(()=>window.srs.some(r=>r.started>0));
+ assert.equal(await page.evaluate(()=>window.srs[0].lang),'lo-LA');
+ const rows=await page.evaluate(()=>window.langCheck());
+ assert.equal(rows.find(r=>r.code==='km').tts,'km-KH');assert.equal(rows.find(r=>r.code==='lo').tts,'lo-LA');
+ assert.equal(rows.find(r=>r.code==='km').stt,'browser:km-KH');assert.equal(rows.find(r=>r.code==='lo').stt,'browser:lo-LA');
+ assert.equal(rows.find(r=>r.code==='fil').stt,'tl');
+});
 test('open mode: mute, typing keeps mics, portal closes and reopens them, unsure goes to compose',async({page})=>{
  const s=await openRoom(page,'Mute');
  await page.locator('#strip-south .micbtn').click();await page.waitForFunction(()=>!mic.south.on&&mic.north.on);
