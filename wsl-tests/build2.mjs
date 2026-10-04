@@ -4,7 +4,7 @@ const file=process.argv[2]||'wsl.html';const url='file://'+process.cwd()+'/'+fil
 const {ok,done}=reporter();const b=await launch();
 for(const vp of VIEWPORTS){
   console.log('--- '+vp.n);
-  const p=await b.newPage({viewport:{width:vp.w,height:vp.h}});const errs=[];p.on('pageerror',e=>errs.push(e.message));
+  const p=await b.newPage({viewport:{width:vp.w,height:vp.h}});await p.addInitScript(()=>{try{if(!localStorage.getItem('wsl_settings'))localStorage.setItem('wsl_settings',JSON.stringify({mode:'regular'}));}catch(e){}});const errs=[];p.on('pageerror',e=>errs.push(e.message));
   await p.goto(url);await p.waitForTimeout(500);await p.evaluate(HELPERS);
   const S=()=>p.evaluate(()=>window.__wsl&&window.__wsl());
   let s=await S();ok('hook present',!!s&&s.charges===3,s&&s.charges);if(!s||s.charges===undefined){await p.close();continue;}
