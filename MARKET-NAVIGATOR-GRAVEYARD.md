@@ -387,3 +387,23 @@ Retired from the Stage 6 candidate:
 These paths are not donors and must not be reintroduced. Compatibility names such as `renderV1` or `renderV2` may exist only as thin calls into the shared controller, never as independent chart implementations.
 
 The accepted chart DOM/CSS and shared low-level `draw()` painter remain governed presentation primitives; their retention is deliberate and is not duplicate chart state/mathematics.
+
+
+## Turn 37 Stage 6 deprecated chart retirement — COMPLETED 2026-10-04
+The Stage 6 retirement completed after the full gated sequence.
+
+Qualified evidence:
+- legacy chart paths retired: PASS;
+- single controller attach owner: PASS;
+- accepted NOW visual/geometry parity: PASS;
+- analytical/data parity: PASS;
+- single event ownership: PASS;
+- shared batch Add atomicity: PASS;
+- Analyze isolation and Library independence: PASS;
+- 25-cycle Analyze lifecycle stress: PASS;
+- Plain / Standard / Technical retained: PASS.
+
+Workflow: `37210928051`.
+Qualified artifact commit: `6a98d356ce84c804c483b8a9af5198eda5c8113c`.
+
+The retired paths remain permanently prohibited as donors. Owner qualification is still required before any promotion.
