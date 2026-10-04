@@ -1,10 +1,10 @@
 // WSL Build 2 checks: rescue, flow, timer/distance, jump chain. Usage: node wsl-tests/build2.mjs [file]
-import {launch,VIEWPORTS,HELPERS,fresh,reporter} from './lib.mjs';
+import {launch,VIEWPORTS,HELPERS,fresh,reporter,seeded} from './lib.mjs';
 const file=process.argv[2]||'wsl.html';const url='file://'+process.cwd()+'/'+file;
 const {ok,done}=reporter();const b=await launch();
 for(const vp of VIEWPORTS){
   console.log('--- '+vp.n);
-  const p=await b.newPage({viewport:{width:vp.w,height:vp.h}});await p.addInitScript(()=>{try{if(!localStorage.getItem('wsl_settings'))localStorage.setItem('wsl_settings',JSON.stringify({mode:'regular'}));}catch(e){}});const errs=[];p.on('pageerror',e=>errs.push(e.message));
+  const p=await b.newPage({viewport:{width:vp.w,height:vp.h}});seeded(p,{mode:'regular'});const errs=[];p.on('pageerror',e=>errs.push(e.message));
   await p.goto(url);await p.waitForTimeout(500);await p.evaluate(HELPERS);
   const S=()=>p.evaluate(()=>window.__wsl&&window.__wsl());
   let s=await S();ok('hook present',!!s&&s.charges===3,s&&s.charges);if(!s||s.charges===undefined){await p.close();continue;}

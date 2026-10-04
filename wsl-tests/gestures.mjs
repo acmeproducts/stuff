@@ -1,11 +1,11 @@
 // Gesture arbitration: gestures must never cancel or hijack each other. Usage: node wsl-tests/gestures.mjs [file]
-import {launch,VIEWPORTS,HELPERS,fresh,reporter} from './lib.mjs';
+import {launch,VIEWPORTS,HELPERS,fresh,reporter,seeded} from './lib.mjs';
 const file=process.argv[2]||'wsl.html';const url='file://'+process.cwd()+'/'+file;
 const {ok,done}=reporter();const b=await launch();
 for(const vp of VIEWPORTS){
   console.log('--- '+vp.n);
   const p=await b.newPage({viewport:{width:vp.w,height:vp.h}});const errs=[];p.on('pageerror',e=>errs.push(e.message));
-  await p.addInitScript(()=>{try{localStorage.setItem('wsl_settings',JSON.stringify({mode:'regular'}));}catch(e){}});
+  seeded(p,{mode:'regular'});
   await p.goto(url);await p.waitForTimeout(500);await p.evaluate(HELPERS);
   const S=()=>p.evaluate(()=>__wsl());
   // 1. drawing is immediate: no delay, no flip, even when fast, while the cart runs

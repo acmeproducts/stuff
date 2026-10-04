@@ -16,3 +16,6 @@ export const HELPERS=()=>{
 };
 export async function fresh(p,release=true){await p.reload();await p.waitForTimeout(400);await p.evaluate(HELPERS);if(release){await p.evaluate(()=>__release());await p.waitForTimeout(120);}}
 export function reporter(){let fails=0;return{ok(n,c,x){console.log((c?'PASS ':'FAIL ')+n+(x!==undefined?'  '+JSON.stringify(x):''));if(!c)fails++;},done(){console.log(fails?`\n${fails} FAILED`:'\nALL PASSED');process.exit(fails?1:0);}};}
+
+// Seed saved settings reliably: load, write storage, reload (early init scripts occasionally lose the write).
+export function seeded(p,obj){const g=p.goto.bind(p);p.goto=async(u,o)=>{const r=await g(u,o);await p.evaluate(x=>{localStorage.setItem('wsl_settings',JSON.stringify(x));},obj);await p.reload();return r;};}
