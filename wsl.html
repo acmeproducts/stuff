@@ -22,6 +22,20 @@
   #flowbar{position:fixed;top:calc(env(safe-area-inset-top,0px) + 70px);left:50%;transform:translateX(-50%);width:120px;height:5px;
     background:rgba(255,255,255,.18);border-radius:3px;overflow:hidden;pointer-events:none;z-index:5;}
   #flowfill{display:block;height:100%;width:0;background:#4fe0d0;}
+  #btnSettings{position:fixed;top:calc(env(safe-area-inset-top,0px) + 8px);right:8px;width:40px;height:40px;border-radius:50%;border:none;
+    background:rgba(20,30,60,.7);color:#fff;font-size:20px;z-index:7;cursor:pointer;touch-action:manipulation;-webkit-tap-highlight-color:transparent;}
+  #settingsPanel,#modeSel{position:fixed;inset:0;display:none;flex-direction:column;align-items:center;justify-content:center;gap:10px;
+    background:rgba(3,10,22,.94);z-index:12;color:#fff;text-align:center;padding:20px;overflow-y:auto;touch-action:pan-y;}
+  #settingsPanel h2,#modeSel h1{margin:0 0 6px;}
+  #settingsPanel h3{margin:10px 0 4px;font-size:14px;opacity:.8;font-weight:600;}
+  .row{display:flex;gap:8px;flex-wrap:wrap;justify-content:center;max-width:420px;width:100%;}
+  .opt{flex:1;min-width:84px;padding:12px 8px;border-radius:10px;border:2px solid #3a4a7a;background:#16224a;color:#fff;font-weight:700;font-size:15px;cursor:pointer;}
+  .opt.on{border-color:#8cff5a;background:#1a3a1a;}
+  .big{padding:18px 12px;font-size:20px;}
+  .slr{display:flex;align-items:center;gap:10px;max-width:420px;width:100%;}
+  .slr span:first-child{width:50px;text-align:right;}.slr input{flex:1;}.slr .v{width:44px;text-align:left;}
+  #closeSettings{margin-top:14px;width:100%;max-width:420px;padding:16px;border-radius:12px;border:none;background:linear-gradient(180deg,#39b54a,#2a8a36);color:#fff;font-weight:800;font-size:16px;cursor:pointer;}
+  #modeSel p{margin:2px 0 10px;opacity:.8;max-width:340px;}
   #hint{position:fixed;bottom:calc(env(safe-area-inset-bottom,0px) + 24px);left:50%;transform:translateX(-50%);
     max-width:calc(100vw - 24px);text-align:center;pointer-events:none;color:#fff;font-size:14px;
     background:rgba(0,0,0,.45);padding:6px 14px;border-radius:20px;z-index:5;
@@ -47,11 +61,21 @@
 <div id="hud"><div class="score" id="score">0</div><div class="best" id="best">BEST 0</div></div>
 <div id="hud2"><span id="dist">0″</span><span class="fl" id="flowtxt">FLOW 0.0</span><span class="tm" id="timer">0:00</span><span class="rc" id="resc">⛑ 3</span></div>
 <div id="flowbar"><i id="flowfill"></i></div>
+<button id="btnSettings" aria-label="Settings">⚙️</button>
 <div id="hint">Draw to extend • Tap ON track to release ⛄🛒</div>
 <div id="diag">boot…</div>
 <div id="err"></div>
 <div id="overlay"><h1>⛄🛒 → 🕳️</h1><div class="big" id="finalScore">0</div><p id="finalBest"></p><p id="finalStats"></p><div class="cta">TAP TO RIDE AGAIN</div></div>
 
+<div id="modeSel"><h1>⛄ Choose your ride</h1><p>Zen is endless and calm: no game over, no score, soft sound. You can switch any time in ⚙️.</p>
+  <div class="row"><button class="opt big" id="modeRegular">Regular</button><button class="opt big" id="modeZen">Zen</button></div></div>
+<div id="settingsPanel"><h2>⚙️ Settings</h2>
+  <h3>Mode</h3><div class="row"><button class="opt" data-mode="regular">Regular</button><button class="opt" data-mode="zen">Zen</button></div>
+  <h3>Intensity</h3><div class="row"><button class="opt" data-preset="low">Low</button><button class="opt" data-preset="med">Med</button><button class="opt" data-preset="high">High</button><button class="opt" data-preset="custom">Custom</button></div>
+  <div class="slr"><span>Jump</span><input type="range" id="jumpForce" min="400" max="2000" step="50"><span class="v" id="jumpVal"></span></div>
+  <div class="slr"><span>Flip</span><input type="range" id="flipForce" min="300" max="1200" step="50"><span class="v" id="flipVal"></span></div>
+  <h3>Audio vibe</h3><div class="row"><button class="opt" data-audio="calm">Calm</button><button class="opt" data-audio="fun">Fun</button><button class="opt" data-audio="whimsical">Whimsical</button><button class="opt" data-audio="zen">Zen</button></div>
+  <button id="closeSettings">SAVE &amp; CLOSE</button></div>
 <script>
 (function(){
 "use strict";
@@ -90,15 +114,24 @@ var G=1050,DRAG=0.12,ROLL=5,VMAX=1600;
 var PROGRESS_THRESHOLD=80,PROGRESS_LIMIT=4.0;
 var lastProgressX=0,noProgressT=0;
 var AC=null;
+var PRESETS={low:{jump:500,flip:450},med:{jump:800,flip:700},high:{jump:1200,flip:1000}};
+var cfg={mode:null,preset:'med',jump:800,flip:700,audio:'fun'};
+var paused=false,TIMESCALE_ZEN=0.75,lastOn={track:0,s:0};
+try{var sv=JSON.parse(localStorage.getItem('wsl_settings')||'{}');for(var k in sv)if(k in cfg)cfg[k]=sv[k];}catch(e){}
+if(PRESETS[cfg.preset]){cfg.jump=PRESETS[cfg.preset].jump;cfg.flip=PRESETS[cfg.preset].flip;}
+function saveCfg(){try{localStorage.setItem('wsl_settings',JSON.stringify(cfg));}catch(e){}}
+function zen(){return cfg.mode==='zen';}
+var THEMES={calm:{type:'sine',mult:0.8,gain:0.06,dur:1.4},fun:{type:'triangle',mult:1,gain:0.07,dur:1},whimsical:{type:'square',mult:1.5,gain:0.035,dur:0.8},zen:{type:'sine',mult:0.5,gain:0.05,dur:2.4}};
+function theme(){return zen()?'zen':(THEMES[cfg.audio]?cfg.audio:'fun');}
 
 function beep(f,dur){
-  dur=dur||140;
+  var th=THEMES[theme()];f=f*th.mult;dur=(dur||140)*th.dur;
   try{
     if(!AC){var Ctx=window.AudioContext||window.webkitAudioContext;if(!Ctx)return;AC=new Ctx();}
     if(AC.state==='suspended')AC.resume();
     var o=AC.createOscillator(),g=AC.createGain();
-    o.frequency.value=f;o.type='triangle';
-    g.gain.setValueAtTime(0.07,AC.currentTime);
+    o.frequency.value=f;o.type=th.type;
+    g.gain.setValueAtTime(th.gain,AC.currentTime);
     g.gain.exponentialRampToValueAtTime(0.001,AC.currentTime+dur/1000);
     o.connect(g);g.connect(AC.destination);
     o.start();o.stop(AC.currentTime+dur/1000);
@@ -216,13 +249,12 @@ function startFallOffTrack(reason){
   diagExtra=reason||'fall';
   beep(160,200);
 }
-var JUMP=800,FLIPJUMP=700;
 function chainTap(){
   var now=performance.now();
   chain=(now-lastTapT<=CHAIN_MS)?chain+1:1;lastTapT=now;
   if(chain===1)return false;
   if(state!==ST.FALL||chain>3)return true;
-  var boost=(BIGJUMP-1)/2*JUMP;
+  var boost=(BIGJUMP-1)/2*cfg.jump;
   fall.vy-=boost;
   if(chain===3){addFloater(cart.x,cart.y-60,'BIG JUMP','#ffd700');beep(780,140);}
   else{addFloater(cart.x,cart.y-60,'BOOST','#8cff5a');beep(640,100);}
@@ -230,14 +262,14 @@ function chainTap(){
 }
 function doJump(){
   if(state!==ST.RUN)return;
-  fall.vx=Math.cos(cart.ang)*cart.v;fall.vy=Math.sin(cart.ang)*cart.v-JUMP;
+  fall.vx=Math.cos(cart.ang)*cart.v;fall.vy=Math.sin(cart.ang)*cart.v-cfg.jump;
   fall.rot=cart.ang;fall.spin=0;fall.t=0;fall.grace=0.12;
   cart.flip=0;cart.flipAng=0;cart.flipDir=1;
   state=ST.FALL;diagExtra='jump';beep(520,140);
 }
 function triggerFlip(dir){
   if(state===ST.RUN){
-    fall.vx=Math.cos(cart.ang)*cart.v;fall.vy=Math.sin(cart.ang)*cart.v-FLIPJUMP;
+    fall.vx=Math.cos(cart.ang)*cart.v;fall.vy=Math.sin(cart.ang)*cart.v-cfg.flip;
     fall.rot=cart.ang;fall.spin=0;fall.t=0;fall.grace=0.12;
     cart.flip=1;cart.flipAng=0;cart.flipDir=dir;
     state=ST.FALL;diagExtra='flip';beep(440,120);beep(660,120);
@@ -247,18 +279,18 @@ function triggerFlip(dir){
   }
 }
 function startRescue(x,y){
-  if((state!==ST.RUN&&state!==ST.FALL)||charges<=0)return false;
+  if((state!==ST.RUN&&state!==ST.FALL)||(charges<=0&&!zen()))return false;
   var idx=tracks.length,rt=mkTrack();rt.color='#00f0ff';rt.rescue=true;tracks.push(rt);
   addPoint(idx,cart.x,cart.y);
   var w=toWorld(x,y);addPoint(idx,w.x,w.y);
-  resPrev=state;charges--;editTrack=idx;state=ST.RESCUE;
+  resPrev=state;if(!zen())charges--;editTrack=idx;state=ST.RESCUE;
   setHint('Drag to extend the line • Lift to ride');beep(900,160);beep(1200,120);
   return true;
 }
 function endRescue(){
   if(state!==ST.RESCUE)return;
   var idx=editTrack,tr=tracks[idx];
-  if(!tr||tr.pts.length<2){tracks.pop();editTrack=0;charges++;state=resPrev;return;}
+  if(!tr||tr.pts.length<2){tracks.pop();editTrack=0;if(!zen())charges++;state=resPrev;return;}
   var ang=pointAt(idx,0).ang,vx,vy;
   if(resPrev===ST.FALL){vx=fall.vx;vy=fall.vy;}else{vx=Math.cos(cart.ang)*cart.v;vy=Math.sin(cart.ang)*cart.v;}
   var dot=vx*Math.cos(ang)+vy*Math.sin(ang);
@@ -282,6 +314,14 @@ function landOnTrack(ti,s){
   }
   cart.flip=0;cart.flipAng=0;
 }
+function gentleReturn(){
+  var ti=Math.min(lastOn.track,tracks.length-1),tr=tracks[ti];
+  if(!tr||tr.pts.length<2){ti=0;tr=tracks[0];}
+  cart.track=ti;cart.s=Math.max(0,Math.min(tr.totalLen,lastOn.s)-80);cart.v=60;
+  var p=pointAt(ti,cart.s);cart.x=p.x;cart.y=p.y;cart.ang=p.ang;cart.flip=0;cart.flipAng=0;
+  state=ST.RUN;stuckT=0;noProgressT=0;lastProgressX=cart.x;
+  addFloater(cart.x,cart.y-50,'welcome back','#bfe9ff');setHint('Draw more track ahead');beep(520,200);
+}
 function die(){
   state=ST.SUCK;suck.t=0;suck.scale=1;suck.rot=cart.ang;
   beep(140,300);
@@ -289,7 +329,7 @@ function die(){
 function gameOver(){
   state=ST.OVER;
   var avg=flowN?flowSum/flowN:0;flowBonus=Math.round(avg*10*100);score+=flowBonus;
-  if(score>best){best=score;try{localStorage.setItem('scl_best',String(best));}catch(e){}}
+  if(!zen()&&score>best){best=score;try{localStorage.setItem('scl_best',String(best));}catch(e){}}
   elFinal.textContent=score+' PTS';
   elFinalBest.textContent='Best: '+best+' • Pages: '+maxPage;
   elStats.textContent='Flow +'+flowBonus+' • Distance '+Math.floor(distPx/96)+'″ • Time '+fmt(survival);
@@ -299,6 +339,7 @@ function gameOver(){
 
 function fmt(t){t=Math.floor(t);var m=Math.floor(t/60),r=t%60;return m+':'+(r<10?'0':'')+r;}
 function update(dt){
+  if(zen())dt*=TIMESCALE_ZEN;
   var tx,ty,k;
   if(state===ST.RUN||state===ST.FALL)survival+=dt;
   if(state===ST.READY){
@@ -321,16 +362,17 @@ function update(dt){
     if(cart.s>=tr.totalLen-0.5&&cart.v>0){startFallOffTrack('end');return;}
     if(cart.s<=0.5&&cart.v<0){startFallOffTrack('start');return;}
     var p=pointAt(cart.track,cart.s);cart.x=p.x;cart.y=p.y;cart.ang=p.ang;
+    lastOn.track=cart.track;lastOn.s=cart.s;
 
     if(cart.x>lastProgressX+PROGRESS_THRESHOLD){lastProgressX=cart.x;noProgressT=0;}
     else noProgressT+=dt;
 
-    if(noProgressT>PROGRESS_LIMIT){startFallOffTrack('deadpool');return;}
+    if(!zen()&&noProgressT>PROGRESS_LIMIT){startFallOffTrack('deadpool');return;}
 
     var page=Math.floor(cart.x/pageW);
     if(page>maxPage){maxPage=page;score+=100;addFloater(cart.x,cart.y-50,'+100','#8cff5a');beep(880,100);}
 
-    if(Math.abs(cart.v)<3&&Math.abs(G*Math.sin(p0.ang))<30){stuckT+=dt;if(stuckT>1.5)startFallOffTrack('stuck');}
+    if(!zen()&&Math.abs(cart.v)<3&&Math.abs(G*Math.sin(p0.ang))<30){stuckT+=dt;if(stuckT>1.5)startFallOffTrack('stuck');}
     else stuckT=0;
   }else if(state===ST.FALL){
     fall.t+=dt;if(fall.grace>0)fall.grace-=dt;
@@ -343,7 +385,7 @@ function update(dt){
     cart.ang+=fall.spin*dt;
     var land=nearestOnAnyTrack(cart.x,cart.y);
     if(fall.grace<=0&&land.d<24&&land.d<Math.abs(fall.vy)*0.06+10){landOnTrack(land.track,land.s);return;}
-    if(cart.y>Math.max(H/zoom,camY+H/zoom)+220||fall.t>6){hole.x=cart.x;hole.y=cart.y+180;die();}
+    if(cart.y>Math.max(H/zoom,camY+H/zoom)+220||fall.t>6){if(zen())gentleReturn();else{hole.x=cart.x;hole.y=cart.y+180;die();}}
   }else if(state===ST.SUCK){
     suck.t+=dt;
     var dx=hole.x-cart.x,dy=hole.y-cart.y,d=Math.hypot(dx,dy)||1;
@@ -436,6 +478,7 @@ var ZMIN=0.35,ZMAX=3.5;
 var TAP_MS=200,TAP_PX=15,SWIPE_PX=40,SWIPE_V=0.3;
 var drawing=false,moved=false,downX=0,downY=0,downT=0,mode='none',multi=false,pinchStartDist=0,startZoom=1;
 function cancelLP(){lp=null;}
+var twoTap=null;
 function checkLP(){
   if(!lp||multi||mode!=='none'||moved){lp=null;return;}
   if(performance.now()-lp.t0>=LONGPRESS_MS){
@@ -445,10 +488,12 @@ function checkLP(){
 }
 
 window.addEventListener('pointerdown',function(e){
+  if(paused||e.target.closest('#btnSettings,#settingsPanel,#modeSel'))return;
   pointers.set(e.pointerId,{x:e.clientX,y:e.clientY});
   if(pointers.size>=2){
     var pts=Array.from(pointers.values()),dx=pts[0].x-pts[1].x,dy=pts[0].y-pts[1].y;
     pinchStartDist=Math.hypot(dx,dy)||1;startZoom=zoom;drawing=false;multi=true;mode='none';
+    if(!twoTap)twoTap={t0:performance.now(),cx:(pts[0].x+pts[1].x)/2,cy:(pts[0].y+pts[1].y)/2,d0:pinchStartDist,ok:true};
     pendingSwitch=null;cancelLP();if(state===ST.RESCUE)endRescue();return;
   }
   multi=false;
@@ -466,9 +511,11 @@ window.addEventListener('pointerdown',function(e){
 },{passive:false});
 
 window.addEventListener('pointermove',function(e){
+  if(paused)return;
   pointers.set(e.pointerId,{x:e.clientX,y:e.clientY});
   if(pointers.size>=2&&pinchStartDist>0){
     var pts=Array.from(pointers.values()),dx=pts[0].x-pts[1].x,dy=pts[0].y-pts[1].y;
+    if(twoTap&&Math.abs(Math.hypot(dx,dy)-twoTap.d0)>25)twoTap.ok=false;
     zoom=Math.max(ZMIN,Math.min(ZMAX,startZoom*Math.hypot(dx,dy)/pinchStartDist));
     applyTransform();return;
   }
@@ -501,7 +548,14 @@ window.addEventListener('pointermove',function(e){
 
 window.addEventListener('pointerup',function(e){
   pointers.delete(e.pointerId);if(pointers.size<2)pinchStartDist=0;
-  if(multi){if(pointers.size===0)multi=false;drawing=false;return;}
+  if(multi){
+    if(pointers.size===0){
+      multi=false;
+      if(twoTap&&twoTap.ok&&performance.now()-twoTap.t0<=300&&state!==ST.RESCUE&&startRescue(twoTap.cx,twoTap.cy))endRescue();
+      twoTap=null;
+    }
+    drawing=false;return;
+  }
   cancelLP();
   if(mode==='rescue'){mode='none';drawing=false;endRescue();return;}
   var wasDrawing=drawing,wasMoved=moved;drawing=false;
@@ -512,7 +566,7 @@ window.addEventListener('pointerup',function(e){
     else addFloater(w.x,w.y,'Tap the track','#ffd76a');
   }else if((state===ST.RUN||state===ST.FALL)&&performance.now()-downT<=TAP_MS){if(!chainTap()&&state===ST.RUN)doJump();}
 });
-window.addEventListener('pointercancel',function(){cancelLP();if(state===ST.RESCUE)endRescue();drawing=false;multi=false;mode='none';pointers.clear();pinchStartDist=0;});
+window.addEventListener('pointercancel',function(){twoTap=null;cancelLP();if(state===ST.RESCUE)endRescue();drawing=false;multi=false;mode='none';pointers.clear();pinchStartDist=0;});
 
 window.addEventListener('wheel',function(e){
   if(e.ctrlKey||e.metaKey){e.preventDefault();zoom=Math.max(ZMIN,Math.min(ZMAX,zoom*(e.deltaY>0?0.9:1.1)));applyTransform();}
@@ -523,6 +577,10 @@ window.addEventListener('error',function(ev){
 });
 
 function hud(){
+  var z=zen();
+  document.getElementById('hud').style.display=z?'none':'';
+  elDist.style.display=z?'none':'';elTimer.style.display=z?'none':'';elResc.style.display=z?'none':'';
+  elFlow.style.opacity=z?'.55':'1';
   var avg=0;for(var i=0;i<flowSamples.length;i++)avg+=flowSamples[i];avg=flowSamples.length?avg/flowSamples.length:0;
   elDist.textContent=Math.floor(distPx/96)+'″';
   elFlow.textContent='FLOW '+avg.toFixed(1);
@@ -537,14 +595,36 @@ function loop(t){
   fpsEMA=fpsEMA*0.95+0.05/dt;
   stepFlakes(dt);
   for(var i=floaters.length-1;i>=0;i--){if(floaters[i].t>1.2)floaters.splice(i,1);}
-  checkLP();update(dt);draw();applyTransform();hud();
+  if(!paused){checkLP();update(dt);}draw();applyTransform();hud();
   elScore.textContent=score;elBest.textContent='BEST '+best;
   diagT+=dt;if(diagT>0.25){diagT=0;elDiag.textContent=STNAME[state]+' v'+Math.round(cart.v)+' z'+zoom.toFixed(2)+' p'+maxPage+(diagExtra?' '+diagExtra:'');diagExtra='';}
 }
 try{best=parseInt(localStorage.getItem('scl_best')||'0',10)||0;}catch(e){}
 window.addEventListener('resize',resize);
 window.addEventListener('orientationchange',function(){setTimeout(resize,250);});
-window.__wsl=function(){var t=tracks[0];return{state:state,zoom:zoom,camX:camX,camY:camY,score:score,flip:cart.flip,flipDir:cart.flipDir,charges:charges,timer:survival,dist:distPx,flow:(flowSamples.length?flowSamples.reduce(function(a,b){return a+b;},0)/flowSamples.length:0),cartTrack:cart.track,chain:chain,vy:fall.vy,cart:{x:cart.x,y:cart.y,v:cart.v},pts:t?t.pts.slice():[],ntracks:tracks.length};};
+function $(sel){return document.querySelectorAll(sel);}
+function syncUI(){
+  var pn=document.getElementById('settingsPanel');
+  $('[data-mode]').forEach(function(b){b.classList.toggle('on',b.getAttribute('data-mode')===cfg.mode);});
+  $('[data-preset]').forEach(function(b){b.classList.toggle('on',b.getAttribute('data-preset')===cfg.preset);});
+  $('[data-audio]').forEach(function(b){b.classList.toggle('on',b.getAttribute('data-audio')===cfg.audio);});
+  document.getElementById('jumpForce').value=cfg.jump;document.getElementById('flipForce').value=cfg.flip;
+  document.getElementById('jumpVal').textContent=cfg.jump;document.getElementById('flipVal').textContent=cfg.flip;
+  document.getElementById('modeSel').style.display=cfg.mode?'none':'flex';
+  paused=!cfg.mode||pn.style.display==='flex';
+}
+function setMode(m){var changed=cfg.mode!==m;cfg.mode=m;saveCfg();syncUI();if(changed)reset();}
+document.getElementById('modeRegular').addEventListener('click',function(){setMode('regular');});
+document.getElementById('modeZen').addEventListener('click',function(){setMode('zen');});
+document.getElementById('btnSettings').addEventListener('click',function(){document.getElementById('settingsPanel').style.display='flex';syncUI();});
+document.getElementById('closeSettings').addEventListener('click',function(){document.getElementById('settingsPanel').style.display='none';saveCfg();syncUI();});
+$('[data-mode]').forEach(function(b){b.addEventListener('click',function(){setMode(b.getAttribute('data-mode'));});});
+$('[data-preset]').forEach(function(b){b.addEventListener('click',function(){var p=b.getAttribute('data-preset');cfg.preset=p;if(PRESETS[p]){cfg.jump=PRESETS[p].jump;cfg.flip=PRESETS[p].flip;}saveCfg();syncUI();});});
+$('[data-audio]').forEach(function(b){b.addEventListener('click',function(){cfg.audio=b.getAttribute('data-audio');saveCfg();syncUI();beep(660,120);});});
+document.getElementById('jumpForce').addEventListener('input',function(e){cfg.jump=+e.target.value;cfg.preset='custom';saveCfg();syncUI();});
+document.getElementById('flipForce').addEventListener('input',function(e){cfg.flip=+e.target.value;cfg.preset='custom';saveCfg();syncUI();});
+syncUI();
+window.__wsl=function(){var t=tracks[0];return{state:state,zoom:zoom,camX:camX,camY:camY,score:score,flip:cart.flip,flipDir:cart.flipDir,charges:charges,timer:survival,dist:distPx,flow:(flowSamples.length?flowSamples.reduce(function(a,b){return a+b;},0)/flowSamples.length:0),cartTrack:cart.track,mode:cfg.mode,preset:cfg.preset,jump:cfg.jump,flipF:cfg.flip,audio:cfg.audio,theme:theme(),paused:paused,chain:chain,vy:fall.vy,cart:{x:cart.x,y:cart.y,v:cart.v},pts:t?t.pts.slice():[],ntracks:tracks.length};};
 resize();reset();requestAnimationFrame(loop);
 })();
 </script>

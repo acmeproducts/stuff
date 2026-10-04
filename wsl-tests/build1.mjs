@@ -8,7 +8,7 @@ let fails=0;const ok=(n,c,x)=>{console.log((c?'PASS ':'FAIL ')+n+(x!==undefined?
 const sleep=ms=>new Promise(r=>setTimeout(r,ms));
 for(const vp of [{n:'phone',w:390,h:800},{n:'desktop',w:1280,h:800}]){
   console.log('--- '+vp.n);
-  const p=await b.newPage({viewport:{width:vp.w,height:vp.h}});const errs=[];
+  const p=await b.newPage({viewport:{width:vp.w,height:vp.h}});await p.addInitScript(()=>{try{if(!localStorage.getItem('wsl_settings'))localStorage.setItem('wsl_settings',JSON.stringify({mode:'regular'}));}catch(e){}});const errs=[];
   p.on('pageerror',e=>errs.push(e.message));
   await p.goto(url);await p.waitForTimeout(600);
   await p.evaluate(()=>{
