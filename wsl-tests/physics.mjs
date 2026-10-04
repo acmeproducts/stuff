@@ -15,6 +15,14 @@ for(const momentum of ['earned','classic']){
     await p.evaluate(v=>__wslSetV(v),v0);const out=[];const t0=Date.now();
     while(Date.now()-t0<secs*1000){await p.waitForTimeout(100);const s=await p.evaluate(()=>__wsl());out.push({t:(Date.now()-t0)/1000,v:s.cart.v,st:s.state});if(s.state!==1)break;}
     return out;}
+  // launch: how far does a fresh release carry the cart in its first second (default starting track)?
+  for(const vw of [390,1280]){
+    const q=await b.newPage({viewport:{width:vw,height:800}});seeded(q,{mode:'regular',momentum});await q.goto(url);await q.waitForTimeout(500);await q.evaluate(HELPERS);
+    await q.evaluate(()=>__release());await q.waitForTimeout(30);const x0=(await q.evaluate(()=>__wsl())).cart.x;
+    await q.waitForTimeout(1000);const dx=(await q.evaluate(()=>__wsl())).cart.x-x0;console.log('  launch distance in 1 s at width',vw,':',Math.round(dx),'px');
+    if(momentum==='earned')ok('earned launch covers at least 220 px in the first second (width '+vw+')',dx>=220,Math.round(dx));
+    await q.close();
+  }
   ok('mode applied',(await p.evaluate(()=>__wsl().momentum))===momentum);
   const down=await run(30,100,6);
   const tTo500=(down.find(o=>o.v>=500)||{}).t;const peak=Math.max(...down.map(o=>o.v));

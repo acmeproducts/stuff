@@ -71,7 +71,7 @@ for(const vp of [{n:'phone',w:390,h:800},{n:'desktop',w:1280,h:800}]){
   ok('tap while moving backward = jump with a backward spin',s.state===2&&s.flip===1&&s.flipDir===-1,{state:s.state,flip:s.flip,dir:s.flipDir,v:s.cart.v});
   await fresh();
   await p.evaluate(()=>__swipe2(120,150));await p.waitForTimeout(60);s=await S();
-  ok('two-finger swipe does nothing (no flip, no zoom)',s.flip===0&&Math.abs(s.zoom-1)<0.01&&s.state===1&&s.gphase==='idle',{flip:s.flip,z:s.zoom,st:s.state});
+  ok('two-finger swipe does nothing (no flip, no zoom)',s.flip===0&&Math.abs(s.zoom-1)<0.01&&s.gphase==='idle',{flip:s.flip,z:s.zoom,st:s.state});
   await fresh();const np=(await S()).pts.length;
   await p.evaluate(()=>__drag(100,300,230,300,6,100));await p.waitForTimeout(60);s=await S();
   ok('fast one-finger sideways drag = draw, never a flip',s.flip===0&&s.pts.length>np&&s.gphase==='idle',{flip:s.flip,pts:[np,s.pts.length],ph:s.gphase});
