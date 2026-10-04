@@ -384,3 +384,9 @@ No unresolved release-blocking gap remains. Red-team disposition: CLEARED FOR OW
 - Scope: retire the superseded NOW render/data/picker paths and superseded Analyze render/data/picker paths; retain the accepted DOM/CSS and shared low-level draw primitive.
 - One unified controller attach path must own NOW and Analyze state transitions, horizon/series/display changes, batch Add, lifecycle and rendering inputs.
 - Full Stage 3 differential/Library gates plus Stage 6 event/data/Add/lifecycle gates are mandatory before an owner test URL is produced.
+
+
+#### Stage 6 gate note — initial build
+- The first Stage 6 run stopped at the source-retirement gate before syntax/browser execution because a second legacy `renderV2` definition sat outside the first removal range.
+- No Stage 6 product candidate was published or owner-facing.
+- The builder was corrected only to remove that exact remaining deprecated range, then the stage restarts from the same passed Stage 5 source.
