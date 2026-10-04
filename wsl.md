@@ -40,6 +40,8 @@ Change: wsl.html restored byte-for-byte from snow-v1.html, then built up in thre
   - Not restored: trick bonuses stay +100 (+50 on a rescue line) instead of the old +1000/+500, because every jump now flips (see gestures entry). Rescue-line colours orange → blue → red per use (2018565c) are also gone.
   - Observation: Flow (1000 × average screens ahead) is far larger than distance and time points; owner may want it scaled.
 
+- **Flow scaled down (2026-10-04, owner decision):** Flow bonus was 1000 × average screens ahead, which dwarfed distance and time points (489 vs 16 and 37 in one run). Now 100 × average screens ahead (10× smaller), so a typical run gets tens of points from Flow, comparable to distance and time; one screen ahead on average still earns 100.
+
 ## RUN LOG (written by DevStream)
 | Date | Tab | Result | What | Commit |
 |---|---|---|---|---|
