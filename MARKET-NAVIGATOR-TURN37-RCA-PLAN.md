@@ -316,7 +316,7 @@ No unresolved release-blocking gap remains. Red-team disposition: CLEARED FOR OW
 ### Final review disposition
 - MANAGER: CLEARED
 - RED TEAM: CLEARED
-- PRODUCT IMPLEMENTATION: OWNER APPROVED 2026-10-04 / STAGES 0–3 PASS / STAGE 4 IN PROGRESS
+- PRODUCT IMPLEMENTATION: OWNER APPROVED 2026-10-04 / STAGES 0–4 PASS / STAGE 5 BLOCKED PENDING OWNER GO
 
 
 ### Execution record — Stage 0
@@ -355,6 +355,15 @@ No unresolved release-blocking gap remains. Red-team disposition: CLEARED FOR OW
 - Passing run after harness correction: GitHub Actions run 37197667596.
 
 ### Execution record — Stage 4
-- Status: IN PROGRESS.
-- Scope is limited to the shared grouped batch Add state machine and its NOW/Analyze adapters.
-- NOW chart rendering/controller cutover remains explicitly out of scope until Stage 4 passes.
+- Shared grouped batch Add state machine: PASS.
+- NOW and Analyze both use the same generic batch-picker state machine.
+- Tabs are exactly Risk / Growth / Macro / Other.
+- Rows are alphabetically ordered with deterministic ID tie-break.
+- Multi-select staging survives tab changes and search.
+- OK applies all and only staged eligible series once; Cancel and X mutate nothing.
+- Already-present series are excluded.
+- Stage 3 NOW differential/isolation regression remained green.
+- NOW chart rendering/controller cutover was not performed.
+- Passing workflow: GitHub Actions run 37202063237.
+- Qualified candidate commit: 124e281f4d50b45449aa2dcea55db9301d599c33.
+- Stage 5 remains blocked until explicit owner go.
