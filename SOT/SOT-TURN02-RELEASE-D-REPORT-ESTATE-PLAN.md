@@ -205,3 +205,8 @@ Freshness: Connected describes transport only. Separate evidence state Current /
 **Finding:** no new field needed — Class (KEEP / EXCESS) is already decided globally by fingerprint; `class:keep OR class:excess` yields exactly the non-unique files.
 **Change:** a Duplicates button in the Search header sets that query, groups by Fingerprint, sorts Class descending (KEEP before its EXCESS copies) and orders fingerprint groups by reclaimable size (toggle in the Columns modal). Fingerprint group headers show copies, size, reclaimable (EXCESS) size and the estates holding them.
 **Qualification:** runtime qualifier checks the preset state, headers (copies / reclaimable / estates), group order and KEEP-first ordering.
+
+## 2026-10-04 — Duplicates fixes from owner mobile review
+
+**Evidence (owner screenshot):** Duplicates button did not light up; group headers showed only the long fingerprint so copies/reclaimable/estates were pushed off-screen; the fingerprint column crowded out other fields.
+**Change:** Duplicates lights while its preset is active and goes dark when the search or grouping changes; fingerprints display as 10 characters + "…" (full value on hover, copied in full on tap); group headers lead with the short value, then copies · size · reclaimable · estates, and stay pinned to the visible width.
