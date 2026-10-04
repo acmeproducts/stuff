@@ -683,3 +683,15 @@ Malay and Indonesian are confirmed to have different speech, voice and translati
 **Check added first.** "opening the North keyboard does not cut read-aloud that is playing, and the speaker button stays on" failed before the change (phase `idle` instead of `playing`) and passes after. Open mode 36/36, ask mode 33/33, keyboard 32/32, controller 20/20. **Not verified:** a real phone. **Owner to test:** turn read-aloud on for North, have South speak, and open North's keyboard while it is reading; the reading should continue.
 
 **Still rolled back, one at a time later:** Indonesian/Malay word rewrite, language coverage check, Khmer and Lao handling.
+
+### chat-test: who spoke, when both channels hear the same speech (2026-10-04)
+
+**Owner report.** After the Filipino fix, speaking English sometimes landed in South's compose box with the low tone instead of being sent. It worked some times and not others. TTS fix confirmed passed on the device.
+
+**Cause (from the device log).** One phone, two open microphones. The Filipino speech model also transcribes English with high confidence, because Filipino speech mixes English constantly. Both channels returned the same words (49 chars at 0.99 and 0.97, 31 chars at 0.96 and 0.81). The app picks the speaker by confidence plus a margin of 0.12; the scores were within it, so it gave up. When only one channel responded it routed correctly, which is why it was intermittent. English and Filipino share the Latin alphabet, so the script check cannot help.
+
+**Change.** When both channels return nearly identical text and both scored above the threshold, the words decide: words found only in one side's word list count for that side. A clear winner is sent to that side. Words that fit neither or both languages change nothing and take the old path. The same logic covers Malay/Indonesian.
+
+**Check added first.** Three cases: an English sentence returned by both channels goes to South; a Filipino sentence goes to North; "Okay thank you", which fits both lists, still goes to compose. The English case failed before the change. The test serves the real English and Filipino word lists, because the lab otherwise serves English for every language. Open mode 37/37, ask mode 33/33, keyboard 32/32, controller 20/20.
+
+**Not verified.** A real phone. Owner to test: with English on South and Filipino on North, say several English sentences and several Filipino sentences; each should land on the right side. Short phrases that exist in both languages ("okay thank you") may still go to compose.
