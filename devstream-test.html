@@ -41,6 +41,7 @@ select.input{appearance:auto}
 .card.active{border-color:var(--accent)}
 .cttl{font-weight:600;display:flex;align-items:center;gap:8px;font-size:14px}
 .csub{font-size:12px;color:var(--dim);margin-top:3px}
+.openApp{display:inline-block;margin-top:10px;padding:11px 18px;border-radius:10px;background:var(--accent);color:var(--onaccent,#fff)!important;font-weight:800;text-decoration:none}.detailsLink{color:var(--dim);font-size:11px;text-decoration:underline;margin-left:8px}.detailsBox{margin-top:8px;padding:8px 10px;border:1px solid var(--line);border-radius:8px;font-size:11px;white-space:pre-wrap;word-break:break-word;color:var(--dim);font-family:ui-monospace,Menlo,monospace}
 #navTabs{display:flex;border-bottom:1px solid var(--line)}.navtab{flex:1;min-height:42px;padding:0 6px;background:none;border:0;border-bottom:3px solid transparent;color:var(--dim);font-weight:700;font-size:14px;display:flex;align-items:center;justify-content:center;gap:6px}.navtab.on{color:var(--accent);border-bottom-color:var(--accent)}#navBadge .badge{margin-left:2px}
 #projSort{display:flex;gap:6px;padding:8px 10px 0}#projSort button{flex:1;min-height:34px;border:1px solid var(--line);border-radius:17px;background:none;color:var(--dim);font-size:12px;font-weight:700}#projSort button.on{color:var(--onaccent,#fff);background:var(--accent);border-color:var(--accent)}
 #dashChips{display:none}.dh{display:flex;align-items:center;gap:8px;font-size:12px;font-weight:800;color:var(--dim);text-transform:uppercase;letter-spacing:.04em;margin:14px 0 8px}.dh:first-child{margin-top:0}.trow{cursor:pointer}.trow .go{color:var(--dim);font-size:18px;flex-shrink:0}.trow a.play{color:var(--accent);font-size:12px;font-weight:700;padding:6px}.dclear{color:var(--dim);font-size:13px;padding:6px 2px}
@@ -210,7 +211,7 @@ body.coachMode .suggestBtn{border-color:rgba(57,197,207,.5);background:rgba(57,1
 <div id="scrim"></div>
 <div id="app">
 <aside id="sidebar">
-  <div class="bar"><span id="dot"></span><span class="brand">devstream <span class="version">v1.0 b64</span></span><span class="grow"></span><button class="btn" id="projectAdd">+ New</button><button class="btn" id="refresh">↻</button></div>
+  <div class="bar"><span id="dot"></span><span class="brand">devstream <span class="version">v1.0 b65</span></span><span class="grow"></span><button class="btn" id="projectAdd">+ New</button><button class="btn" id="refresh">↻</button></div>
   <div id="navTabs"><button class="navtab" id="navDash">Dashboard<span id="navBadge"></span></button><button class="navtab" id="navProj">Projects</button><button class="navtab" id="settings">Config</button></div>
   <div id="searchWrap"><input id="search" class="input" placeholder="Search projects & threads">
     <div class="legend"><span><i class="legendDot ok"></i>OK</span><span><i class="legendDot run"></i>Running</span><span><i class="legendDot err"></i>Error</span></div></div>
@@ -1033,6 +1034,17 @@ async function refreshObjective(key){
     el.style.display='block';
   }catch(e){if(activeKey===key){el.textContent='Master plan unavailable — '+e.message;el.style.display='block'}}
 }
+function friendlyMsg(m){
+  if(m.role!=='agent')return{text:m.text||'',url:''};
+  const raw=String(m.text||''),cc=String(m.coachText||'');
+  let url=((/Play it:\s*(https?:\/\/\S+)/.exec(cc)||/Test:\s*(https?:\/\/\S+)/.exec(raw)||[])[1])||'';
+  let text;
+  if(/^Failed:\s*/.test(raw))text=friendlyError(raw.replace(/^Failed:\s*/,''))+' Your request is saved — tap Run again.';
+  else if(cc)text=cc;
+  else text=raw.split('\n').filter(l=>!/^(✓ Wrote|Diff:|Test:|Plan:|▸|ℹ|! Engine|\[fallback|— )/.test(l.trim())).join('\n').trim()||'Done.';
+  text=text.replace(/\n?Play it:\s*https?:\/\/\S+/,'').replace(/\n?Test:\s*https?:\/\/\S+/,'').trim();
+  return{text,url};
+}
 function renderChat(force){
   const key=activeKey;if(!key||!threads[key])return;
   const t=sot.threads[key],d=threads[key].data;
@@ -1043,7 +1055,7 @@ function renderChat(force){
   $('pendingRun').textContent=coach?'▶ Continue':'▶ run now';
   $('chatTitle').textContent=t.project+' · '+tabName(t);
   $('chatInfo').textContent=d.lastState?d.lastState:(repoFull()+' · builds: '+(d.outputFile||projMain(t.project)||'—')+' · plan: '+(projPlan(t.project)||d.planFile||'—'));
-  $('pill').textContent=coach?(isStalled(t)?'Needs help':t.state==='executing'?'Working':isBlocked(t)?'Needs help':'Ready'):(isStalled(t)?'failed':(viewState(t)||'idle'));$('pill').className=viewState(t)||'';
+  $('pill').textContent=(isStalled(t)||isBlocked(t))?'Couldn\'t finish':t.state==='executing'?'Working':'Ready';$('pill').className=viewState(t)||'';
   $('engineFoot').textContent=(t.engine||'venice')+(t.model?' · '+t.model:'')+' ▾';
   const wb=$('webToggle');
   wb.style.color=t.web?'var(--accent)':'var(--dim)';wb.style.borderColor=t.web?'var(--accent)':'var(--line)';
@@ -1067,13 +1079,16 @@ function renderChat(force){
     if(coach&&m.hiddenInCoach)return;
     const el=document.createElement('div');
     el.className='msg '+(m.role==='user'?'user':'agent')+(m.status==='pending'?' pending':'');
+    const fm=friendlyMsg(m);
     let meta='<div class="mmeta"><span>'+rel(m.ts)+'</span>';
     if(m.status==='pending')meta+='<span>'+(t.state==='executing'?'running':'not run yet')+'</span>';
-    if(m.commit)meta+='<span class="mono">'+m.commit.slice(0,10)+'</span>';
-    if(m.target)meta+='<span class="mono">→ '+esc(m.target)+'</span>';
+    const techParts=[];if(m.role==='agent'){if(m.commit)techParts.push('commit '+m.commit.slice(0,10));if(m.target)techParts.push('file '+m.target);if(m.engine)techParts.push('engine '+m.engine+(m.model?' · '+m.model:''))}
+    const hasDetails=m.role==='agent'&&(String(m.text||'').trim()!==fm.text||techParts.length);
+    if(hasDetails)meta+='<a class="detailsLink" href="#">Details</a>';
     let attHtml='';(m.attachments||[]).forEach(a=>{attHtml+=a.kind==='image'?'<img class="att" '+(a.id?'data-attid="'+esc(a.id)+'"':'src="'+esc(a.url)+'"')+' alt="'+esc(a.name)+'">':'<div class="mmeta">≡ '+esc(a.name)+' ('+Math.round((a.text||'').length/1000)+'k)</div>'});
-    const displayText=coach&&m.role==='agent'?(m.coachText||(m.summary?m.summary:m.text)):m.text;
-    el.innerHTML='<button class="msgDelete" type="button" title="Permanently remove message" aria-label="Permanently remove message">×</button>'+linkify(displayText)+attHtml+meta+'</div>';
+    const openBtn=fm.url?'<a class="openApp" href="#" data-url="'+esc(fm.url)+'">Open your app</a>':'';
+    el.innerHTML='<button class="msgDelete" type="button" title="Permanently remove message" aria-label="Permanently remove message">×</button>'+linkify(fm.text)+(openBtn?'<div>'+openBtn+'</div>':'')+attHtml+meta+'</div>'+(hasDetails?'<div class="detailsBox" style="display:none">'+esc(String(m.text||''))+(techParts.length?'\n\n'+esc(techParts.join(' · ')):'')+'</div>':'');
+    const dl=el.querySelector('.detailsLink');if(dl)dl.onclick=e=>{e.preventDefault();e.stopPropagation();const bx=el.querySelector('.detailsBox');bx.style.display=bx.style.display==='none'?'block':'none'};
     el.querySelector('.msgDelete').onclick=()=>confirmDeleteMessage(key,mi);
     c.appendChild(el);
   });
@@ -1480,11 +1495,11 @@ function friendlyError(m){m=String(m||'');
   if(/spend limit|402|insufficient credit|out of credit/i.test(m))return'The AI account is out of credit or at its spending limit.';
   if(/timed out|timeout|time limit|stalled/i.test(m))return'The AI took too long and was stopped.';
   if(/Unexpected output path/i.test(m))return'The plan points at a file that is not this project\'s build file.';
-  if(/^Not saved — the new/.test(m))return m.replace(/^Not saved — /,'Not saved: ')+'.';
+  if(/^Not saved|would break|patch rejected|patch mode:|no usable file content|edit blocks need|SEARCH\/REPLACE/i.test(m))return'The AI\'s change would have broken your app, so I did not save it. Your app is unchanged.';
   if(/Plan checkpoint|Plan read-back/i.test(m))return'The plan update did not pass its safety check.';
   if(/Failed to fetch|network/i.test(m))return'I could not reach the AI service.';
   if(/401|authentication/i.test(m))return'The AI key was rejected.';
-  return'I couldn\'t finish that step ('+m.slice(0,100)+').';
+  return'I couldn\'t finish that one. Your app is unchanged.';
 }
 async function projectActivityContext(key,t){
   const others=projectThreads(t.project).filter(k=>k!==key&&!sot.threads[k].deleted).slice(0,6),parts=[];
@@ -1630,12 +1645,15 @@ async function runAgent(key,premarked){
     const jobPayload={cfg:{...cfg},codeFile,planFile,inputFile:th.data.inputFile||null,images,ghRefs,webSearch:!!t.web,patchMode,
       system:agentSystem(codeFile,planFile,patchMode,coach),history,instr,chain:runChain,budgetMs:6*60*1000,threadModel:useModel,threadEngine:eng,projectContext:await projectActivityContext(key,t).catch(()=>''),
        allowPlanCreate:!sot.projects[t.project].planExists&&pend.some(m=>m.text.startsWith('Create '+planFile+' — the master plan'))};
-    let res=await runJob(key,jobPayload);
+    let attemptNo=0,feedback='';
+    for(;;){try{
+    const jp=feedback?{...jobPayload,instr:jobPayload.instr+'\n\nYOUR PREVIOUS ATTEMPT WAS REJECTED BEFORE ANYTHING WAS SAVED. Reason: '+feedback+'\nRedo the same work and avoid that problem. If you rewrite a whole file, keep every existing function that is still used. If you use edit blocks, copy the SEARCH text exactly from the current file.'}:jobPayload;
+    let res=await runJob(key,jp);
     if(interrupted.has(key))throw new Error('Interrupted by user');
     if(res.target&&res.target!=='NONE'&&res.target!==planFile&&res.target!==codeFile&&!pend.some(m=>m.text.includes(res.target))){
       dlog('E|model targeted '+res.target+' — re-asking once with the correct target '+codeFile);
       progress[key]={line:'correcting the target file',at:Date.now(),started:(progress[key]||{}).started};renderProgress();
-      res=await runJob(key,{...jobPayload,instr:jobPayload.instr+'\n\nCORRECTION: your previous reply used TARGET: '+res.target+', which is not allowed. The only files you may write are "'+codeFile+'" (code) and "'+planFile+'" (plan). Redo the same work with TARGET: '+codeFile+'.'});
+      res=await runJob(key,{...jp,instr:jp.instr+'\n\nCORRECTION: your previous reply used TARGET: '+res.target+', which is not allowed. The only files you may write are "'+codeFile+'" (code) and "'+planFile+'" (plan). Redo the same work with TARGET: '+codeFile+'.'});
       if(interrupted.has(key))throw new Error('Interrupted by user');
     }
     let{summary,target,body,state,usedEng,usedModel}=res;
@@ -1697,6 +1715,14 @@ async function runAgent(key,premarked){
     delete progress[key];
     await setState(key,{state:'ok',finishedAt:now(),lastCommit:commit||t.lastCommit,testUrl,error:''});
     completed=true;toast(key+' done');
+    break;
+    }catch(re){
+      const retryable=/patch rejected|patch mode:|no usable file content|would break|Unexpected output path|edit blocks need/i.test(String(re.message))&&!interrupted.has(key);
+      if(!retryable||attemptNo>=2)throw re;
+      attemptNo++;feedback=String(re.message).replace(/\s+/g,' ').slice(0,300);
+      dlog('K|auto-retry '+attemptNo+'/2 — '+feedback);
+      progress[key]={line:'checking the result and trying again',at:Date.now(),started:(progress[key]||{}).started};renderProgress();
+    }}
   }catch(e){
     if(interrupted.has(key)){
       interrupted.delete(key);delete progress[key];
@@ -1704,7 +1730,7 @@ async function runAgent(key,premarked){
       toast(key+' interrupted — message left queued');
       return;
     }
-    const emsg={role:'agent',text:'Failed: '+e.message,coachText:friendlyError(e.message)+' Your request is saved — tap Continue to try again.',ts:now()},lastM=th.data.messages[th.data.messages.length-1];
+    const emsg={role:'agent',text:'Failed: '+e.message,coachText:friendlyError(e.message)+' Your request is saved — tap Run again.',ts:now()},lastM=th.data.messages[th.data.messages.length-1];
     if(!(lastM&&lastM.role==='agent'&&lastM.text===emsg.text)){th.data.messages.push(emsg);outboxAdd(key,emsg);
       try{th.sha=await putFileSafe(threadPath(key),JSON.stringify(th.data,null,1),'devstream: agent error '+key,th.sha)}catch(e2){}}
     delete progress[key];
@@ -1998,8 +2024,8 @@ function renderTaskStrip(){
   let mode='',step=-1,state='',detail='',act=null,sec=null,pct=null,sub='',stale=false;
   if(saving&&!running){mode='run';step=0;state='Saving your message…'}
   else if(running){mode='run';step=2;state='Working';const a=describeActivity(key,t,coach,p);detail=a.text;pct=a.pct;sub=a.sub;stale=a.stale;act={label:'■ Stop',fn:()=>interruptAgent(key)}}
-  else if(stalled){mode='fail';step=2;state='Failed';detail='Nothing is running — this run stopped. Run again restarts it.';act={label:'↻ Run again',fn:()=>guard(async()=>{t.state='error';t.error='stalled — reset by owner';t.finishedAt=now();await saveSOT('devstream: reset stalled '+key);renderTabs();renderSidebar();renderTaskStrip();dispatch(key)})}}
-  else if(failed){mode='fail';step=2;state=coach?'Needs help':'Failed';detail=String(t.error||'The last run failed.').slice(0,160);act={label:'↻ Run again',fn:()=>dispatch(key)}}
+  else if(stalled){mode='fail';step=2;state='Couldn\'t finish';detail='Nothing is running — this run stopped. Run again restarts it.';act={label:'↻ Run again',fn:()=>guard(async()=>{t.state='error';t.error='stalled — reset by owner';t.finishedAt=now();await saveSOT('devstream: reset stalled '+key);renderTabs();renderSidebar();renderTaskStrip();dispatch(key)})}}
+  else if(failed){mode='fail';step=2;state='Couldn\'t finish';detail=friendlyError(t.error||'');act={label:'↻ Run again',fn:()=>dispatch(key)}}
   else if(pendN){mode='wait';step=1;state='Not started';
     detail='Your message is saved but has not run yet.';
     act={label:coach?'▶ Continue':'▶ Run',fn:()=>dispatch(key)}}
