@@ -39,7 +39,16 @@ async function geometry(page){
     };
   });
 }
-async function state(page){return page.evaluate(()=>window.__mnShip25?.nowState?.()||window.__mnTurn25?.nowState?.()||null)}
+function normalize(x){
+  if(Array.isArray(x))return x.map(normalize);
+  if(x&&typeof x==='object'){
+    const out={};
+    for(const [k,v] of Object.entries(x))if(k!=='capturedAt')out[k]=normalize(v);
+    return out;
+  }
+  return x;
+}
+async function state(page){return normalize(await page.evaluate(()=>window.__mnShip25?.nowState?.()||window.__mnTurn25?.nowState?.()||null))}
 async function runTrace(page){
   const out=[];
   out.push({step:'boot',state:await state(page),text:await page.locator('#nowCrumb').innerText()});
