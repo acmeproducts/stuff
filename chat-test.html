@@ -784,6 +784,8 @@ function langMode(room) { return (room && room.myLangMode === 'auto') ? 'auto' :
 function resolveEffectiveLang(room, detected) {
   var mine = room.myLang;
   if (!detected || detected === mine) return { srcLang: mine, normalizeFrom: null };
+  /* Malay and Indonesian look alike to a detector; the room's chosen language decides and the speaker's words are kept. */
+  if ((mine === 'ms' && detected === 'id') || (mine === 'id' && detected === 'ms')) return { srcLang: mine, normalizeFrom: null };
   if (langMode(room) === 'auto') return { srcLang: detected, normalizeFrom: null };
   return { srcLang: mine, normalizeFrom: detected };
 }
@@ -2790,7 +2792,7 @@ var portal=(function(){
  }
  async function processMessage(ctx,id){var job=ctx.roomId+'|'+id;if(jobs.has(job))return;jobs.add(job);
   try{var room=await read('rooms',ctx.roomId),entry=room&&room.messages.find(function(m){return m.id===id});if(!entry||room.trashedAt)return;await refresh(ctx.roomId);
-   var normalized=await normalizeOutgoing({myLang:ctx.src,theirLang:ctx.tgt,myLangMode:'fixed'},entry.original||entry.text);window.audioTurn.note('normalization-completed','ok',{side:ctx.side,lang:normalized.lang});
+   var known=entry.via&&entry.via.input==='voice'&&entry.via.heardAs&&entry.via.heardAs!=='?'?entry.via.heardAs:undefined;var normalized=await normalizeOutgoing({myLang:ctx.src,theirLang:ctx.tgt,myLangMode:'fixed'},entry.original||entry.text,known);window.audioTurn.note('normalization-completed','ok',{side:ctx.side,lang:normalized.lang});
    var saveNormalized=function(){return change('rooms',ctx.roomId,function(r){if(!r||r.trashedAt)return;var m=r.messages.find(function(m){return m.id===id});if(!m)return;m.text=normalized.text;m.src=normalized.lang;m.status='pending';return r})};
    if(!await track(saveNormalized(),saveNormalized))return;await refresh(ctx.roomId);
    var tr=normalized.lang===ctx.tgt?{ok:true,text:normalized.text}:await translateWithRetry(normalized.text,normalized.lang,ctx.tgt,2);window.audioTurn.note(tr&&tr.ok?'translation-completed':'translation-failed',tr&&tr.ok?'ok':'error',{side:ctx.side,tgt:ctx.tgt});

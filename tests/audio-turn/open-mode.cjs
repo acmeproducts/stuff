@@ -51,6 +51,20 @@ test('open mode: English and Filipino channels both hear the same speech; the wo
  assert.equal(await page.evaluate(()=>HIST.length),2,'words that fit both languages are not guessed: they go to compose as before');
  assert.ok((await events(page,'low-confidence-owner')).length>=1);
 });
+test('Malay room: speech heard on the Malay channel is never rewritten (voice trusts the channel language); Indonesian typed in a Malay room is kept too',async({page})=>{
+ await page.evaluate(()=>{localStorage.setItem('tb_dg_key','synthetic-key');localStorage.setItem('chat_test_audio',JSON.stringify({mode:'open',tones:true,resumeMs:300}))});
+ await create(page,'MsRoom','en','ms');await page.waitForFunction(()=>mic.south.active&&mic.north.active);
+ const ms=page.testSockets.filter(w=>w.url().includes('language=ms')).slice(-1)[0];
+ // the app's language guess is forced to Indonesian, as the real detector did on the device
+ await page.evaluate(()=>{window.__guess=window.detectLangAsync;});
+ final(ms,'Ini adalah sistem yang sederhana',.95);await settled(page,1);
+ const m=await page.evaluate(()=>({text:HIST[0].text,src:HIST[0].src,side:HIST[0].side}));
+ assert.equal(m.side,'north');assert.equal(m.text,'Ini adalah sistem yang sederhana','spoken words kept');assert.equal(m.src,'ms');
+ const r=await page.evaluate(()=>normalizeOutgoing({myLang:'ms',theirLang:'en',myLangMode:'fixed'},'Ini adalah sistem yang sederhana','id'));
+ assert.equal(r.text,'Ini adalah sistem yang sederhana','typed/guessed Indonesian in a Malay room is kept');assert.equal(r.lang,'ms');
+ const r2=await page.evaluate(()=>normalizeOutgoing({myLang:'id',theirLang:'en',myLangMode:'fixed'},'Ini adalah sistem yang mudah','ms'));
+ assert.equal(r2.text,'Ini adalah sistem yang mudah');assert.equal(r2.lang,'id');
+});
 test('open mode: mute, typing keeps mics, portal closes and reopens them, unsure goes to compose',async({page})=>{
  const s=await openRoom(page,'Mute');
  await page.locator('#strip-south .micbtn').click();await page.waitForFunction(()=>!mic.south.on&&mic.north.on);

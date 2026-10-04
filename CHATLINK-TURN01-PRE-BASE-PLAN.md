@@ -695,3 +695,13 @@ Malay and Indonesian are confirmed to have different speech, voice and translati
 **Check added first.** Three cases: an English sentence returned by both channels goes to South; a Filipino sentence goes to North; "Okay thank you", which fits both lists, still goes to compose. The English case failed before the change. The test serves the real English and Filipino word lists, because the lab otherwise serves English for every language. Open mode 37/37, ask mode 33/33, keyboard 32/32, controller 20/20.
 
 **Not verified.** A real phone. Owner to test: with English on South and Filipino on North, say several English sentences and several Filipino sentences; each should land on the right side. Short phrases that exist in both languages ("okay thank you") may still go to compose.
+
+### chat-test: Malay/Indonesian rewrite fixed at the cause (2026-10-04)
+
+**Owner direction.** Fix all remaining items; required, not optional.
+
+**Cause.** After a message was routed, the app guessed its language again with a detector, even though the microphone channel it came from was already set to a known language. For Malay and Indonesian the guess was wrong, so the speaker's words were translated into the other language. TalkBridge passes the channel's language instead of guessing.
+
+**Change.** (1) Voice messages now use the language of the channel they were heard on, as TalkBridge does. Code-switching still works: the English side-channel in ask mode reports English, which is still normalized into the room language. (2) Typed text, which has no channel, keeps the detector but never rewrites Malay into Indonesian or the reverse; the room's language decides.
+
+**Check added first.** A Malay-room scenario failed before (the spoken words came back rewritten) and passes after. It also covers the typed case in both directions. Open mode 38/38, ask mode 33/33, keyboard 32/32, controller 20/20. **Not verified:** a real phone. Owner to test: speak Indonesian into a Malay room and check the Normalized row is gone.
