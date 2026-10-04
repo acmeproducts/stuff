@@ -12,7 +12,7 @@
       full:IDX.includes(z.id)?S.def.indices[z.id]?.name:name(z.id),
       color:seriesColor(z.id),
       renderType:'line',
-      axisLabel:z.axis===1?(z.unit||'Native'):(r.root===null?(z.unit||'Index'):(r.mode==='indexed'?'Indexed 100':(z.unit||'Index')))
+      axisLabel:z.axis===1?(z.unit||'Native'):(r.spec?.root===null?(z.unit||'Index'):(r.mode==='indexed'?'Indexed 100':(z.unit||'Index')))
     }))
   }
   function resolveRefs(root){

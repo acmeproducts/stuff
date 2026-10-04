@@ -410,3 +410,10 @@ No unresolved release-blocking gap remains. Red-team disposition: CLEARED FOR OW
 - The first differential browser comparison then stopped Stage 6 because ENV snapshot metadata differed from the accepted baseline in two exact fields: chart active series was `risk` instead of neutral `null`, and ENV index series axis labels were `Indexed 100` instead of `Index`.
 - Cause: the retired legacy `renderV1` had two presentation-state special cases after generic snapshot creation. The unified controller had preserved the data and pixels but had not yet encoded those ENV-only snapshot semantics.
 - Correction: encode those two accepted ENV rules in the unified controller. No legacy renderer is restored.
+
+
+#### Stage 6 ENV axis-label follow-up
+- The differential gate confirmed the neutral ENV active-state correction worked.
+- The remaining mismatch was only the ENV series `axisLabel`.
+- RCA: the canonical resolver returns the root under `resolved.spec.root`, not `resolved.root`; the first correction checked the wrong property and therefore fell through to the indexed label.
+- Correction: use the resolver's actual `resolved.spec.root` contract. No presentation or mathematics change.
