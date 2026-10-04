@@ -705,3 +705,7 @@ Malay and Indonesian are confirmed to have different speech, voice and translati
 **Change.** (1) Voice messages now use the language of the channel they were heard on, as TalkBridge does. Code-switching still works: the English side-channel in ask mode reports English, which is still normalized into the room language. (2) Typed text, which has no channel, keeps the detector but never rewrites Malay into Indonesian or the reverse; the room's language decides.
 
 **Check added first.** A Malay-room scenario failed before (the spoken words came back rewritten) and passes after. It also covers the typed case in both directions. Open mode 38/38, ask mode 33/33, keyboard 32/32, controller 20/20. **Not verified:** a real phone. Owner to test: speak Indonesian into a Malay room and check the Normalized row is gone.
+
+### Khmer and Lao word lists (2026-10-04)
+
+`dict/km.json` (32,369 words) and `dict/lo.json` (30,549 words) added so typing suggestions work for both languages, the same way as the other 20. Sources and licences (MIT for Khmer, LGPL for Lao) are in `dict/NOTICE-km-lo.md`. Data only; no app code changed. **Not verified:** suggestion quality on a phone. Not yet word-pair (next-word) data; only English has that today.
