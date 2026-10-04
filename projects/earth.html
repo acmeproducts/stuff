@@ -8,7 +8,12 @@
   html, body { margin:0; padding:0; width:100%; height:100%; overflow:hidden; background:#000; touch-action:none; user-select:none; -webkit-user-select:none; }
   #renderCanvas { width:100%; height:100%; outline:none; display:block; touch-action:none; }
   #hud { position:absolute; top:0; left:0; width:100%; height:100%; pointer-events:none; }
-  #topHud { position:absolute; top:8px; left:8px; color:#0f0; background:rgba(0,0,0,0.45); font-family:monospace; font-size:15px; text-shadow:1px 1px 0 #000; line-height:1.45; padding:6px 8px; border-radius:4px; max-width:92vw; }
+  #topHud { position:absolute; top:8px; left:8px; color:#0f0; background:rgba(0,0,0,0.45); font-family:monospace; font-size:15px; text-shadow:1px 1px 0 #000; line-height:1.45; padding:6px 8px; border-radius:4px; max-width:92vw; pointer-events:auto; cursor:pointer; }
+  #runOverlay { position:absolute; top:0; left:0; width:100%; height:100%; background:rgba(4,10,18,0.94); display:flex; flex-direction:column; align-items:center; justify-content:center; z-index:30; pointer-events:auto; }
+  #runOverlay h1 { color:#8f8; font-family:monospace; font-size:24px; margin:0 0 6px; }
+  #runOverlay .sub { color:#9c9; font-family:monospace; font-size:13px; margin:0 16px 30px; text-align:center; }
+  #btnRun { font-size:28px; padding:22px 58px; border-radius:14px; font-weight:bold; background:#7fe08a; }
+  #btnRun:disabled { background:rgba(255,255,255,0.35); color:#333; }
   #errBox { position:absolute; bottom:8px; left:8px; right:8px; color:#f66; background:rgba(0,0,0,0.88); font-family:monospace; font-size:13px; padding:8px; border-radius:4px; max-height:62%; display:none; pointer-events:auto; z-index:12; }
   #errHead { display:flex; justify-content:space-between; align-items:center; gap:6px; margin-bottom:6px; }
   #errTitle { color:#ff9; font-weight:bold; }
@@ -39,6 +44,11 @@
 </head>
 <body>
 <canvas id="renderCanvas"></canvas>
+<div id="runOverlay">
+  <h1>Earth Explorer</h1>
+  <div class="sub" id="runSub">loading engine&hellip;</div>
+  <button id="btnRun" disabled>LOADING&hellip;</button>
+</div>
 <div id="hud">
   <div id="topHud">Loading...</div>
   <div id="errBox">
@@ -130,7 +140,7 @@
 </div>
 <script>
 'use strict';
-const BUILD = 'M7.6-unified 2026-10-03';
+const BUILD = 'M7.7-runbtn 2026-10-04';
 const errBox = document.getElementById('errBox');
 const errLines = document.getElementById('errLines');
 const errTitle = document.getElementById('errTitle');
@@ -252,15 +262,19 @@ async function loadBabylon() {
 }
 
 (function init() {
+  // M7.7: on a fatal, drop the start overlay so the error log is never hidden behind it
+  function fatal(e) {
+    showErr('FATAL: ' + (e && e.stack ? e.stack : e));
+    const ov = document.getElementById('runOverlay');
+    if (ov) ov.style.display = 'none';
+  }
   loadBabylon().then(function(cdn) {
     try {
       startApp(cdn);
     } catch (e) {
-      showErr('FATAL: ' + (e && e.stack ? e.stack : e));
+      fatal(e);
     }
-  }).catch(function(e) {
-    showErr('FATAL: ' + e.message);
-  });
+  }).catch(fatal);
 })();
 
 function startApp(cdnUrl) {
@@ -344,7 +358,7 @@ function startApp(cdnUrl) {
   // divergence and froze the on-screen stick whenever it engaged.
 
   // ---- settings (persisted) ----
-  const settings = { detail: 'MED', walkSpeed: 5, flySpeed: 40, tod: 12, sens: 3000, invertY: false, imagery: true, touchCtl: 'auto', autoTod: true, clouds: true, rain: false, season: 'auto', fly: false };
+  const settings = { detail: 'MED', walkSpeed: 5, flySpeed: 40, tod: 12, sens: 3000, invertY: false, imagery: true, touchCtl: 'auto', autoTod: true, clouds: true, rain: false, season: 'auto', fly: false, hudMin: false };
   try {
     const s = JSON.parse(localStorage.getItem('earthSettings') || 'null');
     if (s) for (const k in settings) { if (typeof s[k] === typeof settings[k]) settings[k] = s[k]; }
@@ -2073,6 +2087,11 @@ function startApp(cdnUrl) {
   window.addEventListener('beforeunload', function() { savePos(lastLat, lastLon); });
 
   const topHud = document.getElementById('topHud');
+  // M7.7: tap the HUD to collapse it to one line / expand it again (persisted)
+  topHud.addEventListener('click', function() {
+    settings.hudMin = !settings.hudMin;
+    saveSettings();
+  });
   scene.onBeforeRenderObservable.add(function() {
     const fps = engine.getFps().toFixed(1);
     const tcfX = camera.position.x / TILE_M + originTx + 0.5;
@@ -2100,7 +2119,7 @@ function startApp(cdnUrl) {
     if (osmAreas > 0) osmLine = 'OK ' + osmFeats;
     if (osmProcAreas > 0) osmLine = (osmAreas > 0 ? osmLine + ' / ' : '') + 'PROC ' + osmProcAreas;
     if (osmBroken) osmLine += ' (brk)';
-    topHud.innerHTML = BUILD +
+    const hudFull = BUILD + ' ▾' +
       '<br>FPS:' + fps +
       '<br>Lat:' + lat.toFixed(5) + ' Lon:' + lon.toFixed(5) +
       '<br>Alt:' + camera.position.y.toFixed(1) + 'm' +
@@ -2117,16 +2136,32 @@ function startApp(cdnUrl) {
       '<br>WX: ' + (settings.rain ? 'rain' : (settings.clouds ? 'clouds' : 'clear')) + ' · ' + seasonNow +
       '<br>NET fails:' + netFails + (lastNetErr ? ' (' + lastNetErr.slice(0, 40) + ')' : '') +
       '<br>CDN:' + cdnUrl.split('/')[2];
+    // M7.7: hudMin = one compact line instead of the full readout
+    topHud.innerHTML = settings.hudMin
+      ? BUILD + ' ▸ ' + fps + 'fps · ' + lat.toFixed(4) + ',' + lon.toFixed(4)
+      : hudFull;
   });
 
   let prevRotX = camera.rotation.x;
-  engine.runRenderLoop(function() {
+  function renderFrame() {
     scene.render();
     if (settings.invertY) {
       const dx = camera.rotation.x - prevRotX;
       if (dx !== 0) camera.rotation.x = prevRotX - dx;
     }
     prevRotX = camera.rotation.x;
+  }
+  // M7.7: render loop deferred until the user taps ▶ RUN — everything
+  // initializes behind the overlay; the tap guarantees a user gesture.
+  const btnRun = document.getElementById('btnRun');
+  btnRun.disabled = false;
+  btnRun.textContent = '▶ RUN';
+  document.getElementById('runSub').textContent = BUILD + ' · ready';
+  btnRun.addEventListener('click', function() {
+    const ov = document.getElementById('runOverlay');
+    if (ov) ov.style.display = 'none';
+    logLine('RUN', 'render loop started by user');
+    engine.runRenderLoop(renderFrame);
   });
   window.addEventListener('resize', function() { engine.resize(); updateTouchUI(); });
 }
