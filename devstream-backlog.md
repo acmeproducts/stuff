@@ -6,8 +6,8 @@ Deploy target: `https://acmeproducts.github.io/stuff/devstream.html`
 Test target: `https://acmeproducts.github.io/stuff/devstream-test.html`
 
 ## Status
-- Current release: v1.0 b66 on devstream-test.html (2026-10-03)
-- Stage: TEST (b66)
+- Current release: v1.0 b67 on devstream-test.html (2026-10-03)
+- Stage: TEST (b67)
 
 ## Release Rules (inherited, proven)
 1. Mobile-first. All diagnostics in-app. No DevTools ever.
@@ -255,6 +255,26 @@ b39 incorrectly changed stationary hold into context-menu activation. Devstream 
 ## Graveyard
 - **G-DS-13 — Hold opens context menu:** rejected; donor behavior is double-tap context, hold-to-drag.
 - **G-DS-14 — Legacy generic #tabContext button styling:** rejected; it corrupts the donor context-menu appearance.
+
+---
+
+# 2026-10-04 — b67 one clear Now / Next banner + tell me when it matters
+
+## Owner report
+Still not easy: unclear what is happening now, no notice when work finishes or needs help, and unclear next steps.
+
+## Change
+- One banner above the message box is the single answer to "what is happening and what do I do". Working: what it is doing, how long so far, how long it usually takes, and an honest note to keep this page open (switching tabs or apps is fine). Ready: what was done plus **Open your app**. Couldn't finish: plain reason plus **Run again**. The old duplicate status pill and the second "working" bar are hidden.
+- Next steps are always offered as buttons in plain words: the AI's own suggested next step, **Check it works**, **Make the next improvement**, **Give me ideas** (and **What happened?** after a failure).
+- Notices: the browser tab title and icon show the situation (… Working, ✓ Done, ! Needs you) so you can see it from another tab; an optional browser notification fires when a run finishes or fails while you are away (permission asked once, on your first message).
+- Limit (unchanged): runs live in this page. Closing the page stops them; a closed phone cannot be notified without a server.
+
+## Acceptance
+- **DS-B67-1:** while working the banner shows what it is doing, time so far, "Usually …", and the keep-this-page-open note; no second working bar or pill.
+- **DS-B67-2:** after success the banner says Ready with the summary and an Open your app button; chips include Check it works.
+- **DS-B67-3:** after a failure the banner says Couldn't finish in plain words with Run again.
+- **DS-B67-4:** tab title and icon reflect working / done / needs you, and clear when you come back.
+- **DS-B67-5:** a notification fires when a run finishes while the page is hidden; permission is requested once.
 
 ---
 

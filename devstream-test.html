@@ -43,6 +43,7 @@ select.input{appearance:auto}
 .csub{font-size:12px;color:var(--dim);margin-top:3px}
 .appActions{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-top:10px}.appActions .openApp{margin-top:0}.softBtn{padding:9px 14px;border:1px solid var(--line);border-radius:10px;color:var(--text)!important;font-weight:700;font-size:13px;text-decoration:none;background:var(--panel2)}
 .openApp{display:inline-block;margin-top:10px;padding:11px 18px;border-radius:10px;background:var(--accent);color:var(--onaccent,#fff)!important;font-weight:800;text-decoration:none}.detailsLink{color:var(--dim);font-size:11px;text-decoration:underline;margin-left:8px}.detailsBox{margin-top:8px;padding:8px 10px;border:1px solid var(--line);border-radius:8px;font-size:11px;white-space:pre-wrap;word-break:break-word;color:var(--dim);font-family:ui-monospace,Menlo,monospace}
+#pill,#typing{display:none!important}
 #navTabs{display:flex;border-bottom:1px solid var(--line)}.navtab{flex:1;min-height:42px;padding:0 6px;background:none;border:0;border-bottom:3px solid transparent;color:var(--dim);font-weight:700;font-size:14px;display:flex;align-items:center;justify-content:center;gap:6px}.navtab.on{color:var(--accent);border-bottom-color:var(--accent)}#navBadge .badge{margin-left:2px}
 #projSort{display:flex;gap:6px;padding:8px 10px 0}#projSort button{flex:1;min-height:34px;border:1px solid var(--line);border-radius:17px;background:none;color:var(--dim);font-size:12px;font-weight:700}#projSort button.on{color:var(--onaccent,#fff);background:var(--accent);border-color:var(--accent)}
 #dashChips{display:none}.dh{display:flex;align-items:center;gap:8px;font-size:12px;font-weight:800;color:var(--dim);text-transform:uppercase;letter-spacing:.04em;margin:14px 0 8px}.dh:first-child{margin-top:0}.trow{cursor:pointer}.trow .go{color:var(--dim);font-size:18px;flex-shrink:0}.trow a.play{color:var(--accent);font-size:12px;font-weight:700;padding:6px}.dclear{color:var(--dim);font-size:13px;padding:6px 2px}
@@ -212,7 +213,7 @@ body.coachMode .suggestBtn{border-color:rgba(57,197,207,.5);background:rgba(57,1
 <div id="scrim"></div>
 <div id="app">
 <aside id="sidebar">
-  <div class="bar"><span id="dot"></span><span class="brand">devstream <span class="version">v1.0 b66</span></span><span class="grow"></span><button class="btn" id="projectAdd">+ New</button><button class="btn" id="refresh">↻</button></div>
+  <div class="bar"><span id="dot"></span><span class="brand">devstream <span class="version">v1.0 b67</span></span><span class="grow"></span><button class="btn" id="projectAdd">+ New</button><button class="btn" id="refresh">↻</button></div>
   <div id="navTabs"><button class="navtab" id="navDash">Dashboard<span id="navBadge"></span></button><button class="navtab" id="navProj">Projects</button><button class="navtab" id="settings">Config</button></div>
   <div id="searchWrap"><input id="search" class="input" placeholder="Search projects & threads">
     <div class="legend"><span><i class="legendDot ok"></i>OK</span><span><i class="legendDot run"></i>Running</span><span><i class="legendDot err"></i>Error</span></div></div>
@@ -1425,6 +1426,7 @@ async function storeAttachments(t,atts){
 }
 /* ---- suggested next tasks ---- */
 function renderSuggestions(key,coach,pendN){
+  coach=true;
   const box=$('suggestions'),t=sot.threads[key],d=threads[key]?.data;if(!box||!t||!d)return;
   const running=t.state==='executing'&&!isStalled(t),failed=isBlocked(t);
   const hasWork=d.messages.some(m=>m.role==='agent'&&(m.commit||m.target));
@@ -1444,12 +1446,19 @@ function renderSuggestions(key,coach,pendN){
   else items=hasWork
     ?[{label:'Continue next plan item',prompt:'Continue with the next concrete item in the master plan. Preserve completed work and verify the result.'},{label:'Test current build',prompt:'Test the current build against the master plan acceptance checks and fix the highest priority issue.'},{label:'Review status',prompt:'Review the master plan and current implementation, then summarize progress, risks, and the next task.'}]
     :[{label:'Build first version',prompt:'Build the smallest working first version that advances the master plan.'},{label:'Review objective',prompt:'Review the master plan and summarize the objective, constraints, and next concrete task.'},{label:'Define acceptance checks',prompt:'Add clear acceptance checks for the current objective to the master plan.'}];
+  if(!running&&!failed&&!pendN&&hasWork){
+    const la=[...d.messages].reverse().find(m=>m.role==='agent'&&m.target),nx=la&&(la.state||'').match(/next:\s*([^|]+)/i);
+    const extra=[{label:'Check it works',action:'check'}];
+    if(nx&&nx[1].trim())extra.unshift({label:'Next: '+nx[1].trim().slice(0,38),prompt:nx[1].trim().replace(/^./,c=>c.toUpperCase())+'.'});
+    items=[...extra,...items.filter(i=>!/^Test and fix$/.test(i.label))];
+  }
   items=items.filter(i=>i.action!=='run');box.innerHTML='';
   items.forEach(item=>{const b=document.createElement('button');b.type='button';b.className='suggestBtn';b.textContent=item.label;
     b.onclick=()=>useSuggestion(item);box.appendChild(b)});
 }
 function useSuggestion(item){
   if(item.action==='run'){if(activeKey)dispatch(activeKey);return}
+  if(item.action==='check'){const mm=[...(threads[activeKey]?.data.messages||[])].reverse().find(m=>m.role==='agent'&&m.target&&/\.html?$/i.test(m.target));if(mm)reportProblem(activeKey,mm.target);else toast('There is nothing built to check yet.');return}
   const input=$('message');
   if(input.value.trim()&&!confirm('Replace your current draft with this suggested task?'))return;
   input.value=item.prompt;input.dispatchEvent(new Event('input'));sendMessage();
@@ -1492,6 +1501,7 @@ function sendMessage(){
   const t=sot.threads[key],th=threads[key];
   if(!t||!th)return;
   if(isFrozen(t)){toast('This tab is reference only — make it active to send.');return}
+  askNotify();
   if(!pendingAtt.length&&txt.length<90&&/\b(i?u+r?l+s?|ulr|uel|rul|links?|address|test it|play it|try it|open it|(how|where) (do|can) i (test|play|try|open|see))\b/i.test(txt)&&!/\b(add|build|make|create|change|fix|remove|show a)\b/i.test(txt)){
     const url='https://'+cfg.owner+'.github.io/'+cfg.repo+'/'+(th.data.outputFile||projMain(t.project))+'?cb='+Date.now();
     const um={role:'user',text:txt,ts:now(),status:'done'},am={role:'agent',text:'Test link: '+url,ts:now()};
@@ -1774,7 +1784,7 @@ async function runAgent(key,premarked){
     th.sha=await putFileSafe(threadPath(key),JSON.stringify(th.data,null,1),'devstream: agent reply '+key,th.sha);
     delete progress[key];
     await setState(key,{state:'ok',finishedAt:now(),lastCommit:commit||t.lastCommit,testUrl,error:''});
-    completed=true;toast(key+' done');
+    completed=true;toast(key+' done');recordRun(Date.now()-(Date.parse(t.startedAt)||Date.now()));notifyEvent(key,'ok',summary);
     break;
     }catch(re){
       const retryable=/patch rejected|patch mode:|no usable file content|would break|Unexpected output path|edit blocks need/i.test(String(re.message))&&!interrupted.has(key);
@@ -1797,6 +1807,7 @@ async function runAgent(key,premarked){
     await appendPlanLog(projPlan(t.project)||th.data.planFile||planOf(th.data.outputFile||projMain(t.project)),tabName(t),'failed',friendlyError(e.message));
     if(/spend limit/i.test(String(e.message)))veniceCappedUntil=Date.now()+10*60*1000;
     await setState(key,{state:'error',finishedAt:now(),error:e.message});
+    notifyEvent(key,'fail',friendlyError(e.message));
   }finally{
     activeRuns.delete(key);
     if(completed&&hasPending(key))queueProjectRun(key);
@@ -2074,6 +2085,36 @@ function describeActivity(key,t,coach,p){
   return{text,pct,sub:'Running '+Math.round((Date.now()-started)/1000)+'s · last activity '+quiet+'s ago',stale:quiet>45};
 }
 /* one task strip above compose: lifecycle Saved → Queued → Working → Done, one primary action */
+/* ---- attention: eta, tab title/icon, notifications ---- */
+const unseen={};let lastAtt='';
+function recordRun(ms){try{if(!(ms>5000&&ms<30*60000))return;const a=JSON.parse(localStorage.getItem('ds_durs')||'[]');a.push(Math.round(ms));localStorage.setItem('ds_durs',JSON.stringify(a.slice(-12)))}catch(e){}}
+function etaText(){try{const a=JSON.parse(localStorage.getItem('ds_durs')||'[]').sort((x,y)=>x-y);if(a.length<2)return'Usually 1–3 minutes';const m=a[Math.floor(a.length/2)],mins=Math.max(0.5,Math.round(m/30000)/2);return'Usually about '+(mins<1?'30 seconds':mins===1?'1 minute':mins+' minutes')}catch(e){return'Usually 1–3 minutes'}}
+function fmtElapsed(ms){const s=Math.max(0,Math.round(ms/1000));return s<60?s+'s':Math.floor(s/60)+':'+String(s%60).padStart(2,'0')}
+function updateAttention(){
+  if(!sot)return;
+  if(!document.hidden&&view==='chat'&&activeKey)delete unseen[activeKey];
+  const live=Object.entries(sot.threads).filter(([k,t])=>!t.deleted&&!isFrozen(t));
+  const needs=live.filter(([k,t])=>isBlocked(t)||isStalled(t)).length,run=live.filter(([k,t])=>t.state==='executing'&&!isStalled(t)).length;
+  const done=Object.keys(unseen).filter(k=>sot.threads[k]&&!sot.threads[k].deleted).length;
+  const st=needs?'need':done?'done':run?'run':'idle';
+  const title=needs?'! Needs you ('+needs+') — devstream':done?'✓ Done — devstream':run?'… Working — devstream':'devstream';
+  if(document.title!==title)document.title=title;
+  if(st!==lastAtt){lastAtt=st;
+    const c={need:'#e5534b',done:'#3fb950',run:'#e3a008',idle:'#39c5cf'}[st];
+    let l=document.querySelector('link[rel="icon"]');if(!l){l=document.createElement('link');l.rel='icon';document.head.appendChild(l)}
+    l.href='data:image/svg+xml,'+encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32"><circle cx="16" cy="16" r="13" fill="'+c+'"/></svg>');
+  }
+}
+function notifyEvent(key,kind,text){
+  const t=sot.threads[key];if(!t)return;
+  if(kind==='ok'&&(document.hidden||key!==activeKey||view!=='chat'))unseen[key]=true;
+  if(document.hidden&&'Notification' in window&&Notification.permission==='granted'){
+    try{const n=new Notification((kind==='ok'?'Done — ':'Couldn’t finish — ')+tabName(t),{body:String(text||'').slice(0,140)});n.onclick=()=>{try{window.focus()}catch(e){}openProject(t.project,key);try{n.close()}catch(e){}}}catch(e){}
+  }
+  updateAttention();
+}
+function askNotify(){try{if(!('Notification' in window)||Notification.permission!=='default'||localStorage.getItem('ds_notif_asked'))return;localStorage.setItem('ds_notif_asked','1');Notification.requestPermission();toast('Allow notifications and I’ll tell you when it’s done.')}catch(e){}}
+document.addEventListener('visibilitychange',()=>updateAttention());
 function renderTaskStrip(){
   const el=$('taskStrip');if(!el)return;
   const key=activeKey,t=key&&sot.threads[key],d=key&&threads[key]&&threads[key].data,sg=$('suggestions');
@@ -2083,12 +2124,19 @@ function renderTaskStrip(){
     saving=!!(scheduledRuns.has(key)||savingMessages[key]>0);
   let mode='',step=-1,state='',detail='',act=null,sec=null,pct=null,sub='',stale=false;
   if(saving&&!running){mode='run';step=0;state='Saving your message…'}
-  else if(running){mode='run';step=2;state='Working';const a=describeActivity(key,t,coach,p);detail=a.text;pct=a.pct;sub=a.sub;stale=a.stale;act={label:'■ Stop',fn:()=>interruptAgent(key)}}
+  else if(running){mode='run';step=2;state='Working';const a=describeActivity(key,t,coach,p),st0=(p&&p.started)||Date.parse(t.startedAt)||Date.now();detail=a.text;pct=a.pct;sub='Working for '+fmtElapsed(Date.now()-st0)+' · '+(String(a.sub).split(' · ')[1]||'')+' · '+etaText()+(a.stale?' · no news for a while, still trying':'')+'. Keep this page open — switching tabs or apps is fine. I’ll tell you when it’s done.';stale=a.stale;act={label:'■ Stop',fn:()=>interruptAgent(key)}}
   else if(stalled){mode='fail';step=2;state='Couldn\'t finish';detail='Nothing is running — this run stopped. Run again restarts it.';act={label:'↻ Run again',fn:()=>guard(async()=>{t.state='error';t.error='stalled — reset by owner';t.finishedAt=now();await saveSOT('devstream: reset stalled '+key);renderTabs();renderSidebar();renderTaskStrip();dispatch(key)})}}
   else if(failed){mode='fail';step=2;state='Couldn\'t finish';detail=friendlyError(t.error||'');act={label:'↻ Run again',fn:()=>dispatch(key)}}
-  else if(pendN){mode='wait';step=1;state='Not started';
-    detail='Your message is saved but has not run yet.';
+  else if(pendN){mode='wait';step=1;state='Waiting to start';
+    detail='Your message is saved but has not started yet.';
     act={label:coach?'▶ Continue':'▶ Run',fn:()=>dispatch(key)}}
+  if(!mode&&!pendN&&t.state==='ok'){
+    const la=[...d.messages].reverse().find(m=>m.role==='agent');
+    if(la&&!/^Failed:/.test(la.text||'')){mode='ok';step=3;state='Ready';detail=(la.summary||'Done.').slice(0,160);
+      const url=t.testUrl&&/\.html?$/i.test(la.target||'')?t.testUrl:'';
+      act=url?{label:'Open your app',fn:()=>window.open(freshCb(url),'_blank')}:null;
+      sub='Finished '+rel(t.finishedAt)+'. Pick a next step below, or type your own.'}
+  }
   if(sg)sg.style.display='';
   if(!mode){el.className='';return}
   el.className='on '+mode;
@@ -2107,7 +2155,7 @@ function renderProgress(){
     te.textContent=Math.round((Date.now()-st)/1000)+'s';
   }
 }
-let dashTick=0;setInterval(()=>{renderProgress();renderTaskStrip();if(view==='dash'&&++dashTick%5===0)renderDash()},1000);
+let dashTick=0;setInterval(()=>{renderProgress();renderTaskStrip();updateAttention();if(view==='dash'&&++dashTick%5===0)renderDash()},1000);
 function renderWorkload(){
   const n=pool.filter(p=>p.busy).length+jobQ.length;
   const el=document.getElementById('pill');
