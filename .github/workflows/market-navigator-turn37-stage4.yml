@@ -1,0 +1,80 @@
+name: Market Navigator Turn 37 Stage 4 Batch Add
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'market-navigator-turn37-stage4-picker.js'
+      - 'market-navigator-turn37-stage4-adapter.js'
+      - 'market-navigator-turn37-stage4.css'
+      - 'market-navigator-build-turn37-stage4.py'
+      - 'market-navigator-turn37-stage4-qa.mjs'
+      - '.github/workflows/market-navigator-turn37-stage4.yml'
+  workflow_dispatch:
+permissions: {contents: write}
+jobs:
+  batch-add:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: {python-version: '3.12'}
+      - uses: actions/setup-node@v4
+        with: {node-version: '22'}
+      - name: Accepted baseline identity
+        run: test "$(git hash-object market-navigator-turn28-post-ship.html)" = "9ce7f67451f9e1b7804927ce5c56adb667614724"
+      - name: Build Stage 4
+        run: python market-navigator-build-turn37-stage4.py
+      - name: Generic controller and picker gate
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          for p in ['market-navigator-turn37-stage3-controller.js','market-navigator-turn37-stage4-picker.js']:
+            s=Path(p).read_text().lower()
+            assert 'now' not in s and 'analysis' not in s,p
+          print('PASS generic controller/picker contain no consumer identity')
+          PY
+      - name: JavaScript syntax
+        run: |
+          python - <<'PY'
+          import re,pathlib
+          s=pathlib.Path('market-navigator-turn37-stage4.html').read_text()
+          pathlib.Path('/tmp/mn37s4.js').write_text('\n'.join(re.findall(r'<script[^>]*>(.*?)</script>',s,re.S)))
+          PY
+          node --check /tmp/mn37s4.js
+      - name: Install browser
+        run: |
+          npm ci
+          npm install --no-save playwright@1.63.0
+          npx playwright install --with-deps chromium
+      - name: Differential, isolation and batch-Add gates
+        run: |
+          python -m http.server 8123 >/tmp/mn37-stage4-http.log 2>&1 &
+          SERVER=$!
+          trap 'kill $SERVER || true' EXIT
+          sleep 2
+          MN_CAND_URL=http://127.0.0.1:8123/market-navigator-turn37-stage4.html node market-navigator-turn37-stage0-qa.mjs
+          MN_URL=http://127.0.0.1:8123/market-navigator-turn37-stage4.html node market-navigator-turn37-stage3-qa.mjs
+          MN_URL=http://127.0.0.1:8123/market-navigator-turn37-stage4.html node market-navigator-turn37-stage4-qa.mjs
+      - name: Record passing stage
+        run: |
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          Path('market-navigator-turn37-stage4-evidence.json').write_text(json.dumps({
+            'stage':4,'status':'PASS','baselineBlob':'9ce7f67451f9e1b7804927ce5c56adb667614724',
+            'nowDifferential':'PASS','analyzeIsolation':'PASS','libraryIndependence':'PASS',
+            'batchAddAtomicity':'PASS','sharedPickerStateMachine':'PASS'
+          },indent=2)+'\n')
+          PY
+      - name: Publish qualified Stage 4 candidate
+        run: |
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git fetch --depth=50 origin main
+          git merge --ff-only origin/main
+          python market-navigator-build-turn37-stage4.py
+          git add market-navigator-turn37-stage4.html market-navigator-turn37-stage4-evidence.json
+          git diff --cached --quiet && exit 0
+          git commit -m 'Market Navigator Turn 37 Stage 4: qualify shared batch Add'
+          git push origin HEAD:main
