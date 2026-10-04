@@ -6,8 +6,8 @@ Deploy target: `https://acmeproducts.github.io/stuff/devstream.html`
 Test target: `https://acmeproducts.github.io/stuff/devstream-test.html`
 
 ## Status
-- Current release: v1.0 b64 on devstream-test.html (2026-10-03)
-- Stage: TEST (b64)
+- Current release: v1.0 b65 on devstream-test.html (2026-10-03)
+- Stage: TEST (b65)
 
 ## Release Rules (inherited, proven)
 1. Mobile-first. All diagnostics in-app. No DevTools ever.
@@ -255,6 +255,27 @@ b39 incorrectly changed stationary hold into context-menu activation. Devstream 
 ## Graveyard
 - **G-DS-13 — Hold opens context menu:** rejected; donor behavior is double-tap context, hold-to-drag.
 - **G-DS-14 — Legacy generic #tabContext button styling:** rejected; it corrupts the donor context-menu appearance.
+
+---
+
+# 2026-10-04 — b65 plain-English results: quiet retry, no technical chat, "Open your app"
+
+## Owner report
+The app still feels technical to a non-developer (messages about files, commits, diffs, patches, GitHub errors; raw links).
+
+## Change
+- Quiet retry: when the AI's answer is rejected before anything is saved (change did not fit, file would break, no usable file), the app tries again up to twice, telling the AI the exact reason. The user only sees a problem if all three tries fail.
+- Chat messages are plain by default: what was done, then an **Open your app** button. File names, commit ids, diff and test links, "chars", engine notes move behind a **Details** link on each message.
+- Failures read like "I couldn't finish that. Your app is unchanged. Tap Run again." Status words are Working / Ready / Couldn't finish.
+- Unchanged: Coach mode still exists for tone; Details shows the original text exactly as before.
+
+## Acceptance
+- **DS-B65-1:** a bad first answer followed by a good one is saved with no failure shown, 2 AI calls.
+- **DS-B65-2:** three bad answers stop after 3 calls, the file is untouched.
+- **DS-B65-3:** the failure message is plain (no function/syntax/patch/GitHub/engine wording).
+- **DS-B65-4:** a success bubble shows no file names, commit ids, diff links or "chars".
+- **DS-B65-5:** a success bubble has an Open your app button.
+- **DS-B65-6:** Details reveals the technical text.
 
 ---
 
