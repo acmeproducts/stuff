@@ -316,7 +316,7 @@ No unresolved release-blocking gap remains. Red-team disposition: CLEARED FOR OW
 ### Final review disposition
 - MANAGER: CLEARED
 - RED TEAM: CLEARED
-- PRODUCT IMPLEMENTATION: OWNER APPROVED 2026-10-04 / STAGES 0–1 PASS / STAGE 2 IN PROGRESS
+- PRODUCT IMPLEMENTATION: OWNER APPROVED 2026-10-04 / STAGES 0–2 PASS / STAGE 3 IN PROGRESS
 
 
 ### Execution record — Stage 0
@@ -333,3 +333,13 @@ No unresolved release-blocking gap remains. Red-team disposition: CLEARED FOR OW
 - Accepted chart operations, chart-related state keys, DOM roles, consumer/application boundaries and future controller ownership are recorded in `market-navigator-turn37-stage1-map.json`.
 - The initial map gate failure was a test-regex defect that matched `health` as if it were the horizon key `h`; only the gate matcher was corrected. No product code changed.
 - Passing run: GitHub Actions run `37195154351`.
+
+
+### Execution record — Stage 2
+- Non-driving shadow controller: PASS.
+- The controller resolves canonical series, windows, Fixed/Horizon math, active-series/Y1+Y2 policy and analytical arrays without touching DOM or NOW/Analyze chart state.
+- Source isolation gate proves the controller does not call legacy NOW/Analyze renderers, picker renderers, series-preparation functions or chart-state globals.
+- Accepted NOW DOM, geometry and raster output are identical to the accepted baseline at all four protected viewports.
+- Shadow analytical output matches accepted NOW point-for-point for RSK/GRW/MAC across 5D/YTD/1YR/3YR/5YR and Fixed/Horizon, plus standalone Analyze root parity.
+- The first Stage 2 harness run failed only because the test stayed inside RSK while attempting to click GRW; the harness was corrected to return to ENV between root tests. No product code changed.
+- Passing run: GitHub Actions run `37195390457`.

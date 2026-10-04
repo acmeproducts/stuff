@@ -1,0 +1,13 @@
+import assert from 'node:assert/strict';
+import fs from 'node:fs';
+const base=fs.readFileSync('market-navigator-turn37-stage2-shadow.html','utf8'),cand=fs.readFileSync('market-navigator-turn37-stage3-analyze.html','utf8');
+assert(cand.includes('TURN37_STAGE3_ANALYZE_BEGIN')&&cand.includes('TURN37_STAGE3_ANALYZE_END'));
+assert(cand.includes('MNChartController37.attach(surface'));
+assert(cand.includes("openStandaloneAnalysis26=mn37OpenAnalysis"));
+assert(cand.includes("closeStandaloneAnalysis26=mn37CloseAnalysis"));
+assert(cand.includes("clone=source.cloneNode(true)"));
+assert(cand.includes("el.removeAttribute('id')"));
+assert(!cand.includes('TURN32_TRUE_SINGLE_SURFACE')&&!cand.includes('TURN34_ONE_CALLABLE_CHART_CONTROLLER'));
+const block=cand.slice(cand.indexOf('TURN37_STAGE3_ANALYZE_BEGIN'),cand.indexOf('TURN37_STAGE3_ANALYZE_END'));
+assert(!block.includes("S.nowActive=")&&!block.includes("S.nowComparisons=")&&!block.includes("S.nowRepresentation=")&&!block.includes("S.indexDisplay="),'Stage 3 Analyze adapter writes NOW chart state');
+console.log('PASS Stage 3 architecture gate');

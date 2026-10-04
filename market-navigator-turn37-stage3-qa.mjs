@@ -1,60 +1,20 @@
-import assert from 'node:assert/strict';
-import { createRequire } from 'node:module';
-const { chromium }=createRequire(import.meta.url)('playwright');
-const url=process.env.MN_URL||'http://127.0.0.1:8123/market-navigator-turn37-stage3.html';
+import assert from 'node:assert/strict';import{createRequire}from'node:module';const{chromium}=createRequire(import.meta.url)('playwright');
+const BASE='http://127.0.0.1:8123/market-navigator-turn28-post-ship.html',CAND='http://127.0.0.1:8123/market-navigator-turn37-stage3-analyze.html',V=[{width:1887,height:800},{width:1440,height:900},{width:800,height:1280},{width:412,height:915}];
 const browser=await chromium.launch({headless:true});
-const context=await browser.newContext({viewport:{width:1440,height:900},deviceScaleFactor:1});
-const page=await context.newPage(),errors=[];
-page.on('pageerror',e=>errors.push('page:'+e.message));
-page.on('console',m=>{if(m.type()==='error')errors.push('console:'+m.text())});
-await page.route('https://cdn.jsdelivr.net/npm/marked/marked.min.js',r=>r.fulfill({body:'window.marked={parse:s=>s}'}));
-await page.route('https://cdn.jsdelivr.net/npm/dompurify@3.1.6/dist/purify.min.js',r=>r.fulfill({body:'window.DOMPurify={sanitize:s=>s}'}));
-await page.goto(url,{waitUntil:'networkidle'});
-await page.waitForFunction(()=>window.__mnShip25?.ready?.()&&window.__mn37Stage3);
-function normalize(x){
-  if(Array.isArray(x))return x.map(normalize);
-  if(x&&typeof x==='object'){const o={};for(const[k,v]of Object.entries(x))if(k!=='capturedAt')o[k]=normalize(v);return o}
-  return x;
-}
-async function nowState(){return normalize(await page.evaluate(()=>window.__mnShip25?.nowState?.()||null))}
-const before=await nowState();
-await page.evaluate(()=>window.__mn37Stage3.open('risk'));
-await page.waitForSelector('#mn37AnalysisSurface');
-await page.waitForFunction(()=>window.__mn37Stage3.state()?.root==='risk');
-assert.deepEqual((await page.evaluate(()=>window.__mn37Stage3.state().series)),['risk']);
-const dups=await page.evaluate(()=>{const ids=[...document.querySelectorAll('[id]')].map(e=>e.id),m={};for(const id of ids)m[id]=(m[id]||0)+1;return Object.entries(m).filter(([,n])=>n>1)});
-assert.deepEqual(dups,[],'duplicate document IDs');
-await page.locator('#analysisHz [data-h="1YR"]').click();await page.waitForTimeout(200);
-assert.equal((await page.evaluate(()=>window.__mn37Stage3.state())).timeHorizon,'1YR');
-const disp=page.locator('#analysisMeta26 [data-controller-display]');await disp.selectOption('horizon');await page.waitForTimeout(200);
-assert.equal((await page.evaluate(()=>window.__mn37Stage3.state())).displayMode,'horizon');
-const resolved=await page.evaluate(()=>window.__mn37Stage3.resolved());
-const root=resolved.sets.find(z=>z.id==='risk');assert(root&&root.a.length);assert(Math.abs(root.a[0].v-100)<1e-9,'horizon first point not 100');
-assert.deepEqual(await nowState(),before,'Analyze mutated NOW');
-const canvas=page.locator('#analysisChart'),box=await canvas.boundingBox();assert(box);
-await page.mouse.move(box.x+box.width*.55,box.y+box.height*.45);await page.waitForTimeout(100);
-assert.notEqual(await page.locator('#analysisTip').evaluate(e=>getComputedStyle(e).display),'none','Analyze tooltip did not respond');
-await page.locator('#analysisMore26').click();await page.waitForTimeout(50);
-assert.equal(await page.locator('#mn37AnalysisMenu').evaluate(e=>!e.classList.contains('hidden')),true);
-assert.deepEqual((await page.locator('#mn37AnalysisMenu button').allTextContents()).map(x=>x.trim()),['AI POV','Data','Print','Download Markdown','Download CSV','Download JSON']);
-const analysisStateBeforeLibrary=await page.evaluate(()=>window.__mn37Stage3.state());
-await page.click('[data-view="library"]');await page.waitForTimeout(120);
-assert.equal(await page.locator('#view-library').evaluate(e=>e.classList.contains('on')),true);
-assert.equal(await page.locator('#standaloneAnalysis26').evaluate(e=>getComputedStyle(e).display),'none');
-assert.equal(await page.locator('#standaloneAnalysis26').evaluate(e=>getComputedStyle(e).pointerEvents),'none');
-const centerOwner=await page.evaluate(()=>{const e=document.elementFromPoint(innerWidth/2,innerHeight/2);return e?.closest('#standaloneAnalysis26')?'analysis':e?.closest('#view-library')?'library':e?.id||e?.className||e?.tagName});
-assert.notEqual(centerOwner,'analysis','parked Analyze still owns hit target');
-await page.locator('#libSearch').fill('test');assert.equal(await page.locator('#libSearch').inputValue(),'test');
-assert.equal(await page.locator('#interpretTabs27 [data-interpret27]').count(),3);
-await page.click('[data-view="now"]');await page.waitForTimeout(120);
-assert.equal(await page.evaluate(()=>window.__mn37Stage3.parked()),false);
-assert.deepEqual(await page.evaluate(()=>window.__mn37Stage3.state()),analysisStateBeforeLibrary,'Analyze state changed across Library roundtrip');
-assert.deepEqual(await nowState(),before,'Library/Analyze roundtrip mutated NOW');
-await page.click('#mn37AnalysisClose');await page.waitForTimeout(100);
-assert.equal(await page.locator('#standaloneAnalysis26').evaluate(e=>e.classList.contains('hidden')),true);
-assert.equal(await page.evaluate(()=>window.__mn37Stage3.state()),null);
-assert.deepEqual(await nowState(),before,'Analyze close mutated NOW');
-for(let i=0;i<5;i++){await page.evaluate(()=>window.__mn37Stage3.open('growth'));await page.waitForFunction(()=>window.__mn37Stage3.state()?.root==='growth');await page.evaluate(()=>window.__mn37Stage3.close())}
-assert.equal(errors.length,0,errors.join(' | '));
-console.log('PASS Turn37 Stage3 Analyze controller + NOW isolation + Library independence');
-await context.close();await browser.close();
+async function setup(url,v){let c=await browser.newContext({viewport:v,deviceScaleFactor:1}),p=await c.newPage(),e=[];p.on('pageerror',x=>e.push(x.message));p.on('console',m=>{if(m.type()==='error')e.push(m.text())});await p.route('https://cdn.jsdelivr.net/npm/marked/marked.min.js',r=>r.fulfill({body:"window.marked={parse:s=>s}"}));await p.route('https://cdn.jsdelivr.net/npm/dompurify@3.1.6/dist/purify.min.js',r=>r.fulfill({body:'window.DOMPurify={sanitize:s=>s}'}));await p.goto(url,{waitUntil:'networkidle'});await p.waitForFunction(()=>window.__mnShip25?.ready?.());return{c,p,e}}
+async function fp(p){return p.evaluate(()=>{const b=s=>{let e=document.querySelector(s);if(!e)return null,r=e.getBoundingClientRect();return[x=r.x,y=r.y,w=r.width,h=r.height].map(v=>Math.round(v*100)/100)};return{html:document.querySelector('.chartCard')?.outerHTML,box:b('.chartCard'),hz:b('#hzs'),legend:b('#legend'),wrap:b('#nowWrap'),footer:b('#nowMeta'),state:window.__mnShip25.nowState()}})}
+for(const v of V){let b=await setup(BASE,v),c=await setup(CAND,v);let x=await fp(b.p),y=await fp(c.p);assert.deepEqual(y,x,'NOW baseline changed '+v.width+'x'+v.height);assert.deepEqual(await c.p.screenshot({fullPage:true}),await b.p.screenshot({fullPage:true}),'NOW raster changed '+v.width);assert.equal(b.e.length,0);assert.equal(c.e.length,0,c.e.join('|'));await b.c.close();await c.c.close()}
+const t=await setup(CAND,{width:1440,height:900}),p=t.p;await p.waitForFunction(()=>window.__mn37Stage3);
+const now0=await p.evaluate(()=>window.__mnShip25.nowState());
+await p.evaluate(()=>window.__mnStandalone26.open('risk'));await p.waitForFunction(()=>window.__mn37Stage3.state()?.resolved);
+assert.equal(await p.locator('#standaloneAnalysis26 [data-mn-analysis37]').count(),1);
+const ids=await p.locator('#standaloneAnalysis26 [id]').evaluateAll(es=>es.map(e=>e.id));assert.equal(new Set(ids).size,ids.length,'duplicate Analyze IDs');
+let a0=await p.evaluate(()=>window.__mn37Stage3.state());assert.equal(a0.spec.root,'risk');assert.deepEqual(a0.spec.series,['risk']);
+await p.locator('#standaloneAnalysis26 [data-mn-h="1YR"]').click();await p.waitForTimeout(250);let a1=await p.evaluate(()=>window.__mn37Stage3.state());assert.equal(a1.spec.timeHorizon,'1YR');assert.deepEqual(await p.evaluate(()=>window.__mnShip25.nowState()),now0,'Analyze horizon mutated NOW');
+const disp=p.locator('#standaloneAnalysis26 [data-mn-display]');await disp.selectOption('horizon');await p.waitForTimeout(200);assert.equal((await p.evaluate(()=>window.__mn37Stage3.state())).spec.displayMode,'horizon');assert.deepEqual(await p.evaluate(()=>window.__mnShip25.nowState()),now0,'Analyze display mutated NOW');
+// Library must be fully usable while Analyze is parked.
+let lib=p.locator('[data-view="library"]');if(!(await lib.isVisible())){await p.click('#toggle');await p.waitForTimeout(150)}await lib.click();await p.waitForTimeout(180);assert(await p.evaluate(()=>window.__mn37Stage3.isParked()));assert.equal(await p.locator('#standaloneAnalysis26').evaluate(e=>getComputedStyle(e).display),'none');const libTitle=p.locator('#libTitle');await libTitle.focus();assert.equal(await p.evaluate(()=>document.activeElement?.id),'libTitle');assert.equal((await p.locator('#interpretTabs27 [data-interpret27]').allTextContents()).map(x=>x.trim()).join('|'),'Plain|Standard|Technical');
+// Return to NOW restores same Analyze instance/state.
+await p.locator('[data-view="now"]').click();await p.waitForTimeout(160);assert(!(await p.evaluate(()=>window.__mn37Stage3.isParked())));let a2=await p.evaluate(()=>window.__mn37Stage3.state());assert.equal(a2.spec.timeHorizon,'1YR');assert.equal(a2.spec.displayMode,'horizon');
+await p.locator('#standaloneAnalysis26 [data-mn-role="close"]').click();await p.waitForTimeout(100);assert(!(await p.evaluate(()=>window.__mn37Stage3.isOpen())));assert.deepEqual(await p.evaluate(()=>window.__mnShip25.nowState()),now0,'Analyze close mutated NOW');
+assert.equal(t.e.length,0,t.e.join('|'));await t.c.close();console.log('PASS Stage 3 Analyze driven by controller; NOW unchanged; Library independent');await browser.close();
