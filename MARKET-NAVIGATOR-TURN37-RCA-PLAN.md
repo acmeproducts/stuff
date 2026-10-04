@@ -417,3 +417,10 @@ No unresolved release-blocking gap remains. Red-team disposition: CLEARED FOR OW
 - The remaining mismatch was only the ENV series `axisLabel`.
 - RCA: the canonical resolver returns the root under `resolved.spec.root`, not `resolved.root`; the first correction checked the wrong property and therefore fell through to the indexed label.
 - Correction: use the resolver's actual `resolved.spec.root` contract. No presentation or mathematics change.
+
+
+#### Stage 6 Analyze painter bridge RCA
+- NOW reached exact baseline parity and the browser gate advanced into Analyze.
+- Analyze failed because retained canonical `draw('analysis')` resolves `analysisChart`, `analysisTip`, and `analysisWrap` by their accepted IDs, while the Stage 3 canonical-surface clone removed all IDs.
+- Correction: after the original Analyze modal contents are cleared, the clone receives the accepted analysis-local IDs, so there are no duplicate document IDs. The same unified controller still owns data/state and the same shared `draw()` painter serves both consumers.
+- Analyze inspection-active changes are routed back into the controller rather than restoring legacy Analyze state ownership.

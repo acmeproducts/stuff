@@ -50,6 +50,14 @@ new_now="if(which==='now'){if(window.__mn37NowController){window.__mn37NowContro
 if old_now not in src: raise SystemExit('NOW draw state hook missing')
 src=src.replace(old_now,new_now,1)
 src=src.replace('componentCard(sel.id)','showNowSeriesInfo25(sel.id)')
+clone_old="clone.dataset.mnAnalysis37='true';clone.style.height='100%';clone.querySelectorAll('[id]').forEach(el=>{let old=el.id;if(roles[old])el.dataset.mnRole=roles[old];el.removeAttribute('id')});"
+clone_new="clone.dataset.mnAnalysis37='true';clone.style.height='100%';const analysisIds={nowCrumb:'standaloneAnalysisTitle26',hzs:'analysisHz',nowMoreBtn:'analysisMore26',legend:'seriesBar',nowWrap:'analysisWrap',nowChart:'analysisChart',nowTip:'analysisTip',nowMeta:'analysisMeta26'};clone.querySelectorAll('[id]').forEach(el=>{let old=el.id;if(roles[old])el.dataset.mnRole=roles[old];el.removeAttribute('id');if(analysisIds[old])el.id=analysisIds[old]});"
+if clone_old not in src: raise SystemExit('Analyze clone role anchor missing')
+src=src.replace(clone_old,clone_new,1)
+old_analysis="else if(which==='analysis'){S.analysisActive=id;if(focus)S.analysisFocus=id;focusId=S.analysisFocus||id}"
+new_analysis="else if(which==='analysis'){let ctl=window.__mn37Stage3?.instance?.();if(ctl){ctl.rendererSetActive(id,focus);active=id;focusId=id}else{S.analysisActive=id;if(focus)S.analysisFocus=id;focusId=S.analysisFocus||id}}"
+if old_analysis not in src: raise SystemExit('Analyze draw state hook missing')
+src=src.replace(old_analysis,new_analysis,1)
 
 needle='mnxWireWhenReady();'
 if needle not in src: raise SystemExit('runtime insertion point missing')
