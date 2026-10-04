@@ -1,105 +1,8 @@
 # TalkBridge device log
 
-Both handsets write here. Drained 2026-10-04T06:02:29Z, every 30s. Newest at the bottom.
+Both handsets write here. Drained 2026-10-04T12:13:48Z, every 30s. Newest at the bottom.
 
 ```
-10:02:20.660 [iphone-hbs] joiner_create_control {"shown":false}
-10:02:20.730 [iphone-hbs] p3_vapid {"got":true,"push":true}
-10:02:20.734 [iphone-hbs] p3_sub_failed {"name":"NotAllowedError","e":"Push notification prompting can only be done from a user gesture.","gesture":false}
-10:02:20.735 [iphone-hbs] p3_gesture_armed {}
-10:02:20.837 [iphone-hbs] r8_name_msg {"type":"hello-ack","name":"mike","had":"mike"}
-10:02:20.846 [iphone-hbs] r8_name_msg {"type":"hello-ack","name":"mike","had":"mike"}
-10:02:20.860 [iphone-hbs] md1_rendered {"id":"2y82ad"}
-10:02:20.860 [iphone-hbs] md1_rendered {"id":"sp-m-1"}
-10:02:20.861 [iphone-hbs] md1_rendered {"id":"sp-m-2"}
-10:02:20.862 [iphone-hbs] md1_rendered {"id":"sp-p-2"}
-10:02:20.862 [iphone-hbs] md1_rendered {"id":"sp-p-1"}
-10:02:20.863 [iphone-hbs] md1_rendered {"id":"sp-m-3"}
-10:02:20.863 [iphone-hbs] md1_rendered {"id":"sp-p-3"}
-10:02:20.864 [iphone-hbs] md1_rendered {"id":"sp-m-4"}
-10:02:20.864 [iphone-hbs] md1_rendered {"id":"sp-p-4"}
-10:02:20.865 [iphone-hbs] md1_rendered {"id":"sp-p-5"}
-10:02:20.865 [iphone-hbs] md1_rendered {"id":"sp-m-5"}
-10:02:20.866 [iphone-hbs] md1_rendered {"id":"sp-p-6"}
-10:02:20.866 [iphone-hbs] md1_rendered {"id":"sp-m-6"}
-10:02:20.867 [iphone-hbs] md1_rendered {"id":"sp-p-7"}
-10:02:20.867 [iphone-hbs] md1_rendered {"id":"sp-m-7"}
-10:02:20.867 [iphone-hbs] md1_rendered {"id":"sp-m-8"}
-10:02:20.868 [iphone-hbs] md1_rendered {"id":"sp-p-8"}
-10:02:20.868 [iphone-hbs] md1_rendered {"id":"sp-m-9"}
-10:02:20.869 [iphone-hbs] md1_rendered {"id":"p-p-10"}
-10:02:20.869 [iphone-hbs] md1_rendered {"id":"p-p-11"}
-10:02:20.869 [iphone-hbs] md1_rendered {"id":"sp-p-9"}
-10:02:20.870 [iphone-hbs] md1_rendered {"id":"p-p-12"}
-10:02:20.870 [iphone-hbs] md1_rendered {"id":"p-m-10"}
-10:02:20.870 [iphone-hbs] md1_rendered {"id":"p-p-13"}
-10:02:20.871 [iphone-hbs] md1_rendered {"id":"p-m-11"}
-10:02:20.871 [iphone-hbs] md1_rendered {"id":"p-p-14"}
-10:02:20.871 [iphone-hbs] md1_rendered {"id":"p-m-12"}
-10:02:20.872 [iphone-hbs] md1_rendered {"id":"p-p-15"}
-10:02:20.872 [iphone-hbs] md1_rendered {"id":"p-m-13"}
-10:02:20.873 [iphone-hbs] md1_rendered {"id":"p-m-14"}
-10:02:20.873 [iphone-hbs] md1_rendered {"id":"p-p-16"}
-10:02:20.873 [iphone-hbs] md1_rendered {"id":"p-m-15"}
-10:02:20.874 [iphone-hbs] md1_rendered {"id":"p-p-17"}
-10:02:20.874 [iphone-hbs] md1_rendered {"id":"p-m-16"}
-10:02:20.879 [iphone-hbs] md1_rendered {"id":"p-p-18"}
-10:02:20.881 [iphone-hbs] md1_rendered {"id":"p-m-17"}
-10:02:20.881 [iphone-hbs] md1_rendered {"id":"p-m-19"}
-10:02:20.882 [iphone-hbs] md1_rendered {"id":"p-p-19"}
-10:02:20.882 [iphone-hbs] md1_rendered {"id":"p-m-18"}
-10:02:20.882 [iphone-hbs] md1_rendered {"id":"p-m-20"}
-10:02:20.883 [iphone-hbs] md1_rendered {"id":"p-p-20"}
-10:02:20.883 [iphone-hbs] md1_rendered {"id":"p-m-21"}
-10:02:20.883 [iphone-hbs] md1_rendered {"id":"p-p-21"}
-10:02:20.883 [iphone-hbs] md1_rendered {"id":"8pifuf"}
-10:02:20.918 [iphone-hbs] read_receipts_sent {"n":1}
-10:02:20.918 [iphone-hbs] history_sync_merged {"n":44,"done":true}
-10:02:20.774 [android-brg] pr3_dot {"others":0}
-10:02:20.776 [android-brg] r8_name_msg {"type":"hello","name":"lolo","had":"loli"}
-10:02:20.790 [android-brg] rc_panel_rendered {"live":1,"bin":0,"wired":1}
-10:02:20.790 [android-brg] rc_home_rendered {"cards":0,"wired":0}
-10:02:20.791 [android-brg] joiner_create_control {"shown":true}
-10:02:20.798 [android-brg] history_sync_sent {"n":44}
-10:02:23.538 [android-brg] gen_bump {"n":3,"r":"call_start"}
-10:02:24.445 [iphone-hbs] r8_name_msg {"type":"call-start","name":"mike","had":"mike"}
-10:02:24.465 [iphone-hbs] cr3_os_notify_owned_by_relay {"room":"muagu1cy0vnxep"}
-10:02:24.465 [iphone-hbs] call_ring {"room":"muagu1cy0vnxep"}
-10:02:24.471 [iphone-hbs] rc_panel_rendered {"live":1,"bin":0,"wired":1}
-10:02:24.471 [iphone-hbs] rc_home_rendered {"cards":0,"wired":0}
-10:02:24.471 [iphone-hbs] joiner_create_control {"shown":false}
-10:02:25.967 [iphone-hbs] p3_perm_prop {"prop":"granted","gesture":true,"n":2}
-10:02:25.970 [iphone-hbs] seq_seeded {"was":0,"now":21,"from":46}
-10:02:25.972 [iphone-hbs] md1_rendered {"id":"2y82ad"}
-10:02:25.973 [iphone-hbs] md1_rendered {"id":"sp-m-1"}
-10:02:25.973 [iphone-hbs] md1_rendered {"id":"sp-m-2"}
-10:02:25.973 [iphone-hbs] md1_rendered {"id":"sp-p-2"}
-10:02:25.974 [iphone-hbs] md1_rendered {"id":"sp-p-1"}
-10:02:25.974 [iphone-hbs] md1_rendered {"id":"sp-m-3"}
-10:02:25.975 [iphone-hbs] md1_rendered {"id":"sp-p-3"}
-10:02:25.975 [iphone-hbs] md1_rendered {"id":"sp-m-4"}
-10:02:25.976 [iphone-hbs] md1_rendered {"id":"sp-p-4"}
-10:02:25.977 [iphone-hbs] md1_rendered {"id":"sp-p-5"}
-10:02:25.977 [iphone-hbs] md1_rendered {"id":"sp-m-5"}
-10:02:25.977 [iphone-hbs] md1_rendered {"id":"sp-p-6"}
-10:02:25.978 [iphone-hbs] md1_rendered {"id":"sp-m-6"}
-10:02:25.978 [iphone-hbs] md1_rendered {"id":"sp-p-7"}
-10:02:25.978 [iphone-hbs] md1_rendered {"id":"sp-m-7"}
-10:02:25.979 [iphone-hbs] md1_rendered {"id":"sp-m-8"}
-10:02:25.979 [iphone-hbs] md1_rendered {"id":"sp-p-8"}
-10:02:25.979 [iphone-hbs] md1_rendered {"id":"sp-m-9"}
-10:02:25.980 [iphone-hbs] md1_rendered {"id":"p-p-10"}
-10:02:25.980 [iphone-hbs] md1_rendered {"id":"p-p-11"}
-10:02:25.980 [iphone-hbs] md1_rendered {"id":"sp-p-9"}
-10:02:25.981 [iphone-hbs] md1_rendered {"id":"p-p-12"}
-10:02:25.981 [iphone-hbs] md1_rendered {"id":"p-m-10"}
-10:02:25.981 [iphone-hbs] md1_rendered {"id":"p-p-13"}
-10:02:25.982 [iphone-hbs] md1_rendered {"id":"p-m-11"}
-10:02:25.982 [iphone-hbs] md1_rendered {"id":"p-p-14"}
-10:02:25.982 [iphone-hbs] md1_rendered {"id":"p-m-12"}
-10:02:25.983 [iphone-hbs] md1_rendered {"id":"p-p-15"}
-10:02:25.983 [iphone-hbs] md1_rendered {"id":"p-m-13"}
-10:02:25.983 [iphone-hbs] md1_rendered {"id":"p-m-14"}
 10:02:25.984 [iphone-hbs] md1_rendered {"id":"p-p-16"}
 10:02:25.984 [iphone-hbs] md1_rendered {"id":"p-m-15"}
 10:02:25.984 [iphone-hbs] md1_rendered {"id":"p-p-17"}
@@ -4002,4 +3905,101 @@ Both handsets write here. Drained 2026-10-04T06:02:29Z, every 30s. Newest at the
 01:02:51.948 [android-flz] cr3_lane_open {"room":"0224e6cd-muek7nucolrbh3","explicit":false}
 01:02:52.008 [android-flz] t1_coalesced {"fn":"renderPanel","n":1}
 01:02:52.014 [android-flz] relay_open {"room":"31af0eb5-musyiglsj6peug"}
-01:02:52.016 [android-flz] cr3_lane_open {"room":"31af0eb5-musyiglsj6peug","explicit":true}```
+01:02:52.016 [android-flz] cr3_lane_open {"room":"31af0eb5-musyiglsj6peug","explicit":true}
+07:34:55.751 [iphone-i93] n16_devlog {"dev":"iphone-i93"}
+07:34:55.752 [iphone-i93] u1_manifest_swapped {}
+07:34:55.752 [iphone-i93] b8c_ready {}
+07:34:55.752 [iphone-i93] build {"c":"turn26-ship-c6","file":"bridge-turn26-ship.html","built":"2026-09-06 09:04 UTC"}
+07:34:55.752 [iphone-i93] build {"c":"turn26-post-ship-md1","file":"bridge-turn26-post-ship.html","built":"2026-09-06 21:29 UTC"}
+07:34:55.752 [iphone-i93] build {"c":"turn27-base-presence","file":"bridge-turn27-base.html","built":"2026-09-13 15:12 UTC"}
+07:34:55.752 [iphone-i93] build {"c":"turn27-pre-ship-n1","file":"bridge-turn27-pre-ship.html","built":"2026-09-13 21:29 UTC"}
+07:34:55.752 [iphone-i93] build {"c":"turn27-ship-video-c5","file":"bridge-turn27-ship.html","built":"2026-09-15 00:31 UTC"}
+07:34:55.753 [iphone-i93] d1_build {"c":"turn27-ship-diag-d1","file":"bridge-turn27-ship-diag1.html","base":"956ceb381585"}
+07:34:55.753 [iphone-i93] nopw_swept {"fields":19,"changed":15}
+07:34:55.753 [iphone-i93] nopw_swept {"fields":19,"changed":0}
+07:34:55.755 [iphone-i93] p2_gate_shown {"platform":"ios","invite":true}
+07:34:56.051 [iphone-i93] rc_panel_no_body {}
+07:34:56.202 [iphone-i93] lc_create_capture_wired {}
+07:34:56.251 [iphone-i93] lc_boot_check {"grant":false,"expires":null,"cleared":false,"canCreate":false}
+07:34:56.251 [iphone-i93] r8_menu_labels {"applied":3,"of":3}
+07:34:56.254 [iphone-i93] r8_flag_bands {"dressed":2}
+07:34:56.254 [iphone-i93] r8_no_clock {}
+07:34:56.254 [iphone-i93] r8_r8a_installed {}
+07:34:56.352 [iphone-i93] net_armed {}
+07:34:56.352 [iphone-i93] rm_share_merged_into_general {}
+07:34:56.353 [iphone-i93] rm_manage_pane_built {}
+07:34:56.353 [iphone-i93] rm_room_name_field_taken_over {}
+07:34:56.354 [iphone-i93] rm_header_bg_picker_built {}
+07:34:56.355 [iphone-i93] r8_r8b_init {}
+07:34:56.653 [iphone-i93] rib_layout_built {"moved":3,"of":3}
+07:34:57.752 [iphone-i93] r8_menu_labels {"applied":3,"of":3}
+07:34:59.199 [iphone-i93] ft_ready {}
+07:35:55.136 [iphone-i93] cr3_announce {"why":"hidden","visible":false,"lanes":0}
+07:35:55.136 [iphone-i93] pr2_declared {"why":"hidden","inRoom":false,"view":"s1"}
+10:18:55.742 [desktop-y0z] n16_devlog {"dev":"desktop-y0z"}
+10:18:55.745 [desktop-y0z] u1_manifest_swapped {}
+10:18:55.746 [desktop-y0z] b8c_ready {}
+10:18:55.746 [desktop-y0z] build {"c":"turn26-ship-c6","file":"bridge-turn26-ship.html","built":"2026-09-06 09:04 UTC"}
+10:18:55.746 [desktop-y0z] build {"c":"turn26-post-ship-md1","file":"bridge-turn26-post-ship.html","built":"2026-09-06 21:29 UTC"}
+10:18:55.746 [desktop-y0z] build {"c":"turn27-base-presence","file":"bridge-turn27-base.html","built":"2026-09-13 15:12 UTC"}
+10:18:55.746 [desktop-y0z] build {"c":"turn27-pre-ship-n1","file":"bridge-turn27-pre-ship.html","built":"2026-09-13 21:29 UTC"}
+10:18:55.746 [desktop-y0z] build {"c":"turn27-ship-video-c5","file":"bridge-turn27-ship.html","built":"2026-09-15 00:31 UTC"}
+10:18:55.748 [desktop-y0z] k1_ids {"prefix":"cd44a58a"}
+10:18:55.847 [desktop-y0z] wrap_map {"symbols":45,"map":{"enterRoom":["A-session-and-transcription.js","R-room-card.js","J-joiner-shell.js","L-room-lifecycle.js","M-room-menu.js","R9-phrasebook-mirror.js"],"leaveRoomInternals":["A-session-and-transcription.js","R9-phrasebook-mirror.js"],"stopDeepgram":["A-session-and-transcription.js"],"onDGFinal":["B-language-resolution.js"],"sendChatText":["B-language-resolution.js","J-joiner-shel
+10:18:55.852 [desktop-y0z] nopw_swept {"fields":19,"changed":15}
+10:18:55.853 [desktop-y0z] nopw_swept {"fields":19,"changed":0}
+10:18:55.934 [desktop-y0z] p2_gate_shown {"platform":"desktop","invite":false}
+10:18:56.049 [desktop-y0z] rc_panel_no_body {}
+10:18:56.196 [desktop-y0z] lc_create_capture_wired {}
+10:18:56.243 [desktop-y0z] lc_boot_check {"grant":false,"expires":null,"cleared":false,"canCreate":true}
+10:18:56.244 [desktop-y0z] r8_menu_labels {"applied":3,"of":3}
+10:18:56.244 [desktop-y0z] r8_flag_bands {"dressed":2}
+10:18:56.245 [desktop-y0z] r8_no_clock {}
+10:18:56.245 [desktop-y0z] r8_r8a_installed {}
+10:18:56.350 [desktop-y0z] net_armed {}
+10:18:56.351 [desktop-y0z] rm_share_merged_into_general {}
+10:18:56.352 [desktop-y0z] rm_manage_pane_built {}
+10:18:56.352 [desktop-y0z] rm_room_name_field_taken_over {}
+10:18:56.353 [desktop-y0z] rm_header_bg_picker_built {}
+10:18:56.354 [desktop-y0z] r8_r8b_init {}
+10:18:56.643 [desktop-y0z] rib_layout_built {"moved":3,"of":3}
+10:18:57.755 [desktop-y0z] r8_menu_labels {"applied":3,"of":3}
+10:18:58.916 [desktop-y0z] ft_ready {}
+10:19:07.692 [desktop-y0z] cr3_announce {"why":"blur","visible":true,"lanes":0}
+10:19:07.692 [desktop-y0z] pr2_declared {"why":"blur","inRoom":false,"view":"s1"}
+10:19:15.686 [desktop-y0z] cr3_announce {"why":"hidden","visible":false,"lanes":0}
+10:19:15.686 [desktop-y0z] pr2_declared {"why":"hidden","inRoom":false,"view":"s1"}
+10:19:15.909 [desktop-y0z] n16_devlog {"dev":"desktop-y0z"}
+10:19:15.910 [desktop-y0z] u1_manifest_swapped {}
+10:19:15.910 [desktop-y0z] b8c_ready {}
+10:19:15.910 [desktop-y0z] build {"c":"turn26-ship-c6","file":"bridge-turn26-ship.html","built":"2026-09-06 09:04 UTC"}
+10:19:15.910 [desktop-y0z] build {"c":"turn26-post-ship-md1","file":"bridge-turn26-post-ship.html","built":"2026-09-06 21:29 UTC"}
+10:19:15.910 [desktop-y0z] build {"c":"turn27-base-presence","file":"bridge-turn27-base.html","built":"2026-09-13 15:12 UTC"}
+10:19:15.910 [desktop-y0z] build {"c":"turn27-pre-ship-n1","file":"bridge-turn27-pre-ship.html","built":"2026-09-13 21:29 UTC"}
+10:19:15.910 [desktop-y0z] build {"c":"turn27-ship-video-c5","file":"bridge-turn27-ship.html","built":"2026-09-15 00:31 UTC"}
+10:19:15.910 [desktop-y0z] k1_ids {"prefix":"cd44a58a"}
+10:19:15.947 [desktop-y0z] wrap_map {"symbols":45,"map":{"enterRoom":["A-session-and-transcription.js","R-room-card.js","J-joiner-shell.js","L-room-lifecycle.js","M-room-menu.js","R9-phrasebook-mirror.js"],"leaveRoomInternals":["A-session-and-transcription.js","R9-phrasebook-mirror.js"],"stopDeepgram":["A-session-and-transcription.js"],"onDGFinal":["B-language-resolution.js"],"sendChatText":["B-language-resolution.js","J-joiner-shel
+10:19:15.952 [desktop-y0z] nopw_swept {"fields":19,"changed":15}
+10:19:15.952 [desktop-y0z] nopw_swept {"fields":19,"changed":0}
+10:19:15.980 [desktop-y0z] p2_gate_shown {"platform":"desktop","invite":false}
+10:19:16.219 [desktop-y0z] rc_panel_no_body {}
+10:19:16.359 [desktop-y0z] lc_create_capture_wired {}
+10:19:16.421 [desktop-y0z] lc_boot_check {"grant":false,"expires":null,"cleared":false,"canCreate":true}
+10:19:16.422 [desktop-y0z] r8_menu_labels {"applied":3,"of":3}
+10:19:16.422 [desktop-y0z] r8_flag_bands {"dressed":2}
+10:19:16.422 [desktop-y0z] r8_no_clock {}
+10:19:16.422 [desktop-y0z] r8_r8a_installed {}
+10:19:16.515 [desktop-y0z] net_armed {}
+10:19:16.516 [desktop-y0z] rm_share_merged_into_general {}
+10:19:16.516 [desktop-y0z] rm_manage_pane_built {}
+10:19:16.516 [desktop-y0z] rm_room_name_field_taken_over {}
+10:19:16.516 [desktop-y0z] rm_header_bg_picker_built {}
+10:19:16.517 [desktop-y0z] r8_r8b_init {}
+10:19:16.811 [desktop-y0z] rib_layout_built {"moved":3,"of":3}
+10:19:17.238 [desktop-y0z] ft_ready {}
+10:19:17.912 [desktop-y0z] r8_menu_labels {"applied":3,"of":3}
+10:19:19.428 [desktop-y0z] net_returned {"why":"visible","awayMs":3742,"inRoom":false,"inCall":false}
+10:19:19.434 [desktop-y0z] net_returned {"why":"focus","awayMs":6,"inRoom":false,"inCall":false}
+10:19:19.474 [desktop-y0z] cr3_recover {"why":"focus","n":1,"inRoom":false}
+10:19:22.466 [desktop-y0z] cr3_announce {"why":"pagehide","visible":true,"lanes":0,"dropped":3}
+10:19:22.466 [desktop-y0z] pr2_declared {"why":"pagehide","inRoom":false,"view":"s1","dropped":2}```
