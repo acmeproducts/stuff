@@ -708,7 +708,7 @@ Malay and Indonesian are confirmed to have different speech, voice and translati
 
 ### Khmer and Lao word lists (2026-10-04)
 
-`dict/km.json` (32,369 words) and `dict/lo.json` (30,549 words) added so typing suggestions work for both languages, the same way as the other 20. Sources and licences (MIT for Khmer, LGPL for Lao) are in `dict/NOTICE-km-lo.md`. Data only; no app code changed. **Not verified:** suggestion quality on a phone. Not yet word-pair (next-word) data; only English has that today.
+`dict/km.json` (32,369 words) and `dict/lo.json` (30,549 words) added so typing suggestions work for both languages, the same way as the other 20. Sources and licences (MIT for Khmer, LGPL for Lao) are in `dict/NOTICE-km-lo-zh.md`. Data only; no app code changed. **Not verified:** suggestion quality on a phone. Not yet word-pair (next-word) data; only English has that today.
 
 ### chat-test: Khmer and Lao speech, voices and language check (2026-10-04)
 
@@ -743,3 +743,17 @@ Malay and Indonesian are confirmed to have different speech, voice and translati
 **Changes.** Each missing letter is on an extra key row at the bottom of its keyboard (the shifted layer shows capitals). Vietnamese gets a row of the five tone marks: tapping one puts the tone on the vowel just typed, replaces an existing tone, and is ignored after a consonant. The keyboard already caps at 55% of the screen height and scrolls inside, so taller layouts fit.
 
 **Checks added first.** `tests/language-check/check.cjs` now fails if any listed letter cannot be typed, and checks every Vietnamese letter is reachable. A tone-typing scenario covers á, à, ạ, ệ and the consonant case. Both failed before. Open mode 41/41, ask mode 33/33, keyboard 32/32, controller 20/20, language check OK. **Not verified:** a real phone. Owner to test: type Vietnamese with the tone row, Khmer vowels, Thai บ.
+
+### chat-test: Simplified Chinese pinyin input, Track B (2026-10-04)
+
+**Owner direction.** Fix everything remaining; source decision delegated earlier (in-browser engine from open data).
+
+**Data.** `dict/zh.json` (64,911 words) and `dict/zh-pinyin.json` (42,659 tone-less pinyin strings mapping to ranked words), from the jieba frequency list and pypinyin readings (both MIT; notice in `dict/NOTICE-km-lo-zh.md`). Single characters keep all common readings, ranked below the main one. Chinese now has a dictionary, so the language check has no known gaps left.
+
+**Behaviour.** On a Chinese side the Latin keys build a pinyin buffer shown in the field. The candidate bar shows words for the whole buffer, then for its longest prefixes (so "nihaoma" offers 你好 first and keeps "ma" composing). Tapping a word, Space or Enter commits it; Enter commits the first word and does not send. Backspace edits the buffer. Punctuation commits the first word. Every pick is learned on the device: word counts re-rank later candidates, and word pairs drive next-word suggestions in the bar after a word is committed. Before the pinyin data loads, or if it fails, typing is plain letters as before.
+
+**Check added first.** "Chinese pinyin: ranked candidates, partial picks, space/enter commit, backspace, learning and next-word suggestions" failed before (no pinyin support) and passes after. Open mode 42/42; ask mode, keyboard, controller and language check results in the commit.
+
+**Limits, stated plainly.** (1) Candidate quality is word-level ranking, not a sentence engine: long sentences need several picks. (2) Next-word suggestions start empty and come only from the user's own picks; there is no seeded word-pair data. (3) No abbreviations (nh for 你好), no traditional characters, no tone input. (4) About 1.8 MB of Chinese data downloads when a room uses Chinese. (5) Not verified on a phone. If quality proves too low on full sentences, the documented fallback is libgooglepinyin compiled to WebAssembly.
+
+**Owner to test.** Set a side to Chinese, type "nihao" then Space; type "women"; check suggestions after repeating a phrase; check Backspace and Enter.

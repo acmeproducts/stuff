@@ -101,6 +101,30 @@ test('Vietnamese tone keys compose with the vowel before them and replace an exi
   return out});
  assert.deepEqual(typed,['á','à','ạ','ạệ','ạệb'].map(x=>x.normalize('NFC')));
 });
+test('Chinese pinyin: ranked candidates, partial picks, space/enter commit, backspace, learning and next-word suggestions',async({page})=>{
+ await page.route(/\/dict\/zh(-pinyin)?\.json/,route=>{const f=/\/dict\/(zh(?:-pinyin)?)\.json/.exec(route.request().url())[1];return route.fulfill({path:require('node:path').join(__dirname,'../../dict/'+f+'.json'),contentType:'application/json',headers:{'access-control-allow-origin':'*'}})});
+ await page.evaluate(()=>{localStorage.setItem('tb_dg_key','synthetic-key');localStorage.setItem('chat_test_audio',JSON.stringify({mode:'open',tones:true,resumeMs:300}));localStorage.removeItem('duck_zh_learn')});
+ await create(page,'ZhRoom','en','zh');await page.waitForFunction(()=>mic.south.active&&mic.north.active);
+ await page.waitForFunction(()=>window.zhReady&&window.zhReady(),null,{timeout:15000});
+ await page.locator('#in-north').focus();await page.waitForFunction(()=>INPUT.owner==='north'&&INPUT.mode==='kb');
+ const val=()=>page.evaluate(()=>document.getElementById('in-north').value);
+ const type=t=>page.evaluate(t=>{for(const ch of t)press('north',ch)},t);
+ const bar=()=>page.evaluate(()=>cands.north.slice());
+ await type('nihao');assert.equal((await bar())[0],'你好');assert.equal(await val(),'nihao','the typed pinyin is shown while composing');
+ await page.evaluate(()=>pickCand('north',0));assert.equal(await val(),'你好');
+ await type('women');assert.equal((await bar())[0],'我们');await page.evaluate(()=>press('north',' '));assert.equal(await val(),'你好我们','space commits the first candidate');
+ await type('nihaoma');const b=await bar();assert.equal(b[0],'你好','longest known prefix first');
+ await page.evaluate(()=>pickCand('north',0));assert.equal(await val(),'你好我们你好ma','the rest of the pinyin keeps composing');
+ await page.evaluate(()=>press('north','BKSP'));assert.equal(await val(),'你好我们你好m');
+ await page.evaluate(()=>press('north','BKSP'));assert.equal(await val(),'你好我们你好');
+ await type('ni');const before=await page.evaluate(()=>HIST.length);await page.evaluate(()=>press('north','ENTER'));
+ assert.equal(await val(),'你好我们你好你','enter commits the first candidate and does not send');assert.equal(await page.evaluate(()=>HIST.length),before);
+ // learning: 你好 followed by 我们 was committed above, so after 你好 the bar offers 我们
+ await page.locator('#strip-north .clearbtn').click();assert.equal(await val(),'');
+ await type('nihao');await page.evaluate(()=>press('north',' '));
+ assert.ok((await bar()).includes('我们'),'next-word suggestion learned from earlier use');
+ await page.evaluate(()=>pickCand('north',cands.north.indexOf('我们')));assert.equal(await val(),'你好我们');
+});
 test('open mode: mute, typing keeps mics, portal closes and reopens them, unsure goes to compose',async({page})=>{
  const s=await openRoom(page,'Mute');
  await page.locator('#strip-south .micbtn').click();await page.waitForFunction(()=>!mic.south.on&&mic.north.on);
