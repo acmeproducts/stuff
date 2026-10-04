@@ -1,6 +1,6 @@
 // WSL Build 1 checks. Usage: node wsl-tests/build1.mjs [file.html]
 // Synthetic pointer events drive the real handlers; state read through window.__wsl().
-import {createRequire} from 'module';import {execSync} from 'child_process';import {fresh as libFresh} from './lib.mjs';
+import {createRequire} from 'module';import {execSync} from 'child_process';import {fresh as libFresh,HELPERS} from './lib.mjs';
 const r=createRequire(execSync('npm root -g').toString().trim()+'/');const pw=r('playwright');
 const file=process.argv[2]||'wsl.html';const url='file://'+process.cwd()+'/'+file;
 const b=await pw.chromium.launch({executablePath:process.env.CHROMIUM||'/opt/pw-browsers/chromium'});
@@ -61,11 +61,17 @@ for(const vp of [{n:'phone',w:390,h:800},{n:'desktop',w:1280,h:800}]){
   await p.evaluate(()=>__tap(200,250));await p.waitForTimeout(60);s=await S();
   ok('tap while running = jump',s.state===2&&s.vy<0,{state:s.state,vy:s.vy});
   await fresh();
-  await p.evaluate(()=>__swipe2(120,150));await p.waitForTimeout(60);s=await S();
-  ok('two-finger swipe right = front flip (jump+flip)',s.state===2&&s.flip===1&&s.flipDir===1&&Math.abs(s.zoom-1)<0.01,{state:s.state,flip:s.flip,dir:s.flipDir,zoom:s.zoom});
+  await p.evaluate(()=>__tap(200,250));await p.waitForTimeout(60);s=await S();
+  ok('tap while moving forward = jump with a forward spin',s.state===2&&s.flip===1&&s.flipDir===1,{state:s.state,flip:s.flip,dir:s.flipDir});
+  await p.reload();await p.waitForTimeout(400);await p.evaluate(HELPERS);
+  await p.evaluate(()=>{const pts=[];for(let i=0;i<=80;i++)pts.push({x:100+i*20*0.94,y:600-i*20*0.34});__wslLoad(pts);});await p.waitForTimeout(900);
+  await p.evaluate(()=>{const s=__wsl();const m=s.pts[2];const q=__scr(m.x,m.y);return __tap(q.x,q.y);});await p.waitForTimeout(50);
+  await p.evaluate(()=>__wslSetV(-300));await p.waitForTimeout(30);
+  await p.evaluate(()=>__tap(200,250));await p.waitForTimeout(60);s=await S();
+  ok('tap while moving backward = jump with a backward spin',s.state===2&&s.flip===1&&s.flipDir===-1,{state:s.state,flip:s.flip,dir:s.flipDir,v:s.cart.v});
   await fresh();
-  await p.evaluate(()=>__swipe2(-120,150));await p.waitForTimeout(60);s=await S();
-  ok('two-finger swipe left = back flip',s.state===2&&s.flip===1&&s.flipDir===-1,{state:s.state,flip:s.flip,dir:s.flipDir});
+  await p.evaluate(()=>__swipe2(120,150));await p.waitForTimeout(60);s=await S();
+  ok('two-finger swipe does nothing (no flip, no zoom)',s.flip===0&&Math.abs(s.zoom-1)<0.01&&s.state===1&&s.gphase==='idle',{flip:s.flip,z:s.zoom,st:s.state});
   await fresh();const np=(await S()).pts.length;
   await p.evaluate(()=>__drag(100,300,230,300,6,100));await p.waitForTimeout(60);s=await S();
   ok('fast one-finger sideways drag = draw, never a flip',s.flip===0&&s.pts.length>np&&s.gphase==='idle',{flip:s.flip,pts:[np,s.pts.length],ph:s.gphase});

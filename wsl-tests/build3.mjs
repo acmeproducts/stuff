@@ -29,7 +29,7 @@ for(const vp of VIEWPORTS){
   await p.click('#btnSettings');await p.waitForTimeout(100);
   ok('gear opens settings',await vis('#settingsPanel'));
   await p.click('[data-preset="low"]');s=await S();
-  ok('Low preset sets jump/flip',s.jump===500&&s.flipF===450,{j:s.jump,f:s.flipF});
+  ok('Low preset sets jump',s.jump===500,{j:s.jump});
   await p.evaluate(()=>{const e=document.getElementById('jumpForce');e.value=1500;e.dispatchEvent(new Event('input'));});s=await S();
   ok('moving a slider switches preset to custom',s.preset==='custom'&&s.jump===1500,{p:s.preset,j:s.jump});
   await p.click('#closeSettings');await p.reload();await p.waitForTimeout(400);s=await S();
@@ -63,14 +63,13 @@ for(const vp of VIEWPORTS){
   for(let i=0;i<5;i++){const h=await p.evaluate(()=>{const s=__wsl();return __scr(s.cart.x+90,s.cart.y+60);});await p.evaluate(({x,y})=>__hold(x,y,900),h);await p.waitForTimeout(60);}
   s=await S();ok('Zen: rescue is unlimited',s.charges===3&&s.ntracks>=6,{ch:s.charges,nt:s.ntracks});
   await p.close();
-  // ---- two-finger tap rescue
+  // ---- two-finger tap does nothing now
   p=await b.newPage({viewport:{width:vp.w,height:vp.h}});p.on('pageerror',e=>errs.push(e.message));await seed(p,{mode:'regular'});
   await p.goto(url);await p.waitForTimeout(500);await p.evaluate(HELPERS);
   await p.evaluate(()=>__release());await p.waitForTimeout(150);
   await p.evaluate(async()=>{const s=__wsl();const q=__scr(s.cart.x+80,s.cart.y+60);__ptr('pointerdown',1,q.x-20,q.y);__ptr('pointerdown',2,q.x+20,q.y);await __sleep(80);__ptr('pointerup',2,q.x+20,q.y);__ptr('pointerup',1,q.x-20,q.y);});
   await p.waitForTimeout(100);s=await S();
-  ok('two-finger tap = rescue',s.charges===2&&s.ntracks===2&&s.state===1&&s.cartTrack===1,{ch:s.charges,nt:s.ntracks,st:s.state,tr:s.cartTrack});
-  const z=s.zoom;ok('two-finger tap did not zoom',Math.abs(z-1)<0.01,z);
+  ok('two-finger tap does nothing',s.charges===3&&s.ntracks===1&&Math.abs(s.zoom-1)<0.01&&s.gphase==='idle',{ch:s.charges,nt:s.ntracks,z:s.zoom});
   await p.close();
   // ---- rotation
   p=await b.newPage({viewport:{width:vp.w,height:vp.h}});p.on('pageerror',e=>errs.push(e.message));await seed(p,{mode:'regular'});

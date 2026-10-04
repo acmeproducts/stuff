@@ -17,7 +17,7 @@ for(const vp of VIEWPORTS){
   await fresh(p);await p.evaluate(()=>__pinch(100,200,200,300));s=await S();
   ok('pinch: zooms, no flip',s.zoom>1.4&&s.flip===0&&s.gphase==='idle',{z:s.zoom,flip:s.flip,ph:s.gphase});
   await fresh(p);await p.evaluate(()=>__swipe2(110,150));s=await S();
-  ok('two-finger swipe: flips, no zoom',s.flip===1&&Math.abs(s.zoom-1)<0.01&&s.gphase==='idle',{z:s.zoom,flip:s.flip});
+  ok('two-finger swipe: no flip, no zoom, nothing',s.flip===0&&Math.abs(s.zoom-1)<0.01&&s.gphase==='idle',{z:s.zoom,flip:s.flip});
   // 3. a hold that moves is a drawing, not a rescue; a hold that stays is a rescue
   await fresh(p);await p.evaluate(()=>{__ptr('pointerdown',1,150,500);return __sleep(500).then(()=>__ptr('pointermove',1,200,520));});
   await p.waitForTimeout(500);s=await S();

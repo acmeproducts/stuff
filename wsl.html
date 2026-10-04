@@ -73,7 +73,6 @@
   <h3>Mode</h3><div class="row"><button class="opt" data-mode="regular">Regular</button><button class="opt" data-mode="zen">Zen</button></div>
   <h3>Intensity</h3><div class="row"><button class="opt" data-preset="low">Low</button><button class="opt" data-preset="med">Med</button><button class="opt" data-preset="high">High</button><button class="opt" data-preset="custom">Custom</button></div>
   <div class="slr"><span>Jump</span><input type="range" id="jumpForce" min="400" max="2000" step="50"><span class="v" id="jumpVal"></span></div>
-  <div class="slr"><span>Flip</span><input type="range" id="flipForce" min="300" max="1200" step="50"><span class="v" id="flipVal"></span></div>
   <h3>Audio vibe</h3><div class="row"><button class="opt" data-audio="calm">Calm</button><button class="opt" data-audio="fun">Fun</button><button class="opt" data-audio="whimsical">Whimsical</button><button class="opt" data-audio="zen">Zen</button></div>
   <button id="closeSettings">SAVE &amp; CLOSE</button></div>
 <script>
@@ -114,11 +113,11 @@ var G=1050,SLOPEK=0.45,DRAG=0.2,ROLL=30,VMAX=1300;
 var PROGRESS_THRESHOLD=80,PROGRESS_LIMIT=4.0;
 var lastProgressX=0,noProgressT=0;
 var AC=null;
-var PRESETS={low:{jump:500,flip:450},med:{jump:800,flip:700},high:{jump:1200,flip:1000}};
-var cfg={mode:null,preset:'med',jump:800,flip:700,audio:'fun'};
+var PRESETS={low:{jump:500},med:{jump:800},high:{jump:1200}};
+var cfg={mode:null,preset:'med',jump:800,audio:'fun'};
 var paused=false,TIMESCALE_ZEN=0.75,lastOn={track:0,s:0};
 try{var sv=JSON.parse(localStorage.getItem('wsl_settings')||'{}');for(var k in sv)if(k in cfg)cfg[k]=sv[k];}catch(e){}
-if(PRESETS[cfg.preset]){cfg.jump=PRESETS[cfg.preset].jump;cfg.flip=PRESETS[cfg.preset].flip;}
+if(PRESETS[cfg.preset])cfg.jump=PRESETS[cfg.preset].jump;
 function saveCfg(){try{localStorage.setItem('wsl_settings',JSON.stringify(cfg));}catch(e){}}
 function zen(){return cfg.mode==='zen';}
 var THEMES={calm:{type:'sine',mult:0.8,gain:0.06,dur:1.4},fun:{type:'triangle',mult:1,gain:0.07,dur:1},whimsical:{type:'square',mult:1.5,gain:0.035,dur:0.8},zen:{type:'sine',mult:0.5,gain:0.05,dur:2.4}};
@@ -235,7 +234,7 @@ function release(s,trackIdx){
   state=ST.RUN;cart.track=trackIdx||0;cart.s=s;cart.v=2;cart.flip=0;cart.flipAng=0;
   var p=pointAt(cart.track,cart.s);cart.x=p.x;cart.y=p.y;cart.ang=p.ang;
   lastProgressX=cart.x;noProgressT=0;
-  setHint('Tap jump • Hold rescue • 2-finger swipe flip');
+  setHint('Tap = jump & flip • Hold = rescue • Pinch = zoom');
   beep(520,100);
 }
 function startFallOffTrack(reason){
@@ -245,7 +244,7 @@ function startFallOffTrack(reason){
   fall.rot=cart.ang;fall.spin=fall.vx>=0?10:-10;fall.t=0;fall.grace=0.15;
   hole.x=p.x+(fall.vx>=0?260:-260);hole.y=p.y+140;
   state=ST.FALL;
-  setHint('2-finger swipe flip • Hold rescue');
+  setHint('Draw to catch the cart • Hold = rescue');
   diagExtra=reason||'fall';
   beep(160,200);
 }
@@ -264,19 +263,9 @@ function doJump(){
   if(state!==ST.RUN)return;
   fall.vx=Math.cos(cart.ang)*cart.v;fall.vy=Math.sin(cart.ang)*cart.v-cfg.jump;
   fall.rot=cart.ang;fall.spin=0;fall.t=0;fall.grace=0.12;
-  cart.flip=0;cart.flipAng=0;cart.flipDir=1;
+  // the jump spins the way the cart is travelling: forward momentum = front flip, backward = back flip
+  cart.flip=1;cart.flipAng=0;cart.flipDir=cart.v<0?-1:1;
   state=ST.FALL;diagExtra='jump';beep(520,140);
-}
-function triggerFlip(dir){
-  if(state===ST.RUN){
-    fall.vx=Math.cos(cart.ang)*cart.v;fall.vy=Math.sin(cart.ang)*cart.v-cfg.flip;
-    fall.rot=cart.ang;fall.spin=0;fall.t=0;fall.grace=0.12;
-    cart.flip=1;cart.flipAng=0;cart.flipDir=dir;
-    state=ST.FALL;diagExtra='flip';beep(440,120);beep(660,120);
-  }else if(state===ST.FALL&&cart.flip===0){
-    cart.flip=1;cart.flipAng=0;cart.flipDir=dir;diagExtra='360!';
-    beep(440,120);beep(660,120);
-  }
 }
 function startRescue(x,y){
   if((state!==ST.RUN&&state!==ST.FALL)||(charges<=0&&!zen()))return false;
@@ -308,7 +297,7 @@ function landOnTrack(ti,s){
   state=ST.RUN;stuckT=0;noProgressT=0;
   if(cart.x>lastProgressX)lastProgressX=cart.x;
   if(cart.flip===2){
-    var bonus=tracks[ti]&&tracks[ti].rescue?500:1000;
+    var bonus=tracks[ti]&&tracks[ti].rescue?50:100;
     addFloater(cart.x,cart.y-60,'+'+bonus,'#ffd700');
     score+=bonus;beep(1100,120);
   }
@@ -475,10 +464,10 @@ function drawHole(){
 }
 
 // ---- Touch gestures: one clear rule per finger count, nothing is guessed from speed ----
-// 1 finger : drag = draw (immediate) | quick tap = jump | hold still 800 ms = rescue
-// 2 fingers: pinch = zoom | both fingers swipe left/right = back/front flip | quick two-finger tap = rescue
+// 1 finger : drag = draw (immediate) | quick tap = jump (spins with the cart's momentum) | hold still 800 ms = rescue
+// 2 fingers: pinch = zoom (nothing else)
 var ZMIN=0.35,ZMAX=3.5;
-var TAP_MS=200,TAP_PX=12,SWIPE2_PX=40,SWIPE2_MS=600,PINCH_PX=30,TWOTAP_MS=300,TWOTAP_PX=20;
+var TAP_MS=200,TAP_PX=12,PINCH_PX=30;
 var g={phase:'idle',id:0,x0:0,y0:0,t0:0,moved:false,mode:'none',cx0:0,cy0:0,d0:1,z0:1,kind:'none',mv:0};
 function cancelLP(){lp=null;}
 function checkLP(){
@@ -538,9 +527,6 @@ window.addEventListener('pointermove',function(e){
     g.mv=Math.max(g.mv,Math.abs(dd),Math.hypot(dcx,dcy));
     if(g.kind==='none'){
       if(Math.abs(dd)>PINCH_PX&&Math.abs(dd)>Math.abs(dcx))g.kind='pinch';
-      else if(Math.abs(dcx)>=SWIPE2_PX&&Math.abs(dcx)>1.5*Math.abs(dcy)&&Math.abs(dd)<=PINCH_PX&&performance.now()-g.t0<=SWIPE2_MS){
-        g.kind='swipe';triggerFlip(dcx>0?1:-1);
-      }
     }
     if(g.kind==='pinch'){zoom=Math.max(ZMIN,Math.min(ZMAX,g.z0*q.d/g.d0));applyTransform();}
   }
@@ -562,7 +548,6 @@ function gestureEnd(e){
     gestureReset();
   }else if(g.phase==='two'){
     if(pointers.size===0){
-      if(g.kind==='none'&&g.mv<=TWOTAP_PX&&performance.now()-g.t0<=TWOTAP_MS&&startRescue(g.cx0,g.cy0))endRescue();
       gestureReset();
     }
   }else if(pointers.size===0){gestureReset();}
@@ -613,8 +598,8 @@ function syncUI(){
   $('[data-mode]').forEach(function(b){b.classList.toggle('on',b.getAttribute('data-mode')===cfg.mode);});
   $('[data-preset]').forEach(function(b){b.classList.toggle('on',b.getAttribute('data-preset')===cfg.preset);});
   $('[data-audio]').forEach(function(b){b.classList.toggle('on',b.getAttribute('data-audio')===cfg.audio);});
-  document.getElementById('jumpForce').value=cfg.jump;document.getElementById('flipForce').value=cfg.flip;
-  document.getElementById('jumpVal').textContent=cfg.jump;document.getElementById('flipVal').textContent=cfg.flip;
+  document.getElementById('jumpForce').value=cfg.jump;
+  document.getElementById('jumpVal').textContent=cfg.jump;
   document.getElementById('modeSel').style.display=cfg.mode?'none':'flex';
   paused=!cfg.mode||pn.style.display==='flex';
 }
@@ -624,12 +609,11 @@ document.getElementById('modeZen').addEventListener('click',function(){setMode('
 document.getElementById('btnSettings').addEventListener('click',function(){document.getElementById('settingsPanel').style.display='flex';syncUI();});
 document.getElementById('closeSettings').addEventListener('click',function(){document.getElementById('settingsPanel').style.display='none';saveCfg();syncUI();});
 $('[data-mode]').forEach(function(b){b.addEventListener('click',function(){setMode(b.getAttribute('data-mode'));});});
-$('[data-preset]').forEach(function(b){b.addEventListener('click',function(){var p=b.getAttribute('data-preset');cfg.preset=p;if(PRESETS[p]){cfg.jump=PRESETS[p].jump;cfg.flip=PRESETS[p].flip;}saveCfg();syncUI();});});
+$('[data-preset]').forEach(function(b){b.addEventListener('click',function(){var p=b.getAttribute('data-preset');cfg.preset=p;if(PRESETS[p])cfg.jump=PRESETS[p].jump;saveCfg();syncUI();});});
 $('[data-audio]').forEach(function(b){b.addEventListener('click',function(){cfg.audio=b.getAttribute('data-audio');saveCfg();syncUI();beep(660,120);});});
 document.getElementById('jumpForce').addEventListener('input',function(e){cfg.jump=+e.target.value;cfg.preset='custom';saveCfg();syncUI();});
-document.getElementById('flipForce').addEventListener('input',function(e){cfg.flip=+e.target.value;cfg.preset='custom';saveCfg();syncUI();});
 syncUI();
-window.__wsl=function(){var t=tracks[0];return{state:state,zoom:zoom,camX:camX,camY:camY,score:score,flip:cart.flip,flipDir:cart.flipDir,charges:charges,timer:survival,dist:distPx,flow:(flowSamples.length?flowSamples.reduce(function(a,b){return a+b;},0)/flowSamples.length:0),cartTrack:cart.track,gphase:g.phase,mode:cfg.mode,preset:cfg.preset,jump:cfg.jump,flipF:cfg.flip,audio:cfg.audio,theme:theme(),paused:paused,chain:chain,vy:fall.vy,cart:{x:cart.x,y:cart.y,v:cart.v},pts:t?t.pts.slice():[],ntracks:tracks.length,npts:tracks.reduce(function(n,t){return n+t.pts.length;},0)};};
+window.__wsl=function(){var t=tracks[0];return{state:state,zoom:zoom,camX:camX,camY:camY,score:score,flip:cart.flip,flipDir:cart.flipDir,charges:charges,timer:survival,dist:distPx,flow:(flowSamples.length?flowSamples.reduce(function(a,b){return a+b;},0)/flowSamples.length:0),cartTrack:cart.track,gphase:g.phase,mode:cfg.mode,preset:cfg.preset,jump:cfg.jump,audio:cfg.audio,theme:theme(),paused:paused,chain:chain,vy:fall.vy,cart:{x:cart.x,y:cart.y,v:cart.v},pts:t?t.pts.slice():[],ntracks:tracks.length,npts:tracks.reduce(function(n,t){return n+t.pts.length;},0)};};
 window.__wslLoad=function(pts){reset();var t=tracks[0];t.pts=[];t.cum=[0];t.totalLen=0;pts.forEach(function(p){addPoint(0,p.x,p.y);});var p0=pointAt(0,0);cart.x=p0.x;cart.y=p0.y;cart.ang=p0.ang;};
 window.__wslSetV=function(v){cart.v=v;};
 resize();reset();requestAnimationFrame(loop);
