@@ -213,7 +213,7 @@ body.coachMode .suggestBtn{border-color:rgba(57,197,207,.5);background:rgba(57,1
 <div id="scrim"></div>
 <div id="app">
 <aside id="sidebar">
-  <div class="bar"><span id="dot"></span><span class="brand">devstream <span class="version">v1.0 b67</span></span><span class="grow"></span><button class="btn" id="projectAdd">+ New</button><button class="btn" id="refresh">↻</button></div>
+  <div class="bar"><span id="dot"></span><span class="brand">devstream <span class="version">v1.0 b68</span></span><span class="grow"></span><button class="btn" id="projectAdd">+ New</button><button class="btn" id="refresh">↻</button></div>
   <div id="navTabs"><button class="navtab" id="navDash">Dashboard<span id="navBadge"></span></button><button class="navtab" id="navProj">Projects</button><button class="navtab" id="settings">Config</button></div>
   <div id="searchWrap"><input id="search" class="input" placeholder="Search projects & threads">
     <div class="legend"><span><i class="legendDot ok"></i>OK</span><span><i class="legendDot run"></i>Running</span><span><i class="legendDot err"></i>Error</span></div></div>
@@ -274,6 +274,8 @@ body.coachMode .suggestBtn{border-color:rgba(57,197,207,.5);background:rgba(57,1
       <option value="venice">Venice.ai</option>
       <option value="openrouter">OpenRouter</option>
       <option value="anthropic-direct">Anthropic API</option></select></div>
+    <div class="frow"><label>Run in the cloud</label><label class="hint" style="display:flex;gap:8px;align-items:center"><input type="checkbox" id="cfgRunner"> Keep working when my phone sleeps or this page is closed</label>
+      <input id="cfgRunnerCode" class="input keyfield" type="password" autocomplete="new-password" spellcheck="false" autocapitalize="off" placeholder="runner access code (set once per device)" style="margin-top:6px"><div class="hint" id="runnerStatus"></div></div>
     <button class="btn" id="sotValidate">Validate token</button> <span id="sotStatus" class="hint"></span>
     <button class="btn" id="openDebugBtn" style="margin-top:8px">Open Debug console</button>
     <div class="frow" style="margin-top:16px;border-top:1px solid var(--line);padding-top:14px"><label>Appearance preset</label><select id="apPreset" class="input">
@@ -1529,7 +1531,7 @@ function sendMessage(){
     if(shouldStart){scheduledRuns.delete(key);dispatch(key)}
   }).then(ok=>{
     savingMessages[key]=Math.max(0,(savingMessages[key]||1)-1);
-    if(ok){startQueued(key);return}
+    if(ok){if(!shouldStart)startQueued(key);return}
     if(shouldStart){scheduledRuns.delete(key);t.state='error';t.finishedAt=now();delete progress[key]}
     if(activeKey===key)renderChat(true);
     renderTabs();renderSidebar();renderProgress();
@@ -1540,7 +1542,7 @@ $('message').addEventListener('keydown',e=>{if(e.key==='Enter'&&!e.shiftKey){e.p
 $('message').addEventListener('input',function(){this.style.height='44px';this.style.height=Math.min(this.scrollHeight,130)+'px'});
 function threadPath(key){const th=threads[key];const t=sot.threads[key]||{};return tpath(th.data.project,th.data.tid||t.tid||th.data.outputFile)}
 /* a running tab stamps a heartbeat each minute; any device marks a silent run as interrupted */
-setInterval(()=>{const ks=[...activeRuns].filter(k=>sot.threads[k]&&sot.threads[k].state==='executing');if(!ks.length)return;ks.forEach(k=>{sot.threads[k].heartbeat=now()});saveSOT('devstream: heartbeat').catch(()=>{})},60000);
+setInterval(()=>{const ks=[...activeRuns].filter(k=>!remoteActive.has(k)&&sot.threads[k]&&sot.threads[k].state==='executing');if(!ks.length)return;ks.forEach(k=>{sot.threads[k].heartbeat=now()});saveSOT('devstream: heartbeat').catch(()=>{})},60000);
 async function reconcileInterrupted(){
   const ks=Object.keys(sot.threads).filter(k=>!sot.threads[k].deleted&&isStalled(sot.threads[k]));
   if(!ks.length)return;
@@ -1634,7 +1636,10 @@ function applyPatchBlocks(original,body){
 }
 async function setState(key,patch){
   const t=sot.threads[key];if(!t)return;Object.assign(t,patch);
-  await saveSOT('devstream: '+key+' -> '+(patch.state||'update')).catch(()=>{});
+  await saveSOT('devstream: '+key+' -> '+(patch.state||'update')).catch(async e=>{
+    if(!/Conflict/.test(String(e&&e.message)))return;
+    try{await loadSOT();const t2=sot.threads[key];if(t2){Object.assign(t2,patch);await saveSOT('devstream: '+key+' -> '+(patch.state||'update')+' (merged)')}}catch(e2){}
+  });
   renderTabs();renderSidebar();if(activeKey===key)renderChat();
 }
 async function callEngine(eng,system,history,user,modelOverride){
@@ -1660,6 +1665,70 @@ async function callEngine(eng,system,history,user,modelOverride){
   return j.choices[0].message.content;
 }
 const interrupted=new Set();
+/* ---- cloud runner (b68): the run happens on Cloudflare so it survives a locked phone or a closed page.
+   Keys stay on Cloudflare; this page only sends an access code, the job text and which models to use. ---- */
+const RUNNER_DEFAULT='https://devstream-runner.myacctfortracking.workers.dev';
+const remoteActive=new Set();
+function runnerUrl(){try{return String(localStorage.getItem('ds_runner_url')||RUNNER_DEFAULT).replace(/\/+$/,'')}catch(e){return RUNNER_DEFAULT}}
+function runnerCode(){try{return localStorage.getItem('ds_runner_code')||''}catch(e){return ''}}
+function runnerOn(){let off=false;try{off=localStorage.getItem('ds_runner')==='off'}catch(e){}return !off&&!!runnerCode()}
+async function rfetch(path,opts,ms){
+  const ac=new AbortController(),to=setTimeout(()=>ac.abort(),ms||15000);
+  try{return await fetch(runnerUrl()+path,{cache:'no-store',...(opts||{}),headers:{'X-Runner-Code':runnerCode(),...((opts||{}).headers||{})},signal:ac.signal})}
+  finally{clearTimeout(to)}
+}
+const rq=key=>'?repo='+encodeURIComponent(cfg.repo)+'&key='+encodeURIComponent(key);
+function remoteProgress(key,s,t){
+  const p=progress[key]||{},sig=(s.line||'')+'|'+(s.chars||0)+'|'+(s.rchars||0);
+  const at=p.sig===sig?p.at:Date.now();
+  progress[key]={line:s.line||'working',err:!!s.err,at,sig,started:p.started||Date.parse(t&&t.startedAt)||Date.now()};
+  streamStat[key]={chars:s.chars||0,rchars:s.rchars||0,at:Math.max(at,(streamStat[key]||{}).at||0)};
+  renderProgress();
+}
+async function remoteRun(key,jobPayload,t,pend){
+  const th=threads[key];
+  try{th.sha=await putFileSafe(threadPath(key),JSON.stringify(th.data,null,1),'devstream: queue '+key,th.sha)}
+  catch(e){return{fallback:'could not save the request first ('+String(e.message).slice(0,80)+')'}}
+  const{cfg:_c,...job}=jobPayload;
+  const body={key,repo:cfg.repo,branch:cfg.branch,models:{vmodel:cfg.vmodel,ormodel:cfg.ormodel},job,
+    post:{threadPath:threadPath(key),sotPath:SOTPATH,project:t.project,tab:tabName(t),pendSigs:pend.map(msgSig),pendTexts:pend.map(m=>m.text),testUrl:t.testUrl||''}};
+  progress[key]={line:'handing over to the cloud',at:Date.now(),started:Date.now()};renderProgress();
+  let r;try{r=await rfetch('/run',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)},30000)}
+  catch(e){return{fallback:'the cloud runner could not be reached'}}
+  if(r.status!==409&&!r.ok){let m='';try{m=(await r.json()).error}catch(e){}return{fallback:m||('the cloud runner answered '+r.status)}}
+  remoteActive.add(key);dlog('K|run handed to the cloud runner: '+key);
+  const t0=Date.now();let stopSent=false;
+  try{for(;;){
+    await new Promise(r=>setTimeout(r,3000));
+    if(interrupted.has(key)&&!stopSent){stopSent=true;rfetch('/stop',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({key,repo:cfg.repo})},15000).catch(()=>{})}
+    if(Date.now()-t0>20*60*1000)return{result:null};
+    let s;try{const rr=await rfetch('/status'+rq(key),{},15000);if(!rr.ok)continue;s=await rr.json()}catch(e){continue}
+    if(s.state==='running'){remoteProgress(key,s,t);continue}
+    if(s.state==='done')return{result:s.result};
+    if(s.state==='idle')return{result:null};
+  }}finally{remoteActive.delete(key)}
+}
+/* a page opened while a cloud run is going: show its live progress */
+async function attachRemote(){
+  if(!runnerOn()||!sot)return;
+  for(const[k,t]of Object.entries(sot.threads)){
+    if(!t.remote||t.state!=='executing'||t.deleted||activeRuns.has(k))continue;
+    try{const rr=await rfetch('/status'+rq(k),{},10000);if(!rr.ok)continue;const s=await rr.json();if(s.state==='running')remoteProgress(k,s,t)}catch(e){}
+  }
+}
+async function refreshRunnerRow(){
+  const box=$('cfgRunner'),code=$('cfgRunnerCode'),out=$('runnerStatus');if(!box||!out)return;
+  let off=false;try{off=localStorage.getItem('ds_runner')==='off'}catch(e){}
+  box.checked=!off;code.value=runnerCode();
+  const save=()=>{try{localStorage.setItem('ds_runner',box.checked?'on':'off');localStorage.setItem('ds_runner_code',code.value.trim())}catch(e){}};
+  box.onchange=()=>{save();refreshRunnerRow()};code.onchange=()=>{save();refreshRunnerRow()};
+  if(off){out.textContent='Off — runs happen in this page and stop if it closes.';return}
+  if(!runnerCode()){out.textContent='Enter the access code to use it. Until then runs happen in this page.';return}
+  out.textContent='Checking…';
+  try{const r=await rfetch('/status'+rq('check'),{},10000);
+    out.textContent=r.ok?'Ready. Your keys stay in the cloud; this page only sends the access code.':r.status===401?'That access code was not accepted.':r.status===503?'The runner is not set up yet (its secrets are missing).':'The runner answered '+r.status+' — runs will happen in this page.'}
+  catch(e){out.textContent='Not reachable right now — runs will happen in this page.'}
+}
 async function runAgent(key,premarked){
   const t=sot.threads[key],th=threads[key];
   if(!t||!th){releaseProjectRun(key);return}
@@ -1688,7 +1757,8 @@ async function runAgent(key,premarked){
     }}
   let completed=false;
   try{
-    await setState(key,{state:'executing',startedAt:now(),heartbeat:now(),error:''});
+    const viaRunner=runnerOn(),startedMs=Date.now();
+    await setState(key,{state:'executing',startedAt:now(),heartbeat:now(),error:'',remote:viaRunner});
     if(interrupted.has(key))throw new Error('Interrupted by user');
     let runChain=chain,useModel=t.model||null;
     if(chain.includes('venice')){
@@ -1715,6 +1785,23 @@ async function runAgent(key,premarked){
     const jobPayload={cfg:{...cfg},codeFile,planFile,inputFile:th.data.inputFile||null,images,ghRefs,webSearch:!!t.web,patchMode,
       system:agentSystem(codeFile,planFile,patchMode,coach),history,instr,chain:runChain,budgetMs:6*60*1000,threadModel:useModel,threadEngine:eng,projectContext:await projectActivityContext(key,t).catch(()=>''),
        allowPlanCreate:!sot.projects[t.project].planExists&&pend.some(m=>m.text.startsWith('Create '+planFile+' — the master plan'))};
+    if(viaRunner){
+      const rr=await remoteRun(key,jobPayload,t,pend);
+      if(rr.fallback){dlog('K|cloud runner not used: '+rr.fallback);toast('Cloud runner unavailable — running in this page');await setState(key,{remote:false})}
+      else{
+        const res=rr.result;
+        if(!res)throw new Error('lost contact with the cloud runner');
+        if(res.ok)pend.forEach(m=>doneSigs.add(msgSig(m)));
+        await loadSOT().catch(()=>{});
+        try{await loadThread(key)}catch(e){}
+        delete progress[key];
+        if(res.ok){completed=true;toast(key+' done');recordRun(Date.now()-startedMs);notifyEvent(key,'ok',res.summary)}
+        else if(res.interrupted){interrupted.delete(key);toast(key+' stopped — message left queued')}
+        else{if(/spend limit/i.test(String(res.error)))veniceCappedUntil=Date.now()+10*60*1000;notifyEvent(key,'fail',friendlyError(res.error))}
+        renderTabs();renderSidebar();if(view==='dash')renderDash();if(activeKey===key)renderChat(true);
+        return;
+      }
+    }
     let attemptNo=0,feedback='';
     for(;;){try{
     const jp=feedback?{...jobPayload,instr:jobPayload.instr+'\n\nYOUR PREVIOUS ATTEMPT WAS REJECTED BEFORE ANYTHING WAS SAVED. Reason: '+feedback+'\nRedo the same work and avoid that problem. If you rewrite a whole file, keep every existing function that is still used. If you use edit blocks, copy the SEARCH text exactly from the current file.'}:jobPayload;
@@ -2036,6 +2123,7 @@ function runJob(key,payload){
 function interruptAgent(key){
   if(!key)return;
   interrupted.add(key);
+  if(remoteActive.has(key))rfetch('/stop',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({key,repo:cfg.repo})},15000).catch(()=>{});
   const qi=jobQ.findIndex(j=>j.key===key);
   if(qi>=0){const job=jobQ.splice(qi,1)[0];job.reject(new Error('Interrupted by user'));pumpQ();return}
   const entry=Object.entries(jobs).find(([,job])=>job.key===key);
@@ -2124,7 +2212,7 @@ function renderTaskStrip(){
     saving=!!(scheduledRuns.has(key)||savingMessages[key]>0);
   let mode='',step=-1,state='',detail='',act=null,sec=null,pct=null,sub='',stale=false;
   if(saving&&!running){mode='run';step=0;state='Saving your message…'}
-  else if(running){mode='run';step=2;state='Working';const a=describeActivity(key,t,coach,p),st0=(p&&p.started)||Date.parse(t.startedAt)||Date.now();detail=a.text;pct=a.pct;sub='Working for '+fmtElapsed(Date.now()-st0)+' · '+(String(a.sub).split(' · ')[1]||'')+' · '+etaText()+(a.stale?' · no news for a while, still trying':'')+'. Keep this page open — switching tabs or apps is fine. I’ll tell you when it’s done.';stale=a.stale;act={label:'■ Stop',fn:()=>interruptAgent(key)}}
+  else if(running){mode='run';step=2;state='Working';const a=describeActivity(key,t,coach,p),st0=(p&&p.started)||Date.parse(t.startedAt)||Date.now();detail=a.text;pct=a.pct;sub='Working for '+fmtElapsed(Date.now()-st0)+' · '+(String(a.sub).split(' · ')[1]||'')+' · '+etaText()+(a.stale?' · no news for a while, still trying':'')+(t.remote?'. Running in the cloud — you can lock your phone or close this page. It will be waiting when you come back.':'. Keep this page open — switching tabs or apps is fine. I’ll tell you when it’s done.');stale=a.stale;act={label:'■ Stop',fn:()=>interruptAgent(key)}}
   else if(stalled){mode='fail';step=2;state='Couldn\'t finish';detail='Nothing is running — this run stopped. Run again restarts it.';act={label:'↻ Run again',fn:()=>guard(async()=>{t.state='error';t.error='stalled — reset by owner';t.finishedAt=now();await saveSOT('devstream: reset stalled '+key);renderTabs();renderSidebar();renderTaskStrip();dispatch(key)})}}
   else if(failed){mode='fail';step=2;state='Couldn\'t finish';detail=friendlyError(t.error||'');act={label:'↻ Run again',fn:()=>dispatch(key)}}
   else if(pendN){mode='wait';step=1;state='Waiting to start';
@@ -2252,7 +2340,10 @@ function schedulePoll(){
 }
 async function pollOnce(){
     try{
+      const was={};Object.entries(sot.threads).forEach(([k,x])=>{if(x.remote&&x.state==='executing'&&!activeRuns.has(k))was[k]=1});
       await loadSOT();
+      Object.keys(was).forEach(k=>{const x=sot.threads[k];if(!x||activeRuns.has(k))return;if(x.state==='ok')notifyEvent(k,'ok','Finished while you were away');else if(x.state==='error')notifyEvent(k,'fail',friendlyError(x.error))});
+      attachRemote().catch(()=>{});
       const t=sot.threads[activeKey];if(!t)return;
       const th=threads[activeKey];
       if(t.state==='executing'||(th&&th.data.messages.some(m=>m.status==='pending'))){await loadThread(activeKey)}
@@ -2335,7 +2426,7 @@ function renderDeleted(body){
 /* ---- settings / boot ---- */
 $('settings').onclick=()=>{if(cfg){$('sotPat').value=cfg.pat;$('sotOwner').value=cfg.owner;$('sotRepo').value=cfg.repo;$('sotBranch').value=cfg.branch;$('cfgProjectDir').value=cfg.projectDir||'projects';$('cfgakey').value=cfg.akey||'';$('cfgvkey').value=cfg.vkey||'';$('cfgvadmin').value=cfg.vadmin||'';$('cfgorkey').value=cfg.orkey||'';
   if(cfg.vmodel)fillModels('cfgvmodel',[cfg.vmodel],cfg.vmodel);
-  if(cfg.ormodel)fillModels('cfgormodel',[cfg.ormodel],cfg.ormodel);$('cfgengine').value=cfg.engine||'venice'}openModal('cfgModal');cfgTab('settings');bindAppearanceUI()};
+  if(cfg.ormodel)fillModels('cfgormodel',[cfg.ormodel],cfg.ormodel);$('cfgengine').value=cfg.engine||'venice'}openModal('cfgModal');cfgTab('settings');bindAppearanceUI();refreshRunnerRow()};
 var MODEL_CAPS=JSON.parse(localStorage.getItem('ds_model_caps')||'{}');
 function saveCaps(){try{localStorage.setItem('ds_model_caps',JSON.stringify(MODEL_CAPS))}catch(e){}}
 function capOf(eng,model){var c=MODEL_CAPS[eng+'|'+model];return c||(eng==='venice'?16384:(eng==='anthropic-direct'?64000:32000))}

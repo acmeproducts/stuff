@@ -6,8 +6,8 @@ Deploy target: `https://acmeproducts.github.io/stuff/devstream.html`
 Test target: `https://acmeproducts.github.io/stuff/devstream-test.html`
 
 ## Status
-- Current release: v1.0 b67 on devstream-test.html (2026-10-03)
-- Stage: TEST (b67)
+- Current release: v1.0 b68 on devstream-test.html (2026-10-04)
+- Stage: TEST (b68)
 
 ## Release Rules (inherited, proven)
 1. Mobile-first. All diagnostics in-app. No DevTools ever.
@@ -255,6 +255,34 @@ b39 incorrectly changed stationary hold into context-menu activation. Devstream 
 ## Graveyard
 - **G-DS-13 — Hold opens context menu:** rejected; donor behavior is double-tap context, hold-to-drag.
 - **G-DS-14 — Legacy generic #tabContext button styling:** rejected; it corrupts the donor context-menu appearance.
+
+---
+
+# 2026-10-04 — b68 runs keep going when the phone is locked or the page is closed (Cloudflare runner)
+
+## Owner report
+"This needs to be able to run on a phone." A run that lives in the page stops when the phone sleeps, switches apps for long, or the page closes.
+
+## Decision (supersedes the 2026-08-14 "no extra moving part" ruling — owner directive 2026-10-04)
+A small Cloudflare Worker (`devstream-runner`, `devstream/runner/`) runs the whole job: it reads the plan and code from GitHub, calls the AI, checks the result, commits, writes the reply and updates status. The page only hands the job over and shows progress. The existing TalkBridge relay is not reused (it only passes call signals); only the same Cloudflare account and deploy secrets are.
+- Keys: the page never sends your GitHub token or AI keys. They are stored once as Cloudflare secrets (set from the repo's GitHub secrets by the deploy workflow). The page sends only a runner access code, typed once per device and kept in that browser. Without the code the runner refuses everything; it only touches repos under `acmeproducts`.
+- Fallback: if the runner can't be reached, the page runs the job itself exactly as in b67.
+- Status writes now merge on conflict (fixes the "status save failed" noise for runner runs).
+- Deploy: `.github/workflows/deploy-devstream-runner.yml` on pushes to `devstream/runner/**`. One-time setup by the owner: add repo secrets `DEVSTREAM_GH_TOKEN` (a token that can write to the repo), `DEVSTREAM_VENICE_KEY` (and/or `DEVSTREAM_OPENROUTER_KEY`, `DEVSTREAM_ANTHROPIC_KEY`) and `DEVSTREAM_RUNNER_CODE` (any long random phrase), then re-run the deploy workflow.
+
+## Limits (honest)
+- Phone/browser notifications still need the page open. Reopening the page shows Done / Needs you at once.
+- A run is capped at about 13 minutes.
+
+## Acceptance
+- **DS-B68-1:** a job handed to the runner finishes (file committed, reply saved, messages marked done, status ok) with the page closed.
+- **DS-B68-2:** a broken result is refused and retried quietly, exactly as in the page; the app file is unchanged.
+- **DS-B68-3:** a call without the right access code, for another owner's repo, or for an engine with no key on the runner is refused; no key or token is ever written to storage or returned in status.
+- **DS-B68-4:** Stop in the page stops the remote run and leaves the message queued.
+- **DS-B68-5:** a status write that collides with another device merges instead of failing.
+- **DS-B68-6:** other devices do not mark a remote run "interrupted" while the runner is alive.
+- **DS-B68-7:** if the runner is unreachable (or has no access code / is not set up) the page falls back to running in the page.
+- **DS-B68-8:** a failed or stopped run is not silently started again. (Cause: sending a message also queued a second run of the same tab; when the first run failed or was stopped the queue started it again. Now only a message sent while a run is already going is queued.)
 
 ---
 
