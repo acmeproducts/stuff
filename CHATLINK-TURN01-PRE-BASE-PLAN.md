@@ -724,3 +724,22 @@ Malay and Indonesian are confirmed to have different speech, voice and translati
 **Checks added first.** Both Khmer and Lao scenarios failed before. Open mode 40/40, ask mode 33/33, keyboard 32/32, controller 20/20, language check OK.
 
 **Owner to test (Android Chrome).** Set North to Khmer, allow the microphone, speak Khmer: the text should appear on North and translate for South. If Chrome does not support Khmer on that phone, a toast says so. Whisper in the browser remains the later option if the browser engine is not good enough.
+
+### chat-test: keyboard coverage review and fixes (2026-10-04)
+
+**Owner direction.** Review keyboards for Vietnamese, Indonesian and Cambodian, and make coverage full and complete across all languages. Required.
+
+**Method.** For every language with a dictionary, count the letters its words use (`dict/<lang>.json`) and list the ones the keyboard cannot type, keeping only letters native to the language (loanword noise left out). Everything below was a real gap; each was invisible until now.
+
+**Findings.**
+- **Vietnamese:** only 3 of 5 tone marks, on three vowels. Most Vietnamese letters (ế ố ì ệ ớ and about 60 more) could not be typed.
+- **Khmer:** 13 vowels and letters missing (ើ ួ ឹ ៀ ឺ ៈ ឧ ឯ ឥ ឱ ឿ ឰ ឦ), including some of the most common.
+- **Thai:** 10 missing, including บ (the most common missing letter), ถ, ุ ู ึ and the tone mark ๊.
+- **Arabic:** د. **Hindi:** ष ः ॅ. **Russian:** ё ъ. **Lao:** ຽ.
+- **French:** â ï ë. **Portuguese:** à. **Dutch:** ë é ï è ö ü á ó í. **Turkish:** â î û.
+- **Indonesian:** nothing missing for Indonesian words. Only foreign names such as é appear and are left out.
+- Japanese and Korean compose from romaji and jamo and are not affected. Chinese is Track B.
+
+**Changes.** Each missing letter is on an extra key row at the bottom of its keyboard (the shifted layer shows capitals). Vietnamese gets a row of the five tone marks: tapping one puts the tone on the vowel just typed, replaces an existing tone, and is ignored after a consonant. The keyboard already caps at 55% of the screen height and scrolls inside, so taller layouts fit.
+
+**Checks added first.** `tests/language-check/check.cjs` now fails if any listed letter cannot be typed, and checks every Vietnamese letter is reachable. A tone-typing scenario covers á, à, ạ, ệ and the consonant case. Both failed before. Open mode 41/41, ask mode 33/33, keyboard 32/32, controller 20/20, language check OK. **Not verified:** a real phone. Owner to test: type Vietnamese with the tone row, Khmer vowels, Thai บ.
