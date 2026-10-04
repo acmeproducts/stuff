@@ -28,6 +28,20 @@ Change: wsl.html restored byte-for-byte from snow-v1.html, then built up in thre
 - **Gestures simplified (2026-10-04, owner decision):** two-finger swipe flip and two-finger tap rescue removed (rescue is already hold; flips follow momentum). Final set: 1 finger drag = draw, tap = jump (spins front when moving forward, back when moving backward), hold still 800 ms = rescue; 2 fingers = pinch zoom only. Flip slider removed from settings (presets set jump only). Landing a flip now scores +100 (+50 on a rescue line), down from +1000/+500, because every jump flips and the old value would pay 1000 per tap. Tests updated; build1 now checks forward/backward spin.
 - Buried: two-finger swipe flip, two-finger tap rescue, mid-air flip gestures, Flip strength slider.
 
+- **Smooth lines + Momentum option (2026-10-04, owner report: "I like earning momentum, but the line is angular, not smooth and curvy; give me both modes of momentum"):**
+  - Cause (angular): the finger only delivers a few rough corner points when it moves fast (up to 57 px apart) and the track joined them with straight segments.
+  - Change: the track keeps those points as guides and stores a fine curve through them (centripetal Catmull-Rom, 5 px steps, re-fitted as you draw); rounder stroke ends. Before: corners up to 17.8°, segments up to 57 px. After: corners 2.9–4.7°, segments under 5 px.
+  - Momentum option in ⚙️: **Earned** (default; the slower, build-it-up physics) or **Classic** (the original fast, light-friction physics). Saved on device; applies in Regular and Zen. Measured: Earned 100→500 px/s in 2.8 s, peak 702; Classic 0.94 s, peak 1381.
+  - Tests: `curves.mjs` (smoothness, option persists), `physics.mjs` now checks both modes. Test seeding of saved settings moved to load-then-reload (the early init-script write was dropping the value ~5% of the time; the app's own saving was 0 failures in 48 reloads).
+
+- **Scoring model restored (2026-10-04, owner report: "the scoring models got wiped out somehow"):**
+  - Found from history (build 334c3057 and the 2018565c plan text): final score = base (+100 per screen travelled, plus trick bonuses) + distance in inches (20 px per inch) + survival seconds × 10, with a game-over breakdown line "Base · inches · Time ×10 · Best". The Build 1 reset to snow-v1 dropped the distance and time points and the breakdown; Build 2 showed distance and time on screen but never scored them, and counted inches at 96 px.
+  - Restored: final = base + distance points + time points + Flow bonus; breakdown "Base X • N″ • Time m:ss ×10 • Flow +F"; best score saves the final; inches back to 20 px per inch (HUD and scoring agree). Before: a run scored only its Flow bonus (222 pts, distance and time ignored). After: all parts add up (checked 542 = 0 + 16 + 37 + 489). Test: `scoring.mjs`.
+  - Not restored: trick bonuses stay +100 (+50 on a rescue line) instead of the old +1000/+500, because every jump now flips (see gestures entry). Rescue-line colours orange → blue → red per use (2018565c) are also gone.
+  - Observation: Flow (1000 × average screens ahead) is far larger than distance and time points; owner may want it scaled.
+
+- **Flow scaled down (2026-10-04, owner decision):** Flow bonus was 1000 × average screens ahead, which dwarfed distance and time points (489 vs 16 and 37 in one run). Now 100 × average screens ahead (10× smaller), so a typical run gets tens of points from Flow, comparable to distance and time; one screen ahead on average still earns 100.
+
 ## RUN LOG (written by DevStream)
 | Date | Tab | Result | What | Commit |
 |---|---|---|---|---|

@@ -73,6 +73,7 @@
   <h3>Mode</h3><div class="row"><button class="opt" data-mode="regular">Regular</button><button class="opt" data-mode="zen">Zen</button></div>
   <h3>Intensity</h3><div class="row"><button class="opt" data-preset="low">Low</button><button class="opt" data-preset="med">Med</button><button class="opt" data-preset="high">High</button><button class="opt" data-preset="custom">Custom</button></div>
   <div class="slr"><span>Jump</span><input type="range" id="jumpForce" min="400" max="2000" step="50"><span class="v" id="jumpVal"></span></div>
+  <h3>Momentum</h3><div class="row"><button class="opt" data-momentum="earned">Earned</button><button class="opt" data-momentum="classic">Classic</button></div>
   <h3>Audio vibe</h3><div class="row"><button class="opt" data-audio="calm">Calm</button><button class="opt" data-audio="fun">Fun</button><button class="opt" data-audio="whimsical">Whimsical</button><button class="opt" data-audio="zen">Zen</button></div>
   <button id="closeSettings">SAVE &amp; CLOSE</button></div>
 <script>
@@ -106,18 +107,22 @@ var stuckT=0,diagT=0,diagExtra='',fpsEMA=60,lastT=0,errShown=0;
 var pendingSwitch=null;
 var pointers=new Map();
 var charges=3,survival=0,distPx=0,flowSamples=[],flowSum=0,flowN=0,flowT=0,flowBonus=0;
-var chain=0,lastTapT=0,lp=null,resPrev=0;
+var chain=0,lastTapT=0,lp=null,resPrev=0,lastResult=null,PX_PER_INCH=20,FLOW_PTS=100;
 var MAXCHARGES=3,LONGPRESS_MS=800,CHAIN_MS=450,BIGJUMP=1.6,FLOW_EVERY=0.5;
 
-var G=1050,SLOPEK=0.45,DRAG=0.2,ROLL=30,VMAX=1300;
+var G=1050,SLOPEK=0.45,DRAG=0.2,ROLL=30,VMAX=1300,RESCUE_MINV=60;
+// Earned: speed has to be built and bleeds away. Classic: the original fast, nearly frictionless feel.
+var MOMENTUM={earned:{slopek:0.45,drag:0.2,roll:30,vmax:1300,rescuev:60},classic:{slopek:1,drag:0.12,roll:5,vmax:1600,rescuev:200}};
+function applyMomentum(){var m=MOMENTUM[cfg.momentum]||MOMENTUM.earned;SLOPEK=m.slopek;DRAG=m.drag;ROLL=m.roll;VMAX=m.vmax;RESCUE_MINV=m.rescuev;}
 var PROGRESS_THRESHOLD=80,PROGRESS_LIMIT=4.0;
 var lastProgressX=0,noProgressT=0;
 var AC=null;
 var PRESETS={low:{jump:500},med:{jump:800},high:{jump:1200}};
-var cfg={mode:null,preset:'med',jump:800,audio:'fun'};
+var cfg={mode:null,preset:'med',jump:800,audio:'fun',momentum:'earned'};
 var paused=false,TIMESCALE_ZEN=0.75,lastOn={track:0,s:0};
 try{var sv=JSON.parse(localStorage.getItem('wsl_settings')||'{}');for(var k in sv)if(k in cfg)cfg[k]=sv[k];}catch(e){}
 if(PRESETS[cfg.preset])cfg.jump=PRESETS[cfg.preset].jump;
+applyMomentum();
 function saveCfg(){try{localStorage.setItem('wsl_settings',JSON.stringify(cfg));}catch(e){}}
 function zen(){return cfg.mode==='zen';}
 var THEMES={calm:{type:'sine',mult:0.8,gain:0.06,dur:1.4},fun:{type:'triangle',mult:1,gain:0.07,dur:1},whimsical:{type:'square',mult:1.5,gain:0.035,dur:0.8},zen:{type:'sine',mult:0.5,gain:0.05,dur:2.4}};
@@ -164,13 +169,41 @@ function stepFlakes(dt){
   }
 }
 
-function mkTrack(){return{pts:[],cum:[0],totalLen:0,color:'#caa06a',rescue:false};}
+function mkTrack(){return{pts:[],cum:[0],totalLen:0,raw:[],segEnd:[],color:'#caa06a',rescue:false};}
+// The finger gives rough corner points (raw); the track stores a fine curve through them
+// (centripetal Catmull-Rom) so the line looks smooth and the cart sees no kinks.
+var RAW_MIN=6,CURVE_STEP=5;
+function curveSeg(P0,P1,P2,P3,out){
+  var d01=Math.pow(Math.hypot(P1.x-P0.x,P1.y-P0.y),0.5)||1e-3,d12=Math.pow(Math.hypot(P2.x-P1.x,P2.y-P1.y),0.5)||1e-3,d23=Math.pow(Math.hypot(P3.x-P2.x,P3.y-P2.y),0.5)||1e-3;
+  var t0=0,t1=d01,t2=t1+d12,t3=t2+d23;
+  var n=Math.max(1,Math.ceil(Math.hypot(P2.x-P1.x,P2.y-P1.y)/CURVE_STEP));
+  function mix(A,B,ta,tb,t){var u=(t-ta)/(tb-ta);return{x:A.x+(B.x-A.x)*u,y:A.y+(B.y-A.y)*u};}
+  for(var k=1;k<=n;k++){
+    var t=t1+(t2-t1)*k/n;
+    var A1=mix(P0,P1,t0,t1,t),A2=mix(P1,P2,t1,t2,t),A3=mix(P2,P3,t2,t3,t);
+    var B1=mix(A1,A2,t0,t2,t),B2=mix(A2,A3,t1,t3,t);
+    out.push(mix(B1,B2,t1,t2,t));
+  }
+}
 function addPoint(ti,x,y){
   var tr=tracks[ti];if(!tr)return;
-  if(tr.pts.length===0){tr.pts.push({x:x,y:y});return;}
-  var last=tr.pts[tr.pts.length-1],dx=x-last.x,dy=y-last.y,d=Math.hypot(dx,dy);
-  if(d<4)return;
-  tr.pts.push({x:x,y:y});tr.totalLen+=d;tr.cum.push(tr.totalLen);
+  if(tr.raw.length===0){tr.raw.push({x:x,y:y});tr.pts.push({x:x,y:y});return;}
+  var lr=tr.raw[tr.raw.length-1];
+  if(Math.hypot(x-lr.x,y-lr.y)<RAW_MIN)return;
+  tr.raw.push({x:x,y:y});
+  var n=tr.raw.length-1,k0=Math.max(0,n-2),start=k0===0?1:tr.segEnd[k0-1];
+  tr.pts.length=start;tr.cum.length=start;tr.segEnd.length=k0;tr.totalLen=tr.cum[start-1];
+  for(var k=k0;k<n;k++){
+    var P1=tr.raw[k],P2=tr.raw[k+1];
+    var P0=k>0?tr.raw[k-1]:{x:2*P1.x-P2.x,y:2*P1.y-P2.y};
+    var P3=k+2<=n?tr.raw[k+2]:{x:2*P2.x-P1.x,y:2*P2.y-P1.y};
+    var dense=[];curveSeg(P0,P1,P2,P3,dense);
+    for(var m=0;m<dense.length;m++){
+      var q=dense[m],pv=tr.pts[tr.pts.length-1];
+      tr.totalLen+=Math.hypot(q.x-pv.x,q.y-pv.y);tr.pts.push(q);tr.cum.push(tr.totalLen);
+    }
+    tr.segEnd[k]=tr.pts.length;
+  }
 }
 function pointAt(ti,s){
   var tr=tracks[ti];
@@ -283,7 +316,7 @@ function endRescue(){
   var ang=pointAt(idx,0).ang,vx,vy;
   if(resPrev===ST.FALL){vx=fall.vx;vy=fall.vy;}else{vx=Math.cos(cart.ang)*cart.v;vy=Math.sin(cart.ang)*cart.v;}
   var dot=vx*Math.cos(ang)+vy*Math.sin(ang);
-  cart.track=idx;cart.s=0;cart.v=Math.min(VMAX,Math.max(60,dot));
+  cart.track=idx;cart.s=0;cart.v=Math.min(VMAX,Math.max(RESCUE_MINV,dot));
   var p=pointAt(idx,0);cart.x=p.x;cart.y=p.y;cart.ang=p.ang;
   cart.flip=0;cart.flipAng=0;state=ST.RUN;stuckT=0;noProgressT=0;lastProgressX=cart.x;
   setHint('Draw ahead • Hold = Rescue');beep(700,100);
@@ -317,11 +350,15 @@ function die(){
 }
 function gameOver(){
   state=ST.OVER;
-  var avg=flowN?flowSum/flowN:0;flowBonus=Math.round(avg*10*100);score+=flowBonus;
+  var avg=flowN?flowSum/flowN:0;flowBonus=Math.round(avg*FLOW_PTS);
+  // Final score = base (pages + trick bonuses) + distance inches + survival seconds x 10 + Flow bonus
+  var base=score,distPts=Math.floor(distPx/PX_PER_INCH),timePts=Math.floor(survival*10);
+  score=base+distPts+timePts+flowBonus;
+  lastResult={base:base,dist:distPts,distPx:distPx,time:timePts,seconds:survival,flow:flowBonus,final:score};
   if(!zen()&&score>best){best=score;try{localStorage.setItem('scl_best',String(best));}catch(e){}}
   elFinal.textContent=score+' PTS';
   elFinalBest.textContent='Best: '+best+' • Pages: '+maxPage;
-  elStats.textContent='Flow +'+flowBonus+' • Distance '+Math.floor(distPx/96)+'″ • Time '+fmt(survival);
+  elStats.textContent='Base '+lastResult.base+' • '+lastResult.dist+'″ • Time '+fmt(survival)+' ×10 • Flow +'+flowBonus;
   elOverlay.style.display='flex';
   setHint('');
 }
@@ -430,6 +467,7 @@ function drawTrack(ti){
   var tr=tracks[ti];if(!tr||tr.pts.length<2)return;
   ctx.beginPath();ctx.moveTo(tr.pts[0].x,tr.pts[0].y);
   for(var i=1;i<tr.pts.length;i++)ctx.lineTo(tr.pts[i].x,tr.pts[i].y);
+  ctx.lineJoin='round';ctx.lineCap='round';
   ctx.strokeStyle='#5b3a1a';ctx.lineWidth=8/zoom;ctx.stroke();
   ctx.strokeStyle=tr.color;ctx.lineWidth=3/zoom;ctx.stroke();
   if(tr.rescue){ctx.strokeStyle='rgba(0,255,255,0.35)';ctx.lineWidth=7/zoom;ctx.stroke();}
@@ -572,7 +610,7 @@ function hud(){
   elDist.style.display=z?'none':'';elTimer.style.display=z?'none':'';elResc.style.display=z?'none':'';
   elFlow.style.opacity=z?'.55':'1';
   var avg=0;for(var i=0;i<flowSamples.length;i++)avg+=flowSamples[i];avg=flowSamples.length?avg/flowSamples.length:0;
-  elDist.textContent=Math.floor(distPx/96)+'″';
+  elDist.textContent=Math.floor(distPx/PX_PER_INCH)+'″';
   elFlow.textContent='FLOW '+avg.toFixed(1);
   elTimer.textContent=fmt(survival);
   elResc.textContent='⛑ '+charges;
@@ -597,6 +635,7 @@ function syncUI(){
   var pn=document.getElementById('settingsPanel');
   $('[data-mode]').forEach(function(b){b.classList.toggle('on',b.getAttribute('data-mode')===cfg.mode);});
   $('[data-preset]').forEach(function(b){b.classList.toggle('on',b.getAttribute('data-preset')===cfg.preset);});
+  $('[data-momentum]').forEach(function(b){b.classList.toggle('on',b.getAttribute('data-momentum')===cfg.momentum);});
   $('[data-audio]').forEach(function(b){b.classList.toggle('on',b.getAttribute('data-audio')===cfg.audio);});
   document.getElementById('jumpForce').value=cfg.jump;
   document.getElementById('jumpVal').textContent=cfg.jump;
@@ -610,11 +649,12 @@ document.getElementById('btnSettings').addEventListener('click',function(){docum
 document.getElementById('closeSettings').addEventListener('click',function(){document.getElementById('settingsPanel').style.display='none';saveCfg();syncUI();});
 $('[data-mode]').forEach(function(b){b.addEventListener('click',function(){setMode(b.getAttribute('data-mode'));});});
 $('[data-preset]').forEach(function(b){b.addEventListener('click',function(){var p=b.getAttribute('data-preset');cfg.preset=p;if(PRESETS[p])cfg.jump=PRESETS[p].jump;saveCfg();syncUI();});});
+$('[data-momentum]').forEach(function(b){b.addEventListener('click',function(){cfg.momentum=b.getAttribute('data-momentum');applyMomentum();saveCfg();syncUI();});});
 $('[data-audio]').forEach(function(b){b.addEventListener('click',function(){cfg.audio=b.getAttribute('data-audio');saveCfg();syncUI();beep(660,120);});});
 document.getElementById('jumpForce').addEventListener('input',function(e){cfg.jump=+e.target.value;cfg.preset='custom';saveCfg();syncUI();});
 syncUI();
-window.__wsl=function(){var t=tracks[0];return{state:state,zoom:zoom,camX:camX,camY:camY,score:score,flip:cart.flip,flipDir:cart.flipDir,charges:charges,timer:survival,dist:distPx,flow:(flowSamples.length?flowSamples.reduce(function(a,b){return a+b;},0)/flowSamples.length:0),cartTrack:cart.track,gphase:g.phase,mode:cfg.mode,preset:cfg.preset,jump:cfg.jump,audio:cfg.audio,theme:theme(),paused:paused,chain:chain,vy:fall.vy,cart:{x:cart.x,y:cart.y,v:cart.v},pts:t?t.pts.slice():[],ntracks:tracks.length,npts:tracks.reduce(function(n,t){return n+t.pts.length;},0)};};
-window.__wslLoad=function(pts){reset();var t=tracks[0];t.pts=[];t.cum=[0];t.totalLen=0;pts.forEach(function(p){addPoint(0,p.x,p.y);});var p0=pointAt(0,0);cart.x=p0.x;cart.y=p0.y;cart.ang=p0.ang;};
+window.__wsl=function(){var t=tracks[0];return{state:state,zoom:zoom,camX:camX,camY:camY,score:score,flip:cart.flip,flipDir:cart.flipDir,charges:charges,timer:survival,dist:distPx,flow:(flowSamples.length?flowSamples.reduce(function(a,b){return a+b;},0)/flowSamples.length:0),cartTrack:cart.track,gphase:g.phase,mode:cfg.mode,preset:cfg.preset,jump:cfg.jump,momentum:cfg.momentum,audio:cfg.audio,theme:theme(),paused:paused,chain:chain,vy:fall.vy,cart:{x:cart.x,y:cart.y,v:cart.v},pts:t?t.pts.slice():[],ntracks:tracks.length,last:lastResult,npts:tracks.reduce(function(n,t){return n+t.pts.length;},0)};};
+window.__wslLoad=function(pts){reset();var t=tracks[0];t.pts=[];t.cum=[0];t.totalLen=0;t.raw=[];t.segEnd=[];pts.forEach(function(p){addPoint(0,p.x,p.y);});var p0=pointAt(0,0);cart.x=p0.x;cart.y=p0.y;cart.ang=p0.ang;};
 window.__wslSetV=function(v){cart.v=v;};
 resize();reset();requestAnimationFrame(loop);
 })();
