@@ -53,3 +53,4 @@ Change: wsl.html restored byte-for-byte from snow-v1.html, then built up in thre
 | 2026-10-04 00:44 | wsl.html | built wsl.html | Fixed the syntax error by correcting the stray brace in the `toWorld` function and ensured the script runs without errors. | b97b4ae |
 | 2026-10-04 00:47 | wsl.html | built wsl.html | Fixed the syntax error and added a missing drawCart function to ensure the game runs without JavaScript errors. | 600272e |
 | 2026-10-04 00:50 | wsl.html | built wsl.html | Fixed the syntax error by adding a missing `update` function and cleaned up related references. | 5045d18 |
+| 2026-10-04 13:30 | wsl.html | failed | The AI account is out of credit or at its spending limit. |  |
