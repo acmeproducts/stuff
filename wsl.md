@@ -42,6 +42,15 @@ Change: wsl.html restored byte-for-byte from snow-v1.html, then built up in thre
 
 - **Flow scaled down (2026-10-04, owner decision):** Flow bonus was 1000 × average screens ahead, which dwarfed distance and time points (489 vs 16 and 37 in one run). Now 100 × average screens ahead (10× smaller), so a typical run gets tens of points from Flow, comparable to distance and time; one screen ahead on average still earns 100.
 
+- **Faster launch + session replay (2026-10-04, owner report: "cart still launches too slowly"; "add a replay: zoom way out to see the whole journey, zoom to the start, then watch it").**
+  - Launch cause: release started the cart at 2 px/s and Earned physics (rolling friction 30) cancels a gentle slope, so on a wide screen it crept 21 px in the first second (83 px on a phone). Change: Earned launches at 320 px/s (Classic keeps the original 2). Before: 83 / 21 px in 1 s (phone / desktop). After: 305 / 305 px.
+  - Replay: the game records the cart ~30×/s and every track point as it was drawn. After game over a **▶ Replay** button (also ⚙️ → Replay session, which works in Zen and mid-run). Sequence: whole journey fitted on screen with START/END markers and a dashed path (2.2 s) → eased zoom to the start (2.4 s) → playback with the track being drawn again and the cart following. Controls: speed 1×/2×/4×, Skip ▸ (next phase; ↻ Again at the end), ✕ Close (restores the finished game or resumes the session exactly). Input is ignored during replay. Tests: `replay.mjs`; launch check added to `physics.mjs`.
+  - Not in replay: floating text (+100 etc.) and sound.
+
+- **Characters + mid-flight landing burst (2026-10-04, owner request).**
+  - Settings → Character: 16 choices to replace the snowman on the cart (snowman, penguin, fox, cat, dog, panda, duck, Santa, robot, alien, ghost, pumpkin, pizza, potato, rocket, ball). Saved on device; also shown on the game-over screen and in replays.
+  - Tap the character while it is in the air (within about 60 px of it) to arm a burst (cyan ring + "BURST READY"). On landing it gets +450 px/s on top of its normal speed, which fades out in about a second and a half (time constant 0.45 s). The normal momentum is not changed, so speed returns to what physics gives. One burst per flight; tapping elsewhere in the air still does the quick-tap chain boost. Test: `character.mjs` (burst carried it 150-200 px further in the next second; landing speed unchanged within 1%; burst 0 after 3 s).
+
 ## RUN LOG (written by DevStream)
 | Date | Tab | Result | What | Commit |
 |---|---|---|---|---|
