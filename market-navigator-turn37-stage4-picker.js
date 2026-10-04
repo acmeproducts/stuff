@@ -20,7 +20,7 @@
       const token=++picker.seq,st=instance.getState(),existing=new Set(st.series),all=[...IDX,...S.catalog.series.map(x=>x.id).filter(id=>id!=='realGdp')];
       const ids=[...new Set(all)].filter(id=>!existing.has(id)&&groupOf(id)===picker.group).filter(id=>(id+' '+(IDX.includes(id)?S.def.indices[id]?.name:name(id))+' '+displayLabel(id)).toLowerCase().includes(picker.query.toLowerCase())).sort(alpha);
       const pairs=await Promise.all(ids.map(async id=>[id,IDX.includes(id)?true:await seriesAvailable(id,st.timeHorizon,st.windowIndex||st.root||'risk')]));
-      if(token!==picker.seq)return null;picker.eligible=new Map(pairs);
+      if(token!==picker.seq)return null;for(const [id,ok] of pairs)picker.eligible.set(id,ok);
       return{groups:[...GROUPS],group:picker.group,query:picker.query,staged:[...picker.staged],rows:ids.map(id=>({id,label:displayLabel(id),name:IDX.includes(id)?S.def.indices[id]?.name:name(id),unit:IDX.includes(id)?'Index':unit(id),eligible:!!picker.eligible.get(id),checked:picker.staged.has(id)}))};
     }
     async function renderPicker(){
@@ -31,7 +31,7 @@
       list.innerHTML=m.rows.map(r=>'<div class="row mn37PickerRow '+(r.eligible?'':'empty')+'"><input type="checkbox" data-picker-id="'+esc(r.id)+'" aria-label="Add '+esc(r.label)+'" '+(r.checked?'checked':'')+' '+(r.eligible?'':'disabled aria-disabled="true"')+'><div class="rowMain"><strong>'+esc(r.label)+' · '+esc(r.name)+'</strong><span class="rowMeta">'+esc(r.unit||'—')+' · '+(r.eligible?'available':'unavailable')+' for '+esc(instance.getState().timeHorizon)+'</span></div></div>').join('')||'<div class="rowMeta" style="padding:10px">No matching series.</div>';
       list.querySelectorAll('[data-picker-id]').forEach(c=>c.onchange=()=>{if(c.checked)picker.staged.add(c.dataset.pickerId);else picker.staged.delete(c.dataset.pickerId)});
     }
-    instance.openPicker=async()=>{picker.open=true;picker.group='Risk';picker.query='';picker.staged.clear();search.value='';box.classList.remove('hidden');await renderPicker();return instance};
+    instance.openPicker=async()=>{picker.open=true;picker.group='Risk';picker.query='';picker.staged.clear();picker.eligible.clear();search.value='';box.classList.remove('hidden');await renderPicker();return instance};
     instance.cancelPicker=()=>{picker.open=false;picker.staged.clear();box.classList.add('hidden');return instance};
     instance.setPickerGroup=async g=>{if(GROUPS.includes(g)){picker.group=g;await renderPicker()}return instance};
     instance.setPickerQuery=async q=>{picker.query=String(q||'');search.value=picker.query;await renderPicker();return instance};
