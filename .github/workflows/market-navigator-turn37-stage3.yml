@@ -1,0 +1,83 @@
+name: Market Navigator Turn 37 Stage 3 Analyze
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'market-navigator-turn37-stage3-controller.js'
+      - 'market-navigator-turn37-stage3-adapter.js'
+      - 'market-navigator-build-turn37-stage3.py'
+      - 'market-navigator-turn37-stage3-qa.mjs'
+      - '.github/workflows/market-navigator-turn37-stage3.yml'
+  workflow_dispatch:
+permissions: {contents: write}
+jobs:
+  analyze:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with: {fetch-depth: 0}
+      - uses: actions/setup-python@v5
+        with: {python-version: '3.12'}
+      - uses: actions/setup-node@v4
+        with: {node-version: '22'}
+      - name: Accepted baseline identity
+        run: test "$(git hash-object market-navigator-turn28-post-ship.html)" = "9ce7f67451f9e1b7804927ce5c56adb667614724"
+      - name: Build Stage 3
+        run: python market-navigator-build-turn37-stage3.py
+      - name: Generic controller gate
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          s=Path('market-navigator-turn37-stage3-controller.js').read_text()
+          low=s.lower()
+          assert 'now' not in low and 'analysis' not in low
+          forbidden=['renderV1(','openV2(','renderV2(','sourceSet25(','removeNowSeries25(','setNowFooter(','wireNowHz(','axisPlan(','draw(','openNowPicker25(','renderNowPicker25(','renderStandaloneAnalysis26(','sourceSetStandalone26(','renderAnalysisHz26(','openAnalysisPicker26(','renderAnalysisPicker26(']
+          bad=[x for x in forbidden if x in s]
+          assert not bad,bad
+          print('PASS generic attach has no consumer identity or legacy chart behavior calls')
+          PY
+      - name: JavaScript syntax
+        run: |
+          python - <<'PY'
+          import re,pathlib
+          s=pathlib.Path('market-navigator-turn37-stage3.html').read_text()
+          pathlib.Path('/tmp/mn37s3.js').write_text('\n'.join(re.findall(r'<script[^>]*>(.*?)</script>',s,re.S)))
+          PY
+          node --check /tmp/mn37s3.js
+      - name: Install browser
+        run: |
+          npm ci
+          npm install --no-save playwright@1.63.0
+          npx playwright install --with-deps chromium
+      - name: NOW differential and Analyze qualification
+        run: |
+          python -m http.server 8123 >/tmp/mn37-stage3-http.log 2>&1 &
+          SERVER=$!
+          trap 'kill $SERVER || true' EXIT
+          sleep 2
+          MN_CAND_URL=http://127.0.0.1:8123/market-navigator-turn37-stage3.html node market-navigator-turn37-stage0-qa.mjs
+          MN_URL=http://127.0.0.1:8123/market-navigator-turn37-stage3.html node market-navigator-turn37-stage3-qa.mjs
+      - name: Record passing stage
+        run: |
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          Path('market-navigator-turn37-stage3-evidence.json').write_text(json.dumps({
+            'stage':3,'status':'PASS','baselineBlob':'9ce7f67451f9e1b7804927ce5c56adb667614724',
+            'nowVisualDifferential':'PASS','nowInteractionDifferential':'PASS',
+            'analyzeController':'PASS','nowIsolation':'PASS','libraryIndependence':'PASS',
+            'scope':'Analyze driven by controller; NOW remains accepted legacy path'
+          },indent=2)+'\n')
+          PY
+      - name: Publish qualified Stage 3 candidate
+        run: |
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git fetch origin main
+          git merge --ff-only origin/main
+          python market-navigator-build-turn37-stage3.py
+          git add market-navigator-turn37-stage3.html market-navigator-turn37-stage3-evidence.json
+          git diff --cached --quiet && exit 0
+          git commit -m 'Market Navigator Turn 37 Stage 3: qualify Analyze controller'
+          git push origin HEAD:main
