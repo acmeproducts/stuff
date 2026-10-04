@@ -141,7 +141,7 @@
 </div>
 <script>
 'use strict';
-const BUILD = 'M7.8-seefx 2026-10-04';
+const BUILD = 'M7.9-terrainfix 2026-10-04';
 const errBox = document.getElementById('errBox');
 const errLines = document.getElementById('errLines');
 const errTitle = document.getElementById('errTitle');
@@ -1314,7 +1314,9 @@ function startApp(cdnUrl) {
   }
 
   function applyImagery(t) {
-    if (!t.mesh || !t.imgTex) return;
+    // M7.9: never attach an unproven texture — Babylon skips a mesh whose
+    // material texture is not ready, so a hung decode = an invisible tile
+    if (!t.mesh || !t.imgTex || !t.imgTex.isReady()) return;
     const n = t.mesh.getTotalVertices();
     const whites = new Float32Array(n * 4);
     whites.fill(1);
@@ -1444,13 +1446,39 @@ function startApp(cdnUrl) {
         if (!resp.ok) throw new Error('HTTP ' + resp.status);
         const blob = await resp.blob();
         const objUrl = URL.createObjectURL(blob);
+        // M7.9: the photo is attached to the terrain ONLY from its onLoad
+        // callback, once decoding is proven complete — until then the tile
+        // keeps its vertex colors, so a slow or hung decode can no longer
+        // turn the terrain invisible. A 12 s no-callback watchdog drops hung
+        // textures and counts them as IMG FAIL.
+        let settled = false;
+        const wd = setTimeout(function() {
+          if (settled) return;
+          settled = true;
+          try { if (t.imgTex === tex) t.imgTex = null; tex.dispose(); } catch (e2) {}
+          URL.revokeObjectURL(objUrl);
+          imgFails++;
+          logLine('IMG', 'watchdog: decode hung tile ' + t.key + ' — colors kept');
+        }, 12000);
         const tex = new BABYLON.Texture(objUrl, scene, false, false, BABYLON.Texture.TRILINEAR_SAMPLINGMODE,
-          function() { URL.revokeObjectURL(objUrl); },
           function() {
+            if (settled) return;
+            settled = true;
+            clearTimeout(wd);
             URL.revokeObjectURL(objUrl);
-            // M7.8: a broken image must never make the terrain mesh invisible
-            // (a not-ready texture stops the whole mesh from rendering) —
-            // revert this tile to its vertex-color appearance instead
+            try {
+              if (!tiles.has(t.key) || !settings.imagery || t.imgTex !== tex) { tex.dispose(); return; }
+              applyImagery(t);
+              imgOk++; // M7.9: counts real loads, not texture creations
+            } catch (e2) {}
+          },
+          function() {
+            if (settled) return;
+            settled = true;
+            clearTimeout(wd);
+            URL.revokeObjectURL(objUrl);
+            // M7.8/M7.9: a broken image must never make the terrain mesh
+            // invisible — revert this tile to its vertex-color appearance
             try {
               if (t.imgTex === tex) {
                 t.imgTex = null;
@@ -1463,10 +1491,14 @@ function startApp(cdnUrl) {
           });
         tex.wrapU = BABYLON.Texture.CLAMP_ADDRESSMODE;
         tex.wrapV = BABYLON.Texture.CLAMP_ADDRESSMODE;
-        if (!tiles.has(t.key) || !settings.imagery) { tex.dispose(); return; }
+        if (!tiles.has(t.key) || !settings.imagery) {
+          settled = true;
+          clearTimeout(wd);
+          tex.dispose();
+          URL.revokeObjectURL(objUrl);
+          return;
+        }
         t.imgTex = tex;
-        applyImagery(t);
-        imgOk++;
         return;
       } catch (e) {
       } finally {
@@ -2160,7 +2192,7 @@ function startApp(cdnUrl) {
       ' Time:' + fmtTOD(settings.tod) + (settings.autoTod ? 'A' : '') +
       ' Q:' + settings.detail +
       (zoomMult !== 1 ? ' Zoom:' + zoomMult.toFixed(1) + 'x' : '') +
-      '<br>Tiles:' + built + '/' + tiles.size + ' (ring ' + RING + ')' +
+      '<br>Mesh:' + scene.meshes.length + ' · Tiles:' + built + '/' + tiles.size + ' (ring ' + RING + ')' +
       '<br>SRC: TERR ' + terr + ' / PROC ' + proc +
       '<br>IMG: ' + (settings.imagery ? ('OK ' + imgOk + ' / FAIL ' + imgFails + ' · Imagery © Esri & contributors') : 'off') +
       '<br>LC: ' + (lcTiti > 0 ? 'TITI ' + lcTiti + ' / ' : '') + 'PROC ' + (tiles.size - lcTiti) + ' · VEG ' + vegTotal +
@@ -2188,6 +2220,31 @@ function startApp(cdnUrl) {
         ' rot:' + camera.rotation.x.toFixed(2) + ',' + camera.rotation.y.toFixed(2) +
         ' tod:' + fmtTOD(settings.tod) + ' fog:' + scene.fogDensity.toFixed(5) +
         ' img:' + imgOk + 'ok/' + imgFails + 'fail @' + lastLat.toFixed(4) + ',' + lastLon.toFixed(4));
+    }
+    if (renderFrames === 30 || renderFrames === 180) {
+      // M7.9: auto-repair sweep — any tile with no mesh gets one guarded
+      // rebuild; if EVERY tile is meshless, census the scene so the log
+      // shows exactly what is in front of the camera
+      try {
+        let missing = 0, fixed = 0;
+        for (const t of tiles.values()) {
+          if (t.mesh) continue;
+          missing++;
+          try {
+            if (!t.biome) t.biome = computeProcBiome(t);
+            rebuildMesh(t);
+            if (t.mesh) fixed++;
+          } catch (e) { logLine('TILE', 'repair ' + t.key + ': ' + (e && e.message ? e.message : String(e))); }
+        }
+        if (missing > 0) logLine('TILE', 'repair sweep f' + renderFrames + ': ' + fixed + '/' + missing + ' meshless tiles rebuilt');
+        let stillOut = 0;
+        for (const t of tiles.values()) { if (!t.mesh) stillOut++; }
+        if (tiles.size > 0 && stillOut === tiles.size) {
+          const names = [];
+          for (let i = 0; i < Math.min(scene.meshes.length, 24); i++) names.push(scene.meshes[i].name);
+          logLine('SCENE', 'all ' + tiles.size + ' tiles meshless; scene(' + scene.meshes.length + '): ' + names.join(','));
+        }
+      } catch (e) {}
     }
     if (settings.invertY) {
       const dx = camera.rotation.x - prevRotX;
