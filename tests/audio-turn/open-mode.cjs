@@ -26,6 +26,16 @@ test('Filipino listens with the code Deepgram accepts (tl), never fil',async({pa
  assert.ok(page.testSockets.some(w=>w.url().includes('language=tl&')),'a speech connection uses tl');
  assert.equal(page.testSockets.filter(w=>w.url().includes('language=fil')).length,0,'no speech connection uses fil');
 });
+test('open mode: opening the North keyboard does not cut read-aloud that is playing, and the speaker button stays on',async({page})=>{
+ await page.evaluate(()=>{window.ttsLog=[];speechSynthesis.speak=u=>{window.ttsLog.push(u.text);setTimeout(()=>u.onstart&&u.onstart(),10)}});
+ const s=await openRoom(page,'TtsMid');
+ await page.locator('#strip-north .tts').click();
+ final(s.south,'hello friend',.93);await settled(page,1);
+ await page.waitForFunction(()=>window.ttsLog.length===1&&audioTurn.state().phase==='playing');
+ await page.locator('#in-north').focus();await page.waitForFunction(()=>INPUT.owner==='north'&&INPUT.mode==='kb');
+ assert.equal(await page.evaluate(()=>audioTurn.state().phase),'playing','read-aloud still playing after the North keyboard opens');
+ assert.equal(await page.locator('#strip-north .tts').getAttribute('data-on'),'true','speaker button stays on');
+});
 test('open mode: mute, typing keeps mics, portal closes and reopens them, unsure goes to compose',async({page})=>{
  const s=await openRoom(page,'Mute');
  await page.locator('#strip-south .micbtn').click();await page.waitForFunction(()=>!mic.south.on&&mic.north.on);
