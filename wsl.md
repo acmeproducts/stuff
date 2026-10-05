@@ -51,6 +51,13 @@ Change: wsl.html restored byte-for-byte from snow-v1.html, then built up in thre
   - Settings → Character: 16 choices to replace the snowman on the cart (snowman, penguin, fox, cat, dog, panda, duck, Santa, robot, alien, ghost, pumpkin, pizza, potato, rocket, ball). Saved on device; also shown on the game-over screen and in replays.
   - Tap the character while it is in the air (within about 60 px of it) to arm a burst (cyan ring + "BURST READY"). On landing it gets +450 px/s on top of its normal speed, which fades out in about a second and a half (time constant 0.45 s). The normal momentum is not changed, so speed returns to what physics gives. One burst per flight; tapping elsewhere in the air still does the quick-tap chain boost. Test: `character.mjs` (burst carried it 150-200 px further in the next second; landing speed unchanged within 1%; burst 0 after 3 s).
 
+- **Phone pace fixed (2026-10-04, owner report: "very playable on desktop, but on mobile Regular is too chaotic, Zen only okay, both portrait and landscape").**
+  - Cause (measured): the game world was sized in screen pixels, so a phone saw far less of the world than a desktop. The same ride crossed the screen 3.2× faster in portrait (1.45× in landscape, 3.4× on a small phone) than on desktop, leaving little time to react or draw ahead. Zen only felt okay because it runs at 0.75× speed and cannot end.
+  - Change: the view scales with screen width, so every screen shows the same width of world as a 1280 px desktop (desktop unchanged). The cart and hole are drawn larger on small screens so they stay about 30 px; floating text and the end marker stay readable; catching a track and tapping the track to start are measured in finger-sized screen pixels (about 14 px and 50 px). Pinch zoom, replay and the starting track follow the same scale.
+  - Before → after (screens per second, same ride): desktop 0.28; phone portrait 0.87 → 0.26; phone landscape 0.40 → 0.26; small phone 0.93 → 0.26. Cart on screen 30 px (was 15-18); landing tolerance 14-16 px (was 7-12).
+  - Test: `scale.mjs` (four screen shapes); every earlier suite still passes.
+  - Not changed: Regular vs Zen difficulty, per-device touch feel (only emulation was available).
+
 ## RUN LOG (written by DevStream)
 | Date | Tab | Result | What | Commit |
 |---|---|---|---|---|
