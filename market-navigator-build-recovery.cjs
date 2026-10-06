@@ -59,6 +59,7 @@ extracted=extracted.replace("pending=true;counts.renderRequests++;counts.transit
 extracted=extracted.replace('model=paint();syncActive();', `model=paint();if(S.inspection){let z=sets.find(z=>z.id===S.inspection.id),q=z?.a.find(q=>q.t===S.inspection.t);if(q){let xy=model.xy(z,q);model=paint({x:xy.x,y:xy.y,z})}}syncActive();`);
 extracted=extracted.replace("$('analyzeNowSeries26').onclick=()=>services.onAnalyze(id)", "if(services.canAnalyze)$('analyzeNowSeries26').onclick=()=>services.onAnalyze(id);else $('analyzeNowSeries26').remove();indexRoles()");
 }
+if(final)extracted=require('./market-navigator-recovery-owner-fixes.cjs').moduleFixes(extracted);
 const moduleCode=`
 /* MNChart: accepted Turn 28 NOW implementation, scoped to one surface. */
 const MNChart=(()=>{
@@ -88,7 +89,7 @@ listen($('indexInfoBtn'),'pointerdown',e=>e.stopPropagation());listen($('indexIn
 const observer=new ResizeObserver(()=>resize());observer.observe($('nowWrap'));
 function resize(){if(dead||!visible||raf)return;raf=requestAnimationFrame(()=>{raf=0;if(S.nowPaint25&&visible){let p=S.nowPaint25;draw(p.sets,p.w,p.mode)}})}
 function setVisible(value){value=!!value;if(value===visible)return;visible=value;if(!visible){pointerTimers.forEach(clearTimeout);pointerTimers.clear();services.closeInfo?.()}else resize()}
-function destroy(){if(dead)return;dead=true;signal.abort();legendSignal.abort();observer.disconnect();cancelAnimationFrame(raf);pointerTimers.forEach(clearTimeout);pointerTimers.clear();S.v2RenderSeq++;closePicker();for(const e of host.querySelectorAll('*'))for(const k of ['onclick','oninput','onchange','onpointermove','onpointerdown','ontouchstart','ontouchmove'])e[k]=null;services.closeInfo?.();cleanups.forEach(f=>f());}
+function destroy(){if(dead)return;dead=true;signal.abort();legendSignal.abort();observer.disconnect();cancelAnimationFrame(raf);pointerTimers.forEach(clearTimeout);pointerTimers.clear();S.v2RenderSeq++;closePicker();for(const e of host.querySelectorAll('*'))for(const k of ['onclick','oninput','onchange','oncontextmenu','onpointermove','onpointerdown','ontouchstart','ontouchmove'])e[k]=null;services.closeInfo?.();cleanups.forEach(f=>f());}
 wireNowHz();renderNow();
 return Object.freeze({getState,isIdle:()=>!pending,update(patch){if(dead)return;Object.assign(S,JSON.parse(JSON.stringify(patch)));wireNowHz();return renderNow()},resize,setVisible,destroy,refreshCrumb:renderNowCrumb,showSeriesInfo:showNowSeriesInfo25});
 }return Object.freeze({mount});})();window.MNChart=MNChart;
@@ -141,10 +142,12 @@ out=out.replace("function renderNowCrumb(){return recoveryNow?.refreshCrumb()}",
 out=out.replace("state:()=>S.analysisChartState?JSON.parse(JSON.stringify(S.analysisChartState)):null,open:","state:standaloneAnalysisState26,open:");
 out=out.replace("nowState:()=>S.nowChartState?JSON.parse(JSON.stringify(S.nowChartState)):null,", "nowState:()=>recoveryNow?.getState().state||null,");
 }
+if(final)out=require('./market-navigator-recovery-owner-fixes.cjs').applicationFixes(out,babel);
 out=out.replace('boot();',moduleCode+'\n'+lifecycle+'\nboot();');
 new vm.Script(out);
 let html=base.slice(0,offset)+out+base.slice(offset+code.length);
 if(final){
+html=html.replace('.mnxInfo{','.mnxBody a{color:var(--accent)}\n.mnxInfo{');
 html=html.replace(/<div class="modal hidden" id="standaloneAnalysis26"[\s\S]*?(?=<div class="modal hidden" id="dataModal")/,'');
 html=html.replace(/<style>([\s\S]*?)<\/style>/,(whole,css)=>'<style>'+css.replace(/#(nowPicker|nowTip|indexInfoBtn)(?![\w-])/g,(_,id)=>':is(#'+id+',[data-mn-role="'+id+'"])')+`\n.mnAnalyzeSurface .chromeRight{gap:4px}.mnAnalyzeSurface .chromeRight .btn{padding:6px 8px}@media(max-width:700px){.mnAnalyzeSurface .chartChromeRow{grid-template-columns:minmax(36px,58px) minmax(0,1fr) 60px}.mnAnalyzeSurface .chromeRight .btn{padding:5px 6px;font-size:10px}}\n`+'</style>');
 }
