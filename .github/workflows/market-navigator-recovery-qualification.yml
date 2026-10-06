@@ -1,0 +1,77 @@
+name: Market Navigator recovery qualification
+on:
+  push:
+    branches: [main, codex/market-navigator-recovery]
+    paths:
+      - 'market-navigator-recovery-*'
+      - 'market-navigator-build-recovery.cjs'
+      - 'market-navigator-turn28-post-ship.html'
+      - '.github/workflows/market-navigator-recovery-qualification.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: mn-recovery-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  qualify:
+    runs-on: windows-latest
+    timeout-minutes: 45
+    strategy:
+      fail-fast: false
+      matrix:
+        channel: [chrome, msedge]
+    env:
+      MN_CHANNEL: ${{ matrix.channel }}
+      MN_CANDIDATE: market-navigator-recovery-candidate.html
+      MN_REAL_MARKDOWN: '1'
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 2
+      - name: Require records with product changes
+        shell: pwsh
+        run: |
+          $changed = @(git diff --name-only HEAD^ HEAD)
+          if ($changed -contains 'market-navigator-recovery-candidate.html') {
+            foreach ($record in @('MARKET-NAVIGATOR-TURN37-RCA-PLAN.md', 'MARKET-NAVIGATOR-GRAVEYARD.md')) {
+              if ($changed -notcontains $record) { throw "Missing same-commit record: $record" }
+            }
+          }
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - name: Fixed test dependencies
+        run: npm install --no-save --package-lock=false playwright@1.62.1 marked@17.0.5 dompurify@3.1.6
+      - name: Frozen canonical fixture checkout
+        uses: actions/checkout@v4
+        with:
+          ref: ebd3c8996db8d7b48f7bced37a960ff4c4feac6f
+          path: .market-navigator-recovery-fixtures
+          sparse-checkout: |
+            market-evidence
+            data/market-backend
+      - name: Use identical frozen data for both applications
+        shell: pwsh
+        run: |
+          Copy-Item -Path .market-navigator-recovery-fixtures/market-evidence/* -Destination market-evidence -Recurse -Force
+          Copy-Item -Path .market-navigator-recovery-fixtures/data/market-backend/* -Destination data/market-backend -Recurse -Force
+      - name: Gates 0, 15, 16 — lineage and source ownership
+        run: node market-navigator-recovery-source-gates.cjs
+      - name: Gates 0–2, 10, 14 — independent NOW oracle
+        run: node market-navigator-recovery-qa.cjs
+      - name: Gates 1, 3–5, 14 — repeated interactions
+        run: node market-navigator-recovery-interactions.cjs
+      - name: Gates 6–9, 11–14 — Analyze and Library lifecycle
+        run: node market-navigator-recovery-analyze-qa.cjs
+      - name: Gates 4, 7–10, 14 — independent Analyze values and coordinates
+        run: node market-navigator-recovery-parity.cjs
+      - name: All 18 handoff gates — preserve lab and owner status separately
+        run: node market-navigator-recovery-gate-report.cjs
+      - name: Qualification evidence — lab only; owner devices mandatory
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: market-navigator-recovery-${{ matrix.channel }}
+          path: market-navigator-recovery-artifacts/
+          if-no-files-found: error

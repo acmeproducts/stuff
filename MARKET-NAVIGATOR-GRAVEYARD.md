@@ -10,6 +10,16 @@ Grouped checkbox Add is deferred, not abandoned. It may return only after the sh
 
 Baseline NOW implementation is the extraction source even where historic retirement entries prohibit similarly named legacy paths. Those retirement claims apply to rejected Stage 6, not to the approved Turn 28 source.
 
+## Recovery implementation record — 2026-10-05
+
+Final qualification record: MARKET-NAVIGATOR-RECOVERY-EVIDENCE.md. Chrome/Edge each passed 320 independent NOW states and 82 repeated interaction comparisons. Analyze independent values/coordinates/raster passed all four layouts. Dialog invocation ownership is released on close; a fresh phone suite and independent baseline A/B passed after one concurrent-run click timeout. Exact-commit CI and published URL verification are required before the owner package; Windows 11/Android owner acceptance remains pending.
+
+Retired from the new recovery candidate: the Turn 28 standalone Analyze modal and its separate horizon/series/picker/rendering/print implementation; Add picker About; global chart event ownership for the extracted NOW surface; duplicated modern pointer/touch inspection. Library's accepted rendering and shared data primitives remain intact. The owner-rejected Turn 31–37 code is never a builder input. ENV navigation and explicit information gestures remain accepted.
+
+Discarded extraction attempts: an over-wide initial seam with a missing application crumb binding, and an early ENV snapshot publication before neutral-state reset. Each was rebuilt from the verified Turn 28 source with a smaller/correct boundary before continuing. Discarded test assumptions: prior snapshots imply render completion; legacy NOW readiness may be read while NOW globals are deliberately guarded; dual axes are eligible while a derived comparison is active. Tests now await completed renders and select an eligible native series for dual axes.
+
+Required regression protection: added own-index components must remain removed after expansion; closing or parking must invalidate stale handlers/timers without resetting parked chart state; candidate snapshots cannot be their own oracle. Windows 10/Server desktop lab results and touch/viewport emulation never substitute for owner Windows 11/Android acceptance. Batch Add remains deferred.
+
 ---
 
 # Market Navigator — Graveyard
@@ -421,3 +431,8 @@ Workflow: `37210928051`.
 Qualified artifact commit: `6a98d356ce84c804c483b8a9af5198eda5c8113c`.
 
 The retired paths remain permanently prohibited as donors. Owner qualification is still required before any promotion.
+
+
+Resize qualification correction: an exact Chrome raster comparison caught the accepted rail width transition (.14s). Baseline last-painted coordinates used width 1681.0625 while its snapshot DOM had already reached 1681; candidate had painted final width 1681. Strict coordinates pinpointed a transient baseline oracle. Readiness now waits for the existing rail animation to finish and two repaint frames in both applications. No pixel tolerance/mask or product styling/math change was introduced. The comparison is rerun at exact equality.
+
+Test fixture correction: the canonical definition identifies Payrolls as a GRW component. Final component-specific Add and unavailable-anchor cases use that actual membership; Retail Sales remains an eligible comparison series. No definitions, components or product code changed.

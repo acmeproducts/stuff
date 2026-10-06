@@ -19,7 +19,21 @@ Fixed matrix: Windows 11 Chrome/Edge at 1440x900 and 1887x800; Android/Chrome at
 
 No Library/Health/source/data/index mathematics/AI/configuration/Dashboard or unrelated styling/navigation changes. Shared repository: publish only explicitly named Market Navigator paths; preserve concurrent main updates and check the exact diff before publication.
 
-Implementation record: documentation override committed first. Product extraction and qualification not yet run.
+## Recovery implementation record — 2026-10-05
+
+Final qualification record: MARKET-NAVIGATOR-RECOVERY-EVIDENCE.md. Chrome/Edge each passed 320 independent NOW states and 82 repeated interaction comparisons. Analyze independent values/coordinates/raster passed all four layouts. Dialog invocation ownership is released on close; a fresh phone suite and independent baseline A/B passed after one concurrent-run click timeout. Exact-commit CI and published URL verification are required before the owner package; Windows 11/Android owner acceptance remains pending.
+
+Documentation override was committed first as 38f15c57fc44ddce6dbd5ac962f9f3511431f28e. Construction reads only the verified Turn 28 blob; baseline bytes remain immutable. The reproducible builder extracts the accepted NOW functions into MNChart.mount without replacing NOW markup. Canonical read-only primitives and existing application actions remain services. Analyze uses a second mount of the same implementation and canonical structure; live NOW is never moved.
+
+Characterization preceded extraction: four fixed viewports, ENV/three roots, all index horizons, ordered datasets, windows, raw/indexed values, geometry, canvas rasters and drawing coordinates. The first seam exposed a missing compatibility crumb binding; it was discarded and reduced to retain canonical primitives. An ENV publication ordering mismatch was discarded and rebuilt from the accepted source with publication after the neutral-state reset. Readiness instrumentation was corrected to await completed async renders, including the independent baseline, rather than treating a prior snapshot as current. No rejected product code was used.
+
+The passing NOW-only checkpoint is market-navigator-recovery-now.html. The final owner candidate is market-navigator-recovery-candidate.html. Its shared instance owns event handlers, abortable legend listeners, resize observer, timers, async sequence guards, snapshot copies and destruction. Analyze lifecycle wrappers create only from normal NOW, park in Library, restore on NOW and destroy only through X. There is one existing NOW Analyze control constructor, reached through explicit legend context/long-press information and selected plot-point information. Picker About is deliberately removed under the reduced Add scope. The AI POV menu action remains AI, not a second standalone Analyze creation path.
+
+Intended behavior changes: full-page Analyze with X; same NOW module and chart controls; immediate single-series Add without About; one modern pointer-event inspection instead of duplicate touch/pointer inspection; own-component Add/expand/remove no longer resurrects the removed comparison through the additions list. That removal correction is confined to requested Add/remove semantics. Native market/component anchors have index:null and use a private inherited index clock for date windows; ineligible single-series dual representation falls back to Indexed 100.
+
+Qualification commands and assertions are committed with the candidate. Source gates prove pinned lineage, one chart owner, two mount sites, no consumer branches, no retired Analyze chart functions, no rejected donors and reproducible generation. Independent baseline comparisons protect values, ordered rendering input, coordinates, raster, geometry and unmasked chrome. Actual controls cover menus/info/data/export/print, repeated breadcrumb/Add/horizon/display sequences, unavailable/periodic series, resize, reverse isolation, throwing NOW-state accessors, Library saved analyses/interpretation modes/chat draft/scroll, touch events and 25 cycles per viewport. Pending-request navigation/destruction tests exercise stale async responses.
+
+Lab platform is Windows 10 (10.0.19045), current installed Chrome/Edge; CI runs Windows Server runners. Tablet/phone are viewport/touch browser emulation. These are not Windows 11 or Android real-device acceptance. Owner Windows 11 Chrome/Edge at 1440x900 and 1887x800, plus Android Chrome at 800x1280 and 412x915, remain mandatory before promotion. No default production alias is changed. Final measured results, exact commit, workflow and owner URLs are recorded in MARKET-NAVIGATOR-RECOVERY-EVIDENCE.md after qualification.
 
 ---
 
@@ -467,3 +481,8 @@ No unresolved release-blocking gap remains. Red-team disposition: CLEARED FOR OW
 - Qualified artifact: `market-navigator-turn37-stage6.html`.
 - Evidence: `market-navigator-turn37-stage6-evidence.json`.
 - Next gate: owner qualification only. No promotion is implied by lab PASS.
+
+
+Resize qualification correction: an exact Chrome raster comparison caught the accepted rail width transition (.14s). Baseline last-painted coordinates used width 1681.0625 while its snapshot DOM had already reached 1681; candidate had painted final width 1681. Strict coordinates pinpointed a transient baseline oracle. Readiness now waits for the existing rail animation to finish and two repaint frames in both applications. No pixel tolerance/mask or product styling/math change was introduced. The comparison is rerun at exact equality.
+
+Test fixture correction: the canonical definition identifies Payrolls as a GRW component. Final component-specific Add and unavailable-anchor cases use that actual membership; Retail Sales remains an eligible comparison series. No definitions, components or product code changed.
