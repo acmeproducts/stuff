@@ -1,3 +1,27 @@
+# Recovery override — Turn 37 Stage 6 REJECTED (2026-10-05)
+
+Owner real-device rejection supersedes all Stage 6 completion/PASS statements below. The candidate at 6a98d356ce84c804c483b8a9af5198eda5c8113c and Turn 31–37 chart implementations are prohibited product donors. Recover directly from immutable Turn 28 post-ship blob 9ce7f67451f9e1b7804927ce5c56adb667614724.
+
+Prohibited: normal legend click opening information; separate Analyze chart implementations; helper wrappers over duplicate consumer behavior; approximating/rebuilding NOW; moving/reparenting the live NOW surface; stacking rescue patches on a failed extraction; Library creating/replacing/retargeting Analyze; lab PASS presented as owner acceptance.
+
+Superseded: Analyze-first cutover and shared batch Add sequencing. Extract NOW first with differential gates, then instantiate that exact module for full-page Analyze. Separate DOM instances generated from the accepted canonical structure are allowed with scoped roles/unique IDs; the live NOW DOM remains in place.
+
+Grouped checkbox Add is deferred, not abandoned. It may return only after the shared chart module is owner-qualified. This release uses immediate one-series Add without picker About or orphan information cards.
+
+Baseline NOW implementation is the extraction source even where historic retirement entries prohibit similarly named legacy paths. Those retirement claims apply to rejected Stage 6, not to the approved Turn 28 source.
+
+## Recovery implementation record — 2026-10-05
+
+Final qualification record: MARKET-NAVIGATOR-RECOVERY-EVIDENCE.md. Chrome/Edge each passed 320 independent NOW states and 82 repeated interaction comparisons. Analyze independent values/coordinates/raster passed all four layouts. Dialog invocation ownership is released on close; a fresh phone suite and independent baseline A/B passed after one concurrent-run click timeout. Exact-commit CI and published URL verification are required before the owner package; Windows 11/Android owner acceptance remains pending.
+
+Retired from the new recovery candidate: the Turn 28 standalone Analyze modal and its separate horizon/series/picker/rendering/print implementation; Add picker About; global chart event ownership for the extracted NOW surface; duplicated modern pointer/touch inspection. Library's accepted rendering and shared data primitives remain intact. The owner-rejected Turn 31–37 code is never a builder input. ENV navigation and explicit information gestures remain accepted.
+
+Discarded extraction attempts: an over-wide initial seam with a missing application crumb binding, and an early ENV snapshot publication before neutral-state reset. Each was rebuilt from the verified Turn 28 source with a smaller/correct boundary before continuing. Discarded test assumptions: prior snapshots imply render completion; legacy NOW readiness may be read while NOW globals are deliberately guarded; dual axes are eligible while a derived comparison is active. Tests now await completed renders and select an eligible native series for dual axes.
+
+Required regression protection: added own-index components must remain removed after expansion; closing or parking must invalidate stale handlers/timers without resetting parked chart state; candidate snapshots cannot be their own oracle. Windows 10/Server desktop lab results and touch/viewport emulation never substitute for owner Windows 11/Android acceptance. Batch Add remains deferred.
+
+---
+
 # Market Navigator — Graveyard
 
 Status: BINDING NEGATIVE SPECIFICATION
@@ -407,3 +431,13 @@ Workflow: `37210928051`.
 Qualified artifact commit: `6a98d356ce84c804c483b8a9af5198eda5c8113c`.
 
 The retired paths remain permanently prohibited as donors. Owner qualification is still required before any promotion.
+
+
+Resize qualification correction: an exact Chrome raster comparison caught the accepted rail width transition (.14s). Baseline last-painted coordinates used width 1681.0625 while its snapshot DOM had already reached 1681; candidate had painted final width 1681. Strict coordinates pinpointed a transient baseline oracle. Readiness now waits for the existing rail animation to finish and two repaint frames in both applications. No pixel tolerance/mask or product styling/math change was introduced. The comparison is rerun at exact equality.
+
+Test fixture correction: the canonical definition identifies Payrolls as a GRW component. Final component-specific Add and unavailable-anchor cases use that actual membership; Retail Sales remains an eligible comparison series. No definitions, components or product code changed.
+
+CI checkout correction: run 37425526917 failed the pinned baseline guard before executing browser tests. Windows checkout converted the accepted LF blob to CRLF (1768382aafe7080eef7066f5d5c2f5d6062eb10d instead of 9ce7f67451f9e1b7804927ce5c56adb667614724). Recovery CI now disables autocrlf and selects LF before checkout. No baseline/candidate product bytes, chart math or styling changed; the integrity guard remains exact.
+
+
+Exact-commit CI qualification: candidate commit 301ff83c6c66be4e682eff2ebf9f8640b88f5431 passed Chrome and Edge run https://github.com/acmeproducts/stuff/actions/runs/37425781443. Each job passed 320 independent NOW states, 82 repeated interactions, 266 independent Analyze checks, 100 lifecycle cycles, source/lineage gates and zero-error assertions. Both browser artifacts are uploaded. Product blob fd07e6eba729c8b2e400b66fa8ddad3e7a1f25d2 / SHA-256 fe5a1883bfde62deb059bfc9567bff2e072d09a054e7b382d14e313cd0887730 is unchanged by the checkout-only CI correction. Records-first override was rebased onto fresh main as 7722d22996ff4921697420995859aa8712f89c7a before product commit d5bcf9094cab24f16d1a947da54f6a0fc72295ca. PR: https://github.com/acmeproducts/stuff/pull/843. Owner Windows 11/Android acceptance remains PENDING; candidate publication is next and does not promote an alias.

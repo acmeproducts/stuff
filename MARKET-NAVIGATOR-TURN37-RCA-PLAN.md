@@ -1,3 +1,42 @@
+# Recovery override — owner authorized 2026-10-05
+
+This section supersedes conflicting sequencing, Add, lifecycle and qualification claims below.
+Turn 37 Stage 6 is REJECTED by owner real-device testing. Automated qualification run 37210928051 was insufficient; its PASS is historical lab evidence, not product acceptance. Do not repair Stage 6 forward or use it as a donor.
+
+Construction baseline: market-navigator-turn28-post-ship.html, commit 996e9a71b72db5bfbea3ba77750077daaa2fb7ab, blob 9ce7f67451f9e1b7804927ce5c56adb667614724. Keep it immutable. Build new market-navigator-recovery-* candidates.
+
+Execution: characterize Turn 28 independently; map the working NOW chart boundary; extract NOW incrementally without moving/replacing its DOM or changing accepted CSS/math/behavior; rerun NOW differential gates after each step. A failed extraction is discarded and retried smaller from the last passing checkpoint. Only after NOW runs through MNChart.mount(host, initialState, services) unchanged may Analyze instantiate that same module. Prove one existing NOW launch point first, reconnect every existing NOW launch point before owner testing. No rejected Turn 31–37 product paths are donors.
+
+One module owns instance state, series/order/data resolution, horizon, Fixed/Horizon, representation/axes, legend selection/removal, picker, info/menu presentation, crosshair/tooltip, rendering/resize and event lifecycle. Consumers supply canonical data and existing action services; no consumer-specific chart implementation or write-through globals.
+
+Add is temporarily single-series immediate-add: all eligible indices/components/market comparisons, duplicates excluded or disabled, select one, add once, close. No About in the picker; no orphan information card. Checkbox/batch Add is deferred until shared-module owner qualification.
+
+Analyze lifecycle: creation only from normal NOW; selected anchor alone, inherit horizon/Fixed-Horizon/eligible representation. Full usable NOW content region. Library parks Analyze without active overlays; NOW restores the same session. Library cannot create/replace/retarget Analyze. Only Analyze X destroys the session, revealing preserved normal NOW. Existing info, AI, data and export behavior stays governed. ENV click-to-open-index navigation remains accepted; index legend normal click activates/emphasizes once, never opens info.
+
+Release gates 0–17 from the owner handoff are mandatory: exact baseline; NOW behavior across ENV/RSK/GRW/MAC and every horizon; visual/geometry parity; legend semantics; full simple Add universe including components; repeated breadcrumb/Add/horizon/display sequences with values/window/axis assertions after every action; full-page Analyze; functional parity; actual visible entry points; adversarial bidirectional isolation; independent data/coordinate comparison; single event ownership; 25 lifecycle cycles with listener/node/state cleanup; Library mouse/touch/keyboard/scroll/interpretation behavior while parked; zero errors; one chart owner; no rejected donors; exact owner candidate/baseline URLs, commit and workflow evidence.
+
+Fixed matrix: Windows 11 Chrome/Edge at 1440x900 and 1887x800; Android/Chrome at 800x1280 and 412x915. Browser emulation is lab evidence only. Use identical frozen canonical fixtures, fonts and environment in baseline/candidate pairs. No screenshot-only or candidate-self-oracle qualification; no chart-chrome masking. Owner real-device acceptance is mandatory before promotion.
+
+No Library/Health/source/data/index mathematics/AI/configuration/Dashboard or unrelated styling/navigation changes. Shared repository: publish only explicitly named Market Navigator paths; preserve concurrent main updates and check the exact diff before publication.
+
+## Recovery implementation record — 2026-10-05
+
+Final qualification record: MARKET-NAVIGATOR-RECOVERY-EVIDENCE.md. Chrome/Edge each passed 320 independent NOW states and 82 repeated interaction comparisons. Analyze independent values/coordinates/raster passed all four layouts. Dialog invocation ownership is released on close; a fresh phone suite and independent baseline A/B passed after one concurrent-run click timeout. Exact-commit CI and published URL verification are required before the owner package; Windows 11/Android owner acceptance remains pending.
+
+Documentation override was committed first as 38f15c57fc44ddce6dbd5ac962f9f3511431f28e. Construction reads only the verified Turn 28 blob; baseline bytes remain immutable. The reproducible builder extracts the accepted NOW functions into MNChart.mount without replacing NOW markup. Canonical read-only primitives and existing application actions remain services. Analyze uses a second mount of the same implementation and canonical structure; live NOW is never moved.
+
+Characterization preceded extraction: four fixed viewports, ENV/three roots, all index horizons, ordered datasets, windows, raw/indexed values, geometry, canvas rasters and drawing coordinates. The first seam exposed a missing compatibility crumb binding; it was discarded and reduced to retain canonical primitives. An ENV publication ordering mismatch was discarded and rebuilt from the accepted source with publication after the neutral-state reset. Readiness instrumentation was corrected to await completed async renders, including the independent baseline, rather than treating a prior snapshot as current. No rejected product code was used.
+
+The passing NOW-only checkpoint is market-navigator-recovery-now.html. The final owner candidate is market-navigator-recovery-candidate.html. Its shared instance owns event handlers, abortable legend listeners, resize observer, timers, async sequence guards, snapshot copies and destruction. Analyze lifecycle wrappers create only from normal NOW, park in Library, restore on NOW and destroy only through X. There is one existing NOW Analyze control constructor, reached through explicit legend context/long-press information and selected plot-point information. Picker About is deliberately removed under the reduced Add scope. The AI POV menu action remains AI, not a second standalone Analyze creation path.
+
+Intended behavior changes: full-page Analyze with X; same NOW module and chart controls; immediate single-series Add without About; one modern pointer-event inspection instead of duplicate touch/pointer inspection; own-component Add/expand/remove no longer resurrects the removed comparison through the additions list. That removal correction is confined to requested Add/remove semantics. Native market/component anchors have index:null and use a private inherited index clock for date windows; ineligible single-series dual representation falls back to Indexed 100.
+
+Qualification commands and assertions are committed with the candidate. Source gates prove pinned lineage, one chart owner, two mount sites, no consumer branches, no retired Analyze chart functions, no rejected donors and reproducible generation. Independent baseline comparisons protect values, ordered rendering input, coordinates, raster, geometry and unmasked chrome. Actual controls cover menus/info/data/export/print, repeated breadcrumb/Add/horizon/display sequences, unavailable/periodic series, resize, reverse isolation, throwing NOW-state accessors, Library saved analyses/interpretation modes/chat draft/scroll, touch events and 25 cycles per viewport. Pending-request navigation/destruction tests exercise stale async responses.
+
+Lab platform is Windows 10 (10.0.19045), current installed Chrome/Edge; CI runs Windows Server runners. Tablet/phone are viewport/touch browser emulation. These are not Windows 11 or Android real-device acceptance. Owner Windows 11 Chrome/Edge at 1440x900 and 1887x800, plus Android Chrome at 800x1280 and 412x915, remain mandatory before promotion. No default production alias is changed. Final measured results, exact commit, workflow and owner URLs are recorded in MARKET-NAVIGATOR-RECOVERY-EVIDENCE.md after qualification.
+
+---
+
 # Market Navigator Turn 37 — RCA and Controlled NOW Modularization Plan
 
 Status: PLAN ONLY. No product implementation is authorized until owner review is complete.
@@ -442,3 +481,13 @@ No unresolved release-blocking gap remains. Red-team disposition: CLEARED FOR OW
 - Qualified artifact: `market-navigator-turn37-stage6.html`.
 - Evidence: `market-navigator-turn37-stage6-evidence.json`.
 - Next gate: owner qualification only. No promotion is implied by lab PASS.
+
+
+Resize qualification correction: an exact Chrome raster comparison caught the accepted rail width transition (.14s). Baseline last-painted coordinates used width 1681.0625 while its snapshot DOM had already reached 1681; candidate had painted final width 1681. Strict coordinates pinpointed a transient baseline oracle. Readiness now waits for the existing rail animation to finish and two repaint frames in both applications. No pixel tolerance/mask or product styling/math change was introduced. The comparison is rerun at exact equality.
+
+Test fixture correction: the canonical definition identifies Payrolls as a GRW component. Final component-specific Add and unavailable-anchor cases use that actual membership; Retail Sales remains an eligible comparison series. No definitions, components or product code changed.
+
+CI checkout correction: run 37425526917 failed the pinned baseline guard before executing browser tests. Windows checkout converted the accepted LF blob to CRLF (1768382aafe7080eef7066f5d5c2f5d6062eb10d instead of 9ce7f67451f9e1b7804927ce5c56adb667614724). Recovery CI now disables autocrlf and selects LF before checkout. No baseline/candidate product bytes, chart math or styling changed; the integrity guard remains exact.
+
+
+Exact-commit CI qualification: candidate commit 301ff83c6c66be4e682eff2ebf9f8640b88f5431 passed Chrome and Edge run https://github.com/acmeproducts/stuff/actions/runs/37425781443. Each job passed 320 independent NOW states, 82 repeated interactions, 266 independent Analyze checks, 100 lifecycle cycles, source/lineage gates and zero-error assertions. Both browser artifacts are uploaded. Product blob fd07e6eba729c8b2e400b66fa8ddad3e7a1f25d2 / SHA-256 fe5a1883bfde62deb059bfc9567bff2e072d09a054e7b382d14e313cd0887730 is unchanged by the checkout-only CI correction. Records-first override was rebased onto fresh main as 7722d22996ff4921697420995859aa8712f89c7a before product commit d5bcf9094cab24f16d1a947da54f6a0fc72295ca. PR: https://github.com/acmeproducts/stuff/pull/843. Owner Windows 11/Android acceptance remains PENDING; candidate publication is next and does not promote an alias.
