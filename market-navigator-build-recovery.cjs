@@ -147,6 +147,7 @@ out=out.replace('boot();',moduleCode+'\n'+lifecycle+'\nboot();');
 new vm.Script(out);
 let html=base.slice(0,offset)+out+base.slice(offset+code.length);
 if(final){
+html=html.replace('.mnxInfo{','.mnxBody a{color:var(--accent)}\n.mnxInfo{');
 html=html.replace(/<div class="modal hidden" id="standaloneAnalysis26"[\s\S]*?(?=<div class="modal hidden" id="dataModal")/,'');
 html=html.replace(/<style>([\s\S]*?)<\/style>/,(whole,css)=>'<style>'+css.replace(/#(nowPicker|nowTip|indexInfoBtn)(?![\w-])/g,(_,id)=>':is(#'+id+',[data-mn-role="'+id+'"])')+`\n.mnAnalyzeSurface .chromeRight{gap:4px}.mnAnalyzeSurface .chromeRight .btn{padding:6px 8px}@media(max-width:700px){.mnAnalyzeSurface .chartChromeRow{grid-template-columns:minmax(36px,58px) minmax(0,1fr) 60px}.mnAnalyzeSurface .chromeRight .btn{padding:5px 6px;font-size:10px}}\n`+'</style>');
 }
