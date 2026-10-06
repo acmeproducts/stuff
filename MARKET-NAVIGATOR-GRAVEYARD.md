@@ -1,3 +1,17 @@
+# Recovery override — Turn 37 Stage 6 REJECTED (2026-10-05)
+
+Owner real-device rejection supersedes all Stage 6 completion/PASS statements below. The candidate at 6a98d356ce84c804c483b8a9af5198eda5c8113c and Turn 31–37 chart implementations are prohibited product donors. Recover directly from immutable Turn 28 post-ship blob 9ce7f67451f9e1b7804927ce5c56adb667614724.
+
+Prohibited: normal legend click opening information; separate Analyze chart implementations; helper wrappers over duplicate consumer behavior; approximating/rebuilding NOW; moving/reparenting the live NOW surface; stacking rescue patches on a failed extraction; Library creating/replacing/retargeting Analyze; lab PASS presented as owner acceptance.
+
+Superseded: Analyze-first cutover and shared batch Add sequencing. Extract NOW first with differential gates, then instantiate that exact module for full-page Analyze. Separate DOM instances generated from the accepted canonical structure are allowed with scoped roles/unique IDs; the live NOW DOM remains in place.
+
+Grouped checkbox Add is deferred, not abandoned. It may return only after the shared chart module is owner-qualified. This release uses immediate one-series Add without picker About or orphan information cards.
+
+Baseline NOW implementation is the extraction source even where historic retirement entries prohibit similarly named legacy paths. Those retirement claims apply to rejected Stage 6, not to the approved Turn 28 source.
+
+---
+
 # Market Navigator — Graveyard
 
 Status: BINDING NEGATIVE SPECIFICATION

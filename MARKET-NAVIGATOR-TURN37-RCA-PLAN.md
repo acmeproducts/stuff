@@ -1,3 +1,28 @@
+# Recovery override — owner authorized 2026-10-05
+
+This section supersedes conflicting sequencing, Add, lifecycle and qualification claims below.
+Turn 37 Stage 6 is REJECTED by owner real-device testing. Automated qualification run 37210928051 was insufficient; its PASS is historical lab evidence, not product acceptance. Do not repair Stage 6 forward or use it as a donor.
+
+Construction baseline: market-navigator-turn28-post-ship.html, commit 996e9a71b72db5bfbea3ba77750077daaa2fb7ab, blob 9ce7f67451f9e1b7804927ce5c56adb667614724. Keep it immutable. Build new market-navigator-recovery-* candidates.
+
+Execution: characterize Turn 28 independently; map the working NOW chart boundary; extract NOW incrementally without moving/replacing its DOM or changing accepted CSS/math/behavior; rerun NOW differential gates after each step. A failed extraction is discarded and retried smaller from the last passing checkpoint. Only after NOW runs through MNChart.mount(host, initialState, services) unchanged may Analyze instantiate that same module. Prove one existing NOW launch point first, reconnect every existing NOW launch point before owner testing. No rejected Turn 31–37 product paths are donors.
+
+One module owns instance state, series/order/data resolution, horizon, Fixed/Horizon, representation/axes, legend selection/removal, picker, info/menu presentation, crosshair/tooltip, rendering/resize and event lifecycle. Consumers supply canonical data and existing action services; no consumer-specific chart implementation or write-through globals.
+
+Add is temporarily single-series immediate-add: all eligible indices/components/market comparisons, duplicates excluded or disabled, select one, add once, close. No About in the picker; no orphan information card. Checkbox/batch Add is deferred until shared-module owner qualification.
+
+Analyze lifecycle: creation only from normal NOW; selected anchor alone, inherit horizon/Fixed-Horizon/eligible representation. Full usable NOW content region. Library parks Analyze without active overlays; NOW restores the same session. Library cannot create/replace/retarget Analyze. Only Analyze X destroys the session, revealing preserved normal NOW. Existing info, AI, data and export behavior stays governed. ENV click-to-open-index navigation remains accepted; index legend normal click activates/emphasizes once, never opens info.
+
+Release gates 0–17 from the owner handoff are mandatory: exact baseline; NOW behavior across ENV/RSK/GRW/MAC and every horizon; visual/geometry parity; legend semantics; full simple Add universe including components; repeated breadcrumb/Add/horizon/display sequences with values/window/axis assertions after every action; full-page Analyze; functional parity; actual visible entry points; adversarial bidirectional isolation; independent data/coordinate comparison; single event ownership; 25 lifecycle cycles with listener/node/state cleanup; Library mouse/touch/keyboard/scroll/interpretation behavior while parked; zero errors; one chart owner; no rejected donors; exact owner candidate/baseline URLs, commit and workflow evidence.
+
+Fixed matrix: Windows 11 Chrome/Edge at 1440x900 and 1887x800; Android/Chrome at 800x1280 and 412x915. Browser emulation is lab evidence only. Use identical frozen canonical fixtures, fonts and environment in baseline/candidate pairs. No screenshot-only or candidate-self-oracle qualification; no chart-chrome masking. Owner real-device acceptance is mandatory before promotion.
+
+No Library/Health/source/data/index mathematics/AI/configuration/Dashboard or unrelated styling/navigation changes. Shared repository: publish only explicitly named Market Navigator paths; preserve concurrent main updates and check the exact diff before publication.
+
+Implementation record: documentation override committed first. Product extraction and qualification not yet run.
+
+---
+
 # Market Navigator Turn 37 — RCA and Controlled NOW Modularization Plan
 
 Status: PLAN ONLY. No product implementation is authorized until owner review is complete.
