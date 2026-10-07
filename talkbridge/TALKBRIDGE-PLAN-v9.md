@@ -1,5 +1,5 @@
-<!-- TALKBRIDGE-PLAN v21.68.0 -->
-# TALKBRIDGE MASTER PLAN v21.68.0
+<!-- TALKBRIDGE-PLAN v21.68.1 -->
+# TALKBRIDGE MASTER PLAN v21.68.1
 
 **Location:** `talkbridge/TALKBRIDGE-PLAN-v9.md` in `acmeproducts/stuff`.
 **Owner:** Confi — sole decision-maker, runs every device gate.
@@ -173,7 +173,7 @@ ck that is now null, so the new camera never reaches the connection. Fixed addit
 | 29·base | **Multi-user, relay leg** (was 28·base; moved by the 2026-09-21 flattening ruling) — — relay v6.4 alone: fan-out N≤4, cap enforcement, per-device call addressing; app untouched; gated by the 3-socket harness before any app change | Spec §7.8 R-parts | queued — ringfence: relay regressions isolated from app | — |
 | 29·pre-ship | **Multi-user, app leg** — named bubbles for N, presence count, receipts count, room-full UX | Spec §7.8 A-parts | queued | — |
 | 29·ship | **D-2 + D-6 — the directory release (un-hijack done right)** — the app moves to `/stuff/talkbridge-app/` per §7.5 with the PROVEN Chrome-installability recipe from §7.12 (start_url, id, additive fetch handler), old-worker retirement, complete path-impact map per G44. Owner ruling 2026-09-12 stands: one release, isolated, never shares a gate with anything else. Restored to the chain by owner ruling 2026-09-20 (an unreliable un-hijack is a beta-visible defect on any phone that also runs PRISM) and moved AHEAD of IndexedDB by owner ruling the same night. Everything after it builds at the final address. | Spec §7.5 + §7.12 recipe (intact); /stuff/tb-skeleton/ stays the working reference | queued — input: accepted 28·pre-ship | — |
-| 29·post-ship | **INSTALL OPTIONAL (§7.19)** — owner ruling 2026-10-07: recover the program's original promise — no registration, no tracking, no install to talk. A link or a QR code opens the room in whatever browser scanned it; name once; call, chat, phrasebook, everything, in the tab. The install gate (P2, "the onboarding inversion") is retired as a GATE and becomes an OFFER: notifications are the one thing that needs more, and only the iPhone needs the app on the Home Screen for them (Android and desktop get push in the tab). The offer is a one-line bar, not a modal; "Later" is always there; a quiet bell-off glyph in the ribbon is the way back. Desktop PWA covered (install icon in the address bar is the offer there). Reverses the E076 corollary by owner ruling (graveyard annotated 2026-10-07). | Spec §7.19 | queued — input: accepted 29·ship (the directory release, which owns scope / worker / manifest; this stage never touches them) | — |
+| 29·post-ship | **INSTALL OPTIONAL (§7.19)** — owner ruling 2026-10-07: recover the program's original promise — no registration, no tracking, no install to talk. A link or a QR code opens the room in whatever browser scanned it; name once; call, chat, phrasebook, everything, in the tab. The install gate (P2, "the onboarding inversion") is retired as a GATE and becomes an OFFER: notifications are the one thing that needs more, and only the iPhone needs the app on the Home Screen for them (Android and desktop get push in the tab). The offer is a one-line bar shown once, not a modal; "Not now" ends it for good and names Settings → Notify; the Notify tab, present only while notifications are not set up, is the way back. No nagging. Desktop PWA covered (install icon in the address bar is the offer there). Reverses the E076 corollary by owner ruling (graveyard annotated 2026-10-07). | Spec §7.19 | queued — input: accepted 29·ship (the directory release, which owns scope / worker / manifest; this stage never touches them) | — |
 | 30·post-ship | **IndexedDB capacity** — BLOCKED until (1) a standalone POC harness, no app code, no live users, proves the async transcript pattern, and (2) a painfully detailed spec is written from what the POC proves. G56 stands. **Owner is on the fence whether this ships before beta (2026-09-20); if it is deferred, beta readiness simply follows 28·ship and this stage is re-sequenced after beta.** | POC first, then a §7.11-successor spec | queued behind its POC — may be deferred past beta | — |
 | 30·pre-base | Byte-identical snapshot of the last accepted stage, at the new address | — | queued | — |
 | 30·base | **Localization (§7.17)** — every word the app itself says (buttons, labels, placeholders, toasts, system pills, onboarding, install guidance) shown in the user's own language on each phone; the partner sees theirs. System pills cross the relay as a key plus values and are worded on arrival, so "Bo joined" reads in Thai on the Thai phone. Default language from the phone on first run, changeable in settings. Built AFTER turn 28 because the renderers must have one owner each before their strings can be moved (§7.16 cluster 4). | Spec §7.17 | queued | — |
@@ -2048,6 +2048,8 @@ Green means allowed to push. It never means done.
 ---
 
 ## 10 · CHANGE LOG
+
+**v21.68.1 · 2026-10-07.** §7.19 simplified at the owner's word ("not sure I like the idea of nagging"): the bar shows once; Not now ends it and names Settings → Notify; a Notify tab in Settings holds all the information and exists only while notifications are not set up (absent when installed and subscribed). The glyph, the 7-day repeat and the three-times cap are dropped.
 
 **v21.68.0 · 2026-10-07.** §7.19 INSTALL OPTIONAL written at the owner's order and scheduled as 29·post-ship (IndexedDB → 30·post-ship): the P2 install gate becomes an offer; the app runs in any browser tab; notifications are the one thing that asks for more, and only the iPhone needs the Home Screen for them (Android and desktop get push in the tab — the owner's recollection was right). One-line bar at the first moment a notification would have mattered, Later always, a bell-off glyph as the way back, the iPhone fresh-copy cost stated once in the sheet. Reverses the E076 corollary by owner ruling; graveyard annotated.
 
@@ -5410,36 +5412,38 @@ not. The custom icon and badge (28·base I-1) work in the Android tab too.
 2. **P3 (push) attempts in any launch where push can work** (`'PushManager'
    in window` and not an iPhone tab), still only inside a user tap (G33), still
    never twice on a stolen tap.
-3. **The offer (the "consent note"):** a one-line bar at the bottom of the
-   room screen, above the composer, shown the FIRST time the room has a
-   partner (hello received) or the first time the person leaves the room
-   screen with a partner present — i.e. the first moment a notification would
-   have mattered — never at boot, never before the first message.
-   - Android / desktop: `Want to know when they call or write?  [Turn on]  [Later]`
+3. **The offer, once (the "consent note"):** a one-line bar at the bottom
+   of the room screen, above the composer, shown ONE time, at the FIRST
+   moment a notification would have mattered — the room has a partner (hello
+   received) or the person leaves the room screen with a partner present —
+   never at boot, never before the first message.
+   - Android / desktop: `Want to know when they call or write?  [Turn on]  [Not now]`
      "Turn on" → the browser's permission prompt, inside the tap → P3 as today.
-   - iPhone tab: `Calls and messages can reach you when the app is closed — add TalkBridge to your Home Screen.  [Show me]  [Later]`
-     "Show me" → a sheet with the two steps (Share → Add to Home Screen) and
-     "Everything works right here; this is only for notifications." The sheet
-     says it once: *on iPhone the Home Screen copy starts fresh — open the same
-     link from there and your name is asked once more.* (That is the real
-     cost; it is the owner's original URL-carries-everything design and the
-     reason E076 was buried: iOS does not share storage between a tab and a
-     Home Screen app. Nothing is carried; nothing is pretended.)
-   - "Later" hides the bar for 7 days (localStorage `tb_notif_offer_at`).
-     Shown at most once per day, at most three times ever; after that only
-     the glyph remains. Never shown in standalone, never shown when
-     permission is already granted or denied.
-4. **The way back:** a bell-off glyph in the room ribbon (next to the clock)
-   whenever notifications are not active for this launch. Tap → the same
-   sheet / prompt. The General pane gets a line: `Notifications: on / off /
-   needs Home Screen` with the same action. No nagging anywhere else.
+   - iPhone tab: `Calls and messages can reach you when the app is closed — add TalkBridge to your Home Screen.  [Show me]  [Not now]`
+     "Show me" → the Notify tab (4).
+   - "Not now" closes the bar for good (`tb_notif_offer_done`) with one short
+     line in its place for a few seconds: *You can turn this on later under
+     Settings → Notify.* No second showing, ever. Never shown in standalone,
+     never shown when permission is already granted or denied.
+4. **The way back — the Notify tab:** a tab in Settings that exists ONLY
+   while notifications are not set up on this launch (tab or installed), and
+   is gone once they are (permission granted and a live subscription). It
+   holds all of it, in the user's words: what notifications do (calls and
+   messages reach you when the app is closed); on Android / desktop a single
+   `Turn on` (the permission prompt, inside the tap); on iPhone the two steps
+   (Share → Add to Home Screen) with the one true cost stated once — *the
+   Home Screen copy starts fresh: open the same link from there and your name
+   is asked once more* (iOS does not share storage between a tab and a Home
+   Screen app — the reason E076 is buried; nothing is carried, nothing is
+   pretended) — and the install gate's old per-platform steps as its content.
+   Nothing else anywhere: no glyph, no reminder, no schedule.
 5. **Both windows open (G22):** the worker's notification tap prefers a
    standalone window when one exists, else the tab, else opens one (the
    tb-sw3 `appClient` focus logic, extended by display mode). A tab and an
    installed copy on Android share storage and the worker, so they do not
    fight; on iPhone they are separate apps and never see each other.
-6. **Logs:** `nf_offer_shown {platform, why}`, `nf_offer_later`,
-   `nf_offer_taken`, `nf_sheet_shown`, `nf_glyph_tap`, `p2_tab_boot`
+6. **Logs:** `nf_offer_shown {platform, why}`, `nf_offer_declined`,
+   `nf_offer_taken`, `nf_tab_shown`, `nf_tab_hidden {why}`, `p2_tab_boot`
    (replaces `p2_gate_shown`), `p2_standalone` unchanged.
 
 ### What does NOT change
@@ -5451,13 +5455,14 @@ new endpoint, no credential path (G19/G20).
 ### Gates
 Machine: the gate HTML never renders at boot in any display mode (jsdom,
 three user agents × standalone/tab); the offer renders only on the first
-partner event and only once per day / three times ever / never in
-standalone / never with permission decided; "Later" persists; iPhone tab
-never calls `pushManager.subscribe`; Android tab does, inside a tap;
-mutation-tested. Device: (a) iPhone, Safari tab, from a QR: join, call,
-chat — no gate; the bar appears after the partner joins; Later; glyph
-present; Show me → sheet → install → Home Screen copy opens the same room,
-asks the name once, subscribes; (b) Android Chrome tab: join, call, the bar,
+partner event, exactly once ever, never in standalone, never with
+permission decided; "Not now" persists across launches; the Notify tab is
+present while notifications are not set up and absent once they are, on
+each of the three platforms; iPhone tab never calls
+`pushManager.subscribe`; Android tab does, inside a tap; mutation-tested. Device: (a) iPhone, Safari tab, from a QR: join, call,
+chat — no gate; the bar appears after the partner joins; Not now → gone
+for good; Settings → Notify present → steps → install → Home Screen copy
+opens the same room, asks the name once, subscribes → Notify tab absent; (b) Android Chrome tab: join, call, the bar,
 Turn on → permission → a locked-phone ring from the TAB (no install);
 (c) desktop Chrome tab: same as (b) plus the optional address-bar install.
 
