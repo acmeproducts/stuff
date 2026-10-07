@@ -41,10 +41,10 @@ T('M1.2 every removed layer is banked and was present exactly once in the base b
   const rs = removals(); assert(rs.length === 34, 'expected 34 banked layers, got ' + rs.length);
   for (const r of rs) { assert(accepted.split(r.text).length - 1 === 1, r.file + ' not exactly once in base'); if (!KEEP.includes(r.file)) assert(cand.indexOf(r.text) === -1, r.file + ' still in candidate'); }
 });
-T('M1.3 the parts declare their contracts: FL-2 replaces the fifteen call symbols and wraps nothing; X-3 wraps wireMsg, normalizeOutgoing and appendMsgDom; G-1 wraps only translateWithRetry', () => {
+T('M1.3 the parts declare their contracts: FL-2 replaces the fifteen call symbols and wraps nothing; X-3 wraps wireMsg, normalizeOutgoing, appendMsgDom, chatPayload and handleChatMsg; G-1 wraps only translateWithRetry', () => {
   const c = (p) => p.slice(p.indexOf('@contract'), p.indexOf('*/', p.indexOf('@contract')));
   assert(/replaces:\s*CALL\.keys, CALL\.start, CALL\.onIncoming, CALL\.accept, CALL\.onAccepted, CALL\.mount, CALL\.onSignal, CALL\.runRecovery, CALL\.startVideoWatchdog, CALL\.stopVideoWatchdog, CALL\.toggleMic, CALL\.hangUp, CALL\.teardown, camSenders, replaceSenderTrack/.test(c(fl2)) && /wraps:\s*\(none\)/.test(c(fl2)), 'FL-2 contract mismatch');
-  assert(/replaces:\s*\(none\)/.test(c(x1)) && /wraps:\s*wireMsg, normalizeOutgoing, appendMsgDom\s*$/m.test(c(x1)), 'X-3 contract mismatch');
+  assert(/replaces:\s*\(none\)/.test(c(x1)) && /wraps:\s*wireMsg, normalizeOutgoing, appendMsgDom, chatPayload, handleChatMsg\s*$/m.test(c(x1)), 'X-3 contract mismatch');
   assert(/replaces:\s*\(none\)/.test(c(g1)) && /wraps:\s*translateWithRetry\s*$/m.test(c(g1)), 'G-1 contract mismatch');
 });
 
@@ -74,7 +74,7 @@ T('M2.3 nothing new on the wire or in the credential path (G19/G20): FL-2 adds n
   assert(!/credentials\/generate|iceServers|transport=tcp|turns?:|tb_gh_pat|Authorization|fetch\(/.test(c), 'FL-2 has a credential, ICE or network path');
   const types = (s) => { const t = new Set(); let m; const re = /type:\s*'([a-z-]+)'/g; while ((m = re.exec(s))) t.add(m[1]); return t; };
   const base = types(code(inline(accepted))); const added = [...types(c)].filter((t) => !base.has(t)); assert(added.length === 0, 'new message type: ' + added.join(','));
-  assert(!/relaySend|type:\s*'/.test(code(x1).replace(/\.type='button'/g, '') + code(g1)), 'X-3 or G-1 touches the wire');
+  assert(!/relaySend|type:\s*'/.test(code(x1).replace(/\.type='button'/g, '').replace(/m\.type === 'chat-msg'/g, '') + code(g1)), 'X-3 or G-1 sends on the wire (X-3 may only add two fields to a chat message it did not send)');
   const hosts = new Set(); let m; const re = /https:\/\/([a-z0-9.-]+)\//g; for (const p of [x1, g1]) while ((m = re.exec(code(p)))) hosts.add(m[1]);
   assert([...hosts].every((h) => h === 'translate.googleapis.com'), 'an undeclared host: ' + [...hosts].join(','));
   assert(!/localStorage|tb_dg_key|tb_cf_|venice|openrouter|apiKey|api_key/i.test(code(x1) + code(g1)), 'X-3 or G-1 touches stored keys or an AI tier');
@@ -390,7 +390,7 @@ const rowsOf = (c) => [...c.querySelectorAll('table.cl-bt-grid tbody tr')].map((
 const compsOf = (c) => [...c.querySelectorAll('.cl-bt-sec > div')].map((d) => [d.children[0].textContent, d.children[1].className, d.children[1].textContent]);
 const ctLines = readFileSync('chat-test.html', 'utf8').split('\n');
 /* a small dictionary so every direction answers something plausible and distinct */
-const DICT = { 'th>en': { 'สวัสดีครับ': 'hello sir', 'สวัสดี': 'hello sir', 'ขอบคุณมาก': 'thank you very much', 'ขอบคุณ': 'thanks a lot', 'still there?': 'still there?' }, 'en>th': { 'hello sir': 'สวัสดี', 'thank you very much': 'ขอบคุณ', 'good morning': 'อรุณสวัสดิ์', 'still there?': 'ยังอยู่ไหม' } };
+const DICT = { 'th>en': { 'สวัสดีครับ': 'hello sir', 'สวัสดี': 'hello sir', 'ขอบคุณมาก': 'thank you very much', 'ขอบคุณ': 'thanks a lot', 'ขอบคุณค่ะ': 'thank you so much', 'still there?': 'still there?' }, 'en>th': { 'hello sir': 'สวัสดี', 'thank you very much': 'ขอบคุณ', 'thank you so much': 'ขอบคุณค่ะ', 'good morning': 'อรุณสวัสดิ์', 'still there?': 'ยังอยู่ไหม' } };
 const dictPlan = (u) => { if (!/translate\.googleapis\.com/.test(u)) return null; const m = /sl=([a-zA-Z-]+)&tl=([a-zA-Z-]+)&dt=t&q=(.*)$/.exec(u); const q = decodeURIComponent(m[3]); const t = (DICT[m[1] + '>' + m[2]] || {})[q]; return google(t || ('[' + m[1] + '>' + m[2] + '] ' + q)); };
 W.debugLog.length = 0; W.__fetches.length = 0;
 T('M4.0 the card\'s CSS is chat-test.html\'s, byte for byte: every .cl-bt rule of chat-test appears verbatim in the candidate, and the candidate has no other .cl-bt rule; btScore / btVerdict and the head are chat-test\'s', () => {
@@ -454,7 +454,7 @@ await TA('M4.5 a failed back-translation says "(back-translation failed)" and "C
   W.__fetchPlan = () => Promise.reject(new Error('offline')); W.debugLog.length = 0; W.__fetches.length = 0;
   W.backCheck({ id: 'zz-1', kind: 'chat', who: 'me', origin: 'spoken', sourceText: 'rain later', translatedText: 'ฝนตก', srcLang: 'en', tgtLang: 'th' }); await sleep(900);
   let c = card(); const rows = rowsOf(c);
-  assert(rows[2][1] === 'English' && rows[2][2] === '(back-translation failed)' && rows[3][1] === 'Voice' && rows[3][2] === 'Spoken into the microphone', 'rows: ' + JSON.stringify(rows));
+  assert(rows[2][1] === 'English' && rows[2][2] === '(back-translation failed)' && rows[3][1] === 'Voice' && rows[3][2] === 'Spoken into the microphone during a call', 'rows: ' + JSON.stringify(rows));
   assert(JSON.stringify(compsOf(c)) === JSON.stringify([['Said vs Translated', 'cl-bt-verdict miss', 'Check failed']]), 'results after failure: ' + JSON.stringify(compsOf(c)));
   const bt = W.debugLog.filter((l) => l.ev === 'bt_check'); assert(bt.length === 1 && bt[0].lvl === 'error' && bt[0].d.outcome === 'error' && bt[0].d.said === null && bt[0].d.saidLang === 'en' && bt[0].d.tgt === 'th', 'bt_check: ' + JSON.stringify(bt));
   assert(W.__fetches.filter((u) => /googleapis/.test(u)).length === 1 && W.__fetches.filter((u) => /mymemory/.test(u)).length === 2, 'provider order on failure: ' + JSON.stringify(W.__fetches));
@@ -481,7 +481,22 @@ await TA('M4.6 the heard text is kept: in-call speech in the partner\'s language
   const ch = W.transcript.filter((t) => t.kind === 'chat' && t.who === 'me').slice(-1)[0];
   assert(ch && ch.sourceText === 'thank you very much' && ch.translatedText === 'ขอบคุณ' && ch.said === 'ขอบคุณมาก' && ch.saidLang === 'th', 'chat entry: ' + JSON.stringify(ch));
   const saved = W.loadTr('gate-room'); assert(saved.some((t) => t.id === sp.id && t.said === 'สวัสดีครับ') && saved.some((t) => t.id === ch.id && t.said === 'ขอบคุณมาก'), 'said not saved with the transcript');
-  const kept = W.debugLog.filter((l) => l.ev === 'said_kept'); assert(kept.length === 2 && kept[0].d.id === sp.id && kept[0].d.lang === 'th' && kept[1].d.id === ch.id, 'said_kept: ' + JSON.stringify(kept));
+  const kept = W.debugLog.filter((l) => l.ev === 'said_kept'); assert(kept.length === 2 && kept[0].d.id === sp.id && kept[0].d.lang === 'th' && kept[0].d.who === 'me' && kept[1].d.id === ch.id, 'said_kept: ' + JSON.stringify(kept));
+  /* the chat microphone: speech outside a call funnels through sendChatText with origin 'voice'; said travels on the wire to the partner */
+  const Yw = RC.Y.w; Yw.activeRoom().sendLocked = false; RC.link.rewire();
+  const ySent = RC.link.sent.a.length;
+  W.CHATMIC.on = true; W.CALL.active = false;
+  await W.onDGFinal('ขอบคุณค่ะ', undefined, 'th'); await sleep(80);                     /* a phrase not spoken before: the base de-duplicates recent finals */
+  W.CHATMIC.on = false;
+  const mic = W.transcript.filter((t) => t.kind === 'chat' && t.who === 'me').slice(-1)[0];
+  assert(mic && mic.origin === 'voice' && mic.sourceText === 'thank you so much' && mic.translatedText === 'ขอบคุณค่ะ' && mic.said === 'ขอบคุณค่ะ' && mic.saidLang === 'th', 'chat-mic entry: ' + JSON.stringify(mic));
+  const onWire = RC.link.sent.a.slice(ySent).map((x) => JSON.parse(x)).filter((m) => m.type === 'chat-msg' && m.chatId === mic.id)[0];
+  assert(onWire && onWire.said === 'ขอบคุณค่ะ' && onWire.saidLang === 'th' && onWire.origin === 'voice', 'the wire does not carry said: ' + JSON.stringify(onWire));
+  const got = Yw.transcript.filter((t) => t.id === mic.id)[0];
+  assert(got && got.who === 'partner' && got.sourceText === 'thank you so much' && got.said === 'ขอบคุณค่ะ' && got.saidLang === 'th' && got.origin === 'voice', 'the receiver did not keep said: ' + JSON.stringify(got));
+  assert(Yw.loadTr('gate-room').some((t) => t.id === mic.id && t.said === 'ขอบคุณค่ะ'), 'receiver said not saved');
+  assert(Yw.debugLog.some((l) => l.ev === 'said_kept' && l.d.id === mic.id && l.d.who === 'partner'), 'receiver did not log said_kept');
+  W.__x3mic = mic;
   /* a rewrite whose message never arrives must not leak onto the partner's next line, nor onto an own line that is not the rewrite */
   await W.normalizeOutgoing(W.activeRoom(), 'ขอบคุณ'); assert(W.x3Pending() && W.x3Pending().said === 'ขอบคุณ' && W.x3Pending().normalized === 'thanks a lot', 'pending not held');
   W.handleRelay({ type: 'chat-msg', chatId: 'cm-y-x3', srcText: 'thanks a lot', tgtText: 'thanks a lot', srcLang: 'th', tgtLang: 'en', senderName: 'Bo', origin: 'typed', eventId: 'ev-x3' }); await sleep(30);
@@ -495,6 +510,8 @@ await TA('M4.6 the heard text is kept: in-call speech in the partner\'s language
   W.transcript.push(born); W.saveTr(); W.appendMsgDom(born, true);
   assert(born.said === 'ขอบคุณ' && born.saidLang === 'th' && W.x3Pending() === null, 'the rewrite\'s own message did not take the record: ' + JSON.stringify(born));
   assert(W.loadTr('gate-room').some((t) => t.id === 'cm-x3-born' && t.said === 'ขอบคุณ'), 'said is not on disk right after the message was born');
+  const gotPlain = Yw.transcript.filter((t) => t.sourceText === 'good morning' && t.who === 'partner')[0];
+  assert(gotPlain && !('said' in gotPlain) && Yw.x3PendingIn() === null, 'a message without said on the wire took one on the receiver: ' + JSON.stringify(gotPlain));
   W.transcript.length = before; W.saveTr(); W.renderTranscript(); W.__x3sp = sp; W.__x3ch = ch;
   /* put the two own entries back for the card tests */
   W.transcript.push(sp, ch); W.saveTr(); W.renderTranscript(); await sleep(60);
@@ -504,7 +521,7 @@ await TA('M4.7 the card on a rewritten message: Said (heard language) / Normaliz
   const sp = W.__x3sp; const node = msg(sp.id); assert(node, 'no bubble for the speech entry');
   click(node.querySelector('.meta')); click(node.querySelector('[data-hact=check]'));
   const c = card(); assert(c, 'card did not open');
-  assert(JSON.stringify(rowsOf(c)) === JSON.stringify([['Said', 'Thai', 'สวัสดีครับ'], ['Normalized', 'English', 'hello sir'], ['Translated', 'Thai', 'สวัสดี'], ['Back-translation', '…', '…'], ['Route', 'Voice', 'Spoken into the microphone']]), 'rows: ' + JSON.stringify(rowsOf(c)));
+  assert(JSON.stringify(rowsOf(c)) === JSON.stringify([['Said', 'Thai', 'สวัสดีครับ'], ['Normalized', 'English', 'hello sir'], ['Translated', 'Thai', 'สวัสดี'], ['Back-translation', '…', '…'], ['Route', 'Voice', 'Spoken into the microphone during a call']]), 'rows: ' + JSON.stringify(rowsOf(c)));
   assert(JSON.stringify(compsOf(c)) === JSON.stringify([['Said vs Translated', 'cl-bt-verdict wait', 'Checking…'], ['Normalized vs Translated', 'cl-bt-verdict wait', 'Checking…']]), 'results before the answer: ' + JSON.stringify(compsOf(c)));
   await sleep(40);
   const s1 = W.btScore('สวัสดีครับ', 'สวัสดี'), s2 = W.btScore('hello sir', 'hello sir');
@@ -514,8 +531,20 @@ await TA('M4.7 the card on a rewritten message: Said (heard language) / Normaliz
   assert(W.__fetches.length === 1 && /sl=th&tl=en&dt=t&q=%E0%B8%AA%E0%B8%A7%E0%B8%B1%E0%B8%AA%E0%B8%94%E0%B8%B5$/.test(W.__fetches[0]), 'exactly one back-translation (th→en of the delivered text); Said vs Translated needed none: ' + JSON.stringify(W.__fetches));
   const bt = W.debugLog.filter((l) => l.ev === 'bt_check'); assert(bt.length === 1 && bt[0].lvl === 'ok' && JSON.stringify(bt[0].d) === JSON.stringify({ outcome: 'ok', rewritten: true, saidLang: 'th', src: 'en', tgt: 'th', chars: 10, said: +s1.toFixed(2), saidVerdict: 'partial', normalized: 1, normalizedVerdict: 'match', verdict: 'partial', score: +s1.toFixed(2) }), 'bt_check: ' + JSON.stringify(bt));
   click(c.querySelector('.cl-bt-head button')); await sleep(5);
-  assert(W.__clip.slice(-1)[0] === 'Said (Thai): สวัสดีครับ\nNormalized (English): hello sir\nTranslated (Thai): สวัสดี\nBack-translation (English): hello sir\nRoute (Voice): Spoken into the microphone\nSaid vs Translated: partial (' + Math.round(s1 * 100) + '%)\nNormalized vs Translated: match (100%)', 'clipboard: ' + JSON.stringify(W.__clip.slice(-1)[0]));
+  assert(W.__clip.slice(-1)[0] === 'Said (Thai): สวัสดีครับ\nNormalized (English): hello sir\nTranslated (Thai): สวัสดี\nBack-translation (English): hello sir\nRoute (Voice): Spoken into the microphone during a call\nSaid vs Translated: partial (' + Math.round(s1 * 100) + '%)\nNormalized vs Translated: match (100%)', 'clipboard: ' + JSON.stringify(W.__clip.slice(-1)[0]));
   c.remove();
+  /* the receiver's card on the chat-mic message: the same rows, from the partner's side */
+  {
+    const Yw = RC.Y.w, YD = Yw.document; Yw.__fetchPlan = dictPlan; Yw.__fetches.length = 0; Yw.debugLog.length = 0; Yw.trCache.clear();
+    const node = YD.querySelector('.msg[data-id="' + W.__x3mic.id + '"]'); assert(node, 'no bubble on the receiver');
+    node.querySelector('.meta').dispatchEvent(new Yw.MouseEvent('click', { bubbles: true })); node.querySelector('[data-hact=check]').dispatchEvent(new Yw.MouseEvent('click', { bubbles: true }));
+    const yc = YD.querySelector('#scr-room > .cl-bt'); assert(yc, 'receiver card did not open'); await sleep(40);
+    const yrows = [...yc.querySelectorAll('table.cl-bt-grid tbody tr')].map((tr) => [tr.children[0].firstChild.textContent, tr.querySelector('.cl-bt-lang').textContent, tr.children[1].textContent]);
+    assert(JSON.stringify(yrows) === JSON.stringify([['Said', 'Thai', 'ขอบคุณค่ะ'], ['Normalized', 'English', 'thank you so much'], ['Translated', 'Thai', 'ขอบคุณค่ะ'], ['Back-translation', 'English', 'thank you so much'], ['Route', 'Voice', 'Spoken into the chat microphone']]), 'receiver rows: ' + JSON.stringify(yrows));
+    const ycomps = [...yc.querySelectorAll('.cl-bt-sec > div')].map((d) => [d.children[0].textContent, d.children[1].textContent]);
+    assert(ycomps.length === 2 && ycomps[0][1] === 'Match · 100%' && ycomps[1][1] === 'Match · 100%', 'receiver results: ' + JSON.stringify(ycomps));
+    yc.remove();
+  }
   /* said in a third language: both comparisons go through a back-translation, one per language */
   W.__fetches.length = 0; W.debugLog.length = 0; W.trCache.clear();
   W.__fetchPlan = (u) => { const m = /sl=([a-z]+)&tl=([a-z]+)&dt=t&q=(.*)$/.exec(u); return m ? google(m[2] === 'ko' ? '안녕하세요' : m[2] === 'en' ? 'hello sir' : 'x') : null; };

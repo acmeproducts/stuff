@@ -1,7 +1,7 @@
 /* ═══════════ GAP PART · X3-check-said.js ═══════════ */
 /* @contract
    replaces: (none)
-   wraps: wireMsg, normalizeOutgoing, appendMsgDom
+   wraps: wireMsg, normalizeOutgoing, appendMsgDom, chatPayload, handleChatMsg
    adds: btScore, btVerdict, backCheck, x3Pending
 */
 /* ─────────────────────────────────────────────────────────────────────────────
@@ -24,8 +24,25 @@
      appendMsgDom       — the first own message whose text IS that rewrite
                           takes the record as `said` / `saidLang`, saved with
                           the transcript, logged once as `said_kept`.
-   Both paths (in-call speech via onDGFinal, chat via sendChatText) create
-   their entry and then call appendMsgDom, so one hook covers both.
+   Both paths (in-call speech via onDGFinal, chat via sendChatText — the chat
+   microphone funnels through the latter) create their entry and then call
+   appendMsgDom, so one hook covers both.
+
+   c4 (owner's card 2026-10-07: "typed on the keyboard when in fact it is
+   not … the spoken language doesn't show English"): two more hooks —
+     chatPayload        — a chat message carries `said` / `saidLang` on the wire
+                          when its entry has them (same message type, two
+                          fields; nothing else changes);
+     handleChatMsg      — the receiver holds them for the partner entry about
+                          to be born, which the appendMsgDom hook attaches by
+                          the same text match. So the person who RECEIVED the
+                          message sees what was actually said, in its own
+                          language, which is who the check is for.
+   And the Route row knows the chat microphone (`origin: 'voice'`) as Voice.
+   In-call speech still carries `said` on the sender's side only: its wire
+   messages (`subtitle` / `subtitle-update`) are built inside the frozen base
+   and read by the flat relay path, so the receiver's copy of a spoken line
+   waits for 28·ship (recorded in the plan).
 
    The card, in the owner's own layout (ASCII, 2026-10-03):
      SAID              source 1 — what was heard, in its language
@@ -44,7 +61,7 @@
    the AI review stays out (no AI tier). The header button is c2's.
    ───────────────────────────────────────────────────────────────────────────── */
 (function () {
-  if (typeof wireMsg !== 'function' || typeof translateWithRetry !== 'function' || typeof normalizeOutgoing !== 'function' || typeof appendMsgDom !== 'function') return;
+  if (typeof wireMsg !== 'function' || typeof translateWithRetry !== 'function' || typeof normalizeOutgoing !== 'function' || typeof appendMsgDom !== 'function' || typeof chatPayload !== 'function' || typeof handleChatMsg !== 'function') return;
   var st = document.createElement('style');
   st.textContent = [
     '.cl-bt{position:absolute;inset:0;z-index:20;background:rgba(15,23,42,.35);display:flex;align-items:center;justify-content:center;padding:12px}',
@@ -82,20 +99,39 @@
     } catch (_) {}
     return r;
   };
+  var x3PendingIn = null;                     /* the partner's said, held from the wire for the entry about to be born */
   var _appendMsgDom = appendMsgDom;
   appendMsgDom = function (e, batch) {
     try {
-      var p = x3Pending;
-      if (p && e && e.who === 'me' && e.kind !== 'sys' && !e.said) {
-        if (Date.now() - p.at > X3_PENDING_MS) x3Pending = null;
-        else if (norm(e.sourceText || '').toLowerCase() === p.normalized.toLowerCase()) {
-          e.said = p.said; e.saidLang = p.saidLang; x3Pending = null;
-          try { saveTr(); } catch (_) {}
-          log('said_kept', { id: e.id, lang: e.saidLang, chars: e.said.length }, 'ok');
+      if (e && e.kind !== 'sys' && !e.said) {
+        var p = e.who === 'me' ? x3Pending : (e.who === 'partner' ? x3PendingIn : null);
+        if (p) {
+          if (Date.now() - p.at > X3_PENDING_MS) { if (e.who === 'me') x3Pending = null; else x3PendingIn = null; }
+          else if (norm(e.sourceText || '').toLowerCase() === p.normalized.toLowerCase()) {
+            e.said = p.said; e.saidLang = p.saidLang;
+            if (e.who === 'me') x3Pending = null; else x3PendingIn = null;
+            try { saveTr(); } catch (_) {}
+            log('said_kept', { id: e.id, lang: e.saidLang, chars: e.said.length, who: e.who }, 'ok');
+          }
         }
       }
     } catch (_) {}
     return _appendMsgDom.apply(this, arguments);
+  };
+  /* the wire: a chat message carries what was said; the receiver holds it for its entry */
+  var _chatPayload = chatPayload;
+  chatPayload = function (e) {
+    var m = _chatPayload.apply(this, arguments);
+    try { if (m && e && e.said && m.type === 'chat-msg') { m.said = e.said; m.saidLang = e.saidLang || ''; } } catch (_) {}
+    return m;
+  };
+  var _handleChatMsg = handleChatMsg;
+  handleChatMsg = function (d, room) {
+    try {
+      var said = d && typeof d.said === 'string' ? norm(d.said) : '';
+      x3PendingIn = said && d.srcText ? { said: said, saidLang: String(d.saidLang || ''), normalized: norm(d.srcText), at: Date.now() } : null;
+    } catch (_) { x3PendingIn = null; }
+    return _handleChatMsg.apply(this, arguments);
   };
 
   /* ── the card, in the owner's layout; chat-test's CSS, words and scoring ──── */
@@ -118,7 +154,8 @@
       if(rewritten)row('Normalized',name(normLang),normalized);
       row('Translated',name(tgtLang),target||'(no translation yet)');
       var rBack=row('Back-translation','…','…');
-      row('Route',e.origin==='spoken'?'Voice':e.origin==='phrase'?'Phrasebook':'Keyboard',e.origin==='spoken'?'Spoken into the microphone':e.origin==='phrase'?'Sent from the phrasebook':'Typed on the keyboard');
+      var spokenOrigin=(e.origin==='spoken'||e.origin==='voice');
+      row('Route',spokenOrigin?'Voice':e.origin==='phrase'?'Phrasebook':'Keyboard',e.origin==='spoken'?'Spoken into the microphone during a call':e.origin==='voice'?'Spoken into the chat microphone':e.origin==='phrase'?'Sent from the phrasebook':'Typed on the keyboard');
       /* the results, one line per comparison, in the owner's order */
       var res=document.createElement('div');res.className='cl-bt-sec';card.appendChild(res);
       function resultLine(label){var d=document.createElement('div');d.style.cssText='display:flex;align-items:center;gap:8px;margin-top:6px';var l=document.createElement('span');l.textContent=label;l.style.cssText='flex:1;font-size:13px';var v=document.createElement('span');v.className='cl-bt-verdict wait';v.textContent='Checking…';d.append(l,v);res.appendChild(d);return {label:label,pill:v,verdict:'',score:null,set:function(sc,txt){this.score=sc;this.verdict=txt||btVerdict(sc);v.className='cl-bt-verdict '+this.verdict;v.textContent=txt?txt:((this.verdict==='match'?'Match':this.verdict==='partial'?'Partial':'Miss')+' · '+Math.round(sc*100)+'%')},fail:function(txt){this.verdict=txt.toLowerCase();v.className='cl-bt-verdict miss';v.textContent=txt}}}
@@ -169,5 +206,5 @@
     } catch (_) {}
     return r;
   };
-  window.btScore = btScore; window.btVerdict = btVerdict; window.backCheck = backCheck; window.x3Pending = function () { return x3Pending; };
+  window.btScore = btScore; window.btVerdict = btVerdict; window.backCheck = backCheck; window.x3Pending = function () { return x3Pending; }; window.x3PendingIn = function () { return x3PendingIn; };
 })();
