@@ -1,5 +1,5 @@
-<!-- TALKBRIDGE-PLAN v21.67.0 -->
-# TALKBRIDGE MASTER PLAN v21.67.0
+<!-- TALKBRIDGE-PLAN v21.68.0 -->
+# TALKBRIDGE MASTER PLAN v21.68.0
 
 **Location:** `talkbridge/TALKBRIDGE-PLAN-v9.md` in `acmeproducts/stuff`.
 **Owner:** Confi — sole decision-maker, runs every device gate.
@@ -110,7 +110,8 @@ the directory release and IndexedDB each moved one turn later; nothing was dropp
 | 29·base | multi-user, relay leg | queued | — |
 | 29·pre-ship | multi-user, app leg | queued | — |
 | 29·ship | D-2 + D-6 directory release | queued | — |
-| 29·post-ship | IndexedDB — behind its POC; if the owner defers it, this stage is a byte-identical copy-forward, never skipped | queued | — |
+| 29·post-ship | **install optional** — the app runs in any browser tab; notifications are the only thing that asks for more, and only where the platform demands it (§7.19, owner 2026-10-07) | queued | — |
+| 30·post-ship | IndexedDB — behind its POC; if the owner defers it past beta, it stays here | queued | — |
 | 30·pre-base | byte-identical snapshot of accepted 29·post-ship | queued | — |
 | 30·base | **localization** — the app's own words in the user's language, both sides (§7.17) | queued | — |
 | 30·pre-ship | beta readiness | queued | — |
@@ -172,7 +173,8 @@ ck that is now null, so the new camera never reaches the connection. Fixed addit
 | 29·base | **Multi-user, relay leg** (was 28·base; moved by the 2026-09-21 flattening ruling) — — relay v6.4 alone: fan-out N≤4, cap enforcement, per-device call addressing; app untouched; gated by the 3-socket harness before any app change | Spec §7.8 R-parts | queued — ringfence: relay regressions isolated from app | — |
 | 29·pre-ship | **Multi-user, app leg** — named bubbles for N, presence count, receipts count, room-full UX | Spec §7.8 A-parts | queued | — |
 | 29·ship | **D-2 + D-6 — the directory release (un-hijack done right)** — the app moves to `/stuff/talkbridge-app/` per §7.5 with the PROVEN Chrome-installability recipe from §7.12 (start_url, id, additive fetch handler), old-worker retirement, complete path-impact map per G44. Owner ruling 2026-09-12 stands: one release, isolated, never shares a gate with anything else. Restored to the chain by owner ruling 2026-09-20 (an unreliable un-hijack is a beta-visible defect on any phone that also runs PRISM) and moved AHEAD of IndexedDB by owner ruling the same night. Everything after it builds at the final address. | Spec §7.5 + §7.12 recipe (intact); /stuff/tb-skeleton/ stays the working reference | queued — input: accepted 28·pre-ship | — |
-| 29·post-ship | **IndexedDB capacity** — BLOCKED until (1) a standalone POC harness, no app code, no live users, proves the async transcript pattern, and (2) a painfully detailed spec is written from what the POC proves. G56 stands. **Owner is on the fence whether this ships before beta (2026-09-20); if it is deferred, beta readiness simply follows 28·ship and this stage is re-sequenced after beta.** | POC first, then a §7.11-successor spec | queued behind its POC — may be deferred past beta | — |
+| 29·post-ship | **INSTALL OPTIONAL (§7.19)** — owner ruling 2026-10-07: recover the program's original promise — no registration, no tracking, no install to talk. A link or a QR code opens the room in whatever browser scanned it; name once; call, chat, phrasebook, everything, in the tab. The install gate (P2, "the onboarding inversion") is retired as a GATE and becomes an OFFER: notifications are the one thing that needs more, and only the iPhone needs the app on the Home Screen for them (Android and desktop get push in the tab). The offer is a one-line bar, not a modal; "Later" is always there; a quiet bell-off glyph in the ribbon is the way back. Desktop PWA covered (install icon in the address bar is the offer there). Reverses the E076 corollary by owner ruling (graveyard annotated 2026-10-07). | Spec §7.19 | queued — input: accepted 29·ship (the directory release, which owns scope / worker / manifest; this stage never touches them) | — |
+| 30·post-ship | **IndexedDB capacity** — BLOCKED until (1) a standalone POC harness, no app code, no live users, proves the async transcript pattern, and (2) a painfully detailed spec is written from what the POC proves. G56 stands. **Owner is on the fence whether this ships before beta (2026-09-20); if it is deferred, beta readiness simply follows 28·ship and this stage is re-sequenced after beta.** | POC first, then a §7.11-successor spec | queued behind its POC — may be deferred past beta | — |
 | 30·pre-base | Byte-identical snapshot of the last accepted stage, at the new address | — | queued | — |
 | 30·base | **Localization (§7.17)** — every word the app itself says (buttons, labels, placeholders, toasts, system pills, onboarding, install guidance) shown in the user's own language on each phone; the partner sees theirs. System pills cross the relay as a key plus values and are worded on arrival, so "Bo joined" reads in Thai on the Thai phone. Default language from the phone on first run, changeable in settings. Built AFTER turn 28 because the renderers must have one owner each before their strings can be moved (§7.16 cluster 4). | Spec §7.17 | queued | — |
 | 30·pre-ship | **Beta readiness** — the last release before beta testers: every dead candidate address purged or redirected to the new folder, the graveyard indexed, the plan’s open-defect table reconciled, one clean install per platform proven at the final address. Closes the feature set. | to be written | queued | — |
@@ -2046,6 +2048,8 @@ Green means allowed to push. It never means done.
 ---
 
 ## 10 · CHANGE LOG
+
+**v21.68.0 · 2026-10-07.** §7.19 INSTALL OPTIONAL written at the owner's order and scheduled as 29·post-ship (IndexedDB → 30·post-ship): the P2 install gate becomes an offer; the app runs in any browser tab; notifications are the one thing that asks for more, and only the iPhone needs the Home Screen for them (Android and desktop get push in the tab — the owner's recollection was right). One-line bar at the first moment a notification would have mattered, Later always, a bell-off glyph as the way back, the iPhone fresh-copy cost stated once in the sheet. Reverses the E076 corollary by owner ruling; graveyard annotated.
 
 **v21.67.0 · 2026-10-03.** 28·pre-ship candidate 3 BUILT at the owner's GO: X-3 keeps what was said beside the normalized rewrite (hooks on `normalizeOutgoing` and `appendMsgDom`, field `said`/`saidLang`, log `said_kept`) and the card takes the owner's layout — Said / Normalized / Translated / Back-translation / Route with two results, Said vs Translated and Normalized vs Translated. Normalization untouched. FL-2 and G-1 unchanged. Harness 56/56, checks 4/4 + self-test, prior suite 53/53, mutations 64/64. D-13 fixed pending the gate; c2 superseded.
 
@@ -5379,3 +5383,86 @@ check is needed, since the overlay alone fixes repeat mistakes.
 - THE PAID AI CHECK. Optional by construction: without keys, steps 1, 2 and
   4 (native corrections) still work; step 3 is what the keys buy.
 
+## §7.19 BUILDER SPEC — INSTALL OPTIONAL (29·post-ship) [owner order 2026-10-07: "an install was actually optional … no reason to force people to install before you can make a call or before you can click a link or scan a QR code and just start talking … friction extremely low"]
+
+### The promise, restated
+No registration. No tracking. No install to talk. Open the link, scan the
+code, say your name once, talk. Installing is something a person does later,
+if they want to be told about calls and messages while the app is closed —
+and only on the platform that insists on it.
+
+### What is true per platform (verified 2026-10-07; the build re-verifies on device)
+| Platform | Calls, chat, QR, links in a browser tab | Notifications in a tab | Install needed for notifications | Install offer |
+|---|---|---|---|---|
+| iPhone / iPad (iOS ≥ 16.4) | yes (while the page is open; a backgrounded tab is suspended, so a call ends when the person leaves the tab) | **no** — Web Push exists only for a Home Screen web app | **yes** | Share → Add to Home Screen, from any browser |
+| Android (Chrome, Samsung Internet, Edge) | yes | **yes** — push works for the site in the browser; the v2 icon and badge apply | no | optional: menu → Install app, for an icon and an app window |
+| Desktop (Chrome, Edge) | yes | yes | no | optional: the install icon in the address bar |
+| Desktop Safari (macOS ≥ 13) | yes | yes, once allowed | no | — (no PWA install on macOS Safari below 17; irrelevant) |
+
+So the owner's recollection is right: **the install requirement for
+notifications is iPhone-specific.** Android was assumed to need it; it does
+not. The custom icon and badge (28·base I-1) work in the Android tab too.
+
+### What changes (one release, after 29·ship; touches NO scope, worker or manifest — those belong to 29·ship, G25/G27)
+1. **P2 becomes an offer, not a gate.** `p2Entry` boots the app in every
+   launch. The gate's HTML (platform steps) is kept as the content of the
+   iPhone install sheet. Nothing of the app is withheld from a tab.
+2. **P3 (push) attempts in any launch where push can work** (`'PushManager'
+   in window` and not an iPhone tab), still only inside a user tap (G33), still
+   never twice on a stolen tap.
+3. **The offer (the "consent note"):** a one-line bar at the bottom of the
+   room screen, above the composer, shown the FIRST time the room has a
+   partner (hello received) or the first time the person leaves the room
+   screen with a partner present — i.e. the first moment a notification would
+   have mattered — never at boot, never before the first message.
+   - Android / desktop: `Want to know when they call or write?  [Turn on]  [Later]`
+     "Turn on" → the browser's permission prompt, inside the tap → P3 as today.
+   - iPhone tab: `Calls and messages can reach you when the app is closed — add TalkBridge to your Home Screen.  [Show me]  [Later]`
+     "Show me" → a sheet with the two steps (Share → Add to Home Screen) and
+     "Everything works right here; this is only for notifications." The sheet
+     says it once: *on iPhone the Home Screen copy starts fresh — open the same
+     link from there and your name is asked once more.* (That is the real
+     cost; it is the owner's original URL-carries-everything design and the
+     reason E076 was buried: iOS does not share storage between a tab and a
+     Home Screen app. Nothing is carried; nothing is pretended.)
+   - "Later" hides the bar for 7 days (localStorage `tb_notif_offer_at`).
+     Shown at most once per day, at most three times ever; after that only
+     the glyph remains. Never shown in standalone, never shown when
+     permission is already granted or denied.
+4. **The way back:** a bell-off glyph in the room ribbon (next to the clock)
+   whenever notifications are not active for this launch. Tap → the same
+   sheet / prompt. The General pane gets a line: `Notifications: on / off /
+   needs Home Screen` with the same action. No nagging anywhere else.
+5. **Both windows open (G22):** the worker's notification tap prefers a
+   standalone window when one exists, else the tab, else opens one (the
+   tb-sw3 `appClient` focus logic, extended by display mode). A tab and an
+   installed copy on Android share storage and the worker, so they do not
+   fight; on iPhone they are separate apps and never see each other.
+6. **Logs:** `nf_offer_shown {platform, why}`, `nf_offer_later`,
+   `nf_offer_taken`, `nf_sheet_shown`, `nf_glyph_tap`, `p2_tab_boot`
+   (replaces `p2_gate_shown`), `p2_standalone` unchanged.
+
+### What does NOT change
+Name once on first open (inside whichever copy runs). Rooms, invites, QR,
+calls, phrasebook, transcripts: identical in a tab and installed. The relay
+is untouched. The worker is untouched except the focus preference (5). No
+new endpoint, no credential path (G19/G20).
+
+### Gates
+Machine: the gate HTML never renders at boot in any display mode (jsdom,
+three user agents × standalone/tab); the offer renders only on the first
+partner event and only once per day / three times ever / never in
+standalone / never with permission decided; "Later" persists; iPhone tab
+never calls `pushManager.subscribe`; Android tab does, inside a tap;
+mutation-tested. Device: (a) iPhone, Safari tab, from a QR: join, call,
+chat — no gate; the bar appears after the partner joins; Later; glyph
+present; Show me → sheet → install → Home Screen copy opens the same room,
+asks the name once, subscribes; (b) Android Chrome tab: join, call, the bar,
+Turn on → permission → a locked-phone ring from the TAB (no install);
+(c) desktop Chrome tab: same as (b) plus the optional address-bar install.
+
+### Sequence and ownership
+After 29·ship (the directory release owns scope/worker/manifest identity and
+is one isolated release by owner ruling). IndexedDB moves to 30·post-ship
+(it was "may defer past beta" already). Beta readiness (30·pre-ship) tests
+the tab path on every platform as a first-class path.
