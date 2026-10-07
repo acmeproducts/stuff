@@ -6,6 +6,8 @@ on:
     paths:
       - 'market-navigator-r7-catalog-reconcile.py'
       - 'market-navigator-r7-data-pipeline.py'
+      - 'market-navigator-corpus.py'
+      - 'market-navigator-build-persistent-compat.py'
       - 'market-navigator-r7-health.py'
       - 'market-navigator-r7-index-audit.py'
       - 'market-navigator-source-register.py'
@@ -26,9 +28,11 @@ on:
         type: boolean
   schedule:
     - cron: "37 23 * * *"
+    - cron: "37 0-22 * * *"
 
 permissions:
   contents: write
+  actions: write
 
 concurrency:
   group: market-navigator-canonical-evidence-r7
@@ -61,8 +65,14 @@ jobs:
           PY
       - name: Build canonical evidence
         env:
-          MARKET_NAVIGATOR_BOOTSTRAP: ${{ (github.event_name == 'schedule' && 'false') || 'true' }}
-        run: python3 market-navigator-r7-data-pipeline.py
+          MARKET_NAVIGATOR_BOOTSTRAP: ${{ (github.event_name == 'workflow_dispatch' && inputs.bootstrap && 'true') || 'false' }}
+          MARKET_NAVIGATOR_GUARD_ONLY: ${{ github.event_name == 'schedule' && github.event.schedule != '37 23 * * *' }}
+        run: |
+          if [ "$MARKET_NAVIGATOR_GUARD_ONLY" = "true" ]; then
+            python3 market-navigator-corpus.py --repair --collect --strict
+          else
+            python3 market-navigator-r7-data-pipeline.py
+          fi
       - name: Build publication-aware Health envelope
         run: python3 market-navigator-r7-health.py
       - name: Reconcile registered source lifecycle
@@ -95,13 +105,59 @@ jobs:
           PY
       - name: Prove derived index coherence
         run: python3 market-navigator-r7-index-audit.py
+      - name: Vet and repair the entire corpus before publication
+        id: corpus
+        run: python3 market-navigator-corpus.py --repair --collect --strict
+      - name: Preserve complete corpus evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: market-navigator-corpus-${{ github.job }}-${{ github.run_id }}
+          path: |
+            market-evidence/corpus-health.json
+            market-evidence/corpus-repair.json
+          if-no-files-found: warn
       - name: Commit reconciled canonical backend
         run: |
           set -euo pipefail
           git config user.name "market-evidence-bot";git config user.email "market-evidence-bot@users.noreply.github.com"
-          git add data/market-backend/data-catalog.json data/market-backend/derived-index-definition.json data/market-backend/source-registry.json market-evidence
+          git add data/market-backend/data-catalog.json data/market-backend/derived-index-definition.json data/market-backend/derived-index-definition-persistent-v1.json data/market-backend/source-registry.json market-evidence
           if git diff --cached --quiet; then echo "No canonical evidence changes."; exit 0; fi
-          git commit -m "data: publish proven Market Navigator evidence";git pull --rebase origin main;git push origin HEAD:main
+          git -c rebase.autoStash=true pull --rebase origin main
+          python3 market-navigator-corpus.py --strict --output market-evidence/corpus-health.json
+          git add data/market-backend/data-catalog.json data/market-backend/derived-index-definition.json data/market-backend/derived-index-definition-persistent-v1.json data/market-backend/source-registry.json market-evidence
+          git commit -m "data: publish proven Market Navigator evidence"
+          git push origin HEAD:main
+
+      - name: Publish failure status while retaining the previous data payload
+        if: failure()
+        run: |
+          set -euo pipefail
+          if [ ! -f market-evidence/corpus-health.json ]; then
+            python3 market-navigator-corpus.py --output market-evidence/corpus-health.json || true
+          fi
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+          p=Path('market-evidence/corpus-health.json');x=json.loads(p.read_text());x['publicationStatus']='held';x['summary']['ready']=False;x['failureWorkflow']='${{ github.run_id }}';p.write_text(json.dumps(x,indent=2,sort_keys=True)+'\n')
+          PY
+          git config user.name "market-evidence-bot"
+          git config user.email "market-evidence-bot@users.noreply.github.com"
+          git fetch origin main
+          status_dir="$RUNNER_TEMP/mn-corpus-status"
+          git worktree add --detach "$status_dir" origin/main
+          cp market-evidence/corpus-health.json "$status_dir/market-evidence/corpus-health.json"
+          if [ -f market-evidence/corpus-repair.json ]; then cp market-evidence/corpus-repair.json "$status_dir/market-evidence/corpus-repair.json"; fi
+          git -C "$status_dir" add market-evidence/corpus-health.json
+          if [ -f "$status_dir/market-evidence/corpus-repair.json" ]; then git -C "$status_dir" add market-evidence/corpus-repair.json; fi
+          if git -C "$status_dir" diff --cached --quiet; then exit 0; fi
+          git -C "$status_dir" commit -m "data: surface held Market Navigator corpus repair"
+          git -C "$status_dir" push origin HEAD:main
+      - name: Deploy committed corpus status and payload to Pages
+        if: always()
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh workflow run static.yml --ref main
 
   register-source:
     if: github.event_name == 'issues' && github.actor == github.repository_owner && startsWith(github.event.issue.title, '[Market Navigator Source]')
@@ -154,11 +210,57 @@ jobs:
           assert evidence.get('count',0)>0,'registered source has no canonical observations';assert health.get('classification') not in ('failed','missing'),'registered source unhealthy: '+str(health);assert r.get('status') in ('active','degraded'),('source lifecycle not published',r)
           print('REGISTERED',sid,r['status'],health.get('classification'),health.get('provider'))
           PY
-      - name: Commit registered source and canonical evidence
+      - name: Vet and repair the entire corpus before publication
+        id: corpus
+        run: python3 market-navigator-corpus.py --repair --collect --strict
+      - name: Preserve complete corpus evidence
         if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: market-navigator-corpus-${{ github.job }}-${{ github.run_id }}
+          path: |
+            market-evidence/corpus-health.json
+            market-evidence/corpus-repair.json
+          if-no-files-found: warn
+      - name: Commit registered source and canonical evidence
+        if: success()
         run: |
           set -euo pipefail
           git config user.name "market-source-registration-bot";git config user.email "market-source-registration-bot@users.noreply.github.com"
-          git add data/market-backend/data-catalog.json data/market-backend/source-registry.json data/market-backend/derived-index-definition.json market-evidence
+          git add data/market-backend/data-catalog.json data/market-backend/source-registry.json data/market-backend/derived-index-definition.json data/market-backend/derived-index-definition-persistent-v1.json market-evidence
           if git diff --cached --quiet; then echo "No registration state changes to publish."; exit 0; fi
-          git commit -m "data: register Market Navigator source";git pull --rebase origin main;git push origin HEAD:main
+          git -c rebase.autoStash=true pull --rebase origin main
+          python3 market-navigator-corpus.py --strict --output market-evidence/corpus-health.json
+          git add data/market-backend/data-catalog.json data/market-backend/derived-index-definition.json data/market-backend/derived-index-definition-persistent-v1.json data/market-backend/source-registry.json market-evidence
+          git commit -m "data: register Market Navigator source"
+          git push origin HEAD:main
+
+      - name: Publish failure status while retaining the previous data payload
+        if: failure()
+        run: |
+          set -euo pipefail
+          if [ ! -f market-evidence/corpus-health.json ]; then
+            python3 market-navigator-corpus.py --output market-evidence/corpus-health.json || true
+          fi
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+          p=Path('market-evidence/corpus-health.json');x=json.loads(p.read_text());x['publicationStatus']='held';x['summary']['ready']=False;x['failureWorkflow']='${{ github.run_id }}';p.write_text(json.dumps(x,indent=2,sort_keys=True)+'\n')
+          PY
+          git config user.name "market-evidence-bot"
+          git config user.email "market-evidence-bot@users.noreply.github.com"
+          git fetch origin main
+          status_dir="$RUNNER_TEMP/mn-corpus-status"
+          git worktree add --detach "$status_dir" origin/main
+          cp market-evidence/corpus-health.json "$status_dir/market-evidence/corpus-health.json"
+          if [ -f market-evidence/corpus-repair.json ]; then cp market-evidence/corpus-repair.json "$status_dir/market-evidence/corpus-repair.json"; fi
+          git -C "$status_dir" add market-evidence/corpus-health.json
+          if [ -f "$status_dir/market-evidence/corpus-repair.json" ]; then git -C "$status_dir" add market-evidence/corpus-repair.json; fi
+          if git -C "$status_dir" diff --cached --quiet; then exit 0; fi
+          git -C "$status_dir" commit -m "data: surface held Market Navigator corpus repair"
+          git -C "$status_dir" push origin HEAD:main
+      - name: Deploy committed corpus status and payload to Pages
+        if: always()
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh workflow run static.yml --ref main

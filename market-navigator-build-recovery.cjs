@@ -61,6 +61,7 @@ extracted=extracted.replace("$('analyzeNowSeries26').onclick=()=>services.onAnal
 }
 if(final)extracted=require('./market-navigator-recovery-owner-fixes.cjs').moduleFixes(extracted);
 if(final)extracted=require('./market-navigator-recovery-pov-fixes.cjs').moduleFixes(extracted);
+if(final)extracted=require('./market-navigator-recovery-corpus-fixes.cjs').moduleFixes(extracted);
 const moduleCode=`
 /* MNChart: accepted Turn 28 NOW implementation, scoped to one surface. */
 const MNChart=(()=>{
@@ -146,6 +147,7 @@ out=out.replace("nowState:()=>S.nowChartState?JSON.parse(JSON.stringify(S.nowCha
 if(final)out=require('./market-navigator-recovery-owner-fixes.cjs').applicationFixes(out,babel);
 if(final)out=require('./market-navigator-recovery-pov-fixes.cjs').applicationFixes(out);
 out=out.replace('boot();',moduleCode+'\n'+lifecycle+'\nboot();');
+if(final)out=require('./market-navigator-recovery-corpus-fixes.cjs').applicationFixes(out);
 new vm.Script(out);
 let html=base.slice(0,offset)+out+base.slice(offset+code.length);
 if(final){

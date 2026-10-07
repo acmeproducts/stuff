@@ -33,7 +33,7 @@ def main():
   status='failed'
  elif count<=0 or classification in ('failed','missing'):
   status='failed'
- elif fallback:
+ elif fallback or classification in ('stale','degraded','unknown'):
   status='degraded'
  else:
   status='active'
