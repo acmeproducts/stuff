@@ -71,7 +71,7 @@ async function checkRuntime(html) {
   if (!/_translateWithRetry/.test(String(w.translateWithRetry)) || !/googleapis/.test(String(w.translateWithRetry))) throw new Error('translateWithRetry is not the G-1 wrapper');
   if (!w.document.getElementById('n10-out') || w.document.getElementById('n10-out').parentNode.id !== 'scr-room') throw new Error('the caller screen is not mounted in #scr-room');
   if (typeof w.backCheck !== 'function' || !/_wireMsg/.test(String(w.wireMsg)) || !/data-hact', 'check'/.test(String(w.wireMsg))) throw new Error('the translation check button (X-3) is not installed on wireMsg');
-  for (const [sym, fn] of [['wireMsg', w.wireMsg], ['normalizeOutgoing', w.normalizeOutgoing], ['appendMsgDom', w.appendMsgDom]]) { const ch = w.TB_WRAP_MAP[sym]; if (!ch || ch.slice(-1)[0] !== 'X3-check-said.js') throw new Error('X-3 is not the outermost ' + sym + ' layer: ' + JSON.stringify(ch)); }
+  for (const [sym, fn] of [['wireMsg', w.wireMsg], ['normalizeOutgoing', w.normalizeOutgoing], ['appendMsgDom', w.appendMsgDom], ['chatPayload', w.chatPayload], ['handleChatMsg', w.handleChatMsg]]) { const ch = w.TB_WRAP_MAP[sym]; if (!ch || ch.slice(-1)[0] !== 'X3-check-said.js') throw new Error('X-3 is not the outermost ' + sym + ' layer: ' + JSON.stringify(ch)); }
   if (!/x3Pending/.test(String(w.normalizeOutgoing)) || !/said_kept/.test(String(w.appendMsgDom))) throw new Error('X-3 hooks are not the said-keeping ones');
   if (!/_pbAddTagTo/.test(String(w.pbAddTagTo))) throw new Error('pbAddTagTo is not the D-10 wrapper');
   if (typeof w.tbSwapTap !== 'function' || typeof w.tbFlipCamera !== 'function') throw new Error('c5 video surface missing');
