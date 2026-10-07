@@ -1,13 +1,8 @@
 # TalkBridge device log
 
-Both handsets write here. Drained 2026-10-07T19:41:28Z, every 30s. Newest at the bottom.
+Both handsets write here. Drained 2026-10-07T19:42:00Z, every 30s. Newest at the bottom.
 
 ```
-11:46:15.625 [android-brg] listen_open {"room":"muagu1cy0vnxep"}
-11:46:15.625 [android-brg] cr3_lane_open {"room":"muagu1cy0vnxep","explicit":false}
-11:46:15.626 [android-brg] p3_room_registered {"room":"0vnxep","ok":true}
-11:46:15.694 [android-brg] t1_coalesced {"fn":"renderPanel","n":1}
-11:46:15.723 [android-brg] p3_room_registered {"room":"0vnxep","ok":true}
 11:46:15.760 [android-brg] lc_create_capture_wired {}
 11:46:15.810 [android-brg] lc_boot_check {"grant":false,"expires":null,"cleared":false,"canCreate":true}
 11:46:15.812 [android-brg] r8_menu_labels {"applied":3,"of":3}
@@ -4002,4 +3997,9 @@ Both handsets write here. Drained 2026-10-07T19:41:28Z, every 30s. Newest at the
 19:41:17.785 [android-tzc] rc_home_rendered {"cards":0,"wired":0,"dropped":2}
 19:41:17.788 [android-tzc] joiner_create_control {"shown":true,"dropped":2}
 19:41:17.794 [android-tzc] t1_coalesced {"fn":"renderPanel","n":3}
-19:41:17.817 [android-tzc] t1_coalesced {"fn":"renderPanel","n":1}```
+19:41:17.817 [android-tzc] t1_coalesced {"fn":"renderPanel","n":1}
+19:41:27.993 [android-tzc] pr3_dot {"others":0}
+19:41:37.759 [android-tzc] rc_panel_rendered {"live":5,"bin":0,"wired":5,"dropped":2}
+19:41:37.759 [android-tzc] rc_home_rendered {"cards":0,"wired":0,"dropped":2}
+19:41:37.762 [android-tzc] joiner_create_control {"shown":true,"dropped":2}
+19:41:37.793 [android-tzc] t1_coalesced {"fn":"renderPanel","n":3}```
