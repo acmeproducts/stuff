@@ -12,6 +12,11 @@ assert(notice.scroll<=notice.width+1&&notice.box.left>=notice.parent.left&&notic
 const ledger=JSON.parse(fs.readFileSync(path.join(root,'market-evidence/persistent-indices-v1.json'),'utf8'));
 for(const z of (await p.evaluate(()=>window.__mnRecovery.now().state)).chart.series){const row=ledger.indices[z.id],h=data.indices[z.id].horizons['5D'],expected=row.timestamps.filter((t,i)=>row.dates[i]>=h.commonT0&&row.dates[i]<=h.commonNow);assert.deepEqual(z.points.map(q=>q.t),expected,'only actual persisted captures may appear; uncaptured gaps cannot become interpolated observations');}
 await p.screenshot({path:path.join(OUT,'corpus-gap-'+vp.width+'.png')});
+await click(p,'#legend [data-id="growth"]');await click(p,'#legend [data-id="growth"]');await click(p,'#legend [data-id="qqq"]');
+const qqq=JSON.parse(fs.readFileSync(path.join(root,'market-evidence/series/qqq.json'),'utf8')),end=new Date(data.commonMarketAnchor+'T00:00:00Z'),start=new Date(end);start.setUTCDate(start.getUTCDate()-5);
+const native=qqq.observations.filter(q=>q.t>=+start&&q.t<+end+86400000),live=await p.evaluate(()=>window.__mnRecovery.now().state),trace=live.chart.series.find(z=>z.id==='qqq');
+assert.equal(live.chart.window.start,+start,'a recovered index gap must not truncate the requested native horizon');assert(native.length>=2,'independent current QQQ source has a drawable trace');assert.deepEqual(trace.points.map(q=>[q.t,q.raw]),native.map(q=>[q.t,q.v]),'all genuine current QQQ observations must remain visible beside a sparse index');
+await p.screenshot({path:path.join(OUT,'corpus-qqq-'+vp.width+'.png')});
 await click(p,'#hzs [data-h="1YR"]');assert.match(await p.locator('#nowMeta').innerText(),/Index history contains an uncaptured gap/);
 await click(p,'#legend [data-id="growth"]');await p.locator('#legend [data-id="qqq"]').click({button:'right'});await click(p,'#analyzeNowSeries26');assert(!/capture gap|uncaptured gap/.test(await p.locator('#view-analyze [data-mn-role="nowMeta"]').innerText()),'raw series do not inherit composite gaps');
 await add(p,'gdpQoq','#view-analyze');const st=await p.evaluate(()=>window.__mnRecovery.analyze().state),z=st.chart.series.find(z=>z.id==='gdpQoq');

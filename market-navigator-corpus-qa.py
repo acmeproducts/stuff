@@ -90,7 +90,7 @@ class CorpusTests(unittest.TestCase):
         for folder in ("market-evidence","data/market-backend"):shutil.copytree(ROOT/folder,target/folder)
         for src in Path(__file__).parent.glob("market-navigator*.py"):
             if src.name in ("market-navigator-corpus.py","market-navigator-r7-data-pipeline.py","market-navigator-r7-health.py","market-navigator-source-state.py","market-navigator-build-persistent-compat.py"):shutil.copy2(src,target/src.name)
-        shutil.copy2(ROOT/"market-navigator-persistent-index-qa.py",target/"market-navigator-persistent-index-qa.py")
+        shutil.copy2(Path(__file__).with_name("market-navigator-persistent-index-qa.py"),target/"market-navigator-persistent-index-qa.py")
         return target
     def test_repair_append_only_formula_no_archival_promotion_and_idempotence(self):
         with tempfile.TemporaryDirectory() as temp:
@@ -136,6 +136,34 @@ class CorpusTests(unittest.TestCase):
             digest=hashlib.sha256((root/"market-evidence/persistent-indices-v1.json").read_bytes()).hexdigest()
             report,result=corpus.repair(root,dt.datetime.now(dt.timezone.utc));self.assertFalse(report["summary"]["ready"])
             self.assertEqual(hashlib.sha256((root/"market-evidence/persistent-indices-v1.json").read_bytes()).hexdigest(),digest)
+    def test_real_later_same_day_capture_repairs_without_rewriting_history(self):
+        with tempfile.TemporaryDirectory() as temp:
+            root=self.clone(temp);report,_=corpus.repair(root,NOW);self.assertTrue(report['summary']['ready'])
+            before=corpus.read(root/'market-evidence/persistent-indices-v1.json');row=before['indices']['growth'];n=len(row['dates'])
+            obj=corpus.read(root/'market-evidence/series/qqq.json');later=corpus.instant(obj['last_successful'])+dt.timedelta(hours=1)
+            obj['observations'][-1]['v']+=1;obj['sourceRevision']=corpus.digest(obj['observations']);obj['last_successful']=obj['last_attempted']=later.isoformat();corpus.write(root/'market-evidence/series/qqq.json',obj)
+            man=corpus.read(root/'market-evidence/operational-manifest.json');man['series']['qqq'].update(source_revision=obj['sourceRevision'],last_successful=obj['last_successful'],last_attempted=obj['last_attempted']);corpus.write(root/'market-evidence/operational-manifest.json',man)
+            report,result=corpus.repair(root,NOW);self.assertTrue(report['summary']['ready'],result)
+            current=corpus.read(root/'market-evidence/persistent-indices-v1.json')['indices']['growth']
+            for field in ('dates','timestamps','values'):self.assertEqual(current[field][:n],row[field])
+            for field in ('componentSignals','componentValues','componentObservationDates'):
+                for sid in row['components']:self.assertEqual(current[field][sid][:n],row[field][sid])
+            self.assertEqual(current['dates'][-1],row['dates'][-1]);self.assertGreater(current['timestamps'][-1],row['timestamps'][-1]);self.assertEqual(current['timestamps'][-1],int(later.timestamp()*1000))
+            self.assertTrue(result['actions'][-1]['changes']['growth']['sameDay'])
+            digest=hashlib.sha256((root/'market-evidence/persistent-indices-v1.json').read_bytes()).hexdigest();report,_=corpus.repair(root,NOW);self.assertTrue(report['summary']['ready']);self.assertEqual(digest,hashlib.sha256((root/'market-evidence/persistent-indices-v1.json').read_bytes()).hexdigest())
+    def test_collection_after_audit_start_recovers_missing_qqq_before_publication(self):
+        with tempfile.TemporaryDirectory() as temp:
+            root=self.clone(temp);baseline,_=corpus.repair(root,NOW);self.assertTrue(baseline['summary']['ready']);path=root/'market-evidence/series/qqq.json';obj=corpus.read(path);path.unlink()
+            completed=NOW-dt.timedelta(seconds=5);obj['last_successful']=obj['last_attempted']=completed.isoformat();obj['observations'][-1]['v']+=1;obj['sourceRevision']=corpus.digest(obj['observations'])
+            original_run=corpus.subprocess.run
+            def recollect(command,**kwargs):
+                if command[1].endswith('market-navigator-r7-data-pipeline.py'):
+                    self.assertIn('qqq',kwargs['env']['MARKET_NAVIGATOR_SERIES_IDS'].split(','));staged=Path(kwargs['cwd']);corpus.write(staged/'market-evidence/series/qqq.json',obj)
+                    man=corpus.read(staged/'market-evidence/operational-manifest.json');man['series']['qqq'].update(source_revision=obj['sourceRevision'],last_attempted=obj['last_attempted'],last_successful=obj['last_successful']);corpus.write(staged/'market-evidence/operational-manifest.json',man)
+                    return corpus.subprocess.CompletedProcess(command,0,'','')
+                return original_run(command,**kwargs)
+            with patch.object(corpus.subprocess,'run',recollect):report,result=corpus.repair(root,NOW-dt.timedelta(seconds=30),collect=True)
+            self.assertTrue(report['summary']['ready'],(result,report['findings']));self.assertEqual(report['publicationStatus'],'qualified');self.assertEqual(report['series']['qqq']['status'],'current');self.assertEqual(corpus.read(path)['last_successful'],completed.isoformat())
     def test_targeted_pipeline_keeps_other_sources_and_fallback_lineage_separate(self):
         module=corpus.load_module("pipeline",Path(__file__).with_name("market-navigator-r7-data-pipeline.py"))
         with tempfile.TemporaryDirectory() as temp:

@@ -21,7 +21,7 @@ const povInstruction=require('./market-navigator-recovery-pov-fixes.cjs').instru
 assert.equal(result.get('startAI').replace(promptAddition,'').replace(povInstruction,'').replace('recoveryFreezeRelationships26(stateOverride||nowAnalysisState())','stateOverride||nowAnalysisState()').replace('out=recoveryAttachRelationship26(ctx.answer,state)','out=ctx.answer').replace("try{state.corpusQualification=await recoveryRequireCorpus26(state)}catch(e){alert(e.message);return}",''),accepted.get('startAI'),'AI creation/persistence preserved; authorized evidence, corpus preflight, prompt and measured section only');
 assert.equal(result.get('mnxRenderHealth').replace('renderHealth();recoveryCorpusNotice26();','renderHealth();'),accepted.get('mnxRenderHealth'),'Health rendering retained; corpus status added');
 assert(result.get('aiEvidenceState').includes('pairwiseRelationships:state.relationshipEvidence||recoveryRelationshipEvidence26(state)'),'AI receives deterministic relationships, legacy uses frozen points');
-assert(result.get('recoveryChartWindow26').includes('return horizonWindow'),'governed windows retain original arithmetic clock');
+assert(result.get('recoveryChartWindow26').includes('window=horizonWindow(h,root)')&&result.get('recoveryChartWindow26').includes('return window'),'complete governed windows retain original arithmetic clock');
 assert(result.get('recoveryRelationshipEvidence26').includes('p.raw??p.v'),'relationship statistics use native values, not display indices');
 for(const name of ['renderV1','renderV2'])assert(result.get(name).includes('await admitDisplay26('),'data admission before '+name+' chart drawing');
 assert(result.get('draw').includes('services.certificateCurrent(displayCertificate26)'),'redraw cannot evade native expiry');

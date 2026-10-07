@@ -246,12 +246,14 @@ def audit(root,asof):
         if compat.get("revision")!=revision:issue("market-evidence/derived-indices-persistent-v1.json","derived-lineage","Compatibility revision does not match persistent artifact and registry")
         for key,idef in registry["indices"].items():
             z=p["indices"][key]; dates=z["dates"]; n=len(dates); errors=[]
-            if not dates or dates!=sorted(set(dates)) or dates[-1]>str(asof.date()):errors.append("invalid calculation dates")
+            if not dates or dates!=sorted(dates) or dates[-1]>str(asof.date()):errors.append("invalid calculation dates")
             if not dates or dates[0]!=p.get("anchorDate") or not math.isclose(z["values"][0],100,abs_tol=1e-12):errors.append("fixed anchor mismatch")
             if z.get("components")!=idef["components"]:errors.append("component order/model mismatch")
             if len(z["values"])!=n or len(z["timestamps"])!=n:errors.append("curve length mismatch")
             for i,date in enumerate(dates):
-                if z["timestamps"][i]!=int(dt.datetime.combine(dt.date.fromisoformat(date),dt.time(),UTC).timestamp()*1000):errors.append("curve timestamp mismatch");break
+                stamp=z["timestamps"][i];midnight=int(dt.datetime.combine(dt.date.fromisoformat(date),dt.time(),UTC).timestamp()*1000)
+                capture=next((c for c in z.get("prospectiveCaptures",[]) if c.get("captureTimestamp")==stamp),None)
+                if day(stamp)!=dt.date.fromisoformat(date) or stamp>asof.timestamp()*1000 or i and stamp<=z["timestamps"][i-1] or stamp!=midnight and (not capture or capture["calculationDate"]!=date or not instant(capture.get("capturedAt")) or int(instant(capture["capturedAt"]).timestamp()*1000)!=stamp):errors.append("curve timestamp mismatch");break
                 signals=[]
                 for sid in idef["components"]:
                     for field in ("componentSignals","componentValues","componentObservationDates"):
@@ -279,7 +281,8 @@ def audit(root,asof):
             if stale:issue(persistent_path.relative_to(root),"derived-stale",f"{key} ends {dates[-1]} or has unincorporated revisions; collected component evidence reaches {target}.")
             for h in H:
                 ch=compat["indices"][key]["horizons"][h]; curve=ch.get("curve") or []
-                if not curve or ch["commonNow"]!=compat["commonMarketAnchor"] or curve[-1]["v"]!=z["values"][dates.index(ch["commonNow"])]:issue("market-evidence/derived-indices-persistent-v1.json","derived-window",key+" "+h)
+                end_i=max(i for i,d in enumerate(dates) if d<=ch["commonNow"])
+                if not curve or ch["commonNow"]!=compat["commonMarketAnchor"] or curve[-1]["v"]!=z["values"][end_i] or curve[-1]["t"]!=z["timestamps"][end_i]:issue("market-evidence/derived-indices-persistent-v1.json","derived-window",key+" "+h)
         if compat.get("commonMarketAnchor")!=min(z["dates"][-1] for z in p["indices"].values()):issue("market-evidence/derived-indices-persistent-v1.json","derived-anchor","Anchor differs from persistent index coverage")
     except Exception as e:issue("market-evidence/persistent-indices-v1.json","derived-invalid",str(e))
     counts=dict(collections.Counter(x["status"] for x in rows.values()));blocking=[x for x in findings if x["blocking"]]
@@ -294,25 +297,28 @@ def extend_persistent(root,asof):
         z=p["indices"][key];old=digest(z);sources={sid:read(root/f"market-evidence/series/{sid}.json") for sid in idef["components"]}
         captured=max(instant(o["last_successful"]) for o in sources.values());date=str(captured.date())
         revisions={sid:o["sourceRevision"] for sid,o in sources.items()}
-        if date<=z["dates"][-1]:
-            # Same-day revisions do not silently restate an already captured/published row.
-            if date==z["dates"][-1] and any(sources[sid]["observations"][-1]["v"]!=z["componentValues"][sid][-1] for sid in sources):
-                raise RuntimeError("Same-day persistent revision requires an explicit later capture date/model restatement: "+key)
+        changed=any(sources[sid]["observations"][-1]["v"]!=z["componentValues"][sid][-1] or str(day(sources[sid]["observations"][-1]["t"]))!=z["componentObservationDates"][sid][-1] for sid in sources)
+        if date<z["dates"][-1]:
+            if changed:raise RuntimeError("Revised inputs have no later real collection timestamp: "+key)
             continue
+        stamp=int(captured.timestamp()*1000)
+        if date==z["dates"][-1]:
+            if not changed:continue
+            if stamp<=z["timestamps"][-1]:raise RuntimeError("Revised inputs have no later real collection timestamp: "+key)
         vals={sid:float(o["observations"][-1]["v"]) for sid,o in sources.items()};signals={}
         for sid,value in vals.items():
             rule=meta[sid];anchor=z["componentValues"][sid][0]
             movement=math.log(value/anchor) if rule["transformFamily"]=="log_return" and value>0 and anchor>0 else value-anchor if rule["transformFamily"]!="log_return" else None
             if movement is None:raise RuntimeError("Invalid governed logarithmic input: "+sid)
             signals[sid]=rule["direction"]*movement/rule["scale"]["annualizedScale"]
-        prior=z["dates"][-1];z["dates"].append(date);z["timestamps"].append(int(dt.datetime.combine(captured.date(),dt.time(),UTC).timestamp()*1000));z["values"].append(100+sum(signals.values())/7)
+        prior=z["dates"][-1];z["dates"].append(date);z["timestamps"].append(stamp);z["values"].append(100+sum(signals.values())/7)
         for sid in vals:
             z["componentSignals"][sid].append(signals[sid]);z["componentValues"][sid].append(vals[sid]);z["componentObservationDates"][sid].append(str(day(sources[sid]["observations"][-1]["t"])))
-        z.setdefault("prospectiveCaptures",[]).append(dict(calculationDate=date,capturedAt=captured.isoformat().replace("+00:00","Z"),sourceRevisions=revisions,previousCalculationDate=prior,uncapturedGap=bool((captured.date()-dt.date.fromisoformat(prior)).days>1),rule="Current native values first known through these successful canonical collections; no reconstructed values in an uncaptured gap."))
-        changes[key]=dict(previousDigest=old,appendedDate=date,previousDate=prior)
+        z.setdefault("prospectiveCaptures",[]).append(dict(calculationDate=date,captureTimestamp=stamp,capturedAt=captured.isoformat().replace("+00:00","Z"),sourceRevisions=revisions,previousCalculationDate=prior,uncapturedGap=bool((captured.date()-dt.date.fromisoformat(prior)).days>1),rule="Append a real collection-time snapshot, including later same-day inputs; earlier published snapshots are retained. No reconstructed values in an uncaptured gap."))
+        changes[key]=dict(previousDigest=old,appendedDate=date,appendedTimestamp=stamp,previousDate=prior,sameDay=date==prior)
     if changes:
         p["generatedAt"]=asof.isoformat().replace("+00:00","Z")
-        p["captureRule"]="Append-only prospective canonical captures; historical published vectors are immutable; observation dates remain native."
+        p["captureRule"]="Append-only real collection-time snapshots, including later same-day updates; historical published vectors are immutable; observation dates remain native."
         write(root/"market-evidence/persistent-indices-v1.json",p)
     return changes
 
@@ -362,6 +368,10 @@ def _repair_staged(root,asof,collect=False):
             replace_ids={Path(x["path"]).stem for x in before["findings"] if x["code"] in ("integrity","point-vector-integrity") and "/series/" in x["path"] and x["message"] not in ("Health falsely claims current",) and not x["message"].startswith(("manifest ","report ","health "))}
             env={**os.environ,"MARKET_NAVIGATOR_SERIES_IDS":",".join(ids),"MARKET_NAVIGATOR_REPLACE_SERIES_IDS":",".join(sorted(replace_ids)),"MARKET_NAVIGATOR_BOOTSTRAP":"false"}
             run("market-navigator-r7-data-pipeline.py",env=env);actions.append(dict(action="targeted-collection",ids=ids,maximumPasses=1))
+            # Successful collection happens after the audit began. Evaluate the
+            # newly collected evidence against completion time, not the earlier
+            # start time (which would falsely classify it as a future capture).
+            asof=max(asof,dt.datetime.now(UTC))
     # Do not repair corrupt observations by deleting/normalizing them. They require source recollection.
     canonical_errors=[x for x in audit(root,asof)["findings"] if x["code"]=="integrity" and "/series/" in x["path"] and x["message"] in ("non-finite or malformed observation","unordered or duplicate timestamp","future observation","provider lineage outside governed chain","canonical identity mismatch")]
     if canonical_errors:errors.append("Canonical integrity prevents derived rebuild")
