@@ -1,5 +1,5 @@
-<!-- TALKBRIDGE-PLAN v21.68.2 -->
-# TALKBRIDGE MASTER PLAN v21.68.2
+<!-- TALKBRIDGE-PLAN v21.69.0 -->
+# TALKBRIDGE MASTER PLAN v21.69.0
 
 **Location:** `talkbridge/TALKBRIDGE-PLAN-v9.md` in `acmeproducts/stuff`.
 **Owner:** Confi — sole decision-maker, runs every device gate.
@@ -2049,6 +2049,8 @@ Green means allowed to push. It never means done.
 ---
 
 ## 10 · CHANGE LOG
+
+**v21.69.0 · 2026-10-07.** §7.19 iPhone install path PROVED on the owner's iPhone with `tb-skeleton/carry.html` (two runs): a hash in the address at page load reaches the Home Screen copy; a hash added afterwards, localStorage and the Cache API do not. So the Notify tab's iPhone step reloads the page at the room's link-device address before the person adds to the Home Screen; the copy opens as the same person in the same room with nothing asked. The "name asked once more" sentence is gone. E076 stays buried for the live-address/cookie/hand-to-Safari attempts, which the same test confirms cannot work.
 
 **v21.68.2 · 2026-10-07.** D-14 OPEN at the owner's word: answering a call with the More menu open leaves the drawer over the call; fix (close the drawer on accept / onAccepted) slotted into 28·post-ship beside D-11.
 
@@ -5399,7 +5401,7 @@ and only on the platform that insists on it.
 ### What is true per platform (verified 2026-10-07; the build re-verifies on device)
 | Platform | Calls, chat, QR, links in a browser tab | Notifications in a tab | Install needed for notifications | Install offer |
 |---|---|---|---|---|
-| iPhone / iPad (iOS ≥ 16.4) | yes (while the page is open; a backgrounded tab is suspended, so a call ends when the person leaves the tab) | **no** — Web Push exists only for a Home Screen web app | **yes** | Share → Add to Home Screen, from any browser |
+| iPhone / iPad (iOS ≥ 16.4) | yes (while the page is open; a backgrounded tab is suspended, so a call ends when the person leaves the tab) | **no** — Web Push exists only for a Home Screen web app | **yes** | Share → Add to Home Screen, from any browser; the page reloads at the link-device address first so the copy opens as the same person in the same room (device proof 2026-10-07: load-time address carries; live address, localStorage, Cache API do not) |
 | Android (Chrome, Samsung Internet, Edge) | yes | **yes** — push works for the site in the browser; the v2 icon and badge apply | no | optional: menu → Install app, for an icon and an app window |
 | Desktop (Chrome, Edge) | yes | yes | no | optional: the install icon in the address bar |
 | Desktop Safari (macOS ≥ 13) | yes | yes, once allowed | no | — (no PWA install on macOS Safari below 17; irrelevant) |
@@ -5434,12 +5436,26 @@ not. The custom icon and badge (28·base I-1) work in the Android tab too.
    holds all of it, in the user's words: what notifications do (calls and
    messages reach you when the app is closed); on Android / desktop a single
    `Turn on` (the permission prompt, inside the tap); on iPhone the two steps
-   (Share → Add to Home Screen) with the one true cost stated once — *the
-   Home Screen copy starts fresh: open the same link from there and your name
-   is asked once more* (iOS does not share storage between a tab and a Home
-   Screen app — the reason E076 is buried; nothing is carried, nothing is
-   pretended) — and the install gate's old per-platform steps as its content.
-   Nothing else anywhere: no glyph, no reminder, no schedule.
+   (Share → Add to Home Screen), with the install gate's old per-platform
+   steps as its content. Nothing else anywhere: no glyph, no reminder, no
+   schedule.
+   **The iPhone install carries the person (proved on device 2026-10-07,
+   `tb-skeleton/carry.html`):** iPhone captures the page's address AS IT WAS
+   WHEN THE PAGE LOADED — a hash present at load reaches the Home Screen copy;
+   a hash added later by `replaceState` does not; localStorage and the Cache
+   API carry nothing. So the moment the Notify tab shows the iPhone steps, the
+   page RELOADS ITSELF at the room's link-device address
+   (`location.replace(linkDeviceUrl(room))` — the existing #j= form with
+   `ld:1`, which carries room, role, my name, partner name, languages, keys,
+   title) and shows the steps on that load. Add to Home Screen captures that
+   address; the Home Screen copy opens as the same person in the same room,
+   nothing asked (the base's device-link boot already does exactly this:
+   `if(!S.user.name&&p.myn){S.user.name=p.myn}`). Rooms other than the one
+   open at install time are rejoined by their links, as on a second phone.
+   This is the owner's URL-carries-everything design; nothing is stored
+   across the tab/app boundary, nothing is pretended. E076 stays buried for
+   what it buried (live-address augmentation, cookies, hand-to-Safari — the
+   same test shows the live address does NOT carry).
 5. **Both windows open (G22):** the worker's notification tap prefers a
    standalone window when one exists, else the tab, else opens one (the
    tb-sw3 `appClient` focus logic, extended by display mode). A tab and an
@@ -5464,8 +5480,9 @@ present while notifications are not set up and absent once they are, on
 each of the three platforms; iPhone tab never calls
 `pushManager.subscribe`; Android tab does, inside a tap; mutation-tested. Device: (a) iPhone, Safari tab, from a QR: join, call,
 chat — no gate; the bar appears after the partner joins; Not now → gone
-for good; Settings → Notify present → steps → install → Home Screen copy
-opens the same room, asks the name once, subscribes → Notify tab absent; (b) Android Chrome tab: join, call, the bar,
+for good; Settings → Notify present → steps (page now at the link-device
+address) → install → Home Screen copy opens the same room AS THE SAME
+PERSON, nothing asked, subscribes → Notify tab absent; (b) Android Chrome tab: join, call, the bar,
 Turn on → permission → a locked-phone ring from the TAB (no install);
 (c) desktop Chrome tab: same as (b) plus the optional address-bar install.
 

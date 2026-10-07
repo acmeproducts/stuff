@@ -1,7 +1,7 @@
 <!-- v5.8.2.42 -->
 # TALKBRIDGE — THE GRAVEYARD (living; keep in project knowledge)
 ## Approaches PROVEN to fail. Scanned before every change and at every exit condition. Never resurrect.
-**Version: 2.22 | 2026-10-07 | Annotation: E076's corollary superseded by owner ruling (install optional, §7.19) | Maintained in GitHub by the build process (raw.githubusercontent.com/acmeproducts/stuff/main/talkbridge/TALKBRIDGE-GRAVEYARD.md). Updated on every exit-condition burial.**
+**Version: 2.23 | 2026-10-07 | E076 annotation: device proof of what carries into an iPhone Home Screen copy (load-time address only) | Maintained in GitHub by the build process (raw.githubusercontent.com/acmeproducts/stuff/main/talkbridge/TALKBRIDGE-GRAVEYARD.md). Updated on every exit-condition burial.**
 
 
 Each entry: the approach, its failure signature, what replaces it. A change matching a signature is forbidden BEFORE it is attempted — not rediscovered as if new.
@@ -2177,3 +2177,13 @@ thing at the one moment it matters (§7.19 §3): on iPhone, notifications need
 the Home Screen copy, and that copy starts fresh. The P2 install gate, built
 on the corollary, is retired as a gate in 29·post-ship and kept as the
 content of the iPhone sheet.
+
+Addendum · 2026-10-07, device proof (`tb-skeleton/carry.html`, owner's
+iPhone, two runs): a hash present in the address WHEN THE PAGE LOADS reaches
+the Home Screen copy; a hash added afterwards with `replaceState` does not;
+localStorage and the Cache API carry nothing. This is the failure signature
+E076 never wrote down: every buried variant (augment-on-type, jn-in-hash
+rewritten live, the cookie handoff) edited the live address or relied on
+shared storage. A page that loads at an address already carrying the person
+— the link-device form — is a different thing and is now §7.19's iPhone
+install path. E076 stays buried for what it buried.
