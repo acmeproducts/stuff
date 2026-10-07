@@ -1,6 +1,6 @@
 # TalkBridge device log
 
-Both handsets write here. Drained 2026-10-07T13:51:54Z, every 30s. Newest at the bottom.
+Both handsets write here. Drained 2026-10-07T13:52:26Z, every 30s. Newest at the bottom.
 
 ```
 10:05:10.419 [iphone-hbs] rtc_recovery {"step":1,"reason":"video_stalled"}
