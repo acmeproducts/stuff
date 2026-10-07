@@ -42,7 +42,16 @@ def main():
         source_dates=row["componentObservationDates"]
         n=len(dates)
         assert n==len(values)==len(row["timestamps"])
-        assert dates==sorted(set(dates))
+        assert dates==sorted(dates)
+        assert row['timestamps']==sorted(set(row['timestamps']))
+        captures={c.get('captureTimestamp'):c for c in row.get('prospectiveCaptures',[]) if c.get('captureTimestamp') is not None}
+        for stamp,date in zip(row['timestamps'],dates):
+            assert dt.datetime.fromtimestamp(stamp/1000,UTC).date().isoformat()==date
+            midnight=int(dt.datetime.combine(dt.date.fromisoformat(date),dt.time(),UTC).timestamp()*1000)
+            if stamp!=midnight:
+                capture=captures[stamp]
+                assert capture['calculationDate']==date
+                assert int(dt.datetime.fromisoformat(capture['capturedAt'].replace('Z','+00:00')).timestamp()*1000)==stamp
         assert len(ids)==7==len(signals)==len(source_dates)
         assert all(len(signals[sid])==n and len(source_dates[sid])==n for sid in ids)
         assert dates[0]==data["anchorDate"] and math.isclose(values[0],100,abs_tol=1e-12)
@@ -52,12 +61,12 @@ def main():
             assert math.isclose(value,reproduced,rel_tol=0,abs_tol=1e-10), (index_id,i,value,reproduced)
 
         # Every supported horizon is a pure slice over the same date/value map.
-        canonical=dict(zip(dates,values))
+        canonical=dict(zip(row['timestamps'],values))
         horizon_counts={}
         for label in ("1D","5D","MTD","YTD","1YR","3YR","5YR"):
             start=horizon_start(dates[-1],label).isoformat()
-            sliced=[(d,v) for d,v in zip(dates,values) if d>=start]
-            assert all(canonical[d]==v for d,v in sliced)
+            sliced=[(t,v) for d,t,v in zip(dates,row['timestamps'],values) if d>=start]
+            assert all(canonical[t]==v for t,v in sliced)
             horizon_counts[label]=len(sliced)
 
         # Component contribution differences exactly reconcile any tested

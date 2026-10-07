@@ -1,0 +1,60 @@
+name: Market Navigator corpus qualification
+on:
+  push:
+    branches: [main, codex/market-navigator-pov-recovery]
+    paths:
+      - 'market-navigator-corpus*'
+      - 'market-navigator-r7-data-pipeline.py'
+      - 'market-navigator-r7-health.py'
+      - 'market-navigator-source-state.py'
+      - 'market-navigator-build-persistent-compat.py'
+      - 'market-navigator-persistent-index-qa.py'
+      - 'data/market-backend/publication-rules.json'
+      - '.github/workflows/market-evidence-pipeline.yml'
+      - '.github/workflows/market-navigator-corpus-qualification.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  qualify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - uses: actions/checkout@v4
+        with:
+          ref: 0729abc0c8fc2e7bd4ef52c4bfdf98d3d9f4b575
+          path: .market-navigator-corpus-fixture
+          sparse-checkout: |
+            market-evidence
+            data/market-backend
+            market-navigator-r7-data-pipeline.py
+            market-navigator-r7-health.py
+            market-navigator-source-state.py
+            market-navigator-build-persistent-compat.py
+            market-navigator-persistent-index-qa.py
+      - name: Keep the independent corpus fixture; install only the candidate repair tools and policy
+        run: |
+          cp market-navigator-corpus.py market-navigator-r7-data-pipeline.py market-navigator-r7-health.py market-navigator-source-state.py market-navigator-build-persistent-compat.py market-navigator-persistent-index-qa.py .market-navigator-corpus-fixture/
+          cp data/market-backend/publication-rules.json .market-navigator-corpus-fixture/data/market-backend/
+      - name: Reproduce full-corpus failures from pinned source data
+        run: python3 market-navigator-corpus.py --root .market-navigator-corpus-fixture --as-of 2026-10-07T02:20:00Z --output market-navigator-corpus-audit-before.json
+      - name: Validate workflow syntax and publication boundaries
+        run: |
+          python3 -m pip install PyYAML==6.0.2
+          python3 market-navigator-corpus-workflow-check.py
+      - name: Cadence, integrity, transformation, rollback, fallback and historical invariance fault tests
+        env:
+          MN_CORPUS_FIXTURE_ROOT: .market-navigator-corpus-fixture
+        run: python3 market-navigator-corpus-qa.py
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: market-navigator-corpus-qualification
+          path: |
+            market-navigator-corpus-audit-before.json
+            market-navigator-corpus-test-report.json
+          if-no-files-found: error

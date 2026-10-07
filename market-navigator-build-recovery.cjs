@@ -60,6 +60,8 @@ extracted=extracted.replace('model=paint();syncActive();', `model=paint();if(S.i
 extracted=extracted.replace("$('analyzeNowSeries26').onclick=()=>services.onAnalyze(id)", "if(services.canAnalyze)$('analyzeNowSeries26').onclick=()=>services.onAnalyze(id);else $('analyzeNowSeries26').remove();indexRoles()");
 }
 if(final)extracted=require('./market-navigator-recovery-owner-fixes.cjs').moduleFixes(extracted);
+if(final)extracted=require('./market-navigator-recovery-pov-fixes.cjs').moduleFixes(extracted);
+if(final)extracted=require('./market-navigator-recovery-corpus-fixes.cjs').moduleFixes(extracted);
 const moduleCode=`
 /* MNChart: accepted Turn 28 NOW implementation, scoped to one surface. */
 const MNChart=(()=>{
@@ -95,7 +97,7 @@ return Object.freeze({getState,isIdle:()=>!pending,update(patch){if(dead)return;
 }return Object.freeze({mount});})();window.MNChart=MNChart;
 let recoveryNow=null,recoveryAnalyze=null;
 const recoveryTemplate=$('view-now').innerHTML;
-function recoveryServices(onState){return {metadata:{derived:S.derived,def:S.def,health:S.health,catalog:S.catalog,sourceRegistry:S.sourceRegistry},getSeries,window:horizonWindow,available:seriesAvailable,
+function recoveryServices(onState){return {metadata:{derived:S.derived,def:S.def,health:S.health,catalog:S.catalog,sourceRegistry:S.sourceRegistry},getSeries,window:horizonWindow,resolveWindow:typeof recoveryChartWindow26==='function'?recoveryChartWindow26:async(h,k)=>horizonWindow(h,k),available:seriesAvailable,
 onState,canAnalyze:true,onAnalyze:openStandaloneAnalysis26,onInfo:(st,button)=>mnxOpenExplanation(st,button),closeInfo:()=>{mnxCloseExplanation();$('dataModal').classList.add('hidden')},
 onAction:(action,st,canvas)=>{st=mnxShipState(st);if(action==='ai')return startAI(st);if(action==='data')return openData17(st);if(action==='print')return mnxPrintNow(st,canvas);return downloadState(st,'market-navigator-'+st.lineage.toLowerCase()+'-'+st.horizon,action)}}}
 function recoveryEnsureNow(){if(!recoveryNow){recoveryNow=MNChart.mount($('view-now'),{},recoveryServices(x=>{Object.assign(S,x.spec);S.nowChartState=x.state;S.nowPaint25=x.paint}));}return recoveryNow}
@@ -143,7 +145,9 @@ out=out.replace("state:()=>S.analysisChartState?JSON.parse(JSON.stringify(S.anal
 out=out.replace("nowState:()=>S.nowChartState?JSON.parse(JSON.stringify(S.nowChartState)):null,", "nowState:()=>recoveryNow?.getState().state||null,");
 }
 if(final)out=require('./market-navigator-recovery-owner-fixes.cjs').applicationFixes(out,babel);
+if(final)out=require('./market-navigator-recovery-pov-fixes.cjs').applicationFixes(out);
 out=out.replace('boot();',moduleCode+'\n'+lifecycle+'\nboot();');
+if(final)out=require('./market-navigator-recovery-corpus-fixes.cjs').applicationFixes(out);
 new vm.Script(out);
 let html=base.slice(0,offset)+out+base.slice(offset+code.length);
 if(final){

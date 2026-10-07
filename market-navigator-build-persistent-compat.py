@@ -75,6 +75,8 @@ def main():
         "formula":"index(t) = 100 + fixed mean of seven governed component signals",
         "coherence":{"allIndexHorizonsComputable":True,"rule":"Every horizon is a viewport slice over one persistent canonical series; no horizon recalculation or reduced-set renormalization."},
         "componentTransforms":{},"ratioEligibility":{},"indices":{},
+        "captureRule":persistent.get("captureRule"),
+        "uncapturedGaps":{k:[{"from":x["previousCalculationDate"],"to":x["calculationDate"]} for x in v.get("prospectiveCaptures",[]) if x.get("uncapturedGap")] for k,v in persistent["indices"].items()},
     }
     for sid,c in comp.items():
         evidence["componentTransforms"][sid]={
@@ -117,7 +119,8 @@ def main():
                 "baseline":row["values"][start_i],"value":row["values"][end_i],
                 "commonT0":start_date,"commonNow":end_date,
                 "componentsDefined":7,"componentsUsed":7,"componentCoverage":1,
-                "components":components,"omitted":[],"reasons":[],"status":"current",
+                "components":components,"omitted":[],"reasons":["Uncaptured history gap; no synthetic intermediate index observations."] if any(x.get("uncapturedGap") and x["previousCalculationDate"]<end_date and x["calculationDate"]>=requested for x in row.get("prospectiveCaptures",[])) else [],"status":"sparse" if start_date>requested and any(x.get("uncapturedGap") and x["previousCalculationDate"]<requested<x["calculationDate"] for x in row.get("prospectiveCaptures",[])) else "current",
+                "calculationDateRule":"Calculation/capture dates; native component observation dates remain distinct.",
                 "noNewReleaseComponents":[x["id"] for x in components if x["noNewReleaseInHorizon"]],
                 "curve":[{"t":row["timestamps"][i],"v":row["values"][i]} for i in range(start_i,end_i+1)],
             }

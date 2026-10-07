@@ -4,7 +4,7 @@ import csv,datetime as dt,hashlib,json,math,os,statistics,urllib.parse,urllib.re
 from pathlib import Path
 
 CATALOG=Path('data/market-backend/data-catalog.json');ROOT=Path('market-evidence');SERIES=ROOT/'series';REPORTS=ROOT/'reports';MANIFEST=ROOT/'operational-manifest.json'
-VERSION='2.1.0-turn23';UA='MarketNavigatorEvidence/2.1 (+https://github.com/acmeproducts/stuff)';TIMEOUT=30;BOOT=os.environ.get('MARKET_NAVIGATOR_BOOTSTRAP','').lower() in {'1','true','yes'};DAY=86400000
+VERSION='2.2.0-corpus';UA='MarketNavigatorEvidence/2.1 (+https://github.com/acmeproducts/stuff)';TIMEOUT=30;BOOT=os.environ.get('MARKET_NAVIGATOR_BOOTSTRAP','').lower() in {'1','true','yes'};DAY=86400000
 
 def now():return dt.datetime.now(dt.timezone.utc)
 def iso(x=None):return (x or now()).astimezone(dt.timezone.utc).replace(microsecond=0).isoformat().replace('+00:00','Z')
@@ -121,15 +121,31 @@ def chain_for(m):
  return [{'provider':m.get('provider'),'identifier':m.get('provider_identifier')}]
 def main():
  c=read(CATALOG,{});assert c.get('schema')=='market-navigator-data-catalog-v1';H=c.get('canonical_horizons') or ['1D','5D','MTD','YTD','1YR','3YR','5YR'];assert H==['1D','5D','MTD','YTD','1YR','3YR','5YR']
- SERIES.mkdir(parents=True,exist_ok=True);REPORTS.mkdir(parents=True,exist_ok=True);states={};failures=[]
- for m in c.get('series',[]):
-  if not m.get('enabled',True):continue
+ SERIES.mkdir(parents=True,exist_ok=True);REPORTS.mkdir(parents=True,exist_ok=True);states=read(MANIFEST,{}).get('series',{}) if os.environ.get('MARKET_NAVIGATOR_SERIES_IDS') else {};failures=[]
+ selected=set(filter(None,os.environ.get('MARKET_NAVIGATOR_SERIES_IDS','').split(',')))
+ replace_ids=set(filter(None,os.environ.get('MARKET_NAVIGATOR_REPLACE_SERIES_IDS','').split(',')))
+ # Parent series are collected before their deterministic transforms.
+ metas=sorted(c.get('series',[]),key=lambda m:bool(m.get('transform_source_id')))
+ if selected:selected.update(m['transform_source_id'] for m in metas if m['id'] in selected and m.get('transform_source_id'))
+ for m in metas:
+  if not m.get('enabled',True) or selected and m['id'] not in selected and m.get('transform_source_id') not in selected:continue
   sid=m['id'];p=SERIES/f'{sid}.json';old=read(p,{});obs0=old.get('observations') or [];attempt=iso();err=None;http=None;used=None;source_errors=[]
   try:
    raw=None
+   transform_source=None
+   if m.get('transform_source_id'):
+    transform_source=read(SERIES/f"{m['transform_source_id']}.json",{})
+    if not transform_source.get('observations') or transform_source.get('last_error'):raise RuntimeError('Transform source unavailable or collection failed')
+    src=transform_source['observations'];lag=1 if m.get('transform')=='qoq_percent_change' else 4 if m.get('transform')=='yoy_percent_change' else None
+    if lag is None:raise RuntimeError('Unsupported governed transform '+str(m.get('transform')))
+    from importlib.util import spec_from_file_location,module_from_spec
+    spec=spec_from_file_location('mn_transform',Path(__file__).resolve().with_name('market-navigator-corpus.py'));policy=module_from_spec(spec);spec.loader.exec_module(policy)
+    raw=policy.quarterly_transform(src,lag)
+    used={'provider':transform_source['provider'],'identifier':transform_source['providerIdentifier'],'position':0};http=transform_source.get('http')
    for pos,src in enumerate(chain_for(m)):
     try:
-     raw,http=fetch_source(src.get('provider'),src.get('identifier'),BOOT or not obs0);used={**src,'position':pos};break
+     if raw is not None:break
+     raw,http=fetch_source(src.get('provider'),src.get('identifier'),BOOT or not obs0 or sid in replace_ids);used={**src,'position':pos};break
     except Exception as e:source_errors.append(f"{src.get('provider')}: {e}")
    if raw is None:raise RuntimeError('; '.join(source_errors) or 'no provider configured')
    if 'year-over-year percent change' in (m.get('transformation') or '').lower():raw=yoy(raw)
@@ -140,16 +156,20 @@ def main():
    # Never retain observations from a different historical provider lineage when a full bootstrap is available.
    # FRED canonical evidence is additionally one observation per UTC source date; this removes legacy same-day rows
    # (for example the former Yahoo ^TNX values that contaminated canonical DGS10 after migration).
-   if BOOT and obs0 and not same_lineage: obs=canon(raw)
-   else: obs=merge(obs0,raw,used_provider)
+   if obs0 and not same_lineage and not m.get('transform_source_id'):
+    # A fallback never splices a second vendor's history into the primary lineage.
+    raw,http=fetch_source(used_provider,used_identifier,True)
+   if m.get('transform_source_id') or sid in replace_ids or obs0 and not same_lineage:obs=canon(raw)
+   else:obs=merge(obs0,raw,used_provider)
+   if not obs or any(p['t']>now().timestamp()*1000 for p in obs):raise RuntimeError('Empty/future canonical source response')
    if used_provider=='FRED': obs=canon_fred(obs)
-   success=iso()
+   success=transform_source.get('last_successful') if transform_source else iso()
   except Exception as e:
    err=str(e);obs=canon(obs0);success=old.get('last_successful');failures.append(f'{sid}: {e}')
   if obs:
    cutoff=int((now()-dt.timedelta(days=365.25*10.25)).timestamp()*1000);obs=[x for x in obs if x['t']>=cutoff]
   rev=sha(obs);configured=chain_for(m);provider_name=(used or {}).get('provider') or old.get('provider') or m.get('provider');provider_id=(used or {}).get('identifier') or old.get('providerIdentifier') or m.get('provider_identifier')
-  obj={'schema':'market-navigator-evidence-series-v1','pipelineVersion':VERSION,'id':sid,'catalogVersion':c.get('version'),'provider':provider_name,'providerIdentifier':provider_id,'providerChain':configured,'providerFallbackUsed':bool(used and used.get('position',0)>0),'providerErrors':source_errors,'unit':m.get('native_unit'),'cadence':m.get('native_cadence'),'description':m.get('description'),'first':obs[0]['t'] if obs else None,'last':obs[-1]['t'] if obs else None,'count':len(obs),'sourceRevision':rev,'last_attempted':attempt,'last_successful':success,'last_error':err,'http':http,'observations':obs};write(p,obj)
+  obj={'schema':'market-navigator-evidence-series-v1','pipelineVersion':VERSION,'id':sid,'catalogVersion':c.get('version'),'provider':provider_name,'providerIdentifier':provider_id,'providerChain':configured,'providerFallbackUsed':bool(used and used.get('position',0)>0),'providerErrors':source_errors,'unit':m.get('native_unit'),'cadence':m.get('native_cadence'),'description':m.get('description'),'first':obs[0]['t'] if obs else None,'last':obs[-1]['t'] if obs else None,'count':len(obs),'sourceRevision':rev,'last_attempted':attempt,'last_successful':success,'last_error':err,'http':http,'observations':obs};obj.update({'transform':m['transform'],'transformSourceId':m['transform_source_id'],'transformSourceRevision':transform_source['sourceRevision']}) if m.get('transform_source_id') and transform_source and not err else None;write(p,obj)
   supported=set(m.get('supported_horizons') or H);rr={}
   for h in H:
    rr[h]=report(obs,h) if h in supported else {'ready':False,'reason':'unsupported horizon for canonical evidence cadence'}
