@@ -1,17 +1,8 @@
 # TalkBridge device log
 
-Both handsets write here. Drained 2026-10-07T19:44:39Z, every 30s. Newest at the bottom.
+Both handsets write here. Drained 2026-10-07T19:45:11Z, every 30s. Newest at the bottom.
 
 ```
-11:46:35.447 [android-brg] nopw_swept {"fields":946,"changed":0}
-11:46:35.447 [android-brg] joiner_create_control {"shown":true,"dropped":7}
-11:46:40.034 [android-brg] nopw_swept {"fields":946,"changed":926}
-11:46:45.369 [android-brg] nopw_swept {"fields":946,"changed":0}
-11:46:46.498 [android-brg] nopw_swept {"fields":948,"changed":928}
-11:46:48.880 [android-brg] nopw_swept {"fields":948,"changed":0}
-11:46:49.820 [android-brg] pr3_dot {"others":0}
-11:46:55.454 [android-brg] rc_panel_rendered {"live":1,"bin":0,"wired":1}
-11:46:55.455 [android-brg] rc_home_rendered {"cards":0,"wired":0}
 11:46:55.458 [android-brg] joiner_create_control {"shown":true}
 11:47:01.626 [android-brg] nopw_swept {"fields":948,"changed":2}
 11:47:03.546 [android-brg] nopw_swept {"fields":950,"changed":4}
@@ -4002,4 +3993,13 @@ Both handsets write here. Drained 2026-10-07T19:44:39Z, every 30s. Newest at the
 19:44:17.769 [android-tzc] rc_home_rendered {"cards":0,"wired":0,"dropped":2}
 19:44:17.772 [android-tzc] joiner_create_control {"shown":true,"dropped":2}
 19:44:17.800 [android-tzc] t1_coalesced {"fn":"renderPanel","n":3}
-19:44:27.982 [android-tzc] pr3_dot {"others":0}```
+19:44:27.982 [android-tzc] pr3_dot {"others":0}
+19:44:37.760 [android-tzc] rc_panel_rendered {"live":5,"bin":0,"wired":5,"dropped":2}
+19:44:37.761 [android-tzc] rc_home_rendered {"cards":0,"wired":0,"dropped":2}
+19:44:37.763 [android-tzc] joiner_create_control {"shown":true,"dropped":2}
+19:44:37.777 [android-tzc] t1_coalesced {"fn":"renderPanel","n":4}
+19:44:57.757 [android-tzc] rc_panel_rendered {"live":5,"bin":0,"wired":5,"dropped":1}
+19:44:57.757 [android-tzc] rc_home_rendered {"cards":0,"wired":0,"dropped":1}
+19:44:57.759 [android-tzc] joiner_create_control {"shown":true,"dropped":1}
+19:44:57.800 [android-tzc] t1_coalesced {"fn":"renderPanel","n":3}
+19:44:57.974 [android-tzc] pr3_dot {"others":0}```
