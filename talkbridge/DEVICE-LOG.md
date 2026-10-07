@@ -1,18 +1,8 @@
 # TalkBridge device log
 
-Both handsets write here. Drained 2026-10-07T19:42:00Z, every 30s. Newest at the bottom.
+Both handsets write here. Drained 2026-10-07T19:42:32Z, every 30s. Newest at the bottom.
 
 ```
-11:46:15.760 [android-brg] lc_create_capture_wired {}
-11:46:15.810 [android-brg] lc_boot_check {"grant":false,"expires":null,"cleared":false,"canCreate":true}
-11:46:15.812 [android-brg] r8_menu_labels {"applied":3,"of":3}
-11:46:15.813 [android-brg] r8_flag_bands {"dressed":2}
-11:46:15.814 [android-brg] r8_info_card_removed {}
-11:46:15.814 [android-brg] r8_r8a_installed {}
-11:46:15.911 [android-brg] net_armed {}
-11:46:15.912 [android-brg] rm_share_merged_into_general {}
-11:46:15.912 [android-brg] rm_manage_pane_built {}
-11:46:15.913 [android-brg] rm_room_name_field_taken_over {}
 11:46:15.913 [android-brg] rm_header_bg_picker_built {}
 11:46:15.913 [android-brg] r8_r8b_init {}
 11:46:16.212 [android-brg] rib_layout_built {"moved":3,"of":3}
@@ -4002,4 +3992,14 @@ Both handsets write here. Drained 2026-10-07T19:42:00Z, every 30s. Newest at the
 19:41:37.759 [android-tzc] rc_panel_rendered {"live":5,"bin":0,"wired":5,"dropped":2}
 19:41:37.759 [android-tzc] rc_home_rendered {"cards":0,"wired":0,"dropped":2}
 19:41:37.762 [android-tzc] joiner_create_control {"shown":true,"dropped":2}
-19:41:37.793 [android-tzc] t1_coalesced {"fn":"renderPanel","n":3}```
+19:41:37.793 [android-tzc] t1_coalesced {"fn":"renderPanel","n":3}
+19:41:57.763 [android-tzc] rc_panel_rendered {"live":5,"bin":0,"wired":5,"dropped":2}
+19:41:57.765 [android-tzc] rc_home_rendered {"cards":0,"wired":0,"dropped":2}
+19:41:57.768 [android-tzc] joiner_create_control {"shown":true,"dropped":2}
+19:41:57.781 [android-tzc] t1_coalesced {"fn":"renderPanel","n":4}
+19:41:57.970 [android-tzc] pr3_dot {"others":0}
+19:42:17.763 [android-tzc] rc_panel_rendered {"live":5,"bin":0,"wired":5,"dropped":1}
+19:42:17.763 [android-tzc] rc_home_rendered {"cards":0,"wired":0,"dropped":1}
+19:42:17.765 [android-tzc] joiner_create_control {"shown":true,"dropped":1}
+19:42:17.789 [android-tzc] t1_coalesced {"fn":"renderPanel","n":3}
+19:42:27.993 [android-tzc] pr3_dot {"others":0}```
