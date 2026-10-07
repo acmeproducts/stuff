@@ -1,17 +1,8 @@
 # TalkBridge device log
 
-Both handsets write here. Drained 2026-10-07T19:42:32Z, every 30s. Newest at the bottom.
+Both handsets write here. Drained 2026-10-07T19:43:04Z, every 30s. Newest at the bottom.
 
 ```
-11:46:15.913 [android-brg] rm_header_bg_picker_built {}
-11:46:15.913 [android-brg] r8_r8b_init {}
-11:46:16.212 [android-brg] rib_layout_built {"moved":3,"of":3}
-11:46:17.312 [android-brg] r8_menu_labels {"applied":3,"of":3}
-11:46:17.465 [android-brg] ft_ready {}
-11:46:17.818 [android-brg] joiner_panel_opened {"rooms":1}
-11:46:19.487 [android-brg] gen_bump {"n":2,"r":"room_enter"}
-11:46:19.489 [android-brg] seq_seeded {"was":0,"now":21,"from":73}
-11:46:19.501 [android-brg] md1_rendered {"id":"2y82ad"}
 11:46:19.580 [android-brg] room_enter {"id":"muagu1cy0vnxep","role":"creator"}
 11:46:19.580 [android-brg] joiner_entered {"room":"0vnxep","myLang":"en","theirLang":"th","role":"creator"}
 11:46:19.729 [android-brg] relay_open {"room":"muagu1cy0vnxep"}
@@ -4002,4 +3993,13 @@ Both handsets write here. Drained 2026-10-07T19:42:32Z, every 30s. Newest at the
 19:42:17.763 [android-tzc] rc_home_rendered {"cards":0,"wired":0,"dropped":1}
 19:42:17.765 [android-tzc] joiner_create_control {"shown":true,"dropped":1}
 19:42:17.789 [android-tzc] t1_coalesced {"fn":"renderPanel","n":3}
-19:42:27.993 [android-tzc] pr3_dot {"others":0}```
+19:42:27.993 [android-tzc] pr3_dot {"others":0}
+19:42:37.776 [android-tzc] rc_panel_rendered {"live":5,"bin":0,"wired":5,"dropped":2}
+19:42:37.777 [android-tzc] rc_home_rendered {"cards":0,"wired":0,"dropped":2}
+19:42:37.779 [android-tzc] joiner_create_control {"shown":true,"dropped":2}
+19:42:37.790 [android-tzc] t1_coalesced {"fn":"renderPanel","n":4}
+19:42:57.771 [android-tzc] rc_panel_rendered {"live":5,"bin":0,"wired":5,"dropped":1}
+19:42:57.771 [android-tzc] rc_home_rendered {"cards":0,"wired":0,"dropped":1}
+19:42:57.774 [android-tzc] joiner_create_control {"shown":true,"dropped":1}
+19:42:57.790 [android-tzc] t1_coalesced {"fn":"renderPanel","n":4}
+19:42:57.973 [android-tzc] pr3_dot {"others":0}```
