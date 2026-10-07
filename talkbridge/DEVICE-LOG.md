@@ -1,18 +1,8 @@
 # TalkBridge device log
 
-Both handsets write here. Drained 2026-10-07T19:43:35Z, every 30s. Newest at the bottom.
+Both handsets write here. Drained 2026-10-07T19:44:07Z, every 30s. Newest at the bottom.
 
 ```
-11:46:23.332 [android-brg] gen_bump {"n":3,"r":"call_start"}
-11:46:24.168 [android-brg] dg_stopped {}
-11:46:24.182 [android-brg] r8_call_timer {"caller":true}
-11:46:24.182 [android-brg] call_start {"kind":"video"}
-11:46:24.184 [android-brg] n10_caller_screen {"kind":"video","micOn":true}
-11:46:24.331 [android-brg] dg_open {"lang":"en-US","multi":false,"gen":3}
-11:46:24.358 [android-brg] dg_worklet_active {}
-11:46:25.524 [android-brg] n10_caller_cancelled {}
-11:46:25.525 [android-brg] dg_stopped {}
-11:46:25.530 [android-brg] call_end {}
 11:46:25.530 [android-brg] gen_bump {"n":4,"r":"call_end"}
 11:46:25.561 [android-brg] dg_stale_close_ignored {"code":1005}
 11:46:32.174 [android-brg] nopw_swept {"fields":946,"changed":926}
@@ -4002,4 +3992,14 @@ Both handsets write here. Drained 2026-10-07T19:43:35Z, every 30s. Newest at the
 19:43:17.772 [android-tzc] joiner_create_control {"shown":true,"dropped":1}
 19:43:17.779 [android-tzc] t1_coalesced {"fn":"renderPanel","n":3}
 19:43:17.802 [android-tzc] t1_coalesced {"fn":"renderPanel","n":1}
-19:43:27.984 [android-tzc] pr3_dot {"others":0}```
+19:43:27.984 [android-tzc] pr3_dot {"others":0}
+19:43:37.771 [android-tzc] rc_panel_rendered {"live":5,"bin":0,"wired":5,"dropped":2}
+19:43:37.772 [android-tzc] rc_home_rendered {"cards":0,"wired":0,"dropped":2}
+19:43:37.775 [android-tzc] joiner_create_control {"shown":true,"dropped":2}
+19:43:37.803 [android-tzc] t1_coalesced {"fn":"renderPanel","n":3}
+19:43:57.772 [android-tzc] rc_panel_rendered {"live":5,"bin":0,"wired":5,"dropped":2}
+19:43:57.773 [android-tzc] rc_home_rendered {"cards":0,"wired":0,"dropped":2}
+19:43:57.776 [android-tzc] joiner_create_control {"shown":true,"dropped":2}
+19:43:57.779 [android-tzc] t1_coalesced {"fn":"renderPanel","n":3}
+19:43:57.801 [android-tzc] t1_coalesced {"fn":"renderPanel","n":1}
+19:43:57.974 [android-tzc] pr3_dot {"others":0}```
