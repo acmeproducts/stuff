@@ -363,10 +363,11 @@ T('M3g.2 the map names the chains this release added, innermost first', () => {
   const last = (k) => (m[k] || []).slice(-1)[0];
   if (!process.env.TB_SKIP_M1) assert(last('relaySend') === 'K4-rename-lww.js' && (m.relaySend || []).includes('C1-signal-queue.js'), 'relaySend chain: ' + JSON.stringify(m.relaySend));
   else assert(!m.relaySend && !m.handleRelay && !m.relayConnect, 'flattened build still shows relay-path chains: ' + JSON.stringify([m.relaySend, m.handleRelay, m.relayConnect]));
-  assert(last('log') === 'T2-log-hygiene.js' && (m.log || []).includes('K2-pb-merge.js'), 'log chain: ' + JSON.stringify(m.log));
+  if (process.env.TB_FLAT_SWEEP) assert(!m.log && !m.uid && !m.pbWriteBack && !m.onRoomNameSignal && Object.keys(m).filter((k) => k !== 'CALL.start').length === 0, 'flattened build still shows chains: ' + JSON.stringify(Object.keys(m)));
+  else assert(last('log') === 'T2-log-hygiene.js' && (m.log || []).includes('K2-pb-merge.js'), 'log chain: ' + JSON.stringify(m.log));
   if (process.env.TB_FLAT_RENDER) assert(!m.renderTranscript && !m.renderPanel && !m.renderHome && !m.appendMsgDom && !m.msgHtml, 'flattened build still shows render chains: ' + JSON.stringify([m.renderPanel, m.renderHome, m.appendMsgDom]));
   else assert(last('renderTranscript') === 'T1-render-coalesce.js' && last('renderPanel') === 'T1-render-coalesce.js', 'render chain: ' + JSON.stringify(m.renderPanel));
-  assert(last('uid') === 'K1-device-ids.js' && last('pbWriteBack') === 'K2-pb-merge.js' && last('onRoomNameSignal') === 'K4-rename-lww.js', 'K chains missing');
+  if (!process.env.TB_FLAT_SWEEP) assert(last('uid') === 'K1-device-ids.js' && last('pbWriteBack') === 'K2-pb-merge.js' && last('onRoomNameSignal') === 'K4-rename-lww.js', 'K chains missing');
   assert((process.env.TB_SKIP_M1 || (m.handleRelay || []).length >= 4) && (process.env.TB_FLAT_CALL ? !(m['CALL.runRecovery'] || []).length : (m['CALL.runRecovery'] || []).includes('C3-joiner-restart.js')), 'deep chains missing');
 });
 T('M3g.3 every symbol in the map resolves to a live top-level function — locals sharing a name are not counted', () => {

@@ -616,9 +616,7 @@ var HEARTBEAT_MS=30000;
 function $(id){return document.getElementById(id)}
 function esc(s){var d=document.createElement('div');d.textContent=s==null?'':String(s);return d.innerHTML}
 function norm(s){return(s||'').replace(/\s+/g,' ').trim()}
-function uid(){return Date.now().toString(36)+Math.random().toString(36).slice(2,8)}
 var debugLog=[];
-function log(ev,d,lvl){debugLog.push({ts:new Date().toISOString(),ev:ev,d:d||{},lvl:lvl||'info'});if(debugLog.length>400)debugLog.shift()}
 function toast(m,dur){var e=$('toast');e.textContent=m;e.classList.add('show');clearTimeout(toast._t);toast._t=setTimeout(function(){e.classList.remove('show')},dur||2600)}
 function lsGet(k,f){try{var r=localStorage.getItem(k);return r==null?f:JSON.parse(r)}catch(_){return f}}
 var _storageWarnedThisSession=false;
@@ -667,13 +665,11 @@ var S={
   searchMode:false
 };
 function saveUser(){lsSet('tba_user',S.user)}
-function saveRooms(){lsSet('tba_rooms',S.rooms)}
 function roomById(id){return S.rooms.find(function(r){return r.id===id})}
 function activeRoom(){return roomById(S.roomId)}
 var transcript=[]; // active room messages (in-memory mirror)
 function trKey(id){return 'tba_tr_'+id}
 function saveTr(){if(S.roomId)lsSet(trKey(S.roomId),transcript)}
-function loadTr(id){return lsGet(trKey(id),[])}
 
 /* ════════════ LANGUAGE DETECT + TRANSLATE (quarried: pre-base) ════════════ */
 function detectLang(text){
@@ -684,37 +680,6 @@ function detectLang(text){
 }
 var trCache=new Map(),TR_CACHE_MAX=200;
 function cleanTr(t){return norm(String(t||'').replace(/<\/?[a-zA-Z][^>]*>/g,''))}
-function translateWithRetry(text,from,to,retries){
-  if(!text||!from||!to||from===to)return Promise.resolve({text:text,ok:true});
-  var k=from+'|'+to+'|'+text;
-  if(trCache.has(k)){var v=trCache.get(k);trCache.delete(k);trCache.set(k,v);return Promise.resolve({text:v,ok:true})}
-  var attempt=function(n){
-    return fetch('https://api.mymemory.translated.net/get?q='+encodeURIComponent(text)+'&langpair='+from+'|'+to)
-      .then(function(r){return r.json()})
-      .then(function(d){
-        if(d&&d.responseStatus===200&&d.responseData){
-          var t=d.responseData.translatedText;
-          if(t&&t.indexOf('MYMEMORY')<0){
-            t=cleanTr(t);
-            if(trCache.size>=TR_CACHE_MAX){var first=trCache.keys().next().value;trCache.delete(first)}
-            trCache.set(k,t);return{text:t,ok:true};
-          }
-        }
-        throw new Error('bad response');
-      })
-      .catch(function(e){
-        if(n>0){log('trans_retry',{left:n},'warn');return new Promise(function(res){setTimeout(res,300+((retries-n)*250))}).then(function(){return attempt(n-1)})}
-        log('trans_fail',{from:from,to:to,e:String(e)},'error');
-        return{text:text,ok:false};
-      });
-  };
-  return attempt(retries||0);
-}
-function speakText(text,lang){
-  text=norm(text);if(!text||!window.speechSynthesis)return;
-  window.speechSynthesis.cancel();
-  var u=new SpeechSynthesisUtterance(text);u.lang=gL(lang).tts;window.speechSynthesis.speak(u);
-}
 
 /* ════════════ INVITE ENC/DEC (quarried: pre-base) ════════════ */
 function encInv(p){try{return btoa(unescape(encodeURIComponent(JSON.stringify(p)))).replace(/\+/g,'-').replace(/\//g,'_').replace(/=+$/,'')}catch(_){return''}}
@@ -753,37 +718,7 @@ function renderAppearanceValues(){
   $('s4b-hdr-color').value=themeVal(r,'hdrColor','#5A5552');
   $('s4b-hdr-size').value=String(themeVal(r,'hdrSize',11));
 }
-function applyBubbleTheme(){
-  var s=$('bubble-theme-tag');if(!s){s=document.createElement('style');s.id='bubble-theme-tag';document.head.appendChild(s)}
-  var r=activeRoom();if(!r){s.textContent='';return}
-  var preset=themeVal(r,'preset','medium');
-  var meBg=themeVal(r,'meBg',themePaletteColor(preset,'pacific-blue'));
-  var pnBg=themeVal(r,'pnBg',themePaletteColor(preset,'almond-cream'));
-  var meFont=themeVal(r,'meFont','')||(hexLum(meBg)>0.45?'#1A1714':'#ffffff');
-  var pnFont=themeVal(r,'pnFont','')||(hexLum(pnBg)>0.45?'#1A1714':'#ffffff');
-  var meSize=themeVal(r,'meSize',15),pnSize=themeVal(r,'pnSize',15);
-  var meWidth=themeVal(r,'meWidth',75),pnWidth=themeVal(r,'pnWidth',75);
-  var hdrColor=themeVal(r,'hdrColor','#5A5552'),hdrSize=themeVal(r,'hdrSize',11);
-  s.textContent=
-    '.tr-body{grid-template-columns:'+meWidth+'fr 1px '+pnWidth+'fr}'
-    +'.tr-col[data-side="left"]{background:'+meBg+'}'
-    +'.tr-col[data-side="left"] .tr-text{color:'+meFont+';font-size:'+meSize+'px}'
-    +'.tr-col[data-side="left"] .tr-tts{color:'+meFont+';font-size:'+meSize+'px}'
-    +'.tr-col[data-side="right"]{background:'+pnBg+'}'
-    +'.tr-col[data-side="right"] .tr-text{color:'+pnFont+';font-size:'+pnSize+'px}'
-    +'.tr-col[data-side="right"] .tr-tts{color:'+pnFont+';font-size:'+pnSize+'px}'
-    +'.tr-head{font-size:'+hdrSize+'px}'
-    +'.tr-head .tr-who{color:'+hdrColor+'}'
-    +'.tr-head .tr-who.mine{color:'+hdrColor+'}'
-    +'.tr-head .tr-time{color:'+hdrColor+';font-size:'+Math.max(8,hdrSize-1)+'px}';
-}
 function setTheme(patch){var r=activeRoom();if(!r)return;r.theme=r.theme||{};for(var k in patch)r.theme[k]=patch[k];saveRooms();applyBubbleTheme()}
-function linkDeviceUrl(room){
-  var k=(localStorage.getItem('tb_dg_key')||'').trim();
-  var tid=(localStorage.getItem('tb_cf_tid')||'').trim();
-  var tok=(localStorage.getItem('tb_cf_tok')||'').trim();
-  return location.href.split('?')[0].split('#')[0]+'#j='+encInv({r:room.id,ld:1,role:room.role,ml:room.myLang,tl:room.theirLang,myn:room.myName||S.user.name||'',pn:room.partnerName||'',t:room.title||'',th:room.theme||null,k:k,tid:tid,tok:tok});
-}
 function toggleDrawerQr(boxId,kind){
   var box=$(boxId);if(!box)return;
   var other=$(boxId==='dq-share'?'dq-link':'dq-share');
@@ -937,10 +872,6 @@ var QR=(function(){
 
 /* ════════════ RELAY TRANSPORT (quarried protocol: pre-base) ════════════ */
 var _relayWs=null,hbTimer=null,wsReconnectTimer=null,seq=0,_relayReconnecting=false,_remoteMicOn=false;
-function renderPartnerState(){
-  if(!CALL.active||CALL.connBad)return; // idle/connBad states are owned by the durTimer tick and mount/hangup paths
-  var el=$('rz-timer');if(el&&_remoteMicOn)el.textContent='Speaking…';
-}
 function relayDisconnect(){stopHB();clearTimeout(wsReconnectTimer);wsReconnectTimer=null;if(_relayWs){var w=_relayWs;_relayWs=null;try{w.close()}catch(_){}}_relayReconnecting=false;_remoteMicOn=false;renderPartnerState()}
 function startHB(){stopHB();hbTimer=setInterval(function(){relaySend({type:'ping',transient:true})},HEARTBEAT_MS)}
 function stopHB(){if(hbTimer){clearInterval(hbTimer);hbTimer=null}}
@@ -950,9 +881,6 @@ function resendUndelivered(){
     if(e.who==='me'&&e.kind==='chat'&&e.receipt==='sent'){relaySend(chatPayload(e));n++}
   });
   if(n)log('chat_resend',{n:n});
-}
-function chatPayload(e){
-  return{type:'chat-msg',chatId:e.id,srcText:e.sourceText,tgtText:e.translatedText,srcLang:e.srcLang,tgtLang:e.tgtLang,senderName:e.senderName,origin:e.origin||'typed',attachment:e.attachment||null,ts:e.ts};
 }
 function setPresence(on){
   S.partnerOnline=on;
@@ -999,29 +927,6 @@ function mergeHistorySyncChunk(d,room){
   if(S.roomId===room.id)renderTranscript();
   log('history_sync_merged',{n:d.chunk.length,done:!!d.done},'ok');
 }
-function handleChatMsg(d,room){
-  if(!d)return;
-  if(d.chatId){
-    if(_chatReceived.has(d.chatId)||transcript.some(function(x){return x.id===d.chatId})){relaySend({type:'chat-ack',chatId:d.chatId,transient:true});return}
-    _chatReceived.add(d.chatId);
-    relaySend({type:'chat-ack',chatId:d.chatId,transient:true});
-  }
-  if(d.senderName&&d.senderName!==room.partnerName){room.partnerName=d.senderName;saveRooms();renderRoomHead();renderPanel()}
-  var entry={
-    id:d.chatId||('ci-'+uid()),kind:'chat',who:'partner',
-    sourceText:norm(d.srcText||''),translatedText:norm(d.tgtText||d.srcText||''),
-    srcLang:d.srcLang||room.theirLang,tgtLang:d.tgtLang||room.myLang,
-    ts:d.ts||Date.now(),senderName:d.senderName||room.partnerName||'Partner',
-    origin:d.origin||'typed',attachment:d.attachment||null
-  };
-  transcript.push(entry);saveTr();
-  room.lastAt=Date.now();saveRooms();
-  appendMsgDom(entry);
-  if(document.hidden){room.unread=(room.unread||0)+1;saveRooms();renderPanel();if(!room.muted)osNotify((entry.senderName||'New message'),entry.translatedText||entry.sourceText||'',room.id)}
-  else sendReadReceipts();
-  if(room.autoRead&&entry.translatedText)speakText(entry.translatedText,entry.tgtLang);
-  log('chat_rx',{t:(d.srcText||'').slice(0,40)},'ok');
-}
 function sendReadReceipts(){
   if(S.view!=='room'||document.hidden)return;
   var ids=transcript.filter(function(e){return e.who==='partner'&&e.kind==='chat'&&!e.readSent}).map(function(e){e.readSent=true;return e.id});
@@ -1040,34 +945,6 @@ async function sendChat(attachment,originOverride){
   if(!text&&!attachment)return;
   ta.value='';ta.style.height='';$('btn-send').disabled=true;
   return sendChatText(text,attachment,originOverride);
-}
-async function sendChatText(text,attachment,originOverride){
-  var room=activeRoom();if(!room)return;
-  var src=room.myLang,tgt=room.theirLang,srcText=text,failed=false;
-  if(text){
-    var detected=detectLang(text);
-    if(detected&&detected!==src){
-      var normed=await translateWithRetry(text,detected,src,2);
-      if(normed.ok&&norm(normed.text).toLowerCase()!==norm(text).toLowerCase())srcText=norm(normed.text);
-      else src=detected;
-    }
-    var tgtText=srcText;
-    if(src!==tgt){
-      var tr=await translateWithRetry(srcText,src,tgt,1);
-      if(tr.ok)tgtText=norm(tr.text);else failed=true;
-    }
-  }else{var tgtText=''}
-  var entry={
-    id:'cm-'+uid(),kind:'chat',who:'me',
-    sourceText:srcText,translatedText:tgtText,srcLang:src,tgtLang:tgt,
-    ts:Date.now(),senderName:room.myName||S.user.name,origin:originOverride||'typed',
-    receipt:'sent',translationFailed:failed,attachment:attachment||null
-  };
-  transcript.push(entry);saveTr();
-  room.lastAt=Date.now();saveRooms();renderPanel();
-  appendMsgDom(entry);
-  if(relaySend(chatPayload(entry)))log('chat_sent',{t:srcText.slice(0,40)},'ok');
-  else log('chat_queued',{t:srcText.slice(0,40)},'warn');
 }
 
 /* ════════════ PHRASEBOOK DATA + SYNC (quarried: pre-base PB_SYNC, pair-canonical) ════════════ */
@@ -1146,42 +1023,6 @@ function pbPull(){
   });
 }
 var _pbRetryArmed=false;
-function pbWriteBack(){
-  var pk=PB.pk;if(!pk)return Promise.resolve({status:'no-pair'});
-  if(!PB.isDirty()){return Promise.resolve({status:'skipped'})}
-  var pat=(localStorage.getItem('tb_gh_pat')||'').trim();
-  if(!pat)return Promise.resolve({status:'no-pat'});
-  var dirp=pk.split('-'),src=dirp[0],tgt=dirp[1];
-  // VERSION-MANAGEMENT RULING (2026-07-30): bridge never invents a new, higher version number.
-  // It overwrites whichever version it already has loaded (PB.version), or creates 1000 if this
-  // pair has never had a file. A new version only ever comes from a separate, external release process.
-  var ver=PB.version||1000;
-  var v=String(ver);while(v.length<4)v='0'+v;
-  var fname='phrasebook-'+src+'-'+tgt+'-'+v+'.json';
-  var getUrl='https://api.github.com/repos/'+PB_REPO.owner+'/'+PB_REPO.name+'/contents/'+PB_REPO.dir+'/'+fname+'?ref=main';
-  return fetch(getUrl,{headers:ghHeaders()}).then(function(r){
-    if(r.status===404)return null; // first-ever save for this pair — no existing file/sha yet
-    if(!r.ok)throw new Error('get '+r.status);
-    return r.json();
-  }).then(function(existing){
-    var envelope={type:'phrasebook',pair:pk,version:ver,updatedAt:new Date().toISOString(),updatedBy:S.user.name||'me',cards:PB.cards};
-    var content=btoa(unescape(encodeURIComponent(JSON.stringify(envelope,null,2))));
-    var putUrl='https://api.github.com/repos/'+PB_REPO.owner+'/'+PB_REPO.name+'/contents/'+PB_REPO.dir+'/'+fname;
-    var body={message:'PB update '+pk+' v'+ver,content:content,branch:'main'};
-    if(existing&&existing.sha)body.sha=existing.sha;
-    return fetch(putUrl,{method:'PUT',headers:Object.assign({'Content-Type':'application/json'},ghHeaders()),body:JSON.stringify(body)}).then(function(r2){
-      if(!r2.ok)throw new Error('put '+r2.status);return r2.json();
-    });
-  }).then(function(){
-    PB.version=ver;PB.meta={bumpedAt:new Date().toISOString(),updatedBy:S.user.name||'me'};PB.save();PB.clearDirty();pbSyncDot('idle');PB.lastPull={status:'ok',file:fname,n:PB.cards.length,at:Date.now()};renderPbStatus();
-    log('pb_writeback',{pair:pk,version:ver},'ok');
-    return{status:'ok',version:ver};
-  }).catch(function(e){
-    log('pb_writeback_err',{e:String(e)},'warn');pbSyncDot('error');
-    if(!_pbRetryArmed){_pbRetryArmed=true;window.addEventListener('online',function _r(){window.removeEventListener('online',_r);_pbRetryArmed=false;if(PB.isDirty())pbWriteBack()})}
-    return{status:'pending'};
-  });
-}
 function pbSyncDot(state){var d=$('pb-sync-dot');if(d){d.className='sync-dot '+state}}
 function pbAddCard(o){
   var srcT=norm(o.source||''),tgtT=norm(o.target||'');
@@ -1206,10 +1047,6 @@ function fmtAgo(ts){
 function roomTitle(r){return r.title||r.partnerName||'?'}
 
 /* ════════════ ROUTER ════════════ */
-function showScreen(v){
-  S.view=v;
-  ['s0','s1','room','s10'].forEach(function(k){$('scr-'+k).classList.toggle('active',k===v)});
-}
 function openPanel(){
   if(S.roomLocked)return;
   S.panelOpen=true;renderPanel();
@@ -1251,50 +1088,6 @@ function attHtml(e){
   var a=e.attachment,isImg=/^image\//.test(a.type||'');
   if(isImg)return'<img class="att-img" src="'+a.dataUrl+'" data-att="'+esc(e.id)+'">';
   return'<span class="att-chip" data-att="'+esc(e.id)+'">📎 '+esc(a.name||'file')+'</span>';
-}
-function wireMsg(node,e){
-  if(e.kind==='sys')return;
-  var meta=node.querySelector('.meta');
-  if(meta){
-    meta.addEventListener('click',function(ev){
-      if(ev.target.closest('[data-hact]')||ev.target.closest('[data-receipt]'))return;
-      var was=node.classList.contains('active');
-      document.querySelectorAll('.msg.active').forEach(function(m){m.classList.remove('active')});
-      if(!was)node.classList.add('active');
-    });
-    var hs=meta.querySelector('[data-hact=save]');
-    if(hs)hs.addEventListener('click',function(ev){ev.stopPropagation();pbAddCard({source:e.who==='me'?e.sourceText:e.translatedText,target:e.who==='me'?e.translatedText:e.sourceText,sourceLang:e.who==='me'?e.srcLang:e.tgtLang,targetLang:e.who==='me'?e.tgtLang:e.srcLang})});
-    var hc=meta.querySelector('[data-hact=clar]');
-    if(hc)hc.addEventListener('click',function(ev){ev.stopPropagation();openClarify(e)});
-    var hd=meta.querySelector('[data-hact=del]');
-    if(hd)hd.addEventListener('click',function(ev){
-      ev.stopPropagation();
-      if(!confirm('Delete this message?'))return;
-      transcript=transcript.filter(function(x2){return x2.id!==e.id});saveTr();renderTranscript();
-    });
-  }
-  node.querySelectorAll('.col').forEach(function(col){
-    var txt=col.dataset.side==='left'?(e.who==='me'?e.sourceText:e.translatedText):(e.who==='me'?e.translatedText:e.sourceText);
-    col.addEventListener('click',function(ev){
-      if(ev.target.closest('[data-att]'))return;
-      if(ev.target.closest('[data-ctts]')){ev.stopPropagation();speakText(txt,col.dataset.lang);return}
-      useInCompose(txt,null);
-    });
-    longPress(col,function(x,y){openCtxMenu(e,x,y)});
-  });
-  var att=node.querySelector('[data-att]');
-  if(att)att.addEventListener('click',function(ev){ev.stopPropagation();openAttViewer(e)});
-  var rc=node.querySelector('[data-receipt]');
-  if(rc)rc.addEventListener('click',function(ev){
-    ev.stopPropagation();
-    var pop=$('status-pop');
-    var label=e.receipt==='read'?'Read':e.receipt==='delivered'?'Delivered':'Sent';
-    var ts2=e.receipt==='read'?(e.readAt||e.ts):e.receipt==='delivered'?(e.deliveredAt||e.ts):e.ts;
-    pop.textContent=label+' · '+fmtDate(ts2)+' '+fmtTime(ts2);
-    var r2=rc.getBoundingClientRect(),ar=$('app').getBoundingClientRect();
-    pop.style.left=Math.max(8,r2.left-ar.left-30)+'px';pop.style.top=(r2.top-ar.top-30)+'px';pop.style.display='block';
-    clearTimeout(wireMsg._pt);wireMsg._pt=setTimeout(function(){pop.style.display='none'},1500);
-  });
 }
 function updateReceiptDom(e){
   var node=document.querySelector('.msg[data-id="'+e.id+'"] [data-receipt]');
@@ -1662,53 +1455,7 @@ function renderPbChips(candidateCards){
     return'<button class="pb-chip'+(active?' active':'')+'" data-cat="'+esc(cat)+'">'+esc(cat)+' <span class="chip-n">'+counts[cat]+'</span></button>';
   }).join('');
 }
-function renderPbList(){
-  var host=$('pb-ov-cards');if(!host)return;
-  var q=norm($('pb-search').value||'');
-  var ts=function(x){var n=+x||(x?+new Date(x):0);return isNaN(n)?0:n};
-  var live=PB.live().slice().sort(function(a,b){
-    var ea=pbCardEmpty(a)?1:0,eb=pbCardEmpty(b)?1:0;
-    if(ea!==eb)return eb-ea; // blank/new cards pinned to the top (S8)
-    return ts(b.createdAt)-ts(a.createdAt);
-  });
-  var cnt=$('pb-count');
-  var html='';
-  if(!live.length&&!PB.trash().length){
-    if(cnt)cnt.textContent='';
-    $('pb-cat-chips').innerHTML='';
-    html='<div style="padding:32px 16px;text-align:center;color:#9a9592;font-size:14px;line-height:1.6;">No phrasebook loaded.</div>';
-  }else if(q){ // search mode: two-side rows (pre-base overlay search)
-    var matched=searchFilter(live,q);
-    var qLow=q.toLowerCase();
-    matched.sort(function(a,b){return pbScore(b,qLow)-pbScore(a,qLow)});
-    renderPbChips(matched); // live per-category match counts while typing
-    var res=pbFilterByActiveCats(matched);
-    var withinCatTotal=res.length;
-    var capped=(S_pbActiveCats.length===1&&res.length>5);
-    if(capped)res=res.slice(0,5);
-    if(cnt)cnt.textContent=capped?(res.length+' of '+withinCatTotal+' phrases'):(res.length+' of '+live.length+' phrases');
-    html=res.length?res.map(pbSearchRowHtml).join(''):'<div style="padding:24px;text-align:center;color:#9a9592;">No phrases found.</div>';
-  }else{ // no search: full cards, chips show total counts (never a "match" count before typing)
-    renderPbChips(live);
-    var filtered=pbFilterByActiveCats(live);
-    if(cnt)cnt.textContent=filtered.length+' phrases';
-    html=filtered.map(pbBubbleHtml).join('');
-  }
-  host.innerHTML=html;
-  $('pb-trash-host').innerHTML=pbTrashSectionHtml(PB.trash());
-}
 function pbCardById(id){return PB.byId(id)}
-function pbRerenderCard(id){
-  var c=pbCardById(id);var el=document.getElementById('pbb-'+id);
-  if(!c||!el)return;
-  var w2=document.createElement('div');w2.innerHTML=pbBubbleHtml(c);
-  el.replaceWith(w2.firstChild);
-  var r=window._pbRefocus;
-  if(r&&r.id===id&&Date.now()-r.at<5000){ // Enter commits keep the keyboard put (S8)
-    var f=document.querySelector('[data-pbedit="'+r.field+'"][data-cid="'+id+'"]');
-    if(f){f.focus();try{var rg=document.createRange();rg.selectNodeContents(f);rg.collapse(false);var sl=window.getSelection();sl.removeAllRanges();sl.addRange(rg)}catch(_){}}
-  }
-}
 function pbLogChain(c,text){
   c.clarifyChain=c.clarifyChain||[];
   c.clarifyChain.push({text:text,author:S.user.name||'me',timestamp:Date.now()});
@@ -1723,31 +1470,6 @@ function pbRunBT(c){
     PB.save();pbRerenderCard(id);
   });
 }
-function pbCommitEdit(id,field,value){
-  var c=pbCardById(id);if(!c)return;
-  var v=norm(value);
-  var changed=(v!==norm(c[field]||''));
-  c[field]=v;
-  if(field==='source'){
-    if(changed){
-      var bt=c.backtranslate=c.backtranslate||{};
-      if(bt.verdict){bt.verdict='';pbLogChain(c,'Verdict reset to pending (source changed)')} // G8: conditional reset only
-      c.tags=(c.tags||[]).filter(function(t){return t!=='✓Verified'});
-      pbTouch(c);
-    }
-    if(!v){pbRerenderCard(id);return}
-    // owner ruling: Enter in source, changed or not, re-translates target and re-runs BT
-    translateWithRetry(v,c.sourceLang,c.targetLang,1).then(function(r){
-      if(r.ok&&norm(r.text)!==norm(c.target||'')){c.target=norm(r.text);pbTouch(c)}
-      return pbRunBT(c);
-    });
-    pbRerenderCard(id);
-    return;
-  }
-  // target edited by hand: keep it, re-run BT
-  if(changed){pbTouch(c);if(v)pbRunBT(c)}
-  pbRerenderCard(id);
-}
 function pbSetVerdict(id,v){
   var c=pbCardById(id);if(!c)return;
   c.backtranslate=c.backtranslate||{};
@@ -1756,20 +1478,6 @@ function pbSetVerdict(id,v){
   if(v==='good'){if(c.tags.indexOf('✓Verified')<0)c.tags.push('✓Verified');pbLogChain(c,'Verdict: Sounds Good')}
   else{c.tags=c.tags.filter(function(t){return t!=='✓Verified'});pbLogChain(c,'Verdict: Flagged')}
   pbTouch(c);pbRerenderCard(id);
-}
-function pbAddTagTo(id,raw){
-  var c=pbCardById(id);if(!c)return;
-  var t=(raw||'').toLowerCase().trim().replace(/\s+/g,'-').replace(/[^a-z0-9\-]/g,'').slice(0,24);
-  if(!t)return;
-  c.tags=c.tags||[];
-  if(c.tags.indexOf(t)>=0)return;
-  c.tags.push(t);
-  pbLogChain(c,'Tag added: #'+t);
-  pbTouch(c);
-  _pbCS(id).tagsOpen=true;
-  pbRerenderCard(id);
-  var inp=document.querySelector('[data-taginp][data-cid="'+id+'"]');
-  if(inp)inp.focus(); // G9: handler ends with focus
 }
 function pbRemoveTagFrom(id,t){
   var c=pbCardById(id);if(!c)return;
@@ -2102,7 +1810,6 @@ function wire(){
   $('ring-dec').addEventListener('click',function(){CALL.decline()});
   /* popstate: intentionally NOT wired to any call behavior — V2 dropped. */
 }
-function closeDrawer(){commitRoomName();$('drawer-s4b').classList.remove('open');document.querySelectorAll('.info-pop.show').forEach(function(p){p.classList.remove('show')})}
 function populateLangSelects(){
   var opts=LANG_ORDER.map(function(c){return'<option value="'+c+'">'+LANGS[c].flag+' '+LANGS[c].name+'</option>'}).join('');
   if($('s3-my'))$('s3-my').innerHTML=opts;
@@ -2220,14 +1927,6 @@ function ensureNotifPerm(){
     if(localStorage.getItem('tba_notif_asked'))return;
     localStorage.setItem('tba_notif_asked','1');
     Notification.requestPermission();
-  }catch(_){}
-}
-function osNotify(title,body,roomId){
-  try{
-    if(!window.Notification||Notification.permission!=='granted')return;
-    if(!document.hidden&&S.view==='room'&&S.roomId===roomId)return;
-    var n=new Notification(title,{body:(body||'').slice(0,120),tag:'tb-'+roomId,renotify:true});
-    n.onclick=function(){try{window.focus()}catch(_){}closePanel();enterRoom(roomId);n.close()};
   }catch(_){}
 }
 /* ════════════ RINGTONE ════════════ */
@@ -2391,10 +2090,6 @@ function relaySendWhenOpen(m,tries){
   setTimeout(function(){relaySendWhenOpen(m,tries-1)},200);
 }
 function renderIfActive(roomId){if(S.view==='room'&&S.roomId===roomId){transcript=loadTr(roomId);renderTranscript()}renderPanel()}
-function bgAddPill(roomId,text){
-  if(S.roomId===roomId){addSysPill(text);return}
-  var tr=loadTr(roomId);tr.push({id:'sp-'+uid(),kind:'sys',text:text,ts:Date.now()});lsSet(trKey(roomId),tr);
-}
 /* ════════════ SPEECH → TRANSCRIPT ════════════ */
 var localSubSeq=0,recentFinals=[],DEDUP_MS=4000,DEDUP_MAX=8;
 function stripDGTags(t){return(t||'').replace(/<[^>]*>/g,'').replace(/\s+/g,' ').trim()}
@@ -2412,17 +2107,6 @@ function showSub(text,cls){
   while(a.children.length>2)a.children[0].remove();
   setTimeout(function(){if(el.parentNode)el.remove()},5000);
 }
-function addSpeech(who,srcT,trT,sL,tL,ss,failed){
-  var room=activeRoom();if(!room)return;
-  var id='sp-'+(who==='me'?'m':'p')+'-'+ss;
-  var ex=transcript.find(function(e){return e.id===id});
-  if(ex){ex.sourceText=srcT;ex.translatedText=trT;saveTr();replaceMsgDom(ex);return}
-  var entry={id:id,kind:'speech',who:who,origin:'spoken',sourceText:srcT,translatedText:trT,srcLang:sL,tgtLang:tL,subtitleSeq:ss,ts:Date.now(),
-    senderName:who==='me'?(room.myName||S.user.name):(room.partnerName||'Partner'),translationFailed:!!failed};
-  transcript.push(entry);saveTr();
-  room.lastAt=Date.now();saveRooms();
-  appendMsgDom(entry);
-}
 function patchSpeech(who,ss,trT,failed){
   var id='sp-'+(who==='me'?'m':'p')+'-'+ss;
   var e=transcript.find(function(x){return x.id===id});if(!e)return;
@@ -2434,51 +2118,11 @@ function replaceMsgDom(e){
   var w2=document.createElement('div');w2.innerHTML=msgHtml(e);
   var fresh=w2.firstChild;old.replaceWith(fresh);wireMsg(fresh,e);
 }
-function onRemoteSubtitle(d,room){
-  if(room.id!==S.roomId)return;
-  var t=norm(d.text||''),s0=norm(d.sourceText||'')||t;
-  if(t&&d.targetLang===room.myLang)showSub(t,'partner');
-  addSpeech('partner',s0,t,d.sourceLang,d.targetLang,d.subtitleSeq,false);
-}
 function onRemoteSubtitleUpdate(d,room){
   if(room.id!==S.roomId)return;
   var t=norm(d.text||'');
   if(t&&d.targetLang===room.myLang)showSub(t,'partner');
   patchSpeech('partner',d.subtitleSeq,t,false);
-}
-async function onDGFinal(text){
-  text=norm(stripDGTags(text));if(!text)return;
-  if(!text.replace(/[\s.,!?;:'"()\-]/g,''))return;
-  if(/[฀-๿]/.test(text)){text=text.replace(/([ิ-ูเ-ไ]) ([฀-๿])/g,'$1$2').replace(/([฀-๿]) ([ะ-ู็-๎])/g,'$1$2')}
-  if(isDupe(text)){log('dg_dedup',{t:text.slice(0,40)},'warn');return}
-  recFinal(text);log('dg_final',{t:text.slice(0,60)},'ok');
-  var room=activeRoom();if(!room||!(CALL.active||CHATMIC.on))return;
-  if(!CALL.active){ // chat mic: spoken text is chat text, same bubble path as typed
-    sendChatText(text,null,'voice');
-    return;
-  }
-  // in-call: on-video caption overlay (baseline behavior, unchanged) AND fold into the persistent transcript.
-  // bubble creation happens FIRST and unconditionally, before any translation call, so a translate/network
-  // hiccup mid-call can never silently prevent the spoken line from landing in the transcript.
-  var src=room.myLang,tgt=room.theirLang,ss=++localSubSeq;
-  showSub(text,'mine');
-  addSpeech('me',text,text,src,tgt,ss,false);
-  var srcText=text;
-  try{
-    var detected=detectLang(text);
-    if(detected&&detected!==src){ // normalization law: original never displayed
-      var n=await translateWithRetry(text,detected,src,2);
-      if(n.ok&&norm(n.text).toLowerCase()!==norm(text).toLowerCase()){srcText=norm(n.text);patchSpeech('me',ss,srcText,false)}
-      else src=detected;
-    }
-    relaySend({type:'subtitle',subtitleSeq:ss,text:srcText,sourceText:srcText,sourceLang:src,targetLang:tgt,provisional:true});
-    var tr=await translateWithRetry(srcText,src,tgt,2);
-    var trText=tr.ok?norm(tr.text):srcText,failed=(!tr.ok&&src!==tgt);
-    relaySend({type:'subtitle-update',subtitleSeq:ss,text:trText,sourceText:srcText,sourceLang:src,targetLang:tgt});
-    patchSpeech('me',ss,trText,failed);
-  }catch(e){
-    log('dg_final_translate_err',{e:String(e)},'error'); // bubble already landed above even though translation failed
-  }
 }
 /* ════════════ DEEPGRAM (quarried: pre-base nova-3 linear16 pipeline) ════════════ */
 var dgWs=null,dgWsEn=null,dgActive=false,dgAudioCtx=null,dgSrc=null,dgProc=null;
@@ -2489,13 +2133,6 @@ function stopDGAudio(){
   if(dgSrc)try{dgSrc.disconnect()}catch(_){}dgSrc=null;
   if(dgAudioCtx)try{dgAudioCtx.close()}catch(_){}dgAudioCtx=null;
 }
-function stopDeepgram(){
-  _stopDgWatchdog();dgActive=false;
-  if(_dgPrimHoldTimer){clearTimeout(_dgPrimHoldTimer);_dgPrimHoldTimer=null;_dgPrimHeldText=null}
-  if(dgWs){try{dgWs.close()}catch(_){}dgWs=null}
-  if(dgWsEn){try{dgWsEn.close()}catch(_){}dgWsEn=null}
-  stopDGAudio();log('dg_stopped',{});
-}
 function dgShowFailBanner(){
   var b=$('dg-fail-banner');if(!b)return;
   b.classList.add('show');
@@ -2504,126 +2141,6 @@ function dgShowFailBanner(){
 function dgHideFailBanner(){var b=$('dg-fail-banner');if(b)b.classList.remove('show')}
 function _stopDgWatchdog(){clearInterval(_dgWatchdogTimer);_dgWatchdogTimer=null}
 var dgFailCount=0,DG_MAX_FAILS=3;
-function startDeepgram(){
-  var room=activeRoom();if(!room||!(CALL.active||CHATMIC.on))return;
-  var key=CALL.keys().dg;
-  if(!key){toast('Deepgram key missing — no live transcription');log('dg_no_key',{},'warn');return}
-  if(dgActive||(dgWs&&dgWs.readyState<2)){log('dg_skip_active',{},'warn');return}
-  var stream=micStream();
-  if(!stream){log('dg_no_stream',{},'error');return}
-  var langCode=DG_LANGS[room.myLang]||room.myLang||'en-US';
-  var url='wss://api.deepgram.com/v1/listen?model=nova-3&language='+encodeURIComponent(langCode)+'&encoding=linear16&sample_rate=16000&channels=1&interim_results=false&punctuate=false&endpointing=400';
-  dgWs=new WebSocket(url,['token',key]);
-  var mySocket=dgWs; // ROOT CAUSE FIX (2026-08-01): a prior, superseded socket's async close event
-  // was arriving AFTER a new socket had already opened, and because every handler read/wrote the
-  // shared globals (dgWs/dgActive/dgProc/dgAudioCtx) instead of checking identity, the stale event
-  // silently tore down the new session's live audio pump — the call's mic kept "running" but fed
-  // nothing to Deepgram. Reproduced with a realistic close-after-open timing race; only manifests
-  // when a prior socket is still winding down, which is why a room's very first use is unaffected
-  // but a session with prior mic/call activity (a re-entered room) can silently break.
-  dgWs.onopen=function(){
-    if(dgWs!==mySocket)return; // superseded before it even opened — ignore
-    if(!(CALL.active||CHATMIC.on)){try{dgWs.close()}catch(_){}return}
-    dgFailCount=0;dgHideFailBanner();
-    log('dg_open',{lang:langCode},'ok');
-    try{
-      var audioTracks=(stream?stream.getAudioTracks():[]).filter(function(t){return t.readyState==='live'});
-      if(!audioTracks.length){log('dg_no_audio',{},'error');dgWs.close();return}
-      var dgStream=new MediaStream(audioTracks);
-      dgAudioCtx=new(window.AudioContext||window.webkitAudioContext)({sampleRate:16000});
-      dgSrc=dgAudioCtx.createMediaStreamSource(dgStream);
-      var silentGain=dgAudioCtx.createGain();silentGain.gain.value=0;silentGain.connect(dgAudioCtx.destination);
-      function pump(f){
-        if(dgWs!==mySocket||dgWs.readyState!==1||!micPipelineOn())return;
-        var b=new Int16Array(f.length);
-        for(var i=0;i<f.length;i++){var s=Math.max(-1,Math.min(1,f[i]));b[i]=s<0?s*0x8000:s*0x7FFF}
-        dgWs.send(b.buffer);
-        if(dgWsEn&&dgWsEn.readyState===1)dgWsEn.send(b.buffer);
-      }
-      function scriptProc(){
-        if(dgWs!==mySocket)return;
-        dgProc=dgAudioCtx.createScriptProcessor(4096,1,1);
-        dgProc.onaudioprocess=function(e){pump(e.inputBuffer.getChannelData(0))};
-        dgSrc.connect(dgProc);dgProc.connect(silentGain);
-        dgActive=true;log('dg_scriptproc_active',{},'warn');
-      }
-      if(dgAudioCtx.audioWorklet&&typeof AudioWorkletNode!=='undefined'){
-        var wblob=new Blob([DG_WORKLET_CODE],{type:'application/javascript'});
-        var wurl=URL.createObjectURL(wblob);
-        dgAudioCtx.audioWorklet.addModule(wurl).then(function(){
-          URL.revokeObjectURL(wurl);
-          if(dgWs!==mySocket||dgWs.readyState!==1)return;
-          var wnode=new AudioWorkletNode(dgAudioCtx,'tb-audio-capture');
-          wnode.port.onmessage=function(ev){pump(ev.data)};
-          dgSrc.connect(wnode);wnode.connect(silentGain);
-          dgProc=wnode;dgActive=true;log('dg_worklet_active',{},'ok');
-        }).catch(function(e){URL.revokeObjectURL(wurl);log('worklet_fallback',{e:String(e)},'warn');scriptProc()});
-      }else scriptProc();
-    }catch(e){log('dg_audio_err',{e:String(e)},'error');dgActive=false}
-  };
-  dgWs.onmessage=function(e){
-    if(dgWs!==mySocket)return;
-    _dgLastMsg=Date.now();
-    try{
-      var d=JSON.parse(e.data);
-      var alt=d.channel&&d.channel.alternatives&&d.channel.alternatives[0];
-      if(alt&&alt.transcript&&d.is_final){
-        if(dgWsEn){ // dual-socket cross-suppression (donor: th primary + en secondary)
-          if(Date.now()-_dgEnLastFiredAt<_DG_CROSS_MS){log('dg_cross_suppress',{},'warn');return}
-          if(_dgPrimHoldTimer)clearTimeout(_dgPrimHoldTimer);
-          var pt=alt.transcript;_dgPrimHeldText=pt;
-          _dgPrimHoldTimer=setTimeout(function(){_dgPrimHoldTimer=null;if(_dgPrimHeldText===pt){onDGFinal(pt);_dgPrimHeldText=null}},250);
-        }else onDGFinal(alt.transcript);
-      }
-    }catch(_){}
-  };
-  dgWs.onerror=function(){if(dgWs===mySocket)log('dg_error',{},'error')};
-  dgWs.onclose=function(ev){
-    if(dgWs!==mySocket){log('dg_stale_close_ignored',{code:ev.code},'warn');return} // the actual fix
-    log('dg_close',{code:ev.code},'warn');
-    var neverOpened=!dgActive;
-    dgActive=false;stopDGAudio();_stopDgWatchdog();
-    if(!(CALL.active||CHATMIC.on))return;
-    if(neverOpened){
-      dgFailCount++;
-      log('dg_credential_failure',{count:dgFailCount,code:ev.code},'error');
-      if(dgFailCount>=DG_MAX_FAILS){dgShowFailBanner();return}
-    }
-    setTimeout(function(){if((CALL.active||CHATMIC.on)&&!dgActive)startDeepgram()},2000);
-  };
-  _dgLastMsg=Date.now();
-  _stopDgWatchdog();
-  _dgWatchdogTimer=setInterval(function(){
-    if(!dgActive||!(CALL.active||CHATMIC.on)){_stopDgWatchdog();return}
-    if(Date.now()-_dgLastMsg>DG_WATCHDOG_MS){
-      log('dg_watchdog_restart',{silent_ms:Date.now()-_dgLastMsg},'warn');
-      stopDeepgram();
-      setTimeout(function(){if((CALL.active||CHATMIC.on)&&!dgActive)startDeepgram()},1000);
-    }
-  },5000);
-  if(room.myLang==='th'){ // donor DG_DUAL_LANGS path
-    var urlEn='wss://api.deepgram.com/v1/listen?model=nova-3&language=en&encoding=linear16&sample_rate=16000&channels=1&interim_results=false&punctuate=false&endpointing=400';
-    if(dgWsEn){try{dgWsEn.close()}catch(_){}dgWsEn=null}
-    dgWsEn=new WebSocket(urlEn,['token',key]);
-    dgWsEn.onmessage=function(e){
-      _dgLastMsg=Date.now();
-      try{
-        var d=JSON.parse(e.data);
-        var alt=d.channel&&d.channel.alternatives&&d.channel.alternatives[0];
-        if(alt&&alt.transcript&&d.is_final){
-          if(alt.transcript.trim().length>10){
-            _dgEnLastFiredAt=Date.now();
-            if(_dgPrimHoldTimer){clearTimeout(_dgPrimHoldTimer);_dgPrimHoldTimer=null;_dgPrimHeldText=null;log('dg_cross_suppress',{},'warn')}
-          }
-          onDGFinal(alt.transcript);
-        }
-      }catch(_){}
-    };
-    dgWsEn.onerror=function(){log('dg_en_error',{},'error')};
-    dgWsEn.onclose=function(){dgWsEn=null};
-    log('dg_en_open',{},'ok');
-  }
-}
 /* ════════════ LISTEN — background room sockets: ring + message waiting ════════════ */
 var LISTEN={
   socks:{},
@@ -2725,20 +2242,6 @@ function dgUseDual(room) {
 /* The arbitration itself, as one decision rather than two copies of it inside
    socket handlers — so it can be exercised directly instead of only through a
    live connection. `deliver` is what actually emits the line. */
-function dgArbitrateNative(text, deliver) {
-  if (Date.now() - _dgEnLastFiredAt < _DG_CROSS_MS) {
-    log('dg_cross_suppress', { t: String(text).slice(0, 40) }, 'warn');
-    return 'suppressed';
-  }
-  if (_dgPrimHoldTimer !== null) clearTimeout(_dgPrimHoldTimer);
-  var held = text;
-  _dgPrimHeldText = held;
-  _dgPrimHoldTimer = setTimeout(function () {
-    _dgPrimHoldTimer = null;
-    if (_dgPrimHeldText === held) { _dgPrimHeldText = null; deliver(held); }
-  }, _DG_HOLD_MS);
-  return 'held';
-}
 
 /* What happens to a line that arrives on the English channel, as one callable
    decision. Kept out of the socket handler so it can be exercised without a
@@ -2752,17 +2255,6 @@ function dgDeliverEnglish(text, gen) {
   return verdict;
 }
 
-function dgArbitrateEnglish(text) {
-  if (String(text).trim().length <= _DG_EN_MIN_CHARS) return 'ignored';
-  _dgEnLastFiredAt = Date.now();
-  if (_dgPrimHoldTimer !== null) {
-    clearTimeout(_dgPrimHoldTimer); _dgPrimHoldTimer = null;
-    log('dg_cross_suppress', { held: _dgPrimHeldText && _dgPrimHeldText.slice(0, 40) }, 'warn');
-    _dgPrimHeldText = null;
-    return 'displaced';
-  }
-  return 'won';
-}
 
 function dgUseMulti(room) {
   if (!room) return false;
@@ -2786,162 +2278,7 @@ function dgLangParam(room) {
    socket check stops a superseded socket from tearing down its successor, the
    generation check stops a socket that belongs to a previous room or call from
    producing anything at all. */
-function startDeepgram() {
-  var room = activeRoom();
-  if (!room || !(CALL.active || CHATMIC.on)) return;
 
-  var key = CALL.keys().dg;
-  if (!key) { toast('Deepgram key missing — no live transcription'); log('dg_no_key', {}, 'warn'); return; }
-  if (dgActive || (dgWs && dgWs.readyState < 2)) { log('dg_skip_active', {}, 'warn'); return; }
-
-  var stream = micStream();
-  if (!stream) { log('dg_no_stream', {}, 'error'); return; }
-
-  var langParam = dgLangParam(room);
-  var myGen = GEN.n;
-  dgGen = myGen;
-
-  var url = 'wss://api.deepgram.com/v1/listen?model=nova-3&language=' + encodeURIComponent(langParam) +
-            '&encoding=linear16&sample_rate=16000&channels=1&interim_results=false&punctuate=false&endpointing=400';
-
-  dgWs = new WebSocket(url, ['token', key]);
-  var mySocket = dgWs;
-  var myEnSocket = null;
-
-  /* live() is the single predicate for "this callback still matters". */
-  function live() { return dgWs === mySocket && GEN.is(myGen); }
-
-  dgWs.onopen = function () {
-    if (!live()) { try { mySocket.close(); } catch (_) {} return; }
-    if (!(CALL.active || CHATMIC.on)) { try { dgWs.close(); } catch (_) {} return; }
-    dgFailCount = 0; dgHideFailBanner();
-    log('dg_open', { lang: langParam, multi: langParam === 'multi', gen: myGen }, 'ok');
-    try {
-      var audioTracks = (stream ? stream.getAudioTracks() : []).filter(function (t) { return t.readyState === 'live'; });
-      if (!audioTracks.length) { log('dg_no_audio', {}, 'error'); dgWs.close(); return; }
-      var dgStream = new MediaStream(audioTracks);
-      dgAudioCtx = new (window.AudioContext || window.webkitAudioContext)({ sampleRate: 16000 });
-      dgSrc = dgAudioCtx.createMediaStreamSource(dgStream);
-      var silentGain = dgAudioCtx.createGain();
-      silentGain.gain.value = 0;
-      silentGain.connect(dgAudioCtx.destination);
-
-      function pump(f) {
-        if (!live() || dgWs.readyState !== 1 || !micPipelineOn()) return;
-        var b = new Int16Array(f.length);
-        for (var i = 0; i < f.length; i++) { var s = Math.max(-1, Math.min(1, f[i])); b[i] = s < 0 ? s * 0x8000 : s * 0x7FFF; }
-        dgWs.send(b.buffer);
-        if (myEnSocket && myEnSocket.readyState === 1) myEnSocket.send(b.buffer);
-      }
-      function scriptProc() {
-        if (!live()) return;
-        dgProc = dgAudioCtx.createScriptProcessor(4096, 1, 1);
-        dgProc.onaudioprocess = function (e) { pump(e.inputBuffer.getChannelData(0)); };
-        dgSrc.connect(dgProc); dgProc.connect(silentGain);
-        dgActive = true; log('dg_scriptproc_active', {}, 'warn');
-      }
-      if (dgAudioCtx.audioWorklet && typeof AudioWorkletNode !== 'undefined') {
-        var wblob = new Blob([DG_WORKLET_CODE], { type: 'application/javascript' });
-        var wurl = URL.createObjectURL(wblob);
-        dgAudioCtx.audioWorklet.addModule(wurl).then(function () {
-          URL.revokeObjectURL(wurl);
-          if (!live() || dgWs.readyState !== 1) return;
-          var wnode = new AudioWorkletNode(dgAudioCtx, 'tb-audio-capture');
-          wnode.port.onmessage = function (ev) { pump(ev.data); };
-          dgSrc.connect(wnode); wnode.connect(silentGain);
-          dgProc = wnode; dgActive = true; log('dg_worklet_active', {}, 'ok');
-        }).catch(function (e) {
-          URL.revokeObjectURL(wurl); log('worklet_fallback', { e: String(e) }, 'warn'); scriptProc();
-        });
-      } else scriptProc();
-    } catch (e) { log('dg_audio_err', { e: String(e) }, 'error'); dgActive = false; }
-  };
-
-  dgWs.onmessage = function (e) {
-    if (!live()) return;
-    _dgLastMsg = Date.now();
-    try {
-      var d = JSON.parse(e.data);
-      var alt = d.channel && d.channel.alternatives && d.channel.alternatives[0];
-      if (alt && alt.transcript && d.is_final) {
-        if (myEnSocket) {
-          dgArbitrateNative(alt.transcript, function (t) { if (GEN.is(myGen)) onDGFinal(t, myGen, room.myLang); });
-        } else {
-          onDGFinal(alt.transcript, myGen, dgUseMulti(room) ? null : room.myLang);
-        }
-      }
-    } catch (_) {}
-  };
-
-  dgWs.onerror = function () { if (live()) log('dg_error', {}, 'error'); };
-
-  dgWs.onclose = function (ev) {
-    if (dgWs !== mySocket) { log('dg_stale_close_ignored', { code: ev.code }, 'warn'); return; }
-    if (!GEN.is(myGen)) { log('dg_stale_gen_close_ignored', { code: ev.code, gen: myGen }, 'warn'); return; }
-    log('dg_close', { code: ev.code, capturedGen: myGen, currentGen: GEN.n }, 'warn');
-    var neverOpened = !dgActive;
-    dgActive = false; stopDGAudio(); _stopDgWatchdog();
-    if (myEnSocket) { try { myEnSocket.close(); } catch (_) {} myEnSocket = null; }
-    if (!(CALL.active || CHATMIC.on)) return;
-    if (neverOpened) {
-      dgFailCount++;
-      log('dg_credential_failure', { count: dgFailCount, code: ev.code }, 'error');
-      if (dgFailCount >= DG_MAX_FAILS) { dgShowFailBanner(); return; }
-    }
-    setTimeout(function () {
-      if (!GEN.is(myGen)) { log('dg_stale_gen_retry_dropped', { gen: myGen }, 'warn'); return; }
-      if ((CALL.active || CHATMIC.on) && !dgActive) startDeepgram();
-    }, 2000);
-  };
-
-  if (dgUseDual(room)) {
-    var urlEn = 'wss://api.deepgram.com/v1/listen?model=nova-3&language=en' +
-                '&encoding=linear16&sample_rate=16000&channels=1&interim_results=false&punctuate=false&endpointing=400';
-    myEnSocket = new WebSocket(urlEn, ['token', key]);
-    var enSock = myEnSocket;
-    myEnSocket.onmessage = function (e) {
-      if (myEnSocket !== enSock || !GEN.is(myGen)) return;
-      _dgLastMsg = Date.now();
-      try {
-        var d = JSON.parse(e.data);
-        var alt = d.channel && d.channel.alternatives && d.channel.alternatives[0];
-        if (!(alt && alt.transcript && d.is_final)) return;
-        dgDeliverEnglish(alt.transcript, myGen);
-      } catch (_) {}
-    };
-    myEnSocket.onerror = function () { if (myEnSocket === enSock) log('dg_en_error', {}, 'error'); };
-    myEnSocket.onclose = function (ev) {
-      log('dg_en_close', { code: ev.code, capturedGen: myGen, currentGen: GEN.n }, 'warn');
-      if (myEnSocket === enSock) myEnSocket = null;
-    };
-    log('dg_en_open', { myLang: room.myLang }, 'ok');
-  }
-
-  _dgLastMsg = Date.now();
-  _stopDgWatchdog();
-  _dgWatchdogTimer = setInterval(function () {
-    if (!GEN.is(myGen)) { _stopDgWatchdog(); return; }
-    if (!dgActive || !(CALL.active || CHATMIC.on)) { _stopDgWatchdog(); return; }
-    if (Date.now() - _dgLastMsg > DG_WATCHDOG_MS) {
-      log('dg_watchdog_restart', { silent_ms: Date.now() - _dgLastMsg }, 'warn');
-      stopDeepgram();
-      setTimeout(function () {
-        if (!GEN.is(myGen)) return;
-        if ((CALL.active || CHATMIC.on) && !dgActive) startDeepgram();
-      }, 1000);
-    }
-  }, 5000);
-}
-
-(function () {
-  var _stop = stopDeepgram;
-  stopDeepgram = function () {
-    dgGen = 0;
-    if (_dgPrimHoldTimer !== null) { clearTimeout(_dgPrimHoldTimer); _dgPrimHoldTimer = null; }
-    _dgPrimHeldText = null;
-    return _stop.apply(this, arguments);
-  };
-})();
 
 
 /* ═══════════ GAP PART · B-language-resolution.js ═══════════ */
@@ -3175,39 +2512,6 @@ function resolveEffectiveLang(room, detected) {
 /* Shared by spoken and typed text — one path, so the two can never drift.
    Returns the text as it should appear on the speaker's own side, plus the
    language it is in. */
-async function normalizeOutgoing(room, text, knownLang) {
-  /* When the caller knows what language the text is in — because it arrived on
-     a channel listening for exactly that language — that is used directly.
-     Detection is a fallback for when nothing knows. */
-  var detected = knownLang || await detectLangAsync(text);
-  if (detected === 'th') text = applyNorthernThaiMap(text);
-  var r = resolveEffectiveLang(room, detected);
-  var srcText = text, srcLang = r.srcLang;
-  if (r.normalizeFrom) {
-    var n = await translateWithRetry(text, r.normalizeFrom, srcLang, 2);
-    var out = n && n.text ? norm(n.text) : '';
-    var same = !!out && out.toLowerCase() === norm(text).toLowerCase();
-    if (n.ok && out && !same) {
-      srcText = out;
-    } else {
-      /* Normalization did not produce a rewrite. Two very different causes hide
-         behind that, and they need opposite fixes, so the reason is recorded
-         rather than inferred:
-           failed  — the rewrite call did not come back
-           empty   — it came back with nothing
-           same    — it came back identical, which may mean the text was already
-                     in the room's language and detection was wrong about it */
-      var why = !n.ok ? 'failed' : (!out ? 'empty' : 'same');
-      log('normalize_no_rewrite', {
-        why: why, from: r.normalizeFrom, to: srcLang,
-        inText: String(text).slice(0, 40),
-        outText: String(out).slice(0, 40)
-      }, 'warn');
-      srcLang = r.normalizeFrom;
-    }
-  }
-  return { text: srcText, lang: srcLang, detected: detected };
-}
 
 /* ── Entry points: hooks, not replacements ─────────────────────────────────
    THIS IS THE LESSON FROM TURN 15, MADE STRUCTURAL.
@@ -3228,46 +2532,7 @@ async function normalizeOutgoing(room, text, knownLang) {
    stand down, since the work is already done by the time it runs. That is what
    the detector replacement above achieves: it declines to answer, the base's
    check finds nothing to correct, and it proceeds. */
-(function () {
-  var _onDGFinal = onDGFinal;
-  /* Spoken text. Carries the session generation the transcription socket
-     captured, so a line produced by a socket belonging to a previous room or
-     call is dropped here instead of landing in the wrong transcript. */
-  onDGFinal = async function (text, gen, knownLang) {
-    if (typeof gen === 'number' && !GEN.is(gen)) { log('dg_final_stale_gen', { gen: gen }, 'warn'); return; }
-    var room = activeRoom();
-    if (room && text) {
-      var myGen = GEN.n;
-      try {
-        var r = await normalizeOutgoing(room, text, knownLang);
-        if (!GEN.is(myGen)) { log('dg_final_gen_abandoned', { gen: myGen }, 'warn'); return; }
-        text = r.text;
-        if (r.lang !== room.myLang) log('normalize_incomplete', { was: r.detected, wanted: room.myLang }, 'warn');
-      } catch (e) { log('normalize_err', { e: String(e) }, 'error'); }
-    }
-    return _onDGFinal.call(this, text);
-  };
-})();
 
-(function () {
-  var _sendChatText = sendChatText;
-  /* Typed text — and spoken text in chat mode, which funnels through here too.
-     Normalizing twice is harmless: the second pass finds the text already in
-     the room's language and does nothing. */
-  sendChatText = async function (text, attachment, originOverride) {
-    var room = activeRoom();
-    if (room && text) {
-      var myGen = GEN.n;
-      try {
-        var r = await normalizeOutgoing(room, text);
-        if (!GEN.is(myGen)) { log('chat_gen_abandoned', { gen: myGen }, 'warn'); return; }
-        text = r.text;
-        if (r.lang !== room.myLang) log('normalize_incomplete', { was: r.detected, wanted: room.myLang }, 'warn');
-      } catch (e) { log('normalize_err', { e: String(e) }, 'error'); }
-    }
-    return _sendChatText.call(this, text, attachment, originOverride);
-  };
-})();
 
 /* Test surface — the harness drives these directly. Not referenced by the UI. */
 var TBLANG = {
@@ -3570,14 +2835,6 @@ function seedSpeechSeq(entries) {
   return localSubSeq;
 }
 
-(function () {
-  var _tbLoadTr = loadTr;
-  loadTr = function (id) {
-    var entries = _tbLoadTr.apply(this, arguments);
-    try { seedSpeechSeq(entries); } catch (e) { try { log('seq_seed_err', { e: String(e) }, 'error'); } catch (_) {} }
-    return entries;
-  };
-})();
 
 /* Test surface. */
 var TBSEQ = {
@@ -3609,34 +2866,6 @@ var TBSEQ = {
    happen quietly again.
    ───────────────────────────────────────────────────────────────────────────── */
 
-(function () {
-  var _fAddSpeech = addSpeech;
-  addSpeech = function (who, srcT, trT, sL, tL, ss, failed) {
-    var id = 'sp-' + (who === 'me' ? 'm' : 'p') + '-' + ss;
-    var before = transcript ? transcript.length : -1;
-    var clash = null;
-    if (transcript) {
-      for (var i = 0; i < transcript.length; i++) {
-        if (transcript[i] && transcript[i].id === id) { clash = transcript[i]; break; }
-      }
-    }
-
-    var r = _fAddSpeech.apply(this, arguments);
-    var after = transcript ? transcript.length : -1;
-
-    if (clash) {
-      /* An identifier was reissued. The older line has just been rewritten. */
-      log('transcript_collision', {
-        id: id, seq: ss, len: before,
-        lost: String(clash.sourceText || '').slice(0, 40),
-        wrote: String(srcT || '').slice(0, 40)
-      }, 'error');
-    } else {
-      log('speech_added', { id: id, seq: ss, before: before, after: after, added: after - before }, 'ok');
-    }
-    return r;
-  };
-})();
 
 var TBPROOF = {
   /* Every identifier in the transcript, and whether any repeats. Cheap enough
@@ -3684,37 +2913,13 @@ function rcLog(what, data, level) {
    are three distinct facts and are tracked and displayed separately. */
 var WAIT = ['chat', 'voice', 'video'];
 
-function waitingOf(r) {
-  if (!r) return { chat: 0, voice: 0, video: 0 };
-  if (!r.waiting) {
-    /* Migration: rooms carry a single legacy counter. Everything it counted was
-       a message, so it becomes the chat count and is not thrown away. */
-    r.waiting = { chat: r.unread || 0, voice: 0, video: 0 };
-    if (r.unread) rcLog('waiting_migrated', { room: r.id, chat: r.unread }, 'ok');
-  }
-  return r.waiting;
-}
 
 function waitingTotal(r) {
   var w = waitingOf(r);
   return (w.chat || 0) + (w.voice || 0) + (w.video || 0);
 }
 
-function bumpWaiting(r, kind) {
-  if (!r || WAIT.indexOf(kind) < 0) { rcLog('waiting_bump_ignored', { kind: kind }, 'warn'); return; }
-  var w = waitingOf(r);
-  w[kind] = (w[kind] || 0) + 1;
-  r.unread = waitingTotal(r);   /* legacy field kept in step for anything still reading it */
-  rcLog('waiting_bump', { room: r.id, kind: kind, chat: w.chat, voice: w.voice, video: w.video }, 'ok');
-}
 
-function clearWaiting(r) {
-  if (!r) return;
-  var before = waitingTotal(r);
-  r.waiting = { chat: 0, voice: 0, video: 0 };
-  r.unread = 0;
-  if (before) rcLog('waiting_cleared', { room: r.id, was: before }, 'ok');
-}
 
 /* ── The card · SOT Part 4 ─────────────────────────────────────────────────
    Three rows, two columns. Left column left-justified, right column
@@ -3821,21 +3026,6 @@ function ensureHomeHost() {
    Each wrapper watches the legacy counter across the original call and
    attributes any increase to the kind it knows it is handling. The original
    keeps doing exactly what it did. */
-(function () {
-  var _rHandleChat = handleChatMsg;
-  handleChatMsg = function (d, room) {
-    var before = (room && room.unread) || 0;
-    var r = _rHandleChat.apply(this, arguments);
-    try {
-      if (room && (room.unread || 0) > before) {
-        room.unread = before;
-        bumpWaiting(room, 'chat');
-        saveRooms();
-      }
-    } catch (e) { rcLog('chat_count_failed', { e: String(e && e.message || e) }, 'error'); }
-    return r;
-  };
-})();
 
 
 
@@ -3945,16 +3135,6 @@ if (typeof document !== 'undefined') {
 
 /* Every outgoing message states the direction it is being translated in, so a
    wrong direction is visible in the log instead of only in the bubble. */
-(function () {
-  var _jSendChatText = sendChatText;
-  sendChatText = function (text, attachment, origin) {
-    try {
-      var r = activeRoom();
-      if (r) jLog('send_direction', { room: String(r.id).slice(-6), from: r.myLang, to: r.theirLang, role: r.role }, 'ok');
-    } catch (_) {}
-    return _jSendChatText.apply(this, arguments);
-  };
-})();
 
 
 /* ═══════════ GAP PART · L-room-lifecycle.js ═══════════ */
@@ -4247,14 +3427,6 @@ function onLifecycleSignal(roomId, d) {
 
 
 
-(function () {
-  var _lcSendChatText = sendChatText;
-  sendChatText = function (text, attachment, origin) {
-    var r = activeRoom();
-    if (roomSendLocked(r)) { lcLog('send_blocked', { room: r && String(r.id).slice(-6) }, 'warn'); toast('They left this chat'); return; }
-    return _lcSendChatText.apply(this, arguments);
-  };
-})();
 
 
 
@@ -4421,14 +3593,6 @@ function forceCallReconnect(why) {
   } catch (e) { netLog('call_reconnect_failed', { e: String(e && e.message || e) }, 'error'); return false; }
 }
 
-function onVisible(why) {
-  var away = Date.now() - NET.lastVisible;
-  NET.lastVisible = Date.now();
-  netLog('returned', { why: why, awayMs: away, inRoom: !!S.roomId, inCall: !!CALL.active });
-  if (!S.roomId) return;
-  reconnectRelayNow(why);
-  forceCallReconnect(why);
-}
 
 /* Every transcription socket open is timestamped so the gap between them is on
    the record. The recurring disconnect during calls is undiagnosed; this is
@@ -4463,8 +3627,6 @@ if (typeof document !== 'undefined') {
   /* Hook the transcription open path for timing only — no behaviour change. */
   setTimeout(function () {
     try {
-      var _sd = startDeepgram;
-      startDeepgram = function () { dgWatch(); return _sd.apply(this, arguments); };
       netLog('armed', {}, 'ok');
     } catch (e) { netLog('arm_failed', { e: String(e && e.message || e) }, 'error'); }
   }, 600);
@@ -4524,23 +3686,6 @@ var ROOM_MENU_CSS =
 /* A socket that closes before opening is only a credential problem if the
    network was up. During an outage it is an outage, and saying otherwise makes
    the log lie during exactly the trouble it should be describing. */
-(function () {
-  var _rmStartDG = startDeepgram;
-  startDeepgram = function () {
-    if (CALL.active && !CALL.micOn) { rmLog('transcription_suppressed_muted', {}, 'ok'); return; }
-    var r = _rmStartDG.apply(this, arguments);
-    try {
-      if (dgWs && dgWs.addEventListener) {
-        dgWs.addEventListener('close', function (ev) {
-          if (ev.code === 1006 && typeof navigator !== 'undefined' && navigator.onLine === false) {
-            rmLog('transcription_dropped_offline', { code: ev.code }, 'warn');
-          }
-        });
-      }
-    } catch (_) {}
-    return r;
-  };
-})();
 
 /* ── The room name ───────────────────────────────────────────────────────
    One name, shared, last write wins. Not localized in this release: it shows as
@@ -4591,21 +3736,6 @@ function renameRoom(newName) {
 /* Last write wins. The notice itself is written by the base's own system-pill
    handling, which already de-duplicates by identifier — this only applies the
    name, then lets the base carry on and render the pill. */
-function onRoomNameSignal(roomId, d) {
-  if (!d || d.type !== 'sys-pill' || typeof d.newRoomName !== 'string') return false;
-  var r = roomById(roomId || d.room);
-  var to = String(d.newRoomName).slice(0, 40);
-  if (!r || !to) return false;
-  var from = typeof d.wasRoomName === 'string' ? d.wasRoomName : (r.title || '');
-  if (r.title !== to) {
-    r.title = to;
-    saveRooms();
-    rmLog('rename_received', { from: from, to: to, by: d.byName || '' }, 'ok');
-    try { renderRoomHead(); renderPanel(); } catch (_) {}
-  }
-  /* false, deliberately: the base still needs to write and render the pill. */
-  return false;
-}
 
 
 
@@ -4648,19 +3778,6 @@ function showReceiptPopup(entry) {
   } catch (e) { rmLog('receipt_popup_failed', { e: String(e && e.message || e) }, 'error'); }
 }
 
-(function () {
-  var _rmWireMsg = wireMsg;
-  wireMsg = function (node, e) {
-    var r = _rmWireMsg.apply(this, arguments);
-    try {
-      if (node && node.querySelector) {
-        var rec = node.querySelector('[data-receipt]');
-        if (rec) rec.addEventListener('click', function (ev) { ev.stopPropagation(); showReceiptPopup(e); });
-      }
-    } catch (err) { rmLog('receipt_wire_failed', { e: String(err && err.message || err) }, 'error'); }
-    return r;
-  };
-})();
 
 
 /* ── Export, both formats · clear, local only ─────────────────────────────── */
@@ -4901,30 +4018,7 @@ function buildDrawerLayout() {
 
 /* The theme is rebuilt by the base whenever anything changes; the header strip
    colour is appended to whatever it produced rather than replacing it. */
-(function () {
-  var _rmApplyTheme = applyBubbleTheme;
-  applyBubbleTheme = function () {
-    var r = _rmApplyTheme.apply(this, arguments);
-    try {
-      var room = activeRoom(); if (!room) return r;
-      var bg = themeVal(room, 'hdrBg', '');
-      var tag = $('bubble-theme-tag');
-      if (tag && bg) tag.textContent = tag.textContent + '.tr-head{background:' + bg + '}';
-      var picker = $('s4b-hdr-bg');
-      if (picker) picker.value = bg || '#F5F1EC';
-    } catch (e) { rmLog('header_bg_apply_failed', { e: String(e && e.message || e) }, 'error'); }
-    return r;
-  };
-})();
 
-/* The drawer will not close over a nameless room. */
-(function () {
-  var _rmCloseDrawer = closeDrawer;
-  closeDrawer = function () {
-    if (holdOnBlankName()) { rmLog('drawer_close_blocked_empty_name', {}, 'warn'); return; }
-    return _rmCloseDrawer.apply(this, arguments);
-  };
-})();
 
 
 (function () {
@@ -5166,23 +4260,6 @@ function r8Log(what, data, level) {
 
    The threshold still does its real job — a card deliberately dismissed stays
    dismissed while its count stands. Only the stale-after-clear case changes. */
-(function () {
-  var _r8ClearWaiting = clearWaiting;
-  clearWaiting = function (r) {
-    var out = _r8ClearWaiting.apply(this, arguments);
-    try {
-      if (r && r.id) {
-        var m = homeDismissed();
-        if (m && typeof m[r.id] === 'number') {
-          delete m[r.id];
-          saveHomeDismissed(m);
-          r8Log('dismiss_threshold_reset', { room: r.id }, 'ok');
-        }
-      }
-    } catch (e) { r8Log('dismiss_reset_failed', { e: String(e && e.message || e) }, 'error'); }
-    return out;
-  };
-})();
 
 
 
@@ -5570,22 +4647,6 @@ var R8_CSS =
 /* 8.3 — the call kind has to be recorded when the entry is made. CALL.kind is
    only meaningful while the call is live, so reading it later is impossible;
    this captures it at creation. */
-(function () {
-  var _r8AddSpeech = addSpeech;
-  addSpeech = function (who, srcT, trT, sL, tL, ss, failed) {
-    var r = _r8AddSpeech.apply(this, arguments);
-    try {
-      var id = 'sp-' + (who === 'me' ? 'm' : 'p') + '-' + ss;
-      var e = transcript.find(function (x) { return x.id === id; });
-      if (e && !e.callKind) {
-        e.callKind = (CALL && CALL.active) ? (CALL.kind === 'video' ? 'video' : 'voice') : 'chat';
-        saveTr();
-        r8Log('speech_kind', { kind: e.callKind }, 'ok');
-      }
-    } catch (err) { r8Log('speech_kind_failed', { e: String(err && err.message || err) }, 'error'); }
-    return r;
-  };
-})();
 
 /* Which mark a bubble header shows — one for EVERY communication mode, per
    item 8.5's own words: chat, phone, video (and mic for plain speech).
@@ -5777,18 +4838,6 @@ function silenceOtherTimerWriters() {
     if (CALL && CALL.durTimer) { clearInterval(CALL.durTimer); CALL.durTimer = null; }
   } catch (_) {}
 }
-(function () {
-  if (typeof renderPartnerState === 'function') {
-    var _r8Rps = renderPartnerState;
-    renderPartnerState = function () {
-      /* The base function's only job was writing "Speaking…" into #rz-timer.
-         The slot now has one writer; speaking lives on the presence dot,
-         which the timer tick below keeps updated. */
-      return;
-    };
-    renderPartnerState._r8Original = _r8Rps;
-  }
-})();
 
 function callDuration(startTs, now) {
   var s = Math.max(0, Math.floor(((now || Date.now()) - startTs) / 1000));
@@ -5861,19 +4910,6 @@ function isDuplicatePhrase(text, now) {
   } catch (e) { r8Log('dedup_failed', { e: String(e && e.message || e) }, 'error'); return false; }
 }
 
-(function () {
-  var _r8AddSpeechDedup = addSpeech;
-  addSpeech = function (who, srcT, trT, sL, tL, ss, failed) {
-    /* Only my own speech is de-duplicated. The partner's arrives over the
-       relay already arbitrated, and suppressing there would drop a genuine
-       repetition by the other person. */
-    if (who === 'me' && isDuplicatePhrase(srcT)) {
-      r8Log('speech_suppressed', {}, 'ok');
-      return;
-    }
-    return _r8AddSpeechDedup.apply(this, arguments);
-  };
-})();
 
 /* ── 8.11 typing indicator ──────────────────────────────────────────────────
    Nothing existed. Typing is transient — it must never be persisted or
@@ -6053,24 +5089,6 @@ function pbCommitEditTargetMirror(c, v, changed, prior) {
   pbRerenderCard(id);
 }
 
-(function () {
-  var _r9CommitEdit = pbCommitEdit;
-  pbCommitEdit = function (id, field, value) {
-    try {
-      if (field === 'target') {
-        var c = pbCardById(id);
-        if (!c) return;
-        var v = norm(value);
-        var prior = norm(c[field] || '');
-        var changed = (v !== prior);
-        c[field] = v;                                  /* S-RULE-4: edited side kept */
-        return pbCommitEditTargetMirror(c, v, changed, prior);
-      }
-    } catch (e) { r8Log('r9_target_mirror_failed', { e: String(e && e.message || e) }, 'error'); }
-    return _r9CommitEdit.apply(this, arguments);       /* source, notes, everything else: original */
-  };
-  pbCommitEdit._r9Original = _r9CommitEdit;
-})();
 
 
 /* ═══════════ R10 PART · P2-install-gate.js ═══════════ */
@@ -6404,18 +5422,6 @@ function p4OnSwMessage(ev) {
   /* P4v2-c / A6 re-entry: the ring screen IS the alert — the moment it
      presents, the room's stale banner closes (was rejected as a same-session
      patch; enters here through plan v20.0.0 by name). */
-  var _p4OsNotify = osNotify;
-  osNotify = function (title, body, roomId) {
-    var r = _p4OsNotify.apply(this, arguments);
-    try { p4SwNotify(title, body, roomId); } catch (_) {}
-    return r;
-  };
-  var _p4SaveRooms = saveRooms;
-  saveRooms = function () {
-    var r = _p4SaveRooms.apply(this, arguments);
-    try { p4SaveCtx(); } catch (_) {}
-    return r;
-  };
   var _p4Entry = p2Entry;
   p2Entry = function () {
     var r = _p4Entry.apply(this, arguments);
@@ -6752,40 +5758,6 @@ function cr3Heartbeat() {
   /* Relay answers ride each lane; they are the authority's word, not a peer's. */
   /* Hidden: no ring. The relay asked the OS; return re-presents an active call once. */
   /* The relay's missed outcome is the only source of a missed pill. */
-  var _cr3BgAddPill = bgAddPill;
-  bgAddPill = function (roomId, text) {
-    if (typeof text === 'string' && text.indexOf('Missed ') === 0) { cr3Log('local_missed_pill_dropped', { room: roomId }); return; }
-    return _cr3BgAddPill.apply(this, arguments);
-  };
-  var _cr3OsNotify = osNotify;
-  osNotify = function (title, body, roomId) { cr3Log('os_notify_owned_by_relay', { room: roomId }); };
-  osNotify._cr3Original = _cr3OsNotify;
-  /* Display cache of the projection; never an increment. */
-  var _cr3WaitingOf = waitingOf;
-  waitingOf = function (r) { if (!r) return { chat: 0, voice: 0, video: 0 }; if (!r.waiting) r.waiting = { chat: 0, voice: 0, video: 0 }; return r.waiting; };
-  waitingOf._cr3Original = _cr3WaitingOf;
-  var _cr3BumpWaiting = bumpWaiting;
-  bumpWaiting = function (r, kind) { cr3Log('bump_ignored', { room: r && r.id, kind: kind }); };
-  bumpWaiting._cr3Original = _cr3BumpWaiting;
-  /* A mute toggle is part of the device's truth; the relay hears it at once. */
-  var _cr3SaveRooms = saveRooms;
-  saveRooms = function () {
-    var r = _cr3SaveRooms.apply(this, arguments);
-    try {
-      var sig = S.rooms.map(function (x) { return x.id + ':' + (x.muted ? 1 : 0); }).join(',');
-      if (cr3State.muteSig !== undefined && cr3State.muteSig !== sig) { clearTimeout(cr3State.muteTimer); cr3State.muteTimer = setTimeout(function () { cr3Announce('mute'); }, 100); }
-      cr3State.muteSig = sig;
-    } catch (_) {}
-    return r;
-  };
-  /* §11: the granted set is on disk for 30 days; the resolver never read it.
-     Own key wins; memory wins; the unexpired grant fills what is empty. */
-  var _cr3OnVisible = onVisible;
-  onVisible = function (why) {
-    var r = _cr3OnVisible.apply(this, arguments);
-    try { cr3Recover(why); } catch (_) {}
-    return r;
-  };
   var _cr3SwMessage = p4OnSwMessage;
   p4OnSwMessage = function (ev) {
     var d = ev && ev.data;
@@ -6844,43 +5816,6 @@ function cr3Heartbeat() {
    exports. Batched every few seconds and on the way out; failures are silent
    and never touch the app. Wraps log() and calls through — the existing local
    log is unchanged. */
-(function () {
-  if (typeof log !== 'function') return;
-  var Q = [], SENDING = false;
-  var DEV = (function () {
-    try {
-      var k = 'tb_devlog_name', v = localStorage.getItem(k);
-      if (!v) {
-        var ua = navigator.userAgent || '';
-        v = (/iPhone|iPad|iPod/.test(ua) ? 'iphone' : /Android/.test(ua) ? 'android' : 'desktop')
-          + '-' + Math.random().toString(36).slice(2, 5);
-        localStorage.setItem(k, v);
-      }
-      return v;
-    } catch (_) { return 'dev'; }
-  })();
-  function base() {
-    try { return (typeof p3RelayHttp === 'function' ? p3RelayHttp() : '').replace(/\/signal.*$/, ''); } catch (_) { return ''; }
-  }
-  function flush() {
-    if (SENDING || !Q.length) return;
-    var b = base(); if (!b) return;
-    var rows = Q.splice(0, 100);
-    SENDING = true;
-    fetch(b + '/log', { method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ dev: DEV, rows: rows }), keepalive: true })
-      .catch(function () {}).then(function () { SENDING = false; });
-  }
-  var _log = log;
-  log = function (ev, d, lvl) {
-    try { Q.push({ t: Date.now(), e: ev, d: d || {} }); if (Q.length > 400) Q.shift(); } catch (_) {}
-    return _log.apply(this, arguments);
-  };
-  setInterval(flush, 4000);
-  document.addEventListener('visibilitychange', function () { if (document.hidden) flush(); });
-  window.addEventListener('pagehide', flush);
-  try { log('n16_devlog', { dev: DEV }); } catch (_) {}
-})();
 
 /* P1 (26·base) superseded and REMOVED in 27·base: presence now has a single
    path (declared word → relay v6.5 → the dot). Dead code is deleted, not left
@@ -6977,22 +5912,6 @@ function cr3Heartbeat() {
      fields already on this sheet. */
 
 
-  /* 3 · Both link builders carry the room's name, read at generation time. */
-  function stamp(url, room) {
-    try {
-      var i = url.indexOf('#j='); if (i === -1) return url;
-      var p = decInv(url.slice(i + 3)); if (!p) return url;
-      var n = (room && room.myName) || (S.user && S.user.name) || '';
-      if (!n) return url;
-      if (p.n !== undefined) p.n = n;
-      if (p.myn !== undefined) p.myn = n;
-      return url.slice(0, i) + '#j=' + encInv(p);
-    } catch (_) { return url; }
-  }
-  if (typeof linkDeviceUrl === 'function') {
-    var _ld = linkDeviceUrl;
-    linkDeviceUrl = function (room) { return stamp(_ld.apply(this, arguments), room); };
-  }
   L('b8c_ready', {});
 })();
 
@@ -7107,15 +6026,6 @@ function cr3Heartbeat() {
 (function () {
   if (typeof invUrl !== 'function' || typeof decInv !== 'function' || typeof encInv !== 'function' || typeof joinRoom !== 'function') return;
   function L(ev, d) { try { if (typeof log === 'function') log(ev, d || {}, 'ok'); } catch (_) {} }
-  function tStamp(url, room) {
-    try {
-      var i = url.indexOf('#j='); if (i === -1) return url;
-      var p = decInv(url.slice(i + 3)); if (!p) return url;
-      p.t = (room && room.title) || p.t || '';
-      return url.slice(0, i) + '#j=' + encInv(p);
-    } catch (_) { return url; }
-  }
-  if (typeof linkDeviceUrl === 'function') { var _ld = linkDeviceUrl; linkDeviceUrl = function (room) { return tStamp(_ld.apply(this, arguments), room); }; }
 
 })();
 
@@ -7242,11 +6152,6 @@ function tbmdSpeechStrip(text) {
   s = s.replace(/\*\*([^*]+)\*\*/g, '$1').replace(/\*([^*]+)\*/g, '$1').replace(/`([^`]+)`/g, '$1');
   return s.replace(/\s{2,}/g, ' ').trim();
 }
-(function () {
-  if (typeof speakText !== 'function') return;
-  var _speak = speakText;
-  speakText = function (text, lang) { return _speak.call(this, tbmdSpeechStrip(text), lang); };
-})();
 
 
 /* ===== 27·base additions — presence, traced end to end (§7.13) ===== */
@@ -7272,10 +6177,6 @@ function tbmdSpeechStrip(text) {
   }
   /* every view change, so backing out to the list declares at once —
      showScreen is the single view setter in the accepted build (line 1296) */
-  if (typeof showScreen === 'function') {
-    var _show = showScreen;
-    showScreen = function (v) { var r = _show.apply(this, arguments); declare('view_' + v); return r; };
-  }
   /* screen state — armed unconditionally; inside the installed app this
      simply declares the same word twice, which the relay stores idempotently */
   document.addEventListener('visibilitychange', function () { declare(document.hidden ? 'hidden' : 'visible'); });
@@ -7696,14 +6597,6 @@ function tbFlipCamera() {
    Room ids grow too — they ride in invite links and nothing parses them.
    Existing ids on disk are untouched. `k1_ids {prefix}` is logged once.
    ───────────────────────────────────────────────────────────────────────────── */
-(function () {
-  if (typeof uid !== 'function' || typeof deviceId !== 'string' || !deviceId) return;
-  var prefix = String(deviceId).replace(/[^A-Za-z0-9]/g, '').slice(0, 8).toLowerCase();
-  if (!prefix) return;
-  var _uid = uid;
-  uid = function () { return prefix + '-' + _uid.apply(this, arguments); };
-  try { log('k1_ids', { prefix: prefix }, 'ok'); } catch (_) {}
-})();
 
 
 /* ═══════════ GAP PART · K2-pb-merge.js ═══════════ */
@@ -7746,45 +6639,6 @@ function pbMergeCards(local, remote) {
   return { cards: order.map(function (id) { return byId[id]; }), kept: kept, took: took, added: added };
 }
 
-(function () {
-  if (typeof pbWriteBack !== 'function' || typeof pbPull !== 'function' || typeof log !== 'function') return;
-
-  /* The refusal is only visible in the frozen log line; read it there. */
-  var lastErr = null;
-  var _log = log;
-  log = function (ev, d) {
-    if (ev === 'pb_writeback_err') lastErr = String((d && d.e) || '');
-    return _log.apply(this, arguments);
-  };
-  function refused() { return /put 409|put 422/.test(lastErr || ''); }
-
-  var _pbWriteBack = pbWriteBack;
-  pbWriteBack = function () {
-    var self = this, args = arguments;
-    lastErr = null;
-    return Promise.resolve(_pbWriteBack.apply(self, args)).then(function (r) {
-      if (!r || r.status !== 'pending' || !refused()) return r;
-      var localCards = (PB.cards || []).slice(), localVersion = PB.version;
-      /* The other device wrote the SAME version number (the bridge never
-         bumps), so the frozen pull's "already at this version" short-cut
-         would skip the fetch. Forget the version for the pull; it is put
-         back if the pull does not deliver. */
-      PB.version = null;
-      return Promise.resolve(pbPull()).then(function (p) {
-        if (!p || p.status !== 'ok' || p.unchanged) { PB.version = localVersion; throw new Error('pull ' + ((p && p.status) || 'failed')); }
-        var remoteCards = (PB.cards || []).slice();          /* pbPull REPLACEs PB.cards with the remote */
-        var m = pbMergeCards(localCards, remoteCards);
-        PB.cards = m.cards; PB.save(); PB.markDirty();
-        try { log('pb_merge', { kept: m.kept, took: m.took, added: m.added, remoteVersion: p && p.version }, 'warn'); } catch (_) {}
-        return _pbWriteBack.call(self);              /* the frozen function: one merge per write, never this wrapper again */
-      }).catch(function (e) {
-        PB.version = PB.version || localVersion; PB.cards = PB.cards && PB.cards.length ? PB.cards : localCards; PB.save(); PB.markDirty();
-        try { log('pb_merge_err', { e: String((e && e.message) || e) }, 'error'); } catch (_) {}
-        return r;
-      });
-    });
-  };
-})();
 
 
 /* ═══════════ GAP PART · K4-rename-lww.js ═══════════ */
@@ -7809,27 +6663,6 @@ function pbMergeCards(local, remote) {
    move. Equal stamps break the tie on the name text, the same way on both
    phones, so exactly one side yields. Both converge without a round trip.
    ───────────────────────────────────────────────────────────────────────────── */
-(function () {
-  if (typeof relaySend !== 'function' || typeof onRoomNameSignal !== 'function') return;
-
-
-  var _onRoomNameSignal = onRoomNameSignal;
-  onRoomNameSignal = function (roomId, d) {
-    if (d && d.type === 'sys-pill' && typeof d.newRoomName === 'string') {
-      var r = roomById(roomId || d.room);
-      var ts = Number(d.ts) || 0, mine = (r && Number(r.titleTs)) || 0;
-      var to = String(d.newRoomName).slice(0, 40);
-      if (r && ts && mine && (ts < mine || (ts === mine && to <= (r.title || '')))) {
-        try { log('k4_rename_stale', { kept: r.title, ignored: to, ts: ts, mine: mine }, 'warn'); } catch (_) {}
-        return false;                       /* the base still writes and renders the pill */
-      }
-      var out = _onRoomNameSignal.apply(this, arguments);
-      if (r && ts && r.title === to) { r.titleTs = ts; try { saveRooms(); } catch (_) {} }
-      return out;
-    }
-    return _onRoomNameSignal.apply(this, arguments);
-  };
-})();
 
 
 /* ═══════════ GAP PART · T1-render-coalesce.js ═══════════ */
@@ -7881,33 +6714,6 @@ function pbMergeCards(local, remote) {
    line with a number. Every marker not on the list is untouched. The list is
    the single place to change this.
    ───────────────────────────────────────────────────────────────────────────── */
-(function () {
-  if (typeof log !== 'function') return;
-
-  var WINDOW_MS = 5000;
-  var LIMITED = {
-    joiner_create_control: 1, rc_home_rendered: 1, rc_panel_rendered: 1,
-    md1_rendered: 1, cr3_announce: 1, pr2_declared: 1, pr3_dot: 1
-  };
-  var last = {}, dropped = {};
-
-  var _log = log;
-  log = function (ev, d, lvl) {
-    try {
-      if (LIMITED[ev]) {
-        var now = Date.now();
-        if (last[ev] && now - last[ev] < WINDOW_MS) { dropped[ev] = (dropped[ev] || 0) + 1; return; }
-        last[ev] = now;
-        if (dropped[ev]) {
-          var d2 = {}; for (var k in (d || {})) d2[k] = d[k];
-          d2.dropped = dropped[ev]; dropped[ev] = 0;
-          return _log.call(this, ev, d2, lvl);
-        }
-      }
-    } catch (_) {}
-    return _log.apply(this, arguments);
-  };
-})();
 
 
 /* ═══════════ GAP PART · T3-wrap-map.js ═══════════ */
@@ -8020,38 +6826,6 @@ var TB_WRAP_MAP = (function () {
 (function () {
   if (typeof pbAddTagTo !== 'function' || typeof pbRerenderCard !== 'function' || typeof renderPbList !== 'function') return;
 
-  function dress(root) {
-    var inputs = (root || document).querySelectorAll('[data-taginp]');
-    for (var i = 0; i < inputs.length; i++) {
-      var ti = inputs[i];
-      ti.setAttribute('enterkeyhint', 'enter');
-      ti.setAttribute('autocomplete', 'off');
-      var p = ti.parentNode;
-      if (!(p && p.tagName === 'FORM' && p.hasAttribute('data-tagform'))) {
-        var f = document.createElement('form');
-        f.setAttribute('data-tagform', ti.getAttribute('data-cid') || '');
-        f.setAttribute('action', '#');
-        p.insertBefore(f, ti); f.appendChild(ti);
-      }
-    }
-  }
-
-  var _renderPbList = renderPbList;
-  renderPbList = function () { var r = _renderPbList.apply(this, arguments); try { dress(); } catch (_) {} return r; };
-  var _pbRerenderCard = pbRerenderCard;
-  pbRerenderCard = function (id) { var r = _pbRerenderCard.apply(this, arguments); try { dress(document.getElementById('pbb-' + id)); } catch (_) {} return r; };
-
-  function refocus(id, at) {
-    var inp = document.querySelector('[data-taginp][data-cid="' + id + '"]');
-    if (inp && document.activeElement !== inp) { inp.focus(); try { log('d10_refocus', { id: id, at: at }, 'info'); } catch (_) {} }
-  }
-  var _pbAddTagTo = pbAddTagTo;
-  pbAddTagTo = function (id) {
-    var r = _pbAddTagTo.apply(this, arguments);
-    setTimeout(function () { refocus(id, 0); }, 0);
-    setTimeout(function () { refocus(id, 60); }, 60);
-    return r;
-  };
 
   var host = $('pb-s7'); if (!host) return;
   function commit(ti, via, ev) {
@@ -8172,75 +6946,6 @@ function v2Schedule(why) {
     try { log('v2_retry', { n: _v2Attempt, ms: ms, why: why }, 'warn'); } catch (_) {}
     relayConnect();
   }, ms);
-}
-function relayConnect() {
-  /* CR3 · a connect while the lane is still connecting is a duplicate, not a recovery */
-  try {
-    var room0 = activeRoom();
-    var ws0 = (typeof _relayWs !== 'undefined') ? _relayWs : null;
-    if (ws0 && ws0.readyState === 0 && room0 && ws0._cr3Room === room0.id) { cr3Log('connect_coalesced', { room: room0.id }); return; }
-  } catch (_) {}
-  /* base */
-  var room = activeRoom();
-  if (room) {
-    if (_relayWs) try { _relayWs.close(); } catch (_) {}
-    var ws = new WebSocket(RELAY_WS + '?app=' + encodeURIComponent(RELAY_APP) + '&session=' + encodeURIComponent(room.id) + '&client=' + encodeURIComponent(deviceId));
-    _relayWs = ws;
-    ws.onopen = function () {
-      if (ws !== _relayWs) return;
-      log('relay_open', { room: room.id }, 'ok');
-      relaySend({ type: 'hello', lang: room.myLang, targetLang: room.theirLang, role: room.role, name: room.myName || S.user.name });
-      startHB();
-      resendUndelivered();
-      _relayReconnecting = false; renderPartnerState();
-    };
-    ws.onmessage = function (e) { try { handleRelay(JSON.parse(e.data)); } catch (_) {} };
-    ws.onclose = function (ev) {
-      if (ws !== _relayWs) return;
-      log('relay_close', { code: ev.code }, 'warn'); stopHB(); clearTimeout(wsReconnectTimer);
-      if (S.view === 'room' && S.roomId) {
-        _relayReconnecting = true; renderPartnerState();
-        wsReconnectTimer = setTimeout(function () { wsReconnectTimer = null; if (S.view === 'room') relayConnect(); }, 2000);
-      }
-    };
-    ws.onerror = function () { log('relay_err', {}, 'error'); };
-  }
-  /* The three "after" blocks below ran on whatever `_relayWs` held, even when
-     the base returned early for want of a room — kept as it was (0d D-11). */
-  /* T-net · how long the socket lived */
-  try {
-    if (typeof _relayWs !== 'undefined' && _relayWs && _relayWs.addEventListener) {
-      var openedAt = Date.now();
-      _relayWs.addEventListener('close', function (ev) {
-        netLog('relay_closed', { code: ev.code, livedMs: Date.now() - openedAt, hidden: !!document.hidden }, 'warn');
-      });
-    }
-  } catch (_) {}
-  /* CR3 · the lane announces itself when it opens */
-  try {
-    var cur = _relayWs, rid = S.roomId;
-    if (cur && cur.addEventListener) { cur._cr3Room = rid; cur.addEventListener('open', function () { cr3OnOpen(rid, cur, function () { return cur === _relayWs && S.roomId === rid; }); }); }
-  } catch (e) { cr3Log('hook_failed', { e: String(e && e.message || e) }, 'error'); }
-  /* V2 · the socket comes back as fast as the network does */
-  try {
-    var ws2 = _relayWs;
-    if (ws2 && !ws2.__v2) {
-      ws2.__v2 = true;
-      ws2.addEventListener('open', function () {
-        if (ws2 !== _relayWs) return;
-        _v2Attempt = 0;
-        clearTimeout(_v2Timer); _v2Timer = null;
-      });
-      ws2.addEventListener('close', function () {
-        if (ws2 !== _relayWs) return;                /* a replaced socket is not ours to retry */
-        if (S.view !== 'room' || !S.roomId) return;
-        /* the base onclose has already armed its 2 s timer by now (it was
-           registered first); take it over so exactly one retry is pending */
-        clearTimeout(wsReconnectTimer); wsReconnectTimer = null;
-        v2Schedule('close');
-      });
-    }
-  } catch (_) {}
 }
 
 /* ── reconnectRelayNow ─────────────────────────────────────────────────────── */
@@ -8756,16 +7461,6 @@ async function callAcceptCore() {
   if (room.role === 'creator') this.setupPC();
   log('call_accept', {}, 'ok');
 }
-CALL.accept = function () {
-  var p = this.ringPending;                                                      /* P4 reads first */
-  GEN.bump('call_accept');                                                       /* A */
-  var r = callAcceptCore.apply(this, arguments);                                 /* base */
-  try { if (p && p.roomId) p4CloseTag(p.roomId); } catch (_) {}                  /* P4 after, synchronous */
-  return Promise.resolve(r).then(function (v) {                                  /* N10 */
-    if (CALL.active && !CALL.caller) { CALL.startTs = Date.now(); n10L('n10_accept_anchor', {}); }
-    return v;
-  }).then(function (v) { if (CALL.active) n18Anchor('answerer'); return v; });    /* N18 */
-};
 
 /* ── CALL.onAccepted ───────────────────────────────────────────────────────── */
 function callOnAcceptedCore(room) {
@@ -8774,19 +7469,6 @@ function callOnAcceptedCore(room) {
   this.accepted = true;
   if (room.role === 'creator') this.setupPC();
 }
-CALL.onAccepted = function (room, d) {
-  var wasCaller = CALL.caller && CALL.active;                                    /* N10 before */
-  var r = callOnAcceptedCore.apply(this, arguments);                             /* base */
-  if (wasCaller) {                                                               /* N10 after */
-    n10Hide();
-    /* G42: nothing to restore — the caller is never muted now. Any track an old build disabled is re-enabled here. */
-    try { (CALL.stream ? CALL.stream.getAudioTracks() : []).forEach(function (t) { t.enabled = true; }); } catch (_) {}
-    CALL.startTs = Date.now();                                     /* B-8a: clock starts at the answer */
-    n10L('n10_answered', { micOn: CALL.micOn, tracks: (CALL.stream ? CALL.stream.getAudioTracks().length : 0) });
-  }
-  if (CALL.active) n18Anchor('caller');                                          /* N18 after */
-  return r;
-};
 
 /* ── CALL.mount ────────────────────────────────────────────────────────────── */
 function callMountCore(room) {
@@ -9284,7 +7966,6 @@ function replaceSenderTrack(sender, track) {
     '.cl-bt-verdict.match{background:#dcfce7;color:#166534}.cl-bt-verdict.partial{background:#fef9c3;color:#854d0e}.cl-bt-verdict.miss{background:#fee2e2;color:#991b1b}.cl-bt-verdict.wait{background:#e2e8f0;color:#334155}',
   ].join('\n');
   document.head.appendChild(st);
-  var ICO = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 .49-4.2"/></svg>';
 
   /* chat-test.html · btScore / btVerdict, verbatim */
   function btScore(a,b){
@@ -9297,30 +7978,7 @@ function replaceSenderTrack(sender, track) {
   function btVerdict(score){return score>=0.8?'match':score>=0.5?'partial':'miss'}
 
   /* ── the record: what was heard, kept beside the rewrite ─────────────────── */
-  var _normalizeOutgoing = normalizeOutgoing;
-  normalizeOutgoing = async function (room, text, knownLang) {
-    var r = await _normalizeOutgoing.apply(this, arguments);
-    try {
-      var inT = norm(text || ''), outT = norm((r && r.text) || '');
-      if (inT && outT && inT.toLowerCase() !== outT.toLowerCase()) x3Pending = { said: inT, saidLang: (r && r.detected) || knownLang || '', normalized: outT, at: Date.now() };
-    } catch (_) {}
-    return r;
-  };
   /* the wire: a chat message carries what was said; the receiver holds it for its entry */
-  var _chatPayload = chatPayload;
-  chatPayload = function (e) {
-    var m = _chatPayload.apply(this, arguments);
-    try { if (m && e && e.said && m.type === 'chat-msg') { m.said = e.said; m.saidLang = e.saidLang || ''; } } catch (_) {}
-    return m;
-  };
-  var _handleChatMsg = handleChatMsg;
-  handleChatMsg = function (d, room) {
-    try {
-      var said = d && typeof d.said === 'string' ? norm(d.said) : '';
-      x3PendingIn = said && d.srcText ? { said: said, saidLang: String(d.saidLang || ''), normalized: norm(d.srcText), at: Date.now() } : null;
-    } catch (_) { x3PendingIn = null; }
-    return _handleChatMsg.apply(this, arguments);
-  };
 
   /* ── the card, in the owner's layout; chat-test's CSS, words and scoring ──── */
   function backCheck(e){
@@ -9380,21 +8038,7 @@ function replaceSenderTrack(sender, track) {
       }).catch(function(){if(!ov.isConnected)return;report.comps.forEach(function(c){c.fail('Check failed')});log('bt_check',{outcome:'error',saidLang:saidLang,src:normLang,tgt:tgtLang},'error')});
   }
 
-  var _wireMsg = wireMsg;
-  wireMsg = function (node, e) {
-    var r = _wireMsg.apply(this, arguments);
-    try {
-      if (!e || e.kind === 'sys') return r;
-      var clar = node.querySelector('.head-acts [data-hact=clar]');
-      if (!clar || node.querySelector('[data-hact=check]')) return r;
-      var b = document.createElement('button');
-      b.className = 'tr-act-btn'; b.setAttribute('data-hact', 'check'); b.title = 'Translation check'; b.innerHTML = ICO;
-      clar.insertAdjacentElement('afterend', b);
-      b.addEventListener('click', function (ev) { ev.stopPropagation(); backCheck(e); });
-    } catch (_) {}
-    return r;
-  };
-  window.btScore = btScore; window.btVerdict = btVerdict; window.backCheck = backCheck; window.x3Pending = function () { return x3Pending; }; window.x3PendingIn = function () { return x3PendingIn; };
+  window.btScore = btScore; window.btVerdict = btVerdict; window.backCheck = backCheck;
 })();
 
 
@@ -9418,40 +8062,6 @@ function replaceSenderTrack(sender, track) {
    endpoint is not an officially supported service and may throttle or vanish;
    that is exactly why the fallback stays.
    ───────────────────────────────────────────────────────────────────────────── */
-(function () {
-  if (typeof translateWithRetry !== 'function' || typeof trCache === 'undefined') return;
-
-  var gcode = function (c) { return c === 'zh' ? 'zh-CN' : c === 'fil' ? 'tl' : c; };
-  function keep(k, t) {
-    if (trCache.size >= TR_CACHE_MAX) { var first = trCache.keys().next().value; trCache.delete(first); }
-    trCache.set(k, t);
-  }
-
-  var _translateWithRetry = translateWithRetry;
-  translateWithRetry = function (text, from, to, retries) {
-    var self = this, args = arguments;
-    if (!text || !from || !to || from === to) return _translateWithRetry.apply(self, args);
-    var k = from + '|' + to + '|' + text;
-    if (trCache.has(k)) return _translateWithRetry.apply(self, args);            /* the frozen cache hit */
-    var t0 = Date.now();
-    return fetch('https://translate.googleapis.com/translate_a/single?client=gtx&sl=' + gcode(from) + '&tl=' + gcode(to) + '&dt=t&q=' + encodeURIComponent(text))
-      .then(function (r) { if (!r.ok) throw new Error('google http ' + r.status); return r.json(); })
-      .then(function (d) {
-        var t = Array.isArray(d) && Array.isArray(d[0]) ? d[0].map(function (x) { return x && x[0] || ''; }).join('') : '';
-        t = cleanTr(t); if (!t) throw new Error('google empty');
-        keep(k, t);
-        try { log('trans_ok', { provider: 'google', from: from, to: to, ms: Date.now() - t0, inChars: text.length, outChars: t.length }, 'ok'); } catch (_) {}
-        return { text: t, ok: true };
-      })
-      .catch(function (ge) {
-        try { log('trans_fallback', { provider: 'google', from: from, to: to, ms: Date.now() - t0, e: String(ge && ge.message || ge).slice(0, 60) }, 'warn'); } catch (_) {}
-        return Promise.resolve(_translateWithRetry.apply(self, args)).then(function (r) {
-          try { if (r && r.ok) log('trans_ok', { provider: 'mymemory', from: from, to: to, ms: Date.now() - t0, inChars: text.length, outChars: String(r.text || '').length }, 'ok'); } catch (_) {}
-          return r;
-        });
-      });
-  };
-})();
 
 
 /* ═══════════ GAP PART · FL3-room-lifecycle.js ═══════════ */
@@ -10093,6 +8703,1324 @@ function appendMsgDom(e, batch) {
       try { if (typeof log === 'function') log('md1_rendered', { id: String(e.id).slice(-6) }, 'ok'); } catch (_) {}
     } catch (_) {}
   return r;
+}
+
+
+/* ═══════════ GAP PART · FL5-sweep.js ═══════════ */
+/* @contract
+   replaces: uid, log, saveRooms, loadTr, translateWithRetry, speakText, applyBubbleTheme, linkDeviceUrl, renderPartnerState, chatPayload, handleChatMsg, sendChatText, pbWriteBack, showScreen, wireMsg, renderPbList, pbRerenderCard, pbCommitEdit, pbAddTagTo, closeDrawer, osNotify, bgAddPill, addSpeech, onDGFinal, stopDeepgram, startDeepgram, normalizeOutgoing, waitingOf, bumpWaiting, clearWaiting, onVisible, onRoomNameSignal
+   wraps: (none)
+   adds: the *Core bodies, the named inner layers, and the moved state: _k1Prefix, _n16Q, _n16Sending, _n16Dev, n16Base, n16Flush, _k2LastErr, k2Refused, _t2WindowMs, _t2Limited, _t2Last, _t2Dropped, d10Dress, d10Refocus, g1Gcode, g1Keep, x3Ico
+*/
+/* ─────────────────────────────────────────────────────────────────────────────
+   FL-5 · THE SHALLOW SWEEP, FLAT (§7.16 cluster 5, §0c-1)
+
+   Every symbol the wrap map still listed after clusters 1–4: thirty-two
+   functions, each with one base body and one to three layers over it, now ONE
+   function each. Every body is the verbatim text of the layer it came from;
+   a layer that called the previous layer by a captured name now calls the
+   next inner function by its own name. Layers that REPLACED the previous one
+   without calling it (CR3's osNotify / waitingOf / bumpWaiting, R8b's
+   renderPartnerState, B's startDeepgram over the base's) leave the replaced
+   bodies out — they were dead code, and their log markers with them, each
+   declared in the assembler. State that lived inside a layer's closure moves
+   here whole under a part-prefixed name (K1's prefix, N16's queue, K2's last
+   refusal, T2's allowlist, D10's dressers, G1's cache helpers, X3's icon).
+   Three things recorded, none a behaviour change in use:
+     · the shared device log's queue is created on first use, so lines logged
+       at boot before this part runs still reach it (it used to exist from
+       N16's position in the file; the flat log is hoisted ahead of it);
+     · K1's prefix is computed here, at the end of the script, so an id minted
+       at boot between K1's old position and this part would be unprefixed —
+       nothing mints one there (proven by the differential: ids identical);
+     · T-net's open-path timing hook (dgWatch) is part of startDeepgram from
+       the first call instead of 600 ms after boot.
+   The function-object stashes (_cr3Original, _r8Original, _r9Original) that
+   nothing read are gone. Proven equivalent by harness-diff-28pos.
+   ───────────────────────────────────────────────────────────────────────────── */
+
+/* ═══ uid · base, K1's device prefix ═══ */
+function uidCore(){return Date.now().toString(36)+Math.random().toString(36).slice(2,8)}
+var _k1Prefix = (typeof deviceId === 'string' && deviceId) ? String(deviceId).replace(/[^A-Za-z0-9]/g, '').slice(0, 8).toLowerCase() : '';
+function uid() { return _k1Prefix ? _k1Prefix + '-' + uidCore.apply(this, arguments) : uidCore.apply(this, arguments); }
+if (_k1Prefix) { try { log('k1_ids', { prefix: _k1Prefix }, 'ok'); } catch (_) {} }
+
+/* ═══ log · base, N16's shared device log, K2's refusal reader, T2's rate limit ═══ */
+function logCore(ev,d,lvl){debugLog.push({ts:new Date().toISOString(),ev:ev,d:d||{},lvl:lvl||'info'});if(debugLog.length>400)debugLog.shift()}
+var _n16Q = null, _n16Sending = false;
+var _n16Dev = (function () {
+  try {
+    var k = 'tb_devlog_name', v = localStorage.getItem(k);
+    if (!v) {
+      var ua = navigator.userAgent || '';
+      v = (/iPhone|iPad|iPod/.test(ua) ? 'iphone' : /Android/.test(ua) ? 'android' : 'desktop')
+        + '-' + Math.random().toString(36).slice(2, 5);
+      localStorage.setItem(k, v);
+    }
+    return v;
+  } catch (_) { return 'dev'; }
+})();
+function n16Base() {
+  try { return (typeof p3RelayHttp === 'function' ? p3RelayHttp() : '').replace(/\/signal.*$/, ''); } catch (_) { return ''; }
+}
+function n16Flush() {
+  if (_n16Sending || !_n16Q || !_n16Q.length) return;
+  var b = n16Base(); if (!b) return;
+  var rows = _n16Q.splice(0, 100);
+  _n16Sending = true;
+  fetch(b + '/log', { method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ dev: _n16Dev, rows: rows }), keepalive: true })
+    .catch(function () {}).then(function () { _n16Sending = false; });
+}
+function logN16(ev, d, lvl) {
+  try { (_n16Q || (_n16Q = [])).push({ t: Date.now(), e: ev, d: d || {} }); if (_n16Q.length > 400) _n16Q.shift(); } catch (_) {}
+  return logCore.apply(this, arguments);
+}
+var _k2LastErr = null;
+function k2Refused() { return /put 409|put 422/.test(_k2LastErr || ''); }
+function logK2(ev, d) {
+  if (ev === 'pb_writeback_err') _k2LastErr = String((d && d.e) || '');
+  return logN16.apply(this, arguments);
+}
+var _t2WindowMs = 5000;
+var _t2Limited = {
+  joiner_create_control: 1, rc_home_rendered: 1, rc_panel_rendered: 1,
+  md1_rendered: 1, cr3_announce: 1, pr2_declared: 1, pr3_dot: 1
+};
+var _t2Last = {}, _t2Dropped = {};
+function log(ev, d, lvl) {
+  try {
+    if (_t2Limited[ev]) {
+      var now = Date.now();
+      if (_t2Last[ev] && now - _t2Last[ev] < _t2WindowMs) { _t2Dropped[ev] = (_t2Dropped[ev] || 0) + 1; return; }
+      _t2Last[ev] = now;
+      if (_t2Dropped[ev]) {
+        var d2 = {}; for (var k in (d || {})) d2[k] = d[k];
+        d2.dropped = _t2Dropped[ev]; _t2Dropped[ev] = 0;
+        return logK2.call(this, ev, d2, lvl);
+      }
+    }
+  } catch (_) {}
+  return logK2.apply(this, arguments);
+}
+setInterval(n16Flush, 4000);
+document.addEventListener('visibilitychange', function () { if (document.hidden) n16Flush(); });
+window.addEventListener('pagehide', n16Flush);
+try { log('n16_devlog', { dev: _n16Dev }); } catch (_) {}
+
+/* ═══ saveRooms · base, P4 after, CR3 after ═══ */
+function saveRoomsCore(){lsSet('tba_rooms',S.rooms)}
+function saveRoomsP4() {
+  var r = saveRoomsCore.apply(this, arguments);
+  try { p4SaveCtx(); } catch (_) {}
+  return r;
+}
+function saveRooms() {
+  var r = saveRoomsP4.apply(this, arguments);
+  try {
+    var sig = S.rooms.map(function (x) { return x.id + ':' + (x.muted ? 1 : 0); }).join(',');
+    if (cr3State.muteSig !== undefined && cr3State.muteSig !== sig) { clearTimeout(cr3State.muteTimer); cr3State.muteTimer = setTimeout(function () { cr3Announce('mute'); }, 100); }
+    cr3State.muteSig = sig;
+  } catch (_) {}
+  return r;
+}
+
+/* ═══ loadTr · base, E after ═══ */
+function loadTrCore(id){return lsGet(trKey(id),[])}
+function loadTr(id) {
+  var entries = loadTrCore.apply(this, arguments);
+  try { seedSpeechSeq(entries); } catch (e) { try { log('seq_seed_err', { e: String(e) }, 'error'); } catch (_) {} }
+  return entries;
+}
+
+/* ═══ translateWithRetry · base (MyMemory), G1 around (Google first) ═══ */
+function translateWithRetryCore(text,from,to,retries){
+  if(!text||!from||!to||from===to)return Promise.resolve({text:text,ok:true});
+  var k=from+'|'+to+'|'+text;
+  if(trCache.has(k)){var v=trCache.get(k);trCache.delete(k);trCache.set(k,v);return Promise.resolve({text:v,ok:true})}
+  var attempt=function(n){
+    return fetch('https://api.mymemory.translated.net/get?q='+encodeURIComponent(text)+'&langpair='+from+'|'+to)
+      .then(function(r){return r.json()})
+      .then(function(d){
+        if(d&&d.responseStatus===200&&d.responseData){
+          var t=d.responseData.translatedText;
+          if(t&&t.indexOf('MYMEMORY')<0){
+            t=cleanTr(t);
+            if(trCache.size>=TR_CACHE_MAX){var first=trCache.keys().next().value;trCache.delete(first)}
+            trCache.set(k,t);return{text:t,ok:true};
+          }
+        }
+        throw new Error('bad response');
+      })
+      .catch(function(e){
+        if(n>0){log('trans_retry',{left:n},'warn');return new Promise(function(res){setTimeout(res,300+((retries-n)*250))}).then(function(){return attempt(n-1)})}
+        log('trans_fail',{from:from,to:to,e:String(e)},'error');
+        return{text:text,ok:false};
+      });
+  };
+  return attempt(retries||0);
+}
+var g1Gcode = function (c) { return c === 'zh' ? 'zh-CN' : c === 'fil' ? 'tl' : c; };
+function g1Keep(k, t) {
+  if (trCache.size >= TR_CACHE_MAX) { var first = trCache.keys().next().value; trCache.delete(first); }
+  trCache.set(k, t);
+}
+function translateWithRetry(text, from, to, retries) {
+  var self = this, args = arguments;
+  if (!text || !from || !to || from === to) return translateWithRetryCore.apply(self, args);
+  var k = from + '|' + to + '|' + text;
+  if (trCache.has(k)) return translateWithRetryCore.apply(self, args);            /* the frozen cache hit */
+  var t0 = Date.now();
+  return fetch('https://translate.googleapis.com/translate_a/single?client=gtx&sl=' + g1Gcode(from) + '&tl=' + g1Gcode(to) + '&dt=t&q=' + encodeURIComponent(text))
+    .then(function (r) { if (!r.ok) throw new Error('google http ' + r.status); return r.json(); })
+    .then(function (d) {
+      var t = Array.isArray(d) && Array.isArray(d[0]) ? d[0].map(function (x) { return x && x[0] || ''; }).join('') : '';
+      t = cleanTr(t); if (!t) throw new Error('google empty');
+      g1Keep(k, t);
+      try { log('trans_ok', { provider: 'google', from: from, to: to, ms: Date.now() - t0, inChars: text.length, outChars: t.length }, 'ok'); } catch (_) {}
+      return { text: t, ok: true };
+    })
+    .catch(function (ge) {
+      try { log('trans_fallback', { provider: 'google', from: from, to: to, ms: Date.now() - t0, e: String(ge && ge.message || ge).slice(0, 60) }, 'warn'); } catch (_) {}
+      return Promise.resolve(translateWithRetryCore.apply(self, args)).then(function (r) {
+        try { if (r && r.ok) log('trans_ok', { provider: 'mymemory', from: from, to: to, ms: Date.now() - t0, inChars: text.length, outChars: String(r.text || '').length }, 'ok'); } catch (_) {}
+        return r;
+      });
+    });
+}
+
+/* ═══ speakText · base, MD before (markdown stripped for speech) ═══ */
+
+/* ═══ applyBubbleTheme · base, M after ═══ */
+function applyBubbleThemeCore(){
+  var s=$('bubble-theme-tag');if(!s){s=document.createElement('style');s.id='bubble-theme-tag';document.head.appendChild(s)}
+  var r=activeRoom();if(!r){s.textContent='';return}
+  var preset=themeVal(r,'preset','medium');
+  var meBg=themeVal(r,'meBg',themePaletteColor(preset,'pacific-blue'));
+  var pnBg=themeVal(r,'pnBg',themePaletteColor(preset,'almond-cream'));
+  var meFont=themeVal(r,'meFont','')||(hexLum(meBg)>0.45?'#1A1714':'#ffffff');
+  var pnFont=themeVal(r,'pnFont','')||(hexLum(pnBg)>0.45?'#1A1714':'#ffffff');
+  var meSize=themeVal(r,'meSize',15),pnSize=themeVal(r,'pnSize',15);
+  var meWidth=themeVal(r,'meWidth',75),pnWidth=themeVal(r,'pnWidth',75);
+  var hdrColor=themeVal(r,'hdrColor','#5A5552'),hdrSize=themeVal(r,'hdrSize',11);
+  s.textContent=
+    '.tr-body{grid-template-columns:'+meWidth+'fr 1px '+pnWidth+'fr}'
+    +'.tr-col[data-side="left"]{background:'+meBg+'}'
+    +'.tr-col[data-side="left"] .tr-text{color:'+meFont+';font-size:'+meSize+'px}'
+    +'.tr-col[data-side="left"] .tr-tts{color:'+meFont+';font-size:'+meSize+'px}'
+    +'.tr-col[data-side="right"]{background:'+pnBg+'}'
+    +'.tr-col[data-side="right"] .tr-text{color:'+pnFont+';font-size:'+pnSize+'px}'
+    +'.tr-col[data-side="right"] .tr-tts{color:'+pnFont+';font-size:'+pnSize+'px}'
+    +'.tr-head{font-size:'+hdrSize+'px}'
+    +'.tr-head .tr-who{color:'+hdrColor+'}'
+    +'.tr-head .tr-who.mine{color:'+hdrColor+'}'
+    +'.tr-head .tr-time{color:'+hdrColor+';font-size:'+Math.max(8,hdrSize-1)+'px}';
+}
+function applyBubbleTheme() {
+  var r = applyBubbleThemeCore.apply(this, arguments);
+  try {
+    var room = activeRoom(); if (!room) return r;
+    var bg = themeVal(room, 'hdrBg', '');
+    var tag = $('bubble-theme-tag');
+    if (tag && bg) tag.textContent = tag.textContent + '.tr-head{background:' + bg + '}';
+    var picker = $('s4b-hdr-bg');
+    if (picker) picker.value = bg || '#F5F1EC';
+  } catch (e) { rmLog('header_bg_apply_failed', { e: String(e && e.message || e) }, 'error'); }
+  return r;
+}
+
+/* ═══ linkDeviceUrl · base, B8c's name stamp, W1's title stamp (the FL-3 copies are now the only definitions) ═══ */
+function linkDeviceUrlCore(room){
+  var k=(localStorage.getItem('tb_dg_key')||'').trim();
+  var tid=(localStorage.getItem('tb_cf_tid')||'').trim();
+  var tok=(localStorage.getItem('tb_cf_tok')||'').trim();
+  return location.href.split('?')[0].split('#')[0]+'#j='+encInv({r:room.id,ld:1,role:room.role,ml:room.myLang,tl:room.theirLang,myn:room.myName||S.user.name||'',pn:room.partnerName||'',t:room.title||'',th:room.theme||null,k:k,tid:tid,tok:tok});
+}
+function linkDeviceUrl(room) { return fl3TStamp(fl3Stamp(linkDeviceUrlCore.apply(this, arguments), room), room); }
+
+/* ═══ renderPartnerState · R8b's replacement (the base body was dead) ═══ */
+function renderPartnerState() {
+      /* The base function's only job was writing "Speaking…" into #rz-timer.
+         The slot now has one writer; speaking lives on the presence dot,
+         which the timer tick below keeps updated. */
+      return;
+}
+
+/* ═══ chatPayload · base, X3 after (what was said rides the wire) ═══ */
+function chatPayloadCore(e){
+  return{type:'chat-msg',chatId:e.id,srcText:e.sourceText,tgtText:e.translatedText,srcLang:e.srcLang,tgtLang:e.tgtLang,senderName:e.senderName,origin:e.origin||'typed',attachment:e.attachment||null,ts:e.ts};
+}
+function chatPayload(e) {
+  var m = chatPayloadCore.apply(this, arguments);
+  try { if (m && e && e.said && m.type === 'chat-msg') { m.said = e.said; m.saidLang = e.saidLang || ''; } } catch (_) {}
+  return m;
+}
+
+/* ═══ handleChatMsg · X3 before (the partner's said held), R around (the waiting count), base ═══ */
+function handleChatMsgCore(d,room){
+  if(!d)return;
+  if(d.chatId){
+    if(_chatReceived.has(d.chatId)||transcript.some(function(x){return x.id===d.chatId})){relaySend({type:'chat-ack',chatId:d.chatId,transient:true});return}
+    _chatReceived.add(d.chatId);
+    relaySend({type:'chat-ack',chatId:d.chatId,transient:true});
+  }
+  if(d.senderName&&d.senderName!==room.partnerName){room.partnerName=d.senderName;saveRooms();renderRoomHead();renderPanel()}
+  var entry={
+    id:d.chatId||('ci-'+uid()),kind:'chat',who:'partner',
+    sourceText:norm(d.srcText||''),translatedText:norm(d.tgtText||d.srcText||''),
+    srcLang:d.srcLang||room.theirLang,tgtLang:d.tgtLang||room.myLang,
+    ts:d.ts||Date.now(),senderName:d.senderName||room.partnerName||'Partner',
+    origin:d.origin||'typed',attachment:d.attachment||null
+  };
+  transcript.push(entry);saveTr();
+  room.lastAt=Date.now();saveRooms();
+  appendMsgDom(entry);
+  if(document.hidden){room.unread=(room.unread||0)+1;saveRooms();renderPanel();if(!room.muted)osNotify((entry.senderName||'New message'),entry.translatedText||entry.sourceText||'',room.id)}
+  else sendReadReceipts();
+  if(room.autoRead&&entry.translatedText)speakText(entry.translatedText,entry.tgtLang);
+  log('chat_rx',{t:(d.srcText||'').slice(0,40)},'ok');
+}
+function handleChatMsgR(d, room) {
+  var before = (room && room.unread) || 0;
+  var r = handleChatMsgCore.apply(this, arguments);
+  try {
+    if (room && (room.unread || 0) > before) {
+      room.unread = before;
+      bumpWaiting(room, 'chat');
+      saveRooms();
+    }
+  } catch (e) { rcLog('chat_count_failed', { e: String(e && e.message || e) }, 'error'); }
+  return r;
+}
+function handleChatMsg(d, room) {
+  try {
+    var said = d && typeof d.said === 'string' ? norm(d.said) : '';
+    x3PendingIn = said && d.srcText ? { said: said, saidLang: String(d.saidLang || ''), normalized: norm(d.srcText), at: Date.now() } : null;
+  } catch (_) { x3PendingIn = null; }
+  return handleChatMsgR.apply(this, arguments);
+}
+
+/* ═══ sendChatText · L guard, J direction log, B normalization, base ═══ */
+async function sendChatTextCore(text,attachment,originOverride){
+  var room=activeRoom();if(!room)return;
+  var src=room.myLang,tgt=room.theirLang,srcText=text,failed=false;
+  if(text){
+    var detected=detectLang(text);
+    if(detected&&detected!==src){
+      var normed=await translateWithRetry(text,detected,src,2);
+      if(normed.ok&&norm(normed.text).toLowerCase()!==norm(text).toLowerCase())srcText=norm(normed.text);
+      else src=detected;
+    }
+    var tgtText=srcText;
+    if(src!==tgt){
+      var tr=await translateWithRetry(srcText,src,tgt,1);
+      if(tr.ok)tgtText=norm(tr.text);else failed=true;
+    }
+  }else{var tgtText=''}
+  var entry={
+    id:'cm-'+uid(),kind:'chat',who:'me',
+    sourceText:srcText,translatedText:tgtText,srcLang:src,tgtLang:tgt,
+    ts:Date.now(),senderName:room.myName||S.user.name,origin:originOverride||'typed',
+    receipt:'sent',translationFailed:failed,attachment:attachment||null
+  };
+  transcript.push(entry);saveTr();
+  room.lastAt=Date.now();saveRooms();renderPanel();
+  appendMsgDom(entry);
+  if(relaySend(chatPayload(entry)))log('chat_sent',{t:srcText.slice(0,40)},'ok');
+  else log('chat_queued',{t:srcText.slice(0,40)},'warn');
+}
+async function sendChatTextB(text, attachment, originOverride) {
+  var room = activeRoom();
+  if (room && text) {
+    var myGen = GEN.n;
+    try {
+      var r = await normalizeOutgoing(room, text);
+      if (!GEN.is(myGen)) { log('chat_gen_abandoned', { gen: myGen }, 'warn'); return; }
+      text = r.text;
+      if (r.lang !== room.myLang) log('normalize_incomplete', { was: r.detected, wanted: room.myLang }, 'warn');
+    } catch (e) { log('normalize_err', { e: String(e) }, 'error'); }
+  }
+  return sendChatTextCore.call(this, text, attachment, originOverride);
+}
+function sendChatTextJ(text, attachment, origin) {
+  try {
+    var r = activeRoom();
+    if (r) jLog('send_direction', { room: String(r.id).slice(-6), from: r.myLang, to: r.theirLang, role: r.role }, 'ok');
+  } catch (_) {}
+  return sendChatTextB.apply(this, arguments);
+}
+function sendChatText(text, attachment, origin) {
+  var r = activeRoom();
+  if (roomSendLocked(r)) { lcLog('send_blocked', { room: r && String(r.id).slice(-6) }, 'warn'); toast('They left this chat'); return; }
+  return sendChatTextJ.apply(this, arguments);
+}
+
+/* ═══ pbWriteBack · base, K2 around (compare-and-swap on refusal) ═══ */
+function pbWriteBackCore(){
+  var pk=PB.pk;if(!pk)return Promise.resolve({status:'no-pair'});
+  if(!PB.isDirty()){return Promise.resolve({status:'skipped'})}
+  var pat=(localStorage.getItem('tb_gh_pat')||'').trim();
+  if(!pat)return Promise.resolve({status:'no-pat'});
+  var dirp=pk.split('-'),src=dirp[0],tgt=dirp[1];
+  // VERSION-MANAGEMENT RULING (2026-07-30): bridge never invents a new, higher version number.
+  // It overwrites whichever version it already has loaded (PB.version), or creates 1000 if this
+  // pair has never had a file. A new version only ever comes from a separate, external release process.
+  var ver=PB.version||1000;
+  var v=String(ver);while(v.length<4)v='0'+v;
+  var fname='phrasebook-'+src+'-'+tgt+'-'+v+'.json';
+  var getUrl='https://api.github.com/repos/'+PB_REPO.owner+'/'+PB_REPO.name+'/contents/'+PB_REPO.dir+'/'+fname+'?ref=main';
+  return fetch(getUrl,{headers:ghHeaders()}).then(function(r){
+    if(r.status===404)return null; // first-ever save for this pair — no existing file/sha yet
+    if(!r.ok)throw new Error('get '+r.status);
+    return r.json();
+  }).then(function(existing){
+    var envelope={type:'phrasebook',pair:pk,version:ver,updatedAt:new Date().toISOString(),updatedBy:S.user.name||'me',cards:PB.cards};
+    var content=btoa(unescape(encodeURIComponent(JSON.stringify(envelope,null,2))));
+    var putUrl='https://api.github.com/repos/'+PB_REPO.owner+'/'+PB_REPO.name+'/contents/'+PB_REPO.dir+'/'+fname;
+    var body={message:'PB update '+pk+' v'+ver,content:content,branch:'main'};
+    if(existing&&existing.sha)body.sha=existing.sha;
+    return fetch(putUrl,{method:'PUT',headers:Object.assign({'Content-Type':'application/json'},ghHeaders()),body:JSON.stringify(body)}).then(function(r2){
+      if(!r2.ok)throw new Error('put '+r2.status);return r2.json();
+    });
+  }).then(function(){
+    PB.version=ver;PB.meta={bumpedAt:new Date().toISOString(),updatedBy:S.user.name||'me'};PB.save();PB.clearDirty();pbSyncDot('idle');PB.lastPull={status:'ok',file:fname,n:PB.cards.length,at:Date.now()};renderPbStatus();
+    log('pb_writeback',{pair:pk,version:ver},'ok');
+    return{status:'ok',version:ver};
+  }).catch(function(e){
+    log('pb_writeback_err',{e:String(e)},'warn');pbSyncDot('error');
+    if(!_pbRetryArmed){_pbRetryArmed=true;window.addEventListener('online',function _r(){window.removeEventListener('online',_r);_pbRetryArmed=false;if(PB.isDirty())pbWriteBack()})}
+    return{status:'pending'};
+  });
+}
+function pbWriteBack() {
+  var self = this, args = arguments;
+  _k2LastErr = null;
+  return Promise.resolve(pbWriteBackCore.apply(self, args)).then(function (r) {
+    if (!r || r.status !== 'pending' || !k2Refused()) return r;
+    var localCards = (PB.cards || []).slice(), localVersion = PB.version;
+    /* The other device wrote the SAME version number (the bridge never
+       bumps), so the frozen pull's "already at this version" short-cut
+       would skip the fetch. Forget the version for the pull; it is put
+       back if the pull does not deliver. */
+    PB.version = null;
+    return Promise.resolve(pbPull()).then(function (p) {
+      if (!p || p.status !== 'ok' || p.unchanged) { PB.version = localVersion; throw new Error('pull ' + ((p && p.status) || 'failed')); }
+      var remoteCards = (PB.cards || []).slice();          /* pbPull REPLACEs PB.cards with the remote */
+      var m = pbMergeCards(localCards, remoteCards);
+      PB.cards = m.cards; PB.save(); PB.markDirty();
+      try { log('pb_merge', { kept: m.kept, took: m.took, added: m.added, remoteVersion: p && p.version }, 'warn'); } catch (_) {}
+      return pbWriteBackCore.call(self);              /* the frozen function: one merge per write, never this wrapper again */
+    }).catch(function (e) {
+      PB.version = PB.version || localVersion; PB.cards = PB.cards && PB.cards.length ? PB.cards : localCards; PB.save(); PB.markDirty();
+      try { log('pb_merge_err', { e: String((e && e.message) || e) }, 'error'); } catch (_) {}
+      return r;
+    });
+  });
+}
+
+/* ═══ showScreen · base, PR2 after (the view declared; FL-3's copy of declare) ═══ */
+function showScreenCore(v){
+  S.view=v;
+  ['s0','s1','room','s10'].forEach(function(k){$('scr-'+k).classList.toggle('active',k===v)});
+}
+function showScreen(v) { var r = showScreenCore.apply(this, arguments); fl3Declare('view_' + v); return r; }
+
+/* ═══ wireMsg · base, M after (receipt popup), X3 after (the check button) ═══ */
+function wireMsgCore(node,e){
+  if(e.kind==='sys')return;
+  var meta=node.querySelector('.meta');
+  if(meta){
+    meta.addEventListener('click',function(ev){
+      if(ev.target.closest('[data-hact]')||ev.target.closest('[data-receipt]'))return;
+      var was=node.classList.contains('active');
+      document.querySelectorAll('.msg.active').forEach(function(m){m.classList.remove('active')});
+      if(!was)node.classList.add('active');
+    });
+    var hs=meta.querySelector('[data-hact=save]');
+    if(hs)hs.addEventListener('click',function(ev){ev.stopPropagation();pbAddCard({source:e.who==='me'?e.sourceText:e.translatedText,target:e.who==='me'?e.translatedText:e.sourceText,sourceLang:e.who==='me'?e.srcLang:e.tgtLang,targetLang:e.who==='me'?e.tgtLang:e.srcLang})});
+    var hc=meta.querySelector('[data-hact=clar]');
+    if(hc)hc.addEventListener('click',function(ev){ev.stopPropagation();openClarify(e)});
+    var hd=meta.querySelector('[data-hact=del]');
+    if(hd)hd.addEventListener('click',function(ev){
+      ev.stopPropagation();
+      if(!confirm('Delete this message?'))return;
+      transcript=transcript.filter(function(x2){return x2.id!==e.id});saveTr();renderTranscript();
+    });
+  }
+  node.querySelectorAll('.col').forEach(function(col){
+    var txt=col.dataset.side==='left'?(e.who==='me'?e.sourceText:e.translatedText):(e.who==='me'?e.translatedText:e.sourceText);
+    col.addEventListener('click',function(ev){
+      if(ev.target.closest('[data-att]'))return;
+      if(ev.target.closest('[data-ctts]')){ev.stopPropagation();speakText(txt,col.dataset.lang);return}
+      useInCompose(txt,null);
+    });
+    longPress(col,function(x,y){openCtxMenu(e,x,y)});
+  });
+  var att=node.querySelector('[data-att]');
+  if(att)att.addEventListener('click',function(ev){ev.stopPropagation();openAttViewer(e)});
+  var rc=node.querySelector('[data-receipt]');
+  if(rc)rc.addEventListener('click',function(ev){
+    ev.stopPropagation();
+    var pop=$('status-pop');
+    var label=e.receipt==='read'?'Read':e.receipt==='delivered'?'Delivered':'Sent';
+    var ts2=e.receipt==='read'?(e.readAt||e.ts):e.receipt==='delivered'?(e.deliveredAt||e.ts):e.ts;
+    pop.textContent=label+' · '+fmtDate(ts2)+' '+fmtTime(ts2);
+    var r2=rc.getBoundingClientRect(),ar=$('app').getBoundingClientRect();
+    pop.style.left=Math.max(8,r2.left-ar.left-30)+'px';pop.style.top=(r2.top-ar.top-30)+'px';pop.style.display='block';
+    clearTimeout(wireMsg._pt);wireMsg._pt=setTimeout(function(){pop.style.display='none'},1500);
+  });
+}
+function wireMsgM(node, e) {
+  var r = wireMsgCore.apply(this, arguments);
+  try {
+    if (node && node.querySelector) {
+      var rec = node.querySelector('[data-receipt]');
+      if (rec) rec.addEventListener('click', function (ev) { ev.stopPropagation(); showReceiptPopup(e); });
+    }
+  } catch (err) { rmLog('receipt_wire_failed', { e: String(err && err.message || err) }, 'error'); }
+  return r;
+}
+var x3Ico = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 .49-4.2"/></svg>';
+function wireMsg(node, e) {
+  var r = wireMsgM.apply(this, arguments);
+  try {
+    if (!e || e.kind === 'sys') return r;
+    var clar = node.querySelector('.head-acts [data-hact=clar]');
+    if (!clar || node.querySelector('[data-hact=check]')) return r;
+    var b = document.createElement('button');
+    b.className = 'tr-act-btn'; b.setAttribute('data-hact', 'check'); b.title = 'Translation check'; b.innerHTML = x3Ico;
+    clar.insertAdjacentElement('afterend', b);
+    b.addEventListener('click', function (ev) { ev.stopPropagation(); backCheck(e); });
+  } catch (_) {}
+  return r;
+}
+
+/* ═══ renderPbList / pbRerenderCard / pbAddTagTo · base, D10 after (the tag field dressed; focus kept) ═══ */
+function d10Dress(root) {
+  var inputs = (root || document).querySelectorAll('[data-taginp]');
+  for (var i = 0; i < inputs.length; i++) {
+    var ti = inputs[i];
+    ti.setAttribute('enterkeyhint', 'enter');
+    ti.setAttribute('autocomplete', 'off');
+    var p = ti.parentNode;
+    if (!(p && p.tagName === 'FORM' && p.hasAttribute('data-tagform'))) {
+      var f = document.createElement('form');
+      f.setAttribute('data-tagform', ti.getAttribute('data-cid') || '');
+      f.setAttribute('action', '#');
+      p.insertBefore(f, ti); f.appendChild(ti);
+    }
+  }
+}
+function d10Refocus(id, at) {
+  var inp = document.querySelector('[data-taginp][data-cid="' + id + '"]');
+  if (inp && document.activeElement !== inp) { inp.focus(); try { log('d10_refocus', { id: id, at: at }, 'info'); } catch (_) {} }
+}
+function renderPbListCore(){
+  var host=$('pb-ov-cards');if(!host)return;
+  var q=norm($('pb-search').value||'');
+  var ts=function(x){var n=+x||(x?+new Date(x):0);return isNaN(n)?0:n};
+  var live=PB.live().slice().sort(function(a,b){
+    var ea=pbCardEmpty(a)?1:0,eb=pbCardEmpty(b)?1:0;
+    if(ea!==eb)return eb-ea; // blank/new cards pinned to the top (S8)
+    return ts(b.createdAt)-ts(a.createdAt);
+  });
+  var cnt=$('pb-count');
+  var html='';
+  if(!live.length&&!PB.trash().length){
+    if(cnt)cnt.textContent='';
+    $('pb-cat-chips').innerHTML='';
+    html='<div style="padding:32px 16px;text-align:center;color:#9a9592;font-size:14px;line-height:1.6;">No phrasebook loaded.</div>';
+  }else if(q){ // search mode: two-side rows (pre-base overlay search)
+    var matched=searchFilter(live,q);
+    var qLow=q.toLowerCase();
+    matched.sort(function(a,b){return pbScore(b,qLow)-pbScore(a,qLow)});
+    renderPbChips(matched); // live per-category match counts while typing
+    var res=pbFilterByActiveCats(matched);
+    var withinCatTotal=res.length;
+    var capped=(S_pbActiveCats.length===1&&res.length>5);
+    if(capped)res=res.slice(0,5);
+    if(cnt)cnt.textContent=capped?(res.length+' of '+withinCatTotal+' phrases'):(res.length+' of '+live.length+' phrases');
+    html=res.length?res.map(pbSearchRowHtml).join(''):'<div style="padding:24px;text-align:center;color:#9a9592;">No phrases found.</div>';
+  }else{ // no search: full cards, chips show total counts (never a "match" count before typing)
+    renderPbChips(live);
+    var filtered=pbFilterByActiveCats(live);
+    if(cnt)cnt.textContent=filtered.length+' phrases';
+    html=filtered.map(pbBubbleHtml).join('');
+  }
+  host.innerHTML=html;
+  $('pb-trash-host').innerHTML=pbTrashSectionHtml(PB.trash());
+}
+function renderPbList() { var r = renderPbListCore.apply(this, arguments); try { d10Dress(); } catch (_) {} return r; }
+function pbRerenderCardCore(id){
+  var c=pbCardById(id);var el=document.getElementById('pbb-'+id);
+  if(!c||!el)return;
+  var w2=document.createElement('div');w2.innerHTML=pbBubbleHtml(c);
+  el.replaceWith(w2.firstChild);
+  var r=window._pbRefocus;
+  if(r&&r.id===id&&Date.now()-r.at<5000){ // Enter commits keep the keyboard put (S8)
+    var f=document.querySelector('[data-pbedit="'+r.field+'"][data-cid="'+id+'"]');
+    if(f){f.focus();try{var rg=document.createRange();rg.selectNodeContents(f);rg.collapse(false);var sl=window.getSelection();sl.removeAllRanges();sl.addRange(rg)}catch(_){}}
+  }
+}
+function pbRerenderCard(id) { var r = pbRerenderCardCore.apply(this, arguments); try { d10Dress(document.getElementById('pbb-' + id)); } catch (_) {} return r; }
+function pbAddTagToCore(id,raw){
+  var c=pbCardById(id);if(!c)return;
+  var t=(raw||'').toLowerCase().trim().replace(/\s+/g,'-').replace(/[^a-z0-9\-]/g,'').slice(0,24);
+  if(!t)return;
+  c.tags=c.tags||[];
+  if(c.tags.indexOf(t)>=0)return;
+  c.tags.push(t);
+  pbLogChain(c,'Tag added: #'+t);
+  pbTouch(c);
+  _pbCS(id).tagsOpen=true;
+  pbRerenderCard(id);
+  var inp=document.querySelector('[data-taginp][data-cid="'+id+'"]');
+  if(inp)inp.focus(); // G9: handler ends with focus
+}
+function pbAddTagTo(id) {
+  var r = pbAddTagToCore.apply(this, arguments);
+  setTimeout(function () { d10Refocus(id, 0); }, 0);
+  setTimeout(function () { d10Refocus(id, 60); }, 60);
+  return r;
+}
+
+/* ═══ pbCommitEdit · base, R9 around (the target side mirrored) ═══ */
+function pbCommitEditCore(id,field,value){
+  var c=pbCardById(id);if(!c)return;
+  var v=norm(value);
+  var changed=(v!==norm(c[field]||''));
+  c[field]=v;
+  if(field==='source'){
+    if(changed){
+      var bt=c.backtranslate=c.backtranslate||{};
+      if(bt.verdict){bt.verdict='';pbLogChain(c,'Verdict reset to pending (source changed)')} // G8: conditional reset only
+      c.tags=(c.tags||[]).filter(function(t){return t!=='✓Verified'});
+      pbTouch(c);
+    }
+    if(!v){pbRerenderCard(id);return}
+    // owner ruling: Enter in source, changed or not, re-translates target and re-runs BT
+    translateWithRetry(v,c.sourceLang,c.targetLang,1).then(function(r){
+      if(r.ok&&norm(r.text)!==norm(c.target||'')){c.target=norm(r.text);pbTouch(c)}
+      return pbRunBT(c);
+    });
+    pbRerenderCard(id);
+    return;
+  }
+  // target edited by hand: keep it, re-run BT
+  if(changed){pbTouch(c);if(v)pbRunBT(c)}
+  pbRerenderCard(id);
+}
+function pbCommitEdit(id, field, value) {
+  try {
+    if (field === 'target') {
+      var c = pbCardById(id);
+      if (!c) return;
+      var v = norm(value);
+      var prior = norm(c[field] || '');
+      var changed = (v !== prior);
+      c[field] = v;                                  /* S-RULE-4: edited side kept */
+      return pbCommitEditTargetMirror(c, v, changed, prior);
+    }
+  } catch (e) { r8Log('r9_target_mirror_failed', { e: String(e && e.message || e) }, 'error'); }
+  return pbCommitEditCore.apply(this, arguments);       /* source, notes, everything else: original */
+}
+
+/* ═══ closeDrawer · base, M before (never over a nameless room) ═══ */
+function closeDrawerCore(){commitRoomName();$('drawer-s4b').classList.remove('open');document.querySelectorAll('.info-pop.show').forEach(function(p){p.classList.remove('show')})}
+function closeDrawer() {
+  if (holdOnBlankName()) { rmLog('drawer_close_blocked_empty_name', {}, 'warn'); return; }
+  return closeDrawerCore.apply(this, arguments);
+}
+
+/* ═══ osNotify · CR3's replacement (the base body and P4's layer were dead) ═══ */
+function osNotify(title, body, roomId) { cr3Log('os_notify_owned_by_relay', { room: roomId }); }
+
+/* ═══ bgAddPill · base, CR3 before (no local missed pill) ═══ */
+function bgAddPillCore(roomId,text){
+  if(S.roomId===roomId){addSysPill(text);return}
+  var tr=loadTr(roomId);tr.push({id:'sp-'+uid(),kind:'sys',text:text,ts:Date.now()});lsSet(trKey(roomId),tr);
+}
+function bgAddPill(roomId, text) {
+  if (typeof text === 'string' && text.indexOf('Missed ') === 0) { cr3Log('local_missed_pill_dropped', { room: roomId }); return; }
+  return bgAddPillCore.apply(this, arguments);
+}
+
+/* ═══ addSpeech · R8b before (duplicates dropped), R8 after (the call kind), F around (the identifier proof), base ═══ */
+function addSpeechCore(who,srcT,trT,sL,tL,ss,failed){
+  var room=activeRoom();if(!room)return;
+  var id='sp-'+(who==='me'?'m':'p')+'-'+ss;
+  var ex=transcript.find(function(e){return e.id===id});
+  if(ex){ex.sourceText=srcT;ex.translatedText=trT;saveTr();replaceMsgDom(ex);return}
+  var entry={id:id,kind:'speech',who:who,origin:'spoken',sourceText:srcT,translatedText:trT,srcLang:sL,tgtLang:tL,subtitleSeq:ss,ts:Date.now(),
+    senderName:who==='me'?(room.myName||S.user.name):(room.partnerName||'Partner'),translationFailed:!!failed};
+  transcript.push(entry);saveTr();
+  room.lastAt=Date.now();saveRooms();
+  appendMsgDom(entry);
+}
+function addSpeechF(who, srcT, trT, sL, tL, ss, failed) {
+  var id = 'sp-' + (who === 'me' ? 'm' : 'p') + '-' + ss;
+  var before = transcript ? transcript.length : -1;
+  var clash = null;
+  if (transcript) {
+    for (var i = 0; i < transcript.length; i++) {
+      if (transcript[i] && transcript[i].id === id) { clash = transcript[i]; break; }
+    }
+  }
+
+  var r = addSpeechCore.apply(this, arguments);
+  var after = transcript ? transcript.length : -1;
+
+  if (clash) {
+    /* An identifier was reissued. The older line has just been rewritten. */
+    log('transcript_collision', {
+      id: id, seq: ss, len: before,
+      lost: String(clash.sourceText || '').slice(0, 40),
+      wrote: String(srcT || '').slice(0, 40)
+    }, 'error');
+  } else {
+    log('speech_added', { id: id, seq: ss, before: before, after: after, added: after - before }, 'ok');
+  }
+  return r;
+}
+function addSpeechR8(who, srcT, trT, sL, tL, ss, failed) {
+  var r = addSpeechF.apply(this, arguments);
+  try {
+    var id = 'sp-' + (who === 'me' ? 'm' : 'p') + '-' + ss;
+    var e = transcript.find(function (x) { return x.id === id; });
+    if (e && !e.callKind) {
+      e.callKind = (CALL && CALL.active) ? (CALL.kind === 'video' ? 'video' : 'voice') : 'chat';
+      saveTr();
+      r8Log('speech_kind', { kind: e.callKind }, 'ok');
+    }
+  } catch (err) { r8Log('speech_kind_failed', { e: String(err && err.message || err) }, 'error'); }
+  return r;
+}
+function addSpeech(who, srcT, trT, sL, tL, ss, failed) {
+  /* Only my own speech is de-duplicated. The partner's arrives over the
+     relay already arbitrated, and suppressing there would drop a genuine
+     repetition by the other person. */
+  if (who === 'me' && isDuplicatePhrase(srcT)) {
+    r8Log('speech_suppressed', {}, 'ok');
+    return;
+  }
+  return addSpeechR8.apply(this, arguments);
+}
+
+/* ═══ onDGFinal · base, B around (generation + normalization) ═══ */
+async function onDGFinal(text, gen, knownLang) {
+  if (typeof gen === 'number' && !GEN.is(gen)) { log('dg_final_stale_gen', { gen: gen }, 'warn'); return; }
+  var room = activeRoom();
+  if (room && text) {
+    var myGen = GEN.n;
+    try {
+      var r = await normalizeOutgoing(room, text, knownLang);
+      if (!GEN.is(myGen)) { log('dg_final_gen_abandoned', { gen: myGen }, 'warn'); return; }
+      text = r.text;
+      if (r.lang !== room.myLang) log('normalize_incomplete', { was: r.detected, wanted: room.myLang }, 'warn');
+    } catch (e) { log('normalize_err', { e: String(e) }, 'error'); }
+  }
+  return onDGFinalCore.call(this, text);
+}
+
+/* ═══ stopDeepgram · base, A before (the generation and the held line cleared) ═══ */
+function stopDeepgramCore(){
+  _stopDgWatchdog();dgActive=false;
+  if(_dgPrimHoldTimer){clearTimeout(_dgPrimHoldTimer);_dgPrimHoldTimer=null;_dgPrimHeldText=null}
+  if(dgWs){try{dgWs.close()}catch(_){}dgWs=null}
+  if(dgWsEn){try{dgWsEn.close()}catch(_){}dgWsEn=null}
+  stopDGAudio();log('dg_stopped',{});
+}
+function stopDeepgram() {
+  dgGen = 0;
+  if (_dgPrimHoldTimer !== null) { clearTimeout(_dgPrimHoldTimer); _dgPrimHoldTimer = null; }
+  _dgPrimHeldText = null;
+  return stopDeepgramCore.apply(this, arguments);
+}
+
+/* ═══ startDeepgram · B's body (the base's was dead), M around (mute, offline close), T before (the open-path watch) ═══ */
+function startDeepgramCore() {
+  var room = activeRoom();
+  if (!room || !(CALL.active || CHATMIC.on)) return;
+
+  var key = CALL.keys().dg;
+  if (!key) { toast('Deepgram key missing — no live transcription'); log('dg_no_key', {}, 'warn'); return; }
+  if (dgActive || (dgWs && dgWs.readyState < 2)) { log('dg_skip_active', {}, 'warn'); return; }
+
+  var stream = micStream();
+  if (!stream) { log('dg_no_stream', {}, 'error'); return; }
+
+  var langParam = dgLangParam(room);
+  var myGen = GEN.n;
+  dgGen = myGen;
+
+  var url = 'wss://api.deepgram.com/v1/listen?model=nova-3&language=' + encodeURIComponent(langParam) +
+            '&encoding=linear16&sample_rate=16000&channels=1&interim_results=false&punctuate=false&endpointing=400';
+
+  dgWs = new WebSocket(url, ['token', key]);
+  var mySocket = dgWs;
+  var myEnSocket = null;
+
+  /* live() is the single predicate for "this callback still matters". */
+  function live() { return dgWs === mySocket && GEN.is(myGen); }
+
+  dgWs.onopen = function () {
+    if (!live()) { try { mySocket.close(); } catch (_) {} return; }
+    if (!(CALL.active || CHATMIC.on)) { try { dgWs.close(); } catch (_) {} return; }
+    dgFailCount = 0; dgHideFailBanner();
+    log('dg_open', { lang: langParam, multi: langParam === 'multi', gen: myGen }, 'ok');
+    try {
+      var audioTracks = (stream ? stream.getAudioTracks() : []).filter(function (t) { return t.readyState === 'live'; });
+      if (!audioTracks.length) { log('dg_no_audio', {}, 'error'); dgWs.close(); return; }
+      var dgStream = new MediaStream(audioTracks);
+      dgAudioCtx = new (window.AudioContext || window.webkitAudioContext)({ sampleRate: 16000 });
+      dgSrc = dgAudioCtx.createMediaStreamSource(dgStream);
+      var silentGain = dgAudioCtx.createGain();
+      silentGain.gain.value = 0;
+      silentGain.connect(dgAudioCtx.destination);
+
+      function pump(f) {
+        if (!live() || dgWs.readyState !== 1 || !micPipelineOn()) return;
+        var b = new Int16Array(f.length);
+        for (var i = 0; i < f.length; i++) { var s = Math.max(-1, Math.min(1, f[i])); b[i] = s < 0 ? s * 0x8000 : s * 0x7FFF; }
+        dgWs.send(b.buffer);
+        if (myEnSocket && myEnSocket.readyState === 1) myEnSocket.send(b.buffer);
+      }
+      function scriptProc() {
+        if (!live()) return;
+        dgProc = dgAudioCtx.createScriptProcessor(4096, 1, 1);
+        dgProc.onaudioprocess = function (e) { pump(e.inputBuffer.getChannelData(0)); };
+        dgSrc.connect(dgProc); dgProc.connect(silentGain);
+        dgActive = true; log('dg_scriptproc_active', {}, 'warn');
+      }
+      if (dgAudioCtx.audioWorklet && typeof AudioWorkletNode !== 'undefined') {
+        var wblob = new Blob([DG_WORKLET_CODE], { type: 'application/javascript' });
+        var wurl = URL.createObjectURL(wblob);
+        dgAudioCtx.audioWorklet.addModule(wurl).then(function () {
+          URL.revokeObjectURL(wurl);
+          if (!live() || dgWs.readyState !== 1) return;
+          var wnode = new AudioWorkletNode(dgAudioCtx, 'tb-audio-capture');
+          wnode.port.onmessage = function (ev) { pump(ev.data); };
+          dgSrc.connect(wnode); wnode.connect(silentGain);
+          dgProc = wnode; dgActive = true; log('dg_worklet_active', {}, 'ok');
+        }).catch(function (e) {
+          URL.revokeObjectURL(wurl); log('worklet_fallback', { e: String(e) }, 'warn'); scriptProc();
+        });
+      } else scriptProc();
+    } catch (e) { log('dg_audio_err', { e: String(e) }, 'error'); dgActive = false; }
+  };
+
+  dgWs.onmessage = function (e) {
+    if (!live()) return;
+    _dgLastMsg = Date.now();
+    try {
+      var d = JSON.parse(e.data);
+      var alt = d.channel && d.channel.alternatives && d.channel.alternatives[0];
+      if (alt && alt.transcript && d.is_final) {
+        if (myEnSocket) {
+          dgArbitrateNative(alt.transcript, function (t) { if (GEN.is(myGen)) onDGFinal(t, myGen, room.myLang); });
+        } else {
+          onDGFinal(alt.transcript, myGen, dgUseMulti(room) ? null : room.myLang);
+        }
+      }
+    } catch (_) {}
+  };
+
+  dgWs.onerror = function () { if (live()) log('dg_error', {}, 'error'); };
+
+  dgWs.onclose = function (ev) {
+    if (dgWs !== mySocket) { log('dg_stale_close_ignored', { code: ev.code }, 'warn'); return; }
+    if (!GEN.is(myGen)) { log('dg_stale_gen_close_ignored', { code: ev.code, gen: myGen }, 'warn'); return; }
+    log('dg_close', { code: ev.code, capturedGen: myGen, currentGen: GEN.n }, 'warn');
+    var neverOpened = !dgActive;
+    dgActive = false; stopDGAudio(); _stopDgWatchdog();
+    if (myEnSocket) { try { myEnSocket.close(); } catch (_) {} myEnSocket = null; }
+    if (!(CALL.active || CHATMIC.on)) return;
+    if (neverOpened) {
+      dgFailCount++;
+      log('dg_credential_failure', { count: dgFailCount, code: ev.code }, 'error');
+      if (dgFailCount >= DG_MAX_FAILS) { dgShowFailBanner(); return; }
+    }
+    setTimeout(function () {
+      if (!GEN.is(myGen)) { log('dg_stale_gen_retry_dropped', { gen: myGen }, 'warn'); return; }
+      if ((CALL.active || CHATMIC.on) && !dgActive) startDeepgram();
+    }, 2000);
+  };
+
+  if (dgUseDual(room)) {
+    var urlEn = 'wss://api.deepgram.com/v1/listen?model=nova-3&language=en' +
+                '&encoding=linear16&sample_rate=16000&channels=1&interim_results=false&punctuate=false&endpointing=400';
+    myEnSocket = new WebSocket(urlEn, ['token', key]);
+    var enSock = myEnSocket;
+    myEnSocket.onmessage = function (e) {
+      if (myEnSocket !== enSock || !GEN.is(myGen)) return;
+      _dgLastMsg = Date.now();
+      try {
+        var d = JSON.parse(e.data);
+        var alt = d.channel && d.channel.alternatives && d.channel.alternatives[0];
+        if (!(alt && alt.transcript && d.is_final)) return;
+        dgDeliverEnglish(alt.transcript, myGen);
+      } catch (_) {}
+    };
+    myEnSocket.onerror = function () { if (myEnSocket === enSock) log('dg_en_error', {}, 'error'); };
+    myEnSocket.onclose = function (ev) {
+      log('dg_en_close', { code: ev.code, capturedGen: myGen, currentGen: GEN.n }, 'warn');
+      if (myEnSocket === enSock) myEnSocket = null;
+    };
+    log('dg_en_open', { myLang: room.myLang }, 'ok');
+  }
+
+  _dgLastMsg = Date.now();
+  _stopDgWatchdog();
+  _dgWatchdogTimer = setInterval(function () {
+    if (!GEN.is(myGen)) { _stopDgWatchdog(); return; }
+    if (!dgActive || !(CALL.active || CHATMIC.on)) { _stopDgWatchdog(); return; }
+    if (Date.now() - _dgLastMsg > DG_WATCHDOG_MS) {
+      log('dg_watchdog_restart', { silent_ms: Date.now() - _dgLastMsg }, 'warn');
+      stopDeepgram();
+      setTimeout(function () {
+        if (!GEN.is(myGen)) return;
+        if ((CALL.active || CHATMIC.on) && !dgActive) startDeepgram();
+      }, 1000);
+    }
+  }, 5000);
+}
+function startDeepgramM() {
+  if (CALL.active && !CALL.micOn) { rmLog('transcription_suppressed_muted', {}, 'ok'); return; }
+  var r = startDeepgramCore.apply(this, arguments);
+  try {
+    if (dgWs && dgWs.addEventListener) {
+      dgWs.addEventListener('close', function (ev) {
+        if (ev.code === 1006 && typeof navigator !== 'undefined' && navigator.onLine === false) {
+          rmLog('transcription_dropped_offline', { code: ev.code }, 'warn');
+        }
+      });
+    }
+  } catch (_) {}
+  return r;
+}
+function startDeepgram() { dgWatch(); return startDeepgramM.apply(this, arguments); }
+
+/* ═══ normalizeOutgoing · B's body, X3 after (what was said held beside the rewrite) ═══ */
+async function normalizeOutgoingCore(room, text, knownLang) {
+  /* When the caller knows what language the text is in — because it arrived on
+     a channel listening for exactly that language — that is used directly.
+     Detection is a fallback for when nothing knows. */
+  var detected = knownLang || await detectLangAsync(text);
+  if (detected === 'th') text = applyNorthernThaiMap(text);
+  var r = resolveEffectiveLang(room, detected);
+  var srcText = text, srcLang = r.srcLang;
+  if (r.normalizeFrom) {
+    var n = await translateWithRetry(text, r.normalizeFrom, srcLang, 2);
+    var out = n && n.text ? norm(n.text) : '';
+    var same = !!out && out.toLowerCase() === norm(text).toLowerCase();
+    if (n.ok && out && !same) {
+      srcText = out;
+    } else {
+      /* Normalization did not produce a rewrite. Two very different causes hide
+         behind that, and they need opposite fixes, so the reason is recorded
+         rather than inferred:
+           failed  — the rewrite call did not come back
+           empty   — it came back with nothing
+           same    — it came back identical, which may mean the text was already
+                     in the room's language and detection was wrong about it */
+      var why = !n.ok ? 'failed' : (!out ? 'empty' : 'same');
+      log('normalize_no_rewrite', {
+        why: why, from: r.normalizeFrom, to: srcLang,
+        inText: String(text).slice(0, 40),
+        outText: String(out).slice(0, 40)
+      }, 'warn');
+      srcLang = r.normalizeFrom;
+    }
+  }
+  return { text: srcText, lang: srcLang, detected: detected };
+}
+async function normalizeOutgoing(room, text, knownLang) {
+  var r = await normalizeOutgoingCore.apply(this, arguments);
+  try {
+    var inT = norm(text || ''), outT = norm((r && r.text) || '');
+    if (inT && outT && inT.toLowerCase() !== outT.toLowerCase()) x3Pending = { said: inT, saidLang: (r && r.detected) || knownLang || '', normalized: outT, at: Date.now() };
+  } catch (_) {}
+  return r;
+}
+
+/* ═══ waitingOf / bumpWaiting · CR3's replacements (the base bodies were dead: the relay's projection owns the counts) ═══ */
+function waitingOf(r) { if (!r) return { chat: 0, voice: 0, video: 0 }; if (!r.waiting) r.waiting = { chat: 0, voice: 0, video: 0 }; return r.waiting; }
+function bumpWaiting(r, kind) { cr3Log('bump_ignored', { room: r && r.id, kind: kind }); }
+
+/* ═══ clearWaiting · base, R8 after (the home card's dismissal threshold reset) ═══ */
+function clearWaitingCore(r) {
+  if (!r) return;
+  var before = waitingTotal(r);
+  r.waiting = { chat: 0, voice: 0, video: 0 };
+  r.unread = 0;
+  if (before) rcLog('waiting_cleared', { room: r.id, was: before }, 'ok');
+}
+function clearWaiting(r) {
+  var out = clearWaitingCore.apply(this, arguments);
+  try {
+    if (r && r.id) {
+      var m = homeDismissed();
+      if (m && typeof m[r.id] === 'number') {
+        delete m[r.id];
+        saveHomeDismissed(m);
+        r8Log('dismiss_threshold_reset', { room: r.id }, 'ok');
+      }
+    }
+  } catch (e) { r8Log('dismiss_reset_failed', { e: String(e && e.message || e) }, 'error'); }
+  return out;
+}
+
+/* ═══ onVisible · T-net's body, CR3 after (recovery) ═══ */
+function onVisibleCore(why) {
+  var away = Date.now() - NET.lastVisible;
+  NET.lastVisible = Date.now();
+  netLog('returned', { why: why, awayMs: away, inRoom: !!S.roomId, inCall: !!CALL.active });
+  if (!S.roomId) return;
+  reconnectRelayNow(why);
+  forceCallReconnect(why);
+}
+function onVisible(why) {
+  var r = onVisibleCore.apply(this, arguments);
+  try { cr3Recover(why); } catch (_) {}
+  return r;
+}
+
+/* ═══ onRoomNameSignal · M's body, K4 around (last write wins) ═══ */
+function onRoomNameSignalCore(roomId, d) {
+  if (!d || d.type !== 'sys-pill' || typeof d.newRoomName !== 'string') return false;
+  var r = roomById(roomId || d.room);
+  var to = String(d.newRoomName).slice(0, 40);
+  if (!r || !to) return false;
+  var from = typeof d.wasRoomName === 'string' ? d.wasRoomName : (r.title || '');
+  if (r.title !== to) {
+    r.title = to;
+    saveRooms();
+    rmLog('rename_received', { from: from, to: to, by: d.byName || '' }, 'ok');
+    try { renderRoomHead(); renderPanel(); } catch (_) {}
+  }
+  /* false, deliberately: the base still needs to write and render the pill. */
+  return false;
+}
+function onRoomNameSignal(roomId, d) {
+  if (d && d.type === 'sys-pill' && typeof d.newRoomName === 'string') {
+    var r = roomById(roomId || d.room);
+    var ts = Number(d.ts) || 0, mine = (r && Number(r.titleTs)) || 0;
+    var to = String(d.newRoomName).slice(0, 40);
+    if (r && ts && mine && (ts < mine || (ts === mine && to <= (r.title || '')))) {
+      try { log('k4_rename_stale', { kept: r.title, ignored: to, ts: ts, mine: mine }, 'warn'); } catch (_) {}
+      return false;                       /* the base still writes and renders the pill */
+    }
+    var out = onRoomNameSignalCore.apply(this, arguments);
+    if (r && ts && r.title === to) { r.titleTs = ts; try { saveRooms(); } catch (_) {} }
+    return out;
+  }
+  return onRoomNameSignalCore.apply(this, arguments);
+}
+
+
+/* ═══════════ GAP PART · D11-relay-noroom.js ═══════════ */
+/* @contract
+   replaces: relayConnect
+   wraps: (none)
+   adds: (none)
+*/
+/* ─────────────────────────────────────────────────────────────────────────────
+   D-11 · relayConnect WITH NO ACTIVE ROOM HOOKS NOTHING (0d D-11, 28·post-ship)
+
+   Found while flattening the relay path (28·base): when activeRoom() was empty
+   the base body built no socket, but the three "after" layers (T-net's close
+   log, CR3's open hook, V2's ramp) still ran on whatever `_relayWs` held — a
+   second close listener on a stale socket, `_cr3Room` overwritten with null.
+   Harmless in practice, untidy in the log. FL-1 reproduced it literally. This
+   part is FL-1's relayConnect, verbatim, with one line: no room, return before
+   the hooks. Proven by harness-fixes-28pos: the stale socket keeps one close
+   listener and its room; everything else identical.
+   ───────────────────────────────────────────────────────────────────────────── */
+function relayConnect() {
+  /* CR3 · a connect while the lane is still connecting is a duplicate, not a recovery */
+  try {
+    var room0 = activeRoom();
+    var ws0 = (typeof _relayWs !== 'undefined') ? _relayWs : null;
+    if (ws0 && ws0.readyState === 0 && room0 && ws0._cr3Room === room0.id) { cr3Log('connect_coalesced', { room: room0.id }); return; }
+  } catch (_) {}
+  /* base */
+  var room = activeRoom();
+  if (room) {
+    if (_relayWs) try { _relayWs.close(); } catch (_) {}
+    var ws = new WebSocket(RELAY_WS + '?app=' + encodeURIComponent(RELAY_APP) + '&session=' + encodeURIComponent(room.id) + '&client=' + encodeURIComponent(deviceId));
+    _relayWs = ws;
+    ws.onopen = function () {
+      if (ws !== _relayWs) return;
+      log('relay_open', { room: room.id }, 'ok');
+      relaySend({ type: 'hello', lang: room.myLang, targetLang: room.theirLang, role: room.role, name: room.myName || S.user.name });
+      startHB();
+      resendUndelivered();
+      _relayReconnecting = false; renderPartnerState();
+    };
+    ws.onmessage = function (e) { try { handleRelay(JSON.parse(e.data)); } catch (_) {} };
+    ws.onclose = function (ev) {
+      if (ws !== _relayWs) return;
+      log('relay_close', { code: ev.code }, 'warn'); stopHB(); clearTimeout(wsReconnectTimer);
+      if (S.view === 'room' && S.roomId) {
+        _relayReconnecting = true; renderPartnerState();
+        wsReconnectTimer = setTimeout(function () { wsReconnectTimer = null; if (S.view === 'room') relayConnect(); }, 2000);
+      }
+    };
+    ws.onerror = function () { log('relay_err', {}, 'error'); };
+  }
+  /* D-11 (28·post-ship): no room, nothing to hook — the three blocks below used to run on whatever `_relayWs` still held */
+  if (!room) return;
+  /* T-net · how long the socket lived */
+  try {
+    if (typeof _relayWs !== 'undefined' && _relayWs && _relayWs.addEventListener) {
+      var openedAt = Date.now();
+      _relayWs.addEventListener('close', function (ev) {
+        netLog('relay_closed', { code: ev.code, livedMs: Date.now() - openedAt, hidden: !!document.hidden }, 'warn');
+      });
+    }
+  } catch (_) {}
+  /* CR3 · the lane announces itself when it opens */
+  try {
+    var cur = _relayWs, rid = S.roomId;
+    if (cur && cur.addEventListener) { cur._cr3Room = rid; cur.addEventListener('open', function () { cr3OnOpen(rid, cur, function () { return cur === _relayWs && S.roomId === rid; }); }); }
+  } catch (e) { cr3Log('hook_failed', { e: String(e && e.message || e) }, 'error'); }
+  /* V2 · the socket comes back as fast as the network does */
+  try {
+    var ws2 = _relayWs;
+    if (ws2 && !ws2.__v2) {
+      ws2.__v2 = true;
+      ws2.addEventListener('open', function () {
+        if (ws2 !== _relayWs) return;
+        _v2Attempt = 0;
+        clearTimeout(_v2Timer); _v2Timer = null;
+      });
+      ws2.addEventListener('close', function () {
+        if (ws2 !== _relayWs) return;                /* a replaced socket is not ours to retry */
+        if (S.view !== 'room' || !S.roomId) return;
+        /* the base onclose has already armed its 2 s timer by now (it was
+           registered first); take it over so exactly one retry is pending */
+        clearTimeout(wsReconnectTimer); wsReconnectTimer = null;
+        v2Schedule('close');
+      });
+    }
+  } catch (_) {}
+}
+
+
+/* ═══════════ GAP PART · D14-drawer-on-accept.js ═══════════ */
+/* @contract
+   replaces: CALL.accept, CALL.onAccepted
+   wraps: (none)
+   adds: (none) · marker d14_drawer_closed
+*/
+/* ─────────────────────────────────────────────────────────────────────────────
+   D-14 · THE MORE MENU CLOSES WHEN A CALL IS ANSWERED (owner, 2026-10-07)
+
+   The ring screen sits above the room's drawer, so the answer tap worked, but
+   the call surface then showed under the still-open drawer. FL-2's accept
+   (the answerer) and onAccepted (the caller) verbatim, each with one first
+   line: if the drawer is open, close it — the base's own close (the name
+   field committed, the drawer and its info pops shut), not M's guarded one,
+   because a blank room name must not keep a drawer over a live call. Logged
+   once per close as d14_drawer_closed {role}.
+   ───────────────────────────────────────────────────────────────────────────── */
+CALL.accept = function () {
+  try { var dr = $('drawer-s4b'); if (dr && dr.classList.contains('open')) { closeDrawerCore(); log('d14_drawer_closed', { role: 'answerer' }, 'ok'); } } catch (_) {}   /* D-14: the More menu never stays open over a call */
+  var p = this.ringPending;                                                      /* P4 reads first */
+  GEN.bump('call_accept');                                                       /* A */
+  var r = callAcceptCore.apply(this, arguments);                                 /* base */
+  try { if (p && p.roomId) p4CloseTag(p.roomId); } catch (_) {}                  /* P4 after, synchronous */
+  return Promise.resolve(r).then(function (v) {                                  /* N10 */
+    if (CALL.active && !CALL.caller) { CALL.startTs = Date.now(); n10L('n10_accept_anchor', {}); }
+    return v;
+  }).then(function (v) { if (CALL.active) n18Anchor('answerer'); return v; });    /* N18 */
+};
+
+CALL.onAccepted = function (room, d) {
+  try { var dr = $('drawer-s4b'); if (dr && dr.classList.contains('open')) { closeDrawerCore(); log('d14_drawer_closed', { role: 'caller' }, 'ok'); } } catch (_) {}   /* D-14: the More menu never stays open over a call */
+  var wasCaller = CALL.caller && CALL.active;                                    /* N10 before */
+  var r = callOnAcceptedCore.apply(this, arguments);                             /* base */
+  if (wasCaller) {                                                               /* N10 after */
+    n10Hide();
+    /* G42: nothing to restore — the caller is never muted now. Any track an old build disabled is re-enabled here. */
+    try { (CALL.stream ? CALL.stream.getAudioTracks() : []).forEach(function (t) { t.enabled = true; }); } catch (_) {}
+    CALL.startTs = Date.now();                                     /* B-8a: clock starts at the answer */
+    n10L('n10_answered', { micOn: CALL.micOn, tracks: (CALL.stream ? CALL.stream.getAudioTracks().length : 0) });
+  }
+  if (CALL.active) n18Anchor('caller');                                          /* N18 after */
+  return r;
+};
+
+
+/* ═══════════ GAP PART · D15-short-english.js ═══════════ */
+/* @contract
+   replaces: dgArbitrateNative, dgArbitrateEnglish
+   wraps: (none)
+   adds: _dgEnShortAt, dgLooksPhonetic
+*/
+/* ─────────────────────────────────────────────────────────────────────────────
+   D-15 · A SHORT ENGLISH UTTERANCE NO LONGER LETS ITS PHONETIC THAI TWIN THROUGH
+   (language sweep, Thai, 2026-10-08)
+
+   "awesome" (7 characters) arrived on the English lane and, 125 ms later, the
+   Thai lane's phonetic rendering "อ อ ส ซ" arrived as a second final and was
+   sent as its own line. The arbitration only counted an English result as
+   "won" above _DG_EN_MIN_CHARS (10), so a short word never armed the
+   cross-suppression window and never displaced a held native result.
+
+   THE RULE, one and narrow: a short English result arms its own window and
+   displaces a held native result ONLY when that native text is letter-spaced
+   — single native letters separated by spaces, the phonetic signature — so a
+   genuine short native sentence inside the window is still delivered. Both
+   orders are covered (English first, Thai 125 ms later; Thai first and held,
+   English inside the hold). The marker is the existing dg_cross_suppress with
+   phonetic: true. Both functions are the flat build's, verbatim, plus the rule.
+   ───────────────────────────────────────────────────────────────────────────── */
+var _dgEnShortAt = 0;
+/* two or more single-character tokens and nothing else: "อ อ ส ซ" yes, "อร่อย" no, "ok go" no */
+function dgLooksPhonetic(text) {
+  var toks = String(text || '').trim().split(/\s+/);
+  if (toks.length < 2) return false;
+  for (var i = 0; i < toks.length; i++) { if (toks[i].length !== 1 || /[A-Za-z0-9]/.test(toks[i])) return false; }
+  return true;
+}
+function dgArbitrateNative(text, deliver) {
+  if (Date.now() - _dgEnLastFiredAt < _DG_CROSS_MS) {
+    log('dg_cross_suppress', { t: String(text).slice(0, 40) }, 'warn');
+    return 'suppressed';
+  }
+  /* D-15: a SHORT English win arms a window too, but only a letter-spaced native twin falls to it */
+  if (Date.now() - _dgEnShortAt < _DG_CROSS_MS && dgLooksPhonetic(text)) {
+    log('dg_cross_suppress', { t: String(text).slice(0, 40), phonetic: true }, 'warn');
+    return 'suppressed';
+  }
+  if (_dgPrimHoldTimer !== null) clearTimeout(_dgPrimHoldTimer);
+  var held = text;
+  _dgPrimHeldText = held;
+  _dgPrimHoldTimer = setTimeout(function () {
+    _dgPrimHoldTimer = null;
+    if (_dgPrimHeldText === held) { _dgPrimHeldText = null; deliver(held); }
+  }, _DG_HOLD_MS);
+  return 'held';
+}
+
+function dgArbitrateEnglish(text) {
+  if (String(text).trim().length <= _DG_EN_MIN_CHARS) {
+    /* D-15: too short to win outright, but a held letter-spaced native twin is this word's phonetic echo — drop it */
+    _dgEnShortAt = Date.now();
+    if (_dgPrimHoldTimer !== null && dgLooksPhonetic(_dgPrimHeldText)) {
+      clearTimeout(_dgPrimHoldTimer); _dgPrimHoldTimer = null;
+      log('dg_cross_suppress', { held: _dgPrimHeldText && _dgPrimHeldText.slice(0, 40), phonetic: true }, 'warn');
+      _dgPrimHeldText = null;
+      return 'displaced';
+    }
+    return 'ignored';
+  }
+  _dgEnLastFiredAt = Date.now();
+  if (_dgPrimHoldTimer !== null) {
+    clearTimeout(_dgPrimHoldTimer); _dgPrimHoldTimer = null;
+    log('dg_cross_suppress', { held: _dgPrimHeldText && _dgPrimHeldText.slice(0, 40) }, 'warn');
+    _dgPrimHeldText = null;
+    return 'displaced';
+  }
+  return 'won';
+}
+
+
+/* ═══════════ GAP PART · T4-speech-log.js ═══════════ */
+/* @contract
+   replaces: speakTextCore, speakText
+   wraps: (none)
+   adds: (none) · markers tts_speak, tts_no_voice
+*/
+/* ─────────────────────────────────────────────────────────────────────────────
+   T-4 · SPEECH IS ON THE RECORD (from D-17, 2026-10-08)
+
+   The tablet's Target speaker was silent while Source played; the cause was a
+   missing voice pack for the target language, found by the owner in Android's
+   settings because the app had nothing to say about it. Now every tap logs
+   tts_speak {lang, chars, voices, match} — how many voices the device reports
+   and how many fit the language — and when the device reports voices but none
+   for this language it logs tts_no_voice and shows "No voice installed for
+   <language>". The line is still handed to the speech engine as before. FL-5's
+   speakText, verbatim, plus the record.
+   ───────────────────────────────────────────────────────────────────────────── */
+function speakTextCore(text,lang){
+  text=norm(text);if(!text||!window.speechSynthesis)return;
+  /* T-4: say which voice will speak, and say so when the device has none for this language (D-17) */
+  var want = gL(lang).tts, voices = [];
+  try { voices = window.speechSynthesis.getVoices() || []; } catch (_) {}
+  var head = String(want || '').toLowerCase().slice(0, 2);
+  var match = 0; for (var i = 0; i < voices.length; i++) { if (voices[i] && voices[i].lang && String(voices[i].lang).toLowerCase().slice(0, 2) === head) match++; }
+  if (voices.length && !match) { log('tts_no_voice', { lang: want, voices: voices.length }, 'warn'); toast('No voice installed for ' + (gL(lang).name || lang)); }
+  else log('tts_speak', { lang: want, chars: text.length, voices: voices.length, match: match }, 'ok');
+  window.speechSynthesis.cancel();
+  var u=new SpeechSynthesisUtterance(text);u.lang=want;window.speechSynthesis.speak(u);
+}
+function speakText(text, lang) { return speakTextCore.call(this, tbmdSpeechStrip(text), lang); }
+
+
+/* ═══════════ GAP PART · X4-said-in-call.js ═══════════ */
+/* @contract
+   replaces: onDGFinalCore, onRemoteSubtitle
+   wraps: (none)
+   adds: (none) · fields said, saidLang on subtitle and subtitle-update (declared wire change)
+*/
+/* ─────────────────────────────────────────────────────────────────────────────
+   X-4 · THE RECEIVER'S COPY OF WHAT WAS SAID IN A CALL (28·pre-ship c4's known limit)
+
+   The chat path carries what was heard before normalization (X-3: said,
+   saidLang on chat-msg) so the receiver's check card can show it. In a call
+   the line travels as subtitle / subtitle-update, built in the frozen base, so
+   the said stayed on the speaker's phone. Now the two subtitle messages carry
+   the own entry's said and saidLang when it has them, and the receiver holds
+   them for the entry about to be born exactly as the chat path does
+   (x3PendingIn → appendMsgDom attaches, logs said_kept {who: 'partner'}).
+   onDGFinalCore (FL-5) and onRemoteSubtitle (base), verbatim, plus the carry.
+   No new message type; two fields on two existing ones.
+   ───────────────────────────────────────────────────────────────────────────── */
+async function onDGFinalCore(text){
+  text=norm(stripDGTags(text));if(!text)return;
+  if(!text.replace(/[\s.,!?;:'"()\-]/g,''))return;
+  if(/[฀-๿]/.test(text)){text=text.replace(/([ิ-ูเ-ไ]) ([฀-๿])/g,'$1$2').replace(/([฀-๿]) ([ะ-ู็-๎])/g,'$1$2')}
+  if(isDupe(text)){log('dg_dedup',{t:text.slice(0,40)},'warn');return}
+  recFinal(text);log('dg_final',{t:text.slice(0,60)},'ok');
+  var room=activeRoom();if(!room||!(CALL.active||CHATMIC.on))return;
+  if(!CALL.active){ // chat mic: spoken text is chat text, same bubble path as typed
+    sendChatText(text,null,'voice');
+    return;
+  }
+  // in-call: on-video caption overlay (baseline behavior, unchanged) AND fold into the persistent transcript.
+  // bubble creation happens FIRST and unconditionally, before any translation call, so a translate/network
+  // hiccup mid-call can never silently prevent the spoken line from landing in the transcript.
+  var src=room.myLang,tgt=room.theirLang,ss=++localSubSeq;
+  showSub(text,'mine');
+  addSpeech('me',text,text,src,tgt,ss,false);
+  var srcText=text;
+  try{
+    var detected=detectLang(text);
+    if(detected&&detected!==src){ // normalization law: original never displayed
+      var n=await translateWithRetry(text,detected,src,2);
+      if(n.ok&&norm(n.text).toLowerCase()!==norm(text).toLowerCase()){srcText=norm(n.text);patchSpeech('me',ss,srcText,false)}
+      else src=detected;
+    }
+    var saidE=transcript.find(function(e){return e.id==='sp-m-'+ss});var saidF=(saidE&&saidE.said)?{said:saidE.said,saidLang:saidE.saidLang||''}:{};   /* X-4: what was said rides with the line */
+    relaySend(Object.assign({type:'subtitle',subtitleSeq:ss,text:srcText,sourceText:srcText,sourceLang:src,targetLang:tgt,provisional:true},saidF));
+    var tr=await translateWithRetry(srcText,src,tgt,2);
+    var trText=tr.ok?norm(tr.text):srcText,failed=(!tr.ok&&src!==tgt);
+    relaySend(Object.assign({type:'subtitle-update',subtitleSeq:ss,text:trText,sourceText:srcText,sourceLang:src,targetLang:tgt},saidF));
+    patchSpeech('me',ss,trText,failed);
+  }catch(e){
+    log('dg_final_translate_err',{e:String(e)},'error'); // bubble already landed above even though translation failed
+  }
+}
+
+function onRemoteSubtitle(d,room){
+  if(room.id!==S.roomId)return;
+  var t=norm(d.text||''),s0=norm(d.sourceText||'')||t;
+  if(t&&d.targetLang===room.myLang)showSub(t,'partner');
+  try { x3PendingIn = (d && typeof d.said === 'string' && norm(d.said) && s0) ? { said: norm(d.said), saidLang: String(d.saidLang || ''), normalized: s0, at: Date.now() } : null; } catch (_) { x3PendingIn = null; }   /* X-4: held for the entry about to be born, as the chat path holds it */
+  addSpeech('partner',s0,t,d.sourceLang,d.targetLang,d.subtitleSeq,false);
 }
 
 </script>
