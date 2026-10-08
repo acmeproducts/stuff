@@ -3,6 +3,7 @@
 All previous generations and collected receipts are preserved. Readers pin one
 generation, so collection cannot expose half-updated native and index evidence.
 """
+import time
 import argparse,datetime as dt,importlib.util,json,math,os,shutil,subprocess,sys,uuid
 from pathlib import Path
 BASE=Path(__file__).resolve().parent
@@ -56,7 +57,9 @@ def audit(root,now=None):
     # Inventory retained legacy/research evidence too; it never supplies live data.
     for folder in ('market-evidence','data/market-backend'):
         for path in sorted((root/folder).rglob('*.json')):
-            rel=path.relative_to(root).as_posix();payload=path.read_bytes();value=json.loads(payload)
+            rel=path.relative_to(root).as_posix()
+            if rel=='market-evidence/rebuild-admission.json':continue # A receipt cannot hash itself.
+            payload=path.read_bytes();value=json.loads(payload)
             role='canonical-native' if rel.startswith('market-evidence/series/') else 'native-report' if rel.startswith('market-evidence/reports/') else 'collected-archive' if '/collection-archive/' in rel else 'qualified-index' if path.name in ('persistent-indices-v1.json','derived-indices-persistent-v1.json') else 'retained-reference'
             files[rel]={'blob':h.blob(payload),'role':role,'schema':value.get('schema') if isinstance(value,dict) else None,'bytes':len(payload)}
     ready=not any(x['blocking'] for x in findings)
@@ -90,7 +93,18 @@ def publish(root,store,collect=False,archive=None,inventory=None):
     if not report['summary']['ready']:raise ValueError('New generation failed admission; previous generation retained.')
     h.write(stage/'market-evidence/rebuild-admission.json',report)
     revision=h.digest({'files':report['files'],'anchor':report['anchor']})[:20];generation=store/('generation-'+revision)
-    if not generation.exists():stage.rename(generation)
+    if not generation.exists():
+        for attempt in range(30):
+            try:stage.rename(generation);break
+            except PermissionError:
+                if attempt<29:time.sleep(.2);continue
+                # OneDrive can lock directory renames. Copy without deleting the
+                # qualified working checkpoint; publication still changes only
+                # the pointer, after complete destination verification.
+                shutil.copytree(stage,generation);break
+    verified=audit(generation)
+    if not verified['summary']['ready'] or verified['files']!=report['files']:
+        raise ValueError('Immutable generation copy failed admission; prior pointer retained.')
     # Pointer replacement is the sole publication mutation. Never delete checkpoints.
     h.write(store/'current.json',{'generation':generation.name,'revision':revision,'anchor':report['anchor'],'qualifiedAt':report['generatedAt']})
     return {'revision':revision,'generation':str(generation),'summary':report['summary'],'findings':report['findings']}

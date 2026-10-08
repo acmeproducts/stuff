@@ -27,7 +27,7 @@ class ProviderRecovery(unittest.TestCase):
             prior=Path.cwd()
             try:
                 os.chdir(root)
-                with patch.object(collector,'now',return_value=NOW),patch.object(collector,'fetch_source',side_effect=fetch),patch.object(collector,'yahoo',side_effect=alternate or (lambda identifier,bootstrap,host:fetch('Yahoo Finance',identifier,bootstrap))),contextlib.redirect_stdout(io.StringIO()):
+                with patch.object(collector,'now',return_value=NOW),patch.object(collector,'fetch_source',side_effect=fetch),patch.object(collector,'yahoo',side_effect=alternate or (lambda identifier,bootstrap,host,bounded=False:fetch('Yahoo Finance',identifier,bootstrap))),contextlib.redirect_stdout(io.StringIO()):
                     collector.main()
                 return json.loads(native.read_text(encoding='utf-8')),old
             finally:os.chdir(prior)
@@ -65,4 +65,13 @@ class ProviderRecovery(unittest.TestCase):
         def alternate(*_):raise ValueError('Synthetic endpoint unavailable')
         source,old=self.run_case(lambda *_:(vector('2026-09-22'),200),sid='qqq',alternate=alternate)
         self.assertEqual(source['observations'],old['observations']);self.assertEqual(source['last_successful'],old['last_successful']);self.assertIsNotNone(source['last_error'])
+    def test_bounded_period_recovers_stale_range_without_changing_provider(self):
+        calls=[]
+        def alternate(identifier,bootstrap,host,bounded=False):calls.append((host,bounded));return (vector() if bounded else vector('2026-09-22')),200
+        source,_=self.run_case(lambda *_:(vector('2026-09-22'),200),sid='qqq',alternate=alternate)
+        self.assertEqual(calls,[('query2.finance.yahoo.com',False),('query2.finance.yahoo.com',True)]);self.assertIsNone(source['last_error']);self.assertEqual(source['provider'],'Yahoo Finance');self.assertFalse(source['providerFallbackUsed'])
+        self.assertEqual(source['providerEndpointTrace'][-1]['endpoint'],'query2.finance.yahoo.com/bounded-period')
+    def test_unfinished_current_daily_candle_is_not_published_as_completed(self):
+        source,_=self.run_case(lambda *_:(vector('2026-10-08'),200),sid='qqq')
+        self.assertEqual(source['observations'][-1]['t'],t('2026-10-07'));self.assertIsNone(source['last_error'])
 if __name__=='__main__':unittest.main(verbosity=2)

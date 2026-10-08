@@ -1,4 +1,5 @@
 """Independent numerical, historical, cadence and recovery fault checks."""
+from unittest.mock import patch
 import copy,datetime as dt,importlib.util,json,math,tempfile,unittest
 from pathlib import Path
 
@@ -126,8 +127,8 @@ class Recovery(unittest.TestCase):
         with tempfile.TemporaryDirectory(dir=BASE) as folder:
             pointer=Path(folder,'current.json');pointer.write_text('{"generation":"last-good"}')
             before=pointer.read_bytes()
-            with self.assertRaises((KeyError,ValueError,TypeError)):
-                w.publish(ROOT,folder,archive=BASE/'market-navigator-rebuild-archive',inventory=BASE/'market-navigator-rebuild-fixture-restore.json')
+            with patch.object(w,'audit',side_effect=ValueError('Synthetic admission failure')), self.assertRaisesRegex(ValueError,'Synthetic admission failure'):
+                w.publish(ROOT,folder,archive=BASE/'market-navigator-rebuild-archive',inventory=BASE/'market-navigator-rebuild-archive-inventory.json')
             self.assertEqual(before,pointer.read_bytes())
 
     def test_all_canonical_series_and_retained_inventory_assessed(self):

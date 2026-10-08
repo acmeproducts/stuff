@@ -34,8 +34,10 @@ def canon_fred(a):
   q=out.get(d)
   if q is None or p['t']<q['t']:out[d]=p
  return [out[k] for k in sorted(out)]
-def yahoo(sym,boot,host='query1.finance.yahoo.com'):
+def yahoo(sym,boot,host='query1.finance.yahoo.com',bounded=False):
  rng='10y' if boot else '1mo';url='https://'+host+'/v8/finance/chart/'+urllib.parse.quote(sym,safe='')+'?'+urllib.parse.urlencode({'range':rng,'interval':'1d','includePrePost':'false','events':'div,splits'})
+ if bounded:
+  end=now();start=end-dt.timedelta(days=365.25*10 if boot else 30);url='https://'+host+'/v8/finance/chart/'+urllib.parse.quote(sym,safe='')+'?'+urllib.parse.urlencode({'period1':int(start.timestamp()),'period2':int(end.timestamp()),'interval':'1d'})
  raw,http=get(url,'application/json');j=json.loads(raw);r=((j.get('chart') or {}).get('result') or [None])[0]
  if not r:raise RuntimeError('Yahoo returned no chart result')
  if str((r.get('meta') or {}).get('symbol','')).upper()!=str(sym).upper():raise RuntimeError('Yahoo response instrument identity mismatch')
@@ -125,10 +127,13 @@ def qualified_source(meta, provider, identifier, bootstrap, catalog, rules):
  spec=spec_from_file_location('mn_native_policy',Path(__file__).resolve().with_name('market-navigator-rebuild-policy.py'))
  policy=module_from_spec(spec);spec.loader.exec_module(policy)
  attempts=[]
- for endpoint in ([None,'query2.finance.yahoo.com'] if provider=='Yahoo Finance' else [None]):
+ for endpoint in ([None,'query2.finance.yahoo.com','query2.finance.yahoo.com/bounded-period'] if provider=='Yahoo Finance' else [None]):
   try:
-   raw,http=yahoo(identifier,bootstrap,endpoint) if endpoint else fetch_source(provider,identifier,bootstrap)
+   raw,http=(yahoo(identifier,bootstrap,'query2.finance.yahoo.com',True) if endpoint.endswith('/bounded-period') else yahoo(identifier,bootstrap,endpoint)) if endpoint else fetch_source(provider,identifier,bootstrap)
    captured=now()
+   if any(p['t']>captured.timestamp()*1000 for p in raw):raise RuntimeError('Future native observation')
+   if captured>=dt.datetime(2026,10,8,tzinfo=dt.timezone.utc) and provider in ('Yahoo Finance','Stooq') and meta.get('native_cadence') in ('trading-day','daily-nav'):
+    completed=policy.expected_market_session(captured);raw=[p for p in raw if dt.datetime.fromtimestamp(p['t']/1000,dt.timezone.utc).date()<=completed]
    status,expected,reason=policy.freshness(meta,{'observations':raw,'last_attempted':iso(captured),'last_successful':iso(captured),'last_error':None},catalog,rules,captured)
    if status!='current':raise RuntimeError('Response is not current canonical evidence: '+reason)
    attempts.append({'endpoint':endpoint or ('query1.finance.yahoo.com' if provider=='Yahoo Finance' else provider),'status':'qualified','http':http})

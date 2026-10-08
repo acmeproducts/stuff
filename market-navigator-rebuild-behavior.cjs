@@ -6,6 +6,9 @@ const base=fs.readFileSync('market-navigator-rebuild-analyze.html','utf8'),match
 const ast=babel.babelParse(code,'passing-analyze.js',false),nodes=new Map();babel.traverse(ast,{FunctionDeclaration(p){if(p.node.id)nodes.set(p.node.id.name,p.node)}});
 const edits=[];function change(name,fn){const n=nodes.get(name);assert(n,'Missing '+name);const prior=edits.find(e=>e.start===n.start);if(prior)prior.text=fn(prior.text);else edits.push({start:n.start,end:n.end,text:fn(code.slice(n.start,n.end))});}
 change('openStandaloneAnalysis26',s=>s.replace('rebuildAnalyze=MNChart.mount(',"rebuildNow.dismissInfo();rebuildAnalyze=MNChart.mount("));
+change('nav',s=>s.replace("const restore=v==='now'","if(!['now','library','health','config'].includes(v))v='now';const restore=v==='now'"));
+change('repaintCharts',s=>s.replace("function repaintCharts(){","function repaintCharts(){if(S.view==='analyze'&&rebuildAnalyze){rebuildRefreshStyles(rebuildAnalyze);return}"));
+change('closeStandaloneAnalysis26',s=>s.replace("nav('now');","nav('now');rebuildRefreshStyles(rebuildNow);"));
 change('boot',()=>`async function boot(){
  if(innerWidth<=760)$('rail').classList.add('closed');
  S.health={series:{}};S.catalog={series:[]};S.sourceRegistry={registrations:[]};
@@ -67,7 +70,7 @@ change('mnxDownloadExplanation',s=>s.replace("No governed explanation is in scop
 change('aiEvidenceState',s=>s.replace("governedIndexExplanation:state.indexExplanation||null,","governedIndexExplanation:state.indexExplanation||null,relationships:state.relationships||MNInsights.chartRelationships(state),nativeCutoffs:(chart.series||[]).map(z=>({id:z.id,lastNativeDate:MNInsights.observed(z.points).size?[...MNInsights.observed(z.points).keys()].sort().at(-1):null})),"));
 change('startAI',s=>s.replace("let state=stateOverride||nowAnalysisState(),level=","let state=stateOverride||nowAnalysisState();await rebuildEnrichState(state);let level=").replace("Begin with one specific H1 Markdown title,","Discuss level correlation separately from correlation of changes, paired-date counts, differing cadences and the supplied longer reference sample. Explain whether the observed association differs from that reference, what economic channels could plausibly connect these exact series, and what could be inferred or remains uncertain. Do not describe descriptive correlation as causation, prediction or an established usual relationship. Use only indices actually present in scope; raw-only scopes contain zero governed index models. State the requested chart window and each actual native cutoff separately; never pretend a native observation occurred at collection time. Do not merely repeat endpoint values. Include dated reporting when verified; never repeat date-not-found placeholders or invent publication dates. Begin with one specific H1 Markdown title,"));
 change('contextSourceLine26',()=>`function contextSourceLine26(r){const date=r.date?String(r.date).slice(0,32):'',title=contextClean26(r.title,180)||r.source||r.url,sn=contextClean26(r.content,190);return '- **'+(date?date+' Â· ':'')+(r.source||'Source')+'** â€” ['+title+']('+r.url+')'+(sn?' â€” '+sn:'')}`);
-change('contextSourceBundle26',s=>s.replace("return{schema:'market-navigator-context-sources-v1'","reporting=reporting.filter(r=>r.date&&Number.isFinite(Date.parse(r.date)));return{schema:'market-navigator-context-sources-v1'"));
+change('contextSourceBundle26',s=>s.replace("return{schema:'market-navigator-context-sources-v1'","reporting=reporting.filter(r=>r.date&&Number.isFinite(Date.parse(r.date)));primary=primary.slice(0,2);reporting=reporting.slice(0,5-primary.length);return{schema:'market-navigator-context-sources-v1'"));
 change('mnxExplain',s=>s.replace("schema:'market-navigator-index-explanation-set-v1'","schema:'market-navigator-chart-explanation-set-v2'").replace("records.map(r=>r.fingerprint)]","records.map(r=>r.fingerprint),state?.chart?.mode,(state?.chart?.series||[]).map(s=>[s.id,s.normalization,s.points])]"));
 change('contextSourceLine26',s=>s.replace("const date=r.date?String(r.date).slice(0,32):''","const date=r.date&&Number.isFinite(Date.parse(r.date))?new Date(r.date).toISOString().slice(0,10):''"));
 change('startAI',s=>s.replace('Do not merely repeat endpoint values.','Keep the narrative concise and lead with the relationship assessment. Use numerical values to support that assessment, rather than inventorying every component. Cite at most five relevant further-reading links. Do not merely repeat endpoint values.'));
@@ -81,7 +84,9 @@ output=output.replace("available:seriesAvailable,onAnalyze:","available:async(id
 output=output.replace("available:async(id,h,k)=>!['stale','failed','missing','unknown','cached-stale'].includes(String(health(id).classification).toLowerCase())&&await seriesAvailable(id,h,k)", "available:rebuildSeriesAvailable");
 output=output.replace("return mnxPrintNow(state)", "return mnxPrintNow(state,canvas)");
 output=output.replace("onInfo:state=>mnxOpenExplanation(state)", "onInfo:(state,button)=>mnxOpenExplanation(state,button)");
+output=output.replace('${full(q.sourceT||q.t)} ·',"${q.held?'As of ':''}${full(q.sourceT||q.t)} ·");
 const enrich=`
+function rebuildRefreshStyles(instance){const chart=instance?.getState().state?.chart;if(chart?.series.some(z=>z.color!==seriesColor(z.id)||z.lineWidth!==seriesStyle(z.id).width||z.lineStyle!==seriesStyle(z.id).lineStyle))return instance.update({})}
 let mnxExplanationButton=null;\nasync function rebuildSeriesAvailable(id,h,k){
  if(['stale','failed','missing','unknown','cached-stale'].includes(String(health(id).classification).toLowerCase()))return false;
  if(await seriesAvailable(id,h,k))return true;
@@ -103,5 +108,6 @@ output=output.replace('boot();',enrich+'\nboot();');new vm.Script(output);
 let html=base.slice(0,offset)+output+base.slice(offset+code.length);
 const insights=fs.readFileSync('market-navigator-rebuild-insights.js','utf8');html=html.replace('<script>','<script>'+insights+'\n');
 html=html.replaceAll('Index Explanation','Chart Explanation').replaceAll('aria-label="Explain index movement"','aria-label="Explain chart"');
+html=html.replace('</head>','<style>@media(max-width:700px){#view-analyze .chartChromeRow{grid-template-columns:minmax(42px,64px) minmax(0,1fr) 68px}#view-analyze .chromeRight{width:68px;min-width:68px}#view-analyze .chromeRight>.btn{width:32px;padding:6px 0}}</style></head>');
 fs.writeFileSync('market-navigator-rebuild-candidate.html',html);
 console.log('Built the independently corrected candidate: single Add, explicit information, native normalization, scoped explanations and correlation evidence');
