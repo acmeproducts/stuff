@@ -372,6 +372,8 @@ export async function drive(R) {
   X.w.__fetchPlan = (u) => /translate_a\/single.*sl=th&tl=en/.test(u) ? Promise.resolve({ ok: true, status: 200, json: () => Promise.resolve([[['thank you very much', 'ขอบคุณมาก', null, null]], null, 'th']), text: () => Promise.resolve('') }) : /translate_a\/single.*sl=en&tl=th/.test(u) ? Promise.resolve({ ok: true, status: 200, json: () => Promise.resolve([[['ขอบคุณมากครับ', 'thank you very much', null, null]], null, 'en']), text: () => Promise.resolve('') }) : null;
   link.rewire(); tick(10); await X.w.sendChatText('ขอบคุณมาก', null, 'typed'); await sleep(80); X.w.__fetchPlan = null;
   R.sweep.ownSaid = (X.w.transcript.filter((e) => e.said && e.who === 'me').slice(-1)[0] || {}).said || null;
+  /* a return to the foreground: the net layer's own work, then CR3's recovery */
+  tick(10); X.w.onVisible('focus'); await sleep(20);
   /* a send into a room the partner left is blocked (L) */
   { const r = X.w.activeRoom(); r.sendLocked = true; tick(10); await X.w.sendChatText('blocked text', null, 'typed'); r.sendLocked = false; }
   /* notifications are the relay's; the partner-state writer is retired */
@@ -385,7 +387,8 @@ export async function drive(R) {
   tick(10); X.w.pbAddCard({ source: 'good morning', target: 'สวัสดีตอนเช้า', sourceLang: 'en', targetLang: 'th' });
   const card = (X.w.PB.cards || [])[0]; R.sweep.card = card ? card.id : null;
   tick(10); X.w.renderPbList();
-  if (card) { X.w._pbCS(card.id).tagsOpen = true; tick(10); X.w.pbRerenderCard(card.id); }   /* the tag field is only rendered when the card's tags are open; D10 dresses it and keeps focus in it */
+  if (card) { X.w._pbCS(card.id).tagsOpen = true; tick(10); X.w.renderPbList(); }   /* the tag field is only rendered when the card's tags are open; D10 dresses it (on the list, then on the card) and keeps focus in it */
+  R.sweep.formsAfterList = $x('pb-ov-cards') ? $x('pb-ov-cards').querySelectorAll('form[data-tagform] [data-taginp]').length : -1;
   if (card) { tick(10); X.w.pbAddTagTo(card.id, 'greeting'); tick(10); X.w.pbRerenderCard(card.id); tick(10); X.w.pbCommitEdit(card.id, 'target', 'สวัสดีตอนเช้าครับ'); tick(10); X.w.pbCommitEdit(card.id, 'source', 'good morning!'); }
   await sleep(100);
   R.sweep.pb = { list: ($x('pb-ov-cards') || {}).innerHTML || null, forms: ($x('pb-ov-cards') ? $x('pb-ov-cards').querySelectorAll('form[data-tagform] [data-taginp]').length : -1), cards: JSON.parse(JSON.stringify(X.w.PB.cards || [])) };

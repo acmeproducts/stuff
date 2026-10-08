@@ -145,7 +145,7 @@ T('M3.0 the script exercised every absorbed layer: every headline marker fired o
   assert(sw.partnerState === true && sw.receipt === true && sw.receiptPop && sw.receiptPop[0] === 'block' && /Message status/.test(sw.receiptPop[2] || ''), 'receipt popup / partner state: ' + JSON.stringify([sw.partnerState, sw.receipt, sw.receiptPop]));
   assert(sw.titles[0] !== 'Old' && sw.titles[1] === 'Newer' && sw.titles[2] === 'N', 'rename last-write-wins: ' + JSON.stringify(sw.titles));
   assert(sw.unreadAfterHidden === 0 && sw.bumpsAfterHidden === 1 && sw.ownSaid === 'ขอบคุณมาก' && snapA.Y.log.some((l) => l.ev === 'said_kept' && l.d.who === 'partner' && l.d.lang === 'th'), 'the hidden chat / the own normalized line did not run: ' + JSON.stringify([sw.unreadAfterHidden, sw.bumpsAfterHidden, sw.ownSaid]));
-  assert(sw.pb.forms === 1, 'the open tag field was not dressed in a form: ' + sw.pb.forms);
+  assert(sw.pb.forms === 1 && sw.formsAfterList === 1, 'the open tag field was not dressed in a form: ' + JSON.stringify([sw.formsAfterList, sw.pb.forms]));
   assert(sw.card && sw.pb.cards[0] && sw.pb.cards[0].tags.includes('greeting') && sw.pb.cards[0].target === 'สวัสดีตอนเช้าครับ' && sw.pb.cards[0].source === 'good morning!' && sw.wb.length === 4 && sw.wb[0] === 'no-pat' && sw.wb[1] === 'pending' && sw.wb[2] === 'pending', 'phrasebook ops: ' + JSON.stringify([sw.card, sw.pb.cards[0] && sw.pb.cards[0].tags, sw.wb]));
 });
 for (const who of ['X', 'Y']) for (const key of KEYS) {

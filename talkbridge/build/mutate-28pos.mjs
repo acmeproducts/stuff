@@ -71,9 +71,9 @@ const MUTATIONS = [
   { catches: XLOG, name: 'startDeepgram: the open-path watch is gone (T layer lost)', fl5: (s) => s.replace("function startDeepgram() { dgWatch(); return startDeepgramM.apply(this, arguments); }", "function startDeepgram() { return startDeepgramM.apply(this, arguments); }") },
   { catches: 'M3 X.render identical on both builds', name: 'waitingOf: the legacy counter migrates again (the dead base body revived)', fl5: (s) => s.replace("if (!r.waiting) r.waiting = { chat: 0, voice: 0, video: 0 }; return r.waiting; }", "if (!r.waiting) r.waiting = { chat: r.unread || 0, voice: 0, video: 0 }; return r.waiting; }") },
   { catches: XLOG, name: 'bumpWaiting: the ignored bump is no longer logged (CR3 replacement edited)', fl5: (s) => s.replace("function bumpWaiting(r, kind) { cr3Log('bump_ignored', { room: r && r.id, kind: kind }); }", "function bumpWaiting(r, kind) { }") },
-  { catches: XLOG, name: 'clearWaiting: the dismissal threshold is no longer reset (R8 layer lost)', fl5: (s) => s.replace("        delete m[r.id];\n", "") },
+  { catches: XREN, name: 'clearWaiting: the dismissal threshold is no longer reset (R8 layer lost)', fl5: (s) => s.replace("        delete m[r.id];\n", "") },
   { catches: XLOG, name: 'onVisible: recovery no longer runs on return (CR3 layer lost)', fl5: (s) => s.replace("  try { cr3Recover(why); } catch (_) {}\n", "") },
-  { catches: 'M3 X.sweep identical on both builds', name: 'onRoomNameSignal: a stale rename wins (K4 layer lost)', fl5: (s) => s.replace("      if (r && ts && mine && (ts < mine || (ts === mine && to <= (r.title || '')))) {", "      if (false) {") },
+  { catches: 'M3 X.sweep identical on both builds', name: 'onRoomNameSignal: a stale rename wins (K4 layer lost)', fl5: (s) => s.replace("    if (r && ts && mine && (ts < mine || (ts === mine && to <= (r.title || '')))) {", "    if (false) {") },
   { catches: 'M2.1 the set of log markers in the candidate equals the accepted set (no marker added or lost)', name: 'FL-5 logs a new marker', fl5: (s) => s.replace("function osNotify(title, body, roomId) { cr3Log('os_notify_owned_by_relay', { room: roomId }); }", "function osNotify(title, body, roomId) { cr3Log('os_notify_owned_by_relay', { room: roomId }); log('fl5_seen', {}, 'info'); }") },
   { catches: 'M2.3 nothing new on the wire or in the credential path (G19/G20): FL-4 and FL-5 add no message type, no endpoint, no credential path; every network or credential line in FL-5 is a line the accepted build had', name: 'FL-5 reaches a new endpoint', fl5: (s) => s.replace("function osNotify(title, body, roomId) { cr3Log('os_notify_owned_by_relay', { room: roomId }); }", "function osNotify(title, body, roomId) { cr3Log('os_notify_owned_by_relay', { room: roomId }); fetch('https://example.org/x'); }") },
   { catches: M22, name: 'the T2 log layer is left in the assembly (log assigned)', keep: ['89-T2-hygiene-IIFE.js'] },
@@ -87,7 +87,7 @@ const MUTATIONS = [
   { catches: M22, name: 'the T1 latch is left in the assembly', keep: ['18-T1-latch-IIFE.js'] },
   { catches: M22, name: 'X3\'s pending declarations are left in the assembly (declared twice)', keep: ['19-X3-pending-vars.js'] },
   { catches: M22, name: 'the base renderPanel declaration is left in the assembly (declared twice)', keep: ['00-BASE-renderPanel.js'] },
-  { catches: 'M1.1 candidate is the assembler\'s output for these parts (every removal by its banked bytes)', name: 'the base bytes are edited beyond the declared removals', mangle: (h) => h.replace('CALL.CONNECT_TIMEOUT_MS = 20000;', 'CALL.CONNECT_TIMEOUT_MS = 20001;') },
+  { catches: 'M1.1 candidate is the flat assembly for these parts (every removal by its banked bytes)', name: 'the base bytes are edited beyond the declared removals', mangle: (h) => h.replace('CALL.CONNECT_TIMEOUT_MS = 20000;', 'CALL.CONNECT_TIMEOUT_MS = 20001;') },
 ];
 const ONLY = process.env.TB_MUT_ONLY || null;
 const dir = mkdtempSync(path.join(tmpdir(), 'tb-28pos-mut-'));
