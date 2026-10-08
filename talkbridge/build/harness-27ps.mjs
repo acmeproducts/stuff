@@ -331,7 +331,8 @@ T('M3e.3 one trailing render at the next frame draws the LATEST state', () => {
   assert(c.length === 1 && c[0].d.n === 4, 't1_coalesced: ' + JSON.stringify(c.map((l) => l.d)));
 });
 T('M3e.4 renderPanel and renderHome are latched the same way; a lone call is never deferred', () => {
-  assert(/latched|pending/.test(String(R.w.renderPanel)) && /latched|pending/.test(String(R.w.renderHome)), 'not latched');
+  if (process.env.TB_FLAT_RENDER) assert(/fl4Latched/.test(String(R.w.renderPanel)) && /fl4Latched/.test(String(R.w.renderHome)), 'not latched (flat)');
+  else assert(/latched|pending/.test(String(R.w.renderPanel)) && /latched|pending/.test(String(R.w.renderHome)), 'not latched');
   R.w.transcript.push({ id: 'm3', kind: 'sys', text: 'third', ts: Date.now() });
   R.w.renderTranscript();
   assert(/third/.test(R.w.document.getElementById('transcript').textContent), 'a lone call after the burst was deferred');
@@ -363,7 +364,8 @@ T('M3g.2 the map names the chains this release added, innermost first', () => {
   if (!process.env.TB_SKIP_M1) assert(last('relaySend') === 'K4-rename-lww.js' && (m.relaySend || []).includes('C1-signal-queue.js'), 'relaySend chain: ' + JSON.stringify(m.relaySend));
   else assert(!m.relaySend && !m.handleRelay && !m.relayConnect, 'flattened build still shows relay-path chains: ' + JSON.stringify([m.relaySend, m.handleRelay, m.relayConnect]));
   assert(last('log') === 'T2-log-hygiene.js' && (m.log || []).includes('K2-pb-merge.js'), 'log chain: ' + JSON.stringify(m.log));
-  assert(last('renderTranscript') === 'T1-render-coalesce.js' && last('renderPanel') === 'T1-render-coalesce.js', 'render chain: ' + JSON.stringify(m.renderPanel));
+  if (process.env.TB_FLAT_RENDER) assert(!m.renderTranscript && !m.renderPanel && !m.renderHome && !m.appendMsgDom && !m.msgHtml, 'flattened build still shows render chains: ' + JSON.stringify([m.renderPanel, m.renderHome, m.appendMsgDom]));
+  else assert(last('renderTranscript') === 'T1-render-coalesce.js' && last('renderPanel') === 'T1-render-coalesce.js', 'render chain: ' + JSON.stringify(m.renderPanel));
   assert(last('uid') === 'K1-device-ids.js' && last('pbWriteBack') === 'K2-pb-merge.js' && last('onRoomNameSignal') === 'K4-rename-lww.js', 'K chains missing');
   assert((process.env.TB_SKIP_M1 || (m.handleRelay || []).length >= 4) && (process.env.TB_FLAT_CALL ? !(m['CALL.runRecovery'] || []).length : (m['CALL.runRecovery'] || []).includes('C3-joiner-restart.js')), 'deep chains missing');
 });
