@@ -144,3 +144,20 @@ def freshness(meta, source, catalog, rules, now):
     if source.get('last_error'):
         return 'failed', expected_text, reason+' Latest collection failed.'
     return 'current', expected_text, reason
+
+
+def valid_until(meta, source, catalog, rules, now):
+    """Bound validity to the next native deadline, heartbeat, or hourly recheck."""
+    ceiling=min(now+dt.timedelta(hours=1),dt.datetime.fromisoformat(source['last_successful'].replace('Z','+00:00'))+dt.timedelta(hours=48))
+    actual=dt.datetime.fromtimestamp(source['observations'][-1]['t']/1000,UTC).date()
+    def expired(when):
+        expected=expected_period(meta,catalog,rules,when)
+        return expected is not None and actual<expected
+    if expired(now):return now
+    if not expired(ceiling):return ceiling
+    low,high=now,ceiling
+    while (high-low).total_seconds()>1:
+        middle=low+(high-low)/2
+        if expired(middle):high=middle
+        else:low=middle
+    return low

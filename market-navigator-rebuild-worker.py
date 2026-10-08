@@ -25,7 +25,8 @@ def audit(root,now=None):
             report=h.read(root/'market-evidence/reports'/f'{sid}.json')
             if report.get('id')!=sid or any(x.get('source_revision')!=source['sourceRevision'] for x in report['reports'].values()):raise ValueError('Report/native source revision differs')
         except (ValueError,KeyError,OSError,TypeError) as error:status='failed';expected=None;why=str(error)
-        series[sid]={'status':status,'expectedNativePeriod':expected,'why':why,'requiredForIndices':sid in required}
+        expiry=h.policy.valid_until(meta,source,cat,rules,now).isoformat() if status=='current' else now.isoformat()
+        series[sid]={'validUntil':expiry,'status':status,'expectedNativePeriod':expected,'why':why,'requiredForIndices':sid in required}
         if status!='current':findings.append({'id':sid,'status':status,'blocking':sid in required,'why':why})
     # Derivation and original history are independently rechecked on admission.
     seed=h.read(BASE/'market-navigator-rebuild-seed.json')
@@ -63,7 +64,7 @@ def audit(root,now=None):
             role='canonical-native' if rel.startswith('market-evidence/series/') else 'native-report' if rel.startswith('market-evidence/reports/') else 'collected-archive' if '/collection-archive/' in rel else 'qualified-index' if path.name in ('persistent-indices-v1.json','derived-indices-persistent-v1.json') else 'retained-reference'
             files[rel]={'blob':h.blob(payload),'role':role,'schema':value.get('schema') if isinstance(value,dict) else None,'bytes':len(payload)}
     ready=not any(x['blocking'] for x in findings)
-    return {'schema':'market-navigator-rebuild-admission-v1','generatedAt':now.isoformat(),'anchor':derived['commonMarketAnchor'],'series':series,'findings':findings,'files':files,'summary':{'ready':ready,'series':len(series),'current':sum(x['status']=='current' for x in series.values()),'files':len(files),'requiredCurrent':all(series[sid]['status']=='current' for sid in required)},'rule':'Complete recovered history, native cadence, collector heartbeat and report/index coherence qualify together.'}
+    return {'schema':'market-navigator-rebuild-admission-v1','generatedAt':now.isoformat(),'anchor':derived['commonMarketAnchor'],'series':series,'findings':findings,'files':files,'summary':{'ready':ready,'series':len(series),'current':sum(x['status']=='current' for x in series.values()),'files':len(files),'requiredCurrent':all(series[sid]['status']=='current' for sid in required),'validUntil':min(series[sid]['validUntil'] for sid in required)},'rule':'Complete recovered history, native cadence, collector heartbeat and report/index coherence qualify together.'}
 
 def publish(root,store,collect=False,archive=None,inventory=None):
     root=Path(root).resolve();store=Path(store).resolve();store.mkdir(parents=True,exist_ok=True)
@@ -71,6 +72,16 @@ def publish(root,store,collect=False,archive=None,inventory=None):
     for folder in ('market-evidence','data/market-backend'):shutil.copytree(root/folder,stage/folder)
     for name in ('market-navigator-r7-data-pipeline.py','market-navigator-r7-health.py','market-navigator-source-state.py','market-navigator-rebuild-transforms.py','market-navigator-rebuild-policy.py'):
         shutil.copy2(BASE/'market-navigator-rebuild-data'/name,stage/name)
+    # Reviewed recovery sources are applied only to the exact registered identity.
+    provider_policy=h.read(BASE/'market-navigator-rebuild-provider-policy.json')
+    catalog_path=stage/'data/market-backend/data-catalog.json';configured=h.read(catalog_path)
+    for item in provider_policy['policies']:
+        meta=next((x for x in configured['series'] if x['id']==item['id']),None)
+        if meta and all(meta.get(k)==v for k,v in item['identity'].items()):
+            chain=meta.setdefault('provider_chain',[{'provider':meta['provider'],'identifier':meta['provider_identifier']}])
+            if item['provider'] not in chain:chain.append(item['provider'])
+            meta['recoveryProviderPolicy']=provider_policy['schema']+' / '+provider_policy['qualifiedAt']
+    h.write(catalog_path,configured)
     if collect:
         environment=dict(os.environ,MARKET_NAVIGATOR_BOOTSTRAP='false',MARKET_NAVIGATOR_SERIES_IDS='')
         result=subprocess.run([sys.executable,'market-navigator-r7-data-pipeline.py'],cwd=stage,env=environment,text=True,capture_output=True,timeout=180)

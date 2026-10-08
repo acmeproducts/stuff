@@ -70,10 +70,28 @@ def fred(sid,boot):
   except:pass
  if not out:raise RuntimeError('FRED returned zero observations')
  return canon(out),http
+def nasdaq_fund(sym,boot):
+ start='2015-01-01' if boot else (now()-dt.timedelta(days=430)).date().isoformat()
+ url='https://api.nasdaq.com/api/quote/'+urllib.parse.quote(sym,safe='')+'/historical?'+urllib.parse.urlencode({'assetclass':'mutualfunds','fromdate':start,'todate':now().date().isoformat(),'limit':5000})
+ raw,http=get(url,'application/json');response=json.loads(raw);data=response.get('data') or {}
+ if response.get('status',{}).get('rCode')!=200 or str(data.get('symbol','')).upper()!=sym.upper():raise RuntimeError('Nasdaq fund response identity/status mismatch')
+ rows=(data.get('tradesTable') or {}).get('rows') or []
+ if not rows or int(data.get('totalRecords',0))!=len(rows):raise RuntimeError('Nasdaq fund history is empty or incomplete')
+ out=[]
+ for row in rows:
+  day=dt.datetime.strptime(row['date'],'%m/%d/%Y').replace(tzinfo=dt.timezone.utc);value=float(str(row['close']).replace('$','').replace(',',''))
+  if not math.isfinite(value) or value<=0:raise RuntimeError('Invalid Nasdaq unit value')
+  for field in ('open','high','low'):
+   if float(str(row[field]).replace('$','').replace(',',''))!=value:raise RuntimeError('Response is not a qualified daily fund unit-value record')
+  if row.get('volume')!='N/A':raise RuntimeError('Response is not a fund NAV history')
+  out.append({'t':int(day.timestamp()*1000),'v':value})
+ return canon(out),http
+
 def fetch_source(provider,identifier,boot):
  if provider=='Yahoo Finance':return yahoo(identifier,boot)
  if provider=='Stooq':return stooq(identifier,boot)
  if provider=='FRED':return fred(identifier,boot)
+ if provider=='Nasdaq Fund Network':return nasdaq_fund(identifier,boot)
  raise RuntimeError('unsupported provider '+str(provider))
 def yoy(a):
  a=canon(a);m={}
@@ -132,7 +150,7 @@ def qualified_source(meta, provider, identifier, bootstrap, catalog, rules):
    raw,http=(yahoo(identifier,bootstrap,'query2.finance.yahoo.com',True) if endpoint.endswith('/bounded-period') else yahoo(identifier,bootstrap,endpoint)) if endpoint else fetch_source(provider,identifier,bootstrap)
    captured=now()
    if any(p['t']>captured.timestamp()*1000 for p in raw):raise RuntimeError('Future native observation')
-   if captured>=dt.datetime(2026,10,8,tzinfo=dt.timezone.utc) and provider in ('Yahoo Finance','Stooq') and meta.get('native_cadence') in ('trading-day','daily-nav'):
+   if captured>=dt.datetime(2026,10,8,tzinfo=dt.timezone.utc) and provider in ('Yahoo Finance','Stooq','Nasdaq Fund Network') and meta.get('native_cadence') in ('trading-day','daily-nav'):
     completed=policy.expected_market_session(captured);raw=[p for p in raw if dt.datetime.fromtimestamp(p['t']/1000,dt.timezone.utc).date()<=completed]
    status,expected,reason=policy.freshness(meta,{'observations':raw,'last_attempted':iso(captured),'last_successful':iso(captured),'last_error':None},catalog,rules,captured)
    if status!='current':raise RuntimeError('Response is not current canonical evidence: '+reason)

@@ -5,10 +5,13 @@ require('./market-navigator-rebuild-analyze.cjs');
 const base=fs.readFileSync('market-navigator-rebuild-analyze.html','utf8'),match=/<script>([\s\S]*?)<\/script>/.exec(base),code=match[1],offset=match.index+8;
 const ast=babel.babelParse(code,'passing-analyze.js',false),nodes=new Map();babel.traverse(ast,{FunctionDeclaration(p){if(p.node.id)nodes.set(p.node.id.name,p.node)}});
 const edits=[];function change(name,fn){const n=nodes.get(name);assert(n,'Missing '+name);const prior=edits.find(e=>e.start===n.start);if(prior)prior.text=fn(prior.text);else edits.push({start:n.start,end:n.end,text:fn(code.slice(n.start,n.end))});}
-change('openStandaloneAnalysis26',s=>s.replace('rebuildAnalyze=MNChart.mount(',"rebuildNow.dismissInfo();rebuildAnalyze=MNChart.mount("));
+change('openStandaloneAnalysis26',s=>s.replace('async function openStandaloneAnalysis26(id){',"async function openStandaloneAnalysis26(id){if(window.__mnDataBroker&&!rebuildAnalyze){await rebuildRefreshData(true);const qualified=window.__mnDataBroker.status();if(!qualified||Date.now()>=Date.parse(qualified.validUntil)||$('rebuildFreshStatus'))return false}").replace('rebuildAnalyze=MNChart.mount(',"rebuildNow.dismissInfo();rebuildAnalyze=MNChart.mount("));
+change('getSeries',s=>s.replace('async function getSeries(id){','async function getSeries(id){const cache=S.series,pool=S.seriesPromises;').replaceAll('S.seriesPromises','pool').replaceAll('S.series[id]','cache[id]').replace('pool=pool','pool=S.seriesPromises'));
+change('renderNow',s=>s.replace('function renderNow(){','async function renderNow(){await services.beforeRender?.();if(dead)return;'));
+change('renderV2',s=>s.replace('async function renderV2(){','async function renderV2(){await services.beforeRender?.();if(dead)return;'));
 change('nav',s=>s.replace("const restore=v==='now'","if(!['now','library','health','config'].includes(v))v='now';const restore=v==='now'"));
 change('repaintCharts',s=>s.replace("function repaintCharts(){","function repaintCharts(){if(S.view==='analyze'&&rebuildAnalyze){rebuildRefreshStyles(rebuildAnalyze);return}"));
-change('closeStandaloneAnalysis26',s=>s.replace("nav('now');","nav('now');rebuildRefreshStyles(rebuildNow);"));
+change('closeStandaloneAnalysis26',s=>s.replace("nav('now');","nav('now');rebuildRefreshStyles(rebuildNow);void rebuildRefreshData(true);"));
 change('boot',()=>`async function boot(){
  if(innerWidth<=760)$('rail').classList.add('closed');
  S.health={series:{}};S.catalog={series:[]};S.sourceRegistry={registrations:[]};
@@ -18,7 +21,7 @@ change('boot',()=>`async function boot(){
  const [derived,definition,health,catalog,registry]=await Promise.all([j('market-evidence/derived-indices-persistent-v1.json'),j('data/market-backend/derived-index-definition-persistent-v1.json'),j('market-evidence/health-envelope.json'),j('data/market-backend/data-catalog.json'),j('data/market-backend/source-registry.json')]);
  if(!derived.coherence?.allIndexHorizonsComputable)throw Error('Derived evidence failed coherence');
  Object.assign(S,{derived,def:definition,health,catalog,sourceRegistry:registry,catMap:Object.fromEntries(catalog.series.map(x=>[x.id,x]))});
- message.remove();renderV1();mnxRenderHealth();renderSources25();renderCrumb();setupGeometry25();openHealthHash26();
+ message.remove();renderV1();rebuildScheduleData();window.addEventListener('focus',()=>{void rebuildRefreshData(true)});document.addEventListener('visibilitychange',()=>{if(!document.hidden)void rebuildRefreshData(true)});mnxRenderHealth();renderSources25();renderCrumb();setupGeometry25();openHealthHash26();
  }catch(e){message.textContent='Repairing market data. Saved reports remain available in Library.';setTimeout(load,15000)}}
  await load();
 }`);
@@ -79,13 +82,32 @@ change('mnxCloseExplanation',s=>s.replace("$('indexInfoBtn')", "mnxExplanationBu
 let output=code;for(const e of edits.sort((a,b)=>b.start-a.start))output=output.slice(0,e.start)+e.text+output.slice(e.end);
 output=output.replace("'anchored','clockIndex'].map","'anchored','clockIndex','inspection'].map").replaceAll("$('nowTip').style.display='none'","S.inspection=null;$('nowTip').style.display='none'");
 output=output.replace("services.available(id,h,k)","services.available(id,h,IDX.includes(k)?k:(S.clockIndex||'risk'))");
-output=output.replace("function rebuildServices(){return{","function rebuildServices(){return{selectionInformation:false,");
+output=output.replace("function rebuildServices(){return{","function rebuildServices(){return{beforeRender:()=>rebuildRefreshData(),selectionInformation:false,");
 output=output.replace("available:seriesAvailable,onAnalyze:","available:async(id,h,k)=>!['stale','failed','missing','unknown','cached-stale'].includes(String(health(id).classification).toLowerCase())&&await seriesAvailable(id,h,k),onAnalyze:");
 output=output.replace("available:async(id,h,k)=>!['stale','failed','missing','unknown','cached-stale'].includes(String(health(id).classification).toLowerCase())&&await seriesAvailable(id,h,k)", "available:rebuildSeriesAvailable");
 output=output.replace("return mnxPrintNow(state)", "return mnxPrintNow(state,canvas)");
 output=output.replace("onInfo:state=>mnxOpenExplanation(state)", "onInfo:(state,button)=>mnxOpenExplanation(state,button)");
 output=output.replace('${full(q.sourceT||q.t)} ·',"${q.held?'As of ':''}${full(q.sourceT||q.t)} ·");
 const enrich=`
+let rebuildDataPending=null,rebuildDataApplying=false,rebuildDataTimer=0;
+function rebuildScheduleData(){clearTimeout(rebuildDataTimer);const expiry=Date.parse(window.__mnDataBroker?.status()?.validUntil||'');if(Number.isFinite(expiry))rebuildDataTimer=setTimeout(()=>{void rebuildRefreshData(true)},Math.max(250,Math.min(60000,expiry-Date.now())))}
+async function rebuildRefreshData(force=false){
+ const broker=window.__mnDataBroker;if(!broker||!S.derived||rebuildDataApplying)return false;
+ if(rebuildAnalyze){clearTimeout(rebuildDataTimer);return false}
+ const previous=broker.status();if(!force&&previous&&Date.now()<Date.parse(previous.validUntil))return false;
+ if(rebuildDataPending)return rebuildDataPending;
+ rebuildDataPending=(async()=>{let status=$('rebuildFreshStatus');if(!status){status=document.createElement('div');status.id='rebuildFreshStatus';status.style.cssText='position:absolute;inset:0;padding:24px;color:var(--muted);background:var(--panel);z-index:5';status.textContent='Refreshing market data…';$('nowWrap').append(status)}
+ try{const next=await broker.check();if(next.generation===previous?.generation){broker.commit(next);status.remove();return false}
+ const [derived,def,health,catalog,sourceRegistry]=await Promise.all(['market-evidence/derived-indices-persistent-v1.json','data/market-backend/derived-index-definition-persistent-v1.json','market-evidence/health-envelope.json','data/market-backend/data-catalog.json','data/market-backend/source-registry.json'].map(p=>broker.json(p,next.generation)));
+ if(!derived.coherence?.allIndexHorizonsComputable)throw Error('New collection failed coherence');
+ if(rebuildAnalyze){status.remove();return false}
+ const spec=rebuildNow.getState().spec;rebuildDataApplying=true;rebuildNow.destroy();broker.commit(next);Object.assign(S,{derived,def,health,catalog,sourceRegistry,catMap:Object.fromEntries(catalog.series.map(x=>[x.id,x])),series:{},seriesPromises:{}},spec);rebuildNow=MNChart.mount($('view-now'),spec,rebuildServices());
+ while(!rebuildNow.getState().idle||!rebuildNow.getState().state)await new Promise(r=>requestAnimationFrame(r));
+ rebuildNow.setVisible(S.view==='now');status.remove();return true;
+ }catch(e){status.textContent='Repairing market data. Saved reports remain available in Library.';return false}
+ finally{rebuildDataApplying=false;rebuildDataPending=null;rebuildScheduleData()}
+ })();return rebuildDataPending;
+}
 function rebuildRefreshStyles(instance){const chart=instance?.getState().state?.chart;if(chart?.series.some(z=>z.color!==seriesColor(z.id)||z.lineWidth!==seriesStyle(z.id).width||z.lineStyle!==seriesStyle(z.id).lineStyle))return instance.update({})}
 let mnxExplanationButton=null;\nasync function rebuildSeriesAvailable(id,h,k){
  if(['stale','failed','missing','unknown','cached-stale'].includes(String(health(id).classification).toLowerCase()))return false;

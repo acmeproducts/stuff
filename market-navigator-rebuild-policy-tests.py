@@ -23,4 +23,8 @@ class PublicationCalendar(unittest.TestCase):
         self.assertEqual(str(policy.expected_market_session(instant('2026-03-09T22:00:00Z'))),'2026-03-09')
     def test_unknown_year_requires_official_refresh(self):
         with self.assertRaisesRegex(ValueError,'requires refresh'):policy.expected_market_session(instant('2029-01-08T23:00:00Z'))
+    def test_validity_expires_at_native_deadline_before_hourly_refresh(self):
+        now=instant('2026-10-08T21:50:00Z');source={'last_successful':now.isoformat(),'observations':[{'t':int(instant('2026-10-07T00:00:00Z').timestamp()*1000),'v':1}]}
+        expiry=policy.valid_until({'id':'qqq','native_cadence':'trading-day','provider':'Yahoo Finance'},source,{}, {},now)
+        self.assertLessEqual(expiry,instant('2026-10-08T22:00:00Z'));self.assertGreater(expiry,instant('2026-10-08T21:59:58Z'))
 if __name__=='__main__':unittest.main(verbosity=2)

@@ -13,7 +13,11 @@ class ProviderRecovery(unittest.TestCase):
     def run_case(self,fetch,old_provider='Yahoo Finance',sid='custom_nvda',alternate=None):
         catalog=json.loads((BASE/'market-navigator-rebuild-data/data/market-backend/data-catalog.json').read_text(encoding='utf-8'))
         meta=next(x for x in catalog['series'] if x['id']==sid);meta['required']=False
-        self.assertEqual([x['provider'] for x in collector.chain_for(meta)],['Yahoo Finance'] if sid=='qqq' else ['Yahoo Finance','Stooq'])
+        if sid=='custom_gaamhx':
+            policy=json.loads((BASE/'market-navigator-rebuild-provider-policy.json').read_text(encoding='utf-8'))['policies'][0]
+            self.assertTrue(all(meta.get(k)==v for k,v in policy['identity'].items()))
+            meta['provider_chain'].append(policy['provider'])
+        self.assertEqual([x['provider'] for x in collector.chain_for(meta)],['Yahoo Finance'] if sid=='qqq' else ['Yahoo Finance','Nasdaq Fund Network'] if sid=='custom_gaamhx' else ['Yahoo Finance','Stooq'])
         catalog['series']=[meta]
         fixture_base=BASE/'market-navigator-rebuild-test-fixtures';fixture_base.mkdir(exist_ok=True)
         with tempfile.TemporaryDirectory(dir=fixture_base) as tmp:
@@ -74,4 +78,27 @@ class ProviderRecovery(unittest.TestCase):
     def test_unfinished_current_daily_candle_is_not_published_as_completed(self):
         source,_=self.run_case(lambda *_:(vector('2026-10-08'),200),sid='qqq')
         self.assertEqual(source['observations'][-1]['t'],t('2026-10-07'));self.assertIsNone(source['last_error'])
+    def test_fund_fallback_replaces_stale_vendor_history_with_bootstrap(self):
+        calls=[]
+        def fetch(provider,identifier,bootstrap):
+            calls.append((provider,identifier,bootstrap))
+            return (vector('2026-09-22',1) if provider=='Yahoo Finance' else vector(offset=20)),200
+        source,old=self.run_case(fetch,sid='custom_gaamhx')
+        self.assertEqual(source['provider'],'Nasdaq Fund Network');self.assertTrue(source['providerFallbackUsed'])
+        self.assertEqual(source['observations'],vector(offset=20));self.assertNotEqual(source['observations'][0],old['observations'][0])
+        self.assertEqual(calls[-1],('Nasdaq Fund Network','GAAMHX',True));self.assertIsNone(source['last_error'])
+class NasdaqFundContract(unittest.TestCase):
+    def response(self,symbol='GAAMHX',total=1,volume='N/A'):
+        return {'status':{'rCode':200},'data':{'symbol':symbol,'totalRecords':total,'tradesTable':{'rows':[{'date':'10/07/2026','close':'11.4187','open':'11.4187','high':'11.4187','low':'11.4187','volume':volume}]}}}
+    def fetch(self,response):
+        with patch.object(collector,'get',return_value=(json.dumps(response).encode(),200)):
+            return collector.nasdaq_fund('GAAMHX',True)
+    def test_exact_symbol_dated_nav_is_accepted(self):
+        points,status=self.fetch(self.response());self.assertEqual(points,[{'t':t('2026-10-07'),'v':11.4187}]);self.assertEqual(status,200)
+    def test_wrong_symbol_is_rejected(self):
+        with self.assertRaisesRegex(RuntimeError,'identity'):self.fetch(self.response(symbol='OTHER'))
+    def test_incomplete_history_is_rejected(self):
+        with self.assertRaisesRegex(RuntimeError,'incomplete'):self.fetch(self.response(total=2))
+    def test_stock_trade_record_is_not_substituted_for_fund_nav(self):
+        with self.assertRaisesRegex(RuntimeError,'fund NAV'):self.fetch(self.response(volume='1200'))
 if __name__=='__main__':unittest.main(verbosity=2)

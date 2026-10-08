@@ -58,3 +58,17 @@ The collector now tests a bounded, cache-distinct historical request at the same
 The optional GAAMHX CIT remains unresolved: the provider returns newer timestamps and a live quote, but daily historical close and adjusted-close prices are null after October 1. These placeholders and the quote timestamp cannot establish the missing native NAV valuation periods, so none are fabricated. Its prior history is retained and retry diagnostics remain explicit. The corpus is 38 of 39 current, with no required inputs unavailable; this limitation is not labelled a fully healed optional source.
 
 OneDrive interrupted a qualified directory rename. Publication now retries the rename and, when necessary, copies without deleting the working checkpoint, independently verifies destination admission and every qualified JSON file, then changes the sole pointer. The admission receipt is excluded from its own inventory digest; all underlying source/report/index/reference files remain included. Interrupted and rejected generations are retained.
+
+## Freshness deadlines and in-session preservation — October 8
+
+An open page previously remained pinned to its first generation. Qualification now supplies a validity deadline bounded by native publication rules, the collection heartbeat and an hourly recheck. Normal NOW checks before rendering expired data, on focus/visibility and on the deadline timer. It loads an entire new qualified generation, preserves chart selections, replaces its instance with fresh immutable services, and keeps old pending source requests in their original cache. A repairing overlay covers chart values when qualification cannot finish; Library remains usable.
+
+Analyze remains frozen to its creation generation, including subsequent comparisons. Background refresh is deferred while that session exists. A synthetic advancing-publication test proved Analyze and parked NOW remain unchanged, then X admits the new generation into normal NOW with the same chart selections. Settings return is normalized through NOW restoration, so closing settings cannot expose normal NOW while Analyze remains parked.
+
+CI passed the immutable blob, history checks and all 296 Chrome baseline comparisons, then caught an Edge phone geometry snapshot during the existing 140 ms rail-collapse transition. Readiness now waits for that transition to finish before measuring; geometry tolerances are not weakened and baseline CSS is unchanged.
+
+## Entire corpus recovery — October 8
+
+The new actual collection published generation a7c70420533d421898cf with all 39 enabled series current, all 21 required index inputs current, zero admission findings and complete October 3–8 captured-state coverage. This supersedes the earlier 38-of-39 limitation. The GAAMHX primary Yahoo source recovered during this recollection and remains the published provider; its exact native observation date is October 7, not its quote update date.
+
+A separately verified Nasdaq Fund Network recovery source is scoped to the exact registered GAAMHX identity. All 78 overlapping dated NAVs matched Yahoo within published rounding; Nasdaq supplied 104 complete dated records through October 7. A provider change requires full-history replacement and bootstrap rather than mixing vendors. Synthetic selection tests prove stale primary recovery, provenance, vendor replacement and preserved history on failure. Original history and all failed or previous generations remain intact.
