@@ -78,6 +78,12 @@ class ProviderRecovery(unittest.TestCase):
     def test_unfinished_current_daily_candle_is_not_published_as_completed(self):
         source,_=self.run_case(lambda *_:(vector('2026-10-08'),200),sid='qqq')
         self.assertEqual(source['observations'][-1]['t'],t('2026-10-07'));self.assertIsNone(source['last_error'])
+    def test_fresh_tail_with_missing_middle_session_recovers_from_approved_provider(self):
+        incomplete=[p for p in vector() if p['t']!=t('2026-10-05')]
+        def fetch(provider,*_):return (incomplete if provider=='Yahoo Finance' else vector(offset=20)),200
+        source,_=self.run_case(fetch)
+        self.assertEqual(source['provider'],'Stooq');self.assertIn('Missing recent native sessions',source['providerErrors'][0])
+        self.assertEqual(source['observations'],vector(offset=20))
     def test_fund_fallback_replaces_stale_vendor_history_with_bootstrap(self):
         calls=[]
         def fetch(provider,identifier,bootstrap):

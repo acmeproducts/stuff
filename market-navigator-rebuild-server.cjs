@@ -9,7 +9,7 @@ async function qualify(){
  if(pending)return pending;if(!lastFailure&&Date.now()-checked<60000&&lastAudit&&Date.now()<Date.parse(lastAudit.summary.validUntil))return;
  pending=(async()=>{checked=Date.now();let active;try{active=current()}catch{await command(['--store',store]);active=current()}
  let audit;try{audit=await command(['--audit','--root',active.root])}catch(error){audit={summary:{ready:false},error:error.message}}
- lastAudit=audit;if(!audit.summary.ready||Date.now()-retried>3600000){retried=Date.now();try{const published=await command(['--root',active.root,'--store',store,'--collect']);lastAudit=published;lastFailure=null;console.log('Qualified recovery published:',current().revision)}catch(error){lastFailure=error.message;console.error('Recovery retained prior generation:',error.message);if(!audit.summary.ready)throw error}}
+ lastAudit=audit;if(!audit.summary.ready||audit.summary.current<audit.summary.series||Date.now()-retried>3600000){retried=Date.now();try{const published=await command(['--root',active.root,'--store',store,'--collect']);lastAudit=published;lastFailure=null;console.log('Qualified recovery published:',current().revision)}catch(error){lastFailure=error.message;console.error('Recovery retained prior generation:',error.message);if(!audit.summary.ready)throw error}}
  else lastFailure=null;
  })().finally(()=>{pending=null});return pending;
 }

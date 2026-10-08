@@ -104,6 +104,19 @@ def expected_period(meta, catalog, rules, now):
     return None
 
 
+def missing_recent_sessions(meta, points, now):
+    """Require five real completed sessions for declared market daily series."""
+    if now < dt.datetime(2026,10,8,tzinfo=UTC) or meta.get('provider') not in ('Yahoo Finance','Stooq','Nasdaq Fund Network') or meta.get('native_cadence') not in ('trading-day','daily-nav') or not points:
+        return []
+    actual=dt.datetime.fromtimestamp(points[-1]['t']/1000,UTC).date()
+    day=min(actual,expected_market_session(now));expected=[]
+    while len(expected)<5:
+        if day.weekday()<5 and day.isoformat() not in NYSE_CLOSED.get(day.year,set()):expected.append(day)
+        day-=dt.timedelta(days=1)
+    observed={dt.datetime.fromtimestamp(p['t']/1000,UTC).date() for p in points}
+    return [d.isoformat() for d in sorted(expected) if d not in observed]
+
+
 def freshness(meta, source, catalog, rules, now):
     points = source.get('observations') or []
     if not points:
@@ -139,6 +152,8 @@ def freshness(meta, source, catalog, rules, now):
     expected_text = str(expected) if expected else None
     if stale:
         return 'failed' if source.get('last_error') else 'stale', expected_text, reason
+    missing=missing_recent_sessions(meta,points,now)
+    if missing:return 'failed', expected_text, 'Missing recent native sessions despite current tail: '+', '.join(missing)
     if now-collected > dt.timedelta(hours=48):
         return 'stale', expected_text, reason+' Collection heartbeat exceeds 48 hours.'
     if source.get('last_error'):

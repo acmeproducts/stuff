@@ -17,7 +17,9 @@ def write(p,o):
  p.write_text(s,encoding='utf-8',newline='\n');return True
 def sha(o):return hashlib.sha256(json.dumps(o,sort_keys=True,separators=(',',':')).encode()).hexdigest()
 def get(url,accept='*/*'):
- q=urllib.request.Request(url,headers={'User-Agent':UA,'Accept':accept})
+ headers={'User-Agent':UA,'Accept':accept}
+ if urllib.parse.urlparse(url).netloc=='api.nasdaq.com':headers.update({'User-Agent':'Mozilla/5.0 (compatible; MarketNavigatorEvidence/2.2)','Origin':'https://www.nasdaq.com','Referer':'https://www.nasdaq.com/'})
+ q=urllib.request.Request(url,headers=headers)
  with urllib.request.urlopen(q,timeout=TIMEOUT) as r:return r.read(),getattr(r,'status',200)
 def canon(a):
  d={}
