@@ -23,10 +23,20 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
+      - name: Start fresh evidence while preserving committed checkpoints
+        shell: pwsh
+        run: |
+          $taskWorkspace = [IO.Path]::GetFullPath($env:GITHUB_WORKSPACE)
+          $taskSource = Join-Path $taskWorkspace 'market-navigator-rebuild-evidence'
+          $taskSaved = Join-Path $taskWorkspace 'market-navigator-rebuild-evidence-checkpoint'
+          if (-not $taskSource.StartsWith($taskWorkspace + [IO.Path]::DirectorySeparatorChar)) { throw 'Evidence path outside workspace' }
+          if (-not $taskSaved.StartsWith($taskWorkspace + [IO.Path]::DirectorySeparatorChar)) { throw 'Checkpoint path outside workspace' }
+          if (Test-Path -LiteralPath $taskSource) { Move-Item -LiteralPath $taskSource -Destination $taskSaved }
+          New-Item -ItemType Directory -Path $taskSource | Out-Null
       - name: Install browser qualification tools
         shell: pwsh
         run: |
-          npm install --prefix .market-navigator-rebuild-deps playwright pngjs
+          npm install --prefix .market-navigator-rebuild-deps playwright pngjs pixelmatch@7.1.0
           $env:MN_NODE_MODULES = "$pwd/.market-navigator-rebuild-deps/node_modules"
           node "$env:MN_NODE_MODULES/playwright/cli.js" install chrome msedge
           "MN_NODE_MODULES=$pwd/.market-navigator-rebuild-deps/node_modules" >> $env:GITHUB_ENV
