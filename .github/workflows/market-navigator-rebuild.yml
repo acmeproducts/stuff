@@ -1,0 +1,44 @@
+name: Market Navigator data-first rebuild qualification
+on:
+  pull_request:
+    paths:
+      - 'market-navigator-rebuild*'
+      - 'market-navigator-rebuild*/**'
+      - 'MARKET-NAVIGATOR-DATA-FIRST-REBUILD.md'
+      - '.github/workflows/market-navigator-rebuild.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  original-chart-and-data:
+    runs-on: windows-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Install browser qualification tools
+        shell: pwsh
+        run: |
+          npm install --prefix .market-navigator-rebuild-deps playwright
+          $env:MN_NODE_MODULES = "$pwd/.market-navigator-rebuild-deps/node_modules"
+          node -e "require(process.env.MN_NODE_MODULES+'/playwright/cli.js')" install chrome msedge
+          "MN_NODE_MODULES=$pwd/.market-navigator-rebuild-deps/node_modules" >> $env:GITHUB_ENV
+      - name: Verify archived native inputs
+        run: python market-navigator-rebuild-fetch.py
+      - name: Reproduce baseline data candidate
+        run: node market-navigator-rebuild-baseline.cjs
+      - name: Independent history mathematics and recovery fault checks
+        run: python market-navigator-rebuild-tests.py
+      - name: Compare original Turn 28 across all roots horizons and layouts
+        run: node market-navigator-rebuild-qa.cjs
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: market-navigator-data-first-evidence
+          path: market-navigator-rebuild-evidence/
+          retention-days: 30
