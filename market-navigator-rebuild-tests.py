@@ -123,6 +123,19 @@ class Recovery(unittest.TestCase):
             self.assertEqual(1,len(loaded));self.assertEqual(capture['sources'],loaded[0]['sources'])
             self.assertEqual(r.recover(self.seed,self.registry,self.captures)[0],r.recover(self.seed,self.registry,self.captures[:-1]+loaded)[0])
 
+    def test_optional_recovery_failure_preserves_more_complete_current_generation(self):
+        # Synthetic admission outcomes isolate the publication decision.
+        with tempfile.TemporaryDirectory(dir=BASE) as folder:
+            name='generation-'+'a'*20;Path(folder,name).mkdir()
+            pointer=Path(folder,'current.json');pointer.write_text(json.dumps({'generation':name}))
+            before=pointer.read_bytes()
+            attempted={'summary':{'ready':True,'current':38},'findings':[{'id':'custom_gaamhx','blocking':False}]}
+            prior={'summary':{'ready':True,'current':39},'findings':[]}
+            with patch.object(w,'audit',side_effect=[attempted,prior]),self.assertRaisesRegex(ValueError,'reduced current native coverage'):
+                w.publish(ROOT,folder,archive=BASE/'market-navigator-rebuild-archive',inventory=BASE/'market-navigator-rebuild-archive-inventory.json')
+            self.assertEqual(pointer.read_bytes(),before)
+            self.assertTrue(any(Path(folder).glob('working-*')))
+
     def test_failed_generation_does_not_replace_last_good_pointer(self):
         with tempfile.TemporaryDirectory(dir=BASE) as folder:
             pointer=Path(folder,'current.json');pointer.write_text('{"generation":"last-good"}')

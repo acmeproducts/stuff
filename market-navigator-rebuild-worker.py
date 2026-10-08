@@ -102,6 +102,16 @@ def publish(root,store,collect=False,archive=None,inventory=None):
     subprocess.run([sys.executable,'market-navigator-r7-health.py'],cwd=stage,check=True,capture_output=True,timeout=30)
     report=audit(stage)
     if not report['summary']['ready']:raise ValueError('New generation failed admission; previous generation retained.')
+    # A transient optional fetch failure cannot replace a still-current,
+    # more complete qualified corpus. Retain its pointer and the failed stage.
+    previous=None
+    if (store/'current.json').exists():
+        pointer=h.read(store/'current.json');name=pointer.get('generation','')
+        if name.startswith('generation-') and len(name)==31 and all(c in '0123456789abcdef' for c in name[11:]):
+            try:previous=audit(store/name)
+            except (ValueError,KeyError,OSError,TypeError):pass
+    if previous and previous['summary']['ready'] and report['summary']['current']<previous['summary']['current']:
+        raise ValueError('New collection reduced current native coverage; still-current prior generation retained for retry.')
     h.write(stage/'market-evidence/rebuild-admission.json',report)
     revision=h.digest({'files':report['files'],'anchor':report['anchor']})[:20];generation=store/('generation-'+revision)
     if not generation.exists():
