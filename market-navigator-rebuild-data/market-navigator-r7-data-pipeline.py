@@ -9,12 +9,12 @@ VERSION='2.2.0-corpus';UA='MarketNavigatorEvidence/2.1 (+https://github.com/acme
 def now():return dt.datetime.now(dt.timezone.utc)
 def iso(x=None):return (x or now()).astimezone(dt.timezone.utc).replace(microsecond=0).isoformat().replace('+00:00','Z')
 def read(p,d=None):
- try:return json.loads(p.read_text())
+ try:return json.loads(p.read_text(encoding='utf-8'))
  except:return {} if d is None else d
 def write(p,o):
- p.parent.mkdir(parents=True,exist_ok=True);s=json.dumps(o,ensure_ascii=False,indent=2,sort_keys=True)+'\n';old=p.read_text() if p.exists() else None
+ p.parent.mkdir(parents=True,exist_ok=True);s=json.dumps(o,ensure_ascii=False,indent=2,sort_keys=True)+'\n';old=p.read_text(encoding='utf-8') if p.exists() else None
  if old==s:return False
- p.write_text(s);return True
+ p.write_text(s,encoding='utf-8',newline='\n');return True
 def sha(o):return hashlib.sha256(json.dumps(o,sort_keys=True,separators=(',',':')).encode()).hexdigest()
 def get(url,accept='*/*'):
  q=urllib.request.Request(url,headers={'User-Agent':UA,'Accept':accept})
@@ -34,10 +34,11 @@ def canon_fred(a):
   q=out.get(d)
   if q is None or p['t']<q['t']:out[d]=p
  return [out[k] for k in sorted(out)]
-def yahoo(sym,boot):
- rng='10y' if boot else '1mo';url='https://query1.finance.yahoo.com/v8/finance/chart/'+urllib.parse.quote(sym,safe='')+'?'+urllib.parse.urlencode({'range':rng,'interval':'1d','includePrePost':'false','events':'div,splits'})
+def yahoo(sym,boot,host='query1.finance.yahoo.com'):
+ rng='10y' if boot else '1mo';url='https://'+host+'/v8/finance/chart/'+urllib.parse.quote(sym,safe='')+'?'+urllib.parse.urlencode({'range':rng,'interval':'1d','includePrePost':'false','events':'div,splits'})
  raw,http=get(url,'application/json');j=json.loads(raw);r=((j.get('chart') or {}).get('result') or [None])[0]
  if not r:raise RuntimeError('Yahoo returned no chart result')
+ if str((r.get('meta') or {}).get('symbol','')).upper()!=str(sym).upper():raise RuntimeError('Yahoo response instrument identity mismatch')
  ts=r.get('timestamp') or [];cl=(((r.get('indicators') or {}).get('quote') or [{}])[0].get('close') or []);out=[]
  for i,t in enumerate(ts):
   try:
@@ -119,8 +120,25 @@ def chain_for(m):
  c=m.get('provider_chain') or []
  if c:return c
  return [{'provider':m.get('provider'),'identifier':m.get('provider_identifier')}]
+def qualified_source(meta, provider, identifier, bootstrap, catalog, rules):
+ from importlib.util import spec_from_file_location,module_from_spec
+ spec=spec_from_file_location('mn_native_policy',Path(__file__).resolve().with_name('market-navigator-rebuild-policy.py'))
+ policy=module_from_spec(spec);spec.loader.exec_module(policy)
+ attempts=[]
+ for endpoint in ([None,'query2.finance.yahoo.com'] if provider=='Yahoo Finance' else [None]):
+  try:
+   raw,http=yahoo(identifier,bootstrap,endpoint) if endpoint else fetch_source(provider,identifier,bootstrap)
+   captured=now()
+   status,expected,reason=policy.freshness(meta,{'observations':raw,'last_attempted':iso(captured),'last_successful':iso(captured),'last_error':None},catalog,rules,captured)
+   if status!='current':raise RuntimeError('Response is not current canonical evidence: '+reason)
+   attempts.append({'endpoint':endpoint or ('query1.finance.yahoo.com' if provider=='Yahoo Finance' else provider),'status':'qualified','http':http})
+   return raw,http,attempts
+  except Exception as error:
+   attempts.append({'endpoint':endpoint or ('query1.finance.yahoo.com' if provider=='Yahoo Finance' else provider),'status':'failed','error':str(error)})
+ raise RuntimeError('; '.join(str(x['endpoint'])+': '+x.get('error','') for x in attempts))
+
 def main():
- c=read(CATALOG,{});assert c.get('schema')=='market-navigator-data-catalog-v1';H=c.get('canonical_horizons') or ['1D','5D','MTD','YTD','1YR','3YR','5YR'];assert H==['1D','5D','MTD','YTD','1YR','3YR','5YR']
+ c=read(CATALOG,{});rules=read(Path('data/market-backend/publication-rules.json'),{});assert c.get('schema')=='market-navigator-data-catalog-v1';H=c.get('canonical_horizons') or ['1D','5D','MTD','YTD','1YR','3YR','5YR'];assert H==['1D','5D','MTD','YTD','1YR','3YR','5YR']
  SERIES.mkdir(parents=True,exist_ok=True);REPORTS.mkdir(parents=True,exist_ok=True);states=read(MANIFEST,{}).get('series',{}) if os.environ.get('MARKET_NAVIGATOR_SERIES_IDS') else {};failures=[]
  selected=set(filter(None,os.environ.get('MARKET_NAVIGATOR_SERIES_IDS','').split(',')))
  replace_ids=set(filter(None,os.environ.get('MARKET_NAVIGATOR_REPLACE_SERIES_IDS','').split(',')))
@@ -145,8 +163,8 @@ def main():
    for pos,src in enumerate(chain_for(m)):
     try:
      if raw is not None:break
-     raw,http=fetch_source(src.get('provider'),src.get('identifier'),BOOT or not obs0 or sid in replace_ids);used={**src,'position':pos};break
-    except Exception as e:source_errors.append(f"{src.get('provider')}: {e}")
+     raw,http,endpoint_trace=qualified_source(m,src.get('provider'),src.get('identifier'),BOOT or not obs0 or sid in replace_ids or old.get('provider')!=src.get('provider') or old.get('providerIdentifier')!=src.get('identifier'),c,rules);used={**src,'position':pos,'endpointTrace':endpoint_trace};break
+    except Exception as e:raw=None;source_errors.append(f"{src.get('provider')}: {e}")
    if raw is None:raise RuntimeError('; '.join(source_errors) or 'no provider configured')
    if 'year-over-year percent change' in (m.get('transformation') or '').lower():raw=yoy(raw)
    used_provider=(used or {}).get('provider')
@@ -156,9 +174,7 @@ def main():
    # Never retain observations from a different historical provider lineage when a full bootstrap is available.
    # FRED canonical evidence is additionally one observation per UTC source date; this removes legacy same-day rows
    # (for example the former Yahoo ^TNX values that contaminated canonical DGS10 after migration).
-   if obs0 and not same_lineage and not m.get('transform_source_id'):
-    # A fallback never splices a second vendor's history into the primary lineage.
-    raw,http=fetch_source(used_provider,used_identifier,True)
+   # Provider changes were independently qualified using a full bootstrap inside the approved chain.
    if m.get('transform_source_id') or sid in replace_ids or obs0 and not same_lineage:obs=canon(raw)
    else:obs=merge(obs0,raw,used_provider)
    if not obs or any(p['t']>now().timestamp()*1000 for p in obs):raise RuntimeError('Empty/future canonical source response')
@@ -169,7 +185,7 @@ def main():
   if obs:
    cutoff=int((now()-dt.timedelta(days=365.25*10.25)).timestamp()*1000);obs=[x for x in obs if x['t']>=cutoff]
   rev=sha(obs);configured=chain_for(m);provider_name=(used or {}).get('provider') or old.get('provider') or m.get('provider');provider_id=(used or {}).get('identifier') or old.get('providerIdentifier') or m.get('provider_identifier')
-  obj={'schema':'market-navigator-evidence-series-v1','pipelineVersion':VERSION,'id':sid,'catalogVersion':c.get('version'),'provider':provider_name,'providerIdentifier':provider_id,'providerChain':configured,'providerFallbackUsed':bool(used and used.get('position',0)>0),'providerErrors':source_errors,'unit':m.get('native_unit'),'cadence':m.get('native_cadence'),'description':m.get('description'),'first':obs[0]['t'] if obs else None,'last':obs[-1]['t'] if obs else None,'count':len(obs),'sourceRevision':rev,'last_attempted':attempt,'last_successful':success,'last_error':err,'http':http,'observations':obs};obj.update({'transform':m['transform'],'transformSourceId':m['transform_source_id'],'transformSourceRevision':transform_source['sourceRevision']}) if m.get('transform_source_id') and transform_source and not err else None;write(p,obj)
+  obj={'schema':'market-navigator-evidence-series-v1','pipelineVersion':VERSION,'id':sid,'catalogVersion':c.get('version'),'provider':provider_name,'providerIdentifier':provider_id,'providerChain':configured,'providerFallbackUsed':bool(used and used.get('position',0)>0),'providerErrors':source_errors,'providerEndpointTrace':(used or {}).get('endpointTrace',[]),'unit':m.get('native_unit'),'cadence':m.get('native_cadence'),'description':m.get('description'),'first':obs[0]['t'] if obs else None,'last':obs[-1]['t'] if obs else None,'count':len(obs),'sourceRevision':rev,'last_attempted':attempt,'last_successful':success,'last_error':err,'http':http,'observations':obs};obj.update({'transform':m['transform'],'transformSourceId':m['transform_source_id'],'transformSourceRevision':transform_source['sourceRevision']}) if m.get('transform_source_id') and transform_source and not err else None;write(p,obj)
   supported=set(m.get('supported_horizons') or H);rr={}
   for h in H:
    rr[h]=report(obs,h) if h in supported else {'ready':False,'reason':'unsupported horizon for canonical evidence cadence'}

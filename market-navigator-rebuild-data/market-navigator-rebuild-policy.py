@@ -34,11 +34,48 @@ def holidays(year):
     return fixed
 
 
+# Stricter native deadlines apply to operational qualification from October 8.
+# Historical captures retain their collection-time policy and actual native dates.
+# Official NYSE/ICE 2026–2028 schedule verified October 8, 2026.
+# https://www.nyse.com/trade/hours-calendars
+# The two-hour ingestion grace is an application policy, not an exchange rule.
+NYSE_CLOSED = {
+ 2025: {'2025-12-25'},
+ 2026: {'2026-01-01','2026-01-19','2026-02-16','2026-04-03','2026-05-25','2026-06-19','2026-07-03','2026-09-07','2026-11-26','2026-12-25'},
+ 2027: {'2027-01-01','2027-01-18','2027-02-15','2027-03-26','2027-05-31','2027-06-18','2027-07-05','2027-09-06','2027-11-25','2027-12-24'},
+ 2028: {'2028-01-17','2028-02-21','2028-04-14','2028-05-29','2028-06-19','2028-07-04','2028-09-04','2028-11-23','2028-12-25'}
+}
+NYSE_EARLY = {'2026-11-27','2026-12-24','2027-11-26','2028-07-03','2028-11-24'}
+
+def expected_market_session(now):
+    local=eastern(now)
+    if local.year not in (2026,2027,2028):
+        raise ValueError('Official market calendar requires refresh for this year')
+    day=local.date()
+    for _ in range(15):
+        text=day.isoformat()
+        if day.weekday()<5 and text not in NYSE_CLOSED.get(day.year,set()):
+            deadline=dt.datetime.combine(day,dt.time(15 if text in NYSE_EARLY else 18),local.tzinfo)
+            if local>=deadline:return day
+        day-=dt.timedelta(days=1)
+    raise ValueError('No qualified market session')
+
+def previous_bank_session(day):
+    for _ in range(15):
+        day-=dt.timedelta(days=1)
+        if day.weekday()<5 and day not in holidays(day.year):return day
+    raise ValueError('No qualified bank session')
+
 def expected_period(meta, catalog, rules, now):
     local = eastern(now)
     today = local.date()
     cadence = meta.get('native_cadence')
     rule = rules.get('rules', {}).get(meta['id'], {})
+    if now >= dt.datetime(2026,10,8,tzinfo=UTC) and cadence == 'trading-day' and meta.get('provider') in ('Yahoo Finance','Stooq'):
+        return expected_market_session(now)
+    if now >= dt.datetime(2026,10,8,tzinfo=UTC) and cadence == 'daily' and meta.get('provider') == 'FRED':
+        completed=today if today.weekday()<5 and today not in holidays(today.year) and local.hour>=18 else previous_bank_session(today)
+        return previous_bank_session(completed)
     if cadence == 'monthly':
         overrides = catalog.get('publication_schedule', {}).get('series_overrides', {}).get(meta['id'], {})
         release = min(int(rule.get('available_by_day_of_month') or overrides.get('expected_day_of_month') or 31), calendar.monthrange(today.year, today.month)[1])
@@ -82,7 +119,10 @@ def freshness(meta, source, catalog, rules, now):
             raise ValueError('Future collection instant')
     except (KeyError, ValueError, TypeError, OverflowError):
         return 'failed', None, 'Invalid observations or collection metadata.'
-    expected = expected_period(meta, catalog, rules, now)
+    try:
+        expected = expected_period(meta, catalog, rules, now)
+    except ValueError as error:
+        return 'failed', None, str(error)
     cadence = meta.get('native_cadence', 'unknown')
     if expected is not None:
         stale = actual < expected

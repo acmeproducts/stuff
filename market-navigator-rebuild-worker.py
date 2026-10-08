@@ -67,7 +67,7 @@ def publish(root,store,collect=False,archive=None,inventory=None):
     stage=store/('working-'+uuid.uuid4().hex);stage.mkdir()
     for folder in ('market-evidence','data/market-backend'):shutil.copytree(root/folder,stage/folder)
     for name in ('market-navigator-r7-data-pipeline.py','market-navigator-r7-health.py','market-navigator-source-state.py','market-navigator-rebuild-transforms.py','market-navigator-rebuild-policy.py'):
-        shutil.copy2(root/name if (root/name).exists() else BASE/name,stage/name)
+        shutil.copy2(BASE/'market-navigator-rebuild-data'/name,stage/name)
     if collect:
         environment=dict(os.environ,MARKET_NAVIGATOR_BOOTSTRAP='false',MARKET_NAVIGATOR_SERIES_IDS='')
         result=subprocess.run([sys.executable,'market-navigator-r7-data-pipeline.py'],cwd=stage,env=environment,text=True,capture_output=True,timeout=180)
