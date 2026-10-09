@@ -156,7 +156,7 @@ async function scenarios(R) {
   await sleep(50);
 }
 const { RA, RC, snapA, snapC } = await runBoth(flat, cand, scenarios);
-for (const who of ['X', 'Y']) for (const k of ['wire', 'sockets', 'pcs', 'transcript']) assert(RA.cut[who][k] === RC.cut[who][k], 'the two builds reached the D-18 cut with different ' + who + '.' + k + ' counts: ' + JSON.stringify([RA.cut, RC.cut]));
+T('F3 both builds reach the D-18 cut with the same wire, socket, peer and transcript counts (a call-path change before the cut would show here)', () => { for (const who of ['X', 'Y']) for (const k of ['wire', 'sockets', 'pcs', 'transcript']) assert(RA.cut[who][k] === RC.cut[who][k], 'the two builds reached the D-18 cut with different ' + who + '.' + k + ' counts: ' + JSON.stringify([RA.cut, RC.cut])); });
 const A = RA.fix, C = RC.fix;
 
 /* the declared differences, and nothing else */
@@ -168,7 +168,7 @@ for (const who of ['X', 'Y']) for (const key of KEYS) {
   T('F3 ' + who + '.' + key + ' identical on both builds outside the declared differences', () => {
     let a = snapA[who][key], c = snapC[who][key];
     if (RA.cut && key === 'log') { a = RA.cutLog[who]; c = RC.cutLog[who]; }
-    else if (RA.cut && RA.cut[who][key] != null) { a = a.slice(0, RA.cut[who][key]); c = c.slice(0, RC.cut[who][key]); }   /* D-18's calls come after the cut and are judged by their own record */
+    else if (RA.cut && RA.cut[who][key] != null) { const n = Math.min(RA.cut[who][key], RC.cut[who][key]); a = a.slice(0, n); c = c.slice(0, n); }   /* D-18's calls come after the cut and are judged by their own record */
     if (key === 'log') { a = stripLog(a); c = stripLog(c); }
     if (key === 'wire') { a = stripWire(a); c = stripWire(c); }
     if (key === 'transcript' || key === 'bgTranscript') { a = stripTr(a); c = stripTr(c); }
