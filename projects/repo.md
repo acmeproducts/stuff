@@ -84,3 +84,8 @@ DECISION LOG
 
 APPENDIX
 - **Authority Order**: This plan (`projects/repo.md`) is the sole authority for the project. All chat history is subordinate to the plan. Any future changes must be recorded here before code modifications.
+
+## RUN LOG (written by DevStream)
+| Date | Tab | Result | What | Commit |
+|---|---|---|---|---|
+| 2026-10-09 18:35 | Main | built projects/repo.html | Added the initial dashboard UI skeleton for Release 2 with left‑rail repo list and right‑side tabbed panels. | a973026 |
