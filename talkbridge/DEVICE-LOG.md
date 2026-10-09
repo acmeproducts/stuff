@@ -1,14 +1,8 @@
 # TalkBridge device log
 
-Both handsets write here. Drained 2026-10-09T08:51:27Z, every 30s. Newest at the bottom.
+Both handsets write here. Drained 2026-10-09T08:51:58Z, every 30s. Newest at the bottom.
 
 ```
-13:27:39.251 [android-0ts] t1_coalesced {"fn":"renderPanel","n":1}
-13:27:39.269 [android-0ts] t1_coalesced {"fn":"renderPanel","n":1}
-13:27:45.884 [android-flz] net_returned {"why":"visible","awayMs":8061,"inRoom":true,"inCall":false}
-13:27:45.884 [android-flz] net_relay_ok {"why":"visible"}
-13:27:45.885 [android-flz] cr3_announce {"why":"visible","visible":false,"lanes":7,"dropped":3}
-13:27:45.885 [android-flz] pr2_declared {"why":"visible","inRoom":false,"view":"room","dropped":1}
 13:27:45.885 [android-flz] cr3_attended {"on":true,"why":"visible"}
 13:27:45.885 [android-flz] cr3_announce_window {"why":"visible"}
 13:27:45.895 [android-flz] p4_sw_receipt {"ev":"app_announced","at":1791466044904,"room":null,"kind":null,"e":null}
@@ -4002,4 +3996,10 @@ Both handsets write here. Drained 2026-10-09T08:51:27Z, every 30s. Newest at the
 08:51:18.419 [android-tzc] rc_home_rendered {"cards":0,"wired":0,"dropped":2}
 08:51:18.422 [android-tzc] joiner_create_control {"shown":true,"dropped":2}
 08:51:18.430 [android-tzc] t1_coalesced {"fn":"renderPanel","n":4}
-08:51:18.458 [android-tzc] t1_coalesced {"fn":"renderPanel","n":1}```
+08:51:18.458 [android-tzc] t1_coalesced {"fn":"renderPanel","n":1}
+08:51:29.849 [android-tzc] pr3_dot {"others":0}
+08:51:38.412 [android-tzc] rc_panel_rendered {"live":6,"bin":0,"wired":6,"dropped":2}
+08:51:38.413 [android-tzc] rc_home_rendered {"cards":0,"wired":0,"dropped":2}
+08:51:38.415 [android-tzc] joiner_create_control {"shown":true,"dropped":2}
+08:51:38.419 [android-tzc] t1_coalesced {"fn":"renderPanel","n":2}
+08:51:38.446 [android-tzc] t1_coalesced {"fn":"renderPanel","n":3}```
