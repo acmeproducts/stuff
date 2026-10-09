@@ -212,9 +212,15 @@ def main():
    if BOOT and same_lineage and not m.get('transform_source_id'):
     # Replace the entire fetched window; preserve older actually captured history.
     # A provider's shortened public window must not delete the historical corpus.
-    older=[p for p in obs0 if p['t']<raw[0]['t']];obs=canon(older+raw)
+    retention_source=old
+    if old.get('unit')!=m.get('native_unit') or old.get('cadence')!=m.get('native_cadence'):
+     reference=(old.get('sourceVerification') or {}).get('retainedCapture')
+     if not reference or len(reference)!=64 or any(x not in '0123456789abcdef' for x in reference):raise RuntimeError('Older history has invalid units/cadence and no verified capture for recovery')
+     retention_source=read(ROOT/'source-retained'/f'{reference}.json',{})
+     if sha(retention_source)!=reference or retention_source.get('unit')!=m.get('native_unit') or retention_source.get('cadence')!=m.get('native_cadence') or (retention_source.get('provider'),retention_source.get('providerIdentifier'))!=(used_provider,used_identifier):raise RuntimeError('Retained history cannot verify its native units/cadence')
+    older=[p for p in retention_source.get('observations',[]) if p['t']<raw[0]['t']];obs=canon(older+raw)
     if older:
-     retained_capture=sha(old);write(ROOT/'source-retained'/f'{retained_capture}.json',old)
+     retained_capture=sha(retention_source);write(ROOT/'source-retained'/f'{retained_capture}.json',retention_source)
    elif m.get('transform_source_id') or sid in replace_ids or obs0 and not same_lineage:obs=canon(raw)
    else:obs=merge(obs0,raw,used_provider)
    if not obs or any(p['t']>now().timestamp()*1000 for p in obs):raise RuntimeError('Empty/future canonical source response')

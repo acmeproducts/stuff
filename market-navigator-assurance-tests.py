@@ -83,10 +83,15 @@ class Assurance(unittest.TestCase):
         store=self.root/'store';h.write(store/'current.json',{'generation':'generation-'+'b'*20,'revision':'b'*20});before=(store/'current.json').read_bytes()
         with patch.object(r.w,'publish',side_effect=ValueError('provider failed')):result=r.run(self.root,store)
         self.assertEqual('needs-attention',result['state']);self.assertEqual(before,(store/'current.json').read_bytes());self.assertEqual(2,len(list((store/'assurance-events').glob('*.json'))));self.assertEqual('repair-failed',h.read(store/'assurance-status.json')['lastOutcome']['kind'])
-    def test_full_collector_repairs_middle_and_value_preserves_older_history(self):
+    def test_full_collector_repairs_middle_and_value_preserves_older_history(self):self.collect_fixture()
+    def test_full_collector_recovers_units_from_verified_older_capture(self):self.collect_fixture(corrupt_unit=True)
+    def collect_fixture(self,corrupt_unit=False):
         work=self.root/'collect';h.write(work/'data/market-backend/data-catalog.json',{'schema':'market-navigator-data-catalog-v1','series':[META]});h.write(work/'data/market-backend/publication-rules.json',{'rules':{}})
         points=[{'t':h.midnight('2026-09-30'),'v':699}]+copy.deepcopy(POINTS);points=[q for q in points if h.calendar(q['t'])!='2026-10-05'];points[3]['v']=999
-        h.write(work/'market-evidence/series/qqq.json',source(points));previous=os.getcwd()
+        old_native=source(points)
+        if corrupt_unit:
+            capture=copy.deepcopy(old_native);sha=h.digest(capture);h.write(work/'market-evidence/source-retained'/f'{sha}.json',capture);old_native['unit']='EUR';old_native['sourceVerification']={'retainedCapture':sha}
+        h.write(work/'market-evidence/series/qqq.json',old_native);previous=os.getcwd()
         class Response:
             status=200
             def __enter__(self):return self
