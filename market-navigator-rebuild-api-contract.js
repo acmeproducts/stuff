@@ -6,7 +6,7 @@
  function applyOptions(options){if(!options||typeof options!=='object'||Array.isArray(options))throw new TypeError('Chart options must be an object');const next=Object.fromEntries(Object.entries(S).filter(([key])=>!["derived","def","health","catalog","sourceRegistry"].includes(key)));
  // Compatibility is confined to this adapter; consumers use the public names below.
  if('level'in options)Object.assign(next,structuredClone(options));
- if(options.view!==undefined){if(!['overview','index','series'].includes(options.view))throw new TypeError('Invalid chart view');next.level=options.view==='overview'?1:2;next.anchored=options.view==='series';if(next.level===1)Object.assign(next,{index:null,nowComparisons:[],nowActive:null,nowFocus:null,componentsExpanded:false,hiddenComponents:[],axisOptions:'auto'})}
+ if(options.view!==undefined){if(!['overview','index','series'].includes(options.view))throw new TypeError('Invalid chart view');next.level=options.view==='overview'?1:2;next.anchored=options.view==='series';if(next.level===1)Object.assign(next,{index:null,nowComparisons:[],nowActive:null,nowFocus:null,componentsExpanded:false,hiddenComponents:[],axisOptions:'auto',nativeAxisSeries:null})}
  if(options.horizon!==undefined){if(!H.includes(options.horizon))throw new TypeError('Unsupported horizon');next.h=options.horizon}
  if(options.display!==undefined){if(!['fixed','horizon'].includes(options.display))throw new TypeError('Invalid display');next.indexDisplay=options.display==='horizon'?'rebase':'fixed'}
  if(options.representation!==undefined){if(!['indexed','dual','native'].includes(options.representation))throw new TypeError('Invalid representation');next.nowRepresentation=options.representation;if(options.axes===undefined)next.axisOptions='auto'}
@@ -19,18 +19,20 @@
  if(options.comparisonSeries!==undefined){if(!Array.isArray(options.comparisonSeries)||options.comparisonSeries.some(id=>!known(id))||new Set(options.comparisonSeries).size!==options.comparisonSeries.length)throw new TypeError('Invalid comparison series');next.nowComparisons=[...options.comparisonSeries]}
  if(options.addCategory!==undefined){if(typeof options.addCategory!=='string')throw new TypeError('Invalid Add category');next.nowPickerCat=options.addCategory}
  if(options.activeSeries!==undefined){if(options.activeSeries!==null&&!known(options.activeSeries))throw new TypeError('Unknown active series');next.nowActive=options.activeSeries}
+ if(options.nativeAxisSeries!==undefined){if(options.nativeAxisSeries!==null&&(!known(options.nativeAxisSeries)||IDX.includes(options.nativeAxisSeries)))throw new TypeError('Invalid native axis reference');next.nativeAxisSeries=options.nativeAxisSeries}else if(options.activeSeries&&!IDX.includes(options.activeSeries))next.nativeAxisSeries=options.activeSeries;
  if(options.emphasis!==undefined)next.nowFocus=options.emphasis?(next.nowActive||next.index):null;
  if(options.clockIndex!==undefined){if(!IDX.includes(options.clockIndex))throw new TypeError('Invalid clock index');next.clockIndex=options.clockIndex}
  if(options.inspection!==undefined)next.inspection=structuredClone(options.inspection);
  if(options.canvas!==undefined)next.canvasSize=validateSize(options.canvas);
  if(options.controls!==undefined){if(!['full','none'].includes(options.controls))throw new TypeError('Invalid controls');next.controls=options.controls}
  const ids=next.level===1?IDX:[next.index,...(next.componentsExpanded?(S.def.indices[next.index]?.components||[]).map(x=>x.id).filter(id=>!next.hiddenComponents.includes(id)):[]),...next.nowComparisons].filter(Boolean);
+ if(next.nativeAxisSeries&&!ids.includes(next.nativeAxisSeries)){if(options.nativeAxisSeries)throw new TypeError('Native axis reference must be visible');next.nativeAxisSeries=null}
  if(!services.readOnly&&next.level===2&&!known(next.index))throw new TypeError('A series/index chart requires an anchor');
  if(options.axes!==undefined)next.axisOptions=validateAxes(options.axes,ids);else if(next.axisOptions!=='auto')next.axisOptions=validateAxes(next.axisOptions,ids);
  if(next.axisOptions!=='auto')next.nowRepresentation=next.axisOptions.right?'dual':next.axisOptions.left.scale==='native'?'native':'indexed';if(next.nowRepresentation==='native'&&next.axisOptions==='auto'&&new Set(ids.map(measurementFamily)).size>1)throw new TypeError('Native representation requires one measurement family');
  Object.assign(S,next);
  }
- function getOptions(){return structuredClone({view:S.level===1?'overview':S.anchored?'series':'index',anchor:S.index,series:S.level===1?[...IDX]:visibleIds25(),horizon:S.h,display:S.indexDisplay==='rebase'?'horizon':'fixed',representation:S.nowRepresentation||'indexed',axes:S.axisOptions,canvas:S.canvasSize,controls:S.controls,activeSeries:S.nowActive||null,emphasis:!!S.nowFocus,expandedComponents:!!S.componentsExpanded,hiddenComponents:S.hiddenComponents,comparisonSeries:[...S.nowComparisons],addCategory:S.nowPickerCat,clockIndex:S.clockIndex,inspection:S.inspection})}
+ function getOptions(){return structuredClone({view:S.level===1?'overview':S.anchored?'series':'index',anchor:S.index,series:S.level===1?[...IDX]:visibleIds25(),horizon:S.h,display:S.indexDisplay==='rebase'?'horizon':'fixed',representation:S.nowRepresentation||'indexed',axes:S.axisOptions,nativeAxisSeries:S.nativeAxisSeries||null,canvas:S.canvasSize,controls:S.controls,activeSeries:S.nowActive||null,emphasis:!!S.nowFocus,expandedComponents:!!S.componentsExpanded,hiddenComponents:S.hiddenComponents,comparisonSeries:[...S.nowComparisons],addCategory:S.nowPickerCat,clockIndex:S.clockIndex,inspection:S.inspection})}
  function getSnapshot(){return S.nowChartState?structuredClone(S.nowChartState):null}
  function applySize(){const wrap=$('nowWrap'),canvas=$('nowChart');if(!originalSize)originalSize={width:wrap.style.width,height:wrap.style.height,flex:wrap.style.flex};wrap.style.width=S.canvasSize.width==='auto'?originalSize.width:S.canvasSize.width+'px';wrap.style.height=S.canvasSize.height==='auto'?originalSize.height:S.canvasSize.height+'px';wrap.style.flex=S.canvasSize.height==='auto'?originalSize.flex:'0 0 auto';canvas.style.width='100%';canvas.style.height='100%';if(prepared.owned){host.dataset.mnControls=S.controls;host.dataset.mnChartHost='true'}}
  let originalSize=null,renderError=null,requestEpoch=0;
@@ -41,7 +43,7 @@
  async function whenReady(){while(!dead&&!renderError&&(pending||frame||!S.nowChartState))await new Promise(r=>requestAnimationFrame(r));if(dead)throw new Error('Chart is destroyed');if(renderError)throw renderError;return getSnapshot()}
  function applyAxes(sets,automaticMode){
  if(S.axisOptions==='auto'){
-  const selected=sets.find(z=>z.id===S.nowActive&&z.a.length&&!IDX.includes(z.id)),nativeFamily=selected?measurementFamily(selected.id):S.dualFamily;if(nativeFamily)S.dualFamily=nativeFamily;
+  const reference=sets.find(z=>z.id===S.nativeAxisSeries&&z.a.length&&!IDX.includes(z.id))||sets.find(z=>z.id===S.nowActive&&z.a.length&&!IDX.includes(z.id))||sets.find(z=>z.a.length&&!IDX.includes(z.id)),nativeFamily=reference&&measurementFamily(reference.id);if(reference)S.nativeAxisSeries=reference.id;
   const nativeMode=S.nowRepresentation==='native'||(S.nowRepresentation==='dual'&&nativeFamily&&sets.every(z=>measurementFamily(z.id)===nativeFamily));
   if(nativeMode&&new Set(sets.map(z=>measurementFamily(z.id))).size>1)throw new TypeError('Native representation requires one measurement family');
   const dual=S.nowRepresentation==='dual'&&nativeFamily&&!nativeMode;

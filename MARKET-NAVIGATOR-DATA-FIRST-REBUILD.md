@@ -194,3 +194,6 @@ Qualification retains independent immutable Turn 28 comparisons for the extracti
 
 
 Final interaction qualification also covers native-only Add: automatic axes adapt when another measurement is added; explicit incompatible axis assignments explain how to switch representation. Analyze inherits dual representation only when eligible; its required sole initial anchor starts indexed when dual needs a comparison. Source 11065a8 and its full proof package remain retained as a preceding checkpoint.
+
+
+Final lifecycle checks preserve the native-axis reference in public options independently of legend emphasis, so a metadata refresh or remount cannot silently change its unit grouping. Frozen Library charts replay solely from saved evidence during a backend outage. Modern tagged reports and legacy untagged reports both retain subsequent assistant chat across detail switches; Listen selects the chosen report variant while keeping chat responses available. Dated contextual reading uses the requested calendar horizon, rather than the plotted midnight cutoff, and rejects undated or out-of-window reporting. These corrections are qualified with explicit regression fixtures; actual-provider prose and owner physical-device acceptance remain pending.

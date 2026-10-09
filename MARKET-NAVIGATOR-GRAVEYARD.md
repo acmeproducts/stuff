@@ -541,7 +541,7 @@ Before-display local qualification completed: 16 backend fault/invariance tests;
 
 ## Review-branch publication authorization — October 7, 2026
 
-The owner explicitly approved uploading the completed corpus repair and historical datasets to public PR #845 after the publication question identified the data disclosure and distinguished review upload from merge/deployment. This supersedes the earlier missing-upload-authorization hold; it does not authorize merging main or production promotion. The prepared 41-file transaction includes the whole-corpus repair, before-display admission, repaired data, independent audit evidence, and plan/Graveyard records. Candidate SHA-256 remains e3fb03fccb296491183e13f65a2e7fcc730e8d010283d16705f5d57df5b2d442; qualified native observations and original historical rows are unchanged by this authorization. A fresh strict audit verifies the actual snapshot before upload. Exact delivered-commit corpus and Chrome/Edge qualification are required after the branch update. Gates 0–16 have local lab evidence; public served-byte verification, owner Windows 11/physical Android acceptance and actual provider prose review remain pending. The review branch is not a live production release.
+The owner explicitly approved uploading the completed corpus repair and historica datasets to public PR #845 after the publication question identified the data disclosure and distinguished review upload from merge/deployment. This supersedes the earlier missing-upload-authorization hold; it does not authorize merging main or production promotion. The prepared 41-file transaction includes the whole-corpus repair, before-display admission, repaired data, independent audit evidence, and plan/Graveyard records. Candidate SHA-256 remains e3fb03fccb296491183e13f65a2e7fcc730e8d010283d16705f5d57df5b2d442; qualified native observations and original historical rows are unchanged by this authorization. A fresh strict audit verifies the actual snapshot before upload. Exact delivered-commit corpus and Chrome/Edge qualification are required after the branch update. Gates 0–16 have local lab evidence; public served-byte verification, owner Windows 11/physical Android acceptance and actual provider prose review remain pending. The review branch is not a live production release.
 
 ### Fresh pre-upload audit — October 7, 2026, 07:22 UTC
 
@@ -576,3 +576,8 @@ The prior passing API tests missed daily-only 1D rendering, selected-series-only
 ### 2026-10-09 — Native-only Add and sole-anchor eligibility
 
 Final public/reusability review exposed that automatic native-only representation disabled Add of an otherwise available different measurement, and a sole Analyze anchor inherited ineligible dual axes. Keep data availability independent of that display restriction. Automatic axes adapt on Add; explicit conflicting assignments retain a clear representation instruction. The preceding 11065a8 candidate and proof are historical checkpoints, not owner acceptance of these two interactions.
+
+
+### 2026-10-09 — Saved evidence and report lifecycle
+
+Reject a private native-axis choice that disappears when options are replayed, require no live backend for a saved frozen Library chart, and do not confuse later assistant chat with a legacy untagged report. Context dates follow the requested calendar horizon; the actual plotted cutoff remains separately recorded. Earlier candidates and proof packages remain immutable checkpoints.

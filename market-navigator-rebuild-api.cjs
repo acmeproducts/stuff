@@ -22,6 +22,7 @@ function healthEntryUrl26(id){return services.informationURL?.(id)||'#source-'+e
 const contract=fs.readFileSync('market-navigator-rebuild-api-contract.js','utf8');
 let component=code.slice(moduleNode.init.start,moduleNode.init.end);
 component=component.replace('mount(host,initialState={},services){',`mount(host,initialState={},services={}){
+ if(services.readOnly){const m=services.metadata||{};services={...services,metadata:{...m,derived:m.derived||{indices:{}},def:m.def||{indices:{}},catalog:m.catalog||{series:[]},health:m.health||{series:{}}},getSeries:services.getSeries||(()=>{throw Error('Frozen chart has no live data service')})}}
  if(!services.metadata?.derived||!services.metadata?.def||!services.metadata?.catalog||!services.metadata?.health||typeof services.getSeries!=='function')throw new TypeError('Canonical metadata and getSeries service are required');
  const metadata=freeze(structuredClone(services.metadata));const prepared=prepareHost(host,services);services={...prepared.services,metadata};
  const publicInitial=initialState;initialState={};
