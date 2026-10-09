@@ -1,5 +1,5 @@
-<!-- TALKBRIDGE-PLAN v21.74.1 -->
-# TALKBRIDGE MASTER PLAN v21.74.1
+<!-- TALKBRIDGE-PLAN v21.74.2 -->
+# TALKBRIDGE MASTER PLAN v21.74.2
 
 **Location:** `talkbridge/TALKBRIDGE-PLAN-v9.md` in `acmeproducts/stuff`.
 **Owner:** Confi — sole decision-maker, runs every device gate.
@@ -90,8 +90,10 @@ call, named room, invite, welcome pill, switch and back, grant link);
 (render + the shallow sweep; wrap_map EMPTY) plus the turn's five declared
 fixes (D-11, D-14, D-15, T-4 speech record, X-4 the receiver's copy of what
 was said in a call) — is BUILT 2026-10-08 on c1's bytes, sha
-`f6465f734432`, awaiting the owner's device gate after 28·ship's; the
-language sweep runs on the pre-ship address meanwhile.**
+`f6465f734432`, under the owner's device gate: D-14 and X-4 PASSED on both phones 2026-10-09;
+D-18 OPEN (no partner video on either phone, no offer reached the joiner —
+the creator phone's log is needed before any judgement); the language sweep
+runs on the pre-ship address meanwhile.**
 28·pre-ship took four candidates in four days: c1 rejected on its gesture
 (double-tap, G62), c2 superseded by the owner's GO for the Said / Normalized
 card, c3 rejected on the owner's first card from it (chat microphone named
@@ -233,6 +235,7 @@ they are never counted as progress.
 | D-15 | **A short English utterance on a Thai phone lets its phonetic Thai twin through as a message.** Language sweep, Thai, 2026-10-08, chat microphone: "awesome" arrived on the English lane (7 characters) and, 125 ms later, the Thai lane's phonetic rendering `อ อ ส ซ` arrived as a second final and was sent as its own line (translated to 30 characters of English nonsense). The B-language-resolution arbitration only counts an English result as "won" when it is longer than `_DG_EN_MIN_CHARS` (10), so a short English word never arms the cross-suppression window and the held Thai twin is delivered. Longer lines were suppressed correctly in the same log (`dg_cross_suppress` ×2). Pre-existing (the arbitration is unchanged since 27·base); not this release's. Fix: a short English win should still suppress a Thai final that arrives inside the window when that final is itself short and letter-spaced (the phonetic signature: single Thai letters separated by spaces), or lower the threshold for suppression while keeping it for delivery. One rule, harness-provable from this log's timings. | FIX BUILT 2026-10-08 in 28·post-ship c1 (`d15-short-english.js`: a short English result arms its own window and displaces a held native result only when that text is letter-spaced; both orders proven, a real short Thai line still delivered) — awaiting the owner's gate |
 | D-16 | **CLOSED 2026-10-08 — not a defect: the tablet had been pinch-zoomed and never returned to 1:1; at 1:1 nothing scrolls.** Was: On the tablet the app container scrolls and the top ribbon goes above the fold (owner, 2026-10-08, 28·ship c1). The app is `position:fixed; inset:0` with `overflow:hidden` on html/body; on an Android tablet Chrome can still scroll the layout viewport when the soft keyboard opens for the chat field, carrying the fixed container up with it, and nothing scrolls it back. Not yet measured: whether it happens only after the chat field takes focus, and whether it returns on keyboard close. Candidate fix (after measurement): `interactive-widget=resizes-content` on the viewport meta so the keyboard resizes the page instead of scrolling it, or a `visualViewport` resize handler that resets the scroll. Not a flattening regression (the layout is unchanged since 27·base). | CLOSED 2026-10-08 (owner: pinch zoom, "not returned back to standard") — no action |
 | D-17 | **CLOSED 2026-10-08 — cause (b): the tablet had no voice installed for the target language; installing the Google voice data fixed it ("downloading language worked").** Was: On the tablet the Target speaker in a bubble is silent while the Source speaker plays; the phone plays both (owner, 2026-10-08, 28·ship c1). `speakText` (unchanged since pre-base) calls `speechSynthesis.cancel()` and then `speak()` on every tap. Two candidate causes, told apart by one tap order: (a) a known Android Chrome fault drops an utterance queued immediately after `cancel()` while another is still speaking — fits if Target is tapped while Source is still playing; (b) the tablet has no installed voice for the target language, so Chrome speaks nothing — fits only if the language is the same in both roles. Measurement: on the tablet, open a bubble with nothing playing and tap Target FIRST. Plays → cause (a); silent → cause (b), then check the tablet's text-to-speech voices in Android settings. No log marker exists for speech today; the fix adds `tts_speak {lang, chars, voice}` and `tts_err` so this is provable from printouts next time. | CLOSED 2026-10-08 (device voice pack) — the only app-side follow-up is the `tts_speak` / `tts_err` log pair and a toast when no voice exists for the language, carried in 28·post-ship as a small item, not a defect — BUILT 2026-10-08 as T-4 (`t4-speech-log.js`: `tts_speak {lang, chars, voices, match}`, `tts_no_voice` + toast) |
+| D-18 | **28·post-ship c1: the partner's video did not show on either phone** (owner, 2026-10-09, four video calls between the English creator phone and the Thai joiner phone; the same pair passed video on 28·ship c1 the day before). The Thai phone's log shows every call answered and transcription opened, but NO `rtc_answered`, no `turn_*`, no `rtc_*` line at all in any of the four calls, and `net_mic_toggled {senders: 0}` 24 s into one — no offer ever reached it. The offer is the creator's to make (`callOnAcceptedCore`: `if (room.role === 'creator') this.setupPC()`), so the creator phone's log is where the cause is: `turn_err` / `turn_fetch_err` / `rtc_offer_err`, or nothing at all. `setupPC` itself is FL-2's (unchanged); on its path only `log` and `startDeepgram` are flat in this build, both proven in the rig with a full call. Not judged until the creator's log is read (C2). D-14 (`d14_drawer_closed` ×2) and X-4 (the receiver's Said on an in-call line) passed on the same phones. | OPEN 2026-10-09 — awaiting the creator phone's log |
 
 **Why these exist:** D-1 is a regression introduced in the R10 candidate work
 and not caught. D-2 is a fix that was built, broken, rolled back and then not
@@ -2061,6 +2064,8 @@ Green means allowed to push. It never means done.
 ---
 
 ## 10 · CHANGE LOG
+
+**v21.74.2 · 2026-10-09.** First device reading of 28·post-ship c1 (Thai joiner phone): D-14 passed (the More menu closed on both answers, `d14_drawer_closed` ×2), X-4 passed (the receiver's check card shows Said on a line the partner spoke into the call, 100%). D-18 OPEN: no partner video on either phone across four video calls; this phone received no offer at all (no `rtc_*`, no `turn_*`, 0 senders). The offer is the creator's; the English phone's log decides. Not judged yet.
 
 **v21.74.1 · 2026-10-08.** 28·ship c1 ACCEPTED (owner, "done"): the whole device gate passed — video and audio call, named room with own name, invite, welcome pill, switch rooms and back, grant link. The room lifecycle is flat for good; `bridge-turn28-ship.html` `1b138efb1574` is immutable. 28·post-ship c1 (`f6465f734432`) now stands on accepted bytes and awaits its own gate.
 
