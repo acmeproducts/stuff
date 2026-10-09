@@ -178,3 +178,16 @@ The next checkpoint must address the owner-observed no-data legend, single-day d
 ### Health disclosure reading state — October 9
 
 Owner phone review found that the assurance chevron closed while reading. The ten-second status repaint replaced the entire disclosure DOM, so the visible delay depended on when it was opened. Unchanged repaint checks now retain the live DOM. Changed source/status payloads preserve keyed disclosure open/closed state, keyboard focus and scroll position; nested series state follows its identity if rows are reordered. Explicitly closed rows stay closed. Data verification, repair scheduling and expiry deadlines remain active. A focused installed Chrome/Edge matrix exercises the actual accelerated ten-second repaint and thirty-second network timer, including changed responses and reordered rows, plus explicit close/focus/scroll behavior. This is a Health-only correction.
+
+
+## 2026-10-09 owner chart and Library correction checkpoint
+
+Owner acceptance of the Health disclosure repair is recorded. The next candidate retains Step 0 collection, verification, repair and visible Health evidence. The immutable Turn 28 blob remains the construction baseline; rejected recovery implementations remain evidence only.
+
+The owner-reviewed display policies are: one availability decision for the picker, legend and rendered data; a visible marker for a valid singleton; compatible native measures share an axis and scale; indexed representation intentionally rebases all series for relative comparison. The shared horizontal domain ends at the latest actual plotted observation. Earlier-ending series retain their own timestamps, and periodic held values retain their actual source dates. The requested window remains separate frozen metadata.
+
+The portable chart must reject duplicate host ownership, reconcile axis assignments after Add/remove, preserve configured and rendered bounds in frozen replay, and prevent old failed requests from poisoning a later successful render. Fixed/Horizon changes references, not native values; single-series autoscaling can legitimately preserve shape. Native-only displays disable the irrelevant reference selector.
+
+Plain, Standard and Technical select one report projection. Rewrites use the original report's frozen evidence, visibly report generation/retry status, and cannot retarget selection when older requests finish. Markdown and Listen follow that selection. Original reports, all variants, Library chat and JSON archives remain intact.
+
+Qualification retains independent immutable Turn 28 comparisons for the extraction checkpoints. The final candidate deliberately changes the above availability, domain and axis policies; its expected values are calculated from separately loaded native data and governed curves, with immutable Turn 28 scale and downsampling mathematics. New owner-policy tests cover the reproduced faults across Chrome/Edge and the fixed viewport matrix. Phone/tablet browser emulation and synthetic AI transport tests remain distinct from owner real-device and actual-provider acceptance.
