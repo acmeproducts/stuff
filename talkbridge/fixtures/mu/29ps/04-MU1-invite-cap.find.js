@@ -1,0 +1,1 @@
+encInv({r:room.id,ml:room.myLang,tl:room.theirLang,n:S.user.name||'',k:k,tid:tid,tok:tok})

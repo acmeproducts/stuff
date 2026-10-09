@@ -1,0 +1,1 @@
+if(!CALL.active)mu1Call('video')

@@ -1,0 +1,1 @@
+role:'creator',cap:mu1CapFromSheet(),title:'',partnerName:'',myLang:my,theirLang:their,myName:S.user.name,

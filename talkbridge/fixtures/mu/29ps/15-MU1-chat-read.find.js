@@ -1,0 +1,1 @@
+if (e2 && e2.receipt !== 'read') { e2.receipt = 'read'; e2.readAt = Date.now(); updateReceiptDom(e2); }

@@ -1,0 +1,1 @@
+var label=e.receipt==='read'?'Read':
