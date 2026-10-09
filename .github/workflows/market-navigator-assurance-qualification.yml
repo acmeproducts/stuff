@@ -26,3 +26,19 @@ jobs:
           python market-navigator-rebuild-provider-tests.py
       - name: Independent stopped-worker and data-expiry checks
         run: node market-navigator-assurance-view-tests.cjs
+      - name: Install Health disclosure browser tools
+        shell: pwsh
+        run: |
+          npm install --prefix .market-navigator-assurance-deps playwright pngjs
+          $env:MN_NODE_MODULES = "$pwd/.market-navigator-assurance-deps/node_modules"
+          node "$env:MN_NODE_MODULES/playwright/cli.js" install chrome msedge
+          "MN_NODE_MODULES=$pwd/.market-navigator-assurance-deps/node_modules" >> $env:GITHUB_ENV
+      - name: Preserve Health disclosure state across periodic and network refresh
+        run: node market-navigator-assurance-disclosure-tests.cjs
+      - name: Preserve disclosure qualification evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: health-disclosure-refresh-${{ github.run_id }}
+          path: market-navigator-rebuild-evidence/health-disclosure-refresh-regression.json
+          if-no-files-found: warn
