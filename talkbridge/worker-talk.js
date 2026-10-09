@@ -1,5 +1,16 @@
 /* ─────────────────────────────────────────────────────────────────────────────
-   TALK RELAY — worker-talk.js  ·  v6.6 27·pre-ship (N-1: terminal push retracts a call card the relay itself requested, for recipients not connected) (v6.2 + additive: /log device-log route + peer presence announce; plan v20.49.0)
+   TALK RELAY — worker-talk.js  ·  v6.7 29·base — MULTI-USER, RELAY LEG (plan §7.8 R-parts, owner GO 2026-10-09)
+   v6.7 adds, app untouched (every change is a no-op for a message without the new fields):
+     · a room cap — MAX_PARTICIPANTS (4) or the creator's `cap` query parameter, kept with the
+       session; a device beyond it is told {type:'full', cap, n} and closed with 4001 before it
+       becomes a recipient of anything (R2 cap enforcement);
+     · per-device addressing — a message carrying `to` reaches that device alone and is recorded
+       for it alone; the words of an addressed call (accept / decline / end / signal / mic / cam)
+       are routed to the other party of that call without the app having to say so (R1
+       addressed-by-deviceId); a message without `to` fans out to every socket as before;
+     · the peer announcement carries `inCall` — who is engaged in an open accepted call — so a
+       third device can show "on a call" (A1 presence for N, app leg to come).
+   v6.6 27·pre-ship (N-1: terminal push retracts a call card the relay itself requested, for recipients not connected) (v6.2 + additive: /log device-log route + peer presence announce; plan v20.49.0)
    Lineage: v4.2 body (route, session addressing, broadcast, history, transient
    handling, subscribe/unsubscribe, RFC 8291 encrypted push) — unchanged —
    plus ONE recipient-event authority (§4.11.2), owned by this Durable Object.
@@ -43,7 +54,9 @@ const VAPID_SUBJECT = 'mailto:nobody@nowhere.com';
 /* v6: only events that own a recipient record can alert. Everything else is
    data on the socket, never a wake. */
 const RECORD_KIND = { 'chat-msg': 'chat', 'thread-invite': 'chat', 'call-start': 'call' };
-const RELAY_VERSION = '6.6';
+const RELAY_VERSION = '6.7';
+const MAX_PARTICIPANTS = 4;           /* v6.7 §7.8 R2: the room cap unless the creator's socket says otherwise (1..8) */
+const CALL_ROUTED = new Set(['call-accept', 'call-decline', 'call-end', 'webrtc-signal', 'mic-state', 'cam-state']);   /* v6.7 R1: words of a call that go to the other party of an ADDRESSED call */
 const EVENT_TTL_MS = 7 * 24 * 60 * 60 * 1000;
 const MAX_EVENTS = 400;
 const BURST_MS = 10000;               /* §4.11.4: first chat after ten quiet seconds may alert */
@@ -219,8 +232,10 @@ export class TalkSession {
     this.events = {};                   /* eventId -> recipient-event record (the one authority) */
     this.devices = {};                  /* clientId -> { at } every device ever seen in this session */
     this.states = {};                   /* clientId -> { visible, inRoom, muted, at } last reported, in memory only */
+    this.cap = 0;                       /* v6.7: the room cap once a creator's socket has said it; 0 = MAX_PARTICIPANTS */
     this.ready = this.state.blockConcurrencyWhile(async () => {
-      const stored = await this.state.storage.get(['seq', 'messages', 'lastActivity', 'subs', 'events', 'devices']);
+      const stored = await this.state.storage.get(['seq', 'messages', 'lastActivity', 'subs', 'events', 'devices', 'cap']);
+      this.cap = Number(stored.get('cap')) || 0;
       this.seq = Number(stored.get('seq')) || 0;
       this.messages = stored.get('messages') || [];
       this.lastActivity = Number(stored.get('lastActivity')) || 0;
@@ -313,12 +328,13 @@ export class TalkSession {
     if (this.events[id]) { msg.eventId = id; return this.events[id]; }   /* retry reuses the record */
     const now = Date.now();
     const ev = { id, seq: msg.seq, type: msg.type, kind, from: senderId, ts: now, name: msg.name || msg.senderName || null, rcp: {} };
+    if (msg.to) ev.to = String(msg.to);                                   /* v6.7: an addressed event has one recipient */
     if (kind === 'call') {
       ev.callId = String(msg.callId || id);
       ev.callKind = msg.kind === 'video' ? 'video' : 'voice';
       ev.ended = false;
     }
-    for (const cid of this._recipients(senderId)) {
+    for (const cid of (ev.to ? [ev.to] : this._recipients(senderId))) {
       const p = this._decide(ev, cid, now);
       ev.rcp[cid] = { p, push: 'not_requested', s: 'unseen', o: kind === 'call' ? 'offered' : null, at: now, seenAt: null, seenBy: null };
     }
@@ -467,12 +483,35 @@ export class TalkSession {
 
   _broadcast(payload, skipClientId) {
     const text = JSON.stringify(payload);
+    const to = payload && payload.to ? String(payload.to) : '';              /* v6.7: addressed → that device's sockets only */
     for (const ws of this.state.getWebSockets()) {
       const tag = ws.deserializeAttachment();
       if (tag && tag.clientId === skipClientId) continue;
+      if (to && !(tag && tag.clientId === to)) continue;
       try { ws.send(text); } catch (_) {}
     }
   }
+  /* v6.7 R1: the words of an ADDRESSED call go to its other party. A call that was
+     offered to everyone (no `to`, today's app) keeps fanning out exactly as before. */
+  _routeByCall(msg, clientId) {
+    if (msg.to || !CALL_ROUTED.has(msg.type)) return;
+    const ev = (msg.callId && this._openCall(String(msg.callId))) || this._latestOpenCallFrom(clientId);
+    if (!ev || !ev.to) return;
+    if (clientId === ev.from) msg.to = ev.to;
+    else if (clientId === ev.to) msg.to = ev.from;
+  }
+  /* v6.7 A1: who is engaged in an open call — the caller and whoever accepted. */
+  _inCall() {
+    const ids = new Set();
+    for (const ev of Object.values(this.events)) {
+      if (ev.kind !== 'call' || ev.ended) continue;
+      let accepted = false;
+      for (const [cid, r] of Object.entries(ev.rcp)) if (r.o === 'accepted') { ids.add(cid); accepted = true; }
+      if (accepted) ids.add(ev.from);
+    }
+    return [...ids].sort();
+  }
+  _capOf() { return (this.cap >= 1 && this.cap <= 8) ? this.cap : MAX_PARTICIPANTS; }
 
   /* Which clients are currently connected — those need no waking. */
   _connectedIds() {
@@ -573,6 +612,18 @@ export class TalkSession {
 
     if (request.headers.get('Upgrade') === 'websocket') {
       if (!clientId) return err('Missing client', 400);
+      /* v6.7 R2: the first socket to say `cap` sets the room's; a device beyond the cap is
+         told so and closed before it is noted, pushed to, or counted as present. */
+      const capParam = Number(url.searchParams.get('cap') || 0);
+      if (!this.cap && capParam >= 1 && capParam <= 8) { this.cap = capParam; await this.state.storage.put({ cap: this.cap }); }
+      const connected = this._connectedIds();
+      if (!connected.has(clientId) && connected.size >= this._capOf()) {
+        const pair = new WebSocketPair();
+        this.state.acceptWebSocket(pair[1]);
+        try { pair[1].send(JSON.stringify({ type: 'full', transient: true, cap: this._capOf(), n: connected.size, at: Date.now() })); } catch (_) {}
+        try { pair[1].close(4001, 'full'); } catch (_) {}
+        return new Response(null, { status: 101, webSocket: pair[0] });
+      }
       const pair = new WebSocketPair();
       this.state.acceptWebSocket(pair[1]);
       /* N17 — PRESENCE FROM THE RELAY, NOT FROM TRAFFIC. Presence used to be
@@ -604,7 +655,7 @@ export class TalkSession {
 
       /* The app asks for the public key before it can subscribe at all. */
       if (body && body.type === 'diag') {
-        return json({ ok: true, v: RELAY_VERSION, connected: [...this._connectedIds()], subs: Object.keys(this.subs).length, lastWake: this.lastWake, events: this._diagEvents(), states: this.states });
+        return json({ ok: true, v: RELAY_VERSION, cap: this._capOf(), inCall: this._inCall(), connected: [...this._connectedIds()], subs: Object.keys(this.subs).length, lastWake: this.lastWake, events: this._diagEvents(), states: this.states });
       }
       /* Read-only reconciliation against the same authority when a socket is unavailable. */
       if (body && EV_TYPES.has(body.type)) {
@@ -662,6 +713,7 @@ export class TalkSession {
     if (msg.type === 'ping' && typeof msg.visible === 'boolean') this.states[clientId] = { visible: msg.visible, inRoom: msg.inRoom === true, muted: msg.muted === true, at: Date.now() };
     if (msg.type === 'ev-state' || (msg.type === 'ping' && typeof msg.visible === 'boolean')) { try { this._announcePeers(); } catch (_) {} }
 
+    try { this._routeByCall(msg, clientId); } catch (_) {}                /* v6.7 R1 */
     if (!isTransient) {
       await this._persist(msg);
     } else {
@@ -673,7 +725,7 @@ export class TalkSession {
     let ev = null;
     if (!isTransient) {
       try { ev = await this._recordEvent(msg, clientId); } catch (_) {}
-      if (msg.type === 'call-accept' || msg.type === 'call-decline' || msg.type === 'call-end') { try { await this._applyCallWord(msg, clientId, sessionOf(ws)); } catch (_) {} }
+      if (msg.type === 'call-accept' || msg.type === 'call-decline' || msg.type === 'call-end') { try { await this._applyCallWord(msg, clientId, sessionOf(ws)); } catch (_) {} try { this._announcePeers(); } catch (_) {} }
     }
 
     this._broadcast(msg, clientId);
@@ -696,6 +748,7 @@ export class TalkSession {
      The word is refreshed by the app on entering a room, leaving a room,
      hiding, showing, and every heartbeat, in every environment. */
   _announcePeers() {
+    let inCall = []; try { inCall = this._inCall(); } catch (_) {}        /* v6.7 A1 */
     const present = [];
     for (const id of Object.keys(this.states)) {
       const st = this.states[id];
@@ -705,7 +758,7 @@ export class TalkSession {
       const tag = ws.deserializeAttachment();
       if (!tag || !tag.clientId) continue;
       const others = present.filter((i) => i !== tag.clientId);
-      try { ws.send(JSON.stringify({ type: 'peer', transient: true, focused: others.length > 0, others: others.length, at: Date.now() })); } catch (_) {}
+      try { ws.send(JSON.stringify({ type: 'peer', transient: true, focused: others.length > 0, others: others.length, inCall: inCall, at: Date.now() })); } catch (_) {}
     }
   }
 
