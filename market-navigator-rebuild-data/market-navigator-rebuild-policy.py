@@ -36,7 +36,7 @@ def holidays(year):
 
 # Stricter native deadlines apply to operational qualification from October 8.
 # Historical captures retain their collection-time policy and actual native dates.
-# Official NYSE/ICE 2026–2028 schedule verified October 8, 2026.
+# Official NYSE/ICE 2026â€“2028 schedule verified October 8, 2026.
 # https://www.nyse.com/trade/hours-calendars
 # The two-hour ingestion grace is an application policy, not an exchange rule.
 NYSE_CLOSED = {
@@ -116,6 +116,15 @@ def missing_recent_sessions(meta, points, now):
     observed={dt.datetime.fromtimestamp(p['t']/1000,UTC).date() for p in points}
     return [d.isoformat() for d in sorted(expected) if d not in observed]
 
+
+def missing_history_sessions(meta,points):
+    """Full exposed market window, using only reviewed complete calendar years."""
+    if meta.get('native_cadence') not in ('trading-day','daily-nav') or not points:return []
+    dates={dt.datetime.fromtimestamp(p['t']/1000,UTC).date() for p in points};day=min(dates);end=max(dates);missing=[]
+    while day<=end:
+        if day.year in (2026,2027,2028) and day.weekday()<5 and day.isoformat() not in NYSE_CLOSED[day.year] and day not in dates:missing.append(day.isoformat())
+        day+=dt.timedelta(days=1)
+    return missing
 
 def freshness(meta, source, catalog, rules, now):
     points = source.get('observations') or []

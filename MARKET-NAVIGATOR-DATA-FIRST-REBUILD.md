@@ -1,5 +1,42 @@
 # Market Navigator data-first rebuild
 
+## Step zero: operational data assurance — owner-directed plan, October 9
+
+This step precedes the remaining chart, AI lifecycle and small-multiple repairs. Historical audit PASS and a qualified frozen snapshot do not prove that the running application continuously detects and repairs data failures. Preserve every existing generation, original source capture, baseline and Library artifact.
+
+### Current implementation and gaps
+
+The recovery worker stages collection, checks native cadence, source/report consistency, recovered index history and frozen mathematics, inventories stored files, and publishes a generation pointer only after admission. Failed publication retains the prior generation. The local broker periodically audits and attempts governed recollection. These are useful foundations, not proof of complete operational coverage.
+
+The public review package is a frozen snapshot; GitHub Pages does not run the local broker or its collector. Existing Health rows expose stored classifications and latest observation dates, not a durable repair history, worker heartbeat or a fresh comparison against the upstream source. Admission `ready` excludes blocking findings; it does not guarantee that all 39 enabled datasets are current. The recent daily-market gap check covers five completed sessions; complete source verification of every native dataset's full supported history remains to be established. Audit time must not be presented as upstream verification time.
+
+### Required work
+
+1. **Define and prove coverage for the complete corpus.** Inventory all enabled series, archived captures, stored native histories, reports and derived indices. Establish each series' identity, units, cadence, publication calendar, supported history and expected observation periods. Check duplicate/out-of-order/invalid observations, missing interior periods despite a fresh tail, source revisions, native-to-stored consistency, index lineage and consumer delivery. Record the tested history range and any limitations per dataset. A calendar-expected gap and a legitimate source omission need distinct outcomes; never invent or interpolate observations to make a check pass.
+
+2. **Close the automatic repair loop.** Detect a defect; fetch from an approved source; stage and compare observations; validate identity, units, timing and numerical coherence; rebuild affected derived evidence; qualify the full generation; publish atomically; verify the delivered revision. Preserve original captures and revision history. Recover missing historical captures only from defensible archived evidence. Use bounded retries and backoff; record unresolved or unrecoverable defects explicitly. Retaining a last qualified generation is a recovery safeguard, not completion of the repair, and its verification status expires.
+
+3. **Deploy the guardrail on the actual owner test path.** Establish a hosted collector/publisher and health endpoint, or a scheduled publisher compatible with static hosting, before claiming the GitHub application self-heals. The deployment must define collection cadence, source-specific deadlines and recovery latency. Verify generation-consistent publication and cache behavior on the public URL. Browser refresh alone is not a backend recovery service.
+
+4. **Make operation observable.** Persist a data assurance ledger with last worker heartbeat, last full corpus audit, last upstream verification, coverage range, expected versus observed periods, repair attempts/outcomes, source receipts and published revision. In Health, expose a concise corpus summary and dataset-level drilldown with gap ranges and repair evidence. Keep the normal application unobtrusive: a compact status such as Verified, Repairing, Needs attention, or Frozen review snapshot, with a verification time. Separate collection success, internal audit success, source verification and publication success. An independent watchdog must expire healthy status when the collector or verifier stops. Optional-series defects cannot disappear behind an all-green corpus summary.
+
+5. **Carry assurance through every consumer.** NOW, Analyze and custom canvases consume the same qualified generation and structured availability/verification evidence. AI uses the exact qualified observations and native cutoffs frozen into its analysis; saved Library items retain their original evidence revision. Confirm that chart, report and export refer to the intended generation and disclose native dates correctly. Chart availability and single-observation rendering remain chart responsibilities; healthy daily data does not imply intraday data exists.
+
+### Step-zero acceptance gate
+
+On the hosted owner test path, inject a missing middle observation with a fresh tail, stale tail, wrong source identity or units, corrupted stored evidence, interrupted collection/publication, stale cache and a stopped worker. For each case, prove detection, accurate status, automatic source-backed repair where the source permits it, requalification, derived-index refresh and delivery of the repaired generation without owner intervention. Record repair latency against the source-specific deadline. If repair is impossible, prove a precise unresolved status rather than a false healthy result. Verify that previous evidence and frozen Library items survive.
+
+Acceptance requires documented coverage for every enabled dataset, source receipts and before/after evidence for the recovery exercises, and proof that the deployed watchdog detects its own pipeline's failure. A passing local fixture or a static green Health report alone does not satisfy this gate. Physical-device owner acceptance remains required before product promotion.
+
+### Remaining build sequence
+
+After step zero passes: (1) lock the agreed chart rules; (2) repair the reusable core, including request ownership, axis validation, snapshot fidelity and mount ownership; (3) unify NOW → Analyze → AI → Library/chart/export evidence and detail levels; (4) qualify small multiples and the complete desktop/tablet/phone matrix, then deliver a new GitHub owner candidate.
+
+The owner's October 9 time-axis clarification supersedes the earlier requested-end rendering rule below: the displayed shared x-axis ends at the latest actual plotted observation date; that observation reaches the right axis. Earlier-ending series retain their own dates and do not stretch individually. Requested/as-of end dates remain separate metadata.
+
+The older milestones below remain the historical record. This addition defines planned work and acceptance criteria; it does not claim these operational features have been implemented or deployed.
+
+
 Owner authorized the controlled rebuild on October 7, 2026 after rejecting incomplete index history and date inconsistencies in candidate 9089bb7. Automated PASS is historical lab evidence, not product acceptance.
 
 The immutable construction baseline remains Turn 28, commit 996e9a71b72db5bfbea3ba77750077daaa2fb7ab, blob 9ce7f67451f9e1b7804927ce5c56adb667614724. The prior candidate is preserved at codex/market-navigator-9089bb7-history-checkpoint. New work is isolated on codex/market-navigator-data-first-rebuild from current main b028bf38cc2ebf1f3cecde353f36d575b3925d02. Only Market Navigator paths may change; no default production alias or historical Library records are replaced.
@@ -105,3 +142,13 @@ The independent portability harness verifies three blank-host displays outside t
 A restoration regression discovered during this work was corrected: expanded components remain components rather than becoming comparisons when a qualified generation remounts NOW. Optional clock/inspection state and Add category round-trip without synthetic defaults. The synthetic Library fixture copies served metadata/native JSON without unrelated collection archives or Python caches, avoiding a OneDrive copy failure without weakening publication/archive audit tests.
 
 The existing numerical, navigation, race, export, Library, source-ownership and unmasked-chrome gates remain in CI, preceded by the new portability build/test stage. The e77825df automated PASS remains a historical checkpoint; this extension requires its own exact-head CI. No production alias, frozen index mathematics, immutable baseline, previous candidate history or data generations are promoted or deleted.
+
+## Step-zero implementation checkpoint — October 9
+
+The local full-corpus recovery now retains hashed upstream responses, independently replays them against stored observations, validates every native report calculation, checks complete native reference-period sequences, and admits all enabled datasets together. A full market bootstrap rejects missing sessions throughout the reviewed 2026–2028 exchange calendar, rather than only the last five sessions. The published assurance distinguishes source omissions and older retained captures from freshly exposed upstream history. It does not fabricate missing observations or discard older history when a provider narrows its public window.
+
+The live source exercise recovered an isolated missing September 2 QQQ observation (709.239990234375), repaired a September 3 QQQ value to 717.6699829101562, and restored a deliberately corrupted SPY unit from EUR to USD. All 39 enabled datasets then qualified; prior generation 76ad62c4b4ee7b2f75c3 and the damaged fixture remain preserved. The resulting local generation is a04850aff6960f891631. Three October 2025 monthly reference-period omissions are also present in the fresh upstream responses (CPI, Core CPI, Unemployment), and 16 histories retain older captures outside the current provider window. HY spread is one such source: current FRED exposure begins in October 2023. These limitations remain explicit and are not an unconditional all-green claim.
+
+Qualification includes 21 new assurance fault checks, seven operational expiry checks, 18 original recovery/history checks, 15 approved provider checks, eight calendar checks, and eight installed Chrome/Edge layout runs. Browser checks prove 39 Health rows, three populated independent charts, stopped-worker status expiry and corrupt-delivery rejection. Tablet/phone sizes are viewport emulation. Evidence is recorded under market-navigator-rebuild-evidence/step-zero-*. No chart geometry, axis policy, AI detail semantics or immutable baseline implementation is changed by this step.
+
+The hosted workflow is prepared to recollect and verify the isolated market-navigator-step-zero-review namespace twice hourly, preserve the repair ledger and historical generations, explicitly deploy Pages, and independently verify delivered hashes, native source replay and frozen index mathematics. Hosted activation and its delivery proof must be confirmed before this checkpoint is described as deployed or complete. The default application and older owner review URLs remain historical checkpoints.

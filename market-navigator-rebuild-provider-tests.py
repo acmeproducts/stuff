@@ -5,10 +5,17 @@ from unittest.mock import patch
 BASE=Path(__file__).resolve().parent
 spec=importlib.util.spec_from_file_location('qualified_collector',BASE/'market-navigator-rebuild-data/market-navigator-r7-data-pipeline.py')
 collector=importlib.util.module_from_spec(spec);spec.loader.exec_module(collector)
+spec=importlib.util.spec_from_file_location('provider_test_policy',BASE/'market-navigator-rebuild-policy.py');collector_policy=importlib.util.module_from_spec(spec);spec.loader.exec_module(collector_policy)
 NOW=dt.datetime(2026,10,8,13,tzinfo=dt.timezone.utc)
 def t(day):return int(dt.datetime.fromisoformat(day).replace(tzinfo=dt.timezone.utc).timestamp()*1000)
 def vector(last='2026-10-07',offset=10):
-    return [{'t':t('2018-01-01'),'v':offset}]+[{'t':t(f'2026-10-{i:02d}'),'v':offset+i} for i in range(1,int(last[-2:])+1)] if last.startswith('2026-10') else [{'t':t('2018-01-01'),'v':offset},{'t':t(last),'v':offset+1}]
+    # Bootstrap fixtures must include every reviewed native session, not a
+    # sparse 2018 anchor plus seven 2026 rows mislabeled as full history.
+    dates=[];day=dt.date(2026,1,1);end=dt.date.fromisoformat(last)
+    while day<=end:
+        if day.weekday()<5 and day.isoformat() not in collector_policy.NYSE_CLOSED[2026]:dates.append(day)
+        day+=dt.timedelta(days=1)
+    return [{'t':t('2018-01-01'),'v':offset}]+[{'t':t(str(day)),'v':offset+(day-dt.date(2026,1,1)).days+1} for day in dates]
 class ProviderRecovery(unittest.TestCase):
     def run_case(self,fetch,old_provider='Yahoo Finance',sid='custom_nvda',alternate=None):
         catalog=json.loads((BASE/'market-navigator-rebuild-data/data/market-backend/data-catalog.json').read_text(encoding='utf-8'))

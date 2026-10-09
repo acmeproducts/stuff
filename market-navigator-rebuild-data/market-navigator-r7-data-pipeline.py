@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 from __future__ import annotations
-import csv,datetime as dt,hashlib,json,math,os,statistics,urllib.parse,urllib.request
+import csv,datetime as dt,hashlib,json,math,os,statistics,urllib.parse,urllib.request,uuid
 from pathlib import Path
 
 CATALOG=Path('data/market-backend/data-catalog.json');ROOT=Path('market-evidence');SERIES=ROOT/'series';REPORTS=ROOT/'reports';MANIFEST=ROOT/'operational-manifest.json'
@@ -16,11 +16,15 @@ def write(p,o):
  if old==s:return False
  p.write_text(s,encoding='utf-8',newline='\n');return True
 def sha(o):return hashlib.sha256(json.dumps(o,sort_keys=True,separators=(',',':')).encode()).hexdigest()
+SOURCE_RESPONSES=[]
 def get(url,accept='*/*'):
  headers={'User-Agent':UA,'Accept':accept}
  if urllib.parse.urlparse(url).netloc=='api.nasdaq.com':headers.update({'User-Agent':'Mozilla/5.0 (compatible; MarketNavigatorEvidence/2.2)','Origin':'https://www.nasdaq.com','Referer':'https://www.nasdaq.com/'})
  q=urllib.request.Request(url,headers=headers)
- with urllib.request.urlopen(q,timeout=TIMEOUT) as r:return r.read(),getattr(r,'status',200)
+ with urllib.request.urlopen(q,timeout=TIMEOUT) as r:
+  payload=r.read();status=getattr(r,'status',200);digest=hashlib.sha256(payload).hexdigest();target=ROOT/'source-responses'/f'{digest}.bin';target.parent.mkdir(parents=True,exist_ok=True)
+  if not target.exists():target.write_bytes(payload)
+  SOURCE_RESPONSES.append({'url':url,'sha256':digest,'http':status,'receivedAt':iso()});return payload,status
 def canon(a):
  d={}
  for p in a or []:
@@ -154,6 +158,9 @@ def qualified_source(meta, provider, identifier, bootstrap, catalog, rules):
    if any(p['t']>captured.timestamp()*1000 for p in raw):raise RuntimeError('Future native observation')
    if captured>=dt.datetime(2026,10,8,tzinfo=dt.timezone.utc) and provider in ('Yahoo Finance','Stooq','Nasdaq Fund Network') and meta.get('native_cadence') in ('trading-day','daily-nav'):
     completed=policy.expected_market_session(captured);raw=[p for p in raw if dt.datetime.fromtimestamp(p['t']/1000,dt.timezone.utc).date()<=completed]
+   if bootstrap and provider in ('Yahoo Finance','Stooq','Nasdaq Fund Network'):
+    missing=policy.missing_history_sessions(meta,raw)
+    if missing:raise RuntimeError('Full source window has missing native market sessions: '+', '.join(missing[:12]))
    status,expected,reason=policy.freshness(meta,{'observations':raw,'last_attempted':iso(captured),'last_successful':iso(captured),'last_error':None},catalog,rules,captured)
    if status!='current':raise RuntimeError('Response is not current canonical evidence: '+reason)
    attempts.append({'endpoint':endpoint or ('query1.finance.yahoo.com' if provider=='Yahoo Finance' else provider),'status':'qualified','http':http})
@@ -172,6 +179,7 @@ def main():
  if selected:selected.update(m['transform_source_id'] for m in metas if m['id'] in selected and m.get('transform_source_id'))
  for m in metas:
   if not m.get('enabled',True) or selected and m['id'] not in selected and m.get('transform_source_id') not in selected:continue
+  SOURCE_RESPONSES.clear()
   sid=m['id'];p=SERIES/f'{sid}.json';old=read(p,{});obs0=old.get('observations') or [];attempt=iso();err=None;http=None;used=None;source_errors=[]
   try:
    raw=None
@@ -200,7 +208,14 @@ def main():
    # FRED canonical evidence is additionally one observation per UTC source date; this removes legacy same-day rows
    # (for example the former Yahoo ^TNX values that contaminated canonical DGS10 after migration).
    # Provider changes were independently qualified using a full bootstrap inside the approved chain.
-   if m.get('transform_source_id') or sid in replace_ids or obs0 and not same_lineage:obs=canon(raw)
+   retained_capture=None
+   if BOOT and same_lineage and not m.get('transform_source_id'):
+    # Replace the entire fetched window; preserve older actually captured history.
+    # A provider's shortened public window must not delete the historical corpus.
+    older=[p for p in obs0 if p['t']<raw[0]['t']];obs=canon(older+raw)
+    if older:
+     retained_capture=sha(old);write(ROOT/'source-retained'/f'{retained_capture}.json',old)
+   elif m.get('transform_source_id') or sid in replace_ids or obs0 and not same_lineage:obs=canon(raw)
    else:obs=merge(obs0,raw,used_provider)
    if not obs or any(p['t']>now().timestamp()*1000 for p in obs):raise RuntimeError('Empty/future canonical source response')
    if used_provider=='FRED': obs=canon_fred(obs)
@@ -210,7 +225,12 @@ def main():
   if obs:
    cutoff=int((now()-dt.timedelta(days=365.25*10.25)).timestamp()*1000);obs=[x for x in obs if x['t']>=cutoff]
   rev=sha(obs);configured=chain_for(m);provider_name=(used or {}).get('provider') or old.get('provider') or m.get('provider');provider_id=(used or {}).get('identifier') or old.get('providerIdentifier') or m.get('provider_identifier')
-  obj={'schema':'market-navigator-evidence-series-v1','pipelineVersion':VERSION,'id':sid,'catalogVersion':c.get('version'),'provider':provider_name,'providerIdentifier':provider_id,'providerChain':configured,'providerFallbackUsed':bool(used and used.get('position',0)>0),'providerErrors':source_errors,'providerEndpointTrace':(used or {}).get('endpointTrace',[]),'unit':m.get('native_unit'),'cadence':m.get('native_cadence'),'description':m.get('description'),'first':obs[0]['t'] if obs else None,'last':obs[-1]['t'] if obs else None,'count':len(obs),'sourceRevision':rev,'last_attempted':attempt,'last_successful':success,'last_error':err,'http':http,'observations':obs};obj.update({'transform':m['transform'],'transformSourceId':m['transform_source_id'],'transformSourceRevision':transform_source['sourceRevision']}) if m.get('transform_source_id') and transform_source and not err else None;write(p,obj)
+  obj={'schema':'market-navigator-evidence-series-v1','pipelineVersion':VERSION,'id':sid,'catalogVersion':c.get('version'),'provider':provider_name,'providerIdentifier':provider_id,'providerChain':configured,'providerFallbackUsed':bool(used and used.get('position',0)>0),'providerErrors':source_errors,'providerEndpointTrace':(used or {}).get('endpointTrace',[]),'unit':m.get('native_unit'),'cadence':m.get('native_cadence'),'description':m.get('description'),'first':obs[0]['t'] if obs else None,'last':obs[-1]['t'] if obs else None,'count':len(obs),'sourceRevision':rev,'last_attempted':attempt,'last_successful':success,'last_error':err,'http':http,'observations':obs};obj.update({'transform':m['transform'],'transformSourceId':m['transform_source_id'],'transformSourceRevision':transform_source['sourceRevision']}) if m.get('transform_source_id') and transform_source and not err else None;
+  if not err:
+   old_by_date={dt.datetime.fromtimestamp(x['t']/1000,dt.timezone.utc).date().isoformat():x['v'] for x in obs0};new_by_date={dt.datetime.fromtimestamp(x['t']/1000,dt.timezone.utc).date().isoformat():x['v'] for x in obs}
+   receipt={'schema':'market-navigator-source-verification-v1','verificationId':uuid.uuid4().hex,'id':sid,'checkedAt':success,'provider':provider_name,'identifier':provider_id,'unit':m.get('native_unit'),'cadence':m.get('native_cadence'),'sourceRevision':rev,'scope':'full-retained-history' if BOOT else 'recent-response','method':'governed-transform' if transform_source else 'retained-provider-response','responses':list(SOURCE_RESPONSES),'parentRevision':transform_source['sourceRevision'] if transform_source else None,'retainedCapture':retained_capture,'upstreamCoverageStart':raw[0]['t'],'upstreamCoverageEnd':raw[-1]['t'],'changes':{'addedPeriods':sorted(new_by_date.keys()-old_by_date.keys()),'removedPeriods':sorted(old_by_date.keys()-new_by_date.keys()),'revisedPeriods':[d for d in sorted(old_by_date.keys()&new_by_date.keys()) if old_by_date[d]!=new_by_date[d]]}}
+   obj['sourceVerification']=receipt;write(ROOT/'source-verifications'/f"{receipt['verificationId']}.json",receipt)
+  write(p,obj)
   supported=set(m.get('supported_horizons') or H);rr={}
   for h in H:
    rr[h]=report(obs,h) if h in supported else {'ready':False,'reason':'unsupported horizon for canonical evidence cadence'}

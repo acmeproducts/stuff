@@ -10,6 +10,8 @@ BASE=Path(__file__).resolve().parent
 spec=importlib.util.spec_from_file_location('mn_rebuild_history',BASE/'market-navigator-rebuild-history.py');h=importlib.util.module_from_spec(spec);spec.loader.exec_module(h)
 spec=importlib.util.spec_from_file_location('mn_rebuild_archives',BASE/'market-navigator-rebuild-archives.py');archives=importlib.util.module_from_spec(spec);spec.loader.exec_module(archives)
 
+spec=importlib.util.spec_from_file_location('mn_assurance',BASE/'market-navigator-assurance.py');assurance=importlib.util.module_from_spec(spec);spec.loader.exec_module(assurance)
+
 def audit(root,now=None):
     root=Path(root);now=now or dt.datetime.now(h.UTC)
     cat=h.read(root/'data/market-backend/data-catalog.json');rules=h.read(root/'data/market-backend/publication-rules.json');registry=h.read(root/'data/market-backend/component-registry-v1.json')
@@ -57,16 +59,17 @@ def audit(root,now=None):
     if derived['commonMarketAnchor']!=last_expected:raise ValueError('Index construction lags actual native collection')
     # Inventory retained legacy/research evidence too; it never supplies live data.
     for folder in ('market-evidence','data/market-backend'):
-        for path in sorted((root/folder).rglob('*.json')):
+        for path in sorted((root/folder).rglob('*')):
+            if not path.is_file() or path.suffix not in ('.json','.bin'):continue
             rel=path.relative_to(root).as_posix()
             if rel=='market-evidence/rebuild-admission.json':continue # A receipt cannot hash itself.
-            payload=path.read_bytes();value=json.loads(payload)
+            payload=path.read_bytes();value=json.loads(payload) if path.suffix=='.json' else None
             role='canonical-native' if rel.startswith('market-evidence/series/') else 'native-report' if rel.startswith('market-evidence/reports/') else 'collected-archive' if '/collection-archive/' in rel else 'qualified-index' if path.name in ('persistent-indices-v1.json','derived-indices-persistent-v1.json') else 'retained-reference'
             files[rel]={'blob':h.blob(payload),'role':role,'schema':value.get('schema') if isinstance(value,dict) else None,'bytes':len(payload)}
     ready=not any(x['blocking'] for x in findings)
     return {'schema':'market-navigator-rebuild-admission-v1','generatedAt':now.isoformat(),'anchor':derived['commonMarketAnchor'],'series':series,'findings':findings,'files':files,'summary':{'ready':ready,'series':len(series),'current':sum(x['status']=='current' for x in series.values()),'files':len(files),'requiredCurrent':all(series[sid]['status']=='current' for sid in required),'validUntil':min(series[sid]['validUntil'] for sid in required)},'rule':'Complete recovered history, native cadence, collector heartbeat and report/index coherence qualify together.'}
 
-def publish(root,store,collect=False,archive=None,inventory=None):
+def publish(root,store,collect=False,archive=None,inventory=None,strict_assurance=False):
     root=Path(root).resolve();store=Path(store).resolve();store.mkdir(parents=True,exist_ok=True)
     stage=store/('working-'+uuid.uuid4().hex);stage.mkdir()
     for folder in ('market-evidence','data/market-backend'):shutil.copytree(root/folder,stage/folder)
@@ -84,7 +87,8 @@ def publish(root,store,collect=False,archive=None,inventory=None):
     h.write(catalog_path,configured)
     if collect:
         environment=dict(os.environ,MARKET_NAVIGATOR_BOOTSTRAP='false',MARKET_NAVIGATOR_SERIES_IDS='')
-        result=subprocess.run([sys.executable,'market-navigator-r7-data-pipeline.py'],cwd=stage,env=environment,text=True,capture_output=True,timeout=180)
+        if strict_assurance:environment['MARKET_NAVIGATOR_BOOTSTRAP']='true'
+        result=subprocess.run([sys.executable,'market-navigator-r7-data-pipeline.py'],cwd=stage,env=environment,text=True,capture_output=True,timeout=900 if strict_assurance else 180)
         (stage/'collector-result.txt').write_text(result.stdout+'\n'+result.stderr)
         if result.returncode:raise ValueError('Required canonical collection failed; previous generation retained. '+result.stdout[-2000:])
     archive=Path(archive or BASE/'market-navigator-rebuild-archive');inventory=Path(inventory or BASE/'market-navigator-rebuild-archive-inventory.json')
@@ -101,6 +105,11 @@ def publish(root,store,collect=False,archive=None,inventory=None):
     h.build(stage,archive,seed_path,runtime_inventory)
     subprocess.run([sys.executable,'market-navigator-r7-health.py'],cwd=stage,check=True,capture_output=True,timeout=30)
     report=audit(stage)
+    if strict_assurance:
+        assurance_report=assurance.assess(stage,admission=report)
+        h.write(stage/'market-evidence/data-assurance.json',assurance_report)
+        if assurance_report['state'] not in ('verified','verified-with-limitations'):raise ValueError('Full corpus assurance failed: '+json.dumps(assurance_report['findings']))
+        report=audit(stage)
     if not report['summary']['ready']:raise ValueError('New generation failed admission; previous generation retained.')
     # A transient optional fetch failure cannot replace a still-current,
     # more complete qualified corpus. Retain its pointer and the failed stage.
@@ -131,6 +140,6 @@ def publish(root,store,collect=False,archive=None,inventory=None):
     return {'revision':revision,'generation':str(generation),'summary':report['summary'],'findings':report['findings']}
 
 if __name__=='__main__':
-    parser=argparse.ArgumentParser();parser.add_argument('--root',default='market-navigator-rebuild-data');parser.add_argument('--store',default='market-navigator-rebuild-generations');parser.add_argument('--collect',action='store_true');parser.add_argument('--audit',action='store_true');args=parser.parse_args()
-    try:print(json.dumps(audit(args.root) if args.audit else publish(args.root,args.store,args.collect),indent=2))
+    parser=argparse.ArgumentParser();parser.add_argument('--root',default='market-navigator-rebuild-data');parser.add_argument('--store',default='market-navigator-rebuild-generations');parser.add_argument('--collect',action='store_true');parser.add_argument('--audit',action='store_true');parser.add_argument('--assurance',action='store_true');args=parser.parse_args()
+    try:print(json.dumps(audit(args.root) if args.audit else publish(args.root,args.store,args.collect,strict_assurance=args.assurance),indent=2))
     except Exception as error:print(json.dumps({'ready':False,'error':str(error)}));sys.exit(1)
