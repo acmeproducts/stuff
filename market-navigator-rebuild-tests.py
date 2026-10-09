@@ -131,7 +131,7 @@ class Recovery(unittest.TestCase):
             before=pointer.read_bytes()
             attempted={'summary':{'ready':True,'current':38},'findings':[{'id':'custom_gaamhx','blocking':False}]}
             prior={'summary':{'ready':True,'current':39},'findings':[]}
-            with patch.object(w,'audit',side_effect=[attempted,prior]),self.assertRaisesRegex(ValueError,'reduced current native coverage'):
+            with patch.object(w.h,'build',side_effect=lambda *a,**kw:r.build(*a,now=NOW)), patch.object(w,'audit',side_effect=[attempted,prior]),self.assertRaisesRegex(ValueError,'reduced current native coverage'):
                 w.publish(ROOT,folder,archive=BASE/'market-navigator-rebuild-archive',inventory=BASE/'market-navigator-rebuild-archive-inventory.json')
             self.assertEqual(pointer.read_bytes(),before)
             self.assertTrue(any(Path(folder).glob('working-*')))
@@ -140,7 +140,7 @@ class Recovery(unittest.TestCase):
         with tempfile.TemporaryDirectory(dir=BASE) as folder:
             pointer=Path(folder,'current.json');pointer.write_text('{"generation":"last-good"}')
             before=pointer.read_bytes()
-            with patch.object(w,'audit',side_effect=ValueError('Synthetic admission failure')), self.assertRaisesRegex(ValueError,'Synthetic admission failure'):
+            with patch.object(w.h,'build',side_effect=lambda *a,**kw:r.build(*a,now=NOW)), patch.object(w,'audit',side_effect=ValueError('Synthetic admission failure')), self.assertRaisesRegex(ValueError,'Synthetic admission failure'):
                 w.publish(ROOT,folder,archive=BASE/'market-navigator-rebuild-archive',inventory=BASE/'market-navigator-rebuild-archive-inventory.json')
             self.assertEqual(before,pointer.read_bytes())
 

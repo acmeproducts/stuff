@@ -23,8 +23,7 @@ const contract=fs.readFileSync('market-navigator-rebuild-api-contract.js','utf8'
 let component=code.slice(moduleNode.init.start,moduleNode.init.end);
 component=component.replace('mount(host,initialState={},services){',`mount(host,initialState={},services={}){
  if(!services.metadata?.derived||!services.metadata?.def||!services.metadata?.catalog||!services.metadata?.health||typeof services.getSeries!=='function')throw new TypeError('Canonical metadata and getSeries service are required');
- const prepared=prepareHost(host,services);services=prepared.services;
- const metadata=freeze(structuredClone(services.metadata));services={...services,metadata};
+ const metadata=freeze(structuredClone(services.metadata));const prepared=prepareHost(host,services);services={...prepared.services,metadata};
  const publicInitial=initialState;initialState={};
 `);
 component=component.replace("pickerOpen:false,...structuredClone(initialState)","pickerOpen:false,canvasSize:{width:'auto',height:'auto',pixelRatio:'auto'},axisOptions:'auto',controls:'full',...structuredClone(initialState)");
@@ -33,7 +32,7 @@ component=component.replace('const getSeries=id=>services.getSeries(id),windowFo
 component=component.replace("services.window(h,IDX.includes(k)?k:(S.clockIndex||'risk'))", "(services.window||canonicalWindow)(h,IDX.includes(k)?k:(S.clockIndex||'risk'))");
 component=component.replace("services.available(id,h,IDX.includes(k)?k:(S.clockIndex||'risk'))", "(services.available||canonicalAvailable)(id,h,IDX.includes(k)?k:(S.clockIndex||'risk'))");
 component=component.replace('async function renderNow(){', 'async function performRenderNow(){').replace('async function renderV2(){','async function performRenderV2(){');
-component=component.replace('function canonicalWindow(', 'function renderNow(){const task=performRenderNow();task.catch(renderFailed);return task}\n function renderV2(){const task=performRenderV2();task.catch(renderFailed);return task}\n function canonicalWindow(');
+component=component.replace('function canonicalWindow(', 'function renderNow(){const epoch=++requestEpoch;pending=true;renderError=null;const task=performRenderNow(epoch);task.catch(error=>renderFailed(error,epoch));return task}\n function renderV2(){const epoch=++requestEpoch;pending=true;renderError=null;const task=performRenderV2(epoch);task.catch(error=>renderFailed(error,epoch));return task}\n function canonicalWindow(');
 component=component.replace('services.onState?.(getState())','services.onState?.(getState());services.onChange?.({options:getOptions(),snapshot:getSnapshot()})');
 component=component.replace('function resize(){',"function resize(size){if(size)return resizeConfigured(size); ");
 component=component.replace('services.onAnalyze(id)','services.onAnalyze?.(id)');
@@ -45,7 +44,7 @@ component=component.replace("const observer=new ResizeObserver(resize);observer.
 component=component.replace("$('indexInfoBtn').onclick=e=>","for(const [id,action]of Object.entries({nowAnalyze:'ai',nowData:'data',nowPrint:'print',nowMarkdown:'md',nowCsv:'csv',nowJson:'json'}))$(id).hidden=!services.onAction||(services.actions&&!services.actions.includes(action));$('indexInfoBtn').hidden=!services.onInfo;$('nowMoreBtn').hidden=!services.onAction;$('indexInfoBtn').onclick=e=>");
 component=component.replaceAll('services.breadcrumb(getState().spec)','services.breadcrumb(getOptions())').replaceAll('services.lineage(getState().spec)','services.lineage(getOptions())');
 component=component.replace('function publish(){if(services.namespace)', 'function publish(){renderError=null;if(services.namespace)');
-component=component.replace('getState,dismissInfo()', 'getOptions,getSnapshot,configure,whenReady,getState,dismissInfo()');
+component=component.replace('getState,dismissInfo()', 'getOptions,getSnapshot,configure,whenReady,renderSnapshotState,getState,dismissInfo()');
 component=component.replace("S.nowRepresentation=$('nowRepresentation').value;renderNow()", "S.axisOptions='auto';S.nowRepresentation=$('nowRepresentation').value;renderNow()");
 component=component.replace("${dualEligible?`<option value=\"dual\"", "${S.nowRepresentation==='native'?'<option value=\"native\" selected>Native</option>':''}${dualEligible?`<option value=\"dual\"");
 component=component.replace("let rep=S.nowRepresentation==='dual'&&dualEligible?'dual':'indexed'", "let rep=S.nowRepresentation==='native'?'native':S.nowRepresentation==='dual'&&dualEligible?'dual':'indexed'");
@@ -54,6 +53,7 @@ component=component.replace("setNowFooter(w,chartMode,dualEligible);captureNowSt
 component=component.replace(source('visibleIds25'),source('visibleIds25').replace('return ids}',"return S.orderedSeries?[...S.orderedSeries.filter(id=>ids.includes(id)),...ids.filter(id=>!S.orderedSeries.includes(id))]:ids}"));
 component=component.replace('scales[a]=scale(values)', "scales[a]=axisScale(a,values)");
 component=component.replace("let neutralEnv=S.level===1&&!S.nowFocus", "let neutralEnv=S.level===1&&!S.nowFocus");
+component=require('./market-navigator-rebuild-chart-review.cjs')(component,babel);
 new vm.Script('const MNChart='+component);
 const prelude=fs.readFileSync('market-navigator-rebuild-api-view.js','utf8').replace('__MN_MARKUP__',JSON.stringify(markup)).replace('__MN_CSS__',JSON.stringify(css));
 const standalone=`// Market Navigator reusable chart v1. Qualified Turn 28 painter; no application globals.\n(()=>{'use strict';${prelude}\nconst MNChart=${component};globalThis.MNChart=MNChart;})();\n`;
@@ -77,6 +77,7 @@ output=output.replace('while(!rebuildNow.getState().idle||!rebuildNow.getState()
 output=output.replace('function rebuildRefreshStyles(instance){const chart=instance?.getState().state?.chart','function rebuildRefreshStyles(instance){const chart=instance?.getSnapshot()?.chart');
 output=output.replace("seriesPromises:{}},spec)","seriesPromises:{}})");
 output=output.replaceAll('ensureRebuildNow().update({})','ensureRebuildNow().configure({})').replace('instance.update({})','instance.configure({})');
+output=require('./market-navigator-rebuild-report-review.cjs')(output,babel);
 new vm.Script(output);
 fs.writeFileSync('market-navigator-rebuild-candidate.html',base.slice(0,offset)+output+base.slice(offset+code.length));
 console.log('Built portable MNChart: blank-host view, isolated data/helpers, public options, explicit dimensions/axes, shared NOW/Analyze');
