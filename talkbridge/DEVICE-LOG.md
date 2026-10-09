@@ -1,17 +1,8 @@
 # TalkBridge device log
 
-Both handsets write here. Drained 2026-10-09T08:49:51Z, every 30s. Newest at the bottom.
+Both handsets write here. Drained 2026-10-09T08:50:23Z, every 30s. Newest at the bottom.
 
 ```
-13:27:25.413 [android-flz] listen_open {"room":"muqm2zocu43pqc"}
-13:27:25.413 [android-flz] cr3_lane_open {"room":"muqm2zocu43pqc","explicit":false}
-13:27:25.450 [android-flz] listen_open {"room":"31af0eb5-musyiglsj6peug"}
-13:27:25.450 [android-flz] cr3_lane_open {"room":"31af0eb5-musyiglsj6peug","explicit":false}
-13:27:25.508 [android-flz] t1_coalesced {"fn":"renderPanel","n":3}
-13:27:25.612 [android-flz] listen_open {"room":"31af0eb5-muytgmik45rdsh"}
-13:27:25.613 [android-flz] cr3_lane_open {"room":"31af0eb5-muytgmik45rdsh","explicit":false}
-13:27:25.651 [android-flz] listen_open {"room":"31af0eb5-muzib9xhwvshos"}
-13:27:25.652 [android-flz] cr3_lane_open {"room":"31af0eb5-muzib9xhwvshos","explicit":false}
 13:27:25.688 [android-flz] t1_coalesced {"fn":"renderPanel","n":1}
 13:27:25.718 [android-flz] t1_coalesced {"fn":"renderPanel","n":1}
 13:27:25.775 [android-flz] listen_open {"room":"31af0eb5-muzk2t5lbh5qos"}
@@ -4002,4 +3993,13 @@ Both handsets write here. Drained 2026-10-09T08:49:51Z, every 30s. Newest at the
 08:49:38.411 [android-tzc] rc_home_rendered {"cards":0,"wired":0,"dropped":1}
 08:49:38.414 [android-tzc] joiner_create_control {"shown":true,"dropped":1}
 08:49:38.416 [android-tzc] t1_coalesced {"fn":"renderPanel","n":1}
-08:49:38.445 [android-tzc] t1_coalesced {"fn":"renderPanel","n":4}```
+08:49:38.445 [android-tzc] t1_coalesced {"fn":"renderPanel","n":4}
+08:49:58.426 [android-tzc] rc_panel_rendered {"live":6,"bin":0,"wired":6,"dropped":2}
+08:49:58.427 [android-tzc] rc_home_rendered {"cards":0,"wired":0,"dropped":2}
+08:49:58.430 [android-tzc] joiner_create_control {"shown":true,"dropped":2}
+08:49:58.436 [android-tzc] t1_coalesced {"fn":"renderPanel","n":5}
+08:49:59.824 [android-tzc] pr3_dot {"others":0}
+08:50:18.426 [android-tzc] rc_panel_rendered {"live":6,"bin":0,"wired":6,"dropped":1}
+08:50:18.426 [android-tzc] rc_home_rendered {"cards":0,"wired":0,"dropped":1}
+08:50:18.429 [android-tzc] joiner_create_control {"shown":true,"dropped":1}
+08:50:18.460 [android-tzc] t1_coalesced {"fn":"renderPanel","n":4}```
