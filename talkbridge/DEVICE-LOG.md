@@ -1,24 +1,8 @@
 # TalkBridge device log
 
-Both handsets write here. Drained 2026-10-09T08:55:08Z, every 30s. Newest at the bottom.
+Both handsets write here. Drained 2026-10-09T10:23:41Z, every 30s. Newest at the bottom.
 
 ```
-13:28:10.982 [android-0ts] chatmic_off {}
-13:28:09.363 [android-flz] trans_ok {"provider":"google","from":"en","to":"th","ms":1241,"inChars":73,"outChars":72}
-13:28:09.364 [android-flz] dg_final {"t":"ฉันค่อนข้างแน่ใจว่าคุณรู้ว่าฉันหมายถึงอะไรเมื่อพูดถึงการทำให"}
-13:28:09.364 [android-flz] joiner_send_direction {"room":"fj4d34","from":"th","to":"en","role":"joiner"}
-13:28:09.425 [android-flz] r8_name_msg {"type":"chat-msg","name":"momo","had":"momo"}
-13:28:09.431 [android-flz] read_receipts_sent {"n":1}
-13:28:09.431 [android-flz] chat_rx {"t":"talking about normalization"}
-13:28:09.880 [android-flz] trans_ok {"provider":"google","from":"th","to":"en","ms":514,"inChars":72,"outChars":69}
-13:28:09.886 [android-flz] said_kept {"id":"cm-31af0eb5-muzknlp4qhkzng","lang":"en","chars":73,"who":"me"}
-13:28:09.898 [android-flz] chat_sent {"t":"ฉันค่อนข้างแน่ใจว่าคุณรู้ว่าฉันหมายถึงอะ"}
-13:28:11.011 [android-0ts] dg_stale_close_ignored {"code":1005}
-13:28:11.230 [android-0ts] r8_name_msg {"type":"chat-msg","name":"mike","had":"mike"}
-13:28:11.232 [android-0ts] said_kept {"id":"cm-31af0eb5-muzknlp4qhkzng","lang":"en","chars":73,"who":"partner"}
-13:28:11.239 [android-0ts] read_receipts_sent {"n":1}
-13:28:11.239 [android-0ts] chat_rx {"t":"ฉันค่อนข้างแน่ใจว่าคุณรู้ว่าฉันหมายถึงอะ"}
-13:28:20.597 [android-flz] dg_cross_suppress {"t":"งาน เด อะ ส ไ ป มิ น อ ล ลี่ เ ย น ไป"}
 13:28:19.232 [android-0ts] rc_panel_rendered {"live":4,"bin":0,"wired":4,"dropped":3}
 13:28:19.233 [android-0ts] rc_home_rendered {"cards":0,"wired":0,"dropped":3}
 13:28:19.236 [android-0ts] joiner_create_control {"shown":true,"dropped":3}
@@ -4002,4 +3986,20 @@ Both handsets write here. Drained 2026-10-09T08:55:08Z, every 30s. Newest at the
 08:54:58.421 [android-tzc] rc_home_rendered {"cards":0,"wired":0,"dropped":2}
 08:54:58.425 [android-tzc] joiner_create_control {"shown":true,"dropped":2}
 08:54:58.460 [android-tzc] t1_coalesced {"fn":"renderPanel","n":4}
-08:54:59.843 [android-tzc] pr3_dot {"others":0}```
+08:54:59.843 [android-tzc] pr3_dot {"others":0}
+08:55:18.425 [android-tzc] rc_panel_rendered {"live":6,"bin":0,"wired":6,"dropped":2}
+08:55:18.425 [android-tzc] rc_home_rendered {"cards":0,"wired":0,"dropped":2}
+08:55:18.429 [android-tzc] joiner_create_control {"shown":true,"dropped":2}
+08:55:18.434 [android-tzc] t1_coalesced {"fn":"renderPanel","n":1}
+08:55:18.466 [android-tzc] t1_coalesced {"fn":"renderPanel","n":4}
+08:55:29.849 [android-tzc] pr3_dot {"others":0}
+08:55:38.413 [android-tzc] rc_panel_rendered {"live":6,"bin":0,"wired":6,"dropped":2}
+08:55:38.414 [android-tzc] rc_home_rendered {"cards":0,"wired":0,"dropped":2}
+08:55:38.417 [android-tzc] joiner_create_control {"shown":true,"dropped":2}
+08:55:38.419 [android-tzc] t1_coalesced {"fn":"renderPanel","n":2}
+08:55:38.447 [android-tzc] t1_coalesced {"fn":"renderPanel","n":3}
+08:55:58.412 [android-tzc] rc_panel_rendered {"live":6,"bin":0,"wired":6,"dropped":2}
+08:55:58.412 [android-tzc] rc_home_rendered {"cards":0,"wired":0,"dropped":2}
+08:55:58.415 [android-tzc] joiner_create_control {"shown":true,"dropped":2}
+08:55:58.450 [android-tzc] t1_coalesced {"fn":"renderPanel","n":4}
+08:55:59.837 [android-tzc] pr3_dot {"others":0}```
