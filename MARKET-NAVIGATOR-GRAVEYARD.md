@@ -571,3 +571,8 @@ October 8 extended checks: reject overlapping phone Analyze controls, retained N
 ### 2026-10-09 — Owner observations override reusable-chart qualification
 
 The prior passing API tests missed daily-only 1D rendering, selected-series-only native axes, requested-day whitespace, duplicate host mounts, missing frozen bounds, stale failed request ownership, and legacy untagged report projection. Their earlier PASS records are preserved as limited evidence, not acceptance of these behaviors. Corrections are confined to the shared component and Library projection, with explicit independent owner-policy regression tests. Do not restore artificial end-of-day whitespace, give compatible USD series separate scales, fabricate intraday observations, or make a chart look different by changing native data.
+
+
+### 2026-10-09 — Native-only Add and sole-anchor eligibility
+
+Final public/reusability review exposed that automatic native-only representation disabled Add of an otherwise available different measurement, and a sole Analyze anchor inherited ineligible dual axes. Keep data availability independent of that display restriction. Automatic axes adapt on Add; explicit conflicting assignments retain a clear representation instruction. The preceding 11065a8 candidate and proof are historical checkpoints, not owner acceptance of these two interactions.
