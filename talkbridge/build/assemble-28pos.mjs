@@ -42,9 +42,11 @@ export const OUT_FILE = 'bridge-turn28-post-ship.html';
    X-4 the receiver's copy of what was said in a call */
 export const FIX_FIXTURES = 'talkbridge/fixtures/flatten/28pos-fixes';
 export const FIX_MANIFEST = FIX_FIXTURES + '/removals.json';
-export const FIX_PARTS = ['talkbridge/parts/d11-relay-noroom.js', 'talkbridge/parts/d14-drawer-on-accept.js', 'talkbridge/parts/d15-short-english.js', 'talkbridge/parts/t4-speech-log.js', 'talkbridge/parts/x4-said-in-call.js'];
+export const FIX_PARTS = ['talkbridge/parts/d11-relay-noroom.js', 'talkbridge/parts/d14-drawer-on-accept.js', 'talkbridge/parts/d15-short-english.js', 'talkbridge/parts/t4-speech-log.js', 'talkbridge/parts/x4-said-in-call.js', 'talkbridge/parts/d18-caller-builds.js'];
+/* one-line rule changes inside functions too large to move: each a banked find/replace pair applied exactly once (D-18) */
+export const FIX_REPLACEMENTS = FIX_FIXTURES + '/replacements.json';
 /* log markers the fixes bring */
-export const FIX_MARKERS = ['d14_drawer_closed', 'tts_speak', 'tts_no_voice'];
+export const FIX_MARKERS = ['d14_drawer_closed', 'tts_speak', 'tts_no_voice', 'call_builder'];
 export const TAIL = '\n</script>\n</body>\n</html>';
 
 export function base() {
@@ -67,6 +69,15 @@ export function fixRemovals() {
     const text = fs.readFileSync(path.join(root, FIX_FIXTURES, r.file), 'utf8');
     if (sha(text).slice(0, 12) !== r.sha256) throw new Error('assemble: fix fixture bytes moved: ' + r.file);
     return { file: r.file, text, lines: r.lines };
+  });
+}
+export function fixReplacements() {
+  if (!fs.existsSync(path.join(root, FIX_REPLACEMENTS))) return [];
+  const m = JSON.parse(fs.readFileSync(path.join(root, FIX_REPLACEMENTS), 'utf8'));
+  return m.replacements.map((r) => {
+    const find = fs.readFileSync(path.join(root, FIX_FIXTURES, r.find), 'utf8'), replace = fs.readFileSync(path.join(root, FIX_FIXTURES, r.replace), 'utf8');
+    if (sha(find).slice(0, 12) !== r.sha_find || sha(replace).slice(0, 12) !== r.sha_replace) throw new Error('assemble: replacement bytes moved: ' + r.id);
+    return { id: r.id, find, replace };
   });
 }
 /* stage 1: the flat build — the base minus every banked layer plus FL-4 and FL-5 */
@@ -95,6 +106,14 @@ export function assemble(opts) {
     const n = out.split(r.text).length - 1;
     if (n !== 1) throw new Error('assemble: fix removal ' + r.file + ' occurs ' + n + ' times in the flat build (must be exactly 1)');
     out = out.replace(r.text, '');
+  }
+  const keepR = new Set(opts.keepFixReplacements || []);
+  for (const r of (opts.replacements || fixReplacements())) {
+    if (keepR.has(r.id)) continue;
+    const n = out.split(r.find).length - 1;
+    if (n !== 1) throw new Error('assemble: replacement ' + r.id + ' finds its text ' + n + ' times (must be exactly 1)');
+    if (out.indexOf(r.replace) !== -1) throw new Error('assemble: replacement ' + r.id + ' already present');
+    out = out.replace(r.find, r.replace);
   }
   const parts = FIX_PARTS.map((p, i) => (opts.fixParts && opts.fixParts[i] != null) ? opts.fixParts[i] : (fs.existsSync(path.join(root, p)) ? fs.readFileSync(path.join(root, p), 'utf8') : null)).filter((p) => p != null);
   return out.slice(0, -TAIL.length) + parts.map((p) => '\n\n' + p).join('') + TAIL;

@@ -11,15 +11,17 @@
 
    Usage: node harness-fixes-28pos.mjs [candidate.html]   TB_FIX_PARTS_OVERRIDE=a,b,c,d,e   TB_KEEP_FIX=fixture,... */
 import { readFileSync } from 'fs';
-import { BASE_FILE, FIX_PARTS, FIX_MARKERS, assembleFlat, assemble, fixRemovals } from './assemble-28pos.mjs';
-import { runBoth, KEYS, diff, mask, tick, sleep, clock } from './rig-28pos.mjs';
+import { BASE_FILE, FIX_PARTS, FIX_MARKERS, assembleFlat, assemble, fixRemovals, fixReplacements } from './assemble-28pos.mjs';
+import { runBoth, KEYS, diff, mask, tick, sleep, clock, HOUSEKEEPING } from './rig-28pos.mjs';
 
 const candP = process.argv[2] && !process.argv[2].startsWith('--') ? process.argv[2] : 'bridge-turn28-post-ship.html';
 const cand = readFileSync(candP, 'utf8');
 const flat = assembleFlat();
 const fixParts = FIX_PARTS.map((p, i) => process.env.TB_FIX_PARTS_OVERRIDE ? readFileSync(process.env.TB_FIX_PARTS_OVERRIDE.split(',')[i], 'utf8') : readFileSync(p, 'utf8'));
-const [d11, d14, d15, t4, x4] = fixParts;
+const [d11, d14, d15, t4, x4, d18] = fixParts;
 const KEEP = process.env.TB_KEEP_FIX ? process.env.TB_KEEP_FIX.split(',') : [];
+const KEEP_R = process.env.TB_KEEP_FIX_R ? process.env.TB_KEEP_FIX_R.split(',') : [];
+const REPS = process.env.TB_FIX_REPS ? JSON.parse(readFileSync(process.env.TB_FIX_REPS, 'utf8')) : null;   /* the mutation gate's edited replacements */
 
 let pass = 0, fail = 0;
 const T = (name, fn) => { try { fn(); pass++; console.log('  ok  ' + name); } catch (e) { fail++; console.log('FAIL  ' + name + ' — ' + ((e && e.message) || e)); } };
@@ -30,14 +32,18 @@ const markers = (js) => { const s = new Set(); const re = /\b(?:log|L|rmLog|cr3L
 const types = (s) => { const t = new Set(); let m; const re = /type:\s*'([a-z-]+)'/g; while ((m = re.exec(s))) t.add(m[1]); return t; };
 
 /* ── F1 · THE CANDIDATE IS THE FLAT BUILD MINUS THE BANKED TEXTS PLUS THE FIVE PARTS ── */
-console.log('F1 · candidate === flat − 8 banked texts + 5 fix parts, nothing else');
-T('F1.1 candidate is the assembler\'s output (every removal by its banked bytes, from the flat build)', () => assert(cand === assemble({ fixParts, keepFixRemovals: KEEP }), 'candidate is not flat − fix removals + fix parts'));
+console.log('F1 · candidate === flat − 8 banked texts + 12 banked replacements + 6 fix parts, nothing else');
+T('F1.1 candidate is the assembler\'s output (every removal and replacement by its banked bytes, from the flat build)', () => assert(cand === assemble({ fixParts, keepFixRemovals: KEEP, keepFixReplacements: KEEP_R, replacements: REPS }), 'candidate is not flat − fix removals + replacements + fix parts'));
 T('F1.2 every banked text was present exactly once in the flat build and is gone from the candidate', () => {
   const rs = fixRemovals(); assert(rs.length === 8, 'expected 8 banked texts, got ' + rs.length);
   for (const r of rs) { assert(flat.split(r.text).length - 1 === 1, r.file + ' not exactly once in the flat build'); if (!KEEP.includes(r.file)) assert(cand.indexOf(r.text) === -1, r.file + ' still in candidate'); }
+  const reps = REPS || fixReplacements(); assert(reps.length === 12, 'expected 12 banked replacements, got ' + reps.length);
+  for (const r of reps) { assert(flat.split(r.find).length - 1 === 1, r.id + ': find text not exactly once in the flat build'); if (!KEEP_R.includes(r.id)) { assert(cand.indexOf(r.find) === -1, r.id + ': find text still in candidate'); assert(cand.split(r.replace).length - 1 === 1, r.id + ': replacement not exactly once in candidate'); } }
+  assert(!/role === 'creator'\) this\.setupPC|role === 'creator' && this\.savedOffer|c3IsCreator/.test(code(inline(cand))), 'a creator-rule line survives in the call path');
 });
 T('F1.3 each part declares what it replaces; every replaced symbol is bound exactly once in the candidate', () => {
   const want = [[d11, 'relayConnect'], [d14, 'CALL.accept, CALL.onAccepted'], [d15, 'dgArbitrateNative, dgArbitrateEnglish'], [t4, 'speakTextCore, speakText'], [x4, 'onDGFinalCore, onRemoteSubtitle']];
+  assert(/adds:\s*CALL\.builds/.test(d18) && (code(inline(cand)).match(/^CALL\.builds = function/mg) || []).length === 1, 'D-18 must add CALL.builds once');
   const js = code(inline(cand));
   for (const [p, syms] of want) {
     const c = p.slice(p.indexOf('@contract'), p.indexOf('*/', p.indexOf('@contract')));
@@ -59,7 +65,7 @@ T('F2.1 the candidate\'s log markers are the flat build\'s plus exactly the decl
 });
 T('F2.2 no new message type; the wire changes are two fields (said, saidLang) on subtitle and subtitle-update, in X-4 only (G19/G20)', () => {
   const base = types(code(inline(flat))); const added = [...types(code(inline(cand)))].filter((t) => !base.has(t)); assert(added.length === 0, 'new message type: ' + added.join(','));
-  for (const [nm, p] of [['D-11', d11], ['D-14', d14], ['D-15', d15], ['T-4', t4]]) assert(!/relaySend\(|said/.test(code(p).replace(/fl3Declare|cr3Send|relaySend\(\{ type: 'hello'/g, '')) || nm === 'D-11', nm + ' touches the wire');
+  for (const [nm, p] of [['D-11', d11], ['D-14', d14], ['D-15', d15], ['T-4', t4], ['D-18', d18]]) assert(!/relaySend\(|said/.test(code(p).replace(/fl3Declare|cr3Send|relaySend\(\{ type: 'hello'/g, '')) || nm === 'D-11', nm + ' touches the wire');
   assert((code(x4).match(/Object\.assign\(\{type:'subtitle(-update)?'/g) || []).length === 2 && /saidF=\(saidE&&saidE\.said\)\?\{said:saidE\.said,saidLang:saidE\.saidLang\|\|''\}:\{\}/.test(code(x4)), 'X-4 must add said/saidLang to exactly the two subtitle messages');
   for (const p of fixParts) assert(!/credentials\/generate|iceServers|transport=tcp|turns?:|tb_gh_pat|Authorization|fetch\(/.test(code(p)), 'a fix part has a credential or network path');
 });
@@ -120,18 +126,49 @@ async function scenarios(R) {
   const theirs = Y.w.transcript.slice(y0).filter((e) => e.kind === 'speech' && e.who === 'partner').slice(-1)[0] || null;
   R.fix.x4 = { own: own && { src: own.sourceText, said: own.said || null, saidLang: own.saidLang || null }, theirs: theirs && { src: theirs.sourceText, tr: theirs.translatedText, said: theirs.said || null, saidLang: theirs.saidLang || null }, keptPartner: Y.w.debugLog.filter((l) => l.ev === 'said_kept' && l.d && l.d.who === 'partner' && String(l.d.id).indexOf('sp-p-') === 0).length };   /* speech lines only — the chat path carries the said on both builds */
   await sleep(50);
+  /* D-18 · who builds the connection. Everything before this point is compared whole; from here the arrays are compared only up to this cut and the calls below are judged by their own record. */
+  /* the log before the cut is copied now: the calls below would push the 400-line window past its start */
+  const asLog = (w) => w.debugLog.filter((l) => !HOUSEKEEPING.has(l.ev)).map((l) => ({ ev: l.ev, lvl: l.lvl, d: mask(l.d) }));
+  R.cutLog = { X: asLog(X.w), Y: asLog(Y.w) };
+  R.cut = { X: { log: X.w.debugLog.length, wire: link.sent.a.length, sockets: X.w.__sockets.length, pcs: X.w.__pcs.length, transcript: X.w.transcript.length }, Y: { log: Y.w.debugLog.length, wire: link.sent.b.length, sockets: Y.w.__sockets.length, pcs: Y.w.__pcs.length, transcript: Y.w.transcript.length } };
+  const callRecord = async (label, caller, callee) => {
+    const CC = caller.w.CALL, CA = callee.w.CALL; const l0 = { c: caller.w.debugLog.length, a: callee.w.debugLog.length }, p0 = { c: caller.w.__pcs.length, a: callee.w.__pcs.length };
+    tick(10); const p = CC.start('voice'); await sleep(40); await p; await sleep(40);
+    tick(800); const q = CA.accept(); await sleep(40); await q; await sleep(500);
+    const evs = (w, from) => w.debugLog.slice(from).map((l) => l.ev).filter((e) => /^rtc_|^turn_|^call_builder$/.test(e));
+    const rec = { label, callerEvs: evs(caller.w, l0.c), calleeEvs: evs(callee.w, l0.a), callerPcs: caller.w.__pcs.length - p0.c, calleePcs: callee.w.__pcs.length - p0.a, callerBuilder: caller.w.debugLog.slice(l0.c).filter((l) => l.ev === 'call_builder').map((l) => l.d), calleeBuilder: callee.w.debugLog.slice(l0.a).filter((l) => l.ev === 'call_builder').map((l) => l.d), active: [!!CC.active, !!CA.active] };
+    tick(10); CC.hangUp(true); await sleep(60); CA.teardown(); CC.teardown(); await sleep(30);
+    return rec;
+  };
+  link.rewire(); X.w.__media = 'both'; Y.w.__media = 'audio'; CX.active = false; CY.active = false; X.w.S.view = 'room'; Y.w.S.view = 'room';
+  R.fix.d18 = [];
+  /* 1 · as today: the creator's phone was reinstalled and came back as a joiner — two joiners */
+  const roleX = X.w.activeRoom().role, roleY = Y.w.activeRoom().role;
+  X.w.activeRoom().role = 'joiner'; Y.w.activeRoom().role = 'joiner';
+  R.fix.d18.push(await callRecord('two joiners, X calls', X, Y));
+  /* 2 · the joiner calls the creator */
+  X.w.activeRoom().role = 'joiner'; Y.w.activeRoom().role = 'creator';
+  R.fix.d18.push(await callRecord('joiner calls creator', X, Y));
+  /* 3 · the creator calls the joiner (the rule as it always was) */
+  X.w.activeRoom().role = 'creator'; Y.w.activeRoom().role = 'joiner';
+  R.fix.d18.push(await callRecord('creator calls joiner', X, Y));
+  X.w.activeRoom().role = roleX; Y.w.activeRoom().role = roleY;
+  await sleep(50);
 }
 const { RA, RC, snapA, snapC } = await runBoth(flat, cand, scenarios);
+T('F3 both builds reach the D-18 cut with the same wire, socket, peer and transcript counts (a call-path change before the cut would show here)', () => { for (const who of ['X', 'Y']) for (const k of ['wire', 'sockets', 'pcs', 'transcript']) assert(RA.cut[who][k] === RC.cut[who][k], 'the two builds reached the D-18 cut with different ' + who + '.' + k + ' counts: ' + JSON.stringify([RA.cut, RC.cut])); });
 const A = RA.fix, C = RC.fix;
 
 /* the declared differences, and nothing else */
-const ALLOWED_LOG = { net_relay_closed: 'D-11 (the stale socket\'s second close listener is gone)', cr3_lane_open: 'D-11 (no open hook on a stale socket)', cr3_open_stale: 'D-11', d14_drawer_closed: 'D-14', tts_speak: 'T-4', tts_no_voice: 'T-4', dg_cross_suppress: 'D-15 (phonetic: true)', said_kept: 'X-4 (who: partner, in a call)' };
+const ALLOWED_LOG = { call_builder: 'D-18', net_relay_closed: 'D-11 (the stale socket\'s second close listener is gone)', cr3_lane_open: 'D-11 (no open hook on a stale socket)', cr3_open_stale: 'D-11', d14_drawer_closed: 'D-14', tts_speak: 'T-4', tts_no_voice: 'T-4', dg_cross_suppress: 'D-15 (phonetic: true)', said_kept: 'X-4 (who: partner, in a call)' };
 const stripLog = (log) => log.filter((l) => !ALLOWED_LOG[l.ev]);
 const stripWire = (wire) => wire.map((m) => { if (m && (m.type === 'subtitle' || m.type === 'subtitle-update')) { const o = { ...m }; delete o.said; delete o.saidLang; return o; } return m; });
 const stripTr = (tr) => tr.map((e) => { if (e && e.kind === 'speech' && e.who === 'partner') { const o = { ...e }; delete o.said; delete o.saidLang; return o; } return e; });
 for (const who of ['X', 'Y']) for (const key of KEYS) {
   T('F3 ' + who + '.' + key + ' identical on both builds outside the declared differences', () => {
     let a = snapA[who][key], c = snapC[who][key];
+    if (RA.cut && key === 'log') { a = RA.cutLog[who]; c = RC.cutLog[who]; }
+    else if (RA.cut && RA.cut[who][key] != null) { const n = Math.min(RA.cut[who][key], RC.cut[who][key]); a = a.slice(0, n); c = c.slice(0, n); }   /* D-18's calls come after the cut and are judged by their own record */
     if (key === 'log') { a = stripLog(a); c = stripLog(c); }
     if (key === 'wire') { a = stripWire(a); c = stripWire(c); }
     if (key === 'transcript' || key === 'bgTranscript') { a = stripTr(a); c = stripTr(c); }
@@ -140,26 +177,27 @@ for (const who of ['X', 'Y']) for (const key of KEYS) {
     assert(out.length === 0, '\n      ' + out.join('\n      '));
   });
 }
-const count = (snap, ev, pred) => snap.log.filter((l) => l.ev === ev && (!pred || pred(l))).length;
+/* counts are taken on the pre-cut logs (the D-18 calls at the end would push the 400-line window past the early lines) */
+const count = (build, who, ev, pred) => (build === 'A' ? RA : RC).cutLog[who].filter((l) => l.ev === ev && (!pred || pred(l))).length;
 T('F3 D-11 · a connect with no active room hooks nothing: the stale socket keeps one close listener, one open listener and its room (the flat build added a listener each and nulled the room)', () => {
   assert(A.d11.after.close === A.d11.before.close + 1 && A.d11.after.open === A.d11.before.open + 1 && A.d11.after.room === null && A.d11.after.sockets === A.d11.before.sockets, 'the flat build did not show the defect: ' + JSON.stringify(A.d11));
   assert(C.d11.after.close === C.d11.before.close && C.d11.after.open === C.d11.before.open && C.d11.after.room === 'gate-room' && C.d11.after.sockets === C.d11.before.sockets && JSON.stringify(C.d11.before) === JSON.stringify(A.d11.before), 'the candidate still hooks the stale socket: ' + JSON.stringify(C.d11));
-  assert(count(snapA.X, 'net_relay_closed') === count(snapC.X, 'net_relay_closed') + 2 && count(snapA.X, 'cr3_lane_open') + count(snapA.X, 'cr3_open_stale') >= count(snapC.X, 'cr3_lane_open') + count(snapC.X, 'cr3_open_stale'), 'the log should lose exactly the two duplicate close lines (one in the script, one here): ' + [count(snapA.X, 'net_relay_closed'), count(snapC.X, 'net_relay_closed')].join('/'));
+  assert(count('A', 'X', 'net_relay_closed') === count('C', 'X', 'net_relay_closed') + 2 && count('A', 'X', 'cr3_lane_open') + count('A', 'X', 'cr3_open_stale') >= count('C', 'X', 'cr3_lane_open') + count('C', 'X', 'cr3_open_stale'), 'the log should lose exactly the two duplicate close lines (one in the script, one here): ' + [count('A', 'X', 'net_relay_closed'), count('C', 'X', 'net_relay_closed')].join('/'));
 });
 T('F3 D-14 · the More menu closes when a call is answered, on the answerer and on the caller (the flat build left both open)', () => {
   assert(A.d14.answerer === 'drawer open' && A.d14.caller === 'drawer open' && A.d14.active[0] && A.d14.active[1], 'the flat build did not show the defect: ' + JSON.stringify(A.d14));
   assert(C.d14.answerer === 'drawer' && C.d14.caller === 'drawer' && C.d14.active[0] && C.d14.active[1], 'a drawer stayed open over the call: ' + JSON.stringify(C.d14));
-  assert(count(snapC.Y, 'd14_drawer_closed', (l) => l.d.role === 'answerer') === 1 && count(snapC.X, 'd14_drawer_closed', (l) => l.d.role === 'caller') === 1 && count(snapA.X, 'd14_drawer_closed') + count(snapA.Y, 'd14_drawer_closed') === 0, 'd14_drawer_closed must be logged once per role on the candidate only');
+  assert(count('C', 'Y', 'd14_drawer_closed', (l) => l.d.role === 'answerer') === 1 && count('C', 'X', 'd14_drawer_closed', (l) => l.d.role === 'caller') === 1 && count('A', 'X', 'd14_drawer_closed') + count('A', 'Y', 'd14_drawer_closed') === 0, 'd14_drawer_closed must be logged once per role on the candidate only');
 });
 T('F3 D-15 · a short English word suppresses its letter-spaced Thai twin in both orders; a real short Thai sentence and a two-word Thai line are still delivered; a long English win still suppresses everything in its window', () => {
   assert(JSON.stringify(A.d15.verdicts) === JSON.stringify(['ignored', 'held', 'held', 'ignored', 'ignored', 'held', 'won', 'suppressed', 'held']) && JSON.stringify(A.d15.delivered) === JSON.stringify(['อ อ ส ซ', 'อ อ ส ซ', 'อร่อยมาก', 'สวัสดี ครับ']), 'the flat build did not show the defect: ' + JSON.stringify(A.d15));
   assert(JSON.stringify(C.d15.verdicts) === JSON.stringify(['ignored', 'suppressed', 'held', 'displaced', 'ignored', 'held', 'won', 'suppressed', 'held']) && JSON.stringify(C.d15.delivered) === JSON.stringify(['อร่อยมาก', 'สวัสดี ครับ']), 'the candidate did not apply the rule as declared: ' + JSON.stringify(C.d15));
-  assert(count(snapC.X, 'dg_cross_suppress', (l) => l.d.phonetic === true) === 2 && count(snapA.X, 'dg_cross_suppress', (l) => l.d.phonetic === true) === 0, 'two phonetic suppressions must be logged on the candidate only');
+  assert(count('C', 'X', 'dg_cross_suppress', (l) => l.d.phonetic === true) === 2 && count('A', 'X', 'dg_cross_suppress', (l) => l.d.phonetic === true) === 0, 'two phonetic suppressions must be logged on the candidate only');
 });
 T('F3 T-4 · speech logs its voice match and says when the device has no voice for the language; nothing is said when the device reports no voices at all', () => {
-  assert(A.t4.toasts.every((t) => t === '') && count(snapA.X, 'tts_speak') === 0 && A.t4.spoken.length === 6, 'the flat build was not silent about voices: ' + JSON.stringify(A.t4));
+  assert(A.t4.toasts.every((t) => t === '') && count('A', 'X', 'tts_speak') === 0 && A.t4.spoken.length === 6, 'the flat build was not silent about voices: ' + JSON.stringify(A.t4));
   assert(C.t4.toasts[0] === '' && C.t4.toasts[1] === 'No voice installed for Thai' && C.t4.toasts[2] === '' && JSON.stringify(C.t4.spoken) === JSON.stringify(A.t4.spoken), 'toasts / speech on the candidate: ' + JSON.stringify(C.t4));
-  const sp = snapC.X.log.filter((l) => l.ev === 'tts_speak' || l.ev === 'tts_no_voice').slice(-3).map((l) => l.ev + ':' + l.d.lang + ':' + l.d.voices + ':' + (l.d.match === undefined ? '-' : l.d.match));
+  const sp = RC.cutLog.X.filter((l) => l.ev === 'tts_speak' || l.ev === 'tts_no_voice').slice(-3).map((l) => l.ev + ':' + l.d.lang + ':' + l.d.voices + ':' + (l.d.match === undefined ? '-' : l.d.match));
   assert(JSON.stringify(sp) === JSON.stringify(['tts_speak:en-US:2:1', 'tts_no_voice:th-TH:2:-', 'tts_speak:th-TH:0:0']), 'the record is not as declared: ' + JSON.stringify(sp));
 });
 T('F3 X-4 · what was said in a call reaches the other phone: the speaker\'s entry keeps it on both builds, the receiver\'s only on the candidate (said_kept {who: partner})', () => {
@@ -168,6 +206,17 @@ T('F3 X-4 · what was said in a call reaches the other phone: the speaker\'s ent
   assert(C.x4.own && C.x4.own.said === 'สวัสดีครับ' && C.x4.theirs && C.x4.theirs.src === 'hello sir' && C.x4.theirs.said === 'สวัสดีครับ' && C.x4.theirs.saidLang === 'th' && C.x4.keptPartner === 1, 'the receiver did not get the said: ' + JSON.stringify(C.x4));
   const subs = snapC.X.wire.filter((m) => m.type === 'subtitle' || m.type === 'subtitle-update');
   assert(subs.length >= 2 && subs.slice(-2).every((m) => m.said === 'สวัสดีครับ' && m.saidLang === 'th') && subs.slice(0, -2).every((m) => m.said === undefined), 'the two subtitle messages of this line carry the said and no other does: ' + JSON.stringify(subs.map((m) => [m.type, m.said])));
+});
+T('F3 D-18 · the caller builds the connection: a two-joiner room carries a call on the candidate and none on the flat build; a joiner calling the creator builds it; the creator calling still builds it', () => {
+  const A3 = A.d18, C3 = C.d18; assert(A3.length === 3 && C3.length === 3, 'three calls expected');
+  const built = (r) => r.callerEvs.includes('rtc_offer'), answered = (r) => r.calleeEvs.includes('rtc_answered');
+  assert(!built(A3[0]) && !answered(A3[0]) && A3[0].callerPcs === 0 && A3[0].calleePcs === 0 && A3[0].active[0] && A3[0].active[1], 'the flat build should carry nothing between two joiners: ' + JSON.stringify(A3[0]));
+  assert(!built(A3[1]) && A3[1].calleeEvs.includes('rtc_offer') && A3[1].callerEvs.includes('rtc_answered'), 'on the flat build the creator (answering) builds: ' + JSON.stringify(A3[1]));
+  assert(built(A3[2]) && answered(A3[2]), 'on the flat build the creator (calling) builds: ' + JSON.stringify(A3[2]));
+  for (const r of C3) assert(built(r) && answered(r) && r.callerPcs === 1 && r.calleePcs === 1 && r.active[0] && r.active[1] && !r.calleeEvs.includes('rtc_offer') && !r.callerEvs.includes('rtc_answered'), 'the caller must build and the answerer answer: ' + JSON.stringify(r));
+  for (const r of C3) assert(r.callerBuilder.length === 1 && r.callerBuilder[0].builds === true && r.calleeBuilder.length === 1 && r.calleeBuilder[0].builds === false, 'call_builder must be logged once per side: ' + JSON.stringify([r.callerBuilder, r.calleeBuilder]));
+  assert(C3[0].callerBuilder[0].role === 'joiner' && C3[1].calleeBuilder[0].role === 'creator', 'the roles in the record are not as scripted');
+  assert(A3.every((r) => r.callerBuilder.length === 0 && r.calleeBuilder.length === 0), 'the flat build must not log call_builder');
 });
 RA.X.dom.window.close(); RA.Y.dom.window.close(); RC.X.dom.window.close(); RC.Y.dom.window.close();
 console.log('\n' + pass + ' pass, ' + fail + ' fail');

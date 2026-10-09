@@ -5,7 +5,7 @@ import { readFileSync, writeFileSync, mkdtempSync, rmSync } from 'fs';
 import { execFileSync } from 'child_process';
 import { tmpdir } from 'os';
 import path from 'path';
-import { assemble, FIX_PARTS } from './assemble-28pos.mjs';
+import { assemble, FIX_PARTS, fixReplacements } from './assemble-28pos.mjs';
 
 const parts0 = FIX_PARTS.map((p) => readFileSync(p, 'utf8'));
 const MUTATIONS = [
@@ -19,6 +19,11 @@ const MUTATIONS = [
   { catches: 'F3 T-4 · speech logs its voice match and says when the device has no voice for the language; nothing is said when the device reports no voices at all', name: 'T-4: a toast even when the device reports no voices at all', part: 3, edit: (s) => s.replace("  if (voices.length && !match) {", "  if (!match) {") },
   { catches: 'F3 X-4 · what was said in a call reaches the other phone: the speaker\'s entry keeps it on both builds, the receiver\'s only on the candidate (said_kept {who: partner})', name: 'X-4: the said no longer rides the subtitle', part: 4, edit: (s) => s.replace("var saidF=(saidE&&saidE.said)?{said:saidE.said,saidLang:saidE.saidLang||''}:{};", "var saidF={};") },
   { catches: 'F3 X-4 · what was said in a call reaches the other phone: the speaker\'s entry keeps it on both builds, the receiver\'s only on the candidate (said_kept {who: partner})', name: 'X-4: the receiver no longer holds it', part: 4, edit: (s) => s.replace("  try { x3PendingIn = (d && typeof d.said === 'string' && norm(d.said) && s0) ? { said: norm(d.said), saidLang: String(d.saidLang || ''), normalized: s0, at: Date.now() } : null; } catch (_) { x3PendingIn = null; }", "  x3PendingIn = null;") },
+  { catches: 'F3 D-18 · the caller builds the connection: a two-joiner room carries a call on the candidate and none on the flat build; a joiner calling the creator builds it; the creator calling still builds it', name: 'D-18: builds() answers by role again (the old rule)', part: 5, edit: (s) => s.replace("CALL.builds = function () { return !!this.caller; };", "CALL.builds = function () { return !!(activeRoom() && activeRoom().role === 'creator'); };") },
+  { catches: 'F3 both builds reach the D-18 cut with the same wire, socket, peer and transcript counts (a call-path change before the cut would show here)', name: 'D-18: builds() is true on both sides (both would offer)', part: 5, edit: (s) => s.replace("CALL.builds = function () { return !!this.caller; };", "CALL.builds = function () { return true; };") },
+  { catches: 'F3 D-18 · the caller builds the connection: a two-joiner room carries a call on the candidate and none on the flat build; a joiner calling the creator builds it; the creator calling still builds it', name: 'D-18: the builder decision is never logged on the caller (the onAccepted replacement loses its line)', editR: { id: '11-D18-onAccepted', fn: (t) => t.replace("  log('call_builder', { builds: this.builds(), role: room.role }, 'ok');          /* D-18: the caller builds, whatever the room says its role is */\n", '') } },
+  { catches: 'F3 D-18 · the caller builds the connection: a two-joiner room carries a call on the candidate and none on the flat build; a joiner calling the creator builds it; the creator calling still builds it', name: 'D-18: the onAccepted replacement is left out (the creator rule survives there)', keepR: ['11-D18-onAccepted'] },
+  { catches: 'F3 D-18 · the caller builds the connection: a two-joiner room carries a call on the candidate and none on the flat build; a joiner calling the creator builds it; the creator calling still builds it', name: 'D-18: the setupPC replacement is left out (a joiner caller builds a pc that never offers)', keepR: ['12-D18-setupPC-offer'] },
   { catches: 'F2.1 the candidate\'s log markers are the flat build\'s plus exactly the declared ones', name: 'a fix logs an undeclared marker', part: 0, edit: (s) => s.replace("  if (!room) return;\n", "  if (!room) { log('d11_no_room', {}, 'info'); return; }\n") },
   { catches: 'F1.3 each part declares what it replaces; every replaced symbol is bound exactly once in the candidate', name: 'a banked text is left in place (two relayConnect declarations)', keep: ['00-FL1-relayConnect.js'] },
 ];
@@ -28,11 +33,13 @@ let caught = 0, missed = 0;
 for (let i = 0; i < MUTATIONS.length; i++) {
   const m = MUTATIONS[i]; if (ONLY && m.catches !== ONLY) continue;
   const parts = parts0.slice(); if (m.edit) { parts[m.part] = m.edit(parts[m.part]); if (parts[m.part] === parts0[m.part]) { console.log('MISS  mutation did not apply: ' + m.name); missed++; continue; } }
+  let reps = null, repsPath = '';
+  if (m.editR) { const orig = fixReplacements(); reps = orig.map((r) => r.id === m.editR.id ? { ...r, replace: m.editR.fn(r.replace) } : r); const o = orig.filter((r) => r.id === m.editR.id)[0]; if (!o || reps.filter((r) => r.id === m.editR.id)[0].replace === o.replace) { console.log('MISS  replacement edit did not apply: ' + m.name); missed++; continue; } repsPath = path.join(dir, 'reps-' + i + '.json'); writeFileSync(repsPath, JSON.stringify(reps)); }
   const paths = parts.map((p, j) => { const f = path.join(dir, 'fix' + j + '-' + i + '.js'); writeFileSync(f, p); return f; });
-  let html; try { html = assemble({ fixParts: parts, keepFixRemovals: m.keep || [] }); } catch (e) { console.log('MISS  assembly refused: ' + m.name + ' — ' + e.message); missed++; continue; }
+  let html; try { html = assemble({ fixParts: parts, keepFixRemovals: m.keep || [], keepFixReplacements: m.keepR || [], replacements: reps }); } catch (e) { console.log('MISS  assembly refused: ' + m.name + ' — ' + e.message); missed++; continue; }
   const builtPath = path.join(dir, 'built-' + i + '.html'); writeFileSync(builtPath, html);
   let out = '', exit = 0;
-  try { out = execFileSync('node', ['talkbridge/build/harness-fixes-28pos.mjs', builtPath], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'], env: { ...process.env, TB_FIX_PARTS_OVERRIDE: paths.join(','), TB_KEEP_FIX: (m.keep || []).join(',') } }); }
+  try { out = execFileSync('node', ['talkbridge/build/harness-fixes-28pos.mjs', builtPath], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'], env: { ...process.env, TB_FIX_PARTS_OVERRIDE: paths.join(','), TB_KEEP_FIX: (m.keep || []).join(','), TB_KEEP_FIX_R: (m.keepR || []).join(','), TB_FIX_REPS: repsPath } }); }
   catch (e) { exit = e.status || 1; out = (e.stdout || '') + (e.stderr || ''); }
   const named = out.split('\n').some((l) => l.startsWith('FAIL  ' + m.catches));
   if (exit !== 0 && named) { console.log('  ok  [' + m.catches.slice(0, 40) + '] catches: ' + m.name); caught++; }
