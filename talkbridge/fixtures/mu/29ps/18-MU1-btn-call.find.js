@@ -1,0 +1,1 @@
+if(!CALL.active)CALL.start('voice')

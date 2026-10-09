@@ -1,0 +1,1 @@
+relaySend({ type: 'call-start', kind: kind, name: room.myName || S.user.name });
