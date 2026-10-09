@@ -213,7 +213,7 @@ def main():
     # Replace the entire fetched window; preserve older actually captured history.
     # A provider's shortened public window must not delete the historical corpus.
     retention_source=old
-    if old.get('unit')!=m.get('native_unit') or old.get('cadence')!=m.get('native_cadence'):
+    if old.get('unit')!=m.get('native_unit') or old.get('cadence')!=m.get('native_cadence') or old.get('sourceVerification') and old['sourceVerification'].get('sourceRevision')!=sha(obs0):
      reference=(old.get('sourceVerification') or {}).get('retainedCapture')
      if not reference or len(reference)!=64 or any(x not in '0123456789abcdef' for x in reference):raise RuntimeError('Older history has invalid units/cadence and no verified capture for recovery')
      retention_source=read(ROOT/'source-retained'/f'{reference}.json',{})

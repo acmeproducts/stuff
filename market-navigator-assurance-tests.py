@@ -85,12 +85,15 @@ class Assurance(unittest.TestCase):
         self.assertEqual('needs-attention',result['state']);self.assertEqual(before,(store/'current.json').read_bytes());self.assertEqual(2,len(list((store/'assurance-events').glob('*.json'))));self.assertEqual('repair-failed',h.read(store/'assurance-status.json')['lastOutcome']['kind'])
     def test_full_collector_repairs_middle_and_value_preserves_older_history(self):self.collect_fixture()
     def test_full_collector_recovers_units_from_verified_older_capture(self):self.collect_fixture(corrupt_unit=True)
-    def collect_fixture(self,corrupt_unit=False):
+    def test_full_collector_recovers_older_corruption_from_prior_capture(self):self.collect_fixture(corrupt_older=True)
+    def collect_fixture(self,corrupt_unit=False,corrupt_older=False):
         work=self.root/'collect';h.write(work/'data/market-backend/data-catalog.json',{'schema':'market-navigator-data-catalog-v1','series':[META]});h.write(work/'data/market-backend/publication-rules.json',{'rules':{}})
         points=[{'t':h.midnight('2026-09-30'),'v':699}]+copy.deepcopy(POINTS);points=[q for q in points if h.calendar(q['t'])!='2026-10-05'];points[3]['v']=999
         old_native=source(points)
-        if corrupt_unit:
-            capture=copy.deepcopy(old_native);sha=h.digest(capture);h.write(work/'market-evidence/source-retained'/f'{sha}.json',capture);old_native['unit']='EUR';old_native['sourceVerification']={'retainedCapture':sha}
+        if corrupt_unit or corrupt_older:
+            capture=copy.deepcopy(old_native);sha=h.digest(capture);h.write(work/'market-evidence/source-retained'/f'{sha}.json',capture);old_native['sourceVerification']={'retainedCapture':sha,'sourceRevision':old_native['sourceRevision']}
+            if corrupt_unit:old_native['unit']='EUR'
+            if corrupt_older:old_native['observations'][0]['v']=99999;old_native['sourceRevision']=h.digest(old_native['observations'])
         h.write(work/'market-evidence/series/qqq.json',old_native);previous=os.getcwd()
         class Response:
             status=200
