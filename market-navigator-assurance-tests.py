@@ -85,6 +85,13 @@ class Assurance(unittest.TestCase):
         for args in [['init','-q'],['config','user.name','Assurance fixture'],['config','user.email','fixture@example.invalid'],['add','.'],['commit','-qm','Retain fixture publications']]:subprocess.run(['git','-C',str(repo),*args],check=True,capture_output=True)
         exporter.retain_published_history(destination,names[2]);self.assertFalse((folder/names[0]).exists());self.assertTrue((folder/names[1]).exists());self.assertTrue((folder/names[2]).exists());entry=h.read(destination/'history.json')[names[0]]
         retained=subprocess.run(['git','-C',str(repo),'show',entry['commit']+':'+entry['path']+'/delivery-manifest.json'],check=True,capture_output=True);self.assertEqual(names[0],json.loads(retained.stdout)['generation'])
+    def test_delivery_proof_closure_excludes_old_refreshes_without_deleting_them(self):
+        old=self.root/'market-evidence/source-verifications'/('f'*32+'.json');h.write(old,{'historical':True})
+        old_response=self.root/'market-evidence/source-responses'/('f'*64+'.bin');old_response.write_bytes(b'historical response')
+        paths=exporter.referenced_source_evidence(self.root)
+        self.assertIn('market-evidence/source-verifications/'+self.receipt['verificationId']+'.json',paths)
+        for response in self.receipt['responses']:self.assertIn('market-evidence/source-responses/'+response['sha256']+'.bin',paths)
+        self.assertNotIn(old.relative_to(self.root).as_posix(),paths);self.assertNotIn(old_response.relative_to(self.root).as_posix(),paths);self.assertTrue(old.exists());self.assertEqual(b'historical response',old_response.read_bytes())
     def test_modified_committed_generation_is_never_pruned(self):
         repo=self.root/'modified-repo';repo.mkdir();destination=repo/'market-navigator-step-zero-review';names=['generation-'+c*20 for c in 'abc'];folder=destination/'generations'
         for name in names:h.write(folder/name/'delivery-manifest.json',{'generation':name,'files':{}})
