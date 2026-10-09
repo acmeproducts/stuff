@@ -8,6 +8,7 @@ def load(name,file):
     spec=importlib.util.spec_from_file_location(name,BASE/file);m=importlib.util.module_from_spec(spec);spec.loader.exec_module(m);return m
 a=load('mn_assurance_tests','market-navigator-assurance.py');h=a.h
 p=load('mn_assurance_collector','market-navigator-rebuild-data/market-navigator-r7-data-pipeline.py')
+archives=load('mn_assurance_archives','market-navigator-rebuild-archives.py')
 r=load('mn_assurance_runner','market-navigator-assurance-run.py')
 NOW=dt.datetime(2026,10,9,18,tzinfo=a.UTC)
 META={'id':'qqq','provider':'Yahoo Finance','provider_identifier':'QQQ','native_unit':'USD','native_cadence':'trading-day','enabled':True}
@@ -65,6 +66,17 @@ class Assurance(unittest.TestCase):
     def test_self_consistent_corrupt_report_numbers_rejected(self):
         path=self.root/'market-evidence/reports/qqq.json';report=h.read(path);report['reports']['5D']['mean']=999;report['computedRevision']=h.digest(report['reports']);h.write(path,report)
         result=a.assess(self.root,NOW);self.assertIn('calculation differs',result['findings'][0]['issues'][0])
+    def test_clean_runner_retrieves_pinned_archive(self):
+        payload=b'{}';sha=h.blob(payload);entries=[{'commit':'pinned','files':[{'path':'market-evidence/series/qqq.json','sha':sha}]}]
+        with patch.object(archives,'request',return_value=payload):result=archives.hydrate_inventory(entries,self.root/'cache',['qqq'])
+        self.assertEqual(1,result['retrieved']);self.assertEqual(payload,(self.root/'cache/blobs'/f'{sha}.json').read_bytes())
+    def test_bad_archive_repaired_without_destroying_bad_checkpoint(self):
+        payload=b'{}';sha=h.blob(payload);target=self.root/'cache/blobs'/f'{sha}.json';target.parent.mkdir(parents=True);target.write_bytes(b'corrupt');entries=[{'commit':'pinned','files':[{'path':'market-evidence/series/qqq.json','sha':sha}]}]
+        with patch.object(archives,'request',return_value=payload):result=archives.hydrate_inventory(entries,self.root/'cache',['qqq'])
+        self.assertEqual(1,result['repaired']);self.assertEqual(payload,target.read_bytes());self.assertEqual(b'corrupt',next(target.parent.glob('*.quarantined-*')).read_bytes())
+    def test_wrong_pinned_source_bytes_do_not_replace_cache(self):
+        sha=h.blob(b'{}');entries=[{'commit':'pinned','files':[{'path':'market-evidence/series/qqq.json','sha':sha}]}]
+        with patch.object(archives,'request',return_value=b'wrong'),self.assertRaisesRegex(ValueError,'hash differs'):archives.hydrate_inventory(entries,self.root/'cache',['qqq'])
     def test_partial_response_is_not_full_verification(self):
         self.receipt['scope']='recent-response';self.assertEqual('unverified',self.check()['status'])
     def test_failed_repair_persists_outcome_and_pointer(self):
