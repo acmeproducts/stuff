@@ -21,7 +21,7 @@ def gaps(meta,points):
         while day<=dates[-1]:
             if day.year in (2026,2027,2028) and day.weekday()<5 and day.isoformat() not in h.policy.NYSE_CLOSED[day.year]:expected.add(day)
             day+=dt.timedelta(days=1)
-        if dates[0].year<2026 or dates[-1].year>2028:limitations.append('Exchange calendar covers 2026ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€¦Ã‚Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã¢â‚¬Â¦ÃƒÂ¢Ã¢â€šÂ¬Ã…â€œ2028; earlier history uses upstream period comparison')
+        if dates[0].year<2026 or dates[-1].year>2028:limitations.append('Exchange calendar covers 2026-2028; earlier history uses upstream period comparison')
     elif cadence=='daily' and meta.get('provider_identifier')=='DFF':
         expected={dates[0]+dt.timedelta(days=n) for n in range((dates[-1]-dates[0]).days+1)}
     elif cadence=='daily':limitations.append('Daily source omissions use upstream period comparison; weekdays alone do not prove publication')

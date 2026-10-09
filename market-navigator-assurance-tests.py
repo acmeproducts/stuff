@@ -1,5 +1,5 @@
 """Fault checks for source replay, complete period coverage, durable recovery and expiry."""
-import copy,datetime as dt,hashlib,importlib.util,json,os,tempfile,unittest
+import copy,datetime as dt,hashlib,importlib.util,json,os,subprocess,tempfile,unittest
 from pathlib import Path
 from unittest.mock import patch
 BASE=Path(__file__).resolve().parent
@@ -8,6 +8,7 @@ def load(name,file):
     spec=importlib.util.spec_from_file_location(name,BASE/file);m=importlib.util.module_from_spec(spec);spec.loader.exec_module(m);return m
 a=load('mn_assurance_tests','market-navigator-assurance.py');h=a.h
 p=load('mn_assurance_collector','market-navigator-rebuild-data/market-navigator-r7-data-pipeline.py')
+exporter=load('mn_assurance_export_tests','market-navigator-assurance-export.py')
 archives=load('mn_assurance_archives','market-navigator-rebuild-archives.py')
 r=load('mn_assurance_runner','market-navigator-assurance-run.py')
 NOW=dt.datetime(2026,10,9,18,tzinfo=a.UTC)
@@ -77,6 +78,26 @@ class Assurance(unittest.TestCase):
     def test_wrong_pinned_source_bytes_do_not_replace_cache(self):
         sha=h.blob(b'{}');entries=[{'commit':'pinned','files':[{'path':'market-evidence/series/qqq.json','sha':sha}]}]
         with patch.object(archives,'request',return_value=b'wrong'),self.assertRaisesRegex(ValueError,'hash differs'):archives.hydrate_inventory(entries,self.root/'cache',['qqq'])
+    def test_published_history_prunes_only_after_reachable_git_capture(self):
+        repo=self.root/'repo';repo.mkdir();destination=repo/'market-navigator-step-zero-review';names=['generation-'+c*20 for c in 'abc'];folder=destination/'generations'
+        for name in names:h.write(folder/name/'delivery-manifest.json',{'generation':name,'files':{}})
+        h.write(destination/'assurance-status.json',{'generation':{'generation':names[1]}})
+        for args in [['init','-q'],['config','user.name','Assurance fixture'],['config','user.email','fixture@example.invalid'],['add','.'],['commit','-qm','Retain fixture publications']]:subprocess.run(['git','-C',str(repo),*args],check=True,capture_output=True)
+        exporter.retain_published_history(destination,names[2]);self.assertFalse((folder/names[0]).exists());self.assertTrue((folder/names[1]).exists());self.assertTrue((folder/names[2]).exists());entry=h.read(destination/'history.json')[names[0]]
+        retained=subprocess.run(['git','-C',str(repo),'show',entry['commit']+':'+entry['path']+'/delivery-manifest.json'],check=True,capture_output=True);self.assertEqual(names[0],json.loads(retained.stdout)['generation'])
+    def test_modified_committed_generation_is_never_pruned(self):
+        repo=self.root/'modified-repo';repo.mkdir();destination=repo/'market-navigator-step-zero-review';names=['generation-'+c*20 for c in 'abc'];folder=destination/'generations'
+        for name in names:h.write(folder/name/'delivery-manifest.json',{'generation':name,'files':{}})
+        h.write(folder/names[0]/'captured.json',{'original':True})
+        h.write(destination/'assurance-status.json',{'generation':{'generation':names[1]}})
+        for args in [['init','-q'],['config','user.name','Assurance fixture'],['config','user.email','fixture@example.invalid'],['add','.'],['commit','-qm','Retain fixture publications']]:subprocess.run(['git','-C',str(repo),*args],check=True,capture_output=True)
+        h.write(destination/'history.json',{names[0]:{'commit':'f'*40,'path':'old record'}})
+        h.write(folder/names[0]/'captured.json',{'localChange':True})
+        exporter.retain_published_history(destination,names[2]);self.assertTrue((folder/names[0]).exists());self.assertEqual({'localChange':True},h.read(folder/names[0]/'captured.json'))
+    def test_uncommitted_local_generation_is_never_pruned(self):
+        destination=self.root/'uncommitted';names=['generation-'+c*20 for c in 'abc']
+        for name in names:h.write(destination/'generations'/name/'delivery-manifest.json',{'generation':name})
+        exporter.retain_published_history(destination,names[2]);self.assertTrue(all((destination/'generations'/name).exists() for name in names))
     def test_partial_response_is_not_full_verification(self):
         self.receipt['scope']='recent-response';self.assertEqual('unverified',self.check()['status'])
     def test_failed_repair_persists_outcome_and_pointer(self):

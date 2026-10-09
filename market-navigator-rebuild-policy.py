@@ -36,7 +36,7 @@ def holidays(year):
 
 # Stricter native deadlines apply to operational qualification from October 8.
 # Historical captures retain their collection-time policy and actual native dates.
-# Official NYSE/ICE 2026â€“2028 schedule verified October 8, 2026.
+# Official NYSE/ICE 2026-2028 schedule verified October 8, 2026.
 # https://www.nyse.com/trade/hours-calendars
 # The two-hour ingestion grace is an application policy, not an exchange rule.
 NYSE_CLOSED = {
