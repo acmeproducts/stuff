@@ -2695,7 +2695,7 @@ CALL.setupPC = async function () {
   this._pcBuilding = false;
   function live() { return GEN.is(gen) && self.pc === pc; }
 
-  if (room.role === 'creator') {
+  if (self.builds()) {                                                          /* D-18: the builder makes the offers */
     pc.onnegotiationneeded = async function () {
       if (!live()) return;
       try {
@@ -7081,7 +7081,7 @@ function handleRelayCore(d) {
     relaySend({ type: 'hello-ack', transient: true, name: room.myName || S.user.name });
     resendUndelivered();
     sendHistorySync(room);
-    if (CALL.active && room.role === 'creator') CALL.resendOffer();
+    if (CALL.active && CALL.builds()) CALL.resendOffer();                        /* D-18 */
     return;
   }
   if (d.type === 'hello-ack') {
@@ -7345,7 +7345,7 @@ var C3_MIN_GAP_MS = 8000;/* two detectors cannot make the creator restart twice 
 CALL._c3LastServed = 0;
 CALL._c3Pending = false;
 function c3Room() { try { return (typeof activeRoom === 'function') ? activeRoom() : null; } catch (_) { return null; } }
-function c3IsCreator() { var r = c3Room(); return !!(r && r.role === 'creator'); }
+function c3IsBuilder() { return CALL.builds(); }                                 /* D-18: the restart is served by whoever built the connection */
 function c3Ufrag(desc) {
   try {
     var m = /a=ice-ufrag:(\S+)/.exec(String((desc && desc.sdp) || ''));
@@ -7458,7 +7458,8 @@ async function callAcceptCore() {
   this.mount(room);
   relaySendWhenOpen({ type: 'call-accept' });
   relaySendWhenOpen({ type: 'mic-state', micOn: this.micOn, transient: true });
-  if (room.role === 'creator') this.setupPC();
+  log('call_builder', { builds: this.builds(), role: room.role }, 'ok');          /* D-18: only the caller builds; the answerer waits for the offer */
+  if (this.builds()) this.setupPC();
   log('call_accept', {}, 'ok');
 }
 
@@ -7467,7 +7468,8 @@ function callOnAcceptedCore(room) {
   clearTimeout(this.callerTimer); this.callerTimer = null;
   if (!this.active) return;
   this.accepted = true;
-  if (room.role === 'creator') this.setupPC();
+  log('call_builder', { builds: this.builds(), role: room.role }, 'ok');          /* D-18: the caller builds, whatever the room says its role is */
+  if (this.builds()) this.setupPC();
 }
 
 /* ── CALL.mount ────────────────────────────────────────────────────────────── */
@@ -7556,7 +7558,7 @@ async function callOnSignalCore(d) {
 async function callOnSignalGlare(d) {
   var room = activeRoom();
   if (d && d.signal && d.signal.description && d.signal.description.type === 'offer' &&
-      room && room.role === 'creator' &&
+      room && this.builds() &&                                                   /* D-18: the builder holds its ground */
       (this.makingOffer || (this.pc && this.pc.signalingState !== 'stable'))) {
     log('rtc_glare_ignored', {}, 'warn');
     return;
@@ -7570,7 +7572,7 @@ CALL.onSignal = function (d) {
   /* C3 · the creator serves a restart; the joiner answers one on the same pc */
   try {
     var sig = d && d.signal;
-    if (sig && sig.restart && c3IsCreator() && this.active && this.pc) {
+    if (sig && sig.restart && c3IsBuilder() && this.active && this.pc) {
       var now = Date.now();
       if (now - this._c3LastServed < C3_MIN_GAP_MS) {
         log('c3_restart_ignored', { sinceMs: now - this._c3LastServed }, 'info');
@@ -7590,7 +7592,7 @@ CALL.onSignal = function (d) {
       return callOnSignalGlare.apply(this, arguments);
     }
     if (sig && sig.description && sig.description.type === 'offer' &&
-        !c3IsCreator() && this.active && this.pc && this.pc.remoteDescription) {
+        !c3IsBuilder() && this.active && this.pc && this.pc.remoteDescription) {
       var cur = c3Ufrag(this.pc.remoteDescription), nxt = c3Ufrag(sig.description);
       if (cur && nxt && cur !== nxt) {
         var pc2 = this.pc, gen2 = GEN.n;
@@ -7620,7 +7622,7 @@ CALL.runRecovery = function (reason) {
   /* C3 · the joiner asks for a restart instead of taking step 2 alone */
   try {
     var r3 = c3Room();
-    if (this.active && r3 && r3.role !== 'creator' && !this.recoveryLock &&
+    if (this.active && r3 && !this.builds() && !this.recoveryLock &&              /* D-18: the non-builder asks */
         this.recoveryStep + 1 === 2 && this.pc) {
       var self3 = this, gen3 = GEN.n;
       this.recoveryLock = true;
@@ -7660,7 +7662,7 @@ CALL.runRecovery = function (reason) {
 
   try {
     if (step === 1) {
-      if (room.role === 'creator' && this.savedOffer) {
+      if (this.builds() && this.savedOffer) {                                     /* D-18 */
         relaySend(this.savedOffer);
         this.savedCandidates.forEach(function (c) { relaySend(c); });
         log('rtc_offer_resent', {}, 'ok');
@@ -7669,7 +7671,7 @@ CALL.runRecovery = function (reason) {
       return;
     }
 
-    if (step === 2 && this.pc && room.role === 'creator') {
+    if (step === 2 && this.pc && this.builds()) {                                 /* D-18 */
       this.pc.createOffer({ iceRestart: true }).then(function (o) {
         if (!GEN.is(gen) || !self.pc) return;
         return self.pc.setLocalDescription(o).then(function () {
@@ -7689,7 +7691,7 @@ CALL.runRecovery = function (reason) {
     this.savedOffer = null; this.savedCandidates = []; this.pendingCandidates = []; this.seenCand = new Set();
     this.remoteStream = null;
     this.stopKeepalive(); this.stopVideoWatchdog();
-    if (room.role === 'creator') {
+    if (this.builds()) {                                                          /* D-18 */
       setTimeout(function () { if (GEN.is(gen) && self.active) self.setupPC(); }, 1200);
     }
     release(12000);
@@ -10022,6 +10024,36 @@ function onRemoteSubtitle(d,room){
   try { x3PendingIn = (d && typeof d.said === 'string' && norm(d.said) && s0) ? { said: norm(d.said), saidLang: String(d.saidLang || ''), normalized: s0, at: Date.now() } : null; } catch (_) { x3PendingIn = null; }   /* X-4: held for the entry about to be born, as the chat path holds it */
   addSpeech('partner',s0,t,d.sourceLang,d.targetLang,d.subtitleSeq,false);
 }
+
+
+/* ═══════════ GAP PART · D18-caller-builds.js ═══════════ */
+/* @contract
+   replaces: (none — twelve banked one-line replacements in callAcceptCore, callOnAcceptedCore, CALL.setupPC, handleRelayCore, c3IsCreator→c3IsBuilder, CALL.onSignal (C3 ask/serve), callOnSignalGlare, CALL.runRecovery)
+   wraps: (none)
+   adds: CALL.builds · marker call_builder
+*/
+/* ─────────────────────────────────────────────────────────────────────────────
+   D-18 · THE CALLER BUILDS THE CONNECTION (owner GO, 2026-10-09)
+
+   Until now only the room's CREATOR built the voice-and-picture link: it made
+   the offer, held its ground in glare, served restarts, rebuilt in recovery,
+   resent the offer on a reconnect. "Creator" is a flag stored on one device.
+   The owner deleted and reinstalled the app; the reinstall kept the rooms and
+   the keys, lost the device identity, and the room came back through its own
+   invite as a joiner — two joiners, no creator, and every call rang, answered
+   and carried nothing, silently. A reinstall is an ordinary event.
+
+   THE RULE: the phone that PLACES the call builds the link; the answerer waits
+   for the offer. Everything that used to ask "am I the creator?" in the call
+   path now asks CALL.builds(): true on the caller from CALL.start until
+   teardown, false on the answerer. Twelve lines change (banked as
+   replacements, each exactly once); nothing else in the call moves. The
+   decision is logged once per call, at the two points where it is taken
+   (accept, and the caller's answer), as call_builder {builds, role}.
+   Proven by harness-fixes-28pos: a two-joiner room now carries a call; a
+   joiner calling the creator builds it; the creator calling still builds it.
+   ───────────────────────────────────────────────────────────────────────────── */
+CALL.builds = function () { return !!this.caller; };
 
 </script>
 </body>
