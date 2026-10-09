@@ -30,3 +30,8 @@ Local desktop automation ran on Microsoft Windows 10 Home with installed Chrome 
 The preview binds Windows loopback. For an Android device connected through an already configured Android debugging bridge, `adb reverse tcp:8785 tcp:8785` makes the same localhost URL accessible in that device's Chrome and preserves a secure loopback origin for Copy. No Android debugging bridge is installed on this host. Physical device connectivity and acceptance have not been claimed.
 
 Static HTML alone cannot collect or self-repair. Production activation requires the governed broker/worker or an equivalent qualified publisher, followed by the owner real-device acceptance required in the approved plan. Historical candidates, baseline, reports, failed stages and earlier data generations remain preserved.
+
+
+## Reusable chart extension
+
+The current branch completes the missing portable API. The preceding e77825df qualification remains the historical checkpoint, not evidence for the extension. NOW and Analyze now use the public chart contract, and `market-navigator-rebuild-chart.js` runs independently with owned markup/styles. Review three custom displays at http://127.0.0.1:8785/market-navigator-rebuild-custom.html. Full contract and service requirements are in `MARKET-NAVIGATOR-REUSABLE-CHART-API.md`. Local portability and state-restoration checks pass; the extension has a separate exact-head CI run. Physical Windows 11/Android and actual AI-provider prose acceptance remain pending before promotion.
