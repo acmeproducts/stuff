@@ -1,17 +1,8 @@
 # TalkBridge device log
 
-Both handsets write here. Drained 2026-10-09T08:54:36Z, every 30s. Newest at the bottom.
+Both handsets write here. Drained 2026-10-09T08:55:08Z, every 30s. Newest at the bottom.
 
 ```
-13:28:07.982 [android-0ts] rc_home_rendered {"cards":0,"wired":0,"dropped":2}
-13:28:07.983 [android-0ts] joiner_create_control {"shown":true,"dropped":2}
-13:28:08.002 [android-0ts] md1_rendered {"id":"fxy7td"}
-13:28:08.003 [android-0ts] chat_sent {"t":"i'm pretty sure you know what i mean whe"}
-13:28:09.248 [android-0ts] dg_final {"t":"talking about normalization"}
-13:28:09.249 [android-0ts] joiner_send_direction {"room":"fj4d34","from":"en","to":"th","role":"creator"}
-13:28:10.603 [android-0ts] trans_ok {"provider":"google","from":"en","to":"th","ms":1353,"inChars":27,"outChars":25}
-13:28:10.637 [android-0ts] chat_sent {"t":"talking about normalization"}
-13:28:10.982 [android-0ts] dg_stopped {}
 13:28:10.982 [android-0ts] chatmic_off {}
 13:28:09.363 [android-flz] trans_ok {"provider":"google","from":"en","to":"th","ms":1241,"inChars":73,"outChars":72}
 13:28:09.364 [android-flz] dg_final {"t":"ฉันค่อนข้างแน่ใจว่าคุณรู้ว่าฉันหมายถึงอะไรเมื่อพูดถึงการทำให"}
@@ -4002,4 +3993,13 @@ Both handsets write here. Drained 2026-10-09T08:54:36Z, every 30s. Newest at the
 08:54:18.419 [android-tzc] rc_home_rendered {"cards":0,"wired":0,"dropped":2}
 08:54:18.423 [android-tzc] joiner_create_control {"shown":true,"dropped":2}
 08:54:18.460 [android-tzc] t1_coalesced {"fn":"renderPanel","n":4}
-08:54:29.854 [android-tzc] pr3_dot {"others":0}```
+08:54:29.854 [android-tzc] pr3_dot {"others":0}
+08:54:38.410 [android-tzc] rc_panel_rendered {"live":6,"bin":0,"wired":6,"dropped":2}
+08:54:38.411 [android-tzc] rc_home_rendered {"cards":0,"wired":0,"dropped":2}
+08:54:38.412 [android-tzc] joiner_create_control {"shown":true,"dropped":2}
+08:54:38.447 [android-tzc] t1_coalesced {"fn":"renderPanel","n":4}
+08:54:58.420 [android-tzc] rc_panel_rendered {"live":6,"bin":0,"wired":6,"dropped":2}
+08:54:58.421 [android-tzc] rc_home_rendered {"cards":0,"wired":0,"dropped":2}
+08:54:58.425 [android-tzc] joiner_create_control {"shown":true,"dropped":2}
+08:54:58.460 [android-tzc] t1_coalesced {"fn":"renderPanel","n":4}
+08:54:59.843 [android-tzc] pr3_dot {"others":0}```
