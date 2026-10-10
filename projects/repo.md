@@ -107,3 +107,8 @@ DECISION LOG
 
 APPENDIX
 - **Authority Order**: This plan (`projects/repo.md`) is the sole authority for the project. All chat history is subordinate to the plan. Any future changes must be recorded here before code modifications.
+
+## RUN LOG (written by DevStream)
+| Date | Tab | Result | What | Commit |
+|---|---|---|---|---|
+| 2026-10-10 01:14 | Main | built projects/repo.html | Implemented live GitHub API fetching for repo data and updated the plan to record this step. | eb70202 |
