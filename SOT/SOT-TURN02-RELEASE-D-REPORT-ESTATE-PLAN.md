@@ -233,3 +233,10 @@ Freshness: Connected describes transport only. Separate evidence state Current /
 **Change (engine):** unreadable files stay as ERROR placements (shown for review) but are excluded from the integrity comparison; discovery-time failures are tagged `discovery:` so they are not mistaken for scanned files. The source now completes and reports its error count.
 **Change (UI):** the Report | Job Status row and the Summary | Roots row are gone. The top strip carries Report, Job Status, Roots, Search, Add and AI icons, with exactly one highlighted for the page you are on. The chart-type icons are the first row inside Report.
 **Qualification:** new `qualify-release-d-unreadable.py` (real engine, simulated unreadable files; failed before the fix, passes after); runtime qualifier checks the strip order and highlight for each page.
+
+## 2026-10-10 — One-row header; failed sources are retried at startup
+
+**Evidence (owner screenshot):** the title and "Connected" text took a row; the Recordings source still showed Problem (the fix had not been installed yet).
+**Change (UI):** header is a single row: the icon strip, a connection dot (text kept for screen readers) and settings; title removed.
+**Change (autosync):** startup recovery no longer re-queues a finished source just because it holds unreadable-file rows, and it does retry any source that has never completed a sync (so the previously failed Recordings source is retried after the update).
+**Qualification:** runtime qualifier checks the one-row header at desktop and 412 px; the unreadable-files gate runs the recovery query for both cases.

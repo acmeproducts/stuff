@@ -38,6 +38,13 @@ try:
   print("PASS errored placements stay visible as ERROR (REVIEW), good ones are AVAILABLE")
   js=srv.S.rows("SELECT state FROM job_sources WHERE job_id=? AND source_id=?",(info["job_id"],sid))[0]["state"];assert js=="COMPLETED",js
   print("PASS the source row is COMPLETED, so it records a last synchronized time (it was 'Never' before)")
+  # startup recovery must retry a never-synced source but not re-queue a finished source just because it holds error rows
+  src_txt=(HERE/"sot-turn02-release-d-autosync.py").read_text();blk=src_txt[src_txt.index("def recover_pending_sources"):];sql=blk.split('"""')[1]
+  assert "COALESCE(p.availability,'')!='ERROR'" in sql
+  ids=[r["source_id"] for r in srv.S.rows(sql)];assert sid not in ids,("a completed source with unreadable files is re-queued on every restart",ids)
+  srv.S.submit("UPDATE job_sources SET state='FAILED' WHERE source_id=?",(sid,),True);srv.S.drain(5)
+  ids=[r["source_id"] for r in srv.S.rows(sql)];assert sid in ids,"a source that never completed must be retried at startup"
+  print("PASS startup recovery skips a finished source with error rows and retries one that never completed")
 finally:
  builtins.open=real_open
  if old is not None:os.environ["HOME"]=old
