@@ -15,7 +15,7 @@ import { readFileSync } from 'fs';
 import { PARTS, ADDED_MARKERS, ADDED_SYMBOLS, NETWORK_CHANGE, assemble, replacements, base as baseText } from './assemble-29ps.mjs';
 import { makeWindow, runBoth, KEYS, diff, mask, tick, sleep, clock } from './rig-28pos.mjs';
 
-const candP = process.argv[2] && !process.argv[2].startsWith('--') ? process.argv[2] : 'bridge-turn29-pre-ship.html';
+const candP = process.argv[2] && !process.argv[2].startsWith('--') ? process.argv[2] : 'bridge-turn29-multi-user-v1.html';
 const cand = readFileSync(candP, 'utf8');
 const base = baseText();
 const parts = PARTS.map((p) => process.env.TB_MU1_PARTS ? readFileSync(process.env.TB_MU1_PARTS, 'utf8') : readFileSync(p, 'utf8'));
