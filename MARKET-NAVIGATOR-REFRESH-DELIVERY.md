@@ -1,3 +1,5 @@
+> Owner rejected this candidate on October 10 after testing reusable-chart line focus, step inspection and custom surface geometry. The PASS evidence below is retained as historical automated evidence, not owner acceptance. See MARKET-NAVIGATOR-OWNER-TEST-GATES-SURFACE.md for the retry.
+
 # Refresh recovery delivery — October 10
 
 Qualified candidate: 86e3aff9202049319d3fc19f065bc9f8715ccb93. Owner explicitly approved the publisher and recurring recovery scope after automatic approval initially rejected it. Activation 7774f008714eaa3ad14e9d3233d251058617352a changed only the main review-publisher workflow. Publication b750333e4aa12e5cb2b184f8212798d547354525 is deployed.
