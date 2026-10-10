@@ -89,3 +89,4 @@ APPENDIX
 | Date | Tab | Result | What | Commit |
 |---|---|---|---|---|
 | 2026-10-09 18:35 | Main | built projects/repo.html | Added the initial dashboard UI skeleton for Release 2 with left‑rail repo list and right‑side tabbed panels. | a973026 |
+| 2026-10-10 01:07 | Main | built projects/repo.html | Added functional dashboard logic with static repo data, dynamic rendering, and a working “Analyze” flow. | db23fb1 |
