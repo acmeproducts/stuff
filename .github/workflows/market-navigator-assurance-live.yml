@@ -15,7 +15,7 @@ concurrency:
 jobs:
   recover-and-publish:
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 55
     steps:
       - uses: actions/checkout@v4
         with:
@@ -24,7 +24,7 @@ jobs:
           fetch-depth: 1
       - uses: actions/checkout@v4
         with:
-          ref: d148664668e37c3e18b151e55e02498be4d22e5a
+          ref: 86e3aff9202049319d3fc19f065bc9f8715ccb93
           path: worker
       - uses: actions/setup-python@v5
         with:
@@ -33,10 +33,14 @@ jobs:
         working-directory: worker
         run: |
           python market-navigator-assurance-tests.py
+          python market-navigator-assurance-relay-tests.py
           node market-navigator-assurance-view-tests.cjs
       - name: Detect recollect verify and stage a complete generation
         id: recovery
         continue-on-error: true
+        env:
+          MN_RELAY_INTERVAL_SECONDS: 1200
+          MN_WORKFLOW_RUN_URL: https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}
         working-directory: worker
         run: |
           args=()
@@ -87,6 +91,35 @@ jobs:
           name: market-navigator-assurance-delivery-${{ github.run_id }}
           path: worker/market-navigator-assurance-hosted-proof.json
           if-no-files-found: warn
+      - name: Queue the next serialized recovery
+        if: always() && steps.recovery.outcome != 'skipped'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        working-directory: worker
+        run: |
+          set -euo pipefail
+          python -c "import json; s=json.load(open('.assurance-store/assurance-status.json')); assert s['publisher']['mode']=='serialized-dispatch-relay'; assert 300<=s['publisher']['intervalSeconds']<=1800"
+          gh workflow run market-navigator-assurance-live.yml --ref main
+          python - <<'PY'
+          import datetime as dt,json,time
+          from pathlib import Path
+          status=json.loads(Path('.assurance-store/assurance-status.json').read_text())
+          window=status['publisher']['nextAttemptNotBefore']
+          Path('market-navigator-assurance-relay-proof.json').write_text(json.dumps({'dispatchAccepted':True,'currentRun':status['publisher']['workflowRunId'],'nextAttemptNotBefore':window,'verificationExtendedByDispatch':False},indent=2))
+          remaining=max(0,(dt.datetime.fromisoformat(window)-dt.datetime.now(dt.timezone.utc)).total_seconds())
+          # Concurrency holds the dispatched successor until this real recovery window.
+          while remaining>0:
+              time.sleep(min(30,remaining))
+              remaining=max(0,(dt.datetime.fromisoformat(window)-dt.datetime.now(dt.timezone.utc)).total_seconds())
+          PY
+      - name: Preserve recovery relay receipt
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: market-navigator-assurance-relay-${{ github.run_id }}
+          path: worker/market-navigator-assurance-relay-proof.json
+          if-no-files-found: warn
       - name: Report an unresolved source repair
         if: steps.recovery.outcome != 'success'
         run: exit 1
+
