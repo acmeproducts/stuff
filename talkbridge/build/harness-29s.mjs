@@ -1,8 +1,8 @@
 #!/usr/bin/env node
-/* 29·ship harness — INSTALL OPTIONAL (§7.19), candidate 1.
+/* 29·ship harness — INSTALL OPTIONAL (§7.19), candidate 2.
    S  the stage = the accepted 29·pre-ship page + sixteen banked edits + IO-1, and nothing else (reversal proof); symbols, markers,
       no new network, credential or message type · M  manifests and the head's own choice · W  the worker, live in a shim ·
-   A  the real app boots in every launch and asks for nothing outside a tap · B  the offer, once · C  the Notify tab ·
+   A  the real app boots in every launch and asks for nothing outside a tap · B  the offer, once · C  the Notify and Install tabs ·
    D  the ring: the caller never vibrates, a muted room is silent · E  the window announces what it is.
    Usage: node harness-29s.mjs   TB_IO_PART=<part.js>  TB_IO_KEEP=id,id  TB_IO_KEEP_W=id,id  TB_IO_DIR=<folder>  TB_IO_NO_START_URL=1  TB_IO_IOS_START_URL=1 */
 import fs from 'node:fs';
@@ -265,7 +265,7 @@ await T('B6 an iPhone tab: the bar offers the Home Screen (words and "Show me");
   const J = await live({ ua: UA.ios, notif: null }); await intoRoom(J); J.w.nf.go = (u) => { went = 'second:' + u; }; J.w.CALL.active = true; J.w.nfReloadForSteps(); assert(went && !/^second:/.test(went), 'the page reloaded in the middle of a call'); J.w.CALL.active = false;
 });
 
-console.log('C · the Notify tab');
+console.log('C · the Notify and Install tabs');
 await T('C1 present only while notifications are not set up: shown for not-asked, allowed-but-not-subscribed, blocked and iPhone-tab; hidden once on, and where the browser cannot', async () => {
   const st = async (o) => { const I = await live({ ua: UA.android, ...o }); I.w.nfTick(); const t = I.w.document.querySelector('#drawer-tabs [data-tab="notify"]'); return { shown: !!t && t.style.display !== 'none', state: I.w.nfState(), I }; };
   const d = await st({ notif: 'default' }); assert(d.shown && d.state === 'default', 'default'); const dn = await st({ notif: 'denied' }); assert(dn.shown, 'denied'); const un = await st({ notif: 'default', push: false }); assert(!un.shown && un.state === 'unsupported', 'unsupported ' + un.state);
@@ -287,6 +287,28 @@ await T('C4 the reloaded iPhone page: loaded at ?nf=…#j=<link-device>, it boot
   const I = await live({ ua: UA.ios, notif: null, search: '?nf=abc', hash, wait: 1200 }); assert(I.has('p2_tab_boot') && I.ev('boot')[0].d.mode === 'device-link', 'boot mode: ' + JSON.stringify(I.ev('boot').map((l) => l.d)));
   assert(I.w.S.view === 'room' && I.w.S.roomId === 'room-1' && I.w.S.user.name === 'Ann', 'not in the room as the same person'); assert(I.has('nf_ios_steps') && I.w.document.querySelector('.drawer-pane.active').getAttribute('data-pane') === 'notify', 'the Notify pane did not open');
   I.w.nf.go = (u) => { went = u; }; I.w.nfRenderPane(); assert(/Add to Home Screen/.test(I.$('nf-pane').textContent), 'steps missing'); I.w.document.querySelector('#drawer-tabs [data-tab="notify"]').click(); assert(went === null, 'reloaded again'); assert(I.w.__subCalls === 0 && !I.w.__notif.calls, 'asked the browser'); assert(I.errors.length === 0, I.errors.join(' | '));
+});
+
+await T('C5 the Install tab: in a tab it is there on every platform; installed it is not. Android with the browser\'s offer: the offer is held (default prevented), the pane has Install app, and the tap raises the browser\'s dialog inside the tap, once; the outcome is logged; appinstalled removes the tab', async () => {
+  const I = await live({ ua: UA.android, notif: 'default' }); await intoRoom(I); I.w.nfTick(); const tab = () => I.w.document.querySelector('#drawer-tabs [data-tab="install"]'); assert(tab() && tab().style.display !== 'none' && I.ev('nf_install_tab_shown').length === 1, 'no Install tab in a tab');
+  let prompted = 0, inTap = false; const ev = new I.w.Event('beforeinstallprompt', { cancelable: true }); ev.prompt = () => { prompted++; inTap = I.w.__inTap === true; return Promise.resolve(); }; ev.userChoice = Promise.resolve({ outcome: 'accepted' });
+  I.w.dispatchEvent(ev); assert(ev.defaultPrevented && I.has('nf_install_available'), 'the browser\'s offer was not held');
+  I.$('btn-drawer').click(); tab().click(); assert(I.w.document.querySelector('.drawer-pane.active').getAttribute('data-pane') === 'install', 'pane not active'); const b = I.$('nf-install-now'); assert(b && /Install app/.test(b.textContent), 'no Install app button: ' + I.$('nf-install-pane').textContent.slice(0, 100));
+  assert(prompted === 0, 'prompted before the tap'); I.w.__inTap = true; b.click(); I.w.__inTap = false; assert(prompted === 1 && inTap, 'the dialog was not raised inside the tap'); await sleep(60); assert(I.ev('nf_install_prompt').length === 1 && I.ev('nf_install_prompt')[0].d.outcome === 'accepted', 'outcome not logged');
+  assert(!I.$('nf-install-now') && I.w.nf.deferred === null, 'the offer can be used twice'); I.w.dispatchEvent(new I.w.Event('appinstalled')); assert(I.has('nf_install_done') && tab().style.display === 'none', 'the tab survived appinstalled'); assert(I.errors.length === 0, I.errors.join(' | '));
+});
+await T('C6 an installed app shows no Install tab on any phone; with no offer from the browser the pane gives the platform\'s steps (desktop: the address bar; Android: the menu)', async () => {
+  for (const ua of ['android', 'ios', 'desktop']) { const I = await live({ ua: UA[ua], notif: 'default', standalone: true }); await intoRoom(I); I.w.nfTick(); const t = I.w.document.querySelector('#drawer-tabs [data-tab="install"]'); assert(!t || t.style.display === 'none', ua + ': an installed app shows the Install tab'); assert(!I.has('nf_install_tab_shown'), ua + ': tab_shown logged when installed'); }
+  const d = await live({ ua: UA.desktop, notif: 'default' }); await intoRoom(d); d.w.nfTick(); d.$('btn-drawer').click(); d.w.document.querySelector('#drawer-tabs [data-tab="install"]').click(); assert(/address bar/i.test(d.$('nf-install-pane').textContent) && !d.$('nf-install-now'), 'desktop: ' + d.$('nf-install-pane').textContent.slice(0, 160));
+  const a = await live({ ua: UA.android, notif: 'default' }); await intoRoom(a); a.w.nfTick(); a.$('btn-drawer').click(); a.w.document.querySelector('#drawer-tabs [data-tab="install"]').click(); assert(/<ol/.test(a.$('nf-install-pane').innerHTML) && /menu/i.test(a.$('nf-install-pane').textContent) && !a.$('nf-install-now'), 'android: ' + a.$('nf-install-pane').textContent.slice(0, 160));
+});
+await T('C7 an iPhone tab: tapping Install reloads at the link-device address with to=install (once, never in a call); the reloaded page opens the Install pane with the Home Screen steps and asks the browser for nothing', async () => {
+  const I = await live({ ua: UA.ios, notif: null }); await intoRoom(I); let went = null; I.w.nf.go = (u) => { went = u; }; I.w.nfTick(); I.$('btn-drawer').click(); I.w.document.querySelector('#drawer-tabs [data-tab="install"]').click();
+  assert(went && /\?nf=[a-z0-9]+&to=install#j=/.test(went) && went.indexOf(STAGE_URL) === 0, 'reload url: ' + went); const J = await live({ ua: UA.ios, notif: null }); await intoRoom(J); let w2 = null; J.w.nf.go = (u) => { w2 = u; }; J.w.CALL.active = true; J.w.nfTick(); J.$('btn-drawer').click(); J.w.document.querySelector('#drawer-tabs [data-tab="install"]').click(); J.w.CALL.active = false; assert(w2 === null, 'reloaded in a call');
+  const hash = '#j=' + encInv({ r: 'room-1', ld: 1, role: 'creator', ml: 'en', tl: 'th', myn: 'Ann', pn: 'Bo', t: 'Gate' }); const K = await live({ ua: UA.ios, notif: null, search: '?nf=abc&to=install', hash, wait: 1200 });
+  assert(K.w.S.view === 'room' && K.w.S.user.name === 'Ann' && K.has('nf_ios_steps') && K.w.document.querySelector('.drawer-pane.active').getAttribute('data-pane') === 'install', 'the Install pane did not open: ' + (K.w.document.querySelector('.drawer-pane.active') || { getAttribute: () => 'none' }).getAttribute('data-pane'));
+  assert(/Add to Home Screen/.test(K.$('nf-install-pane').textContent), 'steps missing'); let w3 = null; K.w.nf.go = (u) => { w3 = u; }; K.w.document.querySelector('#drawer-tabs [data-tab="install"]').click(); assert(w3 === null, 'reloaded again'); assert(K.w.__subCalls === 0 && !K.w.__notif.calls && K.errors.length === 0, 'asked the browser / errors');
+  const L = await live({ ua: UA.ios, notif: null, search: '?nf=abc', hash, wait: 1200 }); assert(L.w.document.querySelector('.drawer-pane.active').getAttribute('data-pane') === 'notify', 'a reload without to= must still open Notify');
 });
 
 console.log('D · the ring');
