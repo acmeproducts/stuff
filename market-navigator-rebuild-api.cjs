@@ -79,6 +79,7 @@ output=output.replace('function rebuildRefreshStyles(instance){const chart=insta
 output=output.replace("seriesPromises:{}},spec)","seriesPromises:{}})");
 output=output.replaceAll('ensureRebuildNow().update({})','ensureRebuildNow().configure({})').replace('instance.update({})','instance.configure({})');
 output=require('./market-navigator-rebuild-report-review.cjs')(output,babel);
+output=require('./market-navigator-rebuild-refresh-review.cjs')(output,babel);
 new vm.Script(output);
 fs.writeFileSync('market-navigator-rebuild-candidate.html',base.slice(0,offset)+output+base.slice(offset+code.length));
 console.log('Built portable MNChart: blank-host view, isolated data/helpers, public options, explicit dimensions/axes, shared NOW/Analyze');

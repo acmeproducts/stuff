@@ -1,0 +1,125 @@
+name: Market Navigator operational data assurance
+on:
+  push:
+    branches: [main]
+    paths: ['.github/workflows/market-navigator-assurance-live.yml']
+  schedule:
+    - cron: '7,37 * * * *'
+  workflow_dispatch:
+permissions:
+  contents: write
+  actions: write
+concurrency:
+  group: market-navigator-assurance-publication
+  cancel-in-progress: false
+jobs:
+  recover-and-publish:
+    runs-on: ubuntu-latest
+    timeout-minutes: 55
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+          path: published
+          fetch-depth: 1
+      - uses: actions/checkout@v4
+        with:
+          ref: d148664668e37c3e18b151e55e02498be4d22e5a
+          path: worker
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Qualify guardrails before collection
+        working-directory: worker
+        run: |
+          python market-navigator-assurance-tests.py
+          python market-navigator-assurance-relay-tests.py
+          node market-navigator-assurance-view-tests.cjs
+      - name: Detect recollect verify and stage a complete generation
+        id: recovery
+        continue-on-error: true
+        env:
+          MN_RELAY_INTERVAL_SECONDS: 1200
+          MN_WORKFLOW_RUN_URL: https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        working-directory: worker
+        run: |
+          args=()
+          if [[ '${{ github.event_name }}' == 'push' ]]; then args+=(--qualify-recovery); fi
+          python market-navigator-assurance-hosted.py --destination ../published/market-navigator-step-zero-review --store .assurance-store "${args[@]}"
+      - name: Preserve the repair ledger and failed-stage evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          include-hidden-files: true
+          name: market-navigator-assurance-${{ github.run_id }}
+          path: |
+            worker/.assurance-store/assurance-status.json
+            worker/.assurance-store/hosted-fault-proof.json
+            worker/.assurance-store/hosted-input-*/market-evidence/series/qqq.json
+            worker/.assurance-store/hosted-input-*/market-evidence/series/spy.json
+            worker/.assurance-store/assurance-events
+            worker/.assurance-store/working-*/market-evidence/data-assurance.json
+            worker/.assurance-store/working-*/collector-result.txt
+          if-no-files-found: warn
+      - name: Publish only the isolated owner review namespace
+        working-directory: published
+        run: |
+          set -euo pipefail
+          git config user.name 'market-navigator-assurance-bot'
+          git config user.email 'market-navigator-assurance-bot@users.noreply.github.com'
+          git add -- market-navigator-step-zero-review
+          if git diff --cached --quiet; then exit 0; fi
+          git commit -m 'data: publish Market Navigator source verification and repair evidence'
+          git fetch origin main
+          git rebase origin/main
+          git push origin HEAD:main
+      - name: Deploy the committed snapshot and status
+        env:
+          GH_TOKEN: ${{ github.token }}
+        working-directory: published
+        run: gh workflow run static.yml --ref main
+      - name: Independently verify published native data and index calculations
+        if: steps.recovery.outcome == 'success'
+        working-directory: worker
+        run: |
+          generation=$(python -c "import json; print(json.load(open('.assurance-store/current.json'))['generation'])")
+          python market-navigator-assurance-hosted-verify.py --url https://acmeproducts.github.io/stuff/market-navigator-step-zero-review/ --generation "$generation"
+      - name: Preserve independent delivery evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: market-navigator-assurance-delivery-${{ github.run_id }}
+          path: worker/market-navigator-assurance-hosted-proof.json
+          if-no-files-found: warn
+      - name: Queue the next serialized recovery
+        if: always() && steps.recovery.outcome != 'skipped'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        working-directory: worker
+        run: |
+          set -euo pipefail
+          python -c "import json; s=json.load(open('.assurance-store/assurance-status.json')); assert s['publisher']['mode']=='serialized-dispatch-relay'; assert 300<=s['publisher']['intervalSeconds']<=1800"
+          gh workflow run market-navigator-assurance-live.yml --ref main
+          python - <<'PY'
+          import datetime as dt,json,time
+          from pathlib import Path
+          status=json.loads(Path('.assurance-store/assurance-status.json').read_text())
+          window=status['publisher']['nextAttemptNotBefore']
+          Path('market-navigator-assurance-relay-proof.json').write_text(json.dumps({'dispatchAccepted':True,'currentRun':status['publisher']['workflowRunId'],'nextAttemptNotBefore':window,'verificationExtendedByDispatch':False},indent=2))
+          remaining=max(0,(dt.datetime.fromisoformat(window)-dt.datetime.now(dt.timezone.utc)).total_seconds())
+          # Concurrency holds the dispatched successor until this real recovery window.
+          while remaining>0:
+              time.sleep(min(30,remaining))
+              remaining=max(0,(dt.datetime.fromisoformat(window)-dt.datetime.now(dt.timezone.utc)).total_seconds())
+          PY
+      - name: Preserve recovery relay receipt
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: market-navigator-assurance-relay-${{ github.run_id }}
+          path: worker/market-navigator-assurance-relay-proof.json
+          if-no-files-found: warn
+      - name: Report an unresolved source repair
+        if: steps.recovery.outcome != 'success'
+        run: exit 1
+

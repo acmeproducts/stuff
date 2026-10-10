@@ -1,5 +1,5 @@
 """Hosted refresh entry point. Overlay the last public generation onto the retained rebuild base."""
-import argparse,importlib.util,json,shutil,uuid
+import argparse,datetime as dt,importlib.util,json,os,shutil,uuid
 from pathlib import Path
 BASE=Path(__file__).resolve().parent
 
@@ -35,6 +35,13 @@ def refresh(destination,store,qualify_recovery=False):
         if injected['missingQQQDate'] not in by_date or by_date[injected['corruptQQQDate']]['v']!=injected['expectedQQQValue'] or spy['unit']!='USD':raise ValueError('Hosted repaired observations/units differ')
         injected.update(repairedGeneration=result['generation'],allDatasetsVerified=result['assurance']['summary']['verified'],missingObservationRestored=by_date[injected['missingQQQDate']]['v'],corruptValueRepaired=by_date[injected['corruptQQQDate']]['v'],spyUnitRepaired=spy['unit'],previousPublishedGenerationPreserved=not injected['priorGeneration'] or (destination/'generations'/injected['priorGeneration']['generation']).exists())
         r.h.write(store/'hosted-fault-proof.json',injected);r.h.write(destination/'hosted-fault-proof.json',injected)
+
+    interval=os.environ.get('MN_RELAY_INTERVAL_SECONDS')
+    if interval:
+        seconds=int(interval) if result['state'].startswith('verified') else 300
+        if not 300<=seconds<=1800:raise ValueError('Invalid recovery relay interval')
+        result['publisher']={'mode':'serialized-dispatch-relay','intervalSeconds':seconds,'workflowRunId':os.environ.get('GITHUB_RUN_ID'),'workflowRunURL':os.environ.get('MN_WORKFLOW_RUN_URL'),'nextAttemptNotBefore':(dt.datetime.now(dt.timezone.utc)+dt.timedelta(seconds=seconds)).isoformat(),'scheduleFallback':True}
+        r.h.write(store/'assurance-status.json',result)
 
     if result['generation']:
         proof=e.export(store,destination)

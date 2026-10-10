@@ -142,7 +142,7 @@
 }
 function chartIcon26(){return '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 19V5M4 19H20M7 15l4-4 3 2 5-6"/></svg>'}
 function standaloneAnalysisState26(){return rebuildAnalyze?.getState().state||null}
-async function openStandaloneAnalysis26(id){if(window.__mnDataBroker&&!rebuildAnalyze){await rebuildRefreshData(true);const qualified=window.__mnDataBroker.status();if(!qualified||Date.now()>=Date.parse(qualified.validUntil)||$('rebuildFreshStatus'))return false}
+async function openStandaloneAnalysis26(id){if(window.__mnDataBroker&&!rebuildAnalyze){rebuildRefreshStatus();void rebuildRefreshData(true)}
  if(S.view!=='now'||rebuildAnalyze||!rebuildNow)return false;
  const nowState=rebuildNow.getSnapshot(),nowOptions=rebuildNow.getOptions();if(nowOptions.view==='overview'||!nowState?.series.includes(id))return false;
  const services=rebuildServices();services.canAnalyze=false;services.namespace='mn-analyze-';services.breadcrumb=options=>'Analyze / '+displayLabel(options.anchor);services.lineage=options=>'ANALYZE/'+displayLabel(options.anchor);
@@ -150,7 +150,7 @@ async function openStandaloneAnalysis26(id){if(window.__mnDataBroker&&!rebuildAn
  nav('now');return true;
 }
 function closeStandaloneAnalysis26(){
- if(!rebuildAnalyze)return;rebuildAnalyze.destroy();rebuildAnalyze=null;nav('now');rebuildRefreshStyles(rebuildNow);void rebuildRefreshData(true);
+ if(!rebuildAnalyze)return;rebuildAnalyze.destroy();rebuildAnalyze=null;nav('now');rebuildRefreshStyles(rebuildNow);rebuildNextCheck=0;void rebuildRefreshData(true);
 }
 
 async function sourceSetStandalone26(id,w,color,h){
@@ -260,7 +260,7 @@ async function chartSnapshotFrom(state,origin='frozen'){
         return{id:z.id,label:z.label,full:z.full,unit:z.unit,color:z.color,renderType:z.renderType||'line',measurementFamily:measurementFamily(z.id),axis:plan.map[z.id]||0,axisLabel:z.derived?'Index':(unitKind(z.id)==='percent'?'Percent':unitKind(z.id)==='money'?'$ / USD':z.unit),available:pts.length>0,points:pts.map(p=>({t:+p.t,v:+p.v,idx:Number.isFinite(+p.idx)?+p.idx:null,raw:Number.isFinite(+p.raw)?+p.raw:+p.v,sourceT:+(p.sourceT||p.t)}))}}
       );
   return{schema:'market-navigator-chart-snapshot-v1',origin,capturedAt:new Date().toISOString(),horizon:h,window:w,mode,active:state.active||state.root||ids[0]||null,series,dataRevision:{derived:S.derived.revision||S.derived.version||'',derivedGeneratedAt:S.derived.generatedAt||'',catalog:S.catalog.version||'',healthGeneratedAt:S.health.generatedAt||''}}
-}function aiEvidenceState(state){let chart=state.chart||{};return{governedIndexExplanation:state.indexExplanation||null,relationships:state.relationships||MNInsights.chartRelationships(state),nativeCutoffs:(chart.series||[]).map(z=>({id:z.id,lastNativeDate:MNInsights.observed(z.points).size?[...MNInsights.observed(z.points).keys()].sort().at(-1):null})),governedModelHealth:state.modelHealth||null,governedEvidenceContract:'indexExplanation and modelHealth are deterministic governed arithmetic. Interpret them. Do not recalculate, replace, correct or complete any value in them.',lineage:state.lineage,root:state.root,series:state.series,horizon:state.horizon,index:state.index,evidence:state.evidence,chart:{schema:chart.schema,mode:chart.mode,horizon:chart.horizon,window:chart.window,requestedWindow:chart.requestedWindow||chart.window,axes:chart.axes||null,display:chart.display||null,dataRevision:chart.dataRevision,series:(chart.series||[]).map(z=>({id:z.id,label:z.label,unit:z.unit,measurementFamily:z.measurementFamily,axis:z.axis,available:z.available,observationCount:(z.points||[]).length,first:(z.points||[])[0]||null,last:(z.points||[]).at(-1)||null}))}}}function generatedAnalysisTitle(markdown,fallback){let first=String(markdown||'').split(/\n/).find(x=>/^#\s+\S/.test(x)),title=first?first.replace(/^#\s+/,'').replace(/[*_`\[\]]/g,'').trim():'';return(title&&title.length<=100?title:title.slice(0,100))||fallback}async function startAI(stateOverride=null){
+}function aiEvidenceState(state){let chart=state.chart||{};return{verification:state.verification||null,verificationInstruction:state.verification?.status==='delayed'?'This is an integrity-checked historical snapshot. Live source verification was delayed when this scope was captured. State its verification timestamp; do not claim it is currently source-verified.':null,governedIndexExplanation:state.indexExplanation||null,relationships:state.relationships||MNInsights.chartRelationships(state),nativeCutoffs:(chart.series||[]).map(z=>({id:z.id,lastNativeDate:MNInsights.observed(z.points).size?[...MNInsights.observed(z.points).keys()].sort().at(-1):null})),governedModelHealth:state.modelHealth||null,governedEvidenceContract:'indexExplanation and modelHealth are deterministic governed arithmetic. Interpret them. Do not recalculate, replace, correct or complete any value in them.',lineage:state.lineage,root:state.root,series:state.series,horizon:state.horizon,index:state.index,evidence:state.evidence,chart:{schema:chart.schema,mode:chart.mode,horizon:chart.horizon,window:chart.window,requestedWindow:chart.requestedWindow||chart.window,axes:chart.axes||null,display:chart.display||null,dataRevision:chart.dataRevision,series:(chart.series||[]).map(z=>({id:z.id,label:z.label,unit:z.unit,measurementFamily:z.measurementFamily,axis:z.axis,available:z.available,observationCount:(z.points||[]).length,first:(z.points||[])[0]||null,last:(z.points||[]).at(-1)||null}))}}}function generatedAnalysisTitle(markdown,fallback){let first=String(markdown||'').split(/\n/).find(x=>/^#\s+\S/.test(x)),title=first?first.replace(/^#\s+/,'').replace(/[*_`\[\]]/g,'').trim():'';return(title&&title.length<=100?title:title.slice(0,100))||fallback}async function startAI(stateOverride=null){
   let now=new Date().toISOString(),reg=aiRegistry(),p=reg.defaultProvider||'venice',cfg=(reg.providers||{})[p]||{};
   if(!cfg.verified||!cfg.key||!cfg.model){openConfig('ai');setPStatus(p,'Register this provider before starting an Analysis',false);return}
   let state=stateOverride||nowAnalysisState();await rebuildEnrichState(state);let level=state.interpretationLevel||reg.interpretationLevel||'standard',rootLabel=state.root?displayLabel(state.root):'ENV';state.interpretationLevel=level;let a={id:'a-'+Date.now(),title:`${rootLabel} · ${state.horizon}`,titleManual:false,status:'processing',createdAt:now,updatedAt:now,state,provider:p,model:cfg.model||'',interpretationLevel:level,activeInterpretation:level,interpretations:{},turns:[{role:'assistant',content:'Processing…',at:now,processing:true}]};
@@ -1276,9 +1276,9 @@ function indexDisplayCurve28(curve){let a=(curve||[]).map(p=>({t:+p.t,v:+p.v,idx
 }});window.MNChart=MNChart;
 let rebuildNow=null,rebuildLibrary=null,rebuildAnalyze=null;
 function readOnly(value){if(value&&typeof value==='object'){for(const child of Object.values(value))readOnly(child);Object.freeze(value)}return value}
-function rebuildServices(){return{beforeRender:()=>rebuildRefreshData(),selectionInformation:false,colors:chartColors,style:seriesStyle,paletteName:()=>paletteState().name,informationURL:healthEntryUrl26,metadata:readOnly(structuredClone({derived:S.derived,def:S.def,health:S.health,catalog:S.catalog,sourceRegistry:S.sourceRegistry})),getSeries:async id=>readOnly(structuredClone(await getSeries(id))),window:horizonWindow,available:rebuildSeriesAvailable,onAnalyze:openStandaloneAnalysis26,
- onInfo:(state,button)=>mnxOpenExplanation(state,button),closeInfo:()=>{mnxCloseExplanation();$('dataModal').classList.add('hidden')},
- onAction:(action,state,canvas)=>{if(action==='ai')return startAI(mnxShipState(state));if(action==='data')return openData17(state);if(action==='print')return mnxPrintNow(state,canvas);return downloadState(state,'market-navigator-'+state.lineage.toLowerCase()+'-'+state.horizon,action)}}}
+function rebuildServices(){const qualification=rebuildQualification(),broker=window.__mnDataBroker,generation=broker?.status()?.generation,cache=S.series;return{beforeRender:()=>{void rebuildRefreshData()},selectionInformation:false,colors:chartColors,style:seriesStyle,paletteName:()=>paletteState().name,informationURL:healthEntryUrl26,metadata:readOnly(structuredClone({derived:S.derived,def:S.def,health:S.health,catalog:S.catalog,sourceRegistry:S.sourceRegistry})),getSeries:async id=>readOnly(structuredClone(cache[id]||(generation?await broker.json('market-evidence/series/'+id+'.json',generation):await getSeries(id)))),onAnalyze:openStandaloneAnalysis26,
+ onInfo:(state,button)=>mnxOpenExplanation(rebuildScopeQualification(state,qualification),button),closeInfo:()=>{mnxCloseExplanation();$('dataModal').classList.add('hidden')},
+ onAction:(action,state,canvas)=>{state=rebuildScopeQualification(state,qualification);if(action==='ai')return startAI(mnxShipState(state));if(action==='data')return openData17(state);if(action==='print')return mnxPrintNow(state,canvas);return downloadState(state,'market-navigator-'+state.lineage.toLowerCase()+'-'+state.horizon,action)}}}
 function ensureRebuildNow(){if(!rebuildNow){const services=rebuildNowServices();rebuildNow=MNChart.mount($('view-now'),{view:'overview'},services)}return rebuildNow}
 window.__mnRebuild={now:()=>rebuildNow?.getState(),analyze:()=>rebuildAnalyze?.getState(),instances:()=>({now:rebuildNow,analyze:rebuildAnalyze,library:rebuildLibrary})};
 
@@ -1293,22 +1293,37 @@ $('rebuildAnalyzeClose').onclick=closeStandaloneAnalysis26;
 
 
 let rebuildDataPending=null,rebuildDataApplying=false,rebuildDataTimer=0;
-function rebuildScheduleData(){clearTimeout(rebuildDataTimer);const expiry=Date.parse(window.__mnDataBroker?.status()?.validUntil||'');if(Number.isFinite(expiry))rebuildDataTimer=setTimeout(()=>{void rebuildRefreshData(true)},Math.max(250,Math.min(60000,expiry-Date.now())))}
+let rebuildNextCheck=0,rebuildCheckFailures=0,rebuildCheckError=null;
+ function rebuildQualification(){const q=window.__mnDataBroker?.status();if(!q)return null;const a=q.assurance;return{generation:q.generation,revision:q.revision,verifiedAt:a?.lastSuccess?.at||a?.assurance?.checkedAt||a?.heartbeatAt||null,validUntil:q.validUntil||null,status:Date.now()<Date.parse(q.validUntil)?'verified':'delayed',capturedAt:new Date().toISOString()}}
+ function rebuildScopeQualification(state,qualification){return qualification?{...state,verification:{...structuredClone(qualification),status:Date.now()<Date.parse(qualification.validUntil)?'verified':'delayed'}}:state}
+ function rebuildRefreshStatus(){const q=rebuildQualification();let node=$('rebuildVerificationStatus');const delayed=q?.status==='delayed'||!!rebuildCheckError;if(!delayed){node?.remove();return}if(!node){node=document.createElement('div');node.id='rebuildVerificationStatus';node.setAttribute('role','status');node.style.cssText='position:fixed;bottom:3px;left:56px;right:8px;z-index:30;font:11px system-ui;color:var(--muted);pointer-events:none;background:var(--panel);padding:3px 6px;border-radius:4px';document.body.append(node)}node.textContent='Live verification delayed. Showing verified snapshot'+(q?.verifiedAt?' from '+new Date(q.verifiedAt).toLocaleString():'')+'. Background checks continue.'}
+ function rebuildScheduleData(){clearTimeout(rebuildDataTimer);if(!window.__mnDataBroker||!S.derived)return;rebuildRefreshStatus();rebuildDataTimer=setTimeout(()=>{void rebuildRefreshData(true)},Math.max(15000,rebuildNextCheck-Date.now(),60000))}
 async function rebuildRefreshData(force=false){
  const broker=window.__mnDataBroker;if(!broker||!S.derived||rebuildDataApplying)return false;
- if(rebuildAnalyze){clearTimeout(rebuildDataTimer);return false}
- const previous=broker.status();if(!force&&previous&&Date.now()<Date.parse(previous.validUntil))return false;
  if(rebuildDataPending)return rebuildDataPending;
- rebuildDataPending=(async()=>{let status=$('rebuildFreshStatus');if(!status){status=document.createElement('div');status.id='rebuildFreshStatus';status.style.cssText='position:absolute;inset:0;padding:24px;color:var(--muted);background:var(--panel);z-index:5';status.textContent='Refreshing market data…';$('nowWrap').append(status)}
- try{const next=await broker.check();if(next.generation===previous?.generation){broker.commit(next);status.remove();return false}
- const [derived,def,health,catalog,sourceRegistry]=await Promise.all(['market-evidence/derived-indices-persistent-v1.json','data/market-backend/derived-index-definition-persistent-v1.json','market-evidence/health-envelope.json','data/market-backend/data-catalog.json','data/market-backend/source-registry.json'].map(p=>broker.json(p,next.generation)));
- if(!derived.coherence?.allIndexHorizonsComputable)throw Error('New collection failed coherence');
- if(rebuildAnalyze){status.remove();return false}
- const options=rebuildNow.getOptions();rebuildDataApplying=true;rebuildNow.destroy();broker.commit(next);Object.assign(S,{derived,def,health,catalog,sourceRegistry,catMap:Object.fromEntries(catalog.series.map(x=>[x.id,x])),series:{},seriesPromises:{}});rebuildNow=MNChart.mount($('view-now'),options,rebuildNowServices());
- await rebuildNow.whenReady();
- rebuildNow.setVisible(S.view==='now');status.remove();return true;
- }catch(e){status.textContent='Repairing market data. Saved reports remain available in Library.';return false}
- finally{rebuildDataApplying=false;rebuildDataPending=null;rebuildScheduleData()}
+ if(Date.now()<rebuildNextCheck)return false;
+ const previous=broker.status();if(!force&&previous&&Date.now()<Date.parse(previous.validUntil))return false;
+ rebuildNextCheck=Date.now()+60000;
+ rebuildDataPending=(async()=>{let staged=null;
+ try{
+  const next=await broker.check();
+  if(next.generation===previous?.generation){broker.commit(next);rebuildCheckError=null;rebuildCheckFailures=Date.now()>=Date.parse(next.validUntil)?rebuildCheckFailures+1:0;return false}
+  if(!Number.isFinite(Date.parse(next.validUntil))||Date.now()>=Date.parse(next.validUntil))throw Error('Incoming verification has expired');
+  // An open or parked Analyze owns its original generation until X.
+  if(rebuildAnalyze)return false;
+  const [derived,def,health,catalog,sourceRegistry]=await Promise.all(['market-evidence/derived-indices-persistent-v1.json','data/market-backend/derived-index-definition-persistent-v1.json','market-evidence/health-envelope.json','data/market-backend/data-catalog.json','data/market-backend/source-registry.json'].map(p=>broker.json(p,next.generation)));
+  if(!derived.coherence?.allIndexHorizonsComputable)throw Error('New collection failed coherence');
+  const series=Object.fromEntries(await Promise.all(catalog.series.map(async x=>[x.id,await broker.json('market-evidence/series/'+x.id+'.json',next.generation)])));
+  const metadata={derived,def,health,catalog,sourceRegistry},host=document.createElement('div');host.style.cssText='position:fixed;left:-20000px;top:0;width:640px;height:480px';document.body.append(host);
+  try{staged=MNChart.mount(host,rebuildNow.getOptions(),{metadata,getSeries:async id=>series[id],namespace:'mn-refresh-stage-'});await staged.whenReady()}finally{staged?.destroy();staged=null;host.remove()}
+  if(rebuildAnalyze)return false;
+  const options=rebuildNow.getOptions(),oldServices=rebuildNowServices(),old={derived:S.derived,def:S.def,health:S.health,catalog:S.catalog,sourceRegistry:S.sourceRegistry,catMap:S.catMap,series:S.series,seriesPromises:S.seriesPromises};
+  rebuildDataApplying=true;rebuildNow.destroy();
+  try{Object.assign(S,{...metadata,catMap:Object.fromEntries(catalog.series.map(x=>[x.id,x])),series,seriesPromises:{}});broker.commit(next);rebuildNow=MNChart.mount($('view-now'),options,rebuildNowServices());await rebuildNow.whenReady()}
+  catch(error){rebuildNow?.destroy();Object.assign(S,old);broker.commit(previous);rebuildNow=MNChart.mount($('view-now'),options,oldServices);await rebuildNow.whenReady();throw error}
+  rebuildNow.setVisible(S.view==='now');rebuildCheckFailures=0;rebuildCheckError=null;return true;
+ }catch(error){rebuildCheckFailures++;rebuildCheckError=String(error.message||error);return false}
+ finally{rebuildDataApplying=false;rebuildDataPending=null;rebuildNextCheck=Date.now()+Math.min(300000,60000*Math.pow(2,Math.min(3,rebuildCheckFailures)));rebuildScheduleData()}
  })();return rebuildDataPending;
 }
 function rebuildRefreshStyles(instance){const chart=instance?.getSnapshot()?.chart;if(chart?.series.some(z=>z.color!==seriesColor(z.id)||z.lineWidth!==seriesStyle(z.id).width||z.lineStyle!==seriesStyle(z.id).lineStyle))return instance.configure({})}
