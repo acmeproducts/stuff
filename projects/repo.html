@@ -115,45 +115,69 @@
 <div class="diagnostics" id="diagnostics">Dashboard Ready</div>
 
 <script>
-/* ---------- Static sample data (replace with real API later) ---------- */
-const sampleRepos = [
-    {
-        id: "repo1",
-        name: "repo-one",
-        lastAccessed: "2026-10-09",
-        pages: true,
-        overview: "Repo‑one contains the main Acme product web app.",
-        apps: [
-            { name: "App‑A", versions: ["v1.0","v0.9"] },
-            { name: "App‑B", versions: ["v2.3"] }
-        ],
-        codeLinks: [
-            { href:"#", label:"src/index.html" },
-            { href:"#", label:"src/app.js" }
-        ],
-        readme: "## Repo‑One\nThis repo hosts the primary web UI..."
-    },
-    {
-        id: "repo2",
-        name: "repo-two",
-        lastAccessed: "2026-10-08",
-        pages: false,
-        overview: "Repo‑two is a collection of utilities.",
-        apps: [
-            { name: "Utility‑X", versions: ["v0.1"] }
-        ],
-        codeLinks: [
-            { href:"#", label:"utils/util.js" }
-        ],
-        readme: "## Repo‑Two\nUtility scripts for internal use."
+/* ---------- Live GitHub API fetch ---------- */
+const ORG = 'acmeproducts';
+let reposData = [];
+
+/* Helper to format ISO date */
+function formatDate(iso) {
+    const d = new Date(iso);
+    return d.toLocaleDateString() + ' ' + d.toLocaleTimeString();
+}
+
+/* Fetch repos from GitHub */
+async function fetchRepos() {
+    try {
+        const resp = await fetch(`https://api.github.com/orgs/${ORG}/repos`);
+        if (!resp.ok) throw new Error(`GitHub API error: ${resp.status}`);
+        const repos = await resp.json();
+        // Map needed fields
+        reposData = await Promise.all(repos.map(async repo => {
+            // Get README HTML
+            let readmeHTML = '';
+            try {
+                const readmeResp = await fetch(`https://api.github.com/repos/${ORG}/${repo.name}/readme`, {
+                    headers: { Accept: 'application/vnd.github.VERSION.html' }
+                });
+                if (readmeResp.ok) readmeHTML = await readmeResp.text();
+            } catch (_) {}
+            // Simple heuristic for apps: look for top‑level directories named "app-" or "src"
+            let apps = [];
+            try {
+                const contentsResp = await fetch(`https://api.github.com/repos/${ORG}/${repo.name}/contents`);
+                if (contentsResp.ok) {
+                    const items = await contentsResp.json();
+                    const appDirs = items.filter(i => i.type === 'dir' && /app|src/i.test(i.name));
+                    apps = appDirs.map(dir => ({
+                        name: dir.name,
+                        versions: [] // version detection omitted for brevity
+                    }));
+                }
+            } catch (_) {}
+            return {
+                id: repo.id,
+                name: repo.name,
+                lastAccessed: formatDate(repo.pushed_at),
+                pages: repo.has_pages || false,
+                overview: repo.description || 'No description.',
+                apps,
+                codeLinks: [{ href: repo.html_url, label: 'GitHub Repo' }],
+                readme: readmeHTML || `<p>No README found.</p>`
+            };
+        }));
+        renderRepoList();
+        document.getElementById('diagnostics').textContent = `Dashboard Live – ${reposData.length} repos loaded`;
+    } catch (e) {
+        console.error(e);
+        document.getElementById('diagnostics').textContent = `Error loading repos`;
     }
-];
+}
 
 /* ---------- Rendering functions ---------- */
 function renderRepoList() {
     const list = document.getElementById('repo-list');
     list.innerHTML = '';
-    sampleRepos.forEach((repo, idx) => {
+    reposData.forEach((repo, idx) => {
         const div = document.createElement('div');
         div.className = 'repo-item' + (idx===0 ? ' active' : '');
         div.dataset.repoId = repo.id;
@@ -166,34 +190,33 @@ function renderRepoList() {
         div.addEventListener('click', () => selectRepo(repo.id));
         list.appendChild(div);
     });
-    // load first repo by default
-    if (sampleRepos.length) selectRepo(sampleRepos[0].id);
+    if (reposData.length) selectRepo(reposData[0].id);
 }
 
 function selectRepo(repoId) {
-    // highlight
-    document.querySelectorAll('.repo-item').forEach(i=>i.classList.toggle('active', i.dataset.repoId===repoId));
-    const repo = sampleRepos.find(r=>r.id===repoId);
+    document.querySelectorAll('.repo-item').forEach(i=>i.classList.toggle('active', i.dataset.repoId==repoId));
+    const repo = reposData.find(r=>r.id==repoId);
     if (!repo) return;
-    // update diagnostics
-    document.getElementById('diagnostics').textContent = `Dashboard Ready – ${repo.name}`;
-    // populate overview
+    document.getElementById('diagnostics').textContent = `Dashboard Live – ${repo.name}`;
     document.getElementById('overview-content').innerHTML = `<p>${repo.overview}</p>`;
-    // launch button (placeholder)
-    document.getElementById('launch-repo').onclick = () => alert(`Launching ${repo.name}`);
-    // analyze button
+    document.getElementById('launch-repo').onclick = () => {
+        if (repo.pages) window.open(`https://${ORG}.github.io/${repo.name}`, '_blank');
+        else alert('No GitHub Pages site.');
+    };
     document.getElementById('analyze-repo').onclick = () => analyzeRepo(repo);
-    // apps
     renderApps(repo);
-    // code links
     renderCodeLinks(repo);
-    // readme
-    document.getElementById('readme-content').innerHTML = repo.readme.replace(/\n/g,'<br>');
+    document.getElementById('readme-content').innerHTML = repo.readme;
 }
 
+/* Apps rendering with chevrons */
 function renderApps(repo) {
     const container = document.getElementById('apps-content');
     container.innerHTML = '';
+    if (!repo.apps.length) {
+        container.textContent = 'No detected applications.';
+        return;
+    }
     repo.apps.forEach(app => {
         const header = document.createElement('div');
         header.className = 'app-header';
@@ -202,16 +225,15 @@ function renderApps(repo) {
         const group = document.createElement('div');
         group.className = 'app-group';
         group.id = `${repo.id}-${app.name}`;
-        app.versions.forEach(v => {
-            const verDiv = document.createElement('div');
-            verDiv.textContent = v + ' ';
-            const btn = document.createElement('button');
-            btn.className = 'launch-btn';
-            btn.textContent = 'Launch';
-            btn.onclick = () => alert(`Launching ${app.name} ${v}`);
-            verDiv.appendChild(btn);
-            group.appendChild(verDiv);
-        });
+        // versions placeholder
+        const verDiv = document.createElement('div');
+        verDiv.textContent = 'v1.0 ';
+        const btn = document.createElement('button');
+        btn.className = 'launch-btn';
+        btn.textContent = 'Launch';
+        btn.onclick = () => alert(`Launching ${app.name} v1.0`);
+        verDiv.appendChild(btn);
+        group.appendChild(verDiv);
         header.addEventListener('click', () => {
             const grp = document.getElementById(header.dataset.group);
             const chevron = header.querySelector('.chevron');
@@ -223,6 +245,7 @@ function renderApps(repo) {
     });
 }
 
+/* Code links */
 function renderCodeLinks(repo) {
     const ul = document.getElementById('code-links');
     ul.innerHTML = '';
@@ -237,16 +260,15 @@ function renderCodeLinks(repo) {
     });
 }
 
-/* ---------- Analyze flow (placeholder) ---------- */
+/* Analyze flow */
 function analyzeRepo(repo) {
-    // Simple heuristic: if no pages, suggest enabling GitHub Pages
     const suggestion = repo.pages
         ? 'Repo already has GitHub Pages enabled.'
-        : 'Repo lacks GitHub Pages. You can add a simple index.html and enable Pages in settings.';
+        : 'Repo lacks GitHub Pages. Add an index.html and enable Pages in the repo settings.';
     alert(`Analysis for ${repo.name}:\n\n${suggestion}`);
 }
 
-/* ---------- Tab switching ---------- */
+/* Tab switching */
 document.querySelectorAll('.tab').forEach(tab => {
     tab.addEventListener('click', () => {
         document.querySelectorAll('.tab').forEach(t=>t.classList.remove('active'));
@@ -258,8 +280,8 @@ document.querySelectorAll('.tab').forEach(tab => {
     });
 });
 
-/* ---------- Init ---------- */
-renderRepoList();
+/* Init */
+fetchRepos();
 </script>
 </body>
 </html>
