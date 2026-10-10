@@ -1,5 +1,5 @@
-<!-- TALKBRIDGE-PLAN v21.85.0 -->
-# TALKBRIDGE MASTER PLAN v21.85.0
+<!-- TALKBRIDGE-PLAN v21.86.0 -->
+# TALKBRIDGE MASTER PLAN v21.86.0
 
 **Location:** `talkbridge/TALKBRIDGE-PLAN-v9.md` in `acmeproducts/stuff`.
 **Owner:** Confi — sole decision-maker, runs every device gate.
@@ -2085,6 +2085,8 @@ Green means allowed to push. It never means done.
 ---
 
 ## 10 · CHANGE LOG
+
+**v21.86.0 · 2026-10-10.** Owner: "forwaders, go, slot it." THE FORWARDERS shipped — the post-accept step of the directory release (§7.5 (7)): fifteen live-era root addresses (turns 26 to 29 pre-ship) are now 15-line pages that forward to `./talkbridge-app/` carrying the search and the hash; the accepted bytes stay in git at a recorded commit, sha-pinned; a preload (`accepted-bytes.mjs`) keeps six historical gate families running on those bytes. Pages that must stay (the folder release's base, warm storage, turn 24 frozen by governance, all workers, manifests, icons) are untouched, gated. Gates: harness-forwarders 13/13, mutate-forwarders 17/17, the old assemblers verified under the loader, governance PASS. 29·ship (install optional) starts next, with the owner's two call-sound items slotted into §7.19 as declared additions (v21.87.0).
 
 **v21.85.0 · 2026-10-10.** 29·pre-ship c2 ACCEPTED by the owner: "iPhone install successful" — the Home Screen copy made from a fresh invite opens the room as the same person (G3). Android (G2, G4, G5) passed on c1, whose bytes differ from c2 by the one head line; desktop G1 and offline G6 untested, stated. The folder's stage page, manifests, worker, icons and flags are immutable from now. Forwarders at the old root addresses await the owner's explicit order. Next in the rotation: 29·ship, install optional (§7.19), whose declared additions already include the caller ring-back without vibration and the silent missed-call card if the owner says "slot it".
 
@@ -4333,9 +4335,32 @@ build keeps every rule and records the five differences:
     stays file-exact; the manifest `id` is the folder for every stage, so
     Chrome treats each release as the same installed app and follows the
     new start page; the iPhone copy re-adds, as today.
+(7) FORWARDERS — SHIPPED 2026-10-10 (owner: "forwarders"). Fifteen live-era
+    addresses become 15-line pages that send the visitor to the folder
+    carrying the search and the hash: bridge-turn26-{base,post-ship,pre-base,
+    pre-ship,ship}, 27-{base,post-ship,pre-ship,ship}, 28-{base,post-ship,
+    pre-base,pre-ship,ship} and the withdrawn root bridge-turn29-pre-ship.
+    `location.replace('./talkbridge-app/' + location.search + location.hash)`
+    — relative, so an old invite, a grant link or a notification deep link
+    lands in the folder app, whose own index forwards on to the current stage
+    page with the same hash. NOT forwarded, on purpose: bridge-turn29-pre-base
+    (the base the folder release is assembled from), bridge-turn29-multi-user-v1
+    (warm storage), every page older than turn 26 (bridge-turn24-post-ship is
+    frozen by the governance gate), every worker, manifest and icon (old
+    installs and the folder worker's own base read them). The accepted bytes
+    are NOT lost: git, at the commit recorded in
+    `talkbridge/fixtures/forwarders/manifest.json`, sha-pinned per file.
+    `talkbridge/build/accepted-bytes.mjs` is a preload that hands those bytes
+    to every historical gate that reads a now-forwarded page (27s8, 27ps,
+    28b, 28ps, 28s, 28pos: each npm script carries it); a page restored from
+    git is read as it is. Gates: harness-forwarders 13/13 (manifest and git
+    bytes; each page exactly the generated forwarder and only forwarding;
+    search, hash and the chain through the folder; the untouched pages; no
+    other root file changed; the loader; the six old assemblers passing under
+    it and failing without it; their scripts carrying it), mutate-forwarders
+    17/17. Rollback of any address: `git show <ref>:<file> > <file>`.
 The `/stuff/talkbridge-app/` folder is protected by the ownership gate like
-every TalkBridge file. Forwarders at the OLD root addresses: post-accept,
-owner-ordered, as written.
+every TalkBridge file.
 
 ### Machine gates
 M1 the app file inside the folder differs from accepted bytes by exactly
