@@ -456,7 +456,8 @@ export class TalkSession {
   }
   /* Read-only diagnostics: fields and transitions of the same record, secrets redacted. */
   _diagEvents() {
-    return Object.values(this.events).slice(-40).map((ev) => ({ id: ev.id, type: ev.type, kind: ev.kind, callKind: ev.callKind || null, callId: ev.callId || null, ended: !!ev.ended, ts: ev.ts, rcp: ev.rcp }));
+    /* the 40 MOST RECENT by time — seq restarts at every session boundary, so the last 40 by insertion were the oldest session's (diag of 2026-10-10 showed a morning's chats and none of the evening's calls) */
+    return Object.values(this.events).sort((a, b) => (a.ts || 0) - (b.ts || 0)).slice(-40).map((ev) => ({ id: ev.id, type: ev.type, kind: ev.kind, callKind: ev.callKind || null, callId: ev.callId || null, ended: !!ev.ended, ts: ev.ts, rcp: ev.rcp }));
   }
 
   async _touchSession() {
@@ -655,7 +656,7 @@ export class TalkSession {
 
       /* The app asks for the public key before it can subscribe at all. */
       if (body && body.type === 'diag') {
-        return json({ ok: true, v: RELAY_VERSION, cap: this._capOf(), inCall: this._inCall(), connected: [...this._connectedIds()], subs: Object.keys(this.subs).length, lastWake: this.lastWake, events: this._diagEvents(), states: this.states });
+        return json({ ok: true, v: RELAY_VERSION, cap: this._capOf(), inCall: this._inCall(), connected: [...this._connectedIds()], subs: Object.keys(this.subs).length, lastWake: this.lastWake, events: this._diagEvents(), eventsTotal: Object.keys(this.events).length, states: this.states });
       }
       /* Read-only reconciliation against the same authority when a socket is unavailable. */
       if (body && EV_TYPES.has(body.type)) {
