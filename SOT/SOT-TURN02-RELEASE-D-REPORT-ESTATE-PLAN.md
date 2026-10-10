@@ -240,3 +240,7 @@ Freshness: Connected describes transport only. Separate evidence state Current /
 **Change (UI):** header is a single row: the icon strip, a connection dot (text kept for screen readers) and settings; title removed.
 **Change (autosync):** startup recovery no longer re-queues a finished source just because it holds unreadable-file rows, and it does retry any source that has never completed a sync (so the previously failed Recordings source is retried after the update).
 **Qualification:** runtime qualifier checks the one-row header at desktop and 412 px; the unreadable-files gate runs the recovery query for both cases.
+
+## Update — unreadable files no longer show as Problem
+- Source with a completed job and some unreadable files = Current (amber "N unreadable (skipped)"); Problem only for failed/stalled jobs. Last synchronized now counts those jobs.
+- Summary pills (Scanned/Capacity/Saved) now light up like the Files/GB switch.

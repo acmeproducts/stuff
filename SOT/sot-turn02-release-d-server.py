@@ -419,7 +419,7 @@ def source_status_rows(include_deleted=True):
                 WHERE js.source_id=? AND COALESCE(j.deleted,0)=0 ORDER BY j.revision DESC LIMIT 1""",(src["source_id"],))
   success=S.rows("""SELECT j.job_id,j.revision,j.ended,js.hashed_files,js.hashed_bytes
                    FROM job_sources js JOIN jobs j ON j.job_id=js.job_id
-                   WHERE js.source_id=? AND js.state='COMPLETED' AND COALESCE(js.errors,0)=0
+                   WHERE js.source_id=? AND js.state='COMPLETED'
                      AND COALESCE(j.deleted,0)=0
                    ORDER BY COALESCE(j.ended,j.last_progress,j.created) DESC,j.revision DESC LIMIT 1""",(src["source_id"],))
   latest_error=S.rows("""SELECT ts,message,event_type FROM events
