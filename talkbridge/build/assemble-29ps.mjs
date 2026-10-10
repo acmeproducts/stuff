@@ -23,7 +23,7 @@ export const ADDED_SYMBOLS = ['MU1_FULL_HOLD_MS', 'MU1_CAPS', 'mu1State', 'mu1En
 export const ADDED_MARKERS = ['room_full', 'relay_full_hold', 'mu1_member', 'mu1_chooser', 'call_to'];
 /* the ONE network line that changes, in both lanes: the socket URL gains the room's cap */
 export const NETWORK_CHANGE = { find: "'&client=' + encodeURIComponent(deviceId));", replace: "'&client=' + encodeURIComponent(deviceId) + mu1CapParam(room));" };
-export const OUT_FILE = 'bridge-turn29-pre-ship.html';
+export const OUT_FILE = 'bridge-turn29-multi-user-v1.html';   /* WARM STORAGE (owner, 2026-10-09): withdrawn from the rotation; the pre-ship address went back to the 29·pre-base bytes */
 export const TAIL = '\n</script>\n</body>\n</html>';
 
 export function base() {
