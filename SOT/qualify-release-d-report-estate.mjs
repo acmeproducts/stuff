@@ -22,16 +22,18 @@ const browser=await chromium.launch();
 async function open(vw,vh){const ctx=await browser.newContext({viewport:{width:vw,height:vh}}),pg=await ctx.newPage();await pg.route(/cdn\.jsdelivr\.net/,r=>r.fulfill({contentType:'text/javascript',body:''}));pg.on('pageerror',e=>fail('pageerror '+e.message));
  await pg.goto(URL_);const inner=async()=>{const h=await pg.waitForSelector('#shell');const o=await (await h.contentFrame()).waitForSelector('#app');return o.contentFrame()};
  let fr;for(let i=0;i<100;i++){try{fr=await inner();if(await fr.evaluate(()=>!!window.__ssotCompletePlacementRefresh&&window.placements.length>0&&!document.querySelector('#ssot-db-blocker.on')))break}catch(e){}await pg.waitForTimeout(100)}
- ok(fr,'runtime did not start');await fr.waitForSelector('#Plan .subtabs');return {ctx,pg,fr}}
+ ok(fr,'runtime did not start');await fr.waitForSelector('#Plan .sum');return {ctx,pg,fr}}
 const txt=(fr,sel)=>fr.$eval(sel,e=>e.innerText);
 try{
  let {ctx:ctx0,pg,fr}=await open(1280,900);
  // 1 labels
- const sw=await fr.$$eval('.ssot-report-switch button',b=>b.map(x=>x.textContent.trim()));ok(JSON.stringify(sw)==='["Report","Job Status"]','switch labels '+sw);
+ const strip=await fr.$$eval('#tabs button',b=>b.filter(x=>x.style.display!=='none').map(x=>x.title));ok(JSON.stringify(strip.slice(0,5))==='["Report","Job Status","Roots","Search","Add to Estate"]','top strip '+strip);
+ ok((await fr.$$('#Plan .subtabs, .ssot-report-switch')).length===0,'the Report|Job Status and Summary|Roots rows must be gone');
+ const onTab=()=>fr.$$eval('#tabs button.on',b=>b.map(x=>x.title));ok(JSON.stringify(await onTab())==='["Report"]','report tab highlighted: '+await onTab());
  const vis=await fr.evaluate(()=>[...document.querySelectorAll('button,a,[role=tab]')].filter(e=>e.offsetParent&&/analyze/i.test(e.textContent)).map(e=>e.textContent));ok(!vis.length,'visible Analyze label: '+vis);
- pass('Report / Job Status labels present; Analyze is not an owner-facing label');
+ pass('top strip carries Report, Job Status, Roots, Search, Add and AI icons; the two switch rows are gone; Analyze is not an owner-facing label');
  // 2 subtabs
- const tabs=await fr.$$eval('#Plan .subtabs button',b=>b.map(x=>x.textContent.trim()));ok(JSON.stringify(tabs)==='["Summary","Roots"]','subtabs '+tabs);
+ // (sub-tabs removed: Roots and Job Status are top-strip icons)
  await fr.evaluate(()=>{localStorage.removeItem('sotSummaryUi');__ssotSum.view='dots';__ssotSum.panel='scanned';__ssotSum.meas='g';__ssotSum.path=[];renderPlan()});await pg.waitForTimeout(200);
  const ribbon=await fr.$$eval('#Plan .sumribbon .sumicon',b=>b.map(x=>x.getAttribute('aria-label')+(x.classList.contains('on')?'*':'')));ok(JSON.stringify(ribbon)==='["Dots*","Circles","Treemap"]','chart-type ribbon '+ribbon);
  const pills=await fr.$$eval('#Plan .sumpills button',b=>b.map(x=>x.textContent.trim()));ok(JSON.stringify(pills)==='["Scanned","Capacity","Saved"]','view pills '+pills);
@@ -194,7 +196,12 @@ try{
   ok(await f3.evaluate(()=>document.documentElement.dataset.dbZebra)==='blue','zebra choice lost after reload');pass('Colors choices save the moment they change and survive a reload');
   await f3.evaluate(()=>{localStorage.removeItem('sotUiConfig');localStorage.removeItem('sotUiMigrated2');applyUiCfg()});fr=f3}
  // Job Status
- await fr.evaluate(()=>__ssotOpenReportMode('Analyze'));await pg.waitForTimeout(300);ok(await fr.evaluate(()=>document.getElementById('Analyze').classList.contains('on')&&document.getElementById('Analyze').innerText.length>20),'job status pane');ok(await fr.$$eval('#Analyze .ssot-report-switch button',b=>b[1].textContent.trim()==='Job Status'&&b[1].classList.contains('on')),'job status nav');pass('Job Status renders the existing job/source status surface');
+ await fr.click('#tabs button[data-tab="Analyze"]');await pg.waitForTimeout(300);ok(JSON.stringify(await onTab())==='["Job Status"]','only Job Status highlighted: '+await onTab());
+ await fr.click('#tabs button[data-tab="Roots"]');await pg.waitForTimeout(300);ok(JSON.stringify(await onTab())==='["Roots"]'&&await fr.evaluate(()=>!!document.querySelector('#Plan .estate-table')&&!document.querySelector('#Plan .sum')),'Roots tab shows only the roots table: '+await onTab());
+ await fr.click('#tabs button[data-tab="Database"]');await pg.waitForTimeout(300);ok(JSON.stringify(await onTab())==='["Search"]','only Search highlighted: '+await onTab());
+ await fr.click('#tabs button[data-tab="Plan"]');await pg.waitForTimeout(300);ok(JSON.stringify(await onTab())==='["Report"]'&&await fr.evaluate(()=>!!document.querySelector('#Plan .sum')),'Report tab back to the summary: '+await onTab());
+ pass('exactly one top-strip icon is highlighted for the page you are on (Report, Job Status, Roots, Search)');
+ await fr.click('#tabs button[data-tab="Analyze"]');await pg.waitForTimeout(300);ok(await fr.evaluate(()=>document.getElementById('Analyze').classList.contains('on')&&document.getElementById('Analyze').innerText.length>20),'job status pane');pass('Job Status renders the existing job/source status surface');
  await pg.context().close();
  // older backend without the staleness endpoint must still load the database and release the blocker
  stalenessMissing=true;{const o=await open(1280,900);ok(await o.fr.evaluate(()=>placements.length>0&&!document.querySelector('#ssot-db-blocker.on')),'database did not load without staleness endpoint');pass('database loads and the blocker clears when the staleness endpoint is unavailable (older backend)');await o.ctx.close()}stalenessMissing=false;

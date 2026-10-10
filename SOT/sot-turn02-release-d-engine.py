@@ -533,9 +533,9 @@ class Manager:
       self.s.submit("UPDATE jobs SET last_progress=? WHERE job_id=?",(now,jid))
      except Exception as e:
       now=time.time();pid=hashlib.sha256((sid+"\0"+p).encode()).hexdigest();old=self.s.rows("SELECT placement_id,placement_no FROM placements WHERE source_id=? AND path=? LIMIT 1",(sid,p));pid=old[0]["placement_id"] if old else pid
-      if old:self.s.submit("UPDATE placements SET job_id=?,revision=?,estate=?,filename=?,extension=?,scanned_at=?,lifecycle='NONE',availability='ERROR',error_detail=?,role=?,last_verified=? WHERE placement_id=?",(jid,rev,src["estate"],name,Path(name).suffix.lower(),now,str(e),src["role"],now,pid))
+      if old:self.s.submit("UPDATE placements SET job_id=?,revision=?,estate=?,filename=?,extension=?,scanned_at=?,lifecycle='NONE',availability='ERROR',error_detail=?,role=?,last_verified=? WHERE placement_id=?",(jid,rev,src["estate"],name,Path(name).suffix.lower(),now,"discovery: "+str(e),src["role"],now,pid))
       else:
-       pno=self.alloc_no();self.s.submit("INSERT INTO placements(placement_id,placement_no,job_id,revision,source_id,estate,path,filename,extension,scanned_at,lifecycle,availability,error_detail,role,last_verified) VALUES(?,?,?,?,?,?,?,?,?,?,'NONE','ERROR',?,?,?)",(pid,pno,jid,rev,sid,src["estate"],p,name,Path(name).suffix.lower(),now,str(e),src["role"],now))
+       pno=self.alloc_no();self.s.submit("INSERT INTO placements(placement_id,placement_no,job_id,revision,source_id,estate,path,filename,extension,scanned_at,lifecycle,availability,error_detail,role,last_verified) VALUES(?,?,?,?,?,?,?,?,?,?,'NONE','ERROR',?,?,?)",(pid,pno,jid,rev,sid,src["estate"],p,name,Path(name).suffix.lower(),now,"discovery: "+str(e),src["role"],now))
       self.s.submit("UPDATE job_sources SET errors=errors+1,last_progress=? WHERE job_id=? AND source_id=?",(now,jid,sid));self.event("source_file_error",str(e),jid,sid,"ERROR")
   except Exception as e:self.event("source_failed",str(e),jid,sid,"ERROR")
   finally:
@@ -604,7 +604,7 @@ class Manager:
    integrity=[]
    for sid in rt["queues"]:
     js=self.s.rows("SELECT discovered_files,hashed_files FROM job_sources WHERE job_id=? AND source_id=?",(jid,sid))
-    persisted=self.s.rows("SELECT COUNT(*) files,SUM(CASE WHEN lifecycle='HASHED' AND availability='AVAILABLE' AND fingerprint IS NOT NULL THEN 1 ELSE 0 END) hashed,SUM(CASE WHEN lifecycle IN ('NONE','IN_PROCESS') OR availability='PENDING' THEN 1 ELSE 0 END) pending FROM placements WHERE job_id=? AND source_id=? AND placement_state='ACTIVE'",(jid,sid))[0]
+    persisted=self.s.rows("SELECT SUM(CASE WHEN NOT (availability='ERROR' AND COALESCE(error_detail,'') LIKE 'discovery:%') THEN 1 ELSE 0 END) files,SUM(CASE WHEN lifecycle='HASHED' AND availability='AVAILABLE' AND fingerprint IS NOT NULL THEN 1 ELSE 0 END) hashed,SUM(CASE WHEN (lifecycle IN ('NONE','IN_PROCESS') AND COALESCE(availability,'')!='ERROR') OR availability='PENDING' THEN 1 ELSE 0 END) pending FROM placements WHERE job_id=? AND source_id=? AND placement_state='ACTIVE'",(jid,sid))[0]
     expected_discovered=int(js[0]["discovered_files"] or 0) if js else 0;expected_hashed=int(js[0]["hashed_files"] or 0) if js else 0
     actual_files=int(persisted["files"] or 0);actual_hashed=int(persisted["hashed"] or 0);pending=int(persisted["pending"] or 0)
     if actual_files!=expected_discovered or actual_hashed!=expected_hashed or pending:

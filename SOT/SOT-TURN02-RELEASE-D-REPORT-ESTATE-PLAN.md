@@ -225,3 +225,11 @@ Freshness: Connected describes transport only. Separate evidence state Current /
 **Model:** Scanned = Assets (Unique + Keep) + Excess. Capacity: Open/Deficit = Target − Assets (Deficit is a ⚠ warning, never negative). Saved: Assets = Landed + In play.
 **Change (Complete surface only):** new Summary module; sub-tabs are Summary / Roots (the sortable root table, now headed ASSETS); choices persist per device; taps use new Search scopes (`#report:capacity-fits`, `#report:dir:`, `#report:tree:`, `#report:paths:`) plus `plan:` queries; Search shows a "← Report · <part>" chip to return; IBM Plex Sans/Mono typography added (falls back to system fonts).
 **Qualification:** runtime qualifier covers the ribbon, pills, measure switch, equations, no-percent-above-100, every tap target's query and row count, the back chip, circle order, treemap tiles and over-target colouring, and persistence.
+
+## 2026-10-10 — Unreadable files no longer fail a whole source; Report flattened into the top strip
+
+**Evidence (owner log + screenshot):** source `/mnt/c/Users/…/OneDrive/Recordings` shows Problem, Errors 306, Last synchronized Never, "Persisted placement evidence does not match job counters". The big pasted log itself was normal activity.
+**Root cause:** the end-of-job integrity check counted files that could not be read (OneDrive online-only placeholders, locked files, failed stat) as "pending" and as extra placements, so any single unreadable file forced the whole source to FAILED and it never recorded a sync.
+**Change (engine):** unreadable files stay as ERROR placements (shown for review) but are excluded from the integrity comparison; discovery-time failures are tagged `discovery:` so they are not mistaken for scanned files. The source now completes and reports its error count.
+**Change (UI):** the Report | Job Status row and the Summary | Roots row are gone. The top strip carries Report, Job Status, Roots, Search, Add and AI icons, with exactly one highlighted for the page you are on. The chart-type icons are the first row inside Report.
+**Qualification:** new `qualify-release-d-unreadable.py` (real engine, simulated unreadable files; failed before the fix, passes after); runtime qualifier checks the strip order and highlight for each page.
