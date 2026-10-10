@@ -221,3 +221,5 @@ Local and publicly served Turn 28 exactly matched the pinned Git blob. Shared po
 The final inspection review also found that an interactive tooltip body could intercept a different series underneath it. Normal inspection passes pointer input through to the canvas while keeping its close button usable; only a genuinely overflowing minimal-height inspection enables scrolling. A controlled independent two-line fixture now proves selection beneath the overlay in both browsers and all four layouts.
 
 Direct focus also carries the selected raw series as the native-axis reference, including while Indexed 100 is displayed. A follow-up switch to Y1+Y2 must use that selected measurement family, just as a legend click does. The monthly inspection regression explicitly tests this sequence.
+
+Public qualification also requires actual inspection X clicks. The d09430c intermediate release failed this check; the next revision restores pointer ownership only for X while leaving the inspection body transparent. No automated PASS substitutes for this owner-facing regression.
