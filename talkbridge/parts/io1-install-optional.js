@@ -2,7 +2,7 @@
 /* @contract
    replaces: (none)
    wraps: (none)
-   adds: NF_DONE_KEY, NF_VIA_RELOAD, NF_TO, nf, p2Runs, nfLog, nfPerm, nfCanPush, nfState, nfMayAttempt, nfOfferDone, nfOfferEligible, nfQualifies, nfMountBar, nfDropBar, nfNote, nfOnYes, nfOnNo, nfReloadUrl, nfReloadForSteps, nfMakeTab, nfEnsureTab, nfEnsureInstallTab, nfSyncTab, nfRenderPane, nfRenderInstallPane, nfInstallNow, nfTurnOn, nfOnTabClick, nfOnInstallClick, nfOpenTab, nfOpenNotify, nfTick, nfInit
+   adds: NF_DONE_KEY, NF_VIA_RELOAD, nf, p2Runs, nfLog, nfPerm, nfCanPush, nfState, nfMayAttempt, nfOfferDone, nfOfferEligible, nfQualifies, nfMountBar, nfDropBar, nfNote, nfOnYes, nfOnNo, nfKeysInto, nfReloadUrl, nfReloadForSteps, nfMakeTab, nfEnsureTab, nfEnsureInstallTab, nfSyncTab, nfRenderPane, nfRenderInstallPane, nfInstallNow, nfTurnOn, nfOnTabClick, nfOnInstallClick, nfOpenTab, nfTick, nfInit
    markers: tab_boot, attempt_skipped, recipe_skipped, offer_shown, offer_declined, offer_taken, offer_blocked, tab_shown, tab_hidden, ios_reload, ios_steps, init_failed, install_available, install_tab_shown, install_prompt, install_done
 */
 /* ─────────────────────────────────────────────────────────────────────────────
@@ -35,7 +35,6 @@
 
 var NF_DONE_KEY = 'tb_notif_offer_done';
 var NF_VIA_RELOAD = (function () { try { return /[?&]nf=/.test(location.search); } catch (_) { return false; } })();   /* read while the page loads: boot clears the address */
-var NF_TO = (function () { try { var m = /[?&]to=([a-z]+)/.exec(location.search); return m ? m[1] : ''; } catch (_) { return ''; } })();   /* which pane the reload was for */
 var nf = { shown: false, bar: null, tabShown: false, installShown: false, installed: false, deferred: null, timer: null, go: function (u) { location.replace(u); } };
 /* The browser's own install offer, held for the tap: Chrome fires it early and only once. The mini-infobar it would show is ours to replace. */
 window.addEventListener('beforeinstallprompt', function (e) { try { e.preventDefault(); } catch (_) {} nf.deferred = e; nfLog('install_available', {}, 'ok'); try { nfRenderInstallPane(); } catch (_) {} });
@@ -93,7 +92,7 @@ function nfNote(text) {
 function nfOnNo() {
   try { localStorage.setItem(NF_DONE_KEY, '1'); } catch (_) {}
   nfLog('offer_declined', { platform: p2Platform() }, 'ok');
-  nfNote('You can turn this on later under Room settings → Notify.');
+  nfNote(nfState() === 'ios-tab' ? 'You can add TalkBridge to your Home Screen later under Room settings → Install.' : 'You can turn this on later under Room settings → Notify.');
 }
 function nfOnYes() {
   var ios = nfState() === 'ios-tab';
@@ -116,15 +115,24 @@ function nfTurnOn() {
 }
 
 /* iPhone: the Home Screen copy keeps the address the page LOADED at. Reload at the room's link-device address first. */
-function nfReloadUrl(room, to) {
-  var u = linkDeviceUrl(room), i = u.indexOf('#');
-  return i === -1 ? u : u.slice(0, i) + '?nf=' + Date.now().toString(36) + (to ? '&to=' + to : '') + u.slice(i);                /* a new query makes it a real navigation, not a hash change */
+/* A joiner's keys live in memory only. The link-device address is built from the keys SAVED on the phone, and a joiner's phone saves none, so the Home Screen copy would start without transcription or translation. Put the in-memory ones in, where the saved ones are empty. */
+function nfKeysInto(u) {
+  try {
+    var i = u.indexOf('#j='), jk = S.joinerKeys; if (i === -1 || !jk) return u;
+    var p = decInv(u.slice(i + 3)); if (!p) return u;
+    var did = false; ['k', 'tid', 'tok'].forEach(function (n) { if (!p[n] && jk[n]) { p[n] = jk[n]; did = true; } });
+    return did ? u.slice(0, i) + '#j=' + encInv(p) : u;
+  } catch (_) { return u; }
 }
-function nfReloadForSteps(to) {
+function nfReloadUrl(room) {
+  var u = nfKeysInto(linkDeviceUrl(room)), i = u.indexOf('#');
+  return i === -1 ? u : u.slice(0, i) + '?nf=' + Date.now().toString(36) + u.slice(i);                /* a new query makes it a real navigation, not a hash change */
+}
+function nfReloadForSteps() {
   var room = (typeof activeRoom === 'function') ? activeRoom() : null; if (!room) return false;
   if (CALL.active) { try { toast('Finish the call first'); } catch (_) {} return false; }
-  nfLog('ios_reload', { room: String(room.id).slice(-6), to: to || 'notify' }, 'ok');
-  try { nf.go(nfReloadUrl(room, to)); } catch (_) {}
+  nfLog('ios_reload', { room: String(room.id).slice(-6) }, 'ok');
+  try { nf.go(nfReloadUrl(room)); } catch (_) {}
   return true;
 }
 
@@ -147,7 +155,7 @@ function nfSyncTab() {
   itab.style.display = iwant ? '' : 'none';
   if (iwant && !nf.installShown) { nf.installShown = true; nfLog('install_tab_shown', { platform: p2Platform(), prompt: !!nf.deferred }, 'ok'); }
   if (!iwant && nf.installShown) { nf.installShown = false; if (itab.classList.contains('active')) { var g0 = document.querySelector('#drawer-tabs [data-tab="general"]'); if (g0) g0.click(); } }
-  var st = nfState(), want = (st === 'ios-tab' || st === 'default' || st === 'granted' || st === 'denied');
+  var st = nfState(), want = (st === 'default' || st === 'granted' || st === 'denied');   /* an iPhone tab has the Install tab for its steps */
   tab.style.display = want ? '' : 'none';
   if (want && !nf.tabShown) { nf.tabShown = true; nfLog('tab_shown', { platform: p2Platform(), state: st }, 'ok'); }
   if (!want && nf.tabShown) {
@@ -158,11 +166,7 @@ function nfSyncTab() {
 function nfRenderPane() {
   var pane = document.getElementById('nf-pane'); if (!pane) return;
   var st = nfState(), h = '';
-  if (st === 'ios-tab') {
-    var steps = (p2GateHtml('', 'ios').match(/<ol class="p2-steps">[\s\S]*?<\/ol>/) || [''])[0];
-    h = '<div class="nf-lead">Notifications reach you when the app is closed. On iPhone that needs TalkBridge on your Home Screen:</div>' + steps
-      + '<div class="nf-small">This room comes with you — you will not be asked for anything again.</div>';
-  } else if (st === 'denied') {
+  if (st === 'denied') {
     h = '<div class="nf-lead">Notifications are blocked for TalkBridge.</div><div class="nf-small">Allow them in your browser’s site settings for this page, then come back.</div>';
   } else {
     h = '<div class="nf-lead">Get told about calls and messages when TalkBridge is not on screen.</div><button class="btn" id="nf-turnon">Turn on</button>';
@@ -192,19 +196,14 @@ function nfInstallNow() {
   return Promise.resolve(d.userChoice).then(function (c) { var out = (c && c.outcome) || 'unknown'; nfLog('install_prompt', { outcome: out }, 'ok'); nfRenderInstallPane(); return out; }, function () { nfRenderInstallPane(); return null; });
 }
 function nfOnInstallClick() {
-  if (p2Platform() === 'ios' && !p2IsStandalone() && !NF_VIA_RELOAD) { if (nfReloadForSteps('install')) return; }
+  if (p2Platform() === 'ios' && !p2IsStandalone() && !NF_VIA_RELOAD) { if (nfReloadForSteps()) return; }
   nfRenderInstallPane();
 }
-function nfOnTabClick() {
-  /* on an iPhone tab the first look at the steps reloads the page at the link-device address; the reloaded page shows them */
-  if (nfState() === 'ios-tab' && !NF_VIA_RELOAD) { if (nfReloadForSteps()) return; }
-  nfRenderPane();
-}
+function nfOnTabClick() { nfRenderPane(); }
 function nfOpenTab(key) {
   var d = document.getElementById('btn-drawer'); if (d) d.click();
   var t = document.querySelector('#drawer-tabs [data-tab="' + key + '"]'); if (t) { t.style.display = ''; t.click(); }
 }
-function nfOpenNotify() { nfOpenTab('notify'); }
 
 function nfTick() {
   try {
@@ -229,7 +228,7 @@ function nfInit() {
     var d = document.getElementById('btn-drawer'); if (d) d.addEventListener('click', function () { nfSyncTab(); try { nfRenderPane(); nfRenderInstallPane(); } catch (_) {} }, true);
     document.addEventListener('visibilitychange', function () { if (!document.hidden) nfTick(); });
     nf.timer = setInterval(nfTick, 3000);
-    if (NF_VIA_RELOAD && nfState() === 'ios-tab' && S.view === 'room') { nfLog('ios_steps', { loadedVia: 'reload', to: NF_TO || 'notify' }, 'ok'); nfOpenTab(NF_TO === 'install' ? 'install' : 'notify'); }
+    if (NF_VIA_RELOAD && nfState() === 'ios-tab' && S.view === 'room') { nfLog('ios_steps', { loadedVia: 'reload' }, 'ok'); nfOpenTab('install'); }
   } catch (e) { nfLog('init_failed', { e: String(e && e.message || e) }, 'error'); }
 }
 document.addEventListener('DOMContentLoaded', nfInit);
