@@ -1,35 +1,8 @@
 # TalkBridge device log
 
-Both handsets write here. Drained 2026-10-10T18:18:12Z, every 30s. Newest at the bottom.
+Both handsets write here. Drained 2026-10-10T18:18:44Z, every 30s. Newest at the bottom.
 
 ```
-13:36:36.669 [android-tzc] rc_panel_no_body {}
-13:36:50.011 [android-tzc] dr_retire_deferred {"scope":"https://acmeproducts.github.io/stuff/"}
-13:36:51.179 [android-flz] pr3_dot {"others":0}
-13:36:56.125 [android-flz] rc_panel_rendered {"live":8,"bin":1,"wired":8,"dropped":2}
-13:36:56.126 [android-flz] rc_home_rendered {"cards":0,"wired":0,"dropped":2}
-13:36:56.127 [android-flz] joiner_create_control {"shown":true,"dropped":2}
-13:36:56.156 [android-flz] t1_coalesced {"fn":"renderPanel","n":6}
-13:37:16.129 [android-flz] rc_panel_rendered {"live":8,"bin":1,"wired":8,"dropped":2}
-13:37:16.130 [android-flz] rc_home_rendered {"cards":0,"wired":0,"dropped":2}
-13:37:16.131 [android-flz] joiner_create_control {"shown":true,"dropped":2}
-13:37:16.157 [android-flz] t1_coalesced {"fn":"renderPanel","n":6}
-13:37:21.175 [android-flz] pr3_dot {"others":0}
-13:37:28.262 [android-tzc] cr3_announce {"why":"hidden","visible":false,"lanes":6,"dropped":1}
-13:37:28.263 [android-tzc] pr2_declared {"why":"hidden","inRoom":false,"view":"s1"}
-13:37:28.112 [android-tzc] n16_devlog {"dev":"android-tzc"}
-13:37:28.112 [android-tzc] build {"c":"turn29-pre-ship-dir","file":"talkbridge-app/bridge-turn29-pre-ship.html","built":"2026-10-10 07:30 UTC"}
-13:37:28.112 [android-tzc] nopw_swept {"fields":19,"changed":15}
-13:37:28.113 [android-tzc] nopw_swept {"fields":19,"changed":0}
-13:37:28.117 [android-tzc] p2_standalone {}
-13:37:28.137 [android-tzc] cr3_announce {"why":"view_s1","visible":true,"lanes":0}
-13:37:28.137 [android-tzc] pr2_declared {"why":"view_s1","inRoom":false,"view":"s1"}
-13:37:28.140 [android-tzc] boot {"mode":"owner","rooms":7}
-13:37:28.147 [android-tzc] p3_perm_prop {"prop":"default","gesture":false,"n":1}
-13:37:28.147 [android-tzc] i1_sw3_register {}
-13:37:28.148 [android-tzc] cr3_armed {}
-13:37:28.164 [android-tzc] cr3_announce_window {"why":"boot"}
-13:37:28.165 [android-tzc] p3_sw_registered {"scope":"https://acmeproducts.github.io/stuff/talkbridge-app/"}
 13:37:28.224 [android-tzc] p4_sw_receipt {"ev":"app_announced","at":1791633988260,"room":null,"kind":null,"e":null}
 13:37:28.225 [android-tzc] p4_sw_drained {"n":1}
 13:37:28.240 [android-tzc] cr3_recover {"why":"pageshow","n":1,"inRoom":false}
@@ -4002,4 +3975,31 @@ Both handsets write here. Drained 2026-10-10T18:18:12Z, every 30s. Newest at the
 18:18:03.079 [iphone-xzu] rc_panel_rendered {"live":2,"bin":0,"wired":2,"dropped":1}
 18:18:03.080 [iphone-xzu] rc_home_rendered {"cards":0,"wired":0,"dropped":1}
 18:18:03.080 [iphone-xzu] joiner_create_control {"shown":false,"dropped":1}
-18:18:08.038 [iphone-xzu] pr3_dot {"others":0}```
+18:18:08.038 [iphone-xzu] pr3_dot {"others":0}
+18:18:36.816 [iphone-xzu] net_returned {"why":"focus","awayMs":33872,"inRoom":true,"inCall":false}
+18:18:36.817 [iphone-xzu] net_relay_ok {"why":"focus"}
+18:18:36.820 [iphone-xzu] cr3_announce {"why":"focus","visible":false,"lanes":2,"dropped":3}
+18:18:36.820 [iphone-xzu] pr2_declared {"why":"focus","inRoom":false,"view":"room","dropped":1}
+18:18:36.820 [iphone-xzu] cr3_attended {"on":true,"why":"focus"}
+18:18:36.824 [iphone-xzu] net_returned {"why":"focus","awayMs":8,"inRoom":true,"inCall":false}
+18:18:36.824 [iphone-xzu] net_relay_ok {"why":"focus"}
+18:18:36.827 [iphone-xzu] t1_coalesced {"fn":"renderPanel","n":7}
+18:18:36.829 [iphone-xzu] rc_panel_rendered {"live":2,"bin":0,"wired":2}
+18:18:36.829 [iphone-xzu] rc_home_rendered {"cards":0,"wired":0}
+18:18:36.829 [iphone-xzu] joiner_create_control {"shown":false}
+18:18:36.843 [iphone-xzu] net_returned {"why":"visible","awayMs":19,"inRoom":true,"inCall":false}
+18:18:36.843 [iphone-xzu] net_relay_ok {"why":"visible"}
+18:18:36.844 [iphone-xzu] cr3_announce_window {"why":"visible"}
+18:18:36.854 [iphone-xzu] p4_sw_receipt {"ev":"app_announced","at":1791656227602,"room":null,"kind":null,"e":null}
+18:18:36.854 [iphone-xzu] p4_sw_drained {"n":1}
+18:18:36.856 [iphone-xzu] relay_err {}
+18:18:36.856 [iphone-xzu] relay_close {"code":1006}
+18:18:36.856 [iphone-xzu] net_relay_closed {"code":1006,"livedMs":89286,"hidden":false}
+18:18:36.860 [iphone-xzu] cr3_recover {"why":"visible","n":2,"inRoom":true}
+18:18:37.068 [iphone-xzu] relay_open {"room":"31af0eb5-mv1jbes8ombd9l"}
+18:18:37.069 [iphone-xzu] cr3_lane_open {"room":"31af0eb5-mv1jbes8ombd9l","explicit":true}
+18:18:37.161 [iphone-xzu] t1_coalesced {"fn":"renderPanel","n":1}
+18:18:37.564 [iphone-xzu] listen_open {"room":"mtltqmgrabpmy3"}
+18:18:37.564 [iphone-xzu] cr3_lane_open {"room":"mtltqmgrabpmy3","explicit":false}
+18:18:37.810 [iphone-xzu] t1_coalesced {"fn":"renderPanel","n":1}
+18:18:40.360 [iphone-xzu] cr3_attended {"on":false,"why":"blur"}```
