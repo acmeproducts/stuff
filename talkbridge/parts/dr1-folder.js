@@ -19,6 +19,12 @@
    is live, the old subscription released before the old worker goes (the
    sequence proven at 26·pre-ship, 27·pre-ship and 28·base). PRISM's worker
    (/stuff/prism/) and this folder's own can never match.
+   Candidate 2 (c1 failed G3: both iPhone copies booted with no rooms and no
+   invite, device log 14:36 and 14:38 UTC): the head's manifest link is now
+   WRITTEN FOR THE PLATFORM WHILE THE HEAD IS PARSED (E1). c1's head named the
+   Chrome manifest, which carries a start page, and relied on U1's later swap
+   to point an iPhone at the manifest without one; the phone had already read
+   the head link (G65). E2's swap stays, now choosing the same file.
    E6: in a browser tab the accepted build registers NO worker (P2 shows the
    install gate and stops; P3 registers only in standalone) — so Chrome never
    saw a worker with a fetch handler and never offered the install icon. The
@@ -26,7 +32,7 @@
    only, no push subscription, no permission prompt (those stay where they
    were). The skeleton that passed §7.12 registered at load; so does this.
    ───────────────────────────────────────────────────────────────────────────── */
-(function(){ try { if (typeof log==='function') log('build', { c:'turn29-pre-ship-dir', file:'talkbridge-app/index.html', built:'2026-10-10 07:30 UTC' }, 'ok'); } catch(_){} })();
+(function(){ try { if (typeof log==='function') log('build', { c:'turn29-pre-ship-dir', file:'talkbridge-app/bridge-turn29-pre-ship.html', built:'2026-10-10 17:00 UTC' }, 'ok'); } catch(_){} })();
 
 function drRetireRoot() {
   if (!('serviceWorker' in navigator)) return;

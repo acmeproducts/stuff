@@ -194,7 +194,11 @@ def install(srv):
                             LEFT JOIN placements p
                               ON p.source_id=s.source_id AND p.placement_state='ACTIVE'
                             WHERE s.enabled=1
-                              AND (s.stale=1 OR p.lifecycle IN ('NONE','IN_PROCESS') OR p.availability='PENDING')
+                              AND (s.stale=1
+                                   OR (p.lifecycle IN ('NONE','IN_PROCESS') AND COALESCE(p.availability,'')!='ERROR')
+                                   OR p.availability='PENDING'
+                                   OR NOT EXISTS (SELECT 1 FROM job_sources js JOIN jobs j ON j.job_id=js.job_id
+                                                  WHERE js.source_id=s.source_id AND js.state='COMPLETED' AND j.state='COMPLETED'))
                             ORDER BY s.source_id""")
         ids=[r["source_id"] for r in rows]
         return queue_sync(ids,"startup_pending_recovery") if ids else {"created":False,"queued_source_count":0,"suppressed_source_count":0}

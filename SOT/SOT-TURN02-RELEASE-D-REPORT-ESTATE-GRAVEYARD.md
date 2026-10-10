@@ -47,3 +47,6 @@ Do not forward-patch this rejected design. Restore the pre-#770 Complete bytes (
 - Full-length fingerprint display in rows and group headers.
 - Delta sync keyed on the base app's catalog revision (wrong after mutations); replaced by the revision of the loaded rows.
 - White/dark "classic" bands as the default look (kept only as High contrast).
+- The two-chart Summary with bar segments and popups (replaced by the icon-switched Scanned / Capacity / Saved views; taps go straight to Search). The word "Estate" in the Report (now Scanned / Assets / Roots).
+- The strict "all placements must be hashed" integrity rule (it failed whole sources over unreadable files) and the in-page Report | Job Status and Summary | Roots switch rows.
+- The two-row header (title + status text above the icon strip).

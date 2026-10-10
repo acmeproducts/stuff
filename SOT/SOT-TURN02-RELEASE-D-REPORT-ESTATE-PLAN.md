@@ -218,3 +218,25 @@ Freshness: Connected describes transport only. Separate evidence state Current /
 **Change:** Colors choices save and apply the instant they change (and survive reload); new default "Soft" look (calm dark rows, 13px/1.5, regular weight, tabular numbers, no bold-on-hover, contrast >= 7:1) with the old white/dark bands kept as "High contrast"; legacy saved "classic" migrates to Soft once. Row/# columns widened so headers are not clipped.
 **Backlog:** `SOT-TURN02-RELEASE-D-BACKLOG.md` (handoff, access control, diagram, flow).
 **Qualification:** runtime qualifier covers the tags/notes refresh, default-look readability (contrast, weight, band delta), zebra persistence across reload.
+
+## 2026-10-10 — Summary rebuilt: Scanned / Capacity / Saved as dots, circles or a path treemap
+
+**Owner spec:** top ribbon with chart-type icons (dots, circles, treemap); below it the view row Scanned | Capacity | Saved with a Files | GB switch; "Estate" retired; every tap lands on the existing Search screen (no second list); dots express percent with a legend (nothing above 100%); treemap groups by path, sized by files or GB, drilling to folders, with a folder's own files as a separate tile.
+**Model:** Scanned = Assets (Unique + Keep) + Excess. Capacity: Open/Deficit = Target − Assets (Deficit is a ⚠ warning, never negative). Saved: Assets = Landed + In play.
+**Change (Complete surface only):** new Summary module; sub-tabs are Summary / Roots (the sortable root table, now headed ASSETS); choices persist per device; taps use new Search scopes (`#report:capacity-fits`, `#report:dir:`, `#report:tree:`, `#report:paths:`) plus `plan:` queries; Search shows a "← Report · <part>" chip to return; IBM Plex Sans/Mono typography added (falls back to system fonts).
+**Qualification:** runtime qualifier covers the ribbon, pills, measure switch, equations, no-percent-above-100, every tap target's query and row count, the back chip, circle order, treemap tiles and over-target colouring, and persistence.
+
+## 2026-10-10 — Unreadable files no longer fail a whole source; Report flattened into the top strip
+
+**Evidence (owner log + screenshot):** source `/mnt/c/Users/…/OneDrive/Recordings` shows Problem, Errors 306, Last synchronized Never, "Persisted placement evidence does not match job counters". The big pasted log itself was normal activity.
+**Root cause:** the end-of-job integrity check counted files that could not be read (OneDrive online-only placeholders, locked files, failed stat) as "pending" and as extra placements, so any single unreadable file forced the whole source to FAILED and it never recorded a sync.
+**Change (engine):** unreadable files stay as ERROR placements (shown for review) but are excluded from the integrity comparison; discovery-time failures are tagged `discovery:` so they are not mistaken for scanned files. The source now completes and reports its error count.
+**Change (UI):** the Report | Job Status row and the Summary | Roots row are gone. The top strip carries Report, Job Status, Roots, Search, Add and AI icons, with exactly one highlighted for the page you are on. The chart-type icons are the first row inside Report.
+**Qualification:** new `qualify-release-d-unreadable.py` (real engine, simulated unreadable files; failed before the fix, passes after); runtime qualifier checks the strip order and highlight for each page.
+
+## 2026-10-10 — One-row header; failed sources are retried at startup
+
+**Evidence (owner screenshot):** the title and "Connected" text took a row; the Recordings source still showed Problem (the fix had not been installed yet).
+**Change (UI):** header is a single row: the icon strip, a connection dot (text kept for screen readers) and settings; title removed.
+**Change (autosync):** startup recovery no longer re-queues a finished source just because it holds unreadable-file rows, and it does retry any source that has never completed a sync (so the previously failed Recordings source is retried after the update).
+**Qualification:** runtime qualifier checks the one-row header at desktop and 412 px; the unreadable-files gate runs the recovery query for both cases.

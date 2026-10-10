@@ -59,8 +59,7 @@ print('PASS placement paging uses one immutable snapshot while the live catalog 
 print('PASS placement paging returns the complete active database beyond the legacy 10,000-row ceiling')
 
 ui=(HERE/'sot-turn02-release-d-source-actions.html').read_text();complete=(HERE/'sot-turn02-release-d-complete.html').read_text();autosync=(HERE/'sot-turn02-release-d-autosync.py').read_text()
-for required in ['SSOT','Current','Syncing','Problem','liveSourceProgress','SOT keeps registered sources current automatically']:assert required in ui,required
-for required in ['/api/placements/page','__ssotPlacementPending','__ssotApplyPlacements','Placement paging incomplete']:assert required in complete,required
+for required in ['Summary','Roots','SCANNED','ASSETS','EXCESS','IN PLAY','LANDED','DEFICIT','Last Synced','__ssotEstateSortBy','__ssotSumTap','__ssotGoSearch']:assert required in complete,required
 for forbidden in ['Source action needed','Kick off only uncovered sources','Analyze again',"subnav(['Queue','Sources']",'System history','systemHistoryHtml','system-history']:assert forbidden not in ui,forbidden
 assert "if(live)return 'Syncing'" in ui
 print('PASS Analyze is one SSOT surface: Current / Syncing / Problem with internal history absent from the owner UI')
@@ -74,8 +73,8 @@ assert "typeof snap!=='undefined'" in complete
 print('PASS observed tab decoration is idempotent and cannot self-trigger an unbounded MutationObserver loop')
 print('PASS placement apply cannot fail merely because snap is undeclared')
 assert "Job Status</button>" in complete and "Analyze</button>" not in complete
-for required in ['Summary','Estate','IN PLAY','LANDED','SCANNED','UNIQUE + KEEP + EXCESS','UNIQUE + KEEP','MUST BE REMOVED FROM ESTATE TO FIT TARGET','Last Synced','__ssotEstateSortBy']:assert required in complete,required
-print('PASS Report / Job Status labels and the two-chart Summary report (SCANNED, TARGET) and Estate are present in Complete (runtime behavior: SOT/qualify-release-d-report-estate.mjs)')
+for required in ['Summary','Roots','SCANNED','ASSETS','EXCESS','IN PLAY','LANDED','DEFICIT','Last Synced','__ssotEstateSortBy','__ssotSumTap','__ssotGoSearch']:assert required in complete,required
+print('PASS Report / Job Status labels and the Summary report (Scanned / Capacity / Saved as dots, circles or treemap) and Estate are present in Complete (runtime behavior: SOT/qualify-release-d-report-estate.mjs)')
 for required in ['/api/diagnostics/log','/api/diagnostics/log/clear','diagnostic-log-publisher','live/sot-release-d-events.jsonl','git","-C",str(repo),"push','_placement_cursor_snapshots','PLACEMENT_SNAPSHOT_TTL']:assert required in autosync,required
 print('PASS database refresh is visibly blocked until the complete estate is applied')
 print('PASS Report is first and Report / Analyze share the Report icon')

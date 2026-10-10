@@ -74,12 +74,16 @@
             padding:5px 10px;
             font-size:0.9em;
         }
+        #org-input{margin-bottom:10px;width:100%;padding:5px;}
+        #retry-btn{margin-top:5px;padding:5px 10px;background:#e67e22;color:#fff;border:none;border-radius:3px;cursor:pointer;}
     </style>
 </head>
 <body>
 <div id="app">
     <div id="left-rail">
         <h2>Repositories</h2>
+        <input type="text" id="org-input" placeholder="GitHub organization (default: acmeproducts)" />
+        <button id="retry-btn">Load Repos</button>
         <div id="repo-list"></div>
     </div>
     <div id="right-panel">
@@ -115,170 +119,134 @@
 <div class="diagnostics" id="diagnostics">Dashboard Ready</div>
 
 <script>
-/* ---------- Live GitHub API fetch ---------- */
-const ORG = 'acmeproducts';
+let ORG = 'acmeproducts';
 let reposData = [];
 
-/* Helper to format ISO date */
-function formatDate(iso) {
-    const d = new Date(iso);
-    return d.toLocaleDateString() + ' ' + d.toLocaleTimeString();
-}
+/* Helpers */
+function formatDate(iso){const d=new Date(iso);return d.toLocaleDateString()+' '+d.toLocaleTimeString();}
 
-/* Fetch repos from GitHub */
-async function fetchRepos() {
-    try {
+/* Fetch repos */
+async function fetchRepos(){
+    const org = document.getElementById('org-input').value.trim()||ORG;
+    ORG = org;
+    try{
         const resp = await fetch(`https://api.github.com/orgs/${ORG}/repos`);
-        if (!resp.ok) throw new Error(`GitHub API error: ${resp.status}`);
+        if(!resp.ok) throw new Error(`GitHub API error: ${resp.status}`);
         const repos = await resp.json();
-        // Map needed fields
-        reposData = await Promise.all(repos.map(async repo => {
-            // Get README HTML
+        reposData = await Promise.all(repos.map(async repo=>{
             let readmeHTML = '';
-            try {
-                const readmeResp = await fetch(`https://api.github.com/repos/${ORG}/${repo.name}/readme`, {
-                    headers: { Accept: 'application/vnd.github.VERSION.html' }
+            try{
+                const r = await fetch(`https://api.github.com/repos/${ORG}/${repo.name}/readme`,{
+                    headers:{Accept:'application/vnd.github.VERSION.html'}
                 });
-                if (readmeResp.ok) readmeHTML = await readmeResp.text();
-            } catch (_) {}
-            // Simple heuristic for apps: look for top‑level directories named "app-" or "src"
+                if(r.ok) readmeHTML = await r.text();
+            }catch{}
             let apps = [];
-            try {
-                const contentsResp = await fetch(`https://api.github.com/repos/${ORG}/${repo.name}/contents`);
-                if (contentsResp.ok) {
-                    const items = await contentsResp.json();
-                    const appDirs = items.filter(i => i.type === 'dir' && /app|src/i.test(i.name));
-                    apps = appDirs.map(dir => ({
-                        name: dir.name,
-                        versions: [] // version detection omitted for brevity
-                    }));
+            try{
+                const c = await fetch(`https://api.github.com/repos/${ORG}/${repo.name}/contents`);
+                if(c.ok){
+                    const items = await c.json();
+                    const dirs = items.filter(i=>i.type==='dir' && /app|src/i.test(i.name));
+                    apps = dirs.map(d=>({name:d.name,versions:[]}));
                 }
-            } catch (_) {}
+            }catch{}
             return {
-                id: repo.id,
-                name: repo.name,
-                lastAccessed: formatDate(repo.pushed_at),
-                pages: repo.has_pages || false,
-                overview: repo.description || 'No description.',
+                id:repo.id,
+                name:repo.name,
+                lastAccessed:formatDate(repo.pushed_at),
+                pages:repo.has_pages||false,
+                overview:repo.description||'No description.',
                 apps,
-                codeLinks: [{ href: repo.html_url, label: 'GitHub Repo' }],
-                readme: readmeHTML || `<p>No README found.</p>`
+                codeLinks:[{href:repo.html_url,label:'GitHub Repo'}],
+                readme:readmeHTML||`<p>No README found.</p>`
             };
         }));
         renderRepoList();
-        document.getElementById('diagnostics').textContent = `Dashboard Live – ${reposData.length} repos loaded`;
-    } catch (e) {
+        document.getElementById('diagnostics').textContent=`Dashboard Live – ${reposData.length} repos loaded`;
+    }catch(e){
         console.error(e);
-        document.getElementById('diagnostics').textContent = `Error loading repos`;
+        document.getElementById('diagnostics').textContent=`Error loading repos for "${ORG}"`;
+        document.getElementById('repo-list').innerHTML='<p style="color:#e74c3c;">Failed to load repos. Check organization name.</p>';
     }
 }
 
-/* ---------- Rendering functions ---------- */
-function renderRepoList() {
-    const list = document.getElementById('repo-list');
-    list.innerHTML = '';
-    reposData.forEach((repo, idx) => {
-        const div = document.createElement('div');
-        div.className = 'repo-item' + (idx===0 ? ' active' : '');
-        div.dataset.repoId = repo.id;
-        div.innerHTML = `
-            <div>${repo.name}</div>
-            <div class="repo-meta">
-                Last accessed: ${repo.lastAccessed}<br>
-                GitHub Pages: ${repo.pages ? '✅' : '❌'}
-            </div>`;
-        div.addEventListener('click', () => selectRepo(repo.id));
+/* Rendering */
+function renderRepoList(){
+    const list=document.getElementById('repo-list');
+    list.innerHTML='';
+    reposData.forEach((repo,idx)=>{
+        const div=document.createElement('div');
+        div.className='repo-item'+(idx===0?' active':'');
+        div.dataset.repoId=repo.id;
+        div.innerHTML=`<div>${repo.name}</div>
+            <div class="repo-meta">Last accessed: ${repo.lastAccessed}<br>GitHub Pages: ${repo.pages?'✅':'❌'}</div>`;
+        div.onclick=()=>selectRepo(repo.id);
         list.appendChild(div);
     });
-    if (reposData.length) selectRepo(reposData[0].id);
+    if(reposData.length) selectRepo(reposData[0].id);
 }
 
-function selectRepo(repoId) {
-    document.querySelectorAll('.repo-item').forEach(i=>i.classList.toggle('active', i.dataset.repoId==repoId));
-    const repo = reposData.find(r=>r.id==repoId);
-    if (!repo) return;
-    document.getElementById('diagnostics').textContent = `Dashboard Live – ${repo.name}`;
-    document.getElementById('overview-content').innerHTML = `<p>${repo.overview}</p>`;
-    document.getElementById('launch-repo').onclick = () => {
-        if (repo.pages) window.open(`https://${ORG}.github.io/${repo.name}`, '_blank');
-        else alert('No GitHub Pages site.');
-    };
-    document.getElementById('analyze-repo').onclick = () => analyzeRepo(repo);
+function selectRepo(id){
+    document.querySelectorAll('.repo-item').forEach(i=>i.classList.toggle('active',i.dataset.repoId==id));
+    const repo=reposData.find(r=>r.id==id);
+    if(!repo) return;
+    document.getElementById('diagnostics').textContent=`Dashboard Live – ${repo.name}`;
+    document.getElementById('overview-content').innerHTML=`<p>${repo.overview}</p>`;
+    document.getElementById('launch-repo').onclick=()=>{if(repo.pages)window.open(`https://${ORG}.github.io/${repo.name}`,'_blank');else alert('No GitHub Pages site.');};
+    document.getElementById('analyze-repo').onclick=()=>analyzeRepo(repo);
     renderApps(repo);
     renderCodeLinks(repo);
-    document.getElementById('readme-content').innerHTML = repo.readme;
+    document.getElementById('readme-content').innerHTML=repo.readme;
 }
 
-/* Apps rendering with chevrons */
-function renderApps(repo) {
-    const container = document.getElementById('apps-content');
-    container.innerHTML = '';
-    if (!repo.apps.length) {
-        container.textContent = 'No detected applications.';
-        return;
-    }
-    repo.apps.forEach(app => {
-        const header = document.createElement('div');
-        header.className = 'app-header';
-        header.dataset.group = `${repo.id}-${app.name}`;
-        header.innerHTML = `<span class="chevron">▶</span> ${app.name}`;
-        const group = document.createElement('div');
-        group.className = 'app-group';
-        group.id = `${repo.id}-${app.name}`;
-        // versions placeholder
-        const verDiv = document.createElement('div');
-        verDiv.textContent = 'v1.0 ';
-        const btn = document.createElement('button');
-        btn.className = 'launch-btn';
-        btn.textContent = 'Launch';
-        btn.onclick = () => alert(`Launching ${app.name} v1.0`);
+function renderApps(repo){
+    const container=document.getElementById('apps-content');
+    container.innerHTML='';
+    if(!repo.apps.length){container.textContent='No detected applications.';return;}
+    repo.apps.forEach(app=>{
+        const header=document.createElement('div');
+        header.className='app-header';
+        header.dataset.group=`${repo.id}-${app.name}`;
+        header.innerHTML=`<span class="chevron">▶</span> ${app.name}`;
+        const group=document.createElement('div');
+        group.className='app-group';
+        group.id=`${repo.id}-${app.name}`;
+        const verDiv=document.createElement('div');
+        verDiv.textContent='v1.0 ';
+        const btn=document.createElement('button');
+        btn.className='launch-btn';
+        btn.textContent='Launch';
+        btn.onclick=()=>alert(`Launching ${app.name} v1.0`);
         verDiv.appendChild(btn);
         group.appendChild(verDiv);
-        header.addEventListener('click', () => {
-            const grp = document.getElementById(header.dataset.group);
-            const chevron = header.querySelector('.chevron');
-            grp.classList.toggle('active');
-            chevron.textContent = grp.classList.contains('active') ? '▼' : '▶';
-        });
+        header.onclick=()=>{const g=document.getElementById(header.dataset.group);const c=header.querySelector('.chevron');g.classList.toggle('active');c.textContent=g.classList.contains('active')?'▼':'▶';};
         container.appendChild(header);
         container.appendChild(group);
     });
 }
 
-/* Code links */
-function renderCodeLinks(repo) {
-    const ul = document.getElementById('code-links');
-    ul.innerHTML = '';
-    repo.codeLinks.forEach(l => {
-        const li = document.createElement('li');
-        const a = document.createElement('a');
-        a.href = l.href;
-        a.target = '_blank';
-        a.textContent = l.label;
-        li.appendChild(a);
-        ul.appendChild(li);
-    });
+function renderCodeLinks(repo){
+    const ul=document.getElementById('code-links');
+    ul.innerHTML='';
+    repo.codeLinks.forEach(l=>{const li=document.createElement('li');const a=document.createElement('a');a.href=l.href;a.target='_blank';a.textContent=l.label;li.appendChild(a);ul.appendChild(li);});
 }
 
-/* Analyze flow */
-function analyzeRepo(repo) {
-    const suggestion = repo.pages
-        ? 'Repo already has GitHub Pages enabled.'
-        : 'Repo lacks GitHub Pages. Add an index.html and enable Pages in the repo settings.';
+/* Analyze */
+function analyzeRepo(repo){
+    const suggestion=repo.pages?'Repo already has GitHub Pages enabled.':'Repo lacks GitHub Pages. Add an index.html and enable Pages in the repo settings.';
     alert(`Analysis for ${repo.name}:\n\n${suggestion}`);
 }
 
 /* Tab switching */
-document.querySelectorAll('.tab').forEach(tab => {
-    tab.addEventListener('click', () => {
-        document.querySelectorAll('.tab').forEach(t=>t.classList.remove('active'));
-        tab.classList.add('active');
-        const target = tab.dataset.tab;
-        document.querySelectorAll('.tab-page').forEach(page=>{
-            page.style.display = page.dataset.tab===target ? 'block' : 'none';
-        });
-    });
-});
+document.querySelectorAll('.tab').forEach(t=>t.addEventListener('click',()=>{
+    document.querySelectorAll('.tab').forEach(x=>x.classList.remove('active'));
+    t.classList.add('active');
+    const target=t.dataset.tab;
+    document.querySelectorAll('.tab-page').forEach(p=>p.style.display=p.dataset.tab===target?'block':'none');
+}));
+
+/* Retry button */
+document.getElementById('retry-btn').addEventListener('click',fetchRepos);
 
 /* Init */
 fetchRepos();
