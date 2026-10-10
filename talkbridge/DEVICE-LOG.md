@@ -1,33 +1,8 @@
 # TalkBridge device log
 
-Both handsets write here. Drained 2026-10-10T18:19:16Z, every 30s. Newest at the bottom.
+Both handsets write here. Drained 2026-10-10T18:19:48Z, every 30s. Newest at the bottom.
 
 ```
-13:37:44.675 [android-tzc] relay_open {"room":"31af0eb5-mv1jbes8ombd9l"}
-13:37:44.676 [android-tzc] cr3_lane_open {"room":"31af0eb5-mv1jbes8ombd9l","explicit":true}
-13:37:44.800 [android-tzc] r8_name_msg {"type":"hello-ack","name":"mike","had":"A26"}
-13:37:44.807 [android-tzc] history_sync_sent {"n":9}
-13:37:45.262 [android-tzc] pb_pull_unchanged {"version":1000}
-13:37:44.305 [android-flz] pr3_dot {"others":0}
-13:37:44.368 [android-flz] r8_name_msg {"type":"hello","name":"s20 final","had":"s20 final"}
-13:37:44.380 [android-flz] history_sync_sent {"n":9}
-13:37:48.188 [android-tzc] rc_panel_rendered {"live":7,"bin":0,"wired":7,"dropped":9}
-13:37:48.188 [android-tzc] rc_home_rendered {"cards":0,"wired":0,"dropped":10}
-13:37:48.188 [android-tzc] joiner_create_control {"shown":true,"dropped":9}
-13:37:48.192 [android-tzc] t1_coalesced {"fn":"renderPanel","n":1}
-13:37:48.209 [android-tzc] t1_coalesced {"fn":"renderPanel","n":4}
-13:37:48.225 [android-tzc] t1_coalesced {"fn":"renderPanel","n":1}
-13:37:49.597 [android-tzc] joiner_send_direction {"room":"ombd9l","from":"ko","to":"en","role":"joiner"}
-13:37:49.748 [android-tzc] trans_ok {"provider":"google","from":"ko","to":"en","ms":148,"inChars":2,"outChars":2}
-13:37:49.763 [android-tzc] md1_rendered {"id":"5rsv6y","dropped":8}
-13:37:49.763 [android-tzc] chat_sent {"t":"yo"}
-13:37:51.582 [android-tzc] pr3_dot {"others":1}
-13:37:49.574 [android-flz] r8_name_msg {"type":"chat-msg","name":"s20 final","had":"s20 final"}
-13:37:49.596 [android-flz] md1_rendered {"id":"5rsv6y","dropped":8}
-13:37:49.596 [android-flz] read_receipts_sent {"n":1}
-13:37:49.596 [android-flz] chat_rx {"t":"yo"}
-13:37:49.608 [android-flz] rc_panel_rendered {"live":8,"bin":1,"wired":8,"dropped":2}
-13:37:49.608 [android-flz] rc_home_rendered {"cards":1,"wired":1,"dropped":2}
 13:37:49.608 [android-flz] joiner_create_control {"shown":true,"dropped":2}
 13:37:51.162 [android-flz] pr3_dot {"others":1}
 13:37:57.118 [android-tzc] r8_name_msg {"type":"chat-msg","name":"mike","had":"mike"}
@@ -4002,4 +3977,29 @@ Both handsets write here. Drained 2026-10-10T18:19:16Z, every 30s. Newest at the
 18:19:13.485 [android-flz] cr3_lane_open {"room":"31af0eb5-mv1jbes8ombd9l","explicit":false}
 18:19:14.431 [android-flz] ft_ready {}
 18:19:14.431 [android-flz] r8_menu_labels {"applied":3,"of":3}
-18:19:15.448 [android-flz] nf_tab_hidden {"why":"on"}```
+18:19:15.448 [android-flz] nf_tab_hidden {"why":"on"}
+18:19:23.439 [android-flz] rc_panel_rendered {"live":8,"bin":1,"wired":8,"dropped":16}
+18:19:23.439 [android-flz] rc_home_rendered {"cards":0,"wired":0,"dropped":16}
+18:19:23.439 [android-flz] joiner_create_control {"shown":true,"dropped":17}
+18:19:23.439 [android-flz] joiner_panel_opened {"rooms":9}
+18:19:24.827 [android-flz] gen_bump {"n":2,"r":"room_enter"}
+18:19:24.829 [android-flz] cr3_announce {"why":"view_room","visible":true,"lanes":8,"dropped":1}
+18:19:24.829 [android-flz] pr2_declared {"why":"view_room","inRoom":true,"view":"room"}
+18:19:24.849 [android-flz] room_enter {"id":"31af0eb5-muzk2t5lbh5qos","role":"creator"}
+18:19:24.849 [android-flz] joiner_entered {"room":"bh5qos","myLang":"en","theirLang":"ko","role":"creator"}
+18:19:24.918 [android-flz] t1_coalesced {"fn":"renderPanel","n":6}
+18:19:24.935 [android-flz] t1_coalesced {"fn":"renderPanel","n":6}
+18:19:25.071 [android-flz] relay_open {"room":"31af0eb5-muzk2t5lbh5qos"}
+18:19:25.073 [android-flz] cr3_lane_open {"room":"31af0eb5-muzk2t5lbh5qos","explicit":true}
+18:19:25.148 [android-flz] t1_coalesced {"fn":"renderPanel","n":1}
+18:19:25.716 [android-flz] pb_pull_unchanged {"version":1001}
+18:19:32.537 [android-flz] rc_panel_rendered {"live":8,"bin":1,"wired":8,"dropped":6}
+18:19:32.538 [android-flz] rc_home_rendered {"cards":0,"wired":0,"dropped":7}
+18:19:32.538 [android-flz] joiner_create_control {"shown":true,"dropped":7}
+18:19:32.552 [android-flz] t1_coalesced {"fn":"renderPanel","n":7}
+18:19:35.544 [android-flz] cr3_announce {"why":"blur","visible":true,"lanes":8,"dropped":1}
+18:19:35.545 [android-flz] pr2_declared {"why":"blur","inRoom":true,"view":"room","dropped":1}
+18:19:35.545 [android-flz] cr3_attended {"on":false,"why":"blur"}
+18:19:35.654 [android-flz] t1_coalesced {"fn":"renderPanel","n":15}
+18:19:36.838 [android-flz] nf_install_prompt {"outcome":"accepted"}
+18:19:36.844 [android-flz] nf_install_done {}```
