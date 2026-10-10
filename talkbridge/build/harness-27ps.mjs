@@ -340,6 +340,7 @@ T('M3e.4 renderPanel and renderHome are latched the same way; a lone call is nev
 
 console.log('M3f · T-2 log hygiene');
 await sleep(80);
+try { R.w._t2Last = {}; R.w._t2Dropped = {}; } catch (_) {}   /* a page that booted (29·ship: any launch) has already logged once; the test starts from a clean limiter — a no-op on a page that did not boot */
 const n0 = dl(R, 'rc_panel_rendered').length;
 const base0 = 1758500000000; R.w.Date.now = () => base0;
 for (let i = 0; i < 10; i++) R.w.log('rc_panel_rendered', { i });

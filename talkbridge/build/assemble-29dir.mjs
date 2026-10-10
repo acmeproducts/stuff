@@ -44,6 +44,8 @@ export const COPIES = ['icon-v2-180.png', 'icon-v2-192.png', 'icon-v2-512.png', 
 export const ADDED_MARKERS = ['dr_root_worker_retired', 'dr_retire_deferred', 'dr_retire_failed'];
 export const ADDED_SYMBOLS = ['drRetireRoot'];
 export const TAIL = '\n</script>\n</body>\n</html>';
+/* the folder holds every stage; this stage's check ignores what the later stages' assemblers write */
+export const LATER_STAGES = /^(bridge-turn29-(ship|post-ship)\.html|tb-sw[4-9]\.js|tb-manifest-turn29-(ship|post-ship)(-ios)?\.webmanifest)$/;
 export const OUT = { page: FOLDER + '/' + STAGE_PAGE, index: FOLDER + '/index.html', worker: FOLDER + '/tb-sw3.js', manifest: FOLDER + '/' + MANIFEST_NAME, manifestIos: FOLDER + '/' + MANIFEST_IOS_NAME };
 /* the folder's face: the forwarder §7.5 specifies for old addresses, used here for the folder URL itself */
 export function forwarder(stagePage) {
@@ -117,7 +119,7 @@ if (process.argv[1] && process.argv[1].endsWith('assemble-29dir.mjs')) {
       const same = fs.existsSync(p) && Buffer.compare(fs.readFileSync(p), Buffer.isBuffer(content) ? content : Buffer.from(content)) === 0;
       if (!same) { console.error('assemble --check: ' + f + ' is not the assembled output'); bad++; }
     }
-    const extra = fs.readdirSync(path.join(root, FOLDER)).filter((f) => !(FOLDER + '/' + f in files));
+    const extra = fs.readdirSync(path.join(root, FOLDER)).filter((f) => !(FOLDER + '/' + f in files) && !LATER_STAGES.test(f));   /* files a later stage's assembler owns are not this stage's business */
     if (extra.length) { console.error('assemble --check: files in the folder the assembler did not write: ' + extra.join(', ')); bad++; }
     if (bad) process.exit(1);
     console.log('verified ' + Object.keys(files).length + ' files in ' + FOLDER + '/ · ' + STAGE_PAGE + ' sha256=' + sha(Buffer.from(files[OUT.page])) + ' · tb-sw3.js sha256=' + sha(Buffer.from(files[OUT.worker])));
