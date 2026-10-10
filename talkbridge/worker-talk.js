@@ -1,5 +1,5 @@
 /* ─────────────────────────────────────────────────────────────────────────────
-   TALK RELAY — worker-talk.js  ·  v6.7 29·base — MULTI-USER, RELAY LEG (plan §7.8 R-parts, owner GO 2026-10-09)
+   TALK RELAY — worker-talk.js  ·  v6.8 29·ship c4 — DEAD-ENDPOINT MEMORY (a 404/410 from the push service is remembered; the subscription is refused when re-offered, so the app re-mints) on v6.7 29·base — MULTI-USER, RELAY LEG (plan §7.8 R-parts, owner GO 2026-10-09)
    v6.7 adds, app untouched (every change is a no-op for a message without the new fields):
      · a room cap — MAX_PARTICIPANTS (4) or the creator's `cap` query parameter, kept with the
        session; a device beyond it is told {type:'full', cap, n} and closed with 4001 before it
@@ -54,7 +54,7 @@ const VAPID_SUBJECT = 'mailto:nobody@nowhere.com';
 /* v6: only events that own a recipient record can alert. Everything else is
    data on the socket, never a wake. */
 const RECORD_KIND = { 'chat-msg': 'chat', 'thread-invite': 'chat', 'call-start': 'call' };
-const RELAY_VERSION = '6.7';
+const RELAY_VERSION = '6.8';           /* v6.8 29·ship c4: dead-endpoint memory — a subscription the push service declared gone (404/410) is refused when re-registered, so the app re-mints */
 const MAX_PARTICIPANTS = 4;           /* v6.7 §7.8 R2: the room cap unless the creator's socket says otherwise (1..8) */
 const CALL_ROUTED = new Set(['call-accept', 'call-decline', 'call-end', 'webrtc-signal', 'mic-state', 'cam-state']);   /* v6.7 R1: words of a call that go to the other party of an ADDRESSED call */
 const EVENT_TTL_MS = 7 * 24 * 60 * 60 * 1000;
@@ -233,8 +233,9 @@ export class TalkSession {
     this.devices = {};                  /* clientId -> { at } every device ever seen in this session */
     this.states = {};                   /* clientId -> { visible, inRoom, muted, at } last reported, in memory only */
     this.cap = 0;                       /* v6.7: the room cap once a creator's socket has said it; 0 = MAX_PARTICIPANTS */
+    this.dead = {};                     /* v6.8: endpoint → when the push service said 404/410. Device log 2026-10-10 18:23 UTC: FCM answered 410 for a subscription Chrome still handed the app at every boot; the app re-registered it, the relay re-learned it was dead, nothing ever rang. */
     this.ready = this.state.blockConcurrencyWhile(async () => {
-      const stored = await this.state.storage.get(['seq', 'messages', 'lastActivity', 'subs', 'events', 'devices', 'cap']);
+      const stored = await this.state.storage.get(['seq', 'messages', 'lastActivity', 'subs', 'events', 'devices', 'cap', 'dead']);
       this.cap = Number(stored.get('cap')) || 0;
       this.seq = Number(stored.get('seq')) || 0;
       this.messages = stored.get('messages') || [];
@@ -242,6 +243,7 @@ export class TalkSession {
       this.subs = stored.get('subs') || {};
       this.events = stored.get('events') || {};
       this.devices = stored.get('devices') || {};
+      this.dead = stored.get('dead') || {};
     });
   }
 
@@ -527,6 +529,15 @@ export class TalkSession {
   async _saveSubs() {
     await this.state.storage.put({ subs: this.subs });
   }
+  /* v6.8: a dead endpoint is remembered (the newest 100) so the app that re-offers it is told, and re-mints. */
+  async _noteDead(endpoint) {
+    if (!endpoint) return;
+    this.dead[endpoint] = Date.now();
+    const keys = Object.keys(this.dead).sort((a, b) => this.dead[a] - this.dead[b]);
+    while (keys.length > 100) delete this.dead[keys.shift()];
+    await this.state.storage.put({ dead: this.dead });
+  }
+  _isDead(endpoint) { return !!(endpoint && this.dead[endpoint]); }
 
   /* STEP 1: the reference delivery class — encrypted payload, high urgency,
      newest-wins topic, short TTL. Proven on the owner's locked iPhone 4/4. */
@@ -557,7 +568,9 @@ export class TalkSession {
          Keeping it would mean retrying forever against nothing. */
       if (res.status === 404 || res.status === 410) {
         delete this.subs[clientId];
+        r.pushErr = 'dead-endpoint';
         await this._saveSubs();
+        await this._noteDead(endpoint);
       }
     } catch (_) { r.push = 'unknown'; }
   }
@@ -669,6 +682,9 @@ export class TalkSession {
       }
 
       if (body && body.type === 'subscribe' && body.subscription && body.subscription.endpoint) {
+        if (this._isDead(body.subscription.endpoint)) {   /* v6.8: the push service already declared this one gone — the app must mint a new one */
+          return json({ ok: false, dead: true, subscribed: false, vapid: VAPID_PUBLIC_KEY });
+        }
         this.subs[clientId] = { sub: body.subscription, at: Date.now() };
         await this._saveSubs();
         await this._noteDevice(clientId);

@@ -318,7 +318,7 @@ textarea::placeholder,input::placeholder{color:var(--ink-dim)}
 #chat-clear-x.show{display:block}
 #chat-input{overflow-y:hidden;width:100%}
 </style>
-<script>document.write('<link rel="manifest" href="' + ((/iPhone|iPad|iPod/.test(navigator.userAgent) || (/Macintosh/.test(navigator.userAgent) && navigator.maxTouchPoints > 1)) ? 'tb-manifest-turn29-ship-ios.webmanifest' : 'tb-manifest-turn29-ship.webmanifest') + '">');</script><!-- DR-1 c2, carried by 29·ship: the manifest link is written for the platform WHILE THE HEAD IS PARSED — the phone reads it then; a later swap is not relied on (G65). The iPhone manifest has no start_url, so the load-time address carries into the Home Screen copy (§7.19 proof, repeated 2026-10-10) -->
+<script>document.write('<link rel="manifest" href="' + ((/iPhone|iPad|iPod/.test(navigator.userAgent) || (/Macintosh/.test(navigator.userAgent) && navigator.maxTouchPoints > 1)) ? 'tb-manifest-turn29-ship-ios.webmanifest' : 'tb-manifest-turn29-ship.webmanifest') + '">');window.addEventListener('beforeinstallprompt',function(e){e.preventDefault();window.__tbInstallOffer=e;});window.addEventListener('appinstalled',function(){window.__tbInstalled=true;window.__tbInstallOffer=null;});</script><!-- DR-1 c2, carried by 29·ship: the manifest link is written for the platform WHILE THE HEAD IS PARSED — the phone reads it then; a later swap is not relied on (G65). The iPhone manifest has no start_url, so the load-time address carries into the Home Screen copy (§7.19 proof, repeated 2026-10-10). 29·ship c4: the browser's install offer is held here, in the head, because Chrome fires it once and early — a listener at the end of the page misses it -->
 <meta name="theme-color" content="#2E8B8B">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -623,7 +623,8 @@ var _storageWarnedThisSession=false;
 function lsSet(k,v){
   try{localStorage.setItem(k,JSON.stringify(v))}
   catch(e){
-    log('storage_write_failed',{key:k,e:String(e&&e.name||e)},'error');
+    log('storage_write_failed',{key:k,e:String(e&&e.name||e),bytes:(function(){try{return JSON.stringify(v).length}catch(_){return -1}})()},'error');
+    try{if(navigator.storage&&navigator.storage.estimate)navigator.storage.estimate().then(function(q){log('storage_estimate',{usage:q.usage,quota:q.quota},'warn')})}catch(_){}   /* 29·ship c4: a failed save names the quota it hit (iPhone copy, 2026-10-10) */
     if(!_storageWarnedThisSession){
       _storageWarnedThisSession=true;
       toast('Storage is full — recent messages may not be saving. Export your transcripts or free up space.',6000);
@@ -1900,7 +1901,7 @@ function boot(){
             autoRead:false,muted:false,goBtn:true,meta:'top',ear:true,theme:p.th||undefined,createdAt:Date.now(),lastAt:Date.now(),joined:true,unread:0};
           S.rooms.push(linkedRoom);saveRooms();
         }
-        try{history.replaceState(null,'',location.pathname)}catch(_){}
+        if(!(p2Platform()==='ios'&&!p2IsStandalone()))try{history.replaceState(null,'',location.pathname)}catch(_){}   /* 29·ship c4: an iPhone TAB keeps the carry in its live address — Safari reloads an evicted tab at the live address, and Add to Home Screen captures it (G65) */
         showScreen('s1');
         enterRoom(linkedRoom.id);
         log('boot',{mode:'device-link'},'ok');
@@ -5204,7 +5205,8 @@ function p3RegisterRoom(roomId) {
   var room = roomById(roomId), want = !(room && room.muted);
   var body = want ? { type: 'subscribe', subscription: p3State.sub.toJSON ? p3State.sub.toJSON() : p3State.sub } : { type: 'unsubscribe' };
   return p3RelayPost(roomId, body)
-    .then(function (r) { var ok = !!(r && r.ok); if (ok) p3State.registered[roomId] = want; p3Log(want ? 'room_registered' : 'room_unregistered', { room: String(roomId).slice(-6), ok: ok }, ok ? 'ok' : 'error'); return ok; })
+    .then(function (r) { if (r && r.dead) { p3Log('room_register_dead', { room: String(roomId).slice(-6) }, 'warn'); try { rhOnDeadSubscription(roomId); } catch (_) {} return false; }   /* 29·ship c4 (relay v6.8): the push service declared this subscription gone — mint a new one (device log 2026-10-10 18:23 UTC, FCM 410) */
+      var ok = !!(r && r.ok); if (ok) p3State.registered[roomId] = want; p3Log(want ? 'room_registered' : 'room_unregistered', { room: String(roomId).slice(-6), ok: ok }, ok ? 'ok' : 'error'); return ok; })
     .catch(function (e) { p3Log('room_register_failed', { room: String(roomId).slice(-6), e: String(e && e.message || e) }, 'error'); return false; });
 }
 function p3SyncMutes() {
@@ -5218,7 +5220,7 @@ function p3RegisterAll() {
 /* The attempt. `inGesture` says whether this call sits inside a user tap. */
 function p3Attempt(inGesture) {
   /* 29·ship (§7.19, G33): in a browser tab the permission prompt is never raised outside a tap — an attempt with no gesture runs only where it cannot prompt */
-  if (!inGesture && !nfMayAttempt()) { p3Log('attempt_skipped', { state: nfState() }, 'info'); return Promise.resolve(null); }
+  if (!inGesture && !rhMayAttempt()) { p3Log('attempt_skipped', { state: rhState() }, 'info'); return Promise.resolve(null); }
   p3State.attempts++;
   var prop = (window.Notification && Notification.permission) || 'unsupported';
   p3Log('perm_prop', { prop: prop, gesture: !!inGesture, n: p3State.attempts }, 'info');
@@ -5233,9 +5235,12 @@ function p3Attempt(inGesture) {
   }
   return ready.then(function (reg) {
     return answer.then(function () { return reg.pushManager.getSubscription(); }).then(function (existing) {
-      if (existing) { p3Log('sub_existing', {}, 'ok'); return existing; }
+      /* 29·ship c4 (G34, N11): a subscription is reused only when it was minted with the CURRENT signing key — one minted under an earlier key looks healthy and is refused by the push service on every message */
       return p3Vapid().then(function (key) {
-        return reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: p3B64ToBytes(key) });
+        var verdict = existing ? rhKeyMatches(existing, key) : 'none';
+        if (existing && verdict !== 'stale') { p3Log('sub_existing', { key: verdict }, 'ok'); return existing; }
+        var drop = existing ? Promise.resolve(existing.unsubscribe()).then(function () { p3Log('sub_stale_dropped', {}, 'warn'); }, function () { p3Log('sub_stale_dropped', { failed: true }, 'warn'); }) : Promise.resolve();
+        return drop.then(function () { return reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: p3B64ToBytes(key) }); });
       });
     });
   }).then(function (sub) {
@@ -5246,50 +5251,15 @@ function p3Attempt(inGesture) {
     var name = (e && e.name) || 'Error', msg = String(e && e.message || e);
     p3State.lastError = { name: name, msg: msg };
     p3Log('sub_failed', { name: name, e: msg, gesture: !!inGesture }, 'error');
-    if (name === 'NotAllowedError') {
-      if (inGesture) p3ShowRecipe();
-      else p3ArmGesture();
-    } else if (!inGesture && msg !== 'no-rooms') {
-      p3ArmGesture();
-    }
+    /* 29·ship c4 (G33): no tap is ever stolen and no platform's settings are shown to another — a refusal is a state the Reach row names, in the device's own words */
+    if (name === 'NotAllowedError' && inGesture) p3Log('denied_in_gesture', {}, 'warn');
+    try { rhRender(); } catch (_) {}
     return null;
   });
 }
 function p3AttemptInGesture() { return p3Attempt(true); }
-/* One-shot: the next real tap re-runs the attempt inside the gesture. */
-function p3ArmGesture() {
-  if (p3State.gestureArmed) return;
-  p3State.gestureArmed = true;
-  var h = function () {
-    document.removeEventListener('click', h, true);
-    p3State.gestureArmed = false;
-    p3AttemptInGesture();
-  };
-  document.addEventListener('click', h, true);
-  p3Log('gesture_armed', {}, 'info');
-}
 
-/* The owner's F1 device recipe — shown only on a real denial. */
-function p3ShowRecipe() {
-  if (!p2IsStandalone()) { p3Log('recipe_skipped', {}, 'info'); return; }       /* a tab has no app settings to open; the Notify tab says what to do */
-  if ($('p3-recipe')) return;
-  var st = document.createElement('style');
-  st.textContent = '#p3-recipe{position:fixed;inset:0;z-index:9998;background:var(--cream,#FDFAF7);display:flex;align-items:center;justify-content:center;padding:24px}'
-    + '.p3-card{width:min(92vw,380px);background:#fff;border-radius:18px;padding:24px;box-shadow:0 8px 30px rgba(0,0,0,.12);color:var(--ink,#1A1714)}'
-    + '.p3-t{font-size:18px;font-weight:700}.p3-l{font-size:14px;line-height:1.5;margin-top:8px;color:#3a3633}'
-    + '.p3-steps{margin:14px 0 0;padding-left:20px;font-size:14.5px;line-height:1.7}.p3-row{margin-top:18px}';
-  document.head.appendChild(st);
-  var g = document.createElement('div'); g.id = 'p3-recipe';
-  g.innerHTML = '<div class="p3-card"><div class="p3-t">Notifications are off for TalkBridge</div>'
-    + '<div class="p3-l">Turn them on so calls and messages reach you when the phone is locked:</div>'
-    + '<ol class="p3-steps"><li>Open <b>Settings</b> → <b>Apps</b> → <b>TalkBridge</b> → <b>Notifications</b></li>'
-    + '<li><b>Allow Notifications</b>: ON</li><li><b>Lock Screen</b>, <b>Notification Center</b>, <b>Banners</b>: all on</li>'
-    + '<li><b>Sounds</b>: ON</li><li>Banner style: <b>Temporary</b></li></ol>'
-    + '<div class="p3-row"><button class="btn" id="p3-done">Done</button></div></div>';
-  document.body.appendChild(g);
-  $('p3-done').addEventListener('click', function () { g.remove(); p3AttemptInGesture(); });
-  p3Log('recipe_shown', {}, 'error');
-}
+/* 29·ship c4 (G33 part 2): the full-screen iPhone-settings recipe is gone — it was shown on every platform; the Reach row's blocked line branches on the device */
 
 (function () {
   var _p3Entry = p2Entry;
@@ -6164,10 +6134,7 @@ function tbmdSpeechStrip(text) {
      showScreen is the single view setter in the accepted build (line 1296) */
   /* screen state — armed unconditionally; inside the installed app this
      simply declares the same word twice, which the relay stores idempotently */
-  document.addEventListener('visibilitychange', function () { declare(document.hidden ? 'hidden' : 'visible'); });
-  window.addEventListener('blur', function () { declare('blur'); });
-  window.addEventListener('focus', function () { declare('focus'); });
-  window.addEventListener('pagehide', function () { declare('pagehide'); });
+  /* 29·ship c4: ONE away-path. These four listeners duplicated CR3's (armed in every launch since P08) and ran FIRST, so on blur the relay heard "visible" before "away" (device log 2026-10-10 18:22:55). CR3's listeners set attended, then announce; nothing else announces on a window event. */
 })();
 
 /* PR-3 — the relay's word is the only thing that moves the dot. The legacy
@@ -10116,240 +10083,244 @@ function drRetireRoot() {
 })();
 
 
-/* ═══════════ GAP PART · IO1-install-optional.js ═══════════ */
+/* ═══════════ 29·ship PART · RH-1 reach.js — REACH ME WHEN I'M AWAY, one module (candidate 4, plan v21.90.0 §7.19) ═══════════ */
 /* @contract
-   replaces: (none)
-   wraps: (none)
-   adds: NF_DONE_KEY, NF_VIA_RELOAD, nf, p2Runs, nfLog, nfPerm, nfCanPush, nfState, nfMayAttempt, nfOfferDone, nfOfferEligible, nfQualifies, nfMountBar, nfDropBar, nfNote, nfOnYes, nfOnNo, nfKeysInto, nfReloadUrl, nfReloadForSteps, nfMakeTab, nfEnsureTab, nfEnsureInstallTab, nfSyncTab, nfRenderPane, nfRenderInstallPane, nfInstallNow, nfTurnOn, nfOnTabClick, nfOnInstallClick, nfOpenTab, nfTick, nfInit
-   markers: tab_boot, attempt_skipped, recipe_skipped, offer_shown, offer_declined, offer_taken, offer_blocked, tab_shown, tab_hidden, ios_reload, ios_steps, init_failed, install_available, install_tab_shown, install_prompt, install_done
+   replaces: (none)   wraps: (none) — the module watches the room screen and the drawer with MutationObservers; it reassigns no function (the wrap map stays as the accepted build left it)
+   adds: RH_DONE_KEY, rh, p2Runs, rhLog, rhPerm, rhCanPush, rhHasDurableKeys, rhOfferDone, rhState, rhMayAttempt, rhInstallOffer, rhInstallVisible, rhKeyMatches, rhCarryUrl, rhCarryReady, rhGoCarry, rhLine, rhRoomLine, rhHtml, rhWire, rhRenderRow, rhRenderBar, rhBarDue, rhRender, rhOnNo, rhOnTurnOn, rhOnInstall, rhOnReady, rhDismissDenied, rhOnDeadSubscription, rhSyncRegistration, rhTick, rhOnVisible, rhInit
+   markers (rhLog's own prefix 'rh_'): bar_shown, bar_declined, turn_on, install_available, install_prompt, install_done, carry_go, carry_blocked, key_match, key_stale, key_unreadable, denied_dismissed, sub_dead, remint, reregister, init_failed
+
+   THE OWNER'S RULINGS (2026-10-10): install and notifications are a GLOBAL setting, never a room's; nothing to search for in a menu;
+   the entry is a sticky line at the foot of the left drawer; no tutorial that sends a person somewhere else; no credential dropped
+   on any path. This module is the ONE place that knows the device's reachability. The Notify and Install tabs of c1–c3 are gone.
+
+   ONE COMPONENT, TWO MOUNTS. `rhLine()` is the single state machine; `rhRenderRow()` draws it at the foot of the left drawer, always;
+   `rhRenderBar()` draws the same line once above the composer at the first moment it matters (a partner and a first message; in the
+   installed copy at once — that copy exists to be reached). "Not now" hides the bar for good (the c1–c3 key, so an earlier answer
+   holds); the row has no Not now and stays until there is nothing left to do.
+
+   STATES, highest first: 'ios-tab' (push does not exist in an iPhone browser; the Home Screen copy is the only path — the two steps
+   ARE the line) · 'unsupported' (no service worker, Notification or PushManager: in-app webviews, iOS < 16.4, Firefox on iOS) ·
+   'default' (not asked: Turn on, the browser's prompt INSIDE the tap, G33) · 'denied' (blocked: one line in the device's own
+   words, dismissable — a page cannot open site settings and must not nag) · install (the browser has offered its own install
+   dialog and this device holds DURABLE keys) · nothing. 'granted' (allowed, no live subscription) and 'registering' (subscribed,
+   a live unmuted room not registered) are worked silently by the tick, never shown. "On" means granted ∧ a subscription under
+   the current signing key (N11, G34 — in P3's attempt) ∧ every live unmuted room registered.
+
+   CREDENTIALS. The carrying address is built from the keys the page HOLDS, in the order a call uses them (in memory → own →
+   the unexpired grant; `CALL.keys()`), never from what the phone saved alone (G66: a joiner saves none; a grantee saves under another name).
+   An iPhone tab moves to that address when it enters a room (P17 keeps it in the live address, so an evicted tab still carries and
+   Add to Home Screen needs no tap and no reload); never during a call. The Home Screen copy launches at that address every time.
+   On Android/desktop the installed copy opens at start_url with the tab's storage: own and granted keys carry, memory-only joiner
+   keys do not (owner ruling 2026-08-05 — guests never persist the creator's keys) — so the install line is offered only to a
+   device with durable keys, and a joined room with no keys says so instead of failing silently.
+
+   Nothing here touches the relay, an endpoint, a credential store or a message type. The one storage key is RH_DONE_KEY.
 */
-/* ─────────────────────────────────────────────────────────────────────────────
-   IO-1 · INSTALL IS OPTIONAL (29·ship, §7.19; owner order 2026-10-07, "go" 2026-10-10)
+var RH_DONE_KEY = 'tb_notif_offer_done';                       /* the c1–c3 key: a "Not now" already given still holds */
+var rh = { barShown: false, deniedDismissed: false, offer: null, installed: false, lastSync: 0, rowHtml: null, barHtml: null, timer: null, reminted: false, hiddenAt: 0, seenRoom: null, go: function (u) { location.replace(u); } };
+function p2Runs() { return true; }                             /* the P3/P4/CR3 entry wraps arm in every launch (P06–P08) */
+function rhLog(what, d, lvl) { try { log('rh_' + what, d || {}, lvl || 'info'); } catch (_) {} }
+function rhPerm() { try { return (window.Notification && Notification.permission) || 'unsupported'; } catch (_) { return 'unsupported'; } }
+function rhCanPush() { try { return !!(window.Notification && ('PushManager' in window) && ('serviceWorker' in navigator)); } catch (_) { return false; } }
+function rhHasDurableKeys() { try { return !!hasOwnCredentials(); } catch (_) { return false; } }   /* own key, or an unexpired grant */
+function rhOfferDone() { try { return localStorage.getItem(RH_DONE_KEY) === '1'; } catch (_) { return false; } }
 
-   No registration, no tracking, no install to talk. A link or a QR code opens the
-   room in whatever browser scanned it: name once; call, chat, phrasebook — all of it
-   — in the tab. Notifications are the one thing that needs more, and only the
-   iPhone needs the app on the Home Screen for them (Android and desktop get push in
-   the tab). What this part and its banked edits change:
-   · p2Entry boots the app in EVERY launch (the full-screen gate is gone); push, the
-     alert journal and the presence stack arm in a tab too (p2Runs).
-   · The permission prompt is raised ONLY inside a tap (G33): an attempt with no tap
-     runs only where it cannot prompt; a tab never asks at a call.
-   · THE OFFER, once per launch until decided: a one-line bar above the composer, shown
-     when the room has a partner AND a first message — never at boot, never in the
-     installed app, never when permission is already decided. "Not now" ends it for
-     good (tb_notif_offer_done) and names where the way back is.
-   · THE WAY BACK, the Notify tab in the room's settings: present only while
-     notifications are not set up; Turn on (Android, desktop, installed iPhone) or the
-     two iPhone steps, with the page reloaded at the room's link-device address first
-     so the Home Screen copy opens as the same person in the same room (the load-time
-     address carries, device proof 2026-10-07 and again 2026-10-10).
-   · INSTALL ON DEMAND (candidate 2, owner 2026-10-10: "where is the install on demand entry?"): an Install tab in Room settings,
-     there whenever the app is not installed — one tap to the browser's own install dialog where the browser offers one
-     (beforeinstallprompt), else the platform's steps (the iPhone's with the same reload at the link-device address).
-   Nothing here touches the relay, a credential, an endpoint, or a message type.
-   ───────────────────────────────────────────────────────────────────────────── */
-(function(){ try { if (typeof log==='function') log('build', { c:'turn29-ship-install-optional', file:'talkbridge-app/bridge-turn29-ship.html', built:'2026-10-10 18:00 UTC' }, 'ok'); } catch(_){} })();
-
-var NF_DONE_KEY = 'tb_notif_offer_done';
-var NF_VIA_RELOAD = (function () { try { return /[?&]nf=/.test(location.search); } catch (_) { return false; } })();   /* read while the page loads: boot clears the address */
-var nf = { shown: false, bar: null, tabShown: false, installShown: false, installed: false, deferred: null, timer: null, go: function (u) { location.replace(u); } };
-/* The browser's own install offer, held for the tap: Chrome fires it early and only once. The mini-infobar it would show is ours to replace. */
-window.addEventListener('beforeinstallprompt', function (e) { try { e.preventDefault(); } catch (_) {} nf.deferred = e; nfLog('install_available', {}, 'ok'); try { nfRenderInstallPane(); } catch (_) {} });
-window.addEventListener('appinstalled', function () { nf.deferred = null; nf.installed = true; nfLog('install_done', {}, 'ok'); try { nfSyncTab(); } catch (_) {} });
-
-/* The app runs in every launch. A constant on purpose: one seam where the accepted build asked "installed?" */
-function p2Runs() { return true; }
-function nfLog(what, d, lvl) { try { log('nf_' + what, d || {}, lvl || 'info'); } catch (_) {} }
-
-function nfPerm() { try { return window.Notification ? Notification.permission : 'unsupported'; } catch (_) { return 'unsupported'; } }
-function nfCanPush() { return ('serviceWorker' in navigator) && ('PushManager' in window) && !!window.Notification; }
-/* 'ios-tab' (needs the Home Screen) · 'unsupported' · 'denied' · 'on' (granted and subscribed) · 'granted' (allowed, subscription not live yet) · 'default' (not asked) */
-function nfState() {
+/* 'ios-tab' · 'unsupported' · 'default' · 'denied' · 'granted' · 'registering' · 'on' */
+function rhState() {
   if (p2Platform() === 'ios' && !p2IsStandalone()) return 'ios-tab';
-  if (!nfCanPush()) return 'unsupported';
-  var perm = nfPerm();
-  if (perm === 'denied') return 'denied';
-  if (perm === 'granted') return (p3State && p3State.sub) ? 'on' : 'granted';
-  return 'default';
+  if (!rhCanPush()) return 'unsupported';
+  var p = rhPerm();
+  if (p === 'denied') return 'denied';
+  if (p !== 'granted') return 'default';
+  if (!p3State.sub) return 'granted';
+  var live = p3LiveRooms().filter(function (r) { return !r.muted; });
+  for (var i = 0; i < live.length; i++) if (p3State.registered[live[i].id] !== true) return 'registering';
+  return 'on';
 }
-/* An attempt with no tap may run where it cannot prompt: the installed app (as before) or a permission already granted. */
-function nfMayAttempt() { return p2IsStandalone() || (nfCanPush() && nfPerm() === 'granted'); }
+/* An attempt with no tap may run only where it cannot prompt: the installed copy (as always), or a permission already granted. */
+function rhMayAttempt() { return p2IsStandalone() || (rhCanPush() && rhPerm() === 'granted'); }
 
-function nfOfferDone() { try { return localStorage.getItem(NF_DONE_KEY) === '1'; } catch (_) { return false; } }
-function nfOfferEligible() {
-  if (p2IsStandalone() || nfOfferDone()) return false;
-  var st = nfState(); return st === 'default' || st === 'ios-tab';
-}
-/* The first moment a notification would have mattered: the room has a partner and a first message, and the room is on screen. */
-function nfQualifies() {
-  var room = (typeof activeRoom === 'function') ? activeRoom() : null;
-  if (!room || room.deletedAt || !room.joined) return false;
-  if (S.view !== 'room' || S.roomId !== room.id) return false;
-  return transcript.some(function (e) { return e && e.kind === 'chat'; });
-}
+/* The browser's own install offer: held in the HEAD at parse time (P15 — Chrome fires it once, early), or caught here if it comes later. */
+function rhInstallOffer() { return rh.offer || window.__tbInstallOffer || null; }
+function rhInstallVisible() { return !p2IsStandalone() && !rh.installed && !window.__tbInstalled && !!rhInstallOffer() && rhHasDurableKeys(); }
+window.addEventListener('beforeinstallprompt', function (e) { try { e.preventDefault(); } catch (_) {} rh.offer = e; rhLog('install_available', { late: true }, 'ok'); try { rhRender(); } catch (_) {} });
+window.addEventListener('appinstalled', function () { rh.offer = null; rh.installed = true; window.__tbInstallOffer = null; rhLog('install_done', {}, 'ok'); try { rhRender(); } catch (_) {} });
 
-function nfMountBar() {
-  var compose = document.querySelector('#scr-room .compose'); if (!compose || !compose.parentNode || document.getElementById('nf-bar')) return false;
-  var ios = nfState() === 'ios-tab';
-  var bar = document.createElement('div'); bar.id = 'nf-bar'; bar.className = 'nf-bar';
-  bar.innerHTML = '<span class="nf-t">' + (ios ? 'Calls and messages can reach you when the app is closed — add TalkBridge to your Home Screen.' : 'Want to know when they call or write?') + '</span>'
-    + '<span class="nf-b"><button class="nf-yes" id="nf-yes">' + (ios ? 'Show me' : 'Turn on') + '</button><button class="nf-no" id="nf-no">Not now</button></span>';
-  compose.parentNode.insertBefore(bar, compose); nf.bar = bar;
-  bar.querySelector('#nf-yes').addEventListener('click', nfOnYes);
-  bar.querySelector('#nf-no').addEventListener('click', nfOnNo);
-  return true;
-}
-function nfDropBar() { var b = document.getElementById('nf-bar'); if (b && b.parentNode) b.parentNode.removeChild(b); nf.bar = null; }
-function nfNote(text) {
-  nfDropBar();
-  var compose = document.querySelector('#scr-room .compose'); if (!compose || !compose.parentNode) return;
-  var n = document.createElement('div'); n.id = 'nf-note'; n.className = 'nf-bar nf-note'; n.textContent = text; compose.parentNode.insertBefore(n, compose);
-  setTimeout(function () { if (n.parentNode) n.parentNode.removeChild(n); }, 6000);
-}
-function nfOnNo() {
-  try { localStorage.setItem(NF_DONE_KEY, '1'); } catch (_) {}
-  nfLog('offer_declined', { platform: p2Platform() }, 'ok');
-  nfNote(nfState() === 'ios-tab' ? 'You can add TalkBridge to your Home Screen later under Room settings → Install.' : 'You can turn this on later under Room settings → Notify.');
-}
-function nfOnYes() {
-  var ios = nfState() === 'ios-tab';
-  try { localStorage.setItem(NF_DONE_KEY, '1'); } catch (_) {}
-  nfLog('offer_taken', { platform: p2Platform() }, 'ok');
-  nfDropBar();
-  if (ios) { nfReloadForSteps(); return; }
-  nfTurnOn();                                                      /* still inside the tap that raised this handler */
-}
-
-/* The permission prompt, inside the tap. Result: on / blocked / still undecided. */
-function nfTurnOn() {
-  var p = p3AttemptInGesture();
-  return Promise.resolve(p).then(function () {
-    var st = nfState();
-    if (st === 'denied') { nfLog('offer_blocked', { platform: p2Platform() }, 'warn'); nfNote('Notifications are blocked for this site. You can allow them in your browser’s site settings.'); }
-    nfSyncTab(); try { nfRenderPane(); } catch (_) {}
-    return st;
-  });
-}
-
-/* iPhone: the Home Screen copy keeps the address the page LOADED at. Reload at the room's link-device address first. */
-/* A joiner's keys live in memory only. The link-device address is built from the keys SAVED on the phone, and a joiner's phone saves none, so the Home Screen copy would start without transcription or translation. Put the in-memory ones in, where the saved ones are empty. */
-function nfKeysInto(u) {
+/* N11 (G34): is this subscription minted with the CURRENT signing key? 'match' · 'stale' · 'unreadable' (an engine that hides the key — kept, logged). */
+function rhKeyMatches(sub, vapidB64) {
   try {
-    var i = u.indexOf('#j='), jk = S.joinerKeys; if (i === -1 || !jk) return u;
+    var have = sub && sub.options && sub.options.applicationServerKey;
+    if (!have) { rhLog('key_unreadable', {}, 'warn'); return 'unreadable'; }
+    var a = new Uint8Array(have), b = p3B64ToBytes(vapidB64);
+    if (a.length !== b.length) { rhLog('key_stale', { have: a.length, want: b.length }, 'warn'); return 'stale'; }
+    for (var i = 0; i < a.length; i++) if (a[i] !== b[i]) { rhLog('key_stale', { at: i }, 'warn'); return 'stale'; }
+    rhLog('key_match', {}, 'ok'); return 'match';
+  } catch (e) { rhLog('key_unreadable', { e: String(e && e.message || e) }, 'warn'); return 'unreadable'; }
+}
+
+/* The carrying address: the room's link-device form with the keys the page HOLDS, exactly as a call resolves them (CALL.keys: memory → own → grant), never only the saved ones (G66). */
+function rhCarryUrl(room) {
+  var u = linkDeviceUrl(room);
+  try {
+    var i = u.indexOf('#j='); if (i === -1) return u;
     var p = decInv(u.slice(i + 3)); if (!p) return u;
-    var did = false; ['k', 'tid', 'tok'].forEach(function (n) { if (!p[n] && jk[n]) { p[n] = jk[n]; did = true; } });
-    return did ? u.slice(0, i) + '#j=' + encInv(p) : u;
+    var k = CALL.keys();
+    p.k = k.dg || p.k || ''; p.tid = k.tid || p.tid || ''; p.tok = k.tok || p.tok || '';
+    return u.slice(0, i) + '#j=' + encInv(p);
   } catch (_) { return u; }
 }
-function nfReloadUrl(room) {
-  var u = nfKeysInto(linkDeviceUrl(room)), i = u.indexOf('#');
-  return i === -1 ? u : u.slice(0, i) + '?nf=' + Date.now().toString(36) + u.slice(i);                /* a new query makes it a real navigation, not a hash change */
+/* Does the live address already carry THIS room, as this person, with the keys the page holds? */
+function rhCarryReady(room) {
+  try {
+    var h = location.hash || ''; if (h.indexOf('#j=') !== 0) return false;
+    var p = decInv(h.slice(3)); if (!p || p.ld !== 1 || !room || p.r !== room.id) return false;
+    return !!(p.k || !CALL.keys().dg);
+  } catch (_) { return false; }
 }
-function nfReloadForSteps() {
+/* An iPhone tab moves to the carrying address — at room entry (the screen changes anyway) or on the line's own button; never in a call. */
+function rhGoCarry(why) {
   var room = (typeof activeRoom === 'function') ? activeRoom() : null; if (!room) return false;
-  if (CALL.active) { try { toast('Finish the call first'); } catch (_) {} return false; }
-  nfLog('ios_reload', { room: String(room.id).slice(-6) }, 'ok');
-  try { nf.go(nfReloadUrl(room)); } catch (_) {}
+  if (rhState() !== 'ios-tab' || rhCarryReady(room)) return false;
+  if (CALL.active) { rhLog('carry_blocked', { why: why }, 'info'); return false; }
+  rhLog('carry_go', { why: why, room: String(room.id).slice(-6) }, 'ok');
+  try { rh.go(rhCarryUrl(room)); } catch (_) {}
   return true;
 }
 
-/* The tabs of Room settings this stage adds: Notify (only while notifications are not set up) and Install (whenever the app is not installed). */
-function nfMakeTab(key, label, paneId, onClick) {
-  var tabs = document.getElementById('drawer-tabs'); if (!tabs) return null;
-  var tab = tabs.querySelector('[data-tab="' + key + '"]'); if (tab) return tab;
-  var body = tabs.parentNode && tabs.parentNode.querySelector ? tabs.parentNode.querySelector('.drawer-body') : null; if (!body) return null;
-  tab = document.createElement('button'); tab.className = 'drawer-tab'; tab.setAttribute('data-tab', key); tab.textContent = label; tab.style.display = 'none';
-  tabs.appendChild(tab);
-  var pane = document.createElement('div'); pane.className = 'drawer-pane nf-pane'; pane.id = paneId; pane.setAttribute('data-pane', key); body.appendChild(pane);
-  tab.addEventListener('click', onClick);
-  return tab;
-}
-function nfEnsureTab() { return nfMakeTab('notify', 'Notify', 'nf-pane', nfOnTabClick); }
-function nfEnsureInstallTab() { return nfMakeTab('install', 'Install', 'nf-install-pane', nfOnInstallClick); }
-function nfSyncTab() {
-  var tab = nfEnsureTab(), itab = nfEnsureInstallTab(); if (!tab || !itab) return;
-  var iwant = !p2IsStandalone() && !nf.installed;
-  itab.style.display = iwant ? '' : 'none';
-  if (iwant && !nf.installShown) { nf.installShown = true; nfLog('install_tab_shown', { platform: p2Platform(), prompt: !!nf.deferred }, 'ok'); }
-  if (!iwant && nf.installShown) { nf.installShown = false; if (itab.classList.contains('active')) { var g0 = document.querySelector('#drawer-tabs [data-tab="general"]'); if (g0) g0.click(); } }
-  var st = nfState(), want = (st === 'default' || st === 'granted' || st === 'denied');   /* an iPhone tab has the Install tab for its steps */
-  tab.style.display = want ? '' : 'none';
-  if (want && !nf.tabShown) { nf.tabShown = true; nfLog('tab_shown', { platform: p2Platform(), state: st }, 'ok'); }
-  if (!want && nf.tabShown) {
-    nf.tabShown = false; nfLog('tab_hidden', { why: st }, 'ok');
-    if (tab.classList.contains('active')) { var g = document.querySelector('#drawer-tabs [data-tab="general"]'); if (g) g.click(); }
+/* THE LINE — one state, one text, at most one action. null = nothing left to do. */
+function rhLine() {
+  var st = rhState(), platform = p2Platform();
+  if (st === 'ios-tab') {
+    var room = (typeof activeRoom === 'function') ? activeRoom() : null, ready = room ? rhCarryReady(room) : false;
+    return { kind: 'ios', text: 'Add TalkBridge to your Home Screen — calls and messages reach you when it’s closed.',
+      steps: '<ol class="rh-steps"><li>Tap the <b>Share</b> button <span class="rh-ic">&#x2B06;&#xFE0E;</span></li><li>Choose <b>Add to Home Screen</b></li></ol>',
+      button: (room && !ready) ? { act: 'ready', label: 'Show me' } : null };
   }
-}
-function nfRenderPane() {
-  var pane = document.getElementById('nf-pane'); if (!pane) return;
-  var st = nfState(), h = '';
+  if (st === 'unsupported') return { kind: 'unsupported', text: p2IsStandalone() ? 'This device’s software cannot deliver notifications to web apps.' : 'Notifications can’t work in this browser — open the link in ' + (platform === 'ios' ? 'Safari' : 'Chrome') + ' to be reached when the app is closed.' };
+  if (st === 'default') return { kind: 'default', text: 'Want to know when they call or write?', button: { act: 'turnon', label: 'Turn on' } };
   if (st === 'denied') {
-    h = '<div class="nf-lead">Notifications are blocked for TalkBridge.</div><div class="nf-small">Allow them in your browser’s site settings for this page, then come back.</div>';
-  } else {
-    h = '<div class="nf-lead">Get told about calls and messages when TalkBridge is not on screen.</div><button class="btn" id="nf-turnon">Turn on</button>';
+    if (rh.deniedDismissed) return rhInstallVisible() ? rhLine.install() : null;
+    return { kind: 'denied', text: platform === 'android' ? 'Notifications are blocked for TalkBridge. Allow them in Chrome: ⋮ → Settings → Site settings → Notifications.'
+      : (platform === 'ios' ? 'Notifications are off for TalkBridge. Allow them in Settings → Notifications → TalkBridge.' : 'Notifications are blocked for TalkBridge. Allow them in your browser’s site settings for this page.'), button: { act: 'dismiss', label: 'OK' } };
   }
-  pane.innerHTML = h;
-  var b = pane.querySelector('#nf-turnon'); if (b) b.addEventListener('click', nfTurnOn);
+  return rhInstallVisible() ? rhLine.install() : null;
 }
-/* The Install pane: the browser's own dialog where it offers one, else the platform's steps. */
-function nfRenderInstallPane() {
-  var pane = document.getElementById('nf-install-pane'); if (!pane) return;
-  var platform = p2Platform(), where = platform === 'desktop' ? 'computer' : 'home screen', h;
-  if (nf.deferred) {
-    h = '<div class="nf-lead">Put TalkBridge on your ' + where + ' as an app. It opens in its own window and can tell you about calls and messages.</div><button class="btn" id="nf-install-now">Install app</button>';
-  } else {
-    var steps = (p2GateHtml('', platform).match(/<ol class="p2-steps">[\s\S]*?<\/ol>/) || [''])[0];
-    h = '<div class="nf-lead">Put TalkBridge on your ' + where + ' as an app:</div>' + steps
-      + (platform === 'ios' ? '<div class="nf-small">This room comes with you \u2014 you will not be asked for anything again.</div>' : '');
-  }
-  pane.innerHTML = h;
-  var b = pane.querySelector('#nf-install-now'); if (b) b.addEventListener('click', nfInstallNow);
-}
-/* The browser's install dialog is raised inside the tap; the offer can be used once. */
-function nfInstallNow() {
-  var d = nf.deferred; if (!d) return Promise.resolve(null);
-  nf.deferred = null;
-  try { d.prompt(); } catch (_) { nfRenderInstallPane(); return Promise.resolve(null); }
-  return Promise.resolve(d.userChoice).then(function (c) { var out = (c && c.outcome) || 'unknown'; nfLog('install_prompt', { outcome: out }, 'ok'); nfRenderInstallPane(); return out; }, function () { nfRenderInstallPane(); return null; });
-}
-function nfOnInstallClick() {
-  if (p2Platform() === 'ios' && !p2IsStandalone() && !NF_VIA_RELOAD) { if (nfReloadForSteps()) return; }
-  nfRenderInstallPane();
-}
-function nfOnTabClick() { nfRenderPane(); }
-function nfOpenTab(key) {
-  var d = document.getElementById('btn-drawer'); if (d) d.click();
-  var t = document.querySelector('#drawer-tabs [data-tab="' + key + '"]'); if (t) { t.style.display = ''; t.click(); }
+rhLine.install = function () { return { kind: 'install', text: 'Install TalkBridge as an app — optional.', button: { act: 'install', label: 'Install' } }; };
+/* A joined room this phone holds no keys for: say so where the room is, instead of a silent "no key" at the call. */
+function rhRoomLine() {
+  var room = (typeof activeRoom === 'function') ? activeRoom() : null; if (!room || room.role !== 'joiner') return null;
+  var k = CALL.keys(); if (k.dg) return null;
+  return { kind: 'nokeys', text: 'This phone has no translation keys for this room — open the invite link again on this phone.' };
 }
 
-function nfTick() {
-  try {
-    nfSyncTab();
-    if (!nf.shown && nfOfferEligible() && nfQualifies() && !document.getElementById('nf-bar') && nfMountBar()) {
-      nf.shown = true; nfLog('offer_shown', { platform: p2Platform(), why: 'partner_and_message' }, 'ok');
-    }
-  } catch (_) {}
+function rhHtml(line, withNo) {
+  var h = '<div class="rh-l"><span class="rh-t">' + line.text + '</span>';
+  if (line.steps && !line.button) h += line.steps;
+  h += '<span class="rh-bs">' + (line.button ? '<button class="rh-b" data-act="' + line.button.act + '">' + line.button.label + '</button>' : '') + (withNo ? '<button class="rh-b rh-no" data-act="no">Not now</button>' : '') + '</span></div>';
+  return h;
 }
-function nfInit() {
+function rhWire(root) {
+  Array.prototype.forEach.call(root.querySelectorAll('.rh-b'), function (b) {
+    var act = b.getAttribute('data-act');
+    b.addEventListener('click', act === 'turnon' ? rhOnTurnOn : act === 'install' ? rhOnInstall : act === 'dismiss' ? rhDismissDenied : act === 'ready' ? rhOnReady : rhOnNo);
+  });
+}
+/* Mount 1 — the foot of the left drawer. Always; empty when there is nothing left to do. */
+function rhRenderRow() {
+  var panel = document.getElementById('left-panel'); if (!panel) return;
+  var row = document.getElementById('rh-row');
+  if (!row) { row = document.createElement('div'); row.id = 'rh-row'; row.className = 'rh-row'; var body = panel.querySelector('.left-body'); if (body && body.nextSibling) panel.insertBefore(row, body.nextSibling); else panel.appendChild(row); }
+  var line = rhLine(), h = line ? rhHtml(line, false) : '';
+  if (h === rh.rowHtml) return; rh.rowHtml = h;
+  row.innerHTML = h; row.style.display = h ? '' : 'none'; rhWire(row);
+}
+/* Mount 2 — once, above the composer, at the first moment it matters. */
+function rhBarDue() {
+  if (rhOfferDone()) return false;
+  var line = rhLine(); if (!line || line.kind === 'unsupported' || line.kind === 'denied' || line.kind === 'install') return false;   /* the bar nudges once toward being reachable; install is the row's */
+  var room = (typeof activeRoom === 'function') ? activeRoom() : null; if (!room || room.deletedAt || S.view !== 'room' || S.roomId !== room.id) return false;
+  if (p2IsStandalone()) return true;
+  if (!room.joined) return false;
+  return transcript.some(function (e) { return e && e.kind === 'chat'; });
+}
+function rhRenderBar() {
+  var compose = document.querySelector('#scr-room .compose'); if (!compose || !compose.parentNode) return;
+  var bar = document.getElementById('rh-bar'), roomLine = rhRoomLine(), line = rhBarDue() ? rhLine() : null;
+  var h = (roomLine ? '<div class="rh-t rh-warn">' + roomLine.text + '</div>' : '') + (line ? rhHtml(line, true) : '');
+  if (h === rh.barHtml && (!!bar === !!h)) return; rh.barHtml = h;
+  if (!h) { if (bar && bar.parentNode) bar.parentNode.removeChild(bar); return; }
+  if (!bar) { bar = document.createElement('div'); bar.id = 'rh-bar'; bar.className = 'rh-bar'; compose.parentNode.insertBefore(bar, compose); }
+  bar.innerHTML = h; rhWire(bar);
+  if (line && !rh.barShown) { rh.barShown = true; rhLog('bar_shown', { platform: p2Platform(), kind: line.kind, standalone: p2IsStandalone() }, 'ok'); }
+}
+function rhRender() { try { rhRenderRow(); } catch (e) { rhLog('init_failed', { where: 'row', e: String(e && e.message || e) }, 'error'); } try { rhRenderBar(); } catch (e2) { rhLog('init_failed', { where: 'bar', e: String(e2 && e2.message || e2) }, 'error'); } }
+
+/* Actions — every browser prompt is raised INSIDE the tap that asked for it (G33). */
+function rhOnNo() { try { localStorage.setItem(RH_DONE_KEY, '1'); } catch (_) {} rhLog('bar_declined', { platform: p2Platform() }, 'ok'); rhRender(); }
+function rhOnTurnOn() {
+  rhLog('turn_on', { platform: p2Platform(), standalone: p2IsStandalone() }, 'ok');
+  var p = p3AttemptInGesture();                                /* synchronously, still inside the tap */
+  return Promise.resolve(p).then(function () {
+    var st = rhState();
+    if (st === 'on' || st === 'registering' || st === 'denied') { try { localStorage.setItem(RH_DONE_KEY, '1'); } catch (_) {} }   /* answered either way: the bar has done its job */
+    rhRender(); return st;
+  });
+}
+function rhOnInstall() {
+  var d = rhInstallOffer(); if (!d) return Promise.resolve(null);
+  rh.offer = null; window.__tbInstallOffer = null;             /* the browser's offer is good for one use */
+  try { d.prompt(); } catch (_) { rhRender(); return Promise.resolve(null); }
+  return Promise.resolve(d.userChoice).then(function (c) { var out = (c && c.outcome) || 'unknown'; rhLog('install_prompt', { outcome: out }, 'ok'); rhRender(); return out; }, function () { rhRender(); return null; });
+}
+function rhOnReady() { rhGoCarry('tap'); }
+function rhDismissDenied() { rh.deniedDismissed = true; rhLog('denied_dismissed', {}, 'ok'); rhRender(); }
+
+/* THE DEAD SUBSCRIPTION (relay v6.8, P23). Chrome hands the app the same subscription at every boot even after the push service has declared it
+   gone (a WebAPK reinstall does this: 2026-10-10 18:23 UTC, FCM 410, every later call "no-subscription"). The relay remembers the dead endpoint and
+   refuses it; the app then unsubscribes, mints a new one and registers every room — once per launch. */
+function rhOnDeadSubscription(roomId) {
+  rhLog('sub_dead', { room: String(roomId).slice(-6), reminted: rh.reminted }, 'warn');
+  if (rh.reminted) return Promise.resolve(false);
+  rh.reminted = true;
+  var old = p3State.sub; p3State.sub = null; p3State.registered = {};
+  var drop = old && old.unsubscribe ? Promise.resolve(old.unsubscribe()).then(function () { return true; }, function () { return false; }) : Promise.resolve(false);
+  return drop.then(function (dropped) { rhLog('remint', { dropped: dropped }, 'ok'); return p3Attempt(false); }).then(function (sub) { rhRender(); return !!sub; });
+}
+/* The silent work: an allowed permission with no live subscription is subscribed; a subscribed device with a live room unregistered is registered. Throttled.
+   A return after a long absence re-registers every live room once: the relay may have dropped the subscription while the phone was away (a 410 on a call). */
+function rhSyncRegistration() {
+  var st = rhState(), now = Date.now(); if (now - rh.lastSync < 30000) return;
+  if (st === 'granted') { rh.lastSync = now; try { p3Attempt(false); } catch (_) {} }
+  else if (st === 'registering') { rh.lastSync = now; try { p3RegisterAll(); } catch (_) {} }
+}
+function rhTick() { try { rhSyncRegistration(); } catch (_) {} rhRender(); }
+function rhOnVisible() {
+  var away = rh.hiddenAt ? Date.now() - rh.hiddenAt : 0; rh.hiddenAt = 0;
+  if (away >= 60000 && p3State.sub) { rhLog('reregister', { awayMs: away }, 'ok'); rh.lastSync = Date.now(); try { p3RegisterAll(); } catch (_) {} }   /* the flags are left as they are: P3's own mute-sync would otherwise register the same rooms a second time */
+  rhTick();
+}
+
+function rhInit() {
   try {
     var st = document.createElement('style');
-    st.textContent = '.nf-bar{display:flex;align-items:center;gap:10px;padding:8px 12px;background:var(--paper,#f4efe9);border-top:1px solid var(--border,#e2ded9);font-size:13px;line-height:1.35;color:var(--ink-mid,#3a3633)}'
-      + '.nf-bar .nf-t{flex:1}.nf-bar .nf-b{display:flex;gap:6px;flex-shrink:0}.nf-bar button{border:none;border-radius:8px;padding:7px 12px;font-size:13px;font-weight:700;cursor:pointer}'
-      + '.nf-yes{background:var(--teal,#2E8B8B);color:#fff}.nf-no{background:transparent;color:var(--ink-dim,#6b7a78)}.nf-note{color:var(--ink-dim,#6b7a78)}'
-      + '.nf-pane .nf-lead{font-size:14.5px;line-height:1.5;margin:4px 0 12px;color:var(--ink,#1A1714)}.nf-pane .nf-small{font-size:12.5px;line-height:1.45;margin-top:12px;color:var(--ink-dim,#6b7a78)}'
-      + '.nf-pane .p2-steps{margin:0;padding-left:20px;font-size:15px;line-height:1.7}.nf-pane .p2-ic{display:inline-block;color:var(--teal,#2E8B8B)}';
+    st.textContent = '.rh-row{padding:10px 76px 10px 12px;border-top:1px solid var(--border,#e2ded9);background:var(--paper,#f4efe9);font-size:13px;line-height:1.35;color:var(--ink,#1A1714)}'
+      + '.rh-bar{padding:8px 12px;background:var(--paper,#f4efe9);border-top:1px solid var(--border,#e2ded9);font-size:13px;line-height:1.35;color:var(--ink,#1A1714)}'
+      + '.rh-l{display:flex;align-items:center;gap:10px;flex-wrap:wrap}.rh-l .rh-t{flex:1;min-width:140px}.rh-bs{display:flex;gap:6px;flex-shrink:0}'
+      + '.rh-b{border:none;border-radius:8px;padding:7px 12px;font-size:13px;font-weight:700;cursor:pointer;background:var(--teal,#2a7f7a);color:#fff}.rh-no{background:transparent;color:var(--ink-dim,#6b655f)}'
+      + '.rh-steps{margin:6px 0 0;padding-left:18px;flex-basis:100%}.rh-ic{display:inline-block;transform:translateY(1px)}.rh-warn{color:var(--red,#b4432f);font-weight:600;margin-bottom:6px}';
     document.head.appendChild(st);
-  } catch (_) {}
-  try {
-    nfEnsureTab(); nfSyncTab();
-    var d = document.getElementById('btn-drawer'); if (d) d.addEventListener('click', function () { nfSyncTab(); try { nfRenderPane(); nfRenderInstallPane(); } catch (_) {} }, true);
-    document.addEventListener('visibilitychange', function () { if (!document.hidden) nfTick(); });
-    nf.timer = setInterval(nfTick, 3000);
-    if (NF_VIA_RELOAD && nfState() === 'ios-tab' && S.view === 'room') { nfLog('ios_steps', { loadedVia: 'reload' }, 'ok'); nfOpenTab('install'); }
-  } catch (e) { nfLog('init_failed', { e: String(e && e.message || e) }, 'error'); }
+    if (window.__tbInstallOffer) rhLog('install_available', { late: false }, 'ok');
+    if (window.__tbInstalled) rh.installed = true;
+    /* room entry = the room screen becoming active; the drawer opening = its class. Observed, not wrapped. */
+    var scr = document.getElementById('scr-room'), panel = document.getElementById('left-panel');
+    if (scr && window.MutationObserver) new MutationObserver(function () { try { if (scr.classList.contains('active') && S.roomId && rh.seenRoom !== S.roomId + ':' + S.view) { rh.seenRoom = S.roomId + ':' + S.view; if (!rhGoCarry('enter')) rhRender(); } } catch (e) { rhLog('init_failed', { where: 'enter', e: String(e && e.message || e) }, 'error'); } }).observe(scr, { attributes: true, attributeFilter: ['class'] });
+    if (panel && window.MutationObserver) new MutationObserver(function () { try { if (panel.classList.contains('open')) rhRender(); } catch (_) {} }).observe(panel, { attributes: true, attributeFilter: ['class'] });
+    document.addEventListener('visibilitychange', function () { if (document.hidden) rh.hiddenAt = Date.now(); else rhOnVisible(); });
+    rh.timer = setInterval(rhTick, 3000);
+    rhRender();
+  } catch (e) { rhLog('init_failed', { e: String(e && e.message || e) }, 'error'); }
 }
-document.addEventListener('DOMContentLoaded', nfInit);
+document.addEventListener('DOMContentLoaded', rhInit);
 
 </script>
 </body>
