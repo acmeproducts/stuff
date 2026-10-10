@@ -218,3 +218,10 @@ Freshness: Connected describes transport only. Separate evidence state Current /
 **Change:** Colors choices save and apply the instant they change (and survive reload); new default "Soft" look (calm dark rows, 13px/1.5, regular weight, tabular numbers, no bold-on-hover, contrast >= 7:1) with the old white/dark bands kept as "High contrast"; legacy saved "classic" migrates to Soft once. Row/# columns widened so headers are not clipped.
 **Backlog:** `SOT-TURN02-RELEASE-D-BACKLOG.md` (handoff, access control, diagram, flow).
 **Qualification:** runtime qualifier covers the tags/notes refresh, default-look readability (contrast, weight, band delta), zebra persistence across reload.
+
+## 2026-10-10 — Summary rebuilt: Scanned / Capacity / Saved as dots, circles or a path treemap
+
+**Owner spec:** top ribbon with chart-type icons (dots, circles, treemap); below it the view row Scanned | Capacity | Saved with a Files | GB switch; "Estate" retired; every tap lands on the existing Search screen (no second list); dots express percent with a legend (nothing above 100%); treemap groups by path, sized by files or GB, drilling to folders, with a folder's own files as a separate tile.
+**Model:** Scanned = Assets (Unique + Keep) + Excess. Capacity: Open/Deficit = Target − Assets (Deficit is a ⚠ warning, never negative). Saved: Assets = Landed + In play.
+**Change (Complete surface only):** new Summary module; sub-tabs are Summary / Roots (the sortable root table, now headed ASSETS); choices persist per device; taps use new Search scopes (`#report:capacity-fits`, `#report:dir:`, `#report:tree:`, `#report:paths:`) plus `plan:` queries; Search shows a "← Report · <part>" chip to return; IBM Plex Sans/Mono typography added (falls back to system fonts).
+**Qualification:** runtime qualifier covers the ribbon, pills, measure switch, equations, no-percent-above-100, every tap target's query and row count, the back chip, circle order, treemap tiles and over-target colouring, and persistence.

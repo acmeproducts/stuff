@@ -31,44 +31,61 @@ try{
  const vis=await fr.evaluate(()=>[...document.querySelectorAll('button,a,[role=tab]')].filter(e=>e.offsetParent&&/analyze/i.test(e.textContent)).map(e=>e.textContent));ok(!vis.length,'visible Analyze label: '+vis);
  pass('Report / Job Status labels present; Analyze is not an owner-facing label');
  // 2 subtabs
- const tabs=await fr.$$eval('#Plan .subtabs button',b=>b.map(x=>x.textContent.trim()));ok(JSON.stringify(tabs)==='["Summary","Estate"]','subtabs '+tabs);
- ok((await fr.$$('#Plan .wf-chart')).length===2,'exactly two charts');pass('Report is two bar charts (SCANNED, TARGET) plus Estate');
- const an=await txt(fr,'#Plan');ok(/SCANNED[\s\S]*= UNIQUE \+ KEEP \+ EXCESS/.test(an),'SCANNED relation');ok(!/WATERFALL|ESTATE VS TARGET|SCAN →/i.test(an),'redundant waterfall sections');
- ok(!(await fr.$$('#Plan .wf-row, #Plan table')).length,'chart tables must be gone (details live in popups)');
- const pop=async(label,chart=0)=>{await fr.evaluate(()=>{document.getElementById('barcall')?.remove()});await fr.locator('#Plan .wf-chart').nth(chart).locator('.wf-chip',{hasText:label}).first().click();await pg.waitForTimeout(150);return fr.evaluate(()=>{const b=document.getElementById('barcall');return b?{t:b.innerText.replace(/×/g,'').replace(/\s+/g,' ').trim(),btn:!!b.querySelector('button.btn')}:null})};
- const u1=await pop('UNIQUE');ok(u1&&/UNIQUE Files 3 Size 600\.0 GB % Files 50\.0% % Size 66\.7%/.test(u1.t)&&u1.btn,'unique popup '+JSON.stringify(u1));
- const k1=await pop('KEEP');ok(/Files 1 Size 100\.0 GB % Files 16\.7% % Size 11\.1%/.test(k1.t),'keep popup '+JSON.stringify(k1));
- const e1=await pop('EXCESS');ok(/Files 2 Size 200\.0 GB % Files 33\.3% % Size 22\.2%/.test(e1.t),'excess popup '+JSON.stringify(e1));
- const d1=await pop('DEFICIT');ok(/DEFICIT Size 100\.0 GB % Size 11\.1%/.test(d1.t)&&d1.btn,'deficit popup '+JSON.stringify(d1));
- const i2=await pop('IN PLAY',1);ok(/IN PLAY Files 4 Size 700\.0 GB % of TARGET 116\.7%/.test(i2.t)&&i2.btn,'in play popup '+JSON.stringify(i2));
- const l2=await pop('LANDED',1);ok(/LANDED Files 0 Size 0\.0 GB % of TARGET 0\.0%/.test(l2.t)&&l2.btn,'landed popup '+JSON.stringify(l2));
- const g2=await pop('DEFICIT',1);ok(/DEFICIT Size 100\.0 GB % of TARGET 16\.7%/.test(g2.t)&&!g2.btn,'chart 2 deficit popup (no search) '+JSON.stringify(g2));
- await fr.evaluate(()=>{document.getElementById('barcall')?.remove()});
- ok(/DEFICIT 100\.0 GB MUST BE REMOVED FROM ESTATE TO FIT TARGET/.test(an),'deficit banner');ok(!/-\s?\d+(\.\d+)? GB/.test(an),'negative size shown');
- pass('no tables: each section (UNIQUE / KEEP / DEFICIT / EXCESS, IN PLAY / LANDED / DEFICIT) shows files · size · %files · %size (or % of TARGET) in a popup');
- const g=await fr.evaluate(()=>{const ch=[...document.querySelectorAll('#Plan .wf-chart')],f=(c,sel)=>{const e=c.querySelector(sel);if(!e)return null;const t=c.querySelector('.wf-track').getBoundingClientRect(),b=e.getBoundingClientRect();return {l:(b.left-t.left)/t.width,w:b.width/t.width,bg:getComputedStyle(e).backgroundColor}};
-  return {u:f(ch[0],'.wf-seg.unique'),k:f(ch[0],'.wf-seg.keep'),d:f(ch[0],'.wf-seg.deficit'),e:f(ch[0],'.wf-seg.excess'),ip:f(ch[1],'.wf-seg.inplay'),d2:f(ch[1],'.wf-seg.deficit'),mark:f(ch[1],'.wf-target'),sw:getComputedStyle(ch[0].querySelector('.swatch.excess')).backgroundColor,sd:getComputedStyle(ch[0].querySelector('.swatch.deficit')).backgroundColor}});
- const near=(a,b)=>Math.abs(a-b)<.02;
- ok(near(g.u.w,600/900)&&g.k===null&&near(g.d.l,600/900)&&near(g.d.w,100/900)&&near(g.e.l,700/900)&&near(g.e.w,200/900),'chart 1 geometry '+JSON.stringify(g));
- ok(near(g.ip.w,600/700)&&near(g.d2.l,600/700)&&near(g.d2.w,100/700)&&near(g.mark.l,600/700),'chart 2 geometry '+JSON.stringify(g));
- ok(g.d.bg==='rgb(239, 68, 68)'&&g.e.bg==='rgb(181, 124, 240)'&&g.sd==='rgb(239, 68, 68)'&&g.sw==='rgb(181, 124, 240)','excess purple / deficit red '+JSON.stringify(g));
- pass('DEFICIT (red) is carved out of the end of the retained bar beyond the TARGET line; EXCESS is purple; TARGET is 100% in chart 2');
- targetBytes=800*GB;await fr.evaluate(()=>dataPoll());await pg.waitForTimeout(400);const o2=await pop('AVAILABLE',1);ok(/AVAILABLE Size 100\.0 GB % of TARGET 12\.5%/.test(o2.t)&&!o2.btn,'available popup '+JSON.stringify(o2));const ip2=await pop('IN PLAY',1);ok(/% of TARGET 87\.5%/.test(ip2.t),'in play under target '+JSON.stringify(ip2));
- ok(!(await fr.$$('#Plan .wf-seg.deficit')).length&&(await fr.$$('#Plan .wf-seg.open')).length===1&&!(await txt(fr,'#Plan')).includes('DEFICIT'),'under-capacity segments');pass('under-capacity: AVAILABLE shown, no DEFICIT');
- await fr.evaluate(()=>{document.getElementById('barcall')?.remove()});
- targetBytes=600*GB;await fr.evaluate(()=>dataPoll());await pg.waitForTimeout(400);
- const openSec=async(label,chart,q)=>{await fr.evaluate(()=>{omniDraft='';omniQuery='';show('Plan')});await pg.waitForTimeout(300);await pop(label,chart);await fr.click('#barcall button.btn');await pg.waitForTimeout(400);const r=await fr.evaluate(()=>({on:document.getElementById('Database').classList.contains('on'),q:omniQuery,n:filterQuery(omniQuery).length}));ok(r.on&&r.q===q,label+' -> '+JSON.stringify(r));return r};
- ok((await openSec('UNIQUE',0,'#report:unique')).n===3,'unique rows');await openSec('KEEP',0,'#report:keep');ok((await openSec('EXCESS',0,'#report:excess')).n===2,'excess rows');
- ok((await openSec('DEFICIT',0,'#report:capacity-deficit')).n===1,'deficit scope = retained files in roots beyond TARGET');await openSec('IN PLAY',1,'#report:operations-in-play');await openSec('LANDED',1,'#report:operations-landed');
- pass('"Open in Search" in each popup opens just that section (UNIQUE / KEEP / DEFICIT / EXCESS / IN PLAY / LANDED)');
- await fr.evaluate(()=>{omniDraft='';omniQuery='';show('Plan')});await pg.waitForTimeout(300);
+ const tabs=await fr.$$eval('#Plan .subtabs button',b=>b.map(x=>x.textContent.trim()));ok(JSON.stringify(tabs)==='["Summary","Roots"]','subtabs '+tabs);
+ await fr.evaluate(()=>{localStorage.removeItem('sotSummaryUi');__ssotSum.view='dots';__ssotSum.panel='scanned';__ssotSum.meas='g';__ssotSum.path=[];renderPlan()});await pg.waitForTimeout(200);
+ const ribbon=await fr.$$eval('#Plan .sumribbon .sumicon',b=>b.map(x=>x.getAttribute('aria-label')+(x.classList.contains('on')?'*':'')));ok(JSON.stringify(ribbon)==='["Dots*","Circles","Treemap"]','chart-type ribbon '+ribbon);
+ const pills=await fr.$$eval('#Plan .sumpills button',b=>b.map(x=>x.textContent.trim()));ok(JSON.stringify(pills)==='["Scanned","Capacity","Saved"]','view pills '+pills);
+ const meas=await fr.$$eval('#Plan .summeas button',b=>b.map(x=>x.textContent.trim()));ok(JSON.stringify(meas)==='["Files","GB"]','measure switch '+meas);
+ ok(!/estate/i.test(await txt(fr,'#Plan .sum')),'"Estate" must not appear in the summary');
+ pass('Summary: chart-type icon ribbon (Dots / Circles / Treemap), then Scanned | Capacity | Saved with a Files | GB switch; "Estate" retired');
+ const txtSum=()=>txt(fr,'#Plan .sum'),dots=()=>fr.$$eval('#Plan svg.dots circle',c=>c.length);
+ let t1=await txtSum();ok(/SCANNED 900\.0 GB = ASSETS 700\.0 GB \+ EXCESS 200\.0 GB/.test(t1.replace(/\s+/g,' ')),'scanned equation '+t1);ok(await dots()===20,'20 dots');
+ const leg=async()=>(await fr.$$eval('#Plan .sumlg',b=>b.map(x=>x.innerText.replace(/\s+/g,' ').trim())));
+ let l1=await leg();ok(/ASSETS 700\.0 GB 78%/.test(l1[0])&&/EXCESS 200\.0 GB 22%/.test(l1[1]),'scanned legend '+l1);
+ await fr.evaluate(()=>__ssotSumSet('panel','capacity'));await pg.waitForTimeout(150);let t2=(await txtSum()).replace(/\s+/g,' ');ok(/DEFICIT ⚠ 100\.0 GB = TARGET 600\.0 GB − ASSETS 700\.0 GB/.test(t2)&&/⚠ DEFICIT 100\.0 GB of assets do not fit/.test(t2),'capacity equation / warning '+t2);
+ let l2=await leg();ok(/FITS|ASSETS · FIT 600\.0 GB 86%/.test(l2[0])&&/DEFICIT 100\.0 GB 14%/.test(l2[1]),'capacity legend (never above 100%) '+l2);ok(!/1[0-9]{2,}%/.test(l2.join(' ')),'no percentage above 100');
+ await fr.evaluate(()=>{placements[0].plan='LANDED';__ssotSumSet('panel','saved')});await pg.waitForTimeout(150);let t3=(await txtSum()).replace(/\s+/g,' ');ok(/ASSETS 700\.0 GB = LANDED 300\.0 GB \+ IN PLAY 400\.0 GB/.test(t3),'saved equation '+t3);
+ pass('Scanned = Assets + Excess; Capacity = Target − Assets with a ⚠ Deficit (never above 100%); Saved = Landed + In play');
+ await fr.evaluate(()=>{__ssotSumSet('meas','f');__ssotSumSet('panel','scanned')});await pg.waitForTimeout(150);ok(/SCANNED 6 files = ASSETS 4 files \+ EXCESS 2 files/.test((await txtSum()).replace(/\s+/g,' ')),'files measure');await fr.evaluate(()=>__ssotSumSet('meas','g'));
+ pass('Files | GB switch changes every number');
+ const tapGo=async(sel,q,label)=>{await fr.evaluate(()=>{omniDraft='';omniQuery='';show('Plan')});await pg.waitForTimeout(250);await fr.click(sel);await pg.waitForTimeout(450);const r=await fr.evaluate(()=>({on:document.getElementById('Database').classList.contains('on'),q:omniQuery,n:filterQuery(omniQuery).length,chip:document.querySelector('.ssot-back')?.textContent||''}));ok(r.on&&r.q===q&&r.chip==='← Report · '+label,sel+' -> '+JSON.stringify(r));return r};
+ await fr.evaluate(()=>{__ssotSumSet('view','dots');__ssotSumSet('panel','scanned')});
+ let r1=await tapGo('#Plan .sumlg:nth-child(1)','#report:capacity-estate','Assets');ok(r1.n===4,'assets rows '+r1.n);
+ await fr.click('.ssot-back');await pg.waitForTimeout(300);ok(await fr.evaluate(()=>document.getElementById('Plan').classList.contains('on')),'back chip returns to the Report');
+ ok((await tapGo('#Plan .sumlg:nth-child(2)','#report:excess','Excess')).n===2,'excess rows');
+ await fr.evaluate(()=>__ssotSumSet('panel','capacity'));
+ ok((await tapGo('#Plan .sumlg:nth-child(2)','#report:capacity-deficit','Deficit')).n===1,'deficit rows = assets beyond the target');
+ ok((await tapGo('#Plan .sumlg:nth-child(1)','#report:capacity-fits','Assets that fit')).n===3,'fits rows');
+ await fr.evaluate(()=>__ssotSumSet('panel','saved'));
+ ok((await tapGo('#Plan .sumlg:nth-child(1)','plan:landed class:unique OR plan:landed class:keep','Landed')).n===1,'landed rows');
+ await fr.evaluate(()=>__ssotSumSet('panel','scanned'));await fr.evaluate(()=>__ssotSumSet('view','dots'));
+ await tapGo('#Plan svg.dots circle:first-child','#report:capacity-estate','Assets');
+ pass('every dot, legend line and circle opens the real Search with the matching rows, and a "← Report" chip returns');
+ await fr.evaluate(()=>{__ssotSumSet('view','circles');__ssotSumSet('panel','scanned')});await pg.waitForTimeout(150);
+ const circ=await fr.$$eval('#Plan svg circle[data-k]',c=>c.map(x=>x.getAttribute('data-k')));ok(JSON.stringify(circ)==='["scanned","assets","excess"]','circles largest first '+circ);
+ await tapGo('#Plan svg circle[data-k="excess"]','#report:excess','Excess');
+ await fr.evaluate(()=>{__ssotSumSet('panel','capacity')});await pg.waitForTimeout(150);ok(JSON.stringify(await fr.$$eval('#Plan svg circle[data-k]',c=>c.map(x=>x.getAttribute('data-k'))))==='["assets","target","deficit"]','capacity circles');
+ pass('circles: one row, largest first, same scale; deficit is its own ⚠ circle');
+ await fr.evaluate(()=>{__ssotSumSet('view','tree');__ssotSumSet('panel','capacity')});await pg.waitForTimeout(200);
+ const tiles=await fr.$$eval('#Plan .stile',t=>t.map(x=>x.getAttribute('aria-label')));ok(tiles.length===3&&tiles.some(x=>/Archive/.test(x)),'treemap tiles are the roots '+tiles);
+ const redTile=await fr.evaluate(()=>[...document.querySelectorAll('#Plan .stile')].find(t=>/Archive/.test(t.getAttribute('aria-label'))).innerHTML.includes('#ef4444'));ok(redTile,'capacity colours the over-target root red');
+ const tr=await tapGo('#Plan .stile:nth-child(1)','#report:dir:/mnt/b/Video','Video');
+ pass('treemap: tiles are the roots, coloured for the chosen view; a folder with only files opens its file list');
+ await fr.evaluate(()=>{show('Plan')});await pg.waitForTimeout(250);
+ // persistence of the three choices
+ await fr.evaluate(()=>{__ssotSumSet('view','circles');__ssotSumSet('panel','capacity');__ssotSumSet('meas','f')});await pg.reload();{let f4;for(let i=0;i<100;i++){try{const o=await (await (await pg.waitForSelector('#shell')).contentFrame()).waitForSelector('#app');f4=await o.contentFrame();if(await f4.evaluate(()=>!!window.__ssotCompletePlacementRefresh&&window.placements.length>0&&!document.querySelector('#ssot-db-blocker.on')))break}catch(e){}await pg.waitForTimeout(100)}
+  const st=await f4.evaluate(()=>JSON.stringify(__ssotSum));ok(/"view":"circles"/.test(st)&&/"panel":"capacity"/.test(st)&&/"meas":"f"/.test(st),'summary choices not persisted '+st);
+  await f4.evaluate(()=>{__ssotSum.view='dots';__ssotSum.panel='scanned';__ssotSum.meas='g';localStorage.removeItem('sotSummaryUi');renderPlan()});fr=f4}
+ pass('chart type, view and measure persist per device');
+ targetBytes=800*GB;await fr.evaluate(()=>dataPoll());await pg.waitForTimeout(500);await fr.evaluate(()=>{__ssotSumSet('panel','capacity')});await pg.waitForTimeout(150);{const t=(await txtSum()).replace(/\s+/g,' ');ok(/OPEN 100\.0 GB = TARGET 800\.0 GB − ASSETS 700\.0 GB/.test(t)&&!/⚠/.test(t),'under-capacity '+t)}targetBytes=600*GB;await fr.evaluate(()=>dataPoll());await pg.waitForTimeout(400);
+ pass('under-capacity: OPEN is shown, no warning');
  // Estate
- await fr.evaluate(()=>setPlanTab('Estate'));const heads=await fr.$$eval('.estate-table th',h=>h.map(x=>x.textContent.replace(/[▲▼]/g,'').trim()));ok(JSON.stringify(heads)==='["Root","Files","Size","Last Synced","Status"]','heads '+heads);
+ await fr.evaluate(()=>setPlanTab('Roots'));const heads=await fr.$$eval('.estate-table th',h=>h.map(x=>x.textContent.replace(/[▲▼]/g,'').trim()));ok(JSON.stringify(heads)==='["Root","Files","Size","Last Synced","Status"]','heads '+heads);
  const rowsOf=()=>fr.$$eval('.estate-table tbody tr',r=>r.map(x=>({root:x.cells[0].textContent,files:x.cells[1].textContent,size:x.cells[2].textContent,synced:x.cells[3].textContent,status:x.cells[4].textContent,bg:getComputedStyle(x.cells[0]).backgroundColor,fg:getComputedStyle(x.cells[0]).color})));
  let rows=await rowsOf();ok(rows.length===3&&rows.map(r=>r.root).join()==='/mnt/a/Photos,/mnt/b/Video,/mnt/c/Archive','rows '+JSON.stringify(rows));
  ok(rows[0].files==='1'&&rows[0].size==='300.0 GB'&&rows[1].files==='2'&&rows[1].size==='250.0 GB'&&rows[2].files==='1'&&rows[2].size==='150.0 GB','estate numbers from real placements '+JSON.stringify(rows));
  ok(rows[2].synced==='Never'&&rows[0].synced!=='Never'&&rows[0].status==='Current','sync/status '+JSON.stringify(rows));
- const sum=await txt(fr,'.estate-sum');ok(/ESTATE 700\.0 GB \| TARGET 600\.0 GB \| DEFICIT 100\.0 GB/.test(sum),'summary '+sum);
+ const sum=await txt(fr,'.estate-sum');ok(/ASSETS 700\.0 GB \| TARGET 600\.0 GB \| DEFICIT 100\.0 GB/.test(sum),'summary '+sum);
  pass('Estate table is built from real registered Estate-root data (one row per root, retained files/size, sync + status)');pass('Estate table exposes Root / Files / Size / Last Synced / Status with ESTATE | TARGET | OPEN/DEFICIT summary');
  const red='rgb(198, 40, 40)',white='rgb(255, 255, 255)';ok(rows[2].bg===red&&rows[2].fg===white&&rows[0].bg!==red&&rows[1].bg!==red,'overflow colors '+JSON.stringify(rows.map(r=>[r.bg,r.fg])));
  pass('cumulative Target overflow (beyond 600 GB at root /mnt/c/Archive) is red background / white text');
@@ -218,8 +235,8 @@ try{
   ok(/OFFLINE/.test(txt)&&/Local network access/.test(txt)&&!on,'offline hint/blocker '+txt+' on='+on);pass('blocked/unreachable API shows an OFFLINE hint (Local network access) and the blocker releases');
   ok(await pg.evaluate(()=>/local-network-access/.test(document.getElementById('shell').allow)&&/clipboard-write/.test(document.getElementById('shell').allow)),'iframe local-network-access permission');await ctx.close()}
  // mobile
- const m=await open(412,915);await m.fr.evaluate(()=>setPlanTab('Estate'));await m.pg.waitForTimeout(300);
- const lg=await m.fr.evaluate(()=>{sources[0].root='/mnt/a/'+'very-long-folder-name-'.repeat(6);setPlanTab('Estate');const tr=document.querySelectorAll('.estate-table tbody tr')[0],c=tr.cells,r=[...c].map(x=>x.getBoundingClientRect());return {txt:c[0].textContent.length,cut:c[0].scrollWidth>c[0].clientWidth,h:tr.getBoundingClientRect().height,noOverlap:r[1].left>=r[0].right-1&&r[2].left>=r[1].right-1}});
+ const m=await open(412,915);await m.fr.evaluate(()=>setPlanTab('Roots'));await m.pg.waitForTimeout(300);
+ const lg=await m.fr.evaluate(()=>{sources[0].root='/mnt/a/'+'very-long-folder-name-'.repeat(6);setPlanTab('Roots');const tr=document.querySelectorAll('.estate-table tbody tr')[0],c=tr.cells,r=[...c].map(x=>x.getBoundingClientRect());return {txt:c[0].textContent.length,cut:c[0].scrollWidth>c[0].clientWidth,h:tr.getBoundingClientRect().height,noOverlap:r[1].left>=r[0].right-1&&r[2].left>=r[1].right-1}});
  ok(lg.txt>100&&lg.cut&&lg.noOverlap&&lg.h<40,'long root must truncate on mobile '+JSON.stringify(lg));pass('long Estate root names truncate on mobile and no longer overlap the next column');
  const ov=await m.fr.evaluate(()=>({doc:document.documentElement.scrollWidth-document.documentElement.clientWidth,tbl:(()=>{let w=document.querySelector('.estate-wrap');return w.scrollWidth-w.clientWidth})(),rows:document.querySelectorAll('.estate-table tbody tr').length}));ok(ov.doc<=1&&ov.tbl<=1&&ov.rows===3,'mobile overflow '+JSON.stringify(ov));pass('Estate table usable at 412x915 without horizontal overflow');
  if(process.env.SOT_SHOTS){await m.pg.screenshot({path:process.env.SOT_SHOTS+'/estate-mobile.png'});await m.fr.evaluate(()=>setPlanTab('Summary'));await m.pg.waitForTimeout(300);await m.pg.screenshot({path:process.env.SOT_SHOTS+'/analysis-mobile.png'})}
