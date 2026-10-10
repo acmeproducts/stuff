@@ -591,3 +591,7 @@ Final public/reusability review exposed that automatic native-only representatio
 ### 2026-10-09 — Saved evidence and report lifecycle
 
 Reject a private native-axis choice that disappears when options are replayed, require no live backend for a saved frozen Library chart, and do not confuse later assistant chat with a legacy untagged report. Context dates follow the requested calendar horizon; the actual plotted cutoff remains separately recorded. Earlier candidates and proof packages remain immutable checkpoints.
+
+## October 10 retry review finding
+
+Retire point-only hit testing for drawn lines: it missed long segments at larger dimensions despite shared source. The pinned baseline was correct. Also retire a fixed-height footer row when compact owned-host controls wrap; the first retry visual review found a clipped Fixed/Horizon control despite API PASS. Add explicit footer-control bounds to qualification. Preserve the intermediate retry commit 6f1cf0095caccdfc6233a92bc3423875aae724af as evidence; it is not the final owner candidate.
