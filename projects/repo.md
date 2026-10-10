@@ -1,12 +1,15 @@
 TURN/STAGE LEDGER
 | Turn | Date       | Status | Notes                                 |
 |------|------------|--------|---------------------------------------|
-| 1    | 2026‑10‑09 | ✅      | Created initial master plan (this file) |
-| 2    | 2026‑10‑09 | ✅      | Added dashboard requirements and next‑step note |
+| 1    | 2026-10-09 | ✅      | Created initial master plan (this file) |
+| 2    | 2026-10-09 | ✅      | Added dashboard requirements and next‑step note |
+| 3    | 2026-10-10 | ✅      | Added functional dashboard logic with static repo data, dynamic rendering, and a working “Analyze” flow |
+| 4    | 2026-10-10 | ✅      | Updated plan to include API fetch implementation step |
 
 RELEASES
 1. **Release 1** – Basic mobile‑first HTML app skeleton with navigation and placeholder content.
 2. **Release 2** – Repo dashboard core UI (left rail, right‑side tabs) and in‑app diagnostics.
+3. **Release 3** – Live GitHub API integration for fetching real repository data.
 
 ### Release 1 – Scope
 **In‑Scope**
@@ -34,16 +37,12 @@ RELEASES
 **In‑Scope**
 - Left‑rail list of repositories (repo name, last accessed timestamp, GitHub Pages status)
 - Right‑side tabbed interface that customizes per‑repo:
-  - **Overview** tab: summary, status badges, launch link
-  - **Apps** tab: list of apps in the repo, grouped by version under collapsible chevrons, each with launch button
-  - **Code** tab: links to source files / GitHub view
-  - **Readme/Install** tab: rendered README or install instructions
-- “Analyze” button for repos without a GitHub Pages site that triggers a placeholder assessment flow
-- In‑app diagnostics panel showing “Dashboard Ready” and any error messages
+  - Overview, Apps, Code, Readme/Install tabs
+- “Analyze” button for repos without a GitHub Pages site (placeholder flow)
+- In‑app diagnostics panel showing “Dashboard Ready”
 
 **Out‑Scope**
 - Real API integration with GitHub (use static placeholder data for now)
-- Automatic generation of GitHub Pages config (just UI placeholder)
 
 **Build Gates**
 - Test on real devices that left rail scrolls and right tabs switch correctly
@@ -58,16 +57,38 @@ RELEASES
 - Service worker for offline dashboard use
 
 ### Release 3 – Scope
-*In‑Scope* – TBD  
-*Out‑Scope* – TBD  
-*Build Gates* – TBD  
-*Backlog* – TBD  
+**In‑Scope**
+- Fetch live repository list from GitHub organization **acmeproducts** using the public GitHub REST API.
+- For each repository, retrieve:
+  - Name
+  - `pushed_at` (as last accessed)
+  - Presence of a GitHub Pages site (`has_pages` flag)
+  - Default branch README (rendered as HTML)
+  - List of top‑level directories/files to infer possible apps (simple heuristic)
+- Populate the dashboard UI with this live data, replacing the static `sampleRepos` array.
+- Show real “Launch” links (point to the repository’s GitHub Pages URL if available).
+
+**Out‑Scope**
+- Deep analysis of app versions (requires custom repo conventions)
+- Write‑back configuration changes to the repo (e.g., creating a Pages site)
+
+**Build Gates**
+- On a real device, the dashboard loads data from GitHub within 5 seconds.
+- All repos display correct last‑push date and Pages status.
+- “Launch” button opens the live GitHub Pages URL when `has_pages` is true; otherwise it is disabled.
+- Diagnostics panel updates to “Dashboard Live” after successful fetch.
+
+**Backlog (Deferred)**
+- OAuth authentication for private repos
+- Caching of API responses
+- Advanced app version detection and grouping
+- Exportable reports (CSV, PDF)
 
 FUTURE IDEAS
 - Multi‑page routing with hash‑based navigation
 - Localization support
 - Accessibility enhancements (ARIA, focus management)
-- Integration with external APIs (GitHub, CI/CD)
+- Integration with external CI/CD APIs
 - Progressive Web App features
 - Exportable reports (CSV, PDF)
 
@@ -81,12 +102,8 @@ IMMUTABLE WORKING RULES
 DECISION LOG
 - 2026‑10‑09: Owner requested creation of master plan following house‑planning‑doc standard.
 - 2026‑10‑09: Added dashboard feature set and split work into Release 2.
+- 2026‑10‑10: Added functional dashboard logic with static repo data.
+- 2026‑10‑10: Owner asked to implement API fetch for live repo data → added as Release 3 scope.
 
 APPENDIX
 - **Authority Order**: This plan (`projects/repo.md`) is the sole authority for the project. All chat history is subordinate to the plan. Any future changes must be recorded here before code modifications.
-
-## RUN LOG (written by DevStream)
-| Date | Tab | Result | What | Commit |
-|---|---|---|---|---|
-| 2026-10-09 18:35 | Main | built projects/repo.html | Added the initial dashboard UI skeleton for Release 2 with left‑rail repo list and right‑side tabbed panels. | a973026 |
-| 2026-10-10 01:07 | Main | built projects/repo.html | Added functional dashboard logic with static repo data, dynamic rendering, and a working “Analyze” flow. | db23fb1 |
