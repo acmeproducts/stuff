@@ -1,0 +1,1 @@
+if (e2) { var mu1n = mu1ReadBy(e2, d.from); if (e2.receipt !== 'read') { e2.receipt = 'read'; e2.readAt = Date.now(); } if (mu1n) updateReceiptDom(e2); }

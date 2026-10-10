@@ -1,0 +1,1 @@
+document.getElementById('n10-name').textContent = (room && (room.partnerName || room.title)) || 'Calling…';

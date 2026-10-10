@@ -6,7 +6,7 @@
    Anything else — a stale checkout from another project, a bulk "refresh"
    — is refused. The gate reads git, not documents.
 
-   Protected: talkbridge/**  bridge-turn*.html  tb-*.js  tb-manifest-*  icon-v2-*
+   Protected: talkbridge/**  talkbridge-app/**  bridge-turn*.html  tb-*.js  tb-manifest-*  icon-v2-*
    Exempt from the mark (automated): talkbridge/DEVICE-LOG.md, talkbridge/devlog/**
 
    Usage: node talkbridge/build/ownership-gate.mjs --range <from>..<to>
@@ -14,7 +14,7 @@
           node talkbridge/build/ownership-gate.mjs --selftest                */
 import { execFileSync } from 'node:child_process';
 
-export const PROTECTED = [/^talkbridge\//, /^bridge-turn[^/]*\.html$/, /^tb-[^/]*\.js$/, /^tb-manifest-[^/]*$/, /^icon-v2-[^/]*$/];
+export const PROTECTED = [/^talkbridge\//, /^talkbridge-app\//, /^bridge-turn[^/]*\.html$/, /^tb-[^/]*\.js$/, /^tb-manifest-[^/]*$/, /^icon-v2-[^/]*$/];
 export const EXEMPT = [/^talkbridge\/DEVICE-LOG\.md$/, /^talkbridge\/devlog\//];
 export const MARK = /talkbridge|\b\d{2}[-·](?:pre-)?(?:base|ship|post-ship)\b|\bplan v\d+\.\d+/i;
 
@@ -63,7 +63,8 @@ if (process.argv[1] && process.argv[1].endsWith('ownership-gate.mjs')) {
       ['a device-log commit that also touches a candidate is refused', judge('device log [skip ci]', [{ status: 'M', path: 'talkbridge/DEVICE-LOG.md' }, { status: 'M', path: 'bridge-turn28-base.html' }]).ok === false],
       ['a commit touching nothing protected passes', judge('SOT Release D', [{ status: 'A', path: 'SOT/x.html' }, { status: 'M', path: 'devstream/status.json' }]).ok === true],
       ['the word inside a path is not a mark: the MESSAGE must say it', judge('refresh', [{ status: 'M', path: 'talkbridge/parts/x.js' }]).ok === false],
-      ['the old accepted files are protected too', judge('tidy', [{ status: 'M', path: 'tb-sw.js' }, { status: 'M', path: 'bridge-turn24-post-ship.html' }]).ok === false]
+      ['the old accepted files are protected too', judge('tidy', [{ status: 'M', path: 'tb-sw.js' }, { status: 'M', path: 'bridge-turn24-post-ship.html' }]).ok === false],
+      ['the app folder (29·pre-ship, the directory release) is protected', judge('deploy: publish', [{ status: 'M', path: 'talkbridge-app/index.html' }]).ok === false]
     ];
     let f = 0; for (const [n, ok] of cases) { console.log((ok ? '  ok  ' : 'FAIL  ') + n); if (!ok) f++; }
     console.log(f ? '\n' + f + ' self-test failure(s)' : '\nownership gate self-test green (' + cases.length + ')'); process.exit(f ? 1 : 0);
