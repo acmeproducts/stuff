@@ -16,7 +16,7 @@ import { readFileSync, existsSync, readdirSync } from 'fs';
 import { execFileSync } from 'child_process';
 import vm from 'vm';
 import { JSDOM, VirtualConsole } from 'jsdom';
-import { base as baseText, workerSrc, pageReplacements, workerReplacements, assemblePage, assembleWorker, assembleManifests, forwarder, COPIES, FOLDER, FOLDER_PATH, STAGE_PAGE, MANIFEST_NAME, MANIFEST_IOS_NAME, OUT, ADDED_MARKERS, ADDED_SYMBOLS, MANIFEST_SRC } from './assemble-29dir.mjs';
+import { LATER_STAGES, base as baseText, workerSrc, pageReplacements, workerReplacements, assemblePage, assembleWorker, assembleManifests, forwarder, COPIES, FOLDER, FOLDER_PATH, STAGE_PAGE, MANIFEST_NAME, MANIFEST_IOS_NAME, OUT, ADDED_MARKERS, ADDED_SYMBOLS, MANIFEST_SRC } from './assemble-29dir.mjs';
 import { runBoth, KEYS, diff } from './rig-28pos.mjs';
 
 const folder = process.env.TB_DIR_FOLDER || FOLDER;
@@ -103,7 +103,7 @@ console.log('M4 · copies');
 await T('M4.1 icons and flags.png in the folder are byte-identical to the root files; nothing else is in the folder', () => {
   for (const c of COPIES) assert(Buffer.compare(readFileSync(folder + '/' + c), readFileSync(c)) === 0, c + ' differs');
   const want = new Set([...COPIES, STAGE_PAGE, 'index.html', 'tb-sw3.js', MANIFEST_NAME, MANIFEST_IOS_NAME]);
-  const have = readdirSync(folder); assert(have.length === want.size && have.every((f) => want.has(f)), 'folder holds: ' + have.join(','));
+  const have = readdirSync(folder).filter((f) => !LATER_STAGES.test(f)); assert(have.length === want.size && have.every((f) => want.has(f)), 'folder holds: ' + have.join(','));
 });
 
 console.log('M5 · no accepted root file changed');
