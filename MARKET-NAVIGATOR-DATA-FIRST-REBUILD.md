@@ -1,3 +1,13 @@
+# October 10 owner rejection: reusable-chart release 86e3aff
+
+Owner testing rejects 86e3aff despite automated PASS. Preserve its source, evidence and published generations. Retry the review release after fixing direct line selection in NOW and Analyze, diagnostic inspection of native weekly/monthly steps, and configured canvas/host geometry in small multiples. The objective is not yet accepted.
+
+First verify immutable Turn 28 against commit 996e9a71b72db5bfbea3ba77750077daaa2fb7ab and blob 9ce7f67451f9e1b7804927ce5c56adb667614724. Baseline identity and inherited behavior are separate: the owner's explicit requirement supersedes historic line-click information behavior. One module must focus a clicked series once in every consumer without opening information; explicit information gestures remain available.
+
+Audit actual native observations and cadence before changing stepped curves. Legitimate held weekly/monthly values must not be fabricated, smoothed or assigned cursor dates as observation dates. Inspection must expose the observation date, cursor/as-of date, native value, transformation and holding semantics. Prove these against independently loaded native source observations.
+
+Explicit canvas dimensions must size the reusable surface and its surrounding chrome coherently, including right-axis labels and contained tooltips. Qualify 588x280, 480x240 and 320x200 plus responsive resize, direct line selection and identical inspection semantics across NOW, Analyze and custom hosts. Retain existing source repair, verification expiry, immutable generation snapshots, Library preservation and quiet background refresh. Automated qualification remains evidence; physical-device owner acceptance is required before promotion.
+
 # October 10 owner rejection: refresh lifecycle
 
 The phone recording rejects the d148664 owner candidate despite its automated PASS. Expired verification and a delayed publisher caused repeated opaque refresh overlays and silently prevented Analyze creation. Friday observations on Saturday are not themselves stale. Add independent expiry, unchanged-generation, delayed-network and recovery tests before another owner candidate.
