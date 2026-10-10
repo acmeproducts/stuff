@@ -80,15 +80,7 @@
 <div id="app">
     <div id="left-rail">
         <h2>Repositories</h2>
-        <div class="repo-item active" data-repo="repo1">
-            <div>repo‑one</div>
-            <div class="repo-meta">Last accessed: 2026‑10‑09<br>GitHub Pages: ✅</div>
-        </div>
-        <div class="repo-item" data-repo="repo2">
-            <div>repo‑two</div>
-            <div class="repo-meta">Last accessed: 2026‑10‑08<br>GitHub Pages: ❌</div>
-        </div>
-        <!-- Add more repo items as needed -->
+        <div id="repo-list"></div>
     </div>
     <div id="right-panel">
         <div id="tabs">
@@ -98,46 +90,23 @@
             <div class="tab" data-tab="readme">Readme/Install</div>
         </div>
         <div id="tab-content">
-            <!-- Overview -->
             <div class="tab-page" data-tab="overview">
                 <h3>Repository Overview</h3>
-                <p>Summary information for <strong>repo‑one</strong> will appear here.</p>
-                <button class="launch-btn">Launch Repo‑one</button>
-                <button class="launch-btn">Analyze (no GitHub Pages)</button>
+                <div id="overview-content"></div>
+                <button class="launch-btn" id="launch-repo">Launch Repo</button>
+                <button class="launch-btn" id="analyze-repo">Analyze (no GitHub Pages)</button>
             </div>
-            <!-- Apps -->
             <div class="tab-page" data-tab="apps" style="display:none">
                 <h3>Applications</h3>
-                <div>
-                    <div class="app-header" data-group="appA">
-                        <span class="chevron">▶</span> App‑A
-                    </div>
-                    <div class="app-group" id="appA">
-                        <div>v1.0 <button class="launch-btn">Launch</button></div>
-                        <div>v0.9 <button class="launch-btn">Launch</button></div>
-                    </div>
-                </div>
-                <div>
-                    <div class="app-header" data-group="appB">
-                        <span class="chevron">▶</span> App‑B
-                    </div>
-                    <div class="app-group" id="appB">
-                        <div>v2.3 <button class="launch-btn">Launch</button></div>
-                    </div>
-                </div>
+                <div id="apps-content"></div>
             </div>
-            <!-- Code -->
             <div class="tab-page" data-tab="code" style="display:none">
                 <h3>Code Links</h3>
-                <ul>
-                    <li><a href="#" target="_blank">src/index.html</a></li>
-                    <li><a href="#" target="_blank">src/app.js</a></li>
-                </ul>
+                <ul id="code-links"></ul>
             </div>
-            <!-- Readme -->
             <div class="tab-page" data-tab="readme" style="display:none">
                 <h3>Readme / Install</h3>
-                <p>Rendered README content will be displayed here.</p>
+                <div id="readme-content"></div>
             </div>
         </div>
     </div>
@@ -146,41 +115,151 @@
 <div class="diagnostics" id="diagnostics">Dashboard Ready</div>
 
 <script>
-    // Tab switching
-    document.querySelectorAll('.tab').forEach(tab=>{
-        tab.addEventListener('click',()=> {
-            document.querySelectorAll('.tab').forEach(t=>t.classList.remove('active'));
-            tab.classList.add('active');
-            const target = tab.dataset.tab;
-            document.querySelectorAll('.tab-page').forEach(page=>{
-                page.style.display = page.dataset.tab===target ? 'block' : 'none';
-            });
-        });
-    });
+/* ---------- Static sample data (replace with real API later) ---------- */
+const sampleRepos = [
+    {
+        id: "repo1",
+        name: "repo-one",
+        lastAccessed: "2026-10-09",
+        pages: true,
+        overview: "Repo‑one contains the main Acme product web app.",
+        apps: [
+            { name: "App‑A", versions: ["v1.0","v0.9"] },
+            { name: "App‑B", versions: ["v2.3"] }
+        ],
+        codeLinks: [
+            { href:"#", label:"src/index.html" },
+            { href:"#", label:"src/app.js" }
+        ],
+        readme: "## Repo‑One\nThis repo hosts the primary web UI..."
+    },
+    {
+        id: "repo2",
+        name: "repo-two",
+        lastAccessed: "2026-10-08",
+        pages: false,
+        overview: "Repo‑two is a collection of utilities.",
+        apps: [
+            { name: "Utility‑X", versions: ["v0.1"] }
+        ],
+        codeLinks: [
+            { href:"#", label:"utils/util.js" }
+        ],
+        readme: "## Repo‑Two\nUtility scripts for internal use."
+    }
+];
 
-    // Repo selection
-    document.querySelectorAll('.repo-item').forEach(item=>{
-        item.addEventListener('click',()=> {
-            document.querySelectorAll('.repo-item').forEach(i=>i.classList.remove('active'));
-            item.classList.add('active');
-            // In a full implementation we would load repo‑specific data here.
-            document.getElementById('diagnostics').textContent = `Dashboard Ready – ${item.textContent.trim()}`;
-        });
+/* ---------- Rendering functions ---------- */
+function renderRepoList() {
+    const list = document.getElementById('repo-list');
+    list.innerHTML = '';
+    sampleRepos.forEach((repo, idx) => {
+        const div = document.createElement('div');
+        div.className = 'repo-item' + (idx===0 ? ' active' : '');
+        div.dataset.repoId = repo.id;
+        div.innerHTML = `
+            <div>${repo.name}</div>
+            <div class="repo-meta">
+                Last accessed: ${repo.lastAccessed}<br>
+                GitHub Pages: ${repo.pages ? '✅' : '❌'}
+            </div>`;
+        div.addEventListener('click', () => selectRepo(repo.id));
+        list.appendChild(div);
     });
+    // load first repo by default
+    if (sampleRepos.length) selectRepo(sampleRepos[0].id);
+}
 
-    // Chevron expand/collapse
-    document.querySelectorAll('.app-header').forEach(header=>{
-        header.addEventListener('click',()=> {
-            const groupId = header.dataset.group;
-            const group = document.getElementById(groupId);
+function selectRepo(repoId) {
+    // highlight
+    document.querySelectorAll('.repo-item').forEach(i=>i.classList.toggle('active', i.dataset.repoId===repoId));
+    const repo = sampleRepos.find(r=>r.id===repoId);
+    if (!repo) return;
+    // update diagnostics
+    document.getElementById('diagnostics').textContent = `Dashboard Ready – ${repo.name}`;
+    // populate overview
+    document.getElementById('overview-content').innerHTML = `<p>${repo.overview}</p>`;
+    // launch button (placeholder)
+    document.getElementById('launch-repo').onclick = () => alert(`Launching ${repo.name}`);
+    // analyze button
+    document.getElementById('analyze-repo').onclick = () => analyzeRepo(repo);
+    // apps
+    renderApps(repo);
+    // code links
+    renderCodeLinks(repo);
+    // readme
+    document.getElementById('readme-content').innerHTML = repo.readme.replace(/\n/g,'<br>');
+}
+
+function renderApps(repo) {
+    const container = document.getElementById('apps-content');
+    container.innerHTML = '';
+    repo.apps.forEach(app => {
+        const header = document.createElement('div');
+        header.className = 'app-header';
+        header.dataset.group = `${repo.id}-${app.name}`;
+        header.innerHTML = `<span class="chevron">▶</span> ${app.name}`;
+        const group = document.createElement('div');
+        group.className = 'app-group';
+        group.id = `${repo.id}-${app.name}`;
+        app.versions.forEach(v => {
+            const verDiv = document.createElement('div');
+            verDiv.textContent = v + ' ';
+            const btn = document.createElement('button');
+            btn.className = 'launch-btn';
+            btn.textContent = 'Launch';
+            btn.onclick = () => alert(`Launching ${app.name} ${v}`);
+            verDiv.appendChild(btn);
+            group.appendChild(verDiv);
+        });
+        header.addEventListener('click', () => {
+            const grp = document.getElementById(header.dataset.group);
             const chevron = header.querySelector('.chevron');
-            if(group.classList.toggle('active')){
-                chevron.textContent='▼';
-            } else {
-                chevron.textContent='▶';
-            }
+            grp.classList.toggle('active');
+            chevron.textContent = grp.classList.contains('active') ? '▼' : '▶';
+        });
+        container.appendChild(header);
+        container.appendChild(group);
+    });
+}
+
+function renderCodeLinks(repo) {
+    const ul = document.getElementById('code-links');
+    ul.innerHTML = '';
+    repo.codeLinks.forEach(l => {
+        const li = document.createElement('li');
+        const a = document.createElement('a');
+        a.href = l.href;
+        a.target = '_blank';
+        a.textContent = l.label;
+        li.appendChild(a);
+        ul.appendChild(li);
+    });
+}
+
+/* ---------- Analyze flow (placeholder) ---------- */
+function analyzeRepo(repo) {
+    // Simple heuristic: if no pages, suggest enabling GitHub Pages
+    const suggestion = repo.pages
+        ? 'Repo already has GitHub Pages enabled.'
+        : 'Repo lacks GitHub Pages. You can add a simple index.html and enable Pages in settings.';
+    alert(`Analysis for ${repo.name}:\n\n${suggestion}`);
+}
+
+/* ---------- Tab switching ---------- */
+document.querySelectorAll('.tab').forEach(tab => {
+    tab.addEventListener('click', () => {
+        document.querySelectorAll('.tab').forEach(t=>t.classList.remove('active'));
+        tab.classList.add('active');
+        const target = tab.dataset.tab;
+        document.querySelectorAll('.tab-page').forEach(page=>{
+            page.style.display = page.dataset.tab===target ? 'block' : 'none';
         });
     });
+});
+
+/* ---------- Init ---------- */
+renderRepoList();
 </script>
 </body>
 </html>
