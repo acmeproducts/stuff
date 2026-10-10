@@ -1,3 +1,9 @@
+# October 10 owner rejection: refresh lifecycle
+
+The phone recording rejects the d148664 owner candidate despite its automated PASS. Expired verification and a delayed publisher caused repeated opaque refresh overlays and silently prevented Analyze creation. Friday observations on Saturday are not themselves stale. Add independent expiry, unchanged-generation, delayed-network and recovery tests before another owner candidate.
+
+Preserve the last integrity-checked chart while checking publication in the background. Historical Analyze remains available with explicit frozen verification provenance; expired verification must never be described as current. Bound retries, keep single request ownership, and stage incoming data before replacing NOW. Maintain actual source verification and repair before publishing; never renew verification merely because a browser polled. Improve worker cadence separately from chart behavior. Preserve Turn 28 and every published checkpoint.
+
 # Market Navigator data-first rebuild
 
 ## Step zero: operational data assurance — owner-directed plan, October 9
