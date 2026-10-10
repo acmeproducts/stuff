@@ -1,10 +1,8 @@
 # TalkBridge device log
 
-Both handsets write here. Drained 2026-10-10T21:57:12Z, every 30s. Newest at the bottom.
+Both handsets write here. Drained 2026-10-10T21:57:44Z, every 30s. Newest at the bottom.
 
 ```
-13:47:57.107 [android-tzc] cr3_attended {"on":true,"why":"visible"}
-13:47:57.107 [android-tzc] cr3_announce_window {"why":"visible"}
 13:47:57.115 [android-tzc] p4_sw_receipt {"ev":"app_announced","at":1791639448225,"room":null,"kind":null,"e":null}
 13:47:57.115 [android-tzc] p4_sw_drained {"n":1}
 13:47:57.139 [android-tzc] net_returned {"why":"focus","awayMs":37,"inRoom":true,"inCall":false}
@@ -4002,4 +4000,6 @@ Both handsets write here. Drained 2026-10-10T21:57:12Z, every 30s. Newest at the
 21:47:10.476 [android-tzc] listen_open {"room":"msufyhjzxnh1fy"}
 21:47:10.477 [android-tzc] cr3_lane_open {"room":"msufyhjzxnh1fy","explicit":false}
 21:47:10.624 [android-tzc] listen_open {"room":"mt2qpqlzxh9omn"}
-21:47:10.624 [android-tzc] cr3_lane_open {"room":"mt2qpqlzxh9omn","explicit":false}```
+21:47:10.624 [android-tzc] cr3_lane_open {"room":"mt2qpqlzxh9omn","explicit":false}
+21:57:17.075 [android-tzc] listen_open {"room":"9a0c161b-muzk40n7fj4d34"}
+21:57:17.075 [android-tzc] cr3_lane_open {"room":"9a0c161b-muzk40n7fj4d34","explicit":false}```
