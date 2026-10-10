@@ -21,6 +21,8 @@ const M77 = 'M7.7 the folder URL itself: the forwarder opens the stage page and 
 const M61 = 'M6.1 markers(page) = markers(base) ∪ {dr_root_worker_retired, dr_retire_deferred, dr_retire_failed}; the build line names the folder';
 const M72 = 'M7.2 the manifest link is this stage\'s in the folder: Chrome gets the one with start_url and id, the iPhone the one without; the root page still points at tb-manifest-turn28';
 const M73 = 'M7.3 fastText resolves to /stuff/fastType/ from the folder (the root page: the same place); the invite and the link-device URL build on the folder URL; the flag band\'s image resolves in the folder';
+const M72B = 'M7.2b the head alone chooses the manifest while it is parsed (no service-worker API, so U1\'s later swap never runs): iPhone Safari and iPhone Chrome get the manifest without start_url, Android gets the one with it';
+const M14 = 'M1.4 the page still registers ./tb-sw.js by its frozen call; the folder worker is named tb-sw3.js (I-1 renames the call) and both names resolve inside the folder';
 const M74 = 'M7.4 legacy-worker retirement: deferred until the folder\'s push subscription is live; then exactly the root workers at /stuff/ and /stuff/bridge- (tb-sw, tb-sw2, tb-sw3) are unsubscribed and unregistered — PRISM\'s, this folder\'s, another app\'s at /stuff/ and a tb-sw.js at a third scope are untouched';
 const M81 = 'M8.1 install precaches the start page and the folder\'s files, tolerating a missing one (the worker still activates)';
 const M82 = 'M8.2 a cross-origin GET and any POST are never answered by the worker (the browser handles them)';
@@ -29,7 +31,9 @@ const M76 = 'M7.6 (E6) in a browser tab the folder page registers its worker at 
 const M84 = 'M8.4 the push half still reads the folder: describe() and the tap fall back to the folder URL itself, never a root file name; the icon and badge come from the folder scope';
 
 const MUTATIONS = [
-  { catches: M72, name: 'E1 head manifest unapplied (the page points at the root manifest)', keep: ['E1-head-manifest', 'E2-u1-manifest-swap'] },
+  { catches: M14, name: 'E1 head manifest unapplied (a static link to the root manifest in the head)', keep: ['E1-head-manifest', 'E2-u1-manifest-swap'] },
+  { catches: M72B, name: 'the head writes the Chrome manifest for every platform (c1\'s failure, G65)', pageHtml: (s) => s.replace("? 'tb-manifest-turn29-pre-ship-ios.webmanifest' : 'tb-manifest-turn29-pre-ship.webmanifest') + '\">');", "? 'tb-manifest-turn29-pre-ship.webmanifest' : 'tb-manifest-turn29-pre-ship.webmanifest') + '\">');") },
+  { catches: M72B, name: 'the head writes the iPhone manifest for every platform (Android would lose the install icon)', pageHtml: (s) => s.replace("? 'tb-manifest-turn29-pre-ship-ios.webmanifest' : 'tb-manifest-turn29-pre-ship.webmanifest') + '\">');", "? 'tb-manifest-turn29-pre-ship-ios.webmanifest' : 'tb-manifest-turn29-pre-ship-ios.webmanifest') + '\">');") },
   { catches: M72, name: 'E2 swap unapplied: U1 swaps back to the root manifest at runtime', keep: ['E2-u1-manifest-swap'] },
   { catches: M73, name: 'E5 unapplied: fastText looked for inside the folder', keep: ['E5-fasttype-dir'] },
   { catches: M74, name: 'retirement widened to any scope', page: (s) => s.replace("        if (LEGACY.indexOf(sc) === -1) return;                          /* exact legacy scope only */\n", "") },
@@ -69,6 +73,7 @@ function runOne({ m, i }) {
     const pagePath = path.join(tmp, 'page' + i + '.js'), swPath = path.join(tmp, 'sw' + i + '.js'); writeFileSync(pagePath, page); writeFileSync(swPath, sw);
     let files; try { files = assembleAll({ parts: [page], workerParts: [sw], keepReplacements: m.keep || [], keepWorkerReplacements: m.keepW || [], noStartUrl: !!(m.env && m.env.TB_DIR_NO_START_URL), iosStartUrl: !!(m.env && m.env.TB_DIR_IOS_START_URL), forwardTo: m.forwardTo }); } catch (e) { return resolve({ ok: false, line: 'MISS  assembly refused: ' + m.name + ' — ' + e.message }); }
     if (m.index) { const k = Object.keys(files).find((f) => f.endsWith('/index.html')); files[k] = m.index(files[k]); }
+    if (m.pageHtml) { const k = Object.keys(files).find((f) => f.endsWith('/bridge-turn29-pre-ship.html')); const before = files[k]; files[k] = m.pageHtml(before); if (files[k] === before) return resolve({ ok: false, line: 'MISS  mutation did not apply: ' + m.name }); }
     for (const [f, c] of Object.entries(files)) writeFileSync(path.join(dir, f.slice(FOLDER.length + 1)), c);
     const env = { ...process.env, TB_SKIP_M9: '1', TB_DIR_FOLDER: dir, TB_DIR_PAGE_PART: pagePath, TB_DIR_SW_PART: swPath, TB_DIR_KEEP: (m.keep || []).join(','), TB_DIR_KEEP_W: (m.keepW || []).join(','), ...(m.env || {}) };
     const child = spawn('node', ['talkbridge/build/harness-29dir.mjs'], { env, stdio: ['ignore', 'pipe', 'pipe'] });

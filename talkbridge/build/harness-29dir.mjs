@@ -33,7 +33,7 @@ let pass = 0, fail = 0;
 const T = async (name, fn) => { try { await fn(); pass++; console.log('  ok  ' + name); } catch (e) { fail++; console.log('FAIL  ' + name + ' — ' + ((e && e.message) || e)); } };
 const assert = (c, m) => { if (!c) throw new Error(m); };
 const code = (s) => s.replace(/\/\*[\s\S]*?\*\//g, '');
-const inline = (html) => html.match(/<script(?![^>]*\bsrc=)[^>]*>([\s\S]*?)<\/script>/i)[1];
+const inline = (html) => [...html.matchAll(/<script(?![^>]*\bsrc=)[^>]*>([\s\S]*?)<\/script>/gi)].map((m) => m[1]).sort((a, b) => b.length - a.length)[0];   /* the app's script; c2 adds a one-line head script that writes the manifest link */
 const markers = (js) => { const s = new Set(); const re = /\b(?:log|L|rmLog|cr3Log|p6Log|p4Log|netLog|rcLog|r8Log|lcLog|p3Log|n17Log|prLog|s2Log|f1Log|n10L|p2Log)\(\s*'([a-z0-9_]+)'/g; let m; while ((m = re.exec(code(js)))) s.add(m[1]); return s; };
 const ORIGIN = 'https://acmeproducts.github.io';
 
@@ -59,7 +59,10 @@ await T('M1.4 the page still registers ./tb-sw.js by its frozen call; the folder
   assert(/navigator\.serviceWorker\.register\('\.\/tb-sw\.js'\)/.test(page), 'p3Register changed');
   assert(existsSync(folder + '/tb-sw3.js'), 'no tb-sw3.js in the folder');
   assert(!/tb-manifest-turn28/.test(code(inline(page))) && !/href="tb-manifest-turn28/.test(page), 'the page still names the root manifest');
-  assert(new RegExp('href="' + MANIFEST_NAME + '"').test(page) && page.indexOf("'" + MANIFEST_IOS_NAME + "'") !== -1, 'the page does not name this stage\'s two manifests');
+  assert(!/^<link rel="manifest"/m.test(page) && !/<link rel="manifest" href="tb-manifest-turn28/.test(page), 'a static manifest link survives in the head (the phone would read it before any choice)');
+  const w = page.match(/<script>document\.write\('<link rel="manifest" href="' \+ \(\((.*?)\) \? '([^']+)' : '([^']+)'\) \+ '">'\);<\/script>/);
+  assert(w && w[2] === MANIFEST_IOS_NAME && w[3] === MANIFEST_NAME && /iPhone\|iPad\|iPod/.test(w[1]), 'the head does not write this stage\'s manifest link by platform: ' + (w ? w.slice(1).join(' | ') : 'no write'));
+  assert(page.indexOf(w[0]) < page.indexOf('<meta name="theme-color"'), 'the manifest link is not written in the head');
 });
 
 console.log('M2 · the two manifests');
@@ -163,6 +166,15 @@ await T('M7.2 the manifest link is this stage\'s in the folder: Chrome gets the 
   assert(href(R) === ORIGIN + '/stuff/tb-manifest-turn28.webmanifest', 'root: ' + href(R));
   assert(F.w.debugLog.some((l) => l.ev === 'u1_manifest_swapped' && l.d.href.endsWith('/' + MANIFEST_NAME)) && FI.w.debugLog.some((l) => l.ev === 'u1_manifest_swapped' && l.d.href.endsWith('/' + MANIFEST_IOS_NAME)), 'swap logs');
   assert(F.w.document.querySelector('link[rel="apple-touch-icon"]').href === FOLDER_URL + 'icon-v2-180.png' && F.w.document.querySelector('link[rel="icon"]').href === FOLDER_URL + 'icon-v2-192.png', 'icons resolve outside the folder');
+});
+await T('M7.2b the head alone chooses the manifest while it is parsed (no service-worker API, so U1\'s later swap never runs): iPhone Safari and iPhone Chrome get the manifest without start_url, Android gets the one with it', async () => {
+  const bare = async (ua) => { const vc = new VirtualConsole(); vc.on('jsdomError', () => {}); const dom = new JSDOM(page, { url: PAGE_URL, runScripts: 'dangerously', pretendToBeVisual: true, virtualConsole: vc, beforeParse(w) { Object.defineProperty(w.navigator, 'userAgent', { value: ua, configurable: true }); w.matchMedia = () => ({ matches: false, addEventListener() {}, addListener() {} }); w.speechSynthesis = { speak() {}, cancel() {}, getVoices() { return []; }, addEventListener() {} }; w.SpeechSynthesisUtterance = class {}; w.fetch = () => Promise.resolve({ ok: false, status: 0, json: () => Promise.resolve({}), text: () => Promise.resolve('') }); } }); await new Promise((r) => setTimeout(r, 400)); const links = [...dom.window.document.querySelectorAll('link[rel="manifest"]')].map((l) => l.href); const swapped = dom.window.debugLog.some((l) => l.ev === 'u1_manifest_swapped'); dom.window.close(); return { links, swapped }; };
+  const CRIOS_UA = 'Mozilla/5.0 (iPhone; CPU iPhone OS 17_5 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) CriOS/129.0 Mobile/15E148 Safari/604.1';
+  for (const [ua, want, name] of [[IOS_UA, MANIFEST_IOS_NAME, 'iPhone Safari'], [CRIOS_UA, MANIFEST_IOS_NAME, 'iPhone Chrome'], [CHROME_UA, MANIFEST_NAME, 'Android Chrome']]) {
+    const r = await bare(ua);
+    assert(!r.swapped, name + ': the swap ran — this proof needs the head alone');
+    assert(r.links.length === 1 && r.links[0] === FOLDER_URL + want, name + ': head links ' + JSON.stringify(r.links));
+  }
 });
 await T('M7.3 fastText resolves to /stuff/fastType/ from the folder (the root page: the same place); the invite and the link-device URL build on the folder URL; the flag band\'s image resolves in the folder', () => {
   assert(F.w.FT_DIR === ORIGIN + '/stuff/fastType/' && F.w.FT_MODEL === ORIGIN + '/stuff/fastType/model/lid.176.ftz', 'folder FT_DIR ' + F.w.FT_DIR);
