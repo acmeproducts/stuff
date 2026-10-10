@@ -1,34 +1,8 @@
 # TalkBridge device log
 
-Both handsets write here. Drained 2026-10-10T18:23:00Z, every 30s. Newest at the bottom.
+Both handsets write here. Drained 2026-10-10T18:23:32Z, every 30s. Newest at the bottom.
 
 ```
-13:44:14.440 [android-flz] listen_open {"room":"31af0eb5-musyiglsj6peug"}
-13:44:14.440 [android-flz] cr3_lane_open {"room":"31af0eb5-musyiglsj6peug","explicit":false}
-13:44:14.494 [android-flz] t1_coalesced {"fn":"renderPanel","n":1}
-13:44:14.511 [android-flz] t1_coalesced {"fn":"renderPanel","n":1}
-13:44:14.545 [android-flz] listen_open {"room":"31af0eb5-muytgmik45rdsh"}
-13:44:14.545 [android-flz] cr3_lane_open {"room":"31af0eb5-muytgmik45rdsh","explicit":false}
-13:44:14.562 [android-flz] listen_open {"room":"31af0eb5-muzk2t5lbh5qos"}
-13:44:14.562 [android-flz] cr3_lane_open {"room":"31af0eb5-muzk2t5lbh5qos","explicit":false}
-13:44:14.564 [android-flz] lc_create_capture_wired {}
-13:44:14.568 [android-flz] pb_pull_unchanged {"version":1001}
-13:44:14.612 [android-flz] t1_coalesced {"fn":"renderPanel","n":3}
-13:44:14.624 [android-flz] lc_boot_check {"grant":false,"expires":null,"cleared":false,"canCreate":true}
-13:44:14.625 [android-flz] r8_menu_labels {"applied":3,"of":3}
-13:44:14.625 [android-flz] r8_flag_bands {"dressed":2}
-13:44:14.625 [android-flz] r8_info_card_removed {}
-13:44:14.625 [android-flz] r8_r8a_installed {}
-13:44:14.673 [android-flz] listen_open {"room":"9a0c161b-muzk40n7fj4d34"}
-13:44:14.673 [android-flz] cr3_lane_open {"room":"9a0c161b-muzk40n7fj4d34","explicit":false}
-13:44:14.674 [android-flz] listen_open {"room":"31af0eb5-muzib9xhwvshos"}
-13:44:14.674 [android-flz] cr3_lane_open {"room":"31af0eb5-muzib9xhwvshos","explicit":false}
-13:44:14.689 [android-flz] p3_room_registered {"room":"fj4d34","ok":true}
-13:44:14.695 [android-flz] p3_room_registered {"room":"bh5qos","ok":true}
-13:44:14.700 [android-flz] p3_room_registered {"room":"j6peug","ok":true}
-13:44:14.700 [android-flz] p3_room_registered {"room":"bh5qos","ok":true}
-13:44:14.701 [android-flz] p3_room_registered {"room":"45rdsh","ok":true}
-13:44:14.704 [android-flz] p3_room_registered {"room":"0vnxep","ok":true}
 13:44:14.707 [android-flz] p3_room_registered {"room":"u43pqc","ok":true}
 13:44:14.708 [android-flz] p3_room_registered {"room":"bh5qos","ok":true}
 13:44:14.709 [android-flz] p3_room_registered {"room":"wvshos","ok":true}
@@ -4002,4 +3976,30 @@ Both handsets write here. Drained 2026-10-10T18:23:00Z, every 30s. Newest at the
 18:22:54.535 [iphone-avu] dg_stopped {}
 18:22:54.538 [iphone-avu] call_end {}
 18:22:54.538 [iphone-avu] gen_bump {"n":8,"r":"call_end"}
-18:22:54.791 [iphone-avu] pr3_dot {"others":0,"dropped":1}```
+18:22:54.791 [iphone-avu] pr3_dot {"others":0,"dropped":1}
+18:23:00.300 [iphone-avu] gen_bump {"n":9,"r":"call_start"}
+18:23:00.824 [iphone-avu] dg_stopped {}
+18:23:00.829 [iphone-avu] net_dg_reopen {"sincePrevMs":16817,"inCall":true,"kind":"video","micOn":true,"opensInWindow":4}
+18:23:00.829 [iphone-avu] dg_no_key {}
+18:23:00.829 [iphone-avu] r8_call_timer {"caller":true}
+18:23:00.829 [iphone-avu] call_start {"kind":"video"}
+18:23:00.857 [iphone-avu] n10_caller_screen {"kind":"video","micOn":true}
+18:23:01.684 [iphone-avu] rc_panel_rendered {"live":1,"bin":0,"wired":1}
+18:23:01.684 [iphone-avu] rc_home_rendered {"cards":0,"wired":0}
+18:23:01.685 [iphone-avu] joiner_create_control {"shown":false}
+18:23:01.689 [iphone-avu] pr3_dot {"others":0}
+18:23:11.894 [iphone-avu] pr3_dot {"others":0,"dropped":1}
+18:23:17.039 [iphone-avu] n10_caller_cancelled {}
+18:23:17.039 [iphone-avu] dg_stopped {}
+18:23:17.042 [iphone-avu] call_end {}
+18:23:17.042 [iphone-avu] gen_bump {"n":10,"r":"call_end"}
+18:23:17.279 [iphone-avu] pr3_dot {"others":0}
+18:23:21.687 [iphone-avu] rc_panel_rendered {"live":1,"bin":0,"wired":1}
+18:23:21.688 [iphone-avu] rc_home_rendered {"cards":0,"wired":0}
+18:23:21.688 [iphone-avu] joiner_create_control {"shown":false}
+18:23:27.153 [iphone-avu] cr3_announce {"why":"blur","visible":false,"lanes":1,"dropped":3}
+18:23:27.153 [iphone-avu] pr2_declared {"why":"blur","inRoom":false,"view":"room","dropped":1}
+18:23:27.153 [iphone-avu] cr3_attended {"on":false,"why":"blur"}
+18:23:27.230 [iphone-avu] rc_panel_rendered {"live":1,"bin":0,"wired":1}
+18:23:27.231 [iphone-avu] rc_home_rendered {"cards":0,"wired":0}
+18:23:27.231 [iphone-avu] joiner_create_control {"shown":false}```
