@@ -210,3 +210,11 @@ Freshness: Connected describes transport only. Separate evidence state Current /
 
 **Evidence (owner screenshot):** Duplicates button did not light up; group headers showed only the long fingerprint so copies/reclaimable/estates were pushed off-screen; the fingerprint column crowded out other fields.
 **Change:** Duplicates lights while its preset is active and goes dark when the search or grouping changes; fingerprints display as 10 characters + "…" (full value on hover, copied in full on tap); group headers lead with the short value, then copies · size · reclaimable · estates, and stay pinned to the visible width.
+
+## 2026-10-10 — Tags/notes not showing, look not saving, typography
+
+**Evidence (owner):** edited tags and notes did not appear; zebra choice did not stick; the white/dark bands and all-bold text were jarring.
+**Root cause (tags/notes):** after any edit the base app sets its revision to the new one and then reloads; the delta sync compared against that already-bumped number, was told "no changes" and kept the old rows. The delta check now uses the revision the local rows actually represent.
+**Change:** Colors choices save and apply the instant they change (and survive reload); new default "Soft" look (calm dark rows, 13px/1.5, regular weight, tabular numbers, no bold-on-hover, contrast >= 7:1) with the old white/dark bands kept as "High contrast"; legacy saved "classic" migrates to Soft once. Row/# columns widened so headers are not clipped.
+**Backlog:** `SOT-TURN02-RELEASE-D-BACKLOG.md` (handoff, access control, diagram, flow).
+**Qualification:** runtime qualifier covers the tags/notes refresh, default-look readability (contrast, weight, band delta), zebra persistence across reload.

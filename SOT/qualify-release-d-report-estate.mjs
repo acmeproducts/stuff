@@ -157,6 +157,25 @@ try{
   await fr.evaluate(()=>__ssotDuplicates());await pg.waitForTimeout(300);
   pass('Duplicates preset: only KEEP/EXCESS files, grouped by fingerprint, biggest reclaimable first, header shows copies / reclaimable / estates, KEEP listed before its EXCESS copies');
   await fr.evaluate(()=>{__ssotColumnsModal();document.getElementById('ssotColReset').click()});await pg.waitForTimeout(300);await fr.click('#modalcancel');await fr.evaluate(()=>{omniDraft='';omniQuery='';sortField='placement_no';sortDir=-1;renderDatabase()});await pg.waitForTimeout(300)}
+ // Tags / notes edits must show immediately (delta compares against the revision the local rows represent)
+ {await fr.evaluate(()=>{omniDraft='';omniQuery='';show('Database')});await pg.waitForTimeout(400);
+  const orig={tags:placements[0].tags,notes:placements[0].notes};const id=placements[0].placement_id;placements[0].tags='["keepme"]';placements[0].notes='hello notes';placements[0].rev=2;rev=2;
+  await fr.evaluate(async()=>{catalogRevision=2;await loadPlacements(true)});await pg.waitForTimeout(500);
+  const got=await fr.evaluate(id=>{const p=placements.find(x=>x.placement_id===id);return {tags:p.tags,notes:p.notes}},id);ok(got.tags==='["keepme"]'&&got.notes==='hello notes','tags/notes edit not visible after reload: '+JSON.stringify(got));
+  pass('after a tags/notes edit the table shows the saved values (the delta check no longer trusts the bumped revision)');
+  placements[0].tags=orig.tags;placements[0].notes=orig.notes;delete placements[0].rev;rev=1;await fr.evaluate(async()=>{catalogRevision=1;__ssotRowsRev=1;placements.find(x=>true).tags=placements[0].tags})}
+ // Look: typography and persisted zebra choice
+ {await fr.evaluate(()=>{omniDraft='';omniQuery='';show('Database')});await pg.waitForTimeout(500);
+  const t=await fr.evaluate(()=>{const lum=c=>{const [r,g,b]=c.match(/\d+/g).map(Number).map(v=>{v/=255;return v<=.03928?v/12.92:Math.pow((v+.055)/1.055,2.4)});return .2126*r+.7152*g+.0722*b},ratio=(a,b)=>{const x=lum(a),y=lum(b);return (Math.max(x,y)+.05)/(Math.min(x,y)+.05)},rows=[...document.querySelectorAll('#Database .dbgrid tbody tr[data-pid]')].slice(0,2),c=rows.map(r=>{const td=r.cells[3],cs=getComputedStyle(td);return {bg:cs.backgroundColor,fg:cs.color,w:cs.fontWeight,fs:parseFloat(cs.fontSize),lh:parseFloat(cs.lineHeight)/parseFloat(cs.fontSize),ratio:ratio(cs.backgroundColor,cs.color)}});return {zebra:document.documentElement.dataset.dbZebra,c}});
+  ok(t.zebra==='soft'&&t.c.every(x=>!/rgb\(255, 255, 255\)/.test(x.bg)&&Number(x.w)<=500&&x.fs>=13&&x.lh>=1.4&&x.ratio>=7),'default look must be calm and readable '+JSON.stringify(t));
+  const delta=await fr.evaluate(()=>{const l=c=>c.match(/\d+/g).map(Number).reduce((a,b)=>a+b,0),r=[...document.querySelectorAll('#Database .dbgrid tbody tr[data-pid]')].slice(0,2).map(r=>l(getComputedStyle(r.cells[3]).backgroundColor));return Math.abs(r[0]-r[1])});ok(delta<40,'row bands must be subtle, not jarring: '+delta);
+  pass('default look: soft dark rows (no white bands), body weight 400, 13px/1.5, contrast >= 7:1');
+  await fr.evaluate(()=>configure());await pg.waitForTimeout(600);await fr.evaluate(()=>setConfigTab('Colors'));await pg.waitForTimeout(300);
+  const opts=await fr.$$eval('#dbZebraPreset option',o=>o.map(x=>x.value));ok(opts.join()==='soft,dark,light,blue,contrast','zebra options '+opts);
+  await fr.selectOption('#dbZebraPreset','blue');await pg.waitForTimeout(300);const sv=await fr.evaluate(()=>[JSON.parse(localStorage.sotUiConfig).dbZebra,document.documentElement.dataset.dbZebra]);ok(sv[0]==='blue'&&sv[1]==='blue','zebra choice not saved/applied '+sv);
+  await pg.reload();let f3;for(let i=0;i<100;i++){try{const o=await (await (await pg.waitForSelector('#shell')).contentFrame()).waitForSelector('#app');f3=await o.contentFrame();if(await f3.evaluate(()=>!!window.__ssotCompletePlacementRefresh&&window.placements.length>0&&!document.querySelector('#ssot-db-blocker.on')))break}catch(e){}await pg.waitForTimeout(100)}
+  ok(await f3.evaluate(()=>document.documentElement.dataset.dbZebra)==='blue','zebra choice lost after reload');pass('Colors choices save the moment they change and survive a reload');
+  await f3.evaluate(()=>{localStorage.removeItem('sotUiConfig');localStorage.removeItem('sotUiMigrated2');applyUiCfg()});fr=f3}
  // Job Status
  await fr.evaluate(()=>__ssotOpenReportMode('Analyze'));await pg.waitForTimeout(300);ok(await fr.evaluate(()=>document.getElementById('Analyze').classList.contains('on')&&document.getElementById('Analyze').innerText.length>20),'job status pane');ok(await fr.$$eval('#Analyze .ssot-report-switch button',b=>b[1].textContent.trim()==='Job Status'&&b[1].classList.contains('on')),'job status nav');pass('Job Status renders the existing job/source status surface');
  await pg.context().close();

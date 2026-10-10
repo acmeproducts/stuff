@@ -45,3 +45,5 @@ Do not forward-patch this rejected design. Restore the pre-#770 Complete bytes (
 - Tap-any-# selection: the row selector is now the Row number cell (the permanent database # remains a normal column).
 - A new "duplicate" field was considered and rejected: Class already carries it.
 - Full-length fingerprint display in rows and group headers.
+- Delta sync keyed on the base app's catalog revision (wrong after mutations); replaced by the revision of the loaded rows.
+- White/dark "classic" bands as the default look (kept only as High contrast).
