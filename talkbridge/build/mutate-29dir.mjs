@@ -12,12 +12,14 @@ import { assembleAll, FOLDER } from './assemble-29dir.mjs';
 const page0 = readFileSync('talkbridge/parts/dr1-folder.js', 'utf8'), sw0 = readFileSync('talkbridge/parts/dr-sw-fetch.js', 'utf8');
 const M12 = 'M1.2 exactly three page edits (E1 head manifest, E2 the swap by platform, E5 fastText path), each found once in the base and once in the page';
 const M13 = 'M1.3 DR-1 declares and binds drRetireRoot once; the page carries no other new top-level symbol; the part has no network or credential line';
-const M21 = 'M2.1 Chrome manifest: scope "./", start_url "./", id the folder path; everything else as tb-manifest-turn28';
+const M21 = 'M2.1 Chrome manifest: scope "./", start_url this stage\'s page, id the folder path (one app id for every stage); everything else as tb-manifest-turn28';
 const M22 = 'M2.2 iPhone manifest: scope "./", NO start_url, NO id (the load-time address must carry into the Home Screen copy); everything else as tb-manifest-turn28';
 const M32 = 'M3.2 exactly two lines of the root worker change (the header comment, APP_FILE = ""); the handler set grows by fetch and a second install only; the part never names push, notificationclick or the journal';
 const M33 = 'M3.3 the worker\'s own URLs now point at the folder: APP_FILE is empty, face() and the fallback build on the registration scope, nothing names a root file';
+const M11 = 'M1.1 bridge-turn29-pre-ship.html is the assembler\'s output; the folder\'s index.html is the forwarder to it, carrying search and hash';
+const M77 = 'M7.7 the folder URL itself: the forwarder opens the stage page and keeps the invite (search and hash)';
 const M61 = 'M6.1 markers(page) = markers(base) ∪ {dr_root_worker_retired, dr_retire_deferred, dr_retire_failed}; the build line names the folder';
-const M72 = 'M7.2 the manifest link is the folder\'s: Chrome gets tb-manifest.webmanifest (start_url, id), the iPhone gets tb-manifest-ios.webmanifest (no start_url); the root page still points at tb-manifest-turn28';
+const M72 = 'M7.2 the manifest link is this stage\'s in the folder: Chrome gets the one with start_url and id, the iPhone the one without; the root page still points at tb-manifest-turn28';
 const M73 = 'M7.3 fastText resolves to /stuff/fastType/ from the folder (the root page: the same place); the invite and the link-device URL build on the folder URL; the flag band\'s image resolves in the folder';
 const M74 = 'M7.4 legacy-worker retirement: deferred until the folder\'s push subscription is live; then exactly the root workers at /stuff/ and /stuff/bridge- (tb-sw, tb-sw2, tb-sw3) are unsubscribed and unregistered — PRISM\'s, this folder\'s, another app\'s at /stuff/ and a tb-sw.js at a third scope are untouched';
 const M81 = 'M8.1 install precaches the start page and the folder\'s files, tolerating a missing one (the worker still activates)';
@@ -39,7 +41,9 @@ const MUTATIONS = [
   { catches: M76, name: 'E6 attempts push in the tab (a permission prompt before any tap, G33)', page: (s) => s.replace("p3Register().catch(function () {}); } catch (_) {}", "p3Attempt(false); } catch (_) {}") },
   { catches: M13, name: 'the part grows an undeclared symbol', page: (s) => s.replace("function drRetireRoot() {", "function drHelper() { return 1; }\nfunction drRetireRoot() {") },
   { catches: M61, name: 'an undeclared marker is logged', page: (s) => s.replace("L('dr_retire_deferred', { scope: sc });", "L('dr_retire_deferred', { scope: sc }); L('dr_seen', {});") },
-  { catches: M61, name: 'the build line names the root', page: (s) => s.replace("file:'talkbridge-app/index.html'", "file:'bridge-turn29-pre-ship.html'") },
+  { catches: M61, name: 'the build line names the root', page: (s) => s.replace("file:'talkbridge-app/bridge-turn29-pre-ship.html'", "file:'bridge-turn29-pre-ship.html'") },
+  { catches: M77, name: 'the forwarder drops the invite hash', forwardTo: 'bridge-turn29-pre-ship.html', index: (s) => s.replace("location.replace('./bridge-turn29-pre-ship.html' + location.search + location.hash);", "location.replace('./bridge-turn29-pre-ship.html');") },
+  { catches: M11, name: 'the forwarder points at the old root address', forwardTo: '../bridge-turn29-pre-ship.html' },
   { catches: M21, name: 'the Chrome manifest loses start_url and id (G1 would fail as it did twice before)', env: { TB_DIR_NO_START_URL: '1' } },
   { catches: M22, name: 'the iPhone manifest gains start_url (the Home Screen copy would lose the person)', env: { TB_DIR_IOS_START_URL: '1' } },
   { catches: M33, name: 'W1 unapplied: APP_FILE still names the turn-24 file (G27)', keepW: ['W1-app-file'] },
@@ -63,7 +67,8 @@ function runOne({ m, i }) {
     if ((m.page && page === page0) || (m.sw && sw === sw0)) return resolve({ ok: false, line: 'MISS  mutation did not apply: ' + m.name });
     const dir = path.join(tmp, 'f' + i); mkdirSync(dir, { recursive: true });
     const pagePath = path.join(tmp, 'page' + i + '.js'), swPath = path.join(tmp, 'sw' + i + '.js'); writeFileSync(pagePath, page); writeFileSync(swPath, sw);
-    let files; try { files = assembleAll({ parts: [page], workerParts: [sw], keepReplacements: m.keep || [], keepWorkerReplacements: m.keepW || [], noStartUrl: !!(m.env && m.env.TB_DIR_NO_START_URL), iosStartUrl: !!(m.env && m.env.TB_DIR_IOS_START_URL) }); } catch (e) { return resolve({ ok: false, line: 'MISS  assembly refused: ' + m.name + ' — ' + e.message }); }
+    let files; try { files = assembleAll({ parts: [page], workerParts: [sw], keepReplacements: m.keep || [], keepWorkerReplacements: m.keepW || [], noStartUrl: !!(m.env && m.env.TB_DIR_NO_START_URL), iosStartUrl: !!(m.env && m.env.TB_DIR_IOS_START_URL), forwardTo: m.forwardTo }); } catch (e) { return resolve({ ok: false, line: 'MISS  assembly refused: ' + m.name + ' — ' + e.message }); }
+    if (m.index) { const k = Object.keys(files).find((f) => f.endsWith('/index.html')); files[k] = m.index(files[k]); }
     for (const [f, c] of Object.entries(files)) writeFileSync(path.join(dir, f.slice(FOLDER.length + 1)), c);
     const env = { ...process.env, TB_SKIP_M9: '1', TB_DIR_FOLDER: dir, TB_DIR_PAGE_PART: pagePath, TB_DIR_SW_PART: swPath, TB_DIR_KEEP: (m.keep || []).join(','), TB_DIR_KEEP_W: (m.keepW || []).join(','), ...(m.env || {}) };
     const child = spawn('node', ['talkbridge/build/harness-29dir.mjs'], { env, stdio: ['ignore', 'pipe', 'pipe'] });

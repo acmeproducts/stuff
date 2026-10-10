@@ -8,7 +8,7 @@
    precache tolerates a missing file so the worker always activates (push must
    never wait on a cache). Every handler above is tb-sw3.js, byte for byte. */
 var APP_CACHE = 'tb-app-v1';
-var APP_ASSETS = ['./', './index.html', './tb-manifest.webmanifest', './tb-manifest-ios.webmanifest', './icon-v2-192.png', './icon-v2-badge-96.png', './flags.png'];
+var APP_ASSETS = ['./', './index.html', './icon-v2-192.png', './icon-v2-badge-96.png', './flags.png'];   /* the folder's face and what every page shares; a stage page is cached on its first load */
 self.addEventListener('install', function (e) {
   e.waitUntil(caches.open(APP_CACHE).then(function (c) { return Promise.all(APP_ASSETS.map(function (a) { return c.add(a).catch(function () {}); })); }).catch(function () {}));
 });

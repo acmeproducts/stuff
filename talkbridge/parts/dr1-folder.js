@@ -26,7 +26,7 @@
    only, no push subscription, no permission prompt (those stay where they
    were). The skeleton that passed §7.12 registered at load; so does this.
    ───────────────────────────────────────────────────────────────────────────── */
-(function(){ try { if (typeof log==='function') log('build', { c:'turn29-pre-ship-dir', file:'talkbridge-app/index.html', built:'2026-10-10 07:30 UTC' }, 'ok'); } catch(_){} })();
+(function(){ try { if (typeof log==='function') log('build', { c:'turn29-pre-ship-dir', file:'talkbridge-app/bridge-turn29-pre-ship.html', built:'2026-10-10 07:30 UTC' }, 'ok'); } catch(_){} })();
 
 function drRetireRoot() {
   if (!('serviceWorker' in navigator)) return;
