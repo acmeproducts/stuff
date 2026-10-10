@@ -595,3 +595,5 @@ Reject a private native-axis choice that disappears when options are replayed, r
 ## October 10 retry review finding
 
 Retire point-only hit testing for drawn lines: it missed long segments at larger dimensions despite shared source. The pinned baseline was correct. Also retire a fixed-height footer row when compact owned-host controls wrap; the first retry visual review found a clipped Fixed/Horizon control despite API PASS. Add explicit footer-control bounds to qualification. Preserve the intermediate retry commit 6f1cf0095caccdfc6233a92bc3423875aae724af as evidence; it is not the final owner candidate.
+
+Retire unconditional pointer capture by the inspection tooltip body. Normal tooltip text must not block underlying line focus or crosshair motion. Preserve the explicit close-button gesture and scrolling only when a minimal-height popup genuinely overflows. Add a regression with another drawn series underneath the tooltip.
