@@ -1,0 +1,5 @@
+'use strict';
+const fs=require('node:fs'),{execFile}=require('node:child_process');
+const layouts=[{width:1440,height:900},{width:1887,height:800},{width:800,height:1280},{width:412,height:915}];
+const run=(channel,v)=>new Promise((resolve,reject)=>execFile(process.execPath,['market-navigator-rebuild-behavior-tests.cjs'],{env:{...process.env,MN_TEST_CHANNEL:channel,MN_TEST_WIDTH:String(v.width),MN_TEST_HEIGHT:String(v.height)},timeout:150000,maxBuffer:1024*1024},(e,stdout,stderr)=>{if(e)return reject(Error(channel+' '+v.width+'\n'+stdout+'\n'+stderr));console.log('PASS',channel,v.width);resolve(JSON.parse(fs.readFileSync('market-navigator-rebuild-evidence/behavior-'+channel+'-'+v.width+'.json','utf8')))}));
+(async()=>{let checks=[];for(const channel of ['chrome','msedge'])checks.push(...await Promise.all(layouts.map(v=>run(channel,v))));fs.writeFileSync('market-navigator-rebuild-evidence/behavior-matrix.json',JSON.stringify({status:'PASS',checks,openCloseCycles:checks.length*25,physicalDevices:'PENDING'},null,2))})().catch(e=>{console.error(e);process.exitCode=1});

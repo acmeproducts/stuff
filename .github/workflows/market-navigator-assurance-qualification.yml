@@ -1,0 +1,44 @@
+name: Market Navigator assurance qualification
+on:
+  pull_request:
+    paths: ['market-navigator-assurance*', 'market-navigator-rebuild-worker.py', 'market-navigator-rebuild-policy.py', 'market-navigator-rebuild-provider-tests.py', 'market-navigator-rebuild-data/*.py', '.github/workflows/market-navigator-assurance-qualification.yml']
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  assurance-faults:
+    runs-on: windows-latest
+    timeout-minutes: 15
+    steps:
+      - run: git config --global core.autocrlf false
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Complete retained history independent source replay and recovery faults
+        run: python market-navigator-assurance-tests.py
+      - name: Publication calendars and approved provider recovery
+        run: |
+          python market-navigator-rebuild-policy-tests.py
+          python market-navigator-rebuild-provider-tests.py
+      - name: Independent stopped-worker and data-expiry checks
+        run: node market-navigator-assurance-view-tests.cjs
+      - name: Install Health disclosure browser tools
+        shell: pwsh
+        run: |
+          npm install --prefix .market-navigator-assurance-deps playwright pngjs
+          $env:MN_NODE_MODULES = "$pwd/.market-navigator-assurance-deps/node_modules"
+          node "$env:MN_NODE_MODULES/playwright/cli.js" install chrome msedge
+          "MN_NODE_MODULES=$pwd/.market-navigator-assurance-deps/node_modules" >> $env:GITHUB_ENV
+      - name: Preserve Health disclosure state across periodic and network refresh
+        run: node market-navigator-assurance-disclosure-tests.cjs
+      - name: Preserve disclosure qualification evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: health-disclosure-refresh-${{ github.run_id }}
+          path: market-navigator-rebuild-evidence/health-disclosure-refresh-regression.json
+          if-no-files-found: warn

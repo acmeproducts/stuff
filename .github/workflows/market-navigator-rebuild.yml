@@ -1,0 +1,105 @@
+name: Market Navigator data-first rebuild qualification
+on:
+  pull_request:
+    paths:
+      - 'market-navigator-rebuild*'
+      - 'market-navigator-rebuild*/**'
+      - 'MARKET-NAVIGATOR-DATA-FIRST-REBUILD.md'
+      - '.github/workflows/market-navigator-rebuild.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  original-chart-and-data:
+    runs-on: windows-latest
+    timeout-minutes: 30
+    steps:
+      - name: Preserve immutable Git blob bytes on Windows
+        run: git config --global core.autocrlf false
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Start fresh evidence while preserving committed checkpoints
+        shell: pwsh
+        run: |
+          $taskWorkspace = [IO.Path]::GetFullPath($env:GITHUB_WORKSPACE)
+          $taskSource = Join-Path $taskWorkspace 'market-navigator-rebuild-evidence'
+          $taskSaved = Join-Path $taskWorkspace 'market-navigator-rebuild-evidence-checkpoint'
+          if (-not $taskSource.StartsWith($taskWorkspace + [IO.Path]::DirectorySeparatorChar)) { throw 'Evidence path outside workspace' }
+          if (-not $taskSaved.StartsWith($taskWorkspace + [IO.Path]::DirectorySeparatorChar)) { throw 'Checkpoint path outside workspace' }
+          if (Test-Path -LiteralPath $taskSource) { Move-Item -LiteralPath $taskSource -Destination $taskSaved }
+          New-Item -ItemType Directory -Path $taskSource | Out-Null
+      - name: Install browser qualification tools
+        shell: pwsh
+        run: |
+          npm install --prefix .market-navigator-rebuild-deps playwright pngjs pixelmatch@7.1.0
+          $env:MN_NODE_MODULES = "$pwd/.market-navigator-rebuild-deps/node_modules"
+          node "$env:MN_NODE_MODULES/playwright/cli.js" install chrome msedge
+          "MN_NODE_MODULES=$pwd/.market-navigator-rebuild-deps/node_modules" >> $env:GITHUB_ENV
+      - name: Verify archived native inputs
+        run: python market-navigator-rebuild-fetch.py
+      - name: Reproduce baseline data candidate
+        run: node market-navigator-rebuild-baseline.cjs
+      - name: Independent history mathematics and recovery fault checks
+        run: python market-navigator-rebuild-tests.py
+      - name: Compare original Turn 28 across all roots horizons and layouts
+        run: node market-navigator-rebuild-qa.cjs
+      - name: Reproduce the independent NOW extraction
+        run: node market-navigator-rebuild-chart.cjs
+      - name: Compare extracted NOW against immutable Turn 28
+        env:
+          MN_TEST_CANDIDATE: market-navigator-rebuild-now.html
+        run: node market-navigator-rebuild-qa.cjs
+      - name: Native provider recovery and exchange deadlines
+        run: |
+          python market-navigator-rebuild-provider-tests.py
+          python market-navigator-rebuild-policy-tests.py
+      - name: Reproduce separate Analyze from the passing NOW module
+        run: node market-navigator-rebuild-analyze.cjs
+      - name: Compare Analyze architecture NOW against original Turn 28
+        env:
+          MN_TEST_CANDIDATE: market-navigator-rebuild-analyze.html
+          MN_TEST_STAGE: analyze-architecture
+        run: node market-navigator-rebuild-qa.cjs
+      - name: Prove existing launch and 25 close cycles
+        run: node market-navigator-rebuild-session-tests.cjs
+      - name: Reproduce requested interaction and explanation fixes
+        run: node market-navigator-rebuild-behavior.cjs
+      - name: Build standalone chart API and application adapters
+        run: node market-navigator-rebuild-api.cjs
+      - name: Qualify independent custom-sized chart consumers
+        run: node market-navigator-rebuild-api-tests.cjs
+      - name: Qualify drawn-line focus native holding and custom surface geometry
+        run: node market-navigator-rebuild-hit-inspection-tests.cjs
+      - name: Qualify owner chart policies and old Library report variants
+        run: |
+          node market-navigator-rebuild-owner-policy-tests.cjs
+          node market-navigator-rebuild-report-policy-tests.cjs
+      - name: Chart and session qualification across the fixed browser layout matrix
+        run: node market-navigator-rebuild-matrix.cjs
+      - name: Repeated breadcrumb Add horizon and display sequences
+        run: node market-navigator-rebuild-sequence-tests.cjs
+      - name: Independently verify values windows axes and plotted coordinates
+        run: node market-navigator-rebuild-independent-qa.cjs
+      - name: Scoped AI requests and deterministic correlation facts
+        run: node market-navigator-rebuild-ai-tests.cjs
+      - name: Single chart ownership and delayed-response export checks
+        run: |
+          node market-navigator-rebuild-source-tests.cjs
+          node market-navigator-rebuild-race-tests.cjs
+      - name: Unmasked original chrome visual qualification
+        run: node market-navigator-rebuild-visual-tests.cjs
+      - name: Library remains independent through recovery failure and retry
+        run: node market-navigator-rebuild-server-tests.cjs
+      - name: Expired verification delayed publication and visible Analyze regression
+        run: node market-navigator-rebuild-refresh-tests.cjs
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: market-navigator-data-first-evidence
+          path: market-navigator-rebuild-evidence/
+          retention-days: 30
