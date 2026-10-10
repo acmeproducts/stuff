@@ -2207,7 +2207,7 @@ device though the lab showed it — unexplained, recorded.
 conference-room model (walk in, walk out, the room closes when the last
 leaves) before any build. The build is kept, not deleted:
 `bridge-turn29-multi-user-v1.html` (sha `4fbcdb8c2f2b`), warm storage, out of
-the rotation; its gates (`gate:29ps`) still run against that file. The relay
+the rotation; its gates (`gate:29mu`) still run against that file. The relay
 leg (v6.7) stays live and is model-neutral. Owner: "rather than trying to
 reverse engineer a solve to this I want to put this version in warm storage."
 
