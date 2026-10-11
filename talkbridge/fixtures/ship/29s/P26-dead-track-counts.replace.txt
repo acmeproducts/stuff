@@ -1,0 +1,10 @@
+    log('dg_open', { lang: langParam, multi: langParam === 'multi', gen: myGen }, 'ok');
+    try {
+      var audioTracks = (stream ? stream.getAudioTracks() : []).filter(function (t) { return t.readyState === 'live'; });
+      if (!audioTracks.length) {
+        /* 29·ship c5 (G70): a dead microphone track is a failure that COUNTS. iOS ends the track when the app leaves the foreground; with the counter reset a line above this check, the retry loop reopened every 2 s for ever (device log 2026-10-10 23:33–23:35 UTC). A chat mic that lost its track is closed; a call's pipeline is left to the call's own cap. */
+        log('dg_no_audio', { chatMic: !!(CHATMIC.on && !CALL.active) }, 'error');
+        if (CHATMIC.on && !CALL.active) { try { CHATMIC.stop(); } catch (_) {} }
+        dgWs.close(); return;
+      }
+      dgFailCount = 0; dgHideFailBanner();                              /* the counter resets only once audio is really flowing */
