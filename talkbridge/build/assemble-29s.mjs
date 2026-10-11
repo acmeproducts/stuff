@@ -1,9 +1,9 @@
 #!/usr/bin/env node
-/* 29·ship assembler — INSTALL OPTIONAL (§7.19), candidate 4: REACH, one module (RM-1), the c1–c3 tabs gone, the buried patterns G33/G34 removed from the stage.
+/* 29·ship assembler — INSTALL OPTIONAL (§7.19), candidate 5: REACH (RH-1) + RECEIPTS FROM THE RECORD (RX-1); the mic never reopens after a call (G68), a dead mic track counts (G70); relay v6.9. c4: the c1–c3 tabs gone, G33/G34 removed from the stage.
 
    Inputs (sha-checked): the ACCEPTED 29·pre-ship folder page and folder worker.
    Outputs, in talkbridge-app/ (nothing is hand-written; no accepted file is touched):
-     bridge-turn29-ship.html               = the accepted page with twenty-one banked edits + one part, RH-1
+     bridge-turn29-ship.html               = the accepted page with twenty-seven banked edits + two parts, RH-1 and RX-1
      tb-sw4.js                             = the accepted folder worker with four banked edits
      tb-manifest-turn29-ship.webmanifest   = scope "./", start_url this stage's page, id the folder (one app id for every stage)
      tb-manifest-turn29-ship-ios.webmanifest = scope "./", no start_url, no id (the load-time address carries, §7.19)  */
@@ -19,17 +19,18 @@ export const BASE_PAGE = FOLDER + '/bridge-turn29-pre-ship.html';
 export const BASE_WORKER = FOLDER + '/tb-sw3.js';
 export const FIXTURES = 'talkbridge/fixtures/ship/29s';
 export const MANIFEST = FIXTURES + '/replacements.json';
-export const PART = 'talkbridge/parts/rm1-reach.js';
+export const PARTS = ['talkbridge/parts/rm1-reach.js', 'talkbridge/parts/rx1-record-receipts.js'];   /* RH-1 reach · RX-1 receipts from the record (c5) */
+export const PART = PARTS[0]; export const PART2 = PARTS[1];
 export const STAGE_PAGE = 'bridge-turn29-ship.html';
 export const WORKER_NAME = 'tb-sw4.js';
 export const MANIFEST_NAME = 'tb-manifest-turn29-ship.webmanifest';
 export const MANIFEST_IOS_NAME = 'tb-manifest-turn29-ship-ios.webmanifest';
 export const MANIFEST_SRC = 'tb-manifest-turn28.webmanifest';
 export const OUT = { page: FOLDER + '/' + STAGE_PAGE, worker: FOLDER + '/' + WORKER_NAME, manifest: FOLDER + '/' + MANIFEST_NAME, manifestIos: FOLDER + '/' + MANIFEST_IOS_NAME };
-export const ADDED_SYMBOLS = ['RH_DONE_KEY', 'rh', 'p2Runs', 'rhLog', 'rhPerm', 'rhCanPush', 'rhHasDurableKeys', 'rhOfferDone', 'rhState', 'rhMayAttempt', 'rhInstallOffer', 'rhInstallVisible', 'rhKeyMatches', 'rhCarryUrl', 'rhCarryReady', 'rhGoCarry', 'rhLine', 'rhRoomLine', 'rhHtml', 'rhWire', 'rhRenderRow', 'rhRenderBar', 'rhBarDue', 'rhRender', 'rhOnNo', 'rhOnTurnOn', 'rhOnInstall', 'rhOnReady', 'rhDismissDenied', 'rhOnDeadSubscription', 'rhSyncRegistration', 'rhTick', 'rhOnVisible', 'rhInit'];
+export const ADDED_SYMBOLS = ['RH_DONE_KEY', 'rh', 'p2Runs', 'rhLog', 'rhPerm', 'rhCanPush', 'rhHasDurableKeys', 'rhOfferDone', 'rhState', 'rhMayAttempt', 'rhInstallOffer', 'rhInstallVisible', 'rhKeyMatches', 'rhCarryUrl', 'rhCarryReady', 'rhGoCarry', 'rhLine', 'rhRoomLine', 'rhHtml', 'rhWire', 'rhRenderRow', 'rhRenderBar', 'rhBarDue', 'rhRender', 'rhOnNo', 'rhOnTurnOn', 'rhOnInstall', 'rhOnReady', 'rhDismissDenied', 'rhOnDeadSubscription', 'rhSyncRegistration', 'rhTick', 'rhOnVisible', 'rhInit', 'RX_RANK', 'rxLog', 'rxMark', 'rxMarkRoom', 'rxApply'];
 /* log markers the stage brings, by the literal name each log call carries (p2_/p3_ prefixes are their helpers'; 'rh_' is rhLog's own) */
 export const RM_MARKERS = ['bar_shown', 'bar_declined', 'turn_on', 'install_available', 'install_prompt', 'install_done', 'carry_go', 'carry_blocked', 'key_match', 'key_stale', 'key_unreadable', 'denied_dismissed', 'sub_dead', 'remint', 'reregister', 'init_failed'];
-export const ADDED_MARKERS = ['rh_', 'tab_boot', 'attempt_skipped', 'sub_stale_dropped', 'denied_in_gesture', 'storage_estimate', 'room_register_dead'].concat(RM_MARKERS);   /* 'rh_' is what the marker scan sees in rhLog's own log('rh_' + what) */
+export const ADDED_MARKERS = ['rh_', 'rx_', 'receipts_marked', 'receipts_failed', 'call_ring_closed_mic', 'call_declined', 'tab_boot', 'attempt_skipped', 'sub_stale_dropped', 'denied_in_gesture', 'storage_estimate', 'room_register_dead'].concat(RM_MARKERS);   /* 'rh_' is what the marker scan sees in rhLog's own log('rh_' + what) */
 export const REMOVED_MARKERS = ['gate_shown', 'gesture_armed', 'recipe_shown'];   /* the gate (P02), the stolen tap (P19, G33) and the one-platform recipe (P20, G33) are gone */
 export const TAIL = '\n</script>\n</body>\n</html>';
 
@@ -60,7 +61,8 @@ export function assemblePage(opts) {
   if (!out.endsWith(TAIL)) throw new Error('assemble-29s: unexpected baseline tail');
   out = apply(out, opts.replacements || pageReplacements(), new Set(opts.keepReplacements || []), 'page');
   const part = opts.part != null ? opts.part : fs.readFileSync(path.join(root, PART), 'utf8');
-  return out.slice(0, -TAIL.length) + '\n\n' + part + TAIL;
+  const part2 = opts.part2 != null ? opts.part2 : fs.readFileSync(path.join(root, PART2), 'utf8');
+  return out.slice(0, -TAIL.length) + '\n\n' + part + '\n\n' + part2 + TAIL;
 }
 export function assembleWorker(opts) {
   opts = opts || {};

@@ -6,10 +6,10 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { spawn } from 'node:child_process';
-import { assembleAll, FOLDER, OUT, PART, STAGE_PAGE, WORKER_NAME, MANIFEST_NAME, MANIFEST_IOS_NAME } from './assemble-29s.mjs';
+import { assembleAll, FOLDER, OUT, PART, PART2, STAGE_PAGE, WORKER_NAME, MANIFEST_NAME, MANIFEST_IOS_NAME } from './assemble-29s.mjs';
 
 const root = path.resolve(path.dirname(new URL(import.meta.url).pathname), '../..');
-const part0 = fs.readFileSync(path.join(root, PART), 'utf8');
+const part0 = fs.readFileSync(path.join(root, PART), 'utf8'); const part20 = fs.readFileSync(path.join(root, PART2), 'utf8');
 const once = (s, find, rep) => { const i = s.indexOf(find); return i === -1 ? s : s.slice(0, i) + rep + s.slice(i + find.length); };
 
 /* { catches: '<test id>', name, part?(s), page?(html), worker?(js), keep?: [ids], keepW?: [ids], env?: {}, group?: letter(s) } */
@@ -51,6 +51,15 @@ const M = [
   { catches: 'N4', name: 'a dead subscription re-mints on every refusal (a loop)', part: (s) => s.replace("  if (rh.reminted) return Promise.resolve(false);\n", "") },
   { catches: 'N5', name: 'a return after a long absence re-registers nothing', part: (s) => s.replace("  if (away >= 60000 && p3State.sub) {", "  if (false) {") },
   { catches: 'N4', name: 'P23 unapplied: the relay\'s dead verdict never reaches the module', keep: ['P23-dead-subscription'] },
+  { catches: 'R1', name: 'a mark may move backwards (a stale projection un-reads a message)', part2: (s) => s.replace("var cur = e.receipt || 'sent'; if ((RX_RANK[cur] || 0) >= RX_RANK[level]) return;", "var cur = e.receipt || 'sent';") },
+  { catches: 'R1', name: 'the partner\'s entries are marked too', part2: (s) => s.replace("if (!e || e.who !== 'me') return;", "if (!e) return;") },
+  { catches: 'R1', name: 'the mark is not saved', part2: (s) => s.replace("  if (active) { saveTr(); changed.forEach", "  if (active) { changed.forEach") },
+  { catches: 'R2', name: 'a room not on screen is never marked', part2: (s) => s.replace("  else lsSet(trKey(roomId), tr);\n", "") },
+  { catches: 'X1', name: 'P24 unapplied: a ring leaves the chat mic on', keep: ['P24-ring-closes-chat-mic'] },
+  { catches: 'X2', name: 'P25 unapplied: a call\'s end restores the chat mic (G68)', keep: ['P25a-no-precall-mic-memory', 'P25b-no-precall-mic-restore'] },
+  { catches: 'X3', name: 'P26 unapplied: the counter resets before the audio check — the 2-second loop (G70)', keep: ['P26-dead-track-counts'] },
+  { catches: 'X1', name: 'P27 unapplied: a decline logs nothing', keep: ['P27-decline-logs'] },
+  { catches: 'R1', name: 'P28 unapplied: the record never reaches the bubbles', keep: ['P28-receipts-from-record'] },
   { catches: 'S4', name: 'RM-1 grows an undeclared symbol', part: (s) => s.replace('function rhLog(what, d, lvl)', 'function rhExtra() { return 1; }\nfunction rhLog(what, d, lvl)') },
   { catches: 'S5', name: 'RM-1 logs an undeclared marker', part: (s) => s.replace("rhLog('bar_declined', { platform: p2Platform() }, 'ok');", "rhLog('bar_declined', { platform: p2Platform() }, 'ok'); rhLog('bar_extra', {}, 'ok');") },
   { catches: 'S6', name: 'RM-1 reaches for the network', part: (s) => s.replace('function rhLog(what, d, lvl)', 'function rhPing() { fetch("https://example.org/ping"); }\nfunction rhLog(what, d, lvl)') },
@@ -101,15 +110,16 @@ const results = [];
 function runOne({ m, i }) {
   return new Promise((resolve) => {
     const part = m.part ? m.part(part0) : part0; if (m.part && part === part0) return resolve({ ok: false, line: 'MISS  mutation did not apply: ' + m.name });
-    let files; try { files = assembleAll({ part, keepReplacements: m.keep || [], keepWorkerReplacements: m.keepW || [], noStartUrl: !!(m.env && m.env.TB_IO_NO_START_URL), iosStartUrl: !!(m.env && m.env.TB_IO_IOS_START_URL) }); } catch (e) { return resolve({ ok: false, line: 'MISS  assembly refused: ' + m.name + ' — ' + e.message }); }
+    const part2 = m.part2 ? m.part2(part20) : part20; if (m.part2 && part2 === part20) return resolve({ ok: false, line: 'MISS  mutation did not apply: ' + m.name });
+    let files; try { files = assembleAll({ part, part2, keepReplacements: m.keep || [], keepWorkerReplacements: m.keepW || [], noStartUrl: !!(m.env && m.env.TB_IO_NO_START_URL), iosStartUrl: !!(m.env && m.env.TB_IO_IOS_START_URL) }); } catch (e) { return resolve({ ok: false, line: 'MISS  assembly refused: ' + m.name + ' — ' + e.message }); }
     if (m.page) { const k = OUT.page, b = files[k]; files[k] = m.page(b); if (files[k] === b) return resolve({ ok: false, line: 'MISS  mutation did not apply: ' + m.name }); }
     if (m.worker) { const k = OUT.worker, b = files[k]; files[k] = m.worker(b); if (files[k] === b) return resolve({ ok: false, line: 'MISS  mutation did not apply: ' + m.name }); }
     const dir = path.join(tmp, 'f' + i); fs.mkdirSync(dir);
     for (const n of fs.readdirSync(path.join(root, FOLDER))) fs.symlinkSync(path.join(root, FOLDER, n), path.join(dir, n));
     for (const [f, c] of Object.entries(files)) { const p = path.join(dir, f.slice(FOLDER.length + 1)); fs.rmSync(p, { force: true }); fs.writeFileSync(p, c); }
-    const partPath = path.join(tmp, 'part' + i + '.js'); fs.writeFileSync(partPath, part);
+    const partPath = path.join(tmp, 'part' + i + '.js'); fs.writeFileSync(partPath, part); const part2Path = path.join(tmp, 'part2-' + i + '.js'); fs.writeFileSync(part2Path, part2);
     const group = m.group || m.catches[0];
-    const env = { ...process.env, TB_IO_DIR: dir, TB_IO_PART: partPath, TB_IO_KEEP: (m.keep || []).join(','), TB_IO_KEEP_W: (m.keepW || []).join(','), TB_IO_ONLY: 'S,' + group, ...(m.env || {}) };
+    const env = { ...process.env, TB_IO_DIR: dir, TB_IO_PART: partPath, TB_IO_PART2: part2Path, TB_IO_KEEP: (m.keep || []).join(','), TB_IO_KEEP_W: (m.keepW || []).join(','), TB_IO_ONLY: 'S,' + group, ...(m.env || {}) };
     const child = spawn('node', ['talkbridge/build/harness-29s.mjs'], { cwd: root, env, stdio: ['ignore', 'pipe', 'pipe'] });
     let out = ''; child.stdout.on('data', (d) => { out += d; }); child.stderr.on('data', (d) => { out += d; });
     child.on('close', (exit) => {

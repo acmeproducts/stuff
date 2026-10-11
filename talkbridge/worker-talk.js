@@ -1,5 +1,5 @@
 /* ─────────────────────────────────────────────────────────────────────────────
-   TALK RELAY — worker-talk.js  ·  v6.8 29·ship c4 — DEAD-ENDPOINT MEMORY (a 404/410 from the push service is remembered; the subscription is refused when re-offered, so the app re-mints) on v6.7 29·base — MULTI-USER, RELAY LEG (plan §7.8 R-parts, owner GO 2026-10-09)
+   TALK RELAY — worker-talk.js  ·  v6.9 29·ship c5 — PERSISTED PRESENCE WORDS (a word rides an attached socket), RECEIPTS FROM THE RECORD (`mine`: delivered/seen for the sender) on v6.8 29·ship c4 — DEAD-ENDPOINT MEMORY (a 404/410 from the push service is remembered; the subscription is refused when re-offered, so the app re-mints) on v6.7 29·base — MULTI-USER, RELAY LEG (plan §7.8 R-parts, owner GO 2026-10-09)
    v6.7 adds, app untouched (every change is a no-op for a message without the new fields):
      · a room cap — MAX_PARTICIPANTS (4) or the creator's `cap` query parameter, kept with the
        session; a device beyond it is told {type:'full', cap, n} and closed with 4001 before it
@@ -54,7 +54,7 @@ const VAPID_SUBJECT = 'mailto:nobody@nowhere.com';
 /* v6: only events that own a recipient record can alert. Everything else is
    data on the socket, never a wake. */
 const RECORD_KIND = { 'chat-msg': 'chat', 'thread-invite': 'chat', 'call-start': 'call' };
-const RELAY_VERSION = '6.8';           /* v6.8 29·ship c4: dead-endpoint memory — a subscription the push service declared gone (404/410) is refused when re-registered, so the app re-mints */
+const RELAY_VERSION = '6.9';           /* v6.9 29·ship c5: the presence words are PERSISTED (the object sleeps between heartbeats and woke with an empty memory — the dot blinked, 2026-10-10 23:26 UTC) and a word counts only while its device has a socket attached; the sender's receipts (delivered, seen) come from the record (`mine` on every projection). v6.8 29·ship c4: dead-endpoint memory — a subscription the push service declared gone (404/410) is refused when re-registered, so the app re-mints */
 const MAX_PARTICIPANTS = 4;           /* v6.7 §7.8 R2: the room cap unless the creator's socket says otherwise (1..8) */
 const CALL_ROUTED = new Set(['call-accept', 'call-decline', 'call-end', 'webrtc-signal', 'mic-state', 'cam-state']);   /* v6.7 R1: words of a call that go to the other party of an ADDRESSED call */
 const EVENT_TTL_MS = 7 * 24 * 60 * 60 * 1000;
@@ -231,11 +231,11 @@ export class TalkSession {
     this.subs = {};                     /* clientId -> { sub, at } */
     this.events = {};                   /* eventId -> recipient-event record (the one authority) */
     this.devices = {};                  /* clientId -> { at } every device ever seen in this session */
-    this.states = {};                   /* clientId -> { visible, inRoom, muted, at } last reported, in memory only */
+    this.states = {};                   /* clientId -> { visible, inRoom, muted, at } last reported. v6.9: PERSISTED — kept in memory only, it vanished every time the object slept between two heartbeats, and the first phone to wake it was told nobody was there (device log 2026-10-10 23:26:42 UTC) */
     this.cap = 0;                       /* v6.7: the room cap once a creator's socket has said it; 0 = MAX_PARTICIPANTS */
     this.dead = {};                     /* v6.8: endpoint → when the push service said 404/410. Device log 2026-10-10 18:23 UTC: FCM answered 410 for a subscription Chrome still handed the app at every boot; the app re-registered it, the relay re-learned it was dead, nothing ever rang. */
     this.ready = this.state.blockConcurrencyWhile(async () => {
-      const stored = await this.state.storage.get(['seq', 'messages', 'lastActivity', 'subs', 'events', 'devices', 'cap', 'dead']);
+      const stored = await this.state.storage.get(['seq', 'messages', 'lastActivity', 'subs', 'events', 'devices', 'cap', 'dead', 'states']);
       this.cap = Number(stored.get('cap')) || 0;
       this.seq = Number(stored.get('seq')) || 0;
       this.messages = stored.get('messages') || [];
@@ -244,6 +244,7 @@ export class TalkSession {
       this.events = stored.get('events') || {};
       this.devices = stored.get('devices') || {};
       this.dead = stored.get('dead') || {};
+      this.states = stored.get('states') || {};
     });
   }
 
@@ -301,7 +302,15 @@ export class TalkSession {
       if (ev.kind === 'chat') { proj.chat += 1; unseen.push({ id: ev.id, kind: 'chat', ts: ev.ts, p: r.p }); }
       else if (ev.kind === 'call' && r.o === 'missed') { proj[ev.callKind] += 1; unseen.push({ id: ev.id, kind: ev.callKind, callId: ev.callId, ts: ev.ts, o: r.o, p: r.p }); }
     }
-    return { proj, unseen, calls };
+    /* v6.9: the asker's OWN chat events — which the record says are delivered (any recipient has the bytes) and seen (any recipient saw) */
+    const mine = { delivered: [], seen: [] };
+    for (const ev of Object.values(this.events)) {
+      if (ev.from !== clientId || ev.kind !== 'chat') continue;
+      const rs = Object.values(ev.rcp); if (!rs.length) continue;
+      if (rs.some((r) => r.s === 'seen')) mine.seen.push(ev.id);
+      else if (rs.some((r) => r.dv)) mine.delivered.push(ev.id);
+    }
+    return { proj, unseen, calls, mine };
   }
   _sendTo(clientId, payload) {
     const text = JSON.stringify(payload);
@@ -312,7 +321,7 @@ export class TalkSession {
   }
   _pushProjection(clientId) {
     const p = this._projection(clientId);
-    this._sendTo(clientId, { type: 'ev-proj', transient: true, proj: p.proj, unseen: p.unseen, calls: p.calls, ts: Date.now() });
+    this._sendTo(clientId, { type: 'ev-proj', transient: true, proj: p.proj, unseen: p.unseen, calls: p.calls, mine: p.mine, ts: Date.now() });
   }
   _recipients(senderId) {
     const ids = new Set(Object.keys(this.devices));
@@ -339,6 +348,7 @@ export class TalkSession {
     for (const cid of (ev.to ? [ev.to] : this._recipients(senderId))) {
       const p = this._decide(ev, cid, now);
       ev.rcp[cid] = { p, push: 'not_requested', s: 'unseen', o: kind === 'call' ? 'offered' : null, at: now, seenAt: null, seenBy: null };
+      if (this._isConnected(cid)) ev.rcp[cid].dv = now;                 /* v6.9: the fan-out that follows reaches an attached socket — delivered */
     }
     this.events[id] = ev;
     msg.eventId = id;
@@ -423,36 +433,40 @@ export class TalkSession {
     try { await fetch(endpoint, { method: 'POST', headers, body }); } catch (_) {}
   }
   async _markSeen(clientId, ids, by) {
-    let changed = 0;
+    let changed = 0; const senders = new Set();
     const now = Date.now();
     for (const id of ids) {
       const ev = this.events[id]; if (!ev) continue;
       const r = ev.rcp[clientId]; if (!r || r.s === 'seen') continue;
-      r.s = 'seen'; r.seenAt = now; r.seenBy = by; changed += 1;
+      r.s = 'seen'; r.seenAt = now; r.seenBy = by; if (!r.dv) r.dv = now; changed += 1;
+      if (ev.from) senders.add(ev.from);
     }
-    if (changed) await this._saveEvents();
+    if (changed) { await this._saveEvents(); for (const sid of senders) this._pushProjection(sid); }   /* v6.9: the sender learns from the record, not from a throwaway socket word */
     return changed;
   }
   async _handleEventWord(msg, clientId) {
     if (msg.type === 'ev-state') {
       this.states[clientId] = { visible: msg.visible === true, inRoom: msg.inRoom === true, muted: msg.muted === true, at: Date.now() };
+      await this._saveStates();
       return { ok: true };
     }
     if (msg.type === 'ev-seen') {
       const n = await this._markSeen(clientId, Array.isArray(msg.ids) ? msg.ids.map(String) : [], 'in_room');
       const p = this._projection(clientId);
-      return { ok: true, seen: n, proj: p.proj, unseen: p.unseen, calls: p.calls };
+      return { ok: true, seen: n, proj: p.proj, unseen: p.unseen, calls: p.calls, mine: p.mine };
     }
     if (msg.type === 'ev-open') {
       /* Opening the room acknowledges exactly the set durably applied to this recipient. */
       const acked = this._projection(clientId).unseen;
+      await this._markDelivered(clientId);
       const n = await this._markSeen(clientId, acked.map((u) => u.id), 'room_open');
       const p = this._projection(clientId);
-      return { ok: true, seen: n, acked, proj: p.proj, unseen: p.unseen, calls: p.calls };
+      return { ok: true, seen: n, acked, proj: p.proj, unseen: p.unseen, calls: p.calls, mine: p.mine };
     }
     if (msg.type === 'events-sync') {
+      await this._markDelivered(clientId);                                   /* v6.9: a device that syncs has the bytes */
       const p = this._projection(clientId);
-      return { ok: true, proj: p.proj, unseen: p.unseen, calls: p.calls };
+      return { ok: true, proj: p.proj, unseen: p.unseen, calls: p.calls, mine: p.mine };
     }
     return null;
   }
@@ -538,6 +552,15 @@ export class TalkSession {
     await this.state.storage.put({ dead: this.dead });
   }
   _isDead(endpoint) { return !!(endpoint && this.dead[endpoint]); }
+  /* v6.9: the presence word is written through — a wake must find it */
+  async _saveStates() { await this.state.storage.put({ states: this.states }); }
+  /* v6.9: delivered = the device has the bytes — it had a socket when the event fanned out, or it synced afterwards */
+  async _markDelivered(clientId) {
+    const now = Date.now(); const senders = new Set(); let changed = 0;
+    for (const ev of Object.values(this.events)) { const r = ev.rcp[clientId]; if (!r || r.dv) continue; r.dv = now; changed++; if (ev.from) senders.add(ev.from); }
+    if (changed) { await this._saveEvents(); for (const sid of senders) this._pushProjection(sid); }
+    return changed;
+  }
 
   /* STEP 1: the reference delivery class — encrypted payload, high urgency,
      newest-wins topic, short TTL. Proven on the owner's locked iPhone 4/4. */
@@ -727,7 +750,7 @@ export class TalkSession {
     const isTransient = msg.transient === true || TRANSIENT_TYPES.has(msg.type);
     if (msg.type === 'hello') await this._noteDevice(clientId);
     /* A ping may carry the device's state so a hidden phone cannot be mistaken for a watching one. */
-    if (msg.type === 'ping' && typeof msg.visible === 'boolean') this.states[clientId] = { visible: msg.visible, inRoom: msg.inRoom === true, muted: msg.muted === true, at: Date.now() };
+    if (msg.type === 'ping' && typeof msg.visible === 'boolean') { this.states[clientId] = { visible: msg.visible, inRoom: msg.inRoom === true, muted: msg.muted === true, at: Date.now() }; await this._saveStates(); }
     if (msg.type === 'ev-state' || (msg.type === 'ping' && typeof msg.visible === 'boolean')) { try { this._announcePeers(); } catch (_) {} }
 
     try { this._routeByCall(msg, clientId); } catch (_) {}                /* v6.7 R1 */
@@ -749,6 +772,7 @@ export class TalkSession {
 
     if (ev) {
       for (const cid of Object.keys(ev.rcp)) this._pushProjection(cid);
+      if (ev.kind === 'chat') this._pushProjection(clientId);               /* v6.9: the sender's own record (`mine`) — delivered at fan-out */
       /* Pushing must never delay or endanger delivery to one that is awake, so it
          happens after the broadcast and its failures are swallowed. */
       try { await this._deliverByRecord(ev, sessionOf(ws)); } catch (_) {}
@@ -766,10 +790,10 @@ export class TalkSession {
      hiding, showing, and every heartbeat, in every environment. */
   _announcePeers() {
     let inCall = []; try { inCall = this._inCall(); } catch (_) {}        /* v6.7 A1 */
-    const present = [];
+    const present = []; const attached = this._connectedIds();          /* v6.9: a word counts only while its device has a socket — a persisted word with no socket is not a person */
     for (const id of Object.keys(this.states)) {
       const st = this.states[id];
-      if (st && st.inRoom === true) present.push(id);
+      if (st && st.inRoom === true && attached.has(id)) present.push(id);
     }
     for (const ws of this.state.getWebSockets()) {
       const tag = ws.deserializeAttachment();
@@ -793,7 +817,7 @@ export class TalkSession {
           const t = other.deserializeAttachment();
           if (t && t.clientId === id) { another = true; break; }
         }
-        if (!another) delete this.states[id];
+        if (!another) { delete this.states[id]; await this._saveStates(); }
       }
     } catch (_) {}
     try { this._announcePeers(); } catch (_) {}

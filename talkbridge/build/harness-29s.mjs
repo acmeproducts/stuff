@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /* 29·ship harness — INSTALL OPTIONAL (§7.19), candidate 4: REACH, one module.
-   S  the stage = the accepted 29·pre-ship page + twenty-one banked edits + RH-1, and nothing else (reversal proof); symbols, markers, no new network,
+   S  the stage = the accepted 29·pre-ship page + twenty-seven banked edits + RH-1 + RX-1, and nothing else (reversal proof); symbols, markers, no new network,
       credential or message type; the graveyard sweep clean · M  manifests and the head's own choice · W  the worker, live in a shim ·
    A  the real app boots in every launch and asks for nothing outside a tap; no tap is ever stolen (G33) · B  the bar, once, at the first moment ·
    C  the row at the foot of the left drawer, one line per state, no tabs · K  the carrying address holds the keys the page holds (G66) and an iPhone tab
@@ -13,13 +13,13 @@ import vm from 'node:vm';
 import { fileURLToPath } from 'node:url';
 import { JSDOM, VirtualConsole } from 'jsdom';
 import { runBoth, KEYS, diff } from './rig-28pos.mjs';
-import { basePage, baseWorker, pageReplacements, workerReplacements, assemblePage, assembleWorker, assembleManifests, FOLDER_PATH, STAGE_PAGE, WORKER_NAME, MANIFEST_NAME, MANIFEST_IOS_NAME, ADDED_SYMBOLS, ADDED_MARKERS, REMOVED_MARKERS, PART, TAIL } from './assemble-29s.mjs';
+import { basePage, baseWorker, pageReplacements, workerReplacements, assemblePage, assembleWorker, assembleManifests, FOLDER_PATH, STAGE_PAGE, WORKER_NAME, MANIFEST_NAME, MANIFEST_IOS_NAME, ADDED_SYMBOLS, ADDED_MARKERS, REMOVED_MARKERS, PART, PART2, TAIL } from './assemble-29s.mjs';
 import { sweep } from './graveyard-sweep.mjs';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
 const dir = process.env.TB_IO_DIR || path.join(root, 'talkbridge-app');
 const rd = (f) => fs.readFileSync(f, 'utf8');
-const part = process.env.TB_IO_PART ? rd(process.env.TB_IO_PART) : rd(path.join(root, PART));
+const part = process.env.TB_IO_PART ? rd(process.env.TB_IO_PART) : rd(path.join(root, PART)); const part2 = process.env.TB_IO_PART2 ? rd(process.env.TB_IO_PART2) : rd(path.join(root, PART2)); const parts = [part, part2];
 const KEEP = process.env.TB_IO_KEEP ? process.env.TB_IO_KEEP.split(',') : [], KEEP_W = process.env.TB_IO_KEEP_W ? process.env.TB_IO_KEEP_W.split(',') : [];
 const stage = rd(path.join(dir, STAGE_PAGE)), worker = rd(path.join(dir, WORKER_NAME));
 const manChrome = rd(path.join(dir, MANIFEST_NAME)), manIos = rd(path.join(dir, MANIFEST_IOS_NAME));
@@ -33,15 +33,15 @@ const assert = (c, m) => { if (!c) throw new Error(m); };
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const code = (s) => s.replace(/\/\*[\s\S]*?\*\//g, '');
 const appScript = (html) => [...html.matchAll(/<script(?![^>]*\bsrc=)[^>]*>([\s\S]*?)<\/script>/gi)].map((m) => m[1]).sort((a, b) => b.length - a.length)[0];
-const markers = (js) => { const s = new Set(); const re = /\b(?:log|L|rhLog|cr3Log|p6Log|p4Log|netLog|rcLog|r8Log|lcLog|p3Log|n17Log|prLog|s2Log|f1Log|n10L|p2Log|rhLog)\(\s*'([a-z0-9_]+)'/g; let m; while ((m = re.exec(code(js)))) s.add(m[1]); return s; };
+const markers = (js) => { const s = new Set(); const re = /\b(?:log|L|rhLog|cr3Log|p6Log|p4Log|netLog|rcLog|r8Log|lcLog|p3Log|n17Log|prLog|s2Log|f1Log|n10L|p2Log|rhLog|rxLog)\(\s*'([a-z0-9_]+)'/g; let m; while ((m = re.exec(code(js)))) s.add(m[1]); return s; };
 const types = (s) => { const t = new Set(); let m; const re = /type:\s*'([a-z-]+)'/g; while ((m = re.exec(s))) t.add(m[1]); return t; };
 const netLines = (js) => code(js).split('\n').filter((l) => /new WebSocket\(|\bfetch\(|RELAY_WS|tb_dg_key|tb_cf_tid|tb_cf_tok|credentials\/generate|deepgram\.com/.test(l)).map((l) => l.trim());
 const contractOf = (p) => { const i = p.indexOf('@contract'); return p.slice(i, p.indexOf('*/', i)); };
 
 console.log('S · the stage is the accepted page plus the banked edits plus IO-1');
-await T('S1 the page and the worker are the assembler\'s output', () => { assert(stage === assemblePage({ part, keepReplacements: KEEP }), STAGE_PAGE + ' ≠ assemblePage()'); assert(worker === assembleWorker({ keepWorkerReplacements: KEEP_W }), WORKER_NAME + ' ≠ assembleWorker()'); });
-await T('S2 every find text is in the accepted page exactly once and gone from the stage; every replacement is in the stage exactly once (twenty-one page edits, four worker edits)', () => {
-  const reps = pageReplacements(), wreps = workerReplacements(); assert(reps.length === 21 && wreps.length === 4, 'expected 21 + 4, got ' + reps.length + ' + ' + wreps.length);
+await T('S1 the page and the worker are the assembler\'s output', () => { assert(stage === assemblePage({ part, part2, keepReplacements: KEEP }), STAGE_PAGE + ' ≠ assemblePage()'); assert(worker === assembleWorker({ keepWorkerReplacements: KEEP_W }), WORKER_NAME + ' ≠ assembleWorker()'); });
+await T('S2 every find text is in the accepted page exactly once and gone from the stage; every replacement is in the stage exactly once (twenty-seven page edits, four worker edits)', () => {
+  const reps = pageReplacements(), wreps = workerReplacements(); assert(reps.length === 27 && wreps.length === 4, 'expected 27 + 4, got ' + reps.length + ' + ' + wreps.length);
   for (const [list, src, out, tag] of [[reps, base, stage, 'page'], [wreps, baseW, worker, 'worker']]) for (const r of list) {
     assert(src.split(r.find).length - 1 === 1, tag + ' ' + r.id + ': find not exactly once in the accepted file');
     if ((tag === 'page' ? KEEP : KEEP_W).includes(r.id)) continue;
@@ -49,16 +49,17 @@ await T('S2 every find text is in the accepted page exactly once and gone from t
   }
 });
 await T('S3 reversal: undo the replacements and drop the part and the stage is the accepted page byte for byte; the same for the worker — nothing else changed', () => {
-  let back = stage; assert(back.endsWith(TAIL) && back.indexOf('\n\n' + part + TAIL) !== -1, 'the part is not the tail of the stage'); back = back.slice(0, back.lastIndexOf('\n\n' + part + TAIL)) + TAIL;
+  let back = stage; const tailParts = '\n\n' + part + '\n\n' + part2 + TAIL; assert(back.endsWith(TAIL) && back.indexOf(tailParts) !== -1, 'the two parts are not the tail of the stage'); back = back.slice(0, back.lastIndexOf(tailParts)) + TAIL;
   for (const r of pageReplacements().reverse()) back = back.replace(r.replace, () => r.find); assert(back === base, 'the stage minus the banked edits and the part is not the accepted page');
   let wb = worker; for (const r of workerReplacements().reverse()) wb = wb.replace(r.replace, () => r.find); assert(wb === baseW, 'the worker minus the banked edits is not the accepted worker');
 });
 await T('S4 RH-1 replaces and wraps nothing (the wrap map is the accepted build\'s); each symbol it adds is declared, bound once in the stage and never in the accepted page', () => {
-  const c = contractOf(part); assert(/replaces:\s*\(none\)/.test(c) && /wraps:\s*\(none\)/.test(c), 'RH-1 must replace and wrap nothing'); assert(!/^(?:enterRoom|openPanel|showScreen|renderPanel|log)\s*=/m.test(code(part)), 'RH-1 reassigns a function of the accepted build');
+  for (const pt of parts) { const cc = contractOf(pt); assert(/replaces:\s*\(none\)/.test(cc) && /wraps:\s*\(none\)/.test(cc), 'a part replaces or wraps'); assert(!/^(?:enterRoom|openPanel|showScreen|renderPanel|cr3Apply|log)\s*=/m.test(code(pt)), 'a part reassigns a function of the accepted build'); }
+  const c = parts.map(contractOf).join('\n');
   const js = code(appScript(stage)), bjs = code(appScript(base));
   for (const s of ADDED_SYMBOLS) { assert(new RegExp('adds:[^\\n]*\\b' + s + '\\b').test(c), s + ' not declared'); const re = new RegExp('^(?:function\\s+' + s + '\\s*\\(|var\\s+' + s + '\\s*=)', 'mg'); assert((js.match(re) || []).length === 1, s + ' bound ' + (js.match(re) || []).length + ' times'); assert((bjs.match(re) || []).length === 0, s + ' already bound in the accepted page'); }
-  const declared = (c.match(/adds:([^\n]*)/) || ['', ''])[1].split(',').map((x) => x.trim()).filter(Boolean); const defined = [...new Set([...code(part).matchAll(/^(?:function\s+(\w+)\s*\(|var\s+(\w+)\s*=)/mg)].map((m) => m[1] || m[2]))];
-  for (const d of defined) assert(declared.includes(d), 'RM-1 defines ' + d + ' without declaring it'); assert(declared.length === ADDED_SYMBOLS.length, 'declared ' + declared.length + ' ≠ ' + ADDED_SYMBOLS.length);
+  const declared = [...c.matchAll(/adds:([^\n]*)/g)].flatMap((mm) => mm[1].split(',')).map((x) => x.trim()).filter(Boolean); const defined = [...new Set(parts.flatMap((pt) => [...code(pt).matchAll(/^(?:function\s+(\w+)\s*\(|var\s+(\w+)\s*=)/mg)].map((m) => m[1] || m[2])))];
+  for (const d of defined) assert(declared.includes(d), 'a part defines ' + d + ' without declaring it'); assert(declared.length === ADDED_SYMBOLS.length, 'declared ' + declared.length + ' ≠ ' + ADDED_SYMBOLS.length);
 });
 await T('S5 markers(stage) = markers(accepted) + the declared ones − p2 gate_shown; none of the declared existed; each is logged somewhere', () => {
   const bm = markers(appScript(base)), sm = markers(appScript(stage));
@@ -70,9 +71,9 @@ await T('S5 markers(stage) = markers(accepted) + the declared ones − p2 gate_s
 });
 await T('S6 no network, credential, endpoint or storage line is added or changed; no relay message type is added (G19/G20)', () => {
   const b = netLines(appScript(base)), s = netLines(appScript(stage)); assert(JSON.stringify(b) === JSON.stringify(s), 'network lines differ: +' + s.filter((l) => !b.includes(l)).join(' | ') + ' −' + b.filter((l) => !s.includes(l)).join(' | '));
-  assert(netLines(part).length === 0 && !/fetch\(|WebSocket|XMLHttpRequest|tb_dg_key|tb_cf_|tb_gh_pat|Authorization|credentials/.test(code(part)), 'RM-1 reaches for a network or a key');
-  const bt = types(code(appScript(base))), sent = new Set([...types(code(part)), ...pageReplacements().flatMap((r) => [...types(r.replace)])]); for (const t of sent) assert(bt.has(t), 'new message type ' + t);
-  const keys = [...code(part).matchAll(/localStorage\.\w+Item\(\s*([A-Za-z_']+)/g)].map((m) => m[1]); assert(keys.every((k) => k === 'RH_DONE_KEY'), 'RM-1 touches storage other than the one decision key: ' + keys.join(','));
+  for (const pt of parts) assert(netLines(pt).length === 0 && !/fetch\(|WebSocket|XMLHttpRequest|tb_dg_key|tb_cf_|tb_gh_pat|Authorization|credentials/.test(code(pt)), 'a part reaches for a network or a key');
+  const bt = types(code(appScript(base))), sent = new Set([...parts.flatMap((pt) => [...types(code(pt))]), ...pageReplacements().flatMap((r) => [...types(r.replace)])]); for (const t of sent) assert(bt.has(t), 'new message type ' + t);
+  const keys = parts.flatMap((pt) => [...code(pt).matchAll(/localStorage\.\w+Item\(\s*([A-Za-z_']+)/g)].map((m) => m[1])); assert(keys.every((k) => k === 'RH_DONE_KEY'), 'a part touches storage other than the one decision key: ' + keys.join(','));
 });
 await T('S7 the graveyard sweep: the stage page and the worker carry no buried pattern; the accepted base they are built from carries G33 and G34 (the sweep sees what rode in it)', () => {
   const hs = sweep(stage, { file: STAGE_PAGE }), hw = sweep(worker, { file: WORKER_NAME }); assert(hs.length === 0 && hw.length === 0, 'buried: ' + hs.concat(hw).map((h) => h.id + '@' + h.line).join(','));
@@ -390,6 +391,42 @@ await T('I3 never offered to a device whose only keys are in memory (a guest fro
   const gr = await live({ ua: UA.android, notif: 'granted', rooms: [JROOM], seed: GRANT }); await sleep(250); gr.w.dispatchEvent(new gr.w.Event('beforeinstallprompt', { cancelable: true })); gr.w.rhRender(); assert(gr.w.rhInstallVisible() && rowBtn(gr) && rowBtn(gr).getAttribute('data-act') === 'install', 'a grantee was not offered'); void mk;
 });
 
+console.log('X · the microphone and the call: a ring closes the chat mic, nothing reopens it, a dead track counts, a decline is logged');
+const fakeMic = (I, live) => ({ getTracks: () => [{ stop() {} }], getAudioTracks: () => live ? [{ readyState: 'live', stop() {} }] : [{ readyState: 'ended', stop() {} }] });
+await T('X1 a ring closes the chat mic (and says so); the person\'s mic button shows off; declining logs call_declined and leaves the mic OFF', async () => {
+  const I = await live({ ua: UA.android, notif: 'granted', standalone: true }); await intoRoom(I, { message: false }); I.w.CHATMIC.on = true; I.w.CHATMIC.stream = fakeMic(I, true); I.w.document.getElementById('rb-mic').classList.remove('off');
+  I.w.CALL.onIncoming(I.w.roomById('room-1'), { kind: 'voice', name: 'Bo', callId: 'c-x1' }); assert(I.w.CHATMIC.on === false && I.has('call_ring_closed_mic') && I.has('chatmic_off'), 'the ring left the chat mic on'); assert(I.w.document.getElementById('rb-mic').classList.contains('off'), 'the mic button still shows on');
+  const n = I.ev('chatmic_on').length; I.w.CALL.decline(); assert(I.has('call_declined') && I.ev('call_declined')[0].d.kind === 'voice', 'decline not logged'); await sleep(50); assert(I.w.CHATMIC.on === false && I.ev('chatmic_on').length === n, 'the chat mic came back after the decline');
+});
+await T('X2 a call\'s end never restores the chat mic: with the chat mic on before, after teardown it is off and start() was not called; the stage carries no pre-call mic memory', async () => {
+  const I = await live({ ua: UA.android, notif: 'granted', standalone: true }); await intoRoom(I, { message: false }); I.w.CHATMIC.on = true; I.w.CHATMIC.stream = fakeMic(I, true); const n = I.ev('chatmic_on').length;
+  try { I.w.CALL.teardown(); } catch (e) { assert(false, 'teardown threw: ' + e.message); } await sleep(30); assert(I.w.CHATMIC.on === false && I.ev('chatmic_on').length === n, 'the chat mic was restored after the call');
+  assert(!/_chatMicWasOn/.test(code(appScript(stage))) && /_chatMicWasOn/.test(code(appScript(base))), 'the pre-call mic memory is still in the stage (or never was in the base)');
+});
+await T('X3 a dead microphone track: the transcription socket opens, finds no live audio, closes the chat mic and does not reset the failure counter; no retry follows (the 2-second loop is gone)', async () => {
+  const I = await live({ ua: UA.android, notif: 'granted', standalone: true, seed: { tb_dg_key: 'dgOwn' } }); await intoRoom(I, { message: false });
+  I.w.CHATMIC.on = true; I.w.CHATMIC.stream = fakeMic(I, false); I.w.dgFailCount = 2; const before = I.w.__sockets.length;
+  I.w.startDeepgram(); await sleep(30); const dg = I.w.__sockets.slice(before).find((s) => /deepgram/.test(s.url)); assert(dg && typeof dg.onopen === 'function', 'no transcription socket was opened: ' + I.w.__sockets.slice(before).map((s) => s.url).join(','));
+  dg.onopen(); assert(I.has('dg_no_audio') && I.ev('dg_no_audio')[0].d.chatMic === true, 'no_audio not seen'); assert(I.w.CHATMIC.on === false && I.has('chatmic_off'), 'the chat mic with a dead track was left on'); assert(I.w.dgFailCount === 2, 'the counter was reset before the audio check: ' + I.w.dgFailCount);
+  const opened = I.w.__sockets.length; if (typeof dg.onclose === 'function') dg.onclose({ code: 1005 }); await sleep(2300); assert(I.w.__sockets.length === opened && !I.has('dg_credential_failure'), 'the loop retried: ' + (I.w.__sockets.length - opened) + ' more sockets, credential_failure ' + I.has('dg_credential_failure'));
+});
+
+console.log('R · the sender\'s delivered and read marks come from the relay\'s record');
+const MINE = (d, s) => ({ type: 'ev-proj', proj: { chat: 0, voice: 0, video: 0 }, unseen: [], calls: [], mine: { delivered: d || [], seen: s || [] } });
+await T('R1 in the open room: the record says delivered → the bubble says delivered (saved, DOM updated); says seen → read; a later projection without it never moves the mark back; a partner\'s entry is never touched', async () => {
+  const I = await live({ ua: UA.android, notif: 'granted', standalone: true }); await intoRoom(I, { message: false });
+  I.w.transcript.push({ id: 'cm-m1', kind: 'chat', who: 'me', sourceText: 'hi', translatedText: 'hi', srcLang: 'en', tgtLang: 'th', ts: Date.now(), senderName: 'Ann', receipt: 'sent' }, { id: 'cm-p1', kind: 'chat', who: 'partner', sourceText: 'yo', translatedText: 'yo', srcLang: 'th', tgtLang: 'en', ts: Date.now(), senderName: 'Bo', receipt: 'sent' }); I.w.saveTr(); I.w.renderTranscript();
+  I.w.cr3Apply('room-1', MINE(['cm-m1', 'cm-p1'], [])); const e = I.w.transcript.find((x) => x.id === 'cm-m1'); assert(e.receipt === 'delivered' && e.deliveredAt, 'not delivered: ' + e.receipt); assert(I.w.transcript.find((x) => x.id === 'cm-p1').receipt === 'sent', 'the partner\'s entry was marked');
+  const node = I.w.document.querySelector('.msg[data-id="cm-m1"] [data-receipt]'); assert(node && /delivered/.test(node.className), 'DOM not updated: ' + (node && node.className)); assert(JSON.parse(I.w.localStorage.getItem('tba_tr_room-1')).find((x) => x.id === 'cm-m1').receipt === 'delivered', 'not saved');
+  I.w.cr3Apply('room-1', MINE([], ['cm-m1'])); assert(e.receipt === 'read' && e.readAt && /read/.test(I.w.document.querySelector('.msg[data-id="cm-m1"] [data-receipt]').className), 'not read'); I.w.cr3Apply('room-1', MINE(['cm-m1'], [])); assert(e.receipt === 'read', 'the mark moved backwards'); assert(I.ev('rx_receipts_marked').length === 2, 'marked logged ' + I.ev('rx_receipts_marked').length + ' times');
+});
+await T('R2 a room not on screen: the stored transcript is marked; a projection with no record changes nothing and logs nothing', async () => {
+  const I = await live({ ua: UA.android, notif: 'granted', standalone: true, rooms: [ROOM, { ...ROOM, id: 'room-2', title: 'Other' }] }); await intoRoom(I, { message: false });
+  I.w.localStorage.setItem('tba_tr_room-2', JSON.stringify([{ id: 'cm-o1', kind: 'chat', who: 'me', sourceText: 'x', translatedText: 'x', srcLang: 'en', tgtLang: 'th', ts: 1, senderName: 'Ann', receipt: 'sent' }]));
+  I.w.cr3Apply('room-2', MINE([], ['cm-o1'])); assert(JSON.parse(I.w.localStorage.getItem('tba_tr_room-2'))[0].receipt === 'read', 'the background room was not marked');
+  const n = I.ev('rx_receipts_marked').length; I.w.cr3Apply('room-1', { type: 'ev-proj', proj: { chat: 0, voice: 0, video: 0 }, unseen: [], calls: [] }); assert(I.ev('rx_receipts_marked').length === n && !I.has('rx_receipts_failed'), 'a projection without a record did something');
+});
+
 console.log('D · the ring');
 await T('D1 the caller\'s ring-back is sound only — it never vibrates; the receiver\'s ring beeps and vibrates; stopping cancels', async () => {
   const I = await live({ ua: UA.android, notif: 'default' }); await intoRoom(I, { message: false }); I.w.__vib.length = 0; I.w.__audio = 0;
@@ -408,7 +445,8 @@ if (!process.env.TB_IO_SKIP_E && (!ONLY || ONLY.has('E'))) {
   /* the base arms the stolen tap (G33) and the rig's next click runs an attempt the stage never makes: that cascade — a gesture perm_prop with no Turn on before it, and the p3_ lines that follow it — is the declared difference */
   const unStolen = (log) => { const out = []; let drop = false, turnOn = false; for (const l of log) { if (l.ev === 'rh_turn_on') turnOn = true; if (l.ev === 'p3_perm_prop' && l.d && l.d.gesture === true && !turnOn) { drop = true; continue; } if (drop && /^p3_/.test(l.ev)) continue; drop = false; out.push(l); } return out; };
   /* `dropped` is the log throttle's own count of repeats it swallowed; the base repeats one announce more per window (PR-2's duplicate) — bookkeeping, not behaviour */
-  const strip = (s) => { const c = JSON.parse(JSON.stringify(s)); c.log = unStolen(c.log).map((l) => { if (l && l.d && 'dropped' in l.d) { const d = { ...l.d }; delete d.dropped; return { ...l, d }; } return l; }).filter((l) => !(l.ev === 'pb_writeback_err' && l.d && l.d.e === 'Error: get 0') && l.ev !== 'read_receipts_deferred' && !(l.ev === 'build' && l.d && l.d.c === 'turn29-ship-install-optional') && !/^rh_/.test(l.ev) && l.ev !== 'p3_gesture_armed'); return c; };
+  const strip = (s) => { const c = JSON.parse(JSON.stringify(s)); c.log = unStolen(c.log).map((l) => { if (l && l.d && 'dropped' in l.d) { const d = { ...l.d }; delete d.dropped; return { ...l, d }; } return l; }).filter((l) => !(l.ev === 'pb_writeback_err' && l.d && l.d.e === 'Error: get 0') && l.ev !== 'read_receipts_deferred' && !(l.ev === 'build' && l.d && l.d.c === 'turn29-ship-install-optional') && !/^rh_/.test(l.ev) && !/^rx_/.test(l.ev) && l.ev !== 'p3_gesture_armed' && l.ev !== 'call_declined' && l.ev !== 'call_ring_closed_mic' && l.ev !== 'cr3_recover'); return c; };   /* call_declined / call_ring_closed_mic: c5's declared markers; cr3_recover: the rig's own race (its position shifts by one against joiner_entered) */
+  if (process.env.TB_IO_DUMP) { for (const side of ['X', 'Y']) { fs.writeFileSync(process.env.TB_IO_DUMP + '-' + side + '-base.txt', strip(snapA[side]).log.map((l) => l.ev + ' ' + JSON.stringify(l.d || {})).join('\n')); fs.writeFileSync(process.env.TB_IO_DUMP + '-' + side + '-stage.txt', strip(snapC[side]).log.map((l) => l.ev + ' ' + JSON.stringify(l.d || {})).join('\n')); } }
   for (const side of ['X', 'Y']) { const a = strip(snapA[side]), c = strip(snapC[side]); for (const k of KEYS) await T('E ' + side + '.' + k + ' identical (installed, both builds)', () => { const out = []; diff(a[k], c[k], side + '.' + k, out); assert(out.length === 0, out.slice(0, 5).join('\n')); }); }
   await T('E no uncaught error on either build through the whole script', () => assert([RA.X, RA.Y, RC.X, RC.Y].every((I) => I.errors.length === 0), [RA.X, RA.Y, RC.X, RC.Y].flatMap((I) => I.errors).join(' | ')));
 }
