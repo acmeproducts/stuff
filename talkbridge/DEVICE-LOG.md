@@ -1,22 +1,8 @@
 # TalkBridge device log
 
-Both handsets write here. Drained 2026-10-11T00:48:18Z, every 30s. Newest at the bottom.
+Both handsets write here. Drained 2026-10-11T06:31:15Z, every 30s. Newest at the bottom.
 
 ```
-18:21:06.215 [iphone-xzu] p4_sw_receipt {"ev":"app_announced","at":1791656316854,"room":null,"kind":null,"e":null}
-18:21:06.215 [iphone-xzu] p4_sw_drained {"n":1}
-18:21:06.248 [iphone-xzu] rc_panel_rendered {"live":2,"bin":0,"wired":2}
-18:21:06.248 [iphone-xzu] rc_home_rendered {"cards":0,"wired":0}
-18:21:06.248 [iphone-xzu] joiner_create_control {"shown":false}
-18:21:06.487 [iphone-xzu] lc_create_capture_wired {}
-18:21:06.487 [iphone-xzu] lc_boot_check {"grant":false,"expires":null,"cleared":false,"canCreate":false}
-18:21:06.487 [iphone-xzu] r8_menu_labels {"applied":3,"of":3}
-18:21:06.487 [iphone-xzu] r8_flag_bands {"dressed":2}
-18:21:06.488 [iphone-xzu] r8_info_card_removed {}
-18:21:06.488 [iphone-xzu] r8_r8a_installed {}
-18:21:06.546 [iphone-xzu] net_armed {}
-18:21:06.546 [iphone-xzu] rm_share_merged_into_general {}
-18:21:06.546 [iphone-xzu] rm_manage_pane_built {}
 18:21:06.546 [iphone-xzu] rm_room_name_field_taken_over {}
 18:21:06.546 [iphone-xzu] rm_header_bg_picker_built {}
 18:21:06.547 [iphone-xzu] r8_r8b_init {}
@@ -4002,4 +3988,18 @@ Both handsets write here. Drained 2026-10-11T00:48:18Z, every 30s. Newest at the
 00:12:08.513 [android-tzc] listen_open {"room":"31af0eb5-mv1jbes8ombd9l"}
 00:12:08.513 [android-tzc] cr3_lane_open {"room":"31af0eb5-mv1jbes8ombd9l","explicit":false}
 00:13:06.861 [android-tzc] listen_open {"room":"31af0eb5-musyiglsj6peug"}
-00:13:06.862 [android-tzc] cr3_lane_open {"room":"31af0eb5-musyiglsj6peug","explicit":false}```
+00:13:06.862 [android-tzc] cr3_lane_open {"room":"31af0eb5-musyiglsj6peug","explicit":false}
+04:40:21.053 [android-tzc] listen_open {"room":"9a0c161b-muzk40n7fj4d34"}
+04:40:21.054 [android-tzc] cr3_lane_open {"room":"9a0c161b-muzk40n7fj4d34","explicit":false}
+04:40:21.301 [android-tzc] listen_open {"room":"msufyhjzxnh1fy"}
+04:40:21.301 [android-tzc] cr3_lane_open {"room":"msufyhjzxnh1fy","explicit":false}
+04:40:22.488 [android-tzc] listen_open {"room":"mtqa8uykz3vg83"}
+04:40:22.488 [android-tzc] cr3_lane_open {"room":"mtqa8uykz3vg83","explicit":false}
+04:40:22.756 [android-tzc] listen_open {"room":"mt2qpqlzxh9omn"}
+04:40:22.756 [android-tzc] cr3_lane_open {"room":"mt2qpqlzxh9omn","explicit":false}
+04:40:25.152 [android-tzc] listen_open {"room":"31af0eb5-musyiglsj6peug"}
+04:40:25.152 [android-tzc] cr3_lane_open {"room":"31af0eb5-musyiglsj6peug","explicit":false}
+04:40:26.082 [android-tzc] listen_open {"room":"mt2spcljmjutxm"}
+04:40:26.082 [android-tzc] cr3_lane_open {"room":"mt2spcljmjutxm","explicit":false}
+04:40:27.642 [android-tzc] listen_open {"room":"31af0eb5-mv1jbes8ombd9l"}
+04:40:27.643 [android-tzc] cr3_lane_open {"room":"31af0eb5-mv1jbes8ombd9l","explicit":false}```
