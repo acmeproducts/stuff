@@ -1,18 +1,8 @@
 # TalkBridge device log
 
-Both handsets write here. Drained 2026-10-10T23:47:26Z, every 30s. Newest at the bottom.
+Both handsets write here. Drained 2026-10-11T00:43:00Z, every 30s. Newest at the bottom.
 
 ```
-18:21:05.979 [iphone-xzu] p3_attempt_skipped {"state":"ios-tab"}
-18:21:05.980 [iphone-xzu] cr3_armed {}
-18:21:05.980 [iphone-xzu] i1_sw3_register {"to":"tb-sw4.js"}
-18:21:05.981 [iphone-xzu] nf_install_tab_shown {"platform":"ios","prompt":false}
-18:21:05.981 [iphone-xzu] nf_tab_shown {"platform":"ios","state":"ios-tab"}
-18:21:06.190 [iphone-xzu] cr3_announce_window {"why":"boot"}
-18:21:06.192 [iphone-xzu] p3_sw_registered {"scope":"https://acmeproducts.github.io/stuff/talkbridge-app/"}
-18:21:06.205 [iphone-xzu] net_returned {"why":"focus","awayMs":260,"inRoom":false,"inCall":false}
-18:21:06.205 [iphone-xzu] net_returned {"why":"focus","awayMs":0,"inRoom":false,"inCall":false}
-18:21:06.210 [iphone-xzu] cr3_recover {"why":"focus","n":1,"inRoom":false}
 18:21:06.215 [iphone-xzu] p4_sw_receipt {"ev":"app_announced","at":1791656316854,"room":null,"kind":null,"e":null}
 18:21:06.215 [iphone-xzu] p4_sw_drained {"n":1}
 18:21:06.248 [iphone-xzu] rc_panel_rendered {"live":2,"bin":0,"wired":2}
@@ -4002,4 +3992,14 @@ Both handsets write here. Drained 2026-10-10T23:47:26Z, every 30s. Newest at the
 23:37:57.579 [iphone-eao] rc_panel_rendered {"live":1,"bin":0,"wired":1,"dropped":2}
 23:37:57.579 [iphone-eao] rc_home_rendered {"cards":0,"wired":0,"dropped":2}
 23:37:57.579 [iphone-eao] joiner_create_control {"shown":true,"dropped":2}
-23:38:19.268 [iphone-eao] pr3_dot {"others":0}```
+23:38:19.268 [iphone-eao] pr3_dot {"others":0}
+00:04:38.554 [android-tzc] listen_open {"room":"mtqa8uykz3vg83"}
+00:04:38.554 [android-tzc] cr3_lane_open {"room":"mtqa8uykz3vg83","explicit":false}
+00:07:16.007 [android-tzc] listen_open {"room":"mt2qpqlzxh9omn"}
+00:07:16.008 [android-tzc] cr3_lane_open {"room":"mt2qpqlzxh9omn","explicit":false}
+00:09:25.704 [android-tzc] listen_open {"room":"msufyhjzxnh1fy"}
+00:09:25.704 [android-tzc] cr3_lane_open {"room":"msufyhjzxnh1fy","explicit":false}
+00:12:08.513 [android-tzc] listen_open {"room":"31af0eb5-mv1jbes8ombd9l"}
+00:12:08.513 [android-tzc] cr3_lane_open {"room":"31af0eb5-mv1jbes8ombd9l","explicit":false}
+00:13:06.861 [android-tzc] listen_open {"room":"31af0eb5-musyiglsj6peug"}
+00:13:06.862 [android-tzc] cr3_lane_open {"room":"31af0eb5-musyiglsj6peug","explicit":false}```
