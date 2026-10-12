@@ -1,5 +1,5 @@
 /* ─────────────────────────────────────────────────────────────────────────────
-   TALK RELAY — worker-talk.js  ·  v6.9 29·ship c5 — PERSISTED PRESENCE WORDS (a word rides an attached socket), RECEIPTS FROM THE RECORD (`mine`: delivered/seen for the sender) on v6.8 29·ship c4 — DEAD-ENDPOINT MEMORY (a 404/410 from the push service is remembered; the subscription is refused when re-offered, so the app re-mints) on v6.7 29·base — MULTI-USER, RELAY LEG (plan §7.8 R-parts, owner GO 2026-10-09)
+   TALK RELAY — worker-talk.js  ·  v6.10 29·ship c6 — A STATE WORD ANNOUNCES AT ONCE (G71) on v6.9 29·ship c5 — PERSISTED PRESENCE WORDS (a word rides an attached socket), RECEIPTS FROM THE RECORD (`mine`: delivered/seen for the sender) on v6.8 29·ship c4 — DEAD-ENDPOINT MEMORY (a 404/410 from the push service is remembered; the subscription is refused when re-offered, so the app re-mints) on v6.7 29·base — MULTI-USER, RELAY LEG (plan §7.8 R-parts, owner GO 2026-10-09)
    v6.7 adds, app untouched (every change is a no-op for a message without the new fields):
      · a room cap — MAX_PARTICIPANTS (4) or the creator's `cap` query parameter, kept with the
        session; a device beyond it is told {type:'full', cap, n} and closed with 4001 before it
@@ -54,7 +54,7 @@ const VAPID_SUBJECT = 'mailto:nobody@nowhere.com';
 /* v6: only events that own a recipient record can alert. Everything else is
    data on the socket, never a wake. */
 const RECORD_KIND = { 'chat-msg': 'chat', 'thread-invite': 'chat', 'call-start': 'call' };
-const RELAY_VERSION = '6.9';           /* v6.9 29·ship c5: the presence words are PERSISTED (the object sleeps between heartbeats and woke with an empty memory — the dot blinked, 2026-10-10 23:26 UTC) and a word counts only while its device has a socket attached; the sender's receipts (delivered, seen) come from the record (`mine` on every projection). v6.8 29·ship c4: dead-endpoint memory — a subscription the push service declared gone (404/410) is refused when re-registered, so the app re-mints */
+const RELAY_VERSION = '6.10';          /* v6.10 29·ship c6: a STATE WORD ANNOUNCES AT ONCE — since v6.5 the announce for ev-state sat behind the event-word handler's early return and never ran; presence moved only with the 30 s heartbeat (device log 2026-10-11 23:58: a room entered at :10, the first dot at :38). v6.9 29·ship c5: the presence words are PERSISTED (the object sleeps between heartbeats and woke with an empty memory — the dot blinked, 2026-10-10 23:26 UTC) and a word counts only while its device has a socket attached; the sender's receipts (delivered, seen) come from the record (`mine` on every projection). v6.8 29·ship c4: dead-endpoint memory — a subscription the push service declared gone (404/410) is refused when re-registered, so the app re-mints */
 const MAX_PARTICIPANTS = 4;           /* v6.7 §7.8 R2: the room cap unless the creator's socket says otherwise (1..8) */
 const CALL_ROUTED = new Set(['call-accept', 'call-decline', 'call-end', 'webrtc-signal', 'mic-state', 'cam-state']);   /* v6.7 R1: words of a call that go to the other party of an ADDRESSED call */
 const EVENT_TTL_MS = 7 * 24 * 60 * 60 * 1000;
@@ -448,6 +448,7 @@ export class TalkSession {
     if (msg.type === 'ev-state') {
       this.states[clientId] = { visible: msg.visible === true, inRoom: msg.inRoom === true, muted: msg.muted === true, at: Date.now() };
       await this._saveStates();
+      try { this._announcePeers(); } catch (_) {}                             /* v6.10 (G71): the word is announced the moment it lands — not at the next heartbeat */
       return { ok: true };
     }
     if (msg.type === 'ev-seen') {
@@ -751,7 +752,7 @@ export class TalkSession {
     if (msg.type === 'hello') await this._noteDevice(clientId);
     /* A ping may carry the device's state so a hidden phone cannot be mistaken for a watching one. */
     if (msg.type === 'ping' && typeof msg.visible === 'boolean') { this.states[clientId] = { visible: msg.visible, inRoom: msg.inRoom === true, muted: msg.muted === true, at: Date.now() }; await this._saveStates(); }
-    if (msg.type === 'ev-state' || (msg.type === 'ping' && typeof msg.visible === 'boolean')) { try { this._announcePeers(); } catch (_) {} }
+    if (msg.type === 'ping' && typeof msg.visible === 'boolean') { try { this._announcePeers(); } catch (_) {} }   /* v6.10: ev-state never reached this line (the event-word handler returns above) — it announces in _handleEventWord now */
 
     try { this._routeByCall(msg, clientId); } catch (_) {}                /* v6.7 R1 */
     if (!isTransient) {

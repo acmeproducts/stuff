@@ -3,7 +3,7 @@
 
    Inputs (sha-checked): the ACCEPTED 29·pre-ship folder page and folder worker.
    Outputs, in talkbridge-app/ (nothing is hand-written; no accepted file is touched):
-     bridge-turn29-ship.html               = the accepted page with twenty-seven banked edits + two parts, RH-1 and RX-1
+     bridge-turn29-ship.html               = the accepted page with twenty-nine banked edits + two parts, RH-1 and RX-1
      tb-sw4.js                             = the accepted folder worker with four banked edits
      tb-manifest-turn29-ship.webmanifest   = scope "./", start_url this stage's page, id the folder (one app id for every stage)
      tb-manifest-turn29-ship-ios.webmanifest = scope "./", no start_url, no id (the load-time address carries, §7.19)  */
@@ -30,7 +30,7 @@ export const OUT = { page: FOLDER + '/' + STAGE_PAGE, worker: FOLDER + '/' + WOR
 export const ADDED_SYMBOLS = ['RH_DONE_KEY', 'rh', 'p2Runs', 'rhLog', 'rhPerm', 'rhCanPush', 'rhHasDurableKeys', 'rhOfferDone', 'rhState', 'rhMayAttempt', 'rhInstallOffer', 'rhInstallVisible', 'rhKeyMatches', 'rhCarryUrl', 'rhCarryReady', 'rhGoCarry', 'rhLine', 'rhRoomLine', 'rhHtml', 'rhWire', 'rhRenderRow', 'rhRenderBar', 'rhBarDue', 'rhRender', 'rhOnNo', 'rhOnTurnOn', 'rhOnInstall', 'rhOnReady', 'rhDismissDenied', 'rhOnDeadSubscription', 'rhSyncRegistration', 'rhTick', 'rhOnVisible', 'rhInit', 'RX_RANK', 'rxLog', 'rxMark', 'rxMarkRoom', 'rxApply'];
 /* log markers the stage brings, by the literal name each log call carries (p2_/p3_ prefixes are their helpers'; 'rh_' is rhLog's own) */
 export const RM_MARKERS = ['bar_shown', 'bar_declined', 'turn_on', 'install_available', 'install_prompt', 'install_done', 'carry_go', 'carry_blocked', 'key_match', 'key_stale', 'key_unreadable', 'denied_dismissed', 'sub_dead', 'remint', 'reregister', 'init_failed'];
-export const ADDED_MARKERS = ['rh_', 'rx_', 'receipts_marked', 'receipts_failed', 'call_ring_closed_mic', 'call_declined', 'tab_boot', 'attempt_skipped', 'sub_stale_dropped', 'denied_in_gesture', 'storage_estimate', 'room_register_dead'].concat(RM_MARKERS);   /* 'rh_' is what the marker scan sees in rhLog's own log('rh_' + what) */
+export const ADDED_MARKERS = ['rh_', 'rx_', 'receipts_marked', 'receipts_failed', 'call_ring_closed_mic', 'call_declined', 'stale_connecting_abandoned', 'tab_boot', 'attempt_skipped', 'sub_stale_dropped', 'denied_in_gesture', 'storage_estimate', 'room_register_dead'].concat(RM_MARKERS);   /* 'rh_' is what the marker scan sees in rhLog's own log('rh_' + what) */
 export const REMOVED_MARKERS = ['gate_shown', 'gesture_armed', 'recipe_shown'];   /* the gate (P02), the stolen tap (P19, G33) and the one-platform recipe (P20, G33) are gone */
 export const TAIL = '\n</script>\n</body>\n</html>';
 

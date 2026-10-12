@@ -60,6 +60,8 @@ const M = [
   { catches: 'X3', name: 'P26 unapplied: the counter resets before the audio check — the 2-second loop (G70)', keep: ['P26-dead-track-counts'] },
   { catches: 'X1', name: 'P27 unapplied: a decline logs nothing', keep: ['P27-decline-logs'] },
   { catches: 'R1', name: 'P28 unapplied: the record never reaches the bubbles', keep: ['P28-receipts-from-record'] },
+  { catches: 'V3', name: 'P30 unapplied: a return waits behind a socket stuck CONNECTING', keep: ['P29-socket-since', 'P30-stale-connecting-abandoned'] },
+  { catches: 'V3', name: 'the stage no longer names itself in the log', part: (s) => s.replace("  try { log('build', { c: 'turn29-ship-c6'", "  try { void ({ c: 'turn29-ship-c6'") },
   { catches: 'S4', name: 'RM-1 grows an undeclared symbol', part: (s) => s.replace('function rhLog(what, d, lvl)', 'function rhExtra() { return 1; }\nfunction rhLog(what, d, lvl)') },
   { catches: 'S5', name: 'RM-1 logs an undeclared marker', part: (s) => s.replace("rhLog('bar_declined', { platform: p2Platform() }, 'ok');", "rhLog('bar_declined', { platform: p2Platform() }, 'ok'); rhLog('bar_extra', {}, 'ok');") },
   { catches: 'S6', name: 'RM-1 reaches for the network', part: (s) => s.replace('function rhLog(what, d, lvl)', 'function rhPing() { fetch("https://example.org/ping"); }\nfunction rhLog(what, d, lvl)') },
