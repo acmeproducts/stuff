@@ -1,14 +1,16 @@
 /* ═══════════ 29·post-ship PART · L1 locale.js — EVERY WORD THE APP SAYS, IN THE PHONE'S LANGUAGE (candidate 1, plan v21.95.0 §7.17) ═══════════ */
 /* @contract
    replaces: (none)   wraps: (none) — the module reads the language, words keys, walks data-l10n* and re-renders through the accepted renderers; it reassigns no function
-   adds: l10nLog, l10nFromNavigator, l10nUserLang, l10nLang, l10nIn, l10n, l10nPill, l10nLocale, l10nDir, l10nLandingLang, l10nCap, l10nApplyCaps, l10nApplyDom, l10nRerender, l10nFillLangSelect, l10nPostLang, l10nApply, l10nStyle, l10nTick, l10nInit
-   markers (l10nLog's own prefix 'l10n_'): user_lang_set, user_lang_changed, missing, applied, rerender_failed, init_failed
+   adds: l10nLog, l10nFromNavigator, l10nUserLang, l10nLang, l10nAdopt, l10nIn, l10n, l10nPill, l10nLocale, l10nDir, l10nLandingLang, l10nCap, l10nApplyCaps, l10nApplyDom, l10nRerender, l10nFillLangSelect, l10nPostLang, l10nApply, l10nStyle, l10nTick, l10nInit
+   markers (l10nLog's own prefix 'l10n_'): user_lang_set, user_lang_adopted, user_lang_changed, missing, applied, rerender_failed, init_failed
 
    THE TABLE (`L10N`, bound by the generated banked edit on the LANG_ORDER line, early in the script) holds every chrome string by language code then key; English is complete
    and every other language is machine-translated at build time and marked so (`L10N_MT`). `l10n(key, vars)` is the only way a
    chrome string reaches the screen; a missing key falls back to English and is logged once (`l10n_missing {lang,key}`).
-   THE PHONE'S LANGUAGE is `room.myLang` inside a room and `S.user.lang` outside one; on first run `S.user.lang` is taken from
-   `navigator.language` (mapped into LANGS, else English) and can be changed in the S13 modal ("App language"). Nothing in the relay
+   THE PHONE'S LANGUAGE is ONE setting, `S.user.lang`, everywhere (owner ruling 2026-10-12: a room's language never overrides it).
+   On first run it is taken from `navigator.language` (mapped into LANGS, else English); the FIRST ROOM then sets it — a joiner takes
+   the language the inviter chose for them (adopted at the landing), a creator the "Your language" of their first room — and after
+   that only the clock's App language setting (the S13 modal) changes it. Nothing in the relay
    decides a phone's language. SYSTEM PILLS carry `{key, vars}` only (owner ruling 2026-10-11: no backwards compatibility);
    every reader words the key in its own language, so a language change re-words history.
    A SWITCH AT RUNTIME re-words the shell (data-l10n*), the live captions a l10nCap() site remembered, and re-runs the accepted
@@ -36,10 +38,17 @@ function l10nUserLang() {
   }
   return S.user.lang;
 }
-function l10nLang() {
-  var r = null; try { if (S.view === 'room' && typeof activeRoom === 'function') r = activeRoom(); } catch (_) { r = null; }
-  if (r && r.myLang && LANGS[r.myLang]) return r.myLang;
-  return l10nUserLang();
+/* ONE language everywhere (owner ruling 2026-10-12, candidate 2): the app language, never a room's */
+function l10nLang() { return l10nUserLang(); }
+/* The first room sets the app language: a joiner takes the language the inviter chose for them (at the landing, before the room exists),
+   a creator takes the "Your language" of their first room. Later rooms change nothing; only the clock's App language setting does. */
+function l10nAdopt(lang, why) {
+  l10nUserLang();
+  if (!lang || !LANGS[lang] || S.user.langFrom === 'room' || S.user.langFrom === 'setting') return S.user.lang;
+  var was = S.user.lang; S.user.lang = lang; S.user.langFrom = 'room'; try { saveUser(); } catch (_) {}
+  l10nLog('user_lang_adopted', { lang: lang, was: was, why: why || 'room' }, 'ok');
+  try { l10nApply('adopt'); } catch (_) {}
+  return lang;
 }
 function l10nIn(lang, key, vars) {
   if (!key) return '';
@@ -52,8 +61,8 @@ function l10n(key, vars) { return l10nIn(l10nLang(), key, vars); }
 function l10nPill(e) { return (e && e.key) ? l10n(e.key, e.vars) : ((e && e.text) || ''); }
 function l10nLocale() { var lang = l10nLang(); var tts = (LANGS[lang] && LANGS[lang].tts) || 'en-US'; return lang === 'ar' ? tts + '-u-ca-gregory-nu-latn' : tts; }
 function l10nDir(lang) { return L10N_RTL[lang] ? 'rtl' : 'ltr'; }
-/* the joiner landing is worded in the phone's language; the invite's language only when the phone has none yet */
-function l10nLandingLang(p) { var u = (S.user && S.user.lang && LANGS[S.user.lang]) ? S.user.lang : null; return u || ((p && p.tl && LANGS[p.tl]) ? p.tl : 'en'); }
+/* the joiner landing adopts the invite's language for this phone (the inviter chose it for this person); a phone that already chose keeps its choice */
+function l10nLandingLang(p) { return l10nAdopt(p && p.tl, 'invite'); }
 /* a live caption remembers its key, so a switch re-words it while it is still the text on screen */
 function l10nCap(id, key, vars) { var s = l10n(key, vars); l10nState.caps[id] = { key: key, vars: vars || null, str: s }; return s; }
 function l10nApplyCaps() {
@@ -82,7 +91,7 @@ function l10nFillLangSelect() {
   var sel = document.getElementById('s13-lang'); if (!sel) return;
   if (!sel.options.length) {
     for (var i = 0; i < LANG_ORDER.length; i++) { var c = LANG_ORDER[i], o = document.createElement('option'); o.value = c; o.textContent = gL(c).flag + ' ' + gL(c).name; sel.appendChild(o); }
-    sel.addEventListener('change', function () { var v = sel.value; if (!LANGS[v] || v === S.user.lang) return; S.user.lang = v; try { saveUser(); } catch (_) {} l10nLog('user_lang_changed', { lang: v }, 'ok'); l10nApply('setting'); });
+    sel.addEventListener('change', function () { var v = sel.value; if (!LANGS[v] || v === S.user.lang) return; S.user.lang = v; S.user.langFrom = 'setting'; try { saveUser(); } catch (_) {} l10nLog('user_lang_changed', { lang: v }, 'ok'); l10nApply('setting'); });
   }
   sel.value = l10nUserLang();
 }

@@ -1,5 +1,5 @@
-<!-- TALKBRIDGE-PLAN v21.96.0 -->
-# TALKBRIDGE MASTER PLAN v21.96.0
+<!-- TALKBRIDGE-PLAN v21.97.0 -->
+# TALKBRIDGE MASTER PLAN v21.97.0
 
 **Location:** `talkbridge/TALKBRIDGE-PLAN-v9.md` in `acmeproducts/stuff`.
 **Owner:** Confi — sole decision-maker, runs every device gate.
@@ -146,7 +146,7 @@ the directory release and IndexedDB each moved one turn later; nothing was dropp
 | 29·base | multi-user, relay leg | **CANDIDATE 1 · BUILT 2026-10-09 · relay v6.7 — deployed to the live relay on merge; awaiting the owner's three-device gate** | relay only (no page) |
 | 29·pre-ship | **the directory release (fixing the PWA: D-2 + D-6, §7.5 + §7.12)** — moved up 2026-10-09 when multi-user c1 was withdrawn (warm storage `bridge-turn29-multi-user-v1.html`) | **CANDIDATE 2 · ACCEPTED 2026-10-10 (owner: "iPhone install successful") · sha `f8919a976bbd`** — Android passed on c1 (same bytes but one head line), iPhone on c2; desktop G1 untested | **https://acmeproducts.github.io/stuff/talkbridge-app/bridge-turn29-pre-ship.html** |
 | 29·ship | **install optional (§7.19)** — moved up from 29·post-ship 2026-10-09; the owner's two call-sound items slotted in 2026-10-10 | **ACCEPTED 2026-10-11 · candidate 6 · sha `7c61a68ee1c8` (owner: "pass")** | **https://acmeproducts.github.io/stuff/talkbridge-app/bridge-turn29-ship.html** |
-| 29·post-ship | **localization** — the app's own words in the user's language, both sides (§7.17) — moved up from 30·base by owner ruling 2026-10-10 | **CANDIDATE 1 · BUILT 2026-10-12 · sha `1c2c090caa34` · tb-sw5.js — every gate green (harness 86/86, mutations 48/48, prior 53 + 112, sweep clean, governance); awaiting the owner's two-phone device gate (one Thai, one English)** | **https://acmeproducts.github.io/stuff/talkbridge-app/bridge-turn29-post-ship.html** |
+| 29·post-ship | **localization** — the app's own words in the user's language, both sides (§7.17) — moved up from 30·base by owner ruling 2026-10-10 | **CANDIDATE 2 · BUILT 2026-10-12 · sha `24c726b2227f` · tb-sw5.js — ONE language everywhere, set by the first room (owner ruling 2026-10-12: "I like it, let's do it"); every gate green (harness 87/87, mutations 52/52, prior 53 + 112, sweep clean, governance); awaiting the owner's two-phone device gate (one Thai, one English)** | **https://acmeproducts.github.io/stuff/talkbridge-app/bridge-turn29-post-ship.html** |
 | 30·post-ship | IndexedDB — behind its POC; if the owner defers it past beta, it stays here | queued | — |
 | 30·pre-base | byte-identical snapshot of accepted 29·post-ship | queued | — |
 | 30·base | open — multi-user (conference-room model) returns here or later, only after its spec is written and approved | queued | — |
@@ -2091,6 +2091,7 @@ Green means allowed to push. It never means done.
 
 ## 10 · CHANGE LOG
 
+**v21.97.0 · 2026-10-12.** 29·post-ship candidate 2: ONE language everywhere, set by the first room (owner ruling after walking the Thai partner's day); §7.17 item 2 amended; L1 adopts at the landing and at the three room-creation sites; gates green. Awaiting the device gate.
 **v21.96.0 · 2026-10-12.** 29·post-ship LOCALIZATION candidate 1 BUILT: `talkbridge-app/bridge-turn29-post-ship.html` + `tb-sw5.js` — 287 keys, 21 languages, 289 generated edits + L1; gates green (§7.17 Built record); G72 buried (behaviour keyed on English words) with a sweep signature; the Thai review sheet for the owner. Awaiting the two-phone device gate.
 **v21.95.0 · 2026-10-11.** 29·post-ship localization: candidate-1 plan drafted from §7.17, vetted by an independent reviewer (11 findings applied: `fil` missing from a hand list, English-text matching in the base, worker notifications, non-unique finds, I18N shape, ~110 undercounted strings, grep-M2 gap, runtime-switch residue, RTL physical layout + calendars, `sys-pill` naming, size), recorded in §7.17. No code. Awaiting go.
 **v21.94.0 · 2026-10-11.** Post-accept step of 29·ship (owner: "forward the pre-ship page"): the folder's pre-ship page is a forwarder to its own folder (§7.5 (8)), accepted bytes pinned and served to the historical gates by the loader; the forwarder gates grow a folder list with its own target; the 29ps/29s gate scripts carry the loader prefix; assemble-29dir keeps forwarders. Gates: forwarders harness/mutations, 29ps and 29s assembled checks under the loader, governance PASS. Localization (29·post-ship) starts: plan first.
@@ -5513,10 +5514,14 @@ language, chosen from the 21 languages the app already speaks (`LANGS`).
    visible on the device log. `t(key, vars)` is the only way a chrome string
    reaches the screen. `I18N` (joiner screen) becomes the first rows of the
    table, not a second table.
-2. THE PHONE'S LANGUAGE is `room.myLang` inside a room and the app-level
-   `S.user.lang` outside one; on first run `S.user.lang` is taken from
-   `navigator.language` (mapped into `LANGS`, else English) and can be
-   changed in settings. Nothing in the relay decides a phone's language.
+2. THE PHONE'S LANGUAGE is ONE setting, `S.user.lang`, everywhere — OWNER RULING
+   2026-10-12 (replacing "room.myLang inside a room"): a room's language never
+   overrides it. On first run it is taken from `navigator.language` (mapped
+   into `LANGS`, else English); the FIRST ROOM then sets it — a joiner takes
+   the language the inviter chose for them (adopted at the invite landing), a
+   creator takes the "Your language" of their first room — and after that only
+   the App language setting (long-press the clock) changes it; later rooms
+   change nothing. Nothing in the relay decides a phone's language.
 3. SYSTEM PILLS cross the relay as `{ key, vars }` IN ADDITION to the `text`
    they carry today (additive field; an old phone still shows `text`, a new
    phone words the key in its own language and stores the key+vars in the
@@ -5605,6 +5610,13 @@ Input: accepted 29·ship (`talkbridge-app/bridge-turn29-ship.html`, sha `7c61a68
 **The differential (E).** Runs the stage with an ALL-ENGLISH table and English dates — the rig's Thai-side phone would otherwise re-word in Thai, which is the feature (R3, R9), not the script; the edits, the part, the keyed pills and the re-render at room entry are live. Pills are compared by their English words; `data-l10n*` marks, per-column `dir` and the S13 language row are the declared differences; `t1_coalesced` (the re-render at room entry coalesces once) is bookkeeping.
 **Residue a switch does not re-word, stated for the device gate:** a toast already on screen, a status pop, a typing caption (3 s life).
 **Device gate (owner, both phones; installed copies removed first):** one phone Thai, one English — arrival (the joiner landing in the phone's language), chat, a call (Connecting… / the timer / Speaking…), a rename (the pill on both phones, each in its own language), a missed call (the lock-screen card on the Thai phone in Thai), the phrasebook: every word of chrome on the Thai phone is Thai, nothing cut off or overflowing; then the Thai phone: long-press the square → App language → English — re-words without a reload (home, drawer, room, history pills); Arabic (one phone set to Arabic in the same place): drawer on the right, FAB bottom-left, Arabic column right-to-left, Western digits in dates. Pass = the Thai phone's words (the review sheet is for after).
+
+### Built 2026-10-12 (29·post-ship candidate 2) — one language everywhere, set by the first room
+**Why.** Walking candidate 1 through the Thai partner's day (owner, 2026-10-12): outside a room they see only the clock and the plus sign, and the new-room dialog would have come up in whatever their phone's system language was — English for a Thai person whose phone runs in English — with the only fix a long-press on a clock they have no reason to know. The invite already carries the strongest signal: the language the inviter chose for them. Owner: "I like it, let's do it."
+**The rule (§7.17 item 2, amended).** One app language. First run: the phone's setting. The first room sets it: a joiner's phone adopts the invite's "your language" at the landing (the landing itself is already in it); a creator's phone adopts the "Your language" of their first new room; a linked device adopts its own. Later rooms change nothing. The clock's App language setting beats everything after. `S.user.langFrom` records who set it (`room` / `setting`); the adoption is refused once either is recorded.
+**Built.** L1: `l10nLang()` = the app language; `l10nAdopt(lang, why)` (logged `l10n_user_lang_adopted {lang, was, why}`); the landing adopts. Three banked edits insert the adoption call between the room-creation statement and `S.rooms.push` (creator 1619, joiner 8269, linked device 1901) — the shape the S2 rule allows. Stage sha `24c726b2227f`.
+**Gates.** harness-29pos 87/87 (R3: a room overrides nothing, the first room sets, a second does not, the clock setting beats later rooms; R3b: the real Start-new-chat dialog with Thai makes the phone Thai; R11: an English phone opening a Thai invite shows the Thai landing and becomes Thai, a phone that chose keeps its choice, an English invite on a Thai phone goes English), mutations 52/52 (room overrides again; never adopts; every room adopts; a later room beats the setting; the setting does not mark itself; the creator edit unapplied; the landing not adopting), prior 53/53 + 112/112, sweep, governance.
+**Device gate (owner, both phones; installed copies removed first).** English phone: Start new chat, Your language English, partner Thai → the app stays English. Send the invite. Thai phone (whatever its system language): the invite landing is Thai; join; home list, plus sign and the new-room dialog are Thai; chat, a call, a rename, a missed call with the phone locked (card in Thai), the phrasebook — every word Thai, nothing cut off. Then on the Thai phone: long-press the clock → App language → English → re-words without reload (residue: a toast already showing, a status pop, a typing caption); make a second room with Your language Thai → the app stays English (the setting wins). Arabic: one phone set to Arabic in the same place → drawer right, FAB bottom-left, Arabic column right-to-left, Western digits.
 
 ────────────────────────────────────────────────────────────────────────
 ## §7.18 PROPOSAL — A TRANSLATION OVERLAY THAT LEARNS (owner draft 2026-10-03; FOR DISCUSSION, not scheduled)

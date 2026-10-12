@@ -4,7 +4,7 @@
       credential or message type; the graveyard sweep clean; the fixture is what the inventory generates · M  manifests · L  the table (spec M1):
       English complete, every language every key, tokens kept, the worker's five rows · G  no hard-coded English left (spec M2): a tokenizer over the
       stage's JavaScript and a walk over its HTML, against the inventory's allow-list, each allowance earning its place · R  the rig (spec M3): a Thai
-      phone boots Thai, an unknown language boots English, a room follows myLang, a toast, a pill over the wire with a key (and no English text),
+      phone boots Thai, an unknown language boots English, ONE language everywhere set by the first room (owner ruling 2026-10-12), a toast, a pill over the wire with a key (and no English text),
       the missed-pill guard by key, a runtime switch re-words without reload (shell, caps, renderers), Arabic right-to-left with per-column direction
       and Western digits, a missing key once, the joiner landing in the phone's language · W  the worker shim: cards worded in the phone's language ·
       T  structure (spec M4) · E  the 28·post-ship differential: the whole script, both builds, identical (pills compared by their English words).
@@ -78,7 +78,7 @@ await T('S5 markers(stage) = markers(accepted) + l10n_*; none lost, none undecla
   const bm = markers(appScript(base)), sm = markers(appScript(stage));
   const extra = [...sm].filter((m) => !bm.has(m) && !ADDED_MARKERS.includes(m)), lost = [...bm].filter((m) => !sm.has(m)); for (const m of ADDED_MARKERS) assert(!bm.has(m) && sm.has(m), m + ' already in the accepted page or never logged');
   assert(extra.length === 0, 'undeclared markers: ' + extra.join(', ')); assert(lost.length === 0, 'markers lost: ' + lost.join(', '));
-  for (const m of ['user_lang_set', 'user_lang_changed', 'missing', 'applied', 'rerender_failed', 'init_failed']) assert(new RegExp("l10nLog\\('" + m + "'").test(part), 'l10n_' + m + ' never logged');
+  for (const m of ['user_lang_set', 'user_lang_adopted', 'user_lang_changed', 'missing', 'applied', 'rerender_failed', 'init_failed']) assert(new RegExp("l10nLog\\('" + m + "'").test(part), 'l10n_' + m + ' never logged');
 });
 await T('S6 no network, credential, endpoint or storage line is added or changed; no relay message type is added (G19/G20); the part reaches for nothing', () => {
   const b = netLines(appScript(base)), s = netLines(appScript(stage)); assert(JSON.stringify(b) === JSON.stringify(s), 'network lines differ: +' + s.filter((l) => !b.includes(l)).join(' | ') + ' −' + b.filter((l) => !s.includes(l)).join(' | '));
@@ -200,6 +200,7 @@ async function live(o) {
   return { w, dom, errors, $: (id) => w.document.getElementById(id), ev: (e) => w.debugLog.filter((l) => l.ev === e), has: (e) => w.debugLog.some((l) => l.ev === e) };
 }
 const th = (k, vars) => fill(table.th[k], vars), en = (k, vars) => fill(inv.keys[k], vars);
+const THAI = { tba_user: JSON.stringify({ name: 'Ann', lang: 'th', langFrom: 'setting' }) };   /* a phone that chose Thai */
 const sentTypes = (I) => I.w.__sent.map((s) => { try { return JSON.parse(s); } catch (_) { return { type: '?' }; } });
 await T('R1 a fresh Thai phone (navigator th-TH) boots in Thai: S.user.lang saved, html lang, the first screen\'s words, the compose placeholder; the worker is told; no error', async () => {
   const I = await live({ navLang: 'th-TH', rooms: [] });
@@ -214,21 +215,33 @@ await T('R2 an unknown language boots English; Filipino\'s old tag (tl) maps to 
   const c = await live({ navLang: 'zh-TW', rooms: [] }); assert(c.w.S.user.lang === 'zh', 'zh-TW → ' + c.w.S.user.lang);
   const d = await live({ navLang: 'th-TH', rooms: [], seed: { tba_user: JSON.stringify({ name: 'Ann', lang: 'de' }) } }); assert(d.w.S.user.lang === 'de' && d.$('s0-go').textContent === fill(table.de.continue), 'saved de lost: ' + d.w.S.user.lang);
 });
-await T('R3 inside a room the words follow room.myLang: an English phone entering its Thai-side room re-words to Thai within a tick (shell, drawer, dates), and back to English on leaving', async () => {
+await T('R3 ONE language everywhere: entering the Thai-side room changes nothing on a phone that already has its language; a creator\'s FIRST room sets it (my=th → the app is Thai), a second room with another language changes nothing, and the clock setting beats every later room', async () => {
   const I = await live({}); assert(I.w.document.documentElement.lang === 'en', 'not en at home');
-  I.w.enterRoom('room-2'); await sleep(1300);
-  assert(I.w.document.documentElement.lang === 'th' && I.$('chat-input').getAttribute('placeholder') === th('compose_ph'), 'room-2 not Thai: ' + I.w.document.documentElement.lang);
-  assert(I.w.document.querySelector('#drawer-s4b .drawer-title, .drawer-title').textContent === th('customize_room'), 'drawer title not Thai'); assert(I.ev('l10n_applied').some((l) => l.d.why === 'switch' && l.d.lang === 'th'), 'no switch log');
-  assert(/ต\.ค\.|ตุลาคม|\d/.test(I.w.fmtDate(new Date(2026, 9, 12).getTime())) && !/Oct/.test(I.w.fmtDate(new Date(2026, 9, 12).getTime())), 'fmtDate not Thai: ' + I.w.fmtDate(new Date(2026, 9, 12).getTime()));
-  I.w.enterRoom('room-1'); await sleep(1300); assert(I.w.document.documentElement.lang === 'en' && I.$('chat-input').getAttribute('placeholder') === en('compose_ph'), 'room-1 not back to English');
+  I.w.enterRoom('room-2'); await sleep(1300); assert(I.w.document.documentElement.lang === 'en' && I.$('chat-input').getAttribute('placeholder') === en('compose_ph'), 'the room overrode the app language'); assert(!I.ev('l10n_applied').some((l) => l.d.why === 'switch'), 'a switch happened');
+  assert(/Oct/.test(I.w.fmtDate(new Date(2026, 9, 12).getTime())), 'fmtDate not English: ' + I.w.fmtDate(new Date(2026, 9, 12).getTime()));
+  const J = await live({ rooms: [] }); assert(J.w.S.user.lang === 'en' && J.w.S.user.langFrom === undefined, 'fresh');
+  J.w.l10nAdopt('th', 'create'); await sleep(50); assert(J.w.S.user.lang === 'th' && J.w.S.user.langFrom === 'room' && JSON.parse(J.w.localStorage.getItem('tba_user')).langFrom === 'room', 'first room not adopted: ' + J.w.S.user.lang);
+  assert(J.$('s0-go').textContent === th('continue') && J.w.document.documentElement.lang === 'th' && J.ev('l10n_user_lang_adopted').length === 1 && J.ev('l10n_user_lang_adopted')[0].d.why === 'create', 'not re-worded on adopt');
+  J.w.l10nAdopt('de', 'create'); await sleep(50); assert(J.w.S.user.lang === 'th' && J.ev('l10n_user_lang_adopted').length === 1, 'a second room changed the language');
+  const sel = J.$('s13-lang'); sel.value = 'en'; sel.dispatchEvent(new J.w.Event('change')); await sleep(80); assert(J.w.S.user.lang === 'en' && J.w.S.user.langFrom === 'setting', 'setting');
+  J.w.l10nAdopt('th', 'join'); await sleep(50); assert(J.w.S.user.lang === 'en', 'a room beat the clock setting');
+  assert(stage.indexOf("l10nAdopt(my,'create');") !== -1 && stage.indexOf("l10nAdopt(p.tl,'join');") !== -1 && stage.indexOf("l10nAdopt(p.ml,'link');") !== -1, 'the three room-creation sites do not adopt');
+  assert(I.errors.length === 0 && J.errors.length === 0, I.errors.concat(J.errors).join(' | '));
+});
+await T('R3b a creator\'s first room through the real dialog: Start new chat with Your language = Thai makes the phone Thai (buttons, drawer) before the first message', async () => {
+  const I = await live({ rooms: [] }); I.w.openS3(); await sleep(50); const my = I.$('s3-my'), their = I.$('s3-their'); assert(my && their && I.$('m-s3').classList.contains('show'), 'no S3 dialog');
+  my.value = 'th'; their.value = 'en'; if (I.$('s3-name')) I.$('s3-name').value = 'Test'; I.$('s3-ok').click(); await sleep(400);
+  assert(!/needs a name|ต้องมีชื่อ/.test(I.$('toast').textContent) || I.w.S.rooms.length === 1, 'refused: ' + I.$('toast').textContent);
+  assert(I.w.S.rooms.length === 1 && I.w.S.rooms[0].myLang === 'th', 'room not created: ' + I.w.S.rooms.length);
+  assert(I.w.S.user.lang === 'th' && I.w.S.user.langFrom === 'room' && I.w.document.documentElement.lang === 'th' && I.$('chat-input').getAttribute('placeholder') === th('compose_ph'), 'the first room did not set Thai: ' + I.w.S.user.lang);
   assert(I.errors.length === 0, I.errors.join(' | '));
 });
-await T('R4 a toast speaks the phone\'s language: a refused empty rename in the Thai room toasts the Thai line', async () => {
-  const I = await live({}); I.w.enterRoom('room-2'); await sleep(1200); I.w.renameRoom(''); await sleep(30);
+await T('R4 a toast speaks the phone\'s language: a refused empty rename on a Thai phone toasts the Thai line', async () => {
+  const I = await live({ seed: THAI }); I.w.enterRoom('room-2'); await sleep(1200); I.w.renameRoom(''); await sleep(30);
   assert(I.$('toast').textContent === th('toast_room_needs_name'), 'toast: ' + I.$('toast').textContent);
 });
 await T('R5 a system pill crosses the wire as {key, vars} and nothing else: a rename sends key+vars (no text); the receiver stores key+vars and words it in ITS language; a pill with only English text stores no text and shows nothing', async () => {
-  const I = await live({}); I.w.enterRoom('room-2'); await sleep(1200);
+  const I = await live({ seed: THAI }); I.w.enterRoom('room-2'); await sleep(1200);
   I.w.renameRoom('Delta'); await sleep(50); const pill = sentTypes(I).filter((m) => m.type === 'sys-pill').pop(); assert(pill && pill.key === 'pill_renamed' && pill.vars && pill.vars.to === 'Delta' && pill.vars.from === 'Thai side' && !('text' in pill), 'sent: ' + JSON.stringify(pill));
   const mine = I.w.transcript.filter((e) => e.kind === 'sys').pop(); assert(mine.key === 'pill_renamed' && !('text' in mine), 'stored: ' + JSON.stringify(mine));
   const dom1 = I.w.document.querySelector('.pill[data-id="' + mine.id + '"] span'); assert(dom1 && dom1.textContent.indexOf(th('pill_renamed', mine.vars)) === 0, 'pill words: ' + (dom1 && dom1.textContent));
@@ -239,12 +252,12 @@ await T('R5 a system pill crosses the wire as {key, vars} and nothing else: a re
   const old = I.w.transcript.filter((e) => e.id === 'sp-wire-2')[0]; assert(old && !('text' in old) && !old.key, 'English text was kept: ' + JSON.stringify(old)); const dom3 = I.w.document.querySelector('.pill[data-id="sp-wire-2"] span'); assert(dom3 && !/Bo joined/.test(dom3.textContent), 'English shown: ' + (dom3 && dom3.textContent));
   const bgMsg = { type: 'sys-pill', from: 'bo-dev', ts: Date.now(), key: 'pill_left_chat', vars: {}, text: 'Left the chat', pillId: 'sp-wire-3' }; if (I.w.LISTEN && typeof I.w.LISTEN.handle === 'function') I.w.LISTEN.handle('room-1', bgMsg); else I.w.listenHandleCore(I.w.LISTEN, 'room-1', bgMsg); await sleep(30);
   const bg = (I.w.loadTr('room-1') || []).filter((e) => e.id === 'sp-wire-3')[0]; assert(bg, 'the background room did not take the pill'); assert(bg.key === 'pill_left_chat' && !('text' in bg), 'background room kept the text: ' + JSON.stringify(bg));
-  I.w.enterRoom('room-1'); await sleep(1300); I.w.enterRoom('room-2'); await sleep(1300);
-  const dom5 = I.w.document.querySelector('.pill[data-id="sp-wire-1"] span'); assert(dom5 && dom5.textContent.indexOf(th('pill_joined', { who: 'Bo' })) === 0, 'history not re-worded on return');
+  const sel5 = I.$('s13-lang'); sel5.value = 'en'; sel5.dispatchEvent(new I.w.Event('change')); await sleep(80);
+  const dom5 = I.w.document.querySelector('.pill[data-id="sp-wire-1"] span'); assert(dom5 && dom5.textContent.indexOf(en('pill_joined', { who: 'Bo' })) === 0, 'history not re-worded on the switch: ' + (dom5 && dom5.textContent));
   assert(I.errors.length === 0, I.errors.join(' | '));
 });
 await T('R6 the local missed-call pill is still dropped (CR3: the relay\'s durable record makes the one pill) — the guard tests the KEY, so a Thai phone shows one missed pill, not two', async () => {
-  const I = await live({}); I.w.enterRoom('room-2'); await sleep(1200); const n = I.w.transcript.length;
+  const I = await live({ seed: THAI }); I.w.enterRoom('room-2'); await sleep(1200); const n = I.w.transcript.length;
   I.w.bgAddPill('room-2', 'pill_missed_voice_call'); await sleep(20); assert(I.w.transcript.length === n && I.has('cr3_local_missed_pill_dropped'), 'local missed pill not dropped');
   I.w.bgAddPill('room-2', 'pill_left_chat'); await sleep(20); const e = I.w.transcript[I.w.transcript.length - 1]; assert(I.w.transcript.length === n + 1 && e.key === 'pill_left_chat', 'another pill was dropped too');
 });
@@ -261,7 +274,7 @@ await T('R7 a runtime switch re-words without reload: App language → Thai re-w
   assert(I.errors.length === 0 && I.ev('l10n_rerender_failed').length === 0, I.errors.concat(I.ev('l10n_rerender_failed').map((l) => JSON.stringify(l.d))).join(' | '));
 });
 await T('R8 the menu labels and the JS-written labels carry their key: after a switch the drawer\'s relabelled rows (Hear their voice…) and the Manage tab read Thai', async () => {
-  const I = await live({}); I.w.enterRoom('room-2'); await sleep(1300);
+  const I = await live({ seed: THAI }); I.w.enterRoom('room-2'); await sleep(1300);
   const ear = I.$('s4b-ear'); const span = ear && ear.parentNode.querySelector('span'); assert(span && span.getAttribute('data-l10n') === 'menu_hear_their_voice' && span.firstChild.nodeValue === th('menu_hear_their_voice') && span.querySelector('.info-pop'), 'ear row: ' + (span && span.firstChild.nodeValue));
   assert(ear.getAttribute('aria-label') === th('menu_hear_their_voice'), 'aria');
   const manage = [...I.w.document.querySelectorAll('[data-l10n="tab_manage"]')]; assert(manage.length === 1 && manage[0].textContent === th('tab_manage'), 'Manage tab: ' + manage.map((m) => m.textContent));
@@ -269,7 +282,7 @@ await T('R8 the menu labels and the JS-written labels carry their key: after a s
   const pop = I.$('status-pop'); assert(pop, 'no status-pop');
 });
 await T('R9 Arabic: the shell is right-to-left with the drawer/FAB rule, each transcript column carries the direction of its own language, dates are Gregorian with Western digits', async () => {
-  const AR = { ...ROOM, id: 'room-3', myLang: 'ar', theirLang: 'en' }; const I = await live({ navLang: 'ar-EG', rooms: [AR] });
+  const AR = { ...ROOM, id: 'room-3', myLang: 'ar', theirLang: 'en' }; const I = await live({ navLang: 'ar-EG', rooms: [AR] }); assert(I.w.S.user.lang === 'ar', 'not ar');
   assert(I.w.document.documentElement.dir === 'rtl' && I.$('l10n-style') && /\[dir=rtl\] \.left-panel/.test(I.$('l10n-style').textContent) && /\[dir=rtl\] \.fab/.test(I.$('l10n-style').textContent), 'rtl shell');
   I.w.enterRoom('room-3'); await sleep(1200); I.w.transcript.push({ id: 'cm-ar', kind: 'chat', who: 'partner', sourceText: 'hello', translatedText: 'مرحبا', srcLang: 'en', tgtLang: 'ar', ts: Date.now(), senderName: 'Bo' }); I.w.transcript.push({ id: 'cm-ar2', kind: 'chat', who: 'me', sourceText: 'hello', translatedText: 'مرحبا', srcLang: 'en', tgtLang: 'ar', ts: Date.now(), senderName: 'Ann' }); I.w.renderTranscript(); await sleep(30);
   const cols = [...I.w.document.querySelectorAll('.msg[data-id="cm-ar"] .tr-col, .msg[data-id="cm-ar2"] .tr-col')]; assert(cols.length === 4 && cols.some((c) => c.getAttribute('data-lang') === 'en' && c.getAttribute('data-side') === 'left'), 'cols ' + cols.length);
@@ -279,19 +292,21 @@ await T('R9 Arabic: the shell is right-to-left with the drawer/FAB rule, each tr
   assert([...en1.w.document.querySelectorAll('.msg[data-id="cm-th"] .tr-col')].every((c) => c.getAttribute('dir') === 'ltr') && en1.w.document.documentElement.dir === 'ltr', 'an English/Thai room is not ltr');
 });
 await T('R10 a missing key falls back to English and is logged once per language and key; a key missing from every language shows the key and logs an error once', async () => {
-  const I = await live({}); I.w.enterRoom('room-2'); await sleep(1200);
+  const I = await live({ seed: THAI }); I.w.enterRoom('room-2'); await sleep(1200);
   const before = I.ev('l10n_missing').length; I.w.L10N.th.toast_copied = undefined; assert(I.w.l10n('toast_copied') === en('toast_copied') && I.w.l10n('toast_copied') === en('toast_copied'), 'no English fallback');
   assert(I.ev('l10n_missing').length === before + 1 && I.ev('l10n_missing').pop().d.key === 'toast_copied' && I.ev('l10n_missing').pop().d.lang === 'th', 'missing not logged once');
   assert(I.w.l10n('no_such_key_zz') === 'no_such_key_zz' && I.w.l10n('no_such_key_zz') === 'no_such_key_zz' && I.ev('l10n_missing').length === before + 3, 'unknown key: ' + I.ev('l10n_missing').length);   /* th then en, once each */
   assert(I.w.l10n(null) === '' && I.w.l10n('pill_joined', { who: 'Bo' }) === th('pill_joined', { who: 'Bo' }) && I.w.l10n('pill_joined', {}) === th('pill_joined', { who: '' }), 'vars');
 });
-await T('R11 the joiner landing is worded in the phone\'s language with the inviter\'s name: English phone → English line; Thai phone → the Thai that shipped since 22·base', async () => {
+await T('R11 the joiner landing adopts the invite\'s language for this phone: an English phone opening a Thai invite shows the Thai landing (the words that shipped since 22·base) and becomes a Thai phone; a phone that already chose keeps its choice; the inviter\'s name is filled', async () => {
   const inv1 = '#j=' + encInv({ r: 'room-9', ml: 'en', tl: 'th', n: 'Bo' });
-  const a = await live({ rooms: [], hash: inv1, seed: { tb_name: '' } }); a.w.localStorage.removeItem('tb_name');
-  assert(a.$('s10-line') && a.$('s10-line').textContent === en('joiner_invite', { who: 'Bo' }), 'en landing: ' + (a.$('s10-line') && a.$('s10-line').textContent)); assert(a.$('s10-join').textContent === en('join') && a.$('s10-note').textContent === en('joiner_note'), 'en join/note');
-  const b = await live({ rooms: [], hash: inv1, navLang: 'th-TH' }); assert(b.$('s10-line').textContent === 'Bo ชวนคุณมาคุยกัน' && b.$('s10-join').textContent === 'เข้าร่วม' && b.$('s10-note').textContent === 'การโทรจะขออนุญาตใช้กล้องและไมโครโฟน', 'th landing: ' + b.$('s10-line').textContent);
-  const c = await live({ rooms: [], hash: '#j=' + encInv({ r: 'room-9', ml: 'en', tl: 'th' }), navLang: 'th-TH' }); assert(c.$('s10-line').textContent === 'คู่สนทนา ชวนคุณมาคุยกัน', 'default inviter: ' + c.$('s10-line').textContent);
-  assert(a.errors.length === 0 && b.errors.length === 0, a.errors.concat(b.errors).join(' | '));
+  const a = await live({ rooms: [], hash: inv1 });
+  assert(a.$('s10-line') && a.$('s10-line').textContent === 'Bo ชวนคุณมาคุยกัน' && a.$('s10-join').textContent === 'เข้าร่วม' && a.$('s10-note').textContent === 'การโทรจะขออนุญาตใช้กล้องและไมโครโฟน', 'th landing on an en phone: ' + (a.$('s10-line') && a.$('s10-line').textContent));
+  assert(a.w.S.user.lang === 'th' && a.w.S.user.langFrom === 'room' && a.ev('l10n_user_lang_adopted')[0].d.why === 'invite' && a.w.document.documentElement.lang === 'th', 'the landing did not adopt: ' + a.w.S.user.lang);
+  const b = await live({ rooms: [], hash: inv1, seed: { tba_user: JSON.stringify({ name: '', lang: 'de', langFrom: 'setting' }) } }); assert(b.$('s10-line').textContent === fill(table.de.joiner_invite, { who: 'Bo' }) && b.w.S.user.lang === 'de', 'a chosen language was overridden: ' + b.$('s10-line').textContent);
+  const c = await live({ rooms: [], hash: '#j=' + encInv({ r: 'room-9', ml: 'en', tl: 'th' }) }); assert(c.$('s10-line').textContent === 'คู่สนทนา ชวนคุณมาคุยกัน', 'default inviter: ' + c.$('s10-line').textContent);
+  const d = await live({ rooms: [], hash: '#j=' + encInv({ r: 'room-9', ml: 'th', tl: 'en', n: 'Som' }), navLang: 'th-TH' }); assert(d.$('s10-line').textContent === en('joiner_invite', { who: 'Som' }) && d.w.S.user.lang === 'en', 'an English invite on a Thai phone: ' + d.$('s10-line').textContent);
+  assert(a.errors.length === 0 && b.errors.length === 0 && d.errors.length === 0, a.errors.concat(b.errors, d.errors).join(' | '));
 });
 
 console.log('W · the worker, live in a shim: cards in the phone\'s language');
@@ -361,7 +376,7 @@ if (!process.env.TB_IO_SKIP_E && (!ONLY || ONLY.has('E'))) {
   const unmark = (h) => typeof h === 'string' ? h.replace(/ data-l10n(?:-html|-ph|-title|-aria)?="[a-z0-9_]+"/g, '').replace(/ dir="(?:ltr|rtl)"/g, '').replace(/<label class="field-label" for="s13-lang"[^<]*<\/label><select class="field-input" id="s13-lang">[\s\S]*?<\/select>/g, '') : h;
   const deep = (v, f) => Array.isArray(v) ? v.map((x) => deep(x, f)) : (v && typeof v === 'object') ? Object.fromEntries(Object.entries(v).map(([k, x]) => [k, deep(x, f)])) : f(v);
   const norm = (c) => { for (const k of ['transcript', 'bgTranscript']) { if (Array.isArray(c[k])) c[k] = c[k].map(words); else if (c[k] && typeof c[k] === 'object') for (const r of Object.keys(c[k])) if (Array.isArray(c[k][r])) c[k][r] = c[k][r].map(words); } if (Array.isArray(c.wire)) c.wire = c.wire.map(wireWords); for (const k of Object.keys(c)) if (k !== 'log') c[k] = deep(c[k], unmark); return c; };   /* the stage's data-l10n marks, per-column dir and the S13 language row are the feature; the words must be the same */
-  const strip = (s) => { const c = norm(JSON.parse(JSON.stringify(s))); c.log = c.log.map((l) => { if (l && l.d && 'dropped' in l.d) { const d = { ...l.d }; delete d.dropped; return { ...l, d }; } return l; }).filter((l) => !(l.ev === 'pb_writeback_err' && l.d && l.d.e === 'Error: get 0') && l.ev !== 'read_receipts_deferred' && !/^l10n_/.test(l.ev) && l.ev !== 'cr3_recover' && l.ev !== 'cr3_local_missed_pill_dropped'); if (c.housekeeping) delete c.housekeeping.t1_coalesced; return c; };   /* t1_coalesced: the stage's re-render at room entry (the Thai-side phone switches language) coalesces once — T-1's bookkeeping, not behaviour */
+  const strip = (s) => { const c = norm(JSON.parse(JSON.stringify(s))); c.log = c.log.map((l) => { if (l && l.d && 'dropped' in l.d) { const d = { ...l.d }; delete d.dropped; return { ...l, d }; } return l; }).filter((l) => !(l.ev === 'pb_writeback_err' && l.d && l.d.e === 'Error: get 0') && l.ev !== 'read_receipts_deferred' && !/^l10n_/.test(l.ev) && l.ev !== 'cr3_recover' && l.ev !== 'cr3_local_missed_pill_dropped'); if (c.housekeeping) delete c.housekeeping.t1_coalesced; return c; };   /* t1_coalesced: the stage's re-render when the first room adopts a language coalesces once — T-1's bookkeeping, not behaviour */
   if (process.env.TB_IO_DUMP) { for (const side of ['X', 'Y']) { fs.writeFileSync(process.env.TB_IO_DUMP + '-' + side + '-base.txt', strip(snapA[side]).log.map((l) => l.ev + ' ' + JSON.stringify(l.d || {})).join('\n')); fs.writeFileSync(process.env.TB_IO_DUMP + '-' + side + '-stage.txt', strip(snapC[side]).log.map((l) => l.ev + ' ' + JSON.stringify(l.d || {})).join('\n')); } }
   for (const side of ['X', 'Y']) { const a = strip(snapA[side]), c = strip(snapC[side]); for (const k of KEYS) await T('E ' + side + '.' + k + ' identical (installed, both builds)', () => { const out = []; diff(a[k], c[k], side + '.' + k, out); assert(out.length === 0, out.slice(0, 5).map((o) => { const m = /^(\S+): "([\s\S]*)" ≠ "([\s\S]*)"$/.exec(o); if (!m || m[2].length < 200) return o; let i = 0; while (i < m[2].length && m[2][i] === m[3][i]) i++; return m[1] + ' differs at ' + i + ': …' + m[2].slice(Math.max(0, i - 60), i + 120) + '… ≠ …' + m[3].slice(Math.max(0, i - 60), i + 120) + '…'; }).join('\n')); }); }
   await T('E no uncaught error on either build through the whole script', () => assert([RA.X, RA.Y, RC.X, RC.Y].every((I) => I.errors.length === 0), [RA.X, RA.Y, RC.X, RC.Y].flatMap((I) => I.errors).join(' | ')));
