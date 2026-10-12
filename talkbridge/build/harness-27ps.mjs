@@ -302,7 +302,7 @@ C.w.renameRoom('Delta');
 await sleep(60);
 T('M3d.6 a first-ever rename from a third phone lands; the pill still renders on the receiver', () => {
   assert(rA.title === 'Delta', 'A=' + rA.title);
-  const pills = A.w.transcript.filter((e) => e.kind === 'sys' && /Delta/.test(e.text || ''));
+  const pills = A.w.transcript.filter((e) => e.kind === 'sys' && /Delta/.test(e.text || (e.vars && JSON.stringify(e.vars)) || ''));   /* 29·post-ship: a pill is {key, vars}; its words are the reader's */
   assert(pills.length >= 1, 'no rename pill on A');
 });
 T('M3d.7 a stale rename arriving late is ignored, its pill still shown', () => {

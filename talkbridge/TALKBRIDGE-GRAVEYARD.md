@@ -1,7 +1,7 @@
 <!-- v5.8.2.42 -->
 # TALKBRIDGE — THE GRAVEYARD (living; keep in project knowledge)
 ## Approaches PROVEN to fail. Scanned before every change and at every exit condition. Never resurrect.
-**Version: 2.30 | 2026-10-12 | G71 the presence announce for a state word behind an early return (never ran; heartbeat-paced since 27·base) | Maintained in GitHub by the build process (raw.githubusercontent.com/acmeproducts/stuff/main/talkbridge/TALKBRIDGE-GRAVEYARD.md). Updated on every exit-condition burial.**
+**Version: 2.31 | 2026-10-12 | G72 chrome behaviour keyed on an English string at runtime (the missed-pill guard, the label relabel by regex — both broke the moment the words were not English) | Maintained in GitHub by the build process (raw.githubusercontent.com/acmeproducts/stuff/main/talkbridge/TALKBRIDGE-GRAVEYARD.md). Updated on every exit-condition burial.**
 
 
 Each entry: the approach, its failure signature, what replaces it. A change matching a signature is forbidden BEFORE it is attempted — not rediscovered as if new.
@@ -144,6 +144,7 @@ Each entry: the approach, its failure signature, what replaces it. A change matc
 | G69 | 2026-10-10 | Presence words kept in the relay's memory only (relay v6.5, 27·base) |
 | G70 | 2026-10-10 | The transcription failure counter reset before the audio check (turn 16) |
 | G71 | 2026-10-12 | The presence announce for a state word placed after an early return (relay v6.5, 27·base) |
+| G72 | 2026-10-12 | Chrome behaviour keyed on an English string at runtime (the missed-pill guard by `'Missed '`, the label relabel by `/Room title/i`) |
 | E134 | 2026-10-07 | Annotation · 2026-10-07: E076's corollary superseded by owner ruling (install optional) |
 
 </details>
@@ -2397,3 +2398,35 @@ rewritten live, the cookie handoff) edited the live address or relied on
 shared storage. A page that loads at an address already carrying the person
 — the link-device form — is a different thing and is now §7.19's iPhone
 install path. E076 stays buried for what it buried.
+
+## G72 — 2026-10-12 — Chrome behaviour keyed on an English string at runtime (the missed-pill guard, the label relabel by regex)
+
+**The approach.** Two places in the accepted 29·ship build decided behaviour by
+reading the WORDS a label or a pill carried: `bgAddPill` dropped the local
+missed-call pill when its text began with `'Missed '` (CR3: the relay's durable
+record makes the one pill), and the room drawer relabelled "Room title (your
+list)" to "Room name" by testing the label's text with `/Room title/i`. Both
+worked only while every word was English.
+
+**Failure signature.** Found by the plan review of 29·post-ship (2026-10-11,
+reviewer finding 2), before any code: with the words in Thai the guard would
+have let a second missed-call pill through on every missed call, and the
+relabel would have silently stopped matching — the drawer kept the old label
+while every other label changed language. Neither could have been seen on an
+English phone.
+
+**Why it fails.** Words are what a person reads; they are not state. Any
+behaviour keyed on them breaks the first time the words are shown in another
+language, and nothing in a monolingual lab exercises that path.
+
+**The rule.** Behaviour keys on a KEY or a state field, never on displayed
+text: the missed-pill guard tests `key.indexOf('pill_missed_') === 0`; the
+relabel tests `data-l10n === 'label_room_title'`. The sweep carries the
+byte-level shape of both (`graveyard-signatures.json` G72); the 29·post-ship
+stage is clean. A build without `l10n()` is allowed the shape (sweep ALLOW): in
+the accepted 29·ship and before, the words could only be English, so the two
+sites (3904, 9301) were not yet a defect — they became one the day the words
+could change.
+
+**Buried by.** 29·post-ship localization, candidate 1 (plan v21.96.0 §7.17 Built).
+

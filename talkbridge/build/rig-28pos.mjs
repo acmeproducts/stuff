@@ -111,7 +111,7 @@ export async function drive(R) {
   tick(10); X.w.handleRelay({ type: 'peer', from: 'relay', others: 1 }); X.w.handleRelay({ type: 'peer', from: 'relay', others: 0 });
   tick(10); yx({ type: 'ping', transient: true }); await sleep(20);
   tick(10); Y.w.renameRoom('Bravo'); await sleep(30);
-  tick(10); yx({ type: 'sys-pill', text: 'Bo is now Bob', pillId: 'sp-y-1', newName: 'Bob' }); await sleep(20);
+  tick(10); yx({ type: 'sys-pill', text: 'Bo is now Bob', key: 'pill_is_now', vars: { old: 'Bo', v: 'Bob' }, pillId: 'sp-y-1', newName: 'Bob' }); await sleep(20);
   tick(10); yx({ type: 'ev-proj', bogus: true }); yx({ type: 'ev-reply' }); await sleep(20);
   tick(10); yx({ type: 'thread-invite', threadId: 'thr-1', name: 'Side', from: 'x' }); await sleep(20);
   tick(10); yx({ type: 'room-left' }); await sleep(20);
@@ -145,8 +145,8 @@ export async function drive(R) {
   tick(10); via({ type: 'hello', name: 'Cy' }); via({ type: 'ping' });
   tick(10); via({ type: 'chat-msg', chatId: 'cm-bg-1', srcText: 'psst', tgtText: 'psst', senderName: 'Cy', eventId: 'ev-9' });
   tick(10); via({ type: 'chat-msg', chatId: 'cm-bg-1', srcText: 'psst', senderName: 'Cy' });
-  tick(10); via({ type: 'sys-pill', text: 'Cy is now Cyd', pillId: 'sp-bg-1', newName: 'Cyd' });
-  tick(10); via({ type: 'sys-pill', text: 'Cy renamed the room to Delta', pillId: 'sp-bg-2', newRoomName: 'Delta', wasRoomName: 'Back', byName: 'Cy', ts: clock.t });
+  tick(10); via({ type: 'sys-pill', text: 'Cy is now Cyd', key: 'pill_is_now', vars: { old: 'Cy', v: 'Cyd' }, pillId: 'sp-bg-1', newName: 'Cyd' });
+  tick(10); via({ type: 'sys-pill', text: 'Cy changed the room from "Back" to "Delta"', key: 'pill_renamed', vars: { who: 'Cy', from: 'Back', to: 'Delta' }, pillId: 'sp-bg-2', newRoomName: 'Delta', wasRoomName: 'Back', byName: 'Cy', ts: clock.t });
   tick(10); via({ type: 'call-start', kind: 'voice', callId: 'c-bg', eventId: 'ev-10', name: 'Cy' }); await sleep(30);
   tick(10); via({ type: 'call-end', callId: 'c-bg', name: 'Cy' });
   tick(10); via({ type: 'ev-proj' }); via({ type: 'thread-invite', threadId: 'thr-bg', name: 'T' }); via({ type: 'room-left' }); via({ type: 'nothing' });
@@ -382,7 +382,7 @@ export async function drive(R) {
   X.w.activeRoom().meta = 'top'; tick(10); X.w.renderTranscript(); await sleep(120);
   { const rc = $x('transcript').querySelector('.msg.mine [data-receipt]'); R.sweep.receipt = !!rc; if (rc) { tick(10); rc.click(); R.sweep.receiptPop = [$x('status-pop').style.display, $x('status-pop').textContent, (XD.getElementById('rm-pop') || {}).innerHTML || null]; } }
   /* a stale rename signal (K4) and a fresh one */
-  { const r = X.w.activeRoom(); r.titleTs = clock.t; tick(10); yx({ type: 'sys-pill', text: 'Bo renamed the room to Old', pillId: 'sp-k4a', newRoomName: 'Old', wasRoomName: r.title, byName: 'Bo', ts: clock.t - 50000 }); await sleep(30); R.sweep.titles = [r.title]; tick(10); yx({ type: 'sys-pill', text: 'Bo renamed the room to Newer', pillId: 'sp-k4b', newRoomName: 'Newer', wasRoomName: r.title, byName: 'Bo', ts: clock.t + 10 }); await sleep(30); R.sweep.titles.push(r.title, r.titleTs ? 'N' : null); }
+  { const r = X.w.activeRoom(); r.titleTs = clock.t; tick(10); yx({ type: 'sys-pill', text: 'Bo changed the room from "' + r.title + '" to "Old"', key: 'pill_renamed', vars: { who: 'Bo', from: r.title, to: 'Old' }, pillId: 'sp-k4a', newRoomName: 'Old', wasRoomName: r.title, byName: 'Bo', ts: clock.t - 50000 }); await sleep(30); R.sweep.titles = [r.title]; tick(10); yx({ type: 'sys-pill', text: 'Bo changed the room from "' + r.title + '" to "Newer"', key: 'pill_renamed', vars: { who: 'Bo', from: r.title, to: 'Newer' }, pillId: 'sp-k4b', newRoomName: 'Newer', wasRoomName: r.title, byName: 'Bo', ts: clock.t + 10 }); await sleep(30); R.sweep.titles.push(r.title, r.titleTs ? 'N' : null); }
   /* the phrasebook: a card added, listed and dressed; a tag added; the target edited (mirrored) and the source edited; a write-back, then one refused and merged */
   tick(10); X.w.pbAddCard({ source: 'good morning', target: 'สวัสดีตอนเช้า', sourceLang: 'en', targetLang: 'th' });
   const card = (X.w.PB.cards || [])[0]; R.sweep.card = card ? card.id : null;

@@ -11,7 +11,8 @@ import path from 'node:path';
 const root = path.resolve(path.dirname(new URL(import.meta.url).pathname), '../..');
 export const SIGNATURES_FILE = 'talkbridge/fixtures/graveyard-signatures.json';
 /* G66's second shape is the accepted base's own linkDeviceUrl, which a stage WRAPS rather than replaces; it counts only when the stage has no page-held carrying path */
-const ALLOW = { G66: (text) => /function rhCarryUrl\s*\(/.test(text) };
+/* G72's shape (behaviour keyed on English words) is a burial only in a build whose words can be non-English: a build without l10n() is allowed it (the accepted 29·ship and before) */
+const ALLOW = { G66: (text) => /function rhCarryUrl\s*\(/.test(text), G72: (text) => !/\bl10n\(/.test(text) };
 
 export function signatures() { return JSON.parse(fs.readFileSync(path.join(root, SIGNATURES_FILE), 'utf8')).signatures; }
 export function stripComments(s) { return s.replace(/\/\*[\s\S]*?\*\//g, (m) => m.replace(/[^\n]/g, ' ')).replace(/<!--[\s\S]*?-->/g, (m) => m.replace(/[^\n]/g, ' ')); }
