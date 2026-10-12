@@ -16,7 +16,7 @@ import { readFileSync, existsSync, readdirSync } from 'fs';
 import { execFileSync } from 'child_process';
 import vm from 'vm';
 import { JSDOM, VirtualConsole } from 'jsdom';
-import { LATER_STAGES, base as baseText, workerSrc, pageReplacements, workerReplacements, assemblePage, assembleWorker, assembleManifests, forwarder, COPIES, FOLDER, FOLDER_PATH, STAGE_PAGE, MANIFEST_NAME, MANIFEST_IOS_NAME, OUT, ADDED_MARKERS, ADDED_SYMBOLS, MANIFEST_SRC } from './assemble-29dir.mjs';
+import { LATER_STAGES, base as baseText, workerSrc, pageReplacements, workerReplacements, assemblePage, assembleWorker, assembleManifests, forwarder, currentStage, COPIES, FOLDER, FOLDER_PATH, STAGE_PAGE, MANIFEST_NAME, MANIFEST_IOS_NAME, OUT, ADDED_MARKERS, ADDED_SYMBOLS, MANIFEST_SRC } from './assemble-29dir.mjs';
 import { runBoth, KEYS, diff } from './rig-28pos.mjs';
 
 const folder = process.env.TB_DIR_FOLDER || FOLDER;
@@ -38,9 +38,9 @@ const markers = (js) => { const s = new Set(); const re = /\b(?:log|L|rmLog|cr3L
 const ORIGIN = 'https://acmeproducts.github.io';
 
 console.log('M1 · the stage page in the folder is the 29·pre-base bytes + the banked edits + DR-1');
-await T('M1.1 ' + STAGE_PAGE + ' is the assembler\'s output; the folder\'s index.html is the forwarder to it, carrying search and hash', () => {
+await T('M1.1 ' + STAGE_PAGE + ' is the assembler\'s output; the folder\'s index.html is the forwarder to the CURRENT ACCEPTED stage, carrying search and hash', () => {
   assert(page === assemblePage({ parts: [pagePart], keepReplacements: KEEP }), STAGE_PAGE + ' ≠ assemblePage()');
-  assert(index === forwarder(STAGE_PAGE) && /location\.replace\('\.\/bridge-turn29-pre-ship\.html' \+ location\.search \+ location\.hash\)/.test(index) && index.split('\n').length <= 16, 'index.html is not the 15-line forwarder to the stage page');
+  const cur = currentStage(); assert(index === forwarder(cur) && index.indexOf("location.replace('./" + cur + "' + location.search + location.hash)") !== -1 && index.split('\n').length <= 16, 'index.html is not the 15-line forwarder to the current accepted stage (' + cur + ')');
 });
 await T('M1.2 exactly three page edits (E1 head manifest, E2 the swap by platform, E5 fastText path), each found once in the base and once in the page', () => {
   const reps = pageReplacements(); assert(reps.map((r) => r.id).join(',') === 'E1-head-manifest,E2-u1-manifest-swap,E5-fasttype-dir', reps.map((r) => r.id).join(','));
@@ -205,7 +205,7 @@ await T('M7.6 (E6) in a browser tab the folder page registers its worker at load
 await T('M7.7 the folder URL itself: the forwarder opens the stage page and keeps the invite (search and hash)', () => {
   const m = index.match(/<script>location\.replace\(([^;]*)\);<\/script>/); assert(m, 'no replace call in the forwarder');
   const target = new Function('location', 'return ' + m[1])({ search: '?x=1', hash: '#j=abc' });   /* jsdom's Location cannot be stubbed; the expression is evaluated as written */
-  assert(target === './' + STAGE_PAGE + '?x=1#j=abc', 'forwarder goes to ' + target);
+  assert(target === './' + currentStage() + '?x=1#j=abc', 'forwarder goes to ' + target);
   assert((index.match(/<script>/g) || []).length === 1 && !/fetch\(|WebSocket|localStorage/.test(index), 'the forwarder does more than forward');
 });
 await T('M7.5 no uncaught error on the folder page (either platform) or the root page', () => assert(F.errors.length === 0 && FI.errors.length === 0 && R.errors.length === 0, [...F.errors, ...FI.errors, ...R.errors].join(' | ')));
