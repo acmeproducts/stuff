@@ -128,7 +128,7 @@ if (process.argv[1] && process.argv[1].endsWith('assemble-29dir.mjs')) {
     console.log('verified ' + Object.keys(files).length + ' files in ' + FOLDER + '/ · ' + STAGE_PAGE + ' sha256=' + sha(Buffer.from(files[OUT.page])) + ' · tb-sw3.js sha256=' + sha(Buffer.from(files[OUT.worker])));
   } else {
     fs.mkdirSync(path.join(root, FOLDER), { recursive: true });
-    for (const [f, content] of Object.entries(files)) fs.writeFileSync(path.join(root, f), content);
+    for (const [f, content] of Object.entries(files)) { const p = path.join(root, f); let head = ''; try { head = fs.readFileSync(p, 'latin1').slice(0, 400); } catch (_) {} if (head.indexOf('TB-FORWARDER') !== -1 && head.indexOf('the folder is the app') === -1) { console.log('kept forwarder ' + f); continue; } fs.writeFileSync(p, content); }   /* a forwarded earlier stage page is never rewritten (§7.5 (8)) */
     console.log('wrote ' + Object.keys(files).length + ' files to ' + FOLDER + '/ · ' + STAGE_PAGE + ' sha256=' + sha(Buffer.from(files[OUT.page])) + ' · tb-sw3.js sha256=' + sha(Buffer.from(files[OUT.worker])));
   }
 }
