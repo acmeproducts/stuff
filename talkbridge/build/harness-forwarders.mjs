@@ -11,7 +11,7 @@ import path from 'node:path';
 import os from 'node:os';
 import { execFileSync, spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
-import { LIST, NOT_FORWARDED, SCRIPT, TARGET, forwarderHtml } from './assemble-forwarders.mjs';
+import { LIST, FOLDER_LIST, NOT_FORWARDED, SCRIPT, TARGET, forwarderHtml, targetFor, scriptFor } from './assemble-forwarders.mjs';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
 const dir = process.env.TB_FW_DIR || root, isRoot = dir === root;
@@ -28,8 +28,8 @@ const read = (f) => fs.readFileSync(path.join(dir, f));
 const isFwd = (b) => b.slice(0, 400).toString('latin1').indexOf('TB-FORWARDER') !== -1;
 
 console.log('F1 · the manifest and the accepted bytes');
-await T('F1.1 the manifest lists exactly the fifteen live-era addresses, and none of the pages that must stay', () => {
-  const names = manifest.files.map((f) => f.file).sort(); assert(JSON.stringify(names) === JSON.stringify([...LIST].sort()), 'manifest ≠ list: ' + names.join(','));
+await T('F1.1 the manifest lists exactly the fifteen live-era addresses plus the folder\'s forwarded earlier stage page, and none of the pages that must stay', () => {
+  const names = manifest.files.map((f) => f.file).sort(); assert(JSON.stringify(names) === JSON.stringify([...LIST, ...FOLDER_LIST].sort()), 'manifest ≠ list: ' + names.join(','));
   for (const n of NOT_FORWARDED) assert(!names.includes(n), n + ' is in the manifest');
 });
 await T('F1.2 the accepted commit exists, and for every listed page git has exactly the bytes the manifest pins — and they are real pages, not forwarders', () => {
@@ -40,7 +40,7 @@ await T('F1.2 the accepted commit exists, and for every listed page git has exac
 console.log('F2 · each forwarder is the generated page and only forwards');
 await T('F2.1 every listed address is exactly its generated forwarder', () => { for (const f of manifest.files) { const got = read(f.file).toString('utf8'), want = forwarderHtml(f.file, f.sha256, manifest.accepted_ref); assert(isFwd(Buffer.from(got)), f.file + ' is not a forwarder'); assert(got === want, f.file + ' differs from the generated forwarder'); } });
 await T('F2.2 a forwarder is at most 15 lines, holds one script whose text is exactly the redirect, and reaches for no network, storage or credential', () => {
-  for (const f of manifest.files) { const t = read(f.file).toString('utf8'); assert(t.split('\n').length <= 16, f.file + ' is ' + t.split('\n').length + ' lines'); const sc = [...t.matchAll(/<script[^>]*>([\s\S]*?)<\/script>/gi)]; assert(sc.length === 1 && sc[0][1] === SCRIPT, f.file + ': script is ' + JSON.stringify(sc.map((m) => m[1]))); assert(!/fetch\(|XMLHttpRequest|WebSocket|localStorage|sessionStorage|indexedDB|tb_/.test(t), f.file + ' reaches for a network, storage or key'); assert(!/<link rel="manifest"|serviceWorker/.test(t), f.file + ' would install or register something'); }
+  for (const f of manifest.files) { const t = read(f.file).toString('utf8'); assert(t.split('\n').length <= 16, f.file + ' is ' + t.split('\n').length + ' lines'); const sc = [...t.matchAll(/<script[^>]*>([\s\S]*?)<\/script>/gi)]; assert(sc.length === 1 && sc[0][1] === scriptFor(f.file), f.file + ': script is ' + JSON.stringify(sc.map((m) => m[1]))); assert(!/fetch\(|XMLHttpRequest|WebSocket|localStorage|sessionStorage|indexedDB|tb_/.test(t), f.file + ' reaches for a network, storage or key'); assert(!/<link rel="manifest"|serviceWorker/.test(t), f.file + ' would install or register something'); }
 });
 
 console.log('F3 · it forwards, with the search and the hash');
@@ -48,7 +48,8 @@ const run = (script, loc) => { let went = null; new Function('location', script)
 const INVITE = '#j=eyJyIjoiYWJjIiwibWwiOiJlbiIsInRsIjoidGgiLCJuIjoiQW5uIiwiayI6IiJ9-_x';
 const cases = [[{ search: '', hash: '' }, TARGET], [{ search: '?x=1', hash: '' }, TARGET + '?x=1'], [{ search: '', hash: INVITE }, TARGET + INVITE], [{ search: '?x=1', hash: INVITE }, TARGET + '?x=1' + INVITE], [{ search: '', hash: '#ev=room.e1' }, TARGET + '#ev=room.e1']];
 await T('F3.1 every listed address sends the visitor to the folder, keeping the search and the hash exactly (an invite, a grant link, a notification deep link)', () => {
-  for (const f of manifest.files) { const t = read(f.file).toString('utf8'); const body = t.match(/<script>([\s\S]*?)<\/script>/)[1]; for (const [loc, want] of cases) { const got = run(body, loc); assert(got === want, f.file + ' with ' + JSON.stringify(loc) + ' went to ' + got + ', wanted ' + want); } }
+  for (const f of manifest.files) { const t = read(f.file).toString('utf8'); const body = t.match(/<script>([\s\S]*?)<\/script>/)[1]; const tgt = targetFor(f.file); for (const [loc, want] of cases) { const got = run(body, loc); const w2 = want.replace(TARGET, tgt); assert(got === w2, f.file + ' with ' + JSON.stringify(loc) + ' went to ' + got + ', wanted ' + w2); } }
+  assert(new URL(targetFor(FOLDER_LIST[0]), 'https://acmeproducts.github.io/stuff/talkbridge-app/bridge-turn29-pre-ship.html').pathname === '/stuff/talkbridge-app/', 'the folder page does not forward to its own folder');
 });
 await T('F3.2 the target resolves, from /stuff/<page>, to the folder; the folder forwards on to the current stage page with the invite intact', () => {
   assert(new URL(TARGET, 'https://acmeproducts.github.io/stuff/bridge-turn28-post-ship.html').pathname === '/stuff/talkbridge-app/', 'target does not resolve to the folder');
@@ -98,8 +99,8 @@ if (!process.env.TB_FW_SKIP_F7 && isRoot) {
   await T('F7.2 without the loader the same check fails (the proof the loader is what carries them)', () => { const r = spawnSync('node', ['talkbridge/build/assemble-28pos.mjs', '--check'], { cwd: root, encoding: 'utf8', env: { ...process.env, NODE_OPTIONS: '' } }); assert(r.status !== 0, 'assemble-28pos passed without the loader'); });
 }
 console.log('F8 · the old gates carry the loader');
-await T('F8.1 every npm script of the 27·ship-eight to 28·post-ship gates that runs node carries the loader prefix', () => {
-  const sc = JSON.parse(fs.readFileSync(pkgPath, 'utf8')).scripts; const want = Object.keys(sc).filter((k) => /^(gate|build):(27s8|27ps|28b|28ps|28s|28pos)(:|$)/.test(k) && !/npm run/.test(sc[k])); assert(want.length >= 30, 'only ' + want.length + ' old scripts found');
+await T('F8.1 every npm script of the 27·ship-eight to 29·ship gates that runs node carries the loader prefix', () => {
+  const sc = JSON.parse(fs.readFileSync(pkgPath, 'utf8')).scripts; const want = Object.keys(sc).filter((k) => /^(gate|build):(27s8|27ps|28b|28ps|28s|28pos|29ps|29s)(:|$)/.test(k) && !/npm run/.test(sc[k])); assert(want.length >= 30, 'only ' + want.length + ' old scripts found');
   const bare = want.filter((k) => sc[k].indexOf('NODE_OPTIONS="--import ./talkbridge/build/accepted-bytes.mjs"') !== 0); assert(bare.length === 0, 'without the loader: ' + bare.join(', '));
 });
 console.log('\n' + pass + ' pass, ' + fail + ' fail');

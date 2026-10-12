@@ -13,6 +13,7 @@ const manifest = JSON.parse(fs.readFileSync(path.join(root, 'talkbridge/fixtures
 const loaderSrc = fs.readFileSync(path.join(root, 'talkbridge/build/accepted-bytes.mjs'), 'utf8');
 const pkgSrc = fs.readFileSync(path.join(root, 'package.json'), 'utf8');
 const F2_1 = 'F2.1 every listed address is exactly its generated forwarder';
+const F1_1 = 'F1.1 the manifest lists exactly the fifteen live-era addresses plus the folder\'s forwarded earlier stage page, and none of the pages that must stay';
 const F2_2 = 'F2.2 a forwarder is at most 15 lines, holds one script whose text is exactly the redirect, and reaches for no network, storage or credential';
 const F3_1 = 'F3.1 every listed address sends the visitor to the folder, keeping the search and the hash exactly (an invite, a grant link, a notification deep link)';
 const F4_1 = 'F4.1 the base of the folder release, the warm storage and the governance-frozen page are the accepted bytes, not forwarders';
@@ -20,7 +21,7 @@ const F5_1 = 'F5.1 no root page, worker, manifest or icon outside the list diffe
 const F6_1 = 'F6.1 with the loader every listed page reads as its accepted bytes (string and buffer); without it, as the forwarder; a page that is not a forwarder is read as is';
 const F6_2 = 'F6.2 a listed page that is NOT a forwarder (restored, or edited later) is read exactly as it is — the loader never hides a real file';
 const F1_2 = 'F1.2 the accepted commit exists, and for every listed page git has exactly the bytes the manifest pins — and they are real pages, not forwarders';
-const F8_1 = 'F8.1 every npm script of the 27·ship-eight to 28·post-ship gates that runs node carries the loader prefix';
+const F8_1 = 'F8.1 every npm script of the 27·ship-eight to 29·ship gates that runs node carries the loader prefix';
 const replaceAll = (script) => (f) => forwarderHtml(f.file, f.sha256, manifest.accepted_ref).replace(SCRIPT, script);
 const same = (f) => forwarderHtml(f.file, f.sha256, manifest.accepted_ref);
 
@@ -53,7 +54,7 @@ function runOne({ m, i }) {
     const dir = path.join(tmp, 'd' + i); fs.mkdirSync(dir);
     const rootFiles = fs.readdirSync(root).filter((n) => /^(bridge-[^/]*\.html|tb-[^/]*\.(js|webmanifest)|icon-[^/]*|flags\.[a-z]+)$/.test(n));
     for (const n of rootFiles) fs.symlinkSync(path.join(root, n), path.join(dir, n));          /* the real files, by link, until a mutation replaces one */
-    const put = (n, content) => { fs.rmSync(path.join(dir, n), { force: true }); fs.writeFileSync(path.join(dir, n), content); };
+    const put = (n, content) => { fs.mkdirSync(path.dirname(path.join(dir, n)), { recursive: true }); fs.rmSync(path.join(dir, n), { force: true }); fs.writeFileSync(path.join(dir, n), content); };
     for (const f of manifest.files) {
       if (m.only && f.file === m.only) { put(f.file, execFileSync('git', ['show', manifest.accepted_ref + ':' + f.file], { cwd: root, maxBuffer: 256 * 1024 * 1024 })); continue; }
       put(f.file, (m.page || same)(f));

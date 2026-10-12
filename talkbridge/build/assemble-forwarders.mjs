@@ -26,8 +26,19 @@ export const LIST = [
 ];
 export const NOT_FORWARDED = ['bridge-turn29-pre-base.html', 'bridge-turn29-multi-user-v1.html', 'bridge-turn24-post-ship.html'];
 export const TARGET = './talkbridge-app/';
-export const SCRIPT = "location.replace('" + TARGET + "' + location.search + location.hash);";
+/* the folder's own earlier stage pages: forwarded to the FOLDER itself (§7.5 (8)) at the next acceptance — 29·ship accepted 2026-10-11, owner order "forward the pre-ship page" */
+export const FOLDER_LIST = ['talkbridge-app/bridge-turn29-pre-ship.html'];
+export const FOLDER_TARGET = './';
+export const targetFor = (file) => (FOLDER_LIST.includes(file) ? FOLDER_TARGET : TARGET);
+export const scriptFor = (file) => "location.replace('" + targetFor(file) + "' + location.search + location.hash);";
+export const SCRIPT = scriptFor('bridge-turn28-post-ship.html');
 export function forwarderHtml(file, hash, ref) {
+  const folder = FOLDER_LIST.includes(file);
+  if (folder) return '<!-- TB-FORWARDER · ' + file.replace(/^.*\//, '') + ' is now a forwarder to the folder it lives in (§7.5 (8); 29·ship accepted 2026-10-11; owner order "forward the pre-ship page"). Accepted bytes: sha256 ' + hash.slice(0, 12) + ', git ' + ref.slice(0, 10) + ' -->\n'
+    + '<!DOCTYPE html>\n<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>TalkBridge</title>\n'
+    + '<meta name="theme-color" content="#2E8B8B"><link rel="icon" href="icon-v2-192.png" type="image/png">\n'
+    + '<style>body{margin:0;background:#FDFAF7;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;color:#243230;padding:24px}</style>\n'
+    + '</head><body>\n<noscript><a href="./">Open TalkBridge</a></noscript>\n<script>' + scriptFor(file) + '</script>\n</body></html>\n';
   return '<!-- TB-FORWARDER · ' + file + ' is now a forwarder to the app folder (§7.5; 29·pre-ship accepted 2026-10-10; owner order "forwarders"). Accepted bytes: sha256 ' + hash.slice(0, 12) + ', git ' + ref.slice(0, 10) + ':' + file + ' -->\n'
     + '<!DOCTYPE html>\n<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>TalkBridge</title>\n'
     + '<meta name="theme-color" content="#2E8B8B"><link rel="icon" href="icon-v2-192.png" type="image/png">\n'
@@ -37,7 +48,7 @@ export function forwarderHtml(file, hash, ref) {
 export function manifest() { return JSON.parse(fs.readFileSync(path.join(root, MANIFEST), 'utf8')); }
 export function expected(opts) {
   opts = opts || {}; const m = manifest(); const out = {};
-  for (const f of (opts.list || LIST)) { const e = m.files.find((x) => x.file === f); if (!e) throw new Error('assemble-forwarders: ' + f + ' is not in the manifest'); out[f] = forwarderHtml(f, e.sha256, m.accepted_ref); }
+  for (const f of (opts.list || [...LIST, ...FOLDER_LIST])) { const e = m.files.find((x) => x.file === f); if (!e) throw new Error('assemble-forwarders: ' + f + ' is not in the manifest'); out[f] = forwarderHtml(f, e.sha256, m.accepted_ref); }
   return out;
 }
 
