@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /* 29·ship harness — INSTALL OPTIONAL (§7.19), candidate 4: REACH, one module.
-   S  the stage = the accepted 29·pre-ship page + twenty-seven banked edits + RH-1 + RX-1, and nothing else (reversal proof); symbols, markers, no new network,
+   S  the stage = the accepted 29·pre-ship page + twenty-nine banked edits + RH-1 + RX-1, and nothing else (reversal proof); symbols, markers, no new network,
       credential or message type; the graveyard sweep clean · M  manifests and the head's own choice · W  the worker, live in a shim ·
    A  the real app boots in every launch and asks for nothing outside a tap; no tap is ever stolen (G33) · B  the bar, once, at the first moment ·
    C  the row at the foot of the left drawer, one line per state, no tabs · K  the carrying address holds the keys the page holds (G66) and an iPhone tab
@@ -40,8 +40,8 @@ const contractOf = (p) => { const i = p.indexOf('@contract'); return p.slice(i, 
 
 console.log('S · the stage is the accepted page plus the banked edits plus IO-1');
 await T('S1 the page and the worker are the assembler\'s output', () => { assert(stage === assemblePage({ part, part2, keepReplacements: KEEP }), STAGE_PAGE + ' ≠ assemblePage()'); assert(worker === assembleWorker({ keepWorkerReplacements: KEEP_W }), WORKER_NAME + ' ≠ assembleWorker()'); });
-await T('S2 every find text is in the accepted page exactly once and gone from the stage; every replacement is in the stage exactly once (twenty-seven page edits, four worker edits)', () => {
-  const reps = pageReplacements(), wreps = workerReplacements(); assert(reps.length === 27 && wreps.length === 4, 'expected 27 + 4, got ' + reps.length + ' + ' + wreps.length);
+await T('S2 every find text is in the accepted page exactly once and gone from the stage; every replacement is in the stage exactly once (twenty-nine page edits, four worker edits)', () => {
+  const reps = pageReplacements(), wreps = workerReplacements(); assert(reps.length === 29 && wreps.length === 4, 'expected 29 + 4, got ' + reps.length + ' + ' + wreps.length);
   for (const [list, src, out, tag] of [[reps, base, stage, 'page'], [wreps, baseW, worker, 'worker']]) for (const r of list) {
     assert(src.split(r.find).length - 1 === 1, tag + ' ' + r.id + ': find not exactly once in the accepted file');
     if ((tag === 'page' ? KEEP : KEEP_W).includes(r.id)) continue;
@@ -372,6 +372,14 @@ await T('V2 live, installed Android in a room with the lane open: blur sends exa
   sent.length = 0; Object.defineProperty(I.w.document, 'hidden', { value: false, configurable: true }); I.w.dispatchEvent(new I.w.Event('focus')); await sleep(50); assert(sent.length === 0 || sent.every((m) => m.visible === true), 'focus words: ' + JSON.stringify(sent)); assert(I.w.cr3Attended() === true, 'not attended after focus');
 });
 
+await T('V3 coming back behind a stuck attempt: a relay socket left CONNECTING for over 2.5 s is abandoned on return and a fresh one opened at once; one younger than that is waited for (coalesced)', async () => {
+  const I = await live({ ua: UA.android, notif: 'granted', standalone: true }); await intoRoom(I, { message: false }); await sleep(50);
+  const ws = I.w._relayWs; assert(ws && ws.readyState === 0 && ws._cr3Room === 'room-1' && typeof ws._cr3Since === 'number', 'no connecting socket with a timestamp: ' + JSON.stringify({ rs: ws && ws.readyState, since: ws && ws._cr3Since }));
+  const n0 = I.w.__sockets.length; I.w.reconnectRelayNow('visible'); assert(I.w.__sockets.length === n0 && I.has('cr3_reconnect_coalesced') && !I.has('cr3_stale_connecting_abandoned'), 'a fresh attempt was not waited for');
+  ws._cr3Since = Date.now() - 5000; I.w.reconnectRelayNow('visible'); await sleep(30); assert(I.has('cr3_stale_connecting_abandoned') && I.w.__sockets.length > n0 && I.w._relayWs !== ws, 'the stuck attempt was waited for: sockets ' + (I.w.__sockets.length - n0) + ', abandoned ' + I.has('cr3_stale_connecting_abandoned'));
+  assert(I.ev('build').some((l) => /^turn29-ship/.test(String(l.d && l.d.c))), 'the stage does not name itself in the log');
+});
+
 console.log('I · the browser\'s install offer: held in the head, raised inside the tap, only for a device with durable keys');
 await T('I1 the HEAD alone holds the offer: with nothing but the head parsed, beforeinstallprompt is prevented and kept', async () => {
   const headOnly = stage.slice(0, stage.indexOf('<body')) + '<body></body></html>'; const vc = new VirtualConsole(); vc.on('jsdomError', () => {}); const dom = new JSDOM(headOnly, { url: STAGE_URL, runScripts: 'dangerously', virtualConsole: vc, beforeParse(w) { Object.defineProperty(w.navigator, 'userAgent', { value: UA.android, configurable: true }); } }); openWindows.push(dom);
@@ -445,7 +453,7 @@ if (!process.env.TB_IO_SKIP_E && (!ONLY || ONLY.has('E'))) {
   /* the base arms the stolen tap (G33) and the rig's next click runs an attempt the stage never makes: that cascade — a gesture perm_prop with no Turn on before it, and the p3_ lines that follow it — is the declared difference */
   const unStolen = (log) => { const out = []; let drop = false, turnOn = false; for (const l of log) { if (l.ev === 'rh_turn_on') turnOn = true; if (l.ev === 'p3_perm_prop' && l.d && l.d.gesture === true && !turnOn) { drop = true; continue; } if (drop && /^p3_/.test(l.ev)) continue; drop = false; out.push(l); } return out; };
   /* `dropped` is the log throttle's own count of repeats it swallowed; the base repeats one announce more per window (PR-2's duplicate) — bookkeeping, not behaviour */
-  const strip = (s) => { const c = JSON.parse(JSON.stringify(s)); c.log = unStolen(c.log).map((l) => { if (l && l.d && 'dropped' in l.d) { const d = { ...l.d }; delete d.dropped; return { ...l, d }; } return l; }).filter((l) => !(l.ev === 'pb_writeback_err' && l.d && l.d.e === 'Error: get 0') && l.ev !== 'read_receipts_deferred' && !(l.ev === 'build' && l.d && l.d.c === 'turn29-ship-install-optional') && !/^rh_/.test(l.ev) && !/^rx_/.test(l.ev) && l.ev !== 'p3_gesture_armed' && l.ev !== 'call_declined' && l.ev !== 'call_ring_closed_mic' && l.ev !== 'cr3_recover'); return c; };   /* call_declined / call_ring_closed_mic: c5's declared markers; cr3_recover: the rig's own race (its position shifts by one against joiner_entered) */
+  const strip = (s) => { const c = JSON.parse(JSON.stringify(s)); c.log = unStolen(c.log).map((l) => { if (l && l.d && 'dropped' in l.d) { const d = { ...l.d }; delete d.dropped; return { ...l, d }; } return l; }).filter((l) => !(l.ev === 'pb_writeback_err' && l.d && l.d.e === 'Error: get 0') && l.ev !== 'read_receipts_deferred' && !(l.ev === 'build' && l.d && /^turn29-ship/.test(String(l.d.c))) && !/^rh_/.test(l.ev) && !/^rx_/.test(l.ev) && l.ev !== 'p3_gesture_armed' && l.ev !== 'call_declined' && l.ev !== 'call_ring_closed_mic' && l.ev !== 'cr3_recover'); return c; };   /* call_declined / call_ring_closed_mic: c5's declared markers; cr3_recover: the rig's own race (its position shifts by one against joiner_entered) */
   if (process.env.TB_IO_DUMP) { for (const side of ['X', 'Y']) { fs.writeFileSync(process.env.TB_IO_DUMP + '-' + side + '-base.txt', strip(snapA[side]).log.map((l) => l.ev + ' ' + JSON.stringify(l.d || {})).join('\n')); fs.writeFileSync(process.env.TB_IO_DUMP + '-' + side + '-stage.txt', strip(snapC[side]).log.map((l) => l.ev + ' ' + JSON.stringify(l.d || {})).join('\n')); } }
   for (const side of ['X', 'Y']) { const a = strip(snapA[side]), c = strip(snapC[side]); for (const k of KEYS) await T('E ' + side + '.' + k + ' identical (installed, both builds)', () => { const out = []; diff(a[k], c[k], side + '.' + k, out); assert(out.length === 0, out.slice(0, 5).join('\n')); }); }
   await T('E no uncaught error on either build through the whole script', () => assert([RA.X, RA.Y, RC.X, RC.Y].every((I) => I.errors.length === 0), [RA.X, RA.Y, RC.X, RC.Y].flatMap((I) => I.errors).join(' | ')));

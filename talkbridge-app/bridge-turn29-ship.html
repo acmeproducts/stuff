@@ -6907,7 +6907,8 @@ function reconnectRelayNow(why) {
   /* CR3 · a lane that is already connecting is not reopened by a second signal */
   try {
     var ws0 = (typeof _relayWs !== 'undefined') ? _relayWs : null;
-    if (ws0 && ws0.readyState === 0 && ws0._cr3Room === S.roomId) { cr3Log('reconnect_coalesced', { why: why }); return false; }
+    /* 29·ship c6: a socket left CONNECTING by a throttled background retry is not waited for on return — after 2.5 s it is abandoned and a fresh one opened (device log 2026-10-11 23:58:57→23:59:05: eight seconds behind a stuck attempt) */
+    if (ws0 && ws0.readyState === 0 && ws0._cr3Room === S.roomId) { if (Date.now() - (ws0._cr3Since || 0) < 2500) { cr3Log('reconnect_coalesced', { why: why }); return false; } cr3Log('stale_connecting_abandoned', { why: why, ms: Date.now() - (ws0._cr3Since || 0) }); try { ws0.close(); } catch (_) {} }
   } catch (_) {}
   /* T-net */
   try {
@@ -9743,7 +9744,7 @@ function relayConnect() {
   /* CR3 · the lane announces itself when it opens */
   try {
     var cur = _relayWs, rid = S.roomId;
-    if (cur && cur.addEventListener) { cur._cr3Room = rid; cur.addEventListener('open', function () { cr3OnOpen(rid, cur, function () { return cur === _relayWs && S.roomId === rid; }); }); }
+    if (cur && cur.addEventListener) { cur._cr3Room = rid; cur._cr3Since = Date.now(); cur.addEventListener('open', function () { cr3OnOpen(rid, cur, function () { return cur === _relayWs && S.roomId === rid; }); }); }
   } catch (e) { cr3Log('hook_failed', { e: String(e && e.message || e) }, 'error'); }
   /* V2 · the socket comes back as fast as the network does */
   try {
@@ -10308,6 +10309,7 @@ function rhOnVisible() {
 }
 
 function rhInit() {
+  try { log('build', { c: 'turn29-ship-c6', file: 'talkbridge-app/bridge-turn29-ship.html', built: '2026-10-12' }, 'ok'); } catch (_) {}   /* the stage names itself in the log, as every stage does */
   try {
     var st = document.createElement('style');
     st.textContent = '.rh-row{padding:10px 76px 10px 12px;border-top:1px solid var(--border,#e2ded9);background:var(--paper,#f4efe9);font-size:13px;line-height:1.35;color:var(--ink,#1A1714)}'

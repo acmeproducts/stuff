@@ -216,6 +216,7 @@ function rhOnVisible() {
 }
 
 function rhInit() {
+  try { log('build', { c: 'turn29-ship-c6', file: 'talkbridge-app/bridge-turn29-ship.html', built: '2026-10-12' }, 'ok'); } catch (_) {}   /* the stage names itself in the log, as every stage does */
   try {
     var st = document.createElement('style');
     st.textContent = '.rh-row{padding:10px 76px 10px 12px;border-top:1px solid var(--border,#e2ded9);background:var(--paper,#f4efe9);font-size:13px;line-height:1.35;color:var(--ink,#1A1714)}'
