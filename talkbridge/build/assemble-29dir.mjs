@@ -48,6 +48,9 @@ export const TAIL = '\n</script>\n</body>\n</html>';
 export const LATER_STAGES = /^(bridge-turn29-(ship|post-ship)\.html|tb-sw[4-9]\.js|tb-manifest-turn29-(ship|post-ship)(-ios)?\.webmanifest)$/;
 export const OUT = { page: FOLDER + '/' + STAGE_PAGE, index: FOLDER + '/index.html', worker: FOLDER + '/tb-sw3.js', manifest: FOLDER + '/' + MANIFEST_NAME, manifestIos: FOLDER + '/' + MANIFEST_IOS_NAME };
 /* the folder's face: the forwarder §7.5 specifies for old addresses, used here for the folder URL itself */
+/* the folder's face forwards to the CURRENT ACCEPTED stage — recorded in one fixture, moved only at an acceptance (29·ship c6 accepted 2026-10-11) */
+export const CURRENT_STAGE_FILE = 'talkbridge/fixtures/dir/current-stage.json';
+export function currentStage() { return JSON.parse(fs.readFileSync(path.join(root, CURRENT_STAGE_FILE), 'utf8')).page; }
 export function forwarder(stagePage) {
   return '<!-- /stuff/talkbridge-app/ · the folder is the app; this page opens the current stage: ' + stagePage + ' -->\n<!DOCTYPE html>\n<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>TalkBridge</title>\n<meta name="theme-color" content="#2E8B8B"><link rel="icon" href="icon-v2-192.png" type="image/png">\n<style>body{margin:0;background:#FDFAF7;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;color:#243230;display:flex;align-items:center;justify-content:center;height:100vh}</style>\n</head><body>\n<noscript><a href="' + stagePage + '">Open TalkBridge</a></noscript>\n<script>location.replace(\'./' + stagePage + '\' + location.search + location.hash);</script>\n</body></html>\n';
 }
@@ -104,7 +107,7 @@ export function assembleManifests(opts) {
 export function assembleAll(opts) {
   opts = opts || {};
   const m = assembleManifests(opts);
-  const files = { [OUT.page]: assemblePage(opts), [OUT.index]: forwarder(opts.forwardTo || STAGE_PAGE), [OUT.worker]: assembleWorker(opts), [OUT.manifest]: m.chrome, [OUT.manifestIos]: m.ios };
+  const files = { [OUT.page]: assemblePage(opts), [OUT.index]: forwarder(opts.forwardTo || currentStage()), [OUT.worker]: assembleWorker(opts), [OUT.manifest]: m.chrome, [OUT.manifestIos]: m.ios };
   for (const c of COPIES) files[FOLDER + '/' + c] = fs.readFileSync(path.join(root, c));
   return files;
 }
