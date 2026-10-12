@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-/* 29·post-ship assembler — LOCALIZATION (§7.17), candidate 1: every word the app says, in the phone's language.
+/* 29·post-ship assembler — LOCALIZATION (§7.17), candidate 2: every word the app says, in the phone's language — one language everywhere, set by the first room (owner ruling 2026-10-12).
 
    Inputs (sha-checked): the ACCEPTED 29·ship folder page and folder worker.
    Outputs, in talkbridge-app/ (nothing is hand-written; no accepted file is touched):
@@ -28,8 +28,8 @@ export const MANIFEST_IOS_NAME = 'tb-manifest-turn29-post-ship-ios.webmanifest';
 export const MANIFEST_SRC = 'tb-manifest-turn28.webmanifest';
 export const OUT = { page: FOLDER + '/' + STAGE_PAGE, worker: FOLDER + '/' + WORKER_NAME, manifest: FOLDER + '/' + MANIFEST_NAME, manifestIos: FOLDER + '/' + MANIFEST_IOS_NAME };
 export const EDIT_SYMBOLS = ['L10N', 'L10N_MT', 'L10N_RTL', 'l10nState'];   /* bound by the table edit on the LANG_ORDER line */
-export const ADDED_SYMBOLS = ['l10nLog', 'l10nFromNavigator', 'l10nUserLang', 'l10nLang', 'l10nIn', 'l10n', 'l10nPill', 'l10nLocale', 'l10nDir', 'l10nLandingLang', 'l10nCap', 'l10nApplyCaps', 'l10nApplyDom', 'l10nRerender', 'l10nFillLangSelect', 'l10nPostLang', 'l10nApply', 'l10nStyle', 'l10nTick', 'l10nInit'];
-export const ADDED_MARKERS = ['l10n_', 'user_lang_set', 'user_lang_changed', 'missing', 'applied', 'rerender_failed'];   /* l10nLog's literals (its prefix is 'l10n_'); 'init_failed' is RH-1's literal too and is not new */
+export const ADDED_SYMBOLS = ['l10nLog', 'l10nFromNavigator', 'l10nUserLang', 'l10nLang', 'l10nAdopt', 'l10nIn', 'l10n', 'l10nPill', 'l10nLocale', 'l10nDir', 'l10nLandingLang', 'l10nCap', 'l10nApplyCaps', 'l10nApplyDom', 'l10nRerender', 'l10nFillLangSelect', 'l10nPostLang', 'l10nApply', 'l10nStyle', 'l10nTick', 'l10nInit'];
+export const ADDED_MARKERS = ['l10n_', 'user_lang_set', 'user_lang_adopted', 'user_lang_changed', 'missing', 'applied', 'rerender_failed'];   /* l10nLog's literals (its prefix is 'l10n_'); 'init_failed' is RH-1's literal too and is not new */
 export const REMOVED_SYMBOLS = ['I18N'];   /* the two-language joiner table is retired: the table has every language */
 export const TAIL = '\n</script>\n</body>\n</html>';
 
