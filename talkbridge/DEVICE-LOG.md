@@ -1,9 +1,8 @@
 # TalkBridge device log
 
-Both handsets write here. Drained 2026-10-12T17:43:24Z, every 30s. Newest at the bottom.
+Both handsets write here. Drained 2026-10-12T17:43:56Z, every 30s. Newest at the bottom.
 
 ```
-23:33:42.906 [android-flz] pr3_dot {"others":0}
 23:33:43.955 [iphone-eao] rc_panel_rendered {"live":1,"bin":0,"wired":1}
 23:33:43.955 [iphone-eao] rc_home_rendered {"cards":0,"wired":0}
 23:33:43.955 [iphone-eao] joiner_create_control {"shown":true}
@@ -4002,4 +4001,5 @@ Both handsets write here. Drained 2026-10-12T17:43:24Z, every 30s. Newest at the
 17:24:42.374 [android-tzc] pr3_dot {"others":0}
 17:32:51.617 [android-tzc] pr3_dot {"others":0}
 17:33:02.038 [android-tzc] pr3_dot {"others":0,"dropped":1}
-17:33:12.966 [android-tzc] pr3_dot {"others":0}```
+17:33:12.966 [android-tzc] pr3_dot {"others":0}
+17:39:53.984 [android-tzc] pr3_dot {"others":0}```
