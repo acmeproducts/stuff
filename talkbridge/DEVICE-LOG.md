@@ -1,11 +1,8 @@
 # TalkBridge device log
 
-Both handsets write here. Drained 2026-10-12T07:56:10Z, every 30s. Newest at the bottom.
+Both handsets write here. Drained 2026-10-12T07:56:42Z, every 30s. Newest at the bottom.
 
 ```
-23:30:00.152 [android-flz] dg_final {"t":"thank you very much"}
-23:30:00.153 [android-flz] joiner_send_direction {"room":"bh5qos","from":"en","to":"ko","role":"creator"}
-23:30:00.310 [android-flz] trans_ok {"provider":"google","from":"en","to":"ko","ms":148,"inChars":19,"outChars":8}
 23:30:00.315 [android-flz] rc_panel_rendered {"live":8,"bin":1,"wired":8,"dropped":1}
 23:30:00.315 [android-flz] rc_home_rendered {"cards":0,"wired":0,"dropped":1}
 23:30:00.315 [android-flz] joiner_create_control {"shown":true,"dropped":1}
@@ -4002,4 +3999,7 @@ Both handsets write here. Drained 2026-10-12T07:56:10Z, every 30s. Newest at the
 07:55:10.176 [android-tzc] pr3_dot {"others":0}
 07:55:34.625 [android-tzc] pr3_dot {"others":0,"dropped":1}
 07:55:40.174 [android-tzc] pr3_dot {"others":0}
-07:55:54.632 [android-tzc] pr3_dot {"others":0}```
+07:55:54.632 [android-tzc] pr3_dot {"others":0}
+07:56:10.177 [android-tzc] pr3_dot {"others":0}
+07:56:34.633 [android-tzc] pr3_dot {"others":0,"dropped":1}
+07:56:40.178 [android-tzc] pr3_dot {"others":0}```
