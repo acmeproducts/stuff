@@ -166,20 +166,27 @@ def verify_indices(root, model, seed, registry, catalog, now):
             if clock > original['dates'][-1] and (clock not in latest or known > latest[clock]['known']):
                 latest[clock] = {'known':known, 'capture':capture, 'value':row['values'][i], 'native':native}
         if not latest:
-            raise ValueError('No recovered native-period coverage: '+key)
-        last_date = max(latest)
-        last = latest[last_date]
+            capture=max(row['recoveredCalculations'],key=lambda c:instant(c['knownBy']))
+            sources={sid:source_blob(root,sid,p,metas[sid],instant(capture['knownBy']),cache) for sid,p in capture['sources'].items()}
+            native={sid:{'t':s['observations'][-1]['t'],'v':s['observations'][-1]['v'],'date':date_of(s['observations'][-1]['t'])} for sid,s in sources.items()}
+            last_date=original['dates'][-1]
+            if max(p['date'] for sid,p in native.items() if metas[sid]['native_cadence'] in CLOCK_CADENCES)<last_date:raise ValueError('Native clock regressed behind original baseline: '+key)
+            last={'capture':capture,'native':native}
+        else:
+            last_date = max(latest)
+            last = latest[last_date]
         component_dates = {sid:p['date'] for sid,p in last['native'].items()}
         result[key] = {'id':key,'status':'verified','latestObservation':last_date,
                        'knownBy':last['capture']['knownBy'], 'capturedStateDate':last['capture']['calendarDate'],
                        'coverageStart':original['dates'][0], 'coverageEnd':last_date,
                        'verifiedRecoveredStates':len(row['recoveredCalculations']),
                        'projectedRecoveredPeriods':len(latest), 'sourceBlobsVerified':True,
+                       'projectionState':'latest-vintage' if latest else 'baseline-held',
                        'componentObservationDates':component_dates,
                        'heldComponents':[sid for sid,date in component_dates.items() if date<last_date],
                        'vintage':'latest captured vintage; not historical availability at market close',
                        'unavailableCapturedDays':row.get('unavailableCapturedDays',[]),
-                       'limitations':['Original published rows verified against immutable seed; original upstream availability is not reconstructed']+(['Missing historical collection states remain unavailable; native periods are recalculated from actual retained vectors with later knownBy'] if row.get('unavailableCapturedDays') else []),
+                       'limitations':['Original published rows verified against immutable seed; original upstream availability is not reconstructed']+(['No later native period; original baseline endpoint retained rather than replacing its published value'] if not latest else [])+(['Missing historical collection states remain unavailable; native periods are recalculated from actual retained vectors with later knownBy'] if row.get('unavailableCapturedDays') else []),
                        'expectedProjection':[(date,entry['value'],entry['capture']['knownBy']) for date,entry in sorted(latest.items())],
                        '_latestCapture':max(row['recoveredCalculations'],key=lambda c:instant(c['knownBy']))}
     return result

@@ -3,7 +3,8 @@
 Calendar dates are chart coordinates, not collection instants. Original model
 rows are retained; recovered calculations carry their exact archive provenance.
 """
-import argparse,copy,datetime as dt,hashlib,json,math,importlib.util,time,uuid
+import argparse,base64,copy,datetime as dt,hashlib,json,math,importlib.util,time,uuid
+import urllib.request
 from pathlib import Path
 UTC=dt.timezone.utc
 H=('1D','5D','MTD','YTD','1YR','3YR','5YR')
@@ -17,6 +18,24 @@ def read(path):return json.loads(Path(path).read_text(encoding='utf-8'))
 def encode(obj):return (json.dumps(obj,sort_keys=True,separators=(',',':'))+'\n').encode()
 def digest(obj):return hashlib.sha256(json.dumps(obj,sort_keys=True,separators=(',',':')).encode()).hexdigest()
 def blob(data):return hashlib.sha1(b'blob '+str(len(data)).encode()+b'\0'+data).hexdigest()
+def archived_bytes(path,sha,cache=None):
+    """Restore exact retained bytes; never replace a historical vector with live data."""
+    path=Path(path);original=path.read_bytes() if path.exists() else None
+    if original is not None and blob(original)==sha:return original
+    cache=Path(cache or Path(__file__).with_name('market-navigator-rebuild-archive'))/'blobs'/(sha+'.json')
+    payload=cache.read_bytes() if cache.exists() else None
+    if payload is None or blob(payload)!=sha:
+        request=urllib.request.Request('https://api.github.com/repos/acmeproducts/stuff/git/blobs/'+sha,headers={'User-Agent':'MarketNavigatorExactArchiveRecovery/1.0'})
+        try:
+            with urllib.request.urlopen(request,timeout=30) as response:obj=json.loads(response.read())
+            if obj.get('sha')!=sha or obj.get('encoding')!='base64':raise ValueError('Exact archive response identity differs')
+            payload=base64.b64decode(obj['content'])
+        except (OSError,KeyError,ValueError) as error:raise ValueError('Exact archived source unavailable: '+sha) from error
+    if blob(payload)!=sha:raise ValueError('Exact archived source response hash differs: '+sha)
+    path.parent.mkdir(parents=True,exist_ok=True)
+    if original is not None:path.with_name(path.name+'.quarantined-'+uuid.uuid4().hex).write_bytes(original)
+    temporary=path.with_name(path.name+'.restored-'+uuid.uuid4().hex);temporary.write_bytes(payload);temporary.replace(path)
+    return payload
 def instant(value):return dt.datetime.fromisoformat(value.replace('Z','+00:00')).astimezone(UTC)
 def calendar(stamp):return dt.datetime.fromtimestamp(stamp/1000,UTC).date().isoformat()
 def midnight(date):return int(dt.datetime.fromisoformat(date).replace(tzinfo=UTC).timestamp()*1000)
@@ -160,7 +179,7 @@ def load_receipts(root,catalog,ids):
         receipt=read(path);known=instant(receipt['knownBy']);receipt['sources']={}
         if receipt['calendarDate']!=known.date().isoformat():raise ValueError('Receipt calendar/instant mismatch')
         for sid in ids:
-            reference=receipt['provenance'][sid];payload=(folder/'blobs'/(reference['blob']+'.json')).read_bytes()
+            reference=receipt['provenance'][sid];payload=archived_bytes(folder/'blobs'/(reference['blob']+'.json'),reference['blob'])
             if blob(payload)!=reference['blob']:raise ValueError('Collected receipt blob mismatch: '+sid)
             source=json.loads(payload);validate_source(source,sid,catalog,known)
             if source['sourceRevision']!=reference['sourceRevision'] or source['last']!=reference['nativeTimestamp'] or source['observations'][-1]['v']!=reference['nativeValue']:raise ValueError('Collected receipt metadata mismatch: '+sid)

@@ -64,6 +64,59 @@ class ProductionTemporalOracle(unittest.TestCase):
         (self.root/'market-evidence/collection-archive/blobs'/(sha+'.json')).write_bytes(raw);proof.update(blob=sha,sourceRevision=source['sourceRevision'],nativeValue=999.)
         with self.assertRaisesRegex(ValueError,'retained capture ledger'):self.project()
 
+class ExactArchiveRecovery(unittest.TestCase):
+    def test_bad_blob_restored_from_exact_cache_and_corrupt_bytes_preserved(self):
+        with tempfile.TemporaryDirectory(dir=BASE) as folder:
+            root=Path(folder);payload=b'{"captured":"historical","value":107}\n';sha=h.blob(payload)
+            cache=root/'cache';(cache/'blobs').mkdir(parents=True);(cache/'blobs'/(sha+'.json')).write_bytes(payload)
+            target=root/'stage'/('original-'+sha+'.json');target.parent.mkdir();target.write_bytes(b'wrong')
+            self.assertEqual(payload,h.archived_bytes(target,sha,cache));self.assertEqual(payload,target.read_bytes())
+            self.assertEqual([b'wrong'],[p.read_bytes() for p in target.parent.glob('*.quarantined-*')])
+    def test_wrong_hash_retrieval_does_not_replace_historical_bytes(self):
+        import base64,io
+        with tempfile.TemporaryDirectory(dir=BASE) as folder:
+            root=Path(folder);target=root/'source.json';target.write_bytes(b'bad retained original');sha=h.blob(b'expected')
+            response=io.BytesIO(json.dumps({'sha':sha,'encoding':'base64','content':base64.b64encode(b'wrong retrieval').decode()}).encode())
+            with patch.object(h.urllib.request,'urlopen',return_value=response),self.assertRaisesRegex(ValueError,'response hash differs'):
+                h.archived_bytes(target,sha,root/'empty-cache')
+            self.assertEqual(b'bad retained original',target.read_bytes())
+    def test_unavailable_exact_archive_never_uses_fresh_provider_values(self):
+        with tempfile.TemporaryDirectory(dir=BASE) as folder:
+            root=Path(folder);target=root/'source.json';target.write_bytes(b'retained bad evidence')
+            with patch.object(h.urllib.request,'urlopen',side_effect=OSError('unavailable')),self.assertRaisesRegex(ValueError,'Exact archived source unavailable'):
+                h.archived_bytes(target,h.blob(b'authentic past state'),root/'empty-cache')
+            self.assertEqual(b'retained bad evidence',target.read_bytes())
+
+class SeedAdmissionContract(unittest.TestCase):
+    def test_seed_held_case_passes_full_admission_with_explicit_limitations(self):
+        # A small explicitly trusted baseline fixture qualifies the production
+        # audit boundary without rewriting the actual immutable repository seed.
+        real_root=BASE/'market-navigator-rebuild-data';real_seed=h.read(BASE/'market-navigator-rebuild-seed.json')
+        registry=h.read(real_root/'data/market-backend/component-registry-v1.json');catalog=h.read(real_root/'data/market-backend/data-catalog.json');metas={m['id']:m for m in catalog['series']}
+        clock=dt.datetime(2026,10,8,2,tzinfo=dt.timezone.utc);ids=[r['id'] for r in registry['components']]
+        with tempfile.TemporaryDirectory(dir=BASE) as folder:
+            root=Path(folder)
+            for directory in ('data/market-backend','market-evidence/series','market-evidence/reports'):
+                shutil.copytree(real_root/directory,root/directory,dirs_exist_ok=True)
+            for sid in ids:
+                path=root/'market-evidence/series'/(sid+'.json');source=h.read(path);source['last_successful']=clock.isoformat();h.write(path,source)
+            capture=h.live_capture(root,metas,ids,clock);h.save_receipt(root,capture)
+            seed=copy.deepcopy(real_seed)
+            for key,row in seed['indices'].items():
+                row['dates']=['2026-10-07'];row['timestamps']=[h.midnight('2026-10-07')];row['values']=[row['values'][0]]
+                for field in ('componentValues','componentSignals','componentObservationDates'):
+                    row[field]={sid:[values[0]] for sid,values in row[field].items()}
+            model,_=h.recover(seed,registry,[capture]);h.write(root/'market-evidence/persistent-indices-v1.json',model)
+            trusted=root/'trusted';trusted.mkdir();(trusted/'market-navigator-rebuild-seed.json').write_bytes(h.encode(seed));original_read=w.h.read
+            def fixture_read(path):
+                if Path(path)==BASE/'market-navigator-rebuild-seed.json':return seed
+                return original_read(path)
+            with patch.object(w,'BASE',trusted),patch.object(w.h,'BASELINE_BLOB',h.blob(h.encode(seed))),patch.object(w.h,'read',side_effect=fixture_read):
+                projected=w.h.compatibility(model,registry,catalog,root);h.write(root/'market-evidence/derived-indices-persistent-v1.json',projected)
+                report=w.audit(root,clock)
+            self.assertTrue(report['summary']['ready']);self.assertEqual(3,report['summary']['indicesVerified'])
+            self.assertTrue(all(x['projectionState']=='baseline-held' for x in report['indices'].values()))
+
 @unittest.skipUnless(INCIDENT.exists(),'Frozen owner incident available on evidence-enabled qualification')
 class IncidentContract(unittest.TestCase):
     def setUp(self):
