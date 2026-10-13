@@ -40,6 +40,7 @@ const M = [
   { catches: 'R9', name: 'no rtl rule for the drawer and the FAB', part: (s) => once(s, "[dir=rtl] .fab{right:auto;left:14px}", "") },
   { catches: 'R10', name: 'a missing key is logged every time (the device log floods)', part: (s) => once(s, "if (!l10nState.missing[lang + '/' + key]) { l10nState.missing[lang + '/' + key] = 1; l10nLog('missing', { lang: lang, key: key }, 'warn'); }", "l10nLog('missing', { lang: lang, key: key }, 'warn');") },
   { catches: 'R10', name: 'a missing row falls to nothing instead of English', part: (s) => once(s, "t = L10N.en[key]; }\n  if (t == null)", "t = ''; }\n  if (t == null)") },
+  { catches: 'R12', name: 'the bar waits for a first message again (a call-first conversation never prompts)', keep: [idOf("return !!room.joined;")] },
   { catches: 'R4', name: 'the refused-rename toast is English again', keep: [idOf("toast(l10n('toast_room_needs_name')")] },
   { catches: 'R1', name: 'the compose placeholder is not keyed', page: (h) => once(h, ' data-l10n-ph="compose_ph"', '') },
   { catches: 'S4', name: 'L1 grows an undeclared symbol', part: (s) => once(s, 'function l10nLog(what, d, lvl)', 'function l10nExtra() { return 1; }\nfunction l10nLog(what, d, lvl)') },
