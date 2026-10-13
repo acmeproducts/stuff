@@ -42,8 +42,10 @@ def audit(root,now=None):
             for sid,values in original[field].items():
                 if row[field][sid][:n]!=values:raise ValueError('Original component history changed: '+sid)
         expected=[str(dt.date.fromisoformat(original['dates'][-1])+dt.timedelta(days=i)) for i in range(1,(dt.date.fromisoformat(row['dates'][-1])-dt.date.fromisoformat(original['dates'][-1])).days+1)]
-        if row['dates'][n:]!=expected:raise ValueError('Incomplete index history: '+key)
-        if len(row.get('recoveredCalculations',[]))!=len(expected):raise ValueError('Recovered provenance missing: '+key)
+        actual=row['dates'][n:]
+        if actual!=sorted(set(actual)) or not set(actual).issubset(expected):raise ValueError('Invalid retained index capture history: '+key)
+        if row.get('unavailableCapturedDays',[])!=sorted(set(expected)-set(actual)):raise ValueError('Index unavailable capture coverage differs: '+key)
+        if len(row.get('recoveredCalculations',[]))!=len(actual):raise ValueError('Recovered provenance missing: '+key)
         for i,receipt in enumerate(row['recoveredCalculations'],n):
             if receipt['calendarDate']!=row['dates'][i] or row['timestamps'][i]!=h.midnight(row['dates'][i]):raise ValueError('Index calendar/provenance mismatch')
             terms=[]
@@ -54,9 +56,11 @@ def audit(root,now=None):
                 signal=rule['direction']*change/rule['scale']['annualizedScale'];terms.append(signal)
                 if not math.isclose(signal,row['componentSignals'][sid][i],rel_tol=0,abs_tol=1e-12):raise ValueError('Frozen component calculation mismatch: '+sid)
             if not math.isclose(100+math.fsum(terms)/7,row['values'][i],rel_tol=0,abs_tol=1e-12):raise ValueError('Frozen index calculation mismatch: '+key)
-    if h.compatibility(model,registry)!=derived:raise ValueError('Index projection differs from qualified persistent model')
-    last_expected=max(h.instant(h.read(root/'market-evidence/series'/f'{sid}.json')['last_successful']).date().isoformat() for sid in required)
-    if derived['commonMarketAnchor']!=last_expected:raise ValueError('Index construction lags actual native collection')
+    index_checks=h.integrity.verify_indices(root,model,seed,registry,cat,now)
+    h.integrity.verify_projection(root,derived,index_checks,seed,registry,cat)
+    if derived['commonMarketAnchor']!=min(x['latestObservation'] for x in index_checks.values()):raise ValueError('Index construction clock differs from independently verified native periods')
+    if h.compatibility(model,registry,cat,root)!=derived:raise ValueError('Index projection differs from qualified persistent model')
+    for check in index_checks.values():check.pop('expectedProjection');check.pop('_latestCapture')
     # Inventory retained legacy/research evidence too; it never supplies live data.
     for folder in ('market-evidence','data/market-backend'):
         for path in sorted((root/folder).rglob('*')):
@@ -67,7 +71,7 @@ def audit(root,now=None):
             role='canonical-native' if rel.startswith('market-evidence/series/') else 'native-report' if rel.startswith('market-evidence/reports/') else 'collected-archive' if '/collection-archive/' in rel else 'qualified-index' if path.name in ('persistent-indices-v1.json','derived-indices-persistent-v1.json') else 'retained-reference'
             files[rel]={'blob':h.blob(payload),'role':role,'schema':value.get('schema') if isinstance(value,dict) else None,'bytes':len(payload)}
     ready=not any(x['blocking'] for x in findings)
-    return {'schema':'market-navigator-rebuild-admission-v1','generatedAt':now.isoformat(),'anchor':derived['commonMarketAnchor'],'series':series,'findings':findings,'files':files,'summary':{'ready':ready,'series':len(series),'current':sum(x['status']=='current' for x in series.values()),'files':len(files),'requiredCurrent':all(series[sid]['status']=='current' for sid in required),'validUntil':min(series[sid]['validUntil'] for sid in required)},'rule':'Complete recovered history, native cadence, collector heartbeat and report/index coherence qualify together.'}
+    return {'schema':'market-navigator-rebuild-admission-v1','generatedAt':now.isoformat(),'anchor':derived['commonMarketAnchor'],'series':series,'indices':index_checks,'findings':findings,'files':files,'summary':{'ready':ready,'series':len(series),'indicesVerified':len(index_checks),'current':sum(x['status']=='current' for x in series.values()),'files':len(files),'requiredCurrent':all(series[sid]['status']=='current' for sid in required),'validUntil':min(series[sid]['validUntil'] for sid in required)},'rule':'Native corpus and independently dereferenced index sources, periods and mathematics qualify together.'}
 
 def publish(root,store,collect=False,archive=None,inventory=None,strict_assurance=False):
     root=Path(root).resolve();store=Path(store).resolve();store.mkdir(parents=True,exist_ok=True)
@@ -100,7 +104,7 @@ def publish(root,store,collect=False,archive=None,inventory=None,strict_assuranc
     runtime_inventory=store/'archive-inventory.json'
     catalog=h.read(stage/'data/market-backend/data-catalog.json');metas={x['id']:x for x in catalog['series']};rules=h.read(stage/'data/market-backend/publication-rules.json')
     def qualify_archive(entry):h.verify_cadence(h.archive_capture(entry,archive/'blobs',metas,ids),metas,catalog,rules)
-    entries=archives.ensure_days(runtime_inventory if runtime_inventory.exists() and inventory.name=='market-navigator-rebuild-archive-inventory.json' else inventory,archive,needed,ids,qualify_archive)
+    entries=archives.ensure_days(runtime_inventory if runtime_inventory.exists() and inventory.name=='market-navigator-rebuild-archive-inventory.json' else inventory,archive,needed,ids,qualify_archive,allow_unavailable=True)
     h.write(runtime_inventory,entries)
     h.build(stage,archive,seed_path,runtime_inventory)
     subprocess.run([sys.executable,'market-navigator-r7-health.py'],cwd=stage,check=True,capture_output=True,timeout=30)

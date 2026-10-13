@@ -22,7 +22,7 @@ def hydrate_inventory(entries,cache,ids):
     with concurrent.futures.ThreadPoolExecutor(max_workers=6) as pool:outcomes=list(pool.map(hydrate,jobs.values()))
     return {kind:outcomes.count(kind) for kind in ('verified','retrieved','repaired')}
 
-def ensure_days(inventory,cache,required_days,ids,qualify=None):
+def ensure_days(inventory,cache,required_days,ids,qualify=None,allow_unavailable=False):
     entries=json.loads(Path(inventory).read_text(encoding='utf-8'));hydrate_inventory(entries,cache,ids);present={x['committedAt'][:10] for x in entries};missing=set(required_days)-present
     if not missing:return entries
     # Exact publication time is recorded separately from the calendar coordinate.
@@ -50,4 +50,5 @@ def ensure_days(inventory,cache,required_days,ids,qualify=None):
             entries.append(entry);missing.remove(day)
             if not missing:return entries
         if not commits or min(c['commit']['committer']['date'][:10] for c in commits)<min(missing):break
+    if allow_unavailable:return entries
     raise ValueError('No authentic daily collection archive found: '+','.join(sorted(missing)))

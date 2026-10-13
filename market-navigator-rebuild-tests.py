@@ -49,11 +49,12 @@ class Recovery(unittest.TestCase):
                 self.assertEqual(r.start('2026-10-07',h),view['commonT0'])
                 self.assertEqual('2026-10-07',view['commonNow'])
                 self.assertEqual(7,view['componentsUsed'])
-            self.assertEqual([f'2026-10-{d:02d}' for d in range(2,8)],[r.calendar(x['t']) for x in index['horizons']['5D']['curve']])
+            self.assertEqual(['2026-10-02','2026-10-05','2026-10-06','2026-10-07'],[r.calendar(x['t']) for x in index['horizons']['5D']['curve']])
 
-    def test_missing_day_rejected_even_with_fresh_tail(self):
-        with self.assertRaisesRegex(ValueError,'Missing required daily archive'):
-            r.recover(self.seed,self.registry,[c for c in self.captures if c['calendarDate']!='2026-09-28'])
+    def test_missing_capture_is_disclosed_without_fabricating_historical_availability(self):
+        model,_=r.recover(self.seed,self.registry,[c for c in self.captures if c['calendarDate']!='2026-09-28'])
+        for row in model['indices'].values():
+            self.assertIn('2026-09-28',row['unavailableCapturedDays']);self.assertNotIn('2026-09-28',[c['calendarDate'] for c in row['recoveredCalculations']])
 
     def test_archived_inputs_not_replaced_with_current_vintage(self):
         historical=next(c for c in self.captures if c['calendarDate']=='2026-09-24')

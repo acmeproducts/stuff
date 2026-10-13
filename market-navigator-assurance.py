@@ -167,7 +167,14 @@ def assess(root,now=None,admission=None):
     retained_histories=sum(bool(r['sourceVerification'].get('retainedCapture')) for r in rows.values())
     source_omissions=sum(bool(r['missingPeriods']) and r['sourceVerification']['status']=='verified' for r in rows.values())
     ready=bool(rows) and not findings and bool(admission and admission['summary']['ready'])
-    return {'schema':'market-navigator-data-assurance-v1','generatedAt':now.isoformat(),'state':('verified-with-limitations' if source_omissions or retained_histories else 'verified') if ready else 'needs-attention','validUntil':expiry,'summary':{'datasets':len(rows),'verified':verified,'needsAttention':len(rows)-verified,'sourceOmissions':source_omissions,'retainedHistories':retained_histories,'admissionReady':bool(admission and admission['summary']['ready'])},'series':rows,'findings':findings,'rule':'All enabled datasets; stored consistency and fresh upstream verification are separate evidence.'}
+    indices=dict(admission.get('indices',{})) if admission else {}
+    for key,index in indices.items():
+        index=dict(index);indices[key]=index
+        index['sourceIssues']=[sid for sid in index.get('componentObservationDates',{}) if rows.get(sid,{}).get('status')!='verified']
+        index['sourceOmissions']={sid:rows[sid]['missingPeriods'] for sid in index.get('componentObservationDates',{}) if rows.get(sid,{}).get('missingPeriods')}
+        if index['sourceIssues']:index['status']='needs-attention'
+        elif index['sourceOmissions'] or index.get('limitations'):index['status']='verified-with-limitations'
+    return {'schema':'market-navigator-data-assurance-v1','generatedAt':now.isoformat(),'state':('verified-with-limitations' if source_omissions or retained_histories else 'verified') if ready else 'needs-attention','validUntil':expiry,'summary':{'datasets':len(rows),'verified':verified,'indices':len(indices),'indicesVerified':sum(x['status'].startswith('verified') for x in indices.values()),'needsAttention':len(rows)-verified,'sourceOmissions':source_omissions,'retainedHistories':retained_histories,'admissionReady':bool(admission and admission['summary']['ready'])},'series':rows,'indices':indices,'findings':findings,'rule':'Native-source agreement, historical completeness and independently checked index lineage are separate evidence.'}
 
 def event(store,kind,**details):
     stamp=dt.datetime.now(UTC).isoformat();run=uuid.uuid4().hex

@@ -11,6 +11,8 @@ BASELINE_BLOB='5dc07f7368efc0bd2e03e70af720c7d491611f75'
 REGISTRY_BLOB='e423bd96ec47b960ff4dbbb169e3be6a42165f4a'
 _spec=importlib.util.spec_from_file_location('mn_rebuild_policy',Path(__file__).with_name('market-navigator-rebuild-policy.py'))
 policy=importlib.util.module_from_spec(_spec);_spec.loader.exec_module(policy)
+_spec=importlib.util.spec_from_file_location('mn_rebuild_integrity',Path(__file__).with_name('market-navigator-rebuild-integrity.py'))
+integrity=importlib.util.module_from_spec(_spec);_spec.loader.exec_module(integrity)
 def read(path):return json.loads(Path(path).read_text(encoding='utf-8'))
 def encode(obj):return (json.dumps(obj,sort_keys=True,separators=(',',':'))+'\n').encode()
 def digest(obj):return hashlib.sha256(json.dumps(obj,sort_keys=True,separators=(',',':')).encode()).hexdigest()
@@ -89,7 +91,7 @@ def recover(seed,registry,captures):
             if capture['calendarDate']>row['dates'][-1]:daily[capture['calendarDate']]=capture
         if not daily:raise ValueError('No recovery inputs for '+key)
         expected={str(dt.date.fromisoformat(row['dates'][-1])+dt.timedelta(days=i)) for i in range(1,(dt.date.fromisoformat(end)-dt.date.fromisoformat(row['dates'][-1])).days+1)}
-        if set(daily)!=expected:raise ValueError('Missing required daily archive: '+key+' '+','.join(sorted(expected-set(daily))))
+        row['unavailableCapturedDays']=sorted(expected-set(daily))
         row['recoveredCalculations']=[]
         for date,capture in sorted(daily.items()):
             level,values,signals=calculate(row,meta,capture['sources'])
@@ -98,7 +100,7 @@ def recover(seed,registry,captures):
                 row['componentValues'][sid].append(values[sid]);row['componentSignals'][sid].append(signals[sid]);row['componentObservationDates'][sid].append(calendar(capture['sources'][sid]['last']))
             row['recoveredCalculations'].append({k:v for k,v in capture.items() if k!='sources' and k!='provenance'}|{'sources':{sid:capture['provenance'][sid] for sid in row['components']}})
         proof[key]={'retainedRows':n,'recoveredCalendarDays':len(daily),'firstRecoveredDate':min(daily),'lastRecoveredDate':max(daily)}
-    result['datasetVersion']='MN-DAILY-ARCHIVE-RECOVERY-2';result['captureRule']='One UTC calendar coordinate per captured day. Latest qualified same-day collection supplies that day; collection instants and native observation dates are separately retained.'
+    result['datasetVersion']='MN-NATIVE-PROJECTION-RECOVERY-3';result['captureRule']='One UTC calendar coordinate per actually captured day. Missing captured states remain unavailable; native-period projection is reconstructed from retained source vectors with later knownBy, not claimed as historical availability.'
     result['recoveryRule']='Original baseline rows retained exactly. Later rows are recalculated from immutable archived collections; not claimed to have been published index values. No current-vintage substitution or synthetic gap interpolation.'
     result['calendarContract']='UTC calendar date of collected index state, not a market closing timestamp or the instant of availability.'
     result['baselinePersistentBlob']=BASELINE_BLOB;result['generatedAt']=max(c['knownBy'] for c in captures);return result,proof
@@ -109,20 +111,32 @@ def start(end,h):
     if h=='YTD':return str(d.replace(month=1,day=1))
     try:return str(d.replace(year=d.year-int(h[:-2])))
     except ValueError:return str(d.replace(year=d.year-int(h[:-2]),day=28))
-def compatibility(model,registry):
-    meta={x['id']:x for x in registry['components']};end=min(x['dates'][-1] for x in model['indices'].values())
-    evidence={'schema':'market-navigator-derived-indices-persistent-v1','version':model['modelVersion'],'definitionVersion':registry['modelVersion'],'datasetVersion':model['datasetVersion'],'generatedAt':model['generatedAt'],'revision':digest(model)[:16],'commonMarketAnchor':end,'calendarContract':model['calendarContract'],'formula':'index(t) = 100 + fixed mean of seven governed component signals','coherence':{'allIndexHorizonsComputable':True,'rule':'Every horizon is a viewport over the qualified daily calendar series; original rows and frozen mathematics retained.'},'componentTransforms':{},'ratioEligibility':{},'indices':{}}
+def compatibility(model,registry,catalog=None,root=None):
+    if catalog is None:
+        catalog=read(Path(__file__).with_name('market-navigator-rebuild-data')/'data/market-backend/data-catalog.json')
+    catalog_meta={x['id']:x for x in catalog['series']}
+    seed=read(Path(__file__).with_name('market-navigator-rebuild-seed.json'))
+    root=Path(root or Path(__file__).with_name('market-navigator-rebuild-data'))
+    projected={key:integrity.latest_projection(root,row,seed['indices'][key],catalog_meta,registry) for key,row in model['indices'].items()}
+    meta={x['id']:x for x in registry['components']};end=min(calendar(points[-1]['t']) for points in projected.values())
+    evidence={'schema':'market-navigator-derived-indices-persistent-v1','version':model['modelVersion'],'definitionVersion':registry['modelVersion'],'datasetVersion':model['datasetVersion'],'generatedAt':model['generatedAt'],'revision':digest(model)[:16],'commonMarketAnchor':end,'calendarContract':'Native daily reference period; latest captured vintage; knownBy retained separately','capturedStateCalendarContract':model['calendarContract'],'formula':'index(t) = 100 + fixed mean of seven governed component signals','coherence':{'allIndexHorizonsComputable':True,'rule':'Every horizon is a native-period projection over retained captured states; original rows and frozen mathematics retained.'},'componentTransforms':{},'ratioEligibility':{},'indices':{}}
     for sid,m in meta.items():evidence['componentTransforms'][sid]={'eligible':True,'kind':m['transformFamily'],'reason':None,'scale':m['scale']['annualizedScale'],'scaleRule':m['scale']['method']};evidence['ratioEligibility'][sid]={'eligible':True,'reason':'governed persistent transform'}
     for key,row in model['indices'].items():
         horizons={}
         for h in H:
-            requested=start(end,h);indices=[i for i,d in enumerate(row['dates']) if requested<=d<=end]
-            if not indices:raise ValueError('No required horizon history: '+key+' '+h)
-            first,last=indices[0],indices[-1];components=[]
+            requested=start(end,h);curve=[p for p in projected[key] if requested<=calendar(p['t'])<=end]
+            if not curve:raise ValueError('No required horizon history: '+key+' '+h)
+            components=[]
+            def input_value(point,sid):
+                return point['nativeInputs'][sid]['v'] if 'nativeInputs' in point else row['componentValues'][sid][row['dates'].index(calendar(point['t']))]
+            def input_date(point,sid):
+                return calendar(point['nativeInputs'][sid]['t']) if 'nativeInputs' in point else row['componentObservationDates'][sid][row['dates'].index(calendar(point['t']))]
             for sid in row['components']:
-                a,b=row['componentValues'][sid][first],row['componentValues'][sid][last];s0,s1=row['componentSignals'][sid][first],row['componentSignals'][sid][last];m=meta[sid]
-                components.append({'id':sid,'direction':m['direction'],'health':'current','commonT0':row['dates'][first],'commonNow':row['dates'][last],'sourceT0Date':row['componentObservationDates'][sid][first],'sourceNowDate':row['componentObservationDates'][sid][last],'t0Value':a,'nowValue':b,'rawMovement':b-a,'rawMovementPercent':100*(b/a-1) if a else None,'signalT0':s0,'signalNow':s1,'orientedIndex':100+s1-s0,'moveFrom100':s1-s0,'transform':m['transformFamily'],'transformScale':m['scale']['annualizedScale'],'transformScaleRule':m['scale']['method'],'noNewReleaseInHorizon':row['componentObservationDates'][sid][first]==row['componentObservationDates'][sid][last]})
-            horizons[h]={'baseline':row['values'][first],'value':row['values'][last],'commonT0':requested,'firstObservationDate':row['dates'][first],'commonNow':end,'componentsDefined':7,'componentsUsed':7,'componentCoverage':1,'components':components,'omitted':[],'reasons':[],'status':'current','calculationDateRule':model['calendarContract'],'noNewReleaseComponents':[x['id'] for x in components if x['noNewReleaseInHorizon']],'curve':[{'t':row['timestamps'][i],'v':row['values'][i]} for i in indices]}
+                a,b=input_value(curve[0],sid),input_value(curve[-1],sid);m=meta[sid];anchor=row['componentValues'][sid][0]
+                def signal(v):return m['direction']*(math.log(v/anchor) if m['transformFamily']=='log_return' else v-anchor)/m['scale']['annualizedScale']
+                s0,s1=signal(a),signal(b)
+                components.append({'id':sid,'direction':m['direction'],'health':'current','commonT0':calendar(curve[0]['t']),'commonNow':end,'sourceT0Date':input_date(curve[0],sid),'sourceNowDate':input_date(curve[-1],sid),'t0Value':a,'nowValue':b,'rawMovement':b-a,'rawMovementPercent':100*(b/a-1) if a else None,'signalT0':s0,'signalNow':s1,'orientedIndex':100+s1-s0,'moveFrom100':s1-s0,'transform':m['transformFamily'],'transformScale':m['scale']['annualizedScale'],'transformScaleRule':m['scale']['method'],'noNewReleaseInHorizon':input_date(curve[0],sid)==input_date(curve[-1],sid)})
+            horizons[h]={'baseline':curve[0]['v'],'value':curve[-1]['v'],'commonT0':requested,'firstObservationDate':calendar(curve[0]['t']),'commonNow':end,'componentsDefined':7,'componentsUsed':7,'componentCoverage':1,'components':components,'omitted':[],'reasons':[],'status':'current','calculationDateRule':'Native daily reference period; latest captured vintage; knownBy retained separately','noNewReleaseComponents':[x['id'] for x in components if x['noNewReleaseInHorizon']],'curve':curve}
         evidence['indices'][key]={'name':registry['indices'][key]['name'],'higherMeans':registry['indices'][key]['higherMeans'],'horizons':horizons}
     return evidence
 def verify_cadence(capture,catalog,registry,rules):
@@ -162,9 +176,20 @@ def build(root,archive,seed_path,inventory_path,now=None):
     captures.extend(load_receipts(root,catalog,ids));live=live_capture(root,catalog,ids,now);captures.append(live)
     rules=read(root/'data/market-backend/publication-rules.json')
     for capture in captures:verify_cadence(capture,catalog,cat,rules)
-    model,proof=recover(json.loads(seed_raw),registry,captures);evidence=compatibility(model,registry)
+    model,proof=recover(json.loads(seed_raw),registry,captures)
+    # A generation must contain the actual blobs behind every recovered input.
+    folder=root/'market-evidence/collection-archive/blobs';folder.mkdir(parents=True,exist_ok=True)
+    for capture in captures:
+        for sid,reference in capture['provenance'].items():
+            sha=reference['blob'];destination=folder/(sha+'.json')
+            if destination.exists():payload=destination.read_bytes()
+            elif (Path(archive)/'blobs'/(sha+'.json')).exists():payload=(Path(archive)/'blobs'/(sha+'.json')).read_bytes()
+            else:payload=encode(capture['sources'][sid])
+            if blob(payload)!=sha:raise ValueError('Recovered input blob unavailable or corrupt: '+sid)
+            if not destination.exists():destination.write_bytes(payload)
     # All source validation, coverage and calculations finish before publication.
-    save_receipt(root,live)
+    for capture in captures:save_receipt(root,capture)
+    evidence=compatibility(model,registry,cat,root)
     write(root/'market-evidence/persistent-indices-v1.json',model);write(root/'market-evidence/derived-indices-persistent-v1.json',evidence)
     report={'schema':'market-navigator-data-rebuild-proof-v1','baselineBlob':BASELINE_BLOB,'registryBlob':REGISTRY_BLOB,'datasetVersion':model['datasetVersion'],'modelVersion':model['modelVersion'],'indices':proof,'archiveAssetsVerified':archived_count*(len(ids)+1),'anchor':evidence['commonMarketAnchor'],'fiveDayCoverage':{key:{'start':z['horizons']['5D']['commonT0'],'end':z['horizons']['5D']['commonNow'],'dates':[calendar(p['t']) for p in z['horizons']['5D']['curve']]} for key,z in evidence['indices'].items()}}
     write(root/'market-evidence/rebuild-proof.json',report);return report

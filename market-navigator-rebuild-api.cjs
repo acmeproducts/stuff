@@ -11,6 +11,7 @@ const markup=section.replace(/id="([^"]+)"/g,(_,id)=>'data-mn-role="'+id+'"');
 const css=[...base.matchAll(/<style>([\s\S]*?)<\/style>/g)].map(m=>m[1]).join('\n');
 const utilities=['short','cat','health','label','name','unit','evidenceFor','displayLabel','fmt','full','tick','baseline','obsRange','scale','dashFor','legendSample','measurementFamily','renderDensity18','bucketKey18','representative18','displayPoints18','chartIcon26','setCanvas','chartSnapshotFromSets'];
 let helpers=utilities.map(source).join('\n').replace('S.catMap[id]','S.catalog.series.find(x=>x.id===id)').replace('paletteState().name',"services.paletteName?.()||'Normal'").replace('devicePixelRatio||1',"(S.canvasSize.pixelRatio==='auto'?globalThis.devicePixelRatio:S.canvasSize.pixelRatio)||1");
+helpers=helpers.replace('t:+q.t,v:+q.v,idx:','...q,t:+q.t,v:+q.v,idx:');
 helpers+=`\nconst H=['1D','5D','MTD','YTD','1YR','3YR','5YR'],IDX=['risk','growth','macro'],AB={risk:'RSK',growth:'GRW',macro:'MAC'};
 const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const defaultColors=['#27D3F5','#FFD166','#48D597','#FF5A6F','#A78BFA','#FF9F1C','#4C78FF','#FF6EC7','#B8E43C','#AEB8C4'],slots=new Map(IDX.map((id,i)=>[id,i]));

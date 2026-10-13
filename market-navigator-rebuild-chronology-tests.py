@@ -1,0 +1,93 @@
+"""Hand-authored temporal oracle and coherent source-linkage fault gates."""
+import copy, datetime as dt, importlib.util, json, math, shutil, tempfile, unittest
+from pathlib import Path
+from unittest.mock import patch
+
+BASE=Path(__file__).resolve().parent
+def load(name,file):
+    spec=importlib.util.spec_from_file_location(name,BASE/file)
+    obj=importlib.util.module_from_spec(spec);spec.loader.exec_module(obj);return obj
+h=load('chronology_history','market-navigator-rebuild-history.py')
+w=load('chronology_worker','market-navigator-rebuild-worker.py')
+integrity=h.integrity
+INCIDENT=BASE/'market-navigator-review-evidence/2026-10-12/generation'
+NOW=dt.datetime(2026,10,12,15,2,35,tzinfo=dt.timezone.utc)
+
+
+class ProductionTemporalOracle(unittest.TestCase):
+    def setUp(self):
+        self.temp=tempfile.TemporaryDirectory(dir=BASE);self.root=Path(self.temp.name)
+        self.original={'dates':['2026-10-08'],'timestamps':[h.midnight('2026-10-08')],'values':[100.],'componentValues':{'spy':[100.],'cpi':[50.]}}
+        self.row={**copy.deepcopy(self.original),'components':['spy','cpi'],'recoveredCalculations':[]}
+        self.catalog={'spy':{'id':'spy','native_cadence':'trading-day','native_unit':'USD','provider':'Yahoo Finance','provider_identifier':'SPY'},'cpi':{'id':'cpi','native_cadence':'monthly','native_unit':'Index','provider':'FRED','provider_identifier':'CPIAUCSL'}}
+        self.registry={'components':[{'id':sid,'direction':1,'transformFamily':'signed_level_change','scale':{'annualizedScale':1}} for sid in ('spy','cpi')]}
+    def tearDown(self):self.temp.cleanup()
+    def capture(self,known,spy_points,unit=None):
+        proof={}
+        for sid,points in [('spy',[{'t':h.midnight(date),'v':value} for date,value in spy_points]),('cpi',[{'t':h.midnight('2026-08-01'),'v':50.}])]:
+            meta=self.catalog[sid]
+            source={'id':sid,'provider':meta['provider'],'providerIdentifier':meta['provider_identifier'],'unit':unit if sid=='spy' and unit else meta['native_unit'],'cadence':meta['native_cadence'],'observations':points,'count':len(points),'first':points[0]['t'],'last':points[-1]['t'],'sourceRevision':h.digest(points),'last_successful':known,'last_error':None}
+            raw=h.encode(source);sha=h.blob(raw);path=self.root/'market-evidence/collection-archive/blobs'/(sha+'.json');path.parent.mkdir(parents=True,exist_ok=True);path.write_bytes(raw)
+            proof[sid]={'blob':sha,'sourceRevision':source['sourceRevision'],'nativeTimestamp':points[-1]['t'],'nativeValue':points[-1]['v'],'observationDate':h.calendar(points[-1]['t']),'collectedAt':known,'provider':source['provider'],'providerIdentifier':source['providerIdentifier']}
+        c={'calendarDate':known[:10],'knownBy':known,'sources':proof}
+        h.write(self.root/'market-evidence/collection-archive/receipts'/(known.replace(':','-')+'.json'),{'knownBy':known,'provenance':proof})
+        self.row['recoveredCalculations'].append(c);return c
+    def project(self):return integrity.latest_projection(self.root,self.row,self.original,self.catalog,self.registry)
+    def test_actual_production_weekend_revision_and_monday_cutoff(self):
+        for known,points,end in [
+            ('2026-10-09T22:00:00Z',[('2026-10-08',100.),('2026-10-09',107.)],'2026-10-09'),
+            ('2026-10-10T12:00:00Z',[('2026-10-08',100.),('2026-10-09',114.)],'2026-10-09'),
+            ('2026-10-11T12:00:00Z',[('2026-10-08',100.),('2026-10-09',114.)],'2026-10-09'),
+            ('2026-10-12T14:00:00Z',[('2026-10-08',100.),('2026-10-09',114.)],'2026-10-09'),
+            ('2026-10-12T23:00:00Z',[('2026-10-08',100.),('2026-10-09',114.),('2026-10-12',121.)],'2026-10-12')]:
+            self.capture(known,points);projected=self.project();self.assertEqual(end,h.calendar(projected[-1]['t']));self.assertEqual(known,projected[-1]['knownBy'])
+        self.assertEqual(['2026-10-08','2026-10-09','2026-10-12'],[h.calendar(p['t']) for p in projected]);self.assertEqual([100.,102.,103.],[p['v'] for p in projected])
+        self.assertEqual('2026-10-12T23:00:00Z',projected[1]['knownBy'])
+    def test_incomplete_monday_quote_cannot_advance_clock(self):
+        self.capture('2026-10-12T14:00:00Z',[('2026-10-09',107.),('2026-10-12',114.)])
+        with self.assertRaisesRegex(ValueError,'incomplete market session'):self.project()
+    def test_wrong_archived_units_rejected_even_when_rehashed(self):
+        self.capture('2026-10-12T14:00:00Z',[('2026-10-09',107.)],unit='EUR')
+        with self.assertRaisesRegex(ValueError,'unit/cadence differs'):self.project()
+    def test_native_period_gap_repaired_from_retained_vector_with_later_availability(self):
+        self.capture('2026-10-12T14:00:00Z',[('2026-10-08',100.),('2026-10-09',114.)])
+        self.original['dates']=['2026-10-07'];self.original['timestamps']=[h.midnight('2026-10-07')]
+        projected=self.project();self.assertEqual(['2026-10-07','2026-10-08','2026-10-09'],[h.calendar(p['t']) for p in projected]);self.assertEqual('2026-10-12T14:00:00Z',projected[1]['knownBy'])
+    def test_seed_boundary_preserves_original_published_value(self):
+        self.original['dates']=['2026-10-09'];self.original['timestamps']=[h.midnight('2026-10-09')]
+        self.capture('2026-10-10T12:00:00Z',[('2026-10-09',114.)])
+        self.assertEqual([100.],[p['v'] for p in self.project()]);self.assertEqual(1,len(self.row['recoveredCalculations']))
+    def test_coherent_archived_vector_and_blob_change_does_not_rewrite_capture_ledger(self):
+        capture=self.capture('2026-10-12T14:00:00Z',[('2026-10-09',107.)]);proof=capture['sources']['spy']
+        source=json.loads((self.root/'market-evidence/collection-archive/blobs'/(proof['blob']+'.json')).read_text());source['observations'][-1]['v']=999.
+        source['sourceRevision']=h.digest(source['observations']);raw=h.encode(source);sha=h.blob(raw)
+        (self.root/'market-evidence/collection-archive/blobs'/(sha+'.json')).write_bytes(raw);proof.update(blob=sha,sourceRevision=source['sourceRevision'],nativeValue=999.)
+        with self.assertRaisesRegex(ValueError,'retained capture ledger'):self.project()
+
+@unittest.skipUnless(INCIDENT.exists(),'Frozen owner incident available on evidence-enabled qualification')
+class IncidentContract(unittest.TestCase):
+    def setUp(self):
+        self.temp=tempfile.TemporaryDirectory(dir=BASE);self.root=Path(self.temp.name)
+        shutil.copytree(INCIDENT,self.root,dirs_exist_ok=True)
+        h.build(self.root,BASE/'market-navigator-rebuild-archive',BASE/'market-navigator-rebuild-seed.json',BASE/'market-navigator-rebuild-archive-inventory.json',NOW)
+    def tearDown(self):self.temp.cleanup()
+    def test_october_12_incident_ends_on_native_friday(self):
+        report=w.audit(self.root,NOW);derived=h.read(self.root/'market-evidence/derived-indices-persistent-v1.json')
+        self.assertTrue(report['summary']['ready']);self.assertEqual(3,report['summary']['indicesVerified'])
+        self.assertEqual('2026-10-09',derived['commonMarketAnchor'])
+        for key,index in derived['indices'].items():
+            self.assertEqual(['2026-10-05','2026-10-06','2026-10-07','2026-10-08','2026-10-09'],[h.calendar(p['t']) for p in index['horizons']['5D']['curve']])
+            self.assertEqual('2026-10-12T14:45:17Z',index['horizons']['5D']['curve'][-1]['knownBy'])
+    def test_coherent_index_input_tampering_rejected(self):
+        model=h.read(self.root/'market-evidence/persistent-indices-v1.json');registry=h.read(self.root/'data/market-backend/component-registry-v1.json');row=model['indices']['risk'];sid='spy';i=len(row['dates'])-1;wrong=row['componentValues'][sid][i]*2
+        row['componentValues'][sid][i]=wrong;row['recoveredCalculations'][-1]['sources'][sid]['nativeValue']=wrong
+        rule=next(x for x in registry['components'] if x['id']==sid)
+        row['componentSignals'][sid][i]=rule['direction']*math.log(wrong/row['componentValues'][sid][0])/rule['scale']['annualizedScale'];row['values'][i]=100+math.fsum(row['componentSignals'][x][i] for x in row['components'])/7
+        h.write(self.root/'market-evidence/persistent-indices-v1.json',model)
+        with self.assertRaisesRegex(ValueError,'Archived source linkage differs: spy'):w.audit(self.root,NOW)
+    def test_actual_blob_corruption_rejected(self):
+        model=h.read(self.root/'market-evidence/persistent-indices-v1.json');proof=model['indices']['risk']['recoveredCalculations'][-1]['sources']['spy']
+        (self.root/'market-evidence/collection-archive/blobs'/(proof['blob']+'.json')).write_text('{}')
+        with self.assertRaisesRegex(ValueError,'Archived source blob hash differs'):w.audit(self.root,NOW)
+
+if __name__=='__main__':unittest.main(verbosity=2)
