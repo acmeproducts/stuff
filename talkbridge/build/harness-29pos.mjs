@@ -309,6 +309,13 @@ await T('R11 the joiner landing adopts the invite\'s language for this phone: an
   assert(a.errors.length === 0 && b.errors.length === 0 && d.errors.length === 0, a.errors.concat(b.errors, d.errors).join(' | '));
 });
 
+await T('R12 the reach bar is due the moment the room has a partner: a joiner in an Android tab, permission not asked, NO message yet, sees "Turn on" above the composer at room entry (a call-first conversation prompts); an unjoined room shows no bar; the bar is logged', async () => {
+  const JOINER = { ...ROOM, id: 'room-j', role: 'joiner', joined: true, myLang: 'en', theirLang: 'th' }; const I = await live({ rooms: [JOINER] }); I.w.enterRoom('room-j'); await sleep(1300);
+  const bar = I.$('rh-bar'); assert(bar && bar.textContent.indexOf(en('rh_default')) !== -1 && bar.querySelector('[data-act="turnon"]'), 'no Turn on bar without a message: ' + (bar && bar.textContent)); assert(I.has('rh_bar_shown'), 'bar not logged');
+  const U = await live({ rooms: [{ ...ROOM, id: 'room-u', joined: false }] }); U.w.enterRoom('room-u'); await sleep(1300); assert(!U.$('rh-bar'), 'a bar in a room with no partner');
+  assert(!/transcript\.some\(function \(e\) \{ return e && e\.kind === 'chat'; \}\);\n\}\nfunction rhRenderBar/.test(stage), 'the first-message condition is still in the stage');
+});
+
 console.log('W · the worker, live in a shim: cards in the phone\'s language');
 function fakeIndexedDB() {
   const dbs = {}; const later = (fn) => setTimeout(fn, 0);
