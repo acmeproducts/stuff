@@ -1,5 +1,5 @@
 /* ─────────────────────────────────────────────────────────────────────────────
-   TALK RELAY — worker-talk.js  ·  v6.10 29·ship c6 — A STATE WORD ANNOUNCES AT ONCE (G71) on v6.9 29·ship c5 — PERSISTED PRESENCE WORDS (a word rides an attached socket), RECEIPTS FROM THE RECORD (`mine`: delivered/seen for the sender) on v6.8 29·ship c4 — DEAD-ENDPOINT MEMORY (a 404/410 from the push service is remembered; the subscription is refused when re-offered, so the app re-mints) on v6.7 29·base — MULTI-USER, RELAY LEG (plan §7.8 R-parts, owner GO 2026-10-09)
+   TALK RELAY — worker-talk.js  ·  v6.11 29·post-ship c4 — REACHABILITY FROM THE RECORD (reach on the peer announce, call-reach to the caller) on v6.10 29·ship c6 — A STATE WORD ANNOUNCES AT ONCE (G71) on v6.9 29·ship c5 — PERSISTED PRESENCE WORDS (a word rides an attached socket), RECEIPTS FROM THE RECORD (`mine`: delivered/seen for the sender) on v6.8 29·ship c4 — DEAD-ENDPOINT MEMORY (a 404/410 from the push service is remembered; the subscription is refused when re-offered, so the app re-mints) on v6.7 29·base — MULTI-USER, RELAY LEG (plan §7.8 R-parts, owner GO 2026-10-09)
    v6.7 adds, app untouched (every change is a no-op for a message without the new fields):
      · a room cap — MAX_PARTICIPANTS (4) or the creator's `cap` query parameter, kept with the
        session; a device beyond it is told {type:'full', cap, n} and closed with 4001 before it
@@ -41,6 +41,7 @@
 const MAX_HISTORY = 500;
 const SESSION_TTL_MS = 12 * 60 * 1000;
 const SUB_TTL_MS = 90 * 24 * 60 * 60 * 1000;   /* a subscription unused for this long is dropped */
+const REACH_FRESH_MS = 14 * 24 * 60 * 60 * 1000;   /* v6.11: a subscription counts toward `reach.subs` only when re-offered within this window (the app re-posts it on every boot and room entry); older ones still receive pushes until SUB_TTL_MS — the mark is the negative claim, so a stale-but-live sub costs a wrong "won't be alerted", never a false promise */
 const TRANSIENT_TYPES = new Set(['hello', 'ping', 'pong', 'typing', 'reattach', 'ack']);
 
 /* Public by design — handed to every browser that subscribes. */
@@ -54,7 +55,8 @@ const VAPID_SUBJECT = 'mailto:nobody@nowhere.com';
 /* v6: only events that own a recipient record can alert. Everything else is
    data on the socket, never a wake. */
 const RECORD_KIND = { 'chat-msg': 'chat', 'thread-invite': 'chat', 'call-start': 'call' };
-const RELAY_VERSION = '6.10';          /* v6.10 29·ship c6: a STATE WORD ANNOUNCES AT ONCE — since v6.5 the announce for ev-state sat behind the event-word handler's early return and never ran; presence moved only with the 30 s heartbeat (device log 2026-10-11 23:58: a room entered at :10, the first dot at :38). v6.9 29·ship c5: the presence words are PERSISTED (the object sleeps between heartbeats and woke with an empty memory — the dot blinked, 2026-10-10 23:26 UTC) and a word counts only while its device has a socket attached; the sender's receipts (delivered, seen) come from the record (`mine` on every projection). v6.8 29·ship c4: dead-endpoint memory — a subscription the push service declared gone (404/410) is refused when re-registered, so the app re-mints */
+const RELAY_VERSION = '6.11';          /* v6.11 29·post-ship c4: REACHABILITY FROM THE RECORD — the peer announce carries reach {known, subs} (the negative claim only: a partner with no fresh subscription will not be alerted when away); a call-start answers its caller with call-reach {app, pushed, none, muted} read from the recipient record AFTER the push attempt (a 410 learned there counts as none); subscribe/unsubscribe announce at once. Owner 2026-10-12: "you cannot tell, before you call, whether the call can reach the other person". */
+/* v6.10 was:          /* v6.10 29·ship c6: a STATE WORD ANNOUNCES AT ONCE — since v6.5 the announce for ev-state sat behind the event-word handler's early return and never ran; presence moved only with the 30 s heartbeat (device log 2026-10-11 23:58: a room entered at :10, the first dot at :38). v6.9 29·ship c5: the presence words are PERSISTED (the object sleeps between heartbeats and woke with an empty memory — the dot blinked, 2026-10-10 23:26 UTC) and a word counts only while its device has a socket attached; the sender's receipts (delivered, seen) come from the record (`mine` on every projection). v6.8 29·ship c4: dead-endpoint memory — a subscription the push service declared gone (404/410) is refused when re-registered, so the app re-mints */
 const MAX_PARTICIPANTS = 4;           /* v6.7 §7.8 R2: the room cap unless the creator's socket says otherwise (1..8) */
 const CALL_ROUTED = new Set(['call-accept', 'call-decline', 'call-end', 'webrtc-signal', 'mic-state', 'cam-state']);   /* v6.7 R1: words of a call that go to the other party of an ADDRESSED call */
 const EVENT_TTL_MS = 7 * 24 * 60 * 60 * 1000;
@@ -712,12 +714,14 @@ export class TalkSession {
         this.subs[clientId] = { sub: body.subscription, at: Date.now() };
         await this._saveSubs();
         await this._noteDevice(clientId);
+        try { this._announcePeers(); } catch (_) {}                             /* v6.11: the partner's mark follows Turn on at once, not at the next heartbeat */
         return json({ ok: true, subscribed: true, vapid: VAPID_PUBLIC_KEY });
       }
 
       if (body && body.type === 'unsubscribe') {
         delete this.subs[clientId];
         await this._saveSubs();
+        try { this._announcePeers(); } catch (_) {}                             /* v6.11 */
         return json({ ok: true, subscribed: false });
       }
 
@@ -777,6 +781,7 @@ export class TalkSession {
       /* Pushing must never delay or endanger delivery to one that is awake, so it
          happens after the broadcast and its failures are swallowed. */
       try { await this._deliverByRecord(ev, sessionOf(ws)); } catch (_) {}
+      if (ev.kind === 'call') { try { this._sendCallReach(ev, clientId); } catch (_) {} }   /* v6.11: the caller hears what the record says, after the push attempt */
     }
   }
 
@@ -789,6 +794,32 @@ export class TalkSession {
      sockets is one person, and a re-attached socket is not an arrival.
      The word is refreshed by the app on entering a room, leaving a room,
      hiding, showing, and every heartbeat, in every environment. */
+  /* v6.11 — the OTHER devices this room knows (devices ∪ subs ∪ connected, minus the asker) and how many of them hold a fresh push
+     subscription. Counts only: no id and no endpoint leaves the relay. The app shows the NEGATIVE claim alone (known > 0 and subs === 0:
+     nobody will be alerted when away); a positive count is never a promise (an abandoned phone, a tab beside an installed copy, a
+     subscription the push service has not yet declared dead all count as subs). */
+  _reachOf(excludeId) {
+    const now = Date.now(); let known = 0, subs = 0;
+    for (const id of this._recipients(excludeId)) {
+      known++;
+      const rec = this.subs[id];
+      if (rec && rec.at && now - rec.at <= REACH_FRESH_MS) subs++;
+    }
+    return { known, subs };
+  }
+  /* v6.11 — after the push attempt, the caller is told what the record says about its callees: app (ringing in the app), pushed (an OS
+     card was accepted by the push service), none (the push failed: no subscription, stale, dead endpoint), muted. Counts only. */
+  _sendCallReach(ev, callerId) {
+    if (!ev || ev.kind !== 'call') return;
+    let app = 0, pushed = 0, none = 0, muted = 0;
+    for (const r of Object.values(ev.rcp)) {
+      if (r.p === 'in_app') app++;
+      else if (r.p === 'muted') muted++;
+      else if (r.push === 'accepted') pushed++;
+      else if (r.push === 'failed') none++;
+    }
+    this._sendTo(callerId, { type: 'call-reach', transient: true, callId: ev.callId, app, pushed, none, muted, at: Date.now() });
+  }
   _announcePeers() {
     let inCall = []; try { inCall = this._inCall(); } catch (_) {}        /* v6.7 A1 */
     const present = []; const attached = this._connectedIds();          /* v6.9: a word counts only while its device has a socket — a persisted word with no socket is not a person */
@@ -800,7 +831,8 @@ export class TalkSession {
       const tag = ws.deserializeAttachment();
       if (!tag || !tag.clientId) continue;
       const others = present.filter((i) => i !== tag.clientId);
-      try { ws.send(JSON.stringify({ type: 'peer', transient: true, focused: others.length > 0, others: others.length, inCall: inCall, at: Date.now() })); } catch (_) {}
+      let reach = { known: 0, subs: 0 }; try { reach = this._reachOf(tag.clientId); } catch (_) {}   /* v6.11 */
+      try { ws.send(JSON.stringify({ type: 'peer', transient: true, focused: others.length > 0, others: others.length, inCall: inCall, reach: reach, at: Date.now() })); } catch (_) {}
     }
   }
 

@@ -3,7 +3,7 @@
 
    Inputs (sha-checked): the ACCEPTED 29·ship folder page and folder worker.
    Outputs, in talkbridge-app/ (nothing is hand-written; no accepted file is touched):
-     bridge-turn29-post-ship.html              = the accepted page with the GENERATED banked edits (l10n-edits.mjs from fixtures/l10n/inventory.json) + one part, L1 (the table rides an early generated edit)
+     bridge-turn29-post-ship.html              = the accepted page with the GENERATED banked edits (l10n-edits.mjs from fixtures/l10n/inventory.json) + two parts: L1 (the table rides an early generated edit) and RK-1 (reachability, c4)
      tb-sw5.js                                 = the accepted folder worker with the generated worker edits (cards worded in the phone's app language)
      tb-manifest-turn29-post-ship.webmanifest  = scope "./", start_url this stage's page, id the folder (one app id for every stage)
      tb-manifest-turn29-post-ship-ios.webmanifest = scope "./", no start_url, no id (the load-time address carries, §7.19)  */
@@ -19,8 +19,8 @@ export const BASE_PAGE = FOLDER + '/bridge-turn29-ship.html';
 export const BASE_WORKER = FOLDER + '/tb-sw4.js';
 export const FIXTURES = 'talkbridge/fixtures/post-ship/29pos';
 export const MANIFEST = FIXTURES + '/replacements.json';
-export const PARTS = ['talkbridge/parts/l1-locale.js'];   /* the module; the TABLE rides a banked edit early in the script (the base words HTML at script time) */
-export const PART = PARTS[0];
+export const PARTS = ['talkbridge/parts/l1-locale.js', 'talkbridge/parts/rk1-reach-mark.js'];   /* L1 (the table rides a banked edit early in the script) · RK-1 reachability (c4) */
+export const PART = PARTS[0]; export const PART2 = PARTS[1];
 export const STAGE_PAGE = 'bridge-turn29-post-ship.html';
 export const WORKER_NAME = 'tb-sw5.js';
 export const MANIFEST_NAME = 'tb-manifest-turn29-post-ship.webmanifest';
@@ -28,8 +28,9 @@ export const MANIFEST_IOS_NAME = 'tb-manifest-turn29-post-ship-ios.webmanifest';
 export const MANIFEST_SRC = 'tb-manifest-turn28.webmanifest';
 export const OUT = { page: FOLDER + '/' + STAGE_PAGE, worker: FOLDER + '/' + WORKER_NAME, manifest: FOLDER + '/' + MANIFEST_NAME, manifestIos: FOLDER + '/' + MANIFEST_IOS_NAME };
 export const EDIT_SYMBOLS = ['L10N', 'L10N_MT', 'L10N_RTL', 'l10nState'];   /* bound by the table edit on the LANG_ORDER line */
-export const ADDED_SYMBOLS = ['l10nLog', 'l10nFromNavigator', 'l10nUserLang', 'l10nLang', 'l10nAdopt', 'l10nIn', 'l10n', 'l10nPill', 'l10nLocale', 'l10nDir', 'l10nLandingLang', 'l10nCap', 'l10nApplyCaps', 'l10nApplyDom', 'l10nRerender', 'l10nFillLangSelect', 'l10nPostLang', 'l10nApply', 'l10nStyle', 'l10nTick', 'l10nInit'];
-export const ADDED_MARKERS = ['l10n_', 'user_lang_set', 'user_lang_adopted', 'user_lang_changed', 'missing', 'applied', 'rerender_failed'];   /* l10nLog's literals (its prefix is 'l10n_'); 'init_failed' is RH-1's literal too and is not new */
+export const ADDED_SYMBOLS = ['l10nLog', 'l10nFromNavigator', 'l10nUserLang', 'l10nLang', 'l10nAdopt', 'l10nIn', 'l10n', 'l10nPill', 'l10nLocale', 'l10nDir', 'l10nLandingLang', 'l10nCap', 'l10nApplyCaps', 'l10nApplyDom', 'l10nRerender', 'l10nFillLangSelect', 'l10nPostLang', 'l10nApply', 'l10nStyle', 'l10nTick', 'l10nInit', 'rkState', 'rkLog', 'rkLine', 'rkRender', 'rkOnPeer', 'rkOnCallReach', 'rkInit'];
+export const ADDED_MARKERS = ['l10n_', 'user_lang_set', 'user_lang_adopted', 'user_lang_changed', 'missing', 'applied', 'rerender_failed', 'rk_', 'reach_mark', 'reach_unreachable'];
+export const ADDED_RECEIVED_TYPES = ['call-reach'];   /* relay v6.11 → app; the app sends no new type */   /* l10nLog's literals (its prefix is 'l10n_'); 'init_failed' is RH-1's literal too and is not new */
 export const REMOVED_SYMBOLS = ['I18N'];   /* the two-language joiner table is retired: the table has every language */
 export const TAIL = '\n</script>\n</body>\n</html>';
 
@@ -60,7 +61,8 @@ export function assemblePage(opts) {
   if (!out.endsWith(TAIL)) throw new Error('assemble-29pos: unexpected baseline tail');
   out = apply(out, opts.replacements || pageReplacements(), new Set(opts.keepReplacements || []), 'page');
   const part = opts.part != null ? opts.part : fs.readFileSync(path.join(root, PART), 'utf8');
-  return out.slice(0, -TAIL.length) + '\n\n' + part + TAIL;
+  const part2 = opts.part2 != null ? opts.part2 : fs.readFileSync(path.join(root, PART2), 'utf8');
+  return out.slice(0, -TAIL.length) + '\n\n' + part + '\n\n' + part2 + TAIL;
 }
 export function assembleWorker(opts) {
   opts = opts || {};

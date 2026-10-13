@@ -15,7 +15,7 @@ import vm from 'node:vm';
 import { fileURLToPath } from 'node:url';
 import { JSDOM, VirtualConsole } from 'jsdom';
 import { runBoth, KEYS, diff } from './rig-28pos.mjs';
-import { basePage, baseWorker, pageReplacements, workerReplacements, assemblePage, assembleWorker, assembleManifests, FOLDER_PATH, STAGE_PAGE, WORKER_NAME, MANIFEST_NAME, MANIFEST_IOS_NAME, ADDED_SYMBOLS, EDIT_SYMBOLS, REMOVED_SYMBOLS, ADDED_MARKERS, PART, TAIL } from './assemble-29pos.mjs';
+import { basePage, baseWorker, pageReplacements, workerReplacements, assemblePage, assembleWorker, assembleManifests, FOLDER_PATH, STAGE_PAGE, WORKER_NAME, MANIFEST_NAME, MANIFEST_IOS_NAME, ADDED_SYMBOLS, EDIT_SYMBOLS, REMOVED_SYMBOLS, ADDED_MARKERS, ADDED_RECEIVED_TYPES, PART, PART2, TAIL } from './assemble-29pos.mjs';
 import { sweep } from './graveyard-sweep.mjs';
 import { inventory, writeFixture, OUT_DIR, fullTableJson, swTableJson } from './l10n-edits.mjs';
 import { jsStrings, htmlTexts, appScript as scanScript } from './l10n-scan.mjs';
@@ -24,7 +24,7 @@ import { protect } from './l10n-translate.mjs';
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
 const dir = process.env.TB_IO_DIR || path.join(root, 'talkbridge-app');
 const rd = (f) => fs.readFileSync(f, 'utf8');
-const part = process.env.TB_IO_PART ? rd(process.env.TB_IO_PART) : rd(path.join(root, PART));
+const part = process.env.TB_IO_PART ? rd(process.env.TB_IO_PART) : rd(path.join(root, PART)); const part2 = process.env.TB_IO_PART2 ? rd(process.env.TB_IO_PART2) : rd(path.join(root, PART2)); const parts = [part, part2];
 const KEEP = process.env.TB_IO_KEEP ? process.env.TB_IO_KEEP.split(',') : [], KEEP_W = process.env.TB_IO_KEEP_W ? process.env.TB_IO_KEEP_W.split(',') : [];
 const stage = rd(path.join(dir, STAGE_PAGE)), worker = rd(path.join(dir, WORKER_NAME));
 const manChrome = rd(path.join(dir, MANIFEST_NAME)), manIos = rd(path.join(dir, MANIFEST_IOS_NAME));
@@ -39,7 +39,7 @@ const assert = (c, m) => { if (!c) throw new Error(m); };
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const code = (s) => s.replace(/\/\*[\s\S]*?\*\//g, '');
 const appScript = (html) => [...html.matchAll(/<script(?![^>]*\bsrc=)[^>]*>([\s\S]*?)<\/script>/gi)].map((m) => m[1]).sort((a, b) => b.length - a.length)[0];
-const markers = (js) => { const s = new Set(); const re = /\b(?:log|L|rhLog|cr3Log|p6Log|p4Log|netLog|rcLog|r8Log|lcLog|p3Log|n17Log|prLog|s2Log|f1Log|n10L|p2Log|rxLog|l10nLog|rmLog|jLog)\(\s*'([a-z0-9_]+)'/g; let m; while ((m = re.exec(code(js)))) s.add(m[1]); return s; };
+const markers = (js) => { const s = new Set(); const re = /\b(?:log|L|rhLog|cr3Log|p6Log|p4Log|netLog|rcLog|r8Log|lcLog|p3Log|n17Log|prLog|s2Log|f1Log|n10L|p2Log|rxLog|l10nLog|rkLog|rmLog|jLog)\(\s*'([a-z0-9_]+)'/g; let m; while ((m = re.exec(code(js)))) s.add(m[1]); return s; };
 const types = (s) => { const t = new Set(); let m; const re = /type:\s*'([a-z-]+)'/g; while ((m = re.exec(s))) t.add(m[1]); return t; };
 const netLines = (js) => code(js).split('\n').filter((l) => /new WebSocket\(|\bfetch\(|RELAY_WS|tb_dg_key|tb_cf_tid|tb_cf_tok|credentials\/generate|deepgram\.com/.test(l)).map((l) => l.trim());
 const contractOf = (p) => { const i = p.indexOf('@contract'); return p.slice(i, p.indexOf('*/', i)); };
@@ -47,7 +47,7 @@ const LANG_ORDER = JSON.parse(base.match(/var LANG_ORDER=(\[[^\]]*\]);/)[1].repl
 const fill = (t, vars) => String(t).replace(/\{(\w+)\}/g, (m, k) => (vars && vars[k] != null ? String(vars[k]) : ''));
 
 console.log('S · the stage is the accepted page plus the generated banked edits plus L1');
-await T('S1 the page, the worker and the manifests are the assembler\'s output', () => { assert(stage === assemblePage({ part, keepReplacements: KEEP }), STAGE_PAGE + ' ≠ assemblePage()'); assert(worker === assembleWorker({ keepWorkerReplacements: KEEP_W }), WORKER_NAME + ' ≠ assembleWorker()'); const m = assembleManifests(mOpts); assert(manChrome === m.chrome && manIos === m.ios, 'manifests ≠ the assembler'); });
+await T('S1 the page, the worker and the manifests are the assembler\'s output', () => { assert(stage === assemblePage({ part, part2, keepReplacements: KEEP }), STAGE_PAGE + ' ≠ assemblePage()'); assert(worker === assembleWorker({ keepWorkerReplacements: KEEP_W }), WORKER_NAME + ' ≠ assembleWorker()'); const m = assembleManifests(mOpts); assert(manChrome === m.chrome && manIos === m.ios, 'manifests ≠ the assembler'); });
 await T('S2 every find text is in the accepted file exactly once and gone from the stage; every replacement is in the stage exactly once (the manifest\'s count, two hundred and more page edits, ten worker edits)', () => {
   const reps = pageReplacements(), wreps = workerReplacements(); assert(reps.length >= 250 && wreps.length === 10, 'got ' + reps.length + ' + ' + wreps.length);
   for (const [list, src, out, tag] of [[reps, base, stage, 'page'], [wreps, baseW, worker, 'worker']]) for (const r of list) {
@@ -58,20 +58,21 @@ await T('S2 every find text is in the accepted file exactly once and gone from t
   }
 });
 await T('S3 reversal: undo the replacements and drop the part and the stage is the accepted page byte for byte; the same for the worker — nothing else changed', () => {
-  let back = stage; const tailPart = '\n\n' + part + TAIL; assert(back.endsWith(tailPart), 'the part is not the tail of the stage'); back = back.slice(0, -tailPart.length) + TAIL;
+  let back = stage; const tailPart = '\n\n' + part + '\n\n' + part2 + TAIL; assert(back.endsWith(tailPart), 'the two parts are not the tail of the stage'); back = back.slice(0, -tailPart.length) + TAIL;
   for (const r of pageReplacements().reverse()) { if (r.replace === '') continue; back = back.replace(r.replace, () => r.find); }
   /* an empty replacement (the dead L2 line) is re-inserted by its anchor: the line before it */
   for (const r of pageReplacements()) if (r.replace === '') { const anchor = base.slice(0, base.indexOf(r.find)).split('\n').slice(-2, -1)[0] + '\n'; const i = back.indexOf(anchor); assert(i !== -1, 'anchor for the empty replacement lost'); back = back.slice(0, i + anchor.length) + r.find + back.slice(i + anchor.length); }
   assert(back === base, 'the stage minus the banked edits and the part is not the accepted page');
   let wb = worker; for (const r of workerReplacements().reverse()) wb = wb.replace(r.replace, () => r.find); assert(wb === baseW, 'the worker minus the banked edits is not the accepted worker');
 });
-await T('S4 L1 replaces and wraps nothing; each symbol it adds is declared, bound once in the stage and never in the accepted page; the table edit binds its four; I18N is gone', () => {
-  const cc = contractOf(part); assert(/replaces:\s*\(none\)/.test(cc) && /wraps:\s*\(none\)/.test(cc), 'the part replaces or wraps'); assert(!/^(?:enterRoom|openPanel|showScreen|renderPanel|renderHome|renderTranscript|cr3Apply|log|toast|addSysPill)\s*=/m.test(code(part)), 'the part reassigns a function');
+await T('S4 L1 and RK-1 replace and wrap nothing; each symbol they add is declared, bound once in the stage and never in the accepted page; the table edit binds its four; I18N is gone', () => {
+  for (const pt of parts) { const c1 = contractOf(pt); assert(/replaces:\s*\(none\)/.test(c1) && /wraps:\s*\(none\)/.test(c1), 'a part replaces or wraps'); assert(!/^(?:enterRoom|openPanel|showScreen|renderPanel|renderHome|renderTranscript|cr3Apply|log|toast|addSysPill|handleRelay|setPresence|n10Show)\s*=/m.test(code(pt)), 'a part reassigns a function'); }
+  const cc = parts.map(contractOf).join('\n');
   const js = code(appScript(stage)), bjs = code(appScript(base));
   for (const s of ADDED_SYMBOLS) { assert(new RegExp('adds:[^\\n]*\\b' + s + '\\b').test(cc), s + ' not declared'); const re = new RegExp('^(?:function\\s+' + s + '\\s*\\(|var\\s+' + s + '\\s*=)', 'mg'); assert((js.match(re) || []).length === 1, s + ' bound ' + (js.match(re) || []).length + 'x in the stage'); assert(!(bjs.match(re) || []).length, s + ' already in the accepted page'); }
   for (const s of EDIT_SYMBOLS) { const re = new RegExp('\\b' + s + '\\s*=\\s*[{\\[]', 'g'); assert((js.match(re) || []).length === 1, s + ' bound ' + (js.match(re) || []).length + 'x'); assert(!(bjs.match(re) || []).length, s + ' already in the accepted page'); }
-  const declared = [...cc.matchAll(/adds:([^\n]*)/g)].flatMap((mm) => mm[1].split(',')).map((x) => x.trim()).filter(Boolean); const defined = [...new Set([...code(part).matchAll(/^(?:function\s+(\w+)\s*\(|var\s+(\w+)\s*=)/mg)].map((m) => m[1] || m[2]))];
-  for (const d of defined) assert(declared.includes(d), 'the part defines ' + d + ' without declaring it'); assert(declared.length === ADDED_SYMBOLS.length, 'declared ' + declared.length + ' ≠ ' + ADDED_SYMBOLS.length);
+  const declared = [...cc.matchAll(/adds:([^\n]*)/g)].flatMap((mm) => mm[1].split(',')).map((x) => x.trim()).filter(Boolean); const defined = [...new Set(parts.flatMap((pt) => [...code(pt).matchAll(/^(?:function\s+(\w+)\s*\(|var\s+(\w+)\s*=)/mg)].map((m) => m[1] || m[2])))];
+  for (const d of defined) assert(declared.includes(d), 'a part defines ' + d + ' without declaring it'); assert(declared.length === ADDED_SYMBOLS.length, 'declared ' + declared.length + ' ≠ ' + ADDED_SYMBOLS.length);
   for (const s of REMOVED_SYMBOLS) { assert(new RegExp('^var\\s+' + s + '\\s*=', 'm').test(bjs), s + ' was never in the accepted page'); assert(!new RegExp('\\b' + s + '\\b').test(js), s + ' still named in the stage'); }
 });
 await T('S5 markers(stage) = markers(accepted) + l10n_*; none lost, none undeclared; each l10n marker is logged somewhere', () => {
@@ -79,12 +80,14 @@ await T('S5 markers(stage) = markers(accepted) + l10n_*; none lost, none undecla
   const extra = [...sm].filter((m) => !bm.has(m) && !ADDED_MARKERS.includes(m)), lost = [...bm].filter((m) => !sm.has(m)); for (const m of ADDED_MARKERS) assert(!bm.has(m) && sm.has(m), m + ' already in the accepted page or never logged');
   assert(extra.length === 0, 'undeclared markers: ' + extra.join(', ')); assert(lost.length === 0, 'markers lost: ' + lost.join(', '));
   for (const m of ['user_lang_set', 'user_lang_adopted', 'user_lang_changed', 'missing', 'applied', 'rerender_failed', 'init_failed']) assert(new RegExp("l10nLog\\('" + m + "'").test(part), 'l10n_' + m + ' never logged');
+  for (const m of ['reach_mark', 'reach_unreachable', 'init_failed']) assert(new RegExp("rkLog\\('" + m + "'").test(part2), 'rk_' + m + ' never logged');
 });
-await T('S6 no network, credential, endpoint or storage line is added or changed; no relay message type is added (G19/G20); the part reaches for nothing', () => {
+await T('S6 no network, credential, endpoint or storage line is added or changed; the app SENDS no new relay message type; the one new type it RECEIVES (call-reach, relay v6.11) is declared; the parts reach for nothing', () => {
   const b = netLines(appScript(base)), s = netLines(appScript(stage)); assert(JSON.stringify(b) === JSON.stringify(s), 'network lines differ: +' + s.filter((l) => !b.includes(l)).join(' | ') + ' −' + b.filter((l) => !s.includes(l)).join(' | '));
-  assert(netLines(part).length === 0 && !/fetch\(|WebSocket|XMLHttpRequest|tb_dg_key|tb_cf_|tb_gh_pat|Authorization|credentials/.test(code(part)), 'the part reaches for a network or a key');
-  const bt = types(code(appScript(base))), sent = new Set([...types(code(part)), ...pageReplacements().flatMap((r) => [...types(r.replace)])]); for (const t of sent) assert(bt.has(t), 'new message type ' + t);
-  assert(!/localStorage\./.test(code(part)), 'the part touches storage itself (S.user.lang rides saveUser)');
+  for (const pt of parts) { assert(netLines(pt).length === 0 && !/fetch\(|WebSocket|XMLHttpRequest|tb_dg_key|tb_cf_|tb_gh_pat|Authorization|credentials/.test(code(pt)), 'a part reaches for a network or a key'); assert(!/localStorage\./.test(code(pt)), 'a part touches storage itself'); assert(!/relaySend\(|\.send\(/.test(code(pt)), 'a part sends to the relay'); }
+  const bt = types(code(appScript(base))), sent = new Set([...parts.flatMap((pt) => [...types(code(pt))]), ...pageReplacements().flatMap((r) => [...types(r.replace)])]); for (const t of sent) assert(bt.has(t), 'new message type sent: ' + t);
+  const received = new Set(); let mm; const reRecv = /\.type === '([a-z-]+)'/g; const sjs = code(appScript(stage)), bjs2 = code(appScript(base)); while ((mm = reRecv.exec(sjs))) received.add(mm[1]); const breceived = new Set(); while ((mm = reRecv.exec(bjs2))) breceived.add(mm[1]);
+  const newRecv = [...received].filter((t) => !breceived.has(t)); assert(JSON.stringify(newRecv.sort()) === JSON.stringify([...ADDED_RECEIVED_TYPES].sort()), 'received types changed: ' + newRecv.join(','));
 });
 await T('S7 the graveyard sweep: the stage page and the worker carry no buried pattern', () => { const hs = sweep(stage, { file: STAGE_PAGE }), hw = sweep(worker, { file: WORKER_NAME }); assert(hs.length === 0 && hw.length === 0, 'buried: ' + hs.concat(hw).map((h) => h.id + '@' + h.line).join(',')); });
 await T('S8 the banked edits on disk are exactly what the inventory generates (nothing hand-written); the table edit carries table.json', () => {
@@ -316,6 +319,33 @@ await T('R12 the reach bar is due the moment the room has a partner: a joiner in
   assert(!/transcript\.some\(function \(e\) \{ return e && e\.kind === 'chat'; \}\);\n\}\nfunction rhRenderBar/.test(stage), 'the first-message condition is still in the stage');
 });
 
+await T('R13 the partner\'s reachability, the negative claim only: a peer announce with reach {known 1, subs 0} puts "Bo won\'t be alerted when away" above the composer; subs 1 → the line is gone; known 0 → nothing; known 2 subs 0 → the generic line; a peer with no reach field changes nothing; outside a room nothing', async () => {
+  const I = await live({}); I.w.enterRoom('room-1'); await sleep(1200);
+  I.w.handleRelay({ type: 'peer', transient: true, focused: true, others: 1, inCall: [], reach: { known: 1, subs: 0 } }); await sleep(30);
+  const l1 = I.$('rk-line'); assert(l1 && l1.textContent === en('reach_none', { who: 'Bo' }) && l1.querySelector('.rh-warn'), 'line: ' + (l1 && l1.textContent)); assert(I.has('rk_reach_mark') && I.ev('rk_reach_mark')[0].d.known === 1, 'not logged');
+  assert(I.w.document.querySelector('#scr-room .compose').previousElementSibling === l1 || l1.nextElementSibling === I.$('rh-bar'), 'the line is not above the composer');
+  I.w.handleRelay({ type: 'peer', transient: true, focused: true, others: 1, inCall: [], reach: { known: 1, subs: 1 } }); await sleep(30); assert(!I.$('rk-line'), 'a positive count showed a line');
+  I.w.handleRelay({ type: 'peer', transient: true, focused: false, others: 0, inCall: [], reach: { known: 0, subs: 0 } }); await sleep(30); assert(!I.$('rk-line'), 'an unknown partner showed a line');
+  I.w.handleRelay({ type: 'peer', transient: true, focused: true, others: 2, inCall: [], reach: { known: 2, subs: 0 } }); await sleep(30); assert(I.$('rk-line') && I.$('rk-line').textContent === en('reach_none_many'), 'generic line: ' + I.$('rk-line').textContent);
+  I.w.handleRelay({ type: 'peer', transient: true, focused: true, others: 1, inCall: [] }); await sleep(30); assert(I.$('rk-line') && I.$('rk-line').textContent === en('reach_none_many'), 'a peer without reach changed the line');
+  assert(I.w.S.partnerOnline === true, 'the presence dot no longer follows others'); assert(I.$('presence').classList.contains('on'), 'dot');
+  const sel = I.$('s13-lang'); sel.value = 'th'; sel.dispatchEvent(new I.w.Event('change')); await sleep(80); I.w.handleRelay({ type: 'peer', transient: true, focused: true, others: 1, inCall: [], reach: { known: 1, subs: 0 } }); await sleep(30); assert(I.$('rk-line').textContent === th('reach_none', { who: 'Bo' }), 'not in the phone\'s language: ' + I.$('rk-line').textContent);
+  I.errors.length === 0 || assert(false, I.errors.join(' | '));
+});
+await T('R14 the caller is told: call-reach {app 0, pushed 0, none 1} replaces "Ringing…" on the call screen with "Bo can\'t be reached when away yet" (logged, re-worded on a switch); pushed 1 or app 1 leaves "Ringing…"; muted counts; two unreachable → the generic line; the callee\'s own screen is never touched (no n10 overlay)', async () => {
+  const I = await live({}); I.w.enterRoom('room-1'); await sleep(1200);
+  I.w.n10Show('voice'); await sleep(30); const sub = I.$('n10-sub'); assert(sub && sub.textContent === en('voice_call_ringing'), 'n10: ' + (sub && sub.textContent));
+  I.w.handleRelay({ type: 'call-reach', transient: true, callId: 'k1', app: 0, pushed: 1, none: 0, muted: 0 }); await sleep(20); assert(sub.textContent === en('voice_call_ringing'), 'pushed changed the caption');
+  I.w.handleRelay({ type: 'call-reach', transient: true, callId: 'k1', app: 1, pushed: 0, none: 1, muted: 0 }); await sleep(20); assert(sub.textContent === en('voice_call_ringing'), 'in-app changed the caption');
+  I.w.handleRelay({ type: 'call-reach', transient: true, callId: 'k1', app: 0, pushed: 0, none: 1, muted: 0 }); await sleep(20); assert(sub.textContent === en('n10_unreachable', { who: 'Bo' }), 'caption: ' + sub.textContent); assert(I.has('rk_reach_unreachable') && I.ev('rk_reach_unreachable')[0].d.none === 1, 'not logged');
+  const sel = I.$('s13-lang'); sel.value = 'th'; sel.dispatchEvent(new I.w.Event('change')); await sleep(80); assert(sub.textContent === th('n10_unreachable', { who: 'Bo' }), 'not re-worded: ' + sub.textContent);
+  I.w.n10Show('voice'); await sleep(20); assert(sub.textContent === th('voice_call_ringing'), 'reset'); I.w.handleRelay({ type: 'call-reach', transient: true, callId: 'k1', app: 0, pushed: 1, none: 1, muted: 0 }); await sleep(20); assert(sub.textContent === th('voice_call_ringing'), 'a pushed call was reported unreachable');
+  I.w.handleRelay({ type: 'call-reach', transient: true, callId: 'k1', app: 0, pushed: 0, none: 0, muted: 1 }); await sleep(20); assert(sub.textContent === th('n10_unreachable', { who: 'Bo' }), 'muted not counted: ' + sub.textContent);
+  I.w.handleRelay({ type: 'call-reach', transient: true, callId: 'k1', app: 0, pushed: 0, none: 2, muted: 0 }); await sleep(20); assert(sub.textContent === th('n10_unreachable_many'), 'generic: ' + sub.textContent);
+  const before = I.w.S.rooms.map((r) => r.lastSeenAt).join(','); I.w.handleRelay({ type: 'call-reach', transient: true, callId: 'k2', app: 0, pushed: 0, none: 1, muted: 0 }); await sleep(20); assert(I.w.S.rooms.map((r) => r.lastSeenAt).join(',') === before, 'call-reach touched presence (Last seen)');
+  const J = await live({}); J.w.enterRoom('room-1'); await sleep(1200); J.w.handleRelay({ type: 'call-reach', transient: true, callId: 'k9', app: 0, pushed: 0, none: 1, muted: 0 }); await sleep(20); assert(!J.$('n10-sub') || !/can/.test(J.$('n10-sub').textContent), 'a callee screen was written'); assert(J.errors.length === 0 && I.errors.length === 0, I.errors.concat(J.errors).join(' | '));
+});
+
 console.log('W · the worker, live in a shim: cards in the phone\'s language');
 function fakeIndexedDB() {
   const dbs = {}; const later = (fn) => setTimeout(fn, 0);
@@ -376,14 +406,14 @@ if (!process.env.TB_IO_SKIP_E && (!ONLY || ONLY.has('E'))) {
   const enTable = JSON.stringify(Object.fromEntries(LANG_ORDER.map((l) => [l, inv.keys])));
   const eReps = pageReplacements().map((r) => r.replace.indexOf(', L10N = {') !== -1 ? { ...r, replace: r.replace.replace(/, L10N = \{[\s\S]*?\}, L10N_MT = /, () => ', L10N = ' + enTable + ', L10N_MT = ') } : r);
   const ePart = part.replace('function l10nLocale() {', "function l10nLocale() { return 'en-US'; }\nfunction l10nLocaleUnused() {");
-  const eStage = assemblePage({ replacements: eReps, part: ePart }); assert(eStage !== stage && eStage.indexOf(enTable) !== -1, 'the differential stage was not built');
+  const eStage = assemblePage({ replacements: eReps, part: ePart, part2 }); assert(eStage !== stage && eStage.indexOf(enTable) !== -1, 'the differential stage was not built');
   const { snapA, snapC, RA, RC } = await runBoth(force(base), force(eStage));
   const words = (e) => (e && e.kind === 'sys' && e.key) ? { ...e, text: fill(inv.keys[e.key], e.vars), key: undefined, vars: undefined } : e;
   const wireWords = (m) => (m && m.type === 'sys-pill' && m.key) ? { ...m, text: fill(inv.keys[m.key], m.vars), key: undefined, vars: undefined } : m;
   const unmark = (h) => typeof h === 'string' ? h.replace(/ data-l10n(?:-html|-ph|-title|-aria)?="[a-z0-9_]+"/g, '').replace(/ dir="(?:ltr|rtl)"/g, '').replace(/<label class="field-label" for="s13-lang"[^<]*<\/label><select class="field-input" id="s13-lang">[\s\S]*?<\/select>/g, '') : h;
   const deep = (v, f) => Array.isArray(v) ? v.map((x) => deep(x, f)) : (v && typeof v === 'object') ? Object.fromEntries(Object.entries(v).map(([k, x]) => [k, deep(x, f)])) : f(v);
   const norm = (c) => { for (const k of ['transcript', 'bgTranscript']) { if (Array.isArray(c[k])) c[k] = c[k].map(words); else if (c[k] && typeof c[k] === 'object') for (const r of Object.keys(c[k])) if (Array.isArray(c[k][r])) c[k][r] = c[k][r].map(words); } if (Array.isArray(c.wire)) c.wire = c.wire.map(wireWords); for (const k of Object.keys(c)) if (k !== 'log') c[k] = deep(c[k], unmark); return c; };   /* the stage's data-l10n marks, per-column dir and the S13 language row are the feature; the words must be the same */
-  const strip = (s) => { const c = norm(JSON.parse(JSON.stringify(s))); c.log = c.log.map((l) => { if (l && l.d && 'dropped' in l.d) { const d = { ...l.d }; delete d.dropped; return { ...l, d }; } return l; }).filter((l) => !(l.ev === 'pb_writeback_err' && l.d && l.d.e === 'Error: get 0') && l.ev !== 'read_receipts_deferred' && !/^l10n_/.test(l.ev) && l.ev !== 'cr3_recover' && l.ev !== 'cr3_local_missed_pill_dropped'); if (c.housekeeping) delete c.housekeeping.t1_coalesced; return c; };   /* t1_coalesced: the stage's re-render when the first room adopts a language coalesces once — T-1's bookkeeping, not behaviour */
+  const strip = (s) => { const c = norm(JSON.parse(JSON.stringify(s))); c.log = c.log.map((l) => { if (l && l.d && 'dropped' in l.d) { const d = { ...l.d }; delete d.dropped; return { ...l, d }; } return l; }).filter((l) => !(l.ev === 'pb_writeback_err' && l.d && l.d.e === 'Error: get 0') && l.ev !== 'read_receipts_deferred' && !/^l10n_/.test(l.ev) && !/^rk_/.test(l.ev) && l.ev !== 'cr3_recover' && l.ev !== 'cr3_local_missed_pill_dropped'); if (c.housekeeping) delete c.housekeeping.t1_coalesced; return c; };   /* t1_coalesced: the stage's re-render when the first room adopts a language coalesces once — T-1's bookkeeping, not behaviour */
   if (process.env.TB_IO_DUMP) { for (const side of ['X', 'Y']) { fs.writeFileSync(process.env.TB_IO_DUMP + '-' + side + '-base.txt', strip(snapA[side]).log.map((l) => l.ev + ' ' + JSON.stringify(l.d || {})).join('\n')); fs.writeFileSync(process.env.TB_IO_DUMP + '-' + side + '-stage.txt', strip(snapC[side]).log.map((l) => l.ev + ' ' + JSON.stringify(l.d || {})).join('\n')); } }
   for (const side of ['X', 'Y']) { const a = strip(snapA[side]), c = strip(snapC[side]); for (const k of KEYS) await T('E ' + side + '.' + k + ' identical (installed, both builds)', () => { const out = []; diff(a[k], c[k], side + '.' + k, out); assert(out.length === 0, out.slice(0, 5).map((o) => { const m = /^(\S+): "([\s\S]*)" ≠ "([\s\S]*)"$/.exec(o); if (!m || m[2].length < 200) return o; let i = 0; while (i < m[2].length && m[2][i] === m[3][i]) i++; return m[1] + ' differs at ' + i + ': …' + m[2].slice(Math.max(0, i - 60), i + 120) + '… ≠ …' + m[3].slice(Math.max(0, i - 60), i + 120) + '…'; }).join('\n')); }); }
   await T('E no uncaught error on either build through the whole script', () => assert([RA.X, RA.Y, RC.X, RC.Y].every((I) => I.errors.length === 0), [RA.X, RA.Y, RC.X, RC.Y].flatMap((I) => I.errors).join(' | ')));

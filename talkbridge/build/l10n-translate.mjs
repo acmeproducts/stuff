@@ -39,14 +39,16 @@ export function check(en, tr, toks) {
   if (tr.length > Math.max(40, en.length * 3)) return 'length x' + (tr.length / Math.max(1, en.length)).toFixed(1);   /* short words legitimately grow (de 'Join' → 'Machen Sie mit'); the ratio guards long rows */
   return null;
 }
+/* the cache is per STRING and language (a new key costs one small call per language, not a re-fetch of every chunk); a failed fetch is a retry, not a crash */
+const cacheFile = (to, q) => path.join(CACHE, sha(to + '\n' + q) + '.json');
+const cached = (to, q) => { const cf = cacheFile(to, q); return fs.existsSync(cf) ? JSON.parse(fs.readFileSync(cf, 'utf8')) : undefined; };
 async function gtx(q, to) {
-  const key = sha(to + '\n' + q); fs.mkdirSync(CACHE, { recursive: true }); const cf = path.join(CACHE, key + '.json');
-  if (fs.existsSync(cf)) return JSON.parse(fs.readFileSync(cf, 'utf8'));
+  fs.mkdirSync(CACHE, { recursive: true }); const hit = cached(to, q); if (hit !== undefined) return hit;
   if (process.argv.includes('--offline')) throw new Error('offline and not cached: ' + to + ' ' + q.slice(0, 40));
   const url = 'https://translate.googleapis.com/translate_a/single?client=gtx&sl=en&tl=' + gcode(to) + '&dt=t&q=' + encodeURIComponent(q);
-  let wait = 1500;
+  let wait = 3000;
   for (let attempt = 0; attempt < 6; attempt++) {
-    const r = await fetch(url); if (r.status === 200) { const j = await r.json(); const text = (j[0] || []).map((seg) => seg[0]).join(''); fs.writeFileSync(cf, JSON.stringify(text)); await sleep(1500); return text; }
+    try { const r = await fetch(url, { redirect: 'manual' }); if (r.status === 200) { const j = await r.json(); const text = (j[0] || []).map((seg) => seg[0]).join(''); fs.writeFileSync(cacheFile(to, q), JSON.stringify(text)); await sleep(1500); return text; } } catch (_) {}
     await sleep(wait); wait *= 2;
   }
   throw new Error('gtx ' + to + ' failed after retries');
@@ -54,14 +56,15 @@ async function gtx(q, to) {
 async function translateLang(keys, en, to, report) {
   const items = Object.keys(keys).map((k) => { const p = protect(en[k]); return { k, en: en[k], q: p.out, toks: p.toks }; });
   const out = {}; let chunk = [], size = 0;
+  const take = (it, seg) => { const tr = restore(seg.trim(), it.toks); const bad = check(it.en, seg, it.toks); if (bad) { report.push({ lang: to, key: it.k, why: bad, got: seg.slice(0, 80) }); out[it.k] = it.en; } else out[it.k] = tr; };
   const flush = async () => {
     if (!chunk.length) return; const q = chunk.map((it) => it.q).join('\n');
     let segs = (await gtx(q, to)).split('\n');
     if (segs.length !== chunk.length) { report.push({ lang: to, why: 'segments ' + segs.length + ' for ' + chunk.length + ' — per string' }); segs = []; for (const it of chunk) segs.push(await gtx(it.q, to)); }
-    chunk.forEach((it, i) => { const tr = restore(segs[i].trim(), it.toks); const bad = check(it.en, segs[i], it.toks); if (bad) { report.push({ lang: to, key: it.k, why: bad, got: segs[i].slice(0, 80) }); out[it.k] = it.en; } else out[it.k] = tr; });
+    chunk.forEach((it, i) => { fs.writeFileSync(cacheFile(to, it.q), JSON.stringify(segs[i])); take(it, segs[i]); });   /* every string cached on its own */
     chunk = []; size = 0;
   };
-  for (const it of items) { if (size + it.q.length + 1 > 2500) await flush(); chunk.push(it); size += it.q.length + 1; }
+  for (const it of items) { const hit = cached(to, it.q); if (hit !== undefined) { take(it, hit); continue; } if (size + it.q.length + 1 > 2500) await flush(); chunk.push(it); size += it.q.length + 1; }
   await flush();
   return out;
 }

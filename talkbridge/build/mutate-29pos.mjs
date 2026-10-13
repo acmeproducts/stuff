@@ -6,10 +6,10 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { spawn } from 'node:child_process';
-import { assembleAll, FOLDER, OUT, PART, STAGE_PAGE, WORKER_NAME, MANIFEST_NAME, MANIFEST_IOS_NAME, pageReplacements } from './assemble-29pos.mjs';
+import { assembleAll, FOLDER, OUT, PART, PART2, STAGE_PAGE, WORKER_NAME, MANIFEST_NAME, MANIFEST_IOS_NAME, pageReplacements } from './assemble-29pos.mjs';
 
 const root = path.resolve(path.dirname(new URL(import.meta.url).pathname), '../..');
-const part0 = fs.readFileSync(path.join(root, PART), 'utf8');
+const part0 = fs.readFileSync(path.join(root, PART), 'utf8'); const part20 = fs.readFileSync(path.join(root, PART2), 'utf8');
 const once = (s, find, rep) => { const i = s.indexOf(find); if (i === -1) throw new Error('mutation find missing: ' + find.slice(0, 60)); return s.slice(0, i) + rep + s.slice(i + find.length); };
 const idOf = (needle) => { const r = pageReplacements().find((x) => x.find.indexOf(needle) !== -1 || x.replace.indexOf(needle) !== -1); if (!r) throw new Error('no edit holds ' + needle); return r.id; };
 
@@ -50,6 +50,20 @@ const M = [
   { catches: 'S4', name: 'L1 reassigns a renderer (the wrap map grows)', part: (s) => once(s, 'function l10nLog(what, d, lvl)', 'renderHome = function () {};\nfunction l10nLog(what, d, lvl)') },
   { catches: 'S7', name: 'a buried pattern returns in the part (G68: the chat mic restored after a call)', part: (s) => once(s, 'function l10nLog(what, d, lvl)', 'var _chatMicWasOn = false;\nfunction l10nLog(what, d, lvl)') },
   /* banked edits left unapplied, the table, the inventory */
+  /* RK-1 */
+  { catches: 'R13', name: 'a positive count is shown as a promise ("reachable")', part2: (s) => once(s, "  if (!reach || !(reach.known > 0) || reach.subs > 0) return '';", "  if (!reach || !(reach.known > 0)) return ''; if (reach.subs > 0) return l10n('reach_none_many');") },
+  { catches: 'R13', name: 'the line shows for an unknown partner (known 0)', part2: (s) => once(s, "  if (!reach || !(reach.known > 0) || reach.subs > 0) return '';", "  if (!reach || reach.subs > 0) return '';") },
+  { catches: 'R13', name: 'the line is named in a three-person room', part2: (s) => once(s, "  return reach.known === 1 ? l10n('reach_none', { who: (room && room.partnerName) || l10n('partner') }) : l10n('reach_none_many');", "  return l10n('reach_none', { who: (room && room.partnerName) || l10n('partner') });") },
+  { catches: 'R13', name: 'the peer branch no longer feeds the mark (banked edit unapplied)', keep: [idOf("try { rkOnPeer(d); } catch (_) {}")] },
+  { catches: 'R13', name: 'the mark is not logged', part2: (s) => once(s, "rkLog('reach_mark', { known: rkState.reach.known, subs: rkState.reach.subs }, 'info');", "") },
+  { catches: 'R14', name: 'a pushed call is reported unreachable', part2: (s) => once(s, "  if (app > 0 || pushed > 0 || none + muted === 0) return;", "  if (app > 0 || none + muted === 0) return;") },
+  { catches: 'R14', name: 'a muted callee is not counted', part2: (s) => once(s, "var app = d.app || 0, pushed = d.pushed || 0, none = d.none || 0, muted = d.muted || 0;", "var app = d.app || 0, pushed = d.pushed || 0, none = d.none || 0, muted = 0;") },
+  { catches: 'R14', name: 'the caption is written without l10nCap (a switch reverts it to Ringing)', part2: (s) => once(s, "sub.textContent = one ? l10nCap('n10-sub', 'n10_unreachable', { who: (room && room.partnerName) || l10n('partner') }) : l10nCap('n10-sub', 'n10_unreachable_many');", "sub.textContent = one ? l10n('n10_unreachable', { who: (room && room.partnerName) || l10n('partner') }) : l10n('n10_unreachable_many');") },
+  { catches: 'R14', name: 'call-reach reaches the core (presence touched, Last seen refreshed)', page: (h) => once(h, "  if (d && d.type === 'call-reach') { try { rkOnCallReach(d); } catch (_) {} return; }", "  if (d && d.type === 'call-reach') { try { rkOnCallReach(d); } catch (_) {} }") },
+  { catches: 'S6', name: 'RK-1 answers the relay itself', part2: (s) => once(s, "function rkLog(what, d, lvl)", "function rkAck() { relaySend({ type: 'ev-state', visible: true }); }\nfunction rkLog(what, d, lvl)") },
+  { catches: 'S6', name: 'a second received type sneaks in undeclared', page: (h) => once(h, "  if (d && d.type === 'call-reach') {", "  if (d && d.type === 'call-extra') { return; }\n  if (d && d.type === 'call-reach') {") },
+  { catches: 'S4', name: 'RK-1 grows an undeclared symbol', part2: (s) => once(s, "function rkLog(what, d, lvl)", "function rkExtra() { return 1; }\nfunction rkLog(what, d, lvl)") },
+
   { catches: 'G1', name: 'one toast left in English (a banked edit unapplied)', keep: [idOf("toast(l10n('toast_link_copied')")] },
   { catches: 'G1', name: 'a spaced hard-coded label (el.textContent = \'Foo bar\') added to the page', page: (h) => once(h, "function l10nLog(what, d, lvl)", "function l10nFoo() { var el = document.getElementById('x'); if (el) el.textContent = 'Please wait here'; }\nfunction l10nLog(what, d, lvl)") },
   { catches: 'G1', name: 'a confirm() in English', page: (h) => once(h, "function l10nLog(what, d, lvl)", "function l10nAsk() { return confirm('Delete this room?'); }\nfunction l10nLog(what, d, lvl)") },
@@ -74,8 +88,8 @@ const M = [
 
 function build(m) {
   const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'tb29pos-')); const dir = path.join(tmp, FOLDER); fs.mkdirSync(dir, { recursive: true });
-  const part = m.part ? m.part(part0) : part0;
-  let files; const opts = { part, keepReplacements: m.keep || [], keepWorkerReplacements: m.keepW || [] };
+  const part = m.part ? m.part(part0) : part0; const part2 = m.part2 ? m.part2(part20) : part20;
+  let files; const opts = { part, part2, keepReplacements: m.keep || [], keepWorkerReplacements: m.keepW || [] };
   files = assembleAll(opts);
   let page = files[OUT.page], worker = files[OUT.worker];
   if (m.page) page = m.page(page); if (m.worker) worker = m.worker(worker);
@@ -83,14 +97,14 @@ function build(m) {
   if (m.inventory) { const inv = JSON.parse(fs.readFileSync(path.join(root, 'talkbridge/fixtures/l10n/inventory.json'), 'utf8')); fs.writeFileSync(path.join(tmp, 'inventory.json'), JSON.stringify(m.inventory(inv))); }
   fs.writeFileSync(path.join(dir, STAGE_PAGE), page); fs.writeFileSync(path.join(dir, WORKER_NAME), worker); fs.writeFileSync(path.join(dir, MANIFEST_NAME), files[OUT.manifest]); fs.writeFileSync(path.join(dir, MANIFEST_IOS_NAME), files[OUT.manifestIos]);
   for (const f of fs.readdirSync(path.join(root, FOLDER))) if (/\.png$/.test(f)) fs.copyFileSync(path.join(root, FOLDER, f), path.join(dir, f));
-  if (m.part) fs.writeFileSync(path.join(tmp, 'part.js'), part);
-  return { tmp, dir, part: m.part ? path.join(tmp, 'part.js') : null };
+  if (m.part) fs.writeFileSync(path.join(tmp, 'part.js'), part); if (m.part2) fs.writeFileSync(path.join(tmp, 'part2.js'), part2);
+  return { tmp, dir, part: m.part ? path.join(tmp, 'part.js') : null, part2: m.part2 ? path.join(tmp, 'part2.js') : null };
 }
 function run(m) {
   return new Promise((resolve) => {
     let b; try { b = build(m); } catch (e) { return resolve({ m, caught: false, out: 'BUILD FAILED: ' + e.message }); }
     const env = { ...process.env, TB_IO_DIR: b.dir, TB_IO_ONLY: (m.group || m.catches[0]), TB_IO_SKIP_E: m.group === 'E' ? '' : '1' };
-    if (b.part) env.TB_IO_PART = b.part; if (m.keep && m.keep.length) env.TB_IO_KEEP = m.keep.join(','); if (m.keepW && m.keepW.length) env.TB_IO_KEEP_W = m.keepW.join(',');
+    if (b.part) env.TB_IO_PART = b.part; if (b.part2) env.TB_IO_PART2 = b.part2; if (m.keep && m.keep.length) env.TB_IO_KEEP = m.keep.join(','); if (m.keepW && m.keepW.length) env.TB_IO_KEEP_W = m.keepW.join(',');
     if (m.table) env.TB_IO_TABLE = path.join(b.tmp, 'table.json'); if (m.inventory) env.TB_IO_INVENTORY = path.join(b.tmp, 'inventory.json');
     const p = spawn(process.execPath, [path.join(root, 'talkbridge/build/harness-29pos.mjs')], { env }); let out = '';
     p.stdout.on('data', (d) => { out += d; }); p.stderr.on('data', (d) => { out += d; });

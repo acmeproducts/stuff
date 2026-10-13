@@ -1,4 +1,4 @@
-# TalkBridge · Thai review sheet (29·post-ship localization, generated 2026-10-12)
+# TalkBridge · Thai review sheet (29·post-ship localization, generated 2026-10-13)
 
 Every word the app itself says, English beside the Thai the phone shows. Rows marked MT are machine translation (Google, the app's own chat path); rows marked OK were reviewed. To correct a row: write the Thai into `talkbridge/fixtures/l10n/overrides.json` under `th` by key (the builder does this from your notes) and the row loses its MT mark on the next build. `{name}` tokens are filled at runtime and must stay.
 
@@ -45,6 +45,10 @@ Every word the app itself says, English beside the Thai the phone shows. Rows ma
 | `show_me` | Show me | แสดงให้ฉันดู | MT |
 | `room_name` | Room name | ชื่อห้อง | MT |
 | `phrasebook` | Phrasebook | หนังสือวลี | MT |
+| `reach_none` | {who} won't be alerted when away | {who} จะไม่ได้รับการแจ้งเตือนเมื่อไม่อยู่ | MT |
+| `reach_none_many` | Nobody will be alerted while away | จะไม่มีใครได้รับการแจ้งเตือนในขณะที่ไม่อยู่ | MT |
+| `n10_unreachable` | {who} can't be reached when away yet | ไม่สามารถติดต่อ {who} ได้เมื่อไม่อยู่ | MT |
+| `n10_unreachable_many` | Nobody can be reached when away yet | ยังไม่มีใครสามารถติดต่อได้เมื่อไม่อยู่ | MT |
 | `s0_title` | Hi, let's get ready to chat! | สวัสดี เรามาเตรียมตัวแชทกันเถอะ! | MT |
 | `s0_sub` | What's your name? | คุณชื่ออะไร? | MT |
 | `your_name` | Your name | ชื่อของคุณ | OK |
