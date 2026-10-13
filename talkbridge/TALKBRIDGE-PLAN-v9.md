@@ -1,5 +1,5 @@
-<!-- TALKBRIDGE-PLAN v21.98.0 -->
-# TALKBRIDGE MASTER PLAN v21.98.0
+<!-- TALKBRIDGE-PLAN v21.99.0 -->
+# TALKBRIDGE MASTER PLAN v21.99.0
 
 **Location:** `talkbridge/TALKBRIDGE-PLAN-v9.md` in `acmeproducts/stuff`.
 **Owner:** Confi — sole decision-maker, runs every device gate.
@@ -146,7 +146,7 @@ the directory release and IndexedDB each moved one turn later; nothing was dropp
 | 29·base | multi-user, relay leg | **CANDIDATE 1 · BUILT 2026-10-09 · relay v6.7 — deployed to the live relay on merge; awaiting the owner's three-device gate** | relay only (no page) |
 | 29·pre-ship | **the directory release (fixing the PWA: D-2 + D-6, §7.5 + §7.12)** — moved up 2026-10-09 when multi-user c1 was withdrawn (warm storage `bridge-turn29-multi-user-v1.html`) | **CANDIDATE 2 · ACCEPTED 2026-10-10 (owner: "iPhone install successful") · sha `f8919a976bbd`** — Android passed on c1 (same bytes but one head line), iPhone on c2; desktop G1 untested | **https://acmeproducts.github.io/stuff/talkbridge-app/bridge-turn29-pre-ship.html** |
 | 29·ship | **install optional (§7.19)** — moved up from 29·post-ship 2026-10-09; the owner's two call-sound items slotted in 2026-10-10 | **ACCEPTED 2026-10-11 · candidate 6 · sha `7c61a68ee1c8` (owner: "pass")** | **https://acmeproducts.github.io/stuff/talkbridge-app/bridge-turn29-ship.html** |
-| 29·post-ship | **localization** — the app's own words in the user's language, both sides (§7.17) — moved up from 30·base by owner ruling 2026-10-10 | **CANDIDATE 3 · BUILT 2026-10-12 · sha `2d4bea9cad57` · tb-sw5.js — c2 (one language everywhere, set by the first room) + the reach bar due the moment the room has a partner (owner report 2026-10-12 PDT: a joiner never prompted; §7.19 (11)); every gate green (harness 88/88, mutations 53/53, prior 53 + 112, sweep clean, governance); awaiting the owner's two-phone device gate** | **https://acmeproducts.github.io/stuff/talkbridge-app/bridge-turn29-post-ship.html** |
+| 29·post-ship | **localization** — the app's own words in the user's language, both sides (§7.17) — moved up from 30·base by owner ruling 2026-10-10 | **CANDIDATE 4 · BUILT 2026-10-12 · sha `10e95e443611` · tb-sw5.js · relay v6.11 — c3 + REACHABILITY (§7.20: the partner's "won't be alerted when away" line from the relay's record; the caller told at call time); every gate green (harness 90/90, mutations 65/65, relay 18/18 + 36/36, prior 53 + 112, sweep clean, governance); awaiting the owner's two-phone device gate (all three: localization, the reach bar, reachability)** | **https://acmeproducts.github.io/stuff/talkbridge-app/bridge-turn29-post-ship.html** |
 | 30·post-ship | IndexedDB — behind its POC; if the owner defers it past beta, it stays here | queued | — |
 | 30·pre-base | byte-identical snapshot of accepted 29·post-ship | queued | — |
 | 30·base | open — multi-user (conference-room model) returns here or later, only after its spec is written and approved | queued | — |
@@ -2091,6 +2091,7 @@ Green means allowed to push. It never means done.
 
 ## 10 · CHANGE LOG
 
+**v21.99.0 · 2026-10-12.** 29·post-ship candidate 4: REACHABILITY FROM THE RECORD (§7.20) — relay v6.11 (reach on the peer announce, call-reach to the caller, announce on subscribe/unsubscribe) + RK-1 (the negative line above the composer; the caller's caption). Plan reviewed before code (11 findings applied: negative claim only, from the record after the push, muted counts, S6 declares the received type, placement off the ribbon, announce on subscribe). Awaiting the device gate for all three.
 **v21.98.0 · 2026-10-12.** 29·post-ship candidate 3: the reach bar is due as soon as the room has a partner (a call-first conversation never prompted: no `rh_bar_shown` in any phone's log since 10-11; owner report). One generated edit; R12; mutation. Awaiting the device gate.
 **v21.97.0 · 2026-10-12.** 29·post-ship candidate 2: ONE language everywhere, set by the first room (owner ruling after walking the Thai partner's day); §7.17 item 2 amended; L1 adopts at the landing and at the three room-creation sites; gates green. Awaiting the device gate.
 **v21.96.0 · 2026-10-12.** 29·post-ship LOCALIZATION candidate 1 BUILT: `talkbridge-app/bridge-turn29-post-ship.html` + `tb-sw5.js` — 287 keys, 21 languages, 289 generated edits + L1; gates green (§7.17 Built record); G72 buried (behaviour keyed on English words) with a sweep signature; the Thai review sheet for the owner. Awaiting the two-phone device gate.
@@ -5625,6 +5626,28 @@ Input: accepted 29·ship (`talkbridge-app/bridge-turn29-ship.html`, sha `7c61a68
 **The fix (one generated banked edit).** `rhBarDue()` returns `!!room.joined` — a partner is the moment it matters. The joiner's room is `joined` from creation; the creator's when the partner arrives. The bar's other rules stand (once; Not now; not for unsupported/denied/install; the installed copy at once).
 **Gates.** R12 (a joiner in an Android tab, permission not asked, NO message: "Turn on" above the composer at room entry, logged; an unjoined room shows no bar); the first-message condition proven gone from the stage; mutation: the edit left unapplied. Harness 88/88, mutations 53/53.
 **The relay's record (diag 02:28Z on the shared room).** The record holds 00:34Z onward: chats both ways, all `in_app`; at 00:35:29Z a voice call FROM the partner TO the owner — the owner's phone away, `os_requested`, push accepted (201), `missed`, seen by the owner 11 s later ("my notification worked"); at 00:36:47Z the partner's video call, accepted in-app (the 33-minute call). The owner's own earlier call to the partner predates the record's window, as it predates the log's — neither can show the partner's permission state at that moment. Both devices hold a subscription now (`subs: 2`). **Still to prove on the device.** The device gate adds: a fresh Android joiner, link in Chrome, NO message — the bar is on screen before anything else; tap Turn on; lock the phone; the owner's call rings. The device-log drain's skipped schedule is noted (§0 process): a hand dispatch of `device-log.yml` is the fallback when the drain time in `DEVICE-LOG.md` is stale.
+
+────────────────────────────────────────────────────────────────────────
+## §7.20 BUILDER SPEC — REACHABILITY FROM THE RECORD (29·post-ship candidate 4; owner 2026-10-12: "I like both of those a lot… proceed")
+────────────────────────────────────────────────────────────────────────
+### The problem (owner, 2026-10-12)
+You cannot tell, before or during a call, whether the call can reach the other person. You find out by silence.
+
+### What the relay knows and says (v6.11; counts only — no id, no endpoint ever leaves it)
+1. On every peer announce, `reach: {known, subs}`: the OTHER devices this room knows (devices ∪ subscriptions ∪ connected, minus the asker) and how many hold a push subscription re-offered within 14 days (`REACH_FRESH_MS`; the app re-posts it on every boot and room entry). Subscribe and unsubscribe announce at once, so the partner's mark follows "Turn on" within a second, not at the next heartbeat.
+2. After a `call-start`'s push attempt, to the CALLER alone, `call-reach {callId, app, pushed, none, muted}` read from the recipient record: `app` rings in the app, `pushed` an OS card was accepted by the push service, `none` the push failed (no subscription, stale, or the endpoint declared dead at this very attempt), `muted`. Computed AFTER `_deliverByRecord`, so a 410 learned there counts as none (review finding 2).
+
+### What the app shows (RK-1, `talkbridge/parts/rk1-reach-mark.js`)
+- ONLY THE NEGATIVE CLAIM (review finding 1: a subscription's existence is not deliverability — an abandoned phone, a tab beside an installed copy, an endpoint not yet declared dead all count): when `known > 0` and `subs === 0`, a dim line above the composer beside the reach bar — "{who} won't be alerted when away" (the name only when the room knows exactly one other device; else "Nobody will be alerted while away"). Nothing is shown otherwise; never a promise. Never in the room ribbon (a third span there is the first thing a narrow phone clips).
+- The caller's line: when `app === 0`, `pushed === 0` and `none + muted > 0`, the call screen's "Ringing…" becomes "{who} can't be reached when away yet" (through `l10nCap`, so a language switch re-words it); the ring goes on — they may open the app. A muted callee counts (review finding 3: the app unsubscribes a muted room; nothing rings).
+- Both relay words are routed to the module by one banked edit at the top of `handleRelay`, before anything else sees them (an unknown type reaching the core would touch presence and refresh "Last seen").
+
+### Gates
+Relay: Q1 reach counts (asker excluded; announce after subscribe/unsubscribe; a stale subscription not counted); Q2 call-reach from the record (none / pushed / app; the callee hears nothing); Q3 muted counts, a dead endpoint counts as none; Q4 a chat sends none, no id or endpoint in the counts; version 6.11; mutations. App: R13 (the line per reach, the generic line for three, no line on a positive count, no change without the field, in the phone's language), R14 (the caption per call-reach, re-worded on a switch, muted counts, presence untouched, the callee's screen untouched); S6 declares the one RECEIVED type (`call-reach`) and proves the app sends none; mutations. Governance pin 6.11.
+
+### Device gate (owner, both phones)
+A: partner's phone a fresh Chrome tab, notifications never turned on, app closed; the owner enters the room → the line "… won't be alerted when away" is above the composer; the partner opens the app and taps Turn on → the line is gone within a second. Control: nothing is shown when both phones have notifications on.
+B: same partner state, phone locked; the owner calls → the call screen says "… can't be reached when away yet" within about a second. Control: partner turns on, locks the phone; the owner calls → "Ringing…" stays and the locked phone rings. Mute: the partner mutes the room and locks; the owner calls → the caption flips.
 
 ────────────────────────────────────────────────────────────────────────
 ## §7.18 PROPOSAL — A TRANSLATION OVERLAY THAT LEARNS (owner draft 2026-10-03; FOR DISCUSSION, not scheduled)

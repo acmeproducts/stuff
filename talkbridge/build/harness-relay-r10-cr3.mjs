@@ -199,7 +199,7 @@ await scenario('R10 read-only HTTPS reconciliation equals the socket answer; cal
   await a.say({ type: 'call-end', callId: 'k5', reason: 'missed' });
   const viaSocket = await proj(b); const viaHttp = await w.post('B', { type: 'events-sync' });
   assert.deepEqual(viaHttp.proj, viaSocket.proj); assert.deepEqual(viaHttp.proj, { chat: 0, voice: 1, video: 0 });
-  const d = await w.post('A', { type: 'diag' }); assert.equal(d.v, '6.10');   /* pinned to the live version: 6.7 at 29·base, 6.8 at c4, 6.9 at c5, 6.10 at c6 */ assert.ok(Array.isArray(d.events));
+  const d = await w.post('A', { type: 'diag' }); assert.equal(d.v, '6.11');   /* pinned to the live version: 6.7 at 29·base, 6.8 at c4, 6.9 at c5, 6.10 at c6 */ assert.ok(Array.isArray(d.events));
 });
 
 const bad = results.filter((r) => !r.ok).length;
