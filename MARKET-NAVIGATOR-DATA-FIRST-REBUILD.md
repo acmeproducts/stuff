@@ -1,3 +1,9 @@
+# October 13: independent chronology and lineage implementation
+
+Release held after manager and red-team review. Implement native-date latest-vintage index projection, retaining collection/knownBy/component dates and all original seed rows; independently dereference archived component blobs; expose index-specific Health coverage and limits; qualify incident chronology, coherent tampering, bounded repair and consistent frozen chart/AI/Library/export windows. A Saturday revision is never described as information available Friday. Missing historical availability is not invented.
+
+Independent gates cover Friday revision, weekend and Monday pre-close/completed sessions; source/value/date/revision mismatch; mixed-frequency inputs; source omissions; seed boundary; index Health; frozen consumer windows and retained generations. Physical-device owner acceptance remains required. FRED MCP is not part of this implementation until retention compatibility is established.
+
 # October 10 owner rejection: reusable-chart release 86e3aff
 
 Owner testing rejects 86e3aff despite automated PASS. Preserve its source, evidence and published generations. Retry the review release after fixing direct line selection in NOW and Analyze, diagnostic inspection of native weekly/monthly steps, and configured canvas/host geometry in small multiples. The objective is not yet accepted.

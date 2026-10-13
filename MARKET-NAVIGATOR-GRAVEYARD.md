@@ -1,3 +1,9 @@
+# October 13: collection-clock and self-referential index admission rejected
+
+Owner October 12 evidence overrides the 2114b60 qualification PASS for chronology and complete assurance. Preserve the immutable baseline, candidate and captured generation fa8d3cba3f724347d25a. Do not promote collection dates to market observations or verify index inputs only against embedded receipts. Independently dereference archived source blobs, verify source dates and reproduce the October 7–12 incident and coherent-corruption rejection.
+
+Current Add instruction supersedes immediate-add-and-close: keep the picker open; already-added series and indices show green Added with X removal. Retain the NOW-only Analyze anchor/session contract. FRED MCP remains outside the collector pending compatibility with published retention restrictions.
+
 # October 10: owner rejects 86e3aff reusable-chart candidate
 
 Owner screenshots override automated PASS. Do not ship a consumer-dependent line-selection flag that leaves NOW/Analyze unchanged while small multiples focus the hit series. Direct line clicks select and emphasize once, never open an information card. Retain explicit information gestures separately.
