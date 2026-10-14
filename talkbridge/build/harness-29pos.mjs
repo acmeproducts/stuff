@@ -399,6 +399,11 @@ await T('T2 the phone\'s language is the one app-level setting: saved in tba_use
 });
 await T('T3 size: the stage grows by the table alone (within 300 KB of the accepted page); the worker by its five rows', () => { const g = stage.length - base.length; assert(g > 150000 && g < 320000, 'growth ' + g); assert(worker.length - baseW.length < 12000, 'worker growth ' + (worker.length - baseW.length)); });
 
+await T('T4 the second door names this stage: fixtures/dir/next-stage.json points at ' + STAGE_PAGE + ' (the newest candidate) and the folder\'s next.html forwards to it', () => {
+  const nx = JSON.parse(rd(path.join(root, 'talkbridge/fixtures/dir/next-stage.json'))); assert(nx.page === STAGE_PAGE, 'next-stage.json names ' + nx.page);
+  const door = rd(path.join(dir, 'next.html')); assert(door.indexOf("location.replace('./" + STAGE_PAGE + "' + location.search + location.hash)") !== -1, 'next.html does not forward to this stage');
+});
+
 console.log('E · the whole 28·post-ship script, both builds installed: identical (pills compared by their English words)');
 if (!process.env.TB_IO_SKIP_E && (!ONLY || ONLY.has('E'))) {
   const force = (h) => h.replace('<head>', '<head><script>window.matchMedia = (q) => ({ matches: /standalone/.test(q), addEventListener() {}, addListener() {} });</script>');

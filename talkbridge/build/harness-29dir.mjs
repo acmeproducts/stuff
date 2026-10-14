@@ -16,12 +16,12 @@ import { readFileSync, existsSync, readdirSync } from 'fs';
 import { execFileSync } from 'child_process';
 import vm from 'vm';
 import { JSDOM, VirtualConsole } from 'jsdom';
-import { LATER_STAGES, base as baseText, workerSrc, pageReplacements, workerReplacements, assemblePage, assembleWorker, assembleManifests, forwarder, currentStage, COPIES, FOLDER, FOLDER_PATH, STAGE_PAGE, MANIFEST_NAME, MANIFEST_IOS_NAME, OUT, ADDED_MARKERS, ADDED_SYMBOLS, MANIFEST_SRC } from './assemble-29dir.mjs';
+import { LATER_STAGES, base as baseText, workerSrc, pageReplacements, workerReplacements, assemblePage, assembleWorker, assembleManifests, forwarder, currentStage, nextStage, COPIES, FOLDER, FOLDER_PATH, STAGE_PAGE, MANIFEST_NAME, MANIFEST_IOS_NAME, OUT, ADDED_MARKERS, ADDED_SYMBOLS, MANIFEST_SRC } from './assemble-29dir.mjs';
 import { runBoth, KEYS, diff } from './rig-28pos.mjs';
 
 const folder = process.env.TB_DIR_FOLDER || FOLDER;
 const rd = (f) => readFileSync(f, 'utf8');
-const page = rd(folder + '/' + STAGE_PAGE), index = rd(folder + '/index.html'), worker = rd(folder + '/tb-sw3.js');
+const page = rd(folder + '/' + STAGE_PAGE), index = rd(folder + '/index.html'), next = rd(folder + '/next.html'), worker = rd(folder + '/tb-sw3.js');
 const manChrome = rd(folder + '/' + MANIFEST_NAME), manIos = rd(folder + '/' + MANIFEST_IOS_NAME);
 const base = baseText(), rootSw = workerSrc();
 const pagePart = process.env.TB_DIR_PAGE_PART ? rd(process.env.TB_DIR_PAGE_PART) : rd('talkbridge/parts/dr1-folder.js');
@@ -41,6 +41,13 @@ console.log('M1 · the stage page in the folder is the 29·pre-base bytes + the 
 await T('M1.1 ' + STAGE_PAGE + ' is the assembler\'s output; the folder\'s index.html is the forwarder to the CURRENT ACCEPTED stage, carrying search and hash', () => {
   assert(page === assemblePage({ parts: [pagePart], keepReplacements: KEEP }), STAGE_PAGE + ' ≠ assemblePage()');
   const cur = currentStage(); assert(index === forwarder(cur) && index.indexOf("location.replace('./" + cur + "' + location.search + location.hash)") !== -1 && index.split('\n').length <= 16, 'index.html is not the 15-line forwarder to the current accepted stage (' + cur + ')');
+});
+await T('M1.3 the SECOND DOOR: next.html is the forwarder to the NEWEST CANDIDATE named by fixtures/dir/next-stage.json, carrying search and hash; that page exists in the folder; the door does nothing else; the two doors differ only in their target and their comment', () => {
+  const nx = nextStage(); assert(next === forwarder(nx, 'next') && next.indexOf("location.replace('./" + nx + "' + location.search + location.hash)") !== -1 && next.split('\n').length <= 16, 'next.html is not the forwarder to ' + nx);
+  assert(existsSync(folder + '/' + nx), 'the newest candidate ' + nx + ' is not in the folder'); assert(/NEWEST CANDIDATE/.test(next) && !/NEWEST CANDIDATE/.test(index), 'the doors are not told apart');
+  const m = next.match(/<script>location\.replace\(([^;]*)\);<\/script>/); assert(m, 'no replace call'); const target = new Function('location', 'return ' + m[1])({ search: '?x=1', hash: '#j=abc' }); assert(target === './' + nx + '?x=1#j=abc', 'the second door goes to ' + target);
+  assert((next.match(/<script>/g) || []).length === 1 && !/fetch\(|WebSocket|localStorage/.test(next), 'the second door does more than forward');
+  const strip = (h) => h.replace(/<!--[\s\S]*?-->/, '').replace(/bridge-turn[0-9a-z-]+\.html/g, 'X'); assert(strip(next) === strip(index), 'the doors differ beyond target and comment');
 });
 await T('M1.2 exactly three page edits (E1 head manifest, E2 the swap by platform, E5 fastText path), each found once in the base and once in the page', () => {
   const reps = pageReplacements(); assert(reps.map((r) => r.id).join(',') === 'E1-head-manifest,E2-u1-manifest-swap,E5-fasttype-dir', reps.map((r) => r.id).join(','));
@@ -102,7 +109,7 @@ await T('M3.3 the worker\'s own URLs now point at the folder: APP_FILE is empty,
 console.log('M4 · copies');
 await T('M4.1 icons and flags.png in the folder are byte-identical to the root files; nothing else is in the folder', () => {
   for (const c of COPIES) assert(Buffer.compare(readFileSync(folder + '/' + c), readFileSync(c)) === 0, c + ' differs');
-  const want = new Set([...COPIES, STAGE_PAGE, 'index.html', 'tb-sw3.js', MANIFEST_NAME, MANIFEST_IOS_NAME]);
+  const want = new Set([...COPIES, STAGE_PAGE, 'index.html', 'next.html', 'tb-sw3.js', MANIFEST_NAME, MANIFEST_IOS_NAME]);
   const have = readdirSync(folder).filter((f) => !LATER_STAGES.test(f)); assert(have.length === want.size && have.every((f) => want.has(f)), 'folder holds: ' + have.join(','));
 });
 
