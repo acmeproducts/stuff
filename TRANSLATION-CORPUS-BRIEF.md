@@ -59,3 +59,37 @@ Today every sentence goes to Google and the answer is forgotten. Instead, keep a
 - **Who approves:** you, plus named native reviewers per language; accepting in the app is the approval.
 - **Matching:** exact only to start; add close matching after real use shows what repeats.
 - **Order of work:** shared format and lookup (read-only, switchable) first; review queue and capture second; seed lists third.
+
+## Beyond repeated sentences: handling colloquial and informal speech
+
+The shelf only helps for sentences people repeat. Informal speech needs other tools, and most work with or without the shelf. Brainstorm, 2026-10-14; nothing built or tested.
+
+**A. Fix the input before translating (cheap, small lists).**
+1. **Text-speak and slang expander.** Short native-curated lists per language that turn "gonna", "u", "ko" (Vietnamese for không), "gak" or "udah" (Indonesian), "x" (Malay for tak), "555" (Thai for lol) into plain words before translation. We already do this once: the Northern Thai map. Generalize it into packs for Isaan, Taglish, Jakarta slang, Manglish and so on.
+2. **Clean up spoken mess.** Drop fillers, repeats and false starts ("um, I mean, like, I'm gonna...") before translating; keep the original beside it.
+3. **Mining our own cases.** Where the back-translation score is low but a person or the AI says the meaning matched (the 33% paraphrase), that is exactly a colloquialism or idiom. Collect those as candidates automatically.
+
+**B. Give the translator context it lacks today.**
+4. **Recent turns.** Send the last two or three messages with the sentence, so "it", dropped subjects and replies like "me too" resolve correctly.
+5. **Register setting per conversation.** Casual or polite, and who is speaking to whom. This decides Thai particles, Korean and Japanese politeness, Vietnamese pronouns and Indonesian informal pronouns. Google tends to produce formal, textbook wording; a tone instruction is the single biggest lever for informal speech.
+6. **Situation packs.** Market, taxi, restaurant, clinic: choose one in room settings so slang and wording fit the setting.
+
+**C. Use an AI for the hard cases, sparingly.**
+7. **Casual-style retranslation.** Ask an AI for a spoken, friendly version only when the sentence looks informal or the check score is low. Paid, so it stays a field-trial item (already on the backlog).
+8. **Engines compared.** Ask two engines; if they disagree sharply, flag it as low confidence and show both. Agreement raises confidence.
+
+**D. Let people steer, with one tap.**
+9. **"Say it another way."** Offer two or three variants (casual, neutral, polite). The one chosen is saved as a candidate and teaches the preference.
+10. **"That sounded off" and "what?"** A partner tapping clarify is a free quality signal. TalkBridge already has a clarify chain on its cards; use it as a negative signal on that translation.
+11. **Meaning notes.** Tap a bubble to see "literal" versus "meant" for an idiom, so a human understands the joke rather than only reading a translation.
+
+**E. Grow the shelf past exact repeats.**
+12. **Templates with blanks.** "Where is the [place]?", "How much is [item]?", "I'm [verb]ing". One approved pattern covers thousands of variations; numbers, names and places fill the blanks.
+13. **Seed from public conversational sentence pairs.** Tatoeba (short everyday pairs) and subtitle collections (very informal, noisy) can fill the shelf for review. Needs a licence check, and subtitle pairs need a human screen before anything is approved.
+
+**F. Measure it.**
+14. **A small colloquial test set.** About 50 informal sentences per language pair, rated once by a native speaker. Run every change against it, so "better" means better on informal speech, not a guess.
+
+**What I would do first, in order:** the slang and text-speak packs (A1, A2); the register setting plus recent-turn context (B4, B5); the one-tap variants and "sounded off" signals (D9, D10); then the test set (F14) so each later idea is measured. The AI retranslation (C7) and public seeding (E13) follow once the free signals show where the gaps are.
+
+**Limits.** Slang changes fast and differs by region, age and group, so every pack needs owners and a refresh date. Expanding slang can flatten tone. Register guessing can be wrong, which is why it is a visible setting, not a hidden rule.
