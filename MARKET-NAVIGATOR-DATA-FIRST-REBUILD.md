@@ -1,3 +1,9 @@
+# October 13 final integration gate: retain verification and vintage together
+
+The added vintage instruction exposed a field-order coupling in the refresh builder: AI evidence lost its verification timestamp/status. Inject those fields independently of the first return-object field and fail compilation if the return object is missing. Require both fields in AI transport tests and run the real expiry/delayed-publication/parked-Analyze regression.
+
+Chrome/Edge phone emulation passes all eight refresh lifecycle checks with zero page errors. Library failure/recovery and race/export tests pass. The corrected full eight-layout behavior matrix passes 200 close cycles and persistent green Added-chip behavior. Complete fresh exact-source GitHub qualification and hosted source/index replay remain mandatory before the owner test URL.
+
 # October 13 delivery gate: complete governed capture proof
 
 The stricter index audit requires historical retained blobs and receipts, including captures already present in the worker checkout. Remove the export's checkout-date cutoff and deliver every recovered capture referenced by the admitted model. Verify exact blob identities, then re-run full index admission against a reconstructed public bundle. On a failed recovery, preserve existing assets and manifest, expose the failure and five-minute retry atomically, and never renew verification or regenerate an unqualified old proof set.

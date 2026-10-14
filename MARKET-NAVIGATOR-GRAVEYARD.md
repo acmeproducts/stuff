@@ -1,3 +1,7 @@
+# October 13: AI verification field-order coupling rejected
+
+Do not inject verification fields by assuming governedIndexExplanation is the first AI evidence property. Adding a vintage instruction invalidated that literal match and silently dropped delayed verification provenance. Target the return object independently of field order, fail if its structure is missing, and test both verification and vintage together. The full real broker expiry/Library/Analyze lifecycle is required; a successful synthetic AI reply alone cannot prove freshness semantics.
+
 # October 13: stale Add test expectations rejected
 
 Run 38501335994 failed because the behavior matrix still required Add to close, contrary to the owner's later instruction. Require the picker to remain open, a green Added chip, comparison X removal and single insertion despite rapid repeated taps. This is a contract correction, not permission to weaken qualification. Run the complete corrected matrix and exact-source workflow before publication.
