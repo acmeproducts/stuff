@@ -99,8 +99,12 @@ def latest_projection(root, row, original, catalog, registry):
                   for p in source['observations']
                   if date_of(p['t'])>original['dates'][-1]
                   and dt.datetime.fromtimestamp(p['t']/1000,UTC).weekday()<5})
-    points=[{'t':t,'v':v,'dateKind':'original-published-index'}
-            for t,v in zip(original['timestamps'],original['values'])]
+    points=[{'t':t,'v':v,'dateKind':'original-published-index',
+             'baselineInputs':{sid:{'t':int(dt.datetime.fromisoformat(original['componentObservationDates'][sid][i]).replace(tzinfo=UTC).timestamp()*1000),
+                                    'v':original['componentValues'][sid][i],
+                                    'provenance':'immutable-original-seed'}
+                               for sid in original['components']}}
+            for i,(t,v) in enumerate(zip(original['timestamps'],original['values']))]
     if not any(catalog[sid]['native_cadence'] in CLOCK_CADENCES and catalog[sid].get('provider_identifier')!='DFF' for sid in sources):raise ValueError('No recovered native-period clock')
     for day in dates:
         inputs={}
@@ -208,12 +212,22 @@ def verify_projection(root, derived, indices, seed, registry, catalog):
         check['knownBy']=capture['knownBy'];check['capturedStateDate']=capture['calendarDate']
         check['projectedRecoveredPeriods']=len([d for d in real_dates if d>seed['indices'][key]['dates'][-1]])
         for horizon,view in derived['indices'][key]['horizons'].items():
-            if view['commonNow'] != derived['commonMarketAnchor'] or view['commonNow'] > last:
+            if view['commonNow'] != last:
                 raise ValueError('Index projection clock exceeds verified native period: '+key)
             boundary=seed['indices'][key]['dates'][-1]
+            original=seed['indices'][key]
+            seed_positions={t:i for i,t in enumerate(original['timestamps'])}
             actual=set()
             for point in view['curve']:
                 day=date_of(point['t'])
+                if day<=boundary:
+                    position=seed_positions.get(point['t'])
+                    if position is None or point['v']!=original['values'][position]:raise ValueError('Projected original index differs from immutable seed: '+key)
+                    expected_inputs={sid:{'t':int(dt.datetime.fromisoformat(original['componentObservationDates'][sid][position]).replace(tzinfo=UTC).timestamp()*1000),
+                                          'v':original['componentValues'][sid][position],
+                                          'provenance':'immutable-original-seed'} for sid in original['components']}
+                    if point.get('baselineInputs')!=expected_inputs or point.get('dateKind')!='original-published-index' or point.get('knownBy') or point.get('nativeInputs'):
+                        raise ValueError('Projected original endpoint inputs differ from immutable seed: '+key)
                 if day>boundary:
                     actual.add(day)
                     if day not in real_dates or point.get('knownBy')!=capture['knownBy']:raise ValueError('Index projection native date/availability differs: '+key)

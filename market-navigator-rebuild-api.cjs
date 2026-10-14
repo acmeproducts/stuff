@@ -12,6 +12,8 @@ const css=[...base.matchAll(/<style>([\s\S]*?)<\/style>/g)].map(m=>m[1]).join('\
 const utilities=['short','cat','health','label','name','unit','evidenceFor','displayLabel','fmt','full','tick','baseline','obsRange','scale','dashFor','legendSample','measurementFamily','renderDensity18','bucketKey18','representative18','displayPoints18','chartIcon26','setCanvas','chartSnapshotFromSets'];
 let helpers=utilities.map(source).join('\n').replace('S.catMap[id]','S.catalog.series.find(x=>x.id===id)').replace('paletteState().name',"services.paletteName?.()||'Normal'").replace('devicePixelRatio||1',"(S.canvasSize.pixelRatio==='auto'?globalThis.devicePixelRatio:S.canvasSize.pixelRatio)||1");
 helpers=helpers.replace('t:+q.t,v:+q.v,idx:','...q,t:+q.t,v:+q.v,idx:');
+helpers=helpers.replace('.map(p=>({t:+p.t,v:+p.v,raw:+p.v,sourceT:+p.t}))','.map(p=>({...p,t:+p.t,v:+p.v,raw:+p.v,sourceT:+p.t}))');
+helpers=helpers.replace("origin,capturedAt:new Date().toISOString(),", "origin,modelEvidence:structuredClone({def:S.def,derived:{...S.derived,indices:{}},catalog:S.catalog,health:S.health}),capturedAt:new Date().toISOString(),");
 helpers+=`\nconst H=['1D','5D','MTD','YTD','1YR','3YR','5YR'],IDX=['risk','growth','macro'],AB={risk:'RSK',growth:'GRW',macro:'MAC'};
 const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const defaultColors=['#27D3F5','#FFD166','#48D597','#FF5A6F','#A78BFA','#FF9F1C','#4C78FF','#FF6EC7','#B8E43C','#AEB8C4'],slots=new Map(IDX.map((id,i)=>[id,i]));
@@ -70,6 +72,7 @@ output=output.replace('return ensureRebuildNow().getState().state','return ensur
 output=output.replace('const now=rebuildNow.getState();if(now.spec.level!==2||!now.state?.series.includes(id))return false;', "const nowState=rebuildNow.getSnapshot(),nowOptions=rebuildNow.getOptions();if(nowOptions.view==='overview'||!nowState?.series.includes(id))return false;");
 output=output.replace("services.breadcrumb=spec=>'Analyze / '+displayLabel(spec.index);services.lineage=spec=>'ANALYZE/'+displayLabel(spec.index)","services.breadcrumb=options=>'Analyze / '+displayLabel(options.anchor);services.lineage=options=>'ANALYZE/'+displayLabel(options.anchor)");
 output=output.replace('beforeRender:()=>rebuildRefreshData(),selectionInformation:false,','beforeRender:()=>rebuildRefreshData(),selectionInformation:false,colors:chartColors,style:seriesStyle,paletteName:()=>paletteState().name,informationURL:healthEntryUrl26,');
+output=output.replace('window:windowFor,available:seriesAvailable,','');
 output=output.replace("MNChart.mount($('view-now'),{},services)","MNChart.mount($('view-now'),{view:'overview'},services)");
 output=output.replace("{level:2,index:id,clockIndex:now.spec.index,anchored:true,componentsExpanded:false,nowComparisons:[],nowActive:id,nowFocus:id,h:now.spec.h,indexDisplay:now.spec.indexDisplay,nowRepresentation:now.spec.nowRepresentation}","{view:'series',anchor:id,series:[id],clockIndex:nowOptions.clockIndex||nowState.root,activeSeries:id,emphasis:true,horizon:nowOptions.horizon,display:nowOptions.display,representation:nowOptions.representation==='dual'?'indexed':nowOptions.representation}");
 output=output.replace("const spec=rebuildNow.getState().spec;rebuildDataApplying=true", "const options=rebuildNow.getOptions();rebuildDataApplying=true");

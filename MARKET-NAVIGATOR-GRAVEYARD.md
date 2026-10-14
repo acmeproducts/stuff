@@ -1,3 +1,13 @@
+# October 13 review discoveries: mixed-calendar truncation and unfrozen attribution rejected
+
+Do not choose the global minimum index cutoff for all charts: Friday macro data must not hide completed Monday equity observations. Use visible-scope windows and preserve each series' real endpoint.
+
+Do not filter qualified index points through a mapping that discards nativeInputs, baselineInputs, knownBy or dateKind. A later snapshot spread cannot recover lost provenance. Test the generated filtering, rebasing, snapshot and explanation path together.
+
+Do not calculate chart-scoped explanations from a canonical horizon block or today's model manifest. Freeze the raw plotted endpoints, their seven actual input states and the model rules; preserve matching saved records across live updates. Missing historical inputs/rules mean unavailable attribution, not a live fallback. Original seed metadata must match the immutable seed; equal reference dates do not establish release history.
+
+The first repair GitHub run 38469227974 failed an obsolete six-point assertion. Keep it as failed evidence. Qualification must assert the hand-authored real session dates October 2, 5, 6 and 7; it may not accept fabricated weekend observations to satisfy the old count.
+
 # October 13: collection-clock and self-referential index admission rejected
 
 Owner October 12 evidence overrides the 2114b60 qualification PASS for chronology and complete assurance. Preserve the immutable baseline, candidate and captured generation fa8d3cba3f724347d25a. Do not promote collection dates to market observations or verify index inputs only against embedded receipts. Independently dereference archived source blobs, verify source dates and reproduce the October 7–12 incident and coherent-corruption rejection.

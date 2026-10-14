@@ -58,7 +58,7 @@ def audit(root,now=None):
             if not math.isclose(100+math.fsum(terms)/7,row['values'][i],rel_tol=0,abs_tol=1e-12):raise ValueError('Frozen index calculation mismatch: '+key)
     index_checks=h.integrity.verify_indices(root,model,seed,registry,cat,now)
     h.integrity.verify_projection(root,derived,index_checks,seed,registry,cat)
-    if derived['commonMarketAnchor']!=min(x['latestObservation'] for x in index_checks.values()):raise ValueError('Index construction clock differs from independently verified native periods')
+    if derived['commonMarketAnchor']!=max(x['latestObservation'] for x in index_checks.values()):raise ValueError('Index construction clock differs from independently verified native periods')
     if h.compatibility(model,registry,cat,root)!=derived:raise ValueError('Index projection differs from qualified persistent model')
     for check in index_checks.values():check.pop('expectedProjection');check.pop('_latestCapture')
     # Inventory retained legacy/research evidence too; it never supplies live data.

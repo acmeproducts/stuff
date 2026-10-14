@@ -17,7 +17,7 @@ NOW=dt.datetime(2026,10,12,15,2,35,tzinfo=dt.timezone.utc)
 class ProductionTemporalOracle(unittest.TestCase):
     def setUp(self):
         self.temp=tempfile.TemporaryDirectory(dir=BASE);self.root=Path(self.temp.name)
-        self.original={'dates':['2026-10-08'],'timestamps':[h.midnight('2026-10-08')],'values':[100.],'componentValues':{'spy':[100.],'cpi':[50.]}}
+        self.original={'dates':['2026-10-08'],'timestamps':[h.midnight('2026-10-08')],'values':[100.],'components':['spy','cpi'],'componentValues':{'spy':[100.],'cpi':[50.]},'componentObservationDates':{'spy':['2026-10-08'],'cpi':['2026-08-01']}}
         self.row={**copy.deepcopy(self.original),'components':['spy','cpi'],'recoveredCalculations':[]}
         self.catalog={'spy':{'id':'spy','native_cadence':'trading-day','native_unit':'USD','provider':'Yahoo Finance','provider_identifier':'SPY'},'cpi':{'id':'cpi','native_cadence':'monthly','native_unit':'Index','provider':'FRED','provider_identifier':'CPIAUCSL'}}
         self.registry={'components':[{'id':sid,'direction':1,'transformFamily':'signed_level_change','scale':{'annualizedScale':1}} for sid in ('spy','cpi')]}
@@ -65,6 +65,9 @@ class ProductionTemporalOracle(unittest.TestCase):
         with self.assertRaisesRegex(ValueError,'retained capture ledger'):self.project()
 
 class ExactArchiveRecovery(unittest.TestCase):
+    def test_invalid_archive_identity_cannot_resolve_a_filesystem_path(self):
+        with self.assertRaisesRegex(ValueError,'Invalid exact archive identity'):
+            h.archived_bytes(Path('not-accessed.json'),'../../outside')
     def test_bad_blob_restored_from_exact_cache_and_corrupt_bytes_preserved(self):
         with tempfile.TemporaryDirectory(dir=BASE) as folder:
             root=Path(folder);payload=b'{"captured":"historical","value":107}\n';sha=h.blob(payload)
@@ -116,6 +119,34 @@ class SeedAdmissionContract(unittest.TestCase):
                 report=w.audit(root,clock)
             self.assertTrue(report['summary']['ready']);self.assertEqual(3,report['summary']['indicesVerified'])
             self.assertTrue(all(x['projectionState']=='baseline-held' for x in report['indices'].values()))
+            projected['indices']['risk']['horizons']['5D']['curve'][0]['baselineInputs']['spy']['v']*=2
+            h.write(root/'market-evidence/derived-indices-persistent-v1.json',projected)
+            with patch.object(w,'BASE',trusted),patch.object(w.h,'BASELINE_BLOB',h.blob(h.encode(seed))),patch.object(w.h,'read',side_effect=fixture_read),self.assertRaisesRegex(ValueError,'Projected original endpoint inputs differ'):
+                w.audit(root,clock)
+
+class HealthScopeContract(unittest.TestCase):
+    def test_native_source_success_does_not_hide_index_limitations(self):
+        fixture=load('health_native_fixture','market-navigator-assurance-tests.py');case=fixture.Assurance();case.setUp()
+        try:
+            report=fixture.a.assess(case.root,fixture.NOW,admission={'summary':{'ready':True,'validUntil':(fixture.NOW+dt.timedelta(minutes=30)).isoformat()},'indices':{'risk':{'id':'risk','status':'verified','componentObservationDates':{'qqq':'2026-10-08'},'limitations':['Original availability not reconstructed']}}})
+            self.assertEqual('verified',report['series']['qqq']['status']);self.assertEqual('verified-with-limitations',report['state']);self.assertEqual('verified-with-limitations',report['indices']['risk']['status'])
+        finally:case.tearDown()
+
+class MixedCalendarContract(unittest.TestCase):
+    def test_macro_cutoff_does_not_crop_completed_equity_periods(self):
+        root=BASE/'market-navigator-rebuild-data';model=h.read(root/'market-evidence/persistent-indices-v1.json');registry=h.read(root/'data/market-backend/component-registry-v1.json');catalog=h.read(root/'data/market-backend/data-catalog.json')
+        # Isolate the compatibility consumer of projected curves. The projection
+        # itself has separate real-blob numerical and completed-session tests.
+        def projected(_root,row,original,_catalog,_registry):
+            key=next(k for k,v in model['indices'].items() if v is row);days=['2026-10-08','2026-10-09'] if key=='macro' else ['2026-10-08','2026-10-09','2026-10-12']
+            points=[{'t':t,'v':v} for t,v in zip(original['timestamps'],original['values'])]
+            for day in days:
+                points.append({'t':h.midnight(day),'v':row['values'][-1],'knownBy':'2026-10-13T02:00:00Z','nativeInputs':{sid:{'t':h.midnight(day),'v':row['componentValues'][sid][-1]} for sid in row['components']}})
+            return points
+        with patch.object(h.integrity,'latest_projection',side_effect=projected):evidence=h.compatibility(model,registry,catalog,root)
+        self.assertEqual('2026-10-12',evidence['commonMarketAnchor'])
+        self.assertEqual('2026-10-12',evidence['indices']['growth']['horizons']['5D']['commonNow']);self.assertEqual('2026-10-12',evidence['indices']['risk']['horizons']['5D']['commonNow']);self.assertEqual('2026-10-09',evidence['indices']['macro']['horizons']['5D']['commonNow'])
+        self.assertEqual('2026-10-12',h.calendar(evidence['indices']['growth']['horizons']['5D']['curve'][-1]['t']))
 
 @unittest.skipUnless(INCIDENT.exists(),'Frozen owner incident available on evidence-enabled qualification')
 class IncidentContract(unittest.TestCase):

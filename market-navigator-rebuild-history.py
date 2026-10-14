@@ -20,6 +20,7 @@ def digest(obj):return hashlib.sha256(json.dumps(obj,sort_keys=True,separators=(
 def blob(data):return hashlib.sha1(b'blob '+str(len(data)).encode()+b'\0'+data).hexdigest()
 def archived_bytes(path,sha,cache=None):
     """Restore exact retained bytes; never replace a historical vector with live data."""
+    if not isinstance(sha,str) or len(sha)!=40 or any(c not in '0123456789abcdef' for c in sha):raise ValueError('Invalid exact archive identity')
     path=Path(path);original=path.read_bytes() if path.exists() else None
     if original is not None and blob(original)==sha:return original
     cache=Path(cache or Path(__file__).with_name('market-navigator-rebuild-archive'))/'blobs'/(sha+'.json')
@@ -137,13 +138,14 @@ def compatibility(model,registry,catalog=None,root=None):
     seed=read(Path(__file__).with_name('market-navigator-rebuild-seed.json'))
     root=Path(root or Path(__file__).with_name('market-navigator-rebuild-data'))
     projected={key:integrity.latest_projection(root,row,seed['indices'][key],catalog_meta,registry) for key,row in model['indices'].items()}
-    meta={x['id']:x for x in registry['components']};end=min(calendar(points[-1]['t']) for points in projected.values())
+    meta={x['id']:x for x in registry['components']};end=max(calendar(points[-1]['t']) for points in projected.values())
     evidence={'schema':'market-navigator-derived-indices-persistent-v1','version':model['modelVersion'],'definitionVersion':registry['modelVersion'],'datasetVersion':model['datasetVersion'],'generatedAt':model['generatedAt'],'revision':digest(model)[:16],'commonMarketAnchor':end,'calendarContract':'Native daily reference period; latest captured vintage; knownBy retained separately','capturedStateCalendarContract':model['calendarContract'],'formula':'index(t) = 100 + fixed mean of seven governed component signals','coherence':{'allIndexHorizonsComputable':True,'rule':'Every horizon is a native-period projection over retained captured states; original rows and frozen mathematics retained.'},'componentTransforms':{},'ratioEligibility':{},'indices':{}}
     for sid,m in meta.items():evidence['componentTransforms'][sid]={'eligible':True,'kind':m['transformFamily'],'reason':None,'scale':m['scale']['annualizedScale'],'scaleRule':m['scale']['method']};evidence['ratioEligibility'][sid]={'eligible':True,'reason':'governed persistent transform'}
     for key,row in model['indices'].items():
+        index_end=calendar(projected[key][-1]['t'])
         horizons={}
         for h in H:
-            requested=start(end,h);curve=[p for p in projected[key] if requested<=calendar(p['t'])<=end]
+            requested=start(index_end,h);curve=[p for p in projected[key] if requested<=calendar(p['t'])<=index_end]
             if not curve:raise ValueError('No required horizon history: '+key+' '+h)
             components=[]
             def input_value(point,sid):
@@ -154,8 +156,8 @@ def compatibility(model,registry,catalog=None,root=None):
                 a,b=input_value(curve[0],sid),input_value(curve[-1],sid);m=meta[sid];anchor=row['componentValues'][sid][0]
                 def signal(v):return m['direction']*(math.log(v/anchor) if m['transformFamily']=='log_return' else v-anchor)/m['scale']['annualizedScale']
                 s0,s1=signal(a),signal(b)
-                components.append({'id':sid,'direction':m['direction'],'health':'current','commonT0':calendar(curve[0]['t']),'commonNow':end,'sourceT0Date':input_date(curve[0],sid),'sourceNowDate':input_date(curve[-1],sid),'t0Value':a,'nowValue':b,'rawMovement':b-a,'rawMovementPercent':100*(b/a-1) if a else None,'signalT0':s0,'signalNow':s1,'orientedIndex':100+s1-s0,'moveFrom100':s1-s0,'transform':m['transformFamily'],'transformScale':m['scale']['annualizedScale'],'transformScaleRule':m['scale']['method'],'noNewReleaseInHorizon':input_date(curve[0],sid)==input_date(curve[-1],sid)})
-            horizons[h]={'baseline':curve[0]['v'],'value':curve[-1]['v'],'commonT0':requested,'firstObservationDate':calendar(curve[0]['t']),'commonNow':end,'componentsDefined':7,'componentsUsed':7,'componentCoverage':1,'components':components,'omitted':[],'reasons':[],'status':'current','calculationDateRule':'Native daily reference period; latest captured vintage; knownBy retained separately','noNewReleaseComponents':[x['id'] for x in components if x['noNewReleaseInHorizon']],'curve':curve}
+                components.append({'id':sid,'direction':m['direction'],'health':'current','commonT0':calendar(curve[0]['t']),'commonNow':index_end,'sourceT0Date':input_date(curve[0],sid),'sourceNowDate':input_date(curve[-1],sid),'t0Value':a,'nowValue':b,'rawMovement':b-a,'rawMovementPercent':100*(b/a-1) if a else None,'signalT0':s0,'signalNow':s1,'orientedIndex':100+s1-s0,'moveFrom100':s1-s0,'transform':m['transformFamily'],'transformScale':m['scale']['annualizedScale'],'transformScaleRule':m['scale']['method'],'noNewReleaseInHorizon':input_date(curve[0],sid)==input_date(curve[-1],sid)})
+            horizons[h]={'baseline':curve[0]['v'],'value':curve[-1]['v'],'commonT0':requested,'firstObservationDate':calendar(curve[0]['t']),'commonNow':index_end,'componentsDefined':7,'componentsUsed':7,'componentCoverage':1,'components':components,'omitted':[],'reasons':[],'status':'current','calculationDateRule':'Native daily reference period; latest captured vintage; knownBy retained separately','noNewReleaseComponents':[x['id'] for x in components if x['noNewReleaseInHorizon']],'curve':curve}
         evidence['indices'][key]={'name':registry['indices'][key]['name'],'higherMeans':registry['indices'][key]['higherMeans'],'horizons':horizons}
     return evidence
 def verify_cadence(capture,catalog,registry,rules):

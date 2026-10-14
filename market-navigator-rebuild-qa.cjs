@@ -19,7 +19,7 @@ async function pair(browser,viewport){
  }
  async function compare(name){const [a,b]=await Promise.all(pages.map(snap));assert.deepEqual(b.state,a.state,name+' state');assert.deepEqual(b.geometry,a.geometry,name+' geometry');assert.deepEqual(b.coordinates,a.coordinates,name+' plotted coordinates');checks.push({name,window:b.state.chart.window,series:b.state.chart.series.map(s=>({id:s.id,count:s.points.length})),stateHash:hash(b.state),coordinatesHash:hash(b.coordinates)})}
  async function click(selector){await Promise.all(pages.map(async p=>{await p.locator(selector).click();await ready(p)}))}
- await compare('ENV 5D');const first=await snap(pages[1]);for(const s of first.state.chart.series)assert.equal(s.points.length,6);
+ await compare('ENV 5D');const first=await snap(pages[1]);for(const s of first.state.chart.series)assert.deepEqual(s.points.map(p=>new Date(p.t).toISOString().slice(0,10)),['2026-10-02','2026-10-05','2026-10-06','2026-10-07'],'Real completed sessions in the fixed qualification window');
  await pages[1].screenshot({path:path.join(out,`${browser.browserType().name()}-${process.env.MN_CHANNEL||'chrome'}-${viewport.width}-${process.env.MN_TEST_STAGE||(process.env.MN_TEST_CANDIDATE?'now-extraction':'data-first')}.png`)});
  // Canvas date labels use UTC calendar dates across the plotted window.
  assert(first.labels.some(x=>x[0]==='Oct 2'));assert(first.labels.some(x=>x[0]==='Oct 7'));

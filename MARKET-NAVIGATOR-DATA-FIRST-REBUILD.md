@@ -1,3 +1,11 @@
+# October 13 implementation checkpoint: native cutoffs and frozen analytical scope
+
+Owner authorization permits the repair following independent RCA, manager and red-team review. Preserve Turn 28, the immutable seed, rejected candidates and retained captures. The chart endpoint must follow the latest actual observation among eligible visible series; each governed index retains its own native cutoff. Do not crop equities to a slower index calendar or extend an index with fabricated periods.
+
+Freeze model rules and seven endpoint input states with each chart snapshot. Explanations and scoped model health must use the first/last actual plotted raw index values and retain the requested/shared viewport separately. Preserve saved records across refresh, printing and AI; missing historical rules or inputs cannot borrow current evidence. Original seed endpoint metadata must independently match the immutable seed. Equal component reference dates do not prove absence of a release or revision.
+
+Local temporal/archive/Health, mixed-calendar consumer, complete generated explanation-pipeline and Chrome/Edge 280-per-browser independent plotting checks pass. Initial GitHub run 38469227974 failed an obsolete six-point fixture assertion; it now requires actual October 2, 5, 6 and 7 completed sessions. Fresh full GitHub qualification, review publication and physical-device owner acceptance remain required. This checkpoint does not authorize product promotion.
+
 # October 13: independent chronology and lineage implementation
 
 Release held after manager and red-team review. Implement native-date latest-vintage index projection, retaining collection/knownBy/component dates and all original seed rows; independently dereference archived component blobs; expose index-specific Health coverage and limits; qualify incident chronology, coherent tampering, bounded repair and consistent frozen chart/AI/Library/export windows. A Saturday revision is never described as information available Friday. Missing historical availability is not invented.
