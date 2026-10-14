@@ -70,6 +70,18 @@ class ProductionTemporalOracle(unittest.TestCase):
         with self.assertRaisesRegex(ValueError,'retained capture ledger'):self.project()
 
 class ExactArchiveRecovery(unittest.TestCase):
+    def test_hosted_transport_retries_are_bounded_and_do_not_ignore_missing_files(self):
+        import io
+        verifier=load('replay_transport_verifier','market-navigator-assurance-hosted-verify.py')
+        unavailable=verifier.urllib.error.HTTPError('https://example.invalid',503,'temporary',{},None)
+        with patch.object(verifier.time,'sleep'),patch.object(verifier.urllib.request,'urlopen',side_effect=[unavailable,io.BytesIO(b'authentic bytes')]) as request:
+            self.assertEqual(b'authentic bytes',verifier.get('https://example.invalid'));self.assertEqual(2,request.call_count)
+        with patch.object(verifier.time,'sleep'),patch.object(verifier.urllib.request,'urlopen',side_effect=unavailable) as request,self.assertRaises(verifier.urllib.error.HTTPError):
+            verifier.get('https://example.invalid')
+        self.assertEqual(3,request.call_count)
+        missing=verifier.urllib.error.HTTPError('https://example.invalid',404,'missing',{},None)
+        with patch.object(verifier.urllib.request,'urlopen',side_effect=missing) as request,self.assertRaises(verifier.urllib.error.HTTPError):verifier.get('https://example.invalid')
+        self.assertEqual(1,request.call_count)
     def test_receipt_replay_accepts_only_hash_verified_json_encoding_aliases(self):
         verifier=load('replay_encoding_verifier','market-navigator-assurance-hosted-verify.py')
         with tempfile.TemporaryDirectory(dir=BASE) as folder:

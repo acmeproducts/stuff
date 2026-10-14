@@ -6,7 +6,13 @@ spec=importlib.util.spec_from_file_location('assurance_verify_worker',BASE/'mark
 spec=importlib.util.spec_from_file_location('assurance_verify_export',BASE/'market-navigator-assurance-export.py');delivery=importlib.util.module_from_spec(spec);spec.loader.exec_module(delivery)
 def get(url):
     req=urllib.request.Request(url,headers={'User-Agent':'MarketNavigatorAssuranceVerifier/1.0','Cache-Control':'no-cache'})
-    with urllib.request.urlopen(req,timeout=30) as response:return response.read()
+    for attempt in range(3):
+        try:
+            with urllib.request.urlopen(req,timeout=30) as response:return response.read()
+        except (urllib.error.URLError,TimeoutError) as error:
+            if isinstance(error,urllib.error.HTTPError) and error.code not in (429,500,502,503,504):raise
+            if attempt==2:raise
+            time.sleep(.5*(attempt+1))
 def receipt_rebuild_matches(root,rebuilt,model):
     """Original archive formatting and compact receipt formatting may hash differently.
 
