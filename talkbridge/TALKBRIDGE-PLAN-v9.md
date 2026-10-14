@@ -1,5 +1,5 @@
-<!-- TALKBRIDGE-PLAN v21.99.0 -->
-# TALKBRIDGE MASTER PLAN v21.99.0
+<!-- TALKBRIDGE-PLAN v21.100.0 -->
+# TALKBRIDGE MASTER PLAN v21.100.0
 
 **Location:** `talkbridge/TALKBRIDGE-PLAN-v9.md` in `acmeproducts/stuff`.
 **Owner:** Confi — sole decision-maker, runs every device gate.
@@ -2091,6 +2091,7 @@ Green means allowed to push. It never means done.
 
 ## 10 · CHANGE LOG
 
+**v21.100.0 · 2026-10-13.** THE SECOND DOOR (owner: "I want to be able to hit the same URL over and over and it always points to the latest"): `talkbridge-app/next.html` forwards to the NEWEST CANDIDATE named by `fixtures/dir/next-stage.json`; every candidate build moves that file, the folder's own door (`index.html`, `current-stage.json`) only an acceptance. Written by assemble-29dir, gated by harness-29dir M1.3 (+3 mutations) and harness-29pos T4 (the newest stage names itself). The directory assembler now judges a forwarded page by the forwarders manifest, not by reading it (under the accepted-bytes loader a read returns the accepted page — it rewrote the 29·pre-ship forwarder once in the lab; restored, never pushed).
 **v21.99.0 · 2026-10-12.** 29·post-ship candidate 4: REACHABILITY FROM THE RECORD (§7.20) — relay v6.11 (reach on the peer announce, call-reach to the caller, announce on subscribe/unsubscribe) + RK-1 (the negative line above the composer; the caller's caption). Plan reviewed before code (11 findings applied: negative claim only, from the record after the push, muted counts, S6 declares the received type, placement off the ribbon, announce on subscribe). Awaiting the device gate for all three.
 **v21.98.0 · 2026-10-12.** 29·post-ship candidate 3: the reach bar is due as soon as the room has a partner (a call-first conversation never prompted: no `rh_bar_shown` in any phone's log since 10-11; owner report). One generated edit; R12; mutation. Awaiting the device gate.
 **v21.97.0 · 2026-10-12.** 29·post-ship candidate 2: ONE language everywhere, set by the first room (owner ruling after walking the Thai partner's day); §7.17 item 2 amended; L1 adopts at the landing and at the three room-creation sites; gates green. Awaiting the device gate.
@@ -4387,6 +4388,11 @@ build keeps every rule and records the five differences:
     the folder (the same page and gate as the root forwarders, §7.5 (7)), so an
     install or a Home Screen copy made from it follows the app forward. The
     accepted bytes stay in git, sha-pinned, as for the root pages.
+    (c) THE SECOND DOOR (owner 2026-10-13): `next.html` in the folder forwards
+    to the NEWEST CANDIDATE named by `fixtures/dir/next-stage.json`; every
+    candidate build moves that file, `index.html` only an acceptance. One URL
+    for everyone (`/stuff/talkbridge-app/`), one URL for the owner's testing
+    (`/stuff/talkbridge-app/next.html`); no file name to remember.
 The `/stuff/talkbridge-app/` folder is protected by the ownership gate like
 every TalkBridge file.
 

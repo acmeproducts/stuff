@@ -46,13 +46,16 @@ export const ADDED_SYMBOLS = ['drRetireRoot'];
 export const TAIL = '\n</script>\n</body>\n</html>';
 /* the folder holds every stage; this stage's check ignores what the later stages' assemblers write */
 export const LATER_STAGES = /^(bridge-turn29-(ship|post-ship)\.html|tb-sw[4-9]\.js|tb-manifest-turn29-(ship|post-ship)(-ios)?\.webmanifest)$/;
-export const OUT = { page: FOLDER + '/' + STAGE_PAGE, index: FOLDER + '/index.html', worker: FOLDER + '/tb-sw3.js', manifest: FOLDER + '/' + MANIFEST_NAME, manifestIos: FOLDER + '/' + MANIFEST_IOS_NAME };
+export const OUT = { page: FOLDER + '/' + STAGE_PAGE, index: FOLDER + '/index.html', next: FOLDER + '/next.html', worker: FOLDER + '/tb-sw3.js', manifest: FOLDER + '/' + MANIFEST_NAME, manifestIos: FOLDER + '/' + MANIFEST_IOS_NAME };
 /* the folder's face: the forwarder §7.5 specifies for old addresses, used here for the folder URL itself */
 /* the folder's face forwards to the CURRENT ACCEPTED stage — recorded in one fixture, moved only at an acceptance (29·ship c6 accepted 2026-10-11) */
 export const CURRENT_STAGE_FILE = 'talkbridge/fixtures/dir/current-stage.json';
 export function currentStage() { return JSON.parse(fs.readFileSync(path.join(root, CURRENT_STAGE_FILE), 'utf8')).page; }
-export function forwarder(stagePage) {
-  return '<!-- /stuff/talkbridge-app/ · the folder is the app; this page opens the current stage: ' + stagePage + ' -->\n<!DOCTYPE html>\n<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>TalkBridge</title>\n<meta name="theme-color" content="#2E8B8B"><link rel="icon" href="icon-v2-192.png" type="image/png">\n<style>body{margin:0;background:#FDFAF7;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;color:#243230;display:flex;align-items:center;justify-content:center;height:100vh}</style>\n</head><body>\n<noscript><a href="' + stagePage + '">Open TalkBridge</a></noscript>\n<script>location.replace(\'./' + stagePage + '\' + location.search + location.hash);</script>\n</body></html>\n';
+/* the SECOND door (owner 2026-10-13): next.html forwards to the newest candidate; every candidate build moves this file, the first door only an acceptance */
+export const NEXT_STAGE_FILE = 'talkbridge/fixtures/dir/next-stage.json';
+export function nextStage() { return JSON.parse(fs.readFileSync(path.join(root, NEXT_STAGE_FILE), 'utf8')).page; }
+export function forwarder(stagePage, door) {
+  return '<!-- /stuff/talkbridge-app/ · the folder is the app; this page opens ' + (door === 'next' ? 'the NEWEST CANDIDATE (the second door, for the owner\'s testing; the folder itself opens the accepted stage): ' : 'the current stage: ') + stagePage + ' -->\n<!DOCTYPE html>\n<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>TalkBridge</title>\n<meta name="theme-color" content="#2E8B8B"><link rel="icon" href="icon-v2-192.png" type="image/png">\n<style>body{margin:0;background:#FDFAF7;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;color:#243230;display:flex;align-items:center;justify-content:center;height:100vh}</style>\n</head><body>\n<noscript><a href="' + stagePage + '">Open TalkBridge</a></noscript>\n<script>location.replace(\'./' + stagePage + '\' + location.search + location.hash);</script>\n</body></html>\n';
 }
 
 function checked(file, want) { const b = fs.readFileSync(path.join(root, file)); if (want && sha(b) !== want) throw new Error('assemble: ' + file + ' is not the expected bytes\n  expected ' + want + '\n  found    ' + sha(b)); return b; }
@@ -107,7 +110,7 @@ export function assembleManifests(opts) {
 export function assembleAll(opts) {
   opts = opts || {};
   const m = assembleManifests(opts);
-  const files = { [OUT.page]: assemblePage(opts), [OUT.index]: forwarder(opts.forwardTo || currentStage()), [OUT.worker]: assembleWorker(opts), [OUT.manifest]: m.chrome, [OUT.manifestIos]: m.ios };
+  const files = { [OUT.page]: assemblePage(opts), [OUT.index]: forwarder(opts.forwardTo || currentStage()), [OUT.next]: forwarder(opts.nextTo || nextStage(), 'next'), [OUT.worker]: assembleWorker(opts), [OUT.manifest]: m.chrome, [OUT.manifestIos]: m.ios };
   for (const c of COPIES) files[FOLDER + '/' + c] = fs.readFileSync(path.join(root, c));
   return files;
 }
@@ -128,7 +131,9 @@ if (process.argv[1] && process.argv[1].endsWith('assemble-29dir.mjs')) {
     console.log('verified ' + Object.keys(files).length + ' files in ' + FOLDER + '/ · ' + STAGE_PAGE + ' sha256=' + sha(Buffer.from(files[OUT.page])) + ' · tb-sw3.js sha256=' + sha(Buffer.from(files[OUT.worker])));
   } else {
     fs.mkdirSync(path.join(root, FOLDER), { recursive: true });
-    for (const [f, content] of Object.entries(files)) { const p = path.join(root, f); let head = ''; try { head = fs.readFileSync(p, 'latin1').slice(0, 400); } catch (_) {} if (head.indexOf('TB-FORWARDER') !== -1 && head.indexOf('the folder is the app') === -1) { console.log('kept forwarder ' + f); continue; } fs.writeFileSync(p, content); }   /* a forwarded earlier stage page is never rewritten (§7.5 (8)) */
+    /* a forwarded earlier stage page is never rewritten (§7.5 (8)): the forwarders manifest names every file whose bytes on disk are a forwarder — under the accepted-bytes loader a read of that file returns the ACCEPTED page, so the disk is judged by the manifest, not by reading it */
+    let forwarded = []; try { forwarded = JSON.parse(fs.readFileSync(path.join(root, 'talkbridge/fixtures/forwarders/manifest.json'), 'utf8')).files.map((x) => x.file); } catch (_) {}
+    for (const [f, content] of Object.entries(files)) { const p = path.join(root, f); if (forwarded.includes(f)) { console.log('kept forwarder ' + f); continue; } fs.writeFileSync(p, content); }
     console.log('wrote ' + Object.keys(files).length + ' files to ' + FOLDER + '/ · ' + STAGE_PAGE + ' sha256=' + sha(Buffer.from(files[OUT.page])) + ' · tb-sw3.js sha256=' + sha(Buffer.from(files[OUT.worker])));
   }
 }
