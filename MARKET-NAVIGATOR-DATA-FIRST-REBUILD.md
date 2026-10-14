@@ -1,3 +1,7 @@
+# October 14 qualification fixture parity
+
+The separately regenerated GitHub fixture now passes 280 independent value/window/axis/coordinate comparisons in Chrome and 280 in Edge. The earlier readiness timeout did not reproduce locally. Limit simultaneous layouts to two to reduce runner contention while retaining all four layouts, exact assertions and the original readiness deadline. Include bounded console/renderer/state diagnostics on failure. No timeout is accepted as PASS; run complete exact-commit qualification and independent hosted admission before publication.
+
 # October 14 operational proof and calendar/source-state contracts
 
 Preserve the real public checkpoint and every failed local probe. The current old publisher fails on a missing October 13 collection archive. Later verified vectors repair real native periods without inventing unavailable historical collection states.

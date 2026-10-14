@@ -42,4 +42,6 @@ Daily raw series are plotted on their UTC reference dates while retaining origin
 
 GitHub run 38505377356 passed the preceding gates but timed out on an independent comparison readiness boundary. A separately regenerated GitHub fixture and bounded renderer/readiness diagnostics are required to resolve it; no timeout is treated as PASS. All GitHub and hosted gates remain required before publication and owner acceptance.
 
+The separate fixture has now reproduced the GitHub data generation exactly, and Chrome/Edge each passed all 280 independent comparisons on it. No functional render failure reproduced locally. The comparison runner now uses two simultaneous layouts to reduce runner contention, retaining every layout, assertion and original readiness deadline; failures include viewport, console and renderer/state diagnostics. A fresh complete workflow remains required.
+
 FRED MCP is outside this repair. Neither a connector nor an API transport replaces deterministic source verification; applicable retention permissions must be established before adopting a persistent FRED feed.

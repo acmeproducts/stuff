@@ -1,3 +1,7 @@
+# October 14: qualification timeout remains failed historical evidence
+
+The exact regenerated GitHub fixture passes all 280 comparisons per browser locally. Do not call the prior timeout an assertion pass or silently increase the readiness deadline. Use two simultaneous layouts to reduce runner contention, preserve the full matrix/assertions, and report console/renderer/state diagnostics if a failure repeats. Publication still requires a fresh full workflow and hosted source/index admission.
+
 # October 14: operational calendar and state-completeness assumptions rejected
 
 Do not require a MOVE observation solely because NYSE traded: retained MOVE data omit independently reviewed fixed-income Columbus/Veterans holidays. Bind required-period exceptions to the exact registered instrument; keep equity and genuine MOVE gap checks. Do not fabricate a holiday value or silently switch the source identity. Do not run the collector using a stale policy copy while admission uses the current root policy.
