@@ -20,4 +20,6 @@ Local progress: previous 18 recovery and 30 assurance tests passed; the latest 1
 
 The first GitHub qualification run 38469227974 failed on the old six-point baseline assertion; the fixed oracle now names four actual completed sessions. Fresh exact-commit GitHub qualification and hosted delivery remain pending. No owner acceptance or product promotion is claimed.
 
+Full browser AI testing then caught an integration defect in fdbf3d3: the scope fingerprint helper was injected outside the private application closure and could not resolve mnxHash. That candidate was not published. Injection now occurs inside the actual application closure; a private-hash closure regression and the complete synthetic newspaper-to-Library request flow pass. Report variants also pass in Chrome/Edge at desktop and phone emulated layouts; the three frozen October 12 incident replay/tamper/blob-corruption checks pass with the final verifier. A replacement exact-commit qualification run is required.
+
 FRED MCP is outside this repair. Neither a connector nor an API transport replaces deterministic source verification; applicable retention permissions must be established before adopting a persistent FRED feed.

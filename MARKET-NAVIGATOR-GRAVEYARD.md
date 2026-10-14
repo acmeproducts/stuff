@@ -1,3 +1,7 @@
+# October 13: fdbf3d3 runtime scope integration rejected before publication
+
+Passing extracted-function arithmetic does not prove browser integration. A new frozen-scope fingerprint helper outside the application closure could not reach private mnxHash and blocked the newspaper action. Keep fdbf3d3 and its workflow as historical evidence. Inject helpers in their owning closure; verify with a private-hash closure test and the complete newspaper-to-Library browser request lifecycle before publishing. Do not claim the candidate is owner ready from isolated VM tests alone.
+
 # October 13 review discoveries: mixed-calendar truncation and unfrozen attribution rejected
 
 Do not choose the global minimum index cutoff for all charts: Friday macro data must not hide completed Monday equity observations. Use visible-scope windows and preserve each series' real endpoint.

@@ -1,7 +1,9 @@
 'use strict';
 // Library projections use one selected interpretation; the saved history is retained.
 module.exports=(code,babel)=>{
- code=require('./market-navigator-rebuild-frozen-scope.cjs').toString()+'\nfunction mnxFrozenScopeKey(state){return mnxHash(JSON.stringify([state.root,state.horizon,state.series,state.chart]))}\n'+code;
+ const scopePrelude=require('./market-navigator-rebuild-frozen-scope.cjs').toString()+'\nfunction mnxFrozenScopeKey(state){return mnxHash(JSON.stringify([state.root,state.horizon,state.series,state.chart]))}\n';
+ const appScope="(()=>{'use strict';";
+ code=code.includes(appScope)?code.replace(appScope,appScope+scopePrelude):scopePrelude+code;
  const ast=babel.babelParse(code,'owner-report-policies',false),edits=[];
  const change=(name,fn)=>babel.traverse(ast,{FunctionDeclaration(p){if(p.node.id.name===name){const old=code.slice(p.node.start,p.node.end);edits.push({start:p.node.start,end:p.node.end,text:fn(old)})}}});
  change('mnxModelHash',s=>s.replace('function mnxModelHash(k)', 'function mnxModelHash(k,source=S)').replace('mnxDefIndex(k)', 'source.def?.indices?.[k]').replaceAll('S.','source.'));

@@ -1,3 +1,7 @@
+# October 13 qualification correction: private application helper ownership
+
+The full newspaper-to-Library browser test rejected fdbf3d3 before publication: a new frozen-scope fingerprint helper sat outside the private application closure. Move it into that closure and prove ownership with a private-hash regression plus the real generated browser request flow. The corrected synthetic AI request flow, report variants and all three captured October 12 incident tests pass. Fresh complete exact-commit GitHub qualification is still required; no public test build or promotion has occurred.
+
 # October 13 implementation checkpoint: native cutoffs and frozen analytical scope
 
 Owner authorization permits the repair following independent RCA, manager and red-team review. Preserve Turn 28, the immutable seed, rejected candidates and retained captures. The chart endpoint must follow the latest actual observation among eligible visible series; each governed index retains its own native cutoff. Do not crop equities to a slower index calendar or extend an index with fabricated periods.
