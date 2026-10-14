@@ -1,5 +1,5 @@
 """Independently verify the hosted delivery, source replay and frozen index mathematics."""
-import argparse,concurrent.futures,datetime as dt,hashlib,importlib.util,json,tempfile,time,urllib.request
+import argparse,concurrent.futures,copy,datetime as dt,hashlib,importlib.util,json,tempfile,time,urllib.request
 from pathlib import Path
 BASE=Path(__file__).resolve().parent
 spec=importlib.util.spec_from_file_location('assurance_verify_worker',BASE/'market-navigator-rebuild-worker.py');w=importlib.util.module_from_spec(spec);spec.loader.exec_module(w)
@@ -7,6 +7,33 @@ spec=importlib.util.spec_from_file_location('assurance_verify_export',BASE/'mark
 def get(url):
     req=urllib.request.Request(url,headers={'User-Agent':'MarketNavigatorAssuranceVerifier/1.0','Cache-Control':'no-cache'})
     with urllib.request.urlopen(req,timeout=30) as response:return response.read()
+def receipt_rebuild_matches(root,rebuilt,model):
+    """Original archive formatting and compact receipt formatting may hash differently.
+
+    Accept only complete JSON object equality between two independently hash-checked
+    retained blobs; every other model field must reconstruct exactly.
+    """
+    aligned=copy.deepcopy(rebuilt)
+    for key,row in model['indices'].items():
+        if key not in aligned['indices']:return False
+        reconstructed=aligned['indices'][key].get('recoveredCalculations',[])
+        if len(reconstructed)!=len(row.get('recoveredCalculations',[])):return False
+        for original,replay in zip(row['recoveredCalculations'],reconstructed):
+            if set(original['sources'])!=set(replay['sources']):return False
+            for sid,proof in original['sources'].items():
+                other=replay['sources'][sid]
+                if proof['blob']==other['blob']:continue
+                objects=[]
+                for identity in (proof['blob'],other['blob']):
+                    if len(identity)!=40 or any(c not in '0123456789abcdef' for c in identity):raise ValueError('Invalid replay source identity')
+                    payload=(Path(root)/'market-evidence/collection-archive/blobs'/(identity+'.json')).read_bytes()
+                    if w.h.blob(payload)!=identity:raise ValueError('Replay source hash differs')
+                    objects.append(json.loads(payload))
+                # JSON serialization distinguishes booleans, integers and floats;
+                # Python's ordinary equality would equate False with zero.
+                if json.dumps(objects[0],sort_keys=True,separators=(',',':'),allow_nan=False)!=json.dumps(objects[1],sort_keys=True,separators=(',',':'),allow_nan=False):return False
+                other['blob']=proof['blob']
+    return json.dumps(aligned,sort_keys=True,separators=(',',':'),allow_nan=False)==json.dumps(model,sort_keys=True,separators=(',',':'),allow_nan=False)
 def verify(url,expected=None):
     url=url.rstrip('/')+'/'
     for attempt in range(30):
@@ -32,7 +59,7 @@ def verify(url,expected=None):
         catalog=w.h.read(root/'data/market-backend/data-catalog.json');registry=w.h.read(root/'data/market-backend/component-registry-v1.json')
         captures=w.h.load_receipts(root,{m['id']:m for m in catalog['series']},[r['id'] for r in registry['components']])
         rebuilt,_=w.h.recover(w.h.read(BASE/'market-navigator-rebuild-seed.json'),registry,captures)
-        if rebuilt!=w.h.read(root/'market-evidence/persistent-indices-v1.json'):raise ValueError('Delivered receipt replay differs from admitted index model')
+        if not receipt_rebuild_matches(root,rebuilt,w.h.read(root/'market-evidence/persistent-indices-v1.json')):raise ValueError('Delivered receipt replay differs from admitted index model')
         admission=w.audit(root);assurance=w.assurance.assess(root,admission=admission)
         if assurance['state'] not in ('verified','verified-with-limitations'):raise ValueError('Hosted independent assurance failed: '+json.dumps(assurance['findings']))
         if assurance['summary']['datasets']!=39:raise ValueError('Corpus coverage changed; inventory review required')

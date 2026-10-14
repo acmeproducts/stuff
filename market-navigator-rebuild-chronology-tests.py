@@ -70,6 +70,23 @@ class ProductionTemporalOracle(unittest.TestCase):
         with self.assertRaisesRegex(ValueError,'retained capture ledger'):self.project()
 
 class ExactArchiveRecovery(unittest.TestCase):
+    def test_receipt_replay_accepts_only_hash_verified_json_encoding_aliases(self):
+        verifier=load('replay_encoding_verifier','market-navigator-assurance-hosted-verify.py')
+        with tempfile.TemporaryDirectory(dir=BASE) as folder:
+            root=Path(folder);blobs=root/'market-evidence/collection-archive/blobs';blobs.mkdir(parents=True)
+            native={'id':'spy','observations':[{'t':1,'v':107.}],'sourceRevision':'unchanged'}
+            def retained(value,indent=None):
+                raw=json.dumps(value,indent=indent).encode();sha=h.blob(raw);(blobs/(sha+'.json')).write_bytes(raw);return sha
+            original=retained(native,2);compact=retained(native)
+            model={'indices':{'risk':{'values':[100.],'recoveredCalculations':[{'knownBy':'2026-10-13T22:00:00Z','sources':{'spy':{'blob':original,'nativeValue':107.}}}]}}}
+            rebuilt=copy.deepcopy(model);rebuilt['indices']['risk']['recoveredCalculations'][0]['sources']['spy']['blob']=compact
+            self.assertTrue(verifier.receipt_rebuild_matches(root,rebuilt,model))
+            changed=copy.deepcopy(rebuilt);changed['indices']['risk']['values'][0]=101.;self.assertFalse(verifier.receipt_rebuild_matches(root,changed,model))
+            changed=copy.deepcopy(rebuilt);changed['indices']['risk']['recoveredCalculations'][0]['knownBy']='2026-10-14T22:00:00Z';self.assertFalse(verifier.receipt_rebuild_matches(root,changed,model))
+            changed_native=copy.deepcopy(native);changed_native['observations'][0]['v']=108.;changed=copy.deepcopy(rebuilt);changed['indices']['risk']['recoveredCalculations'][0]['sources']['spy']['blob']=retained(changed_native);self.assertFalse(verifier.receipt_rebuild_matches(root,changed,model))
+            changed_native=copy.deepcopy(native);changed_native['observations'][0]['t']=True;changed['indices']['risk']['recoveredCalculations'][0]['sources']['spy']['blob']=retained(changed_native);self.assertFalse(verifier.receipt_rebuild_matches(root,changed,model))
+            (blobs/(compact+'.json')).write_bytes(b'{}')
+            with self.assertRaisesRegex(ValueError,'Replay source hash differs'):verifier.receipt_rebuild_matches(root,rebuilt,model)
     def test_delivery_includes_full_receipt_dependencies_for_rebuild(self):
         exporter=load('receipt_closure_export','market-navigator-assurance-export.py')
         fixture=BASE/'market-navigator-rebuild-data';catalog=h.read(fixture/'data/market-backend/data-catalog.json');metas={m['id']:m for m in catalog['series']}

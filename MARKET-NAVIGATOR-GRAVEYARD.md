@@ -1,3 +1,11 @@
+## 2026-10-14 hosted replay serialization correction
+
+Exact source 1913157 completed the full GitHub qualification (run 38515079275). Its isolated live recovery (38531579702) repaired injected QQQ omissions/value and SPY unit, admitted all 39 native datasets and three indices through October 13, and published generation 31e8a5b461dc5e0eb685. Eight public Chrome/Edge layout sessions passed visible Analyze launch, green Added/X removal, Library parking/restoration and X-only return to normal NOW.
+
+Hosted receipt verification then found original archived JSON byte formatting and compact receipt formatting yield different valid Git blob identities. This is preserved evidence, not a source-data repair. The verifier now reads and Git-hash-checks BOTH referenced delivered blobs and requires complete type-preserving, finite JSON serialization equivalence before aligning ONLY recoveredCalculations source proof.blob in a temporary rebuilt copy. Every other model field must match exactly; original-model admission still runs afterward. No canonicalFileBlob, nativeInputs, observation, unit, provider, knownBy, sourceRevision or history field is rewritten. The declared result is exact replay modulo independently verified JSON serialization, not byte-identical model reconstruction.
+
+Manager and red-team independently reproduced the 20 listed diagnostic pairs; full hosted rerun and exact-source qualification remain separate completion gates. Earlier failed delivery verification remains retained.
+
 ## 2026-10-14 independent review corrections
 
 Manager review rejected the 717-file export: a selected macro-only receipt referenced 14 omitted component blobs, so receipt loading failed despite admission PASS. Export now includes and Git-hash-checks every dependency of every delivered receipt. The old bundle remains historical incomplete evidence; the corrected export has 731 files. A network-forbidden regression loads the full registered receipt and reproduces its rebuilt model. Hosted verification also requires complete receipt replay.
