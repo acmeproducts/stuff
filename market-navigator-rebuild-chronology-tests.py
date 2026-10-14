@@ -70,6 +70,29 @@ class ProductionTemporalOracle(unittest.TestCase):
         with self.assertRaisesRegex(ValueError,'retained capture ledger'):self.project()
 
 class ExactArchiveRecovery(unittest.TestCase):
+    def test_delivery_includes_full_receipt_dependencies_for_rebuild(self):
+        exporter=load('receipt_closure_export','market-navigator-assurance-export.py')
+        fixture=BASE/'market-navigator-rebuild-data';catalog=h.read(fixture/'data/market-backend/data-catalog.json');metas={m['id']:m for m in catalog['series']}
+        registry=h.read(fixture/'data/market-backend/component-registry-v1.json');ids=[r['id'] for r in registry['components']]
+        seed=h.read(BASE/'market-navigator-rebuild-seed.json');clock=dt.datetime(2026,10,8,2,tzinfo=dt.timezone.utc)
+        with tempfile.TemporaryDirectory(dir=BASE) as folder:
+            root=Path(folder);store=root/'store';name='generation-'+'b'*20;source=store/name
+            for directory in ('market-evidence/series','data/market-backend'):shutil.copytree(fixture/directory,source/directory)
+            for sid in ids:
+                path=source/'market-evidence/series'/(sid+'.json');native=h.read(path);native['last_successful']=clock.isoformat();h.write(path,native)
+            capture=h.live_capture(source,metas,ids,clock);h.save_receipt(source,capture)
+            # First qualifying index references only seven sources; the included
+            # receipt must still carry all 21 dependencies for future replay.
+            selected={'knownBy':capture['knownBy'],'calendarDate':capture['calendarDate'],'sources':{sid:capture['provenance'][sid] for sid in seed['indices']['macro']['components']}}
+            h.write(source/'market-evidence/persistent-indices-v1.json',{'indices':{'macro':{'recoveredCalculations':[selected]}}})
+            h.write(store/'current.json',{'generation':name,'revision':'b'*20});h.write(store/'assurance-status.json',{'generation':{'generation':name}})
+            exporter.export(store,root/'delivery');bundle=root/'delivery/generations'/name
+            with patch.object(h.urllib.request,'urlopen',side_effect=AssertionError('Delivered rebuild must not fetch omitted history')):
+                delivered=h.load_receipts(bundle,metas,ids)
+            self.assertEqual(set(ids),set(delivered[0]['sources']))
+            self.assertEqual(h.recover(seed,registry,[capture])[0],h.recover(seed,registry,delivered)[0])
+            missing=next(sid for sid in ids if sid not in selected['sources']);path=bundle/'market-evidence/collection-archive/blobs'/(capture['provenance'][missing]['blob']+'.json');path.write_bytes(b'{}')
+            with self.assertRaisesRegex(ValueError,'Governed archive evidence hash differs'):exporter.referenced_index_evidence(bundle)
     def test_invalid_archive_identity_cannot_resolve_a_filesystem_path(self):
         with self.assertRaisesRegex(ValueError,'Invalid exact archive identity'):
             h.archived_bytes(Path('not-accessed.json'),'../../outside')
@@ -188,5 +211,12 @@ class IncidentContract(unittest.TestCase):
         model=h.read(self.root/'market-evidence/persistent-indices-v1.json');proof=model['indices']['risk']['recoveredCalculations'][-1]['sources']['spy']
         (self.root/'market-evidence/collection-archive/blobs'/(proof['blob']+'.json')).write_text('{}')
         with self.assertRaisesRegex(ValueError,'Archived source blob hash differs'):w.audit(self.root,NOW)
+    def test_old_index_capture_cannot_qualify_with_current_native_collection(self):
+        catalog=h.read(self.root/'data/market-backend/data-catalog.json');registry=h.read(self.root/'data/market-backend/component-registry-v1.json');seed=h.read(BASE/'market-navigator-rebuild-seed.json')
+        ids=[r['id'] for r in registry['components']];metas={m['id']:m for m in catalog['series']}
+        captures=[c for c in h.load_receipts(self.root,metas,ids) if h.instant(c['knownBy'])<dt.datetime(2026,10,12,tzinfo=dt.timezone.utc)]
+        model,_=h.recover(seed,registry,captures);h.write(self.root/'market-evidence/persistent-indices-v1.json',model)
+        h.write(self.root/'market-evidence/derived-indices-persistent-v1.json',h.compatibility(model,registry,catalog,self.root))
+        with self.assertRaisesRegex(ValueError,'Index projection source differs from current canonical collection'):w.audit(self.root,NOW)
 
 if __name__=='__main__':unittest.main(verbosity=2)

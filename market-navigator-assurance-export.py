@@ -23,21 +23,26 @@ def referenced_source_evidence(source):
 def referenced_index_evidence(source):
     """Deliver every retained capture dereferenced by governed index admission."""
     source=Path(source);paths=set();captures={}
+    def add_blob(identity):
+        if not isinstance(identity,str) or len(identity)!=40 or any(c not in '0123456789abcdef' for c in identity):raise ValueError('Invalid governed archive identity')
+        relative='market-evidence/collection-archive/blobs/'+identity+'.json';path=source/relative
+        if not path.is_file():raise ValueError('Governed archive evidence missing: '+relative)
+        payload=path.read_bytes()
+        if hashlib.sha1(b'blob '+str(len(payload)).encode()+b'\0'+payload).hexdigest()!=identity:raise ValueError('Governed archive evidence hash differs: '+relative)
+        paths.add(relative)
     model=json.loads((source/'market-evidence/persistent-indices-v1.json').read_text(encoding='utf-8-sig'))
     for row in model['indices'].values():
         for capture in row.get('recoveredCalculations',[]):
             key=(capture['knownBy'],capture['calendarDate']);captures[key]=False
             for proof in capture['sources'].values():
-                identity=proof['blob']
-                if not isinstance(identity,str) or len(identity)!=40 or any(c not in '0123456789abcdef' for c in identity):raise ValueError('Invalid governed archive identity')
-                relative='market-evidence/collection-archive/blobs/'+identity+'.json';path=source/relative
-                if not path.is_file():raise ValueError('Governed archive evidence missing: '+relative)
-                payload=path.read_bytes()
-                if hashlib.sha1(b'blob '+str(len(payload)).encode()+b'\0'+payload).hexdigest()!=identity:raise ValueError('Governed archive evidence hash differs: '+relative)
-                paths.add(relative)
+                add_blob(proof['blob'])
     for path in (source/'market-evidence/collection-archive/receipts').glob('*.json'):
         receipt=json.loads(path.read_text(encoding='utf-8-sig'));key=(receipt['knownBy'],receipt['calendarDate'])
-        if key in captures:captures[key]=True;paths.add(path.relative_to(source).as_posix())
+        if key in captures:
+            captures[key]=True;paths.add(path.relative_to(source).as_posix())
+            # Receipt replay loads the full registered collection, including
+            # components absent from the index row that selected this receipt.
+            for proof in receipt['provenance'].values():add_blob(proof['blob'])
     if not all(captures.values()):raise ValueError('Governed capture receipt missing from delivery')
     return paths
 

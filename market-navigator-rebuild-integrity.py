@@ -210,6 +210,11 @@ def verify_projection(root, derived, indices, seed, registry, catalog):
     for key,check in indices.items():
         capture=check['_latestCapture'];known=instant(capture['knownBy'])
         actual_sources={sid:source_blob(root,sid,proof,metas[sid],known,cache) for sid,proof in capture['sources'].items()}
+        for sid,source in actual_sources.items():
+            canonical=json.loads((Path(root)/'market-evidence/series'/(sid+'.json')).read_text(encoding='utf-8-sig'))
+            fields=('sourceRevision','last','provider','providerIdentifier','unit','cadence')
+            if any(source.get(field)!=canonical.get(field) for field in fields) or instant(source['last_successful'])!=instant(canonical['last_successful']):
+                raise ValueError('Index projection source differs from current canonical collection: '+sid)
         real_dates={date_of(p['t']) for sid,source in actual_sources.items()
                     if metas[sid]['native_cadence'] in CLOCK_CADENCES and metas[sid].get('provider_identifier')!='DFF'
                     for p in source['observations'] if dt.datetime.fromtimestamp(p['t']/1000,UTC).weekday()<5}

@@ -3,6 +3,7 @@ import argparse,concurrent.futures,datetime as dt,hashlib,importlib.util,json,te
 from pathlib import Path
 BASE=Path(__file__).resolve().parent
 spec=importlib.util.spec_from_file_location('assurance_verify_worker',BASE/'market-navigator-rebuild-worker.py');w=importlib.util.module_from_spec(spec);spec.loader.exec_module(w)
+spec=importlib.util.spec_from_file_location('assurance_verify_export',BASE/'market-navigator-assurance-export.py');delivery=importlib.util.module_from_spec(spec);spec.loader.exec_module(delivery)
 def get(url):
     req=urllib.request.Request(url,headers={'User-Agent':'MarketNavigatorAssuranceVerifier/1.0','Cache-Control':'no-cache'})
     with urllib.request.urlopen(req,timeout=30) as response:return response.read()
@@ -27,10 +28,15 @@ def verify(url,expected=None):
             if hashlib.sha256(payload).hexdigest()!=sha:raise ValueError('Delivered bytes differ: '+rel)
             path=root/rel;path.parent.mkdir(parents=True,exist_ok=True);path.write_bytes(payload)
         with concurrent.futures.ThreadPoolExecutor(max_workers=6) as pool:list(pool.map(download,manifest['files'].items()))
+        delivery.referenced_index_evidence(root)
+        catalog=w.h.read(root/'data/market-backend/data-catalog.json');registry=w.h.read(root/'data/market-backend/component-registry-v1.json')
+        captures=w.h.load_receipts(root,{m['id']:m for m in catalog['series']},[r['id'] for r in registry['components']])
+        rebuilt,_=w.h.recover(w.h.read(BASE/'market-navigator-rebuild-seed.json'),registry,captures)
+        if rebuilt!=w.h.read(root/'market-evidence/persistent-indices-v1.json'):raise ValueError('Delivered receipt replay differs from admitted index model')
         admission=w.audit(root);assurance=w.assurance.assess(root,admission=admission)
         if assurance['state'] not in ('verified','verified-with-limitations'):raise ValueError('Hosted independent assurance failed: '+json.dumps(assurance['findings']))
         if assurance['summary']['datasets']!=39:raise ValueError('Corpus coverage changed; inventory review required')
         if dt.datetime.now(dt.timezone.utc)-w.h.instant(status['heartbeatAt'])>dt.timedelta(hours=1):raise ValueError('Hosted collector heartbeat expired')
-        return {'schema':'market-navigator-hosted-assurance-proof-v1','verifiedAt':dt.datetime.now(dt.timezone.utc).isoformat(),'url':url,'generation':status['generation'],'filesVerified':len(manifest['files']),'summary':assurance['summary'],'state':assurance['state'],'independentStoredAndSourceReplay':True,'frozenIndexMathematicsReproduced':True}
+        return {'schema':'market-navigator-hosted-assurance-proof-v1','verifiedAt':dt.datetime.now(dt.timezone.utc).isoformat(),'url':url,'generation':status['generation'],'filesVerified':len(manifest['files']),'summary':assurance['summary'],'state':assurance['state'],'independentStoredAndSourceReplay':True,'frozenIndexMathematicsReproduced':True,'deliveredReceiptRebuildReproduced':True}
 if __name__=='__main__':
     p=argparse.ArgumentParser();p.add_argument('--url',required=True);p.add_argument('--generation');p.add_argument('--output',default='market-navigator-assurance-hosted-proof.json');args=p.parse_args();proof=verify(args.url,args.generation);w.h.write(args.output,proof);print(json.dumps(proof,indent=2))

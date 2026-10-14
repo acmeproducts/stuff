@@ -1,3 +1,11 @@
+## 2026-10-14 independent review corrections
+
+Manager review rejected the 717-file export: a selected macro-only receipt referenced 14 omitted component blobs, so receipt loading failed despite admission PASS. Export now includes and Git-hash-checks every dependency of every delivered receipt. The old bundle remains historical incomplete evidence; the corrected export has 731 files. A network-forbidden regression loads the full registered receipt and reproduces its rebuilt model. Hosted verification also requires complete receipt replay.
+
+Red-team review coherently truncated index capture tails and regenerated projections while keeping current native files unchanged; prior admission wrongly returned 39 current datasets / three verified indices with an October 9 index endpoint against October 13 QQQ. Projection admission now binds each selected source revision, native endpoint, provider identity, unit/cadence and collection instant to current canonical inputs. The identical attack is now rejected; normal October 13 admission remains passing. This is a per-component check, not a global earliest-date crop.
+
+Local source repair, review corrections and complete delivery are distinct from exact-source CI and hosted operation. No production promotion; physical owner acceptance remains required.
+
 # October 14: qualification timeout remains failed historical evidence
 
 The exact regenerated GitHub fixture passes all 280 comparisons per browser locally. Do not call the prior timeout an assertion pass or silently increase the readiness deadline. Use two simultaneous layouts to reduce runner contention, preserve the full matrix/assertions, and report console/renderer/state diagnostics if a failure repeats. Publication still requires a fresh full workflow and hosted source/index admission.
