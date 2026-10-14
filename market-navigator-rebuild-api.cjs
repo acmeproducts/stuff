@@ -58,6 +58,7 @@ component=component.replace(source('visibleIds25'),source('visibleIds25').replac
 component=component.replace('scales[a]=scale(values)', "scales[a]=axisScale(a,values)");
 component=component.replace("let neutralEnv=S.level===1&&!S.nowFocus", "let neutralEnv=S.level===1&&!S.nowFocus");
 component=require('./market-navigator-rebuild-chart-review.cjs')(component,babel);
+component=component.replace('idle:!pending','idle:!pending,error:renderError?.message||null');
 new vm.Script('const MNChart='+component);
 const prelude=fs.readFileSync('market-navigator-rebuild-api-view.js','utf8').replace('__MN_MARKUP__',JSON.stringify(markup)).replace('__MN_CSS__',JSON.stringify(css));
 const standalone=`// Market Navigator reusable chart v1. Qualified Turn 28 painter; no application globals.\n(()=>{'use strict';${prelude}\nconst MNChart=${component};globalThis.MNChart=MNChart;})();\n`;

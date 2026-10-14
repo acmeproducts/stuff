@@ -33,6 +33,11 @@ class ProductionTemporalOracle(unittest.TestCase):
         h.write(self.root/'market-evidence/collection-archive/receipts'/(known.replace(':','-')+'.json'),{'knownBy':known,'provenance':proof})
         self.row['recoveredCalculations'].append(c);return c
     def project(self):return integrity.latest_projection(self.root,self.row,self.original,self.catalog,self.registry)
+    def test_authentic_provisional_capture_is_preserved_but_not_admitted_as_settled(self):
+        known='2026-10-12T14:00:00Z';capture=self.capture(known,[('2026-10-09',100.),('2026-10-12',107.)])
+        proof=capture['sources']['spy'];source=integrity.source_blob(self.root,'spy',proof,self.catalog['spy'],h.instant(known),{},require_completed=False)
+        self.assertEqual(107.,source['observations'][-1]['v'])
+        with self.assertRaisesRegex(ValueError,'incomplete market session'):self.project()
     def test_actual_production_weekend_revision_and_monday_cutoff(self):
         for known,points,end in [
             ('2026-10-09T22:00:00Z',[('2026-10-08',100.),('2026-10-09',107.)],'2026-10-09'),

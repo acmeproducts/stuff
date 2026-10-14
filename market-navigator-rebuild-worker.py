@@ -78,7 +78,7 @@ def publish(root,store,collect=False,archive=None,inventory=None,strict_assuranc
     stage=store/('working-'+uuid.uuid4().hex);stage.mkdir()
     for folder in ('market-evidence','data/market-backend'):shutil.copytree(root/folder,stage/folder)
     for name in ('market-navigator-r7-data-pipeline.py','market-navigator-r7-health.py','market-navigator-source-state.py','market-navigator-rebuild-transforms.py','market-navigator-rebuild-policy.py'):
-        shutil.copy2(BASE/'market-navigator-rebuild-data'/name,stage/name)
+        shutil.copy2(BASE/name if name=='market-navigator-rebuild-policy.py' else BASE/'market-navigator-rebuild-data'/name,stage/name)
     # Reviewed recovery sources are applied only to the exact registered identity.
     provider_policy=h.read(BASE/'market-navigator-rebuild-provider-policy.json')
     catalog_path=stage/'data/market-backend/data-catalog.json';configured=h.read(catalog_path)

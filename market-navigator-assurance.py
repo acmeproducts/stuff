@@ -19,9 +19,10 @@ def gaps(meta,points):
     elif cadence in ('trading-day','daily-nav'):
         day=dates[0]
         while day<=dates[-1]:
-            if day.year in (2026,2027,2028) and day.weekday()<5 and day.isoformat() not in h.policy.NYSE_CLOSED[day.year]:expected.add(day)
+            if day.year in (2026,2027,2028) and h.policy.required_market_day(meta,day):expected.add(day)
             day+=dt.timedelta(days=1)
         if dates[0].year<2026 or dates[-1].year>2028:limitations.append('Exchange calendar covers 2026-2028; earlier history uses upstream period comparison')
+        if h.policy.move_calendar(meta):limitations.append('MOVE uses reviewed 2026/2027 fixed-income Columbus/Veterans holiday exclusions; actual provider observations are retained, and no holiday value is fabricated. Complete instrument publication-calendar history is not independently reconstructed.')
     elif cadence=='daily' and meta.get('provider_identifier')=='DFF':
         expected={dates[0]+dt.timedelta(days=n) for n in range((dates[-1]-dates[0]).days+1)}
     elif cadence=='daily':limitations.append('Daily source omissions use upstream period comparison; weekdays alone do not prove publication')

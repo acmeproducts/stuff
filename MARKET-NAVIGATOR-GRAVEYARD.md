@@ -1,3 +1,13 @@
+# October 14: operational calendar and state-completeness assumptions rejected
+
+Do not require a MOVE observation solely because NYSE traded: retained MOVE data omit independently reviewed fixed-income Columbus/Veterans holidays. Bind required-period exceptions to the exact registered instrument; keep equity and genuine MOVE gap checks. Do not fabricate a holiday value or silently switch the source identity. Do not run the collector using a stale policy copy while admission uses the current root policy.
+
+Do not destroy or reject authentic old captured states merely because they include a provisional daily candle. Verify their exact archived data and arithmetic, retain their limitation, and exclude them from completed native projection. Conversely, do not permit a provisional latest vector to qualify settled data.
+
+Do not plot same-day daily price candles at their session timestamps while index periods use midnight: that produces a false right-edge offset. Plot reference dates consistently and retain original sourceT provenance, actual values and reference mathematics.
+
+Actual-source local fault recovery now verifies 39 native sources, three indices and a 717-file reconstructed delivery. Keep the three known upstream omissions and historical-availability limitations explicit. Run 38505377356's readiness timeout remains failed evidence; do not loosen the gate or label it PASS.
+
 # October 13: AI verification field-order coupling rejected
 
 Do not inject verification fields by assuming governedIndexExplanation is the first AI evidence property. Adding a vintage instruction invalidated that literal match and silently dropped delayed verification provenance. Target the return object independently of field order, fail if its structure is missing, and test both verification and vintage together. The full real broker expiry/Library/Analyze lifecycle is required; a successful synthetic AI reply alone cannot prove freshness semantics.

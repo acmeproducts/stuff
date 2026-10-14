@@ -28,7 +28,7 @@ def instant(text):
 
 
 
-def source_blob(root, sid, proof, meta, known_by, cache):
+def source_blob(root, sid, proof, meta, known_by, cache, require_completed=True):
     """Dereference the evidence statement, independently of embedded values."""
     sha = proof.get('blob', '')
     if len(sha) != 40 or any(c not in '0123456789abcdef' for c in sha):
@@ -64,7 +64,7 @@ def source_blob(root, sid, proof, meta, known_by, cache):
     verification=source.get('sourceVerification')
     if verification and (verification.get('sourceRevision')!=revision or verification.get('id')!=sid or verification.get('unit')!=meta['native_unit'] or verification.get('cadence')!=meta['native_cadence']):
         raise ValueError('Archived source upstream verification identity differs: '+sid)
-    if collected >= dt.datetime(2026,10,8,tzinfo=UTC) and meta['native_cadence'] in ('trading-day','daily-nav') and source['provider'] in ('Yahoo Finance','Stooq','Nasdaq Fund Network'):
+    if require_completed and collected >= dt.datetime(2026,10,8,tzinfo=UTC) and meta['native_cadence'] in ('trading-day','daily-nav') and source['provider'] in ('Yahoo Finance','Stooq','Nasdaq Fund Network'):
         completed=calendar_policy.expected_market_session(collected).isoformat()
         if date_of(points[-1]['t'])>completed:
             raise ValueError('Archived source contains an incomplete market session: '+sid)
@@ -141,6 +141,7 @@ def verify_indices(root, model, seed, registry, catalog, now):
         if row['components']!=original['components']:raise ValueError('Governed index component membership/order differs: '+key)
         n = len(original['dates'])
         latest = {}
+        partial_captures=[]
         for i,capture in enumerate(row.get('recoveredCalculations',[]), n):
             known = instant(capture['knownBy'])
             if known > now or set(capture['sources']) != set(row['components']):
@@ -148,8 +149,14 @@ def verify_indices(root, model, seed, registry, catalog, now):
             native = {}
             terms = []
             for sid in row['components']:
-                source = source_blob(root,sid,capture['sources'][sid],metas[sid],known,cache)
+                # Preserve/replay authentic captured information states. Older
+                # snapshots may contain a provisional daily candle; they are
+                # not used as settled native-period projections.
+                source = source_blob(root,sid,capture['sources'][sid],metas[sid],known,cache,require_completed=False)
                 last = source['observations'][-1]
+                collected=instant(source['last_successful'])
+                if collected>=dt.datetime(2026,10,8,tzinfo=UTC) and metas[sid]['native_cadence'] in ('trading-day','daily-nav') and source['provider'] in ('Yahoo Finance','Stooq','Nasdaq Fund Network') and date_of(last['t'])>calendar_policy.expected_market_session(collected).isoformat():
+                    partial_captures.append({'id':sid,'knownBy':capture['knownBy'],'referenceDate':date_of(last['t']),'completedThrough':calendar_policy.expected_market_session(collected).isoformat()})
                 native[sid] = {'t':last['t'], 'v':last['v'], 'date':date_of(last['t'])}
                 if row['componentValues'][sid][i] != last['v'] or row['componentObservationDates'][sid][i] != date_of(last['t']):
                     raise ValueError('Index input differs from archived native vector: '+sid)
@@ -190,7 +197,8 @@ def verify_indices(root, model, seed, registry, catalog, now):
                        'heldComponents':[sid for sid,date in component_dates.items() if date<last_date],
                        'vintage':'latest captured vintage; not historical availability at market close',
                        'unavailableCapturedDays':row.get('unavailableCapturedDays',[]),
-                       'limitations':['Original published rows verified against immutable seed; original upstream availability is not reconstructed']+(['No later native period; original baseline endpoint retained rather than replacing its published value'] if not latest else [])+(['Missing historical collection states remain unavailable; native periods are recalculated from actual retained vectors with later knownBy'] if row.get('unavailableCapturedDays') else []),
+                       'provisionalCapturedInputs':partial_captures,
+                       'limitations':['Original published rows verified against immutable seed; original upstream availability is not reconstructed']+(['No later native period; original baseline endpoint retained rather than replacing its published value'] if not latest else [])+(['Missing historical collection states remain unavailable; native periods are recalculated from actual retained vectors with later knownBy'] if row.get('unavailableCapturedDays') else [])+(['Authentic older captures include provisional daily candles; their captured states are retained and verified, but completed native projections use the independently checked later settled vectors'] if partial_captures else []),
                        'expectedProjection':[(date,entry['value'],entry['capture']['knownBy']) for date,entry in sorted(latest.items())],
                        '_latestCapture':max(row['recoveredCalculations'],key=lambda c:instant(c['knownBy']))}
     return result

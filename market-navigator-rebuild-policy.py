@@ -47,6 +47,18 @@ NYSE_CLOSED = {
 }
 NYSE_EARLY = {'2026-11-27','2026-12-24','2027-11-26','2028-07-03','2028-11-24'}
 
+# MOVE is a fixed-income volatility publication, not an equity listing.
+# Reviewed 2026/2027 fixed-income closures:
+# https://www.sifma.org/resources/guides-playbook/holiday-schedule
+# Retained Yahoo MOVE sequences also omit 2024/2025 Columbus/Veterans days.
+# Actual provider observations remain admissible; these dates are not mandatory.
+MOVE_EXTRA_CLOSED={'2026-10-12','2026-11-11','2027-10-11','2027-11-11'}
+def move_calendar(meta):
+    return meta.get('id')=='move' and meta.get('provider')=='Yahoo Finance' and meta.get('provider_identifier')=='^MOVE'
+
+def required_market_day(meta,day):
+    return day.weekday()<5 and day.isoformat() not in NYSE_CLOSED.get(day.year,set()) and not(move_calendar(meta) and day.isoformat() in MOVE_EXTRA_CLOSED)
+
 def expected_market_session(now):
     local=eastern(now)
     if local.year not in (2026,2027,2028):
@@ -72,7 +84,9 @@ def expected_period(meta, catalog, rules, now):
     cadence = meta.get('native_cadence')
     rule = rules.get('rules', {}).get(meta['id'], {})
     if now >= dt.datetime(2026,10,8,tzinfo=UTC) and cadence == 'trading-day' and meta.get('provider') in ('Yahoo Finance','Stooq'):
-        return expected_market_session(now)
+        day=expected_market_session(now)
+        while not required_market_day(meta,day):day-=dt.timedelta(days=1)
+        return day
     if now >= dt.datetime(2026,10,8,tzinfo=UTC) and cadence == 'daily' and meta.get('provider') == 'FRED':
         completed=today if today.weekday()<5 and today not in holidays(today.year) and local.hour>=18 else previous_bank_session(today)
         return previous_bank_session(completed)
@@ -111,7 +125,7 @@ def missing_recent_sessions(meta, points, now):
     actual=dt.datetime.fromtimestamp(points[-1]['t']/1000,UTC).date()
     day=min(actual,expected_market_session(now));expected=[]
     while len(expected)<5:
-        if day.weekday()<5 and day.isoformat() not in NYSE_CLOSED.get(day.year,set()):expected.append(day)
+        if required_market_day(meta,day):expected.append(day)
         day-=dt.timedelta(days=1)
     observed={dt.datetime.fromtimestamp(p['t']/1000,UTC).date() for p in points}
     return [d.isoformat() for d in sorted(expected) if d not in observed]
@@ -122,7 +136,7 @@ def missing_history_sessions(meta,points):
     if meta.get('native_cadence') not in ('trading-day','daily-nav') or not points:return []
     dates={dt.datetime.fromtimestamp(p['t']/1000,UTC).date() for p in points};day=min(dates);end=max(dates);missing=[]
     while day<=end:
-        if day.year in (2026,2027,2028) and day.weekday()<5 and day.isoformat() not in NYSE_CLOSED[day.year] and day not in dates:missing.append(day.isoformat())
+        if day.year in (2026,2027,2028) and required_market_day(meta,day) and day not in dates:missing.append(day.isoformat())
         day+=dt.timedelta(days=1)
     return missing
 

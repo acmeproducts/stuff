@@ -1,3 +1,15 @@
+# October 14 operational proof and calendar/source-state contracts
+
+Preserve the real public checkpoint and every failed local probe. The current old publisher fails on a missing October 13 collection archive. Later verified vectors repair real native periods without inventing unavailable historical collection states.
+
+Actual-source qualification independently verifies all 39 native datasets and three indices through October 13, with QQQ missing/value and SPY unit faults repaired. A 717-file reconstructed delivery again passes full index admission. Three upstream omissions and 16 retained older histories remain explicit limitations.
+
+Source contracts distinguish required publication periods from actual provider reference periods. MOVE's Yahoo ^MOVE identity uses reviewed 2026/2027 Columbus/Veterans exclusions based on retained source absences and the official fixed-income schedule. Equities and real MOVE gaps remain guarded; actual holiday observations are not deleted. Operational collection and admission use the same authoritative root policy. Authentic historical provisional captures remain immutable and verified as captured states; they cannot qualify a completed native projection.
+
+Daily display coordinates use UTC reference dates while preserving original sourceT timestamps and unchanged values/reference mathematics. Intraday timestamps remain exact. Same-day price/index endpoints must align at the right edge. Chrome/Edge each pass 280 independent comparisons plus an explicit 13:30 timestamp fixture.
+
+Run 38505377356 timed out on an independent readiness boundary after earlier gates passed. Reproduce the exact GitHub fixture and expose bounded renderer/readiness diagnostics before fresh full GitHub qualification. No timeout is PASS; do not publish before full gates and independent hosted admission succeed.
+
 # October 13 final integration gate: retain verification and vintage together
 
 The added vintage instruction exposed a field-order coupling in the refresh builder: AI evidence lost its verification timestamp/status. Inject those fields independently of the first return-object field and fail compilation if the return object is missing. Require both fields in AI transport tests and run the real expiry/delayed-publication/parked-Analyze regression.

@@ -10,7 +10,7 @@ module.exports=(code,babel)=>{
  change('setNowFooter',s=>s.replace("let rep=S.nowRepresentation==='native'?","let rep=mode==='native'?"));
  change('removeNowSeries25',s=>s.replace('renderV2()','reconcileAxes(visibleIds25());renderV2()'));
  change('renderV1',s=>s.replace('function renderV1(){if(dead)return;','async function renderV1(epoch=requestEpoch){if(dead)return;const viewWindow=await scopeWindow(S.h,\'risk\',IDX);if(dead||epoch!==requestEpoch)return;').replace('let w=windowFor(),','let w=viewWindow,').replace('indexDisplayCurve28(x.curve||[])','indexDisplayCurve28(obsRange({observations:x.curve||[]},w))').replace("$('range').textContent=", "observationWindow(sets,w);$('range').textContent="));
- change('sourceSet25',s=>s.replace("const meta=cat(id),", "if(!await seriesAvailable(id))return{id,label:label(id),full:name(id),unit:unit(id),color,renderType:'line',a:[]};const meta=cat(id),").replace('100 Ã— native value / reference value','100 * native value / reference value'));
+ change('sourceSet25',s=>s.replace("const meta=cat(id),", "if(!await seriesAvailable(id))return{id,label:label(id),full:name(id),unit:unit(id),color,renderType:'line',a:[]};const meta=cat(id),").replace('100 Ã— native value / reference value','100 * native value / reference value').replace('({t:+p.t,v:100*+p.v/+b.v,',"({t:/intraday|minute|hour/.test(cadence)?+p.t:Math.floor(+p.t/86400000)*86400000,v:100*+p.v/+b.v,"));
  change('draw',s=>{
  s=s.replace("x.stroke();x.setLineDash([])}x.globalAlpha=1", "x.stroke();x.setLineDash([]);if(da.length===1){const qxy=xy(z,da[0]);x.fillStyle=z.color;x.beginPath();x.arc(qxy.x,qxy.y,3,0,Math.PI*2);x.fill()}}x.globalAlpha=1");
  const start=s.indexOf('function locate(e)'),end=s.indexOf('c.onpointermove',start);

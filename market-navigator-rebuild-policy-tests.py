@@ -4,6 +4,17 @@ from pathlib import Path
 spec=importlib.util.spec_from_file_location('policy',Path(__file__).with_name('market-navigator-rebuild-policy.py'));policy=importlib.util.module_from_spec(spec);spec.loader.exec_module(policy)
 def instant(s):return dt.datetime.fromisoformat(s.replace('Z','+00:00'))
 class PublicationCalendar(unittest.TestCase):
+    def test_move_holiday_does_not_weaken_equity_gap_detection(self):
+        move={'id':'move','provider':'Yahoo Finance','provider_identifier':'^MOVE','native_cadence':'trading-day'}
+        equity={**move,'id':'spy','provider_identifier':'SPY'}
+        points=[{'t':int(instant(day+'T13:30:00Z').timestamp()*1000),'v':100} for day in ('2026-10-05','2026-10-06','2026-10-07','2026-10-08','2026-10-09','2026-10-13')]
+        self.assertEqual([],policy.missing_history_sessions(move,points));self.assertEqual(['2026-10-12'],policy.missing_history_sessions(equity,points))
+        self.assertEqual([],policy.missing_recent_sessions(move,points,instant('2026-10-14T03:00:00Z')))
+        self.assertEqual(str(policy.expected_period(move,{}, {},instant('2026-10-12T23:00:00Z'))),'2026-10-09')
+        self.assertEqual(str(policy.expected_period(equity,{}, {},instant('2026-10-12T23:00:00Z'))),'2026-10-12')
+        broken={**move,'provider_identifier':'^MOVEX'};self.assertEqual(['2026-10-12'],policy.missing_history_sessions(broken,points))
+        real_gap=[p for p in points if p['t']!=int(instant('2026-10-07T13:30:00Z').timestamp()*1000)]
+        self.assertEqual(['2026-10-07'],policy.missing_history_sessions(move,real_gap),'Real MOVE gaps still fail')
     def test_regular_close_and_ingestion_grace(self):
         self.assertEqual(str(policy.expected_market_session(instant('2026-10-08T21:59:59Z'))),'2026-10-07')
         self.assertEqual(str(policy.expected_market_session(instant('2026-10-08T22:00:00Z'))),'2026-10-08')
