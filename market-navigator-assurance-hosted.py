@@ -43,10 +43,19 @@ def refresh(destination,store,qualify_recovery=False):
         result['publisher']={'mode':'serialized-dispatch-relay','intervalSeconds':seconds,'workflowRunId':os.environ.get('GITHUB_RUN_ID'),'workflowRunURL':os.environ.get('MN_WORKFLOW_RUN_URL'),'nextAttemptNotBefore':(dt.datetime.now(dt.timezone.utc)+dt.timedelta(seconds=seconds)).isoformat(),'scheduleFallback':True}
         r.h.write(store/'assurance-status.json',result)
 
-    if result['generation']:
+    if result['generation'] and result['state'].startswith('verified'):
         proof=e.export(store,destination)
     else:
-        destination.mkdir(parents=True,exist_ok=True);shutil.copy2(store/'assurance-status.json',destination/'assurance-status.json');proof={'generation':None,'state':result['state']}
+        # A failed recovery must not re-export an older, unqualified proof set.
+        # Keep its existing assets and publish the failure/retry without renewing it.
+        destination.mkdir(parents=True,exist_ok=True)
+        published=json.loads((store/'assurance-status.json').read_text())
+        if published.get('generation'):
+            previous=json.loads(status_path.read_text()) if status_path.exists() else {}
+            if (previous.get('generation') or {}).get('generation')!=published['generation']['generation']:raise ValueError('Failed recovery cannot replace the prior publication')
+            if previous.get('deliveryManifest'):published['deliveryManifest']=previous['deliveryManifest']
+        temporary=destination/'assurance-status.pending.json';r.h.write(temporary,published);temporary.replace(status_path)
+        proof={'generation':result['generation'],'state':result['state']}
     print(json.dumps({'state':result['state'],'delivery':proof,'error':result.get('error')},indent=2))
     return result['state'].startswith('verified')
 

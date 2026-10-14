@@ -14,6 +14,19 @@ class Relay(unittest.TestCase):
    published=json.loads((base/'public/assurance-status.json').read_text());self.assertEqual(published['assurance']['validUntil'],lease);self.assertEqual(published['heartbeatAt'],status['heartbeatAt']);self.assertEqual(published['publisher']['intervalSeconds'],expected);self.assertEqual(published['publisher']['workflowRunId'],'12345');self.assertGreater(dt.datetime.fromisoformat(published['publisher']['nextAttemptNotBefore']),dt.datetime.now(dt.timezone.utc))
  def test_verified_cycle_is_twenty_minutes_without_extended_lease(self):self.check('verified',1200)
  def test_failed_cycle_retries_in_five_minutes_preserving_last_proof(self):self.check('needs-attention',300)
+ def test_failed_recovery_preserves_older_assets_and_publishes_retry_status(self):
+  with tempfile.TemporaryDirectory() as tmp:
+   base=Path(tmp);public=base/'public';name='generation-'+'a'*20;pointer={'generation':name,'revision':'a'*20}
+   for folder in ('market-evidence','data/market-backend'):
+    (base/'market-navigator-rebuild-data'/folder).mkdir(parents=True);(public/'generations'/name/folder).mkdir(parents=True)
+   asset=public/'generations'/name/'market-evidence/retained.json';asset.write_bytes(b'{"retained":true}')
+   manifest='generations/'+name+'/delivery-manifest.json';lease='2026-10-10T11:39:15Z'
+   hosted.r.h.write(public/'assurance-status.json',{'state':'verified','generation':pointer,'deliveryManifest':manifest})
+   status={'state':'needs-attention','generation':pointer,'assurance':{'validUntil':lease},'error':'Exact archived evidence unavailable'}
+   def run(root,store):hosted.r.h.write(store/'assurance-status.json',status);return status
+   with patch.object(hosted,'BASE',base),patch.object(hosted.r,'run',run),patch.object(hosted.e,'export',side_effect=AssertionError('Old generation must not be regenerated')),patch.dict(os.environ,{'MN_RELAY_INTERVAL_SECONDS':'1200'}),contextlib.redirect_stdout(io.StringIO()):
+    self.assertFalse(hosted.refresh(public,base/'store'))
+   published=json.loads((public/'assurance-status.json').read_text());self.assertEqual(published['generation'],pointer);self.assertEqual(published['deliveryManifest'],manifest);self.assertEqual(published['assurance']['validUntil'],lease);self.assertEqual(published['publisher']['intervalSeconds'],300);self.assertEqual(asset.read_bytes(),b'{"retained":true}');self.assertEqual(published['error'],status['error'])
  def test_serialization_and_guard_failure_stop_dispatch(self):
   wf=Path('.github/workflows/market-navigator-assurance-live.yml').read_text(encoding='utf-8-sig');self.assertIn('cancel-in-progress: false',wf);self.assertIn("steps.recovery.outcome != 'skipped'",wf);self.assertLess(wf.index("assert s['publisher']['mode']"),wf.index('gh workflow run market-navigator-assurance-live.yml'));self.assertIn('while remaining>0:',wf)
 if __name__=='__main__':unittest.main(verbosity=2)

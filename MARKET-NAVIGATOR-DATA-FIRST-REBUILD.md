@@ -1,3 +1,9 @@
+# October 13 delivery gate: complete governed capture proof
+
+The stricter index audit requires historical retained blobs and receipts, including captures already present in the worker checkout. Remove the export's checkout-date cutoff and deliver every recovered capture referenced by the admitted model. Verify exact blob identities, then re-run full index admission against a reconstructed public bundle. On a failed recovery, preserve existing assets and manifest, expose the failure and five-minute retry atomically, and never renew verification or regenerate an unqualified old proof set.
+
+The reconstructed delivery/tamper test, 30 corpus assurance tests and four relay tests pass locally. The chart artifacts remain unchanged from f3f9aea. Run 38501335994 failed the legacy behavior test's obsolete Add-must-close assertion after earlier gates passed. Update it to require an open picker, green Added chip and comparison X removal, then run fresh full exact-commit qualification and independent hosted native/index admission. Owner acceptance and promotion remain pending.
+
 # October 13 qualification correction: private application helper ownership
 
 The full newspaper-to-Library browser test rejected fdbf3d3 before publication: a new frozen-scope fingerprint helper sat outside the private application closure. Move it into that closure and prove ownership with a private-hash regression plus the real generated browser request flow. The corrected synthetic AI request flow, report variants and all three captured October 12 incident tests pass. Fresh complete exact-commit GitHub qualification is still required; no public test build or promotion has occurred.

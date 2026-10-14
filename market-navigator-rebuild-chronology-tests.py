@@ -119,6 +119,16 @@ class SeedAdmissionContract(unittest.TestCase):
                 report=w.audit(root,clock)
             self.assertTrue(report['summary']['ready']);self.assertEqual(3,report['summary']['indicesVerified'])
             self.assertTrue(all(x['projectionState']=='baseline-held' for x in report['indices'].values()))
+            exporter=load('chronology_delivery','market-navigator-assurance-export.py');store=root/'delivery-store';name='generation-'+'a'*20
+            for directory in ('market-evidence','data/market-backend'):shutil.copytree(root/directory,store/name/directory,dirs_exist_ok=True)
+            h.write(store/'current.json',{'generation':name,'revision':'a'*20});h.write(store/'assurance-status.json',{'generation':{'generation':name,'revision':'a'*20}})
+            delivered=root/'delivered';exporter.export(store,delivered)
+            bundle=delivered/'generations'/name
+            with patch.object(w,'BASE',trusted),patch.object(w.h,'BASELINE_BLOB',h.blob(h.encode(seed))),patch.object(w.h,'read',side_effect=fixture_read):
+                self.assertEqual(3,w.audit(bundle,clock)['summary']['indicesVerified'])
+            # Damage only the temporary delivery fixture; original capture survives.
+            archive_blob=next((bundle/'market-evidence/collection-archive/blobs').glob('*.json'));archive_blob.write_bytes(b'{}')
+            with self.assertRaisesRegex(ValueError,'Governed archive evidence hash differs'):exporter.referenced_index_evidence(bundle)
             projected['indices']['risk']['horizons']['5D']['curve'][0]['baselineInputs']['spy']['v']*=2
             h.write(root/'market-evidence/derived-indices-persistent-v1.json',projected)
             with patch.object(w,'BASE',trusted),patch.object(w.h,'BASELINE_BLOB',h.blob(h.encode(seed))),patch.object(w.h,'read',side_effect=fixture_read),self.assertRaisesRegex(ValueError,'Projected original endpoint inputs differ'):

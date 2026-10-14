@@ -1,3 +1,13 @@
+# October 13: stale Add test expectations rejected
+
+Run 38501335994 failed because the behavior matrix still required Add to close, contrary to the owner's later instruction. Require the picker to remain open, a green Added chip, comparison X removal and single insertion despite rapid repeated taps. This is a contract correction, not permission to weaken qualification. Run the complete corrected matrix and exact-source workflow before publication.
+
+# October 13: incomplete published index proof closure rejected
+
+Do not filter archived index proof by the worker checkout's latest receipt date. Index admission may still reference those older captures, so the published bundle must contain all required source blobs and matching receipts. A workspace audit cannot establish that the exported generation is independently replayable. Audit a reconstructed delivery and reject hash corruption.
+
+A failed recovery must keep the prior assets and manifest while publishing its real error/retry status without renewing the lease. Do not regenerate an old, unqualified proof set simply because a prior generation pointer exists. Preserve all historical captures and commits.
+
 # October 13: fdbf3d3 runtime scope integration rejected before publication
 
 Passing extracted-function arithmetic does not prove browser integration. A new frozen-scope fingerprint helper outside the application closure could not reach private mnxHash and blocked the newspaper action. Keep fdbf3d3 and its workflow as historical evidence. Inject helpers in their owning closure; verify with a private-hash closure test and the complete newspaper-to-Library browser request lifecycle before publishing. Do not claim the candidate is owner ready from isolated VM tests alone.
