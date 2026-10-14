@@ -1,3 +1,11 @@
+## 2026-10-14 owner FAIL overrides e795069 PASS — rollback and diagnosis only
+
+Owner rejected the crosshair presentation and missing MAC line. All prior automated PASS/readiness claims for e795069 are historical test records, not release acceptance. The isolated review route now restores the exact accepted Turn 28 post-ship code/data checkpoint 996e9a71b72db5bfbea3ba77750077daaa2fb7ab; public HTML blob 9ce7f67451f9e1b7804927ce5c56adb667614724. Forward rollback commit a242d0c9a1ef81a3b9e429a9ea5b131065cc4740 preserves all rejected history. The review publisher is stopped; small multiples are withdrawn. This checkpoint contains historical September data and is not a current-data readiness claim.
+
+Two independent failures are proven against owner generation a177f9ee6dbe22379f5a: expanded full-width inspection hides valid MAC/GRW paths in 5D; the rewritten DFF-excluding native clock omits MAC's October 12 state and leaves a singleton in 1D. Same-data original/rejected painter replay matches stroked coordinates. Data construction changed before NOW extraction; the pipeline was not a behavior-preserving modularization. Canvas containment/source arithmetic tests did not establish visual usability or independent date coverage.
+
+Manager and red-team findings, exact checkpoint identities, chronology, gate failures and required corrective sequence are in MARKET-NAVIGATOR-OWNER-REJECTION-RCA-2026-10-14.md. Do not publish a forward product fix during this rollback/diagnosis task. Next implementation must separately establish index evaluation/calendar semantics, preserve compact crosshair behavior, verify raw plus derived plus per-horizon chart coverage, and use independent accepted code/data fixtures before owner qualification. Source provenance detail is not permission to redesign the crosshair. A green healthy status or a dot is not repair.
+
 # Recovery override — owner authorized 2026-10-05
 
 This section supersedes conflicting sequencing, Add, lifecycle and qualification claims below.
