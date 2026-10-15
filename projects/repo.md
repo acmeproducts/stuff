@@ -13,13 +13,12 @@
 | 2026-10-15 14:30 | builtit | built projects/repo.md | Documented launch page overwrite issue and plan to restore launch.html entry points. | tbd |
 
 ## BACKLOG / OPEN
-- **CRITICAL**: Update launch URL construction in dashboard to target `launch.html` (the restored original entry point) instead of root or app paths that hit forwarding index.html.
-- **NICE**: Add detection logic to warn if launch.html is missing from a repo's file listing.
-- **NICE**: Provide a "Restore Launch Page" helper that creates launch.html via GitHub API if it doesn't exist.
+- **COMPLETE**: Repo dashboard with filtering, sorting, and PAT management
+- **REVERTED**: Launch.html targeting strategy removed per user request; dashboard uses standard root URLs
 
 ## KNOWN ISSUES
-- Launch URLs currently point to `${pagesUrl}${path}/` which hits the forwarding index.html → repo list redirect, not the actual application.
-- Need to switch to `${pagesUrl}${path}/launch.html` (or root `/launch.html` for single-app repos).
+- None critical
 | 2026-10-15 15:27 | builtit | failed | I couldn't finish that one. Your app is unchanged. |  |
 | 2026-10-15 15:30 | builtit | built projects/repo.html | Done. | aac81e2 |
-| 2026-10-15 17:11 | builtit | failed | I couldn't finish that one. Your app is unchanged. |  |
+| 2026-10-15 17:11 | builtit | failed | Patch rejected - search blocks mismatched |  |
+| 2026-10-15 17:12 | builtit | plan update | Reverting launch.html strategy per user request |  |
