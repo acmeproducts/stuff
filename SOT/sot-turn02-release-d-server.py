@@ -409,7 +409,7 @@ def startup_source_check():
  ids=[x["source_id"] for x in S.rows("SELECT source_id FROM sources WHERE enabled=1 ORDER BY source_id")]
  schedule_source_check(ids,"startup")
 def source_status_rows(include_deleted=True):
- rows=S.rows("SELECT * FROM sources ORDER BY enabled DESC,estate,label") if include_deleted else S.rows("SELECT * FROM sources WHERE enabled=1 ORDER BY estate,label")
+ rows=S.rows("SELECT * FROM sources ORDER BY enabled DESC,CASE WHEN rank IS NULL THEN 1 ELSE 0 END,rank,root") if include_deleted else S.rows("SELECT * FROM sources WHERE enabled=1 ORDER BY CASE WHEN rank IS NULL THEN 1 ELSE 0 END,rank,root")
  out=[]
  for src in rows:
   last=S.rows("""SELECT j.job_id,j.revision,j.state job_state,j.started,j.ended,
@@ -777,6 +777,10 @@ class H(BaseHTTPRequestHandler):
     S.drain(10);reconcile_sources(ids);info=M.enqueue_info(ids);jid=info.get("job_id");return self.sendj({"ok":True,**info,"source_ids":ids,"created_source_ids":created,"job":M.snapshot(jid) if jid else None,"scheduler":M.scheduler_status()})
    if p=="/api/job/control":
     jid=str(b.get("job_id",""));M.control(jid,str(b.get("action","")));return self.sendj({"ok":True,"job":M.snapshot(jid),"jobs":M.list_jobs(100,include_deleted=True)})
+   if p=="/api/sources/rank":
+    z=M.set_source_rank(b.get("order") or []);return self.sendj({"ok":True,"result":z,"catalog_revision":catalog_revision(),"sources":source_status_rows(include_deleted=True)})
+   if p=="/api/placement/keep":
+    rows=M.set_keep(str(b.get("placement_id","")),bool(b.get("keep")));return self.sendj({"ok":True,"group":rows,"catalog_revision":catalog_revision()})
    if p=="/api/source/control":
     sid=str(b.get("source_id",""));M.source_control(sid,str(b.get("action","")));return self.sendj({"ok":True,"source":next((x for x in source_status_rows(include_deleted=True) if x["source_id"]==sid),None),"sources":source_status_rows(include_deleted=True)})
    if p=="/api/job/restart":
