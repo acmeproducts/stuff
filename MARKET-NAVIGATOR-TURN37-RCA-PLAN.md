@@ -1,3 +1,9 @@
+## October 14, 2026 — owner-authorized chart-only restart on accepted data
+
+The owner authorizes starting from the accepted working data and changing the NOW/Analyze charts only. This new candidate uses exact accepted code/data commit 996e9a71b72db5bfbea3ba77750077daaa2fb7ab (HTML blob 9ce7f67451f9e1b7804927ce5c56adb667614724); its 136 historical files are pinned by Git hash. The e795069 rejection, rollback, and root-cause findings remain authoritative history: https://github.com/acmeproducts/stuff/blob/106f4aa9c029895ea33ecd6d10a747563bde4297/MARKET-NAVIGATOR-OWNER-REJECTION-RCA-2026-10-14.md . Earlier automated PASS records are not owner acceptance.
+
+Build only under market-navigator-chart-only-review using new chart-only source names. Preserve the approved compact crosshair, drawing math, existing data/date/window/availability contracts and original Library/Health/AI/config behavior. NOW and Analyze share a module with isolated state and the approved NOW-only launch/Library park/NOW restore/X destroy lifecycle. The data fixture is historical September data, not current October data. The recovery publisher remains stopped; no history reconstruction, refresh, index projection or calendar/data-policy changes are part of this restart. Chart qualification must compare against the original code AND original data independently. See MARKET-NAVIGATOR-CHART-ONLY-RESTART.md for scope and gates.
+
 # Recovery override — owner authorized 2026-10-05
 
 This section supersedes conflicting sequencing, Add, lifecycle and qualification claims below.
