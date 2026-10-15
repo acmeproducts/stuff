@@ -9,7 +9,6 @@
         body,html{margin:0;padding:0;height:100%;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Oxygen,Ubuntu,Cantarell,sans-serif;background:#f5f5f5}
         #app{display:flex;height:100vh;overflow:hidden}
         
-        /* Hamburger Menu */
         #hamburger{
             position:fixed;
             top:10px;
@@ -30,7 +29,6 @@
         }
         #hamburger:hover{background:#34495e}
         
-        /* Left Rail */
         #left-rail{
             width:340px;
             min-width:280px;
@@ -58,7 +56,6 @@
         
         #left-rail h2{margin-top:0;font-size:1.1em;margin-bottom:15px;color:#fff}
         
-        /* Filters Section */
         .filters-section{
             background:rgba(0,0,0,0.2);
             border-radius:6px;
@@ -78,7 +75,6 @@
             font-size:0.9em;
         }
         
-        /* Config Strip */
         #config-strip{
             position:fixed;
             bottom:0;
@@ -117,7 +113,6 @@
         .pat-active{color:#2ecc71}
         .pat-missing{color:#e74c3c}
         
-        /* Modal */
         #config-modal{
             display:none;
             position:fixed;
@@ -158,7 +153,6 @@
         .modal-btn-primary{background:#2980b9;color:#fff}
         .modal-btn-secondary{background:#95a5a6;color:#fff}
         
-        /* Org Input */
         .org-section{margin-bottom:15px}
         .org-section label{display:block;font-size:0.75em;color:#bdc3c7;margin-bottom:4px}
         .org-input-wrapper{display:flex;gap:8px}
@@ -180,7 +174,6 @@
             font-size:0.85em;
         }
         
-        /* Repo Cards */
         .repo-item{
             padding:12px;
             border-radius:6px;
@@ -219,6 +212,7 @@
         .badge-no-pages{background:#e74c3c;color:#fff}
         .badge-private{background:#f39c12;color:#fff}
         .badge-public{background:#3498db;color:#fff}
+        .badge-warning{background:#e67e22;color:#fff}
         
         .repo-attrs{
             display:grid;
@@ -234,7 +228,6 @@
         .repo-attr-label{font-size:0.85em;color:#7f8c8d}
         .repo-attr-value{color:#bdc3c7;font-size:0.95em}
         
-        /* Right Panel */
         #right-panel{
             flex:1;
             display:flex;
@@ -265,11 +258,9 @@
         .tab-page{display:none}
         .tab-page.active{display:block}
         
-        /* Panels */
         .panel{background:#fff;border-radius:8px;padding:20px;margin-bottom:20px;box-shadow:0 1px 3px rgba(0,0,0,0.1)}
         .panel h3{margin-top:0;color:#2c3e50;border-bottom:2px solid #ecf0f1;padding-bottom:10px}
         
-        /* Buttons */
         .btn{
             background:#2980b9;
             color:#fff;
@@ -291,7 +282,6 @@
         .btn-danger:hover{background:#c0392b}
         .btn-group{display:flex;gap:10px;margin-top:15px;flex-wrap:wrap}
         
-        /* Chevron/App Groups */
         .chevron{
             cursor:pointer;
             user-select:none;
@@ -331,7 +321,6 @@
         }
         .version-label{font-family:monospace;font-size:0.9em;color:#666}
         
-        /* Status Bar */
         #diagnostics{
             position:fixed;
             bottom:0;
@@ -359,7 +348,25 @@
         .code-list a{color:#2980b9;text-decoration:none}
         .code-list a:hover{text-decoration:underline}
         
-        /* Loading Spinner */
+        .launch-missing{
+            background:#fdf2e9;
+            border:1px solid #e67e22;
+            color:#d35400;
+            padding:8px 12px;
+            border-radius:4px;
+            font-size:0.85em;
+            margin-top:5px;
+        }
+        .launch-indicator{
+            display:inline-flex;
+            align-items:center;
+            gap:5px;
+            font-size:0.75em;
+            margin-left:10px;
+        }
+        .launch-indicator.ok{color:#27ae60}
+        .launch-indicator.missing{color:#e67e22}
+        
         .spinner{
             display:inline-block;
             width:14px;
@@ -496,6 +503,27 @@ function getAuthHeaders(){
     return PAT ? {Authorization: `token ${PAT}`} : {};
 }
 
+function buildLaunchUrl(repo, path){
+    // Construct URL that specifically targets launch.html
+    const base = repo.pagesUrl || `https://${ORG}.github.io/${repo.name}/`;
+    const cleanPath = path === '/' ? '' : path.replace(/^\//, '').replace(/\/$/, '');
+    const separator = cleanPath ? '/' : '';
+    return `${base}${cleanPath}${separator}launch.html`;
+}
+
+async function checkFileExists(repo, path, filename){
+    try {
+        const resp = await fetch(`https://api.github.com/repos/${ORG}/${repo.name}/contents/${path}?ref=${repo.defaultBranch}`, {
+            headers: getAuthHeaders()
+        });
+        if(resp.ok) {
+            const items = await resp.json();
+            return items.some(i => i.type === 'file' && i.name === filename);
+        }
+    } catch(e) {}
+    return false;
+}
+
 async function fetchRepos(){
     const orgInput = document.getElementById('org-input').value.trim();
     ORG = orgInput || ORG;
@@ -505,14 +533,11 @@ async function fetchRepos(){
     
     try {
         let repos = [];
-        let isOrg = true;
         const headers = getAuthHeaders();
         
-        // Try organization endpoint first
         let resp = await fetch(`https://api.github.com/orgs/${ORG}/repos?per_page=100&sort=updated`, {headers});
         
         if(resp.status === 404) {
-            isOrg = false;
             resp = await fetch(`https://api.github.com/users/${ORG}/repos?per_page=100&sort=updated`, {headers});
         }
         
@@ -557,50 +582,73 @@ async function fetchRepos(){
             let hasPages = repo.has_pages || false;
             let pagesUrl = hasPages ? `https://${ORG}.github.io/${repo.name}/` : null;
             
+            // Check for launch.html at root
+            let hasLaunchHtml = await checkFileExists(repo, '', 'launch.html');
+            let hasIndexHtml = await checkFileExists(repo, '', 'index.html');
+            
             let apps = [];
             try {
                 const contentsResp = await fetch(`https://api.github.com/repos/${ORG}/${repo.name}/contents`, {headers: getAuthHeaders()});
                 if(contentsResp.ok) {
                     const items = await contentsResp.json();
-                    const appIndicators = items.filter(i => {
-                        if(i.type !== 'dir') return false;
-                        return /^(app|apps|src|packages|sites|projects|demo|examples?)$/i.test(i.name);
-                    });
                     
-                    if(appIndicators.length > 0) {
-                        apps = await Promise.all(appIndicators.map(async dir => {
-                            // Check for versions within the app directory
-                            let versions = [{name: 'current', path: dir.path, default: true}];
-                            try {
-                                const verResp = await fetch(`https://api.github.com/repos/${ORG}/${repo.name}/contents/${dir.path}`, {headers: getAuthHeaders()});
-                                if(verResp.ok) {
-                                    const verItems = await verResp.json();
-                                    const versionDirs = verItems.filter(i => i.type === 'dir' && /v?\d+(\.\d+)*/.test(i.name));
-                                    if(versionDirs.length > 0) {
-                                        versions = versionDirs.map(v => ({
-                                            name: v.name,
-                                            path: v.path,
-                                            default: false
-                                        }));
-                                        versions.unshift({name: 'current', path: dir.path, default: true});
-                                    }
-                                }
-                            } catch(e) {}
-                            
-                            return {
-                                name: dir.name,
-                                path: dir.path,
-                                type: 'directory',
-                                versions: versions
-                            };
-                        }));
-                    } else if(items.find(i => i.name === 'index.html' || i.name === 'package.json')) {
+                    // Check root for launch.html first
+                    const rootLaunchExists = items.some(i => i.name === 'launch.html');
+                    const rootIndexExists = items.some(i => i.name === 'index.html');
+                    
+                    if(rootLaunchExists || rootIndexExists) {
                         apps.push({
                             name: 'main-app',
                             path: '/',
                             type: 'root',
                             default: true,
-                            versions: [{name: 'current', path: '/', default: true}]
+                            hasLaunchHtml: rootLaunchExists,
+                            hasIndexHtml: rootIndexExists,
+                            versions: [{name: 'current', path: '/', default: true, hasLaunchHtml: rootLaunchExists}]
+                        });
+                    }
+                    
+                    // Check subdirectories
+                    const appIndicators = items.filter(i => {
+                        if(i.type !== 'dir') return false;
+                        return /^(app|apps|src|packages|sites|projects|demo|examples?)$/i.test(i.name);
+                    });
+                    
+                    for(const dir of appIndicators) {
+                        let versions = [{name: 'current', path: dir.path, default: true, hasLaunchHtml: false}];
+                        
+                        // Check if current dir has launch.html
+                        const dirHasLaunch = await checkFileExists(repo, dir.path, 'launch.html');
+                        versions[0].hasLaunchHtml = dirHasLaunch;
+                        
+                        // Check for version subdirectories
+                        try {
+                            const verResp = await fetch(`https://api.github.com/repos/${ORG}/${repo.name}/contents/${dir.path}`, {headers: getAuthHeaders()});
+                            if(verResp.ok) {
+                                const verItems = await verResp.json();
+                                const versionDirs = verItems.filter(i => i.type === 'dir' && /v?\d+(\.\d+)*/.test(i.name));
+                                
+                                if(versionDirs.length > 0) {
+                                    const extraVersions = await Promise.all(versionDirs.map(async v => {
+                                        const vHasLaunch = await checkFileExists(repo, v.path, 'launch.html');
+                                        return {
+                                            name: v.name,
+                                            path: v.path,
+                                            default: false,
+                                            hasLaunchHtml: vHasLaunch
+                                        };
+                                    }));
+                                    versions = versions.concat(extraVersions);
+                                }
+                            }
+                        } catch(e) {}
+                        
+                        apps.push({
+                            name: dir.name,
+                            path: dir.path,
+                            type: 'directory',
+                            hasLaunchHtml: dirHasLaunch,
+                            versions: versions
                         });
                     }
                 }
@@ -628,7 +676,9 @@ async function fetchRepos(){
                 readmeHTML: readmeHTML,
                 readmeText: readmeText,
                 language: repo.language,
-                topics: repo.topics || []
+                topics: repo.topics || [],
+                hasLaunchHtml: hasLaunchHtml,
+                hasIndexHtml: hasIndexHtml
             };
         }));
         
@@ -653,14 +703,12 @@ function applyFiltersAndSort(){
     const pagesFilter = document.getElementById('pages-filter').value;
     const sortValue = document.getElementById('sort-select').value;
     
-    // Filter
     filteredRepos = reposData.filter(repo => {
         if(pagesFilter === 'enabled') return repo.hasPages;
         if(pagesFilter === 'disabled') return !repo.hasPages;
         return true;
     });
     
-    // Sort
     filteredRepos.sort((a,b) => {
         switch(sortValue){
             case 'updated-desc': return new Date(b.updatedRaw) - new Date(a.updatedRaw);
@@ -700,6 +748,8 @@ function renderRepoList(){
             ? '<span class="badge badge-private">Private</span>' 
             : '<span class="badge badge-public">Public</span>';
             
+        const launchStatus = repo.hasPages ? (repo.hasLaunchHtml ? '✓' : '⚠') : '';
+            
         const appsCount = repo.apps.length;
         const appsText = appsCount === 0 ? 'None detected' : 
                         appsCount === 1 ? '1 app' : 
@@ -707,7 +757,7 @@ function renderRepoList(){
         
         div.innerHTML = `
             <div class="repo-header">
-                <div class="repo-name">${repo.name}</div>
+                <div class="repo-name">${repo.name} ${launchStatus}</div>
                 <div class="repo-badges">${pagesBadge}${visibilityBadge}</div>
             </div>
             <div class="repo-attrs">
@@ -745,11 +795,18 @@ function selectRepo(id){
     const repo = filteredRepos.find(r => r.id == id) || reposData.find(r => r.id == id);
     if(!repo) return;
     
-    // Update Overview Tab
+    // Launch status warning
+    const launchWarning = repo.hasPages && !repo.hasLaunchHtml ? 
+        `<div class="analysis-box" style="background:#fdf2e9;border-color:#e67e22;color:#d35400">
+            <strong>⚠️ Launch Page Missing</strong><p>This repo has GitHub Pages enabled but no <code>launch.html</code> file was found. 
+            The current <code>index.html</code> may be forwarding to a repo list. You may need to restore the original launch page.</p>
+        </div>` : '';
+    
     const overviewHTML = `
         <div class="panel">
             <h3>${repo.name} ${repo.hasPages ? '<span class="badge badge-pages">GitHub Pages Active</span>' : '<span class="badge badge-no-pages">No GitHub Pages</span>'}</h3>
             <p>${repo.description}</p>
+            ${launchWarning}
             <div style="display:grid;grid-template-columns:1fr 1fr;gap:15px;margin-top:15px;font-size:0.9em">
                 <div>
                     <strong>Last Updated:</strong> ${repo.lastAccessed}<br>
@@ -760,16 +817,17 @@ function selectRepo(id){
                 <div>
                     <strong>Visibility:</strong> ${repo.visibility}<br>
                     <strong>Default Branch:</strong> ${repo.defaultBranch}<br>
-                    <strong>Topics:</strong> ${repo.topics.length ? repo.topics.join(', ') : 'None'}
+                    <strong>Topics:</strong> ${repo.topics.length ? repo.topics.join(', ') : 'None'}<br>
+                    <strong>Launch.html:</strong> ${repo.hasLaunchHtml ? '✓ Found' : '✗ Missing'}
                 </div>
             </div>
             <div class="btn-group">
-                ${repo.hasPages ? `<button class="btn btn-success" onclick="window.open('${repo.pagesUrl}', '_blank')">🚀 Launch Site</button>` : ''}
+                ${repo.hasPages && repo.hasLaunchHtml ? `<button class="btn btn-success" onclick="window.open('${buildLaunchUrl(repo, '/')}', '_blank')">🚀 Launch Site</button>` : ''}
                 <button class="btn" onclick="window.open('${repo.htmlUrl}', '_blank')">View on GitHub</button>
                 <button class="btn btn-warning" onclick="analyzeRepo('${repo.id}')">🔧 Analyze Pages Setup</button>
             </div>
         </div>
-        ${!repo.hasPages ? `
+        ${!repo.hasPages || !repo.hasLaunchHtml ? `
         <div class="analysis-box" id="analysis-${repo.id}" style="display:none">
             <strong>Analysis Result:</strong>
             <div id="analysis-content-${repo.id}"></div>
@@ -801,41 +859,62 @@ function renderAppsTab(repo){
     
     let html = `<div class="panel"><h3>Detected Applications (${repo.apps.length})</h3>`;
     
+    if(repo.hasPages && !repo.hasLaunchHtml) {
+        html += `<div class="launch-missing" style="margin-bottom:15px">
+            <strong>No launch.html found</strong> - Launches will use root URL which may hit forwarding index.html
+        </div>`;
+    }
+    
     repo.apps.forEach((app, idx) => {
         const chevronId = `app-${repo.id}-${idx}`;
+        const launchStatus = app.hasLaunchHtml ? 
+            '<span class="launch-indicator ok">✓ launch.html</span>' : 
+            '<span class="launch-indicator missing">⚠ forwarding</span>';
+        
         html += `
             <div class="app-header" onclick="toggleAppGroup('${chevronId}')">
                 <span class="chevron" id="chevron-${chevronId}">▶</span>
                 <strong>${app.name}</strong>
                 <span style="color:#7f8c8d;font-size:0.85em">(${app.type})</span>
+                ${launchStatus}
             </div>
             <div class="app-group" id="${chevronId}">
         `;
         
         if(app.versions.length === 1 && app.versions[0].default) {
+            const launchUrl = buildLaunchUrl(repo, app.path);
+            const canLaunch = repo.hasPages && app.versions[0].hasLaunchHtml;
+            
             html += `
                 <div class="version-item">
                     <div>
                         <span class="version-label">Current Version</span>
-                        ${repo.hasPages ? `<span style="color:#7f8c8d;font-size:0.85em;margin-left:10px">${repo.pagesUrl}${app.path !== '/' ? app.path : ''}</span>` : ''}
+                        ${repo.hasPages ? `<span style="color:#7f8c8d;font-size:0.85em;margin-left:10px">${launchUrl}</span>` : ''}
                     </div>
                     ${repo.hasPages ? 
-                        `<button class="btn btn-success" onclick="window.open('${repo.pagesUrl}${app.path !== '/' ? app.path : ''}', '_blank')">Launch</button>` : 
+                        `<button class="btn ${canLaunch ? 'btn-success' : 'btn-warning'}" onclick="window.open('${launchUrl}', '_blank')" ${!canLaunch ? 'title="launch.html may be missing"' : ''}>
+                            ${canLaunch ? 'Launch' : 'Launch (may redirect)'}
+                        </button>` : 
                         `<span style="color:#e74c3c;font-size:0.85em">Pages not enabled</span>`
                     }
                 </div>
             `;
         } else {
             app.versions.forEach(ver => {
-                const launchUrl = repo.hasPages ? `${repo.pagesUrl}${ver.path}/` : '#';
+                const launchUrl = buildLaunchUrl(repo, ver.path);
+                const canLaunch = repo.hasPages && ver.hasLaunchHtml;
+                
                 html += `
                     <div class="version-item">
                         <div>
                             <span class="version-label">${ver.name}</span>
                             ${ver.default ? '<span style="font-size:0.7em;background:#3498db;color:#fff;padding:2px 6px;border-radius:3px;margin-left:5px">default</span>' : ''}
+                            ${!ver.hasLaunchHtml ? '<span style="font-size:0.7em;background:#e67e22;color:#fff;padding:2px 6px;border-radius:3px;margin-left:5px">no launch.html</span>' : ''}
                         </div>
                         ${repo.hasPages ? 
-                            `<button class="btn ${ver.default ? 'btn-success' : 'btn'}" onclick="window.open('${launchUrl}', '_blank')">${ver.default ? 'Launch' : 'Launch Archive'}</button>` : 
+                            `<button class="btn ${canLaunch ? 'btn-success' : 'btn-warning'}" onclick="window.open('${launchUrl}', '_blank')" ${!canLaunch ? 'title="launch.html may be missing"' : ''}>
+                                ${ver.default ? (canLaunch ? 'Launch' : 'Launch (?') : 'Launch Archive'}
+                            </button>` : 
                             `<span style="color:#e74c3c;font-size:0.85em">Pages not enabled</span>`
                         }
                     </div>
@@ -860,7 +939,7 @@ function renderCodeTab(repo){
                 <li>📋 <code style="background:#f5f5f5;padding:2px 6px;border-radius:3px">git clone ${PAT ? repo.cloneUrl.replace('https://', `https://${PAT}@`) : repo.cloneUrl}</code></li>
                 <li>📁 <a href="${repo.htmlUrl}/tree/${repo.defaultBranch}" target="_blank">Browse Files</a></li>
                 <li>📊 <a href="${repo.htmlUrl}/commits/${repo.defaultBranch}" target="_blank">Commit History</a></li>
-                ${repo.hasPages ? `<li>🌐 <a href="${repo.pagesUrl}" target="_blank">GitHub Pages Site</a></li>` : ''}
+                ${repo.hasPages ? `<li>🌐 <a href="${buildLaunchUrl(repo, '/')}" target="_blank">GitHub Pages Site (launch.html)</a></li>` : ''}
             </ul>
             <div style="margin-top:20px;padding:15px;background:#f8f9fa;border-radius:4px">
                 <strong>Quick Actions:</strong><br>
@@ -910,26 +989,47 @@ function analyzeRepo(repoId){
     
     if(analysisBox) analysisBox.style.display = 'block';
     
-    if(repo.hasPages) {
-        if(analysisContent) analysisContent.innerHTML = `
-            <p>✅ GitHub Pages is already enabled.</p>
-            <p>Pages URL: <a href="${repo.pagesUrl}" target="_blank">${repo.pagesUrl}</a></p>
+    if(!repo.hasPages) {
+        const recommendation = `
+            <p>This repository does not have GitHub Pages enabled. To set up a functional launch page:</p>
+            <ol style="margin:10px 0;padding-left:20px">
+                <li>Create a <code>launch.html</code> file in the repository root (your entry point)</li>
+                <li>Go to Settings → Pages in the repository</li>
+                <li>Select source: Deploy from a branch → Choose branch and root folder</li>
+                <li>Save and wait 2-5 minutes for the site to build</li>
+            </ol>
+            <div class="btn-group">
+                <button class="btn" onclick="window.open('${repo.htmlUrl}/settings/pages', '_blank')">Open Pages Settings</button>
+                <button class="btn btn-warning" onclick="window.open('${repo.htmlUrl}/new/${repo.defaultBranch}?filename=launch.html', '_blank')">Create launch.html</button>
+            </div>
         `;
+        if(analysisContent) analysisContent.innerHTML = recommendation;
         return;
     }
     
-    const recommendation = `
-        <p>This repository does not have GitHub Pages enabled. To set up a functional launch page:</p>
-        <ol style="margin:10px 0;padding-left:20px">
-            <li>Ensure an <code>index.html</code> file exists in the repository root or <code>docs/</code> folder</li>
-            <li>Go to Settings → Pages in the repository</li>
-            <li>Select source: Deploy from a branch → Choose branch and folder</li>
-            <li>Save and wait 2-5 minutes for the site to build</li>
-        </ol>
-        <button class="btn" onclick="window.open('${repo.htmlUrl}/settings/pages', '_blank')">Open Pages Settings</button>
-    `;
-    
-    if(analysisContent) analysisContent.innerHTML = recommendation;
+    if(!repo.hasLaunchHtml) {
+        const recommendation = `
+            <p>⚠️ <strong>launch.html not found!</strong> Your repository has GitHub Pages enabled but the entry point is missing.</p>
+            <p>This often happens when <code>index.html</code> was overwritten with a forwarding page to a repo list.</p>
+            <p><strong>To restore:</strong></p>
+            <ol style="margin:10px 0;padding-left:20px">
+                <li>Check your git history for the original launch page: <code>git log --all --full-history -- launch.html</code></li>
+                <li>Or check if the app logic is still in a subdirectory and create a new <code>launch.html</code> that points to it</li>
+                <li>Ensure <code>launch.html</code> is in the repository root (or app subdirectory)</li>
+            </ol>
+            <div class="btn-group">
+                <button class="btn" onclick="window.open('${repo.htmlUrl}/commits/${repo.defaultBranch}?path=index.html', '_blank')">View index.html History</button>
+                <button class="btn btn-warning" onclick="window.open('https://raw.githubusercontent.com/${ORG}/${repo.name}/${repo.defaultBranch}/index.html', '_blank')">Check Current index.html</button>
+                <button class="btn btn-success" onclick="window.open('${repo.htmlUrl}/new/${repo.defaultBranch}?filename=launch.html', '_blank')">Create launch.html</button>
+            </div>
+        `;
+        if(analysisContent) analysisContent.innerHTML = recommendation;
+    } else {
+        if(analysisContent) analysisContent.innerHTML = `
+            <p>✅ GitHub Pages is enabled and <code>launch.html</code> exists.</p>
+            <p>Launch URL: <a href="${buildLaunchUrl(repo, '/')}" target="_blank">${buildLaunchUrl(repo, '/')}</a></p>
+        `;
+    }
 }
 
 function toggleAppGroup(id){
@@ -939,7 +1039,6 @@ function toggleAppGroup(id){
     chevron.classList.toggle('expanded');
 }
 
-// Event Listeners
 document.getElementById('hamburger').addEventListener('click', () => {
     const rail = document.getElementById('left-rail');
     const diag = document.getElementById('diagnostics');
@@ -1007,7 +1106,6 @@ function updatePatStatus(){
     }
 }
 
-// Initialize
 updatePatStatus();
 fetchRepos();
 </script>
