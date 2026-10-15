@@ -103,7 +103,7 @@ const nowStart=html.indexOf('<section class="view on" id="view-now">'),nowEnd=ht
 const menu='<div class="nowMoreMenu hidden" id="nowMoreMenu">';
 const nowMarkup=replace(html.slice(nowStart,nowEnd),menu,menu+'<button id="chartOnlyAnalyze" disabled aria-label="Analyze selected series">Analyze selected series</button>');
 html=html.slice(0,nowStart)+nowMarkup+html.slice(nowEnd);
-html=html.replace('</head>','<style>.chartOnlyAdded{display:inline-flex;align-items:center;gap:7px;color:var(--good);border:1px solid var(--good);border-radius:8px;padding:4px 8px;font-weight:700}.chartOnlyRemove{border:0;background:transparent;color:inherit;font-size:16px;cursor:pointer}</style></head>');
+html=html.replace('</head>','<style>.chartOnlyAdded{display:inline-flex;align-items:center;gap:7px;color:var(--good);border:1px solid var(--good);border-radius:8px;padding:4px 8px;font-weight:700}.chartOnlyRemove{border:0;background:transparent;color:inherit;font-size:16px;cursor:pointer}@media(max-width:700px){#view-analyze .chartChromeRow{grid-template-columns:minmax(42px,76px) minmax(0,1fr) 64px}}</style></head>');
 const destination=path.join(directory,'market-navigator-chart-only-candidate.html');
 fs.writeFileSync(destination,html);
 console.log(JSON.stringify({output:destination,baselineBlob:blob,dependencies,dataChanges:0,calendarPolicies:'unchanged accepted baseline',stages:'pure original NOW extraction and Analyze host only'}));
