@@ -96,13 +96,14 @@ for(const e of finalEdits)output=output.slice(0,e.start)+e.text+output.slice(e.e
 output=output.replace('getState,update(patch={})',`getState,getOptions:()=>readOnly(getState().spec),getSnapshot:()=>readOnly(getState().state),whenReady:async()=>{while(!dead&&(pending||!S.nowChartState))await new Promise(r=>requestAnimationFrame(r));return getState()},dismissInfo(){closePicker();$('nowSeriesAbout')?.classList.add('hidden')},update(patch={})`);
 // A normal NOW control creates Analyze for the currently selected series.
 output=output.replace('Object.assign(S,result.spec);S.nowChartState=result.state;S.nowPaint25=result.paint',"Object.assign(S,result.spec);S.nowChartState=result.state;S.nowPaint25=result.paint;const launch=$('chartOnlyAnalyze');if(launch)launch.disabled=result.spec.level!==2");
-output=output.replace('boot();',`window.__chartOnly={...window.__mnRebuild,launchAnalyze:openStandaloneAnalysis26,closeAnalyze:closeStandaloneAnalysis26,navigate:nav};$('chartOnlyAnalyze').onclick=()=>openStandaloneAnalysis26(rebuildNow?.getState().spec.nowActive||rebuildNow?.getState().spec.index);\nboot();`);
+output=output.replace('boot();',`window.__chartOnly={...window.__mnRebuild,launchAnalyze:openStandaloneAnalysis26,closeAnalyze:closeStandaloneAnalysis26,navigate:nav};$('chartOnlyAnalyze').onclick=()=>{$('nowMoreMenu').classList.add('hidden');return openStandaloneAnalysis26(rebuildNow?.getState().spec.nowActive||rebuildNow?.getState().spec.index)};\nboot();`);
 new vm.Script(output);
 let html=base.slice(0,offset)+output+base.slice(offset+code.length);
 const nowStart=html.indexOf('<section class="view on" id="view-now">'),nowEnd=html.indexOf('</section>',nowStart);assert(nowStart>=0&&nowEnd>nowStart);
-const nowMarkup=html.slice(nowStart,nowEnd).replace('<div class="chromeRight">','<div class="chromeRight"><button class="btn" id="chartOnlyAnalyze" disabled aria-label="Analyze selected series">Analyze</button>');
+const menu='<div class="nowMoreMenu hidden" id="nowMoreMenu">';
+const nowMarkup=replace(html.slice(nowStart,nowEnd),menu,menu+'<button id="chartOnlyAnalyze" disabled aria-label="Analyze selected series">Analyze selected series</button>');
 html=html.slice(0,nowStart)+nowMarkup+html.slice(nowEnd);
-html=html.replace('</head>','<style>.chartOnlyAdded{display:inline-flex;align-items:center;gap:7px;color:var(--good);border:1px solid var(--good);border-radius:8px;padding:4px 8px;font-weight:700}.chartOnlyRemove{border:0;background:transparent;color:inherit;font-size:16px;cursor:pointer}#view-now .chromeRight{display:flex;gap:4px}</style></head>');
+html=html.replace('</head>','<style>.chartOnlyAdded{display:inline-flex;align-items:center;gap:7px;color:var(--good);border:1px solid var(--good);border-radius:8px;padding:4px 8px;font-weight:700}.chartOnlyRemove{border:0;background:transparent;color:inherit;font-size:16px;cursor:pointer}</style></head>');
 const destination=path.join(directory,'market-navigator-chart-only-candidate.html');
 fs.writeFileSync(destination,html);
 console.log(JSON.stringify({output:destination,baselineBlob:blob,dependencies,dataChanges:0,calendarPolicies:'unchanged accepted baseline',stages:'pure original NOW extraction and Analyze host only'}));

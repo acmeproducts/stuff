@@ -29,7 +29,7 @@ async function runDesktop(browser){
   sourceResponse.resolve();const final=await updates;
   assert.equal(final.spec.h,'5D');assert.equal(final.state.horizon,'5D');assert.equal(final.state.chart.window.startLabel,derived.indices.growth.horizons['5D'].commonT0);assert.equal(final.state.chart.window.endLabel,derived.commonMarketAnchor);assert.equal(rawRequests,1,'Overlapping renders share original native retrieval');
   await page.unroute('**/market-evidence/series/qqq.json');
-  await page.locator('#chartOnlyAnalyze').click();await page.waitForFunction(()=>__chartOnly.analyze()?.state&&__chartOnly.analyze().idle);assert.deepEqual(await ids(page),[]);
+  await page.locator('#nowMoreBtn').click();await page.locator('#chartOnlyAnalyze').click();await page.waitForFunction(()=>__chartOnly.analyze()?.state&&__chartOnly.analyze().idle);assert.deepEqual(await ids(page),[]);
   const delayedResponse=deferred(),delayedSeen=deferred();let lateRequests=0;
   await page.route('**/market-evidence/series/custom_nvda.json',async route=>{lateRequests++;delayedSeen.resolve();await delayedResponse.promise;await route.continue()});
   const pending=page.evaluate(()=>__chartOnly.instances().analyze.update({nowComparisons:['custom_nvda']}));
