@@ -49,7 +49,7 @@ const cfg = { owner: 'acmeproducts', repo: 'stuff', branch: 'main', pat: 'ghp_ok
 const jobBody = () => ({ key: 'p/app.html', cfg, job: { codeFile: 'app.html', planFile: 'plan.md', images: [], ghRefs: [], system: 's', history: [], instr: 'go', chain: ['venice'], budgetMs: 30000, threadEngine: 'venice' }, post: { threadPath: 'devstream/threads/p__app.html.json', sotPath: 'devstream/devstream-status.json', project: 'p', tab: 'app', pendSigs: [msgSig(um)], pendTexts: ['go'] } });
 
 (async () => {
-  let r = await call('/health'); ok('health answers with version', (await r.json()).v === 'b70');
+  let r = await call('/health'); ok('health answers with version', (await r.json()).v === 'b72');
   r = await call('/health', { origin: 'https://evil.example' }); ok('cors never echoes another origin', r.headers.get('Access-Control-Allow-Origin') === 'https://acmeproducts.github.io');
   r = await call('/run', { method: 'POST', body: { ...jobBody(), cfg: { ...cfg, pat: 'bad' } } }); ok('B68-3 run refused for a token without push', r.status === 403, r.status);
   r = await call('/run', { method: 'POST', body: { ...jobBody(), cfg: { ...cfg, owner: 'someoneelse' } } }); ok('B68-3 run refused for another owner', r.status === 403);

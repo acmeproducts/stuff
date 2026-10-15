@@ -6,8 +6,8 @@ Deploy target: `https://acmeproducts.github.io/stuff/devstream.html`
 Test target: `https://acmeproducts.github.io/stuff/devstream-test.html`
 
 ## Status
-- Current release: v1.0 b71 on devstream-test.html (2026-10-04)
-- Stage: TEST (b71)
+- Current release: v1.0 b72 on devstream-test.html (2026-10-15)
+- Stage: TEST (b72)
 
 ## Release Rules (inherited, proven)
 1. Mobile-first. All diagnostics in-app. No DevTools ever.
@@ -255,6 +255,33 @@ b39 incorrectly changed stationary hold into context-menu activation. Devstream 
 ## Graveyard
 - **G-DS-13 — Hold opens context menu:** rejected; donor behavior is double-tap context, hold-to-drag.
 - **G-DS-14 — Legacy generic #tabContext button styling:** rejected; it corrupts the donor context-menu appearance.
+
+---
+
+# 2026-10-15 — b72 share DevStream by invite link: no setup for the other person
+
+## Owner report
+"I want to be able to share this program to somebody else and not have them go through the configuration process." Decided: their projects live in the owner's repo, each in their own folder.
+
+## Design
+- Owner: Config → "Share with someone": type a name, tap Create invite link. The app stores the owner's current keys and GitHub token in the runner's own storage (Cloudflare Durable Object, not in the repo, no repo secrets, no workflow step) and returns a link. Owner can list invites, copy a link again, and revoke.
+- Guest: opens the link once. The page saves the invite in that browser and shows no Config (a short "guest of <owner>" note and Leave). Nothing to paste.
+- All of a guest's GitHub reads and writes go through the runner, which uses the owner's token but only touches this guest's own paths: `projects/<guest>/…` (code and plan) and `devstream/guests/<guest>/…` (status and threads). Everything else in the repo (including the owner's files and history) is refused or filtered out.
+- Guest runs always run in the cloud with the owner's AI keys and default models; a daily run cap per invite (default 30) limits spend.
+- Owner's own use is unchanged.
+
+## Limits / honest
+- The owner's keys and token sit in Cloudflare Durable Object storage for the runner; anyone with that Cloudflare account can read them. Guests spend the owner's AI credits (capped per day); revoking an invite stops them at once.
+- Guests need the page open for notifications, same as the owner; runs themselves continue in the cloud.
+
+## Acceptance
+- **DS-B72-1:** opening an invite link on a device with no setup yields a working app with no Config step; the invite is remembered.
+- **DS-B72-2:** a guest's files and status land only under their own folders; paths outside them (traversal, encoded dots, a neighbour's folder, other repo files) are refused.
+- **DS-B72-3:** guest repo-tree and commit lookups never reveal other paths or file contents.
+- **DS-B72-4:** a revoked invite stops working immediately; the daily cap blocks extra runs with a plain message.
+- **DS-B72-5:** guest jobs cannot pick a model, target another file, or pull referenced files outside their folders.
+- **DS-B72-6:** no key or token is ever sent to a guest's browser.
+- **DS-B72-7:** owner can create, list, copy and revoke invites from Config; the link works from a fresh browser.
 
 ---
 
