@@ -4,10 +4,11 @@ import {launch,HELPERS,reporter,seeded} from './lib.mjs';
 const file=process.argv[2]||'wsl.html';const url='file://'+process.cwd()+'/'+file;
 const {ok,done}=reporter();const b=await launch();
 const slope=deg=>{const pts=[];const a=deg*Math.PI/180;for(let i=0;i<=120;i++)pts.push({x:100+i*20*Math.cos(a),y:200+i*20*Math.sin(a)});return pts;};
-for(const momentum of ['earned','classic']){
+for(const momentum of ['earned','classic']){ // earned = slider at standard (50), classic = slider at the fast end (100)
+  const tune={'desktop-portrait':momentum==='classic'?100:50,'desktop-landscape':momentum==='classic'?100:50};
   console.log('--- momentum: '+momentum);
   const p=await b.newPage({viewport:{width:390,height:800}});
-  seeded(p,{mode:'regular',momentum});
+  seeded(p,{mode:'regular',tune});
   const errs=[];p.on('pageerror',e=>errs.push(e.message));
   await p.goto(url);await p.waitForTimeout(400);await p.evaluate(HELPERS);
   async function run(deg,v0,secs){await p.evaluate(pts=>{__wslLoad(pts);},slope(deg));await p.waitForTimeout(900);
@@ -17,13 +18,13 @@ for(const momentum of ['earned','classic']){
     return out;}
   // launch: how far does a fresh release carry the cart in its first second (default starting track)?
   for(const vw of [390,1280]){
-    const q=await b.newPage({viewport:{width:vw,height:800}});seeded(q,{mode:'regular',momentum});await q.goto(url);await q.waitForTimeout(500);await q.evaluate(HELPERS);
+    const q=await b.newPage({viewport:{width:vw,height:800}});seeded(q,{mode:'regular',tune});await q.goto(url);await q.waitForTimeout(500);await q.evaluate(HELPERS);
     await q.evaluate(()=>__release());await q.waitForTimeout(30);const x0=(await q.evaluate(()=>__wsl())).cart.x;
     await q.waitForTimeout(1000);const dx=(await q.evaluate(()=>__wsl())).cart.x-x0;console.log('  launch distance in 1 s at width',vw,':',Math.round(dx),'px');
     if(momentum==='earned')ok('earned launch covers at least 220 px in the first second (width '+vw+')',dx>=220,Math.round(dx));
     await q.close();
   }
-  ok('mode applied',(await p.evaluate(()=>__wsl().momentum))===momentum);
+  ok('slider position applied',(await p.evaluate(()=>__wsl().tune))===(momentum==='classic'?100:50));
   const down=await run(30,100,6);
   const tTo500=(down.find(o=>o.v>=500)||{}).t;const peak=Math.max(...down.map(o=>o.v));
   console.log('  downhill 30deg from v=100: time to 500 =',tTo500,'s ; peak v =',Math.round(peak));

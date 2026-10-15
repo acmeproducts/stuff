@@ -20,12 +20,11 @@ for(const vp of VIEWPORTS){
   ok('drawn line is smooth (max turn <= 8 deg)',t<=8,t);
   ok('drawn line is finely sampled (segments <= 10 px)',sg<=10,sg);
   ok('line still ends where the finger went',Math.hypot(s.pts[s.pts.length-1].x-(s.pts[n0-1].x),s.pts[s.pts.length-1].y-(s.pts[n0-1].y))>100);
-  // momentum option
+  // momentum: one slow..fast slider, no Earned/Classic buttons
+  ok('no Earned/Classic buttons',(await p.$$('[data-momentum]')).length===0&&!(await p.evaluate(()=>/Earned|Classic/.test(document.getElementById('settingsPanel').innerText))));
   await p.click('#btnSettings');await p.waitForTimeout(100);
-  ok('Momentum options offered',(await p.$$('[data-momentum]')).length===2);
-  await p.click('[data-momentum="classic"]');s=await S();ok('Classic selected',s.momentum==='classic',s.momentum);
-  await p.click('#closeSettings');await p.reload();await p.waitForTimeout(400);s=await S();
-  ok('momentum choice persists',s.momentum==='classic',s.momentum);
+  ok('one Momentum slider, labelled slow to fast',await p.evaluate(()=>{const t=document.getElementById('settingsPanel').innerText;return !!document.getElementById('momentumTune')&&/Slow/.test(t)&&/Fast/.test(t)&&document.querySelectorAll('#momentumTune').length===1;}));
+  await p.click('#closeSettings');
   ok('no page errors',errs.length===0,errs.slice(0,2));
   await p.close();
 }
