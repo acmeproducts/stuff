@@ -21,3 +21,4 @@
 - Launch URLs currently point to `${pagesUrl}${path}/` which hits the forwarding index.html → repo list redirect, not the actual application.
 - Need to switch to `${pagesUrl}${path}/launch.html` (or root `/launch.html` for single-app repos).
 | 2026-10-15 15:27 | builtit | failed | I couldn't finish that one. Your app is unchanged. |  |
+| 2026-10-15 15:30 | builtit | built projects/repo.html | Done. | aac81e2 |
