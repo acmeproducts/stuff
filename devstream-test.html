@@ -113,6 +113,9 @@ body.frozenTab #frozenBar{display:flex}body.frozenTab #composer{display:none}
 .tab .lock{font-size:10px;opacity:.75}.tab.frozen{opacity:.82}
 #taskStrip{display:none;padding:9px 12px;border-top:1px solid var(--line);background:var(--panel);font-size:12px}
 #taskStrip.on{display:block}
+body.guest #engineFoot,body.guest #settings~*{}
+body.guest #cfgPaneSettings>*{display:none!important}body.guest #cfgPaneSettings>#guestBox{display:block!important}
+body:not(.guest) #guestBox{display:none}
 body.stripRun #composer{display:none}
 body.stripRun #taskStrip{padding:12px 14px calc(12px + env(safe-area-inset-bottom));border-top:2px solid var(--run)}
 body.stripRun #tsAct{min-height:44px;padding:0 20px;font-size:14px}
@@ -216,7 +219,7 @@ body.coachMode .suggestBtn{border-color:rgba(57,197,207,.5);background:rgba(57,1
 <div id="scrim"></div>
 <div id="app">
 <aside id="sidebar">
-  <div class="bar"><span id="dot"></span><span class="brand">devstream <span class="version">v1.0 b71</span></span><span class="grow"></span><button class="btn" id="projectAdd">+ New</button><button class="btn" id="refresh">↻</button></div>
+  <div class="bar"><span id="dot"></span><span class="brand">devstream <span class="version">v1.0 b72</span></span><span class="grow"></span><button class="btn" id="projectAdd">+ New</button><button class="btn" id="refresh">↻</button></div>
   <div id="navTabs"><button class="navtab" id="navDash">Dashboard<span id="navBadge"></span></button><button class="navtab" id="navProj">Projects</button><button class="navtab" id="settings">Config</button></div>
   <div id="searchWrap"><input id="search" class="input" placeholder="Search projects & threads">
     <div class="legend"><span><i class="legendDot ok"></i>OK</span><span><i class="legendDot run"></i>Running</span><span><i class="legendDot err"></i>Error</span></div></div>
@@ -257,6 +260,7 @@ body.coachMode .suggestBtn{border-color:rgba(57,197,207,.5);background:rgba(57,1
   <header>Settings<button class="btn" data-close="cfgModal">✕</button></header>
   <div class="debugTabs" id="cfgTabs"><button class="debugTab active" data-ct="settings">Settings</button><button class="debugTab" data-ct="logging">Logging</button></div>
   <div class="pbody" id="cfgPaneSettings">
+    <div id="guestBox"><div class="frow"><label>Guest</label><div class="hint" id="guestNote"></div><button class="btn" id="guestLeave" style="margin-top:8px">Leave and remove this invite</button></div></div>
     <div class="frow"><label>GitHub PAT</label><input id="sotPat" class="input keyfield" type="password" autocomplete="new-password" spellcheck="false" autocapitalize="off" placeholder="ghp_…"></div>
     <div class="frow"><label>Owner / Organization</label><input id="sotOwner" class="input mono" placeholder="acmeproducts"></div>
     <div class="frow"><label>Repository</label><input id="sotRepo" class="input mono" placeholder="stuff"></div>
@@ -277,6 +281,10 @@ body.coachMode .suggestBtn{border-color:rgba(57,197,207,.5);background:rgba(57,1
       <option value="venice">Venice.ai</option>
       <option value="openrouter">OpenRouter</option>
       <option value="anthropic-direct">Anthropic API</option></select></div>
+    <div class="frow" id="shareBox"><label>Share with someone</label><div class="hint">They open a link and can start right away, no setup. Their projects go in your repo in their own folder, using your AI keys (30 runs a day each). Your keys stay in your runner, never on their device.</div>
+      <div style="display:flex;gap:8px;margin-top:6px"><input id="shareName" class="input" placeholder="Their name"><button class="btn primary" id="shareCreate">Create link</button></div>
+      <div id="shareList" style="margin-top:8px;display:flex;flex-direction:column;gap:6px"></div><div class="hint" id="shareStatus"></div>
+      <button class="btn" id="shareSync" style="margin-top:6px">Update shared keys</button></div>
     <div class="frow"><label>Run in the cloud</label><label class="hint" style="display:flex;gap:8px;align-items:center"><input type="checkbox" id="cfgRunner"> Keep working when my phone sleeps or this page is closed</label><div class="hint" id="runnerStatus"></div></div>
     <button class="btn" id="sotValidate">Validate token</button> <span id="sotStatus" class="hint"></span>
     <button class="btn" id="openDebugBtn" style="margin-top:8px">Open Debug console</button>
@@ -341,6 +349,13 @@ body.coachMode .suggestBtn{border-color:rgba(57,197,207,.5);background:rgba(57,1
 'use strict';
 const LS='ds_cfg_v2';
 let cfg=JSON.parse(localStorage.getItem(LS)||'null');
+/* guest mode (b72): opened from an invite link; no keys here, GitHub and runs go through the runner */
+let SOTPATH='devstream/devstream-status.json',THREADS_DIR='devstream/threads/';
+function ghApi(){return cfg&&cfg.guest?runnerUrl()+'/gh':'https://api.github.com'}
+function ghAuth(){return cfg&&cfg.guest?{'X-Invite':cfg.invite}:{'Authorization':'Bearer '+cfg.pat}}
+function guestCfg(g){const e=g.engines||{};return{guest:true,invite:g.code,slug:g.slug,name:g.name,owner:g.owner,repo:g.repo,branch:g.branch||'main',projectDir:'projects/'+g.slug,pat:'',vkey:e.venice?'guest':'',vmodel:e.venice||'',orkey:e.openrouter?'guest':'',ormodel:e.openrouter||'',akey:e['anthropic-direct']?'guest':'',engine:Object.keys(e)[0]||'venice'}}
+(function(){let g=null;try{g=JSON.parse(localStorage.getItem('ds_guest')||'null')}catch(e){}
+  if(!cfg&&g&&g.code&&g.slug){cfg=guestCfg(g);SOTPATH='devstream/guests/'+g.slug+'/devstream-status.json';THREADS_DIR='devstream/guests/'+g.slug+'/threads/';document.body.classList.add('guest')}})();
 let sot={threads:{},projects:{}}, sotSha=null;
 let threads={}, activeProject=localStorage.getItem('ds_activeproj')||null, activeKey=null;
 let debug=JSON.parse(sessionStorage.getItem('ds_debug')||'[]'),debugTab='log',treeCache=null, dashFilter='all', dashSort='last', pollTimer=null, dashTimer=null, npSelectedExisting=false, delOpen=false, view='empty';
@@ -365,7 +380,7 @@ function freshCb(u){try{const x=new URL(u);if(x.hostname.endsWith('.github.io'))
 function linkify(s){return esc(s).replace(/(https?:\/\/[^\s]+)/g,(m,u)=>'<a href="'+u+'" data-url="'+u+'" target="_blank" rel="noopener">'+u+'</a>')}
 document.addEventListener('click',e=>{const a=e.target.closest('a[data-url]');if(!a)return;e.preventDefault();window.open(freshCb(a.dataset.url),'_blank')});
 const tkey=(p,f)=>p+'/'+f;
-const tpath=(p,f)=>'devstream/threads/'+encodeURIComponent(p).replace(/%/g,'_')+'__'+encodeURIComponent(f.replace(/\//g,'_'))+'.json';
+const tpath=(p,f)=>THREADS_DIR+encodeURIComponent(p).replace(/%/g,'_')+'__'+encodeURIComponent(f.replace(/\//g,'_'))+'.json';
 const planOf=f=>f.replace(/\.[^.]+$/,'')+'.md';
 const slug=s=>(s||'').toLowerCase().replace(/[^a-z0-9]+/g,'-').replace(/^-+|-+$/g,'').slice(0,40)||'tab';
 const tabName=t=>t&&(t.name||t.file)||'';
@@ -430,7 +445,7 @@ function mergeMessages(key,remote){
 
 /* ---- github ---- */
 async function gh(path,opts={}){
-  const r=await lfetch('gh','https://api.github.com/repos/'+repoFull()+'/'+path,{cache:'no-store',...opts,headers:{'Authorization':'Bearer '+cfg.pat,'Accept':'application/vnd.github+json',...(opts.headers||{})}});
+  const r=await lfetch('gh',ghApi()+'/repos/'+repoFull()+'/'+path,{cache:'no-store',...opts,headers:{...ghAuth(),'Accept':'application/vnd.github+json',...(opts.headers||{})}});
   if(r.status===404&&opts.allow404)return null;
   if(!r.ok){let msg='';try{msg=(await r.json()).message}catch(e){}throw new Error('GitHub '+r.status+(msg?': '+msg:'')+' ('+path.split('?')[0]+')')}
   return r.status===204?{}:r.json();
@@ -440,18 +455,18 @@ async function getFile(path){
   if(!j)return null;
   let content=j.content?dec(j.content):'';
   if(!content&&j.size>0){
-    const r=await lfetch('gh-raw','https://api.github.com/repos/'+repoFull()+'/contents/'+path+'?ref='+cfg.branch,{cache:'no-store',headers:{'Authorization':'Bearer '+cfg.pat,'Accept':'application/vnd.github.raw+json'}});
+    const r=await lfetch('gh-raw',ghApi()+'/repos/'+repoFull()+'/contents/'+path+'?ref='+cfg.branch,{cache:'no-store',headers:{...ghAuth(),'Accept':'application/vnd.github.raw+json'}});
     if(!r.ok)throw new Error('raw fallback failed '+r.status);
     content=await r.text();
   }
   return{content,sha:j.sha};
 }
 async function getFileFresh(path){
-  const url='https://api.github.com/repos/'+repoFull()+'/contents/'+path+'?ref='+encodeURIComponent(cfg.branch)+'&_ds='+Date.now();
-  const r=await fetch(url,{cache:'no-store',headers:{'Authorization':'Bearer '+cfg.pat,'Accept':'application/vnd.github+json'}});
+  const url=ghApi()+'/repos/'+repoFull()+'/contents/'+path+'?ref='+encodeURIComponent(cfg.branch)+'&_ds='+Date.now();
+  const r=await fetch(url,{cache:'no-store',headers:{...ghAuth(),'Accept':'application/vnd.github+json'}});
   if(r.status===404)return null;if(!r.ok){let msg='';try{msg=(await r.json()).message}catch(e){}throw new Error('GitHub '+r.status+(msg?': '+msg:''));}
   const j=await r.json();let content=j.content?dec(j.content):'';
-  if(!content&&j.size>0){const rr=await fetch(url,{cache:'no-store',headers:{'Authorization':'Bearer '+cfg.pat,'Accept':'application/vnd.github.raw+json'}});if(!rr.ok)throw new Error('raw fallback failed '+rr.status);content=await rr.text()}
+  if(!content&&j.size>0){const rr=await fetch(url,{cache:'no-store',headers:{...ghAuth(),'Accept':'application/vnd.github.raw+json'}});if(!rr.ok)throw new Error('raw fallback failed '+rr.status);content=await rr.text()}
   return{content,sha:j.sha};
 }
 async function putFile(path,content,message,sha){
@@ -461,7 +476,7 @@ async function putFile(path,content,message,sha){
   return j.content.sha;
 }
 const pathQueues={},pathLastSha={},pathCommit={},threadDeleteTombstones={};
-function isThreadDataPath(path){return path.startsWith('devstream/threads/')&&path.endsWith('.json')}
+function isThreadDataPath(path){return path.startsWith(THREADS_DIR)&&path.endsWith('.json')}
 function reconcileThreadContent(remoteContent,localContent,path){
   const remote=JSON.parse(remoteContent||'{}'),local=JSON.parse(localContent||'{}'),merged={...remote,...local},messages=[],seen=new Set(),deleted=threadDeleteTombstones[path]||new Set();
   const bySig={};
@@ -482,7 +497,6 @@ async function repoTree(force){
   treeCache=(j.tree||[]).filter(x=>x.type==='blob').map(x=>x.path);
   return treeCache;
 }
-const SOTPATH='devstream/devstream-status.json';
 async function loadSOT(){
   const f=await getFile(SOTPATH);
   if(f){sot=JSON.parse(f.content);sotSha=f.sha}else{sot={threads:{},projects:{}};sotSha=null}
@@ -553,11 +567,11 @@ function dsSchedule(urgent){
 function dsFlush(){const j=dsChain.then(dsFlushNow);dsChain=j.catch(()=>{});return j}
 async function dsPut(path,content,sha,msg){
   const body={message:msg,content:enc(content),branch:cfg.branch};if(sha)body.sha=sha;
-  const r=await fetch('https://api.github.com/repos/'+repoFull()+'/contents/'+path,{method:'PUT',cache:'no-store',headers:{'Authorization':'Bearer '+cfg.pat,'Accept':'application/vnd.github+json'},body:JSON.stringify(body)});
+  const r=await fetch(ghApi()+'/repos/'+repoFull()+'/contents/'+path,{method:'PUT',cache:'no-store',headers:{...ghAuth(),'Accept':'application/vnd.github+json'},body:JSON.stringify(body)});
   if(!r.ok)throw new Error('GitHub '+r.status);
 }
 async function dsDel(path,sha){
-  const r=await fetch('https://api.github.com/repos/'+repoFull()+'/contents/'+path,{method:'DELETE',cache:'no-store',headers:{'Authorization':'Bearer '+cfg.pat,'Accept':'application/vnd.github+json'},body:JSON.stringify({message:'devstream: clear diagnostics [skip ci]',sha,branch:cfg.branch})});
+  const r=await fetch(ghApi()+'/repos/'+repoFull()+'/contents/'+path,{method:'DELETE',cache:'no-store',headers:{...ghAuth(),'Accept':'application/vnd.github+json'},body:JSON.stringify({message:'devstream: clear diagnostics [skip ci]',sha,branch:cfg.branch})});
   if(!r.ok&&r.status!==404)throw new Error('GitHub '+r.status);
 }
 async function dsFlushNow(){
@@ -1109,7 +1123,7 @@ function renderChat(force){
 async function fileAtCommit(path,sha){
   const j=await gh('contents/'+path+'?ref='+encodeURIComponent(sha),{allow404:true});if(!j)return null;
   let c=j.content?dec(j.content):'';
-  if(!c&&j.size>0){const r=await lfetch('gh-raw','https://api.github.com/repos/'+repoFull()+'/contents/'+path+'?ref='+encodeURIComponent(sha),{cache:'no-store',headers:{'Authorization':'Bearer '+cfg.pat,'Accept':'application/vnd.github.raw+json'}});if(!r.ok)throw new Error('Could not read the earlier version.');c=await r.text()}
+  if(!c&&j.size>0){const r=await lfetch('gh-raw',ghApi()+'/repos/'+repoFull()+'/contents/'+path+'?ref='+encodeURIComponent(sha),{cache:'no-store',headers:{...ghAuth(),'Accept':'application/vnd.github.raw+json'}});if(!r.ok)throw new Error('Could not read the earlier version.');c=await r.text()}
   return c;
 }
 async function undoChange(key,mi){
@@ -1566,6 +1580,7 @@ async function appendPlanLog(planFile,tab,result,what,commit){
 }
 function stripPlanTags(b){return String(b||'').replace(/^\s*<\/?plan>[ \t]*\n?/i,'').replace(/\n?[ \t]*<\/?plan>\s*$/i,'').trim()+'\n'}
 function friendlyError(m){m=String(m||'');
+  if(/^You have used today|invite is not valid|owner has not saved|could not be reached/i.test(m))return m;
   if(/spend limit|402|insufficient credit|out of credit/i.test(m))return'The AI account is out of credit or at its spending limit.';
   if(/timed out|timeout|time limit|stalled/i.test(m))return'The AI took too long and was stopped.';
   if(/Unexpected output path/i.test(m))return'The plan points at a file that is not this project\'s build file.';
@@ -1672,10 +1687,10 @@ const interrupted=new Set();
 const RUNNER_DEFAULT='https://devstream-runner.myacctfortracking.workers.dev';
 const remoteActive=new Set();
 function runnerUrl(){try{return String(localStorage.getItem('ds_runner_url')||RUNNER_DEFAULT).replace(/\/+$/,'')}catch(e){return RUNNER_DEFAULT}}
-function runnerOn(){let off=false;try{off=localStorage.getItem('ds_runner')==='off'}catch(e){}return !off&&!!(cfg&&cfg.pat&&(cfg.vkey||cfg.orkey||cfg.akey))}
+function runnerOn(){if(cfg&&cfg.guest)return true;let off=false;try{off=localStorage.getItem('ds_runner')==='off'}catch(e){}return !off&&!!(cfg&&cfg.pat&&(cfg.vkey||cfg.orkey||cfg.akey))}
 async function rfetch(path,opts,ms){
   const ac=new AbortController(),to=setTimeout(()=>ac.abort(),ms||15000);
-  try{return await fetch(runnerUrl()+path,{cache:'no-store',...(opts||{}),headers:{Authorization:'Bearer '+cfg.pat,...((opts||{}).headers||{})},signal:ac.signal})}
+  try{return await fetch(runnerUrl()+path,{cache:'no-store',...(opts||{}),headers:{...ghAuth(),...((opts||{}).headers||{})},signal:ac.signal})}
   finally{clearTimeout(to)}
 }
 const rq=key=>'?owner='+encodeURIComponent(cfg.owner)+'&repo='+encodeURIComponent(cfg.repo)+'&key='+encodeURIComponent(key);
@@ -1691,7 +1706,7 @@ async function remoteRun(key,jobPayload,t,pend){
   try{th.sha=await putFileSafe(threadPath(key),JSON.stringify(th.data,null,1),'devstream: queue '+key,th.sha)}
   catch(e){return{fallback:'could not save the request first ('+String(e.message).slice(0,80)+')'}}
   const{cfg:_c,...job}=jobPayload;
-  const body={key,cfg:{owner:cfg.owner,repo:cfg.repo,branch:cfg.branch,pat:cfg.pat,vkey:cfg.vkey,vmodel:cfg.vmodel,orkey:cfg.orkey,ormodel:cfg.ormodel,akey:cfg.akey},job,
+  const body={key,cfg:cfg.guest?undefined:{owner:cfg.owner,repo:cfg.repo,branch:cfg.branch,pat:cfg.pat,vkey:cfg.vkey,vmodel:cfg.vmodel,orkey:cfg.orkey,ormodel:cfg.ormodel,akey:cfg.akey},job,
     post:{threadPath:threadPath(key),sotPath:SOTPATH,project:t.project,tab:tabName(t),pendSigs:pend.map(msgSig),pendTexts:pend.map(m=>m.text),testUrl:t.testUrl||''}};
   progress[key]={line:'handing over to the cloud',at:Date.now(),started:Date.now()};renderProgress();
   let r;try{r=await rfetch('/run',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)},30000)}
@@ -1701,7 +1716,7 @@ async function remoteRun(key,jobPayload,t,pend){
   const t0=Date.now();let stopSent=false;
   try{for(;;){
     await new Promise(r=>setTimeout(r,3000));
-    if(interrupted.has(key)&&!stopSent){stopSent=true;rfetch('/stop',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({key,cfg:{owner:cfg.owner,repo:cfg.repo,pat:cfg.pat}})},15000).catch(()=>{})}
+    if(interrupted.has(key)&&!stopSent){stopSent=true;rfetch('/stop',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({key,cfg:cfg.guest?undefined:{owner:cfg.owner,repo:cfg.repo,pat:cfg.pat}})},15000).catch(()=>{})}
     if(Date.now()-t0>20*60*1000)return{result:null};
     let s;try{const rr=await rfetch('/status'+rq(key),{},15000);if(!rr.ok)continue;s=await rr.json()}catch(e){continue}
     if(s.state==='running'){remoteProgress(key,s,t);continue}
@@ -1785,6 +1800,7 @@ async function runAgent(key,premarked){
        allowPlanCreate:!sot.projects[t.project].planExists&&pend.some(m=>m.text.startsWith('Create '+planFile+' — the master plan'))};
     if(viaRunner){
       const rr=await remoteRun(key,jobPayload,t,pend);
+      if(rr.fallback&&cfg.guest)throw new Error(rr.fallback);
       if(rr.fallback){dlog('K|cloud runner not used: '+rr.fallback);toast('Cloud runner unavailable — running in this page');await setState(key,{remote:false})}
       else{
         const res=rr.result;
@@ -1940,6 +1956,7 @@ async function streamChat(url,key,payload,idleMs,budgetMs,onText){
 /* ---- Venice balance (DIEM/USD) used to choose engine/model ---- */
 let vBal=null,veniceCappedUntil=0;
 async function veniceBalance(force,keyOverride){
+  if(cfg&&cfg.guest)return null;
   const key=keyOverride||(cfg&&(cfg.vadmin||cfg.vkey));if(!key)return null;
   if(!force&&vBal&&Date.now()-vBal.at<60000)return vBal.ok?vBal:null;
   try{
@@ -2121,7 +2138,7 @@ function runJob(key,payload){
 function interruptAgent(key){
   if(!key)return;
   interrupted.add(key);
-  if(remoteActive.has(key))rfetch('/stop',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({key,cfg:{owner:cfg.owner,repo:cfg.repo,pat:cfg.pat}})},15000).catch(()=>{});
+  if(remoteActive.has(key))rfetch('/stop',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({key,cfg:cfg.guest?undefined:{owner:cfg.owner,repo:cfg.repo,pat:cfg.pat}})},15000).catch(()=>{});
   const qi=jobQ.findIndex(j=>j.key===key);
   if(qi>=0){const job=jobQ.splice(qi,1)[0];job.reject(new Error('Interrupted by user'));pumpQ();return}
   const entry=Object.entries(jobs).find(([,job])=>job.key===key);
@@ -2440,7 +2457,7 @@ function renderDeleted(body){
 /* ---- settings / boot ---- */
 $('settings').onclick=()=>{if(cfg){$('sotPat').value=cfg.pat;$('sotOwner').value=cfg.owner;$('sotRepo').value=cfg.repo;$('sotBranch').value=cfg.branch;$('cfgProjectDir').value=cfg.projectDir||'projects';$('cfgakey').value=cfg.akey||'';$('cfgvkey').value=cfg.vkey||'';$('cfgvadmin').value=cfg.vadmin||'';$('cfgorkey').value=cfg.orkey||'';
   if(cfg.vmodel)fillModels('cfgvmodel',[cfg.vmodel],cfg.vmodel);
-  if(cfg.ormodel)fillModels('cfgormodel',[cfg.ormodel],cfg.ormodel);$('cfgengine').value=cfg.engine||'venice'}openModal('cfgModal');cfgTab('settings');bindAppearanceUI();refreshRunnerRow()};
+  if(cfg.ormodel)fillModels('cfgormodel',[cfg.ormodel],cfg.ormodel);$('cfgengine').value=cfg.engine||'venice'}openModal('cfgModal');cfgTab('settings');bindAppearanceUI();refreshRunnerRow();refreshShare()};
 var MODEL_CAPS=JSON.parse(localStorage.getItem('ds_model_caps')||'{}');
 function saveCaps(){try{localStorage.setItem('ds_model_caps',JSON.stringify(MODEL_CAPS))}catch(e){}}
 function capOf(eng,model){var c=MODEL_CAPS[eng+'|'+model];return c||(eng==='venice'?16384:(eng==='anthropic-direct'?64000:32000))}
@@ -2556,7 +2573,60 @@ function bindAppearanceUI(){
   $('apSize').oninput=()=>{appearance.size=+$('apSize').value;$('apSizeVal').textContent=appearance.size+'px';applyAppearance();saveAppearance()};
 }
 applyAppearance();
+
+/* ---- sharing (b72) ---- */
+async function adminCall(path,method,body){
+  const q=method==='GET'?'?owner='+encodeURIComponent(cfg.owner)+'&repo='+encodeURIComponent(cfg.repo):'';
+  const r=await fetch(runnerUrl()+path+q,{method,cache:'no-store',headers:{Authorization:'Bearer '+cfg.pat,'Content-Type':'application/json'},body:body?JSON.stringify(body):undefined});
+  let j={};try{j=await r.json()}catch(e){}
+  if(!r.ok&&!j.error)j.error='the runner answered '+r.status;
+  return j;
+}
+const shareLink=code=>location.origin+location.pathname+'?invite='+code;
+async function shareSyncKeys(){
+  return adminCall('/admin/vault','POST',{cfg:{owner:cfg.owner,repo:cfg.repo,branch:cfg.branch,pat:cfg.pat},keys:{vkey:cfg.vkey,vmodel:cfg.vmodel,orkey:cfg.orkey,ormodel:cfg.ormodel,akey:cfg.akey}});
+}
+async function refreshShare(){
+  const box=$('shareList'),st=$('shareStatus');if(!box||!cfg||cfg.guest)return;
+  box.innerHTML='';
+  const j=await adminCall('/admin/invites','GET').catch(()=>({}));
+  if(!j.ok){st.textContent=j.error?'Sharing: '+j.error:'';return}
+  st.textContent='';
+  j.invites.filter(i=>!i.revoked).forEach(i=>{
+    const row=document.createElement('div');row.style.cssText='display:flex;gap:6px;align-items:center';
+    const lab=document.createElement('span');lab.className='hint';lab.style.flex='1';lab.textContent=i.name+' · '+i.today+'/'+i.cap+' runs today';
+    const cp=document.createElement('button');cp.className='btn';cp.textContent='Copy link';cp.onclick=async()=>{try{await navigator.clipboard.writeText(shareLink(i.code));toast('Link copied')}catch(e){window.prompt('Copy this link',shareLink(i.code))}};
+    const rv=document.createElement('button');rv.className='btn';rv.textContent='Revoke';rv.onclick=async()=>{if(!confirm('Stop '+i.name+' from using DevStream?'))return;await adminCall('/admin/revoke','POST',{cfg:{owner:cfg.owner,repo:cfg.repo,pat:cfg.pat},code:i.code});refreshShare()};
+    row.append(lab,cp,rv);box.appendChild(row);
+  });
+}
+$('shareCreate').onclick=async()=>{
+  const st=$('shareStatus'),name=$('shareName').value.trim();
+  if(!cfg||cfg.guest)return;if(!name){st.textContent='Type their name first.';return}
+  st.textContent='Creating…';
+  const v=await shareSyncKeys();if(!v.ok){st.textContent=v.error||'Could not store your keys.';return}
+  const j=await adminCall('/admin/invite','POST',{cfg:{owner:cfg.owner,repo:cfg.repo,pat:cfg.pat},name});
+  if(!j.ok){st.textContent=j.error||'Could not create the link.';return}
+  $('shareName').value='';const link=shareLink(j.code);
+  try{await navigator.clipboard.writeText(link);st.textContent='Link copied. Send it to '+name+'.'}catch(e){st.textContent='';window.prompt('Send this link to '+name,link)}
+  refreshShare();
+};
+$('shareSync').onclick=async()=>{const st=$('shareStatus');st.textContent='Updating…';const v=await shareSyncKeys();st.textContent=v.ok?'Shared keys updated.':(v.error||'Could not update.')};
+(function(){const n=$('guestNote');if(n&&cfg&&cfg.guest)n.textContent='You are using '+cfg.owner+'’s DevStream as a guest ('+cfg.name+'). Your projects are saved in your own folder; there is nothing to set up.';
+  const b=$('guestLeave');if(b)b.onclick=()=>{if(!confirm('Remove this invite from this device? Your projects stay where they are.'))return;try{localStorage.removeItem('ds_guest')}catch(e){}location.replace(location.pathname)}})();
+async function acceptInvite(){
+  const m=/[?&]invite=([a-z0-9]{20,64})/.exec(location.search);if(!m)return false;
+  try{history.replaceState(null,'',location.pathname)}catch(e){}
+  if(cfg&&!cfg.guest){toast('This device is already set up as the owner, so the invite link was ignored.');return false}
+  try{
+    const r=await fetch(runnerUrl()+'/invite/'+m[1]+'/info',{cache:'no-store'});const j=await r.json();
+    if(!j.ok)throw new Error(j.error||'This invite is not valid any more.');
+    localStorage.setItem('ds_guest',JSON.stringify({code:m[1],slug:j.slug,name:j.name,owner:j.owner,repo:j.repo,branch:j.branch,engines:j.engines}));
+    location.replace(location.pathname);return true;
+  }catch(e){alert('This invite link did not work: '+(e&&e.message||e));return false}
+}
 (async function boot(){
+  if(await acceptInvite())return;
   // migrate v1 cfg
   const old=JSON.parse(localStorage.getItem('ds_cfg_v1')||'null');
   if(old&&!cfg){const[owner,repo]=(old.repo||'/').split('/');cfg={pat:old.pat,owner,repo,branch:old.branch||'main',projectDir:'projects',akey:old.akey||'',engine:'venice'};localStorage.setItem(LS,JSON.stringify(cfg))}
@@ -2566,7 +2636,7 @@ applyAppearance();
     renderSidebar();renderTabs();
     bindProjectTouchDnD();bindTabTouchDnD();
     reconcileInterrupted().catch(()=>{});
-    if(sot.config){cfg.vmodel=cfg.vmodel||sot.config.vmodel||'';cfg.ormodel=cfg.ormodel||sot.config.ormodel||'';cfg.engine=cfg.engine||sot.config.engine||'venice';cfg.projectDir=cfg.projectDir||sot.config.projectDir||'projects';localStorage.setItem(LS,JSON.stringify(cfg));
+    if(sot.config&&!cfg.guest){cfg.vmodel=cfg.vmodel||sot.config.vmodel||'';cfg.ormodel=cfg.ormodel||sot.config.ormodel||'';cfg.engine=cfg.engine||sot.config.engine||'venice';cfg.projectDir=cfg.projectDir||sot.config.projectDir||'projects';localStorage.setItem(LS,JSON.stringify(cfg));
       if(!localStorage.getItem('ds_appearance')&&sot.config.appearance){appearance=sot.config.appearance;saveAppearance();applyAppearance()}}
     $('dot').classList.add('on');
     if(activeProject&&sot.projects[activeProject]&&!sot.projects[activeProject].deleted)openProject(activeProject);
