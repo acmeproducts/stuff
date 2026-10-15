@@ -5,32 +5,236 @@
     <title>AcmeProducts Repo Dashboard</title>
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <style>
-        body,html{margin:0;padding:0;height:100%;font-family:Arial,Helvetica,sans-serif;background:#f5f5f5}
+        * { box-sizing: border-box; }
+        body,html{margin:0;padding:0;height:100%;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Oxygen,Ubuntu,Cantarell,sans-serif;background:#f5f5f5}
         #app{display:flex;height:100vh;overflow:hidden}
+        
+        /* Hamburger Menu */
+        #hamburger{
+            position:fixed;
+            top:10px;
+            left:10px;
+            z-index:1000;
+            background:#2c3e50;
+            color:#ecf0f1;
+            border:none;
+            width:40px;
+            height:40px;
+            border-radius:4px;
+            cursor:pointer;
+            display:flex;
+            align-items:center;
+            justify-content:center;
+            font-size:1.2em;
+            box-shadow:0 2px 5px rgba(0,0,0,0.3);
+        }
+        #hamburger:hover{background:#34495e}
+        
+        /* Left Rail */
         #left-rail{
-            width:320px;
-            min-width:260px;
+            width:340px;
+            min-width:280px;
             background:#2c3e50;
             color:#ecf0f1;
             overflow-y:auto;
-            padding:15px;
+            overflow-x:hidden;
+            padding:60px 15px 80px 15px;
             display:flex;
             flex-direction:column;
+            transition:width 0.3s,margin 0.3s;
+            position:relative;
         }
-        #left-rail h2{margin-top:0;font-size:1.2em;margin-bottom:15px}
-        .repo-item{
-            padding:10px;
+        #left-rail.collapsed{
+            width:0;
+            min-width:0;
+            padding:60px 0 80px 0;
+            margin-left:-10px;
+        }
+        #left-rail.collapsed .rail-content{
+            opacity:0;
+            pointer-events:none;
+        }
+        .rail-content{transition:opacity 0.2s}
+        
+        #left-rail h2{margin-top:0;font-size:1.1em;margin-bottom:15px;color:#fff}
+        
+        /* Filters Section */
+        .filters-section{
+            background:rgba(0,0,0,0.2);
+            border-radius:6px;
+            padding:12px;
+            margin-bottom:15px;
+        }
+        .filter-group{margin-bottom:12px}
+        .filter-group:last-child{margin-bottom:0}
+        .filter-group label{display:block;font-size:0.75em;color:#bdc3c7;margin-bottom:4px;text-transform:uppercase;letter-spacing:0.5px}
+        .filter-group select{
+            width:100%;
+            padding:6px 8px;
+            border:1px solid #34495e;
+            background:#1a252f;
+            color:#ecf0f1;
+            border-radius:4px;
+            font-size:0.9em;
+        }
+        
+        /* Config Strip */
+        #config-strip{
+            position:fixed;
+            bottom:0;
+            left:0;
+            width:340px;
+            background:#1a252f;
+            border-top:1px solid #34495e;
+            padding:12px 15px;
+            z-index:100;
+            transition:width 0.3s;
+        }
+        #left-rail.collapsed + #right-panel #config-strip,
+        #left-rail.collapsed ~ #config-strip{width:0;padding:12px 0;overflow:hidden}
+        
+        #config-strip button{
+            width:100%;
+            background:#3498db;
+            color:#fff;
+            border:none;
+            padding:8px;
             border-radius:4px;
             cursor:pointer;
-            margin-bottom:6px;
-            border-left:3px solid transparent;
+            font-size:0.85em;
+            display:flex;
+            align-items:center;
+            justify-content:center;
+            gap:6px;
         }
-        .repo-item:hover{background:#34495e}
-        .repo-item.active{background:#34495e;border-left-color:#3498db}
-        .repo-name{font-weight:bold;margin-bottom:3px}
-        .repo-meta{font-size:0.75em;color:#bdc3c7;line-height:1.4}
-        .pages-badge{display:inline-block;background:#27ae60;color:#fff;padding:1px 4px;border-radius:3px;font-size:0.7em;margin-left:5px}
-        .no-pages-badge{display:inline-block;background:#e74c3c;color:#fff;padding:1px 4px;border-radius:3px;font-size:0.7em;margin-left:5px}
+        #config-strip button:hover{background:#2980b9}
+        #pat-status{
+            font-size:0.75em;
+            color:#bdc3c7;
+            text-align:center;
+            margin-top:6px;
+        }
+        .pat-active{color:#2ecc71}
+        .pat-missing{color:#e74c3c}
+        
+        /* Modal */
+        #config-modal{
+            display:none;
+            position:fixed;
+            top:0;left:0;right:0;bottom:0;
+            background:rgba(0,0,0,0.7);
+            z-index:2000;
+            align-items:center;
+            justify-content:center;
+        }
+        #config-modal.active{display:flex}
+        .modal-content{
+            background:#fff;
+            border-radius:8px;
+            padding:25px;
+            max-width:400px;
+            width:90%;
+            box-shadow:0 4px 20px rgba(0,0,0,0.3);
+        }
+        .modal-content h3{margin-top:0;color:#2c3e50}
+        .modal-content p{font-size:0.9em;color:#7f8c8d;line-height:1.4}
+        .pat-input{
+            width:100%;
+            padding:10px;
+            border:1px solid #ddd;
+            border-radius:4px;
+            margin:15px 0;
+            font-family:monospace;
+            font-size:0.9em;
+        }
+        .modal-buttons{display:flex;gap:10px;justify-content:flex-end}
+        .modal-btn{
+            padding:8px 16px;
+            border:none;
+            border-radius:4px;
+            cursor:pointer;
+            font-size:0.9em;
+        }
+        .modal-btn-primary{background:#2980b9;color:#fff}
+        .modal-btn-secondary{background:#95a5a6;color:#fff}
+        
+        /* Org Input */
+        .org-section{margin-bottom:15px}
+        .org-section label{display:block;font-size:0.75em;color:#bdc3c7;margin-bottom:4px}
+        .org-input-wrapper{display:flex;gap:8px}
+        .org-input-wrapper input{
+            flex:1;
+            padding:8px;
+            border:1px solid #34495e;
+            background:#1a252f;
+            color:#ecf0f1;
+            border-radius:4px;
+        }
+        .org-input-wrapper button{
+            background:#27ae60;
+            color:#fff;
+            border:none;
+            padding:8px 12px;
+            border-radius:4px;
+            cursor:pointer;
+            font-size:0.85em;
+        }
+        
+        /* Repo Cards */
+        .repo-item{
+            padding:12px;
+            border-radius:6px;
+            cursor:pointer;
+            margin-bottom:10px;
+            background:rgba(255,255,255,0.05);
+            border:1px solid transparent;
+            transition:all 0.2s;
+        }
+        .repo-item:hover{background:rgba(255,255,255,0.1);border-color:#34495e}
+        .repo-item.active{background:#34495e;border-color:#3498db}
+        
+        .repo-header{
+            display:flex;
+            justify-content:space-between;
+            align-items:flex-start;
+            margin-bottom:6px;
+        }
+        .repo-name{
+            font-weight:600;
+            font-size:0.95em;
+            word-break:break-word;
+            line-height:1.2;
+        }
+        
+        .repo-badges{display:flex;gap:4px;flex-shrink:0}
+        .badge{
+            display:inline-block;
+            padding:2px 6px;
+            border-radius:3px;
+            font-size:0.65em;
+            font-weight:600;
+            text-transform:uppercase;
+        }
+        .badge-pages{background:#27ae60;color:#fff}
+        .badge-no-pages{background:#e74c3c;color:#fff}
+        .badge-private{background:#f39c12;color:#fff}
+        .badge-public{background:#3498db;color:#fff}
+        
+        .repo-attrs{
+            display:grid;
+            grid-template-columns:1fr 1fr;
+            gap:4px;
+            font-size:0.75em;
+            color:#95a5a6;
+            margin-top:8px;
+            padding-top:8px;
+            border-top:1px solid rgba(255,255,255,0.1);
+        }
+        .repo-attr{display:flex;flex-direction:column}
+        .repo-attr-label{font-size:0.85em;color:#7f8c8d}
+        .repo-attr-value{color:#bdc3c7;font-size:0.95em}
+        
+        /* Right Panel */
         #right-panel{
             flex:1;
             display:flex;
@@ -49,6 +253,7 @@
             cursor:pointer;
             border-bottom:3px solid transparent;
             font-weight:500;
+            font-size:0.9em;
         }
         .tab:hover{background:#f5f5f5}
         .tab.active{border-bottom-color:#2980b9;color:#2980b9}
@@ -59,8 +264,12 @@
         }
         .tab-page{display:none}
         .tab-page.active{display:block}
+        
+        /* Panels */
         .panel{background:#fff;border-radius:8px;padding:20px;margin-bottom:20px;box-shadow:0 1px 3px rgba(0,0,0,0.1)}
         .panel h3{margin-top:0;color:#2c3e50;border-bottom:2px solid #ecf0f1;padding-bottom:10px}
+        
+        /* Buttons */
         .btn{
             background:#2980b9;
             color:#fff;
@@ -81,6 +290,8 @@
         .btn-danger{background:#e74c3c}
         .btn-danger:hover{background:#c0392b}
         .btn-group{display:flex;gap:10px;margin-top:15px;flex-wrap:wrap}
+        
+        /* Chevron/App Groups */
         .chevron{
             cursor:pointer;
             user-select:none;
@@ -119,54 +330,101 @@
             margin-bottom:5px;
         }
         .version-label{font-family:monospace;font-size:0.9em;color:#666}
-        .input-group{margin-bottom:15px}
-        .input-group label{display:block;margin-bottom:5px;font-size:0.85em;color:#bdc3c7}
-        .input-group input{
-            width:100%;
-            padding:8px;
-            border:1px solid #34495e;
-            background:#2c3e50;
-            color:#ecf0f1;
-            border-radius:4px;
-            box-sizing:border-box;
-        }
-        .diagnostic-bar{
+        
+        /* Status Bar */
+        #diagnostics{
             position:fixed;
             bottom:0;
-            left:0;
             right:0;
-            background:#34495e;
+            left:340px;
+            background:#2c3e50;
             color:#ecf0f1;
-            padding:8px 15px;
+            padding:10px 15px;
             font-size:0.85em;
-            border-top:1px solid #2c3e50;
+            border-top:1px solid #34495e;
             display:flex;
             justify-content:space-between;
             align-items:center;
+            transition:left 0.3s;
         }
+        #diagnostics.expanded{left:50px}
         .status-ok{color:#2ecc71}
         .status-error{color:#e74c3c}
         .status-warn{color:#f1c40f}
+        
         .empty-state{text-align:center;color:#7f8c8d;padding:40px;font-style:italic}
         .analysis-box{background:#fff3cd;border:1px solid #ffeaa7;color:#856404;padding:15px;border-radius:4px;margin-top:15px}
         .code-list{list-style:none;padding:0;margin:0}
         .code-list li{margin-bottom:8px}
         .code-list a{color:#2980b9;text-decoration:none}
         .code-list a:hover{text-decoration:underline}
-        .last-seen{font-size:0.8em;color:#95a5a6;margin-left:5px}
+        
+        /* Loading Spinner */
+        .spinner{
+            display:inline-block;
+            width:14px;
+            height:14px;
+            border:2px solid rgba(255,255,255,0.3);
+            border-top-color:#fff;
+            border-radius:50%;
+            animation:spin 1s linear infinite;
+        }
+        @keyframes spin{to{transform:rotate(360deg)}}
     </style>
 </head>
 <body>
+<button id="hamburger" title="Toggle Sidebar">☰</button>
+
 <div id="app">
     <div id="left-rail">
-        <h2>📦 Repository Control</h2>
-        <div class="input-group">
-            <label>GitHub Organization or User</label>
-            <input type="text" id="org-input" placeholder="e.g., acmeproducts" value="acmeproducts" />
+        <div class="rail-content">
+            <h2>📦 Repository Control</h2>
+            
+            <div class="org-section">
+                <label>GitHub Organization or User</label>
+                <div class="org-input-wrapper">
+                    <input type="text" id="org-input" placeholder="e.g., acmeproducts" value="acmeproducts" />
+                    <button id="load-btn" title="Load Repositories">↻</button>
+                </div>
+            </div>
+            
+            <div class="filters-section">
+                <div class="filter-group">
+                    <label>Filter by Pages Status</label>
+                    <select id="pages-filter">
+                        <option value="all">All Repositories</option>
+                        <option value="enabled">Pages Enabled Only</option>
+                        <option value="disabled">Pages Disabled Only</option>
+                    </select>
+                </div>
+                
+                <div class="filter-group">
+                    <label>Sort By</label>
+                    <select id="sort-select">
+                        <option value="updated-desc">Last Updated (Newest)</option>
+                        <option value="updated-asc">Last Updated (Oldest)</option>
+                        <option value="created-desc">Date Created (Newest)</option>
+                        <option value="created-asc">Date Created (Oldest)</option>
+                        <option value="name-asc">Name (A-Z)</option>
+                        <option value="name-desc">Name (Z-A)</option>
+                        <option value="size-desc">Size (Largest)</option>
+                        <option value="size-asc">Size (Smallest)</option>
+                    </select>
+                </div>
+            </div>
+            
+            <div id="repo-list"></div>
         </div>
-        <button class="btn" id="retry-btn" style="width:100%;margin-bottom:15px">Load Repositories</button>
-        <div id="repo-list"></div>
+        
+        <div id="config-strip">
+            <button id="config-btn">
+                <span>⚙️</span>
+                <span id="config-text">Configure Access Token</span>
+            </button>
+            <div id="pat-status" class="pat-missing">No PAT configured (60 req/hr limit)</div>
+        </div>
     </div>
+    
     <div id="right-panel">
         <div id="tabs">
             <div class="tab active" data-tab="overview">Overview</div>
@@ -191,6 +449,18 @@
     </div>
 </div>
 
+<div id="config-modal">
+    <div class="modal-content">
+        <h3>🔑 GitHub Personal Access Token</h3>
+        <p>Enter your GitHub PAT to increase API rate limits from 60 to 5,000 requests per hour and access private repositories.</p>
+        <input type="password" id="pat-input" class="pat-input" placeholder="ghp_xxxxxxxxxxxxxxxxxxxx" />
+        <div class="modal-buttons">
+            <button class="modal-btn modal-btn-secondary" id="clear-pat">Clear</button>
+            <button class="modal-btn modal-btn-primary" id="save-pat">Save Token</button>
+        </div>
+    </div>
+</div>
+
 <div class="diagnostic-bar" id="diagnostics">
     <span id="status-text">Dashboard Ready</span>
     <span id="repo-count"></span>
@@ -199,6 +469,8 @@
 <script>
 let ORG = 'acmeproducts';
 let reposData = [];
+let filteredRepos = [];
+let PAT = localStorage.getItem('github_pat') || '';
 
 function formatDate(iso){
     if(!iso) return 'Never';
@@ -208,9 +480,20 @@ function formatDate(iso){
     let label = d.toLocaleDateString();
     if(diff < 1) label += ' (today)';
     else if(diff < 2) label += ' (yesterday)';
-    else if(diff < 7) label += ` (${Math.floor(diff)} days ago)`;
-    else if(diff < 30) label += ` (${Math.floor(diff/7)}w ago)`;
+    else if(diff < 7) label += ` (${Math.floor(diff)}d`;
+    else if(diff < 30) label += ` (${Math.floor(diff/7)}w)`;
+    else label += ` (${Math.floor(diff/30)}mo)`;
     return label;
+}
+
+function formatSize(sizeKB){
+    if(sizeKB < 1024) return `${sizeKB} KB`;
+    if(sizeKB < 1024 * 1024) return `${(sizeKB/1024).toFixed(1)} MB`;
+    return `${(sizeKB/(1024*1024)).toFixed(2)} GB`;
+}
+
+function getAuthHeaders(){
+    return PAT ? {Authorization: `token ${PAT}`} : {};
 }
 
 async function fetchRepos(){
@@ -218,23 +501,31 @@ async function fetchRepos(){
     ORG = orgInput || ORG;
     
     document.getElementById('status-text').innerHTML = `<span class="status-warn">Loading ${ORG}...</span>`;
-    document.getElementById('repo-list').innerHTML = '<div class="empty-state">Loading repositories...</div>';
+    document.getElementById('repo-list').innerHTML = '<div class="empty-state" style="color:#95a5a6;padding:20px">Loading repositories...</div>';
     
     try {
         let repos = [];
         let isOrg = true;
+        const headers = getAuthHeaders();
         
         // Try organization endpoint first
-        let resp = await fetch(`https://api.github.com/orgs/${ORG}/repos?per_page=100&sort=updated`);
+        let resp = await fetch(`https://api.github.com/orgs/${ORG}/repos?per_page=100&sort=updated`, {headers});
         
         if(resp.status === 404) {
-            // Fallback to user endpoint
             isOrg = false;
-            resp = await fetch(`https://api.github.com/users/${ORG}/repos?per_page=100&sort=updated`);
+            resp = await fetch(`https://api.github.com/users/${ORG}/repos?per_page=100&sort=updated`, {headers});
+        }
+        
+        if(resp.status === 401) {
+            throw new Error('Invalid token. Please check your Personal Access Token in settings.');
         }
         
         if(resp.status === 403) {
-            throw new Error('Rate limited by GitHub. Try again in a few minutes or use a personal access token.');
+            const resetTime = resp.headers.get('X-RateLimit-Reset');
+            const msg = resetTime ? 
+                `Rate limited. Resets at ${new Date(resetTime * 1000).toLocaleTimeString()}.` : 
+                'Rate limited. Try again later or add a PAT.';
+            throw new Error(msg);
         }
         
         if(!resp.ok) {
@@ -249,49 +540,61 @@ async function fetchRepos(){
         
         // Process each repo
         reposData = await Promise.all(repos.map(async repo => {
-            // Fetch README
             let readmeHTML = '';
             let readmeText = '';
             try {
                 const readmeResp = await fetch(`https://api.github.com/repos/${ORG}/${repo.name}/readme`, {
-                    headers: {Accept: 'application/vnd.github.v3.html'}
+                    headers: {...getAuthHeaders(), Accept: 'application/vnd.github.v3.html'}
                 });
                 if(readmeResp.ok) {
                     readmeHTML = await readmeResp.text();
                 } else {
-                    // Try raw fallback
                     const rawResp = await fetch(`https://raw.githubusercontent.com/${ORG}/${repo.name}/${repo.default_branch || 'main'}/README.md`);
                     if(rawResp.ok) readmeText = await rawResp.text();
                 }
             } catch(e) {}
             
-            // Check for GitHub Pages
             let hasPages = repo.has_pages || false;
             let pagesUrl = hasPages ? `https://${ORG}.github.io/${repo.name}/` : null;
             
-            // Detect potential apps within repo
             let apps = [];
             try {
-                const contentsResp = await fetch(`https://api.github.com/repos/${ORG}/${repo.name}/contents`);
+                const contentsResp = await fetch(`https://api.github.com/repos/${ORG}/${repo.name}/contents`, {headers: getAuthHeaders()});
                 if(contentsResp.ok) {
                     const items = await contentsResp.json();
-                    // Look for app directories or specific files that indicate multiple apps
                     const appIndicators = items.filter(i => {
                         if(i.type !== 'dir') return false;
                         return /^(app|apps|src|packages|sites|projects|demo|examples?)$/i.test(i.name);
                     });
                     
                     if(appIndicators.length > 0) {
-                        apps = appIndicators.map(dir => ({
-                            name: dir.name,
-                            path: dir.path,
-                            type: 'directory',
-                            versions: [
-                                {name: 'current', path: dir.path, default: true}
-                            ]
+                        apps = await Promise.all(appIndicators.map(async dir => {
+                            // Check for versions within the app directory
+                            let versions = [{name: 'current', path: dir.path, default: true}];
+                            try {
+                                const verResp = await fetch(`https://api.github.com/repos/${ORG}/${repo.name}/contents/${dir.path}`, {headers: getAuthHeaders()});
+                                if(verResp.ok) {
+                                    const verItems = await verResp.json();
+                                    const versionDirs = verItems.filter(i => i.type === 'dir' && /v?\d+(\.\d+)*/.test(i.name));
+                                    if(versionDirs.length > 0) {
+                                        versions = versionDirs.map(v => ({
+                                            name: v.name,
+                                            path: v.path,
+                                            default: false
+                                        }));
+                                        versions.unshift({name: 'current', path: dir.path, default: true});
+                                    }
+                                }
+                            } catch(e) {}
+                            
+                            return {
+                                name: dir.name,
+                                path: dir.path,
+                                type: 'directory',
+                                versions: versions
+                            };
                         }));
                     } else if(items.find(i => i.name === 'index.html' || i.name === 'package.json')) {
-                        // Root level app
                         apps.push({
                             name: 'main-app',
                             path: '/',
@@ -307,104 +610,156 @@ async function fetchRepos(){
                 id: repo.id,
                 name: repo.name,
                 fullName: repo.full_name,
-                description: repo.description || 'No description available',
+                description: repo.description || 'No description',
                 lastPushed: repo.pushed_at,
                 lastAccessed: formatDate(repo.pushed_at),
                 created: formatDate(repo.created_at),
+                createdRaw: repo.created_at,
+                updatedRaw: repo.pushed_at,
                 hasPages: hasPages,
                 pagesUrl: pagesUrl,
                 cloneUrl: repo.clone_url,
                 htmlUrl: repo.html_url,
                 defaultBranch: repo.default_branch || 'main',
                 isPrivate: repo.private,
+                visibility: repo.visibility || (repo.private ? 'private' : 'public'),
+                size: repo.size,
                 apps: apps,
                 readmeHTML: readmeHTML,
                 readmeText: readmeText,
                 language: repo.language,
-                topics: repo.topics || [],
-                visibility: repo.visibility
+                topics: repo.topics || []
             };
         }));
         
-        // Sort by most recently pushed
-        reposData.sort((a,b) => new Date(b.lastPushed) - new Date(a.lastPushed));
-        
-        renderRepoList();
-        document.getElementById('status-text').innerHTML = `<span class="status-ok">✓ Loaded ${reposData.length} repos for ${ORG} (${isOrg ? 'org' : 'user'})</span>`;
+        applyFiltersAndSort();
+        document.getElementById('status-text').innerHTML = `<span class="status-ok">✓ Loaded ${reposData.length} repos for ${ORG}</span>`;
         
     } catch(e) {
         console.error(e);
         document.getElementById('status-text').innerHTML = `<span class="status-error">✗ Error loading repos</span>`;
         document.getElementById('repo-list').innerHTML = `
-            <div style="color:#e74c3c;padding:15px;background:rgba(231,76,60,0.1);border-radius:4px;margin-top:10px">
+            <div style="color:#e74c3c;padding:15px;background:rgba(231,76,60,0.1);border-radius:4px;margin-top:10px;font-size:0.9em">
                 <strong>Failed to load repos for "${ORG}"</strong><br>
                 <small>${e.message}</small><br><br>
-                <small>Tips:<br>
-                • "${ORG}" might be a private org/user - try adding a GitHub token<br>
-                • Check the spelling of the organization/user name<br>
-                • GitHub API has rate limits for unauthenticated requests (60/hr)</small>
+                <small>• Check the spelling of the organization/user<br>
+                • ${!PAT ? 'Add a GitHub PAT for private repos and higher limits' : 'Your PAT may not have access to this resource'}</small>
             </div>
         `;
-        reposData = [];
     }
+}
+
+function applyFiltersAndSort(){
+    const pagesFilter = document.getElementById('pages-filter').value;
+    const sortValue = document.getElementById('sort-select').value;
+    
+    // Filter
+    filteredRepos = reposData.filter(repo => {
+        if(pagesFilter === 'enabled') return repo.hasPages;
+        if(pagesFilter === 'disabled') return !repo.hasPages;
+        return true;
+    });
+    
+    // Sort
+    filteredRepos.sort((a,b) => {
+        switch(sortValue){
+            case 'updated-desc': return new Date(b.updatedRaw) - new Date(a.updatedRaw);
+            case 'updated-asc': return new Date(a.updatedRaw) - new Date(b.updatedRaw);
+            case 'created-desc': return new Date(b.createdRaw) - new Date(a.createdRaw);
+            case 'created-asc': return new Date(a.createdRaw) - new Date(b.createdRaw);
+            case 'name-asc': return a.name.localeCompare(b.name);
+            case 'name-desc': return b.name.localeCompare(a.name);
+            case 'size-desc': return b.size - a.size;
+            case 'size-asc': return a.size - b.size;
+            default: return 0;
+        }
+    });
+    
+    renderRepoList();
 }
 
 function renderRepoList(){
     const list = document.getElementById('repo-list');
     list.innerHTML = '';
     
-    if(reposData.length === 0) {
-        list.innerHTML = '<div class="empty-state">No repositories found</div>';
+    if(filteredRepos.length === 0) {
+        list.innerHTML = `<div class="empty-state" style="padding:30px">No repositories match filters</div>`;
+        document.getElementById('repo-count').textContent = '0 shown';
         return;
     }
     
-    reposData.forEach((repo, idx) => {
+    filteredRepos.forEach((repo, idx) => {
         const div = document.createElement('div');
         div.className = 'repo-item' + (idx === 0 ? ' active' : '');
         div.dataset.repoId = repo.id;
         
         const pagesBadge = repo.hasPages 
-            ? '<span class="pages-badge">Pages</span>' 
-            : '<span class="no-pages-badge">No Pages</span>';
+            ? '<span class="badge badge-pages">Pages</span>' 
+            : '<span class="badge badge-no-pages">No Pages</span>';
+        const visibilityBadge = repo.isPrivate 
+            ? '<span class="badge badge-private">Private</span>' 
+            : '<span class="badge badge-public">Public</span>';
             
+        const appsCount = repo.apps.length;
+        const appsText = appsCount === 0 ? 'None detected' : 
+                        appsCount === 1 ? '1 app' : 
+                        `${appsCount} apps`;
+        
         div.innerHTML = `
-            <div class="repo-name">${repo.name} ${pagesBadge}</div>
-            <div class="repo-meta">
-                Updated: ${repo.lastAccessed}<br>
-                ${repo.apps.length} app${repo.apps.length !== 1 ? 's' : ''} detected
+            <div class="repo-header">
+                <div class="repo-name">${repo.name}</div>
+                <div class="repo-badges">${pagesBadge}${visibilityBadge}</div>
+            </div>
+            <div class="repo-attrs">
+                <div class="repo-attr">
+                    <span class="repo-attr-label">Updated</span>
+                    <span class="repo-attr-value">${repo.lastAccessed}</span>
+                </div>
+                <div class="repo-attr">
+                    <span class="repo-attr-label">Created</span>
+                    <span class="repo-attr-value">${repo.created}</span>
+                </div>
+                <div class="repo-attr">
+                    <span class="repo-attr-label">Size</span>
+                    <span class="repo-attr-value">${formatSize(repo.size)}</span>
+                </div>
+                <div class="repo-attr">
+                    <span class="repo-attr-label">Apps</span>
+                    <span class="repo-attr-value">${appsText}</span>
+                </div>
             </div>
         `;
         div.onclick = () => selectRepo(repo.id);
         list.appendChild(div);
     });
     
-    document.getElementById('repo-count').textContent = `${reposData.length} repos`;
+    document.getElementById('repo-count').textContent = `${filteredRepos.length} shown / ${reposData.length} total`;
     
-    if(reposData.length > 0) {
-        selectRepo(reposData[0].id);
+    if(filteredRepos.length > 0 && !document.querySelector('.repo-item.active')) {
+        selectRepo(filteredRepos[0].id);
     }
 }
 
 function selectRepo(id){
     document.querySelectorAll('.repo-item').forEach(i => i.classList.toggle('active', i.dataset.repoId == id));
-    const repo = reposData.find(r => r.id == id);
+    const repo = filteredRepos.find(r => r.id == id) || reposData.find(r => r.id == id);
     if(!repo) return;
     
     // Update Overview Tab
     const overviewHTML = `
         <div class="panel">
-            <h3>${repo.name} ${repo.hasPages ? '<span class="pages-badge">GitHub Pages Active</span>' : '<span class="no-pages-badge">No GitHub Pages</span>'}</h3>
+            <h3>${repo.name} ${repo.hasPages ? '<span class="badge badge-pages">GitHub Pages Active</span>' : '<span class="badge badge-no-pages">No GitHub Pages</span>'}</h3>
             <p>${repo.description}</p>
-            <div style="display:grid;grid-template-columns:1fr 1fr;gap:15px;margin-top:15px">
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:15px;margin-top:15px;font-size:0.9em">
                 <div>
                     <strong>Last Updated:</strong> ${repo.lastAccessed}<br>
                     <strong>Created:</strong> ${repo.created}<br>
-                    <strong>Default Branch:</strong> ${repo.defaultBranch}<br>
+                    <strong>Size:</strong> ${formatSize(repo.size)}<br>
                     <strong>Language:</strong> ${repo.language || 'Not detected'}
                 </div>
                 <div>
-                    <strong>Visibility:</strong> ${repo.visibility || (repo.isPrivate ? 'Private' : 'Public')}<br>
-                    <strong>Full Name:</strong> ${repo.fullName}<br>
+                    <strong>Visibility:</strong> ${repo.visibility}<br>
+                    <strong>Default Branch:</strong> ${repo.defaultBranch}<br>
                     <strong>Topics:</strong> ${repo.topics.length ? repo.topics.join(', ') : 'None'}
                 </div>
             </div>
@@ -416,20 +771,15 @@ function selectRepo(id){
         </div>
         ${!repo.hasPages ? `
         <div class="analysis-box" id="analysis-${repo.id}" style="display:none">
-            <strong>Analysis Result:</strong><br>
+            <strong>Analysis Result:</strong>
             <div id="analysis-content-${repo.id}"></div>
         </div>
         ` : ''}
     `;
     document.getElementById('overview-content').innerHTML = overviewHTML;
     
-    // Update Apps Tab
     renderAppsTab(repo);
-    
-    // Update Code Tab
     renderCodeTab(repo);
-    
-    // Update Readme Tab
     renderReadmeTab(repo);
 }
 
@@ -457,18 +807,17 @@ function renderAppsTab(repo){
             <div class="app-header" onclick="toggleAppGroup('${chevronId}')">
                 <span class="chevron" id="chevron-${chevronId}">▶</span>
                 <strong>${app.name}</strong>
-                <span style="color:#7f8c8d;font-size:0.9em">(${app.type})</span>
+                <span style="color:#7f8c8d;font-size:0.85em">(${app.type})</span>
             </div>
             <div class="app-group" id="${chevronId}">
         `;
         
-        // If only one version (current), show it simply
         if(app.versions.length === 1 && app.versions[0].default) {
             html += `
                 <div class="version-item">
                     <div>
                         <span class="version-label">Current Version</span>
-                        ${repo.hasPages ? `<span class="last-seen">Available at ${repo.pagesUrl}${app.path !== '/' ? app.path : ''}</span>` : ''}
+                        ${repo.hasPages ? `<span style="color:#7f8c8d;font-size:0.85em;margin-left:10px">${repo.pagesUrl}${app.path !== '/' ? app.path : ''}</span>` : ''}
                     </div>
                     ${repo.hasPages ? 
                         `<button class="btn btn-success" onclick="window.open('${repo.pagesUrl}${app.path !== '/' ? app.path : ''}', '_blank')">Launch</button>` : 
@@ -477,15 +826,18 @@ function renderAppsTab(repo){
                 </div>
             `;
         } else {
-            // Multiple versions
             app.versions.forEach(ver => {
+                const launchUrl = repo.hasPages ? `${repo.pagesUrl}${ver.path}/` : '#';
                 html += `
                     <div class="version-item">
                         <div>
                             <span class="version-label">${ver.name}</span>
-                            ${ver.default ? '<span style="font-size:0.75em;background:#3498db;color:#fff;padding:2px 6px;border-radius:3px">default</span>' : ''}
+                            ${ver.default ? '<span style="font-size:0.7em;background:#3498db;color:#fff;padding:2px 6px;border-radius:3px;margin-left:5px">default</span>' : ''}
                         </div>
-                        <button class="btn btn-success" onclick="alert('Launch ${app.name} ${ver.name}')">Launch</button>
+                        ${repo.hasPages ? 
+                            `<button class="btn ${ver.default ? 'btn-success' : 'btn'}" onclick="window.open('${launchUrl}', '_blank')">${ver.default ? 'Launch' : 'Launch Archive'}</button>` : 
+                            `<span style="color:#e74c3c;font-size:0.85em">Pages not enabled</span>`
+                        }
                     </div>
                 `;
             });
@@ -499,24 +851,22 @@ function renderAppsTab(repo){
 }
 
 function renderCodeTab(repo){
-    const container = document.getElementById('code-content');
-    container.innerHTML = `
+    document.getElementById('code-content').innerHTML = `
         <div class="panel">
             <h3>Code & Links</h3>
             <ul class="code-list">
                 <li>🔗 <a href="${repo.htmlUrl}" target="_blank">Repository Home</a></li>
-                <li>📦 <a href="${repo.htmlUrl}/archive/refs/heads/${repo.defaultBranch}.zip" target="_blank">Download ZIP (Default Branch)</a></li>
-                <li>📋 <code>git clone ${repo.cloneUrl}</code></li>
+                <li>📦 <a href="${repo.htmlUrl}/archive/refs/heads/${repo.defaultBranch}.zip" target="_blank">Download ZIP (${repo.defaultBranch})</a></li>
+                <li>📋 <code style="background:#f5f5f5;padding:2px 6px;border-radius:3px">git clone ${PAT ? repo.cloneUrl.replace('https://', `https://${PAT}@`) : repo.cloneUrl}</code></li>
                 <li>📁 <a href="${repo.htmlUrl}/tree/${repo.defaultBranch}" target="_blank">Browse Files</a></li>
                 <li>📊 <a href="${repo.htmlUrl}/commits/${repo.defaultBranch}" target="_blank">Commit History</a></li>
-                <li>🌿 <a href="${repo.htmlUrl}/branches" target="_blank">All Branches</a></li>
                 ${repo.hasPages ? `<li>🌐 <a href="${repo.pagesUrl}" target="_blank">GitHub Pages Site</a></li>` : ''}
             </ul>
             <div style="margin-top:20px;padding:15px;background:#f8f9fa;border-radius:4px">
                 <strong>Quick Actions:</strong><br>
                 <button class="btn" style="margin-top:10px" onclick="window.open('${repo.htmlUrl}/issues/new', '_blank')">New Issue</button>
-                <button class="btn" style="margin-top:10px;margin-left:5px" onclick="window.open('${repo.htmlUrl}/pulls', '_blank')">Pull Requests</button>
-                <button class="btn" style="margin-top:10px;margin-left:5px" onclick="window.open('${repo.htmlUrl}/settings', '_blank')">Settings</button>
+                <button class="btn" style="margin-top:10px;margin-left:5px" onclick="window.open('${repo.htmlUrl}/settings/pages', '_blank')">Pages Settings</button>
+                <button class="btn" style="margin-top:10px;margin-left:5px" onclick="window.open('${repo.htmlUrl}/settings', '_blank')">Repository Settings</button>
             </div>
         </div>
     `;
@@ -524,23 +874,22 @@ function renderCodeTab(repo){
 
 function renderReadmeTab(repo){
     const container = document.getElementById('readme-content');
-    let content = '';
     
     if(repo.readmeHTML) {
-        content = `<div class="panel" style="padding:30px">${repo.readmeHTML}</div>`;
+        container.innerHTML = `<div class="panel" style="padding:30px;overflow-x:auto">${repo.readmeHTML}</div>`;
     } else if(repo.readmeText) {
-        // Simple markdown-like rendering for text
         const formatted = repo.readmeText
             .replace(/^### (.*$)/gim, '<h3>$1</h3>')
             .replace(/^## (.*$)/gim, '<h2>$1</h2>')
             .replace(/^# (.*$)/gim, '<h1>$1</h1>')
-            .replace(/```([\s\S]*?)```/g, '<pre><code>$1</code></pre>')
+            .replace(/```([\s\S]*?)```/g, '<pre style="background:#f5f5f5;padding:10px;border-radius:4px;overflow-x:auto"><code>$1</code></pre>')
             .replace(/\*\*(.*)\*\*/g, '<strong>$1</strong>')
             .replace(/\*(.*)\*/g, '<em>$1</em>')
+            .replace(/`([^`]+)`/g, '<code style="background:#f5f5f5;padding:2px 4px;border-radius:3px">$1</code>')
             .replace(/\n/g, '<br>');
-        content = `<div class="panel" style="padding:30px;font-family:monospace">${formatted}</div>`;
+        container.innerHTML = `<div class="panel" style="padding:30px;line-height:1.6">${formatted}</div>`;
     } else {
-        content = `
+        container.innerHTML = `
             <div class="panel">
                 <h3>Readme & Install</h3>
                 <div class="empty-state">
@@ -550,8 +899,6 @@ function renderReadmeTab(repo){
             </div>
         `;
     }
-    
-    container.innerHTML = content;
 }
 
 function analyzeRepo(repoId){
@@ -565,29 +912,21 @@ function analyzeRepo(repoId){
     
     if(repo.hasPages) {
         if(analysisContent) analysisContent.innerHTML = `
-            ✅ GitHub Pages is already enabled for this repository.<br>
-            Pages URL: <a href="${repo.pagesUrl}" target="_blank">${repo.pagesUrl}</a>
+            <p>✅ GitHub Pages is already enabled.</p>
+            <p>Pages URL: <a href="${repo.pagesUrl}" target="_blank">${repo.pagesUrl}</a></p>
         `;
         return;
     }
     
-    // Generate setup recommendations
-    let steps = [];
-    
-    // Check if index.html exists at root
-    steps.push(`<li>Ensure an <code>index.html</code> file exists in the repository root or docs/ folder</li>`);
-    steps.push(`<li>Go to Settings → Pages in the repository</li>`);
-    steps.push(`<li>Select source: Deploy from a branch → Select 'main' or 'master' → Select '/ (root)' or '/docs' folder</li>`);
-    steps.push(`<li>Save and wait 2-5 minutes for the site to build</li>`);
-    
     const recommendation = `
         <p>This repository does not have GitHub Pages enabled. To set up a functional launch page:</p>
         <ol style="margin:10px 0;padding-left:20px">
-            ${steps.join('')}
+            <li>Ensure an <code>index.html</code> file exists in the repository root or <code>docs/</code> folder</li>
+            <li>Go to Settings → Pages in the repository</li>
+            <li>Select source: Deploy from a branch → Choose branch and folder</li>
+            <li>Save and wait 2-5 minutes for the site to build</li>
         </ol>
-        <p style="margin-top:10px">
-            <button class="btn" onclick="window.open('${repo.htmlUrl}/settings/pages', '_blank')">Open Pages Settings</button>
-        </p>
+        <button class="btn" onclick="window.open('${repo.htmlUrl}/settings/pages', '_blank')">Open Pages Settings</button>
     `;
     
     if(analysisContent) analysisContent.innerHTML = recommendation;
@@ -596,36 +935,80 @@ function analyzeRepo(repoId){
 function toggleAppGroup(id){
     const group = document.getElementById(id);
     const chevron = document.getElementById(`chevron-${id}`);
-    if(group.classList.contains('active')){
-        group.classList.remove('active');
-        chevron.classList.remove('expanded');
-    } else {
-        group.classList.add('active');
-        chevron.classList.add('expanded');
-    }
+    group.classList.toggle('active');
+    chevron.classList.toggle('expanded');
 }
 
-// Tab switching
-document.querySelectorAll('.tab').forEach(tab => {
-    tab.addEventListener('click', () => {
-        document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
-        document.querySelectorAll('.tab-page').forEach(p => p.classList.remove('active'));
-        
-        tab.classList.add('active');
-        const targetTab = tab.dataset.tab;
-        document.querySelector(`.tab-page[data-tab="${targetTab}"]`).classList.add('active');
-    });
+// Event Listeners
+document.getElementById('hamburger').addEventListener('click', () => {
+    const rail = document.getElementById('left-rail');
+    const diag = document.getElementById('diagnostics');
+    rail.classList.toggle('collapsed');
+    diag.classList.toggle('expanded');
 });
 
-// Retry button
-document.getElementById('retry-btn').addEventListener('click', fetchRepos);
+document.getElementById('config-btn').addEventListener('click', () => {
+    document.getElementById('config-modal').classList.add('active');
+    document.getElementById('pat-input').value = PAT;
+});
 
-// Allow Enter key in input
+document.getElementById('save-pat').addEventListener('click', () => {
+    const token = document.getElementById('pat-input').value.trim();
+    if(token) {
+        PAT = token;
+        localStorage.setItem('github_pat', PAT);
+        updatePatStatus();
+        document.getElementById('config-modal').classList.remove('active');
+        fetchRepos();
+    }
+});
+
+document.getElementById('clear-pat').addEventListener('click', () => {
+    PAT = '';
+    localStorage.removeItem('github_pat');
+    document.getElementById('pat-input').value = '';
+    updatePatStatus();
+});
+
+document.getElementById('config-modal').addEventListener('click', (e) => {
+    if(e.target.id === 'config-modal') {
+        document.getElementById('config-modal').classList.remove('active');
+    }
+});
+
+document.getElementById('pages-filter').addEventListener('change', applyFiltersAndSort);
+document.getElementById('sort-select').addEventListener('change', applyFiltersAndSort);
+document.getElementById('load-btn').addEventListener('click', fetchRepos);
+
 document.getElementById('org-input').addEventListener('keypress', (e) => {
     if(e.key === 'Enter') fetchRepos();
 });
 
+document.querySelectorAll('.tab').forEach(tab => {
+    tab.addEventListener('click', () => {
+        document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+        document.querySelectorAll('.tab-page').forEach(p => p.classList.remove('active'));
+        tab.classList.add('active');
+        document.querySelector(`.tab-page[data-tab="${tab.dataset.tab}"]`).classList.add('active');
+    });
+});
+
+function updatePatStatus(){
+    const statusEl = document.getElementById('pat-status');
+    const configText = document.getElementById('config-text');
+    if(PAT) {
+        statusEl.textContent = 'PAT configured (5,000 req/hr)';
+        statusEl.className = 'pat-active';
+        configText.textContent = 'Update Access Token';
+    } else {
+        statusEl.textContent = 'No PAT configured (60 req/hr limit)';
+        statusEl.className = 'pat-missing';
+        configText.textContent = 'Configure Access Token';
+    }
+}
+
 // Initialize
+updatePatStatus();
 fetchRepos();
 </script>
 </body>
