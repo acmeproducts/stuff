@@ -244,3 +244,10 @@ Freshness: Connected describes transport only. Separate evidence state Current /
 ## Update — unreadable files no longer show as Problem
 - Source with a completed job and some unreadable files = Current (amber "N unreadable (skipped)"); Problem only for failed/stalled jobs. Last synchronized now counts those jobs.
 - Summary pills (Scanned/Capacity/Saved) now light up like the Files/GB switch.
+
+## Phase 1 of the simplified flow — Keep rule and root priority
+- Roots table: ☰ drag handle sets root priority (stored as `sources.rank`); Status column removed; rows always shown in priority order; red rows are the roots that do not fit the TARGET in that order.
+- Keep rule (engine): a landed copy wins Keep; otherwise the copy in the highest-priority root; inside one root the shortest path (index.html beats index (1).html).
+- Manual Keep (`placements.keep_override`, API `/api/placement/keep`): the first manual tick freezes the group; re-ranking never changes it. Keeping all or none is allowed. Unticking a unique file makes it Excess. A changed file (new fingerprint) clears its override.
+- Landing does not exist in the engine yet, so "landed wins" is wired but inactive until it does.
+- Gate: `qualify-release-d-keep-rule.py`.

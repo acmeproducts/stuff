@@ -23,7 +23,8 @@ class Store:
    "content_rating":"INTEGER",
    "system_classification":"TEXT",
    "placement_state":"TEXT NOT NULL DEFAULT 'ACTIVE'",
-   "retired_at":"REAL"
+   "retired_at":"REAL",
+   "keep_override":"INTEGER"
   }
   for name,decl in additions.items():
    if name not in cols:c.execute(f"ALTER TABLE placements ADD COLUMN {name} {decl}")
@@ -45,7 +46,8 @@ class Store:
    "metadata_signature":"TEXT",
    "metadata_checked":"REAL",
    "stale":"INTEGER NOT NULL DEFAULT 0",
-   "deleted_at":"REAL"
+   "deleted_at":"REAL",
+   "rank":"INTEGER"
   }
   for name,decl in source_additions.items():
    if name not in source_cols:c.execute(f"ALTER TABLE sources ADD COLUMN {name} {decl}")
@@ -394,21 +396,52 @@ class Manager:
  def alloc_no(self):
   with self.seq_lock:
    n=self.next_no;self.next_no+=1;return n
+ def source_ranks(self):
+  rows=self.s.rows("SELECT source_id,root,rank FROM sources ORDER BY CASE WHEN rank IS NULL THEN 1 ELSE 0 END,rank,root")
+  return {r["source_id"]:i for i,r in enumerate(rows)}
+ @staticmethod
+ def keep_order(r,ranks):
+  # landed copy first, then highest-ranked root, then shortest path, then path
+  path=str(r["path"] or "")
+  return (0 if str(r["plan"] or "").upper()=="LANDED" else 1,ranks.get(r["source_id"],1<<30),len(path),path)
  def recompute_classifications(self):
-  rows=self.s.rows("SELECT placement_id,placement_no,fingerprint FROM placements WHERE placement_state='ACTIVE' AND availability='AVAILABLE' AND fingerprint IS NOT NULL ORDER BY fingerprint,placement_no")
-  groups={}
+  rows=self.s.rows("SELECT placement_id,placement_no,fingerprint,source_id,path,plan,keep_override FROM placements WHERE placement_state='ACTIVE' AND availability='AVAILABLE' AND fingerprint IS NOT NULL ORDER BY fingerprint,placement_no")
+  ranks=self.source_ranks();groups={}
   for r in rows:groups.setdefault(r["fingerprint"],[]).append(r)
   stmts=[("UPDATE placements SET system_classification=NULL,duplicate_group=NULL,duplicate_cardinality=NULL WHERE placement_state<>'ACTIVE' OR availability<>'AVAILABLE' OR fingerprint IS NULL",()),
          ("UPDATE placements SET system_classification=NULL,duplicate_group=NULL,duplicate_cardinality=NULL WHERE placement_state='ACTIVE' AND availability='AVAILABLE' AND fingerprint IS NOT NULL",())]
   for fp,items in groups.items():
-   if len(items)==1:
-    stmts.append(("UPDATE placements SET system_classification='UNIQUE',duplicate_cardinality=1 WHERE placement_id=?",(items[0]["placement_id"],)))
-   else:
-    group=fp[:16];n=len(items)
-    for i,r in enumerate(items):
-     stmts.append(("UPDATE placements SET system_classification=?,duplicate_group=?,duplicate_cardinality=? WHERE placement_id=?",("KEEP" if i==0 else "EXCESS",group,n,r["placement_id"])))
+   n=len(items)
+   if n==1:
+    cls="EXCESS" if items[0]["keep_override"]==0 else "UNIQUE"
+    stmts.append(("UPDATE placements SET system_classification=?,duplicate_cardinality=1 WHERE placement_id=?",(cls,items[0]["placement_id"])));continue
+   group=fp[:16]
+   if any(r["keep_override"] is not None for r in items):keep={r["placement_id"] for r in items if r["keep_override"]==1}
+   else:keep={min(items,key=lambda r:self.keep_order(r,ranks))["placement_id"]}
+   for r in items:
+    stmts.append(("UPDATE placements SET system_classification=?,duplicate_group=?,duplicate_cardinality=? WHERE placement_id=?",("KEEP" if r["placement_id"] in keep else "EXCESS",group,n,r["placement_id"])))
   self.s.tx(stmts,True)
   return {"unique":sum(1 for x in groups.values() if len(x)==1),"duplicate_groups":sum(1 for x in groups.values() if len(x)>1)}
+ def set_source_rank(self,order):
+  ids=[str(x) for x in order or []];known={r["source_id"] for r in self.s.rows("SELECT source_id FROM sources")}
+  bad=[x for x in ids if x not in known]
+  if bad:raise RuntimeError("unknown source: "+bad[0])
+  rest=[r["source_id"] for r in self.s.rows("SELECT source_id FROM sources ORDER BY CASE WHEN rank IS NULL THEN 1 ELSE 0 END,rank,root") if r["source_id"] not in ids]
+  self.s.tx([("UPDATE sources SET rank=? WHERE source_id=?",(i,sid)) for i,sid in enumerate(ids+rest)],True)
+  z=self.recompute_classifications();self.s.bump_catalog_revision();self.event("source_rank","Source priority changed",None,None,"INFO",{"order":ids+rest});return z
+ def set_keep(self,placement_id,keep):
+  row=self.s.rows("SELECT placement_id,fingerprint,system_classification FROM placements WHERE placement_id=? AND placement_state='ACTIVE'",(placement_id,))
+  if not row:raise RuntimeError("placement not found")
+  fp=row[0]["fingerprint"]
+  if not fp:raise RuntimeError("placement has no fingerprint yet")
+  group=self.s.rows("SELECT placement_id,system_classification,keep_override FROM placements WHERE fingerprint=? AND placement_state='ACTIVE' AND availability='AVAILABLE'",(fp,))
+  stmts=[]
+  # first manual touch freezes the group as currently shown, so later re-ranks never change it
+  for g in group:
+   if g["keep_override"] is None:stmts.append(("UPDATE placements SET keep_override=? WHERE placement_id=?",(1 if g["system_classification"] in ("KEEP","UNIQUE") else 0,g["placement_id"])))
+  stmts.append(("UPDATE placements SET keep_override=? WHERE placement_id=?",(1 if keep else 0,placement_id)))
+  self.s.tx(stmts,True);self.recompute_classifications();self.s.bump_catalog_revision()
+  return self.s.rows("SELECT placement_id,system_classification,keep_override FROM placements WHERE fingerprint=? AND placement_state='ACTIVE'",(fp,))
  def event(self,typ,msg,jid=None,sid=None,severity="INFO",detail=None):
   self.s.log(typ,msg,severity,jid,sid,detail)
   self.s.submit("INSERT INTO events(ts,severity,event_type,job_id,source_id,message,detail_json) VALUES(?,?,?,?,?,?,?)",(time.time(),severity,typ,jid,sid,msg,json.dumps(detail or {})))
@@ -520,7 +553,7 @@ class Manager:
       unchanged=bool(old and old[0]["fingerprint"] and old[0]["size"]==st.st_size and old[0]["modified"]==st.st_mtime)
       if old:
        self.s.submit("UPDATE placements SET job_id=?,revision=?,estate=?,filename=?,extension=?,size=?,created=COALESCE(?,created),modified=?,scanned_at=?,lifecycle=?,plan=NULL,rationale=NULL,availability=?,error_detail=NULL,role=?,last_verified=?,placement_state='ACTIVE',retired_at=NULL WHERE placement_id=?",(jid,rev,src["estate"],name,Path(name).suffix.lower(),st.st_size,created,st.st_mtime,now,'HASHED' if unchanged else 'NONE','AVAILABLE' if unchanged else 'PENDING',src["role"],now,pid))
-       if not unchanged:self.s.submit("UPDATE placements SET system_classification=NULL,duplicate_group=NULL,duplicate_cardinality=NULL WHERE placement_id=?",(pid,))
+       if not unchanged:self.s.submit("UPDATE placements SET system_classification=NULL,duplicate_group=NULL,duplicate_cardinality=NULL,keep_override=NULL WHERE placement_id=?",(pid,))
       else:
        pno=self.alloc_no();self.s.submit("INSERT INTO placements(placement_id,placement_no,job_id,revision,source_id,estate,path,filename,extension,size,created,modified,scanned_at,lifecycle,role,last_verified) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?, 'NONE',?,?)",(pid,pno,jid,rev,sid,src["estate"],p,name,Path(name).suffix.lower(),st.st_size,created,st.st_mtime,now,src["role"],now))
       self.s.submit("UPDATE job_sources SET discovered_files=discovered_files+1,discovered_bytes=discovered_bytes+?,hashed_files=hashed_files+?,hashed_bytes=hashed_bytes+?,current_folder=?,current_file=?,last_progress=? WHERE job_id=? AND source_id=?",(st.st_size,1 if unchanged else 0,st.st_size if unchanged else 0,root,name,now,jid,sid))
