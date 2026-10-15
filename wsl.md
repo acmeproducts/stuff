@@ -64,6 +64,11 @@ Change: wsl.html restored byte-for-byte from snow-v1.html, then built up in thre
   - Measured (desktop, Earned, 30° slope, 100→500 px/s): slider 50 = 2.9 s (unchanged); 100 = 1.4 s; 0 never reaches 500 (top speed about 410). Flat track speed left after 2.5 s: 284 / 365 / 431 at 0 / 50 / 100.
   - Test: `tune.mjs` (strength, per-profile save, rotation, reload, reset, no leak between devices).
 
+- **One Momentum slider + pause (2026-10-04, owner request).**
+  - Removed the Earned/Classic buttons. Momentum is now a single slider, **Slow** on the left to **Fast** on the right, with **Standard** at the middle as the default; the setting persists and is still saved per device type and orientation. Left of standard = the standard feel dialled slower (down to ×0.63 pull, about 410 px/s top speed); right of standard = a blend from standard toward the original fast, light-friction feel (full right = old Classic physics, 1,600 px/s top speed, with the fast launch kept). "Back to standard" resets the current profile. Old saved Earned/Classic choices are ignored; old slider positions above 50 now mean "faster" instead of ×1.x.
+  - Pause: double-tap the score (400 ms window) to pause; a single **▶ Resume** button appears at the top centre. While paused the game, timer and recording freeze and canvas taps/drawing are ignored; settings can still be opened without resuming; the score is excluded from game gestures so tapping it never jumps. In Zen (score hidden) double-tapping the Flow label does the same.
+  - Tests: `pause.mjs`; `curves.mjs` checks there are no Earned/Classic buttons; `physics.mjs` now drives the two slider ends (standard and fast); `tune.mjs` unchanged and passing. All suites pass.
+
 ## RUN LOG (written by DevStream)
 | Date | Tab | Result | What | Commit |
 |---|---|---|---|---|

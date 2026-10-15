@@ -14,7 +14,9 @@
   #hud{position:fixed;top:calc(env(safe-area-inset-top,0px) + 8px);left:0;right:0;
     display:flex;justify-content:center;align-items:baseline;gap:16px;
     pointer-events:none;color:#fff;text-shadow:0 2px 6px rgba(0,0,0,.65);z-index:5;}
-  #hud .score{font-size:28px;font-weight:800;letter-spacing:1px;}
+  #hud .score{font-size:28px;font-weight:800;letter-spacing:1px;pointer-events:auto;cursor:pointer;padding:0 10px;}
+  #hud2 .fl{pointer-events:auto;cursor:pointer;}
+  #resumeBtn{position:fixed;top:calc(env(safe-area-inset-top,0px) + 10px);left:50%;transform:translateX(-50%);z-index:11;display:none;padding:12px 26px;border-radius:26px;border:2px solid #8cff5a;background:#16341c;color:#fff;font-size:18px;font-weight:800;cursor:pointer;touch-action:manipulation;box-shadow:0 4px 18px rgba(0,0,0,.5);}
   #hud .best{font-size:13px;font-weight:600;opacity:.85;}
   #hud2{position:fixed;top:calc(env(safe-area-inset-top,0px) + 46px);left:0;right:0;display:flex;justify-content:center;gap:14px;
     pointer-events:none;color:#fff;font-size:14px;font-weight:700;text-shadow:0 2px 6px rgba(0,0,0,.65);z-index:5;}
@@ -41,6 +43,7 @@
   #replayUI .opt{flex:none;min-width:0;padding:8px 12px;font-size:14px;}
   #replayUI #repLabel{min-width:92px;text-align:center;font-weight:700;}
   body.replaying #replayUI{display:flex;}
+  body.replaying #resumeBtn{display:none!important;}
   body.replaying #hud,body.replaying #hud2,body.replaying #flowbar,body.replaying #btnSettings,body.replaying #hint,body.replaying #diag{display:none!important;}
   #hint{position:fixed;bottom:calc(env(safe-area-inset-bottom,0px) + 24px);left:50%;transform:translateX(-50%);
     max-width:calc(100vw - 24px);text-align:center;pointer-events:none;color:#fff;font-size:14px;
@@ -69,6 +72,7 @@
 <div id="flowbar"><i id="flowfill"></i></div>
 <button id="btnSettings" aria-label="Settings">⚙️</button>
 <div id="replayUI"><span id="repLabel"></span><button class="opt" id="repSpeed">1×</button><button class="opt" id="repSkip">Skip ▸</button><button class="opt" id="repClose">✕ Close</button></div>
+<button id="resumeBtn">▶ Resume</button>
 <div id="hint">Draw to extend • Tap ON track to release ⛄🛒</div>
 <div id="diag">boot…</div>
 <div id="err"></div>
@@ -81,10 +85,11 @@
   <h3>Intensity</h3><div class="row"><button class="opt" data-preset="low">Low</button><button class="opt" data-preset="med">Med</button><button class="opt" data-preset="high">High</button><button class="opt" data-preset="custom">Custom</button></div>
   <div class="slr"><span>Jump</span><input type="range" id="jumpForce" min="400" max="2000" step="50"><span class="v" id="jumpVal"></span></div>
   <h3>Character</h3><div class="row" id="charRow"></div>
-  <h3>Momentum</h3><div class="row"><button class="opt" data-momentum="earned">Earned</button><button class="opt" data-momentum="classic">Classic</button></div>
-  <div class="slr"><span>Feel</span><input type="range" id="momentumTune" min="0" max="100" step="1"><span class="v" id="tuneVal"></span></div>
+  <h3>Momentum</h3>
+  <div class="slr"><span>Slow</span><input type="range" id="momentumTune" min="0" max="100" step="1"><span class="v" style="width:50px">Fast</span></div>
+  <div id="tuneVal" style="font-weight:700;font-size:14px"></div>
   <div id="tuneProfile" style="font-size:12px;opacity:.75;max-width:420px"></div>
-  <div class="row"><button class="opt" id="tuneReset" style="flex:none;min-width:0;padding:6px 14px;font-size:13px">Reset this feel</button></div>
+  <div class="row"><button class="opt" id="tuneReset" style="flex:none;min-width:0;padding:6px 14px;font-size:13px">Back to standard</button></div>
   <h3>Replay</h3><div class="row"><button class="opt" id="btnReplaySession">▶ Replay session</button></div>
   <h3>Audio vibe</h3><div class="row"><button class="opt" data-audio="calm">Calm</button><button class="opt" data-audio="fun">Fun</button><button class="opt" data-audio="whimsical">Whimsical</button><button class="opt" data-audio="zen">Zen</button></div>
   <button id="closeSettings">SAVE &amp; CLOSE</button></div>
@@ -134,10 +139,11 @@ var BURST_V=450,BURST_TAU=0.45,HIT_R=60,MAXCHARGES=3,LONGPRESS_MS=800,CHAIN_MS=4
 
 var G=1050,SLOPEK=0.45,DRAG=0.2,ROLL=30,VMAX=1300,RESCUE_MINV=60,LAUNCH_V=320;
 // Earned: speed has to be built and bleeds away. Classic: the original fast, nearly frictionless feel.
-var MOMENTUM={earned:{slopek:0.45,drag:0.2,roll:30,vmax:1300,rescuev:60,launch:320},classic:{slopek:1,drag:0.12,roll:5,vmax:1600,rescuev:200,launch:2}};
-// Fine-tune slider (0-100, 50 = as designed). It is saved per device type and orientation, e.g. phone-portrait,
-// phone-landscape, tablet-portrait, desktop-landscape, and works relative to that profile's own baseline
-// (pace is already normalised by screen width), so each device/orientation can be tuned on its own.
+// One Momentum slider, slow on the left, fast on the right, 50 = standard (the default; it persists).
+// Left of standard: the standard feel dialled slower. Right of standard: blends from the standard feel toward the
+// original fast, light-friction feel. Saved per device type and orientation (see below).
+var M_STD={slopek:0.45,drag:0.2,roll:30,vmax:1300,rescuev:60,launch:320};
+var M_FAST={slopek:1,drag:0.12,roll:5,vmax:1600,rescuev:200,launch:320};
 var PROFILE='desktop-landscape';
 function profileKey(){
   var coarse=false;try{coarse=matchMedia('(pointer: coarse)').matches||(navigator.maxTouchPoints>0&&!matchMedia('(pointer: fine)').matches);}catch(e){}
@@ -145,10 +151,17 @@ function profileKey(){
   return (!coarse?'desktop':(Math.min(w,h)<600?'phone':'tablet'))+'-'+(w>=h?'landscape':'portrait');
 }
 function tuneNow(){var v=cfg.tune&&cfg.tune[PROFILE];return typeof v==='number'?v:50;}
-function tuneFactor(){return Math.pow(2,(tuneNow()-50)/75);}
+function lerp(a,b,t){return a+(b-a)*t;}
 function applyMomentum(){
-  var m=MOMENTUM[cfg.momentum]||MOMENTUM.earned,f=tuneFactor();
-  SLOPEK=m.slopek*f;DRAG=m.drag/Math.sqrt(f);ROLL=m.roll/f;VMAX=m.vmax*Math.sqrt(f);RESCUE_MINV=m.rescuev;LAUNCH_V=m.launch>10?m.launch*Math.sqrt(f):m.launch;
+  var t=tuneNow();
+  if(t<=50){
+    var f=Math.pow(2,(t-50)/75);   // 0.63 .. 1
+    SLOPEK=M_STD.slopek*f;DRAG=M_STD.drag/Math.sqrt(f);ROLL=M_STD.roll/f;VMAX=M_STD.vmax*Math.sqrt(f);RESCUE_MINV=M_STD.rescuev;LAUNCH_V=M_STD.launch*Math.sqrt(f);
+  }else{
+    var b=(t-50)/50;
+    SLOPEK=lerp(M_STD.slopek,M_FAST.slopek,b);DRAG=lerp(M_STD.drag,M_FAST.drag,b);ROLL=lerp(M_STD.roll,M_FAST.roll,b);VMAX=lerp(M_STD.vmax,M_FAST.vmax,b);
+    RESCUE_MINV=lerp(M_STD.rescuev,M_FAST.rescuev,b);LAUNCH_V=M_STD.launch;
+  }
 }
 var PROGRESS_THRESHOLD=80,PROGRESS_LIMIT=4.0;
 var lastProgressX=0,noProgressT=0;
@@ -156,8 +169,8 @@ var AC=null;
 var PRESETS={low:{jump:500},med:{jump:800},high:{jump:1200}};
 var CHARS=[['snowman','⛄'],['penguin','🐧'],['fox','🦊'],['cat','🐱'],['dog','🐶'],['panda','🐼'],['duck','🦆'],['santa','🎅'],['robot','🤖'],['alien','👽'],['ghost','👻'],['pumpkin','🎃'],['pizza','🍕'],['potato','🥔'],['rocket','🚀'],['ball','⚽']];
 function charEmoji(){for(var i=0;i<CHARS.length;i++)if(CHARS[i][0]===cfg.character)return CHARS[i][1];return '⛄';}
-var cfg={mode:null,preset:'med',jump:800,audio:'fun',momentum:'earned',character:'snowman',tune:{}};
-var paused=false,TIMESCALE_ZEN=0.75,lastOn={track:0,s:0};
+var cfg={mode:null,preset:'med',jump:800,audio:'fun',character:'snowman',tune:{}};
+var paused=false,userPaused=false,TIMESCALE_ZEN=0.75,lastOn={track:0,s:0};
 try{var sv=JSON.parse(localStorage.getItem('wsl_settings')||'{}');for(var k in sv)if(k in cfg)cfg[k]=sv[k];}catch(e){}
 if(PRESETS[cfg.preset])cfg.jump=PRESETS[cfg.preset].jump;
 applyMomentum();
@@ -577,7 +590,7 @@ function pair(){
 function gestureReset(){g.phase='idle';g.mode='none';g.kind='none';g.moved=false;lp=null;pendingSwitch=null;}
 
 window.addEventListener('pointerdown',function(e){
-  if(replay||paused||e.target.closest('#btnSettings,#settingsPanel,#modeSel,#btnReplay,#replayUI'))return;
+  if(replay||paused||e.target.closest('#btnSettings,#settingsPanel,#modeSel,#btnReplay,#replayUI,#score,#flowtxt,#resumeBtn'))return;
   pointers.set(e.pointerId,{x:e.clientX,y:e.clientY});
   if(g.phase==='idle'){
     if(state===ST.OVER){reset();g.phase='ignore';return;}
@@ -801,9 +814,13 @@ window.addEventListener('resize',resize);
 window.addEventListener('orientationchange',function(){setTimeout(resize,250);});
 function $(sel){return document.querySelectorAll(sel);}
 function profileLabel(){var p=PROFILE.split('-');return p[0].charAt(0).toUpperCase()+p[0].slice(1)+' · '+p[1];}
+var lastScoreTap=0;
+function pauseGame(){if(userPaused)return;userPaused=true;gestureReset();pointers.clear();syncUI();}
+function resumeGame(){if(!userPaused)return;userPaused=false;syncUI();}
+function scoreTap(){var n=performance.now();if(n-lastScoreTap<400){lastScoreTap=0;pauseGame();}else lastScoreTap=n;}
 function syncTuneUI(){
   var sl=document.getElementById('momentumTune');if(!sl)return;
-  sl.value=tuneNow();document.getElementById('tuneVal').textContent='×'+tuneFactor().toFixed(1);
+  var tv=tuneNow();sl.value=tv;document.getElementById('tuneVal').textContent=tv===50?'Standard':tv<50?'Slower':'Faster';
   document.getElementById('tuneProfile').textContent='Saved for: '+profileLabel()+' (each device and orientation keeps its own)';
 }
 function syncUI(){
@@ -813,12 +830,12 @@ function syncUI(){
   $('[data-preset]').forEach(function(b){b.classList.toggle('on',b.getAttribute('data-preset')===cfg.preset);});
   $('[data-char]').forEach(function(b){b.classList.toggle('on',b.getAttribute('data-char')===cfg.character);});
   document.getElementById('ovChar').textContent=charEmoji();
-  $('[data-momentum]').forEach(function(b){b.classList.toggle('on',b.getAttribute('data-momentum')===cfg.momentum);});
   $('[data-audio]').forEach(function(b){b.classList.toggle('on',b.getAttribute('data-audio')===cfg.audio);});
   document.getElementById('jumpForce').value=cfg.jump;
   document.getElementById('jumpVal').textContent=cfg.jump;
   document.getElementById('modeSel').style.display=cfg.mode?'none':'flex';
-  paused=!cfg.mode||pn.style.display==='flex';
+  paused=!cfg.mode||pn.style.display==='flex'||userPaused;
+  document.getElementById('resumeBtn').style.display=userPaused?'block':'none';
 }
 function setMode(m){var changed=cfg.mode!==m;cfg.mode=m;saveCfg();syncUI();if(changed)reset();}
 document.getElementById('modeRegular').addEventListener('click',function(){setMode('regular');});
@@ -832,9 +849,11 @@ $('[data-preset]').forEach(function(b){b.addEventListener('click',function(){var
     b.addEventListener('click',function(){cfg.character=c[0];saveCfg();syncUI();});row.appendChild(b);});})();
 document.getElementById('momentumTune').addEventListener('input',function(e){if(!cfg.tune)cfg.tune={};cfg.tune[PROFILE]=+e.target.value;applyMomentum();saveCfg();syncTuneUI();});
 document.getElementById('tuneReset').addEventListener('click',function(){if(!cfg.tune)cfg.tune={};cfg.tune[PROFILE]=50;applyMomentum();saveCfg();syncTuneUI();});
-$('[data-momentum]').forEach(function(b){b.addEventListener('click',function(){cfg.momentum=b.getAttribute('data-momentum');applyMomentum();saveCfg();syncUI();});});
 $('[data-audio]').forEach(function(b){b.addEventListener('click',function(){cfg.audio=b.getAttribute('data-audio');saveCfg();syncUI();beep(660,120);});});
 document.getElementById('jumpForce').addEventListener('input',function(e){cfg.jump=+e.target.value;cfg.preset='custom';saveCfg();syncUI();});
+document.getElementById('score').addEventListener('pointerdown',scoreTap);
+document.getElementById('flowtxt').addEventListener('pointerdown',scoreTap);
+document.getElementById('resumeBtn').addEventListener('click',resumeGame);
 document.getElementById('btnReplay').addEventListener('click',function(){startReplay();});
 document.getElementById('btnReplaySession').addEventListener('click',function(){startReplay();});
 document.getElementById('repSpeed').addEventListener('click',function(){if(replay)replay.speed=replay.speed===1?2:replay.speed===2?4:1;});
@@ -848,7 +867,7 @@ function replayInfo(){
   for(var j=0;j<2;j++){var sx=(c[j][0]-camX)*zoom,sy=(c[j][1]-camY)*zoom;if(sx<0||sx>W||sy<0||sy>H)ok=false;}
   return{active:true,phase:replay.phase,speed:replay.speed,tracksPts:n,fit:ok};
 }
-window.__wsl=function(){var t=tracks[0];return{state:state,zoom:zoom/baseScale,zoomE:zoom,scale:baseScale,cartPx:Math.round(36*Math.max(1,30/(36*zoom))*zoom),landTolPx:Math.round(24*Math.max(1,0.6/zoom)*zoom),camX:camX,camY:camY,score:score,flip:cart.flip,flipDir:cart.flipDir,charges:charges,timer:survival,dist:distPx,flow:(flowSamples.length?flowSamples.reduce(function(a,b){return a+b;},0)/flowSamples.length:0),cartTrack:cart.track,gphase:g.phase,mode:cfg.mode,preset:cfg.preset,jump:cfg.jump,momentum:cfg.momentum,profile:PROFILE,tune:tuneNow(),tunes:cfg.tune,character:cfg.character,armed:cart.armed,burst:Math.round(cart.burst||0),audio:cfg.audio,theme:theme(),paused:paused,chain:chain,vy:fall.vy,cart:{x:cart.x,y:cart.y,v:cart.v},pts:t?t.pts.slice():[],ntracks:tracks.length,last:lastResult,rec:rec?{n:rec.samples.length,duration:rec.t}:null,replay:replayInfo(),npts:tracks.reduce(function(n,t){return n+t.pts.length;},0)};};
+window.__wsl=function(){var t=tracks[0];return{state:state,zoom:zoom/baseScale,zoomE:zoom,scale:baseScale,cartPx:Math.round(36*Math.max(1,30/(36*zoom))*zoom),landTolPx:Math.round(24*Math.max(1,0.6/zoom)*zoom),camX:camX,camY:camY,score:score,flip:cart.flip,flipDir:cart.flipDir,charges:charges,timer:survival,dist:distPx,flow:(flowSamples.length?flowSamples.reduce(function(a,b){return a+b;},0)/flowSamples.length:0),cartTrack:cart.track,gphase:g.phase,mode:cfg.mode,preset:cfg.preset,jump:cfg.jump,profile:PROFILE,userPaused:userPaused,tune:tuneNow(),tunes:cfg.tune,character:cfg.character,armed:cart.armed,burst:Math.round(cart.burst||0),audio:cfg.audio,theme:theme(),paused:paused,chain:chain,vy:fall.vy,cart:{x:cart.x,y:cart.y,v:cart.v},pts:t?t.pts.slice():[],ntracks:tracks.length,last:lastResult,rec:rec?{n:rec.samples.length,duration:rec.t}:null,replay:replayInfo(),npts:tracks.reduce(function(n,t){return n+t.pts.length;},0)};};
 window.__wslLoad=function(pts){reset();var t=tracks[0];t.pts=[];t.cum=[0];t.totalLen=0;t.raw=[];t.segEnd=[];pts.forEach(function(p){addPoint(0,p.x,p.y);});var p0=pointAt(0,0);cart.x=p0.x;cart.y=p0.y;cart.ang=p0.ang;};
 window.__wslSetV=function(v){cart.v=v;};
 resize();reset();requestAnimationFrame(loop);
