@@ -58,6 +58,12 @@ Change: wsl.html restored byte-for-byte from snow-v1.html, then built up in thre
   - Test: `scale.mjs` (four screen shapes); every earlier suite still passes.
   - Not changed: Regular vs Zen difficulty, per-device touch feel (only emulation was available).
 
+- **Momentum fine-tune slider (2026-10-04, owner request: "slider to fine tune momentum, relative to the device and orientation").**
+  - Settings → Momentum → **Feel** slider (0-100, 50 = as designed, shown as ×0.6 to ×1.6). It scales how fast momentum builds and how long speed is held: slope pull × f, drag ÷ √f, rolling friction ÷ f, top speed and Earned launch × √f, with f = 2^((value-50)/75). Works with both Earned and Classic. **Reset this feel** returns the current profile to 50.
+  - Saved per device type and orientation: phone / tablet / desktop (touch vs mouse, phones under 600 px on the short side) × portrait / landscape, e.g. `phone-portrait`, `phone-landscape`. Rotating switches to that profile's own value (default 50 until set); a phone setting never affects the desktop. The slider is relative to each profile because pace is already normalised by screen width (see the phone pace entry), so 50 means the same thing everywhere and each profile only stores its own offset. The panel names the profile it is editing.
+  - Measured (desktop, Earned, 30° slope, 100→500 px/s): slider 50 = 2.9 s (unchanged); 100 = 1.4 s; 0 never reaches 500 (top speed about 410). Flat track speed left after 2.5 s: 284 / 365 / 431 at 0 / 50 / 100.
+  - Test: `tune.mjs` (strength, per-profile save, rotation, reload, reset, no leak between devices).
+
 ## RUN LOG (written by DevStream)
 | Date | Tab | Result | What | Commit |
 |---|---|---|---|---|
