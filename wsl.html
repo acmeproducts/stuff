@@ -82,6 +82,9 @@
   <div class="slr"><span>Jump</span><input type="range" id="jumpForce" min="400" max="2000" step="50"><span class="v" id="jumpVal"></span></div>
   <h3>Character</h3><div class="row" id="charRow"></div>
   <h3>Momentum</h3><div class="row"><button class="opt" data-momentum="earned">Earned</button><button class="opt" data-momentum="classic">Classic</button></div>
+  <div class="slr"><span>Feel</span><input type="range" id="momentumTune" min="0" max="100" step="1"><span class="v" id="tuneVal"></span></div>
+  <div id="tuneProfile" style="font-size:12px;opacity:.75;max-width:420px"></div>
+  <div class="row"><button class="opt" id="tuneReset" style="flex:none;min-width:0;padding:6px 14px;font-size:13px">Reset this feel</button></div>
   <h3>Replay</h3><div class="row"><button class="opt" id="btnReplaySession">▶ Replay session</button></div>
   <h3>Audio vibe</h3><div class="row"><button class="opt" data-audio="calm">Calm</button><button class="opt" data-audio="fun">Fun</button><button class="opt" data-audio="whimsical">Whimsical</button><button class="opt" data-audio="zen">Zen</button></div>
   <button id="closeSettings">SAVE &amp; CLOSE</button></div>
@@ -132,14 +135,28 @@ var BURST_V=450,BURST_TAU=0.45,HIT_R=60,MAXCHARGES=3,LONGPRESS_MS=800,CHAIN_MS=4
 var G=1050,SLOPEK=0.45,DRAG=0.2,ROLL=30,VMAX=1300,RESCUE_MINV=60,LAUNCH_V=320;
 // Earned: speed has to be built and bleeds away. Classic: the original fast, nearly frictionless feel.
 var MOMENTUM={earned:{slopek:0.45,drag:0.2,roll:30,vmax:1300,rescuev:60,launch:320},classic:{slopek:1,drag:0.12,roll:5,vmax:1600,rescuev:200,launch:2}};
-function applyMomentum(){var m=MOMENTUM[cfg.momentum]||MOMENTUM.earned;SLOPEK=m.slopek;DRAG=m.drag;ROLL=m.roll;VMAX=m.vmax;RESCUE_MINV=m.rescuev;LAUNCH_V=m.launch;}
+// Fine-tune slider (0-100, 50 = as designed). It is saved per device type and orientation, e.g. phone-portrait,
+// phone-landscape, tablet-portrait, desktop-landscape, and works relative to that profile's own baseline
+// (pace is already normalised by screen width), so each device/orientation can be tuned on its own.
+var PROFILE='desktop-landscape';
+function profileKey(){
+  var coarse=false;try{coarse=matchMedia('(pointer: coarse)').matches||(navigator.maxTouchPoints>0&&!matchMedia('(pointer: fine)').matches);}catch(e){}
+  var w=window.innerWidth,h=window.innerHeight;
+  return (!coarse?'desktop':(Math.min(w,h)<600?'phone':'tablet'))+'-'+(w>=h?'landscape':'portrait');
+}
+function tuneNow(){var v=cfg.tune&&cfg.tune[PROFILE];return typeof v==='number'?v:50;}
+function tuneFactor(){return Math.pow(2,(tuneNow()-50)/75);}
+function applyMomentum(){
+  var m=MOMENTUM[cfg.momentum]||MOMENTUM.earned,f=tuneFactor();
+  SLOPEK=m.slopek*f;DRAG=m.drag/Math.sqrt(f);ROLL=m.roll/f;VMAX=m.vmax*Math.sqrt(f);RESCUE_MINV=m.rescuev;LAUNCH_V=m.launch>10?m.launch*Math.sqrt(f):m.launch;
+}
 var PROGRESS_THRESHOLD=80,PROGRESS_LIMIT=4.0;
 var lastProgressX=0,noProgressT=0;
 var AC=null;
 var PRESETS={low:{jump:500},med:{jump:800},high:{jump:1200}};
 var CHARS=[['snowman','⛄'],['penguin','🐧'],['fox','🦊'],['cat','🐱'],['dog','🐶'],['panda','🐼'],['duck','🦆'],['santa','🎅'],['robot','🤖'],['alien','👽'],['ghost','👻'],['pumpkin','🎃'],['pizza','🍕'],['potato','🥔'],['rocket','🚀'],['ball','⚽']];
 function charEmoji(){for(var i=0;i<CHARS.length;i++)if(CHARS[i][0]===cfg.character)return CHARS[i][1];return '⛄';}
-var cfg={mode:null,preset:'med',jump:800,audio:'fun',momentum:'earned',character:'snowman'};
+var cfg={mode:null,preset:'med',jump:800,audio:'fun',momentum:'earned',character:'snowman',tune:{}};
 var paused=false,TIMESCALE_ZEN=0.75,lastOn={track:0,s:0};
 try{var sv=JSON.parse(localStorage.getItem('wsl_settings')||'{}');for(var k in sv)if(k in cfg)cfg[k]=sv[k];}catch(e){}
 if(PRESETS[cfg.preset])cfg.jump=PRESETS[cfg.preset].jump;
@@ -169,6 +186,7 @@ function resize(){
   var rel=baseScale>0?zoom/baseScale:1;
   baseScale=Math.max(0.28,Math.min(1,W/1280));zoom=rel*baseScale;
   WV=W/baseScale;HV=H/baseScale;
+  PROFILE=profileKey();applyMomentum();if(typeof syncTuneUI==='function')syncTuneUI();
   pageW=Math.max(320,WV);
   cvs.width=Math.round(W*DPR);cvs.height=Math.round(H*DPR);
   cvs.style.width=W+'px';cvs.style.height=H+'px';
@@ -782,7 +800,14 @@ try{best=parseInt(localStorage.getItem('scl_best')||'0',10)||0;}catch(e){}
 window.addEventListener('resize',resize);
 window.addEventListener('orientationchange',function(){setTimeout(resize,250);});
 function $(sel){return document.querySelectorAll(sel);}
+function profileLabel(){var p=PROFILE.split('-');return p[0].charAt(0).toUpperCase()+p[0].slice(1)+' · '+p[1];}
+function syncTuneUI(){
+  var sl=document.getElementById('momentumTune');if(!sl)return;
+  sl.value=tuneNow();document.getElementById('tuneVal').textContent='×'+tuneFactor().toFixed(1);
+  document.getElementById('tuneProfile').textContent='Saved for: '+profileLabel()+' (each device and orientation keeps its own)';
+}
 function syncUI(){
+  syncTuneUI();
   var pn=document.getElementById('settingsPanel');
   $('[data-mode]').forEach(function(b){b.classList.toggle('on',b.getAttribute('data-mode')===cfg.mode);});
   $('[data-preset]').forEach(function(b){b.classList.toggle('on',b.getAttribute('data-preset')===cfg.preset);});
@@ -805,6 +830,8 @@ $('[data-preset]').forEach(function(b){b.addEventListener('click',function(){var
 (function(){var row=document.getElementById('charRow');
   CHARS.forEach(function(c){var b=document.createElement('button');b.className='opt';b.style.cssText='flex:none;min-width:0;width:56px;padding:8px 0;font-size:26px';b.setAttribute('data-char',c[0]);b.setAttribute('aria-label',c[0]);b.textContent=c[1];
     b.addEventListener('click',function(){cfg.character=c[0];saveCfg();syncUI();});row.appendChild(b);});})();
+document.getElementById('momentumTune').addEventListener('input',function(e){if(!cfg.tune)cfg.tune={};cfg.tune[PROFILE]=+e.target.value;applyMomentum();saveCfg();syncTuneUI();});
+document.getElementById('tuneReset').addEventListener('click',function(){if(!cfg.tune)cfg.tune={};cfg.tune[PROFILE]=50;applyMomentum();saveCfg();syncTuneUI();});
 $('[data-momentum]').forEach(function(b){b.addEventListener('click',function(){cfg.momentum=b.getAttribute('data-momentum');applyMomentum();saveCfg();syncUI();});});
 $('[data-audio]').forEach(function(b){b.addEventListener('click',function(){cfg.audio=b.getAttribute('data-audio');saveCfg();syncUI();beep(660,120);});});
 document.getElementById('jumpForce').addEventListener('input',function(e){cfg.jump=+e.target.value;cfg.preset='custom';saveCfg();syncUI();});
@@ -821,7 +848,7 @@ function replayInfo(){
   for(var j=0;j<2;j++){var sx=(c[j][0]-camX)*zoom,sy=(c[j][1]-camY)*zoom;if(sx<0||sx>W||sy<0||sy>H)ok=false;}
   return{active:true,phase:replay.phase,speed:replay.speed,tracksPts:n,fit:ok};
 }
-window.__wsl=function(){var t=tracks[0];return{state:state,zoom:zoom/baseScale,zoomE:zoom,scale:baseScale,cartPx:Math.round(36*Math.max(1,30/(36*zoom))*zoom),landTolPx:Math.round(24*Math.max(1,0.6/zoom)*zoom),camX:camX,camY:camY,score:score,flip:cart.flip,flipDir:cart.flipDir,charges:charges,timer:survival,dist:distPx,flow:(flowSamples.length?flowSamples.reduce(function(a,b){return a+b;},0)/flowSamples.length:0),cartTrack:cart.track,gphase:g.phase,mode:cfg.mode,preset:cfg.preset,jump:cfg.jump,momentum:cfg.momentum,character:cfg.character,armed:cart.armed,burst:Math.round(cart.burst||0),audio:cfg.audio,theme:theme(),paused:paused,chain:chain,vy:fall.vy,cart:{x:cart.x,y:cart.y,v:cart.v},pts:t?t.pts.slice():[],ntracks:tracks.length,last:lastResult,rec:rec?{n:rec.samples.length,duration:rec.t}:null,replay:replayInfo(),npts:tracks.reduce(function(n,t){return n+t.pts.length;},0)};};
+window.__wsl=function(){var t=tracks[0];return{state:state,zoom:zoom/baseScale,zoomE:zoom,scale:baseScale,cartPx:Math.round(36*Math.max(1,30/(36*zoom))*zoom),landTolPx:Math.round(24*Math.max(1,0.6/zoom)*zoom),camX:camX,camY:camY,score:score,flip:cart.flip,flipDir:cart.flipDir,charges:charges,timer:survival,dist:distPx,flow:(flowSamples.length?flowSamples.reduce(function(a,b){return a+b;},0)/flowSamples.length:0),cartTrack:cart.track,gphase:g.phase,mode:cfg.mode,preset:cfg.preset,jump:cfg.jump,momentum:cfg.momentum,profile:PROFILE,tune:tuneNow(),tunes:cfg.tune,character:cfg.character,armed:cart.armed,burst:Math.round(cart.burst||0),audio:cfg.audio,theme:theme(),paused:paused,chain:chain,vy:fall.vy,cart:{x:cart.x,y:cart.y,v:cart.v},pts:t?t.pts.slice():[],ntracks:tracks.length,last:lastResult,rec:rec?{n:rec.samples.length,duration:rec.t}:null,replay:replayInfo(),npts:tracks.reduce(function(n,t){return n+t.pts.length;},0)};};
 window.__wslLoad=function(pts){reset();var t=tracks[0];t.pts=[];t.cum=[0];t.totalLen=0;t.raw=[];t.segEnd=[];pts.forEach(function(p){addPoint(0,p.x,p.y);});var p0=pointAt(0,0);cart.x=p0.x;cart.y=p0.y;cart.ang=p0.ang;};
 window.__wslSetV=function(v){cart.v=v;};
 resize();reset();requestAnimationFrame(loop);
