@@ -6,8 +6,8 @@ Deploy target: `https://acmeproducts.github.io/stuff/devstream.html`
 Test target: `https://acmeproducts.github.io/stuff/devstream-test.html`
 
 ## Status
-- Current release: v1.0 b73 on devstream-test.html (2026-10-16)
-- Stage: TEST (b73)
+- Current release: v1.0 b74 on devstream-test.html (2026-10-16)
+- Stage: TEST (b74)
 
 ## Release Rules (inherited, proven)
 1. Mobile-first. All diagnostics in-app. No DevTools ever.
@@ -255,6 +255,29 @@ b39 incorrectly changed stationary hold into context-menu activation. Devstream 
 ## Graveyard
 - **G-DS-13 — Hold opens context menu:** rejected; donor behavior is double-tap context, hold-to-drag.
 - **G-DS-14 — Legacy generic #tabContext button styling:** rejected; it corrupts the donor context-menu appearance.
+
+---
+
+# 2026-10-16 — b74 an invite survives bookmarks (Galaxy Watch)
+
+## Owner report
+The invite works browser to browser, even Android to iPhone, but not Android to a Galaxy Watch using Samsung Internet and its bookmark function.
+
+## Cause (most likely; not testable on a watch from here)
+After joining, the app removed the invite from the page address. A bookmark made then (and synced to the watch) has no invite in it, so a device opened from that bookmark has nothing to join with and shows the keys screen. Sending the link itself worked.
+
+## Change
+- The invite now stays in the address bar after joining, so any bookmark of the page carries it. Reopening the same address on a joined device just carries on (no second server call).
+- Config on a device with no setup now has "Have an invite link? Paste the link or code" with a Join button, for any device whose address lost the invite.
+- When an invite cannot be used, the message at the top of Config now also shows the browser name and whether the browser allows saving (so a screenshot from the watch shows what is blocking).
+
+## Limits
+- Not verified on a watch. A watch browser is small and limited; if it still fails the message above will say why.
+
+## Acceptance
+- **DS-B74-1:** after joining, the address still contains the invite; reopening it keeps guest mode without another server call.
+- **DS-B74-2:** opening that address (a bookmark) on a brand-new device joins as a guest.
+- **DS-B74-3:** a device with no invite and no setup can join by pasting the link or code.
 
 ---
 
