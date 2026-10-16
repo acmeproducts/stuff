@@ -1,0 +1,410 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>STT Stream</title>
+<style>
+:root {
+  --bg: #0b0c0f;
+  --panel: #15171c;
+  --text: #e6e6e6;
+  --muted: #9aa0a6;
+  --accent: #34d399;
+  --warn: #fbbf24;
+  --err: #f87171;
+  --btn: #2563eb;
+}
+* { box-sizing: border-box; }
+html, body { height: 100%; }
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--text);
+  font-family: system-ui, -apple-system, Segoe UI, Roboto, Ubuntu, Cantarell, Noto Sans, Helvetica, Arial, "Apple Color Emoji", "Segoe UI Emoji";
+  line-height: 1.4;
+  -webkit-text-size-adjust: 100%;
+  display: flex;
+  flex-direction: column;
+  padding: max(env(safe-area-inset-top), 12px) max(env(safe-area-inset-right), 12px) max(env(safe-area-inset-bottom), 12px) max(env(safe-area-inset-left), 12px);
+}
+header {
+  padding: 0.5rem 0 1rem;
+  border-bottom: 1px solid #222;
+  margin-bottom: 0.75rem;
+}
+h1 { margin: 0; font-size: 1.25rem; letter-spacing: 0.02em; }
+.sub { color: var(--muted); font-size: 0.9rem; }
+.controls {
+  display: flex;
+  gap: 0.5rem;
+  margin-bottom: 0.75rem;
+  flex-wrap: wrap;
+}
+button {
+  border: none;
+  border-radius: 0.5rem;
+  padding: 0.75rem 1rem;
+  font-size: 1rem;
+  min-height: 44px;
+  min-width: 88px;
+  background: var(--btn);
+  color: white;
+  font-weight: 600;
+  touch-action: manipulation;
+}
+button:disabled { opacity: 0.5; }
+button.secondary { background: #334155; }
+button.accent { background: var(--accent); color: #052e16; }
+button.warn { background: var(--warn); color: #422006; }
+.live-box {
+  flex: 1;
+  background: var(--panel);
+  border-radius: 0.75rem;
+  padding: 0.75rem;
+  border: 1px solid #222;
+  display: flex;
+  flex-direction: column;
+  min-height: 120px;
+}
+.transcript {
+  flex: 1;
+  overflow-y: auto;
+  white-space: pre-wrap;
+  word-break: break-word;
+  font-size: 1.05rem;
+}
+.interim { color: var(--muted); }
+.actions {
+  display: flex;
+  gap: 0.5rem;
+  margin-top: 0.75rem;
+  flex-wrap: wrap;
+}
+.diagnostics {
+  margin-top: 0.75rem;
+  background: #0f1116;
+  border: 1px solid #222;
+  border-radius: 0.75rem;
+  padding: 0.75rem;
+}
+.diag-row {
+  display: flex;
+  justify-content: space-between;
+  font-size: 0.85rem;
+  color: var(--muted);
+  margin: 0.25rem 0;
+}
+.diag-value { color: var(--text); font-weight: 600; }
+.diag-value.ok { color: var(--accent); }
+.diag-value.err { color: var(--err); }
+.sessions {
+  margin-top: 1rem;
+}
+.session-card {
+  background: var(--panel);
+  border: 1px solid #222;
+  border-radius: 0.75rem;
+  padding: 0.75rem;
+  margin-bottom: 0.5rem;
+  position: relative;
+}
+.session-meta {
+  display: flex;
+  justify-content: space-between;
+  font-size: 0.8rem;
+  color: var(--muted);
+  margin-bottom: 0.25rem;
+}
+.session-text {
+  font-size: 0.95rem;
+  max-height: 4.5rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+}
+.empty { color: var(--muted); font-size: 0.9rem; padding: 0.5rem 0; }
+.toast {
+  position: fixed;
+  bottom: max(env(safe-area-inset-bottom), 16px);
+  left: 50%;
+  transform: translateX(-50%);
+  background: #1f2937;
+  color: white;
+  padding: 0.6rem 1rem;
+  border-radius: 999px;
+  font-size: 0.9rem;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity .2s ease;
+  z-index: 50;
+}
+.toast.show { opacity: 1; }
+</style>
+</head>
+<body>
+<header>
+  <h1>STT Stream</h1>
+  <div class="sub">Continuous speech transcription</div>
+</header>
+
+<section class="controls">
+  <button id="btnToggle">Start listening</button>
+  <span id="statusText" class="sub" style="padding:0.75rem 0">Tap Start to begin</span>
+</section>
+
+<section class="live-box">
+  <div id="transcript" class="transcript" aria-live="polite"></div>
+</section>
+
+<section class="actions">
+  <button id="btnSave" class="secondary" disabled>Save session</button>
+  <button id="btnCopy" class="secondary" disabled>Copy</button>
+  <button id="btnDownload" class="secondary" disabled>Download .txt</button>
+</section>
+
+<section class="diagnostics" aria-label="Diagnostics">
+  <div class="diag-row">Recording state: <span id="d-state" class="diag-value">idle</span></div>
+  <div class="diag-row">Last error: <span id="d-error" class="diag-value">none</span></div>
+  <div class="diag-row">Confidence: <span id="d-conf" class="diag-value">—</span></div>
+  <div class="diag-row">Buffer size: <span id="d-len" class="diag-value">0 chars</span></div>
+</section>
+
+<section class="sessions" id="sessions">
+  <div class="sub" style="margin-bottom:0.5rem">Saved sessions</div>
+  <div id="sessionList" class="list"></div>
+</section>
+
+<div id="toast" class="toast"></div>
+
+<script>
+(() => {
+  const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+  let rec = null;
+  let isRunning = false;
+  let finalTranscript = '';
+  let interimTranscript = '';
+  let lastConfidence = 0;
+  let sessionStartTime = 0;
+
+  const els = {
+    btnToggle: document.getElementById('btnToggle'),
+    btnSave: document.getElementById('btnSave'),
+    btnCopy: document.getElementById('btnCopy'),
+    btnDownload: document.getElementById('btnDownload'),
+    transcript: document.getElementById('transcript'),
+    status: document.getElementById('statusText'),
+    sessionList: document.getElementById('sessionList'),
+    toast: document.getElementById('toast'),
+    dState: document.getElementById('d-state'),
+    dError: document.getElementById('d-error'),
+    dConf: document.getElementById('d-conf'),
+    dLen: document.getElementById('d-len')
+  };
+
+  const storageKey = 'stts_sessions_v1';
+
+  function showToast(msg) {
+    els.toast.textContent = msg;
+    els.toast.classList.add('show');
+    setTimeout(() => els.toast.classList.remove('show'), 1800);
+  }
+
+  function updateDiagnostics() {
+    els.dState.textContent = isRunning ? 'listening' : 'idle';
+    els.dState.className = 'diag-value ' + (isRunning ? 'ok' : '');
+    els.dConf.textContent = lastConfidence ? (lastConfidence * 100).toFixed(0) + '%' : '—';
+    const total = finalTranscript.length + interimTranscript.length;
+    els.dLen.textContent = total + ' chars';
+  }
+
+  function setError(msg) {
+    els.dError.textContent = msg;
+    els.dError.className = 'diag-value err';
+    setTimeout(() => {
+      els.dError.textContent = 'none';
+      els.dError.className = 'diag-value';
+    }, 4000);
+  }
+
+  function renderButtons() {
+    const hasText = !!(finalTranscript || interimTranscript);
+    els.btnSave.disabled = !hasText;
+    els.btnCopy.disabled = !hasText;
+    els.btnDownload.disabled = !hasText;
+    els.btnToggle.textContent = isRunning ? 'Stop listening' : 'Start listening';
+    els.status.textContent = isRunning ? 'Listening… speak now' : (hasText ? 'Paused' : 'Tap Start to begin');
+  }
+
+  function renderTranscript() {
+    els.transcript.innerHTML = finalTranscript + (interimTranscript ? '<span class="interim">' + interimTranscript + '</span>' : '');
+    els.transcript.scrollTop = els.transcript.scrollHeight;
+    updateDiagnostics();
+  }
+
+  function loadSessions() {
+    try {
+      const raw = localStorage.getItem(storageKey);
+      return raw ? JSON.parse(raw) : [];
+    } catch (e) {
+      setError('Storage read error');
+      return [];
+    }
+  }
+
+  function saveSessions(list) {
+    try {
+      localStorage.setItem(storageKey, JSON.stringify(list));
+    } catch (e) {
+      setError('Storage save error');
+    }
+  }
+
+  function renderSessions() {
+    const list = loadSessions();
+    els.sessionList.innerHTML = '';
+    if (!list.length) {
+      els.sessionList.innerHTML = '<div class="empty">No saved sessions yet.</div>';
+      return;
+    }
+    list.slice().reverse().forEach(s => {
+      const card = document.createElement('div');
+      card.className = 'session-card';
+      const meta = document.createElement('div');
+      meta.className = 'session-meta';
+      const dt = new Date(s.id);
+      meta.innerHTML = `<span>${dt.toLocaleString()}</span><span>${s.duration}s</span>`;
+      const body = document.createElement('div');
+      body.className = 'session-text';
+      body.textContent = s.text.slice(0, 200) + (s.text.length > 200 ? '…' : '');
+      card.appendChild(meta);
+      card.appendChild(body);
+      els.sessionList.appendChild(card);
+    });
+  }
+
+  function pushSession(text) {
+    if (!text.trim()) return;
+    const now = Date.now();
+    const duration = sessionStartTime ? Math.max(1, Math.round((now - sessionStartTime) / 1000)) : 0;
+    const list = loadSessions();
+    list.push({ id: now, date: new Date(now).toISOString(), text: text.trim(), duration });
+    saveSessions(list);
+    renderSessions();
+  }
+
+  function setupRec() {
+    if (!SpeechRecognition) {
+      setError('Web Speech API not supported');
+      els.btnToggle.disabled = true;
+      return null;
+    }
+    const r = new SpeechRecognition();
+    r.continuous = true;
+    r.interimResults = true;
+    r.lang = navigator.language || 'en-US';
+
+    r.onstart = () => {
+      isRunning = true;
+      sessionStartTime = Date.now();
+      renderButtons();
+      updateDiagnostics();
+    };
+
+    r.onend = () => {
+      isRunning = false;
+      renderButtons();
+      updateDiagnostics();
+    };
+
+    r.onresult = (e) => {
+      interimTranscript = '';
+      for (let i = e.resultIndex; i < e.results.length; ++i) {
+        const tr = e.results[i][0].transcript;
+        lastConfidence = e.results[i][0].confidence || 0;
+        if (e.results[i].isFinal) {
+          finalTranscript += tr + ' ';
+        } else {
+          interimTranscript += tr;
+        }
+      }
+      renderTranscript();
+    };
+
+    r.onerror = (e) => {
+      const msg = e.error || 'unknown';
+      setError(msg);
+      if (msg === 'not-allowed') {
+        els.status.textContent = 'Mic permission denied';
+      }
+      isRunning = false;
+      renderButtons();
+    };
+
+    return r;
+  }
+
+  els.btnToggle.addEventListener('click', () => {
+    if (!rec) rec = setupRec();
+    if (!rec) return;
+    if (isRunning) {
+      rec.stop();
+    } else {
+      interimTranscript = '';
+      try {
+        rec.start();
+      } catch (e) {
+        setError('Start failed: ' + e.message);
+      }
+    }
+  });
+
+  els.btnSave.addEventListener('click', () => {
+    const text = finalTranscript + interimTranscript;
+    pushSession(text);
+    showToast('Session saved');
+    finalTranscript = '';
+    interimTranscript = '';
+    renderTranscript();
+    renderButtons();
+  });
+
+  els.btnCopy.addEventListener('click', async () => {
+    const text = finalTranscript + interimTranscript;
+    try {
+      await navigator.clipboard.writeText(text);
+      showToast('Copied');
+    } catch (e) {
+      setError('Copy failed');
+    }
+  });
+
+  els.btnDownload.addEventListener('click', () => {
+    const text = finalTranscript + interimTranscript;
+    const blob = new Blob([text], { type: 'text/plain' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    const stamp = new Date().toISOString().replace(/[:.]/g, '-');
+    a.download = `transcript-${stamp}.txt`;
+    document.body.appendChild(a);
+    a.click();
+    setTimeout(() => {
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    }, 1000);
+  });
+
+  renderSessions();
+  renderButtons();
+  updateDiagnostics();
+
+  if (!SpeechRecognition) {
+    els.status.textContent = 'Speech API unavailable';
+  }
+})();
+</script>
+</body>
+</html>
