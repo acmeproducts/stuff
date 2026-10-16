@@ -1,0 +1,378 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>Sudoku</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      background: #f5f5f5;
+      padding: 8px;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      max-width: 480px;
+      margin: 0 auto;
+    }
+    #status {
+      background: #333;
+      color: #fff;
+      padding: 12px;
+      border-radius: 8px;
+      margin-bottom: 8px;
+      text-align: center;
+      font-size: 14px;
+      min-height: 44px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    #status.error { background: #c62828; }
+    #status.success { background: #2e7d32; }
+    
+    #grid-container {
+      background: #333;
+      padding: 2px;
+      border-radius: 4px;
+      margin-bottom: 12px;
+      aspect-ratio: 1;
+      display: grid;
+      grid-template-columns: repeat(9, 1fr);
+      grid-template-rows: repeat(9, 1fr);
+      gap: 1px;
+    }
+    
+    .cell {
+      background: white;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 6vmin;
+      font-weight: 500;
+      cursor: pointer;
+      user-select: none;
+      -webkit-tap-highlight-color: transparent;
+      touch-action: manipulation;
+    }
+    
+    .cell:nth-child(3n) { border-right: 2px solid #333; }
+    .cell:nth-child(9n) { border-right: none; }
+    .cell:nth-child(n+19):nth-child(-n+27),
+    .cell:nth-child(n+46):nth-child(-n+54) { border-bottom: 2px solid #333; }
+    
+    .cell.fixed {
+      background: #e8e8e8;
+      font-weight: 700;
+      color: #111;
+    }
+    
+    .cell.selected {
+      background: #bbdefb;
+    }
+    
+    .cell.conflict {
+      background: #ffcdd2;
+      color: #c62828;
+    }
+    
+    .cell.fixed.conflict {
+      background: #ef9a9a;
+    }
+    
+    #controls {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+    
+    #numbers {
+      display: grid;
+      grid-template-columns: repeat(9, 1fr);
+      gap: 4px;
+      margin-bottom: 8px;
+    }
+    
+    .num-btn {
+      aspect-ratio: 1;
+      border: none;
+      background: #fff;
+      border: 1px solid #ddd;
+      border-radius: 4px;
+      font-size: 5vmin;
+      font-weight: 600;
+      min-height: 48px;
+      cursor: pointer;
+      touch-action: manipulation;
+    }
+    
+    .num-btn:active {
+      background: #e3f2fd;
+      transform: scale(0.95);
+    }
+    
+    #action-btns {
+      display: flex;
+      gap: 8px;
+    }
+    
+    .action-btn {
+      flex: 1;
+      padding: 16px;
+      border: none;
+      border-radius: 8px;
+      font-size: 16px;
+      font-weight: 600;
+      cursor: pointer;
+      touch-action: manipulation;
+      min-height: 48px;
+    }
+    
+    #clear-btn { background: #ffebee; color: #c62828; }
+    #newgame-btn { background: #e8f5e9; color: #2e7d32; }
+    
+    .action-btn:active { opacity: 0.7; }
+    
+    @media (max-width: 360px) {
+      body { padding: 4px; }
+      .cell { font-size: 7vmin; }
+      .num-btn { font-size: 6vmin; }
+    }
+  </style>
+</head>
+<body>
+  <div id="status">Ready — Select a cell, then a number</div>
+  
+  <div id="grid-container"></div>
+  
+  <div id="controls">
+    <div id="numbers">
+      <button class="num-btn" data-num="1">1</button>
+      <button class="num-btn" data-num="2">2</button>
+      <button class="num-btn" data-num="3">3</button>
+      <button class="num-btn" data-num="4">4</button>
+      <button class="num-btn" data-num="5">5</button>
+      <button class="num-btn" data-num="6">6</button>
+      <button class="num-btn" data-num="7">7</button>
+      <button class="num-btn" data-num="8">8</button>
+      <button class="num-btn" data-num="9">9</button>
+    </div>
+    
+    <div id="action-btns">
+      <button class="action-btn" id="clear-btn">Clear</button>
+      <button class="action-btn" id="newgame-btn">New Game</button>
+    </div>
+  </div>
+
+  <script>
+    const INITIAL_PUZZLE = [
+      [5,3,0,0,7,0,0,0,0],
+      [6,0,0,1,9,5,0,0,0],
+      [0,9,8,0,0,0,0,6,0],
+      [8,0,0,0,6,0,0,0,3],
+      [4,0,0,8,0,3,0,0,1],
+      [7,0,0,0,2,0,0,0,6],
+      [0,6,0,0,0,0,2,8,0],
+      [0,0,0,4,1,9,0,0,5],
+      [0,0,0,0,8,0,0,7,9]
+    ];
+    
+    let grid = [];
+    let selectedCell = null;
+    
+    const gridContainer = document.getElementById('grid-container');
+    const statusEl = document.getElementById('status');
+    
+    function initGame() {
+      grid = INITIAL_PUZZLE.map(row => [...row]);
+      selectedCell = null;
+      gridContainer.style.pointerEvents = 'auto';
+      renderGrid();
+      updateStatus('Ready — Select a cell, then a number');
+    }
+    
+    function renderGrid() {
+      gridContainer.innerHTML = '';
+      for (let row = 0; row < 9; row++) {
+        for (let col = 0; col < 9; col++) {
+          const cell = document.createElement('div');
+          cell.className = 'cell';
+          cell.dataset.row = row;
+          cell.dataset.col = col;
+          
+          const val = grid[row][col];
+          if (val !== 0) {
+            cell.textContent = val;
+            if (INITIAL_PUZZLE[row][col] !== 0) {
+              cell.classList.add('fixed');
+            }
+          }
+          
+          cell.addEventListener('click', () => selectCell(row, col, cell));
+          gridContainer.appendChild(cell);
+        }
+      }
+      validateAll();
+    }
+    
+    function selectCell(row, col, element) {
+      if (selectedCell) {
+        selectedCell.element.classList.remove('selected');
+      }
+      selectedCell = {row, col, element};
+      element.classList.add('selected');
+      updateStatus();
+    }
+    
+    function inputNumber(num) {
+      if (!selectedCell) {
+        updateStatus('Select a cell first', 'error');
+        return;
+      }
+      const {row, col, element} = selectedCell;
+      if (INITIAL_PUZZLE[row][col] !== 0) {
+        updateStatus('Cannot change given numbers', 'error');
+        return;
+      }
+      grid[row][col] = num;
+      element.textContent = num;
+      element.classList.remove('conflict');
+      validateAll();
+      checkWin();
+    }
+    
+    function clearCell() {
+      if (!selectedCell) {
+        updateStatus('Select a cell first', 'error');
+        return;
+      }
+      const {row, col, element} = selectedCell;
+      if (INITIAL_PUZZLE[row][col] !== 0) {
+        updateStatus('Cannot clear given numbers', 'error');
+        return;
+      }
+      grid[row][col] = 0;
+      element.textContent = '';
+      element.classList.remove('conflict');
+      validateAll();
+      updateStatus();
+    }
+    
+    function validateAll() {
+      const conflicts = new Set();
+      
+      for (let r = 0; r < 9; r++) {
+        const seen = {};
+        for (let c = 0; c < 9; c++) {
+          const val = grid[r][c];
+          if (val !== 0) {
+            if (seen[val]) {
+              conflicts.add(`${r},${c}`);
+              conflicts.add(seen[val]);
+            } else {
+              seen[val] = `${r},${c}`;
+            }
+          }
+        }
+      }
+      
+      for (let c = 0; c < 9; c++) {
+        const seen = {};
+        for (let r = 0; r < 9; r++) {
+          const val = grid[r][c];
+          if (val !== 0) {
+            if (seen[val]) {
+              conflicts.add(`${r},${c}`);
+              conflicts.add(seen[val]);
+            } else {
+              seen[val] = `${r},${c}`;
+            }
+          }
+        }
+      }
+      
+      for (let box = 0; box < 9; box++) {
+        const startRow = Math.floor(box / 3) * 3;
+        const startCol = (box % 3) * 3;
+        const seen = {};
+        for (let r = startRow; r < startRow + 3; r++) {
+          for (let c = startCol; c < startCol + 3; c++) {
+            const val = grid[r][c];
+            if (val !== 0) {
+              if (seen[val]) {
+                conflicts.add(`${r},${c}`);
+                conflicts.add(seen[val]);
+              } else {
+                seen[val] = `${r},${c}`;
+              }
+            }
+          }
+        }
+      }
+      
+      const cells = gridContainer.querySelectorAll('.cell');
+      cells.forEach(cell => {
+        const key = `${cell.dataset.row},${cell.dataset.col}`;
+        if (conflicts.has(key)) {
+          cell.classList.add('conflict');
+        } else {
+          cell.classList.remove('conflict');
+        }
+      });
+      
+      return conflicts.size;
+    }
+    
+    function checkWin() {
+      for (let r = 0; r < 9; r++) {
+        for (let c = 0; c < 9; c++) {
+          if (grid[r][c] === 0) return;
+        }
+      }
+      const conflictCount = validateAll();
+      if (conflictCount === 0) {
+        updateStatus('🎉 Puzzle Complete! Well done!', 'success');
+        gridContainer.style.pointerEvents = 'none';
+      } else {
+        updateStatus(`Full board but ${conflictCount} conflicts`, 'error');
+      }
+    }
+    
+    function updateStatus(msg, type) {
+      if (msg) {
+        statusEl.textContent = msg;
+        statusEl.className = '';
+        if (type) statusEl.classList.add(type);
+      } else {
+        if (statusEl.classList.contains('success')) return;
+        if (!selectedCell) {
+          statusEl.textContent = 'Ready — Select a cell, then a number';
+          statusEl.className = '';
+        } else {
+          const {row, col} = selectedCell;
+          if (INITIAL_PUZZLE[row][col] !== 0) {
+            statusEl.textContent = 'Given number (read-only)';
+            statusEl.className = '';
+          } else {
+            statusEl.textContent = 'Enter number 1-9 or Clear';
+            statusEl.className = '';
+          }
+        }
+      }
+    }
+    
+    document.querySelectorAll('.num-btn').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const num = parseInt(btn.dataset.num);
+        inputNumber(num);
+      });
+    });
+    
+    document.getElementById('clear-btn').addEventListener('click', clearCell);
+    document.getElementById('newgame-btn').addEventListener('click', initGame);
+    
+    initGame();
+  </script>
+</body>
+</html>
