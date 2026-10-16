@@ -116,6 +116,7 @@ body.frozenTab #frozenBar{display:flex}body.frozenTab #composer{display:none}
 body.guest #engineFoot,body.guest #settings~*{}
 body.guest #cfgPaneSettings>*{display:none!important}body.guest #cfgPaneSettings>#guestBox{display:block!important}
 body:not(.guest) #guestBox{display:none}
+#inviteMsg{display:none}body.inviteProblem #inviteMsg{display:block!important}
 body.stripRun #composer{display:none}
 body.stripRun #taskStrip{padding:12px 14px calc(12px + env(safe-area-inset-bottom));border-top:2px solid var(--run)}
 body.stripRun #tsAct{min-height:44px;padding:0 20px;font-size:14px}
@@ -219,7 +220,7 @@ body.coachMode .suggestBtn{border-color:rgba(57,197,207,.5);background:rgba(57,1
 <div id="scrim"></div>
 <div id="app">
 <aside id="sidebar">
-  <div class="bar"><span id="dot"></span><span class="brand">devstream <span class="version">v1.0 b72</span></span><span class="grow"></span><button class="btn" id="projectAdd">+ New</button><button class="btn" id="refresh">↻</button></div>
+  <div class="bar"><span id="dot"></span><span class="brand">devstream <span class="version">v1.0 b73</span></span><span class="grow"></span><button class="btn" id="projectAdd">+ New</button><button class="btn" id="refresh">↻</button></div>
   <div id="navTabs"><button class="navtab" id="navDash">Dashboard<span id="navBadge"></span></button><button class="navtab" id="navProj">Projects</button><button class="navtab" id="settings">Config</button></div>
   <div id="searchWrap"><input id="search" class="input" placeholder="Search projects & threads">
     <div class="legend"><span><i class="legendDot ok"></i>OK</span><span><i class="legendDot run"></i>Running</span><span><i class="legendDot err"></i>Error</span></div></div>
@@ -260,7 +261,8 @@ body.coachMode .suggestBtn{border-color:rgba(57,197,207,.5);background:rgba(57,1
   <header>Settings<button class="btn" data-close="cfgModal">✕</button></header>
   <div class="debugTabs" id="cfgTabs"><button class="debugTab active" data-ct="settings">Settings</button><button class="debugTab" data-ct="logging">Logging</button></div>
   <div class="pbody" id="cfgPaneSettings">
-    <div id="guestBox"><div class="frow"><label>Guest</label><div class="hint" id="guestNote"></div><button class="btn" id="guestLeave" style="margin-top:8px">Leave and remove this invite</button></div></div>
+    <div id="inviteMsg" class="frow" style="display:none"><div class="hint" id="inviteMsgText" style="color:var(--err)"></div><button class="btn primary" id="inviteRetry" style="margin-top:6px">Try the invite again</button></div>
+    <div id="guestBox"><div class="frow"><label>Guest</label><div class="hint" id="guestNote"></div><button class="btn" id="guestOwn" style="margin-top:8px;display:none">Use this device's own setup instead</button><button class="btn" id="guestLeave" style="margin-top:8px">Leave and remove this invite</button></div></div>
     <div class="frow"><label>GitHub PAT</label><input id="sotPat" class="input keyfield" type="password" autocomplete="new-password" spellcheck="false" autocapitalize="off" placeholder="ghp_…"></div>
     <div class="frow"><label>Owner / Organization</label><input id="sotOwner" class="input mono" placeholder="acmeproducts"></div>
     <div class="frow"><label>Repository</label><input id="sotRepo" class="input mono" placeholder="stuff"></div>
@@ -355,7 +357,8 @@ function ghApi(){return cfg&&cfg.guest?runnerUrl()+'/gh':'https://api.github.com
 function ghAuth(){return cfg&&cfg.guest?{'X-Invite':cfg.invite}:{'Authorization':'Bearer '+cfg.pat}}
 function guestCfg(g){const e=g.engines||{};return{guest:true,invite:g.code,slug:g.slug,name:g.name,owner:g.owner,repo:g.repo,branch:g.branch||'main',projectDir:'projects/'+g.slug,pat:'',vkey:e.venice?'guest':'',vmodel:e.venice||'',orkey:e.openrouter?'guest':'',ormodel:e.openrouter||'',akey:e['anthropic-direct']?'guest':'',engine:Object.keys(e)[0]||'venice'}}
 (function(){let g=null;try{g=JSON.parse(localStorage.getItem('ds_guest')||'null')}catch(e){}
-  if(!cfg&&g&&g.code&&g.slug){cfg=guestCfg(g);SOTPATH='devstream/guests/'+g.slug+'/devstream-status.json';THREADS_DIR='devstream/guests/'+g.slug+'/threads/';document.body.classList.add('guest')}})();
+  let mode='';try{mode=localStorage.getItem('ds_mode')||''}catch(e){}
+  if(g&&g.code&&g.slug&&(!cfg||mode==='guest')){cfg=guestCfg(g);SOTPATH='devstream/guests/'+g.slug+'/devstream-status.json';THREADS_DIR='devstream/guests/'+g.slug+'/threads/';document.body.classList.add('guest')}})();
 let sot={threads:{},projects:{}}, sotSha=null;
 let threads={}, activeProject=localStorage.getItem('ds_activeproj')||null, activeKey=null;
 let debug=JSON.parse(sessionStorage.getItem('ds_debug')||'[]'),debugTab='log',treeCache=null, dashFilter='all', dashSort='last', pollTimer=null, dashTimer=null, npSelectedExisting=false, delOpen=false, view='empty';
@@ -2582,7 +2585,7 @@ async function adminCall(path,method,body){
   if(!r.ok&&!j.error)j.error='the runner answered '+r.status;
   return j;
 }
-const shareLink=code=>location.origin+location.pathname+'?invite='+code;
+const shareLink=code=>location.origin+location.pathname+'?v='+Date.now().toString(36)+'&invite='+code;
 async function shareSyncKeys(){
   return adminCall('/admin/vault','POST',{cfg:{owner:cfg.owner,repo:cfg.repo,branch:cfg.branch,pat:cfg.pat},keys:{vkey:cfg.vkey,vmodel:cfg.vmodel,orkey:cfg.orkey,ormodel:cfg.ormodel,akey:cfg.akey}});
 }
@@ -2613,17 +2616,33 @@ $('shareCreate').onclick=async()=>{
 };
 $('shareSync').onclick=async()=>{const st=$('shareStatus');st.textContent='Updating…';const v=await shareSyncKeys();st.textContent=v.ok?'Shared keys updated.':(v.error||'Could not update.')};
 (function(){const n=$('guestNote');if(n&&cfg&&cfg.guest)n.textContent='You are using '+cfg.owner+'’s DevStream as a guest ('+cfg.name+'). Your projects are saved in your own folder; there is nothing to set up.';
-  const b=$('guestLeave');if(b)b.onclick=()=>{if(!confirm('Remove this invite from this device? Your projects stay where they are.'))return;try{localStorage.removeItem('ds_guest')}catch(e){}location.replace(location.pathname)}})();
+  const b=$('guestLeave');if(b)b.onclick=()=>{if(!confirm('Remove this invite from this device? Your projects stay where they are.'))return;try{localStorage.removeItem('ds_guest');localStorage.removeItem('ds_mode')}catch(e){}location.replace(location.pathname)};
+  const o=$('guestOwn');if(o){let has=false;try{has=!!localStorage.getItem(LS)}catch(e){}o.style.display=has?'':'none';o.onclick=()=>{try{localStorage.removeItem('ds_mode')}catch(e){}location.replace(location.pathname)}}})();
+function inviteProblem(msg){
+  document.body.classList.add('inviteProblem');const t=$('inviteMsgText');if(t)t.textContent=msg;
+  const rb=$('inviteRetry');if(rb)rb.onclick=async()=>{let c='';try{c=localStorage.getItem('ds_invite_pending')||''}catch(e){}if(c){history.replaceState(null,'',location.pathname+'?invite='+c);location.reload()}};
+  try{openModal('cfgModal')}catch(e){}
+}
 async function acceptInvite(){
-  const m=/[?&]invite=([a-z0-9]{20,64})/.exec(location.search);if(!m)return false;
+  const m=/[?&#]invite=([a-z0-9]{20,64})/.exec(location.search+location.hash);if(!m)return false;
+  try{localStorage.setItem('ds_invite_pending',m[1])}catch(e){}
   try{history.replaceState(null,'',location.pathname)}catch(e){}
-  if(cfg&&!cfg.guest){toast('This device is already set up as the owner, so the invite link was ignored.');return false}
+  let j;
   try{
-    const r=await fetch(runnerUrl()+'/invite/'+m[1]+'/info',{cache:'no-store'});const j=await r.json();
+    const r=await fetch(runnerUrl()+'/invite/'+m[1]+'/info',{cache:'no-store'});
+    try{j=await r.json()}catch(e){throw new Error('the server answered '+r.status+' without details')}
     if(!j.ok)throw new Error(j.error||'This invite is not valid any more.');
+  }catch(e){
+    const why=String(e&&e.message||e);
+    inviteProblem(/Failed to fetch|NetworkError|Load failed|network/i.test(why)?'Could not reach DevStream from this browser ('+why+'). Check your connection, turn off any ad or tracker blocker for this page, then tap Try the invite again.':'This invite did not work: '+why);
+    return false;
+  }
+  if(cfg&&!cfg.guest&&!confirm('This device already has its own DevStream setup. Use the shared invite from '+j.name+'\u2019s link instead? You can switch back any time in Config.'))return false;
+  try{
     localStorage.setItem('ds_guest',JSON.stringify({code:m[1],slug:j.slug,name:j.name,owner:j.owner,repo:j.repo,branch:j.branch,engines:j.engines}));
-    location.replace(location.pathname);return true;
-  }catch(e){alert('This invite link did not work: '+(e&&e.message||e));return false}
+    localStorage.setItem('ds_mode','guest');localStorage.removeItem('ds_invite_pending');
+  }catch(e){inviteProblem('This browser would not save the invite ('+(e&&e.message||e)+'). Turn off private browsing and try again.');return false}
+  location.replace(location.pathname);return true;
 }
 (async function boot(){
   if(await acceptInvite())return;

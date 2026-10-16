@@ -27,7 +27,7 @@ const okCache = new Map();
 async function authed(env, cfg) {
   const k = cfg.owner + '/' + cfg.repo + '|' + cfg.pat;
   const hit = okCache.get(k); if (hit && hit > Date.now()) return '';
-  const bad = await verifyAccess(fetch, cfg, env.ALLOWED_OWNER);
+  const bad = await verifyAccess(fetch, cfg, env.ALLOWED_OWNER, env.GITHUB_API);
   if (!bad) { okCache.set(k, Date.now() + 10 * 60 * 1000); if (okCache.size > 50) okCache.clear(); }
   return bad;
 }
@@ -129,7 +129,7 @@ async function guestGh(req, env, url, g) {
   const pass = async r => new Response(await r.arrayBuffer(), { status: r.status, headers: { 'Content-Type': r.headers.get('Content-Type') || 'application/json', ...cors(req) } });
   if (rule.kind === 'contents') {
     const q = new URLSearchParams(); const ref = url.searchParams.get('ref'); if (ref && /^[\w.\-\/]{1,100}$/.test(ref)) q.set('ref', ref);
-    const target = 'https://api.github.com/repos/' + v.owner + '/' + v.repo + '/contents/' + rule.path.split('/').map(encodeURIComponent).join('/') + (q.toString() ? '?' + q : '');
+    const target = (env.GITHUB_API || 'https://api.github.com') + '/repos/' + v.owner + '/' + v.repo + '/contents/' + rule.path.split('/').map(encodeURIComponent).join('/') + (q.toString() ? '?' + q : '');
     let init = { method: req.method, headers: hdr };
     if (req.method !== 'GET') {
       const b = await req.json().catch(() => null); if (!b) return json(req, { ok: false, error: 'bad body' }, 400);
@@ -139,19 +139,19 @@ async function guestGh(req, env, url, g) {
     return pass(await fetch(target, init));
   }
   if (rule.kind === 'tree') {
-    const r = await fetch('https://api.github.com/repos/' + v.owner + '/' + v.repo + '/git/trees/' + encodeURIComponent(v.branch) + '?recursive=1', { headers: hdr });
+    const r = await fetch((env.GITHUB_API || 'https://api.github.com') + '/repos/' + v.owner + '/' + v.repo + '/git/trees/' + encodeURIComponent(v.branch) + '?recursive=1', { headers: hdr });
     const j = await r.json().catch(() => ({}));
     const keep = (j.tree || []).filter(t => t.path.startsWith('projects/' + slug + '/') || t.path.startsWith('devstream/guests/' + slug + '/'));
     return json(req, { tree: keep, truncated: false }, r.status);
   }
   if (rule.kind === 'commits-list') {
     const p = url.searchParams.get('path');
-    const r = await fetch('https://api.github.com/repos/' + v.owner + '/' + v.repo + '/commits?path=' + encodeURIComponent(p) + '&sha=' + encodeURIComponent(v.branch) + '&per_page=1', { headers: hdr });
+    const r = await fetch((env.GITHUB_API || 'https://api.github.com') + '/repos/' + v.owner + '/' + v.repo + '/commits?path=' + encodeURIComponent(p) + '&sha=' + encodeURIComponent(v.branch) + '&per_page=1', { headers: hdr });
     const j = await r.json().catch(() => []);
     return json(req, Array.isArray(j) ? j.map(c => ({ sha: c.sha })) : j, r.status);
   }
   if (rule.kind === 'commit-parents') {
-    const r = await fetch('https://api.github.com/repos/' + v.owner + '/' + v.repo + '/' + rest.split('/').slice(3).join('/'), { headers: hdr });
+    const r = await fetch((env.GITHUB_API || 'https://api.github.com') + '/repos/' + v.owner + '/' + v.repo + '/' + rest.split('/').slice(3).join('/'), { headers: hdr });
     const j = await r.json().catch(() => ({}));
     return json(req, { sha: j.sha, parents: (j.parents || []).map(p => ({ sha: p.sha })) }, r.status);
   }

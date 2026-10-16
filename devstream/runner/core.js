@@ -385,10 +385,10 @@ export async function runPipeline(req, io, ctl) {
 }
 
 /* a token is accepted only if it can push to the configured owner's repo */
-export async function verifyAccess(fetchFn, cfg, allowedOwner) {
+export async function verifyAccess(fetchFn, cfg, allowedOwner, apiBase) {
   if (!cfg || !cfg.pat || !cfg.owner || !cfg.repo) return 'missing GitHub settings';
   if (allowedOwner && cfg.owner.toLowerCase() !== String(allowedOwner).toLowerCase()) return 'this runner only serves ' + allowedOwner;
-  const r = await fetchFn('https://api.github.com/repos/' + cfg.owner + '/' + cfg.repo, { headers: { Authorization: 'Bearer ' + cfg.pat, Accept: 'application/vnd.github+json', 'User-Agent': 'devstream-runner' } });
+  const r = await fetchFn((apiBase || 'https://api.github.com') + '/repos/' + cfg.owner + '/' + cfg.repo, { headers: { Authorization: 'Bearer ' + cfg.pat, Accept: 'application/vnd.github+json', 'User-Agent': 'devstream-runner' } });
   if (!r.ok) return 'GitHub rejected the token (' + r.status + ')';
   const j = await r.json();
   if (!(j.permissions && j.permissions.push)) return 'the token cannot push to ' + cfg.owner + '/' + cfg.repo;
