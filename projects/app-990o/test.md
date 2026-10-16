@@ -6,6 +6,7 @@
 |------|-----------|--------|-------|
 | 2026-10-16 | INIT-0 | DONE | Master plan creation |
 | 2026-10-16 | BUILD-1 | IN-PROGRESS | Sudoku MVP: 9x9 grid, validation, mobile-first |
+| 2026-10-16 | BUILD-1-CODE | DOING | Writing test.html: Sudoku grid, validation, mobile-first, hardcoded puzzle |
 
 ## (1) RELEASES
 
