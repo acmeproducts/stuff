@@ -1,5 +1,5 @@
-<!-- TALKBRIDGE-PLAN v21.102.0 -->
-# TALKBRIDGE MASTER PLAN v21.102.0
+<!-- TALKBRIDGE-PLAN v21.102.1 -->
+# TALKBRIDGE MASTER PLAN v21.102.1
 
 **Location:** `talkbridge/TALKBRIDGE-PLAN-v9.md` in `acmeproducts/stuff`.
 **Owner:** Confi — sole decision-maker, runs every device gate.
@@ -2090,6 +2090,8 @@ Green means allowed to push. It never means done.
 ---
 
 ## 10 · CHANGE LOG
+
+**v21.102.1 · 2026-10-16.** Dashboard, mobile first (owner: "there is no hover"): the timeline's detail opens on TAP (tap a dot: it is outlined and its line appears; tap anywhere else to close; keyboard Enter/Escape too), 32-px hit targets, 40-px buttons. No hover anywhere.
 
 **v21.102.0 · 2026-10-16.** THE DASHBOARD (owner: "write dash.html that shows a visual depiction of the log and reads it in real time"): `talkbridge/dash.html` at https://acmeproducts.github.io/stuff/talkbridge/dash.html — one self-contained page, no libraries; reads the relay's `/activity` every 5 s; parses the §7.21 lines; stat tiles (rooms, people, calls answered/missed/declined, chats, last activity), a per-room timeline (blue created · orange joined · aqua chat · status green/red/orange for answered/missed/declined; shape differs too; hover tooltips; legend), a newest-first live feed, a rooms table; 1 h / 24 h / 7 d / all ranges; light and dark; "stale"/"relay unreachable" states; `?demo=1` shows sample lines. Palette validated (dataviz checks pass both modes). Outside `talkbridge-app/`, so no stage file and no gate changes.
 
