@@ -4,7 +4,6 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <title>STT Stream</title>
-</head>
 <style>
 :root {
   --bg: #0b0c0f;
@@ -144,6 +143,7 @@ button.warn { background: var(--warn); color: #422006; }
 }
 .toast.show { opacity: 1; }
 </style>
+</head>
 <body>
 <header>
   <h1>STT Stream</h1>
@@ -241,7 +241,7 @@ button.warn { background: var(--warn); color: #422006; }
   }
 
   function renderTranscript() {
-    els.transcript.innerHTML = finalTranscript + (interimTranscript ? '<span class="interim">' + interimTranscript + '</span>' : '');
+    els.transcript.innerHTML = finalTranscript.replace(/\n/g, '<br>') + (interimTranscript ? '<span class="interim">' + interimTranscript.replace(/\n/g, '<br>') + '</span>' : '');
     els.transcript.scrollTop = els.transcript.scrollHeight;
     updateDiagnostics();
   }
@@ -308,6 +308,9 @@ button.warn { background: var(--warn); color: #422006; }
     r.interimResults = true;
     r.lang = navigator.language || 'en-US';
 
+    // Track seen result indices to prevent duplication bugs in some browsers
+    const seenIndices = new Set();
+
     r.onstart = () => {
       isRunning = true;
       sessionStartTime = Date.now();
@@ -317,6 +320,12 @@ button.warn { background: var(--warn); color: #422006; }
 
     r.onend = () => {
       isRunning = false;
+      // Flush any remaining interim to final on stop (best effort)
+      if (interimTranscript) {
+        finalTranscript += interimTranscript;
+        interimTranscript = '';
+        renderTranscript();
+      }
       rec = null;
       renderButtons();
       updateDiagnostics();
@@ -325,15 +334,22 @@ button.warn { background: var(--warn); color: #422006; }
     r.onresult = (e) => {
       let newFinal = '';
       let newInterim = '';
+      
+      // Process only results we haven't seen yet (defensive against buggy implementations)
       for (let i = e.resultIndex; i < e.results.length; ++i) {
+        if (seenIndices.has(i)) continue;
+        seenIndices.add(i);
+        
         const tr = e.results[i][0].transcript;
         lastConfidence = e.results[i][0].confidence || 0;
         if (e.results[i].isFinal) {
           newFinal += tr + ' ';
         } else {
-          newInterim += tr;
+          // Only take the latest interim result
+          newInterim = tr;
         }
       }
+      
       if (newFinal) finalTranscript += newFinal;
       interimTranscript = newInterim;
       renderTranscript();
@@ -345,9 +361,10 @@ button.warn { background: var(--warn); color: #422006; }
       if (msg === 'not-allowed') {
         els.status.textContent = 'Mic permission denied';
       }
-      isRunning = false;
-      rec = null;
-      renderButtons();
+      // Don't immediately set isRunning false here; let onend handle it if it fires
+      if (msg === 'no-speech') {
+        // auto-restart logic could go here, but we'll let it stop
+      }
     };
 
     return r;
@@ -357,10 +374,9 @@ button.warn { background: var(--warn); color: #422006; }
     if (isRunning && rec) {
       rec.stop();
     } else {
-      if (rec) rec = null;
+      interimTranscript = '';
       rec = setupRec();
       if (!rec) return;
-      interimTranscript = '';
       try {
         rec.start();
       } catch (e) {
@@ -375,15 +391,19 @@ button.warn { background: var(--warn); color: #422006; }
     if (!text.trim()) return;
     
     if (isRunning && rec) {
-      rec.stop();
+      rec.stop(); // This flushes interim via onend
     }
     
-    pushSession(text);
-    showToast('Session saved');
-    finalTranscript = '';
-    interimTranscript = '';
-    renderTranscript();
-    renderButtons();
+    // Wait a tick for onend to flush interim into final
+    setTimeout(() => {
+      const finalText = finalTranscript || text;
+      pushSession(finalText);
+      showToast('Session saved');
+      finalTranscript = '';
+      interimTranscript = '';
+      renderTranscript();
+      renderButtons();
+    }, 50);
   });
 
   els.btnClear.addEventListener('click', () => {
@@ -409,7 +429,7 @@ button.warn { background: var(--warn); color: #422006; }
   els.btnDownload.addEventListener('click', () => {
     const text = finalTranscript + interimTranscript;
     const blob = new Blob([text], { type: 'text/plain' });
-    const url = URL.createObjectURL(blob);
+    const url = URL.createObjectObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
     const stamp = new Date().toISOString().replace(/[:.]/g, '-');
