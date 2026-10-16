@@ -4,9 +4,9 @@ const require=createRequire(import.meta.url),{chromium}=require('playwright'),HE
 const fail=(m)=>{console.error('FAIL '+m);process.exitCode=1;throw new Error(m)},ok=(c,m)=>{if(!c)fail(m)},pass=m=>console.log('PASS '+m);
 const now=Math.floor(Date.now()/1000);
 const sources=[['s1','/mnt/a/Photos',300,now-3600],['s2','/mnt/b/Video',250,now-7200],['s3','/mnt/c/Archive',150,0]].map(([id,root,,t])=>({source_id:id,label:root,estate:root,root,enabled:1,soft_deleted:false,pending:false,analysis_state:'CURRENT',last_success_ended:t||null,last_success_job_id:t?'j'+id:null,last_errors:0}));
-let n=0;const P=(src,cls,gb,fp)=>({placement_id:'p'+(++n),placement_no:n,source_id:src,estate:src,path:'/x/'+n,filename:'f'+n,size:gb*GB,fingerprint:fp||'fp'+n,system_classification:cls,availability:'OK',placement_state:'ACTIVE'});
+let n=0;const P=(src,cls,gb,fp,sub)=>({placement_id:'p'+(++n),placement_no:n,source_id:src,estate:src,path:sources.find(x=>x.source_id===src).root+(sub?'/'+sub:'')+'/f'+n,filename:'f'+n,size:gb*GB,fingerprint:fp||'fp'+n,system_classification:cls,availability:'OK',placement_state:'ACTIVE'});
 // SCANNED 900 = UNIQUE 600 + KEEP 100 + EXCESS 200 ; ESTATE 700 ; roots retained a=300 b=250 c=150
-let placements=[P('s1','UNIQUE',300),P('s2','UNIQUE',150),P('s3','UNIQUE',150),P('s2','KEEP',100,'dup'),P('s3','EXCESS',100,'dup'),P('s2','EXCESS',100,'dup2')];
+let placements=[P('s1','UNIQUE',300),P('s2','UNIQUE',150,null,'2024'),P('s3','UNIQUE',150),P('s2','KEEP',100,'dup','2024/trips'),P('s3','EXCESS',100,'dup'),P('s2','EXCESS',100,'dup2')];
 let removedIds=[],rev=1,counts={page:0,delta:0},deltaMode='ok',targetBytes=600*GB,stalenessMissing=false,pageDelay=0,stalenessSlow=false;
 const api=(u)=>{const p=u.pathname.replace(/^\/sot/,'');
  if(p==='/api/jobs')return {ok:true,jobs:[],scheduler:{}};if(p==='/api/events')return {ok:true,events:[]};if(p==='/api/sources')return {ok:true,sources};
@@ -22,7 +22,7 @@ const browser=await chromium.launch();
 async function open(vw,vh){const ctx=await browser.newContext({viewport:{width:vw,height:vh}}),pg=await ctx.newPage();await pg.route(/cdn\.jsdelivr\.net/,r=>r.fulfill({contentType:'text/javascript',body:''}));pg.on('pageerror',e=>fail('pageerror '+e.message));
  await pg.goto(URL_);const inner=async()=>{const h=await pg.waitForSelector('#shell');const o=await (await h.contentFrame()).waitForSelector('#app');return o.contentFrame()};
  let fr;for(let i=0;i<100;i++){try{fr=await inner();if(await fr.evaluate(()=>!!window.__ssotCompletePlacementRefresh&&window.placements.length>0&&!document.querySelector('#ssot-db-blocker.on')))break}catch(e){}await pg.waitForTimeout(100)}
- ok(fr,'runtime did not start');await fr.waitForSelector('#Plan .sum');return {ctx,pg,fr}}
+ ok(fr,'runtime did not start');await fr.waitForSelector('#Plan .flow');return {ctx,pg,fr}}
 const txt=(fr,sel)=>fr.$eval(sel,e=>e.innerText);
 try{
  let {ctx:ctx0,pg,fr}=await open(1280,900);
@@ -36,53 +36,46 @@ try{
  pass('top strip carries Report, Job Status, Roots, Search, Add and AI icons; the two switch rows are gone; Analyze is not an owner-facing label');
  // 2 subtabs
  // (sub-tabs removed: Roots and Job Status are top-strip icons)
- await fr.evaluate(()=>{localStorage.removeItem('sotSummaryUi');__ssotSum.view='dots';__ssotSum.panel='scanned';__ssotSum.meas='g';__ssotSum.path=[];renderPlan()});await pg.waitForTimeout(200);
- const ribbon=await fr.$$eval('#Plan .sumribbon .sumicon',b=>b.map(x=>x.getAttribute('aria-label')+(x.classList.contains('on')?'*':'')));ok(JSON.stringify(ribbon)==='["Dots*","Circles","Treemap"]','chart-type ribbon '+ribbon);
- const pills=await fr.$$eval('#Plan .sumpills button',b=>b.map(x=>x.textContent.trim()));ok(JSON.stringify(pills)==='["Scanned","Capacity","Saved"]','view pills '+pills);
- const meas=await fr.$$eval('#Plan .summeas button',b=>b.map(x=>x.textContent.trim()));ok(JSON.stringify(meas)==='["Files","GB"]','measure switch '+meas);
- ok(!/estate/i.test(await txt(fr,'#Plan .sum')),'"Estate" must not appear in the summary');
- pass('Summary: chart-type icon ribbon (Dots / Circles / Treemap), then Scanned | Capacity | Saved with a Files | GB switch; "Estate" retired');
- const txtSum=()=>txt(fr,'#Plan .sum'),dots=()=>fr.$$eval('#Plan svg.dots circle',c=>c.length);
- let t1=await txtSum();ok(/SCANNED 900\.0 GB = ASSETS 700\.0 GB \+ EXCESS 200\.0 GB/.test(t1.replace(/\s+/g,' ')),'scanned equation '+t1);ok(await dots()===20,'20 dots');
- const leg=async()=>(await fr.$$eval('#Plan .sumlg',b=>b.map(x=>x.innerText.replace(/\s+/g,' ').trim())));
- let l1=await leg();ok(/ASSETS 700\.0 GB 78%/.test(l1[0])&&/EXCESS 200\.0 GB 22%/.test(l1[1]),'scanned legend '+l1);
- await fr.evaluate(()=>__ssotSumSet('panel','capacity'));await pg.waitForTimeout(150);let t2=(await txtSum()).replace(/\s+/g,' ');ok(/DEFICIT ⚠ 100\.0 GB = TARGET 600\.0 GB − ASSETS 700\.0 GB/.test(t2)&&/⚠ DEFICIT 100\.0 GB of assets do not fit/.test(t2),'capacity equation / warning '+t2);
- let l2=await leg();ok(/FITS|ASSETS · FIT 600\.0 GB 86%/.test(l2[0])&&/DEFICIT 100\.0 GB 14%/.test(l2[1]),'capacity legend (never above 100%) '+l2);ok(!/1[0-9]{2,}%/.test(l2.join(' ')),'no percentage above 100');
- await fr.evaluate(()=>{placements[0].plan='LANDED';__ssotSumSet('panel','saved')});await pg.waitForTimeout(150);let t3=(await txtSum()).replace(/\s+/g,' ');ok(/ASSETS 700\.0 GB = LANDED 300\.0 GB \+ IN PLAY 400\.0 GB/.test(t3),'saved equation '+t3);
- pass('Scanned = Assets + Excess; Capacity = Target − Assets with a ⚠ Deficit (never above 100%); Saved = Landed + In play');
- await fr.evaluate(()=>{__ssotSumSet('meas','f');__ssotSumSet('panel','scanned')});await pg.waitForTimeout(150);ok(/SCANNED 6 files = ASSETS 4 files \+ EXCESS 2 files/.test((await txtSum()).replace(/\s+/g,' ')),'files measure');await fr.evaluate(()=>__ssotSumSet('meas','g'));
- pass('Files | GB switch changes every number');
- const tapGo=async(sel,q,label)=>{await fr.evaluate(()=>{omniDraft='';omniQuery='';show('Plan')});await pg.waitForTimeout(250);await fr.click(sel);await pg.waitForTimeout(450);const r=await fr.evaluate(()=>({on:document.getElementById('Database').classList.contains('on'),q:omniQuery,n:filterQuery(omniQuery).length,chip:document.querySelector('.ssot-back')?.textContent||''}));ok(r.on&&r.q===q&&r.chip==='← Report · '+label,sel+' -> '+JSON.stringify(r));return r};
- await fr.evaluate(()=>{__ssotSumSet('view','dots');__ssotSumSet('panel','scanned')});
- let r1=await tapGo('#Plan .sumlg:nth-child(1)','#report:capacity-estate','Assets');ok(r1.n===4,'assets rows '+r1.n);
- await fr.click('.ssot-back');await pg.waitForTimeout(300);ok(await fr.evaluate(()=>document.getElementById('Plan').classList.contains('on')),'back chip returns to the Report');
- ok((await tapGo('#Plan .sumlg:nth-child(2)','#report:excess','Excess')).n===2,'excess rows');
- await fr.evaluate(()=>__ssotSumSet('panel','capacity'));
- ok((await tapGo('#Plan .sumlg:nth-child(2)','#report:capacity-deficit','Deficit')).n===1,'deficit rows = assets beyond the target');
- ok((await tapGo('#Plan .sumlg:nth-child(1)','#report:capacity-fits','Assets that fit')).n===3,'fits rows');
- await fr.evaluate(()=>__ssotSumSet('panel','saved'));
- ok((await tapGo('#Plan .sumlg:nth-child(1)','plan:landed class:unique OR plan:landed class:keep','Landed')).n===1,'landed rows');
- await fr.evaluate(()=>__ssotSumSet('panel','scanned'));await fr.evaluate(()=>__ssotSumSet('view','dots'));
- await tapGo('#Plan svg.dots circle:first-child','#report:capacity-estate','Assets');
- pass('every dot, legend line and circle opens the real Search with the matching rows, and a "← Report" chip returns');
- await fr.evaluate(()=>{__ssotSumSet('view','circles');__ssotSumSet('panel','scanned')});await pg.waitForTimeout(150);
- const circ=await fr.$$eval('#Plan svg circle[data-k]',c=>c.map(x=>x.getAttribute('data-k')));ok(JSON.stringify(circ)==='["scanned","assets","excess"]','circles largest first '+circ);
- await tapGo('#Plan svg circle[data-k="excess"]','#report:excess','Excess');
- await fr.evaluate(()=>{__ssotSumSet('panel','capacity')});await pg.waitForTimeout(150);ok(JSON.stringify(await fr.$$eval('#Plan svg circle[data-k]',c=>c.map(x=>x.getAttribute('data-k'))))==='["assets","target","deficit"]','capacity circles');
- pass('circles: one row, largest first, same scale; deficit is its own ⚠ circle');
- await fr.evaluate(()=>{__ssotSumSet('view','tree');__ssotSumSet('panel','capacity')});await pg.waitForTimeout(200);
- const tiles=await fr.$$eval('#Plan .stile',t=>t.map(x=>x.getAttribute('aria-label')));ok(tiles.length===3&&tiles.some(x=>/Archive/.test(x)),'treemap tiles are the roots '+tiles);
- const redTile=await fr.evaluate(()=>[...document.querySelectorAll('#Plan .stile')].find(t=>/Archive/.test(t.getAttribute('aria-label'))).innerHTML.includes('#ef4444'));ok(redTile,'capacity colours the over-target root red');
- const tr=await tapGo('#Plan .stile:nth-child(1)','#report:dir:/mnt/b/Video','Video');
- pass('treemap: tiles are the roots, coloured for the chosen view; a folder with only files opens its file list');
- await fr.evaluate(()=>{show('Plan')});await pg.waitForTimeout(250);
- // persistence of the three choices
- await fr.evaluate(()=>{__ssotSumSet('view','circles');__ssotSumSet('panel','capacity');__ssotSumSet('meas','f')});await pg.reload();{let f4;for(let i=0;i<100;i++){try{const o=await (await (await pg.waitForSelector('#shell')).contentFrame()).waitForSelector('#app');f4=await o.contentFrame();if(await f4.evaluate(()=>!!window.__ssotCompletePlacementRefresh&&window.placements.length>0&&!document.querySelector('#ssot-db-blocker.on')))break}catch(e){}await pg.waitForTimeout(100)}
-  const st=await f4.evaluate(()=>JSON.stringify(__ssotSum));ok(/"view":"circles"/.test(st)&&/"panel":"capacity"/.test(st)&&/"meas":"f"/.test(st),'summary choices not persisted '+st);
-  await f4.evaluate(()=>{__ssotSum.view='dots';__ssotSum.panel='scanned';__ssotSum.meas='g';localStorage.removeItem('sotSummaryUi');renderPlan()});fr=f4}
- pass('chart type, view and measure persist per device');
- targetBytes=800*GB;await fr.evaluate(()=>dataPoll());await pg.waitForTimeout(500);await fr.evaluate(()=>{__ssotSumSet('panel','capacity')});await pg.waitForTimeout(150);{const t=(await txtSum()).replace(/\s+/g,' ');ok(/OPEN 100\.0 GB = TARGET 800\.0 GB − ASSETS 700\.0 GB/.test(t)&&!/⚠/.test(t),'under-capacity '+t)}targetBytes=600*GB;await fr.evaluate(()=>dataPoll());await pg.waitForTimeout(400);
- pass('under-capacity: OPEN is shown, no warning');
+ const F=()=>fr.evaluate(()=>({val:document.querySelector('#Plan .fval').innerText.trim(),chips:[...document.querySelectorAll('#Plan .fchip')].map(c=>c.innerText.replace(/[✕+]/g,'').trim()+(c.classList.contains('dim')?'~':'')+(c.classList.contains('off')?'-':'')),sq:[...document.querySelectorAll('#Plan .fsq')].map(q=>q.title||'_').join(','),tiles:[...document.querySelectorAll('#Plan .ftile')].map(t=>t.innerText.trim()+'@'+t.style.background.replace(/\s/g,'')),up:document.querySelector('#Plan .fcrumb')?.innerText||''}));
+ const setF=(o)=>fr.evaluate(o=>{localStorage.removeItem('sotFlowUi');Object.assign(__ssotFlow,{view:'scanned',u:'g',n:'pct',off:[],cur:null,curSlice:null},o);renderPlan()},o);
+ await setF({});await pg.waitForTimeout(150);
+ let f=await F();
+ ok(await fr.$$eval('#Plan .ftop .fseg',g=>g.map(x=>x.innerText.replace(/\s+/g,' ').trim()).join('|'))==='# %|GB Files','top row switches');
+ ok(JSON.stringify(await fr.$$eval('#Plan .fview option',o=>o.map(x=>x.value)))==='["scanned","capacity","stored"]','one dropdown with three views');
+ ok(f.val==='100%'&&JSON.stringify(f.chips)==='["All~","Unique","Keep","Excess"]','scanned top/chips '+JSON.stringify(f));
+ ok(f.sq==='Unique,Unique,Unique,Unique,Unique,Unique,Unique,Keep,Excess,Excess','10 squares 7/1/2 '+f.sq);
+ ok(!/estate/i.test(await txt(fr,'#Plan .flow')),'"Estate" must not appear in the Report');
+ pass('Report: # / % and GB / Files on top, one view dropdown, a 10-square bar and name-only legend chips with All');
+ await fr.evaluate(()=>__ssotFlowToggle('excess'));f=await F();ok(f.val==='78%'&&f.chips[0]==='All'&&f.chips[3]==='Excess-'&&!f.tiles.some(t=>/a77de8|167,125,232/.test(t)),'hiding Excess '+JSON.stringify(f));
+ await fr.evaluate(()=>__ssotFlowAll());f=await F();ok(f.val==='100%'&&f.chips[0]==='All~','All restores '+JSON.stringify(f));
+ await fr.evaluate(()=>{__ssotFlowSet('n','n')});f=await F();ok(f.val==='900.0 GB','# in GB '+f.val);await fr.evaluate(()=>__ssotFlowSet('u','f'));f=await F();ok(/^6\s*files$/.test(f.val),'# in files '+f.val);await fr.evaluate(()=>{__ssotFlowSet('u','g');__ssotFlowSet('n','pct')});
+ pass('chips hide and restore slices; the top value and bar follow; # / % and GB / Files change every number');
+ ok(f.tiles.length>=5&&f.tiles.some(t=>/^\/mnt\/a\/Photos@/.test(t))&&f.tiles.filter(t=>/^\/mnt\/b\/Video/.test(t)).length===3,'scanned tiles: one per root per slice (Video appears in three colours) '+JSON.stringify(f.tiles));
+ pass('treemap tiles are root paths coloured by slice; a root that holds several slices appears once per slice');
+ await setF({view:'capacity'});f=await F();ok(JSON.stringify(f.chips)==='["All~","Assets","Deficit"]'&&f.sq==='Assets,Assets,Assets,Assets,Assets,Assets,Assets,Assets,Deficit,Deficit','capacity over target '+JSON.stringify(f));
+ ok(f.tiles.some(t=>/^\/mnt\/c\/Archive@.*(e5484d|229,72,77)/.test(t))&&!f.tiles.some(t=>/^Open/.test(t)),'deficit root is red, no Open tile '+JSON.stringify(f.tiles));
+ targetBytes=800*GB;await fr.evaluate(()=>dataPoll());await pg.waitForTimeout(500);await setF({view:'capacity'});f=await F();ok(JSON.stringify(f.chips)==='["All~","Assets","Open"]'&&f.tiles.some(t=>/^Open/.test(t)),'capacity under target '+JSON.stringify(f));
+ await setF({view:'stored'});f=await F();ok(JSON.stringify(f.chips)==='["All~","Landed","In play","Open"]','stored keeps all three chips even when Landed is 0 '+JSON.stringify(f.chips));
+ targetBytes=600*GB;await fr.evaluate(()=>dataPoll());await pg.waitForTimeout(500);
+ pass('Capacity shows Deficit (red) or Open (grey), never both; Stored always lists Landed, In play and Open');
+ // taps: single = card, double = drill / search
+ await setF({view:'scanned'});await pg.waitForTimeout(100);
+ const tileSel=async(re)=>{const i=await fr.evaluate(re=>[...document.querySelectorAll('#Plan .ftile')].findIndex(t=>new RegExp(re).test(t.innerText)&&/59, ?158, ?230/.test(t.style.background)),re);return (await fr.$$('#Plan .ftile'))[i]};
+ let t=await tileSel('^/mnt/b/Video');await t.click();await pg.waitForTimeout(450);ok(await fr.evaluate(()=>{const c=document.getElementById('ssotFlowCard');return !c.hidden&&/\/mnt\/b\/Video/.test(c.innerText)&&/Unique · 1 files · 150\.0 GB/.test(c.innerText)}),'single tap shows the stats card');
+ t=await tileSel('^/mnt/b/Video');await t.click();await t.click();await pg.waitForTimeout(250);f=await F();ok(/\/mnt\/b\/Video/.test(f.up)&&f.tiles.length===1&&/^2024/.test(f.tiles[0])&&f.val==='17%','double tap drills into the folder in that colour '+JSON.stringify(f));
+ ok(f.sq==='Unique,Unique,_,_,_,_,_,_,_,_','bar follows the drill '+f.sq);
+ await fr.evaluate(()=>__ssotFlowUp());f=await F();ok(!f.up&&f.val==='100%','Up returns to the roots '+JSON.stringify(f));
+ pass('single tap shows a stats card; double tap opens a folder in its slice colour; top value and bar follow; ↑ Up goes back');
+ const tapGo=async(fn,q,n,label,arg)=>{await fr.evaluate(fn,arg);await pg.waitForTimeout(450);const r=await fr.evaluate(()=>({on:document.getElementById('Database').classList.contains('on'),pane:document.querySelector('.pane.on')?.id,q:omniQuery,n:filterQuery(omniQuery).length,chip:document.querySelector('.ssot-back')?.textContent||''}));ok(r.on&&r.q===q&&r.n===n&&r.chip.includes(label),'search '+JSON.stringify(r));await fr.click('.ssot-back');await pg.waitForTimeout(300);ok(await fr.evaluate(()=>document.getElementById('Plan').classList.contains('on')),'back chip returns to the Report')};
+ await tapGo(()=>__ssotFlowSearchSlice('excess'),'#report:flow:{"v":"scanned","s":["excess"],"p":null,"h":false}',2,'Excess');
+ await setF({view:'capacity'});await tapGo(()=>__ssotFlowSearchSlice('deficit'),'#report:flow:{"v":"capacity","s":["deficit"],"p":null,"h":false}',1,'Deficit');
+ await setF({view:'scanned',cur:'/mnt/b/Video',curSlice:'unique'});await tapGo(()=>__ssotFlowSearchHere(),'#report:flow:{"v":"scanned","s":["unique"],"p":"/mnt/b/Video","h":false}',1,'/mnt/b/Video');
+ await setF({view:'scanned'});{const i=await fr.evaluate(()=>[...document.querySelectorAll('#Plan .ftile')].findIndex(t=>/^\/mnt\/a\/Photos/.test(t.innerText)));await tapGo(i=>{__ssotFlowTap({stopPropagation(){}},i);__ssotFlowTap({stopPropagation(){}},i)},'#report:flow:{"v":"scanned","s":["unique"],"p":"/mnt/a/Photos","h":false}',1,'/mnt/a/Photos',i)}
+ pass('chip names, the breadcrumb and double-tapped leaf tiles open the real Search on exactly those files, with a "← Report" chip back');
+ await fr.evaluate(()=>{__ssotFlowSet('view','stored');__ssotFlowSet('u','f');__ssotFlowSet('n','n')});await pg.reload();{let f4;for(let i=0;i<100;i++){try{const o=await (await (await pg.waitForSelector('#shell')).contentFrame()).waitForSelector('#app');f4=await o.contentFrame();if(await f4.evaluate(()=>!!window.__ssotCompletePlacementRefresh&&window.placements.length>0&&!document.querySelector('#ssot-db-blocker.on')))break}catch(e){}await pg.waitForTimeout(100)}
+  const st=await f4.evaluate(()=>JSON.stringify(__ssotFlow));ok(/"view":"stored"/.test(st)&&/"u":"f"/.test(st)&&/"n":"n"/.test(st),'report choices not persisted '+st);
+  await f4.evaluate(()=>{localStorage.removeItem('sotFlowUi');Object.assign(__ssotFlow,{view:'scanned',u:'g',n:'pct',off:[],cur:null,curSlice:null});renderPlan()});fr=f4}
+ pass('view, # / % and GB / Files persist per device');
  // Estate
  await fr.evaluate(()=>setPlanTab('Roots'));const heads=await fr.$$eval('.estate-table th',h=>h.map(x=>x.textContent.trim()));ok(JSON.stringify(heads)==='["","Root","Files","Size","Last Synced"]','heads '+heads);
  const rowsOf=()=>fr.$$eval('.estate-table tbody tr',r=>r.map(x=>({h:x.cells[0].textContent,root:x.cells[1].textContent,files:x.cells[2].textContent,size:x.cells[3].textContent,synced:x.cells[4].textContent,bg:getComputedStyle(x.cells[1]).backgroundColor,fg:getComputedStyle(x.cells[1]).color})));
@@ -200,9 +193,9 @@ try{
   await f3.evaluate(()=>{localStorage.removeItem('sotUiConfig');localStorage.removeItem('sotUiMigrated2');applyUiCfg()});fr=f3}
  // Job Status
  await fr.click('#tabs button[data-tab="Analyze"]');await pg.waitForTimeout(300);ok(JSON.stringify(await onTab())==='["Job Status"]','only Job Status highlighted: '+await onTab());
- await fr.click('#tabs button[data-tab="Roots"]');await pg.waitForTimeout(300);ok(JSON.stringify(await onTab())==='["Roots"]'&&await fr.evaluate(()=>!!document.querySelector('#Plan .estate-table')&&!document.querySelector('#Plan .sum')),'Roots tab shows only the roots table: '+await onTab());
+ await fr.click('#tabs button[data-tab="Roots"]');await pg.waitForTimeout(300);ok(JSON.stringify(await onTab())==='["Roots"]'&&await fr.evaluate(()=>!!document.querySelector('#Plan .estate-table')&&!document.querySelector('#Plan .flow')),'Roots tab shows only the roots table: '+await onTab());
  await fr.click('#tabs button[data-tab="Database"]');await pg.waitForTimeout(300);ok(JSON.stringify(await onTab())==='["Search"]','only Search highlighted: '+await onTab());
- await fr.click('#tabs button[data-tab="Plan"]');await pg.waitForTimeout(300);ok(JSON.stringify(await onTab())==='["Report"]'&&await fr.evaluate(()=>!!document.querySelector('#Plan .sum')),'Report tab back to the summary: '+await onTab());
+ await fr.click('#tabs button[data-tab="Plan"]');await pg.waitForTimeout(300);ok(JSON.stringify(await onTab())==='["Report"]'&&await fr.evaluate(()=>!!document.querySelector('#Plan .flow')),'Report tab back to the summary: '+await onTab());
  pass('exactly one top-strip icon is highlighted for the page you are on (Report, Job Status, Roots, Search)');
  await fr.click('#tabs button[data-tab="Analyze"]');await pg.waitForTimeout(300);ok(await fr.evaluate(()=>document.getElementById('Analyze').classList.contains('on')&&document.getElementById('Analyze').innerText.length>20),'job status pane');pass('Job Status renders the existing job/source status surface');
  await pg.context().close();
