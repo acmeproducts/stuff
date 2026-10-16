@@ -3,36 +3,58 @@
 | Turn | Date | Status | Note |
 |:---|:---|:---|:---|
 | 0 | 2026-10-16 | INIT | Plan seeded; target locked to try.html; concept TBD |
+| 1 | 2026-10-16 | CONCEPT | STT app defined: continuous web transcription, session cards, copy/download |
 
 ## (1) RELEASES
 
-1. **R1** — First playable HTML app (concept TBD)
-2. **R2** — TBD
+1. **R1** — Live STT with save/copy/download (Web Speech API)
+2. **R2** — Export formats, search sessions
 3. **R3** — TBD
 
-## (2) R1: FIRST PLAYABLE
+## (2) R1: LIVE STT
 
 ### Scope
-**IN:** • Core concept definition • Single-file HTML/CSS/JS scaffold • In-app diagnostics • Touch-responsive UI  
-**OUT:** • Backend dependencies • External APIs • Desktop-first layouts  
+**IN:**  
+• Web Speech API continuous recognition  
+• Real-time transcript display with auto-scroll  
+• Save session → card appears in history grid  
+• Copy current text to clipboard  
+• Download session as .txt file  
+• localStorage persistence for sessions  
+• In-app diagnostics (rec state, errors, confidence)  
+
+**OUT:**  
+• Cloud sync/backend  
+• Audio file attachment  
+• Multiple language simultaneous  
+• Offline STT (browser-dependent)  
 
 ### Build Gates
-• Loads on mobile without console errors  
-• All state visible via in-app diagnostics (no DevTools-only checks)  
-• Touch interactions responsive ≤ 100ms  
-• Verified on real device read-back  
+• Mic permission granted and status visible in-app  
+• Transcription streams live (no stub text)  
+• Save creates card instantly visible below main view  
+• Copy button fills clipboard with transcript  
+• Download produces valid .txt file  
+• Runs on Android Chrome and iOS Safari  
+• All diagnostics visible without DevTools  
 
 ### Backlog
-• Define app concept and core user loop  
-• Implement basic functionality  
-• Build diagnostics panel  
-• Style mobile-first layout  
+• SpeechRecognition setup with continuous=true  
+• Transcript accumulator and display UI  
+• Session object model (id, date, text, duration)  
+• Card grid renderer for saved sessions  
+• Copy utility with feedback toast  
+• Download utility (Blob/anchor)  
+• Diagnostic panel (recording state, error messages, confidence meter)  
+• Mobile-first touch controls (large buttons, safe areas)  
 
 ## (3) FUTURE IDEAS
 
-• Offline capability  
-• Web Share API  
-• Advanced gestures  
+• Export JSON/SRT subtitle formats  
+• Cloud backup / sync  
+• Keyword highlighting / search  
+• Audio recording alongside text  
+• Word-level timestamps  
 
 ## (4) IMMUTABLE WORKING RULES
 
@@ -45,6 +67,7 @@
 ## (5) DECISION LOG
 
 - **2026-10-16**: Plan established. Build target locked to `projects/watch-1jll/try.html` regardless of any conflicting plan entries. Chat history is non-authoritative.
+- **2026-10-16**: Concept selected: Generic STT app using Web Speech API. Features: continuous transcription, session save with card-based history, copy-to-clipboard, download .txt. Persistence via localStorage. No backend required.
 
 ## (6) APPENDIX
 
