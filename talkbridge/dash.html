@@ -20,7 +20,7 @@ h1{font-size:18px;margin:0;font-weight:700}
 .live i{width:8px;height:8px;border-radius:50%;background:var(--answered);display:inline-block}
 .live.stale i{background:var(--declined)}.live.down i{background:var(--missed)}
 .controls{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin:4px 0 14px}
-.controls button,.controls a{font:inherit;font-size:13px;padding:5px 10px;border:1px solid var(--line);background:var(--panel);color:var(--ink);border-radius:8px;cursor:pointer;text-decoration:none}
+.controls button,.controls a{font:inherit;font-size:14px;padding:9px 14px;min-height:40px;border:1px solid var(--line);background:var(--panel);color:var(--ink);border-radius:8px;cursor:pointer;text-decoration:none}
 .controls button[aria-pressed="true"]{background:var(--ink);color:var(--surface);border-color:var(--ink)}
 .tiles{display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:8px;margin-bottom:14px}
 .tile{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:10px 12px}
@@ -39,7 +39,9 @@ svg{display:block;width:100%;height:auto}
 .axis{font-size:11px;fill:var(--ink-3)}
 .grid{stroke:var(--line);stroke-width:1}
 .mark{stroke:var(--panel);stroke-width:2;cursor:pointer}
-.tip{position:fixed;pointer-events:none;background:var(--ink);color:var(--surface);padding:6px 9px;border-radius:8px;font-size:12px;max-width:260px;display:none;z-index:9}
+.tip{position:fixed;background:var(--ink);color:var(--surface);padding:8px 11px;border-radius:8px;font-size:13px;max-width:280px;display:none;z-index:9;line-height:1.35}
+.hit{fill:transparent;cursor:pointer}
+.mark.on{stroke:var(--ink);stroke-width:2.5}
 .feed{list-style:none;margin:0;padding:0;max-height:360px;overflow:auto}
 .feed li{display:grid;grid-template-columns:18px 1fr auto;gap:8px;align-items:baseline;padding:6px 2px;border-top:1px solid var(--line)}
 .feed li:first-child{border-top:none}
@@ -156,7 +158,8 @@ footer{color:var(--ink-3);font-size:12px;margin-top:8px}
       var y = T + ri * rowH + rowH / 2;
       s += '<line class="grid" x1="' + L + '" y1="' + y + '" x2="' + (W - R) + '" y2="' + y + '"/>';
       s += '<text class="lane-label" x="0" y="' + (y - 2) + '">' + esc(rm.id) + '</text><text class="lane-sub" x="0" y="' + (y + 11) + '">' + esc(Object.keys(rm.people).length + ' ' + (Object.keys(rm.people).length === 1 ? 'person' : 'people') + ' · ' + rm.ev.length) + '</text>';
-      rm.ev.forEach(function (e, k) { var K = KINDS[e.kind] || KINDS.chat; s += shapePath(K.shape, x(e.ts), y, 6) + ' fill="' + K.color + '" data-i="' + e.i + '" tabindex="0"><title>' + esc(fmt(e.ts) + ' · ' + describe(e)) + '</title></' + (K.shape === 'circle' ? 'circle' : 'rect') + '>'; });
+      rm.ev.forEach(function (e, k) { var K = KINDS[e.kind] || KINDS.chat; s += shapePath(K.shape, x(e.ts), y, 7) + ' fill="' + K.color + '" data-i="' + e.i + '"></' + (K.shape === 'circle' ? 'circle' : 'rect') + '>'; });
+      rm.ev.forEach(function (e) { s += '<circle class="hit" cx="' + x(e.ts) + '" cy="' + y + '" r="16" data-i="' + e.i + '" tabindex="0" role="button" aria-label="' + esc(fmt(e.ts) + ' · ' + describe(e)) + '"/>'; });
     });
     s += '</svg>';
     host.innerHTML = s;
@@ -173,10 +176,23 @@ footer{color:var(--ink-3);font-size:12px;margin-top:8px}
     var tb = $('rooms').querySelector('tbody');
     tb.innerHTML = rooms.length ? rooms.map(function (r) { return '<tr><td>' + esc(r.id) + '</td><td>' + esc(r.creator || '—') + '</td><td>' + Object.keys(r.people).map(function (p) { return '<span class="who">' + esc(p) + '</span>'; }).join('') + '</td><td>' + esc(r.answered + ' answered, ' + r.missed + ' missed, ' + r.declined + ' declined') + '</td><td>' + esc(r.chats) + '</td><td>' + esc(fmt(r.last)) + '</td></tr>'; }).join('') : '<tr><td colspan="6" class="empty">No rooms in this range.</td></tr>';
   }
-  function render() { var ev = visible(); renderTiles(ev); renderLanes(ev); renderFeed(ev); renderRooms(ev); $('foot').textContent = state.events.length + ' lines in the log · read every ' + (POLL_MS / 1000) + ' s from the relay · times shown in your local zone'; }
+  function render() { var ev = visible(); renderTiles(ev); renderLanes(ev); renderFeed(ev); renderRooms(ev); if (tipFor != null) { var m = document.querySelector('.mark[data-i="' + tipFor + '"]'); if (m) m.classList.add('on'); else hideTip(); } $('foot').textContent = state.events.length + ' lines in the log · read every ' + (POLL_MS / 1000) + ' s from the relay · times shown in your local zone'; }
 
   var tip = $('tip');
-  document.addEventListener('mousemove', function (ev) { var t = ev.target; var i = t && t.getAttribute && t.getAttribute('data-i'); if (i == null) { tip.style.display = 'none'; return; } var e = state.events.filter(function (x) { return String(x.i) === String(i); })[0]; if (!e) return; tip.textContent = fmt(e.ts) + ' · ' + describe(e); tip.style.display = 'block'; tip.style.left = Math.min(window.innerWidth - 270, ev.clientX + 12) + 'px'; tip.style.top = (ev.clientY + 12) + 'px'; });
+  var tipFor = null;
+  function hideTip() { tip.style.display = 'none'; tipFor = null; document.querySelectorAll('.mark.on').forEach(function (m) { m.classList.remove('on'); }); }
+  function showTip(i, cx, cy) {
+    var e = state.events.filter(function (x) { return String(x.i) === String(i); })[0]; if (!e) return;
+    if (tipFor === i) { hideTip(); return; }
+    hideTip(); tipFor = i;
+    var m = document.querySelector('.mark[data-i="' + i + '"]'); if (m) m.classList.add('on');
+    tip.textContent = fmt(e.ts) + ' · ' + describe(e) + ' · room ' + e.room; tip.style.display = 'block';
+    var w = Math.min(280, window.innerWidth - 24); tip.style.left = Math.max(12, Math.min(window.innerWidth - w - 12, cx - w / 2)) + 'px';
+    tip.style.top = (cy + 20 + tip.offsetHeight > window.innerHeight ? cy - 20 - tip.offsetHeight : cy + 20) + 'px';
+  }
+  /* tap (not hover): mobile first */
+  document.addEventListener('click', function (ev) { var t = ev.target; var i = t && t.getAttribute && t.getAttribute('data-i'); if (i == null) { hideTip(); return; } showTip(i, ev.clientX, ev.clientY); });
+  document.addEventListener('keydown', function (ev) { if (ev.key === 'Escape') hideTip(); if ((ev.key === 'Enter' || ev.key === ' ') && ev.target.classList && ev.target.classList.contains('hit')) { ev.preventDefault(); var b = ev.target.getBoundingClientRect(); showTip(ev.target.getAttribute('data-i'), b.left + b.width / 2, b.top + b.height / 2); } });
 
   function setLive(cls, text) { var el = $('live'); el.className = 'live ' + cls; $('live-t').textContent = text; }
   function tick() {
