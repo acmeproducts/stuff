@@ -1,5 +1,5 @@
-<!-- TALKBRIDGE-PLAN v21.101.0 -->
-# TALKBRIDGE MASTER PLAN v21.101.0
+<!-- TALKBRIDGE-PLAN v21.102.0 -->
+# TALKBRIDGE MASTER PLAN v21.102.0
 
 **Location:** `talkbridge/TALKBRIDGE-PLAN-v9.md` in `acmeproducts/stuff`.
 **Owner:** Confi — sole decision-maker, runs every device gate.
@@ -2090,6 +2090,8 @@ Green means allowed to push. It never means done.
 ---
 
 ## 10 · CHANGE LOG
+
+**v21.102.0 · 2026-10-16.** THE DASHBOARD (owner: "write dash.html that shows a visual depiction of the log and reads it in real time"): `talkbridge/dash.html` at https://acmeproducts.github.io/stuff/talkbridge/dash.html — one self-contained page, no libraries; reads the relay's `/activity` every 5 s; parses the §7.21 lines; stat tiles (rooms, people, calls answered/missed/declined, chats, last activity), a per-room timeline (blue created · orange joined · aqua chat · status green/red/orange for answered/missed/declined; shape differs too; hover tooltips; legend), a newest-first live feed, a rooms table; 1 h / 24 h / 7 d / all ranges; light and dark; "stale"/"relay unreachable" states; `?demo=1` shows sample lines. Palette validated (dataviz checks pass both modes). Outside `talkbridge-app/`, so no stage file and no gate changes.
 
 **v21.101.0 · 2026-10-15.** 29·post-ship candidate 5: THE ACTIVITY LOG (§7.21, relay v6.12) — the owner's usage-and-sharing record: created/joined/called/chatted lines, person = name·device tag, room = short id, no text; drained into `talkbridge/ACTIVITY-LOG.md` by the device-log workflow. The app's hello carries the device tag.
 **v21.100.0 · 2026-10-13.** THE SECOND DOOR (owner: "I want to be able to hit the same URL over and over and it always points to the latest"): `talkbridge-app/next.html` forwards to the NEWEST CANDIDATE named by `fixtures/dir/next-stage.json`; every candidate build moves that file, the folder's own door (`index.html`, `current-stage.json`) only an acceptance. Written by assemble-29dir, gated by harness-29dir M1.3 (+3 mutations) and harness-29pos T4 (the newest stage names itself). The directory assembler now judges a forwarded page by the forwarders manifest, not by reading it (under the accepted-bytes loader a read returns the accepted page — it rewrote the 29·pre-ship forwarder once in the lab; restored, never pushed).
@@ -5673,7 +5675,7 @@ B: same partner state, phone locked; the owner calls → the call screen says "�
 Person = the name typed in the app · the device tag the DEVICE log already uses (the app's hello now carries it as `dev`; a phone without one is `someone·` + the last 4 of its id). Room = the last 6 of its id, the same the device log shows. "created"/"joined" on a device's FIRST hello in a room (a reconnect writes nothing); a call writes once, at the first answer or decline, else "missed" at its end; a chat writes once per new message (a retry writes nothing).
 
 ### Where it lives
-The relay keeps the lines in one fixed room (`tb::__activity__`, capped at 5,000); every room appends through the worker's own `/activity` endpoint (GET reads, DELETE clears). The device-log workflow drains it every five minutes into `talkbridge/ACTIVITY-LOG.md` beside `DEVICE-LOG.md`.
+*Read live at https://acmeproducts.github.io/stuff/talkbridge/dash.html (v21.102.0).* The relay keeps the lines in one fixed room (`tb::__activity__`, capped at 5,000); every room appends through the worker's own `/activity` endpoint (GET reads, DELETE clears). The device-log workflow drains it every five minutes into `talkbridge/ACTIVITY-LOG.md` beside `DEVICE-LOG.md`.
 
 ### Stated plainly
 The repository is public: the names people type will be readable there beside their device tag. The device log already exposes the tags and every event, without names. If that is not wanted, the name is one field to drop (`_who`).
