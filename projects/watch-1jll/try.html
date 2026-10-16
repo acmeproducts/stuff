@@ -4,6 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <title>STT Stream</title>
+</head>
 <style>
 :root {
   --bg: #0b0c0f;
@@ -143,7 +144,6 @@ button.warn { background: var(--warn); color: #422006; }
 }
 .toast.show { opacity: 1; }
 </style>
-</head>
 <body>
 <header>
   <h1>STT Stream</h1>
@@ -163,6 +163,7 @@ button.warn { background: var(--warn); color: #422006; }
   <button id="btnSave" class="secondary" disabled>Save session</button>
   <button id="btnCopy" class="secondary" disabled>Copy</button>
   <button id="btnDownload" class="secondary" disabled>Download .txt</button>
+  <button id="btnClear" class="secondary">Clear</button>
 </section>
 
 <section class="diagnostics" aria-label="Diagnostics">
@@ -194,6 +195,7 @@ button.warn { background: var(--warn); color: #422006; }
     btnSave: document.getElementById('btnSave'),
     btnCopy: document.getElementById('btnCopy'),
     btnDownload: document.getElementById('btnDownload'),
+    btnClear: document.getElementById('btnClear'),
     transcript: document.getElementById('transcript'),
     status: document.getElementById('statusText'),
     sessionList: document.getElementById('sessionList'),
@@ -315,21 +317,25 @@ button.warn { background: var(--warn); color: #422006; }
 
     r.onend = () => {
       isRunning = false;
+      rec = null;
       renderButtons();
       updateDiagnostics();
     };
 
     r.onresult = (e) => {
-      interimTranscript = '';
+      let newFinal = '';
+      let newInterim = '';
       for (let i = e.resultIndex; i < e.results.length; ++i) {
         const tr = e.results[i][0].transcript;
         lastConfidence = e.results[i][0].confidence || 0;
         if (e.results[i].isFinal) {
-          finalTranscript += tr + ' ';
+          newFinal += tr + ' ';
         } else {
-          interimTranscript += tr;
+          newInterim += tr;
         }
       }
+      if (newFinal) finalTranscript += newFinal;
+      interimTranscript = newInterim;
       renderTranscript();
     };
 
@@ -340,6 +346,7 @@ button.warn { background: var(--warn); color: #422006; }
         els.status.textContent = 'Mic permission denied';
       }
       isRunning = false;
+      rec = null;
       renderButtons();
     };
 
@@ -347,24 +354,42 @@ button.warn { background: var(--warn); color: #422006; }
   }
 
   els.btnToggle.addEventListener('click', () => {
-    if (!rec) rec = setupRec();
-    if (!rec) return;
-    if (isRunning) {
+    if (isRunning && rec) {
       rec.stop();
     } else {
+      if (rec) rec = null;
+      rec = setupRec();
+      if (!rec) return;
       interimTranscript = '';
       try {
         rec.start();
       } catch (e) {
         setError('Start failed: ' + e.message);
+        rec = null;
       }
     }
   });
 
   els.btnSave.addEventListener('click', () => {
     const text = finalTranscript + interimTranscript;
+    if (!text.trim()) return;
+    
+    if (isRunning && rec) {
+      rec.stop();
+    }
+    
     pushSession(text);
     showToast('Session saved');
+    finalTranscript = '';
+    interimTranscript = '';
+    renderTranscript();
+    renderButtons();
+  });
+
+  els.btnClear.addEventListener('click', () => {
+    if (isRunning && rec) {
+      rec.stop();
+    }
     finalTranscript = '';
     interimTranscript = '';
     renderTranscript();
