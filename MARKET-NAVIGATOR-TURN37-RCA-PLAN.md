@@ -1,3 +1,7 @@
+## 2026-10-15 authoritative replacement — data delivery and observable repair
+
+Owner explicitly authorized implementing the proposed data-operations plan. See MARKET-NAVIGATOR-DATA-OPERATIONS-PLAN.md. The September bundle is an archival fixture, not a live-data release baseline. Newer stored content exists and must be qualified through actual resolved URLs and bytes. Application/data/model identity are separate; a query label is not loaded-package evidence. Prior owner rejections remain authoritative. Preserve compact crosshair, shared MNChart/private NOW-Analyze sessions, all historical code/data/Library, and the disabled rejected publisher. Implement a canonical content-addressed store, separate no-op verification receipts, authenticated Cloudflare gateway with durable targeted jobs, data-only Actions publication, explicit package loader and DATA OPERATIONS. Do not claim currentness, repair, publication or owner acceptance from a green status or workflow alone. This authorization supersedes the earlier diagnosis-only and frozen-fixture implementation holds for this new isolated review.
+
 # Recovery override — owner authorized 2026-10-05
 
 This section supersedes conflicting sequencing, Add, lifecycle and qualification claims below.

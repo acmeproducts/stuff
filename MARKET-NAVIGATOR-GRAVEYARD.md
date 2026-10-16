@@ -1,3 +1,9 @@
+## 2026-10-15 authoritative replacement — data delivery and observable repair
+
+Owner explicitly authorized implementing the proposed data-operations plan. See MARKET-NAVIGATOR-DATA-OPERATIONS-PLAN.md. The September bundle is an archival fixture, not a live-data release baseline. Newer stored content exists and must be qualified through actual resolved URLs and bytes. Application/data/model identity are separate; a query label is not loaded-package evidence. Prior owner rejections remain authoritative. Preserve compact crosshair, shared MNChart/private NOW-Analyze sessions, all historical code/data/Library, and the disabled rejected publisher. Implement a canonical content-addressed store, separate no-op verification receipts, authenticated Cloudflare gateway with durable targeted jobs, data-only Actions publication, explicit package loader and DATA OPERATIONS. Do not claim currentness, repair, publication or owner acceptance from a green status or workflow alone. This authorization supersedes the earlier diagnosis-only and frozen-fixture implementation holds for this new isolated review.
+
+Retire timestamp/run-ID-driven dataset cloning, unconditional full-corpus bootstrap, published-generation fallback for loaded identity, relative archival data fallback, refresh-triggered repair loops, mixed application/data publication, and stale job pointer replacement. Keep evidence and history; replace the behavior only in the new review.
+
 # Recovery override — Turn 37 Stage 6 REJECTED (2026-10-05)
 
 Owner real-device rejection supersedes all Stage 6 completion/PASS statements below. The candidate at 6a98d356ce84c804c483b8a9af5198eda5c8113c and Turn 31–37 chart implementations are prohibited product donors. Recover directly from immutable Turn 28 post-ship blob 9ce7f67451f9e1b7804927ce5c56adb667614724.
