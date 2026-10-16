@@ -1,7 +1,7 @@
-(0) TURN/STAGE LEDGER
 | Date | Turn | Stage | Status | Note |
 |------|------|-------|--------|------|
 | 2026-10-16 | 1 | PLAN SEED | DONE | Initial master plan seeded from concept; R1 scoped; no code yet |
+| 2026-10-16 | 2 | R1 BUILD | IN-PROGRESS | Writing projects/wifey.html — omnisearch, cards, persistence, diagnostics |
 
 (1) RELEASES
 1. **R1: Core Cards** — Omnisearch-driven creation with tags, calendar, URLs, image attachments, local persistence.
