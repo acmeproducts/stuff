@@ -4,6 +4,7 @@
 |:---|:---|:---|:---|
 | 0 | 2026-10-16 | INIT | Plan seeded; target locked to try.html; concept TBD |
 | 1 | 2026-10-16 | CONCEPT | STT app defined: continuous web transcription, session cards, copy/download |
+| 2 | 2026-10-16 | BUILD | Initial HTML scaffold: Web Speech API, continuous transcription, diagnostics |
 
 ## (1) RELEASES
 
