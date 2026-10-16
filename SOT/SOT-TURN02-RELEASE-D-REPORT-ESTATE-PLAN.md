@@ -251,3 +251,9 @@ Freshness: Connected describes transport only. Separate evidence state Current /
 - Manual Keep (`placements.keep_override`, API `/api/placement/keep`): the first manual tick freezes the group; re-ranking never changes it. Keeping all or none is allowed. Unticking a unique file makes it Excess. A changed file (new fingerprint) clears its override.
 - Landing does not exist in the engine yet, so "landed wins" is wired but inactive until it does.
 - Gate: `qualify-release-d-keep-rule.py`.
+
+## Phase 2 — Report is one treemap
+- Report replaces the Summary (dots / circles / old treemap / pills) with: `#`/`%` and `GB`/`Files` switches with the current value between them; one dropdown (Scanned · Capacity · Stored); a 10-square bar; name-only legend chips with All; a treemap of root paths coloured by slice.
+- Capacity shows Assets + Deficit (red) or Assets + Open (grey), never both; Stored always lists Landed, In play, Open. Landed is subtracted from the target; only in-play assets count.
+- Tap a tile: stats card. Double-tap: open a ▸ folder (locked to that slice colour) or search a leaf. ↑ Up; the breadcrumb path searches the folder. Chip name searches the slice; ✕/+ hides/restores; the top value and the bar follow chips and drill.
+- Search token `#report:flow:{v,s,p,h}`; choices persist per device (`sotFlowUi`).
