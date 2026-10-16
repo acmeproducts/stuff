@@ -1,5 +1,5 @@
-<!-- TALKBRIDGE-PLAN v21.103.0 -->
-# TALKBRIDGE MASTER PLAN v21.103.0
+<!-- TALKBRIDGE-PLAN v21.104.0 -->
+# TALKBRIDGE MASTER PLAN v21.104.0
 
 **Location:** `talkbridge/TALKBRIDGE-PLAN-v9.md` in `acmeproducts/stuff`.
 **Owner:** Confi — sole decision-maker, runs every device gate.
@@ -2090,6 +2090,8 @@ Green means allowed to push. It never means done.
 ---
 
 ## 10 · CHANGE LOG
+
+**v21.104.0 · 2026-10-16.** 29·post-ship c6: CLEAN LABELS in the activity log, relay v6.13 (owner: "if there is a default name that hasn't been added yet it doesn't include one that has special characters; this should be super clean"). A person is `<Name> <tag>`: letters and digits only in any script (Thai whole), 16 at most; no name is `Guest` (was `someone·` + a piece of the id); the tag is lowercase letters and digits; the room is letters and digits; a language that is not a code is `unknown`. No app change. Gates: relay harness v6.13 23/23 (new L5), mutations 50/50, r10-cr3 10/10 pinned 6.13; governance relay_version 6.13. Graveyard G73.
 
 **v21.103.0 · 2026-10-16.** Dashboard, readable on a phone (owner: "more readable with tabs on top with custom view"): tabs across the top (Summary · Feed · Rooms · People · Custom) and the range chips under them, both pinned; 16-px text, two tiles per row; the timeline fits the events (not the whole range) with three axis labels on a phone; the tapped event shows in a box under the chart; the feed is grouped by day; rooms and people are cards (tap one to open it in Custom); Custom filters by event kind, room, person and from/to dates and remembers the choice; the open tab is in the link (`#feed`, `#custom` …).
 
@@ -5670,13 +5672,13 @@ B: same partner state, phone locked; the owner calls → the call screen says "�
 
 ### What is written (one line per event, newest at the bottom, no message text)
 ```
-2026-10-15 20:11:03  room bh5qos  Ann·flz created  en → th
-2026-10-15 20:11:40  room bh5qos  Bo·m66 joined  th → en
-2026-10-15 20:12:05  room bh5qos  video call from Ann·flz — missed
-2026-10-15 20:13:30  room bh5qos  video call from Bo·m66 — answered by Ann·flz
-2026-10-15 20:14:02  room bh5qos  Ann·flz chat
+2026-10-15 20:11:03  room bh5qos  Ann flz created  en → th
+2026-10-15 20:11:40  room bh5qos  Bo m66 joined  th → en
+2026-10-15 20:12:05  room bh5qos  video call from Ann flz — missed
+2026-10-15 20:13:30  room bh5qos  video call from Bo m66 — answered by Ann flz
+2026-10-15 20:14:02  room bh5qos  Ann flz chat
 ```
-Person = the name typed in the app · the device tag the DEVICE log already uses (the app's hello now carries it as `dev`; a phone without one is `someone·` + the last 4 of its id). Room = the last 6 of its id, the same the device log shows. "created"/"joined" on a device's FIRST hello in a room (a reconnect writes nothing); a call writes once, at the first answer or decline, else "missed" at its end; a chat writes once per new message (a retry writes nothing).
+Person = `<Name> <tag>` (v6.13, G73): the name typed in the app with letters and digits only (any script, 16 at most; none left is `Guest`), a space, and the device tag the DEVICE log already uses in lowercase letters and digits (the app's hello carries it as `dev`; a phone without one uses the last 4 of its id). Room = the last 6 of its id, the same the device log shows. "created"/"joined" on a device's FIRST hello in a room (a reconnect writes nothing); a call writes once, at the first answer or decline, else "missed" at its end; a chat writes once per new message (a retry writes nothing).
 
 ### Where it lives
 *Read live at https://acmeproducts.github.io/stuff/talkbridge/dash.html (v21.102.0).* The relay keeps the lines in one fixed room (`tb::__activity__`, capped at 5,000); every room appends through the worker's own `/activity` endpoint (GET reads, DELETE clears). The device-log workflow drains it every five minutes into `talkbridge/ACTIVITY-LOG.md` beside `DEVICE-LOG.md`.

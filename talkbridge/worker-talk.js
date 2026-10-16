@@ -55,7 +55,8 @@ const VAPID_SUBJECT = 'mailto:nobody@nowhere.com';
 /* v6: only events that own a recipient record can alert. Everything else is
    data on the socket, never a wake. */
 const RECORD_KIND = { 'chat-msg': 'chat', 'thread-invite': 'chat', 'call-start': 'call' };
-const RELAY_VERSION = '6.12';          /* v6.12 29·post-ship c5: THE ACTIVITY LOG (owner 2026-10-15: "I want a timestamp log: x created room 1 en to th; x joined; y joined; video call from x missed; video call from y answered; chat from x") — one line per event in a fixed Durable Object (tb::__activity__), person = the name they typed · their device tag, room = its short id; no message text; drained by the device-log workflow into talkbridge/ACTIVITY-LOG.md. */
+const RELAY_VERSION = '6.13';          /* v6.13 29·post-ship c6: CLEAN LABELS in the activity log (owner 2026-10-16: "if there is a default name that hasn't been added yet it doesn't include one that has special characters; this should be super clean") — a person is "<Name> <tag>": the name keeps letters and digits only (any script), the tag is lowercase letters and digits, a device without a name is "Guest"; the room is letters and digits; a language that is not a language code is "unknown". */
+/* (prior) v6.12 29·post-ship c5: THE ACTIVITY LOG (owner 2026-10-15: "I want a timestamp log: x created room 1 en to th; x joined; y joined; video call from x missed; video call from y answered; chat from x") — one line per event in a fixed Durable Object (tb::__activity__), person = the name they typed · their device tag, room = its short id; no message text; drained by the device-log workflow into talkbridge/ACTIVITY-LOG.md. */
 /* v6.11 was:          /* v6.11 29·post-ship c4: REACHABILITY FROM THE RECORD — the peer announce carries reach {known, subs} (the negative claim only: a partner with no fresh subscription will not be alerted when away); a call-start answers its caller with call-reach {app, pushed, none, muted} read from the recipient record AFTER the push attempt (a 410 learned there counts as none); subscribe/unsubscribe announce at once. Owner 2026-10-12: "you cannot tell, before you call, whether the call can reach the other person". */
 /* v6.10 was:          /* v6.10 29·ship c6: a STATE WORD ANNOUNCES AT ONCE — since v6.5 the announce for ev-state sat behind the event-word handler's early return and never ran; presence moved only with the 30 s heartbeat (device log 2026-10-11 23:58: a room entered at :10, the first dot at :38). v6.9 29·ship c5: the presence words are PERSISTED (the object sleeps between heartbeats and woke with an empty memory — the dot blinked, 2026-10-10 23:26 UTC) and a word counts only while its device has a socket attached; the sender's receipts (delivered, seen) come from the record (`mine` on every projection). v6.8 29·ship c4: dead-endpoint memory — a subscription the push service declared gone (404/410) is refused when re-registered, so the app re-mints */
 const MAX_PARTICIPANTS = 4;           /* v6.7 §7.8 R2: the room cap unless the creator's socket says otherwise (1..8) */
@@ -65,6 +66,24 @@ const MAX_EVENTS = 400;
 const BURST_MS = 10000;               /* §4.11.4: first chat after ten quiet seconds may alert */
 const STATE_FRESH_MS = 45000;         /* a reported visible state older than this is not trusted */
 const EV_TYPES = new Set(['ev-state', 'ev-seen', 'ev-open', 'events-sync']);
+
+/* v6.13 — clean labels for the activity log. A name keeps letters (with their marks, so Thai stays whole) and digits, in any
+   script; spaces, punctuation, symbols and emoji are dropped; 16 at most; nothing left is "Guest". A tag is the device log's
+   suffix (after "android-"), else the end of the device id: lowercase letters and digits, 4 at most. A language is a code. */
+function cleanName(v) {
+  let s = String(v == null ? '' : v).normalize('NFKC').replace(/[^\p{L}\p{M}\p{N}]+/gu, '').replace(/^\p{M}+/u, '');
+  s = Array.from(s).slice(0, 16).join('');
+  return s || 'Guest';
+}
+function cleanTag(dev, clientId) {
+  const fromDev = dev ? String(dev).replace(/^[a-z]+-/, '').toLowerCase().replace(/[^a-z0-9]/g, '') : '';
+  const fromId = String(clientId == null ? '' : clientId).toLowerCase().replace(/[^a-z0-9]/g, '').slice(-4);
+  return (fromDev || fromId).slice(0, 4) || '0000';
+}
+function cleanLang(v) {
+  const s = String(v == null ? '' : v).trim();
+  return /^[a-z]{2,3}(-[A-Za-z0-9]{2,8})?$/.test(s) ? s : 'unknown';
+}
 
 function cors() {
   return {
@@ -643,14 +662,13 @@ export class TalkSession {
     await this.state.storage.put({ activity: lines });
     return new Response('ok', { status: 200, headers: cors() });
   }
-  _who(clientId) {
+  _who(clientId) {   /* v6.13: "<Name> <tag>" — letters and digits only; no name is "Guest" */
     const d = this.devices[clientId] || {};
-    const tag = d.dev ? String(d.dev).replace(/^[a-z]+-/, '') : String(clientId).slice(-4);
-    return (d.name ? String(d.name).slice(0, 24) : 'someone') + '·' + tag;
+    return cleanName(d.name) + ' ' + cleanTag(d.dev, clientId);
   }
   _activity(what, clientId) {
     try {
-      const room = String(this.sessionId || '').slice(-6);
+      const room = String(this.sessionId || '').replace(/[^A-Za-z0-9]/g, '').slice(-6) || 'none';
       const line = new Date().toISOString().replace('T', ' ').slice(0, 19) + '  room ' + room + '  ' + (clientId ? this._who(clientId) + ' ' : '') + what;
       const id = this.env.TALK_SESSION.idFromName('tb::__activity__');
       const p = this.env.TALK_SESSION.get(id).fetch(new Request('https://relay/activity', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ line }) })).catch(() => {});
@@ -801,7 +819,7 @@ export class TalkSession {
       if (msg.name && d.name !== String(msg.name).slice(0, 24)) { d.name = String(msg.name).slice(0, 24); changed = true; }
       if (msg.dev && d.dev !== String(msg.dev).slice(0, 24)) { d.dev = String(msg.dev).slice(0, 24); changed = true; }
       if (changed) await this.state.storage.put({ devices: this.devices });
-      if (fresh) this._activity(msg.role === 'creator' ? 'created  ' + (msg.lang || '?') + ' → ' + (msg.targetLang || '?') : 'joined  ' + (msg.lang || '?') + ' → ' + (msg.targetLang || '?'), clientId);   /* v6.12 */
+      if (fresh) this._activity((msg.role === 'creator' ? 'created  ' : 'joined  ') + cleanLang(msg.lang) + ' → ' + cleanLang(msg.targetLang), clientId);   /* v6.12 */
     }
     /* A ping may carry the device's state so a hidden phone cannot be mistaken for a watching one. */
     if (msg.type === 'ping' && typeof msg.visible === 'boolean') { this.states[clientId] = { visible: msg.visible, inRoom: msg.inRoom === true, muted: msg.muted === true, at: Date.now() }; await this._saveStates(); }
