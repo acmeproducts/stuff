@@ -6,8 +6,8 @@ Deploy target: `https://acmeproducts.github.io/stuff/devstream.html`
 Test target: `https://acmeproducts.github.io/stuff/devstream-test.html`
 
 ## Status
-- Current release: v1.0 b72 on devstream-test.html (2026-10-15)
-- Stage: TEST (b72)
+- Current release: v1.0 b73 on devstream-test.html (2026-10-16)
+- Stage: TEST (b73)
 
 ## Release Rules (inherited, proven)
 1. Mobile-first. All diagnostics in-app. No DevTools ever.
@@ -255,6 +255,29 @@ b39 incorrectly changed stationary hold into context-menu activation. Devstream 
 ## Graveyard
 - **G-DS-13 — Hold opens context menu:** rejected; donor behavior is double-tap context, hold-to-drag.
 - **G-DS-14 — Legacy generic #tabContext button styling:** rejected; it corrupts the donor context-menu appearance.
+
+---
+
+# 2026-10-16 — b73 invite links that cannot fail silently
+
+## Owner report
+A person opened the invite link and "it just went straight to config and it wants keys" instead of starting to work.
+
+## Findings
+- Could not reproduce on the real runner engine (local workerd) with a real browser: invite → guest mode → no Config. The runner's side works.
+- Probable causes on the recipient's device: an old cached copy of the app (no invite support), an invite that the browser could not fetch (blocker, network), or a device that already had its own setup (the invite was ignored).
+- Whatever the cause, the app showed the keys screen with no explanation.
+
+## Change
+- Every copied link is now a fresh address (`?v=<time>&invite=<code>`), so a cached old copy of the app cannot be served.
+- If the invite cannot be used the app says why at the top of Config (could not reach the server / invite no longer valid / browser would not save it) with a **Try the invite again** button; the invite is remembered for the retry.
+- A device that already has its own setup now asks "Use the shared invite instead?" instead of ignoring the link; if yes it becomes a guest and Config offers "Use this device's own setup instead" to switch back (the owner setup is never erased).
+- The invite is also read from the address's `#` part.
+
+## Acceptance
+- **DS-B73-1:** every Copy link / new link is a fresh address ending in `&invite=<code>`.
+- **DS-B73-2:** unreachable server or bad/revoked invite → on-page message with reason; invite kept for retry; no silent keys screen.
+- **DS-B73-3:** a device with its own setup asks before switching to the invite; switching keeps the owner setup and can be reversed.
 
 ---
 
