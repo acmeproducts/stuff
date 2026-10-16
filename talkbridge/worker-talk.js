@@ -1,5 +1,5 @@
 /* ─────────────────────────────────────────────────────────────────────────────
-   TALK RELAY — worker-talk.js  ·  v6.11 29·post-ship c4 — REACHABILITY FROM THE RECORD (reach on the peer announce, call-reach to the caller) on v6.10 29·ship c6 — A STATE WORD ANNOUNCES AT ONCE (G71) on v6.9 29·ship c5 — PERSISTED PRESENCE WORDS (a word rides an attached socket), RECEIPTS FROM THE RECORD (`mine`: delivered/seen for the sender) on v6.8 29·ship c4 — DEAD-ENDPOINT MEMORY (a 404/410 from the push service is remembered; the subscription is refused when re-offered, so the app re-mints) on v6.7 29·base — MULTI-USER, RELAY LEG (plan §7.8 R-parts, owner GO 2026-10-09)
+   TALK RELAY — worker-talk.js  ·  v6.12 29·post-ship c5 — THE ACTIVITY LOG (who created, joined, called, chatted; no text) on v6.11 29·post-ship c4 — REACHABILITY FROM THE RECORD (reach on the peer announce, call-reach to the caller) on v6.10 29·ship c6 — A STATE WORD ANNOUNCES AT ONCE (G71) on v6.9 29·ship c5 — PERSISTED PRESENCE WORDS (a word rides an attached socket), RECEIPTS FROM THE RECORD (`mine`: delivered/seen for the sender) on v6.8 29·ship c4 — DEAD-ENDPOINT MEMORY (a 404/410 from the push service is remembered; the subscription is refused when re-offered, so the app re-mints) on v6.7 29·base — MULTI-USER, RELAY LEG (plan §7.8 R-parts, owner GO 2026-10-09)
    v6.7 adds, app untouched (every change is a no-op for a message without the new fields):
      · a room cap — MAX_PARTICIPANTS (4) or the creator's `cap` query parameter, kept with the
        session; a device beyond it is told {type:'full', cap, n} and closed with 4001 before it
@@ -55,7 +55,8 @@ const VAPID_SUBJECT = 'mailto:nobody@nowhere.com';
 /* v6: only events that own a recipient record can alert. Everything else is
    data on the socket, never a wake. */
 const RECORD_KIND = { 'chat-msg': 'chat', 'thread-invite': 'chat', 'call-start': 'call' };
-const RELAY_VERSION = '6.11';          /* v6.11 29·post-ship c4: REACHABILITY FROM THE RECORD — the peer announce carries reach {known, subs} (the negative claim only: a partner with no fresh subscription will not be alerted when away); a call-start answers its caller with call-reach {app, pushed, none, muted} read from the recipient record AFTER the push attempt (a 410 learned there counts as none); subscribe/unsubscribe announce at once. Owner 2026-10-12: "you cannot tell, before you call, whether the call can reach the other person". */
+const RELAY_VERSION = '6.12';          /* v6.12 29·post-ship c5: THE ACTIVITY LOG (owner 2026-10-15: "I want a timestamp log: x created room 1 en to th; x joined; y joined; video call from x missed; video call from y answered; chat from x") — one line per event in a fixed Durable Object (tb::__activity__), person = the name they typed · their device tag, room = its short id; no message text; drained by the device-log workflow into talkbridge/ACTIVITY-LOG.md. */
+/* v6.11 was:          /* v6.11 29·post-ship c4: REACHABILITY FROM THE RECORD — the peer announce carries reach {known, subs} (the negative claim only: a partner with no fresh subscription will not be alerted when away); a call-start answers its caller with call-reach {app, pushed, none, muted} read from the recipient record AFTER the push attempt (a 410 learned there counts as none); subscribe/unsubscribe announce at once. Owner 2026-10-12: "you cannot tell, before you call, whether the call can reach the other person". */
 /* v6.10 was:          /* v6.10 29·ship c6: a STATE WORD ANNOUNCES AT ONCE — since v6.5 the announce for ev-state sat behind the event-word handler's early return and never ran; presence moved only with the 30 s heartbeat (device log 2026-10-11 23:58: a room entered at :10, the first dot at :38). v6.9 29·ship c5: the presence words are PERSISTED (the object sleeps between heartbeats and woke with an empty memory — the dot blinked, 2026-10-10 23:26 UTC) and a word counts only while its device has a socket attached; the sender's receipts (delivered, seen) come from the record (`mine` on every projection). v6.8 29·ship c4: dead-endpoint memory — a subscription the push service declared gone (404/410) is refused when re-registered, so the app re-mints */
 const MAX_PARTICIPANTS = 4;           /* v6.7 §7.8 R2: the room cap unless the creator's socket says otherwise (1..8) */
 const CALL_ROUTED = new Set(['call-accept', 'call-decline', 'call-end', 'webrtc-signal', 'mic-state', 'cam-state']);   /* v6.7 R1: words of a call that go to the other party of an ADDRESSED call */
@@ -202,6 +203,12 @@ export default {
     if (url.pathname === '/log') {
       if (request.method === 'OPTIONS') return new Response(null, { status: 204, headers: cors() });
       const id = env.TALK_SESSION.idFromName('tb::__devicelog__');
+      return env.TALK_SESSION.get(id).fetch(request);
+    }
+    /* v6.12 — the activity log: one fixed room holds every room's lines (GET reads, DELETE clears, POST is a room's own append) */
+    if (url.pathname === '/activity') {
+      if (request.method === 'OPTIONS') return new Response(null, { status: 204, headers: cors() });
+      const id = env.TALK_SESSION.idFromName('tb::__activity__');
       return env.TALK_SESSION.get(id).fetch(request);
     }
     if (url.pathname !== '/signal') {
@@ -377,8 +384,8 @@ export class TalkSession {
     if (!ev) return;
     msg.callId = ev.callId; msg.eventId = ev.id;
     const r = ev.rcp[clientId];
-    if (msg.type === 'call-accept') { if (r && r.o === 'offered') { r.o = 'accepted'; r.s = 'seen'; r.seenAt = Date.now(); r.seenBy = 'accept'; } }
-    else if (msg.type === 'call-decline') { if (r && r.o === 'offered') { r.o = 'declined'; r.s = 'seen'; r.seenAt = Date.now(); r.seenBy = 'decline'; } }
+    if (msg.type === 'call-accept') { if (r && r.o === 'offered') { r.o = 'accepted'; r.s = 'seen'; r.seenAt = Date.now(); r.seenBy = 'accept'; if (!ev.logged) { ev.logged = true; this._activity(ev.callKind + ' call from ' + this._who(ev.from) + ' — answered by ' + this._who(clientId), null); } } }
+    else if (msg.type === 'call-decline') { if (r && r.o === 'offered') { r.o = 'declined'; r.s = 'seen'; r.seenAt = Date.now(); r.seenBy = 'decline'; if (!ev.logged) { ev.logged = true; this._activity(ev.callKind + ' call from ' + this._who(ev.from) + ' — declined by ' + this._who(clientId), null); } } }
     else if (msg.type === 'call-end') {
       /* Caller/global termination is separate from each receiver's outcome:
          a receiver who neither accepted nor declined becomes missed exactly once. */
@@ -392,6 +399,7 @@ export class TalkSession {
         for (const rr of Object.values(ev.rcp)) { if (rr.o === 'offered') rr.o = 'missed'; else if (rr.o === 'accepted') rr.o = 'ended'; }
       }
     }
+    if (msg.type === 'call-end' && ev.ended && !ev.logged) { ev.logged = true; this._activity(ev.callKind + ' call from ' + this._who(ev.from) + ' — missed', null); }   /* v6.12: ended with nobody answering */
     await this._saveEvents();
     for (const cid of Object.keys(ev.rcp)) this._pushProjection(cid);
     /* N-1 (plan §9) — the terminal wake. A card left by an OS-requested push
@@ -617,6 +625,38 @@ export class TalkSession {
     await this._saveEvents();
   }
 
+  /* v6.12 — THE ACTIVITY LOG. The fixed room tb::__activity__ keeps the lines (capped); every room appends through the worker's own
+     endpoint so the drain reads one file. A line: "<ISO time>  room <id6>  <who> <what>"; who = the name typed in the app · the device tag the
+     app's device log uses (hello carries it as `dev`), what = created en → th | joined | video call from … — answered | missed | declined | chat.
+     No message text, no endpoint, no full id. */
+  async _activityLog(request) {
+    const url = new URL(request.url);
+    if (request.method === 'GET') {
+      const lines = (await this.state.storage.get('activity')) || [];
+      return new Response(lines.join('\n'), { status: 200, headers: { ...cors(), 'Content-Type': 'text/plain; charset=utf-8' } });
+    }
+    if (request.method === 'DELETE') { await this.state.storage.put({ activity: [] }); return new Response('cleared', { status: 200, headers: cors() }); }
+    let body = null; try { body = await request.json(); } catch (_) { return err('bad json'); }
+    const line = String((body && body.line) || '').slice(0, 300); if (!line) return err('no line');
+    const lines = (await this.state.storage.get('activity')) || [];
+    lines.push(line); while (lines.length > 5000) lines.shift();
+    await this.state.storage.put({ activity: lines });
+    return new Response('ok', { status: 200, headers: cors() });
+  }
+  _who(clientId) {
+    const d = this.devices[clientId] || {};
+    const tag = d.dev ? String(d.dev).replace(/^[a-z]+-/, '') : String(clientId).slice(-4);
+    return (d.name ? String(d.name).slice(0, 24) : 'someone') + '·' + tag;
+  }
+  _activity(what, clientId) {
+    try {
+      const room = String(this.sessionId || '').slice(-6);
+      const line = new Date().toISOString().replace('T', ' ').slice(0, 19) + '  room ' + room + '  ' + (clientId ? this._who(clientId) + ' ' : '') + what;
+      const id = this.env.TALK_SESSION.idFromName('tb::__activity__');
+      const p = this.env.TALK_SESSION.get(id).fetch(new Request('https://relay/activity', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ line }) })).catch(() => {});
+      try { this.state.waitUntil(p); } catch (_) {}
+    } catch (_) {}
+  }
   async _deviceLog(request) {
     const url = new URL(request.url);
     if (request.method === 'GET') {
@@ -643,12 +683,14 @@ export class TalkSession {
 
   async fetch(request) {
     if (new URL(request.url).pathname === '/log') return this._deviceLog(request);
+    if (new URL(request.url).pathname === '/activity') return this._activityLog(request);
     await this.ready;
     await this._touchSession();
 
     const url = new URL(request.url);
     const clientId = (url.searchParams.get('client') || '').trim();
     const sessionId = (url.searchParams.get('session') || '').trim().slice(0, 128);
+    if (sessionId) this.sessionId = sessionId;                                  /* v6.12: the activity log names the room by its id */
 
     if (request.headers.get('Upgrade') === 'websocket') {
       if (!clientId) return err('Missing client', 400);
@@ -753,7 +795,14 @@ export class TalkSession {
     }
 
     const isTransient = msg.transient === true || TRANSIENT_TYPES.has(msg.type);
-    if (msg.type === 'hello') await this._noteDevice(clientId);
+    if (msg.type === 'hello') {
+      await this._noteDevice(clientId);
+      const d = this.devices[clientId]; let changed = false; const fresh = !d.hello; if (fresh) { d.hello = Date.now(); changed = true; }   /* the device's FIRST hello in this room (it is noted at the socket, earlier) */
+      if (msg.name && d.name !== String(msg.name).slice(0, 24)) { d.name = String(msg.name).slice(0, 24); changed = true; }
+      if (msg.dev && d.dev !== String(msg.dev).slice(0, 24)) { d.dev = String(msg.dev).slice(0, 24); changed = true; }
+      if (changed) await this.state.storage.put({ devices: this.devices });
+      if (fresh) this._activity(msg.role === 'creator' ? 'created  ' + (msg.lang || '?') + ' → ' + (msg.targetLang || '?') : 'joined  ' + (msg.lang || '?') + ' → ' + (msg.targetLang || '?'), clientId);   /* v6.12 */
+    }
     /* A ping may carry the device's state so a hidden phone cannot be mistaken for a watching one. */
     if (msg.type === 'ping' && typeof msg.visible === 'boolean') { this.states[clientId] = { visible: msg.visible, inRoom: msg.inRoom === true, muted: msg.muted === true, at: Date.now() }; await this._saveStates(); }
     if (msg.type === 'ping' && typeof msg.visible === 'boolean') { try { this._announcePeers(); } catch (_) {} }   /* v6.10: ev-state never reached this line (the event-word handler returns above) — it announces in _handleEventWord now */
@@ -776,6 +825,7 @@ export class TalkSession {
     this._broadcast(msg, clientId);
 
     if (ev) {
+      if (ev.kind === 'chat' && ev.type === 'chat-msg' && ev.seq === msg.seq) this._activity('chat', clientId);   /* v6.12: once per new record (a retry reuses it) */
       for (const cid of Object.keys(ev.rcp)) this._pushProjection(cid);
       if (ev.kind === 'chat') this._pushProjection(clientId);               /* v6.9: the sender's own record (`mine`) — delivered at fan-out */
       /* Pushing must never delay or endanger delivery to one that is awake, so it

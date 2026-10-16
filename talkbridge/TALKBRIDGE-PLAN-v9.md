@@ -1,5 +1,5 @@
-<!-- TALKBRIDGE-PLAN v21.100.0 -->
-# TALKBRIDGE MASTER PLAN v21.100.0
+<!-- TALKBRIDGE-PLAN v21.101.0 -->
+# TALKBRIDGE MASTER PLAN v21.101.0
 
 **Location:** `talkbridge/TALKBRIDGE-PLAN-v9.md` in `acmeproducts/stuff`.
 **Owner:** Confi — sole decision-maker, runs every device gate.
@@ -146,7 +146,7 @@ the directory release and IndexedDB each moved one turn later; nothing was dropp
 | 29·base | multi-user, relay leg | **CANDIDATE 1 · BUILT 2026-10-09 · relay v6.7 — deployed to the live relay on merge; awaiting the owner's three-device gate** | relay only (no page) |
 | 29·pre-ship | **the directory release (fixing the PWA: D-2 + D-6, §7.5 + §7.12)** — moved up 2026-10-09 when multi-user c1 was withdrawn (warm storage `bridge-turn29-multi-user-v1.html`) | **CANDIDATE 2 · ACCEPTED 2026-10-10 (owner: "iPhone install successful") · sha `f8919a976bbd`** — Android passed on c1 (same bytes but one head line), iPhone on c2; desktop G1 untested | **https://acmeproducts.github.io/stuff/talkbridge-app/bridge-turn29-pre-ship.html** |
 | 29·ship | **install optional (§7.19)** — moved up from 29·post-ship 2026-10-09; the owner's two call-sound items slotted in 2026-10-10 | **ACCEPTED 2026-10-11 · candidate 6 · sha `7c61a68ee1c8` (owner: "pass")** | **https://acmeproducts.github.io/stuff/talkbridge-app/bridge-turn29-ship.html** |
-| 29·post-ship | **localization** — the app's own words in the user's language, both sides (§7.17) — moved up from 30·base by owner ruling 2026-10-10 | **CANDIDATE 4 · BUILT 2026-10-12 · sha `10e95e443611` · tb-sw5.js · relay v6.11 — c3 + REACHABILITY (§7.20: the partner's "won't be alerted when away" line from the relay's record; the caller told at call time); every gate green (harness 90/90, mutations 65/65, relay 18/18 + 36/36, prior 53 + 112, sweep clean, governance); awaiting the owner's two-phone device gate (all three: localization, the reach bar, reachability)** | **https://acmeproducts.github.io/stuff/talkbridge-app/bridge-turn29-post-ship.html** |
+| 29·post-ship | **localization** — the app's own words in the user's language, both sides (§7.17) — moved up from 30·base by owner ruling 2026-10-10 | **CANDIDATE 5 · BUILT 2026-10-15 · sha `d425d975cd71` · tb-sw5.js · relay v6.12 — c4 + THE ACTIVITY LOG (§7.21: who created, joined, called, chatted — `talkbridge/ACTIVITY-LOG.md`); c4 was: c3 + REACHABILITY (§7.20: the partner's "won't be alerted when away" line from the relay's record; the caller told at call time); every gate green (harness 90/90, mutations 65/65, relay 18/18 + 36/36, prior 53 + 112, sweep clean, governance); awaiting the owner's two-phone device gate (all three: localization, the reach bar, reachability)** | **https://acmeproducts.github.io/stuff/talkbridge-app/bridge-turn29-post-ship.html** |
 | 30·post-ship | IndexedDB — behind its POC; if the owner defers it past beta, it stays here | queued | — |
 | 30·pre-base | byte-identical snapshot of accepted 29·post-ship | queued | — |
 | 30·base | open — multi-user (conference-room model) returns here or later, only after its spec is written and approved | queued | — |
@@ -2091,6 +2091,7 @@ Green means allowed to push. It never means done.
 
 ## 10 · CHANGE LOG
 
+**v21.101.0 · 2026-10-15.** 29·post-ship candidate 5: THE ACTIVITY LOG (§7.21, relay v6.12) — the owner's usage-and-sharing record: created/joined/called/chatted lines, person = name·device tag, room = short id, no text; drained into `talkbridge/ACTIVITY-LOG.md` by the device-log workflow. The app's hello carries the device tag.
 **v21.100.0 · 2026-10-13.** THE SECOND DOOR (owner: "I want to be able to hit the same URL over and over and it always points to the latest"): `talkbridge-app/next.html` forwards to the NEWEST CANDIDATE named by `fixtures/dir/next-stage.json`; every candidate build moves that file, the folder's own door (`index.html`, `current-stage.json`) only an acceptance. Written by assemble-29dir, gated by harness-29dir M1.3 (+3 mutations) and harness-29pos T4 (the newest stage names itself). The directory assembler now judges a forwarded page by the forwarders manifest, not by reading it (under the accepted-bytes loader a read returns the accepted page — it rewrote the 29·pre-ship forwarder once in the lab; restored, never pushed).
 **v21.99.0 · 2026-10-12.** 29·post-ship candidate 4: REACHABILITY FROM THE RECORD (§7.20) — relay v6.11 (reach on the peer announce, call-reach to the caller, announce on subscribe/unsubscribe) + RK-1 (the negative line above the composer; the caller's caption). Plan reviewed before code (11 findings applied: negative claim only, from the record after the push, muted counts, S6 declares the received type, placement off the ribbon, announce on subscribe). Awaiting the device gate for all three.
 **v21.98.0 · 2026-10-12.** 29·post-ship candidate 3: the reach bar is due as soon as the room has a partner (a call-first conversation never prompted: no `rh_bar_shown` in any phone's log since 10-11; owner report). One generated edit; R12; mutation. Awaiting the device gate.
@@ -5654,6 +5655,31 @@ Relay: Q1 reach counts (asker excluded; announce after subscribe/unsubscribe; a 
 ### Device gate (owner, both phones)
 A: partner's phone a fresh Chrome tab, notifications never turned on, app closed; the owner enters the room → the line "… won't be alerted when away" is above the composer; the partner opens the app and taps Turn on → the line is gone within a second. Control: nothing is shown when both phones have notifications on.
 B: same partner state, phone locked; the owner calls → the call screen says "… can't be reached when away yet" within about a second. Control: partner turns on, locks the phone; the owner calls → "Ringing…" stays and the locked phone rings. Mute: the partner mutes the room and locks; the owner calls → the caption flips.
+
+────────────────────────────────────────────────────────────────────────
+## §7.21 BUILDER SPEC — THE ACTIVITY LOG (29·post-ship candidate 5, relay v6.12; owner 2026-10-15)
+────────────────────────────────────────────────────────────────────────
+### The owner's words
+"I want a timestamp log: x created room 1: en to th · x joined room 1 · y joined room 1 · room 1 video call from x missed · room 1 video call from y answered · room 1 chat from x." Centralized tracking is to be discontinued for the beta; this is the one record of usage and sharing.
+
+### What is written (one line per event, newest at the bottom, no message text)
+```
+2026-10-15 20:11:03  room bh5qos  Ann·flz created  en → th
+2026-10-15 20:11:40  room bh5qos  Bo·m66 joined  th → en
+2026-10-15 20:12:05  room bh5qos  video call from Ann·flz — missed
+2026-10-15 20:13:30  room bh5qos  video call from Bo·m66 — answered by Ann·flz
+2026-10-15 20:14:02  room bh5qos  Ann·flz chat
+```
+Person = the name typed in the app · the device tag the DEVICE log already uses (the app's hello now carries it as `dev`; a phone without one is `someone·` + the last 4 of its id). Room = the last 6 of its id, the same the device log shows. "created"/"joined" on a device's FIRST hello in a room (a reconnect writes nothing); a call writes once, at the first answer or decline, else "missed" at its end; a chat writes once per new message (a retry writes nothing).
+
+### Where it lives
+The relay keeps the lines in one fixed room (`tb::__activity__`, capped at 5,000); every room appends through the worker's own `/activity` endpoint (GET reads, DELETE clears). The device-log workflow drains it every five minutes into `talkbridge/ACTIVITY-LOG.md` beside `DEVICE-LOG.md`.
+
+### Stated plainly
+The repository is public: the names people type will be readable there beside their device tag. The device log already exposes the tags and every event, without names. If that is not wanted, the name is one field to drop (`_who`).
+
+### Gates
+Relay L1 (created/joined once, the label shape), L2 (chat once, no text), L3 (answered/declined/missed once each), L4 (read, clear, no endpoint or full id, the nameless label); mutations; version 6.12; r10-cr3 pin; governance pin. App T5 (both hello sites carry `dev`). The drain: the workflow writes `ACTIVITY-LOG.md`.
 
 ────────────────────────────────────────────────────────────────────────
 ## §7.18 PROPOSAL — A TRANSLATION OVERLAY THAT LEARNS (owner draft 2026-10-03; FOR DISCUSSION, not scheduled)
