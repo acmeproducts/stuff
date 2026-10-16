@@ -1,0 +1,203 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>TalkBridge Activity</title>
+<meta name="description" content="Live view of the TalkBridge activity log: who created rooms, joined, called and chatted, read from the relay every few seconds.">
+<style>
+:root{color-scheme:light;--surface:#fcfcfb;--panel:#ffffff;--line:#e4e2dc;--ink:#0b0b0b;--ink-2:#52514e;--ink-3:#8b8984;
+  --created:#2a78d6;--joined:#eb6834;--chat:#1baf7a;--answered:#0ca30c;--missed:#d03b3b;--declined:#ec835a;--accent:#2a78d6;--pill:#f1efe9}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){color-scheme:dark;--surface:#1a1a19;--panel:#222221;--line:#34332f;--ink:#f0efec;--ink-2:#c3c2b7;--ink-3:#8f8e86;
+  --created:#3987e5;--joined:#d95926;--chat:#199e70;--answered:#2fbf2f;--missed:#e66767;--declined:#f0906a;--accent:#3987e5;--pill:#2b2b29}}
+:root[data-theme="dark"]{color-scheme:dark;--surface:#1a1a19;--panel:#222221;--line:#34332f;--ink:#f0efec;--ink-2:#c3c2b7;--ink-3:#8f8e86;
+  --created:#3987e5;--joined:#d95926;--chat:#199e70;--answered:#2fbf2f;--missed:#e66767;--declined:#f0906a;--accent:#3987e5;--pill:#2b2b29}
+*{box-sizing:border-box}
+body{margin:0;background:var(--surface);color:var(--ink);font:14px/1.45 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;padding:16px}
+header{display:flex;flex-wrap:wrap;align-items:baseline;gap:8px 16px;margin-bottom:12px}
+h1{font-size:18px;margin:0;font-weight:700}
+.live{display:inline-flex;align-items:center;gap:6px;color:var(--ink-2);font-size:13px}
+.live i{width:8px;height:8px;border-radius:50%;background:var(--answered);display:inline-block}
+.live.stale i{background:var(--declined)}.live.down i{background:var(--missed)}
+.controls{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin:4px 0 14px}
+.controls button,.controls a{font:inherit;font-size:13px;padding:5px 10px;border:1px solid var(--line);background:var(--panel);color:var(--ink);border-radius:8px;cursor:pointer;text-decoration:none}
+.controls button[aria-pressed="true"]{background:var(--ink);color:var(--surface);border-color:var(--ink)}
+.tiles{display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:8px;margin-bottom:14px}
+.tile{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:10px 12px}
+.tile b{display:block;font-size:24px;font-weight:700;line-height:1.1}
+.tile span{color:var(--ink-2);font-size:12px}
+.tile small{display:block;color:var(--ink-3);font-size:11px;margin-top:2px}
+section{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:12px;margin-bottom:12px;overflow:hidden}
+section h2{font-size:13px;margin:0 0 8px;color:var(--ink-2);font-weight:600;text-transform:uppercase;letter-spacing:.04em}
+.legend{display:flex;flex-wrap:wrap;gap:6px 14px;font-size:12px;color:var(--ink-2);margin-bottom:8px}
+.legend span{display:inline-flex;align-items:center;gap:5px}
+.sw{width:10px;height:10px;border-radius:50%;display:inline-block}
+.sw.sq{border-radius:2px}.sw.di{transform:rotate(45deg);border-radius:1px}
+svg{display:block;width:100%;height:auto}
+.lane-label{font-size:12px;fill:var(--ink)}
+.lane-sub{font-size:11px;fill:var(--ink-3)}
+.axis{font-size:11px;fill:var(--ink-3)}
+.grid{stroke:var(--line);stroke-width:1}
+.mark{stroke:var(--panel);stroke-width:2;cursor:pointer}
+.tip{position:fixed;pointer-events:none;background:var(--ink);color:var(--surface);padding:6px 9px;border-radius:8px;font-size:12px;max-width:260px;display:none;z-index:9}
+.feed{list-style:none;margin:0;padding:0;max-height:360px;overflow:auto}
+.feed li{display:grid;grid-template-columns:18px 1fr auto;gap:8px;align-items:baseline;padding:6px 2px;border-top:1px solid var(--line)}
+.feed li:first-child{border-top:none}
+.feed .ic{width:10px;height:10px;border-radius:50%;display:inline-block;margin-top:3px}
+.feed .ic.sq{border-radius:2px}.feed .ic.di{transform:rotate(45deg);border-radius:1px}
+.feed time{color:var(--ink-3);font-size:12px;white-space:nowrap}
+.feed .room{color:var(--ink-3);font-size:12px}
+table{width:100%;border-collapse:collapse;font-size:13px}
+th,td{text-align:left;padding:6px 8px;border-top:1px solid var(--line);vertical-align:top}
+th{color:var(--ink-2);font-weight:600;border-top:none;font-size:12px}
+.empty{color:var(--ink-3);padding:12px 2px}
+.who{display:inline-block;background:var(--pill);border-radius:6px;padding:1px 6px;font-size:12px;margin:1px 2px 1px 0}
+footer{color:var(--ink-3);font-size:12px;margin-top:8px}
+@media (max-width:520px){body{padding:12px}.tile b{font-size:20px}}
+</style>
+</head>
+<body>
+<header><h1>TalkBridge activity</h1><span class="live down" id="live"><i></i><span id="live-t">connecting…</span></span></header>
+<div class="controls" role="group" aria-label="time range">
+  <button data-range="3600000">1 h</button><button data-range="86400000" aria-pressed="true">24 h</button><button data-range="604800000">7 d</button><button data-range="0">All</button>
+  <button id="theme" title="toggle dark mode">◐</button>
+  <a href="https://github.com/acmeproducts/stuff/blob/main/talkbridge/ACTIVITY-LOG.md" target="_blank" rel="noopener">raw log ↗</a>
+</div>
+<div class="tiles" id="tiles"></div>
+<section><h2>Rooms over time</h2>
+  <div class="legend" id="legend"></div>
+  <div id="lanes"></div>
+</section>
+<section><h2>Live feed</h2><ul class="feed" id="feed"></ul></section>
+<section><h2>Rooms</h2><div style="overflow:auto"><table id="rooms"><thead><tr><th>Room</th><th>Created by</th><th>People</th><th>Calls</th><th>Chats</th><th>Last activity</th></tr></thead><tbody></tbody></table></div></section>
+<footer id="foot"></footer>
+<div class="tip" id="tip"></div>
+<script>
+(function () {
+  'use strict';
+  var SRC = 'https://talk-signal.myacctfortracking.workers.dev/activity';
+  var POLL_MS = 5000;
+  var KINDS = {
+    created:  { label: 'room created', color: 'var(--created)', shape: 'circle' },
+    joined:   { label: 'joined',       color: 'var(--joined)',  shape: 'diamond' },
+    chat:     { label: 'chat',         color: 'var(--chat)',    shape: 'square' },
+    answered: { label: 'call answered', color: 'var(--answered)', shape: 'circle', icon: '✓' },
+    missed:   { label: 'call missed',   color: 'var(--missed)',   shape: 'circle', icon: '✕' },
+    declined: { label: 'call declined', color: 'var(--declined)', shape: 'circle', icon: '–' }
+  };
+  var ORDER = ['created', 'joined', 'chat', 'answered', 'missed', 'declined'];
+  var state = { events: [], range: 86400000, lastFetch: 0, ok: false, raw: '' };
+  var $ = function (id) { return document.getElementById(id); };
+  var esc = function (s) { var d = document.createElement('div'); d.textContent = s == null ? '' : String(s); return d.innerHTML; };
+
+  /* "2026-10-16 01:52:03  room bh5qos  Ann·flz created  en → th" */
+  function parse(text) {
+    var out = [];
+    text.split('\n').forEach(function (line, i) {
+      var m = /^(\d{4}-\d\d-\d\d \d\d:\d\d:\d\d)  room (\S+)  (.*)$/.exec(line.trim());
+      if (!m) return;
+      var ts = Date.parse(m[1].replace(' ', 'T') + 'Z'), room = m[2], rest = m[3], e = { i: i, ts: ts, room: room, text: rest };
+      var r;
+      if ((r = /^(.+?) created  (\S+) → (\S+)$/.exec(rest))) { e.kind = 'created'; e.who = r[1]; e.from = r[2]; e.to = r[3]; }
+      else if ((r = /^(.+?) joined  (\S+) → (\S+)$/.exec(rest))) { e.kind = 'joined'; e.who = r[1]; e.from = r[2]; e.to = r[3]; }
+      else if ((r = /^(.+?) chat$/.exec(rest))) { e.kind = 'chat'; e.who = r[1]; }
+      else if ((r = /^(video|voice) call from (.+?) — answered by (.+)$/.exec(rest))) { e.kind = 'answered'; e.call = r[1]; e.who = r[2]; e.by = r[3]; }
+      else if ((r = /^(video|voice) call from (.+?) — declined by (.+)$/.exec(rest))) { e.kind = 'declined'; e.call = r[1]; e.who = r[2]; e.by = r[3]; }
+      else if ((r = /^(video|voice) call from (.+?) — missed$/.exec(rest))) { e.kind = 'missed'; e.call = r[1]; e.who = r[2]; }
+      else { e.kind = 'chat'; e.who = rest; }
+      out.push(e);
+    });
+    return out;
+  }
+  function rel(ts) { var s = Math.max(0, Math.round((Date.now() - ts) / 1000)); if (s < 60) return s + ' s ago'; if (s < 3600) return Math.floor(s / 60) + ' min ago'; if (s < 86400) return Math.floor(s / 3600) + ' h ago'; return Math.floor(s / 86400) + ' d ago'; }
+  function fmt(ts) { var d = new Date(ts); return d.toLocaleString([], { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }); }
+  function describe(e) {
+    if (e.kind === 'created') return e.who + ' created the room (' + e.from + ' → ' + e.to + ')';
+    if (e.kind === 'joined') return e.who + ' joined (' + e.from + ' → ' + e.to + ')';
+    if (e.kind === 'chat') return e.who + ' sent a chat';
+    if (e.kind === 'answered') return e.call + ' call from ' + e.who + ', answered by ' + e.by;
+    if (e.kind === 'declined') return e.call + ' call from ' + e.who + ', declined by ' + e.by;
+    if (e.kind === 'missed') return e.call + ' call from ' + e.who + ', missed';
+    return e.text;
+  }
+  function visible() { var since = state.range ? Date.now() - state.range : 0; return state.events.filter(function (e) { return e.ts >= since; }); }
+
+  function renderTiles(ev) {
+    var rooms = {}, people = {}, calls = { answered: 0, missed: 0, declined: 0 }, chats = 0;
+    ev.forEach(function (e) { rooms[e.room] = 1; if (e.who) people[e.who] = 1; if (e.by) people[e.by] = 1; if (e.kind in calls) calls[e.kind]++; if (e.kind === 'chat') chats++; });
+    var last = ev.length ? ev[ev.length - 1].ts : null;
+    var tiles = [
+      ['Rooms', Object.keys(rooms).length, 'active in range'],
+      ['People', Object.keys(people).length, 'distinct name·device'],
+      ['Calls', calls.answered + calls.missed + calls.declined, calls.answered + ' answered · ' + calls.missed + ' missed · ' + calls.declined + ' declined'],
+      ['Chats', chats, 'messages sent'],
+      ['Last activity', last ? rel(last) : '—', last ? fmt(last) : 'nothing in range']
+    ];
+    $('tiles').innerHTML = tiles.map(function (t) { return '<div class="tile"><span>' + esc(t[0]) + '</span><b>' + esc(t[1]) + '</b><small>' + esc(t[2]) + '</small></div>'; }).join('');
+  }
+  function shapePath(shape, x, y, r) {
+    if (shape === 'square') return '<rect class="mark" x="' + (x - r) + '" y="' + (y - r) + '" width="' + (2 * r) + '" height="' + (2 * r) + '" rx="2"';
+    if (shape === 'diamond') return '<rect class="mark" x="' + (x - r) + '" y="' + (y - r) + '" width="' + (2 * r) + '" height="' + (2 * r) + '" rx="1" transform="rotate(45 ' + x + ' ' + y + ')"';
+    return '<circle class="mark" cx="' + x + '" cy="' + y + '" r="' + r + '"';
+  }
+  function renderLanes(ev) {
+    var host = $('lanes'), legend = $('legend');
+    legend.innerHTML = ORDER.map(function (k) { var K = KINDS[k]; return '<span><i class="sw ' + (K.shape === 'square' ? 'sq' : K.shape === 'diamond' ? 'di' : '') + '" style="background:' + K.color + '"></i>' + esc(K.label) + '</span>'; }).join('');
+    if (!ev.length) { host.innerHTML = '<div class="empty">No activity in this range yet. The relay writes a line when someone creates or joins a room, calls, or chats on the current build.</div>'; return; }
+    var rooms = []; var byRoom = {};
+    ev.forEach(function (e) { if (!byRoom[e.room]) { byRoom[e.room] = { id: e.room, ev: [], people: {} }; rooms.push(byRoom[e.room]); } byRoom[e.room].ev.push(e); if (e.who) byRoom[e.room].people[e.who] = 1; if (e.by) byRoom[e.room].people[e.by] = 1; });
+    rooms.sort(function (a, b) { return b.ev[b.ev.length - 1].ts - a.ev[a.ev.length - 1].ts; });
+    var W = Math.max(320, host.clientWidth || 600), L = 120, R = 16, T = 22, rowH = 34, H = T + rooms.length * rowH + 24;
+    var t1 = Date.now(), t0 = state.range ? t1 - state.range : Math.min.apply(null, ev.map(function (e) { return e.ts; })) - 60000;
+    var x = function (ts) { return L + (W - L - R) * (ts - t0) / Math.max(1, t1 - t0); };
+    var s = '<svg viewBox="0 0 ' + W + ' ' + H + '" role="img" aria-label="rooms over time">';
+    var ticks = 4; for (var i = 0; i <= ticks; i++) { var tt = t0 + (t1 - t0) * i / ticks, tx = x(tt); s += '<line class="grid" x1="' + tx + '" y1="' + T + '" x2="' + tx + '" y2="' + (H - 20) + '"/><text class="axis" x="' + tx + '" y="' + (H - 6) + '" text-anchor="' + (i === 0 ? 'start' : i === ticks ? 'end' : 'middle') + '">' + esc(i === ticks ? 'now' : fmt(tt)) + '</text>'; }
+    rooms.forEach(function (rm, ri) {
+      var y = T + ri * rowH + rowH / 2;
+      s += '<line class="grid" x1="' + L + '" y1="' + y + '" x2="' + (W - R) + '" y2="' + y + '"/>';
+      s += '<text class="lane-label" x="0" y="' + (y - 2) + '">' + esc(rm.id) + '</text><text class="lane-sub" x="0" y="' + (y + 11) + '">' + esc(Object.keys(rm.people).length + ' ' + (Object.keys(rm.people).length === 1 ? 'person' : 'people') + ' · ' + rm.ev.length) + '</text>';
+      rm.ev.forEach(function (e, k) { var K = KINDS[e.kind] || KINDS.chat; s += shapePath(K.shape, x(e.ts), y, 6) + ' fill="' + K.color + '" data-i="' + e.i + '" tabindex="0"><title>' + esc(fmt(e.ts) + ' · ' + describe(e)) + '</title></' + (K.shape === 'circle' ? 'circle' : 'rect') + '>'; });
+    });
+    s += '</svg>';
+    host.innerHTML = s;
+  }
+  function renderFeed(ev) {
+    var feed = $('feed'); var list = ev.slice().reverse().slice(0, 200);
+    if (!list.length) { feed.innerHTML = '<li class="empty">Nothing yet.</li>'; return; }
+    feed.innerHTML = list.map(function (e) { var K = KINDS[e.kind] || KINDS.chat; return '<li><i class="ic ' + (K.shape === 'square' ? 'sq' : K.shape === 'diamond' ? 'di' : '') + '" style="background:' + K.color + '" title="' + esc(K.label) + '"></i><span>' + (K.icon ? '<b>' + K.icon + '</b> ' : '') + esc(describe(e)) + ' <span class="room">· room ' + esc(e.room) + '</span></span><time title="' + esc(new Date(e.ts).toISOString()) + '">' + esc(rel(e.ts)) + '</time></li>'; }).join('');
+  }
+  function renderRooms(ev) {
+    var byRoom = {}, rooms = [];
+    ev.forEach(function (e) { var r = byRoom[e.room]; if (!r) { r = byRoom[e.room] = { id: e.room, creator: '', people: {}, answered: 0, missed: 0, declined: 0, chats: 0, last: 0 }; rooms.push(r); } if (e.kind === 'created') r.creator = e.who + ' (' + e.from + ' → ' + e.to + ')'; if (e.who) r.people[e.who] = 1; if (e.by) r.people[e.by] = 1; if (e.kind in { answered: 1, missed: 1, declined: 1 }) r[e.kind]++; if (e.kind === 'chat') r.chats++; r.last = Math.max(r.last, e.ts); });
+    rooms.sort(function (a, b) { return b.last - a.last; });
+    var tb = $('rooms').querySelector('tbody');
+    tb.innerHTML = rooms.length ? rooms.map(function (r) { return '<tr><td>' + esc(r.id) + '</td><td>' + esc(r.creator || '—') + '</td><td>' + Object.keys(r.people).map(function (p) { return '<span class="who">' + esc(p) + '</span>'; }).join('') + '</td><td>' + esc(r.answered + ' answered, ' + r.missed + ' missed, ' + r.declined + ' declined') + '</td><td>' + esc(r.chats) + '</td><td>' + esc(fmt(r.last)) + '</td></tr>'; }).join('') : '<tr><td colspan="6" class="empty">No rooms in this range.</td></tr>';
+  }
+  function render() { var ev = visible(); renderTiles(ev); renderLanes(ev); renderFeed(ev); renderRooms(ev); $('foot').textContent = state.events.length + ' lines in the log · read every ' + (POLL_MS / 1000) + ' s from the relay · times shown in your local zone'; }
+
+  var tip = $('tip');
+  document.addEventListener('mousemove', function (ev) { var t = ev.target; var i = t && t.getAttribute && t.getAttribute('data-i'); if (i == null) { tip.style.display = 'none'; return; } var e = state.events.filter(function (x) { return String(x.i) === String(i); })[0]; if (!e) return; tip.textContent = fmt(e.ts) + ' · ' + describe(e); tip.style.display = 'block'; tip.style.left = Math.min(window.innerWidth - 270, ev.clientX + 12) + 'px'; tip.style.top = (ev.clientY + 12) + 'px'; });
+
+  function setLive(cls, text) { var el = $('live'); el.className = 'live ' + cls; $('live-t').textContent = text; }
+  function tick() {
+    var demo = /[?&]demo=1/.test(location.search);
+    var p = demo ? Promise.resolve(demoText()) : fetch(SRC, { cache: 'no-store' }).then(function (r) { if (!r.ok) throw new Error('HTTP ' + r.status); return r.text(); });
+    p.then(function (text) { state.ok = true; state.lastFetch = Date.now(); if (text !== state.raw) { state.raw = text; state.events = parse(text); } render(); setLive('', 'live · ' + (demo ? 'demo data' : 'updated ' + new Date().toLocaleTimeString())); })
+     .catch(function (e) { state.ok = false; setLive(state.events.length ? 'stale' : 'down', (state.events.length ? 'stale · ' : 'relay unreachable · ') + String(e.message || e)); render(); });
+  }
+  function demoText() {
+    var now = Date.now(), L = []; var t = function (m) { return new Date(now - m * 60000).toISOString().replace('T', ' ').slice(0, 19); };
+    L.push(t(130) + '  room bh5qos  Ann·flz created  en → th'); L.push(t(126) + '  room bh5qos  Bo·m66 joined  th → en'); L.push(t(120) + '  room bh5qos  Ann·flz chat'); L.push(t(119) + '  room bh5qos  Bo·m66 chat');
+    L.push(t(110) + '  room bh5qos  video call from Ann·flz — missed'); L.push(t(100) + '  room bh5qos  video call from Bo·m66 — answered by Ann·flz'); L.push(t(40) + '  room q4hv8e  Ann·flz created  en → ko'); L.push(t(38) + '  room q4hv8e  Kim·tzc joined  ko → en');
+    L.push(t(30) + '  room q4hv8e  voice call from Kim·tzc — declined by Ann·flz'); L.push(t(12) + '  room q4hv8e  Kim·tzc chat'); L.push(t(2) + '  room bh5qos  Bo·m66 chat');
+    return L.join('\n');
+  }
+  document.querySelectorAll('[data-range]').forEach(function (b) { b.addEventListener('click', function () { document.querySelectorAll('[data-range]').forEach(function (x) { x.setAttribute('aria-pressed', 'false'); }); b.setAttribute('aria-pressed', 'true'); state.range = Number(b.getAttribute('data-range')); render(); }); });
+  $('theme').addEventListener('click', function () { var r = document.documentElement; var dark = r.getAttribute('data-theme') === 'dark' || (!r.getAttribute('data-theme') && window.matchMedia('(prefers-color-scheme: dark)').matches); r.setAttribute('data-theme', dark ? 'light' : 'dark'); try { localStorage.setItem('tb_dash_theme', dark ? 'light' : 'dark'); } catch (_) {} });
+  try { var th = localStorage.getItem('tb_dash_theme'); if (th) document.documentElement.setAttribute('data-theme', th); } catch (_) {}
+  window.addEventListener('resize', function () { render(); });
+  tick(); setInterval(tick, POLL_MS); setInterval(function () { if (state.events.length) { renderFeed(visible()); } }, 30000);
+})();
+</script>
+</body>
+</html>
