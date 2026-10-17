@@ -3,7 +3,7 @@ import http from 'node:http';import fs from 'node:fs';import path from 'node:pat
 const require=createRequire(import.meta.url),{chromium}=require('playwright'),HERE=path.dirname(fileURLToPath(import.meta.url)),GB=1073741824;
 const fail=(m)=>{console.error('FAIL '+m);process.exitCode=1;throw new Error(m)},ok=(c,m)=>{if(!c)fail(m)},pass=m=>console.log('PASS '+m);
 const now=Math.floor(Date.now()/1000);
-const sources=[['s1','/mnt/a/Photos',300,now-3600],['s2','/mnt/b/Video',250,now-7200],['s3','/mnt/c/Archive',150,0]].map(([id,root,,t])=>({source_id:id,label:root,estate:root,root,enabled:1,soft_deleted:false,pending:false,analysis_state:'CURRENT',last_success_ended:t||null,last_success_job_id:t?'j'+id:null,last_errors:0}));
+const sources=[['s1','/mnt/a/Photos',300,now-3600],['s2','/mnt/b/Video',250,now-7200],['s3','/mnt/c/Archive',150,0]].map(([id,root,,t])=>({source_id:id,label:root,estate:root,root,enabled:1,soft_deleted:false,pending:false,analysis_state:'CURRENT',last_success_ended:t||null,last_success_job_id:t?'j'+id:null,last_errors:0,reachable:true}));
 let n=0;const P=(src,cls,gb,fp,sub)=>({placement_id:'p'+(++n),placement_no:n,source_id:src,estate:src,path:sources.find(x=>x.source_id===src).root+(sub?'/'+sub:'')+'/f'+n,filename:'f'+n,size:gb*GB,fingerprint:fp||'fp'+n,system_classification:cls,availability:'OK',placement_state:'ACTIVE'});
 // SCANNED 900 = UNIQUE 600 + KEEP 100 + EXCESS 200 ; ESTATE 700 ; roots retained a=300 b=250 c=150
 let placements=[P('s1','UNIQUE',300),P('s2','UNIQUE',150,null,'2024'),P('s3','UNIQUE',150),P('s2','KEEP',100,'dup','2024/trips'),P('s3','EXCESS',100,'dup'),P('s2','EXCESS',100,'dup2')];
@@ -15,7 +15,14 @@ const api=(u)=>{const p=u.pathname.replace(/^\/sot/,'');
  if(p==='/api/placements/delta'){counts.delta++;if(deltaMode==='missing')return {ok:false,error:'not found'};const since=Number(u.searchParams.get('since'));if(since===rev)return {ok:true,full:false,unchanged:true,catalog_revision:rev,upserts:[],removed:[]};if(deltaMode==='full')return {ok:true,full:true,catalog_revision:rev,total:placements.length};return {ok:true,full:false,unchanged:false,catalog_revision:rev,total:placements.length,upserts:placements.filter(x=>x.rev===rev),removed:removedIds}}
  if(p==='/api/placements/page'){counts.page++;return {ok:true,catalog_revision:rev,total:placements.length,placements,has_more:false,next_after:placements.length}};
  if(p.startsWith('/api/ssot/refresh-staleness'))counts.stale=(counts.stale||0)+1;if(p.startsWith('/api/ssot/refresh-staleness')&&stalenessSlow)return 'slow';if(p.startsWith('/api/ssot/refresh-staleness'))return stalenessMissing?{ok:false,error:'not found'}:{ok:true,errors:[]};if(p==='/api/volumes')return {ok:true,volumes:[]};return {ok:true};};
-let rankCalls=[];const srv=http.createServer(async(rq,rs)=>{const u=new URL(rq.url,'http://x');if(u.pathname.endsWith('/api/sources/rank')){let b='';for await(const c of rq)b+=c;const o=JSON.parse(b).order;rankCalls.push(o);sources.sort((x,y)=>o.indexOf(x.source_id)-o.indexOf(y.source_id));rs.writeHead(200,{'content-type':'application/json'});return rs.end(JSON.stringify({ok:true,sources}))}if(u.pathname.startsWith('/sot/')){if(pageDelay&&u.pathname.endsWith('/placements/page'))await new Promise(r=>setTimeout(r,pageDelay));const j=api(u);if(j==='slow'){await new Promise(r=>setTimeout(r,60000));return rs.end('{"ok":true}')}rs.writeHead(j.ok===false?404:200,{'content-type':'application/json'});return rs.end(JSON.stringify(j))}
+let rankCalls=[],keepCalls=[],landCalls=[],ctlCalls=[],landState={state:'IDLE',job:null};
+const post={
+ '/api/placement/keep':b=>{keepCalls.push(b);const p=placements.find(x=>x.placement_id===b.placement_id);const g=placements.filter(x=>x.fingerprint===p.fingerprint);if(b.keep)p.system_classification='KEEP';else p.system_classification='EXCESS';rev++;for(const x of g)x.rev=rev;return {ok:true,group:g,catalog_revision:rev}},
+ '/api/land/preflight':b=>{landCalls.push(['pre',b.placement_ids.length]);const rows=placements.filter(x=>b.placement_ids.includes(x.placement_id));const bytes=rows.reduce((t,x)=>t+x.size,0);return {ok:true,preflight:{files:rows.length,bytes,free_bytes:targetBytes,room_bytes:targetBytes,fits:bytes<=targetBytes,deficit_bytes:Math.max(0,bytes-targetBytes),will_land:{files:rows.length-(bytes>targetBytes?1:0),bytes:Math.min(bytes,targetBytes)},roots_short:bytes>targetBytes?[{source_id:'s3',root:'/mnt/c/Archive',files:1,bytes:150*GB}]:[],target:'/mnt/t'}}},
+ '/api/land/start':b=>{landCalls.push(['start',b.placement_ids.length]);landState={state:'RUNNING',job:{id:'L1',state:'RUNNING',files:3,bytes:550*GB,files_done:1,bytes_done:200*GB,current:'/mnt/a/Photos/f1',errors:[],error_count:0,paused:false}};return {ok:true,land:landState}},
+ '/api/land/control':b=>{landCalls.push(['ctl',b.action]);if(b.action==='cancel')landState={state:'IDLE',job:{...landState.job,state:'CANCELLED'}};else landState.job.paused=b.action==='pause';return {ok:true,land:landState}},
+ '/api/source/control':b=>{ctlCalls.push(b);return {ok:true,sources}}};
+const srv=http.createServer(async(rq,rs)=>{const u=new URL(rq.url,'http://x');const pp=u.pathname.replace(/^\/sot/,'');if(rq.method==='POST'&&post[pp]){let b='';for await(const c of rq)b+=c;const j=post[pp](JSON.parse(b||'{}'));rs.writeHead(200,{'content-type':'application/json'});return rs.end(JSON.stringify(j))}if(pp==='/api/land/status'){rs.writeHead(200,{'content-type':'application/json'});return rs.end(JSON.stringify({ok:true,land:landState}))}if(u.pathname.endsWith('/api/sources/rank')){let b='';for await(const c of rq)b+=c;const o=JSON.parse(b).order;rankCalls.push(o);sources.sort((x,y)=>o.indexOf(x.source_id)-o.indexOf(y.source_id));rs.writeHead(200,{'content-type':'application/json'});return rs.end(JSON.stringify({ok:true,sources}))}if(u.pathname.startsWith('/sot/')){if(pageDelay&&u.pathname.endsWith('/placements/page'))await new Promise(r=>setTimeout(r,pageDelay));const j=api(u);if(j==='slow'){await new Promise(r=>setTimeout(r,60000));return rs.end('{"ok":true}')}rs.writeHead(j.ok===false?404:200,{'content-type':'application/json'});return rs.end(JSON.stringify(j))}
  const f=path.join(HERE,path.basename(u.pathname));if(!fs.existsSync(f)){rs.writeHead(404);return rs.end()}rs.writeHead(200,{'content-type':f.endsWith('.html')?'text/html':'text/plain'});rs.end(fs.readFileSync(f))});
 await new Promise(r=>srv.listen(0,'127.0.0.1',r));const port=srv.address().port,URL_=`http://127.0.0.1:${port}/sot-turn02-release-d-complete.html?api=${encodeURIComponent(`http://127.0.0.1:${port}/sot`)}`;
 const browser=await chromium.launch();
@@ -27,13 +34,13 @@ const txt=(fr,sel)=>fr.$eval(sel,e=>e.innerText);
 try{
  let {ctx:ctx0,pg,fr}=await open(1280,900);
  // 1 labels
- const strip=await fr.$$eval('#tabs button',b=>b.filter(x=>x.style.display!=='none').map(x=>x.title));ok(JSON.stringify(strip.slice(0,5))==='["Report","Job Status","Roots","Search","Add to Estate"]','top strip '+strip);
+ const strip=await fr.$$eval('#tabs button',b=>b.filter(x=>x.style.display!=='none').map(x=>x.title));ok(JSON.stringify(strip.slice(0,4))==='["Report","Roots","Search","AI Tasks"]','top strip '+strip);
  ok((await fr.$$('#Plan .subtabs, .ssot-report-switch')).length===0,'the Report|Job Status and Summary|Roots rows must be gone');
  const hdr=f=>f.evaluate(()=>{const t=document.querySelector('#tabs').getBoundingClientRect(),dot=document.getElementById('dot').getBoundingClientRect(),g=document.querySelector('.header-gear').getBoundingClientRect(),mid=r=>r.top+r.height/2,btn=[...document.querySelectorAll('#tabs button')].filter(b=>b.offsetParent).map(b=>b.getBoundingClientRect().width);return {brand:getComputedStyle(document.querySelector('.brand')).display,hw:document.getElementById('health').getBoundingClientRect().width,same:Math.abs(mid(t)-mid(dot))<6&&Math.abs(mid(t)-mid(g))<6,h:document.querySelector('header').getBoundingClientRect().height,minBtn:Math.min(...btn),over:document.documentElement.scrollWidth-document.documentElement.clientWidth}});
  const h1=await hdr(fr);ok(h1.brand==='none'&&h1.hw<=1&&h1.same&&h1.h<=60,'header must be a single row with only the dot '+JSON.stringify(h1));
  const onTab=()=>fr.$$eval('#tabs button.on',b=>b.map(x=>x.title));ok(JSON.stringify(await onTab())==='["Report"]','report tab highlighted: '+await onTab());
  const vis=await fr.evaluate(()=>[...document.querySelectorAll('button,a,[role=tab]')].filter(e=>e.offsetParent&&/analyze/i.test(e.textContent)).map(e=>e.textContent));ok(!vis.length,'visible Analyze label: '+vis);
- pass('top strip carries Report, Job Status, Roots, Search, Add and AI icons; the two switch rows are gone; Analyze is not an owner-facing label');
+ pass('top bar: Report, Roots, Search, AI, then the connection dot and settings; Job Status and Add are gone from the bar');
  // 2 subtabs
  // (sub-tabs removed: Roots and Job Status are top-strip icons)
  const F=()=>fr.evaluate(()=>({val:document.querySelector('#Plan .fval').innerText.trim(),chips:[...document.querySelectorAll('#Plan .fchip')].map(c=>c.innerText.replace(/[✕+]/g,'').trim()+(c.classList.contains('dim')?'~':'')+(c.classList.contains('off')?'-':'')),sq:[...document.querySelectorAll('#Plan .fsq')].map(q=>q.title||'_').join(','),tiles:[...document.querySelectorAll('#Plan .ftile')].map(t=>t.innerText.trim()+'@'+t.style.background.replace(/\s/g,'')),up:document.querySelector('#Plan .fcrumb')?.innerText||''}));
@@ -76,26 +83,92 @@ try{
   const st=await f4.evaluate(()=>JSON.stringify(__ssotFlow));ok(/"view":"stored"/.test(st)&&/"u":"f"/.test(st)&&/"n":"n"/.test(st),'report choices not persisted '+st);
   await f4.evaluate(()=>{localStorage.removeItem('sotFlowUi');Object.assign(__ssotFlow,{view:'scanned',u:'g',n:'pct',off:[],cur:null,curSlice:null});renderPlan()});fr=f4}
  pass('view, # / % and GB / Files persist per device');
- // Estate
- await fr.evaluate(()=>setPlanTab('Roots'));const heads=await fr.$$eval('.estate-table th',h=>h.map(x=>x.textContent.trim()));ok(JSON.stringify(heads)==='["","Root","Files","Size","Last Synced"]','heads '+heads);
- const rowsOf=()=>fr.$$eval('.estate-table tbody tr',r=>r.map(x=>({h:x.cells[0].textContent,root:x.cells[1].textContent,files:x.cells[2].textContent,size:x.cells[3].textContent,synced:x.cells[4].textContent,bg:getComputedStyle(x.cells[1]).backgroundColor,fg:getComputedStyle(x.cells[1]).color})));
- let rows=await rowsOf();ok(rows.length===3&&rows.map(r=>r.root).join()==='/mnt/a/Photos,/mnt/b/Video,/mnt/c/Archive'&&rows.every(r=>r.h==='☰'),'rows '+JSON.stringify(rows));
- ok(rows[0].files==='1'&&rows[0].size==='300.0 GB'&&rows[1].files==='2'&&rows[1].size==='250.0 GB'&&rows[2].files==='1'&&rows[2].size==='150.0 GB','estate numbers from real placements '+JSON.stringify(rows));
+ // Release E: where a double-tap on a leaf goes
+ const dbl=async(re,col)=>{const i=await fr.evaluate(([re,col])=>[...document.querySelectorAll('#Plan .ftile')].findIndex(t=>new RegExp(re).test(t.innerText)&&new RegExp(col).test(t.style.background)),[re,col]);ok(i>=0,'tile '+re);await fr.evaluate(i=>{__ssotFlowTap({stopPropagation(){}},i);__ssotFlowTap({stopPropagation(){}},i)},i);await pg.waitForTimeout(500)};
+ await setF({view:'scanned'});await dbl('^/mnt/c/Archive','167, ?125, ?232');
+ ok(await fr.evaluate(()=>eval('planTab')==='Duplicates'&&__ssotDup.path==='/mnt/c/Archive'&&!!document.querySelector('#Plan .dups')),'Excess leaf opens Duplicates for that path');
+ await fr.evaluate(()=>__ssotOpenReportMode('Report'));await setF({view:'capacity'});await dbl('^/mnt/c/Archive','229, ?72, ?77');
+ ok(await fr.evaluate(()=>eval('planTab')==='Roots'&&!!document.querySelector('.estate-table tr.rhi[data-sid="s3"]')),'Deficit leaf opens Roots with that row highlighted');
+ await fr.evaluate(()=>__ssotOpenReportMode('Report'));await setF({view:'capacity'});await dbl('^/mnt/a/Photos','59, ?158, ?230');
+ {const r=await fr.evaluate(()=>({on:document.getElementById('Database').classList.contains('on'),sel:__ssotTableSelected.size,land:!!document.querySelector('.ssot-bulk .land'),del:document.querySelector('.ssot-bulk .danger')?.disabled}));ok(r.on&&r.sel===1&&r.land&&r.del,'In play leaf opens Search with those files selected, Land ready, Delete off '+JSON.stringify(r))}
+ pass('double-tap: Excess → Duplicates for that path · Deficit → Roots, row highlighted · In play → Search selected with Land ready');
+ // Search: Delete only for Excess, Land only for in-play
+ await fr.evaluate(()=>{__ssotTableSelected.clear();omniDraft=omniQuery='class:excess';renderDatabase()});await pg.waitForTimeout(400);
+ {const r=await fr.evaluate(()=>({land:!!document.querySelector('.ssot-bulk .land'),del:document.querySelector('.ssot-bulk .danger')?.disabled}));ok(!r.land&&r.del===false,'Excess results: Delete allowed, no Land '+JSON.stringify(r))}
+ await fr.evaluate(()=>{omniDraft=omniQuery='';renderDatabase()});await pg.waitForTimeout(300);
+ ok(await fr.evaluate(()=>document.querySelector('.ssot-bulk .danger')?.disabled===true),'mixed results: Delete is off');
+ pass('Search action bar: Delete is limited to Excess; Land appears only when the selection is in play');
+ // Land: confirm screen first, never automatic
+ ok(!landCalls.length,'nothing lands on its own');
+ await fr.evaluate(()=>{omniDraft=omniQuery='class:unique';renderDatabase()});await pg.waitForTimeout(400);await fr.click('.ssot-bulk .land');await pg.waitForTimeout(500);
+ {const m=await fr.evaluate(()=>({t:document.getElementById('modaltitle').textContent,b:document.getElementById('modalbody').innerText,ok:document.getElementById('modalok').textContent}));ok(/Land on the TARGET/.test(m.t)&&/3 files · 600\.0 GB/.test(m.b)&&/600\.0 GB free/.test(m.b)&&/Fits\./.test(m.b)&&m.ok==='Proceed','confirm screen '+JSON.stringify(m))}
+ ok(landCalls.length===1&&landCalls[0][0]==='pre','only the preflight ran so far '+JSON.stringify(landCalls));
+ await fr.click('#modalcancel');await pg.waitForTimeout(200);ok(landCalls.length===1,'Cancel backs out');
+ targetBytes=500*GB;await fr.evaluate(()=>dataPoll());await pg.waitForTimeout(400);await fr.click('.ssot-bulk .land');await pg.waitForTimeout(500);
+ {const b=await fr.evaluate(()=>document.getElementById('modalbody').innerText);ok(/Deficit: 100\.0 GB won't fit/.test(b)&&/\/mnt\/c\/Archive/.test(b),'deficit confirm lists the roots that will not make it '+b)}
+ await fr.click('#modalok');await pg.waitForTimeout(700);ok(landCalls.at(-1)?.[0]==='start','Proceed starts landing');
+ ok(await fr.evaluate(()=>eval('planTab')==='Roots'),'landing opens Roots to watch it');
+ await pg.waitForTimeout(1800);{const t=await fr.$eval('.estate-table tr.trow',e=>e.innerText);ok(/Landing 36% · 1 \/ 3/.test(t)&&/Pause/.test(t)&&/Cancel/.test(t),'target row shows landing progress '+t)}
+ await fr.click('.estate-table tr.trow button:has-text("Pause")');await pg.waitForTimeout(400);ok(landCalls.at(-1)?.join()==='ctl,pause','pause');
+ await fr.click('.estate-table tr.trow button:has-text("Cancel")');await pg.waitForTimeout(400);ok(landCalls.at(-1)?.join()==='ctl,cancel','cancel');
+ targetBytes=600*GB;await fr.evaluate(()=>dataPoll());await pg.waitForTimeout(400);
+ pass('Land: a confirm screen with files, GB, free space and Fits or Deficit (listing the roots that will not make it); Proceed or Cancel; progress, Pause and Cancel on the TARGET row');
+ // Change target from the TARGET row
+ await fr.click('.estate-table tr.trow .rdots');await pg.waitForTimeout(200);ok(JSON.stringify(await fr.$$eval('.rpop button',b=>b.map(x=>x.textContent)))==='["Rescan target","Change target…"]','target menu');
+ await fr.click('.rpop button:has-text("Change target")');await pg.waitForTimeout(600);
+ ok(await fr.evaluate(()=>document.getElementById('modaltitle').textContent==='Change TARGET'&&!!document.getElementById('keepOldTarget')),'change target asks, with a keep-old-as-root checkbox');await fr.click('#modalcancel');await pg.waitForTimeout(200);
+ pass('Change target opens the folder picker with "Keep the old target as a root"');
+ // first run: no target yet
+ await fr.evaluate(()=>{window.__ssotT=eval('targetState');eval('targetState={configured:false}');__ssotOpenReportMode('Report');renderPlan()});await pg.waitForTimeout(200);
+ {const t=await txt(fr,'#Plan .setup');ok(/1 · Target/.test(t)&&/2 · AI/.test(t)&&/3 · GitHub token/.test(t),'setup cards '+t)}
+ await fr.evaluate(()=>{eval('targetState=window.__ssotT');renderPlan()});
+ pass('first run: three cards (Target, AI, GitHub token), one sentence each');
+ // Roots
+ await fr.evaluate(()=>{localStorage.removeItem('sotRootsUi');Object.assign(__ssotRoots,{mode:'custom',col:'size',dir:-1,u:'g',custom:[],menu:null,hi:null});setPlanTab('Roots')});await pg.waitForTimeout(200);
+ const heads=await fr.$$eval('.estate-table th',h=>h.map(x=>x.textContent.replace(/[▲▼]/g,'').trim()));ok(JSON.stringify(heads)==='["","","Root","Files","Size","Last synced",""]','heads '+heads);
+ const rowsOf=()=>fr.$$eval('.estate-table tbody tr:not(.trow)',r=>r.map(x=>({h:x.cells[0].textContent,dot:x.querySelector('.rdot')?.className.replace('rdot','').trim(),root:x.querySelector('.rpath')?.textContent||x.cells[2].textContent,now:x.querySelector('.rnow')?.textContent||'',files:x.cells[3].textContent,size:x.cells[4].textContent,synced:x.cells[5].textContent,bg:getComputedStyle(x.cells[2]).backgroundColor,fg:getComputedStyle(x.cells[2]).color,red:x.classList.contains('redrow')})));
+ let rows=await rowsOf();ok(rows.length===3&&rows.map(r=>r.root).join()==='/mnt/a/Photos,/mnt/b/Video,/mnt/c/Archive'&&rows.every(r=>r.h==='☰'&&r.dot==='green'),'rows '+JSON.stringify(rows));
+ ok(rows[0].files==='1'&&rows[0].size==='300.0 GB'&&rows[1].files==='2'&&rows[1].size==='250.0 GB'&&rows[2].files==='1'&&rows[2].size==='150.0 GB','root numbers from real placements '+JSON.stringify(rows));
  ok(rows[2].synced==='Never'&&rows[0].synced!=='Never','sync '+JSON.stringify(rows));
+ ok(/% of scanned/.test(rows[0].now)&&/^33% /.test(rows[0].now),'green rows carry a grey share bar '+rows[0].now);
  const sum=await txt(fr,'.estate-sum');ok(/ASSETS 700\.0 GB \| TARGET 600\.0 GB \| DEFICIT 100\.0 GB/.test(sum),'summary '+sum);
- pass('Roots table: drag handle, Root / Files / Size / Last Synced (Status column removed), ASSETS | TARGET | DEFICIT summary');
+ ok(/TARGET\s+\/mnt\/t/.test(await fr.$eval('.estate-table tr.trow',e=>e.innerText)),'the TARGET is pinned as the first row');
+ pass('Roots: TARGET pinned first; rows are ☰ · dot · Root · Files · Size · Last synced · ⋯; green rows show their share of everything scanned');
  const red='rgb(198, 40, 40)',white='rgb(255, 255, 255)';ok(rows[2].bg===red&&rows[2].fg===white&&rows[0].bg!==red&&rows[1].bg!==red,'overflow colors '+JSON.stringify(rows.map(r=>[r.bg,r.fg])));
  pass('roots fill the TARGET in priority order; the first root that does not fit and everything after it is red');
- {const box=async i=>(await fr.$$('.estate-table td.rank-h'))[i].boundingBox();const fb=await pg.$('iframe');const b3=await box(2),b1=await box(0);
-  await pg.mouse.move(b3.x+b3.width/2,b3.y+b3.height/2);await pg.mouse.down();await pg.mouse.move(b1.x+b1.width/2,b1.y+2,{steps:6});await pg.mouse.up();await pg.waitForTimeout(800);
-  ok(rankCalls.length===1&&rankCalls[0].join()==='s3,s1,s2','drag sends new priority '+JSON.stringify(rankCalls));
-  rows=await rowsOf();ok(rows.map(r=>r.root.split('/').pop()).join()==='Archive,Photos,Video'&&rows[2].bg===red&&rows[0].bg!==red&&rows[1].bg!==red,'re-ranked rows and cut-off '+JSON.stringify(rows.map(r=>[r.root,r.bg])));
-  pass('dragging ☰ re-ranks roots, saves the priority, and the red cut-off moves to the new last root');
-  await fr.evaluate(()=>{const o=['s1','s2','s3'];sources.sort((x,y)=>o.indexOf(x.source_id)-o.indexOf(y.source_id));renderPlan()})}
- ok((await fr.$$('.estate-table button, .estate-table input')).length===0,'job controls in estate table');
- {const cs=await fr.$eval('.estate-table td.estate-root',e=>{const c=getComputedStyle(e);return {o:c.textOverflow,w:c.whiteSpace,t:e.title,copy:e.dataset.copy}});ok(cs.o==='ellipsis'&&cs.w==='nowrap'&&/tap to copy/.test(cs.t)&&cs.copy.startsWith('/mnt/'),'estate root truncation/hover/copy attrs '+JSON.stringify(cs));
-  await ctx0.grantPermissions(['clipboard-read','clipboard-write']);await fr.click('.estate-table tbody tr:nth-child(2) td.estate-root');await pg.waitForTimeout(300);const copied=await pg.evaluate(()=>navigator.clipboard.readText());ok(copied===await fr.$eval('.estate-table tbody tr:nth-child(2) td.estate-root',e=>e.dataset.copy)&&copied.startsWith('/mnt/'),'estate tap-to-copy clipboard: '+copied);ok(await fr.evaluate(()=>[...document.querySelectorAll('.toast')].some(t=>/^Copied: \/mnt\//.test(t.textContent))),'copy toast');
-  pass('Estate cells truncate with an ellipsis, show the full value on hover, and copy it on tap')}
+ await fr.evaluate(()=>__ssotRootsSet('u','f'));rows=await rowsOf();ok(/^17% /.test(rows[0].now),'# switch shows share of files '+rows[0].now);await fr.evaluate(()=>__ssotRootsSet('u','g'));
+ // live scan: yellow dot, progress bar, current file
+ await fr.evaluate(()=>{window.__ssotJobsSave=eval('jobs');eval("jobs=[{job:{state:'RUNNING'},scope_sources:[{source_id:'s2'}],sources:[{source_id:'s2',discovered_files:200,hashed_files:50,discovered_bytes:4000,hashed_bytes:1000,current_file:'IMG_2041.jpg'}]}]");renderPlan()});
+ rows=await rowsOf();ok(rows[1].dot==='yellow'&&/^25% · 50 \/ 200 · IMG_2041\.jpg/.test(rows[1].now),'scanning row '+JSON.stringify(rows[1]));
+ ok(await fr.evaluate(()=>new Promise(r=>setTimeout(()=>r(document.querySelector('#tabs [data-tab="Roots"]').classList.contains('ssot-busy')),1700))),'Roots icon shows the scanning dot');
+ await fr.evaluate(()=>{eval('jobs=window.__ssotJobsSave||[]');renderPlan()});
+ pass('a scanning root shows a yellow dot, a live progress bar and the file being fingerprinted; the Roots icon carries a yellow dot');
+ // unreadable: red at the top, no numbers, only Retry / Remove
+ await fr.evaluate(()=>{sources[2].reachable=false;renderPlan()});rows=await rowsOf();ok(rows[0].red&&rows[0].dot==='red'&&/Archive/.test(rows[0].root)&&rows[0].files===''&&rows[0].size===''&&!rows[0].now,'red row '+JSON.stringify(rows[0]));
+ await fr.click('.estate-table tr.redrow .rdots');await pg.waitForTimeout(200);ok(JSON.stringify(await fr.$$eval('.rpop button',b=>b.map(x=>x.textContent)))==='["Retry","Remove"]','red row menu');
+ await fr.click('.rpop button:has-text("Retry")');await pg.waitForTimeout(400);ok(ctlCalls.at(-1)?.action==='rescan'&&ctlCalls.at(-1)?.source_id==='s3','retry sends rescan '+JSON.stringify(ctlCalls));
+ await fr.evaluate(()=>{sources[2].reachable=true;renderPlan()});
+ pass('a root that cannot be read is red, sits at the top with no numbers, and offers only Retry or Remove');
+ await fr.click('.estate-table tbody tr:not(.trow):nth-child(3) .rdots');await pg.waitForTimeout(200);ok(JSON.stringify(await fr.$$eval('.rpop button',b=>b.map(x=>x.textContent)))==='["Rescan","Remove"]','row menu');
+ await fr.click('.rpop button:has-text("Remove")');await pg.waitForTimeout(200);ok(/Remove this root/.test(await fr.$eval('#modaltitle',e=>e.textContent)),'remove asks first');await fr.click('#modalok');await pg.waitForTimeout(400);ok(ctlCalls.at(-1)?.action==='remove'&&ctlCalls.at(-1)?.source_id==='s2','remove sent after confirm '+JSON.stringify(ctlCalls.at(-1)));
+ pass('the ⋯ at the end of each row offers Rescan and Remove; Remove asks first');
+ // priority: column sort sets it, Custom restores the drag order
+ await fr.click('.estate-table th:has-text("Files")');await pg.waitForTimeout(700);ok(rankCalls.at(-1)?.join()==='s2,s1,s3'&&!(await fr.$eval('.rcustom',b=>b.classList.contains('live'))),'column sort becomes the priority '+JSON.stringify(rankCalls));
+ {const box=async i=>(await fr.$$('.estate-table tbody tr:not(.trow) td.rank-h'))[i].boundingBox();const b3=await box(2),b1=await box(0);
+  await pg.mouse.move(b3.x+b3.width/2,b3.y+b3.height/2);await pg.mouse.down();await pg.mouse.move(b1.x+b1.width/2,b1.y+2,{steps:6});await pg.mouse.up();await pg.waitForTimeout(150);
+  ok(await fr.evaluate(()=>[...document.querySelectorAll('.toast')].some(t=>/Recalculating/.test(t.textContent))),'Recalculating… shows while priority is saved');await pg.waitForTimeout(900);
+  ok(rankCalls.at(-1)?.join()==='s3,s2,s1','drag sends the new priority '+JSON.stringify(rankCalls.at(-1)));
+  ok(await fr.$eval('.rcustom',b=>b.classList.contains('live')),'dragging switches to Custom');
+  await pg.waitForTimeout(2500);rows=await rowsOf();ok(rows.map(r=>r.root.split('/').pop()).join()==='Archive,Video,Photos','the dragged order holds after polling '+rows.map(r=>r.root));
+  pass('dragging ☰ switches to Custom, shows Recalculating…, saves the priority, and the order holds');
+  await fr.click('.estate-table th:has-text("Root")');await pg.waitForTimeout(700);ok(rankCalls.at(-1)?.join()==='s1,s2,s3','root sort '+rankCalls.at(-1));
+  await fr.click('.rcustom');await pg.waitForTimeout(700);ok(rankCalls.at(-1)?.join()==='s3,s2,s1','Custom restores the saved drag order '+rankCalls.at(-1));
+  pass('tapping a column header sorts and sets the priority; Custom brings back the saved drag order');
+  {const o=['s1','s2','s3'];sources.sort((x,y)=>o.indexOf(x.source_id)-o.indexOf(y.source_id))}
+  await fr.evaluate(()=>{__ssotRoots.custom=['s1','s2','s3'];__ssotRoots.mode='custom';const o=['s1','s2','s3'];sources.sort((x,y)=>o.indexOf(x.source_id)-o.indexOf(y.source_id));renderPlan()})}
+ {const cs=await fr.$eval('.estate-table tr:not(.trow) td.estate-root .rpath',e=>{const c=getComputedStyle(e);return {o:c.textOverflow,w:c.whiteSpace,t:e.parentNode.title,copy:e.parentNode.dataset.copy}});ok(cs.o==='ellipsis'&&cs.w==='nowrap'&&/tap to copy/.test(cs.t)&&cs.copy.startsWith('/mnt/'),'root truncation/hover/copy attrs '+JSON.stringify(cs));
+  await ctx0.grantPermissions(['clipboard-read','clipboard-write']);await fr.click('.estate-table tbody tr:not(.trow):nth-child(3) td.estate-root');await pg.waitForTimeout(300);const copied=await pg.evaluate(()=>navigator.clipboard.readText());ok(copied.startsWith('/mnt/'),'tap-to-copy clipboard: '+copied);
+  pass('root paths truncate with an ellipsis, show the full value on hover, and copy on tap')}
  // MutationObserver idempotence at runtime
  await fr.evaluate(()=>renderPlan());await pg.waitForTimeout(500);
  const muts=await fr.evaluate(()=>new Promise(res=>{let c=0,mo=new MutationObserver(l=>c+=l.length);for(const n of [document.getElementById('tabs'),document.getElementById('Plan'),document.getElementById('Analyze')])mo.observe(n,{childList:true,subtree:true,attributes:true});setTimeout(()=>{mo.disconnect();res(c)},4000)}));ok(muts<40,'idle DOM mutations '+muts);
@@ -128,19 +201,12 @@ try{
   const hold=async(f)=>{const b=await fr.locator('#Database th[data-f="'+f+'"]').boundingBox();await pg.mouse.move(b.x+b.width/2-6,b.y+b.height/2);await pg.mouse.down();await pg.waitForTimeout(800);await pg.mouse.up();await pg.waitForTimeout(250)};
   const sortBefore=await fr.evaluate(()=>sortField+sortDir);await hold('filename');ok(await fr.$('#ssotColList .colrow[data-f="filename"].focus'),'long press did not open the columns modal');ok(await fr.evaluate(()=>sortField+sortDir)===sortBefore,'long press must not sort');
   pass('long-pressing a column header opens the Columns modal (and does not sort)');
-  const tick=(f,k)=>fr.locator('#ssotColList .colrow[data-f="'+f+'"] input[data-k="'+k+'"]').click();
-  await tick('estate','g');await tick('fingerprint','g');await pg.waitForTimeout(300);
-  const info=await fr.$eval('#ssotColInfo',e=>e.textContent);ok(/Group by Estate › Fingerprint/.test(info),'group info '+info);
+  ok(await fr.evaluate(()=>{const l=[...document.querySelectorAll('#ssotColList label')].find(x=>x.querySelector('input[data-k="g"]'));return !l||getComputedStyle(l).display==='none'}),'Group option must be gone from the Columns modal');
   await fr.click('#modalcancel');await pg.waitForTimeout(300);
-  let grp=await fr.$$eval('#Database tbody tr.ssot-grp',e=>e.map(x=>x.innerText.replace(/\s+/g,' ').trim()));ok(grp.length===3&&/Estate s1/.test(grp[0])&&/1 file/.test(grp[0])&&(await rowNos()).length===0,'groups collapsed by default '+JSON.stringify(grp));
-  await fr.click('#Database tbody tr.ssot-grp:nth-child(1)');await pg.waitForTimeout(250);
-  const lvl2=await fr.$$eval('#Database tbody tr.ssot-grp',e=>e.map(x=>x.innerText.replace(/\s+/g,' ').trim()+'|'+x.querySelector('.chev').textContent));ok(lvl2.length>3&&/▾/.test(lvl2[0])&&/fp1/.test(lvl2[1]),'expand shows nested fingerprint groups '+JSON.stringify(lvl2));
-  await fr.click('#Database tbody tr.ssot-grp:nth-child(2)');await pg.waitForTimeout(250);const nums=await rowNos();ok(nums.length>=1&&nums.every(n=>/^\d+$/.test(n)),'rows under an expanded group are numbered '+nums);
-  await fr.click('#Database tbody tr.ssot-grp:nth-child(1)');await pg.waitForTimeout(250);ok((await fr.$$('#Database tbody tr.ssot-grp')).length===3,'collapse again');
-  pass('group by Estate › Fingerprint: groups start collapsed, chevron expands nested groups with counts and size, rows stay numbered');
-  const saved=await fr.evaluate(()=>localStorage.sotDbLayout);ok(/"groups":\["estate","fingerprint"\]/.test(saved),'persisted '+saved);
+  await fr.evaluate(()=>localStorage.sotDbLayout=JSON.stringify({order:[],groups:['estate','fingerprint'],exclude:[],byWaste:true}));
   await pg.reload();let fr2;for(let i=0;i<100;i++){try{const o=await (await (await pg.waitForSelector('#shell')).contentFrame()).waitForSelector('#app');fr2=await o.contentFrame();if(await fr2.evaluate(()=>!!window.__ssotCompletePlacementRefresh&&window.placements.length>0&&!document.querySelector('#ssot-db-blocker.on')))break}catch(e){}await pg.waitForTimeout(100)}
-  await fr2.evaluate(()=>show('Database'));await pg.waitForTimeout(600);ok((await fr2.$$('#Database tbody tr.ssot-grp')).length===3,'grouping did not persist after reload');pass('layout choices persist across reloads');
+  await fr2.evaluate(()=>{omniDraft='';omniQuery='';show('Database')});await pg.waitForTimeout(600);ok((await fr2.$$('#Database tbody tr.ssot-grp')).length===0&&(await fr2.$$('#Database tbody tr[data-pid]')).length===6,'an old saved grouping must not put plain searches under chevrons');
+  pass('Search is a flat list: no grouping option, and an old saved grouping is ignored');
   // drag Estate above Filename
   await fr2.evaluate(()=>__ssotColumnsModal('estate'));await pg.waitForTimeout(300);
   const hb=await fr2.locator('#ssotColList .colrow[data-f="estate"] .h').boundingBox(),tb=await fr2.locator('#ssotColList .colrow[data-f="path"]').boundingBox();
@@ -156,22 +222,22 @@ try{
   pass('column order by drag, per-column "Search" exclusion (free text ignores it; field:value still works)');
   await fr2.evaluate(()=>{__ssotColumnsModal();document.getElementById('ssotColReset').click()});await pg.waitForTimeout(300);
   ok(JSON.parse(await fr2.evaluate(()=>localStorage.sotDbLayout)).groups.length===0,'reset');await fr2.click('#modalcancel');await pg.waitForTimeout(200);
-  pass('Reset columns restores order, grouping and search');
+  pass('Reset columns restores order and search');
   fr=fr2}
- // Duplicates preset
+ // Duplicates screen
  {await fr.evaluate(()=>{omniDraft='';omniQuery='';show('Database')});await pg.waitForTimeout(500);
-  await fr.click('.ssot-search-head button:has-text("Duplicates")');await pg.waitForTimeout(600);
-  const q=await fr.evaluate(()=>[omniQuery,sortField,sortDir,JSON.stringify(__ssotLayout.groups)]);ok(q[0]==='class:keep OR class:excess'&&q[1]==='system_classification'&&q[2]===-1&&q[3]==='["fingerprint"]','preset state '+q);
-  const gh=await fr.$$eval('#Database tbody tr.ssot-grp',e=>e.map(x=>x.innerText.replace(/\s+/g,' ').trim()));ok(gh.length===2&&/2 copies/.test(gh[0])&&/100\.0 GB reclaimable/.test(gh[0])&&/in s2, s3|in s3, s2/.test(gh[0])&&/1 copy/.test(gh[1]),'duplicate group headers '+JSON.stringify(gh));
-  await fr.click('#Database tbody tr.ssot-grp:nth-child(1)');await pg.waitForTimeout(250);
-  const cls=await fr.$$eval('#Database tbody tr[data-pid]',r=>r.map(x=>x.innerText));ok(cls.length===2&&/KEEP/.test(cls[0])&&/EXCESS/.test(cls[1]),'KEEP first, EXCESS after '+JSON.stringify(cls));
-  ok(await fr.$eval('.ssot-search-head button:has-text("Duplicates")',b=>b.classList.contains('live')),'Duplicates button must light up while the preset is active');
-  ok(await fr.evaluate(()=>__ssotShort('4b9933ed09dac1286df5eda037c4d2f955b9dbabcdef0123',10)==='4b9933ed09…'&&__ssotShort('dup',10)==='dup'),'fingerprint truncation helper');
-  ok(/^▸dup 2 copies/.test(gh[0]),'short fingerprint first, then copies/reclaimable '+gh[0]);
-  await fr.evaluate(()=>{omniDraft=omniQuery='excess';renderDatabase()});await pg.waitForTimeout(300);ok(!(await fr.$eval('.ssot-search-head button:has-text("Duplicates")',b=>b.classList.contains('live'))),'Duplicates button must go dark once the search changes');
-  await fr.evaluate(()=>__ssotDuplicates());await pg.waitForTimeout(300);
-  pass('Duplicates preset: only KEEP/EXCESS files, grouped by fingerprint, biggest reclaimable first, header shows copies / reclaimable / estates, KEEP listed before its EXCESS copies');
-  await fr.evaluate(()=>{__ssotColumnsModal();document.getElementById('ssotColReset').click()});await pg.waitForTimeout(300);await fr.click('#modalcancel');await fr.evaluate(()=>{omniDraft='';omniQuery='';sortField='placement_no';sortDir=-1;renderDatabase()});await pg.waitForTimeout(300)}
+  await fr.click('.ssot-search-head button:has-text("Duplicates")');await pg.waitForTimeout(500);
+  ok(await fr.evaluate(()=>document.getElementById('Plan').classList.contains('on')&&!!document.querySelector('#Plan .dups')),'Duplicates button opens the Duplicates screen');
+  const cards=()=>fr.$$eval('#Plan .dupcard',c=>c.map(x=>({top:x.querySelector('.duptop').innerText,rows:[...x.querySelectorAll('.duprow')].map(r=>({on:r.querySelector('input').checked,dis:r.querySelector('input').disabled,rk:r.querySelector('.duprk').innerText,p:r.querySelector('.dupp').innerText}))})));
+  let c=await cards();ok(c.length===1&&c[0].rows.length===2&&c[0].rows[0].on&&!c[0].rows[1].on&&c[0].rows[0].rk==='2'&&c[0].rows[1].rk==='3'&&/100\.0 GB reclaimable/.test(c[0].top),'one group, Keep pre-ticked by the rule, priority numbers shown '+JSON.stringify(c));
+  ok(/1 group · 100\.0 GB reclaimable/.test(await txt(fr,'#Plan .dupline')),'top line');
+  pass('Duplicates: one card per group, biggest reclaimable first, Keep pre-ticked by root priority, priority number on each copy');
+  await fr.locator('#Plan .duprow').nth(1).locator('input').check();await pg.waitForTimeout(800);
+  ok(keepCalls.length===1&&keepCalls[0].keep===true&&keepCalls[0].placement_id==='p5','tick sends the Keep choice '+JSON.stringify(keepCalls));
+  c=await cards();ok(c[0].rows.every(r=>r.on),'both copies kept after the tick '+JSON.stringify(c));
+  pass('ticking a Keep box saves at once and the screen recalculates; keeping every copy is allowed');
+  placements[4].system_classification='EXCESS';rev++;placements[4].rev=rev;await fr.evaluate(async()=>{await loadPlacements(true)});
+  await fr.evaluate(()=>{__ssotDup.q='zzz';renderPlan()});ok((await fr.$$('#Plan .dupcard')).length===0,'search box narrows');await fr.evaluate(()=>{__ssotDup.q='';renderPlan()})}
  // Tags / notes edits must show immediately (delta compares against the revision the local rows represent)
  {await fr.evaluate(()=>{omniDraft='';omniQuery='';show('Database')});await pg.waitForTimeout(400);
   const orig={tags:placements[0].tags,notes:placements[0].notes};const id=placements[0].placement_id;placements[0].tags='["keepme"]';placements[0].notes='hello notes';placements[0].rev=2;rev=2;
@@ -191,13 +257,12 @@ try{
   await pg.reload();let f3;for(let i=0;i<100;i++){try{const o=await (await (await pg.waitForSelector('#shell')).contentFrame()).waitForSelector('#app');f3=await o.contentFrame();if(await f3.evaluate(()=>!!window.__ssotCompletePlacementRefresh&&window.placements.length>0&&!document.querySelector('#ssot-db-blocker.on')))break}catch(e){}await pg.waitForTimeout(100)}
   ok(await f3.evaluate(()=>document.documentElement.dataset.dbZebra)==='blue','zebra choice lost after reload');pass('Colors choices save the moment they change and survive a reload');
   await f3.evaluate(()=>{localStorage.removeItem('sotUiConfig');localStorage.removeItem('sotUiMigrated2');applyUiCfg()});fr=f3}
- // Job Status
- await fr.click('#tabs button[data-tab="Analyze"]');await pg.waitForTimeout(300);ok(JSON.stringify(await onTab())==='["Job Status"]','only Job Status highlighted: '+await onTab());
+ // tab highlight
+ ok(await fr.evaluate(()=>{const b=document.querySelector('#tabs button[data-tab="Analyze"]');return !b||b.style.display==='none'}),'Job Status must be gone from the bar');
  await fr.click('#tabs button[data-tab="Roots"]');await pg.waitForTimeout(300);ok(JSON.stringify(await onTab())==='["Roots"]'&&await fr.evaluate(()=>!!document.querySelector('#Plan .estate-table')&&!document.querySelector('#Plan .flow')),'Roots tab shows only the roots table: '+await onTab());
  await fr.click('#tabs button[data-tab="Database"]');await pg.waitForTimeout(300);ok(JSON.stringify(await onTab())==='["Search"]','only Search highlighted: '+await onTab());
  await fr.click('#tabs button[data-tab="Plan"]');await pg.waitForTimeout(300);ok(JSON.stringify(await onTab())==='["Report"]'&&await fr.evaluate(()=>!!document.querySelector('#Plan .flow')),'Report tab back to the summary: '+await onTab());
- pass('exactly one top-strip icon is highlighted for the page you are on (Report, Job Status, Roots, Search)');
- await fr.click('#tabs button[data-tab="Analyze"]');await pg.waitForTimeout(300);ok(await fr.evaluate(()=>document.getElementById('Analyze').classList.contains('on')&&document.getElementById('Analyze').innerText.length>20),'job status pane');pass('Job Status renders the existing job/source status surface');
+ pass('exactly one top-bar icon is highlighted for the page you are on (Report, Roots, Search)');
  await pg.context().close();
  // older backend without the staleness endpoint must still load the database and release the blocker
  stalenessMissing=true;{const o=await open(1280,900);ok(await o.fr.evaluate(()=>placements.length>0&&!document.querySelector('#ssot-db-blocker.on')),'database did not load without staleness endpoint');pass('database loads and the blocker clears when the staleness endpoint is unavailable (older backend)');await o.ctx.close()}stalenessMissing=false;
@@ -239,10 +304,10 @@ try{
   ok(await pg.evaluate(()=>/local-network-access/.test(document.getElementById('shell').allow)&&/clipboard-write/.test(document.getElementById('shell').allow)),'iframe local-network-access permission');await ctx.close()}
  // mobile
  const m=await open(412,915);await m.fr.evaluate(()=>setPlanTab('Roots'));await m.pg.waitForTimeout(300);
- const lg=await m.fr.evaluate(()=>{sources[0].root='/mnt/a/'+'very-long-folder-name-'.repeat(6);setPlanTab('Roots');const tr=document.querySelectorAll('.estate-table tbody tr')[0],c=tr.cells,r=[...c].map(x=>x.getBoundingClientRect());return {txt:c[1].textContent.length,cut:c[1].scrollWidth>c[1].clientWidth,h:tr.getBoundingClientRect().height,noOverlap:r[2].left>=r[1].right-1&&r[3].left>=r[2].right-1}});
- ok(lg.txt>100&&lg.cut&&lg.noOverlap&&lg.h<40,'long root must truncate on mobile '+JSON.stringify(lg));pass('long Estate root names truncate on mobile and no longer overlap the next column');
+ const lg=await m.fr.evaluate(()=>{sources[0].root='/mnt/a/'+'very-long-folder-name-'.repeat(6);setPlanTab('Roots');const tr=document.querySelectorAll('.estate-table tbody tr:not(.trow)')[0],c=tr.cells,rp=tr.querySelector('.rpath'),r=[...c].map(x=>x.getBoundingClientRect());return {txt:rp.textContent.length,cut:rp.scrollWidth>rp.clientWidth,h:tr.getBoundingClientRect().height,noOverlap:r[3].left>=r[2].right-1&&r[4].left>=r[3].right-1}});
+ ok(lg.txt>100&&lg.cut&&lg.noOverlap&&lg.h<64,'long root must truncate on mobile '+JSON.stringify(lg));pass('long Estate root names truncate on mobile and no longer overlap the next column');
  {const h2=await hdr(m.fr);ok(h2.same&&h2.h<=60&&h2.minBtn>=36&&h2.over<=1,'mobile header fits on one row '+JSON.stringify(h2));pass('header is one row on desktop and at 412 px: icons, a connection dot and settings; title and status text removed')}
- const ov=await m.fr.evaluate(()=>({doc:document.documentElement.scrollWidth-document.documentElement.clientWidth,tbl:(()=>{let w=document.querySelector('.estate-wrap');return w.scrollWidth-w.clientWidth})(),rows:document.querySelectorAll('.estate-table tbody tr').length}));ok(ov.doc<=1&&ov.tbl<=1&&ov.rows===3,'mobile overflow '+JSON.stringify(ov));pass('Estate table usable at 412x915 without horizontal overflow');
+ const ov=await m.fr.evaluate(()=>({doc:document.documentElement.scrollWidth-document.documentElement.clientWidth,tbl:(()=>{let w=document.querySelector('.estate-wrap');return w.scrollWidth-w.clientWidth})(),rows:document.querySelectorAll('.estate-table tbody tr').length}));ok(ov.doc<=1&&ov.tbl<=1&&ov.rows===4,'mobile overflow '+JSON.stringify(ov));pass('Estate table usable at 412x915 without horizontal overflow');
  if(process.env.SOT_SHOTS){await m.pg.screenshot({path:process.env.SOT_SHOTS+'/estate-mobile.png'});await m.fr.evaluate(()=>setPlanTab('Summary'));await m.pg.waitForTimeout(300);await m.pg.screenshot({path:process.env.SOT_SHOTS+'/analysis-mobile.png'})}
  await m.fr.evaluate(()=>setPlanTab('Summary'));await m.pg.waitForTimeout(300);const wo=await m.fr.evaluate(()=>document.documentElement.scrollWidth-document.documentElement.clientWidth+document.querySelector('#Plan').scrollWidth-document.querySelector('#Plan').clientWidth);ok(wo<=2,'summary overflows horizontally on mobile: '+wo);pass('Summary report fits 412x915 without horizontal overflow');
  await m.ctx.close();
