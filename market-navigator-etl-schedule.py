@@ -30,7 +30,7 @@ def eligibility(meta,stored,as_of,rules=None,force=False,last_attempt=None):
     if cadence in ('daily','trading-day','daily-nav'):
         if today.weekday()>=5:return False,'weekend'
         if failed:return True,'retry-failed'
-        if latest>=today-dt.timedelta(days=1):return False,'daily-period-present'
+        if latest>=today:return False,'daily-period-present'
         if last==today:return False,'daily-already-checked'
         return True,'daily-due'
     if cadence=='weekly':
