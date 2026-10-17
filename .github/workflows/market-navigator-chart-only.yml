@@ -1,0 +1,66 @@
+name: Market Navigator accepted-data chart-only qualification
+on:
+  push:
+    branches: ['codex/market-navigator-chart-only']
+    paths:
+      - 'market-navigator-chart-only*'
+      - 'market-navigator-chart-only*/**'
+      - '.github/workflows/market-navigator-chart-only.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  accepted-data-chart:
+    runs-on: windows-latest
+    timeout-minutes: 25
+    steps:
+      - name: Preserve exact accepted blob bytes
+        run: git config --global core.autocrlf false
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install pinned browser qualification tools
+        shell: pwsh
+        run: |
+          npm install --prefix .market-navigator-chart-only-deps playwright@1.62.1 pngjs@7.0.0
+          "MN_NODE_MODULES=$pwd/.market-navigator-chart-only-deps/node_modules" >> $env:GITHUB_ENV
+          node .market-navigator-chart-only-deps/node_modules/playwright/cli.js install chrome msedge
+      - name: Verify original code and data without rebuilding observations
+        run: python market-navigator-chart-only-freeze.py
+      - name: Reproduce chart-only candidate
+        run: node market-navigator-chart-only-build.cjs
+      - name: Verify immutable data and accepted source boundaries
+        run: node market-navigator-chart-only-source-audit.cjs
+      - name: Serve the fixed baseline and candidate together
+        shell: pwsh
+        run: |
+          $taskChartServer = Start-Process -FilePath python -ArgumentList @('-m','http.server','8787','--bind','127.0.0.1') -WorkingDirectory $env:GITHUB_WORKSPACE -WindowStyle Hidden -PassThru
+          "CHART_ONLY_SERVER_PID=$($taskChartServer.Id)" >> $env:GITHUB_ENV
+          $taskChartReady = $false
+          for ($taskChartAttempt = 0; $taskChartAttempt -lt 20; $taskChartAttempt++) {
+            try {
+              Invoke-WebRequest -Uri 'http://127.0.0.1:8787/market-navigator-chart-only-review/frozen-fixture-manifest.json' -UseBasicParsing | Out-Null
+              $taskChartReady = $true
+              break
+            } catch { Start-Sleep -Milliseconds 500 }
+          }
+          if (-not $taskChartReady) { throw 'Chart qualification server did not start' }
+      - name: Delayed responses and instance event ownership
+        run: node market-navigator-chart-only-race-tests.cjs
+      - name: Independent baseline comparisons and session matrix
+        run: node market-navigator-chart-only-tests.cjs
+      - name: Preserve qualification evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: market-navigator-chart-only-qualification
+          path: market-navigator-chart-only-evidence
+      - name: Stop this qualification server
+        if: always()
+        shell: pwsh
+        run: |
+          if ($env:CHART_ONLY_SERVER_PID) { Stop-Process -Id $env:CHART_ONLY_SERVER_PID -ErrorAction SilentlyContinue }
