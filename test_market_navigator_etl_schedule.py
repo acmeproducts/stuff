@@ -23,3 +23,9 @@ for sid,cad,t,latest,expected in cases:
 assert m.eligibility({'id':'spy','native_cadence':'trading-day'},stored('2026-10-14'),'2026-10-16',force=True)[0]
 assert not m.eligibility({'id':'spy','native_cadence':'trading-day'},stored('2026-10-14'),'2026-10-16',last_attempt='2026-10-16')[0]
 print('PASS 12 scheduling, skip, and retry cases')
+
+for sid,cad,t,latest in [('spy','trading-day','2026-10-16','2026-10-15'),('cpi','monthly','2026-10-16','2026-09-01'),('initialClaims','weekly','2026-10-15','2026-10-08'),('realGdp','quarterly','2026-11-16','2026-07-01')]:
+ source=stored(latest);source['last_error']='source timeout'
+ due,reason=m.eligibility({'id':sid,'native_cadence':cad},source,t,{'cpi':{'available_by_day_of_month':15}})
+ assert (due,reason)==(True,'retry-failed'),(sid,due,reason)
+print('PASS failed-component replay on eligible native cadence')
