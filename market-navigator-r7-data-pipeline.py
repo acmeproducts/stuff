@@ -142,6 +142,7 @@ def main():
    decision='explicit-component-retry';due=True
   else:
    due,decision=_scheduler.eligibility(m,old,now().date(),publication_rules,force=BOOT,last_attempt=old.get('last_attempted') if not old.get('last_error') else None)
+   if RETRY_STREAM and old.get('last_error') and decision not in ('weekend','weekly-not-due','monthly-not-due','quarterly-not-due'):due=True;decision='retry-failed'
   if not due and not obs0 and decision!='not-selected':due=True;decision='missing-history'
   if not due:
    prior_report=read(REPORTS/f'{sid}.json',{})
