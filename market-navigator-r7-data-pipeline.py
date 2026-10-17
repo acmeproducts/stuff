@@ -143,8 +143,10 @@ def main():
   else:
    due,decision=_scheduler.eligibility(m,old,now().date(),publication_rules,force=BOOT,last_attempt=old.get('last_attempted') if not old.get('last_error') else None)
   if not due:
+   if not obs0 and decision!='not-selected':due=True;decision='missing-history'
+  if not due:
    previous=read(REPORTS/f'{sid}.json',{}).get('reports',{})
-   oldstate={'status':'healthy' if obs0 and not old.get('last_error') else ('stale' if obs0 else 'unavailable'),'first_observation':old.get('first'),'latest_observation':old.get('last'),'observation_count':len(obs0),'last_attempted':old.get('last_attempted'),'last_successful':old.get('last_successful'),'last_error':old.get('last_error'),'source_revision':old.get('sourceRevision'),'computed_revision':sha(previous),'horizon_readiness':{h:bool(previous.get(h,{}).get('ready')) for h in H},'supported_horizons':m.get('supported_horizons') or H,'bootstrap_complete':True if obs0 else False,'skip_reason':decision}
+   oldstate={'status':'healthy' if obs0 and not old.get('last_error') else ('stale' if obs0 else 'unavailable'),'first_observation':old.get('first'),'latest_observation':old.get('last'),'observation_count':len(obs0),'last_attempted':old.get('last_attempted'),'last_successful':old.get('last_successful'),'last_error':old.get('last_error'),'history_years':round((obs0[-1]['t']-obs0[0]['t'])/(365.25*DAY),2) if len(obs0)>1 else 0,'provider_used':old.get('provider'),'provider_identifier_used':old.get('providerIdentifier'),'source_revision':old.get('sourceRevision'),'computed_revision':sha(previous),'horizon_readiness':{h:bool(previous.get(h,{}).get('ready')) for h in H},'supported_horizons':m.get('supported_horizons') or H,'bootstrap_complete':((obs0[-1]['t']-obs0[0]['t'])/(365.25*DAY)>=float(c.get('bootstrap_policy',{}).get('minimum_history_years',6))) if len(obs0)>1 else False,'skip_reason':decision}
    states[sid]=oldstate;entries.append({'id':sid,'status':'skipped','reason':decision,'latest_observation':old.get('last')});continue
 
   try:
