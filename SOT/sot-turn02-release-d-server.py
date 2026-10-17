@@ -320,10 +320,15 @@ def ensure_target_source(keep_old_as_root=False):
  ex=S.rows("SELECT source_id,role,enabled FROM sources WHERE root=?",(root,))
  if ex:
   sid=ex[0]["source_id"]
-  if ex[0]["role"]!="target" or not ex[0]["enabled"]:S.submit("UPDATE sources SET role='target',enabled=1,deleted_at=NULL,stale=1 WHERE source_id=?",(sid,),True)
+  if ex[0]["role"]!="target" or not ex[0]["enabled"]:
+   S.submit("UPDATE sources SET role='target',enabled=1,deleted_at=NULL,stale=1 WHERE source_id=?",(sid,),True);S.drain(10)
+   q=globals().get("queue_ssot_sync")
+   try:q([sid],"target_change") if q else M.enqueue_info([sid])
+   except Exception as e:M.event("target_scan_queue_error",str(e),None,sid,"ERROR",{})
  else:
   estate="TARGET" if not S.rows("SELECT 1 FROM sources WHERE estate='TARGET'") else "TARGET · "+root
   sid=M.add_source(t.get("label") or Path(root).name or root,root,root,"target",estate)
+  if not globals().get("queue_ssot_sync"):M.enqueue_info([sid])
  S.drain(10);M.recompute_classifications();S.bump_catalog_revision();return sid
 def target_dest(src_path,target_root):
  p=str(src_path);mm=re.match(r"^/mnt/([A-Za-z])/(.*)$",p)

@@ -77,6 +77,24 @@ try:
   assert roles[str(t2)]=="target" and roles[str(t)]=="primary",roles
   scan(M,S,[nt]);assert cls(a/"old.jpg")=="KEEP" and cls(t/"old.jpg")=="EXCESS",(cls(a/"old.jpg"),cls(t/"old.jpg"))
   print("PASS change target: the new folder becomes the TARGET, the old one stays as a root, everything recalculates")
+  # change target to a new, empty volume: everything landed on the old one goes back in play
+  t3=home/"t3";t3.mkdir();srv.TARGET_FILE.write_text(json.dumps({"path":str(t3),"label":"T3"}));nt3=srv.ensure_target_source(keep_old_as_root=False);wait_jobs(M,S)
+  assert S.rows("SELECT role FROM sources WHERE source_id=?",(nt3,))[0]["role"]=="target" and not S.rows("SELECT 1 FROM sources WHERE root=? AND enabled=1",(str(t2),))
+  assert not S.rows("SELECT 1 FROM placements WHERE system_classification='LANDED' AND placement_state='ACTIVE'"),"nothing is landed on an empty new target"
+  assert not S.rows("SELECT 1 FROM placements WHERE source_id=? AND placement_state='ACTIVE' AND system_classification='EXCESS' AND fingerprint NOT IN (SELECT fingerprint FROM placements WHERE placement_state='ACTIVE' AND source_id<>? GROUP BY fingerprint HAVING COUNT(*)>0)",(sa,sa))
+  assert cls(a/"one.txt") in ("UNIQUE","KEEP"),cls(a/"one.txt")
+  assert S.rows("SELECT 1 FROM job_sources WHERE source_id=?",(nt3,)),"the new target is scanned"
+  print("PASS change target to an empty volume: the new target is scanned, landed files go back in play")
+  # moving to a target that was already a root: it is rescanned as the target
+  srv.TARGET_FILE.write_text(json.dumps({"path":str(t),"label":"T"}));nt4=srv.ensure_target_source(keep_old_as_root=True);wait_jobs(M,S)
+  jobs=S.rows("SELECT COUNT(*) n FROM job_sources WHERE source_id=?",(nt4,))[0]["n"];assert jobs>=2,jobs
+  print("PASS a root promoted to TARGET is rescanned")
+  # target size up or down: capacity follows the live free space every time it is read
+  base=srv.plan_summary()["capacity"]
+  srv.target_get=lambda:{**real(),"free_bytes":10**6,"total_bytes":2*10**6};small=srv.plan_summary()["capacity"]
+  srv.target_get=lambda:{**real(),"free_bytes":10**12,"total_bytes":2*10**12};big=srv.plan_summary()["capacity"];srv.target_get=real
+  assert small["target"]["bytes"]<big["target"]["bytes"] and small["open"]["bytes"]<big["open"]["bytes"],(small,big)
+  print("PASS target size up or down: capacity and open/deficit recalculate from the live free space")
   # remove a root: its files leave every view, nothing on disk is touched
   M.source_control(sb,"soft-delete")
   assert not S.rows("SELECT 1 FROM placements WHERE source_id=? AND placement_state='ACTIVE'",(sb,)) and (b/"big.bin").exists()
