@@ -23,11 +23,13 @@ def eligibility(meta,stored,as_of,rules=None,force=False,last_attempt=None):
     obs=stored.get('observations') or []
     latest=date_of(obs[-1]['t']) if obs else None
     if latest is None:return True,'missing-history'
+    failed=bool(stored.get('last_error'))
     cadence=meta.get('native_cadence','daily')
     rule=(rules or {}).get(meta['id'],{})
     last=date_of(last_attempt)
     if cadence in ('daily','trading-day','daily-nav'):
         if today.weekday()>=5:return False,'weekend'
+        if failed:return True,'retry-failed'
         if latest>=today-dt.timedelta(days=1):return False,'daily-period-present'
         if last==today:return False,'daily-already-checked'
         return True,'daily-due'
@@ -35,6 +37,7 @@ def eligibility(meta,stored,as_of,rules=None,force=False,last_attempt=None):
         start=today-dt.timedelta(days=today.weekday())
         first=start+dt.timedelta(days={'initialClaims':3,'nfci':2}.get(meta['id'],4))
         if today<first:return False,'weekly-not-due'
+        if failed:return True,'retry-failed'
         if last and last>=first:return False,'weekly-already-checked'
         if latest>=start-dt.timedelta(days=7) and last and last>=start:return False,'weekly-period-present'
         return True,'weekly-due'
@@ -43,6 +46,7 @@ def eligibility(meta,stored,as_of,rules=None,force=False,last_attempt=None):
         day=min(int(rule.get('available_by_day_of_month',31)),calendar.monthrange(today.year,today.month)[1])
         first=dt.date(today.year,today.month,day)
         if today<first:return False,'monthly-not-due'
+        if failed:return True,'retry-failed'
         if latest>=target:return False,'monthly-period-present'
         if last and last>=first:return False,'monthly-already-checked'
         return True,'monthly-due'
@@ -51,6 +55,7 @@ def eligibility(meta,stored,as_of,rules=None,force=False,last_attempt=None):
         end=dt.date(target.year,target.month+2,calendar.monthrange(target.year,target.month+2)[1])
         first=end+dt.timedelta(days=int(rule.get('release_lag_days',45)))
         if today<first:return False,'quarterly-not-due'
+        if failed:return True,'retry-failed'
         if latest>=target:return False,'quarterly-period-present'
         if last and last>=first:return False,'quarterly-already-checked'
         return True,'quarterly-due'
