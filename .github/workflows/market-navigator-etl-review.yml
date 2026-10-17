@@ -6,6 +6,8 @@ on:
       - 'market-navigator-r7-data-pipeline.py'
       - 'test_market_navigator_etl_schedule.py'
       - 'test_market_navigator_etl_integration.py'
+      - 'market-navigator-etl-review.html'
+      - '.github/workflows/market-evidence-pipeline.yml'
       - '.github/workflows/market-navigator-etl-review.yml'
   workflow_dispatch:
 permissions:
@@ -24,3 +26,15 @@ jobs:
         run: python test_market_navigator_etl_schedule.py
       - name: Run isolated collector integration
         run: python test_market_navigator_etl_integration.py
+      - name: Verify integrated review controls
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          html=Path('market-navigator-etl-review.html').read_text()
+          workflow=Path('.github/workflows/market-evidence-pipeline.yml').read_text()
+          for marker in ('const MNChart=', 'mnEtlConsole','mnEtlRows','market-evidence/run-log.json'):
+              assert marker in html, marker
+          for marker in ('MARKET_NAVIGATOR_RETRY_COMPONENT','MARKET_NAVIGATOR_RETRY_STREAM','market-navigator-etl-schedule.py'):
+              assert marker in workflow, marker
+          print('PASS review markup and workflow dispatch contract')
+          PY
