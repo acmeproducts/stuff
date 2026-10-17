@@ -35,8 +35,8 @@ def eligibility(meta,stored,as_of,rules=None,force=False,last_attempt=None):
         start=today-dt.timedelta(days=today.weekday())
         first=start+dt.timedelta(days={'initialClaims':3,'nfci':2}.get(meta['id'],4))
         if today<first:return False,'weekly-not-due'
-        if latest>=start-dt.timedelta(days=7):return False,'weekly-period-present'
         if last and last>=first:return False,'weekly-already-checked'
+        if latest>=start-dt.timedelta(days=7) and last and last>=start:return False,'weekly-period-present'
         return True,'weekly-due'
     if cadence=='monthly':
         target=prev_month(today)
