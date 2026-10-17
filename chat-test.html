@@ -155,7 +155,12 @@ body.cl-open #cl-rail{transform:translateX(0);visibility:visible}body.cl-open #c
 .cl-head{display:flex;align-items:center;gap:8px;padding:6px 12px;border-bottom:1px solid #e6dfd5;flex-shrink:0}.cl-head strong{flex:1;font-size:16px}
 #cl-rail button,#cl-rail input,#cl-rail select{font:inherit}
 #cl-rail button{min-height:44px;cursor:pointer;border:1px solid #d9ded7;border-radius:10px;padding:8px 12px;background:#fff;color:#2a625e}
-#cl-rail button:disabled{opacity:.45;cursor:default}#cl-rail button:focus-visible,#cl-toolbar button:focus-visible{outline:3px solid #377e7a;outline-offset:2px}
+#cl-rail button:disabled{opacity:.45;cursor:default}
+.cl-guest #cl-settings{display:none}
+#cl-guestgate{position:fixed;inset:0;z-index:9999;background:#f6f1e9;display:none;align-items:center;justify-content:center;padding:24px;color:#254c4c;font:16px/1.45 -apple-system,system-ui,sans-serif}
+#cl-guestgate.show{display:flex}#cl-guestgate .gg{max-width:380px;text-align:center}#cl-guestgate h1{font-size:22px;margin:0 0 10px}#cl-guestgate p{margin:8px 0;color:#3c5f5c}
+#cl-guestgate button{display:block;width:100%;margin:12px 0 0;min-height:48px;border-radius:12px;border:1px solid #2e8b8b;background:#2e8b8b;color:#fff;font:inherit;font-weight:600}#cl-guestgate button.alt{background:#fff;color:#2a625e;border-color:#d9ded7;font-weight:400}
+#cl-guestgate button:disabled{opacity:.5}#cl-guestgate .err{color:#b4322d}#cl-rail button:focus-visible,#cl-toolbar button:focus-visible{outline:3px solid #377e7a;outline-offset:2px}
 #cl-rail .cl-icon{border:0;background:transparent;font-size:20px;min-width:44px;padding:4px}
 #cl-body{flex:1;min-height:0;overflow:auto;padding:12px}.cl-footer{border-top:1px solid #e6dfd5;display:flex;align-items:center;gap:8px;padding:6px 12px;flex-shrink:0}
 #cl-rail .cl-primary{background:#2e8b8b;color:white;border-color:#2e8b8b}.cl-footer #cl-new{margin-left:auto;width:48px;height:48px;border-radius:50%;font-size:28px;padding:0}
@@ -219,6 +224,7 @@ body.cl-empty-room .half{visibility:hidden}.kb.open,.kbin{max-height:calc(50dvh 
 
 <div class="cl-welcome" id="cl-welcome"><h1>Chatlink</h1><p>Your conversations, on this device.<br>Double-tap here to begin.</p></div>
 <div id="cl-cover" aria-hidden="true"></div>
+<div id="cl-guestgate" role="dialog" aria-live="polite"></div>
 <aside id="cl-rail" role="dialog" aria-modal="true" aria-label="Owner conversation manager" aria-hidden="true" inert>
  <header class="cl-head"><strong id="cl-heading">Conversations</strong><button class="cl-icon" id="cl-settings" aria-label="Device settings">⚙</button><button class="cl-icon" id="cl-close" aria-label="Close conversations">×</button></header>
  <div id="cl-error" role="alert"></div><div id="cl-body"></div>
@@ -269,6 +275,11 @@ var LANGS={
 };
 /* ===== bridge27: LANG_ORDER ===== */
 var LANG_ORDER=['en','th','es','ja','ko','zh','ar','hi','ru','fr','de','it','pt','vi','id','ms','fil','nl','sv','pl','tr'];
+/* ===== guest links: this device is a guest device when it was set up from a link (the link works once; see chatlink/runner) ===== */
+var CL_RUNNER_DEFAULT='https://chatlink-runner.myacctfortracking.workers.dev';
+window.clRunner=function(){try{return String(localStorage.getItem('cl_runner_url')||CL_RUNNER_DEFAULT).replace(/\/+$/,'')}catch(e){return CL_RUNNER_DEFAULT}};
+window.clIsGuest=function(){try{return !!localStorage.getItem('cl_guest')}catch(e){return false}};
+if(window.clIsGuest())document.documentElement.classList.add('cl-guest');
 /* ===== bridge27: DG_WORKLET_CODE ===== */
 var DG_WORKLET_CODE='class TBAudioCapture extends AudioWorkletProcessor{constructor(){super();this._b=[];this._n=4096;}process(inputs){var ch=inputs[0]&&inputs[0][0];if(ch){for(var i=0;i<ch.length;i++)this._b.push(ch[i]);}while(this._b.length>=this._n){var out=new Float32Array(this._b.splice(0,this._n));this.port.postMessage(out,[out.buffer]);}return true;}}registerProcessor(\'tb-audio-capture\',TBAudioCapture);';
 /* ===== bridge27: gL ===== */
@@ -1699,7 +1710,7 @@ function dgLangParam(room) {
         }
         /* r15: AI judges meaning. Its verdict leads; the wording score stays as a secondary line. */
         function aiPart(lang){
-            if(!portal.aiReady()){aiBox.textContent='AI review: add a key in Settings → AI keys';aiBox.className='cl-bt-ai off';return}
+            if(!portal.aiReady()){aiBox.textContent=window.clIsGuest&&window.clIsGuest()?'AI review is not available on this device':'AI review: add a key in Settings → AI keys';aiBox.className='cl-bt-ai off';return}
             verdict.textContent='Wording '+verdict.textContent;verdict.classList.add('secondary');
             var head=document.createElement('div');head.className='cl-bt-ai-head';var av=document.createElement('span');av.className='cl-bt-verdict wait';av.textContent='AI: checking meaning…';head.appendChild(av);aiBox.replaceChildren(head);
             portal.aiReview(spoken,lang,e.tr,e.tgt).then(function(a){
@@ -2858,7 +2869,7 @@ var portal=(function(){
   $('cl-heading').textContent='Import existing conversations';var host=$('cl-body');host.replaceChildren(node('p',candidates.length+' readable conversations. '+issues+' unreadable records will be skipped and left untouched.','cl-banner'));host.appendChild(node('p','This copies chat-admin/lab histories. Existing imported IDs are skipped. The old applications and their data remain unchanged. An unindexed Lab room is offered as English/Thai; review the language pair before importing.','cl-note'));
   candidates.forEach(function(r){host.appendChild(node('p',title(r)+' · '+pair(r)+' · '+r.messages.length+' messages','cl-note'))});var importButton=button('Import '+candidates.length+' conversations',async function(){requireWriter();importButton.disabled=true;try{await new Promise(function(resolve,reject){var tx=db.transaction('rooms','readwrite'),s=tx.objectStore('rooms');candidates.forEach(function(r){var q=s.get(r.id);q.onsuccess=function(){if(!q.result)s.put(r)}});tx.oncomplete=resolve;tx.onabort=function(){reject(tx.error)};});await list();toastMsg('Conversations imported');}finally{importButton.disabled=false;}},'cl-primary');host.append(importButton,button('Cancel',function(){return settings()}));
  }
- async function settings(){view='settings';clearError();$('cl-heading').textContent='Device settings';var f=node('div');$('cl-body').replaceChildren(settingsTabs('device'),f);f.appendChild(node('p','Speech settings stay on this browser. No key is included in conversation data.','cl-note'));var key=keyField(f,'Deepgram key',dgKey());f.appendChild(node('p',dgKey()?'Speech key is configured.':'Add a Deepgram key to enable speech input.','cl-note'));var h=node('label','Keyboard vibration','cl-field'),sel=node('select');['off','light','medium','strong'].forEach(function(v){var o=node('option',v);o.value=v;sel.appendChild(o)});try{sel.value=localStorage.getItem('duck_haptic')||'medium'}catch(e){}h.appendChild(sel);f.appendChild(h);
+ async function settings(){if(window.clIsGuest())return list();view='settings';clearError();$('cl-heading').textContent='Device settings';var f=node('div');$('cl-body').replaceChildren(settingsTabs('device'),f);f.appendChild(node('p','Speech settings stay on this browser. No key is included in conversation data.','cl-note'));var key=keyField(f,'Deepgram key',dgKey());f.appendChild(node('p',dgKey()?'Speech key is configured.':'Add a Deepgram key to enable speech input.','cl-note'));var h=node('label','Keyboard vibration','cl-field'),sel=node('select');['off','light','medium','strong'].forEach(function(v){var o=node('option',v);o.value=v;sel.appendChild(o)});try{sel.value=localStorage.getItem('duck_haptic')||'medium'}catch(e){}h.appendChild(sel);f.appendChild(h);
   var audioUI=window.audioTurn.settingsUI(f);f.appendChild(button('Save device settings',function(){requireWriter();window.audioTurn.saveSettings(audioUI);if(key.value.trim())localStorage.setItem('tb_dg_key',key.value.trim());localStorage.setItem('duck_haptic',sel.value);toastMsg('Device settings saved');return list()},'cl-primary'));
   f.appendChild(node('p','Conversations are stored in this browser on this device. Clearing browser data removes them.','cl-note'));
   f.appendChild(button('Diagnostics log',function(){window.openDiagnostics()}));
@@ -2872,8 +2883,34 @@ var portal=(function(){
  function aiSave(c){var o=aiCfg();delete o.from;Object.assign(o,c);localStorage.setItem(AI_LS,JSON.stringify(o))}
  function maskKey(k){k=String(k||'');return k.length<9?'••••':k.slice(0,4)+'…'+k.slice(-4)}
  function aiCleanKey(k){k=(k||'').trim().replace(/^bearer\s+/i,'');return k.replace(/[\s​-‍﻿ ]/g,'')}
- function settingsTabs(which){var t=node('div',null,'cl-tabs');[['device','Device',settings],['ai','AI keys',aiSettings]].forEach(function(x){var b=button(x[1],x[2],'cl-tab'+(x[0]===which?' on':''));b.setAttribute('aria-pressed',x[0]===which?'true':'false');t.appendChild(b)});return t}
- async function aiSettings(){view='ai';clearError();$('cl-heading').textContent='Device settings';var f=node('div');$('cl-body').replaceChildren(settingsTabs('ai'),f);var c=aiCfg();
+
+ /* ===== owner: create guest links (chatlink/runner). Only the owner's token can; a guest device has no way here. ===== */
+ function ownerCfg(){var p='';try{p=localStorage.getItem('cl_owner_pat')||''}catch(e){}return{owner:'acmeproducts',repo:'stuff',pat:p}}
+ async function adminCall(path,method,body){var c=ownerCfg(),q=method==='GET'?'?owner='+encodeURIComponent(c.owner)+'&repo='+encodeURIComponent(c.repo):'';
+  var r=await fetch(window.clRunner()+path+q,{method:method,cache:'no-store',headers:Object.assign({'Content-Type':'application/json'},method==='GET'?{Authorization:'Bearer '+c.pat}:{}),body:method==='GET'?undefined:JSON.stringify(Object.assign({cfg:c},body||{}))});
+  var j={};try{j=await r.json()}catch(e){}if(!r.ok&&!j.error)j.error='the setup service answered '+r.status;return j}
+ function guestLink(code){return location.origin+location.pathname+'?v='+Date.now().toString(36)+'&invite='+code}
+ async function shareSettings(){if(window.clIsGuest())return list();view='share';clearError();$('cl-heading').textContent='Device settings';var f=node('div');$('cl-body').replaceChildren(settingsTabs('share'),f);
+  f.appendChild(node('p','Send a link so someone can use chat-test with no setup. It works once, on one phone. The guest gets no settings screen.','cl-note'));
+  var tok=keyField(f,'Your GitHub token (only needed to make links)',ownerCfg().pat);
+  var name=field(f,'Their name','','text');name.setAttribute('autocomplete','off');
+  var status=node('p','','cl-note');status.setAttribute('role','status');var out=node('input');out.type='text';out.readOnly=true;out.style.display='none';out.setAttribute('aria-label','New guest link');out.className='cl-guest-link';var listBox=node('div');
+  function saveTok(){try{if(tok.value.trim())localStorage.setItem('cl_owner_pat',tok.value.trim())}catch(e){}}
+  async function refresh(){listBox.replaceChildren();var j=await adminCall('/admin/invites','GET').catch(function(){return{}});if(!j.ok){if(j.error&&ownerCfg().pat)status.textContent='Links: '+j.error;return}
+   j.invites.forEach(function(i){var row=node('div',null,'cl-guest-row');row.style.cssText='display:flex;gap:6px;align-items:center;margin:6px 0';
+    var when={unopened:'not opened yet',opening:'being opened…',opened:'opened '+new Date(i.openedAt).toLocaleString(),expired:'expired',stopped:'stopped'}[i.state]||i.state;
+    var lab=node('span',i.name+' · '+when);lab.style.flex='1';row.appendChild(lab);
+    if(i.state==='unopened'||i.state==='opening')row.appendChild(button('Copy link',function(){var l=guestLink(i.code);out.value=l;out.style.display='block';try{navigator.clipboard.writeText(l)}catch(e){}status.textContent='Link copied for '+i.name+'.'}));
+    if(i.state==='unopened'||i.state==='opening'||i.state==='opened')row.appendChild(button('Stop',async function(){if(!confirm('Stop the link for '+i.name+'?'+(i.state==='opened'?' They already have the setup; to cut that phone off, change your Deepgram key.':'')))return;await adminCall('/admin/revoke','POST',{code:i.code});return refresh()}));
+    listBox.appendChild(row)})}
+  f.appendChild(button('Create link',async function(){saveTok();var n=name.value.trim();if(!n){status.textContent='Type their name first.';return}if(!dgKey()){status.textContent='Add your Deepgram key on the Device tab first.';return}
+   status.textContent='Creating…';var v=await adminCall('/admin/vault','POST',{keys:{deepgram:dgKey()}});if(!v.ok){status.textContent=v.error||'Could not store your key.';return}
+   var j=await adminCall('/admin/invite','POST',{name:n});if(!j.ok){status.textContent=j.error||'Could not create the link.';return}
+   name.value='';var l=guestLink(j.code);out.value=l;out.style.display='block';try{await navigator.clipboard.writeText(l);status.textContent='Link copied. Send it to '+n+'.'}catch(e){status.textContent='Send this link to '+n+' (select and copy it below).'}await refresh()},'cl-primary'));
+  f.appendChild(button('Update shared key',async function(){saveTok();var v=await adminCall('/admin/vault','POST',{keys:{deepgram:dgKey()}});status.textContent=v.ok?'Shared key updated for new links.':(v.error||'Could not update.')}));
+  f.appendChild(status);f.appendChild(out);f.appendChild(listBox);await refresh()}
+ function settingsTabs(which){var t=node('div',null,'cl-tabs');[['device','Device',settings],['ai','AI keys',aiSettings],['share','Share',shareSettings]].forEach(function(x){var b=button(x[1],x[2],'cl-tab'+(x[0]===which?' on':''));b.setAttribute('aria-pressed',x[0]===which?'true':'false');t.appendChild(b)});return t}
+ async function aiSettings(){if(window.clIsGuest())return list();view='ai';clearError();$('cl-heading').textContent='Device settings';var f=node('div');$('cl-body').replaceChildren(settingsTabs('ai'),f);var c=aiCfg();
   f.appendChild(node('p','Keys stay in this browser on this device. They are not used yet; AI grading of the translation check comes in a later release.','cl-note'));
   if(c.from==='devstream')f.appendChild(node('p','Filled in from the keys saved in devstream on this device. Validate to save them here.','cl-note'));
   function provider(name,id,keyVal,modelVal,modelsFn){
@@ -2981,7 +3018,53 @@ var portal=(function(){
  return {start:start,open:open,select:select,submit:submit,scheduleDraft:scheduleDraft,deleteMessage:deleteMessage,aiReady:aiReady,aiReview:aiReview,replaceTranslation:replaceTranslation,decorateMessage:decorateMessage,older:older,pageSize:function(s){return pages[s]},visible:visible,flush:flush};
 })();
 
-    function startChatlink(){boot();portal.start().catch(function(e){document.getElementById('cl-save-state').textContent='Storage unavailable';document.getElementById('cl-error').textContent=e.message;document.getElementById('cl-error').classList.add('show');});}
+    /* The guest landing. Looking at a link never uses it up (previews only load this page); only the Start tap redeems it. */
+    function guestGate(){
+        var u=new URL(location.href),code=u.searchParams.get('invite');
+        if(!code)return Promise.resolve();
+        function strip(){u.searchParams.delete('invite');u.searchParams.delete('v');try{history.replaceState(null,'',u.pathname+(u.search||'')+u.hash)}catch(e){}}
+        function ls(k,v){try{if(v===undefined)return localStorage.getItem(k);if(v===null)localStorage.removeItem(k);else localStorage.setItem(k,v);return true}catch(e){return false}}
+        if(window.clIsGuest()){strip();return Promise.resolve()}               // already set up: an old link does nothing
+        var gate=document.getElementById('cl-guestgate'),runner=window.clRunner();
+        function post(path,body){return fetch(runner+path,{method:'POST',cache:'no-store',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)}).then(function(r){return r.json().catch(function(){return{}}).then(function(j){j.status=r.status;return j})})}
+        function el(tag,text,cls){var e=document.createElement(tag);if(text!=null)e.textContent=text;if(cls)e.className=cls;return e}
+        var inApp=/FBAN|FBAV|Instagram|Line\/|MicroMessenger|KAKAOTALK|Snapchat|TikTok|; wv\)/i.test(navigator.userAgent||'');
+        return new Promise(function(resolve){
+            function finish(){strip();gate.classList.remove('show');gate.replaceChildren();resolve()}
+            function card(title,lines,buttons){var g=el('div',null,'gg');g.appendChild(el('h1',title));(lines||[]).forEach(function(t){g.appendChild(el('p',t.text||t,t.cls))});(buttons||[]).forEach(function(b){var x=el('button',b.text,b.alt?'alt':'');x.type='button';x.onclick=b.fn;g.appendChild(x)});gate.replaceChildren(g);gate.classList.add('show');return g}
+            function dead(msg){card('Guest link',[msg||'This link has already been used or is no longer valid.','Ask the person who sent it for a new link.'],[{text:'Continue without it',alt:true,fn:finish}])}
+            card('Guest link',['Checking your link…']);
+            fetch(runner+'/invite/'+encodeURIComponent(code)+'/info',{cache:'no-store'}).then(function(r){return r.json().catch(function(){return{}}).then(function(j){return{ok:r.ok&&j.ok,j:j}})})
+            .then(function(x){
+                if(!x.ok)return dead(x.j&&x.j.error);
+                var name=x.j.name||'there';
+                var own=!!(ls('tb_dg_key')||ls('cl_owner_pat'));
+                function start(){
+                    var g=card('Setting up…',['One moment.']);
+                    post('/redeem',{code:code}).then(function(rj){
+                        if(!rj.ok||!rj.keys||!rj.keys.deepgram)return dead(rj.error);
+                        if(!ls('tb_dg_key',rj.keys.deepgram)||ls('tb_dg_key')!==rj.keys.deepgram){ls('tb_dg_key',null);return card('Cannot set up here',[{text:'This browser would not save the setup (private mode or blocked storage). Open the link in a normal Chrome window and try again. The link has not been used up.',cls:'err'}],[{text:'Try again',fn:start}])}
+                        var tries=0;(function confirm(){
+                            post('/confirm',{code:code,claim:rj.claim}).then(function(cj){
+                                if(cj.ok){ls('cl_guest',JSON.stringify({name:name,at:Date.now()}));document.documentElement.classList.add('cl-guest');return finish()}
+                                if(cj.status===409||cj.status===410){ls('tb_dg_key',null);return card('Cannot use this link',[{text:cj.error||'This link was opened somewhere else first.',cls:'err'},'Ask for a new link.'],[{text:'Continue without it',alt:true,fn:finish}])}
+                                throw new Error('confirm')
+                            }).catch(function(){
+                                if(++tries<3)return setTimeout(confirm,1500*tries);
+                                ls('cl_guest',JSON.stringify({name:name,at:Date.now(),unconfirmed:{code:code,claim:rj.claim}}));document.documentElement.classList.add('cl-guest');finish()   // keep going; confirmed on the next start
+                            })
+                        })()
+                    }).catch(function(){card('No connection',[{text:'Could not reach the setup service. Check your connection and try again. The link has not been used up.',cls:'err'}],[{text:'Try again',fn:start}])})
+                }
+                if(own)return card('This device is already set up',['This browser already has its own settings. Open the link on the guest\'s phone instead. Using it here would turn this browser into a guest browser with no settings.'],[{text:'Cancel',fn:finish},{text:'Use here anyway',alt:true,fn:start}]);
+                if(inApp){var link=location.href;return card('Open in Chrome',[name+', this link was opened inside another app, which would keep the setup out of your browser.','Open it in Chrome, then tap Start.'],[{text:'Copy link',fn:function(){try{navigator.clipboard.writeText(link)}catch(e){}}},{text:'Start here anyway',alt:true,fn:start}])}
+                card('Welcome, '+name,['Tap Start to set up chat-test on this phone.','This link works once. It cannot be opened again or on another phone.'],[{text:'Start',fn:start}])
+            }).catch(function(){card('No connection',[{text:'Could not reach the setup service. Check your connection and try again.',cls:'err'}],[{text:'Continue without it',alt:true,fn:finish}])})
+        })
+    }
+    /* a confirm that could not be sent when the guest was set up is retried here */
+    function guestConfirmLater(){try{var g=JSON.parse(localStorage.getItem('cl_guest')||'null');if(g&&g.unconfirmed){fetch(window.clRunner()+'/confirm',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(g.unconfirmed)}).then(function(r){if(r.ok||r.status===409||r.status===410){delete g.unconfirmed;localStorage.setItem('cl_guest',JSON.stringify(g))}}).catch(function(){})}}catch(e){}}
+    function startChatlink(){guestGate().then(function(){guestConfirmLater();boot();portal.start().catch(function(e){document.getElementById('cl-save-state').textContent='Storage unavailable';document.getElementById('cl-error').textContent=e.message;document.getElementById('cl-error').classList.add('show');});});}
     if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',startChatlink);else startChatlink();
 
     if(typeof window!=="undefined"){window.INPUT=INPUT;window.mic=mic;window.requestInput=requestInput;
