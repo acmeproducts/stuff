@@ -29,3 +29,6 @@ for sid,cad,t,latest in [('spy','trading-day','2026-10-16','2026-10-15'),('cpi',
  due,reason=m.eligibility({'id':sid,'native_cadence':cad},source,t,{'cpi':{'available_by_day_of_month':15}})
  assert (due,reason)==(True,'retry-failed'),(sid,due,reason)
 print('PASS failed-component replay on eligible native cadence')
+
+assert m.eligibility({'id':'spy','native_cadence':'trading-day'},stored('2026-10-15'),'2026-10-16')[0], 'current trading day must be fetched after close'
+assert not m.eligibility({'id':'spy','native_cadence':'trading-day'},stored('2026-10-16'),'2026-10-16')[0], 'current daily observation is already present'
