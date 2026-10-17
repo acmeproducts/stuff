@@ -1,7 +1,7 @@
 <!-- v5.8.2.42 -->
 # TALKBRIDGE — THE GRAVEYARD (living; keep in project knowledge)
 ## Approaches PROVEN to fail. Scanned before every change and at every exit condition. Never resurrect.
-**Version: 2.32 | 2026-10-16 | G73 a typed name and a made-up default written raw into the activity log ("someone·ciA") | Maintained in GitHub by the build process (raw.githubusercontent.com/acmeproducts/stuff/main/talkbridge/TALKBRIDGE-GRAVEYARD.md). Updated on every exit-condition burial.**
+**Version: 2.33 | 2026-10-17 | G73 amended: no device tag in the activity log (owner: "flz is confusing") | Maintained in GitHub by the build process (raw.githubusercontent.com/acmeproducts/stuff/main/talkbridge/TALKBRIDGE-GRAVEYARD.md). Updated on every exit-condition burial.**
 
 
 Each entry: the approach, its failure signature, what replaces it. A change matching a signature is forbidden BEFORE it is attempted — not rediscovered as if new.
@@ -2453,3 +2453,5 @@ and digits; the room is letters and digits; a language that is not a code is
 `unknown`. Relay harness v6.13 L5 holds it; seven mutations guard it.
 
 **Buried by.** 29·post-ship c6, relay v6.13 (plan v21.104.0).
+
+**Amended 2026-10-17 (relay v6.14, plan v21.105.0).** The device tag is gone too (owner: "get rid of flz, is confusing"): a person is the name alone; a person with no name is `Guest 1`, `Guest 2` … numbered per room in the order they first appear, saved the moment it is given. Relay harness v6.14 L5 and L6 hold it.
