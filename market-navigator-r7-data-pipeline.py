@@ -2,9 +2,16 @@
 from __future__ import annotations
 import csv,datetime as dt,hashlib,json,math,os,statistics,urllib.parse,urllib.request
 from pathlib import Path
+import importlib.util
 
 CATALOG=Path('data/market-backend/data-catalog.json');ROOT=Path('market-evidence');SERIES=ROOT/'series';REPORTS=ROOT/'reports';MANIFEST=ROOT/'operational-manifest.json'
 VERSION='2.1.0-turn23';UA='MarketNavigatorEvidence/2.1 (+https://github.com/acmeproducts/stuff)';TIMEOUT=30;BOOT=os.environ.get('MARKET_NAVIGATOR_BOOTSTRAP','').lower() in {'1','true','yes'};DAY=86400000
+_spec=importlib.util.spec_from_file_location('mn_etl_schedule',Path(__file__).with_name('market-navigator-etl-schedule.py'))
+_scheduler=importlib.util.module_from_spec(_spec);_spec.loader.exec_module(_scheduler)
+RETRY_COMPONENT=os.environ.get('MARKET_NAVIGATOR_RETRY_COMPONENT','').strip()
+RETRY_STREAM=os.environ.get('MARKET_NAVIGATOR_RETRY_STREAM','').lower() in {'1','true','yes'}
+RULES=Path('data/market-backend/publication-rules.json')
+RUNLOG=ROOT/'run-log.json'
 
 def now():return dt.datetime.now(dt.timezone.utc)
 def iso(x=None):return (x or now()).astimezone(dt.timezone.utc).replace(microsecond=0).isoformat().replace('+00:00','Z')
@@ -121,10 +128,28 @@ def chain_for(m):
  return [{'provider':m.get('provider'),'identifier':m.get('provider_identifier')}]
 def main():
  c=read(CATALOG,{});assert c.get('schema')=='market-navigator-data-catalog-v1';H=c.get('canonical_horizons') or ['1D','5D','MTD','YTD','1YR','3YR','5YR'];assert H==['1D','5D','MTD','YTD','1YR','3YR','5YR']
- SERIES.mkdir(parents=True,exist_ok=True);REPORTS.mkdir(parents=True,exist_ok=True);states={};failures=[]
+ SERIES.mkdir(parents=True,exist_ok=True);REPORTS.mkdir(parents=True,exist_ok=True);states={};failures=[];entries=[]
+ publication_rules=read(RULES,{}).get('rules',{})
+ enabled_ids={x['id'] for x in c.get('series',[]) if x.get('enabled',True)}
+ if RETRY_COMPONENT and RETRY_COMPONENT not in enabled_ids:raise SystemExit('Unknown or disabled retry component: '+RETRY_COMPONENT)
+
  for m in c.get('series',[]):
   if not m.get('enabled',True):continue
   sid=m['id'];p=SERIES/f'{sid}.json';old=read(p,{});obs0=old.get('observations') or [];attempt=iso();err=None;http=None;used=None;source_errors=[]
+  if RETRY_COMPONENT and sid!=RETRY_COMPONENT:
+   decision='not-selected';due=False
+  elif RETRY_COMPONENT==sid:
+   decision='explicit-component-retry';due=True
+  else:
+   due,decision=_scheduler.eligibility(m,old,now().date(),publication_rules,force=BOOT,last_attempt=old.get('last_attempted') if not old.get('last_error') else None)
+   if RETRY_STREAM and old.get('last_error') and decision not in ('weekend','weekly-not-due','monthly-not-due','quarterly-not-due'):due=True;decision='retry-failed'
+  if not due and not obs0 and decision!='not-selected':due=True;decision='missing-history'
+  if not due:
+   prior_report=read(REPORTS/f'{sid}.json',{})
+   previous=prior_report.get('reports',{})
+   oldstate={'status':'healthy' if obs0 and not old.get('last_error') else ('stale' if obs0 else 'unavailable'),'first_observation':old.get('first'),'latest_observation':old.get('last'),'observation_count':len(obs0),'last_attempted':old.get('last_attempted'),'last_successful':old.get('last_successful'),'last_error':old.get('last_error'),'history_years':round((obs0[-1]['t']-obs0[0]['t'])/(365.25*DAY),2) if len(obs0)>1 else 0,'provider_used':old.get('provider'),'provider_identifier_used':old.get('providerIdentifier'),'source_revision':old.get('sourceRevision'),'computed_revision':prior_report.get('computedRevision'),'horizon_readiness':{h:bool(previous.get(h,{}).get('ready')) for h in H},'supported_horizons':m.get('supported_horizons') or H,'bootstrap_complete':((obs0[-1]['t']-obs0[0]['t'])/(365.25*DAY)>=float(c.get('bootstrap_policy',{}).get('minimum_history_years',6))) if len(obs0)>1 else False,'skip_reason':decision}
+   states[sid]=oldstate;entries.append({'id':sid,'status':'skipped','reason':decision,'latest_observation':old.get('last')});continue
+
   try:
    raw=None
    for pos,src in enumerate(chain_for(m)):
@@ -146,6 +171,7 @@ def main():
    success=iso()
   except Exception as e:
    err=str(e);obs=canon(obs0);success=old.get('last_successful');failures.append(f'{sid}: {e}')
+  entries.append({'id':sid,'status':'failed' if err else 'success','reason':err or decision,'previous_count':len(obs0),'new_count':len(obs),'changed':sha(obs)!=sha(obs0)})
   if obs:
    cutoff=int((now()-dt.timedelta(days=365.25*10.25)).timestamp()*1000);obs=[x for x in obs if x['t']>=cutoff]
   rev=sha(obs);configured=chain_for(m);provider_name=(used or {}).get('provider') or old.get('provider') or m.get('provider');provider_id=(used or {}).get('identifier') or old.get('providerIdentifier') or m.get('provider_identifier')
@@ -162,7 +188,11 @@ def main():
   st=states.get(sid,{})
   if st.get('status')=='unavailable':block.append(f'{sid}: unavailable')
   if not st.get('bootstrap_complete'):block.append(f'{sid}: bootstrap history below minimum')
-  if not all(st.get('horizon_readiness',{}).values()):block.append(f'{sid}: one or more canonical horizons unavailable')
+  supported=set(st.get('supported_horizons') or H)
+  if any(not st.get('horizon_readiness',{}).get(h,False) for h in supported):block.append(f'{sid}: one or more supported horizons unavailable')
+ log=read(RUNLOG,{'schema':'market-navigator-run-log-v1','runs':[]})
+ run={'at':iso(),'mode':'component-retry' if RETRY_COMPONENT else ('bootstrap' if BOOT else ('stream-retry' if RETRY_STREAM else 'scheduled')),'components':entries,'success':sum(x['status']=='success' for x in entries),'failed':sum(x['status']=='failed' for x in entries),'skipped':sum(x['status']=='skipped' for x in entries)}
+ log['runs']=(log.get('runs',[])+[run])[-90:];write(RUNLOG,log)
  man={'schema':'market-navigator-operational-manifest-v1','pipelineVersion':VERSION,'catalogVersion':c.get('version'),'generatedAt':iso(),'mode':'bootstrap' if BOOT else 'incremental','canonicalHorizons':H,'series':states,'summary':{'catalogSeries':len(c.get('series',[])),'processedSeries':len(states),'requiredSeries':len(required),'sourceFailures':failures,'acceptanceBlockers':block,'ready':not block}};man['revision']=sha(man)[:16];write(MANIFEST,man);print(json.dumps({'ok':not block,'revision':man['revision'],'failures':failures,'blockers':block},indent=2))
 
 if __name__=='__main__':main()
