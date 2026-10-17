@@ -20,18 +20,31 @@ export function friendlyError(m) {
 }
 export function stripPlanTags(b) { return String(b || '').replace(/^\s*<\/?plan>[ \t]*\n?/i, '').replace(/\n?[ \t]*<\/?plan>\s*$/i, '').trim() + '\n'; }
 
+export const DEFAULT_PLAN_CHIPS = [
+  { label: 'Build it now with your recommendations', say: 'build it', prompt: 'Go with your recommendations for every open question, record them in the plan as decisions, then build the first version.' },
+  { label: 'Answer your questions first', say: 'questions', prompt: 'Ask me your open questions one at a time. For each one give your recommendation and let me answer, accept it, or skip it. Record my answers in the plan.' },
+  { label: 'More ideas', say: 'more ideas', prompt: 'Give me three more ideas for this project that I have not mentioned yet, with a one-line reason for each.' }];
+
+export function parseChips(line) {
+  const out = [];
+  String(line || '').split(/\s*;;\s*/).forEach(seg => {
+    const p = seg.split('|').map(x => x.trim()); if (!p[0]) return;
+    out.push({ label: p[0].slice(0, 48), say: (p[1] || p[0]).split(/\s+/).slice(0, 3).join(' ').slice(0, 24).toLowerCase(), prompt: (p[2] || p[0]).slice(0, 300) });
+  });
+  return out.slice(0, 4);
+}
+
 export function parseAgent(text) {
   let summary = 'Done.', target = 'NONE';
   const sm = text.match(/^SUMMARY:\s*(.+)$/m); if (sm) summary = sm[1].trim();
   const tm = text.match(/^TARGET:\s*(.+)$/m); if (tm) target = tm[1].trim();
   let state = ''; const stm = text.match(/^STATE:\s*(.+)$/m); if (stm) state = stm[1].trim();
-  let body = text;
-  if (stm) body = text.slice(text.indexOf(stm[0]) + stm[0].length);
-  else if (tm) body = text.slice(text.indexOf(tm[0]) + tm[0].length);
-  else if (sm) body = text.slice(text.indexOf(sm[0]) + sm[0].length);
+  const cm = text.slice(0, 4000).match(/^CHIPS:\s*(.+)$/m);
+  let end = -1; [sm, tm, stm, cm].forEach(m => { if (m) { const e = text.indexOf(m[0]) + m[0].length; if (e > end) end = e; } });
+  let body = end >= 0 ? text.slice(end) : text;
   body = body.trim();
   if (body.startsWith('```')) { body = body.replace(/^```[a-zA-Z]*\n?/, ''); const i = body.lastIndexOf('```'); if (i > -1) body = body.slice(0, i); body = body.trim(); }
-  return { summary, target, body, state };
+  return { summary, target, body, state, chips: cm ? parseChips(cm[1]) : [] };
 }
 
 export function applyPatchBlocks(original, body) {
@@ -302,6 +315,7 @@ export async function runPipeline(req, io, ctl) {
           if (ctl.stopped) throw new Error('Interrupted by user');
         }
         let { summary, target, body, state, usedEng, usedModel } = res;
+        const chips = (res.chips && res.chips.length) ? res.chips : (target === planFile ? DEFAULT_PLAN_CHIPS : null);
         let commit = null, testUrl = post.testUrl || '', reply = summary, moved = false;
         if (usedEng !== job.threadEngine) reply = '[fallback: ' + usedEng + ' · ' + usedModel + ' — ' + job.threadEngine + ' failed]\n' + reply;
         const followedContract = /^SUMMARY:/m.test(res.raw || '') || target !== 'NONE' || summary !== 'Done.';
@@ -346,6 +360,7 @@ export async function runPipeline(req, io, ctl) {
           : target !== 'NONE' ? summary + '\nPlay it: ' + testUrl + (nextStep ? '\nYou could try ' + nextStep + '.' : '\nWhat would you like to change next?')
             : (body || summary);
         const amsg = { role: 'agent', text: reply, coachText, summary, ts: io.now(), engine: usedEng, model: usedModel };
+        if (chips) amsg.chips = chips;
         if (commit) amsg.commit = commit; if (target !== 'NONE') amsg.target = target; if (state) amsg.state = state;
         io.log('saving reply');
         await rmw(io, g, post.threadPath, 'devstream: agent reply ' + key, d => {

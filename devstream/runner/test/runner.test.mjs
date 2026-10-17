@@ -107,6 +107,23 @@ const quiet = fetchFn => ({ fetch: fetchFn, sleep: () => new Promise(r => setTim
     const r = await runPipeline(sc, quiet(m.fetchFn));
     ok('patch mode applies SEARCH/REPLACE', r.ok && m.fs.get('app.html').content.includes('<h1>blue</h1>'), r);
   }
+  /* R1: chips come from the agent's reply and never leak into the saved file */
+  {
+    const sc = scenario();
+    const reply = 'SUMMARY: Made it blue\nTARGET: app.html\nSTATE: open: x | next: add score\nCHIPS: Add a score counter | score | Add a score counter next ;; Make the ball faster | faster | Make the ball faster\n' + GOOD.replace('hi', 'blue');
+    const m = mock({ files: filesOf(sc), ai: [reply] });
+    const r = await runPipeline(sc, quiet(m.fetchFn));
+    const th = read(m.fs, 'devstream/threads/p__app.html.json'), am = th.messages[th.messages.length - 1];
+    ok('R1 agent chips saved on the reply', r.ok && am.chips && am.chips.length === 2 && am.chips[0].label === 'Add a score counter' && am.chips[0].say === 'score', am.chips);
+    ok('R1 chips line is not written into the app file', !m.fs.get('app.html').content.includes('CHIPS:'));
+  }
+  {
+    const sc = scenario();
+    const m = mock({ files: filesOf(sc), ai: ['SUMMARY: Plan ready\nTARGET: p-plan.md\nSTATE: open: q | next: build\n# plan\n' + 'details '.repeat(30)] });
+    const r = await runPipeline(sc, quiet(m.fetchFn));
+    const th = read(m.fs, 'devstream/threads/p__app.html.json'), am = th.messages[th.messages.length - 1];
+    ok('R1 plan reply without chips gets the standard plan chips', r.ok && am.chips && am.chips.length === 3 && /Build it now with your recommendations/.test(am.chips[0].label) && /Answer your questions first/.test(am.chips[1].label), am.chips);
+  }
   /* B68-3 access */
   {
     const m = mock();
