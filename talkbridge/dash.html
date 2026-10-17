@@ -84,6 +84,8 @@ svg{display:block;width:100%;height:auto;-webkit-tap-highlight-color:transparent
 select,input[type="datetime-local"]{width:100%;min-width:0;max-width:100%;min-height:44px;margin-top:4px;padding:8px 10px;border:1px solid var(--line);border-radius:10px;background:var(--surface)}
 .f-foot{display:flex;justify-content:space-between;align-items:center;margin-top:12px;gap:10px}
 .f-foot .note{font-size:13px;color:var(--ink-3)}
+.dl{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin:0 0 12px}
+.dl span{font-size:14px;color:var(--ink-2);margin-right:2px}
 .result-head{font-size:15px;color:var(--ink-2);margin:4px 2px 10px}
 footer{color:var(--ink-3);font-size:13px;margin-top:6px}
 @media (min-width:720px){main,.top>*{max-width:900px;margin-left:auto;margin-right:auto}.tabs{margin:8px auto 0}.tiles{grid-template-columns:repeat(4,1fr)}.tile.wide{grid-column:auto}.ranges .chip{flex:0 0 auto}}
@@ -112,7 +114,7 @@ footer{color:var(--ink-3);font-size:13px;margin-top:6px}
     <div class="tiles" id="sum-tiles"></div>
     <div class="card"><h2>Rooms over time</h2><div class="legend" id="sum-legend"></div><div id="sum-lanes"></div><div class="detail" id="sum-detail">Tap a dot to see what happened.</div></div>
   </div>
-  <div data-panel="feed"><div class="card" id="feed-list"></div></div>
+  <div data-panel="feed"><div class="dl"><span>Download what is shown:</span><button class="chip" data-dl="feed:txt">Text</button><button class="chip" data-dl="feed:csv">Spreadsheet</button></div><div class="card" id="feed-list"></div></div>
   <div data-panel="rooms"><div id="rooms-list"></div></div>
   <div data-panel="people"><div id="people-list"></div></div>
   <div data-panel="custom">
@@ -128,6 +130,7 @@ footer{color:var(--ink-3);font-size:13px;margin-top:6px}
       <div class="f-foot"><span class="note" id="c-note"></span><button class="chip" id="c-reset">Reset</button></div>
     </div>
     <div class="result-head" id="c-head"></div>
+    <div class="dl"><span>Download these:</span><button class="chip" data-dl="custom:txt">Text</button><button class="chip" data-dl="custom:csv">Spreadsheet</button></div>
     <div class="card" id="c-tiles"></div>
     <div class="card"><h2>Timeline</h2><div id="c-lanes"></div><div class="detail" id="c-detail">Tap a dot to see what happened.</div></div>
     <div class="card" id="c-feed"></div>
@@ -156,13 +159,13 @@ footer{color:var(--ink-3);font-size:13px;margin-top:6px}
   var DEF_CUSTOM = { kinds: ORDER.slice(), room: '', person: '', from: '', to: '' };
   var state = { events: [], raw: '', range: store.get('tb_dash_range') == null ? 86400000 : store.get('tb_dash_range'), tab: 'summary', custom: Object.assign({}, DEF_CUSTOM, store.get('tb_dash_custom') || {}), sel: {} };
 
-  /* The relay writes UTC: "2026-10-16 01:52:03  room bh5qos  Ann flz created  en → th" */
+  /* The relay writes UTC: "2026-10-16 01:52:03  room bh5qos  Ann created  en → th" */
   function parse(text) {
     var out = [];
     text.split('\n').forEach(function (line, i) {
       var m = /^(\d{4}-\d\d-\d\d \d\d:\d\d:\d\d)  room (\S+)  (.*)$/.exec(line.trim());
       if (!m) return;
-      var e = { i: i, ts: Date.parse(m[1].replace(' ', 'T') + 'Z'), room: m[2], text: m[3] }, r, rest = m[3];
+      var e = { i: i, line: line.trim(), utc: m[1], ts: Date.parse(m[1].replace(' ', 'T') + 'Z'), room: m[2], text: m[3] }, r, rest = m[3];
       if ((r = /^(.+?) created  (\S+) → (\S+)$/.exec(rest))) { e.kind = 'created'; e.who = r[1]; e.from = r[2]; e.to = r[3]; }
       else if ((r = /^(.+?) joined  (\S+) → (\S+)$/.exec(rest))) { e.kind = 'joined'; e.who = r[1]; e.from = r[2]; e.to = r[3]; }
       else if ((r = /^(.+?) chat$/.exec(rest))) { e.kind = 'chat'; e.who = r[1]; }
@@ -305,7 +308,7 @@ footer{color:var(--ink-3);font-size:13px;margin-top:6px}
     if (document.activeElement !== $('c-to')) $('c-to').value = c.to || '';
     var b = rangeBounds(), from = c.from ? Date.parse(c.from) : b.from, to = c.to ? Date.parse(c.to) : b.to;
     $('c-note').textContent = (c.from || c.to) ? 'Using your dates.' : 'No dates set: using the range above.';
-    var ev = inRange(all, from, to).filter(function (e) { return c.kinds.indexOf(e.kind) >= 0 && (!c.room || e.room === c.room) && (!c.person || people(e).indexOf(c.person) >= 0); });
+    var ev = inRange(all, from, to).filter(function (e) { return c.kinds.indexOf(e.kind) >= 0 && (!c.room || e.room === c.room) && (!c.person || people(e).indexOf(c.person) >= 0); }); state.customEv = ev;
     var bits = []; if (c.room) bits.push('room ' + c.room); if (c.person) bits.push(c.person); if (c.kinds.length < ORDER.length) bits.push(c.kinds.length + ' of ' + ORDER.length + ' kinds');
     $('c-head').textContent = ev.length + ' event' + (ev.length === 1 ? '' : 's') + (bits.length ? ' · ' + bits.join(' · ') : '');
     var n = {}; ev.forEach(function (e) { n[e.kind] = (n[e.kind] || 0) + 1; }); $('c-tiles').innerHTML = '<div class="split" style="font-size:15px">' + ORDER.map(function (k) { return '<span>' + sw(k) + (n[k] || 0) + ' ' + KINDS[k].short + '</span>'; }).join('') + '</div>';
@@ -328,11 +331,32 @@ footer{color:var(--ink-3);font-size:13px;margin-top:6px}
   }
   function setTab(t) { if (!/^(summary|feed|rooms|people|custom)$/.test(t)) t = 'summary'; state.tab = t; store.set('tb_dash_tab', t); if (location.hash !== '#' + t) history.replaceState(null, '', '#' + t); window.scrollTo(0, 0); render(); }
 
+  /* ---- downloads: exactly what the tab shows ---- */
+  function csvCell(v) { v = v == null ? '' : String(v); return /[",\n]/.test(v) ? '"' + v.replace(/"/g, '""') + '"' : v; }
+  function toCsv(ev) {
+    var head = ['time_utc', 'time_local', 'room', 'event', 'person', 'other_person', 'call_type', 'from_language', 'to_language'];
+    return [head.join(',')].concat(ev.map(function (e) {
+      var local = new Date(e.ts).toLocaleString([], { year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', second: '2-digit' });
+      return [e.utc, local, e.room, KINDS[e.kind].label, e.who || '', e.by || '', e.call || '', e.from || '', e.to || ''].map(csvCell).join(',');
+    })).join('\r\n') + '\r\n';
+  }
+  function save(name, text, type) {
+    var blob = new Blob([text], { type: type }), url = URL.createObjectURL(blob), a = document.createElement('a');
+    a.href = url; a.download = name; document.body.appendChild(a); a.click(); a.remove(); setTimeout(function () { URL.revokeObjectURL(url); }, 4000);
+  }
+  function download(which) {
+    var parts = which.split(':'), b = rangeBounds(), ev = parts[0] === 'custom' ? (state.customEv || []) : inRange(state.events, b.from, b.to);
+    var stamp = new Date().toISOString().slice(0, 10), base = 'talkbridge-activity-' + (parts[0] === 'custom' ? 'custom-' : '') + stamp;
+    if (parts[1] === 'csv') save(base + '.csv', '\ufeff' + toCsv(ev), 'text/csv;charset=utf-8');
+    else save(base + '.txt', ev.map(function (e) { return e.line; }).join('\n') + (ev.length ? '\n' : ''), 'text/plain;charset=utf-8');
+  }
+
   /* ---- events (tap, no hover) ---- */
   document.addEventListener('click', function (ev) {
-    var t = ev.target.closest ? ev.target.closest('[data-tab],[data-range],[data-kind],[data-room],[data-person],.hit,#c-reset,#theme') : null;
+    var t = ev.target.closest ? ev.target.closest('[data-tab],[data-range],[data-kind],[data-room],[data-person],[data-dl],.hit,#c-reset,#theme') : null;
     if (!t) return;
     if (t.hasAttribute('data-tab')) return setTab(t.getAttribute('data-tab'));
+    if (t.hasAttribute('data-dl')) return download(t.getAttribute('data-dl'));
     if (t.hasAttribute('data-range')) { state.range = Number(t.getAttribute('data-range')); store.set('tb_dash_range', state.range); return render(); }
     if (t.hasAttribute('data-kind')) { var k = t.getAttribute('data-kind'), ks = state.custom.kinds, at = ks.indexOf(k); if (at >= 0) ks.splice(at, 1); else ks.push(k); state.custom.kinds = ORDER.filter(function (x) { return ks.indexOf(x) >= 0; }); return saveCustom(); }
     if (t.hasAttribute('data-room')) { state.custom = Object.assign({}, DEF_CUSTOM, { room: t.getAttribute('data-room') }); store.set('tb_dash_custom', state.custom); return setTab('custom'); }
@@ -353,10 +377,10 @@ footer{color:var(--ink-3);font-size:13px;margin-top:6px}
   function setLive(cls, text) { $('live').className = 'live ' + cls; $('live-t').textContent = text; }
   function demoText() {
     var now = Date.now(), L = [], t = function (m) { return new Date(now - m * 60000).toISOString().replace('T', ' ').slice(0, 19); };
-    L.push(t(1500) + '  room x7k2pa  Ann flz created  en → es'); L.push(t(1490) + '  room x7k2pa  Luz p3q joined  es → en'); L.push(t(1480) + '  room x7k2pa  Luz p3q chat');
-    L.push(t(130) + '  room bh5qos  Ann flz created  en → th'); L.push(t(126) + '  room bh5qos  Bo m66 joined  th → en'); L.push(t(120) + '  room bh5qos  Ann flz chat'); L.push(t(119) + '  room bh5qos  Bo m66 chat');
-    L.push(t(110) + '  room bh5qos  video call from Ann flz — missed'); L.push(t(100) + '  room bh5qos  video call from Bo m66 — answered by Ann flz'); L.push(t(40) + '  room q4hv8e  Ann flz created  en → ko'); L.push(t(38) + '  room q4hv8e  Kim tzc joined  ko → en');
-    L.push(t(30) + '  room q4hv8e  voice call from Kim tzc — declined by Ann flz'); L.push(t(12) + '  room q4hv8e  Kim tzc chat'); L.push(t(2) + '  room bh5qos  Bo m66 chat');
+    L.push(t(1500) + '  room x7k2pa  Ann created  en → es'); L.push(t(1490) + '  room x7k2pa  Luz joined  es → en'); L.push(t(1480) + '  room x7k2pa  Luz chat');
+    L.push(t(130) + '  room bh5qos  Ann created  en → th'); L.push(t(126) + '  room bh5qos  Bo joined  th → en'); L.push(t(120) + '  room bh5qos  Ann chat'); L.push(t(119) + '  room bh5qos  Bo chat');
+    L.push(t(110) + '  room bh5qos  video call from Ann — missed'); L.push(t(100) + '  room bh5qos  video call from Bo — answered by Ann'); L.push(t(40) + '  room q4hv8e  Ann created  en → ko'); L.push(t(38) + '  room q4hv8e  Kim joined  ko → en');
+    L.push(t(30) + '  room q4hv8e  voice call from Kim — declined by Ann'); L.push(t(12) + '  room q4hv8e  Kim chat'); L.push(t(2) + '  room bh5qos  Bo chat');
     return L.join('\n');
   }
   function tick() {
