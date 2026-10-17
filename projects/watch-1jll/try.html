@@ -241,7 +241,9 @@ button.warn { background: var(--warn); color: #422006; }
   }
 
   function renderTranscript() {
-    els.transcript.innerHTML = finalTranscript.replace(/\n/g, '<br>') + (interimTranscript ? '<span class="interim">' + interimTranscript.replace(/\n/g, '<br>') + '</span>' : '');
+    const cleanFinal = finalTranscript.replace(/\n/g, '<br>');
+    const cleanInterim = interimTranscript.replace(/\n/g, '<br>');
+    els.transcript.innerHTML = cleanFinal + (interimTranscript ? '<span class="interim">' + cleanInterim + '</span>' : '');
     els.transcript.scrollTop = els.transcript.scrollHeight;
     updateDiagnostics();
   }
@@ -308,9 +310,6 @@ button.warn { background: var(--warn); color: #422006; }
     r.interimResults = true;
     r.lang = navigator.language || 'en-US';
 
-    // Track seen result indices to prevent duplication bugs in some browsers
-    const seenIndices = new Set();
-
     r.onstart = () => {
       isRunning = true;
       sessionStartTime = Date.now();
@@ -332,26 +331,18 @@ button.warn { background: var(--warn); color: #422006; }
     };
 
     r.onresult = (e) => {
-      let newFinal = '';
-      let newInterim = '';
-      
-      // Process only results we haven't seen yet (defensive against buggy implementations)
+      let interim = '';
+      // Process only new results indicated by resultIndex
       for (let i = e.resultIndex; i < e.results.length; ++i) {
-        if (seenIndices.has(i)) continue;
-        seenIndices.add(i);
-        
         const tr = e.results[i][0].transcript;
         lastConfidence = e.results[i][0].confidence || 0;
         if (e.results[i].isFinal) {
-          newFinal += tr + ' ';
+          finalTranscript += tr + ' ';
         } else {
-          // Only take the latest interim result
-          newInterim = tr;
+          interim += tr;
         }
       }
-      
-      if (newFinal) finalTranscript += newFinal;
-      interimTranscript = newInterim;
+      interimTranscript = interim;
       renderTranscript();
     };
 
@@ -361,10 +352,7 @@ button.warn { background: var(--warn); color: #422006; }
       if (msg === 'not-allowed') {
         els.status.textContent = 'Mic permission denied';
       }
-      // Don't immediately set isRunning false here; let onend handle it if it fires
-      if (msg === 'no-speech') {
-        // auto-restart logic could go here, but we'll let it stop
-      }
+      // Let onend handle cleanup for most errors; no auto-restart
     };
 
     return r;
@@ -394,7 +382,7 @@ button.warn { background: var(--warn); color: #422006; }
       rec.stop(); // This flushes interim via onend
     }
     
-    // Wait a tick for onend to flush interim into final
+    // Defer to let onend flush interim into final
     setTimeout(() => {
       const finalText = finalTranscript || text;
       pushSession(finalText);
@@ -403,7 +391,7 @@ button.warn { background: var(--warn); color: #422006; }
       interimTranscript = '';
       renderTranscript();
       renderButtons();
-    }, 50);
+    }, 60);
   });
 
   els.btnClear.addEventListener('click', () => {
@@ -429,7 +417,7 @@ button.warn { background: var(--warn); color: #422006; }
   els.btnDownload.addEventListener('click', () => {
     const text = finalTranscript + interimTranscript;
     const blob = new Blob([text], { type: 'text/plain' });
-    const url = URL.createObjectObjectURL(blob);
+    const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
     const stamp = new Date().toISOString().replace(/[:.]/g, '-');
