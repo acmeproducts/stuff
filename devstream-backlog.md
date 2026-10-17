@@ -6,8 +6,8 @@ Deploy target: `https://acmeproducts.github.io/stuff/devstream.html`
 Test target: `https://acmeproducts.github.io/stuff/devstream-test.html`
 
 ## Status
-- Current release: v1.0 b74 on devstream-test.html (2026-10-16)
-- Stage: TEST (b74)
+- Current release: v1.0 b75 on devstream-test.html (2026-10-17)
+- Stage: TEST (b75)
 
 ## Release Rules (inherited, proven)
 1. Mobile-first. All diagnostics in-app. No DevTools ever.
@@ -258,9 +258,27 @@ b39 incorrectly changed stationary hold into context-menu activation. Devstream 
 
 ---
 
+# 2026-10-17 — b75 R1: always-coach, the first question, specific chips
+
+Implements section A and B of the approved spec below.
+
+## Change
+- No Coach switch on project cards or in New project; every project (including old ones) is coach. Typing always overrides the chips.
+- Engine/model and web search for the current tab moved to Config → Advanced.
+- A new project opens with the fixed five-part question; nothing runs until the person answers. Their answer is shown, "Hold on — I'm creating the plan right now…" appears at once, and the plan run receives the person's own words. The plan now includes OPEN QUESTIONS, each with a Recommendation.
+- New project keeps one way to adopt an existing file: "Use an existing file instead…".
+- Agent replies end their header with a CHIPS line (label | say | prompt). The app and the cloud runner read it, keep it out of saved files, store it on the reply, and show those as the chips. After a plan the standard three are used if the model omits them: Build it now with your recommendations / Answer your questions first / More ideas. If a reply has no chips the older suggestions still show.
+
+## Acceptance (from the spec)
+- **DS-SPEC-1:** no Coach switch anywhere; typing overrides chips.
+- **DS-SPEC-2:** new project → five-part question first; after the answer "Hold on…" at once; plan has open questions with recommendations.
+- **DS-SPEC-3:** after the plan, project-specific chips including build-with-recommendations and answer-questions-first, taken from the agent's CHIPS.
+
+---
+
 # 2026-10-17 — SPEC (DRAFT, NOT BUILT): always-coach, specific chips, voice mode, watch mode
 
-Status: **draft for owner sign-off. No code until the owner says go.** Owner asked that the spec be fixed in the plan first.
+Status: **APPROVED by owner 2026-10-17 ("all yes" to Q1–Q7 and the "this device" line). R1 BUILT as b75; R2 and R3 not built.** Owner asked that the spec be fixed in the plan first.
 
 ## Owner's words (source of truth)
 1. "It's always in coach mode so there's no need for the toggle because coach mode can always be overwritten by what you type. Coach mode should be very specific: when you first create the project it should ask you a question — tell me about this project, what are your objectives, what does it look like, what are some things for me to consider, what open questions do you have — and let the person answer in freeform. Then it should respond 'hold on I'm creating the plan right now…'. Once the plan is created the chips need to be a lot more specific towards an action: proceed with the build, or I have questions before I can build — which should offer 'answer questions' or 'just go with my recommendations'. The chips need to be less generic and more specific to the project."
