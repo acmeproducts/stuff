@@ -258,6 +258,70 @@ b39 incorrectly changed stationary hold into context-menu activation. Devstream 
 
 ---
 
+# 2026-10-17 — SPEC (DRAFT, NOT BUILT): always-coach, specific chips, voice mode, watch mode
+
+Status: **draft for owner sign-off. No code until the owner says go.** Owner asked that the spec be fixed in the plan first.
+
+## Owner's words (source of truth)
+1. "It's always in coach mode so there's no need for the toggle because coach mode can always be overwritten by what you type. Coach mode should be very specific: when you first create the project it should ask you a question — tell me about this project, what are your objectives, what does it look like, what are some things for me to consider, what open questions do you have — and let the person answer in freeform. Then it should respond 'hold on I'm creating the plan right now…'. Once the plan is created the chips need to be a lot more specific towards an action: proceed with the build, or I have questions before I can build — which should offer 'answer questions' or 'just go with my recommendations'. The chips need to be less generic and more specific to the project."
+2. "A switch at the top of the left rail: a keyboard icon or a microphone icon. Keyboard stays as is. Microphone mode — the main intention is that the watch can be just a voice input."
+3. "A speaker icon in the chat compose strip, defaulted to have a slash through it; tapped to unmute, the system responses in the transcript are read out loud. If listen mode (microphone switch on) the chips are still shown but verbalized: for build it say 'build it', for questions say 'questions', for more ideas say 'more ideas'. In microphone mode speaker output is unmuted by default. There should also be an open app button or a share app button that lets the watch user either open the app or share the link, choosing WhatsApp, Gmail, messaging, etc."
+
+## Spec
+
+### A. Coach is the only mode (release R1)
+- Remove the Coach switch from project cards and the "Coach mode" option in New project. Every project behaves as coach. Existing projects with coach off become coach. What the person types is always sent as written and overrides any suggestion; chips are only shortcuts.
+- Technical controls currently hidden by coach mode (engine/model chip, web toggle, diagnostic meta) stay hidden in the chat; they move to Config → Advanced (per-project engine, web on/off). [open question Q1]
+- **New project, first turn.** After the name is entered, the thread opens with one fixed coach message (not AI-generated, shown instantly): "Tell me about this project. What are your objectives? What does it look like? What should I consider? What open questions do you have? Just tell me in your own words." Freeform answer (typed or spoken). Replaces the "Project goals" pop-up.
+- **After the answer:** immediately show "Hold on — I'm creating the plan right now…" (local message, the working banner shows progress). The plan run uses the person's answer as the goals text (same plan structure as today) and must also write into the plan: a short list of OPEN QUESTIONS and, for each, a RECOMMENDATION (default answer).
+- **When the plan is saved:** the coach replies in plain words: one-paragraph summary of what it understood, the count of open questions, and the next-step chips (below).
+
+### B. Specific chips (release R1)
+- The agent ends every reply with a machine-readable block the app parses and hides from the transcript: `CHIPS:` followed by 2–4 lines `label | say | prompt` where `label` is the button text, `say` is the one-or-two-word spoken name, `prompt` is the message sent when tapped. The chips must name the project's own next actions (e.g. "Build the title screen", not "Make the next part"). The app falls back to today's generic chips only if the block is missing or malformed.
+- **After the plan:** if open questions exist: `Build it now with your recommendations` · `Answer your questions first` · `More ideas`. If none: `Build it` · `More ideas` · `Change the plan`.
+- **"Answer your questions first"** → the coach asks the open questions one at a time, each with its recommendation and the chips `Use your recommendation` / `Skip` / `Tell me more`; answers (typed or spoken) are written to the plan's decision log. **"Build it now with your recommendations"** → coach records the recommendations as decisions, then builds.
+- After a build: chips come from the plan's next item and the agent's STATE next step, plus `Check it works`, `More ideas`. After a failure: `Try again` / `What happened?`. Chips update live as the run state changes.
+
+### C. Input mode switch ⌨ / 🎤 (release R2)
+- Top of the left rail: a two-position switch, ⌨ (keyboard, today's behavior, default) and 🎤 (listen mode). Remembered per device (browser storage), not shared between devices. A watch-sized screen defaults to 🎤 on first open (device detection by screen size and touch; Config shows "this device: watch/phone/tablet/desktop" with a manual override).
+- **Listen mode UI:** the text box is replaced by one large **Tap to talk** button (tap to start, tap again or stop-talking to send; "Listening…" state; shows the recognized words and sends them as a normal message after a 1.5 s pause or on tap). A small ⌨ link switches to typing for one message.
+- **Voice commands:** while chips are showing, saying a chip's `say` word ("build it", "questions", "more ideas", "try again") taps that chip. Anything else is sent as a normal message. If the match is unclear the app repeats what it heard and asks "Is that right?".
+- Chips remain visible in listen mode (large tap targets) and are also read aloud (see D).
+- Speech input uses the browser's built-in recognition (no extra service or key). Where the browser has none, the mic button says so and falls back to the keyboard's own dictation key.
+
+### D. Speaker control and read-aloud (release R2)
+- A speaker icon in the compose strip, left of the text box / talk button. **Default: muted, shown with a slash.** Tap toggles; remembered per device. In listen mode (and on a watch-sized screen) the default is **unmuted**.
+- When unmuted, every new system (coach/agent) message is read aloud as it arrives, using the browser's built-in voice. Read-aloud text is the plain coach text only: no code, links, commit ids, or technical lines. Never reads the person's own messages. Tapping the speaker, the mic, or any chip stops speech immediately.
+- In listen mode after a message is read, the chips are read as a short prompt: "Say: build it, questions, or more ideas." (the `say` words, max 4).
+- Browsers only allow speech after a first tap on the page; the first tap on 🎤 or 🔊 unlocks it. If the device has no voice, the speaker icon shows disabled with a one-line reason.
+
+### E. Watch mode (release R3)
+- When the device class is watch (or listen mode on a very small screen) the app shows only: current status line (Working / Ready / Needs you with the plain next step), the **Tap to talk** button, the speaker toggle, the chips as large buttons, and two buttons: **Open app** and **Share app**.
+- **Open app** opens the project's built app (its play link) in the browser. **Share app** uses the system share sheet when the browser offers one (the person picks WhatsApp, Gmail, Messages, etc.); where it does not, three explicit buttons appear: WhatsApp, Email, Messages, each pre-filled with the link and a one-line message. [open question Q3]
+- Lists, settings and the project rail are not shown on a watch; the person can still reach them through "More" (opens the normal layout).
+
+### F. Build order and acceptance
+- **R1 — coach only + specific chips + first-turn interview** (A, B).
+- **R2 — voice: ⌨/🎤 switch, speaker, read-aloud, voice chips** (C, D) on phone first.
+- **R3 — device detection + watch mode + Open/Share app** (E). Watch speech support is unverified; R3 starts with a "this device" check page to confirm what the watch browser reports and supports (speech recognition, speech output, share sheet) before the layout is built.
+- **DS-SPEC-1:** no Coach switch anywhere; typing always overrides chips.
+- **DS-SPEC-2:** creating a project shows the five-part question first; after the answer "Hold on — I'm creating the plan right now…" appears at once; the plan contains open questions with recommendations.
+- **DS-SPEC-3:** after the plan, chips name project-specific actions, include "build with your recommendations" and "answer your questions first" when open questions exist; chips come from the agent's CHIPS block.
+- **DS-SPEC-4:** ⌨/🎤 switch at the top of the left rail, remembered per device; 🎤 shows a Tap to talk button.
+- **DS-SPEC-5:** speaker icon defaults to muted with a slash (unmuted in listen mode); when unmuted new coach messages are read aloud without code, links or technical lines; chips are verbalized in listen mode and a spoken "build it / questions / more ideas" triggers the matching chip.
+- **DS-SPEC-6:** on a watch-sized screen only status, talk, speaker, chips, Open app and Share app are shown; Share app offers the system share sheet or WhatsApp / Email / Messages.
+
+### G. Open questions (owner to confirm; recommendation first)
+- **Q1** Where do engine/model and web on/off live once the coach switch is gone? *Recommend: Config → Advanced.*
+- **Q2** Listen mode: tap-to-talk, or hands-free (keeps listening after it speaks)? *Recommend: tap-to-talk first; hands-free as an option later (battery, privacy, accidental triggers).*
+- **Q3** "Open app / Share app" = the project's built app link (not DevStream itself)? *Recommend: yes, the built app; DevStream itself is reached via More.*
+- **Q4** Speaker default on tablet and desktop: muted. *Recommend: muted everywhere except listen mode/watch.*
+- **Q5** Voice language: the device's own language and voice. *Recommend: yes.*
+- **Q6** Max chips: 4 shown, 4 spoken. *Recommend: yes.*
+- **Q7** Existing projects keep their current plan; the five-part question only applies to new projects. *Recommend: yes.*
+
+---
+
 # 2026-10-16 — b74 an invite survives bookmarks (Galaxy Watch)
 
 ## Owner report
