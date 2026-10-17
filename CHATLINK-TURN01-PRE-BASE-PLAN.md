@@ -757,3 +757,7 @@ Malay and Indonesian are confirmed to have different speech, voice and translati
 **Limits, stated plainly.** (1) Candidate quality is word-level ranking, not a sentence engine: long sentences need several picks. (2) Next-word suggestions start empty and come only from the user's own picks; there is no seeded word-pair data. (3) No abbreviations (nh for 你好), no traditional characters, no tone input. (4) About 1.8 MB of Chinese data downloads when a room uses Chinese. (5) Not verified on a phone. If quality proves too low on full sentences, the documented fallback is libgooglepinyin compiled to WebAssembly.
 
 **Owner to test.** Set a side to Chinese, type "nihao" then Space; type "women"; check suggestions after repeating a phrase; check Backspace and Enter.
+
+### Planned, not started: guest links and a usage log (2026-10-17)
+
+Design brief written: `CHATLINK-SHARING-AND-USAGE-BRIEF.md`. Single-use guest link (credentials delivered once, then locked server-side; guest mode has no config section), plus a separate structured usage log with its own storage and viewer. Owner decisions pending are in the brief.
