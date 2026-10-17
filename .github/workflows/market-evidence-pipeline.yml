@@ -6,6 +6,7 @@ on:
     paths:
       - 'market-navigator-r7-catalog-reconcile.py'
       - 'market-navigator-r7-data-pipeline.py'
+      - 'market-navigator-etl-schedule.py'
       - 'market-navigator-r7-health.py'
       - 'market-navigator-r7-index-audit.py'
       - 'market-navigator-source-register.py'
@@ -22,7 +23,17 @@ on:
       bootstrap:
         description: Rebuild up to ten years of canonical source history
         required: false
-        default: true
+        default: false
+        type: boolean
+      component:
+        description: Optional source ID to retry (leave blank for due-only stream)
+        required: false
+        default: ''
+        type: string
+      retry_stream:
+        description: Retry eligible failed and due work without forcing all series
+        required: false
+        default: false
         type: boolean
   schedule:
     - cron: "37 23 * * *"
@@ -61,7 +72,9 @@ jobs:
           PY
       - name: Build canonical evidence
         env:
-          MARKET_NAVIGATOR_BOOTSTRAP: ${{ (github.event_name == 'schedule' && 'false') || 'true' }}
+          MARKET_NAVIGATOR_BOOTSTRAP: ${{ github.event_name == 'workflow_dispatch' && inputs.bootstrap && 'true' || 'false' }}
+          MARKET_NAVIGATOR_RETRY_COMPONENT: ${{ github.event_name == 'workflow_dispatch' && inputs.component || '' }}
+          MARKET_NAVIGATOR_RETRY_STREAM: ${{ github.event_name == 'workflow_dispatch' && inputs.retry_stream && 'true' || 'false' }}
         run: python3 market-navigator-r7-data-pipeline.py
       - name: Build publication-aware Health envelope
         run: python3 market-navigator-r7-health.py
