@@ -761,3 +761,27 @@ Malay and Indonesian are confirmed to have different speech, voice and translati
 ### Planned, not started: guest links and a usage log (2026-10-17)
 
 Design brief written: `CHATLINK-SHARING-AND-USAGE-BRIEF.md`. Single-use guest link (credentials delivered once, then locked server-side; guest mode has no config section), plus a separate structured usage log with its own storage and viewer. Owner decisions pending are in the brief.
+
+### chat-test: guest link, built (2026-10-17)
+
+**Owner direction.** Build the guest link from `CHATLINK-SHARING-AND-USAGE-BRIEF.md`: no caps, no monitoring of key use; a guest has no config section; the link cannot be passed on.
+
+**Server (new, separate from DevStream): `chatlink/runner/`.** A Cloudflare Worker with a Vault object. The owner stores the speech key once; the owner (proved by a GitHub token that can push to the repo, the same check DevStream uses) creates a named link. A link is a 40-character code that expires after 7 days if never opened.
+- Looking at a link (the info call) never uses it and never returns a key.
+- **Redeem** hands the key over once with a claim token. A retry before confirming is allowed and replaces the claim. An unconfirmed redeem frees the link again after 10 minutes.
+- **Confirm** (sent by the phone after it has saved the key) locks the code for good. After that the server never serves the key for it again, to any device.
+- The owner list shows unopened, opening, opened (with a time), expired or stopped. Stopping a link that was already opened does not take the key back from that phone; to cut that phone off, change the Deepgram key.
+- Tests: `chatlink/runner/test/runner.test.mjs`, 39 checks; three deliberate breakages of the server were each caught.
+- Deploy: `.github/workflows/deploy-chatlink-runner.yml`, the same pattern as DevStream's; it needs no new secrets if the existing Cloudflare ones are already set. **The first deploy has not run.** The live address assumes the account's `workers.dev` name used by DevStream.
+
+**App (`chat-test.html`).**
+- **Guest landing.** A link with `?invite=` shows a welcome; only the Start tap redeems it. A link opened inside another app (Line, Facebook, Instagram and similar) first says "Open in Chrome". A device that already has its own key is warned and left alone unless the owner insists. If the phone cannot save the setup, the link is not used up and the guest can retry. If the link was opened elsewhere first, this phone is told and keeps no key.
+- **Guest mode.** After setup there is no settings gear or any key, share or token screen; the rail shows conversations. A guest keeps conversation features (create, rename, languages, per-room export of their own conversations).
+- **Owner Share tab** (Settings → Share): the owner's GitHub token (kept on that device), a name, Create link (copies it and shows it in a box), a list with Copy link and Stop, and Update shared key.
+- **Not built yet:** the usage log and viewer (next, separate).
+
+**Checks.** `tests/guest-link/guest.cjs`: the real page against the real server logic, 15 scenarios (create, preview does not consume, Start, guest has no settings, reopen, second phone gets nothing, guest cannot make links, built-in browser, owner device warning, Stop, storage blocked, opened-elsewhere race). Three deliberate breakages of the app were each caught.
+
+**Not verified.** A real deploy, a real phone, a real Deepgram key. Owner to do before first use: let the deploy workflow run on merge (check its Live check step passes), open Settings → Share on your phone, paste a GitHub token that can push to the repo, create a link, and open it on a second phone.
+
+**Existing suites with the guest link in:** open mode 42/42, ask mode 33/33, keyboard 32/32, controller 20/20, language check OK.
