@@ -18,19 +18,22 @@ with tempfile.TemporaryDirectory() as d:
   (root/f'market-evidence/series/{sid}.json').write_text(json.dumps(obj(sid)))
   (root/f'market-evidence/reports/{sid}.json').write_text(json.dumps({'reports':{'1D':{'ready':True}},'computedRevision':'saved-report-revision'}))
  old=Path.cwd()
+ clock=dt.datetime(2026,10,16,23,0,tzinfo=dt.timezone.utc)
  try:
   os.chdir(root)
   m.RETRY_COMPONENT='cpi';m.BOOT=False
-  with patch.object(m,'fetch_source',return_value=([{'t':ms('2026-09-01'),'v':12}],200)):
+  spy_old=obj('spy');spy_old['last_attempted']='2026-10-16T00:00:00Z'
+  (root/'market-evidence/series/spy.json').write_text(json.dumps(spy_old))
+  with patch.object(m,'now',return_value=clock),patch.object(m,'fetch_source',return_value=([{'t':ms('2026-09-01'),'v':12}],200)):
    m.main()
   log=json.loads((root/'market-evidence/run-log.json').read_text())
   assert len(log['runs'])==1
   status={x['id']:x['status'] for x in log['runs'][0]['components']}
   assert status=={'cpi':'success','spy':'skipped'},status
   assert json.loads((root/'market-evidence/reports/spy.json').read_text())['computedRevision']=='saved-report-revision'
-  assert json.loads((root/'market-evidence/series/spy.json').read_text())==obj('spy')
+  assert json.loads((root/'market-evidence/series/spy.json').read_text())==spy_old
   m.RETRY_COMPONENT=''
-  with patch.object(m,'fetch_source',side_effect=AssertionError('unexpected source fetch')):
+  with patch.object(m,'now',return_value=clock),patch.object(m,'fetch_source',side_effect=AssertionError('unexpected source fetch')):
    m.main()
   log=json.loads((root/'market-evidence/run-log.json').read_text())
   assert len(log['runs'])==2
