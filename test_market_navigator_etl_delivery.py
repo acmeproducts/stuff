@@ -14,6 +14,10 @@ def saved(day, **extra):
 
 
 class Delivery(unittest.TestCase):
+    def test_stream_retries_eligible_failure_even_after_same_day_attempt(self):
+        meta={'id':'spy','native_cadence':'trading-day'}
+        self.assertEqual(s.native_eligibility(meta,saved('2026-10-15',last_error='provider timeout'),'2026-10-18T17:00:00Z',last_attempt='2026-10-18T16:00:00Z'),(True,'retry-failed'))
+
     def test_weekend_repairs_missing_completed_friday(self):
         self.assertTrue(s.eligibility({'id':'spy','native_cadence':'trading-day'}, saved('2026-10-15'), '2026-10-17')[0])
 

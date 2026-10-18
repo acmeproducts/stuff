@@ -213,3 +213,4 @@ Build the full walkable, streamed 3D Earth described in the reference README as 
 | 2026-10-04 14:56 | build | built projects/earth.html | Thank you — "daytime and still nothing" rules out the night-sky theory, so this build fixes the most likely real culprit: if a satellite pho | a557f02 |
 | 2026-10-04 15:23 | build | built projects/earth.html | This build removes the one mechanism that could make the whole Earth silently invisible — a terrain tile used to switch to its satellite pho | 90a2741 |
 | 2026-10-18 00:15 | build | built projects/earth.html | This build makes "satellite or nothing" real: the drawn-map backup is gone — if the main photo provider is blocked, the app now tries a mirr | 9d12c08 |
+| 2026-10-18 06:23 | build | built projects/earth.html | Added a brief comment marking the M7.10 data‑layer improvements in the code. | 6ca0a14 |

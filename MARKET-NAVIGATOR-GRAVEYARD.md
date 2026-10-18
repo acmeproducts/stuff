@@ -487,3 +487,9 @@ Reviewable change: https://github.com/acmeproducts/stuff/pull/844. Automatic app
 
 ## October 17, 2026 — rejected ETL shortcuts
 Do not skip an overdue completed Friday merely because collection runs on a weekend. Do not suppress missing monthly periods for the remainder of the month after one empty successful response. Do not use collection timestamps as native period identity, mix provider histories, trim away fixed model anchors, or rewrite unchanged horizon reports. Do not let review-branch ETL push canonical data into main. Do not treat source markup, arithmetic replay of September fixtures, or a missing ALFRED baseline as current-data qualification. Current provider truncation is not authority to delete retained older history. Preserve the prior qualified package after every failed collection, vintage or publication check.
+
+## October 18, 2026 — source recovery and browser failure corrections
+
+Reject retaining provider-withdrawn periods inside a complete current response window; retain the earlier prefix only with explicit lineage and approved archival evidence. Do not label HY Spread backcast as ALFRED history. Do not use a stale fund quote when the already qualified identical Nasdaq fund identity supplies the expected NAV. Do not treat Yahoo's limited response as evidence that valid fund NAV never existed. Do not rebuild governed indices for unrelated optional sources. Do not discard retained source working state after failed publication. Never put either FRED credential into code or browser assets.
+
+Browser startup failed with Cannot access S before initialization because the snapshot service shadowed application state. Capture outer state before creating the independent service snapshot; preserve the existing MNChart module. A first Analyze test incorrectly launched from ENV rather than NOW's selected index; use the actual approved selection flow. These failed checks are not counted as product passes.

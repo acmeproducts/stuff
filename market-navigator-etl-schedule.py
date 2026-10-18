@@ -106,5 +106,6 @@ def native_eligibility(meta,stored,as_of,rules=None,force=False,last_attempt=Non
     if expected['revision'] and (not last_attempt or instant(last_attempt)<instant(expected['release_at'])):
         return True,'published-revision'
     if latest>=target:return False,cadence+'-period-present'
+    if stored.get('last_error'):return True,'retry-failed'
     if last_attempt and date_of(last_attempt)==date_of(as_of):return False,'already-checked-awaiting-provider'
     return True,'retry-failed' if stored.get('last_error') else cadence+'-due'

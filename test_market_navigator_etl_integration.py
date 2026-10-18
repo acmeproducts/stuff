@@ -7,6 +7,7 @@ def ms(date):
  return int(dt.datetime.fromisoformat(date).replace(tzinfo=dt.timezone.utc).timestamp()*1000)
 def obj(sid):
  pts=[{'t':ms('2016-01-01'),'v':10},{'t':ms('2026-10-14'),'v':11}]
+ if sid=='cpi':pts=[{'t':ms(f'{2016+i//12}-{i%12+1:02d}-01'),'v':10+i/100} for i in range(128)]
  return {'schema':'market-navigator-evidence-series-v1','id':sid,'provider':'FRED','providerIdentifier':sid,'observations':pts,'count':len(pts),'first':pts[0]['t'],'last':pts[-1]['t'],'sourceRevision':'prior','last_successful':'2026-10-14T00:00:00Z','last_attempted':'2026-10-14T00:00:00Z'}
 with tempfile.TemporaryDirectory() as d:
  root=Path(d);(root/'data/market-backend').mkdir(parents=True)

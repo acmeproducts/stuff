@@ -170,6 +170,11 @@ def install(srv):
         target=repo/"live"/"sot-release-d-events.jsonl";target.parent.mkdir(parents=True,exist_ok=True);tmp=target.with_suffix(target.suffix+".tmp")
         with srv.M.s.log_lock:shutil.copy2(src,tmp)
         os.replace(tmp,target)
+        lock=repo/".git"/"index.lock"
+        # a git run killed mid-way (e.g. by a shutdown) leaves this behind and blocks every later publish
+        try:
+            if lock.exists() and time.time()-lock.stat().st_mtime>600:lock.unlink();trace("removed stale diagnostics git lock")
+        except OSError:pass
         subprocess.run(["git","-C",str(repo),"add","live/sot-release-d-events.jsonl"],check=True,timeout=30)
         staged=subprocess.run(["git","-C",str(repo),"diff","--cached","--quiet"],timeout=30).returncode!=0
         if staged:

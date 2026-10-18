@@ -16,8 +16,8 @@ def main():
     replace('async function j(p){let r=await fetch(p,{cache:\'no-store\'});if(!r.ok)throw Error(`${p} HTTP ${r.status}`);return r.json()}',
             'async function j(p){return (await window.MNEtlData.open()).read(p)}')
     replace("function rebuildServices(){return{metadata:readOnly(structuredClone({derived:S.derived,def:S.def,health:S.health,catalog:S.catalog,sourceRegistry:S.sourceRegistry})),getSeries:async id=>readOnly(structuredClone(await getSeries(id))),window:horizonWindow,available:seriesAvailable,onAnalyze:openStandaloneAnalysis26,",
-        """function rebuildServices(){
- const metadata=readOnly(structuredClone({derived:S.derived,def:S.def,health:S.health,catalog:S.catalog,sourceRegistry:S.sourceRegistry}));
+        """function rebuildServices(sourceState=S){
+ const metadata=readOnly(structuredClone({derived:sourceState.derived,def:sourceState.def,health:sourceState.health,catalog:sourceState.catalog,sourceRegistry:sourceState.sourceRegistry}));
  const packageData=window.MNEtlData.current;
  const S={...metadata,catMap:Object.fromEntries(metadata.catalog.series.map(m=>[m.id,m]))};
  const cat=id=>S.catMap[id]||{},health=id=>S.health.series[id]||{};

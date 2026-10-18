@@ -5,6 +5,13 @@ spec=importlib.util.spec_from_file_location('vintage',Path(__file__).with_name('
 v=importlib.util.module_from_spec(spec);spec.loader.exec_module(v)
 
 class Vintage(unittest.TestCase):
+    def test_old_period_revision_updates_native_value_only_when_published(self):
+        native=[{'t':946684800000,'v':10}]
+        rows=[{'date':'2000-01-01','realtime_start':'2026-10-20','realtime_end':'9999-12-31','value':'12'},
+              {'date':'2000-01-01','realtime_start':'2026-10-17','realtime_end':'2026-10-19','value':'11'}]
+        self.assertEqual(v.current_revisions(native,rows,'2026-10-18T00:00:00Z'),[{'t':946684800000,'v':11}])
+        self.assertEqual(native[0]['v'],10)
+
     def test_revision_preserves_prior_known_state(self):
         original={'observationDate':'2026-08-01','availableFrom':'2026-09-01','availableUntil':'9999-12-31','value':10,'isInitialRelease':True,'isRevision':False}
         prior={'events':[original]}
