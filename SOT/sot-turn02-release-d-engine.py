@@ -490,13 +490,13 @@ class Manager:
   for line in lines:h.update(line)
   return {"v":2,"digest":h.hexdigest(),"files":count,"bytes":total,"newest_mtime":newest}
  def quick_signature(self,root):
-  # volume-level staleness for the TARGET: used space on the volume plus the folder's own timestamp; no file listing
+  # drive-level staleness: used space on the drive plus the folder's own timestamp; no file listing
   st=os.statvfs(root);return {"used":int((st.f_blocks-st.f_bfree)*st.f_frsize),"mtime":repr(float(os.stat(root).st_mtime))}
  def check_source_metadata(self,source_id):
   src=self.s.rows("SELECT * FROM sources WHERE source_id=? AND enabled=1",(source_id,))
   if not src:return {"source_id":source_id,"checked":False,"reason":"not enabled"}
   src=src[0]
-  if src["role"]=="target" and src["quick_signature"] and not src["stale"] and src["metadata_signature"]:
+  if src["quick_signature"] and not src["stale"] and src["metadata_signature"]:
    try:quick=self.quick_signature(src["root"])
    except OSError:quick=None
    if quick is not None and json.loads(src["quick_signature"])==quick:
@@ -515,7 +515,7 @@ class Manager:
    self.s.submit("UPDATE sources SET metadata_signature=?,metadata_checked=?,stale=? WHERE source_id=?",(json.dumps(baseline,sort_keys=True),now,1 if changed else 0,source_id),True)
   else:self.s.submit("UPDATE sources SET metadata_checked=?,stale=? WHERE source_id=?",(now,1 if changed else 0,source_id),True)
   if changed:self.event("source_stale","Source metadata changed; analysis pending",None,source_id,"INFO",{"baseline":baseline,"live":live})
-  elif src["role"]=="target":
+  else:
    try:self.s.submit("UPDATE sources SET quick_signature=? WHERE source_id=?",(json.dumps(self.quick_signature(src["root"]),sort_keys=True),source_id),True)
    except OSError:pass
   self.s.drain(10)
@@ -523,7 +523,7 @@ class Manager:
  def refresh_source_baseline(self,source_id):
   sig=self.placement_signature(source_id);now=time.time()
   src=self.s.rows("SELECT root,role FROM sources WHERE source_id=?",(source_id,));quick=None
-  if src and src[0]["role"]=="target":
+  if src:
    try:quick=json.dumps(self.quick_signature(src[0]["root"]),sort_keys=True)
    except OSError:quick=None
   self.s.submit("UPDATE sources SET metadata_signature=?,metadata_checked=?,stale=0,quick_signature=? WHERE source_id=?",(json.dumps(sig,sort_keys=True),now,quick,source_id),True)
