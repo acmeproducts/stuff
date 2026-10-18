@@ -6,6 +6,7 @@ import bisect
 import datetime as dt
 import json
 import math
+import os
 from collections import defaultdict
 from pathlib import Path
 
@@ -89,8 +90,12 @@ def main():
     registry=read(REGISTRY)
     assert registry["status"]=="C5_APPROVED_NOT_YET_PRODUCTION"
     meta={x["id"]:x for x in registry["components"]}
+    selected=set(filter(None,os.environ.get('MARKET_NAVIGATOR_AFFECTED_INDICES','').split(',')))
+    prior=read(OUT) if selected and OUT.exists() else None
+    needed={sid for key,row in registry['indices'].items() if not selected or key in selected for sid in row['components']}
     events={}
     for sid,row in meta.items():
+        if sid not in needed:continue
         events[sid]=vintage_events(sid) if row["provider"]=="FRED" else canonical_events(sid)
         events[sid].sort(key=lambda x:x["date"])
 
@@ -108,6 +113,9 @@ def main():
         "indices":{},
     }
     for index_id,idef in registry["indices"].items():
+        if selected and index_id not in selected and prior:
+            result['indices'][index_id]=prior['indices'][index_id]
+            continue
         ids=idef["components"]
         anchors={sid:asof(events[sid],ANCHOR) for sid in ids}
         assert all(anchors.values()), (index_id,"missing-anchor",[x for x in ids if not anchors[x]])

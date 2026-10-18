@@ -28,6 +28,9 @@ API="https://api.stlouisfed.org/fred/series/observations"
 START="2015-01-01"
 UTC=dt.timezone.utc
 KEY=os.environ.get("MARKET_NAVIGATOR_FRED_API_KEY","").strip()
+SECONDARY_KEY=os.environ.get("MARKET_NAVIGATOR_FRED_API_KEY_SECONDARY","").strip()
+KEYS=list(dict.fromkeys(key for key in (KEY,SECONDARY_KEY) if key))
+KEY=KEYS[0] if KEYS else ''
 RESUME=os.environ.get("MARKET_NAVIGATOR_VINTAGE_RESUME","").strip()=="1"
 
 def read(p): return json.loads(Path(p).read_text())
@@ -36,19 +39,26 @@ def iso_now(): return dt.datetime.now(UTC).replace(microsecond=0).isoformat().re
 def get_json(params):
     if not KEY:
         raise SystemExit("C4 BLOCKED: MARKET_NAVIGATOR_FRED_API_KEY is not configured")
-    q={**params,"api_key":KEY,"file_type":"json","limit":100000}
-    url=API+"?"+urllib.parse.urlencode(q)
-    req=urllib.request.Request(url,headers={"User-Agent":"MarketNavigatorVintageAudit/1.0"})
-    for attempt in range(3):
-        try:
-            with urllib.request.urlopen(req,timeout=60) as r:
-                return json.loads(r.read().decode("utf-8"))
-        except urllib.error.HTTPError as exc:
-            detail=exc.read().decode("utf-8",errors="replace")
-            raise RuntimeError(f"FRED API HTTP {exc.code}: {detail}") from exc
-        except (TimeoutError,urllib.error.URLError):
-            if attempt==2: raise
-            time.sleep(2**attempt)
+    failure=None
+    for position,key in enumerate(KEYS):
+        q={**params,"api_key":key,"file_type":"json","limit":100000}
+        req=urllib.request.Request(API+"?"+urllib.parse.urlencode(q),headers={"User-Agent":"MarketNavigatorVintageAudit/1.0"})
+        for attempt in range(3):
+            try:
+                with urllib.request.urlopen(req,timeout=60) as r:
+                    return json.loads(r.read().decode("utf-8"))
+            except urllib.error.HTTPError as exc:
+                detail=exc.read().decode("utf-8",errors="replace")
+                for credential in KEYS:detail=detail.replace(credential,'[redacted]')
+                failure=RuntimeError(f"FRED API HTTP {exc.code}: {detail}")
+                retry_key=exc.code in (401,403,429) or (exc.code==400 and 'api_key' in detail.lower())
+                if retry_key and position+1<len(KEYS):break
+                raise failure from None
+            except (TimeoutError,urllib.error.URLError):
+                failure=RuntimeError('FRED API connection failed after bounded retries')
+                if attempt==2:break
+                time.sleep(2**attempt)
+    raise failure or RuntimeError('FRED API request failed')
 
 def fetch(series_id,output_type):
     # FRED caps JSON requests at 2,000 vintage dates. A single 2015-present
