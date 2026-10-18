@@ -55,7 +55,8 @@ const VAPID_SUBJECT = 'mailto:nobody@nowhere.com';
 /* v6: only events that own a recipient record can alert. Everything else is
    data on the socket, never a wake. */
 const RECORD_KIND = { 'chat-msg': 'chat', 'thread-invite': 'chat', 'call-start': 'call' };
-const RELAY_VERSION = '6.14';          /* v6.14 29·post-ship c7: NAMES ONLY in the activity log (owner 2026-10-17: "get rid of flz, is confusing") — a person is the name they typed (letters and digits, any script, 16 at most); a person with no name is "Guest 1", "Guest 2" … numbered in the order they first appear in that room, and kept. No device tag. */
+const RELAY_VERSION = '6.15';          /* v6.15 29·post-ship c8: THE ROOM SURVIVES A SLEEP (owner 2026-10-18: "room name is wrong" — three call lines read "room none"). The room code was kept only in memory, set by the request that opened the socket; a room's object sleeps between messages and woke without it, so every line written after a sleep said "none". The socket carries the room code in its attachment; the message handler takes it from there when memory has none. */
+/* (prior) v6.14 29·post-ship c7: NAMES ONLY in the activity log (owner 2026-10-17: "get rid of flz, is confusing") — a person is the name they typed (letters and digits, any script, 16 at most); a person with no name is "Guest 1", "Guest 2" … numbered in the order they first appear in that room, and kept. No device tag. */
 /* (prior) v6.13 29·post-ship c6: CLEAN LABELS in the activity log (owner 2026-10-16: "if there is a default name that hasn't been added yet it doesn't include one that has special characters; this should be super clean") — a person is "<Name> <tag>": the name keeps letters and digits only (any script), the tag is lowercase letters and digits, a device without a name is "Guest"; the room is letters and digits; a language that is not a language code is "unknown". */
 /* (prior) v6.12 29·post-ship c5: THE ACTIVITY LOG (owner 2026-10-15: "I want a timestamp log: x created room 1 en to th; x joined; y joined; video call from x missed; video call from y answered; chat from x") — one line per event in a fixed Durable Object (tb::__activity__), person = the name they typed · their device tag, room = its short id; no message text; drained by the device-log workflow into talkbridge/ACTIVITY-LOG.md. */
 /* v6.11 was:          /* v6.11 29·post-ship c4: REACHABILITY FROM THE RECORD — the peer announce carries reach {known, subs} (the negative claim only: a partner with no fresh subscription will not be alerted when away); a call-start answers its caller with call-reach {app, pushed, none, muted} read from the recipient record AFTER the push attempt (a 410 learned there counts as none); subscribe/unsubscribe announce at once. Owner 2026-10-12: "you cannot tell, before you call, whether the call can reach the other person". */
@@ -800,6 +801,7 @@ export class TalkSession {
     if (!msg || !msg.type) return;
 
     const tag = ws.deserializeAttachment() || {};
+    if (!this.sessionId && tag.sessionId) this.sessionId = tag.sessionId;   /* v6.15: the room code survives a sleep (it rides the socket) */
     const clientId = tag.clientId || msg.from || '';
     msg.from = msg.from || clientId;
     msg.ts = msg.ts || Date.now();
