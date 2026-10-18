@@ -6,9 +6,12 @@ ROOT="$HOME/.sot-turn02/release-d/SOT"
 UNIT="$HOME/.config/systemd/user/sot-turn02-release-d.service"
 TMP="$(mktemp -d)"
 trap 'rm -rf "$TMP"' EXIT
+LOG="$HOME/.sot-turn02/install-last.log";mkdir -p "$HOME/.sot-turn02"
+exec > >(tee "$LOG") 2>&1
+trap 'echo "FAIL at installer line $LINENO. Full output saved in $LOG"' ERR
 mkdir -p "$ROOT" "$HOME/.config/systemd/user"
-for f in sot-turn02-release-d-engine.py sot-turn02-release-d-autosync.py sot-turn02-release-d.service qualify-release-d-autosync.py sot-turn02-release-d-source-actions.html sot-turn02-release-d-complete.html; do curl -fsSL "$BASE/$f" -o "$TMP/$f"; done
-python3 -m py_compile "$TMP/sot-turn02-release-d-engine.py" "$TMP/sot-turn02-release-d-autosync.py" "$TMP/qualify-release-d-autosync.py"
+for f in sot-turn02-release-d-engine.py sot-turn02-release-d-server.py sot-turn02-release-d-ai.py sot-turn02-release-d-autosync.py sot-turn02-release-d.service qualify-release-d-autosync.py sot-turn02-release-d-source-actions.html sot-turn02-release-d-complete.html; do curl -fsSL "$BASE/$f" -o "$TMP/$f"; done
+python3 -m py_compile "$TMP/sot-turn02-release-d-engine.py" "$TMP/sot-turn02-release-d-server.py" "$TMP/sot-turn02-release-d-ai.py" "$TMP/sot-turn02-release-d-autosync.py" "$TMP/qualify-release-d-autosync.py"
 python3 "$TMP/qualify-release-d-autosync.py"
 python3 - "$TMP/sot-turn02-release-d-complete.html" "$TMP/complete.js" <<'PY'
 from pathlib import Path
@@ -18,6 +21,8 @@ PY
 node --check "$TMP/complete.js"
 echo "PASS final wrapper JavaScript parses under Node"
 install -m 0644 "$TMP/sot-turn02-release-d-engine.py" "$ROOT/sot-turn02-release-d-engine.py"
+install -m 0644 "$TMP/sot-turn02-release-d-server.py" "$ROOT/sot-turn02-release-d-server.py"
+install -m 0644 "$TMP/sot-turn02-release-d-ai.py" "$ROOT/sot-turn02-release-d-ai.py"
 install -m 0644 "$TMP/sot-turn02-release-d-autosync.py" "$ROOT/sot-turn02-release-d-autosync.py"
 install -m 0644 "$TMP/qualify-release-d-autosync.py" "$ROOT/qualify-release-d-autosync.py"
 install -m 0644 "$TMP/sot-turn02-release-d-source-actions.html" "$ROOT/sot-turn02-release-d-source-actions.html"
@@ -79,4 +84,7 @@ h=json.load(open(sys.argv[1]));assert h.get('ok') and h.get('schema')==14,h
 print('PASS browser HTTPS API transport healthy')
 PY
 echo "PASS Queue/Sources owner workflow replaced by continuous SSOT"
+curl -fsS http://127.0.0.1:8765/api/land/status >/dev/null
+echo "PASS Release E landing endpoint is live"
+echo "Output saved in $LOG"
 echo "TEST https://acmeproducts.github.io/stuff/SOT/sot-turn02-release-d-complete.html?v=$REF&api=https%3A%2F%2Foc-ref.fell-dojo.ts.net%2Fsot"
