@@ -6,8 +6,8 @@ Deploy target: `https://acmeproducts.github.io/stuff/devstream.html`
 Test target: `https://acmeproducts.github.io/stuff/devstream-test.html`
 
 ## Status
-- Current release: v1.0 b75 on devstream-test.html (2026-10-17)
-- Stage: TEST (b75)
+- Current release: v1.0 b76 on devstream-test.html (2026-10-18)
+- Stage: TEST (b76)
 
 ## Release Rules (inherited, proven)
 1. Mobile-first. All diagnostics in-app. No DevTools ever.
@@ -258,6 +258,24 @@ b39 incorrectly changed stationary hold into context-menu activation. Devstream 
 
 ---
 
+# 2026-10-18 — b76 R2: microphone/keyboard switch, speaker, read-aloud, voice chips
+
+Implements sections C and D of the approved spec (plus the device detection it needs).
+
+## Change
+- **Switch** at the top of the left rail: keyboard icon (as before) / microphone icon. Remembered per device.
+- **Listen mode (microphone):** the text box is replaced by a large **Tap to talk** button (tap to start; it sends when you pause, or tap again). Chips stay visible, with bigger buttons. "Type one message instead" is available. If the browser has no speech input it says so and offers the keyboard's own mic key.
+- **Voice commands:** saying a chip's say-words ("build it", "questions", "more ideas") taps that chip. A close-but-not-exact word ("blue") asks "I heard … Did you mean …?" (on screen and aloud) with Yes / No-send-what-I-said. Anything else is sent as a normal message.
+- **Speaker icon** in the compose strip: muted with a slash by default (unmuted by default in listen mode and on a watch-sized screen), remembered per device. When unmuted, new coach replies are read aloud in plain words (no links, commit ids, "Diff/Test/Plan" lines, or the CHIPS line); history is never read when a tab opens. In listen mode the chips are then read: "Say: build it, questions, or more ideas." Tapping the speaker, Tap to talk, or a chip stops speech.
+- **This device:** device class (watch under 300 px, phone, tablet, desktop) from screen size and touch; Config → "This device" shows what was detected and lets the person override it. First open on a watch-sized screen starts in listen mode with the speaker on.
+- Limits: speech input and output use the browser's built-in voices; whether a given watch browser supports them is unverified (R3 starts by checking).
+
+## Acceptance (from the spec)
+- **DS-SPEC-4:** mic/keyboard switch at the top of the left rail, remembered per device; mic mode shows Tap to talk.
+- **DS-SPEC-5:** speaker defaults muted with a slash (unmuted in listen mode); replies read aloud without code, links or technical lines; chips verbalized in listen mode; speaking a chip's words triggers it.
+
+---
+
 # 2026-10-17 — b75 R1: always-coach, the first question, specific chips
 
 Implements section A and B of the approved spec below.
@@ -278,7 +296,7 @@ Implements section A and B of the approved spec below.
 
 # 2026-10-17 — SPEC (DRAFT, NOT BUILT): always-coach, specific chips, voice mode, watch mode
 
-Status: **APPROVED by owner 2026-10-17 ("all yes" to Q1–Q7 and the "this device" line). R1 BUILT as b75; R2 and R3 not built.** Owner asked that the spec be fixed in the plan first.
+Status: **APPROVED by owner 2026-10-17 ("all yes" to Q1–Q7 and the "this device" line). R1 BUILT as b75; R2 BUILT as b76; R3 (watch layout, Open/Share app) not built.** Owner asked that the spec be fixed in the plan first.
 
 ## Owner's words (source of truth)
 1. "It's always in coach mode so there's no need for the toggle because coach mode can always be overwritten by what you type. Coach mode should be very specific: when you first create the project it should ask you a question — tell me about this project, what are your objectives, what does it look like, what are some things for me to consider, what open questions do you have — and let the person answer in freeform. Then it should respond 'hold on I'm creating the plan right now…'. Once the plan is created the chips need to be a lot more specific towards an action: proceed with the build, or I have questions before I can build — which should offer 'answer questions' or 'just go with my recommendations'. The chips need to be less generic and more specific to the project."
