@@ -171,6 +171,7 @@ button.warn { background: var(--warn); color: #422006; }
   <div class="diag-row">Last error: <span id="d-error" class="diag-value">none</span></div>
   <div class="diag-row">Confidence: <span id="d-conf" class="diag-value">—</span></div>
   <div class="diag-row">Buffer size: <span id="d-len" class="diag-value">0 chars</span></div>
+  <div class="diag-row">Restarts: <span id="d-restarts" class="diag-value">0</span></div>
 </section>
 
 <section class="sessions" id="sessions">
@@ -189,6 +190,9 @@ button.warn { background: var(--warn); color: #422006; }
   let interimTranscript = '';
   let lastConfidence = 0;
   let sessionStartTime = 0;
+  let lastProcessedIndex = 0;
+  let manualStop = false;
+  let restartCount = 0;
 
   const els = {
     btnToggle: document.getElementById('btnToggle'),
@@ -203,7 +207,8 @@ button.warn { background: var(--warn); color: #422006; }
     dState: document.getElementById('d-state'),
     dError: document.getElementById('d-error'),
     dConf: document.getElementById('d-conf'),
-    dLen: document.getElementById('d-len')
+    dLen: document.getElementById('d-len'),
+    dRestarts: document.getElementById('d-restarts')
   };
 
   const storageKey = 'stts_sessions_v1';
@@ -220,6 +225,7 @@ button.warn { background: var(--warn); color: #422006; }
     els.dConf.textContent = lastConfidence ? (lastConfidence * 100).toFixed(0) + '%' : '—';
     const total = finalTranscript.length + interimTranscript.length;
     els.dLen.textContent = total + ' chars';
+    els.dRestarts.textContent = restartCount;
   }
 
   function setError(msg) {
@@ -312,7 +318,7 @@ button.warn { background: var(--warn); color: #422006; }
 
     r.onstart = () => {
       isRunning = true;
-      sessionStartTime = Date.now();
+      if (!sessionStartTime) sessionStartTime = Date.now();
       renderButtons();
       updateDiagnostics();
     };
@@ -325,19 +331,40 @@ button.warn { background: var(--warn); color: #422006; }
         interimTranscript = '';
         renderTranscript();
       }
-      rec = null;
-      renderButtons();
-      updateDiagnostics();
+      
+      // Auto-restart if not manually stopped (mitigates BUG-002)
+      if (!manualStop && r === rec) {
+        restartCount++;
+        updateDiagnostics();
+        lastProcessedIndex = 0; // Reset index tracking for new instance
+        setTimeout(() => {
+          try {
+            rec.start();
+          } catch (e) {
+            setError('Restart failed: ' + e.message);
+            rec = null;
+            manualStop = true;
+            renderButtons();
+          }
+        }, 150);
+      } else {
+        rec = null;
+        renderButtons();
+        updateDiagnostics();
+      }
     };
 
     r.onresult = (e) => {
       let interim = '';
-      // Process only new results indicated by resultIndex
-      for (let i = e.resultIndex; i < e.results.length; ++i) {
+      // Prevent duplicate processing by tracking lastProcessedIndex (fixes BUG-001)
+      const startIndex = Math.max(e.resultIndex, lastProcessedIndex);
+      
+      for (let i = startIndex; i < e.results.length; ++i) {
         const tr = e.results[i][0].transcript;
         lastConfidence = e.results[i][0].confidence || 0;
         if (e.results[i].isFinal) {
           finalTranscript += tr + ' ';
+          lastProcessedIndex = i + 1;
         } else {
           interim += tr;
         }
@@ -351,8 +378,9 @@ button.warn { background: var(--warn); color: #422006; }
       setError(msg);
       if (msg === 'not-allowed') {
         els.status.textContent = 'Mic permission denied';
+        manualStop = true; // Prevent restart loop on permission error
       }
-      // Let onend handle cleanup for most errors; no auto-restart
+      // Let onend handle cleanup/restart for other errors
     };
 
     return r;
@@ -360,8 +388,13 @@ button.warn { background: var(--warn); color: #422006; }
 
   els.btnToggle.addEventListener('click', () => {
     if (isRunning && rec) {
+      manualStop = true;
       rec.stop();
     } else {
+      manualStop = false;
+      lastProcessedIndex = 0;
+      restartCount = 0;
+      if (!sessionStartTime) sessionStartTime = Date.now();
       interimTranscript = '';
       rec = setupRec();
       if (!rec) return;
@@ -379,16 +412,18 @@ button.warn { background: var(--warn); color: #422006; }
     if (!text.trim()) return;
     
     if (isRunning && rec) {
-      rec.stop(); // This flushes interim via onend
+      manualStop = true;
+      rec.stop();
     }
     
-    // Defer to let onend flush interim into final
     setTimeout(() => {
       const finalText = finalTranscript || text;
       pushSession(finalText);
       showToast('Session saved');
       finalTranscript = '';
       interimTranscript = '';
+      sessionStartTime = 0;
+      lastProcessedIndex = 0;
       renderTranscript();
       renderButtons();
     }, 60);
@@ -396,10 +431,14 @@ button.warn { background: var(--warn); color: #422006; }
 
   els.btnClear.addEventListener('click', () => {
     if (isRunning && rec) {
+      manualStop = true;
       rec.stop();
     }
     finalTranscript = '';
     interimTranscript = '';
+    sessionStartTime = 0;
+    lastProcessedIndex = 0;
+    restartCount = 0;
     renderTranscript();
     renderButtons();
   });
