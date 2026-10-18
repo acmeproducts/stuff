@@ -6,8 +6,8 @@ Deploy target: `https://acmeproducts.github.io/stuff/devstream.html`
 Test target: `https://acmeproducts.github.io/stuff/devstream-test.html`
 
 ## Status
-- Current release: v1.0 b76 on devstream-test.html (2026-10-18)
-- Stage: TEST (b76)
+- Current release: v1.0 b77 on devstream-test.html (2026-10-18)
+- Stage: TEST (b77)
 
 ## Release Rules (inherited, proven)
 1. Mobile-first. All diagnostics in-app. No DevTools ever.
@@ -258,6 +258,36 @@ b39 incorrectly changed stationary hold into context-menu activation. Devstream 
 
 ---
 
+# 2026-10-18 — b77 R3 REVISED: the watch-first voice screen (replaces R2's listen mode)
+
+## Owner report
+"This really doesn't do what I needed — I'm dealing with a watch face. There needs to be a super simple way to switch over to voice mode, the talk button has to be super prominent with a visual showing like a sound graph that words are being detected; in fact it should be transcribing, so that if you tap and hold the talk button a modal opens with the transcripts with an X to close it and a copy button. This needs to be a watch-first mode."
+
+## Spec (supersedes sections C/E of the draft where they differ)
+- **One voice screen** (full screen, used on a watch by default and on any device via the microphone icon). It replaces R2's listen mode inside the composer. Nothing else competes for attention:
+  1. Top row: a big **keyboard** button (back to normal) and a one-line status ("project · Working / Ready / Needs you").
+  2. The **Talk button**: a huge circle (about three-quarters of the screen width), the main thing on screen. Tap to start; tap again (or a pause) to send.
+  3. A **live sound graph** under/inside it that moves while it listens, driven by the microphone level; where the browser will not share the microphone with speech recognition, the bars pulse each time new words are detected, so the person always sees that it is hearing them.
+  4. The **live transcript** of what is being heard, in large text, updating as words arrive.
+  5. The coach's **latest reply** in plain words (also read aloud when the speaker is on), then the **chips** as large buttons (and spoken: "Say: …").
+  6. A bottom row: **speaker** (on by default here), **Open app**, **Share app**, **More** (the normal layout).
+- **Tap and hold the Talk button** opens a **transcript modal**: the words being heard right now at the top, then recent things the person said (newest first, last 30, kept on this device), an **X** to close and a **Copy** button (copies all of it).
+- **Getting there:** a watch-sized screen opens straight into the voice screen. On any other device the microphone icon in the chat header (always visible) and the one at the top of the left rail switch to it; the big keyboard button leaves it. A bookmark ending `?watch=1` forces watch mode (and `?watch=0` clears it) for watches whose browser reports a larger screen than they have. Detection also treats a user-agent containing "Wear" or "Watch" as a watch.
+- **No project yet:** the screen asks "Say a name for your first project" and what is said becomes the project name, then the five-part question is asked aloud.
+- **Open app** opens the project's built app link. **Share app** opens the phone's share sheet where the browser has one (the person picks WhatsApp, Gmail, Messages…); otherwise a sheet with WhatsApp, Email, Messages and Copy link.
+- The screen stays awake while the voice screen is open.
+- Limits: speech recognition, speech output, the share sheet and sharing the microphone with speech recognition depend on the watch browser and are unverified until tried on the watch.
+
+## Acceptance
+- **DS-R3-1:** on a watch-sized screen (or with `?watch=1`) the app opens in the voice screen; the microphone icon in the chat header switches any device to it; the keyboard button leaves it.
+- **DS-R3-2:** the Talk button is the largest element; while listening a sound graph animates and the live transcript shows the words as they arrive.
+- **DS-R3-3:** tap-and-hold on the Talk button opens the transcript modal with live words, history, X and Copy; a normal tap still starts/stops listening.
+- **DS-R3-4:** the reply and chips show on the voice screen; speaking a chip's words taps it; the reply is read aloud.
+- **DS-R3-5:** Open app opens the built app; Share app uses the share sheet or offers WhatsApp / Email / Messages / Copy link.
+- **DS-R3-6:** with no project, speaking a name creates the project and asks the five-part question.
+
+---
+
 # 2026-10-18 — b76 R2: microphone/keyboard switch, speaker, read-aloud, voice chips
 
 Implements sections C and D of the approved spec (plus the device detection it needs).
@@ -296,7 +326,7 @@ Implements section A and B of the approved spec below.
 
 # 2026-10-17 — SPEC (DRAFT, NOT BUILT): always-coach, specific chips, voice mode, watch mode
 
-Status: **APPROVED by owner 2026-10-17 ("all yes" to Q1–Q7 and the "this device" line). R1 BUILT as b75; R2 BUILT as b76; R3 (watch layout, Open/Share app) not built.** Owner asked that the spec be fixed in the plan first.
+Status: **APPROVED by owner 2026-10-17 ("all yes" to Q1–Q7 and the "this device" line). R1 BUILT as b75; R2 BUILT as b76 (its listen mode is replaced by R3); R3 REVISED by the owner 2026-10-18 and built as b77.** Owner asked that the spec be fixed in the plan first.
 
 ## Owner's words (source of truth)
 1. "It's always in coach mode so there's no need for the toggle because coach mode can always be overwritten by what you type. Coach mode should be very specific: when you first create the project it should ask you a question — tell me about this project, what are your objectives, what does it look like, what are some things for me to consider, what open questions do you have — and let the person answer in freeform. Then it should respond 'hold on I'm creating the plan right now…'. Once the plan is created the chips need to be a lot more specific towards an action: proceed with the build, or I have questions before I can build — which should offer 'answer questions' or 'just go with my recommendations'. The chips need to be less generic and more specific to the project."
