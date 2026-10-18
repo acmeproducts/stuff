@@ -488,3 +488,10 @@ Reviewable change: https://github.com/acmeproducts/stuff/pull/844. Automatic app
 ## October 18, 2026 — owner rejected integrated ETL review
 
 Owner reports unusable ENV visualization and chart crosshair interaction navigating into MAC drill-down. The full release is rejected. Restore the review URL to exact owner-approved Turn 28 application blob 9ce7f67451f9e1b7804927ce5c56adb667614724 and its data/market-backend and market-evidence trees from 996e9a71b72db5bfbea3ba77750077daaa2fb7ab. Disable review auto-publication and scheduling while the replacement is qualified. No forward patch of the rejected release and no owner retry request. Replacement must verify real touch crosshair versus drill-down behavior, approved ENV appearance, source values and index transformations before re-release.
+
+
+## October 18, 2026 — review withdrawn; implementation stopped
+
+Owner rejects the Turn 28 rollback as well: touching a plotted series must inspect the chart, not open an information card or drill down. The review entry point is withdrawn rather than presenting either rejected implementation as accepted. No replacement chart implementation is authorized in this turn; owner requested a recovery plan. Existing main and development-branch publication holds remain in place. Historical data artifacts are retained for diagnosis, not claimed qualified by this withdrawal.
+
+Recovery sequence: identify owner-confirmed working chart behavior from history; freeze its source and record a narrow interaction contract; prove source values and index transformations independently of the UI; reuse the existing working MNChart implementation without a parallel painter or new UI state; qualify NOW first, then independent Analyze lifecycle and ETL refresh; publish one review only after all affected behavior passes. Real touch acceptance is distinct from browser emulation. No owner retry chores.
