@@ -75,6 +75,7 @@ jobs:
     timeout-minutes: 40
     permissions:
       contents: write
+      actions: write
     steps:
       - uses: actions/checkout@v4
         with:
@@ -149,7 +150,7 @@ jobs:
         run: node test_market_navigator_etl_regression.cjs
       - name: Publish only the qualified review directory
         env:
-          GH_TOKEN: ${{ secrets.GITHUB_PAT }}
+          GH_TOKEN: ${{ secrets.GITHUB_PAT || github.token }}
         run: |
           if [ -z "$GH_TOKEN" ]; then echo "::error::Repository secret GITHUB_PAT is unavailable"; exit 1; fi
           git clone --depth 1 "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" "$RUNNER_TEMP/mn-publication"
@@ -171,6 +172,12 @@ jobs:
             git commit -m "Publish qualified Market Navigator review from ${GITHUB_SHA}"
             git push origin HEAD:main
           fi
+          curl --fail-with-body --silent --show-error \
+            -X POST \
+            -H "Authorization: Bearer ${GH_TOKEN}" \
+            -H "Accept: application/vnd.github+json" \
+            "https://api.github.com/repos/${GITHUB_REPOSITORY}/actions/workflows/static.yml/dispatches" \
+            -d '{"ref":"main"}'
       - name: Retain actual execution history and review output
         if: always()
         uses: actions/upload-artifact@v4

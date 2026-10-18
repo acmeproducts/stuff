@@ -1,5 +1,7 @@
 # Review publication credential
 
-October 18, 2026: the owner confirmed repository Actions secret `GITHUB_PAT` already exists. The qualified-review publication step now uses that secret and fails explicitly if unavailable. This allows its push to main to trigger the existing Pages workflow. No token value is read or stored in source. Application qualification remains required before publication.
+October 18, 2026: hosted run 39166677786 passed scheduling, collection, three-level qualification, application browser checks and immutable Turn 28 comparisons. Publication stopped because Actions resolved secrets.GITHUB_PAT to an empty value.
 
-Validation: workflow change is limited to publication credential selection and an empty-secret guard. Local Python rerun: 24 of 25 passed; immutable Turn 28 byte-identity check failed (actual blob 1768382aafe7080eef7066f5d5c2f5d6062eb10d versus expected 9ce7f67451f9e1b7804927ce5c56adb667614724). No application qualification or public delivery is claimed by this credential fix.
+Publication now uses the saved PAT when available, with the built-in job token as fallback. The job has contents:write and actions:write, and explicitly dispatches static.yml on main after publishing only the qualified candidate directory. No credential is exposed or extracted.
+
+Local Python rerun: 25/25 pass after restoring accepted Turn 28 LF bytes (blob 9ce7f67451f9e1b7804927ce5c56adb667614724). Hosted artifact: https://github.com/acmeproducts/stuff/actions/runs/39166677786/artifacts/12151346154 . Public URL verification remains required.
