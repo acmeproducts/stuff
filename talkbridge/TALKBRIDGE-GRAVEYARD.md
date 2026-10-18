@@ -1,7 +1,7 @@
 <!-- v5.8.2.42 -->
 # TALKBRIDGE — THE GRAVEYARD (living; keep in project knowledge)
 ## Approaches PROVEN to fail. Scanned before every change and at every exit condition. Never resurrect.
-**Version: 2.33 | 2026-10-17 | G73 amended: no device tag in the activity log (owner: "flz is confusing") | Maintained in GitHub by the build process (raw.githubusercontent.com/acmeproducts/stuff/main/talkbridge/TALKBRIDGE-GRAVEYARD.md). Updated on every exit-condition burial.**
+**Version: 2.34 | 2026-10-18 | G74 the room code kept only in the relay object's memory (activity lines after a sleep read "room none") | Maintained in GitHub by the build process (raw.githubusercontent.com/acmeproducts/stuff/main/talkbridge/TALKBRIDGE-GRAVEYARD.md). Updated on every exit-condition burial.**
 
 
 Each entry: the approach, its failure signature, what replaces it. A change matching a signature is forbidden BEFORE it is attempted — not rediscovered as if new.
@@ -146,6 +146,7 @@ Each entry: the approach, its failure signature, what replaces it. A change matc
 | G71 | 2026-10-12 | The presence announce for a state word placed after an early return (relay v6.5, 27·base) |
 | G72 | 2026-10-12 | Chrome behaviour keyed on an English string at runtime (the missed-pill guard by `'Missed '`, the label relabel by `/Room title/i`) |
 | G73 | 2026-10-16 | A typed name and a made-up default written raw into the activity log (`someone·ciA`, relay v6.12) |
+| G74 | 2026-10-18 | The room code kept only in the relay object's memory (activity lines after a sleep read `room none`, relay v6.12–v6.14) |
 | E134 | 2026-10-07 | Annotation · 2026-10-07: E076's corollary superseded by owner ruling (install optional) |
 
 </details>
@@ -2455,3 +2456,27 @@ and digits; the room is letters and digits; a language that is not a code is
 **Buried by.** 29·post-ship c6, relay v6.13 (plan v21.104.0).
 
 **Amended 2026-10-17 (relay v6.14, plan v21.105.0).** The device tag is gone too (owner: "get rid of flz, is confusing"): a person is the name alone; a person with no name is `Guest 1`, `Guest 2` … numbered per room in the order they first appear, saved the moment it is given. Relay harness v6.14 L5 and L6 hold it.
+
+## G74 — 2026-10-18 — The room code kept only in the relay object's memory (relay v6.12–v6.14)
+
+**The approach.** The activity log names a room by its code. Relay v6.12 set
+`this.sessionId` from the request that opened a phone's socket and read it from
+memory whenever it wrote a line.
+
+**Failure signature.** The owner's log of 2026-10-18 (06:11–06:14 UTC): three
+call lines read `room none` while the chats in the same room four minutes
+earlier read `room wvshos`. Between them the room's object had slept; it woke
+on the next message with an empty memory, and no request had come to set the
+code again.
+
+**Why it fails.** A Durable Object with hibernating sockets loses everything
+held only in memory between messages. Anything a later message needs must be
+in storage or on the socket. This is the same root as G69 (presence words in
+memory only).
+
+**The rule.** The room code rides the socket (`serializeAttachment` already
+carried it); the message handler takes it from there when memory has none.
+Relay harness v6.15 L7 sleeps the object between the chat and the call; a
+mutation removes the recovery and L7 fails.
+
+**Buried by.** 29·post-ship c8, relay v6.15 (plan v21.106.0).

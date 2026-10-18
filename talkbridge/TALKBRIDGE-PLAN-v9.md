@@ -1,5 +1,5 @@
-<!-- TALKBRIDGE-PLAN v21.105.0 -->
-# TALKBRIDGE MASTER PLAN v21.105.0
+<!-- TALKBRIDGE-PLAN v21.106.0 -->
+# TALKBRIDGE MASTER PLAN v21.106.0
 
 **Location:** `talkbridge/TALKBRIDGE-PLAN-v9.md` in `acmeproducts/stuff`.
 **Owner:** Confi — sole decision-maker, runs every device gate.
@@ -2090,6 +2090,8 @@ Green means allowed to push. It never means done.
 ---
 
 ## 10 · CHANGE LOG
+
+**v21.106.0 · 2026-10-18.** 29·post-ship c8: THE ROOM SURVIVES A SLEEP, relay v6.15 (owner: "room name is wrong"). Three call lines on 2026-10-18 read `room none`: the room code lived only in the relay object's memory and the object had slept between the chats and the calls. The message handler now takes the code from the socket, which already carried it. Gates: relay harness v6.15 25/25 (new L7, which fails on v6.14), mutations 52/52, r10-cr3 10/10 pinned 6.15; governance relay_version 6.15. Graveyard G74. Note: the burst of "joined" lines at 06:07 is each phone's first hello in each of its older rooms since the log began (v6.12); it happens once per phone per room.
 
 **v21.105.0 · 2026-10-17.** 29·post-ship c7 (owner: "clear log; get rid of flz, is confusing; allow download of logs"). Relay v6.14: a person in the activity log is the name alone (letters and digits); no name is `Guest 1`, `Guest 2` … per room, kept. The log-drain workflow gains `clear_activity` (DELETE /activity); the log was cleared with it after this merged. Dashboard: Feed and Custom download what they show as text (the raw lines) or a spreadsheet (CSV: UTC and local time, room, event, person, other person, call type, languages). Gates: relay harness v6.14 24/24 (new L6), mutations 51/51 (the L1 tag mutation retired with the tag), r10-cr3 10/10 pinned 6.14; governance relay_version 6.14. Graveyard G73 amended.
 
