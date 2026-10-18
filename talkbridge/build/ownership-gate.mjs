@@ -27,12 +27,23 @@ export function judge(message, changed) {
   return { ok: false, touched: needsMark, reason: 'changes TalkBridge files without naming TalkBridge, a turn·stage or a plan version in its message' };
 }
 
+/* A merge is judged only by what it made itself (2026-10-18). Against its first parent, a merge of main INTO a branch shows
+   everything main brought — TalkBridge commits that were judged when they landed — and the gate refused a Market Navigator
+   merge (PR #916, b57f3b2) whose TalkBridge files were main's, byte for byte. A path the merge leaves identical to one of
+   its other parents came from that parent (judged on its own, in this range or on main); a path that differs from EVERY
+   parent is the merge's own change and is judged by its message. */
+export function introducedByMerge(changed, sameAsAnotherParent) {
+  return changed.filter((c) => !sameAsAnotherParent(c.path));
+}
+
 function git(args) { return execFileSync('git', args, { encoding: 'utf8', maxBuffer: 64 * 1024 * 1024 }); }
+function sameAt(a, b, path) { try { execFileSync('git', ['diff', '--quiet', a, b, '--', path], { stdio: 'ignore' }); return true; } catch (_) { return false; } }
 function changedIn(sha) {
-  /* first-parent diff, so a merge commit is judged by what it brought to main */
   const parents = git(['rev-list', '--parents', '-n', '1', sha]).trim().split(/\s+/).slice(1);
   const out = parents.length ? git(['diff', '--name-status', '-M', parents[0], sha]) : git(['show', '--name-status', '--format=', sha]);
-  return out.split('\n').filter(Boolean).map((l) => { const p = l.split('\t'); return { status: p[0][0], path: p[p.length - 1] }; });
+  const changed = out.split('\n').filter(Boolean).map((l) => { const p = l.split('\t'); return { status: p[0][0], path: p[p.length - 1] }; });
+  if (parents.length < 2) return changed;
+  return introducedByMerge(changed, (path) => parents.slice(1).some((p) => sameAt(p, sha, path)));
 }
 function message(sha) { return git(['log', '-1', '--format=%s%n%b', sha]); }
 
@@ -64,7 +75,10 @@ if (process.argv[1] && process.argv[1].endsWith('ownership-gate.mjs')) {
       ['a commit touching nothing protected passes', judge('SOT Release D', [{ status: 'A', path: 'SOT/x.html' }, { status: 'M', path: 'devstream/status.json' }]).ok === true],
       ['the word inside a path is not a mark: the MESSAGE must say it', judge('refresh', [{ status: 'M', path: 'talkbridge/parts/x.js' }]).ok === false],
       ['the old accepted files are protected too', judge('tidy', [{ status: 'M', path: 'tb-sw.js' }, { status: 'M', path: 'bridge-turn24-post-ship.html' }]).ok === false],
-      ['the app folder (29·pre-ship, the directory release) is protected', judge('deploy: publish', [{ status: 'M', path: 'talkbridge-app/index.html' }]).ok === false]
+      ['the app folder (29·pre-ship, the directory release) is protected', judge('deploy: publish', [{ status: 'M', path: 'talkbridge-app/index.html' }]).ok === false],
+      ['a merge that only brings main\'s TalkBridge files passes', judge('Complete Market Navigator source recovery', introducedByMerge([{ status: 'M', path: 'talkbridge/worker-talk.js' }, { status: 'A', path: 'mn/etl.py' }], () => true)).ok === true],
+      ['a merge that changes a TalkBridge file itself is refused', judge('Merge main into feature', introducedByMerge([{ status: 'M', path: 'talkbridge/worker-talk.js' }], () => false)).ok === false],
+      ['a merge keeps only the paths that differ from every other parent', introducedByMerge([{ status: 'M', path: 'a' }, { status: 'M', path: 'b' }], (p) => p === 'a').map((c) => c.path).join() === 'b']
     ];
     let f = 0; for (const [n, ok] of cases) { console.log((ok ? '  ok  ' : 'FAIL  ') + n); if (!ok) f++; }
     console.log(f ? '\n' + f + ' self-test failure(s)' : '\nownership gate self-test green (' + cases.length + ')'); process.exit(f ? 1 : 0);
