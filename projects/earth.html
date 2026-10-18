@@ -141,7 +141,7 @@
 </div>
 <script>
 'use strict';
-const BUILD = 'M7.9-terrainfix 2026-10-04';
+const BUILD = 'M7.10-datalayer 2026-10-04';
 const errBox = document.getElementById('errBox');
 const errLines = document.getElementById('errLines');
 const errTitle = document.getElementById('errTitle');
@@ -939,7 +939,8 @@ function startApp(cdnUrl) {
   // ---- M5 city: Overpass roads + buildings with procedural fallback ----
   const OVERPASS_HOSTS = [
     'https://overpass-api.de/api/interpreter',
-    'https://overpass.kumi.systems/api/interpreter'
+    'https://overpass.kumi.systems/api/interpreter',
+    'https://overpass.private.coffee/api/interpreter'
   ];
   const AREA_T = 2; // tiles per city-area side
   const cityLive = new Map();  // areaKey -> {roads, buildings, status, feats}
@@ -1200,8 +1201,9 @@ function startApp(cdnUrl) {
     const N2 = tileLatN(ay * AREA_T).toFixed(6);
     const W2 = tileLonW(ax * AREA_T).toFixed(6);
     const E2 = tileLonW(ax * AREA_T + AREA_T).toFixed(6);
+    // M7.10: lighter query — cap returned ways so dense-city payloads stay mobile-friendly
     const q = '[out:json][timeout:25];(way["highway"](' + S + ',' + W2 + ',' + N2 + ',' + E2 +
-      ');way["building"](' + S + ',' + W2 + ',' + N2 + ',' + E2 + '););out geom;';
+      ');way["building"](' + S + ',' + W2 + ',' + N2 + ',' + E2 + '););out geom 1500;';
     for (let h = 0; h < OVERPASS_HOSTS.length; h++) {
       const ctrl = new AbortController();
       const timer = setTimeout(function() { ctrl.abort(); }, 25000);
@@ -1227,12 +1229,22 @@ function startApp(cdnUrl) {
         mountCity(ax, ay, key);
         return;
       } catch (e) {
+        // M7.10: per-host error was silent — log it so the exportable log shows exactly why each mirror failed
+        logLine('OSM', OVERPASS_HOSTS[h].split('/')[2] + ': ' + (e && e.message ? e.message : String(e)));
       } finally {
         clearTimeout(timer);
       }
     }
     osmConsecFails++;
-    if (osmConsecFails >= 3) osmBroken = true;
+    if (osmConsecFails >= 3 && !osmBroken) {
+      osmBroken = true;
+      // M7.10: the circuit re-tries in-session (~30 s) instead of staying open until teleport
+      setTimeout(function() {
+        if (!osmBroken) return;
+        osmBroken = false; osmConsecFails = 0;
+        logLine('OSM', 'circuit retry after 30s');
+      }, 30000);
+    }
     logLine('OSM', 'area ' + key + ' failed (procedural city used)' + (osmBroken ? ' [circuit open]' : ''));
     cityData.set(key, { proc: true });
     mountCity(ax, ay, key);
@@ -1370,10 +1382,17 @@ function startApp(cdnUrl) {
     function(z, x, y) { return 'https://s3.amazonaws.com/elevation-tiles-prod/terrarium/' + z + '/' + x + '/' + y + '.png'; },
     function(z, x, y) { return 'https://elevation-tiles-prod.s3.amazonaws.com/terrarium/' + z + '/' + x + '/' + y + '.png'; }
   ];
+  // M7.10: every host in this chain serves REAL satellite photos — the old
+  // OpenStreetMap carto fallback (a drawn street map) is removed, so an
+  // imagery 'OK' can never silently mean a drawn map. Esri primary + mirror
+  // share one domain family, so the chain ends with an independent provider
+  // (EOX Sentinel-2 cloudless) for networks that filter arcgisonline.
   const IMG_HOSTS = [
-    function(z, x, y) { return 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/' + z + '/' + y + '/' + x; },
-    function(z, x, y) { return 'https://tile.openstreetmap.org/' + z + '/' + x + '/' + y + '.png'; }
+    { tag: 'esri', url: function(z, x, y) { return 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/' + z + '/' + y + '/' + x; } },
+    { tag: 'esri2', url: function(z, x, y) { return 'https://services.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/' + z + '/' + y + '/' + x; } },
+    { tag: 'eox', url: function(z, x, y) { return 'https://tiles.maps.eox.at/wmts/1.0.0/s2cloudless-2020_3857/default/g/' + z + '/' + y + '/' + x + '.jpg'; } }
   ];
+  const imgHostOk = { esri: 0, esri2: 0, eox: 0 };
   let netFails = 0;
   let lastNetErr = '';
   let imgOk = 0;
@@ -1431,6 +1450,7 @@ function startApp(cdnUrl) {
     netFails++;
     lastNetErr = (lastErr && lastErr.message) ? lastErr.message : String(lastErr);
     logLine('NET', 'elev tile ' + t.key + ': ' + lastNetErr);
+    t.elevRetryAt = performance.now() + 30000; // M7.10: retry in-session
   }
 
   async function fetchImagery(t) {
@@ -1442,7 +1462,7 @@ function startApp(cdnUrl) {
       const ctrl = new AbortController();
       const timer = setTimeout(function() { ctrl.abort(); }, 12000);
       try {
-        const resp = await fetch(IMG_HOSTS[h](zoom, fx, fy), { mode: 'cors', signal: ctrl.signal });
+        const resp = await fetch(IMG_HOSTS[h].url(zoom, fx, fy), { mode: 'cors', signal: ctrl.signal });
         if (!resp.ok) throw new Error('HTTP ' + resp.status);
         const blob = await resp.blob();
         const objUrl = URL.createObjectURL(blob);
@@ -1470,6 +1490,7 @@ function startApp(cdnUrl) {
               if (!tiles.has(t.key) || !settings.imagery || t.imgTex !== tex) { tex.dispose(); return; }
               applyImagery(t);
               imgOk++; // M7.9: counts real loads, not texture creations
+              imgHostOk[IMG_HOSTS[h].tag]++; // M7.10: per-host census — which provider can this network reach?
             } catch (e2) {}
           },
           function() {
@@ -1501,11 +1522,15 @@ function startApp(cdnUrl) {
         t.imgTex = tex;
         return;
       } catch (e) {
+        // M7.10: per-host error was silent here — log first/last host so the
+        // exportable log shows exactly which providers this network blocks
+        if (h === 0 || h === IMG_HOSTS.length - 1) logLine('IMG', IMG_HOSTS[h].tag + ' tile ' + t.key + ': ' + (e && e.message ? e.message : String(e)));
       } finally {
         clearTimeout(timer);
       }
     }
-    if (tiles.has(t.key)) { imgFails++; logLine('IMG', 'tile ' + t.key + ' failed on all hosts'); }
+    // M7.10: retry in-session (~30 s) instead of giving up until teleport/re-entry
+    if (tiles.has(t.key)) { imgFails++; t.imgRetryAt = performance.now() + 30000; logLine('IMG', 'tile ' + t.key + ' failed on all hosts — retry in 30s'); }
   }
 
   function ensureTile(tx, ty, d) {
@@ -1564,6 +1589,7 @@ function startApp(cdnUrl) {
   }
 
   let lastPTx = 0, lastPTy = 0;
+  let lastRetrySweep = 0; // M7.10: throttle for the in-session retry sweep
 
   function teleport(lat, lon) {
     lat = Math.min(Math.max(lat, -85), 85);
@@ -2106,6 +2132,23 @@ function startApp(cdnUrl) {
     // M5: city areas (debounced Overpass query ~1.5 s after settling)
     updateCity(ptx, pty);
 
+    // M7.10: in-session retry sweep — tiles whose imagery or elevation failed
+    // re-fetch ~30 s later instead of waiting for a teleport or re-entry
+    if (performance.now() - lastRetrySweep > 5000) {
+      lastRetrySweep = performance.now();
+      const nowR = performance.now();
+      for (const t of tiles.values()) {
+        if (settings.imagery && !t.imgTex && t.imgRetryAt && nowR >= t.imgRetryAt) {
+          t.imgRetryAt = 0;
+          queueDl(function() { return fetchImagery(t); });
+        }
+        if (t.state === 'proc' && t.elevRetryAt && nowR >= t.elevRetryAt) {
+          t.elevRetryAt = 0;
+          queueDl(function() { return fetchElev(t); });
+        }
+      }
+    }
+
     // M4: water plane follows the player and animates (bob + texture drift)
     water.position.x = (ptx - originTx) * TILE_M;
     water.position.z = -(pty - originTy) * TILE_M;
@@ -2183,6 +2226,13 @@ function startApp(cdnUrl) {
     if (osmAreas > 0) osmLine = 'OK ' + osmFeats;
     if (osmProcAreas > 0) osmLine = (osmAreas > 0 ? osmLine + ' / ' : '') + 'PROC ' + osmProcAreas;
     if (osmBroken) osmLine += ' (brk)';
+    // M7.10: banner when every live data service sits in fallback at once —
+    // the signature of a network filtering all our providers
+    const svcDown = [];
+    if (settings.imagery && imgOk === 0 && imgFails >= 3) svcDown.push('imagery');
+    if (tiles.size > 0 && terr === 0 && netFails >= 3) svcDown.push('elevation');
+    if (osmBroken) svcDown.push('streets');
+    if (tiles.size > 0 && lcTiti === 0 && cogFails >= 3) svcDown.push('landcover');
     const hudFull = BUILD + ' ▾' +
       '<br>FPS:' + fps +
       '<br>Lat:' + lat.toFixed(5) + ' Lon:' + lon.toFixed(5) +
@@ -2194,9 +2244,11 @@ function startApp(cdnUrl) {
       (zoomMult !== 1 ? ' Zoom:' + zoomMult.toFixed(1) + 'x' : '') +
       '<br>Mesh:' + scene.meshes.length + ' · Tiles:' + built + '/' + tiles.size + ' (ring ' + RING + ')' +
       '<br>SRC: TERR ' + terr + ' / PROC ' + proc +
-      '<br>IMG: ' + (settings.imagery ? ('OK ' + imgOk + ' / FAIL ' + imgFails + ' · Imagery © Esri & contributors') : 'off') +
+      '<br>IMG: ' + (settings.imagery ? ('OK ' + imgOk + ' / FAIL ' + imgFails + ' · esri:' + imgHostOk.esri + ' alt:' + imgHostOk.esri2 + ' eox:' + imgHostOk.eox) : 'off') +
+      (settings.imagery ? '<br>Imagery © Esri · EOX Sentinel-2' : '') +
       '<br>LC: ' + (lcTiti > 0 ? 'TITI ' + lcTiti + ' / ' : '') + 'PROC ' + (tiles.size - lcTiti) + ' · VEG ' + vegTotal +
       '<br>OSM: ' + osmLine +
+      (svcDown.length >= 3 ? '<br><span style="color:#ff8">⚠ LIVE DATA BLOCKED (' + svcDown.join('+') + ') — network filter? procedural world active</span>' : '') +
       '<br>WX: ' + (settings.rain ? 'rain' : (settings.clouds ? 'clouds' : 'clear')) + ' · ' + seasonNow +
       '<br>NET fails:' + netFails + (lastNetErr ? ' (' + lastNetErr.slice(0, 40) + ')' : '') +
       '<br>CDN:' + cdnUrl.split('/')[2];
@@ -2219,7 +2271,7 @@ function startApp(cdnUrl) {
         ' cam:' + camera.position.x.toFixed(0) + ',' + camera.position.y.toFixed(1) + ',' + camera.position.z.toFixed(0) +
         ' rot:' + camera.rotation.x.toFixed(2) + ',' + camera.rotation.y.toFixed(2) +
         ' tod:' + fmtTOD(settings.tod) + ' fog:' + scene.fogDensity.toFixed(5) +
-        ' img:' + imgOk + 'ok/' + imgFails + 'fail @' + lastLat.toFixed(4) + ',' + lastLon.toFixed(4));
+        ' img:' + imgOk + 'ok/' + imgFails + 'fail (esri:' + imgHostOk.esri + ' alt:' + imgHostOk.esri2 + ' eox:' + imgHostOk.eox + ') @' + lastLat.toFixed(4) + ',' + lastLon.toFixed(4));
     }
     if (renderFrames === 30 || renderFrames === 180) {
       // M7.9: auto-repair sweep — any tile with no mesh gets one guarded
