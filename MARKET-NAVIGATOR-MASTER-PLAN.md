@@ -2387,3 +2387,16 @@ Detailed RCA, staged recovery design, differential gates, failure rules, and rev
 `MARKET-NAVIGATOR-TURN37-RCA-PLAN.md`
 
 This plan supersedes the Turn 31–36 modularization approaches. Those turns remain evidence only and are not implementation donors.
+
+
+## October 17, 2026 — integrated ETL delivery candidate (unqualified)
+
+Owner mandate: complete the integrated review application on PR #916, preserving Turn 28 and MNChart. Ground truth: accepted commit 996e9a71b72db5bfbea3ba77750077daaa2fb7ab / blob 9ce7f67451f9e1b7804927ce5c56adb667614724; existing PR head 0e9d3852e3bda24eab3e9c8c309897b500cf3082. No production publication or owner acceptance is claimed.
+
+Seven new native scheduling checks failed before corrections: weekend catch-up, exchange holiday, provider delay, weekly native identity, exact publication time, revision release and historical gap. Nine delivery scheduling checks now pass. Existing schedule and selective collector checks, two ALFRED event tests, three release integrity checks and three package-loader tests pass locally. The saved baseline arithmetic independently reproduces seven contributions for each governed index and all seven horizons; its September endpoints are not current-data qualification. The integrated candidate retains the existing MNChart body byte-for-byte, pins service data per instance, and loads only hash-verified packages. The run log uses explicit authenticated GitHub links, not simulated dispatch buttons.
+
+Full-history source comparison is market-navigator-etl-source-audit.json: all 39 approved primary providers responded; current omissions and historical differences remain unqualified. HY Spread retains 1,894 periods outside the history returned by its current provider. Those observations are preserved, not independently certified or silently discarded. Current-vintage differences are diagnostics, not automatic proof of an erroneous stored vintage.
+
+The three-level runner stages collection, qualified ALFRED availability, existing persistent-index construction, horizon compatibility, replay and package promotion. It keeps the previous qualified pointer on failure. There are no ALFRED sidecars in the checkout. Local execution records a real blocked run because MARKET_NAVIGATOR_FRED_API_KEY is unavailable. GitHub CI will test the repository secret separately. The exact historical baseline and new upstream revisions cannot be qualified by replacing vintage events with current CSV values.
+
+Unfinished gates: live complete three-level replay, provider failure/recovery, selective stream end-to-end, actual browser lifecycle/data refresh, full accepted visual regression, authenticated dispatch, dedicated Pages publication and exact public URL verification. A browser attempt stalled and its runtime exited; no browser PASS or real-device acceptance is asserted. Implementation remains on PR #916; rejected/default/production artifacts remain unchanged.

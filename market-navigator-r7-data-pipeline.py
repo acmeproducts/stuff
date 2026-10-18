@@ -42,7 +42,8 @@ def canon_fred(a):
   if q is None or p['t']<q['t']:out[d]=p
  return [out[k] for k in sorted(out)]
 def yahoo(sym,boot):
- rng='10y' if boot else '1mo';url='https://query1.finance.yahoo.com/v8/finance/chart/'+urllib.parse.quote(sym,safe='')+'?'+urllib.parse.urlencode({'range':rng,'interval':'1d','includePrePost':'false','events':'div,splits'})
+ window={'period1':1420070400,'period2':int(now().timestamp())+86400} if boot else {'range':'1mo'}
+ url='https://query1.finance.yahoo.com/v8/finance/chart/'+urllib.parse.quote(sym,safe='')+'?'+urllib.parse.urlencode({**window,'interval':'1d','includePrePost':'false','events':'div,splits'})
  raw,http=get(url,'application/json');j=json.loads(raw);r=((j.get('chart') or {}).get('result') or [None])[0]
  if not r:raise RuntimeError('Yahoo returned no chart result')
  ts=r.get('timestamp') or [];cl=(((r.get('indicators') or {}).get('quote') or [{}])[0].get('close') or []);out=[]
@@ -89,7 +90,11 @@ def yoy(a):
   if q and q['v']:out.append({'t':p['t'],'v':(p['v']/q['v']-1)*100})
  return canon(out)
 def merge(a,b,provider=None):
- z=canon((a or [])+(b or []))
+ # Native daily period, rather than changing provider candle timestamps,
+ # determines identity. A later final candle replaces its provisional row.
+ periods={}
+ for point in canon(a)+canon(b):periods[dt.datetime.fromtimestamp(point['t']/1000,dt.timezone.utc).date()]=point
+ z=[periods[k] for k in sorted(periods)]
  return canon_fred(z) if provider=='FRED' else z
 def before(a,t):
  z=None
@@ -141,14 +146,16 @@ def main():
   elif RETRY_COMPONENT==sid:
    decision='explicit-component-retry';due=True
   else:
-   due,decision=_scheduler.eligibility(m,old,now().date(),publication_rules,force=BOOT,last_attempt=old.get('last_attempted') if not old.get('last_error') else None)
-   if RETRY_STREAM and old.get('last_error') and decision not in ('weekend','weekly-not-due','monthly-not-due','quarterly-not-due'):due=True;decision='retry-failed'
+   due,decision=_scheduler.eligibility(m,old,now(),publication_rules,force=BOOT,last_attempt=old.get('last_attempted') if not old.get('last_error') else None)
   if not due and not obs0 and decision!='not-selected':due=True;decision='missing-history'
   if not due:
    prior_report=read(REPORTS/f'{sid}.json',{})
    previous=prior_report.get('reports',{})
    oldstate={'status':'healthy' if obs0 and not old.get('last_error') else ('stale' if obs0 else 'unavailable'),'first_observation':old.get('first'),'latest_observation':old.get('last'),'observation_count':len(obs0),'last_attempted':old.get('last_attempted'),'last_successful':old.get('last_successful'),'last_error':old.get('last_error'),'history_years':round((obs0[-1]['t']-obs0[0]['t'])/(365.25*DAY),2) if len(obs0)>1 else 0,'provider_used':old.get('provider'),'provider_identifier_used':old.get('providerIdentifier'),'source_revision':old.get('sourceRevision'),'computed_revision':prior_report.get('computedRevision'),'horizon_readiness':{h:bool(previous.get(h,{}).get('ready')) for h in H},'supported_horizons':m.get('supported_horizons') or H,'bootstrap_complete':((obs0[-1]['t']-obs0[0]['t'])/(365.25*DAY)>=float(c.get('bootstrap_policy',{}).get('minimum_history_years',6))) if len(obs0)>1 else False,'skip_reason':decision}
-   states[sid]=oldstate;entries.append({'id':sid,'status':'skipped','reason':decision,'latest_observation':old.get('last')});continue
+   expected=_scheduler.expectation(m,now(),publication_rules)
+   states[sid]=oldstate;entries.append({'id':sid,'frequency':m.get('native_cadence'),'expected_period':expected['period'],'schedule':expected['schedule'],
+       'status':'not due' if decision.endswith('period-present') else 'skipped','reason':decision,'latest_observation':old.get('last'),
+       'last_observation':_scheduler.date_of(old.get('last')).isoformat() if old.get('last') else None,'last_attempt':old.get('last_attempted'),'added':0,'revised':0});continue
 
   try:
    raw=None
@@ -165,22 +172,32 @@ def main():
    # Never retain observations from a different historical provider lineage when a full bootstrap is available.
    # FRED canonical evidence is additionally one observation per UTC source date; this removes legacy same-day rows
    # (for example the former Yahoo ^TNX values that contaminated canonical DGS10 after migration).
+   if obs0 and not same_lineage and not BOOT:raise RuntimeError('Source identity changed; refusing to merge different provider histories. Run explicit historical rebuild after source review.')
    if BOOT and obs0 and not same_lineage: obs=canon(raw)
    else: obs=merge(obs0,raw,used_provider)
    if used_provider=='FRED': obs=canon_fred(obs)
    success=iso()
   except Exception as e:
    err=str(e);obs=canon(obs0);success=old.get('last_successful');failures.append(f'{sid}: {e}')
-  entries.append({'id':sid,'status':'failed' if err else 'success','reason':err or decision,'previous_count':len(obs0),'new_count':len(obs),'changed':sha(obs)!=sha(obs0)})
-  if obs:
-   cutoff=int((now()-dt.timedelta(days=365.25*10.25)).timestamp()*1000);obs=[x for x in obs if x['t']>=cutoff]
+  old_by_t={x['t']:x['v'] for x in obs0};new_by_t={x['t']:x['v'] for x in obs}
+  added=sum(t not in old_by_t for t in new_by_t);revised=sum(t in old_by_t and old_by_t[t]!=v for t,v in new_by_t.items())
+  expected=_scheduler.expectation(m,now(),publication_rules)
+  waiting=bool(not err and expected['period'] and obs and _scheduler.date_of(obs[-1]['t'])<_scheduler.date_of(expected['period']))
+  entries.append({'id':sid,'frequency':m.get('native_cadence'),'expected_period':expected['period'],'schedule':expected['schedule'],
+                  'last_observation':_scheduler.date_of(obs[-1]['t']).isoformat() if obs else None,'last_attempt':attempt,
+                  'status':'failed' if err else ('awaiting release' if waiting else 'success'),'reason':err or ('Provider has not returned expected period '+expected['period'] if waiting else decision),
+                  'previous_count':len(obs0),'new_count':len(obs),'added':added,'revised':revised,'changed':sha(obs)!=sha(obs0)})
+  # Accumulated native histories include fixed model anchors. Never age them
+  # out on a rolling retention cutoff or rebase a fixed index silently.
   rev=sha(obs);configured=chain_for(m);provider_name=(used or {}).get('provider') or old.get('provider') or m.get('provider');provider_id=(used or {}).get('identifier') or old.get('providerIdentifier') or m.get('provider_identifier')
   obj={'schema':'market-navigator-evidence-series-v1','pipelineVersion':VERSION,'id':sid,'catalogVersion':c.get('version'),'provider':provider_name,'providerIdentifier':provider_id,'providerChain':configured,'providerFallbackUsed':bool(used and used.get('position',0)>0),'providerErrors':source_errors,'unit':m.get('native_unit'),'cadence':m.get('native_cadence'),'description':m.get('description'),'first':obs[0]['t'] if obs else None,'last':obs[-1]['t'] if obs else None,'count':len(obs),'sourceRevision':rev,'last_attempted':attempt,'last_successful':success,'last_error':err,'http':http,'observations':obs};write(p,obj)
   supported=set(m.get('supported_horizons') or H);rr={}
   for h in H:
    rr[h]=report(obs,h) if h in supported else {'ready':False,'reason':'unsupported horizon for canonical evidence cadence'}
   for h,r in rr.items():r.update(source_revision=rev,source=provider_name,series_id=sid,horizon=h)
-  robj={'schema':'market-navigator-evidence-report-v1','pipelineVersion':VERSION,'id':sid,'generatedAt':iso(),'reports':rr};crev=sha(rr);robj['computedRevision']=crev;write(REPORTS/f'{sid}.json',robj)
+  robj={'schema':'market-navigator-evidence-report-v1','pipelineVersion':VERSION,'id':sid,'generatedAt':iso(),'reports':rr};crev=sha(rr);robj['computedRevision']=crev
+  prior_report=read(REPORTS/f'{sid}.json',{})
+  if prior_report.get('computedRevision')!=crev:write(REPORTS/f'{sid}.json',robj)
   years=(obs[-1]['t']-obs[0]['t'])/(365.25*DAY) if len(obs)>1 else 0;ready={h:bool(rr[h].get('ready')) for h in H}
   states[sid]={'status':'healthy' if obs and not err else ('stale' if obs else 'unavailable'),'first_observation':obs[0]['t'] if obs else None,'latest_observation':obs[-1]['t'] if obs else None,'observation_count':len(obs),'history_years':round(years,2),'last_attempted':attempt,'last_successful':success,'next_due':'next scheduled evidence workflow','bootstrap_complete':years>=float(c.get('bootstrap_policy',{}).get('minimum_history_years',6)),'horizon_readiness':ready,'supported_horizons':sorted(supported,key=lambda x:H.index(x) if x in H else 99),'missing_periods':[],'last_error':err,'provider_used':provider_name,'provider_identifier_used':provider_id,'provider_fallback_used':bool(used and used.get('position',0)>0),'provider_errors':source_errors,'source_revision':rev,'computed_revision':crev,'http':http}
  required=[m['id'] for m in c.get('series',[]) if m.get('enabled',True) and m.get('required')];block=[]
@@ -191,7 +208,7 @@ def main():
   supported=set(st.get('supported_horizons') or H)
   if any(not st.get('horizon_readiness',{}).get(h,False) for h in supported):block.append(f'{sid}: one or more supported horizons unavailable')
  log=read(RUNLOG,{'schema':'market-navigator-run-log-v1','runs':[]})
- run={'at':iso(),'mode':'component-retry' if RETRY_COMPONENT else ('bootstrap' if BOOT else ('stream-retry' if RETRY_STREAM else 'scheduled')),'components':entries,'success':sum(x['status']=='success' for x in entries),'failed':sum(x['status']=='failed' for x in entries),'skipped':sum(x['status']=='skipped' for x in entries)}
+ run={'at':iso(),'mode':'component-retry' if RETRY_COMPONENT else ('bootstrap' if BOOT else ('stream-retry' if RETRY_STREAM else 'scheduled')),'components':entries,'success':sum(x['status']=='success' for x in entries),'failed':sum(x['status']=='failed' for x in entries),'skipped':sum(x['status'] in ('skipped','not due') for x in entries)}
  log['runs']=(log.get('runs',[])+[run])[-90:];write(RUNLOG,log)
  man={'schema':'market-navigator-operational-manifest-v1','pipelineVersion':VERSION,'catalogVersion':c.get('version'),'generatedAt':iso(),'mode':'bootstrap' if BOOT else 'incremental','canonicalHorizons':H,'series':states,'summary':{'catalogSeries':len(c.get('series',[])),'processedSeries':len(states),'requiredSeries':len(required),'sourceFailures':failures,'acceptanceBlockers':block,'ready':not block}};man['revision']=sha(man)[:16];write(MANIFEST,man);print(json.dumps({'ok':not block,'revision':man['revision'],'failures':failures,'blockers':block},indent=2))
 

@@ -5,6 +5,7 @@
 | 0 | 2026-10-16 | INIT | Plan seeded; target locked to try.html; concept TBD |
 | 1 | 2026-10-16 | CONCEPT | STT app defined: continuous web transcription, session cards, copy/download |
 | 2 | 2026-10-16 | BUILD | Initial HTML scaffold: Web Speech API, continuous transcription, diagnostics |
+| 3 | 2026-10-17 | DIAGNOSE | Bugs reported: transcript duplication and short capture windows. Discussing IndexedDB vs localStorage and device-specific optimizations. |
 
 ## (1) RELEASES
 
@@ -49,6 +50,10 @@
 • Diagnostic panel (recording state, error messages, confidence meter)  
 • Mobile-first touch controls (large buttons, safe areas)  
 
+### Active Bugs
+- **BUG-001: Transcript duplication** — Final transcript shows repeated phrases (e.g., "why is there why is there", "cuz she was cuz she was"). Cause: `resultIndex` overlap handling or interim-to-final transition duplicates across `onresult` firings. Severity: High (unusable output).
+- **BUG-002: Premature capture stop** — Recognition halts after short phrases (~10-30s) despite `continuous=true`. Browser-specific timeout or silence detection. Severity: High (breaks long-form use case).
+
 ## (3) FUTURE IDEAS
 
 • Export JSON/SRT subtitle formats  
@@ -69,6 +74,10 @@
 
 - **2026-10-16**: Plan established. Build target locked to `projects/watch-1jll/try.html` regardless of any conflicting plan entries. Chat history is non-authoritative.
 - **2026-10-16**: Concept selected: Generic STT app using Web Speech API. Features: continuous transcription, session save with card-based history, copy-to-clipboard, download .txt. Persistence via localStorage. No backend required.
+- **2026-10-17**: **Duplication Analysis**: Current implementation appends final results using `resultIndex` loop, but `continuous=true` does not guarantee `resultIndex` resets on browser-internal restarts. When the browser pauses/resets the audio service (common on mobile), the SpeechRecognition object may emit results that overlap with previously captured text. Fix options: (A) Hash-based deduplication of final strings, (B) Track last processed resultIndex per event and reject if <= previous, (C) Manual session chunking (restart every N seconds) with overlap removal.
+- **2026-10-17**: **Capture Window Analysis**: Chrome/Android stops ~1min silence; iOS Safari stops erratically; some watches (WearOS) kill background audio after seconds. `continuous=true` is advisory, not enforced. Fix: Implement auto-restart on `onend` if user hasn't pressed Stop, with 150ms delay to prevent mic busy errors. Append new chunks to same session buffer.
+- **2026-10-17**: **Storage Strategy**: Current localStorage is synchronous (blocks UI), ~5-10MB limit, string-only. For watch devices with limited RAM but need for many sessions, IndexedDB is preferred: asynchronous, ~50MB+ quota, stores Blobs (future audio), structured clone for session objects. Decision: Migrate session storage to IndexedDB (wrapper: idb-keyval or raw IDB) to prevent UI jank during save on low-end watches.
+- **2026-10-17**: **Device-Specific UX**: Watch screens (<360px width) need single-column dense cards, max 2 visible lines per session, no floating controls (use bottom sheet). Phones use current layout. Detection via `matchMedia('(max-width: 360px)')` and user-agent heuristics for WearOS/WatchOS.
 
 ## (6) APPENDIX
 
@@ -87,3 +96,6 @@
 | 2026-10-16 07:24 | Main | built projects/watch-1jll/try.html | Done. | 827f6f1 |
 | 2026-10-16 07:38 | Main | built projects/watch-1jll/try.html | Done. | 96fea64 |
 | 2026-10-16 07:42 | Main | built projects/watch-1jll/try.html | Done. | 1c296a8 |
+| 2026-10-17 01:05 | Main | built projects/watch-1jll/try.html | Done. | 31e17b7 |
+| 2026-10-17 01:20 | Main | updated projects/watch-1jll/try.md | Diagnosed duplication and capture bugs; added IndexedDB/device strategy to DECISION LOG | TBD |
+| 2026-10-18 02:20 | Main | built projects/watch-1jll/try.html | Done. | 30e52e6 |

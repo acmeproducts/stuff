@@ -6,8 +6,8 @@ Deploy target: `https://acmeproducts.github.io/stuff/devstream.html`
 Test target: `https://acmeproducts.github.io/stuff/devstream-test.html`
 
 ## Status
-- Current release: v1.0 b74 on devstream-test.html (2026-10-16)
-- Stage: TEST (b74)
+- Current release: v1.0 b77 on devstream-test.html (2026-10-18)
+- Stage: TEST (b77)
 
 ## Release Rules (inherited, proven)
 1. Mobile-first. All diagnostics in-app. No DevTools ever.
@@ -255,6 +255,136 @@ b39 incorrectly changed stationary hold into context-menu activation. Devstream 
 ## Graveyard
 - **G-DS-13 — Hold opens context menu:** rejected; donor behavior is double-tap context, hold-to-drag.
 - **G-DS-14 — Legacy generic #tabContext button styling:** rejected; it corrupts the donor context-menu appearance.
+
+---
+
+# 2026-10-18 — b77 R3 REVISED: the watch-first voice screen (replaces R2's listen mode)
+
+## Owner report
+"This really doesn't do what I needed — I'm dealing with a watch face. There needs to be a super simple way to switch over to voice mode, the talk button has to be super prominent with a visual showing like a sound graph that words are being detected; in fact it should be transcribing, so that if you tap and hold the talk button a modal opens with the transcripts with an X to close it and a copy button. This needs to be a watch-first mode."
+
+## Spec (supersedes sections C/E of the draft where they differ)
+- **One voice screen** (full screen, used on a watch by default and on any device via the microphone icon). It replaces R2's listen mode inside the composer. Nothing else competes for attention:
+  1. Top row: a big **keyboard** button (back to normal) and a one-line status ("project · Working / Ready / Needs you").
+  2. The **Talk button**: a huge circle (about three-quarters of the screen width), the main thing on screen. Tap to start; tap again (or a pause) to send.
+  3. A **live sound graph** under/inside it that moves while it listens, driven by the microphone level; where the browser will not share the microphone with speech recognition, the bars pulse each time new words are detected, so the person always sees that it is hearing them.
+  4. The **live transcript** of what is being heard, in large text, updating as words arrive.
+  5. The coach's **latest reply** in plain words (also read aloud when the speaker is on), then the **chips** as large buttons (and spoken: "Say: …").
+  6. A bottom row: **speaker** (on by default here), **Open app**, **Share app**, **More** (the normal layout).
+- **Tap and hold the Talk button** opens a **transcript modal**: the words being heard right now at the top, then recent things the person said (newest first, last 30, kept on this device), an **X** to close and a **Copy** button (copies all of it).
+- **Getting there:** a watch-sized screen opens straight into the voice screen. On any other device the microphone icon in the chat header (always visible) and the one at the top of the left rail switch to it; the big keyboard button leaves it. A bookmark ending `?watch=1` forces watch mode (and `?watch=0` clears it) for watches whose browser reports a larger screen than they have. Detection also treats a user-agent containing "Wear" or "Watch" as a watch.
+- **No project yet:** the screen asks "Say a name for your first project" and what is said becomes the project name, then the five-part question is asked aloud.
+- **Open app** opens the project's built app link. **Share app** opens the phone's share sheet where the browser has one (the person picks WhatsApp, Gmail, Messages…); otherwise a sheet with WhatsApp, Email, Messages and Copy link.
+- The screen stays awake while the voice screen is open.
+- Limits: speech recognition, speech output, the share sheet and sharing the microphone with speech recognition depend on the watch browser and are unverified until tried on the watch.
+
+## Acceptance
+- **DS-R3-1:** on a watch-sized screen (or with `?watch=1`) the app opens in the voice screen; the microphone icon in the chat header switches any device to it; the keyboard button leaves it.
+- **DS-R3-2:** the Talk button is the largest element; while listening a sound graph animates and the live transcript shows the words as they arrive.
+- **DS-R3-3:** tap-and-hold on the Talk button opens the transcript modal with live words, history, X and Copy; a normal tap still starts/stops listening.
+- **DS-R3-4:** the reply and chips show on the voice screen; speaking a chip's words taps it; the reply is read aloud.
+- **DS-R3-5:** Open app opens the built app; Share app uses the share sheet or offers WhatsApp / Email / Messages / Copy link.
+- **DS-R3-6:** with no project, speaking a name creates the project and asks the five-part question.
+
+---
+
+# 2026-10-18 — b76 R2: microphone/keyboard switch, speaker, read-aloud, voice chips
+
+Implements sections C and D of the approved spec (plus the device detection it needs).
+
+## Change
+- **Switch** at the top of the left rail: keyboard icon (as before) / microphone icon. Remembered per device.
+- **Listen mode (microphone):** the text box is replaced by a large **Tap to talk** button (tap to start; it sends when you pause, or tap again). Chips stay visible, with bigger buttons. "Type one message instead" is available. If the browser has no speech input it says so and offers the keyboard's own mic key.
+- **Voice commands:** saying a chip's say-words ("build it", "questions", "more ideas") taps that chip. A close-but-not-exact word ("blue") asks "I heard … Did you mean …?" (on screen and aloud) with Yes / No-send-what-I-said. Anything else is sent as a normal message.
+- **Speaker icon** in the compose strip: muted with a slash by default (unmuted by default in listen mode and on a watch-sized screen), remembered per device. When unmuted, new coach replies are read aloud in plain words (no links, commit ids, "Diff/Test/Plan" lines, or the CHIPS line); history is never read when a tab opens. In listen mode the chips are then read: "Say: build it, questions, or more ideas." Tapping the speaker, Tap to talk, or a chip stops speech.
+- **This device:** device class (watch under 300 px, phone, tablet, desktop) from screen size and touch; Config → "This device" shows what was detected and lets the person override it. First open on a watch-sized screen starts in listen mode with the speaker on.
+- Limits: speech input and output use the browser's built-in voices; whether a given watch browser supports them is unverified (R3 starts by checking).
+
+## Acceptance (from the spec)
+- **DS-SPEC-4:** mic/keyboard switch at the top of the left rail, remembered per device; mic mode shows Tap to talk.
+- **DS-SPEC-5:** speaker defaults muted with a slash (unmuted in listen mode); replies read aloud without code, links or technical lines; chips verbalized in listen mode; speaking a chip's words triggers it.
+
+---
+
+# 2026-10-17 — b75 R1: always-coach, the first question, specific chips
+
+Implements section A and B of the approved spec below.
+
+## Change
+- No Coach switch on project cards or in New project; every project (including old ones) is coach. Typing always overrides the chips.
+- Engine/model and web search for the current tab moved to Config → Advanced.
+- A new project opens with the fixed five-part question; nothing runs until the person answers. Their answer is shown, "Hold on — I'm creating the plan right now…" appears at once, and the plan run receives the person's own words. The plan now includes OPEN QUESTIONS, each with a Recommendation.
+- New project keeps one way to adopt an existing file: "Use an existing file instead…".
+- Agent replies end their header with a CHIPS line (label | say | prompt). The app and the cloud runner read it, keep it out of saved files, store it on the reply, and show those as the chips. After a plan the standard three are used if the model omits them: Build it now with your recommendations / Answer your questions first / More ideas. If a reply has no chips the older suggestions still show.
+
+## Acceptance (from the spec)
+- **DS-SPEC-1:** no Coach switch anywhere; typing overrides chips.
+- **DS-SPEC-2:** new project → five-part question first; after the answer "Hold on…" at once; plan has open questions with recommendations.
+- **DS-SPEC-3:** after the plan, project-specific chips including build-with-recommendations and answer-questions-first, taken from the agent's CHIPS.
+
+---
+
+# 2026-10-17 — SPEC (DRAFT, NOT BUILT): always-coach, specific chips, voice mode, watch mode
+
+Status: **APPROVED by owner 2026-10-17 ("all yes" to Q1–Q7 and the "this device" line). R1 BUILT as b75; R2 BUILT as b76 (its listen mode is replaced by R3); R3 REVISED by the owner 2026-10-18 and built as b77.** Owner asked that the spec be fixed in the plan first.
+
+## Owner's words (source of truth)
+1. "It's always in coach mode so there's no need for the toggle because coach mode can always be overwritten by what you type. Coach mode should be very specific: when you first create the project it should ask you a question — tell me about this project, what are your objectives, what does it look like, what are some things for me to consider, what open questions do you have — and let the person answer in freeform. Then it should respond 'hold on I'm creating the plan right now…'. Once the plan is created the chips need to be a lot more specific towards an action: proceed with the build, or I have questions before I can build — which should offer 'answer questions' or 'just go with my recommendations'. The chips need to be less generic and more specific to the project."
+2. "A switch at the top of the left rail: a keyboard icon or a microphone icon. Keyboard stays as is. Microphone mode — the main intention is that the watch can be just a voice input."
+3. "A speaker icon in the chat compose strip, defaulted to have a slash through it; tapped to unmute, the system responses in the transcript are read out loud. If listen mode (microphone switch on) the chips are still shown but verbalized: for build it say 'build it', for questions say 'questions', for more ideas say 'more ideas'. In microphone mode speaker output is unmuted by default. There should also be an open app button or a share app button that lets the watch user either open the app or share the link, choosing WhatsApp, Gmail, messaging, etc."
+
+## Spec
+
+### A. Coach is the only mode (release R1)
+- Remove the Coach switch from project cards and the "Coach mode" option in New project. Every project behaves as coach. Existing projects with coach off become coach. What the person types is always sent as written and overrides any suggestion; chips are only shortcuts.
+- Technical controls currently hidden by coach mode (engine/model chip, web toggle, diagnostic meta) stay hidden in the chat; they move to Config → Advanced (per-project engine, web on/off). [open question Q1]
+- **New project, first turn.** After the name is entered, the thread opens with one fixed coach message (not AI-generated, shown instantly): "Tell me about this project. What are your objectives? What does it look like? What should I consider? What open questions do you have? Just tell me in your own words." Freeform answer (typed or spoken). Replaces the "Project goals" pop-up.
+- **After the answer:** immediately show "Hold on — I'm creating the plan right now…" (local message, the working banner shows progress). The plan run uses the person's answer as the goals text (same plan structure as today) and must also write into the plan: a short list of OPEN QUESTIONS and, for each, a RECOMMENDATION (default answer).
+- **When the plan is saved:** the coach replies in plain words: one-paragraph summary of what it understood, the count of open questions, and the next-step chips (below).
+
+### B. Specific chips (release R1)
+- The agent ends every reply with a machine-readable block the app parses and hides from the transcript: `CHIPS:` followed by 2–4 lines `label | say | prompt` where `label` is the button text, `say` is the one-or-two-word spoken name, `prompt` is the message sent when tapped. The chips must name the project's own next actions (e.g. "Build the title screen", not "Make the next part"). The app falls back to today's generic chips only if the block is missing or malformed.
+- **After the plan:** if open questions exist: `Build it now with your recommendations` · `Answer your questions first` · `More ideas`. If none: `Build it` · `More ideas` · `Change the plan`.
+- **"Answer your questions first"** → the coach asks the open questions one at a time, each with its recommendation and the chips `Use your recommendation` / `Skip` / `Tell me more`; answers (typed or spoken) are written to the plan's decision log. **"Build it now with your recommendations"** → coach records the recommendations as decisions, then builds.
+- After a build: chips come from the plan's next item and the agent's STATE next step, plus `Check it works`, `More ideas`. After a failure: `Try again` / `What happened?`. Chips update live as the run state changes.
+
+### C. Input mode switch ⌨ / 🎤 (release R2)
+- Top of the left rail: a two-position switch, ⌨ (keyboard, today's behavior, default) and 🎤 (listen mode). Remembered per device (browser storage), not shared between devices. A watch-sized screen defaults to 🎤 on first open (device detection by screen size and touch; Config shows "this device: watch/phone/tablet/desktop" with a manual override).
+- **Listen mode UI:** the text box is replaced by one large **Tap to talk** button (tap to start, tap again or stop-talking to send; "Listening…" state; shows the recognized words and sends them as a normal message after a 1.5 s pause or on tap). A small ⌨ link switches to typing for one message.
+- **Voice commands:** while chips are showing, saying a chip's `say` word ("build it", "questions", "more ideas", "try again") taps that chip. Anything else is sent as a normal message. If the match is unclear the app repeats what it heard and asks "Is that right?".
+- Chips remain visible in listen mode (large tap targets) and are also read aloud (see D).
+- Speech input uses the browser's built-in recognition (no extra service or key). Where the browser has none, the mic button says so and falls back to the keyboard's own dictation key.
+
+### D. Speaker control and read-aloud (release R2)
+- A speaker icon in the compose strip, left of the text box / talk button. **Default: muted, shown with a slash.** Tap toggles; remembered per device. In listen mode (and on a watch-sized screen) the default is **unmuted**.
+- When unmuted, every new system (coach/agent) message is read aloud as it arrives, using the browser's built-in voice. Read-aloud text is the plain coach text only: no code, links, commit ids, or technical lines. Never reads the person's own messages. Tapping the speaker, the mic, or any chip stops speech immediately.
+- In listen mode after a message is read, the chips are read as a short prompt: "Say: build it, questions, or more ideas." (the `say` words, max 4).
+- Browsers only allow speech after a first tap on the page; the first tap on 🎤 or 🔊 unlocks it. If the device has no voice, the speaker icon shows disabled with a one-line reason.
+
+### E. Watch mode (release R3)
+- When the device class is watch (or listen mode on a very small screen) the app shows only: current status line (Working / Ready / Needs you with the plain next step), the **Tap to talk** button, the speaker toggle, the chips as large buttons, and two buttons: **Open app** and **Share app**.
+- **Open app** opens the project's built app (its play link) in the browser. **Share app** uses the system share sheet when the browser offers one (the person picks WhatsApp, Gmail, Messages, etc.); where it does not, three explicit buttons appear: WhatsApp, Email, Messages, each pre-filled with the link and a one-line message. [open question Q3]
+- Lists, settings and the project rail are not shown on a watch; the person can still reach them through "More" (opens the normal layout).
+
+### F. Build order and acceptance
+- **R1 — coach only + specific chips + first-turn interview** (A, B).
+- **R2 — voice: ⌨/🎤 switch, speaker, read-aloud, voice chips** (C, D) on phone first.
+- **R3 — device detection + watch mode + Open/Share app** (E). Watch speech support is unverified; R3 starts with a "this device" check page to confirm what the watch browser reports and supports (speech recognition, speech output, share sheet) before the layout is built.
+- **DS-SPEC-1:** no Coach switch anywhere; typing always overrides chips.
+- **DS-SPEC-2:** creating a project shows the five-part question first; after the answer "Hold on — I'm creating the plan right now…" appears at once; the plan contains open questions with recommendations.
+- **DS-SPEC-3:** after the plan, chips name project-specific actions, include "build with your recommendations" and "answer your questions first" when open questions exist; chips come from the agent's CHIPS block.
+- **DS-SPEC-4:** ⌨/🎤 switch at the top of the left rail, remembered per device; 🎤 shows a Tap to talk button.
+- **DS-SPEC-5:** speaker icon defaults to muted with a slash (unmuted in listen mode); when unmuted new coach messages are read aloud without code, links or technical lines; chips are verbalized in listen mode and a spoken "build it / questions / more ideas" triggers the matching chip.
+- **DS-SPEC-6:** on a watch-sized screen only status, talk, speaker, chips, Open app and Share app are shown; Share app offers the system share sheet or WhatsApp / Email / Messages.
+
+### G. Open questions (owner to confirm; recommendation first)
+- **Q1** Where do engine/model and web on/off live once the coach switch is gone? *Recommend: Config → Advanced.*
+- **Q2** Listen mode: tap-to-talk, or hands-free (keeps listening after it speaks)? *Recommend: tap-to-talk first; hands-free as an option later (battery, privacy, accidental triggers).*
+- **Q3** "Open app / Share app" = the project's built app link (not DevStream itself)? *Recommend: yes, the built app; DevStream itself is reached via More.*
+- **Q4** Speaker default on tablet and desktop: muted. *Recommend: muted everywhere except listen mode/watch.*
+- **Q5** Voice language: the device's own language and voice. *Recommend: yes.*
+- **Q6** Max chips: 4 shown, 4 spoken. *Recommend: yes.*
+- **Q7** Existing projects keep their current plan; the five-part question only applies to new projects. *Recommend: yes.*
 
 ---
 

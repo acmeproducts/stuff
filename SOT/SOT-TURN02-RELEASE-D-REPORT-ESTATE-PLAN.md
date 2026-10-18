@@ -257,3 +257,15 @@ Freshness: Connected describes transport only. Separate evidence state Current /
 - Capacity shows Assets + Deficit (red) or Assets + Open (grey), never both; Stored always lists Landed, In play, Open. Landed is subtracted from the target; only in-play assets count.
 - Tap a tile: stats card. Double-tap: open a ▸ folder (locked to that slice colour) or search a leaf. ↑ Up; the breadcrumb path searches the folder. Chip name searches the slice; ✕/+ hides/restores; the top value and the bar follow chips and drill.
 - Search token `#report:flow:{v,s,p,h}`; choices persist per device (`sotFlowUi`).
+
+## Release E — target, landing, roots, duplicates (shipped)
+
+Spec: https://claude.ai/artifact/FE8bwsoWEh4GmLLyLGvfXm (sections A–K).
+
+- TARGET is fingerprinted read-only like any root; anything on it is Landed, and every other copy of that content is Excess.
+- Landing runs only from Land (Search selection or the In play tile) after a confirm screen showing fit or deficit. Copies mirror the full source path (`/mnt/c/...` → `TARGET/c/...`), verify by fingerprint, retry once, never touch sources, stop when the target is full. Pause / Cancel on the TARGET row.
+- Roots screen: TARGET pinned first; dot status (green / yellow live progress / red unreachable on top / grey queued); share bar; drag = Custom order, column tap = sort priority, ⋯ Rescan / Remove (Remove touches nothing on disk).
+- Duplicates screen replaces Search grouping; manual Keep ticks freeze that group; copies on target locked.
+- Top bar: Report · Roots · Search · AI. First run shows Target / AI / GitHub token cards.
+- Gates: `qualify-release-e-target-land.py` (real engine), report-estate browser suite (desktop + phone), plus an end-to-end dry run against a real server with 2,495 files (scan → duplicates → land 735 → report).
+- Out of scope: excess/source disposition, target backup, second target.

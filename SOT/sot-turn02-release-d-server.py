@@ -294,12 +294,167 @@ def target_set(path,label=""):
  roots=volume_roots()
  if not any(p==r or str(p).startswith(str(r).rstrip("/")+"/") for r in roots):raise RuntimeError("TARGET is not on an available volume")
  if not os.access(p,os.R_OK|os.W_OK|os.X_OK):raise RuntimeError("TARGET requires read/write access")
- for z in S.rows("SELECT root FROM sources"):
+ for z in S.rows("SELECT root FROM sources WHERE enabled=1 AND role<>'target'"):
   r=Path(z["root"]).resolve()
-  if p==r or str(p).startswith(str(r).rstrip("/")+"/") or str(r).startswith(str(p).rstrip("/")+"/"):raise RuntimeError("TARGET must not overlap a registered SOURCE Estate root")
+  if p==r or str(p).startswith(str(r).rstrip("/")+"/") or str(r).startswith(str(p).rstrip("/")+"/"):raise RuntimeError("TARGET must not overlap a registered root")
  st=os.statvfs(p);free_bytes=st.f_bavail*st.f_frsize;total_bytes=st.f_blocks*st.f_frsize;cfg={"path":str(p),"label":label or p.name or str(p),"configured_at":time.time(),"registered_free_bytes":free_bytes,"registered_total_bytes":total_bytes};TARGET_FILE.parent.mkdir(parents=True,exist_ok=True);tmp=TARGET_FILE.with_suffix(".tmp");tmp.write_text(json.dumps(cfg));tmp.replace(TARGET_FILE)
  M.event("target_configured","TARGET configured: "+str(p),None,None,"INFO",{"path":str(p),"registered_free_bytes":free_bytes,"registered_total_bytes":total_bytes})
  return {**cfg,"configured":True,"available":True,"free_bytes":free_bytes,"total_bytes":total_bytes}
+# ── Release E: the TARGET is fingerprinted like a root; landing copies in-play assets onto it ──────────
+def overlaps_target(root):
+ t=target_get()
+ if not t.get("configured") or not t.get("path"):return False
+ a=str(Path(t["path"]).resolve()).rstrip("/");b=str(Path(root).resolve()).rstrip("/")
+ return a==b or a.startswith(b+"/") or b.startswith(a+"/")
+def target_source():
+ r=S.rows("SELECT * FROM sources WHERE role='target' AND enabled=1 ORDER BY source_id LIMIT 1");return r[0] if r else None
+def ensure_target_source(keep_old_as_root=False):
+ t=target_get()
+ if not t.get("configured") or not t.get("path"):return None
+ root=str(Path(t["path"]).resolve());now=time.time()
+ for o in S.rows("SELECT source_id,root FROM sources WHERE role='target' AND enabled=1"):
+  if o["root"]==root:continue
+  if keep_old_as_root:S.submit("UPDATE sources SET role='primary',rank=NULL,stale=1 WHERE source_id=?",(o["source_id"],),True)
+  else:
+   S.tx([("UPDATE sources SET enabled=0,deleted_at=?,stale=1 WHERE source_id=?",(now,o["source_id"])),("UPDATE placements SET placement_state='RETIRED',retired_at=? WHERE source_id=? AND placement_state='ACTIVE'",(now,o["source_id"]))],True)
+ ex=S.rows("SELECT source_id,role,enabled FROM sources WHERE root=?",(root,))
+ if ex:
+  sid=ex[0]["source_id"]
+  if ex[0]["role"]!="target" or not ex[0]["enabled"]:
+   S.submit("UPDATE sources SET role='target',enabled=1,deleted_at=NULL,stale=1 WHERE source_id=?",(sid,),True);S.drain(10)
+   q=globals().get("queue_ssot_sync")
+   try:q([sid],"target_change") if q else M.enqueue_info([sid])
+   except Exception as e:M.event("target_scan_queue_error",str(e),None,sid,"ERROR",{})
+ else:
+  estate="TARGET" if not S.rows("SELECT 1 FROM sources WHERE estate='TARGET'") else "TARGET · "+root
+  sid=M.add_source(t.get("label") or Path(root).name or root,root,root,"target",estate)
+  if not globals().get("queue_ssot_sync"):M.enqueue_info([sid])
+ S.drain(10);M.recompute_classifications();S.bump_catalog_revision();return sid
+def target_dest(src_path,target_root):
+ p=str(src_path);mm=re.match(r"^/mnt/([A-Za-z])/(.*)$",p)
+ rel=(mm.group(1).lower()+"/"+mm.group(2)) if mm else p.lstrip("/")
+ return Path(target_root)/rel
+def land_reserve(total):return max(256*1024*1024,int((total or 0)*0.002))
+LAND={"state":"IDLE","job":None,"lock":threading.Lock(),"pause":threading.Event(),"stop":threading.Event()}
+def land_candidates(ids):
+ ids=[str(x) for x in ids or []]
+ if not ids:return []
+ rows=[];tgt=M.target_source_ids()
+ for i in range(0,len(ids),500):
+  ch=ids[i:i+500];rows+=S.rows("SELECT placement_id,source_id,path,size,fingerprint,system_classification FROM placements WHERE placement_state='ACTIVE' AND availability='AVAILABLE' AND fingerprint IS NOT NULL AND system_classification IN ('UNIQUE','KEEP') AND placement_id IN (%s)"%",".join("?"*len(ch)),tuple(ch))
+ ranks=M.source_ranks();rows=[r for r in rows if r["source_id"] not in tgt]
+ rows.sort(key=lambda r:(ranks.get(r["source_id"],1<<30),str(r["path"])))
+ seen=set();out=[]
+ for r in rows:
+  if r["fingerprint"] in seen:continue
+  seen.add(r["fingerprint"]);out.append(r)
+ return out
+def land_preflight(ids):
+ t=target_get()
+ if not t.get("configured"):raise RuntimeError("Set the TARGET first")
+ if not t.get("available"):raise RuntimeError("The TARGET is not reachable")
+ rows=land_candidates(ids);free=int(t.get("free_bytes") or 0);room=max(0,free-land_reserve(t.get("total_bytes")))
+ src={x["source_id"]:x for x in S.rows("SELECT source_id,root FROM sources")};used=0;fit=0;fitb=0;short={}
+ stopped=False
+ for r in rows:
+  sz=int(r["size"] or 0)
+  if not stopped and used+sz<=room:used+=sz;fit+=1;fitb+=sz
+  else:
+   stopped=True;k=r["source_id"];z=short.setdefault(k,{"source_id":k,"root":src.get(k,{}).get("root",k),"files":0,"bytes":0});z["files"]+=1;z["bytes"]+=sz
+ total=sum(int(r["size"] or 0) for r in rows)
+ return {"files":len(rows),"bytes":total,"free_bytes":free,"room_bytes":room,"fits":fitb==total,"deficit_bytes":max(0,total-fitb),"will_land":{"files":fit,"bytes":fitb},"roots_short":list(short.values()),"target":t.get("path")}
+def land_copy(src,dest,fp,pause,stop):
+ tmp=dest.with_name(dest.name+".sotpart");h=hashlib.sha256()
+ try:
+  with open(src,"rb") as f,open(tmp,"wb") as o:
+   while True:
+    while pause.is_set() and not stop.is_set():time.sleep(.2)
+    if stop.is_set():raise RuntimeError("cancelled")
+    b=f.read(1024*1024)
+    if not b:break
+    h.update(b);o.write(b);LAND["job"]["bytes_done"]+=len(b)
+   o.flush();os.fsync(o.fileno())
+  # read back what landed and compare with the source fingerprint
+  v=hashlib.sha256()
+  with open(tmp,"rb") as f:
+   for b in iter(lambda:f.read(1024*1024),b""):v.update(b)
+  if h.hexdigest()!=fp or v.hexdigest()!=fp:raise ValueError("fingerprint mismatch")
+  try:shutil.copystat(src,tmp)
+  except OSError:pass
+  os.replace(tmp,dest);return True
+ finally:
+  try:
+   if tmp.exists():tmp.unlink()
+  except OSError:pass
+def land_free_name(dest,fp):
+ if not dest.exists():return dest,False
+ try:
+  h=hashlib.sha256()
+  with open(dest,"rb") as f:
+   for b in iter(lambda:f.read(1024*1024),b""):h.update(b)
+  if h.hexdigest()==fp:return dest,True
+ except OSError:pass
+ i=2
+ while True:
+  c=dest.with_name(dest.stem+" (%d)"%i+dest.suffix)
+  if not c.exists():return c,False
+  i+=1
+def land_record(tsid,dest,fp,src_row):
+ st=os.stat(dest);now=time.time();d=str(dest);pid=hashlib.sha256((tsid+"\0"+d).encode()).hexdigest()
+ old=S.rows("SELECT placement_id FROM placements WHERE source_id=? AND path=?",(tsid,d))
+ if old:S.submit("UPDATE placements SET fingerprint=?,content_id=?,size=?,modified=?,lifecycle='HASHED',availability='AVAILABLE',placement_state='ACTIVE',retired_at=NULL,error_detail=NULL,last_verified=? WHERE placement_id=?",(fp,fp,st.st_size,st.st_mtime,now,old[0]["placement_id"]),True)
+ else:S.submit("INSERT INTO placements(placement_id,placement_no,job_id,revision,source_id,estate,path,filename,extension,size,modified,scanned_at,fingerprint,content_id,lifecycle,availability,role,last_verified) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,'HASHED','AVAILABLE','target',?)",(pid,M.alloc_no(),"land:"+LAND["job"]["id"],0,tsid,"TARGET",d,dest.name,dest.suffix.lower(),st.st_size,st.st_mtime,now,fp,fp,now),True)
+def land_run(rows,room):
+ j=LAND["job"];t=target_get();troot=t["path"];tsid=ensure_target_source()
+ clean=bool(S.rows("SELECT 1 FROM sources WHERE source_id=? AND stale=0",(tsid,)))
+ try:
+  used=0
+  for r in rows:
+   if LAND["stop"].is_set():break
+   sz=int(r["size"] or 0)
+   if used+sz>room:j["stopped_full"]=True;break
+   j["current"]=r["path"];dest=target_dest(r["path"],troot)
+   try:
+    dest.parent.mkdir(parents=True,exist_ok=True);dest,same=land_free_name(dest,r["fingerprint"])
+    if not same:
+     try:land_copy(r["path"],dest,r["fingerprint"],LAND["pause"],LAND["stop"])
+     except ValueError:land_copy(r["path"],dest,r["fingerprint"],LAND["pause"],LAND["stop"])
+    else:j["bytes_done"]+=sz
+    land_record(tsid,dest,r["fingerprint"],r);used+=sz;j["files_done"]+=1
+    if j["files_done"]%200==0:M.recompute_classifications();S.bump_catalog_revision()
+   except Exception as e:
+    if LAND["stop"].is_set():break
+    j["errors"].append({"path":r["path"],"error":str(e)});M.event("land_file_error",str(e),None,r["source_id"],"ERROR",{"path":r["path"]})
+  j["state"]="CANCELLED" if LAND["stop"].is_set() else "COMPLETED"
+ except Exception as e:j["state"]="FAILED";j["error"]=str(e)
+ finally:
+  j["ended"]=time.time();j["current"]=None;LAND["state"]="IDLE"
+  try:M.recompute_classifications();S.bump_catalog_revision()
+  except Exception:pass
+  # SOT made these changes itself, so the TARGET's staleness baseline moves with them
+  if clean:
+   try:S.drain(10);M.refresh_source_baseline(tsid);S.drain(10)
+   except Exception:pass
+  M.event("land_finished","Landing "+j["state"].lower(),None,None,"INFO",{k:v for k,v in j.items() if k!="errors"}|{"errors":len(j["errors"])})
+def land_start(ids):
+ with LAND["lock"]:
+  if LAND["state"]=="RUNNING":raise RuntimeError("Landing is already running")
+  pf=land_preflight(ids);rows=land_candidates(ids)
+  LAND["pause"].clear();LAND["stop"].clear()
+  LAND["job"]={"id":uuid.uuid4().hex[:12],"state":"RUNNING","started":time.time(),"ended":None,"files":pf["will_land"]["files"],"bytes":pf["will_land"]["bytes"],"files_done":0,"bytes_done":0,"current":None,"errors":[],"paused":False,"stopped_full":False}
+  LAND["state"]="RUNNING";M.event("land_started","Landing started by the owner",None,None,"INFO",{"files":pf["will_land"]["files"],"bytes":pf["will_land"]["bytes"]})
+  threading.Thread(target=land_run,args=(rows,pf["room_bytes"]),daemon=True,name="sot-land").start()
+  return land_status()
+def land_control(action):
+ a=str(action or "").lower();j=LAND["job"]
+ if not j or LAND["state"]!="RUNNING":raise RuntimeError("Nothing is landing")
+ if a=="pause":LAND["pause"].set();j["paused"]=True
+ elif a=="resume":LAND["pause"].clear();j["paused"]=False
+ elif a=="cancel":LAND["stop"].set();LAND["pause"].clear()
+ else:raise RuntimeError("action must be pause, resume or cancel")
+ return land_status()
+def land_status():
+ j=LAND["job"];return {"state":LAND["state"],"job":({k:v for k,v in j.items() if k!="errors"}|{"errors":j["errors"][-50:],"error_count":len(j["errors"])}) if j else None}
 def creation_backfill():
  rows=S.rows("SELECT placement_id,path FROM placements WHERE created IS NULL AND availability='AVAILABLE' AND path LIKE '/mnt/%'")
  if not rows:return {"eligible":0,"attempted":0,"updated":0,"unavailable":0,"conversion_failed":0,"lookup_failed":0,"revision":creation_revision(),"failures":[]}
@@ -388,7 +543,7 @@ def check_source_ids(source_ids,reason):
    if sid in SOURCE_CHECK_RUNNING:continue
    SOURCE_CHECK_RUNNING.add(sid)
   try:
-   z=M.check_source_metadata(sid);checked.append(sid)
+   (globals().get("trace") or (lambda m:None))("check root "+str(sid));z=M.check_source_metadata(sid);checked.append(sid)
    if z.get("changed"):changed.append(sid)
   except Exception as e:
    errors.append({"source_id":sid,"error":str(e)})
@@ -405,13 +560,19 @@ def schedule_source_check(source_ids,reason):
  return {"scheduled":len(ids),"source_ids":ids}
 
 def startup_source_check():
- time.sleep(.5)
+ tr=globals().get("trace") or (lambda m:None)
+ time.sleep(.5);tr("start: registering the TARGET")
+ try:ensure_target_source()
+ except Exception as e:M.event("target_source_error",str(e),None,None,"ERROR",{});tr("start: TARGET error "+str(e))
  ids=[x["source_id"] for x in S.rows("SELECT source_id FROM sources WHERE enabled=1 ORDER BY source_id")]
+ tr("start: checking "+str(len(ids))+" roots for changes")
  schedule_source_check(ids,"startup")
 def source_status_rows(include_deleted=True):
  rows=S.rows("SELECT * FROM sources ORDER BY enabled DESC,CASE WHEN rank IS NULL THEN 1 ELSE 0 END,rank,root") if include_deleted else S.rows("SELECT * FROM sources WHERE enabled=1 ORDER BY CASE WHEN rank IS NULL THEN 1 ELSE 0 END,rank,root")
  out=[]
  for src in rows:
+  try:reach=os.path.isdir(src["root"]) and os.access(src["root"],os.R_OK|os.X_OK)
+  except OSError:reach=False
   last=S.rows("""SELECT j.job_id,j.revision,j.state job_state,j.started,j.ended,
                        js.state source_state,js.producer_state,js.discovered_files,js.discovered_bytes,
                        js.hashed_files,js.hashed_bytes,js.errors,js.current_folder,js.current_file,js.last_progress
@@ -425,7 +586,7 @@ def source_status_rows(include_deleted=True):
   latest_error=S.rows("""SELECT ts,message,event_type FROM events
                         WHERE source_id=? AND severity='ERROR'
                         ORDER BY ts DESC,event_id DESC LIMIT 1""",(src["source_id"],))
-  z=dict(src);lr=last[0] if last else None;ok=success[0] if success else None;er=latest_error[0] if latest_error else None
+  z=dict(src);z["reachable"]=bool(reach);lr=last[0] if last else None;ok=success[0] if success else None;er=latest_error[0] if latest_error else None
   if lr:
    z.update({"last_job_id":lr["job_id"],"last_revision":lr["revision"],"last_job_state":lr["job_state"],"last_source_state":lr["source_state"],
              "last_producer_state":lr["producer_state"],"last_started":lr["started"],"last_ended":lr["ended"],
@@ -455,12 +616,12 @@ def plan_summary():
  rows=S.rows("SELECT placement_id,size,system_classification FROM placements WHERE placement_state='ACTIVE' AND availability='AVAILABLE' AND fingerprint IS NOT NULL")
  def agg(cls):
   a=[r for r in rows if r["system_classification"]==cls];return {"files":len(a),"bytes":sum(int(r["size"] or 0) for r in a)}
- unique=agg("UNIQUE");keep=agg("KEEP");excess=agg("EXCESS")
+ unique=agg("UNIQUE");keep=agg("KEEP");excess=agg("EXCESS");landed_cls=agg("LANDED")
  estate={"files":unique["files"]+keep["files"]+excess["files"],"bytes":unique["bytes"]+keep["bytes"]+excess["bytes"]}
  retained={"files":unique["files"]+keep["files"],"bytes":unique["bytes"]+keep["bytes"]}
  t=target_get();target=int(t.get("free_bytes") or t.get("registered_free_bytes") or 0) if t.get("configured") else 0
  open_bytes=target-retained["bytes"] if t.get("configured") else 0
- landed={"files":0,"bytes":0};inplay={"files":retained["files"],"bytes":retained["bytes"]}
+ landed=landed_cls;inplay={"files":retained["files"],"bytes":retained["bytes"]}
  pending=[x for x in source_status_rows(False) if x.get("pending")]
  return {"analysis":{"unique":unique,"keep":keep,"excess":excess,"estate":estate},
          "capacity":{"estate":retained,"open":{"files":None,"bytes":open_bytes},"target":{"files":None,"bytes":target},"configured":bool(t.get("configured"))},
@@ -659,6 +820,7 @@ class H(BaseHTTPRequestHandler):
    if p=="/api/events":return self.sendj({"ok":True,"events":S.rows("SELECT * FROM events ORDER BY event_id DESC LIMIT 500")})
    if p=="/api/diagnostics":return self.sendj({"ok":True,"summary":diagnostic_summary(),"log_path":str(S.log_path),"repo_path":str(DIAG_REPO_DIR)})
    if p=="/api/target":return self.sendj({"ok":True,"target":target_get()})
+   if p=="/api/land/status":return self.sendj({"ok":True,"land":land_status()})
    if p=="/api/plan":return self.sendj({"ok":True,"plan":plan_summary()})
    if p=="/api/placements":return self.sendj({"ok":True,"catalog_revision":catalog_revision(),"placements":S.rows("SELECT * FROM placements WHERE placement_state=\'ACTIVE\' ORDER BY placement_no LIMIT 10000")})
    if p=="/api/ai/tasks":
@@ -751,8 +913,14 @@ class H(BaseHTTPRequestHandler):
     if not root:raise RuntimeError("volume root required")
     ids=source_ids_on_volume(root);z=schedule_source_check(ids,"volume_select");return self.sendj({"ok":True,**z})
    if p=="/api/sources":
-    root=reconcile_windows_path(b["root"],False);sid=M.add_source(b["label"],root,b.get("failure_domain",root),b.get("role","primary"),b.get("estate"));M.event("source_registered","Estate source registered",None,sid,"INFO",{"root":root,"estate":b.get("estate") or b.get("label")});S.drain(10);return self.sendj({"ok":True,"source_id":sid,"source":next((x for x in source_status_rows() if x["source_id"]==sid),None)})
-   if p=="/api/target":return self.sendj({"ok":True,"target":target_set(b["path"],b.get("label",""))})
+    root=reconcile_windows_path(b["root"],False)
+    if overlaps_target(root):raise RuntimeError("That folder is the TARGET or inside it; it is already tracked as the TARGET")
+    sid=M.add_source(b["label"],root,b.get("failure_domain",root),b.get("role","primary"),b.get("estate"));M.event("source_registered","Estate source registered",None,sid,"INFO",{"root":root,"estate":b.get("estate") or b.get("label")});S.drain(10);return self.sendj({"ok":True,"source_id":sid,"source":next((x for x in source_status_rows() if x["source_id"]==sid),None)})
+   if p=="/api/target":
+    z=target_set(b["path"],b.get("label",""));ensure_target_source(bool(b.get("keep_old_as_root")));return self.sendj({"ok":True,"target":z,"sources":source_status_rows(include_deleted=True)})
+   if p=="/api/land/preflight":return self.sendj({"ok":True,"preflight":land_preflight(b.get("placement_ids") or [])})
+   if p=="/api/land/start":return self.sendj({"ok":True,"land":land_start(b.get("placement_ids") or [])})
+   if p=="/api/land/control":return self.sendj({"ok":True,"land":land_control(b.get("action"))})
    if p=="/api/creation/backfill":return self.sendj({"ok":True,"result":creation_backfill()})
    if p=="/api/folders/create":
     parent=Path(reconcile_windows_path(b["parent"],True)).resolve();name=str(b["name"]).strip()
@@ -767,6 +935,7 @@ class H(BaseHTTPRequestHandler):
     ids=[];created=[]
     for item in roots:
      raw=item if isinstance(item,dict) else {"root":item};root=reconcile_windows_path(raw.get("root",""),False)
+     if overlaps_target(root):raise RuntimeError("That folder is the TARGET or inside it; it is already tracked as the TARGET")
      existing=S.rows("SELECT source_id,enabled FROM sources WHERE root=?",(root,))
      if existing:
       if not existing[0]["enabled"]:raise RuntimeError("Source is soft deleted; restore it from Analyze → Sources before launching work")
@@ -782,7 +951,13 @@ class H(BaseHTTPRequestHandler):
    if p=="/api/placement/keep":
     rows=M.set_keep(str(b.get("placement_id","")),bool(b.get("keep")));return self.sendj({"ok":True,"group":rows,"catalog_revision":catalog_revision()})
    if p=="/api/source/control":
-    sid=str(b.get("source_id",""));M.source_control(sid,str(b.get("action","")));return self.sendj({"ok":True,"source":next((x for x in source_status_rows(include_deleted=True) if x["source_id"]==sid),None),"sources":source_status_rows(include_deleted=True)})
+    sid=str(b.get("source_id",""));act=str(b.get("action","")).lower()
+    if act in ("rescan","retry"):
+     if not S.rows("SELECT 1 FROM sources WHERE source_id=? AND enabled=1",(sid,)):raise RuntimeError("source not found")
+     S.submit("UPDATE sources SET stale=1 WHERE source_id=?",(sid,),True);reconcile_sources([sid]);M.enqueue_info([sid]);M.event("source_rescan","Rescan requested by the owner",None,sid,"INFO",{})
+    elif act in ("remove",):M.source_control(sid,"soft-delete")
+    else:M.source_control(sid,act)
+    return self.sendj({"ok":True,"source":next((x for x in source_status_rows(include_deleted=True) if x["source_id"]==sid),None),"sources":source_status_rows(include_deleted=True)})
    if p=="/api/job/restart":
     info=M.restart_info(str(b.get("job_id","")));jid=info.get("job_id");return self.sendj({"ok":True,**info,"job":M.snapshot(jid) if jid else None,"scheduler":M.scheduler_status()})
    if p=="/api/diagnostics/snapshot":return self.sendj({"ok":True,"bundle":create_diagnostic_bundle()})

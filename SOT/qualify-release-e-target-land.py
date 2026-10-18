@@ -1,0 +1,124 @@
+#!/usr/bin/env python3
+"""Release E engine gate: the TARGET is fingerprinted, landed content wins, landing copies and verifies, deficits stop, target edits revert."""
+import importlib.util,json,os,sys,tempfile,time
+from pathlib import Path
+HERE=Path(__file__).resolve().parent
+def load(name,path):
+ sp=importlib.util.spec_from_file_location(name,path);m=importlib.util.module_from_spec(sp);sys.modules[name]=m;sp.loader.exec_module(m);return m
+def wait_jobs(M,S,timeout=60):
+ end=time.time()+timeout
+ while time.time()<end:
+  live=S.rows("SELECT COUNT(*) n FROM jobs WHERE state IN ('QUEUED','RUNNING','PAUSED','STOPPING')")[0]["n"]
+  if not live:return
+  time.sleep(.05)
+ raise RuntimeError("job timeout")
+def scan(M,S,ids):M.enqueue_info(ids);wait_jobs(M,S)
+def wait_land(srv,timeout=60):
+ end=time.time()+timeout
+ while time.time()<end:
+  if srv.land_status()["state"]=="IDLE":return srv.land_status()["job"]
+  time.sleep(.05)
+ raise RuntimeError("land timeout")
+old=os.environ.get("HOME")
+try:
+ with tempfile.TemporaryDirectory() as td:
+  home=Path(td);os.environ["HOME"]=str(home)
+  srv=load("release_e_fixture",HERE/"sot-turn02-release-d-server.py");M,S=srv.M,srv.S
+  a=home/"a";b=home/"b";t=home/"t";t2=home/"t2"
+  for d in (a,b,t,t2,a/"sub"):d.mkdir(parents=True)
+  (a/"old.jpg").write_text("landed before SOT");(t/"old.jpg").write_text("landed before SOT")
+  (a/"one.txt").write_text("unique one");(a/"sub"/"two.txt").write_text("dup two");(b/"two.txt").write_text("dup two");(b/"three.bin").write_text("x"*5000)
+  srv.TARGET_FILE.parent.mkdir(parents=True,exist_ok=True);srv.TARGET_FILE.write_text(json.dumps({"path":str(t),"label":"T"}))
+  sa=M.add_source("A",str(a),"d1",estate="A");sb=M.add_source("B",str(b),"d2",estate="B");tsid=srv.ensure_target_source()
+  scan(M,S,[sa,sb,tsid]);M.set_source_rank([sa,sb])
+  def row(p):
+   r=S.rows("SELECT * FROM placements WHERE path=? AND placement_state='ACTIVE'",(str(p),));return r[0] if r else None
+  cls=lambda p:(row(p) or {}).get("system_classification")
+  assert S.rows("SELECT role FROM sources WHERE source_id=?",(tsid,))[0]["role"]=="target"
+  assert cls(t/"old.jpg")=="LANDED" and cls(a/"old.jpg")=="EXCESS",(cls(t/"old.jpg"),cls(a/"old.jpg"))
+  print("PASS the TARGET is fingerprinted read-only; a file already on it is Landed and every source copy of it is Excess")
+  try:M.set_keep(row(a/"old.jpg")["placement_id"],True);raise SystemExit("FAIL keep on landed content was allowed")
+  except RuntimeError:pass
+  print("PASS a Keep tick cannot pull already-landed content back into play")
+  assert srv.overlaps_target(str(t)) and srv.overlaps_target(str(t/"x")) and not srv.overlaps_target(str(a))
+  print("PASS a folder that is the TARGET (or inside it) cannot be added as a root")
+  ids=[r["placement_id"] for r in S.rows("SELECT placement_id FROM placements WHERE placement_state='ACTIVE' AND system_classification IN ('UNIQUE','KEEP')")]
+  pf=srv.land_preflight(ids);assert pf["fits"] and pf["files"]==3 and pf["deficit_bytes"]==0,pf
+  print("PASS preflight: %d files, %d bytes, fits, nothing short"%(pf["files"],pf["bytes"]))
+  # collision: a different file already sits where one.txt would land
+  dest_one=srv.target_dest(str(a/"one.txt"),str(t));dest_one.parent.mkdir(parents=True,exist_ok=True);dest_one.write_text("someone else's file")
+  srv.land_start(ids);j=wait_land(srv);assert j["state"]=="COMPLETED" and j["files_done"]==3 and not j["errors"],j
+  assert (dest_one.parent/"one (2).txt").read_text()=="unique one" and dest_one.read_text()=="someone else's file"
+  assert srv.target_dest(str(b/"three.bin"),str(t)).read_text()=="x"*5000
+  assert not list(t.rglob("*.sotpart"))
+  print("PASS landing copies to the mirrored path, verifies the fingerprint, keeps a different same-named file and adds \" (2)\"")
+  for p in (a/"one.txt",a/"sub"/"two.txt",b/"two.txt",b/"three.bin"):assert cls(p)=="EXCESS",(p,cls(p))
+  assert (a/"one.txt").read_text()=="unique one" and (b/"three.bin").exists()
+  print("PASS after landing every source copy is Excess and the sources are untouched")
+  ids2=[r["placement_id"] for r in S.rows("SELECT placement_id FROM placements WHERE placement_state='ACTIVE' AND system_classification IN ('UNIQUE','KEEP')")];assert not ids2,ids2
+  # TARGET edits revert: delete a landed file on the target and rescan it
+  srv.target_dest(str(b/"three.bin"),str(t)).unlink();scan(M,S,[tsid])
+  assert cls(b/"three.bin")=="UNIQUE",cls(b/"three.bin")
+  print("PASS a file deleted on the TARGET stops being Landed and its source copy goes back in play")
+  # deficit: land with almost no room
+  (b/"big.bin").write_text("y"*4000);(a/"small.txt").write_text("s");scan(M,S,[sa,sb])
+  ids=[r["placement_id"] for r in S.rows("SELECT placement_id FROM placements WHERE placement_state='ACTIVE' AND system_classification IN ('UNIQUE','KEEP')")]
+  real=srv.target_get;srv.land_reserve=lambda total:0
+  srv.target_get=lambda:{**real(),"free_bytes":100,"total_bytes":10**9}
+  pf=srv.land_preflight(ids);assert not pf["fits"] and pf["will_land"]["files"]==1 and [r["source_id"] for r in pf["roots_short"]]==[sb],pf
+  print("PASS preflight with a deficit: lands in priority order, lists exactly the roots that will not make it")
+  srv.land_start(ids);j=wait_land(srv);assert j["state"]=="COMPLETED" and j["stopped_full"] and j["files_done"]==1,j
+  assert cls(a/"small.txt")=="EXCESS" and cls(b/"big.bin")=="UNIQUE"
+  print("PASS landing stops when the TARGET is full and keeps what already landed")
+  srv.target_get=real
+  # change target, keeping the old one as a root
+  srv.TARGET_FILE.write_text(json.dumps({"path":str(t2),"label":"T2"}));nt=srv.ensure_target_source(keep_old_as_root=True)
+  roles={r["root"]:r["role"] for r in S.rows("SELECT root,role FROM sources WHERE enabled=1")}
+  assert roles[str(t2)]=="target" and roles[str(t)]=="primary",roles
+  scan(M,S,[nt]);assert cls(a/"old.jpg")=="KEEP" and cls(t/"old.jpg")=="EXCESS",(cls(a/"old.jpg"),cls(t/"old.jpg"))
+  print("PASS change target: the new folder becomes the TARGET, the old one stays as a root, everything recalculates")
+  # change target to a new, empty volume: everything landed on the old one goes back in play
+  t3=home/"t3";t3.mkdir();srv.TARGET_FILE.write_text(json.dumps({"path":str(t3),"label":"T3"}));nt3=srv.ensure_target_source(keep_old_as_root=False);wait_jobs(M,S)
+  assert S.rows("SELECT role FROM sources WHERE source_id=?",(nt3,))[0]["role"]=="target" and not S.rows("SELECT 1 FROM sources WHERE root=? AND enabled=1",(str(t2),))
+  assert not S.rows("SELECT 1 FROM placements WHERE system_classification='LANDED' AND placement_state='ACTIVE'"),"nothing is landed on an empty new target"
+  assert not S.rows("SELECT 1 FROM placements WHERE source_id=? AND placement_state='ACTIVE' AND system_classification='EXCESS' AND fingerprint NOT IN (SELECT fingerprint FROM placements WHERE placement_state='ACTIVE' AND source_id<>? GROUP BY fingerprint HAVING COUNT(*)>0)",(sa,sa))
+  assert cls(a/"one.txt") in ("UNIQUE","KEEP"),cls(a/"one.txt")
+  assert S.rows("SELECT 1 FROM job_sources WHERE source_id=?",(nt3,)),"the new target is scanned"
+  print("PASS change target to an empty volume: the new target is scanned, landed files go back in play")
+  # moving to a target that was already a root: it is rescanned as the target
+  srv.TARGET_FILE.write_text(json.dumps({"path":str(t),"label":"T"}));nt4=srv.ensure_target_source(keep_old_as_root=True);wait_jobs(M,S)
+  jobs=S.rows("SELECT COUNT(*) n FROM job_sources WHERE source_id=?",(nt4,))[0]["n"];assert jobs>=2,jobs
+  print("PASS a root promoted to TARGET is rescanned")
+  # TARGET staleness: a cheap volume check first; files are listed only when it fails
+  # (the TARGET sits on its own volume here, as it does in real use; the test database lives elsewhere)
+  shm=Path(tempfile.mkdtemp(dir="/dev/shm"));(shm/"kept.txt").write_text("already here")
+  srv.TARGET_FILE.write_text(json.dumps({"path":str(shm),"label":"SHM"}));nt4=srv.ensure_target_source(keep_old_as_root=True);wait_jobs(M,S);t=shm
+  walk=M.metadata_signature;calls=[]
+  def spy(sid):calls.append(sid);return walk(sid)
+  M.metadata_signature=spy
+  r=M.check_source_metadata(nt4);assert r.get("quick") and not r["changed"] and not calls,(r,calls)
+  (t/"new-outside-sot.txt").write_text("dropped onto the target by hand");r=M.check_source_metadata(nt4)
+  assert r["changed"] and calls==[nt4],(r,calls)
+  wait_jobs(M,S);srv.check_source_ids([nt4],"test")
+  scan(M,S,[nt4]);calls.clear();r=M.check_source_metadata(nt4);assert r.get("quick") and not calls,(r,calls)
+  pid=S.rows("SELECT placement_id FROM placements WHERE source_id=? AND placement_state='ACTIVE' AND system_classification IN ('UNIQUE','KEEP') LIMIT 1",(sa,))[0]["placement_id"]
+  srv.land_start([pid]);j=wait_land(srv);assert j["state"]=="COMPLETED" and j["files_done"]==1,j
+  calls.clear();r=M.check_source_metadata(nt4);assert r.get("quick") and not r["changed"] and not calls,(r,calls)
+  print("PASS files SOT lands itself do not make the TARGET look stale")
+  M.metadata_signature=walk;import shutil as _sh;_sh.rmtree(shm,ignore_errors=True)
+  print("PASS TARGET staleness: unchanged volume skips the file listing; a change is detected and rescanned")
+  # target size up or down: capacity follows the live free space every time it is read
+  base=srv.plan_summary()["capacity"]
+  srv.target_get=lambda:{**real(),"free_bytes":10**6,"total_bytes":2*10**6};small=srv.plan_summary()["capacity"]
+  srv.target_get=lambda:{**real(),"free_bytes":10**12,"total_bytes":2*10**12};big=srv.plan_summary()["capacity"];srv.target_get=real
+  assert small["target"]["bytes"]<big["target"]["bytes"] and small["open"]["bytes"]<big["open"]["bytes"],(small,big)
+  print("PASS target size up or down: capacity and open/deficit recalculate from the live free space")
+  # remove a root: its files leave every view, nothing on disk is touched
+  M.source_control(sb,"soft-delete")
+  assert not S.rows("SELECT 1 FROM placements WHERE source_id=? AND placement_state='ACTIVE'",(sb,)) and (b/"big.bin").exists()
+  print("PASS removing a root drops its files from SOT and leaves the disk alone")
+  import shutil;shutil.rmtree(a/"sub");a2=home/"gone";a2.mkdir();sg=M.add_source("G",str(a2),"d3",estate="G");a2.rmdir()
+  st={x["source_id"]:x for x in srv.source_status_rows(False)};assert st[sg]["reachable"] is False and st[sa]["reachable"] is True
+  print("PASS each root reports whether it can be reached")
+finally:
+ if old is not None:os.environ["HOME"]=old

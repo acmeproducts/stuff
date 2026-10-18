@@ -47,7 +47,8 @@ class Store:
    "metadata_checked":"REAL",
    "stale":"INTEGER NOT NULL DEFAULT 0",
    "deleted_at":"REAL",
-   "rank":"INTEGER"
+   "rank":"INTEGER",
+   "quick_signature":"TEXT"
   }
   for name,decl in source_additions.items():
    if name not in source_cols:c.execute(f"ALTER TABLE sources ADD COLUMN {name} {decl}")
@@ -397,21 +398,28 @@ class Manager:
   with self.seq_lock:
    n=self.next_no;self.next_no+=1;return n
  def source_ranks(self):
-  rows=self.s.rows("SELECT source_id,root,rank FROM sources ORDER BY CASE WHEN rank IS NULL THEN 1 ELSE 0 END,rank,root")
+  rows=self.s.rows("SELECT source_id,root,rank FROM sources WHERE role<>'target' ORDER BY CASE WHEN rank IS NULL THEN 1 ELSE 0 END,rank,root")
   return {r["source_id"]:i for i,r in enumerate(rows)}
  @staticmethod
  def keep_order(r,ranks):
   # landed copy first, then highest-ranked root, then shortest path, then path
   path=str(r["path"] or "")
   return (0 if str(r["plan"] or "").upper()=="LANDED" else 1,ranks.get(r["source_id"],1<<30),len(path),path)
+ def target_source_ids(self):
+  return {r["source_id"] for r in self.s.rows("SELECT source_id FROM sources WHERE role='target' AND enabled=1")}
  def recompute_classifications(self):
   rows=self.s.rows("SELECT placement_id,placement_no,fingerprint,source_id,path,plan,keep_override FROM placements WHERE placement_state='ACTIVE' AND availability='AVAILABLE' AND fingerprint IS NOT NULL ORDER BY fingerprint,placement_no")
-  ranks=self.source_ranks();groups={}
+  ranks=self.source_ranks();groups={};tgt=self.target_source_ids()
   for r in rows:groups.setdefault(r["fingerprint"],[]).append(r)
   stmts=[("UPDATE placements SET system_classification=NULL,duplicate_group=NULL,duplicate_cardinality=NULL WHERE placement_state<>'ACTIVE' OR availability<>'AVAILABLE' OR fingerprint IS NULL",()),
          ("UPDATE placements SET system_classification=NULL,duplicate_group=NULL,duplicate_cardinality=NULL WHERE placement_state='ACTIVE' AND availability='AVAILABLE' AND fingerprint IS NOT NULL",())]
   for fp,items in groups.items():
    n=len(items)
+   # content already on the TARGET is Landed; every source copy of it is Excess, whatever the priority or a manual tick
+   if any(r["source_id"] in tgt for r in items):
+    group=fp[:16] if n>1 else None
+    for r in items:stmts.append(("UPDATE placements SET system_classification=?,duplicate_group=?,duplicate_cardinality=? WHERE placement_id=?",("LANDED" if r["source_id"] in tgt else "EXCESS",group,n,r["placement_id"])))
+    continue
    if n==1:
     cls="EXCESS" if items[0]["keep_override"]==0 else "UNIQUE"
     stmts.append(("UPDATE placements SET system_classification=?,duplicate_cardinality=1 WHERE placement_id=?",(cls,items[0]["placement_id"])));continue
@@ -426,7 +434,7 @@ class Manager:
   ids=[str(x) for x in order or []];known={r["source_id"] for r in self.s.rows("SELECT source_id FROM sources")}
   bad=[x for x in ids if x not in known]
   if bad:raise RuntimeError("unknown source: "+bad[0])
-  rest=[r["source_id"] for r in self.s.rows("SELECT source_id FROM sources ORDER BY CASE WHEN rank IS NULL THEN 1 ELSE 0 END,rank,root") if r["source_id"] not in ids]
+  rest=[r["source_id"] for r in self.s.rows("SELECT source_id FROM sources WHERE role<>'target' ORDER BY CASE WHEN rank IS NULL THEN 1 ELSE 0 END,rank,root") if r["source_id"] not in ids]
   self.s.tx([("UPDATE sources SET rank=? WHERE source_id=?",(i,sid)) for i,sid in enumerate(ids+rest)],True)
   z=self.recompute_classifications();self.s.bump_catalog_revision();self.event("source_rank","Source priority changed",None,None,"INFO",{"order":ids+rest});return z
  def set_keep(self,placement_id,keep):
@@ -435,6 +443,7 @@ class Manager:
   fp=row[0]["fingerprint"]
   if not fp:raise RuntimeError("placement has no fingerprint yet")
   group=self.s.rows("SELECT placement_id,system_classification,keep_override FROM placements WHERE fingerprint=? AND placement_state='ACTIVE' AND availability='AVAILABLE'",(fp,))
+  if any(g["system_classification"]=="LANDED" for g in group):raise RuntimeError("This content is already on the TARGET; its other copies stay Excess")
   stmts=[]
   # first manual touch freezes the group as currently shown, so later re-ranks never change it
   for g in group:
@@ -480,10 +489,19 @@ class Manager:
   lines.sort();h=hashlib.sha256()
   for line in lines:h.update(line)
   return {"v":2,"digest":h.hexdigest(),"files":count,"bytes":total,"newest_mtime":newest}
+ def quick_signature(self,root):
+  # volume-level staleness for the TARGET: used space on the volume plus the folder's own timestamp; no file listing
+  st=os.statvfs(root);return {"used":int((st.f_blocks-st.f_bfree)*st.f_frsize),"mtime":repr(float(os.stat(root).st_mtime))}
  def check_source_metadata(self,source_id):
   src=self.s.rows("SELECT * FROM sources WHERE source_id=? AND enabled=1",(source_id,))
   if not src:return {"source_id":source_id,"checked":False,"reason":"not enabled"}
   src=src[0]
+  if src["role"]=="target" and src["quick_signature"] and not src["stale"] and src["metadata_signature"]:
+   try:quick=self.quick_signature(src["root"])
+   except OSError:quick=None
+   if quick is not None and json.loads(src["quick_signature"])==quick:
+    self.s.submit("UPDATE sources SET metadata_checked=? WHERE source_id=?",(time.time(),source_id),True);self.s.drain(10)
+    return {"source_id":source_id,"checked":True,"changed":False,"quick":True}
   live=self.metadata_signature(source_id)
   baseline=json.loads(src["metadata_signature"]) if src["metadata_signature"] else self.placement_signature(source_id)
   upgrade=False
@@ -497,11 +515,18 @@ class Manager:
    self.s.submit("UPDATE sources SET metadata_signature=?,metadata_checked=?,stale=? WHERE source_id=?",(json.dumps(baseline,sort_keys=True),now,1 if changed else 0,source_id),True)
   else:self.s.submit("UPDATE sources SET metadata_checked=?,stale=? WHERE source_id=?",(now,1 if changed else 0,source_id),True)
   if changed:self.event("source_stale","Source metadata changed; analysis pending",None,source_id,"INFO",{"baseline":baseline,"live":live})
+  elif src["role"]=="target":
+   try:self.s.submit("UPDATE sources SET quick_signature=? WHERE source_id=?",(json.dumps(self.quick_signature(src["root"]),sort_keys=True),source_id),True)
+   except OSError:pass
   self.s.drain(10)
   return {"source_id":source_id,"checked":True,"changed":changed,"baseline":baseline,"live":live}
  def refresh_source_baseline(self,source_id):
   sig=self.placement_signature(source_id);now=time.time()
-  self.s.submit("UPDATE sources SET metadata_signature=?,metadata_checked=?,stale=0 WHERE source_id=?",(json.dumps(sig,sort_keys=True),now,source_id),True)
+  src=self.s.rows("SELECT root,role FROM sources WHERE source_id=?",(source_id,));quick=None
+  if src and src[0]["role"]=="target":
+   try:quick=json.dumps(self.quick_signature(src[0]["root"]),sort_keys=True)
+   except OSError:quick=None
+  self.s.submit("UPDATE sources SET metadata_signature=?,metadata_checked=?,stale=0,quick_signature=? WHERE source_id=?",(json.dumps(sig,sort_keys=True),now,quick,source_id),True)
   return sig
  def add_source(self,label,root,failure_domain,role="primary",estate=None):
   root=str(Path(root).resolve());estate=estate or label
@@ -542,6 +567,7 @@ class Manager:
      self._wait_if_paused(rt)
      if rt["stop"].is_set():break
      p=str(Path(root,name))
+     if name.endswith(".sotpart"):continue
      if self._owner_source(p,rt["owners"])!=sid:continue
      rt["seen"][sid].add(p)
      try:
@@ -698,7 +724,8 @@ class Manager:
   src=rows[0];action=str(action or "").lower();now=time.time()
   if action in ("soft-delete","soft_delete","delete"):
    if not src["enabled"]:return
-   self.s.submit("UPDATE sources SET enabled=0,deleted_at=?,stale=1 WHERE source_id=?",(now,source_id),True);self.event("source_soft_deleted","Source soft deleted",None,source_id,"INFO",{"root":src["root"]});return
+   self.s.tx([("UPDATE sources SET enabled=0,deleted_at=?,stale=1 WHERE source_id=?",(now,source_id)),("UPDATE placements SET placement_state='RETIRED',retired_at=? WHERE source_id=? AND placement_state='ACTIVE'",(now,source_id))],True)
+   self.recompute_classifications();self.s.bump_catalog_revision();self.event("source_soft_deleted","Source removed from SOT; nothing on disk was touched",None,source_id,"INFO",{"root":src["root"]});return
   if action=="restore":
    if src["enabled"]:return
    self.s.submit("UPDATE sources SET enabled=1,deleted_at=NULL,stale=1 WHERE source_id=?",(source_id,),True);self.event("source_restored","Source restored; currentness review required",None,source_id,"INFO",{"root":src["root"]});return

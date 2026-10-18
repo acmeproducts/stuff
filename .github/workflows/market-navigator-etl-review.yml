@@ -1,8 +1,11 @@
 name: Market Navigator ETL candidate checks
 on:
+  push:
+    branches: [market-navigator-etl-selective-20261016]
   pull_request:
     paths:
       - 'market-navigator-etl-schedule.py'
+      - 'market-navigator-etl-*'
       - 'market-navigator-r7-data-pipeline.py'
       - 'test_market_navigator_etl_schedule.py'
       - 'test_market_navigator_etl_integration.py'
@@ -10,6 +13,15 @@ on:
       - '.github/workflows/market-evidence-pipeline.yml'
       - '.github/workflows/market-navigator-etl-review.yml'
   workflow_dispatch:
+    inputs:
+      component:
+        description: 'Retry one canonical component; blank means selective stream'
+        type: string
+        default: ''
+      historical_rebuild:
+        description: 'EXCEPTIONAL: explicitly rebuild historical source baseline'
+        type: boolean
+        default: false
 permissions:
   contents: read
 jobs:
@@ -26,15 +38,73 @@ jobs:
         run: python test_market_navigator_etl_schedule.py
       - name: Run isolated collector integration
         run: python test_market_navigator_etl_integration.py
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Build the integrated existing MNChart application
+        run: python market-navigator-etl-build.py
+      - name: Release integrity, publication, native scheduling and vintage regressions
+        run: python -m unittest test_market_navigator_etl_delivery test_market_navigator_etl_vintage test_market_navigator_etl_release
+      - name: Immutable package loading and corruption rejection
+        run: node --test test_market_navigator_etl_data.cjs
       - name: Verify integrated review controls
         run: |
           python - <<'PY'
           from pathlib import Path
           html=Path('market-navigator-etl-review.html').read_text()
           workflow=Path('.github/workflows/market-evidence-pipeline.yml').read_text()
-          for marker in ('const MNChart=', 'mnEtlConsole','mnEtlRows','market-evidence/run-log.json'):
-              assert marker in html, marker
+          assert 'const MNChart=' in html
+          view=Path('market-navigator-etl-view.js').read_text()
+          for marker in ('mnEtlConsole','mnEtlRows','market-evidence/run-log.json'):
+              assert marker in view, marker
           for marker in ('MARKET_NAVIGATOR_RETRY_COMPONENT','MARKET_NAVIGATOR_RETRY_STREAM','market-navigator-etl-schedule.py'):
               assert marker in workflow, marker
           print('PASS review markup and workflow dispatch contract')
           PY
+  live-source-and-three-level-qualification:
+    if: github.event_name != 'pull_request'
+    needs: checks
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Build one review application
+        run: python market-navigator-etl-build.py
+      - name: Check availability of governed vintage baseline inputs
+        env:
+          MARKET_NAVIGATOR_FRED_API_KEY: ${{ secrets.MARKET_NAVIGATOR_FRED_API_KEY }}
+        run: |
+          python - <<'PY'
+          import os
+          from pathlib import Path
+          available=bool(os.environ.get('MARKET_NAVIGATOR_FRED_API_KEY','').strip())
+          print('Repository FRED/ALFRED credential available:',available)
+          print('Retained ALFRED baseline sidecars present:',Path('market-evidence/vintage/manifest.json').exists())
+          PY
+      - name: Collect, replay and qualify all three levels in staging
+        env:
+          MARKET_NAVIGATOR_FRED_API_KEY: ${{ secrets.MARKET_NAVIGATOR_FRED_API_KEY }}
+          RETRY_COMPONENT: ${{ inputs.component }}
+          HISTORICAL_REBUILD: ${{ inputs.historical_rebuild }}
+        run: |
+          python - <<'PY'
+          import os,subprocess,sys
+          args=[sys.executable,'market-navigator-etl-run.py']
+          component=os.environ.get('RETRY_COMPONENT','')
+          if component: args+=['--component',component]
+          else: args+=['--retry-stream']
+          if os.environ.get('HISTORICAL_REBUILD','').lower()=='true': args+=['--historical-rebuild']
+          subprocess.run(args,check=True)
+          PY
+      - name: Retain actual execution history and review output
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: market-navigator-etl-integrated-review
+          path: market-navigator-etl-review/
+          retention-days: 30

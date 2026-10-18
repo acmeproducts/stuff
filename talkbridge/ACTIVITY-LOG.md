@@ -1,8 +1,6 @@
 # TalkBridge activity log
 
-Who created, joined, called and chatted, one line per event, no message text (relay v6.12, §7.21). Drained 2026-10-16T17:45:59Z. Newest at the bottom. Person = the name typed in the app · device tag; room = its short id.
+Who created, joined, called and chatted, one line per event, no message text (§7.21; relay v6.14). Drained 2026-10-18T01:05:42Z. Newest at the bottom. Person = the name typed in the app, letters and digits only (no name: Guest 1, Guest 2 … per room); room = its short id. Live view: https://acmeproducts.github.io/stuff/talkbridge/dash.html
 
 ```
-2026-10-16 08:52:54  room aqcegw  someone·ciA chat
-2026-10-16 08:52:55  room aqcegw  someone·ciA chat
-2026-10-16 08:53:00  room aqcegw  voice call from someone·ciA — missed```
+```

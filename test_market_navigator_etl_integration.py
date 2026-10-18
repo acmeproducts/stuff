@@ -37,7 +37,7 @@ with tempfile.TemporaryDirectory() as d:
    m.main()
   log=json.loads((root/'market-evidence/run-log.json').read_text())
   assert len(log['runs'])==2
-  assert all(x['status']=='skipped' for x in log['runs'][-1]['components'])
+  assert all(x['status'] in ('skipped','not due') for x in log['runs'][-1]['components'])
  finally:
   os.chdir(old)
 print('PASS isolated component retry, unchanged skipped data, and no-fetch second run')

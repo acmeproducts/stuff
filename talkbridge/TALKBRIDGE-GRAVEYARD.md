@@ -1,7 +1,7 @@
 <!-- v5.8.2.42 -->
 # TALKBRIDGE — THE GRAVEYARD (living; keep in project knowledge)
 ## Approaches PROVEN to fail. Scanned before every change and at every exit condition. Never resurrect.
-**Version: 2.31 | 2026-10-12 | G72 chrome behaviour keyed on an English string at runtime (the missed-pill guard, the label relabel by regex — both broke the moment the words were not English) | Maintained in GitHub by the build process (raw.githubusercontent.com/acmeproducts/stuff/main/talkbridge/TALKBRIDGE-GRAVEYARD.md). Updated on every exit-condition burial.**
+**Version: 2.33 | 2026-10-17 | G73 amended: no device tag in the activity log (owner: "flz is confusing") | Maintained in GitHub by the build process (raw.githubusercontent.com/acmeproducts/stuff/main/talkbridge/TALKBRIDGE-GRAVEYARD.md). Updated on every exit-condition burial.**
 
 
 Each entry: the approach, its failure signature, what replaces it. A change matching a signature is forbidden BEFORE it is attempted — not rediscovered as if new.
@@ -145,6 +145,7 @@ Each entry: the approach, its failure signature, what replaces it. A change matc
 | G70 | 2026-10-10 | The transcription failure counter reset before the audio check (turn 16) |
 | G71 | 2026-10-12 | The presence announce for a state word placed after an early return (relay v6.5, 27·base) |
 | G72 | 2026-10-12 | Chrome behaviour keyed on an English string at runtime (the missed-pill guard by `'Missed '`, the label relabel by `/Room title/i`) |
+| G73 | 2026-10-16 | A typed name and a made-up default written raw into the activity log (`someone·ciA`, relay v6.12) |
 | E134 | 2026-10-07 | Annotation · 2026-10-07: E076's corollary superseded by owner ruling (install optional) |
 
 </details>
@@ -2430,3 +2431,27 @@ could change.
 
 **Buried by.** 29·post-ship localization, candidate 1 (plan v21.96.0 §7.17 Built).
 
+## G73 — 2026-10-16 — A typed name and a made-up default written raw into the activity log (relay v6.12)
+
+**The approach.** Relay v6.12 wrote each person in the activity log as the name
+they typed, a middle dot, and their device tag; a device with no name was
+`someone` + `·` + the last four characters of its id, case and all.
+
+**Failure signature.** The owner's first live dashboard (2026-10-16) showed the
+only person as `someone·ciA`: a made-up word, a symbol, and a mixed-case piece of
+an id. A typed name went in as typed, so spaces, punctuation and emoji would
+have reached the log and the dashboard too.
+
+**Why it fails.** A log line is read by people and parsed by a page; anything a
+person can type, and any symbol we add, makes it harder to read and easier to
+break.
+
+**The rule.** A person in the log is `<Name> <tag>` and nothing else: the name
+keeps letters (with their marks, so Thai stays whole) and digits in any script,
+16 at most; a name with nothing left is `Guest`; the tag is lowercase letters
+and digits; the room is letters and digits; a language that is not a code is
+`unknown`. Relay harness v6.13 L5 holds it; seven mutations guard it.
+
+**Buried by.** 29·post-ship c6, relay v6.13 (plan v21.104.0).
+
+**Amended 2026-10-17 (relay v6.14, plan v21.105.0).** The device tag is gone too (owner: "get rid of flz, is confusing"): a person is the name alone; a person with no name is `Guest 1`, `Guest 2` … numbered per room in the order they first appear, saved the moment it is given. Relay harness v6.14 L5 and L6 hold it.

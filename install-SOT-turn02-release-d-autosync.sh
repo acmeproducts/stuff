@@ -1,14 +1,19 @@
 #!/usr/bin/env bash
 set -Eeuo pipefail
-REF="f5f40043203278292f778b4af015cf4eb30f61c7"
+REF="0584988df22b57bad55c509baaef85359b574db5"
 BASE="https://raw.githubusercontent.com/acmeproducts/stuff/$REF/SOT"
 ROOT="$HOME/.sot-turn02/release-d/SOT"
 UNIT="$HOME/.config/systemd/user/sot-turn02-release-d.service"
 TMP="$(mktemp -d)"
 trap 'rm -rf "$TMP"' EXIT
+LOG="$HOME/.sot-turn02/install-last.log";mkdir -p "$HOME/.sot-turn02"
+exec > >(tee "$LOG") 2>&1
+trap 'echo "FAIL at installer line $LINENO. Full output saved in $LOG"' ERR
 mkdir -p "$ROOT" "$HOME/.config/systemd/user"
-for f in sot-turn02-release-d-engine.py sot-turn02-release-d-autosync.py sot-turn02-release-d.service qualify-release-d-autosync.py sot-turn02-release-d-source-actions.html sot-turn02-release-d-complete.html; do curl -fsSL "$BASE/$f" -o "$TMP/$f"; done
-python3 -m py_compile "$TMP/sot-turn02-release-d-engine.py" "$TMP/sot-turn02-release-d-autosync.py" "$TMP/qualify-release-d-autosync.py"
+export XDG_RUNTIME_DIR="${XDG_RUNTIME_DIR:-/run/user/$(id -u)}"
+SAFE=0;[ -f "$HOME/.sot-turn02/startup.inprogress" ] && SAFE=1
+for f in sot-turn02-release-d-engine.py sot-turn02-release-d-server.py sot-turn02-release-d-ai.py sot-turn02-release-d-autosync.py sot-turn02-release-d.service qualify-release-d-autosync.py sot-turn02-release-d-source-actions.html sot-turn02-release-d-complete.html; do curl -fsSL "$BASE/$f" -o "$TMP/$f"; done
+python3 -m py_compile "$TMP/sot-turn02-release-d-engine.py" "$TMP/sot-turn02-release-d-server.py" "$TMP/sot-turn02-release-d-ai.py" "$TMP/sot-turn02-release-d-autosync.py" "$TMP/qualify-release-d-autosync.py"
 python3 "$TMP/qualify-release-d-autosync.py"
 python3 - "$TMP/sot-turn02-release-d-complete.html" "$TMP/complete.js" <<'PY'
 from pathlib import Path
@@ -18,6 +23,8 @@ PY
 node --check "$TMP/complete.js"
 echo "PASS final wrapper JavaScript parses under Node"
 install -m 0644 "$TMP/sot-turn02-release-d-engine.py" "$ROOT/sot-turn02-release-d-engine.py"
+install -m 0644 "$TMP/sot-turn02-release-d-server.py" "$ROOT/sot-turn02-release-d-server.py"
+install -m 0644 "$TMP/sot-turn02-release-d-ai.py" "$ROOT/sot-turn02-release-d-ai.py"
 install -m 0644 "$TMP/sot-turn02-release-d-autosync.py" "$ROOT/sot-turn02-release-d-autosync.py"
 install -m 0644 "$TMP/qualify-release-d-autosync.py" "$ROOT/qualify-release-d-autosync.py"
 install -m 0644 "$TMP/sot-turn02-release-d-source-actions.html" "$ROOT/sot-turn02-release-d-source-actions.html"
@@ -41,6 +48,7 @@ import json,sys
 z=json.load(open(sys.argv[1]));assert z.get('ok') and isinstance(z.get('lines'),list) and isinstance(z.get('publish'),dict),z
 print('PASS Config Log / Activity runtime endpoint')
 PY
+if [ "$SAFE" = 1 ]; then echo "SAFE MODE: SOT is up but starts no scans on its own until you start them"; else
 python3 - "$TMP/jobs.json" "$TMP/sources.json" <<'PY'
 import json,sys
 jobs=json.load(open(sys.argv[1])).get('jobs',[]);sources=json.load(open(sys.argv[2])).get('sources',[]);live=set()
@@ -55,6 +63,7 @@ for s in sources:
 uncovered=[x for x in needs if x not in live];assert not uncovered,{'uncovered_registered_sources':uncovered,'live_source_ids':sorted(live)}
 print('PASS stale/pending registered sources are covered by automatic live work')
 PY
+fi
 python3 - <<'PY'
 import json,urllib.parse,urllib.request
 after=0;count=0;total=None;revision=None
@@ -79,4 +88,7 @@ h=json.load(open(sys.argv[1]));assert h.get('ok') and h.get('schema')==14,h
 print('PASS browser HTTPS API transport healthy')
 PY
 echo "PASS Queue/Sources owner workflow replaced by continuous SSOT"
+curl -fsS http://127.0.0.1:8765/api/land/status >/dev/null
+echo "PASS Release E landing endpoint is live"
+echo "Output saved in $LOG"
 echo "TEST https://acmeproducts.github.io/stuff/SOT/sot-turn02-release-d-complete.html?v=$REF&api=https%3A%2F%2Foc-ref.fell-dojo.ts.net%2Fsot"

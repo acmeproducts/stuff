@@ -7,7 +7,11 @@ on:
   workflow_dispatch:
     inputs:
       clear:
-        description: 'clear the log after draining'
+        description: 'clear the device log before draining'
+        required: false
+        default: 'false'
+      clear_activity:
+        description: 'clear the activity log before draining'
         required: false
         default: 'false'
 permissions:
@@ -33,6 +37,9 @@ jobs:
           if [ "${{ github.event.inputs.clear }}" = "true" ]; then
             curl -sS -X DELETE --max-time 20 "$U" || true
           fi
+          if [ "${{ github.event.inputs.clear_activity }}" = "true" ]; then
+            curl -sS -X DELETE --max-time 20 "$A" || true
+          fi
           mkdir -p talkbridge
           for i in $(seq 1 11); do
             curl -sS --max-time 20 "$U" -o /tmp/dev.log || echo "(relay unreachable)" > /tmp/dev.log
@@ -49,7 +56,7 @@ jobs:
             {
               echo "# TalkBridge activity log"
               echo ""
-              echo "Who created, joined, called and chatted, one line per event, no message text (relay v6.12, §7.21). Drained $(date -u +%FT%TZ). Newest at the bottom. Person = the name typed in the app · device tag; room = its short id."
+              echo "Who created, joined, called and chatted, one line per event, no message text (§7.21; relay v6.14). Drained $(date -u +%FT%TZ). Newest at the bottom. Person = the name typed in the app, letters and digits only (no name: Guest 1, Guest 2 … per room); room = its short id. Live view: https://acmeproducts.github.io/stuff/talkbridge/dash.html"
               echo ""
               echo '```'
               tail -c 400000 /tmp/activity.log
