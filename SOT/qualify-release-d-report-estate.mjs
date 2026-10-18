@@ -7,9 +7,9 @@ const sources=[['s1','/mnt/a/Photos',300,now-3600],['s2','/mnt/b/Video',250,now-
 let n=0;const P=(src,cls,gb,fp,sub)=>({placement_id:'p'+(++n),placement_no:n,source_id:src,estate:src,path:sources.find(x=>x.source_id===src).root+(sub?'/'+sub:'')+'/f'+n,filename:'f'+n,size:gb*GB,fingerprint:fp||'fp'+n,system_classification:cls,availability:'OK',placement_state:'ACTIVE'});
 // SCANNED 900 = UNIQUE 600 + KEEP 100 + EXCESS 200 ; ESTATE 700 ; roots retained a=300 b=250 c=150
 let placements=[P('s1','UNIQUE',300),P('s2','UNIQUE',150,null,'2024'),P('s3','UNIQUE',150),P('s2','KEEP',100,'dup','2024/trips'),P('s3','EXCESS',100,'dup'),P('s2','EXCESS',100,'dup2')];
-let removedIds=[],rev=1,counts={page:0,delta:0},deltaMode='ok',targetBytes=600*GB,stalenessMissing=false,pageDelay=0,stalenessSlow=false;
+let mockJobs=[],removedIds=[],rev=1,counts={page:0,delta:0},deltaMode='ok',targetBytes=600*GB,stalenessMissing=false,pageDelay=0,stalenessSlow=false;
 const api=(u)=>{const p=u.pathname.replace(/^\/sot/,'');
- if(p==='/api/jobs')return {ok:true,jobs:[],scheduler:{}};if(p==='/api/events')return {ok:true,events:[]};if(p==='/api/sources')return {ok:true,sources};
+ if(p==='/api/jobs')return {ok:true,jobs:mockJobs,scheduler:{}};if(p==='/api/events')return {ok:true,events:[]};if(p==='/api/sources')return {ok:true,sources};
  if(p==='/api/target')return {ok:true,target:{configured:true,path:'/mnt/t',free_bytes:targetBytes,registered_free_bytes:targetBytes}};
  if(p==='/api/health')return {ok:true,catalog_revision:rev,creation_revision:1,db:{state:'healthy'}};
  if(p==='/api/placements/delta'){counts.delta++;if(deltaMode==='missing')return {ok:false,error:'not found'};const since=Number(u.searchParams.get('since'));if(since===rev)return {ok:true,full:false,unchanged:true,catalog_revision:rev,upserts:[],removed:[]};if(deltaMode==='full')return {ok:true,full:true,catalog_revision:rev,total:placements.length};return {ok:true,full:false,unchanged:false,catalog_revision:rev,total:placements.length,upserts:placements.filter(x=>x.rev===rev),removed:removedIds}}
@@ -86,12 +86,12 @@ try{
  // Release E: where a double-tap on a leaf goes
  const dbl=async(re,col)=>{const i=await fr.evaluate(([re,col])=>[...document.querySelectorAll('#Plan .ftile')].findIndex(t=>new RegExp(re).test(t.innerText)&&new RegExp(col).test(t.style.background)),[re,col]);ok(i>=0,'tile '+re);await fr.evaluate(i=>{__ssotFlowTap({stopPropagation(){}},i);__ssotFlowTap({stopPropagation(){}},i)},i);await pg.waitForTimeout(500)};
  await setF({view:'scanned'});await dbl('^/mnt/c/Archive','167, ?125, ?232');
- ok(await fr.evaluate(()=>eval('planTab')==='Duplicates'&&__ssotDup.path==='/mnt/c/Archive'&&!!document.querySelector('#Plan .dups')),'Excess leaf opens Duplicates for that path');
+ ok(await fr.evaluate(()=>__ssotDupMode&&omniQuery==='#dups:"/mnt/c/Archive"'&&document.getElementById('Database').classList.contains('on')&&!!document.querySelector('#Database tr.ssot-grp')),'Excess leaf opens Search grouped Keep + Excess for that path');
  await fr.evaluate(()=>__ssotOpenReportMode('Report'));await setF({view:'capacity'});await dbl('^/mnt/c/Archive','229, ?72, ?77');
  ok(await fr.evaluate(()=>eval('planTab')==='Roots'&&!!document.querySelector('.estate-table tr.rhi[data-sid="s3"]')),'Deficit leaf opens Roots with that row highlighted');
  await fr.evaluate(()=>__ssotOpenReportMode('Report'));await setF({view:'capacity'});await dbl('^/mnt/a/Photos','59, ?158, ?230');
  {const r=await fr.evaluate(()=>({on:document.getElementById('Database').classList.contains('on'),sel:__ssotTableSelected.size,land:!!document.querySelector('.ssot-bulk .land'),del:document.querySelector('.ssot-bulk .danger')?.disabled}));ok(r.on&&r.sel===1&&r.land&&r.del,'In play leaf opens Search with those files selected, Land ready, Delete off '+JSON.stringify(r))}
- pass('double-tap: Excess → Duplicates for that path · Deficit → Roots, row highlighted · In play → Search selected with Land ready');
+ pass('double-tap: Excess → Search grouped Keep + Excess for that path · Deficit → Roots, row highlighted · In play → Search selected with Land ready');
  // Search: Delete only for Excess, Land only for in-play
  await fr.evaluate(()=>{__ssotTableSelected.clear();omniDraft=omniQuery='class:excess';renderDatabase()});await pg.waitForTimeout(400);
  {const r=await fr.evaluate(()=>({land:!!document.querySelector('.ssot-bulk .land'),del:document.querySelector('.ssot-bulk .danger')?.disabled}));ok(!r.land&&r.del===false,'Excess results: Delete allowed, no Land '+JSON.stringify(r))}
@@ -136,18 +136,18 @@ try{
  let rows=await rowsOf();ok(rows.length===3&&rows.map(r=>r.root).join()==='/mnt/a/Photos,/mnt/b/Video,/mnt/c/Archive'&&rows.every(r=>r.h==='☰'&&r.dot==='green'),'rows '+JSON.stringify(rows));
  ok(rows[0].files==='1'&&rows[0].size==='300.0 GB'&&rows[1].files==='2'&&rows[1].size==='250.0 GB'&&rows[2].files==='1'&&rows[2].size==='150.0 GB','root numbers from real placements '+JSON.stringify(rows));
  ok(rows[2].synced==='Never'&&rows[0].synced!=='Never','sync '+JSON.stringify(rows));
- ok(/% of scanned/.test(rows[0].now)&&/^33% /.test(rows[0].now),'green rows carry a grey share bar '+rows[0].now);
- const sum=await txt(fr,'.estate-sum');ok(/ASSETS 700\.0 GB \| TARGET 600\.0 GB \| DEFICIT 100\.0 GB/.test(sum),'summary '+sum);
+ ok(/% of assets/.test(rows[0].now)&&/^43% /.test(rows[0].now),'green rows carry a grey share-of-assets bar '+rows[0].now);
+ const sum=await txt(fr,'.estate-sum');ok(/^ROOTS 3 \| ASSETS 700\.0 GB \| TARGET 600\.0 GB \| DEFICIT 100\.0 GB/.test(sum),'summary '+sum);
  ok(/TARGET\s+\/mnt\/t/.test(await fr.$eval('.estate-table tr.trow',e=>e.innerText)),'the TARGET is pinned as the first row');
  pass('Roots: TARGET pinned first; rows are ☰ · dot · Root · Files · Size · Last synced · ⋯; green rows show their share of everything scanned');
  const red='rgb(198, 40, 40)',white='rgb(255, 255, 255)';ok(rows[2].bg===red&&rows[2].fg===white&&rows[0].bg!==red&&rows[1].bg!==red,'overflow colors '+JSON.stringify(rows.map(r=>[r.bg,r.fg])));
  pass('roots fill the TARGET in priority order; the first root that does not fit and everything after it is red');
- await fr.evaluate(()=>__ssotRootsSet('u','f'));rows=await rowsOf();ok(/^17% /.test(rows[0].now),'# switch shows share of files '+rows[0].now);await fr.evaluate(()=>__ssotRootsSet('u','g'));
+ await fr.evaluate(()=>__ssotRootsSet('u','f'));rows=await rowsOf();ok(/^25% /.test(rows[0].now),'# switch shows share of files '+rows[0].now);await fr.evaluate(()=>__ssotRootsSet('u','g'));
  // live scan: yellow dot, progress bar, current file
- await fr.evaluate(()=>{window.__ssotJobsSave=eval('jobs');eval("jobs=[{job:{state:'RUNNING'},scope_sources:[{source_id:'s2'}],sources:[{source_id:'s2',discovered_files:200,hashed_files:50,discovered_bytes:4000,hashed_bytes:1000,current_file:'IMG_2041.jpg'}]}]");renderPlan()});
+ mockJobs=[{job:{state:'RUNNING'},scope_sources:[{source_id:'s2'}],sources:[{source_id:'s2',discovered_files:200,hashed_files:50,discovered_bytes:4000,hashed_bytes:1000,current_file:'IMG_2041.jpg'}]}];await fr.evaluate(()=>{window.__ssotJobsSave=eval('jobs');eval("jobs=[{job:{state:'RUNNING'},scope_sources:[{source_id:'s2'}],sources:[{source_id:'s2',discovered_files:200,hashed_files:50,discovered_bytes:4000,hashed_bytes:1000,current_file:'IMG_2041.jpg'}]}]");renderPlan()});
  rows=await rowsOf();ok(rows[1].dot==='yellow'&&/^25% · 50 \/ 200 · IMG_2041\.jpg/.test(rows[1].now),'scanning row '+JSON.stringify(rows[1]));
- ok(await fr.evaluate(()=>new Promise(r=>setTimeout(()=>r(document.querySelector('#tabs [data-tab="Roots"]').classList.contains('ssot-busy')),1700))),'Roots icon shows the scanning dot');
- await fr.evaluate(()=>{eval('jobs=window.__ssotJobsSave||[]');renderPlan()});
+ ok(await fr.evaluate(()=>new Promise(r=>{let t0=Date.now(),iv=setInterval(()=>{if(document.querySelector('#tabs [data-tab="Roots"]').classList.contains('ssot-busy')){clearInterval(iv);r(true)}else if(Date.now()-t0>4000){clearInterval(iv);r(false)}},100)})),'Roots icon shows the scanning dot');
+ mockJobs=[];await fr.evaluate(()=>{eval('jobs=window.__ssotJobsSave||[]');renderPlan()});
  pass('a scanning root shows a yellow dot, a live progress bar and the file being fingerprinted; the Roots icon carries a yellow dot');
  // unreadable: red at the top, no numbers, only Retry / Remove
  await fr.evaluate(()=>{sources[2].reachable=false;renderPlan()});rows=await rowsOf();ok(rows[0].red&&rows[0].dot==='red'&&/Archive/.test(rows[0].root)&&rows[0].files===''&&rows[0].size===''&&!rows[0].now,'red row '+JSON.stringify(rows[0]));
@@ -156,8 +156,9 @@ try{
  await fr.evaluate(()=>{sources[2].reachable=true;renderPlan()});
  pass('a root that cannot be read is red, sits at the top with no numbers, and offers only Retry or Remove');
  await fr.click('.estate-table tbody tr:not(.trow):nth-child(3) .rdots');await pg.waitForTimeout(200);ok(JSON.stringify(await fr.$$eval('.rpop button',b=>b.map(x=>x.textContent)))==='["Rescan","Remove"]','row menu');
- await fr.click('.rpop button:has-text("Remove")');await pg.waitForTimeout(200);ok(/Remove this root/.test(await fr.$eval('#modaltitle',e=>e.textContent)),'remove asks first');await fr.click('#modalok');await pg.waitForTimeout(400);ok(ctlCalls.at(-1)?.action==='remove'&&ctlCalls.at(-1)?.source_id==='s2','remove sent after confirm '+JSON.stringify(ctlCalls.at(-1)));
- pass('the ⋯ at the end of each row offers Rescan and Remove; Remove asks first');
+ await fr.click('.rpop button:has-text("Remove")');await pg.waitForTimeout(500);ok(ctlCalls.at(-1)?.action==='remove'&&ctlCalls.at(-1)?.source_id==='s2'&&!(await fr.evaluate(()=>document.getElementById('modal')?.classList.contains('on'))),'remove happens at once, no dialog '+JSON.stringify(ctlCalls.at(-1)));
+ ok(/Removed \/mnt\/b\/Video/.test(await fr.$eval('#ssot-undo',e=>e.innerText)),'undo toast');await fr.click('#ssot-undo button');await pg.waitForTimeout(400);ok(ctlCalls.at(-1)?.action==='restore'&&ctlCalls.at(-1)?.source_id==='s2','Undo restores '+JSON.stringify(ctlCalls.at(-1)));
+ pass('the ⋯ at the end of each row offers Rescan and Remove; Remove happens at once with an Undo toast');
  // priority: column sort sets it, Custom restores the drag order
  await fr.click('.estate-table th:has-text("Files")');await pg.waitForTimeout(700);ok(rankCalls.at(-1)?.join()==='s2,s1,s3'&&!(await fr.$eval('.rcustom',b=>b.classList.contains('live'))),'column sort becomes the priority '+JSON.stringify(rankCalls));
  {const box=async i=>(await fr.$$('.estate-table tbody tr:not(.trow) td.rank-h'))[i].boundingBox();const b3=await box(2),b1=await box(0);
@@ -181,18 +182,19 @@ try{
  pass('observed tab/report decoration is idempotent at runtime (idle mutations='+muts+', no self-trigger loop)');
  // Search (Database): copy on tap, automatic result chip, cached switching
  {await fr.evaluate(()=>{omniDraft='';omniQuery='';show('Database')});await pg.waitForTimeout(500);
-  const chip=()=>fr.$eval('.ssot-bulk .selection-count',e=>e.innerText.replace(/\s+/g,' ').trim());
-  ok(await chip()==='6 results ×','initial chip '+await chip());ok(!(await fr.evaluate(()=>/Select all results/.test(document.querySelector('.ssot-bulk').innerText))),'select-all button removed');
-  await fr.evaluate(()=>{omniDraft='excess';omniQuery='excess';renderDatabase()});await pg.waitForTimeout(400);ok(await chip()==='2 results ×','chip follows the search '+await chip());
-  await fr.evaluate(()=>{omniDraft='consolidate';omniQuery='consolidate';renderDatabase()});await pg.waitForTimeout(400);ok(await chip()==='0 results ×','chip follows a second search '+await chip());
-  await fr.evaluate(()=>{omniDraft='';omniQuery='';renderDatabase()});await pg.waitForTimeout(400);ok(await chip()==='6 results ×','chip returns '+await chip());
+  const chip=()=>fr.$eval('.ssot-bulk',e=>{let c=e.querySelector('.selection-count');return c?c.innerText.replace(/\s+/g,' ').trim():'none'});
+  ok(await chip()==='none'&&await fr.evaluate(()=>[...document.querySelectorAll('.ssot-bulk button.btn')].every(b=>b.disabled)&&!document.querySelector('.ssot-bulk .land')),'no search: nothing selected, actions off '+await chip());
+  ok(await fr.evaluate(()=>/6 \/ 6/.test(document.querySelector('.ssot-search-head .ssot-scount').innerText)),'the count sits in the Search header');ok(!(await fr.evaluate(()=>/Select all results/.test(document.querySelector('.ssot-bulk').innerText))),'select-all button removed');
+  await fr.evaluate(()=>{omniDraft='excess';omniQuery='excess';renderDatabase()});await pg.waitForTimeout(400);ok(await chip()==='2 in search ×','chip follows the search '+await chip());
+  await fr.evaluate(()=>{omniDraft='consolidate';omniQuery='consolidate';renderDatabase()});await pg.waitForTimeout(400);ok(await chip()==='none','chip follows a second search '+await chip());
+  await fr.evaluate(()=>{omniDraft='';omniQuery='';renderDatabase()});await pg.waitForTimeout(400);ok(await chip()==='none','chip returns '+await chip());
   pass('the count chip follows the current search automatically (no Select all step) and updates on every change');
   await fr.click('#Database tbody tr:nth-child(1) td:nth-child(1)');await pg.waitForTimeout(200);ok(await chip()==='1 selected ×','tap # selects '+await chip());
-  await fr.evaluate(()=>{omniDraft='unique';omniQuery='unique';renderDatabase()});await pg.waitForTimeout(400);ok(await chip()==='3 results ×','stale selection is dropped when the search changes: '+await chip());
-  await fr.click('#Database tbody tr:nth-child(1) td:nth-child(4)');await pg.waitForTimeout(300);ok(await chip()==='3 results ×','tapping a data cell must copy, not select '+await chip());
+  await fr.evaluate(()=>{omniDraft='unique';omniQuery='unique';renderDatabase()});await pg.waitForTimeout(400);ok(await chip()==='3 in search ×','stale selection is dropped when the search changes: '+await chip());
+  await fr.click('#Database tbody tr:nth-child(1) td:nth-child(4)');await pg.waitForTimeout(300);ok(await chip()==='3 in search ×','tapping a data cell must copy, not select '+await chip());
   const cp=await pg.evaluate(()=>navigator.clipboard.readText());ok(cp.length>0,'database cell tap copied nothing');ok(await fr.evaluate(()=>[...document.querySelectorAll('.toast')].some(t=>/^Copied: \S/.test(t.textContent))),'database copy toast');
   pass('tapping a Database field copies it (never blank) and does not toggle row selection; tapping # selects');
-  await fr.click('.ssot-bulk .selection-count button');await pg.waitForTimeout(400);ok(await fr.evaluate(()=>omniQuery==='')&&await chip()==='6 results ×','chip x clears the search');pass('chip x clears the search');
+  await fr.click('.ssot-bulk .selection-count button');await pg.waitForTimeout(400);ok(await fr.evaluate(()=>omniQuery==='')&&await chip()==='none','chip x clears the search');pass('chip x clears the search');
   const same=await fr.evaluate(()=>{const a=filterQuery('excess'),b=filterQuery('excess'),s1=sortRows(a),s2=sortRows(a);return a===b&&s1===s2});ok(same,'search/sort results are not cached');
   const kept=await fr.evaluate(async()=>{const el=document.querySelector('#Database .dbgrid');show('Plan');await new Promise(r=>setTimeout(r,50));show('Database');await new Promise(r=>setTimeout(r,50));return el===document.querySelector('#Database .dbgrid')});ok(kept,'switching back to Search rebuilt the table');
   pass('search and sort results are cached per loaded database and switching back to Search reuses the rendered table (no rebuild)')}
@@ -230,20 +232,24 @@ try{
   ok(JSON.parse(await fr2.evaluate(()=>localStorage.sotDbLayout)).groups.length===0,'reset');await fr2.click('#modalcancel');await pg.waitForTimeout(200);
   pass('Reset columns restores order and search');
   fr=fr2}
- // Duplicates screen
+ // Duplicates: off the treemap into Search, Keep + Excess grouped, Keep choices saved
  {await fr.evaluate(()=>{omniDraft='';omniQuery='';show('Database')});await pg.waitForTimeout(500);
-  await fr.click('.ssot-search-head button:has-text("Duplicates")');await pg.waitForTimeout(500);
-  ok(await fr.evaluate(()=>document.getElementById('Plan').classList.contains('on')&&!!document.querySelector('#Plan .dups')),'Duplicates button opens the Duplicates screen');
-  const cards=()=>fr.$$eval('#Plan .dupcard',c=>c.map(x=>({top:x.querySelector('.duptop').innerText,rows:[...x.querySelectorAll('.duprow')].map(r=>({on:r.querySelector('input').checked,dis:r.querySelector('input').disabled,rk:r.querySelector('.duprk').innerText,p:r.querySelector('.dupp').innerText}))})));
-  let c=await cards();ok(c.length===1&&c[0].rows.length===2&&c[0].rows[0].on&&!c[0].rows[1].on&&c[0].rows[0].rk==='2'&&c[0].rows[1].rk==='3'&&/100\.0 GB reclaimable/.test(c[0].top),'one group, Keep pre-ticked by the rule, priority numbers shown '+JSON.stringify(c));
-  ok(/1 group · 100\.0 GB reclaimable/.test(await txt(fr,'#Plan .dupline')),'top line');
-  pass('Duplicates: one card per group, biggest reclaimable first, Keep pre-ticked by root priority, priority number on each copy');
-  await fr.locator('#Plan .duprow').nth(1).locator('input').check();await pg.waitForTimeout(800);
-  ok(keepCalls.length===1&&keepCalls[0].keep===true&&keepCalls[0].placement_id==='p5','tick sends the Keep choice '+JSON.stringify(keepCalls));
-  c=await cards();ok(c[0].rows.every(r=>r.on),'both copies kept after the tick '+JSON.stringify(c));
-  pass('ticking a Keep box saves at once and the screen recalculates; keeping every copy is allowed');
+  ok(!(await fr.evaluate(()=>[...document.querySelectorAll('.ssot-search-head button')].some(b=>/Duplicates/.test(b.textContent)))),'no Duplicates button in Search');
+  ok(await fr.evaluate(()=>!__ssotPlanTabs.includes('Duplicates')),'no Duplicates screen');
+  await fr.evaluate(()=>__ssotOpenDuplicates(null));await pg.waitForTimeout(600);
+  const grp=()=>fr.$$eval('#Database tr.ssot-grp',g=>g.map(x=>x.innerText.replace(/\s+/g,' ').trim()));
+  let g=await grp();ok(g.length===1&&/2 copies/.test(g[0])&&/100\.0 GB reclaimable/.test(g[0]),'one group: Keep + Excess together '+JSON.stringify(g));
+  await fr.click('#Database tr.ssot-grp');await pg.waitForTimeout(400);
+  const keeps=()=>fr.$$eval('#Database tbody tr[data-pid] td.keepcell input',i=>i.map(x=>x.checked));
+  let k=await keeps();ok(k.length===2&&k[0]!==k[1],'expanded group shows a Keep box per copy, one ticked by the rule '+JSON.stringify(k));
+  pass('Keep + Excess open from the treemap into Search as duplicate groups (no separate screen)');
+  await fr.locator('#Database tbody tr[data-pid] td.keepcell input:not(:checked)').first().check();await pg.waitForTimeout(900);
+  ok(keepCalls.length===1&&keepCalls[0].keep===true,'tick saves the Keep choice '+JSON.stringify(keepCalls));
+  pass('ticking Keep saves at once (custom choices persist on the server)');
+  await fr.evaluate(()=>{omniDraft='unique';omniQuery='unique';renderDatabase()});await pg.waitForTimeout(400);
+  ok(await fr.evaluate(()=>!__ssotDupMode&&!document.querySelector('#Database tr.ssot-grp')),'a new search returns to the flat list');
   placements[4].system_classification='EXCESS';rev++;placements[4].rev=rev;await fr.evaluate(async()=>{await loadPlacements(true)});
-  await fr.evaluate(()=>{__ssotDup.q='zzz';renderPlan()});ok((await fr.$$('#Plan .dupcard')).length===0,'search box narrows');await fr.evaluate(()=>{__ssotDup.q='';renderPlan()})}
+  await pg.mouse.move(1,1);pass('leaving the duplicate view returns Search to a flat list')}
  // Tags / notes edits must show immediately (delta compares against the revision the local rows represent)
  {await fr.evaluate(()=>{omniDraft='';omniQuery='';show('Database')});await pg.waitForTimeout(400);
   const orig={tags:placements[0].tags,notes:placements[0].notes};const id=placements[0].placement_id;placements[0].tags='["keepme"]';placements[0].notes='hello notes';placements[0].rev=2;rev=2;
