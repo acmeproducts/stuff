@@ -118,6 +118,12 @@ try{
  await fr.click('.rpop button:has-text("Change target")');await pg.waitForTimeout(600);
  ok(await fr.evaluate(()=>document.getElementById('modaltitle').textContent==='Change TARGET'&&!!document.getElementById('keepOldTarget')),'change target asks, with a keep-old-as-root checkbox');await fr.click('#modalcancel');await pg.waitForTimeout(200);
  pass('Change target opens the folder picker with "Keep the old target as a root"');
+ // + Add path opens the picker as a modal with a visible close
+ await fr.click('#tabs button[data-tab="Roots"]');await pg.waitForTimeout(400);await fr.click('.raddpath');await pg.waitForTimeout(800);
+ {const r=await fr.evaluate(()=>{const x=document.getElementById('ssot-addx'),b=x&&x.getBoundingClientRect();return {on:document.documentElement.classList.contains('ssot-addmodal'),vis:!!b&&b.width>0&&b.top>=0&&b.right<=innerWidth}});ok(r.on&&r.vis,'picker modal shows a close button '+JSON.stringify(r))}
+ await fr.click('#ssot-addx');await pg.waitForTimeout(400);ok(await fr.evaluate(()=>!document.documentElement.classList.contains('ssot-addmodal')&&!!document.querySelector('#Plan .estate-table')),'close returns to Roots');
+ await fr.click('.raddpath');await pg.waitForTimeout(600);await pg.keyboard.press('Escape');await pg.waitForTimeout(1500);ok(await fr.evaluate(()=>!document.documentElement.classList.contains('ssot-addmodal')),'Escape closes the picker');
+ pass('+ Add path picker has a close (×) and Escape closes it');
  // first run: no target yet
  await fr.evaluate(()=>{window.__ssotT=eval('targetState');eval('targetState={configured:false}');__ssotOpenReportMode('Report');renderPlan()});await pg.waitForTimeout(200);
  {const t=await txt(fr,'#Plan .setup');ok(/1 · Target/.test(t)&&/2 · AI/.test(t)&&/3 · GitHub token/.test(t),'setup cards '+t)}
