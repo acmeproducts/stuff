@@ -16,6 +16,26 @@ def placement_digest(row):
     return hashlib.blake2b(json.dumps(row,sort_keys=True,default=str,separators=(',',':')).encode(),digest_size=8).hexdigest()
 LOG_PUBLISH_INTERVAL=max(60,int(os.environ.get("SOT_LOG_PUBLISH_INTERVAL","300")))
 
+STATE_DIR=Path.home()/".sot-turn02"
+STARTUP_TRACE=STATE_DIR/"startup-trace.log"
+STARTUP_MARK=STATE_DIR/"startup.inprogress"
+STABLE_AFTER=180
+SAFE_START=False  # decided by main() for the real service only; tests and imports never touch the mark
+
+def trace(msg):
+    # written straight to disk so the last step survives a crash of the whole machine
+    try:
+        STATE_DIR.mkdir(parents=True,exist_ok=True)
+        with open(STARTUP_TRACE,"a") as f:
+            f.write(time.strftime("%Y-%m-%d %H:%M:%S ")+str(msg)+"\n");f.flush();os.fsync(f.fileno())
+    except Exception:pass
+
+def mark_startup():
+    try:
+        STATE_DIR.mkdir(parents=True,exist_ok=True)
+        with open(STARTUP_MARK,"w") as f:f.write(str(time.time()));f.flush();os.fsync(f.fileno())
+    except Exception:pass
+
 def install(srv):
     original_check=srv.check_source_ids
     original_add=srv.M.add_source
@@ -168,6 +188,7 @@ def install(srv):
     def queue_sync(source_ids,reason):
         ids=list(dict.fromkeys(source_ids or []))
         if not ids:return {"created":False,"queued_source_count":0,"suppressed_source_count":0}
+        trace("queue scan ("+str(reason)+"): "+",".join(ids))
         info=srv.M.enqueue_info(ids,title="Automatic SSOT sync")
         srv.M.event("source_auto_sync","SSOT synchronization queued automatically",info.get("job_id"),None,"INFO",{"reason":reason,"source_ids":ids,"queued_source_count":info.get("queued_source_count",0),"suppressed_source_count":info.get("suppressed_source_count",0)})
         return info
@@ -205,7 +226,7 @@ def install(srv):
 
     def check_source_ids(source_ids,reason):
         result=original_check(source_ids,reason);changed=result.get("changed") or []
-        if changed:result["auto_sync"]=queue_sync(changed,reason)
+        if changed and not getattr(srv,"SAFE_MODE",False):result["auto_sync"]=queue_sync(changed,reason)
         return result
 
     def add_source(label,root,failure_domain,role="primary",estate=None):
@@ -214,7 +235,16 @@ def install(srv):
     srv.H.do_GET=do_GET;srv.H.do_POST=do_POST;srv.check_source_ids=check_source_ids;srv.M.add_source=add_source
     srv.queue_ssot_sync=queue_sync;srv.recover_interrupted_ssot=recover_interrupted;srv.recover_pending_ssot=recover_pending_sources
     srv.publish_live_diagnostic_log=publish_live_log;srv.log_publisher_loop=log_publisher_loop
-    srv.recover_interrupted_ssot();srv.recover_pending_ssot();return srv
+    srv.trace=trace
+    if SAFE_START:
+        # the previous start never settled: stay up, do no automatic work, leave everything for the owner to start
+        srv.SAFE_MODE=True;trace("SAFE MODE: previous start did not finish; automatic startup work skipped")
+        try:srv.M.event("startup_safe_mode","Safe mode: the previous start did not finish, so no automatic scans were started",None,None,"WARNING",{})
+        except Exception:pass
+        return srv
+    srv.SAFE_MODE=False;trace("start: recovering interrupted work")
+    srv.recover_interrupted_ssot();trace("start: queuing pending sources")
+    srv.recover_pending_ssot();trace("start: recovery queued");return srv
 
 def load_runtime():
     here=Path(__file__).resolve().parent
@@ -222,9 +252,37 @@ def load_runtime():
     loaded_at=time.time();srv=importlib.util.module_from_spec(sp);sys.modules[sp.name]=srv;sp.loader.exec_module(srv);srv._autosync_runtime_loaded_at=loaded_at
     return install(srv)
 
+def settle_watch(srv,started):
+    # the start counts as settled once it has run a while and no work is live; only then is the safe-mode mark cleared
+    while True:
+        time.sleep(10)
+        try:
+            live=srv.M.s.rows("SELECT COUNT(*) n FROM jobs WHERE state IN ('QUEUED','RUNNING','PAUSED','STOPPING')")[0]["n"]
+            if time.time()-started>=STABLE_AFTER and not live:
+                STARTUP_MARK.unlink(missing_ok=True);trace("start settled");return
+        except Exception as e:trace("settle check error: "+str(e))
+
+def traced_startup(srv):
+    trace("start: source freshness check")
+    try:srv.startup_source_check()
+    except Exception as e:trace("start: source freshness check failed: "+str(e));raise
+    trace("start: source freshness check done")
+
 def main():
-    srv=load_runtime()
-    threading.Thread(target=srv.startup_source_check,daemon=True,name="source-freshness-startup").start()
+    trace("service starting pid "+str(os.getpid()))
+    import signal
+    def clean_stop(*_):
+        # an orderly stop is not a failed start; only a crash leaves the safe-mode mark behind
+        if not getattr(sys.modules.get("sotreleased_runtime"),"SAFE_MODE",True):STARTUP_MARK.unlink(missing_ok=True)
+        trace("service stopped cleanly");os._exit(0)
+    signal.signal(signal.SIGTERM,clean_stop)
+    global SAFE_START
+    SAFE_START=STARTUP_MARK.exists()
+    if not SAFE_START:mark_startup()
+    srv=load_runtime();started=time.time()
+    if not srv.SAFE_MODE:
+        threading.Thread(target=traced_startup,args=(srv,),daemon=True,name="source-freshness-startup").start()
+        threading.Thread(target=settle_watch,args=(srv,started),daemon=True,name="startup-settle").start()
     threading.Thread(target=srv.log_publisher_loop,daemon=True,name="diagnostic-log-publisher").start()
     ThreadingHTTPServer(("0.0.0.0",int(os.environ.get("SOT_PORT","8765"))),srv.H).serve_forever()
 

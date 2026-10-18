@@ -543,7 +543,7 @@ def check_source_ids(source_ids,reason):
    if sid in SOURCE_CHECK_RUNNING:continue
    SOURCE_CHECK_RUNNING.add(sid)
   try:
-   z=M.check_source_metadata(sid);checked.append(sid)
+   (globals().get("trace") or (lambda m:None))("check root "+str(sid));z=M.check_source_metadata(sid);checked.append(sid)
    if z.get("changed"):changed.append(sid)
   except Exception as e:
    errors.append({"source_id":sid,"error":str(e)})
@@ -560,10 +560,12 @@ def schedule_source_check(source_ids,reason):
  return {"scheduled":len(ids),"source_ids":ids}
 
 def startup_source_check():
- time.sleep(.5)
+ tr=globals().get("trace") or (lambda m:None)
+ time.sleep(.5);tr("start: registering the TARGET")
  try:ensure_target_source()
- except Exception as e:M.event("target_source_error",str(e),None,None,"ERROR",{})
+ except Exception as e:M.event("target_source_error",str(e),None,None,"ERROR",{});tr("start: TARGET error "+str(e))
  ids=[x["source_id"] for x in S.rows("SELECT source_id FROM sources WHERE enabled=1 ORDER BY source_id")]
+ tr("start: checking "+str(len(ids))+" roots for changes")
  schedule_source_check(ids,"startup")
 def source_status_rows(include_deleted=True):
  rows=S.rows("SELECT * FROM sources ORDER BY enabled DESC,CASE WHEN rank IS NULL THEN 1 ELSE 0 END,rank,root") if include_deleted else S.rows("SELECT * FROM sources WHERE enabled=1 ORDER BY CASE WHEN rank IS NULL THEN 1 ELSE 0 END,rank,root")
