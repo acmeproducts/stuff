@@ -89,6 +89,24 @@ try:
   srv.TARGET_FILE.write_text(json.dumps({"path":str(t),"label":"T"}));nt4=srv.ensure_target_source(keep_old_as_root=True);wait_jobs(M,S)
   jobs=S.rows("SELECT COUNT(*) n FROM job_sources WHERE source_id=?",(nt4,))[0]["n"];assert jobs>=2,jobs
   print("PASS a root promoted to TARGET is rescanned")
+  # TARGET staleness: a cheap volume check first; files are listed only when it fails
+  # (the TARGET sits on its own volume here, as it does in real use; the test database lives elsewhere)
+  shm=Path(tempfile.mkdtemp(dir="/dev/shm"));(shm/"kept.txt").write_text("already here")
+  srv.TARGET_FILE.write_text(json.dumps({"path":str(shm),"label":"SHM"}));nt4=srv.ensure_target_source(keep_old_as_root=True);wait_jobs(M,S);t=shm
+  walk=M.metadata_signature;calls=[]
+  def spy(sid):calls.append(sid);return walk(sid)
+  M.metadata_signature=spy
+  r=M.check_source_metadata(nt4);assert r.get("quick") and not r["changed"] and not calls,(r,calls)
+  (t/"new-outside-sot.txt").write_text("dropped onto the target by hand");r=M.check_source_metadata(nt4)
+  assert r["changed"] and calls==[nt4],(r,calls)
+  wait_jobs(M,S);srv.check_source_ids([nt4],"test")
+  scan(M,S,[nt4]);calls.clear();r=M.check_source_metadata(nt4);assert r.get("quick") and not calls,(r,calls)
+  pid=S.rows("SELECT placement_id FROM placements WHERE source_id=? AND placement_state='ACTIVE' AND system_classification IN ('UNIQUE','KEEP') LIMIT 1",(sa,))[0]["placement_id"]
+  srv.land_start([pid]);j=wait_land(srv);assert j["state"]=="COMPLETED" and j["files_done"]==1,j
+  calls.clear();r=M.check_source_metadata(nt4);assert r.get("quick") and not r["changed"] and not calls,(r,calls)
+  print("PASS files SOT lands itself do not make the TARGET look stale")
+  M.metadata_signature=walk;import shutil as _sh;_sh.rmtree(shm,ignore_errors=True)
+  print("PASS TARGET staleness: unchanged volume skips the file listing; a change is detected and rescanned")
   # target size up or down: capacity follows the live free space every time it is read
   base=srv.plan_summary()["capacity"]
   srv.target_get=lambda:{**real(),"free_bytes":10**6,"total_bytes":2*10**6};small=srv.plan_summary()["capacity"]
