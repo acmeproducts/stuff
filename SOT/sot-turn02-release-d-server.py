@@ -406,6 +406,7 @@ def land_record(tsid,dest,fp,src_row):
  else:S.submit("INSERT INTO placements(placement_id,placement_no,job_id,revision,source_id,estate,path,filename,extension,size,modified,scanned_at,fingerprint,content_id,lifecycle,availability,role,last_verified) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,'HASHED','AVAILABLE','target',?)",(pid,M.alloc_no(),"land:"+LAND["job"]["id"],0,tsid,"TARGET",d,dest.name,dest.suffix.lower(),st.st_size,st.st_mtime,now,fp,fp,now),True)
 def land_run(rows,room):
  j=LAND["job"];t=target_get();troot=t["path"];tsid=ensure_target_source()
+ clean=bool(S.rows("SELECT 1 FROM sources WHERE source_id=? AND stale=0",(tsid,)))
  try:
   used=0
   for r in rows:
@@ -430,6 +431,10 @@ def land_run(rows,room):
   j["ended"]=time.time();j["current"]=None;LAND["state"]="IDLE"
   try:M.recompute_classifications();S.bump_catalog_revision()
   except Exception:pass
+  # SOT made these changes itself, so the TARGET's staleness baseline moves with them
+  if clean:
+   try:S.drain(10);M.refresh_source_baseline(tsid);S.drain(10)
+   except Exception:pass
   M.event("land_finished","Landing "+j["state"].lower(),None,None,"INFO",{k:v for k,v in j.items() if k!="errors"}|{"errors":len(j["errors"])})
 def land_start(ids):
  with LAND["lock"]:
