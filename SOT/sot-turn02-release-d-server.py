@@ -37,6 +37,10 @@ def publish_diagnostic_bundle():
  for key in ("db","dump","summary","events"):
   p=Path(z[key]);
   if p.exists():shutil.copy2(p,target/p.name)
+ lock=repo/".git"/"index.lock"
+ try:
+  if lock.exists() and time.time()-lock.stat().st_mtime>600:lock.unlink()
+ except OSError:pass
  subprocess.run(["git","-C",str(repo),"add","snapshots"],check=True,timeout=30)
  staged=subprocess.run(["git","-C",str(repo),"diff","--cached","--quiet"],timeout=30).returncode!=0
  if staged:
