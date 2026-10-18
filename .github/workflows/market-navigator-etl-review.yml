@@ -1,0 +1,187 @@
+name: Market Navigator ETL candidate checks
+on:
+  schedule:
+    - cron: '30 23 * * 1-5'
+  push:
+    branches: [market-navigator-etl-selective-20261016]
+  pull_request:
+    paths:
+      - 'market-navigator-etl-schedule.py'
+      - 'market-navigator-etl-*'
+      - 'market-navigator-r7-data-pipeline.py'
+      - 'test_market_navigator_etl_schedule.py'
+      - 'test_market_navigator_etl_integration.py'
+      - 'market-navigator-etl-review.html'
+      - '.github/workflows/market-evidence-pipeline.yml'
+      - '.github/workflows/market-navigator-etl-review.yml'
+  workflow_dispatch:
+    inputs:
+      component:
+        description: 'Retry one canonical component; blank means selective stream'
+        type: string
+        default: ''
+      historical_rebuild:
+        description: 'EXCEPTIONAL: explicitly rebuild historical source baseline'
+        type: boolean
+        default: false
+permissions:
+  contents: read
+concurrency:
+  group: market-navigator-integrated-etl
+  cancel-in-progress: false
+jobs:
+  checks:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: market-navigator-etl-selective-20261016
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Compile candidate ETL
+        run: python -m py_compile market-navigator-etl-schedule.py market-navigator-r7-data-pipeline.py test_market_navigator_etl_schedule.py test_market_navigator_etl_integration.py
+      - name: Run scheduling regressions
+        run: python test_market_navigator_etl_schedule.py
+      - name: Run isolated collector integration
+        run: python test_market_navigator_etl_integration.py
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Build the integrated existing MNChart application
+        run: python market-navigator-etl-build.py
+      - name: Release integrity, publication, native scheduling and vintage regressions
+        run: python -m unittest test_market_navigator_etl_delivery test_market_navigator_etl_vintage test_market_navigator_etl_release test_market_navigator_etl_credentials test_market_navigator_etl_source_history
+      - name: Immutable package loading and corruption rejection
+        run: node --test test_market_navigator_etl_data.cjs
+      - name: Verify integrated review controls
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          html=Path('market-navigator-etl-review.html').read_text()
+          workflow=Path('.github/workflows/market-evidence-pipeline.yml').read_text()
+          assert 'const MNChart=' in html
+          view=Path('market-navigator-etl-view.js').read_text()
+          for marker in ('mnEtlConsole','mnEtlRows','market-evidence/run-log.json'):
+              assert marker in view, marker
+          for marker in ('MARKET_NAVIGATOR_RETRY_COMPONENT','MARKET_NAVIGATOR_RETRY_STREAM','market-navigator-etl-schedule.py'):
+              assert marker in workflow, marker
+          print('PASS review markup and workflow dispatch contract')
+          PY
+  live-source-and-three-level-qualification:
+    if: github.event_name != 'pull_request'
+    needs: checks
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    permissions:
+      contents: write
+      actions: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: market-navigator-etl-selective-20261016
+      - uses: actions/cache/restore@v4
+        with:
+          path: |
+            market-navigator-etl-work
+            market-navigator-etl-review
+          key: mn-integrated-etl-${{ runner.os }}-${{ github.run_id }}
+          restore-keys: mn-integrated-etl-${{ runner.os }}-
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Build one review application
+        run: python market-navigator-etl-build.py
+      - name: Check availability of governed vintage baseline inputs
+        env:
+          MARKET_NAVIGATOR_FRED_API_KEY: ${{ secrets.MARKET_NAVIGATOR_FRED_API_KEY }}
+          MARKET_NAVIGATOR_FRED_API_KEY_SECONDARY: ${{ secrets.MARKET_NAVIGATOR_FRED_API_KEY_SECONDARY }}
+        run: |
+          python - <<'PY'
+          import os
+          from pathlib import Path
+          available=bool(os.environ.get('MARKET_NAVIGATOR_FRED_API_KEY','').strip())
+          print('Repository FRED/ALFRED credential available:',available)
+          print('Retained ALFRED baseline sidecars present:',Path('market-evidence/vintage/manifest.json').exists())
+          PY
+      - name: Collect, replay and qualify all three levels in staging
+        env:
+          MARKET_NAVIGATOR_FRED_API_KEY: ${{ secrets.MARKET_NAVIGATOR_FRED_API_KEY }}
+          MARKET_NAVIGATOR_FRED_API_KEY_SECONDARY: ${{ secrets.MARKET_NAVIGATOR_FRED_API_KEY_SECONDARY }}
+          RETRY_COMPONENT: ${{ inputs.component }}
+          HISTORICAL_REBUILD: ${{ inputs.historical_rebuild }}
+          INITIAL_QUALIFICATION: ${{ github.event_name == 'push' }}
+        run: |
+          python - <<'PY'
+          import os,subprocess,sys
+          args=[sys.executable,'market-navigator-etl-run.py']
+          component=os.environ.get('RETRY_COMPONENT','')
+          if component: args+=['--component',component]
+          else: args+=['--retry-stream']
+          from pathlib import Path
+          initial=os.environ.get('INITIAL_QUALIFICATION')=='true' and not Path('market-navigator-etl-review/channel.json').exists()
+          if os.environ.get('HISTORICAL_REBUILD','').lower()=='true' or initial: args+=['--historical-rebuild']
+          subprocess.run(args,check=True)
+          PY
+      - name: Preserve collected state for selective retries
+        if: always()
+        uses: actions/cache/save@v4
+        with:
+          path: |
+            market-navigator-etl-work
+            market-navigator-etl-review
+          key: mn-integrated-etl-${{ runner.os }}-${{ github.run_id }}
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Install isolated browser test runtime
+        run: |
+          npm install --prefix "$RUNNER_TEMP/mn-browser" playwright
+          "$RUNNER_TEMP/mn-browser/node_modules/.bin/playwright" install --with-deps chromium
+      - name: Qualify integrated application with the real collected package
+        env:
+          MN_PLAYWRIGHT_MODULE: ${{ runner.temp }}/mn-browser/node_modules/playwright
+          MN_BROWSER_CHANNELS: chromium
+        run: node test_market_navigator_etl_browser.cjs
+      - name: Compare with immutable accepted Turn 28 using identical qualified data
+        env:
+          MN_PLAYWRIGHT_MODULE: ${{ runner.temp }}/mn-browser/node_modules/playwright
+          MN_BROWSER_CHANNELS: chromium
+        run: node test_market_navigator_etl_regression.cjs
+      - name: Publish only the qualified review directory
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_PAT || github.token }}
+        run: |
+          if [ -z "$GH_TOKEN" ]; then echo "::error::Repository secret GITHUB_PAT is unavailable"; exit 1; fi
+          git clone --depth 1 "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" "$RUNNER_TEMP/mn-publication"
+          python - <<'PY'
+          import os,shutil
+          from pathlib import Path
+          target=Path(os.environ['RUNNER_TEMP'])/'mn-publication/market-navigator-etl-review'
+          # Replace only this candidate's directory; all other projects stay intact.
+          if target.exists():shutil.rmtree(target)
+          shutil.copytree('market-navigator-etl-review',target)
+          PY
+          cd "$RUNNER_TEMP/mn-publication"
+          git config user.name 'Market Navigator ETL'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git fetch origin main
+          git merge --ff-only origin/main
+          git add -- market-navigator-etl-review
+          if ! git diff --cached --quiet; then
+            git commit -m "Publish qualified Market Navigator review from ${GITHUB_SHA}"
+            git push origin HEAD:main
+          fi
+          curl --fail-with-body --silent --show-error \
+            -X POST \
+            -H "Authorization: Bearer ${GH_TOKEN}" \
+            -H "Accept: application/vnd.github+json" \
+            "https://api.github.com/repos/${GITHUB_REPOSITORY}/actions/workflows/static.yml/dispatches" \
+            -d '{"ref":"main"}'
+      - name: Retain actual execution history and review output
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: market-navigator-etl-integrated-review
+          path: market-navigator-etl-review/
+          retention-days: 30
