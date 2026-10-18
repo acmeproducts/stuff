@@ -2387,3 +2387,8 @@ Detailed RCA, staged recovery design, differential gates, failure rules, and rev
 `MARKET-NAVIGATOR-TURN37-RCA-PLAN.md`
 
 This plan supersedes the Turn 31–36 modularization approaches. Those turns remain evidence only and are not implementation donors.
+
+
+## October 18, 2026 — owner rejected integrated ETL review
+
+Owner reports unusable ENV visualization and chart crosshair interaction navigating into MAC drill-down. The full release is rejected. Restore the review URL to exact owner-approved Turn 28 application blob 9ce7f67451f9e1b7804927ce5c56adb667614724 and its data/market-backend and market-evidence trees from 996e9a71b72db5bfbea3ba77750077daaa2fb7ab. Disable review auto-publication and scheduling while the replacement is qualified. No forward patch of the rejected release and no owner retry request. Replacement must verify real touch crosshair versus drill-down behavior, approved ENV appearance, source values and index transformations before re-release.
