@@ -1,5 +1,5 @@
-<!-- TALKBRIDGE-PLAN v21.106.0 -->
-# TALKBRIDGE MASTER PLAN v21.106.0
+<!-- TALKBRIDGE-PLAN v21.107.0 -->
+# TALKBRIDGE MASTER PLAN v21.107.0
 
 **Location:** `talkbridge/TALKBRIDGE-PLAN-v9.md` in `acmeproducts/stuff`.
 **Owner:** Confi — sole decision-maker, runs every device gate.
@@ -2090,6 +2090,8 @@ Green means allowed to push. It never means done.
 ---
 
 ## 10 · CHANGE LOG
+
+**v21.107.0 · 2026-10-18.** The ownership gate judges a merge only by what it changed itself (owner saw "TalkBridge ownership / own failed"): PR #916 (Market Navigator) was refused for merging main, whose TalkBridge files it carried unchanged. A merge that edits a TalkBridge file is still refused. Self-test 17/17. Graveyard G75. OPEN: the app differential (harness-29pos E, `Y.room`) failed once in eight full runs on 2026-10-18 — the reach bar (`rh-bar`) present in one build's room snapshot and not yet in the other; a timing race in the snapshot, not this change (app untouched; three re-runs 92/92). To root-cause before the next app candidate.
 
 **v21.106.0 · 2026-10-18.** 29·post-ship c8: THE ROOM SURVIVES A SLEEP, relay v6.15 (owner: "room name is wrong"). Three call lines on 2026-10-18 read `room none`: the room code lived only in the relay object's memory and the object had slept between the chats and the calls. The message handler now takes the code from the socket, which already carried it. Gates: relay harness v6.15 25/25 (new L7, which fails on v6.14), mutations 52/52, r10-cr3 10/10 pinned 6.15; governance relay_version 6.15. Graveyard G74. Note: the burst of "joined" lines at 06:07 is each phone's first hello in each of its older rooms since the log began (v6.12); it happens once per phone per room.
 

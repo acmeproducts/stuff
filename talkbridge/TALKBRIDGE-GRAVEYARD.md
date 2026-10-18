@@ -1,7 +1,7 @@
 <!-- v5.8.2.42 -->
 # TALKBRIDGE — THE GRAVEYARD (living; keep in project knowledge)
 ## Approaches PROVEN to fail. Scanned before every change and at every exit condition. Never resurrect.
-**Version: 2.34 | 2026-10-18 | G74 the room code kept only in the relay object's memory (activity lines after a sleep read "room none") | Maintained in GitHub by the build process (raw.githubusercontent.com/acmeproducts/stuff/main/talkbridge/TALKBRIDGE-GRAVEYARD.md). Updated on every exit-condition burial.**
+**Version: 2.35 | 2026-10-18 | G75 the ownership gate judged a merge of main into a branch by everything main brought | Maintained in GitHub by the build process (raw.githubusercontent.com/acmeproducts/stuff/main/talkbridge/TALKBRIDGE-GRAVEYARD.md). Updated on every exit-condition burial.**
 
 
 Each entry: the approach, its failure signature, what replaces it. A change matching a signature is forbidden BEFORE it is attempted — not rediscovered as if new.
@@ -147,6 +147,7 @@ Each entry: the approach, its failure signature, what replaces it. A change matc
 | G72 | 2026-10-12 | Chrome behaviour keyed on an English string at runtime (the missed-pill guard by `'Missed '`, the label relabel by `/Room title/i`) |
 | G73 | 2026-10-16 | A typed name and a made-up default written raw into the activity log (`someone·ciA`, relay v6.12) |
 | G74 | 2026-10-18 | The room code kept only in the relay object's memory (activity lines after a sleep read `room none`, relay v6.12–v6.14) |
+| G75 | 2026-10-18 | The ownership gate judging a merge by its first-parent diff (a branch that merged main was refused for main's own TalkBridge commits) |
 | E134 | 2026-10-07 | Annotation · 2026-10-07: E076's corollary superseded by owner ruling (install optional) |
 
 </details>
@@ -2480,3 +2481,27 @@ Relay harness v6.15 L7 sleeps the object between the chat and the call; a
 mutation removes the recovery and L7 fails.
 
 **Buried by.** 29·post-ship c8, relay v6.15 (plan v21.106.0).
+
+## G75 — 2026-10-18 — The ownership gate judging a merge by its first-parent diff
+
+**The approach.** The ownership gate (G61) judged every commit in a pull
+request by its diff against its first parent, "so a merge commit is judged by
+what it brought to main".
+
+**Failure signature.** 2026-10-18 18:49 UTC, PR #916 (Market Navigator): its
+merge of main (b57f3b2) was refused for ten TalkBridge files — the relay v6.13
+to v6.15 work, the plan, the graveyard — although every one was main's own,
+byte for byte. The first parent of a merge of main INTO a branch is the branch,
+so the diff was everything main brought.
+
+**Why it fails.** The first-parent rule is right for a merge into main and
+wrong for a merge of main into a branch, the common case for any project that
+keeps its branch current.
+
+**The rule.** A merge is judged only by the paths it leaves different from
+every parent; a path identical to another parent came from it and is judged
+there. A merge that edits a TalkBridge file on the way through is still refused.
+Self-test cases 15–17; checked on PR #916's range (passes) and on a throwaway
+repository whose merge edits a TalkBridge file (refused).
+
+**Buried by.** Plan v21.107.0.
