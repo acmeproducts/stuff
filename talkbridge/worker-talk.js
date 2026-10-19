@@ -55,7 +55,8 @@ const VAPID_SUBJECT = 'mailto:nobody@nowhere.com';
 /* v6: only events that own a recipient record can alert. Everything else is
    data on the socket, never a wake. */
 const RECORD_KIND = { 'chat-msg': 'chat', 'thread-invite': 'chat', 'call-start': 'call' };
-const RELAY_VERSION = '6.15';          /* v6.15 29·post-ship c8: THE ROOM SURVIVES A SLEEP (owner 2026-10-18: "room name is wrong" — three call lines read "room none"). The room code was kept only in memory, set by the request that opened the socket; a room's object sleeps between messages and woke without it, so every line written after a sleep said "none". The socket carries the room code in its attachment; the message handler takes it from there when memory has none. */
+const RELAY_VERSION = '6.16';          /* v6.16 29·post-ship c9: THE ROOM'S NAME AND THE CALL'S LENGTH (owner 2026-10-19: "room name still isn't showing up; answered calls/video should have start and end and duration times"). The room's shared name (the creator's title, carried by every phone's hello since app candidate 6, and moved by a rename pill) is kept with the room and written after its code: "room wvshos Miko chat" — letters, digits and single spaces, 24 at most. An answered call is written once, when it ends: "… — answered by Bo  started 07:05:10  ended 07:09:40  lasted 4m 30s" (UTC, like the line's own time). */
+/* (prior) v6.15 29·post-ship c8: THE ROOM SURVIVES A SLEEP (owner 2026-10-18: "room name is wrong" — three call lines read "room none"). The room code was kept only in memory, set by the request that opened the socket; a room's object sleeps between messages and woke without it, so every line written after a sleep said "none". The socket carries the room code in its attachment; the message handler takes it from there when memory has none. */
 /* (prior) v6.14 29·post-ship c7: NAMES ONLY in the activity log (owner 2026-10-17: "get rid of flz, is confusing") — a person is the name they typed (letters and digits, any script, 16 at most); a person with no name is "Guest 1", "Guest 2" … numbered in the order they first appear in that room, and kept. No device tag. */
 /* (prior) v6.13 29·post-ship c6: CLEAN LABELS in the activity log (owner 2026-10-16: "if there is a default name that hasn't been added yet it doesn't include one that has special characters; this should be super clean") — a person is "<Name> <tag>": the name keeps letters and digits only (any script), the tag is lowercase letters and digits, a device without a name is "Guest"; the room is letters and digits; a language that is not a language code is "unknown". */
 /* (prior) v6.12 29·post-ship c5: THE ACTIVITY LOG (owner 2026-10-15: "I want a timestamp log: x created room 1 en to th; x joined; y joined; video call from x missed; video call from y answered; chat from x") — one line per event in a fixed Durable Object (tb::__activity__), person = the name they typed · their device tag, room = its short id; no message text; drained by the device-log workflow into talkbridge/ACTIVITY-LOG.md. */
@@ -76,6 +77,15 @@ function cleanName(v) {
   let s = String(v == null ? '' : v).normalize('NFKC').replace(/[^\p{L}\p{M}\p{N}]+/gu, '').replace(/^\p{M}+/u, '');
   s = Array.from(s).slice(0, 16).join('');
   return s;
+}
+/* v6.16 — the room's shared name: letters (with marks) and digits in any script, single spaces between words, 24 at most */
+function cleanTitle(v) {
+  return Array.from(String(v == null ? '' : v).normalize('NFKC').replace(/[^\p{L}\p{M}\p{N}]+/gu, ' ').trim().replace(/^\p{M}+/u, '')).slice(0, 24).join('').trim();
+}
+function utcClock(ms) { return new Date(ms).toISOString().slice(11, 19); }
+function lasted(ms) {
+  const t = Math.max(0, Math.round(ms / 1000)), h = Math.floor(t / 3600), m = Math.floor((t % 3600) / 60), sec = t % 60;
+  return h ? h + 'h ' + String(m).padStart(2, '0') + 'm' : m ? m + 'm ' + String(sec).padStart(2, '0') + 's' : sec + 's';
 }
 function cleanLang(v) {
   const s = String(v == null ? '' : v).trim();
@@ -258,9 +268,11 @@ export class TalkSession {
     this.devices = {};                  /* clientId -> { at } every device ever seen in this session */
     this.states = {};                   /* clientId -> { visible, inRoom, muted, at } last reported. v6.9: PERSISTED — kept in memory only, it vanished every time the object slept between two heartbeats, and the first phone to wake it was told nobody was there (device log 2026-10-10 23:26:42 UTC) */
     this.cap = 0;                       /* v6.7: the room cap once a creator's socket has said it; 0 = MAX_PARTICIPANTS */
+    this.title = '';                    /* v6.16: the room's shared name (persisted as 'title') */
     this.dead = {};                     /* v6.8: endpoint → when the push service said 404/410. Device log 2026-10-10 18:23 UTC: FCM answered 410 for a subscription Chrome still handed the app at every boot; the app re-registered it, the relay re-learned it was dead, nothing ever rang. */
     this.ready = this.state.blockConcurrencyWhile(async () => {
-      const stored = await this.state.storage.get(['seq', 'messages', 'lastActivity', 'subs', 'events', 'devices', 'cap', 'dead', 'states']);
+      const stored = await this.state.storage.get(['seq', 'messages', 'lastActivity', 'subs', 'events', 'devices', 'cap', 'dead', 'states', 'title']);
+      this.title = stored.get('title') || '';   /* v6.16: the room's shared name */
       this.cap = Number(stored.get('cap')) || 0;
       this.seq = Number(stored.get('seq')) || 0;
       this.messages = stored.get('messages') || [];
@@ -400,8 +412,8 @@ export class TalkSession {
     if (!ev) return;
     msg.callId = ev.callId; msg.eventId = ev.id;
     const r = ev.rcp[clientId];
-    if (msg.type === 'call-accept') { if (r && r.o === 'offered') { r.o = 'accepted'; r.s = 'seen'; r.seenAt = Date.now(); r.seenBy = 'accept'; if (!ev.logged) { ev.logged = true; this._activity(ev.callKind + ' call from ' + this._who(ev.from) + ' — answered by ' + this._who(clientId), null); } } }
-    else if (msg.type === 'call-decline') { if (r && r.o === 'offered') { r.o = 'declined'; r.s = 'seen'; r.seenAt = Date.now(); r.seenBy = 'decline'; if (!ev.logged) { ev.logged = true; this._activity(ev.callKind + ' call from ' + this._who(ev.from) + ' — declined by ' + this._who(clientId), null); } } }
+    if (msg.type === 'call-accept') { if (r && r.o === 'offered') { r.o = 'accepted'; r.s = 'seen'; r.seenAt = Date.now(); r.seenBy = 'accept'; if (!ev.answeredAt && !ev.logged) { ev.answeredAt = r.seenAt; ev.answeredBy = clientId; } } }   /* v6.16: an answered call is written when it ends, with its length */
+    else if (msg.type === 'call-decline') { if (r && r.o === 'offered') { r.o = 'declined'; r.s = 'seen'; r.seenAt = Date.now(); r.seenBy = 'decline'; if (!ev.logged && !ev.answeredAt) { ev.logged = true; this._activity(ev.callKind + ' call from ' + this._who(ev.from) + ' — declined by ' + this._who(clientId), null); } } }
     else if (msg.type === 'call-end') {
       /* Caller/global termination is separate from each receiver's outcome:
          a receiver who neither accepted nor declined becomes missed exactly once. */
@@ -415,7 +427,11 @@ export class TalkSession {
         for (const rr of Object.values(ev.rcp)) { if (rr.o === 'offered') rr.o = 'missed'; else if (rr.o === 'accepted') rr.o = 'ended'; }
       }
     }
-    if (msg.type === 'call-end' && ev.ended && !ev.logged) { ev.logged = true; this._activity(ev.callKind + ' call from ' + this._who(ev.from) + ' — missed', null); }   /* v6.12: ended with nobody answering */
+    if (msg.type === 'call-end' && ev.ended && !ev.logged) {
+      ev.logged = true;
+      if (ev.answeredAt) { const end = ev.endedAt || Date.now(); this._activity(ev.callKind + ' call from ' + this._who(ev.from) + ' — answered by ' + this._who(ev.answeredBy) + '  started ' + utcClock(ev.answeredAt) + '  ended ' + utcClock(end) + '  lasted ' + lasted(end - ev.answeredAt), null); }   /* v6.16 */
+      else this._activity(ev.callKind + ' call from ' + this._who(ev.from) + ' — missed', null);   /* v6.12: ended with nobody answering */
+    }
     await this._saveEvents();
     for (const cid of Object.keys(ev.rcp)) this._pushProjection(cid);
     /* N-1 (plan §9) — the terminal wake. A card left by an OS-requested push
@@ -659,6 +675,10 @@ export class TalkSession {
     await this.state.storage.put({ activity: lines });
     return new Response('ok', { status: 200, headers: cors() });
   }
+  async _setTitle(v) {   /* v6.16 */
+    const t = cleanTitle(v); if (!t || t === this.title) return;
+    this.title = t; await this.state.storage.put({ title: t });
+  }
   _who(clientId) {   /* v6.14: the name only — letters and digits; no name is "Guest N", numbered per room in order of first appearance, and kept */
     const d = this.devices[clientId]; const name = cleanName(d && d.name);
     if (name) return name;
@@ -671,8 +691,8 @@ export class TalkSession {
   }
   _activity(what, clientId) {
     try {
-      const room = String(this.sessionId || '').replace(/[^A-Za-z0-9]/g, '').slice(-6) || 'none';
-      const line = new Date().toISOString().replace('T', ' ').slice(0, 19) + '  room ' + room + '  ' + (clientId ? this._who(clientId) + ' ' : '') + what;
+      const room = (String(this.sessionId || '').replace(/[^A-Za-z0-9]/g, '').slice(-6) || 'none') + (this.title ? ' ' + this.title : '');
+      const line = new Date(Date.now()).toISOString().replace('T', ' ').slice(0, 19) + '  room ' + room + '  ' + (clientId ? this._who(clientId) + ' ' : '') + what;
       const id = this.env.TALK_SESSION.idFromName('tb::__activity__');
       const p = this.env.TALK_SESSION.get(id).fetch(new Request('https://relay/activity', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ line }) })).catch(() => {});
       try { this.state.waitUntil(p); } catch (_) {}
@@ -817,11 +837,13 @@ export class TalkSession {
     }
 
     const isTransient = msg.transient === true || TRANSIENT_TYPES.has(msg.type);
+    if (msg.type === 'sys-pill' && typeof msg.newRoomName === 'string') await this._setTitle(msg.newRoomName);   /* v6.16: a rename moves the room's name */
     if (msg.type === 'hello') {
       await this._noteDevice(clientId);
       const d = this.devices[clientId]; let changed = false; const fresh = !d.hello; if (fresh) { d.hello = Date.now(); changed = true; }   /* the device's FIRST hello in this room (it is noted at the socket, earlier) */
       if (msg.name && d.name !== String(msg.name).slice(0, 24)) { d.name = String(msg.name).slice(0, 24); changed = true; }
       if (msg.dev && d.dev !== String(msg.dev).slice(0, 24)) { d.dev = String(msg.dev).slice(0, 24); changed = true; }
+      if (typeof msg.title === 'string') await this._setTitle(msg.title);   /* v6.16: the room's shared name rides every hello */
       if (changed) await this.state.storage.put({ devices: this.devices });
       if (fresh) this._activity((msg.role === 'creator' ? 'created  ' : 'joined  ') + cleanLang(msg.lang) + ' → ' + cleanLang(msg.targetLang), clientId);   /* v6.12 */
     }
