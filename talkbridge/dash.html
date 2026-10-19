@@ -160,16 +160,23 @@ footer{color:var(--ink-3);font-size:13px;margin-top:6px}
   var state = { events: [], raw: '', range: store.get('tb_dash_range') == null ? 86400000 : store.get('tb_dash_range'), tab: 'summary', custom: Object.assign({}, DEF_CUSTOM, store.get('tb_dash_custom') || {}), sel: {} };
 
   /* The relay writes UTC: "2026-10-16 01:52:03  room bh5qos  Ann created  en → th" */
+  var titles = {};   /* room code → its latest name */
+  function roomName(code) { return titles[code] || ''; }
+  function roomLabel(code) { return titles[code] ? titles[code] + ' · ' + code : 'room ' + code; }
+  function parseLasted(t) { var ms = 0, m; if ((m = /(\d+)h/.exec(t))) ms += m[1] * 3600000; if ((m = /(\d+)m/.exec(t))) ms += m[1] * 60000; if ((m = /(\d+)s/.exec(t))) ms += m[1] * 1000; return ms; }
+  function lastedWords(ms) { var t = Math.round(ms / 1000), h = Math.floor(t / 3600), mi = Math.floor((t % 3600) / 60), se = t % 60; return h ? h + ' h ' + mi + ' min' : mi ? mi + ' min ' + se + ' s' : se + ' s'; }
   function parse(text) {
-    var out = [];
+    var out = []; titles = {};
     text.split('\n').forEach(function (line, i) {
-      var m = /^(\d{4}-\d\d-\d\d \d\d:\d\d:\d\d)  room (\S+)  (.*)$/.exec(line.trim());
+      /* relay v6.16: "room <code> <name>" — the name (letters, digits, single spaces) follows the code when the room has one */
+      var m = /^(\d{4}-\d\d-\d\d \d\d:\d\d:\d\d)  room (\S+)(?: ((?:(?!  ).)+?))?  (.*)$/.exec(line.trim());
       if (!m) return;
-      var e = { i: i, line: line.trim(), utc: m[1], ts: Date.parse(m[1].replace(' ', 'T') + 'Z'), room: m[2], text: m[3] }, r, rest = m[3];
+      var e = { i: i, line: line.trim(), utc: m[1], ts: Date.parse(m[1].replace(' ', 'T') + 'Z'), room: m[2], title: m[3] || '', text: m[4] }, r, rest = m[4];
+      if (e.title) titles[e.room] = e.title;
       if ((r = /^(.+?) created  (\S+) → (\S+)$/.exec(rest))) { e.kind = 'created'; e.who = r[1]; e.from = r[2]; e.to = r[3]; }
       else if ((r = /^(.+?) joined  (\S+) → (\S+)$/.exec(rest))) { e.kind = 'joined'; e.who = r[1]; e.from = r[2]; e.to = r[3]; }
       else if ((r = /^(.+?) chat$/.exec(rest))) { e.kind = 'chat'; e.who = r[1]; }
-      else if ((r = /^(video|voice) call from (.+?) — answered by (.+)$/.exec(rest))) { e.kind = 'answered'; e.call = r[1]; e.who = r[2]; e.by = r[3]; }
+      else if ((r = /^(video|voice) call from (.+?) — answered by (.+?)(?:  started (\S+)  ended (\S+)  lasted (.+))?$/.exec(rest))) { e.kind = 'answered'; e.call = r[1]; e.who = r[2]; e.by = r[3]; if (r[6]) { e.durMs = parseLasted(r[6]); e.endTs = e.ts; e.startTs = e.ts - e.durMs; } }
       else if ((r = /^(video|voice) call from (.+?) — declined by (.+)$/.exec(rest))) { e.kind = 'declined'; e.call = r[1]; e.who = r[2]; e.by = r[3]; }
       else if ((r = /^(video|voice) call from (.+?) — missed$/.exec(rest))) { e.kind = 'missed'; e.call = r[1]; e.who = r[2]; }
       else { e.kind = 'chat'; e.who = rest; }
@@ -186,7 +193,7 @@ footer{color:var(--ink-3);font-size:13px;margin-top:6px}
     if (e.kind === 'created') return e.who + ' created the room (' + e.from + ' → ' + e.to + ')';
     if (e.kind === 'joined') return e.who + ' joined (' + e.from + ' → ' + e.to + ')';
     if (e.kind === 'chat') return e.who + ' sent a chat';
-    if (e.kind === 'answered') return cap(e.call) + ' call from ' + e.who + ', answered by ' + e.by;
+    if (e.kind === 'answered') return cap(e.call) + ' call from ' + e.who + ', answered by ' + e.by + (e.durMs != null ? ' · ' + clock(e.startTs) + ' to ' + clock(e.endTs) + ' · ' + lastedWords(e.durMs) : '');
     if (e.kind === 'declined') return cap(e.call) + ' call from ' + e.who + ', declined by ' + e.by;
     if (e.kind === 'missed') return cap(e.call) + ' call from ' + e.who + ', missed';
     return e.text;
@@ -232,7 +239,8 @@ footer{color:var(--ink-3);font-size:13px;margin-top:6px}
     rooms.forEach(function (rm, ri) {
       var y = T + ri * rowH + rowH / 2, n = Object.keys(rm.ppl).length;
       s += '<line class="grid" x1="' + (L + 8) + '" y1="' + y + '" x2="' + (W - R) + '" y2="' + y + '"/>';
-      s += '<text class="lane-label" x="0" y="' + (y - 2) + '">' + esc(rm.id) + '</text><text class="lane-sub" x="0" y="' + (y + 14) + '">' + n + (n === 1 ? ' person' : ' people') + '</text>';
+      var nm = roomName(rm.id), lab = nm ? (nm.length > (W < 500 ? 9 : 14) ? nm.slice(0, W < 500 ? 8 : 13) + '…' : nm) : rm.id;
+      s += '<text class="lane-label" x="0" y="' + (y - 2) + '">' + esc(lab) + '</text><text class="lane-sub" x="0" y="' + (y + 14) + '">' + (nm ? esc(rm.id) + ' · ' : '') + n + (n === 1 ? ' person' : ' people') + '</text>';
       rm.ev.forEach(function (e) { s += shape(KINDS[e.kind] || KINDS.chat, X(e.ts), y, 7, e.i); });
       rm.ev.forEach(function (e) { s += '<circle class="hit" cx="' + X(e.ts) + '" cy="' + y + '" r="18" data-i="' + e.i + '" data-host="' + hostId + '" tabindex="0" role="button" aria-label="' + esc(when(e.ts) + ', ' + describe(e)) + '"/>'; });
     });
@@ -245,7 +253,7 @@ footer{color:var(--ink-3);font-size:13px;margin-top:6px}
     state.sel[hostId] = String(i);
     $(hostId).querySelectorAll('.mark.on').forEach(function (m) { m.classList.remove('on'); });
     var m = $(hostId).querySelector('.mark[data-m="' + i + '"]'); if (m) m.classList.add('on');
-    $(detailId).innerHTML = sw(e.kind) + ' <b>' + esc(describe(e)) + '</b><br>' + esc(when(e.ts) + ' · room ' + e.room);
+    $(detailId).innerHTML = sw(e.kind) + ' <b>' + esc(describe(e)) + '</b><br>' + esc(when(e.ts) + ' · ' + roomLabel(e.room));
   }
   function feedHtml(ev, limit) {
     var list = ev.slice().reverse().slice(0, limit || 300);
@@ -254,7 +262,7 @@ footer{color:var(--ink-3);font-size:13px;margin-top:6px}
     list.forEach(function (e) {
       var d = dayName(e.ts);
       if (d !== day) { if (open) out += '</ul>'; out += '<div class="day">' + esc(d) + '</div><ul class="feed">'; open = true; day = d; }
-      out += '<li>' + sw(e.kind) + '<span>' + esc((KINDS[e.kind].icon || '') + describe(e)) + '<span class="sub">room ' + esc(e.room) + '</span></span><time>' + esc(clock(e.ts)) + '</time></li>';
+      out += '<li>' + sw(e.kind) + '<span>' + esc((KINDS[e.kind].icon || '') + describe(e)) + '<span class="sub">' + esc(roomLabel(e.room)) + '</span></span><time>' + esc(clock(e.ts)) + '</time></li>';
     });
     return out + (open ? '</ul>' : '');
   }
@@ -269,8 +277,8 @@ footer{color:var(--ink-3);font-size:13px;margin-top:6px}
     ev.forEach(function (e) { var r = by[e.room]; if (!r) { r = by[e.room] = { id: e.room, creator: null, ppl: {}, n: {}, last: 0 }; rooms.push(r); } if (e.kind === 'created') r.creator = e; people(e).forEach(function (p) { r.ppl[p] = 1; }); r.n[e.kind] = (r.n[e.kind] || 0) + 1; r.last = Math.max(r.last, e.ts); });
     rooms.sort(function (a, b) { return b.last - a.last; });
     $('rooms-list').innerHTML = rooms.length ? rooms.map(function (r) {
-      return '<button class="item" data-room="' + esc(r.id) + '"><div class="h"><b>Room ' + esc(r.id) + '</b><time>' + esc(rel(r.last)) + '</time></div>' +
-        '<div class="meta">' + (r.creator ? 'Created by ' + esc(r.creator.who) + ' · ' + esc(r.creator.from + ' → ' + r.creator.to) : 'Created before this range') + '</div>' +
+      return '<button class="item" data-room="' + esc(r.id) + '"><div class="h"><b>' + esc(roomName(r.id) || 'Room ' + r.id) + '</b><time>' + esc(rel(r.last)) + '</time></div>' +
+        '<div class="meta">' + (roomName(r.id) ? 'room ' + esc(r.id) + ' · ' : '') + (r.creator ? 'Created by ' + esc(r.creator.who) + ' · ' + esc(r.creator.from + ' → ' + r.creator.to) : 'Created before this range') + '</div>' +
         '<div>' + Object.keys(r.ppl).map(function (p) { return '<span class="who">' + esc(p) + '</span>'; }).join('') + '</div>' + '<div style="margin-top:8px">' + countsHtml(r.n) + '</div><div class="go">Tap to open in Custom ›</div></button>';
     }).join('') : '<div class="card empty">No rooms in this range.</div>';
   }
@@ -291,10 +299,10 @@ footer{color:var(--ink-3);font-size:13px;margin-top:6px}
   }
 
   /* ---- custom view ---- */
-  function syncSelect(id, values, current, allLabel) {
-    var el = $(id), want = [''].concat(values), have = Array.prototype.map.call(el.options, function (o) { return o.value; });
+  function syncSelect(id, values, current, allLabel, label) {
+    var el = $(id), want = [''].concat(values), lab = function (v) { return v ? (label ? label(v) : v) : allLabel; }, have = Array.prototype.map.call(el.options, function (o) { return o.value + '|' + o.textContent; });
     if (current && want.indexOf(current) < 0) want.push(current);
-    if (want.join('\n') !== have.join('\n')) el.innerHTML = want.map(function (v) { return '<option value="' + esc(v) + '">' + esc(v || allLabel) + '</option>'; }).join('');
+    if (want.map(function (v) { return v + '|' + lab(v); }).join('\n') !== have.join('\n')) el.innerHTML = want.map(function (v) { return '<option value="' + esc(v) + '">' + esc(lab(v)) + '</option>'; }).join('');
     el.value = current || '';
   }
   function localInput(ts) { var d = new Date(ts - new Date(ts).getTimezoneOffset() * 60000); return d.toISOString().slice(0, 16); }
@@ -302,14 +310,14 @@ footer{color:var(--ink-3);font-size:13px;margin-top:6px}
     var c = state.custom, all = state.events, rooms = {}, ppl = {};
     all.forEach(function (e) { rooms[e.room] = 1; people(e).forEach(function (p) { ppl[p] = 1; }); });
     $('c-kinds').innerHTML = ORDER.map(function (k) { return '<button class="chip" data-kind="' + k + '" aria-pressed="' + (c.kinds.indexOf(k) >= 0) + '">' + sw(k) + esc(KINDS[k].label) + '</button>'; }).join('');
-    syncSelect('c-room', Object.keys(rooms).sort(), c.room, 'All rooms');
+    syncSelect('c-room', Object.keys(rooms).sort(), c.room, 'All rooms', roomLabel);
     syncSelect('c-person', Object.keys(ppl).sort(), c.person, 'Everyone');
     if (document.activeElement !== $('c-from')) $('c-from').value = c.from || '';
     if (document.activeElement !== $('c-to')) $('c-to').value = c.to || '';
     var b = rangeBounds(), from = c.from ? Date.parse(c.from) : b.from, to = c.to ? Date.parse(c.to) : b.to;
     $('c-note').textContent = (c.from || c.to) ? 'Using your dates.' : 'No dates set: using the range above.';
     var ev = inRange(all, from, to).filter(function (e) { return c.kinds.indexOf(e.kind) >= 0 && (!c.room || e.room === c.room) && (!c.person || people(e).indexOf(c.person) >= 0); }); state.customEv = ev;
-    var bits = []; if (c.room) bits.push('room ' + c.room); if (c.person) bits.push(c.person); if (c.kinds.length < ORDER.length) bits.push(c.kinds.length + ' of ' + ORDER.length + ' kinds');
+    var bits = []; if (c.room) bits.push(roomLabel(c.room)); if (c.person) bits.push(c.person); if (c.kinds.length < ORDER.length) bits.push(c.kinds.length + ' of ' + ORDER.length + ' kinds');
     $('c-head').textContent = ev.length + ' event' + (ev.length === 1 ? '' : 's') + (bits.length ? ' · ' + bits.join(' · ') : '');
     var n = {}; ev.forEach(function (e) { n[e.kind] = (n[e.kind] || 0) + 1; }); $('c-tiles').innerHTML = '<div class="split" style="font-size:15px">' + ORDER.map(function (k) { return '<span>' + sw(k) + (n[k] || 0) + ' ' + KINDS[k].short + '</span>'; }).join('') + '</div>';
     lanes(ev, 'c-lanes', 'c-detail', c.from ? from : (state.range ? from : 0), to);
@@ -334,10 +342,11 @@ footer{color:var(--ink-3);font-size:13px;margin-top:6px}
   /* ---- downloads: exactly what the tab shows ---- */
   function csvCell(v) { v = v == null ? '' : String(v); return /[",\n]/.test(v) ? '"' + v.replace(/"/g, '""') + '"' : v; }
   function toCsv(ev) {
-    var head = ['time_utc', 'time_local', 'room', 'event', 'person', 'other_person', 'call_type', 'from_language', 'to_language'];
+    var head = ['time_utc', 'time_local', 'room', 'room_name', 'event', 'person', 'other_person', 'call_type', 'call_started_local', 'call_ended_local', 'call_seconds', 'from_language', 'to_language'];
+    var fmtL = function (ts) { return new Date(ts).toLocaleString([], { year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', second: '2-digit' }); };
     return [head.join(',')].concat(ev.map(function (e) {
       var local = new Date(e.ts).toLocaleString([], { year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', second: '2-digit' });
-      return [e.utc, local, e.room, KINDS[e.kind].label, e.who || '', e.by || '', e.call || '', e.from || '', e.to || ''].map(csvCell).join(',');
+      return [e.utc, local, e.room, e.title || roomName(e.room), KINDS[e.kind].label, e.who || '', e.by || '', e.call || '', e.durMs != null ? fmtL(e.startTs) : '', e.durMs != null ? fmtL(e.endTs) : '', e.durMs != null ? Math.round(e.durMs / 1000) : '', e.from || '', e.to || ''].map(csvCell).join(',');
     })).join('\r\n') + '\r\n';
   }
   function save(name, text, type) {
@@ -378,9 +387,9 @@ footer{color:var(--ink-3);font-size:13px;margin-top:6px}
   function demoText() {
     var now = Date.now(), L = [], t = function (m) { return new Date(now - m * 60000).toISOString().replace('T', ' ').slice(0, 19); };
     L.push(t(1500) + '  room x7k2pa  Ann created  en → es'); L.push(t(1490) + '  room x7k2pa  Luz joined  es → en'); L.push(t(1480) + '  room x7k2pa  Luz chat');
-    L.push(t(130) + '  room bh5qos  Ann created  en → th'); L.push(t(126) + '  room bh5qos  Bo joined  th → en'); L.push(t(120) + '  room bh5qos  Ann chat'); L.push(t(119) + '  room bh5qos  Bo chat');
-    L.push(t(110) + '  room bh5qos  video call from Ann — missed'); L.push(t(100) + '  room bh5qos  video call from Bo — answered by Ann'); L.push(t(40) + '  room q4hv8e  Ann created  en → ko'); L.push(t(38) + '  room q4hv8e  Kim joined  ko → en');
-    L.push(t(30) + '  room q4hv8e  voice call from Kim — declined by Ann'); L.push(t(12) + '  room q4hv8e  Kim chat'); L.push(t(2) + '  room bh5qos  Bo chat');
+    L.push(t(130) + '  room bh5qos Ann and Bo  Ann created  en → th'); L.push(t(126) + '  room bh5qos Ann and Bo  Bo joined  th → en'); L.push(t(120) + '  room bh5qos Ann and Bo  Ann chat'); L.push(t(119) + '  room bh5qos Ann and Bo  Bo chat');
+    L.push(t(110) + '  room bh5qos Ann and Bo  video call from Ann — missed'); L.push(t(100) + '  room bh5qos Ann and Bo  video call from Bo — answered by Ann  started ' + new Date(now - 104.5 * 60000).toISOString().slice(11, 19) + '  ended ' + new Date(now - 100 * 60000).toISOString().slice(11, 19) + '  lasted 4m 30s'); L.push(t(40) + '  room q4hv8e Korean class  Ann created  en → ko'); L.push(t(38) + '  room q4hv8e Korean class  Kim joined  ko → en');
+    L.push(t(30) + '  room q4hv8e Korean class  voice call from Kim — declined by Ann'); L.push(t(12) + '  room q4hv8e Korean class  Kim chat'); L.push(t(2) + '  room bh5qos Ann and Bo  Bo chat');
     return L.join('\n');
   }
   function tick() {
