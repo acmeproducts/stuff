@@ -89,4 +89,15 @@ class Sync(unittest.TestCase):
         try:
             with self.assertRaisesRegex(ValueError,'horizon mismatch'):s.qualify(root,allow_fixture=True)
         finally:p.write_bytes(before)
+    def test_provider_window_rollover_preserves_previously_verified_history(self):
+        import shutil
+        root=self.folder/'rolling-source';shutil.copytree(self.first/'market-navigator-rebuild-data',root)
+        before=s.read(root/'market-evidence/source-observations/hySpread.json')['observations']
+        def rolling(meta,source,native,now):
+            return copy.deepcopy(native['observations'][1894:] if meta['id']=='hySpread' else native['observations'])
+        rows=s.collect(root,dt.datetime(2026,10,19,6,tzinfo=s.UTC),True,rolling,self.initial['version'])
+        self.assertEqual(before,s.read(root/'market-evidence/source-observations/hySpread.json')['observations'])
+        row=next(r for r in rows if r['id']=='hySpread');self.assertEqual(row['approvedRetainedPrefix'],1894)
+        self.assertEqual(s.read(root/'market-evidence/series/hySpread.json')['retainedHistoryProof']['previousVersion'],self.initial['version'])
 if __name__=='__main__':unittest.main()
+

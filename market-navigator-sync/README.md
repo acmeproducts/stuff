@@ -21,3 +21,6 @@ python market-navigator-sync/test_vintage.py
 ```
 
 The output path must be new. Tests use the existing immutable qualification package for fixed-date regressions; moving live data is not the fixture. Publication updates the complete validation tree in one Git commit, after all gates, and checks that its source data version was not replaced concurrently.
+
+If HY's provider history window rolls forward, its original 1,893 archived observations remain pinned to the approved hash. Additional rows leaving that window are retained unchanged from the preceding hash-verified package, with that package version and native revision recorded. This prevents daily synchronization from deleting known observations or stopping merely because a rolling provider window advanced.
+

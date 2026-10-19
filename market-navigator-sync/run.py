@@ -50,7 +50,7 @@ def aggregate(points):
     if not points:return {'ready':False,'observation_count':0,'reason':'No native observations in selected calendar window'}
     values=[p['v'] for p in points];a,b=points[0],points[-1]
     return {'ready':True,'t0_date':a['t'],'t0_value':a['v'],'now_date':b['t'],'now_value':b['v'],'absolute_change':b['v']-a['v'],'percentage_change':100*(b['v']-a['v'])/a['v'] if a['v'] else None,'observation_count':len(points),'min':min(values),'max':max(values),'mean':statistics.fmean(values),'median':statistics.median(values),'percentile_now':round(100*(sum(x<b['v'] for x in values)+.5*sum(x==b['v'] for x in values))/len(values),2)}
-def collect(root,now,force=False,fetch=None):
+def collect(root,now,force=False,fetch=None,previous_version=None):
     collector=load('market-navigator-r7-data-pipeline');catalog=read(root/'data/market-backend/data-catalog.json');rules=read(root/'data/market-backend/publication-rules.json')['rules']
     metas=[m for m in catalog['series'] if m.get('enabled',True)];changes=[];results=[];local=threading.local();original=collector.get
     def retained_get(url,accept='*/*'):
@@ -75,7 +75,8 @@ def collect(root,now,force=False,fetch=None):
         incoming=collector.canon(incoming);old=native['observations'];first,last=date(incoming[0]['t']),date(incoming[-1]['t'])
         prefix=[p for p in old if date(p['t'])<first]
         if prefix and sid!='hySpread':raise ValueError('Provider no longer confirms retained prefix: '+sid)
-        if prefix and digest(prefix)!=HY_PREFIX:raise ValueError('Retained HY prefix differs from exact approved archive')
+        if prefix and digest(old[:1893])!=HY_PREFIX:raise ValueError('Retained HY baseline prefix differs from exact approved archive')
+        if len(prefix)>1893 and (not previous_version or len(previous_version)!=64):raise ValueError('Rolling HY history requires its previous verified package identity')
         # Approved HY exception: retain only the unchanged trusted package prefix.
         merged=sorted(prefix+incoming,key=lambda p:p['t']);newcanonical=canonical(merged,meta)
         if not newcanonical:raise ValueError('Empty transformed series: '+sid)
@@ -86,6 +87,7 @@ def collect(root,now,force=False,fetch=None):
         changed=merged!=old
         at=now.isoformat().replace('+00:00','Z');native.update(observations=merged,sourceRevision=digest(merged));write(root/f'market-evidence/source-observations/{sid}.json',native)
         source.update(observations=newcanonical,sourceRevision=digest(newcanonical),count=len(newcanonical),first=newcanonical[0]['t'],last=newcanonical[-1]['t'],last_attempted=at,last_successful=at,last_error=None,sourceVerifiedAt=at,sourceResponses=local.responses,sourceProofMode='fixture' if fetch else 'retained-provider-response')
+        if prefix:source['retainedHistoryProof']={'kind':'unchanged history inherited from hash-verified package','previousVersion':previous_version,'previousCommit':os.environ.get('GITHUB_SHA'),'previousNativeRevision':digest(old),'initialApprovedPrefix':HY_PREFIX,'retainedCount':len(prefix)}
         write(root/f'market-evidence/series/{sid}.json',source)
         return {'id':sid,'status':'verified','changed':changed,'revisedDates':sorted(revised),'addedDates':added,'withdrawnDates':withdrawn,'sourceObservations':len(merged),'approvedRetainedPrefix':len(prefix),'responses':local.responses}
     def guarded(meta):
@@ -141,7 +143,10 @@ def verify_native_response(root,native,source,allow_fixture):
     if not received:raise ValueError('Level 0 empty independent response')
     prefix=[d for d in saved if d<min(received)]
     if prefix and source['id']!='hySpread':raise ValueError('Level 0 unconfirmed retained prefix')
-    if prefix and digest([p for p in native['observations'] if date(p['t'])<min(received)])!=HY_PREFIX:raise ValueError('Level 0 approved HY archive mismatch')
+    if prefix and digest(native['observations'][:1893])!=HY_PREFIX:raise ValueError('Level 0 approved HY archive mismatch')
+    if len(prefix)>1893:
+        proof=source.get('retainedHistoryProof',{})
+        if proof.get('initialApprovedPrefix')!=HY_PREFIX or proof.get('retainedCount')!=len(prefix) or len(proof.get('previousVersion',''))!=64 or len(proof.get('previousNativeRevision',''))!=64:raise ValueError('Level 0 rolling HY archive lacks previous verified package linkage')
     expected={d:v for d,v in received.items() if min(saved)<=d<=max(saved)}
     actual={d:v for d,v in saved.items() if d>=min(received)}
     if actual!=expected:raise ValueError('Level 0 native vector differs from independently parsed provider response: '+source['id'])
@@ -243,7 +248,7 @@ def synchronize(base,output,now=None,force=False,fetch=None,vintage_update=None)
     output.parent.mkdir(parents=True,exist_ok=True)
     with tempfile.TemporaryDirectory(prefix='mn-sync-',dir=output.parent) as temporary:
         stage=Path(temporary)/'candidate';shutil.copytree(base,stage);root=stage/'market-navigator-rebuild-data'
-        rows=collect(root,now,force,fetch)
+        rows=collect(root,now,force,fetch,descriptor['version'])
         if all(r['status']=='not-due' for r in rows) and (root/'market-evidence/sync-proof.json').exists():
             if output.exists():raise ValueError('Output must be a new candidate path')
             shutil.copytree(base,output)
@@ -298,3 +303,4 @@ def main():
         result={'status':'FAIL','error':message,'lastVerifiedVersionPreserved':True};write(Path(a.output).parent/'sync-status.json',result);print(json.dumps(result));raise SystemExit(1)
     write(Path(a.output).parent/'sync-status.json',result);print(json.dumps(result))
 if __name__=='__main__':main()
+
