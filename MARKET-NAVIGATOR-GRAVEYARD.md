@@ -495,3 +495,8 @@ Owner reports unusable ENV visualization and chart crosshair interaction navigat
 Owner rejects the Turn 28 rollback as well: touching a plotted series must inspect the chart, not open an information card or drill down. The review entry point is withdrawn rather than presenting either rejected implementation as accepted. No replacement chart implementation is authorized in this turn; owner requested a recovery plan. Existing main and development-branch publication holds remain in place. Historical data artifacts are retained for diagnosis, not claimed qualified by this withdrawal.
 
 Recovery sequence: identify owner-confirmed working chart behavior from history; freeze its source and record a narrow interaction contract; prove source values and index transformations independently of the UI; reuse the existing working MNChart implementation without a parallel painter or new UI state; qualify NOW first, then independent Analyze lifecycle and ETL refresh; publish one review only after all affected behavior passes. Real touch acceptance is distinct from browser emulation. No owner retry chores.
+
+
+## October 18, 2026 — data-only release boundary
+
+Do not use the rejected embedded MNChart candidate, modify Release 28 mechanics, or include ETL rail controls in the data-only review. The owner's explicit scope is exact Release 28 application plus corrected data. ETL is deferred until that proves out.

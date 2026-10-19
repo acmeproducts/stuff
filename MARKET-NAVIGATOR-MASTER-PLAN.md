@@ -2399,3 +2399,14 @@ Owner reports unusable ENV visualization and chart crosshair interaction navigat
 Owner rejects the Turn 28 rollback as well: touching a plotted series must inspect the chart, not open an information card or drill down. The review entry point is withdrawn rather than presenting either rejected implementation as accepted. No replacement chart implementation is authorized in this turn; owner requested a recovery plan. Existing main and development-branch publication holds remain in place. Historical data artifacts are retained for diagnosis, not claimed qualified by this withdrawal.
 
 Recovery sequence: identify owner-confirmed working chart behavior from history; freeze its source and record a narrow interaction contract; prove source values and index transformations independently of the UI; reuse the existing working MNChart implementation without a parallel painter or new UI state; qualify NOW first, then independent Analyze lifecycle and ETL refresh; publish one review only after all affected behavior passes. Real touch acceptance is distinct from browser emulation. No owner retry chores.
+
+
+## October 18, 2026 — owner-scoped Release 28 data-only review
+
+Owner directive: Release 28 chart mechanics already worked; connect the right data to that chart first. ETL left-rail integration is a follow-on release after this candidate proves out. This supersedes the broader recovery plan.
+
+Application: exact Release 28 blob 9ce7f67451f9e1b7804927ce5c56adb667614724, zero HTML/JavaScript/CSS changes. Only existing data paths are populated from collected package 7f4c5201e83de290cd7aba9cc0d5757b18707ab5f1cc3bdb49e9531cc093f7f9. No MNChart extraction, new chart handlers, Analyze changes, ETL section, or auto-publication is introduced.
+
+Validation: all 159 resource hashes verified; all enabled sources pass native identity/revision/transformation and expected-period checks. Independent existing I1 replay passes seven components per GRW/RSK/MAC across all seven horizons. Data ends October 16, 2026. Five-day terminal values: GRW 102.72148654435303; MAC 102.73181630844566; RSK 99.49437109339206. Retained HY Spread backcast remains explicitly labeled under approved C4 exception, not ALFRED historical availability.
+
+Local browser loaded the exact unchanged application against these corrected resources and displayed October 12–16. Physical Android owner acceptance remains unverified. Review URL remains https://acmeproducts.github.io/stuff/market-navigator-etl-review/ . ETL workflow remains held during this data-only review.
