@@ -269,3 +269,11 @@ Spec: https://claude.ai/artifact/FE8bwsoWEh4GmLLyLGvfXm (sections A–K).
 - Top bar: Report · Roots · Search · AI. First run shows Target / AI / GitHub token cards.
 - Gates: `qualify-release-e-target-land.py` (real engine), report-estate browser suite (desktop + phone), plus an end-to-end dry run against a real server with 2,495 files (scan → duplicates → land 735 → report).
 - Out of scope: excess/source disposition, target backup, second target.
+
+## Release E follow-ups (after owner install, 2026-10-18)
+
+- Owner: install "died", Ubuntu rebooted in a loop. Cause found: the autosync installer never installed the server module, so no Release E server code had reached the machine; the loop itself was Ubuntu shutting down (journal shows clean stops, 139 MB peak). Change: installer installs server + AI modules and logs every run; safe mode (a start that never settles skips automatic scans); startup trace synced to disk; `recover-sot.ps1`.
+- Owner: "staleness check, not a file listing." Change: drive-level check (used space + folder timestamp) gates every root and the TARGET; a full listing runs only when it differs. Before: startup check ~1.5 h on the owner's machine. After: not yet measured on the machine.
+- Owner screenshot review: Search acted on all 36,662 rows with no search; Land was live; count shown twice; Duplicates was a separate screen. Change: nothing acts until a search or tapped rows; count in the Search header; Keep/Excess tiles open Search grouped by duplicate copy with a Keep box that saves at once. Roots: share bar was share of everything scanned (twin roots both 36%) → share of assets; ROOTS count in header; redundant target line and EVIDENCE INCOMPLETE banner removed; queued roots grey; Remove acts at once with Undo.
+- Add path picker: close button lived inside the re-rendered pane → fixed × outside it, Escape closes.
+- Diagnostics publisher: stale git `index.lock` blocked every publish → locks older than 10 min are cleared.

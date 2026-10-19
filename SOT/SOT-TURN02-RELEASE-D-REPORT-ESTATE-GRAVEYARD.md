@@ -50,3 +50,11 @@ Do not forward-patch this rejected design. Restore the pre-#770 Complete bytes (
 - The two-chart Summary with bar segments and popups (replaced by the icon-switched Scanned / Capacity / Saved views; taps go straight to Search). The word "Estate" in the Report (now Scanned / Assets / Roots).
 - The strict "all placements must be hashed" integrity rule (it failed whole sources over unreadable files) and the in-page Report | Job Status and Summary | Roots switch rows.
 - The two-row header (title + status text above the icon strip).
+
+## Release E burials (2026-10-18)
+
+- **Separate Duplicates screen** (Plan sub-tab with group cards, `__ssotDupHtml`). Owner: duplicates come only off the treemap and show Keep + Excess as groups. Replaced by Search grouped by duplicate copy. Do not bring back a separate surface.
+- **Search acting on every row when no search is set** ("36,662 results" chip with live Land/Tag). Owner: with no search term nothing is selected.
+- **Remove root confirm dialog.** Owner wanted a toast; Remove now acts at once with Undo.
+- **"% of scanned" share bar** (counted Excess, so twin roots showed the same share). Replaced by share of assets.
+- **EVIDENCE INCOMPLETE banner on Report/Roots.** Status lives on the root dots.
