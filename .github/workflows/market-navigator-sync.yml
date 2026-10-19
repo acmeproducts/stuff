@@ -1,0 +1,116 @@
+name: Synchronize verified Market Navigator chart data
+on:
+  push:
+    branches: [main]
+    paths: ['market-navigator-sync/**', '.github/workflows/market-navigator-sync.yml']
+  schedule:
+    - cron: '20 * * * *'
+  workflow_dispatch:
+    inputs:
+      force:
+        description: 'Recheck all approved source histories'
+        type: boolean
+        default: false
+permissions:
+  contents: write
+concurrency:
+  group: market-navigator-verified-data-sync
+  cancel-in-progress: false
+jobs:
+  synchronize:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Update and revision regressions, with failed-publication isolation
+        run: |
+          python market-navigator-sync/test_sync.py
+          python market-navigator-sync/test_vintage.py
+      - name: Synchronize and independently qualify sources, horizons and indices
+        env:
+          MARKET_NAVIGATOR_FRED_API_KEY: ${{ secrets.MARKET_NAVIGATOR_FRED_API_KEY }}
+          MARKET_NAVIGATOR_FRED_API_KEY_SECONDARY: ${{ secrets.MARKET_NAVIGATOR_FRED_API_KEY_SECONDARY }}
+          FORCE_CHECK: ${{ inputs.force || github.event_name == 'push' }}
+        run: |
+          python - <<'PY'
+          import os,subprocess,sys
+          import importlib.util,datetime,json
+          from pathlib import Path
+          spec=importlib.util.spec_from_file_location('vintage_access',Path('market-navigator-sync/market-navigator-vintage-sidecar.py').resolve())
+          api=importlib.util.module_from_spec(spec);spec.loader.exec_module(api)
+          Path('.sync-publish').mkdir(exist_ok=True)
+          previous=Path.cwd();os.chdir('.sync-publish')
+          try:
+              result=api.get_json({'series_id':'DFF','observation_start':(datetime.date.today()-datetime.timedelta(days=14)).isoformat()})
+              if not result.get('observations'):raise RuntimeError('Configured vintage credential returned no observations')
+              Path('vintage-access.json').write_text(json.dumps({'status':'PASS','provider':'FRED/ALFRED','credentialConfigured':True,'responses':api.RESPONSE_REFS}))
+          finally:os.chdir(previous)
+          args=[sys.executable,'market-navigator-sync/run.py','--base','market-navigator-throwaway-review','--output','.sync-publish/market-navigator-throwaway-review']
+          if os.environ.get('FORCE_CHECK')=='true': args.append('--force')
+          subprocess.run(args,check=True)
+          PY
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Install browser verification
+        run: |
+          npm install --prefix "$RUNNER_TEMP/mn-browser" playwright
+          "$RUNNER_TEMP/mn-browser/node_modules/.bin/playwright" install --with-deps chromium
+      - name: Verify unchanged approved chart with synchronized data
+        env:
+          MN_PLAYWRIGHT_MODULE: ${{ runner.temp }}/mn-browser/node_modules/playwright
+          MN_BROWSER_CHANNELS: chromium
+          MN_SYNC_BROWSER_ROOT: .sync-publish/market-navigator-throwaway-review
+        run: node market-navigator-sync/browser.cjs
+      - name: Publish one qualified data tree, preserving every other project
+        run: |
+          python - <<'PY'
+          import json,subprocess,shutil
+          from pathlib import Path
+          old=json.loads(Path('market-navigator-throwaway-review/connection.json').read_text())['data_version']
+          subprocess.run(['git','fetch','origin','main'],check=True)
+          subprocess.run(['git','switch','-c','verified-sync-publication','FETCH_HEAD'],check=True)
+          current=json.loads(Path('market-navigator-throwaway-review/connection.json').read_text())['data_version']
+          if old!=current:raise SystemExit('Published data changed concurrently; preserving it for the next scheduled run.')
+          shutil.copytree('.sync-publish/market-navigator-throwaway-review','market-navigator-throwaway-review',dirs_exist_ok=True)
+          shutil.copy2('.sync-publish/sync-status.json','market-navigator-sync-status.json')
+          PY
+          git config user.name 'Market Navigator verified synchronization'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add -- market-navigator-throwaway-review market-navigator-sync-status.json
+          if ! git diff --cached --quiet; then
+            git commit -m 'Synchronize verified chart sources, horizon aggregates and indices'
+            git push origin HEAD:main
+          fi
+      - name: Record failed verification without replacing chart data
+        if: failure()
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          python - <<'PY'
+          import base64,json,os,urllib.request,urllib.error
+          from pathlib import Path
+          status={'status':'FAIL','lastVerifiedVersionPreserved':True,'run':os.environ['GITHUB_SERVER_URL']+'/'+os.environ['GITHUB_REPOSITORY']+'/actions/runs/'+os.environ['GITHUB_RUN_ID']}
+          p=Path('.sync-publish/sync-status.json')
+          if p.exists():status['detail']=json.loads(p.read_text())
+          p.parent.mkdir(exist_ok=True);p.write_text(json.dumps(status))
+          url=os.environ['GITHUB_API_URL']+'/repos/'+os.environ['GITHUB_REPOSITORY']+'/contents/market-navigator-sync-status.json'
+          headers={'Authorization':'Bearer '+os.environ['GH_TOKEN'],'Accept':'application/vnd.github+json'}
+          body={'message':'Record failed data synchronization; preserve verified chart','content':base64.b64encode((json.dumps(status)+'\n').encode()).decode(),'branch':'main'}
+          try:
+              with urllib.request.urlopen(urllib.request.Request(url,headers=headers),timeout=30) as r:body['sha']=json.load(r)['sha']
+          except urllib.error.HTTPError as e:
+              if e.code!=404:raise
+          with urllib.request.urlopen(urllib.request.Request(url,data=json.dumps(body).encode(),headers=headers,method='PUT'),timeout=30) as r:assert r.status in (200,201)
+          PY
+      - name: Retain synchronization evidence, including failures
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: market-navigator-sync-evidence
+          path: .sync-publish/
+          include-hidden-files: true
+          retention-days: 14
