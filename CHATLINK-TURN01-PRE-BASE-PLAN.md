@@ -785,3 +785,6 @@ Design brief written: `CHATLINK-SHARING-AND-USAGE-BRIEF.md`. Single-use guest li
 **Not verified.** A real deploy, a real phone, a real Deepgram key. Owner to do before first use: let the deploy workflow run on merge (check its Live check step passes), open Settings → Share on your phone, paste a GitHub token that can push to the repo, create a link, and open it on a second phone.
 
 **Existing suites with the guest link in:** open mode 42/42, ask mode 33/33, keyboard 32/32, controller 20/20, language check OK.
+
+### 2026-10-19 — Share tab reuses the saved GitHub token
+Owner reported: Share asked for the GitHub token again although it was already pasted. Cause: chat-test already saves that token (for the device log) under a different name; Share looked only under its own name. Change: Share now also reads the existing saved token, so nothing is asked twice. Guest-link suite 15/15. Not tried on a real phone.
