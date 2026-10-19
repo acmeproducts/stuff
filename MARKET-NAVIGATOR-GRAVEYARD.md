@@ -510,3 +510,7 @@ Do not substitute another Turn 28 artifact or PR 845 for owner-approved throwawa
 ## October 18, 2026 — reject held-only availability within a horizon
 
 A prior weekly/monthly/quarterly observation alone cannot make a raw comparison eligible in a window containing no native observations. Grey/disable that legend entry and omit the held-only trace. Preserve legitimate observations in longer horizons and preserve governed index use of their qualified inputs. Do not change normalization or index mathematics to conceal the independent fixed-reference scale effect.
+
+
+### 2026-10-18: complete aggregate horizon eligibility in validation copy
+The prior native-observation fix missed ENV aggregate rendering. Reproduced MAC enabled in ENV 5D despite its first point being October 13 against the requested October 12 start. The shared eligibility predicate now requires aggregate curves to cover the requested start and common market end with at least two observations. ENV and shared NOW/Analyze omit partial curves and dim/disable their legends; complete 1D and YTD remain available. Chrome and Edge desktop and touch-size regression checks pass, including the existing raw-series gate and shared chart controls. All 159 ETL resources are unchanged. Application blob: 6362176f99921fa54ecd6607de8c83167bd2856d. Validation path only; no jobstream UI or baseline/default product changes.
