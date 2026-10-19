@@ -2421,3 +2421,14 @@ The validation copy preserves that exact application blob and its existing relat
 Validation: all 159 ETL resource hashes pass; independent existing source identity/revision/transformation and I1 seven-component/index/horizon qualification passed for this dataset. The application consumes data through October 16, 2026. Installed Chrome/Edge at 1440x900 and 412x915 phone/touch emulation each pass three governed indices across seven horizons and Fixed/Horizon modes against separately loaded ETL curves, Analyze QQQ raw observations against the ETL source, Library parking/restoration, X, and zero JavaScript errors. Physical-device acceptance and AI prose review remain pending.
 
 Only the isolated market-navigator-throwaway-review directory is published. The user's approved root throwaway.html, historical baseline, default product, existing review URLs and disabled jobstream publishers are preserved. Validation URL: https://acmeproducts.github.io/stuff/market-navigator-throwaway-review/throwaway.html .
+
+
+## October 18, 2026 — horizon-ineligible raw series must be greyed out
+
+Owner phone screenshots show monthly components enabled beside MAC on 5D. Reproduced failure: CPI legend was enabled although its raw series has zero observations in MAC's October 13–16 window. Core PCE has the same condition. The shared canonicalAvailable helper admitted weekly/monthly/quarterly histories solely because a prior observation existed; sourceSet25 then painted held values across the whole selected window.
+
+Bounded correction: remove that prior-only eligibility fallback. Existing legend logic now disables/dims affected series and empty traces do not enter chart scaling. A real observation within the requested horizon is required; index eligibility and governed calculations remain unchanged. Existing native cadence, health and explicit supported-horizon checks remain intact. No new chart architecture, controls, ETL data, model math or normalization change.
+
+The separate large MAC chart range comes from eligible daily Fed Funds in Fixed mode: 100 * 3.88 / 0.06 = 6466.6667. That reference/math is retained rather than silently changed under an availability correction.
+
+Before: focused real-data browser check failed because 5D CPI was enabled. After: Chrome/Edge desktop 1440x900 and phone/touch 412x915 pass disabled/dim 5D monthly legends, zero held-only traces, enabled YTD monthly history, eligible daily series, shared Analyze rule and zero JavaScript errors. Existing seven-horizon/two-mode ETL comparisons, QQQ Analyze values and Library parking/restoration pass in all four browser/layout combinations. All 159 ETL resources retain their hashes. A byte comparison proves the availability expression is the only change from owner-approved source ee38d9c9da9af4b2795695a39519c76e6c5e5239; corrected application blob d006a334ef7d833261817e7e0de4aead646389f1. Physical Android owner acceptance remains separate.

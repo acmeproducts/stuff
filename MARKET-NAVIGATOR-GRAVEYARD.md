@@ -505,3 +505,8 @@ Do not use the rejected embedded MNChart candidate, modify Release 28 mechanics,
 ## October 18, 2026 — approved throwaway integration boundary
 
 Do not substitute another Turn 28 artifact or PR 845 for owner-approved throwaway blob ee38d9c9da9af4b2795695a39519c76e6c5e5239. Connect ETL at its existing data-path boundary. Preserve the shared NOW/Analyze chart exactly. Jobstream status and rerun controls are deferred until this connection is validated.
+
+
+## October 18, 2026 — reject held-only availability within a horizon
+
+A prior weekly/monthly/quarterly observation alone cannot make a raw comparison eligible in a window containing no native observations. Grey/disable that legend entry and omit the held-only trace. Preserve legitimate observations in longer horizons and preserve governed index use of their qualified inputs. Do not change normalization or index mathematics to conceal the independent fixed-reference scale effect.
