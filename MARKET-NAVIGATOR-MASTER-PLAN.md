@@ -2410,3 +2410,14 @@ Application: exact Release 28 blob 9ce7f67451f9e1b7804927ce5c56adb667614724, zer
 Validation: all 159 resource hashes verified; all enabled sources pass native identity/revision/transformation and expected-period checks. Independent existing I1 replay passes seven components per GRW/RSK/MAC across all seven horizons. Data ends October 16, 2026. Five-day terminal values: GRW 102.72148654435303; MAC 102.73181630844566; RSK 99.49437109339206. Retained HY Spread backcast remains explicitly labeled under approved C4 exception, not ALFRED historical availability.
 
 Local browser loaded the exact unchanged application against these corrected resources and displayed October 12–16. Physical Android owner acceptance remains unverified. Review URL remains https://acmeproducts.github.io/stuff/market-navigator-etl-review/ . ETL workflow remains held during this data-only review.
+
+
+## October 18, 2026 — connect ETL outputs to owner-approved throwaway chart
+
+Owner approved the functional surface in throwaway.html (October 10 source 2114b608977d8a1399e02a345f253ac83317e4b8, application blob ee38d9c9da9af4b2795695a39519c76e6c5e5239), then explicitly directed connection of the correct ETL before any jobstream status/rerun UI.
+
+The validation copy preserves that exact application blob and its existing relative data contract. Qualified ETL package 7f4c5201e83de290cd7aba9cc0d5757b18707ab5f1cc3bdb49e9531cc093f7f9 is supplied under market-navigator-rebuild-data beside the unchanged throwaway.html. No painter, interaction, control, lifecycle, JavaScript, CSS or index mathematics is changed. No jobstream rail section or rerun control is added.
+
+Validation: all 159 ETL resource hashes pass; independent existing source identity/revision/transformation and I1 seven-component/index/horizon qualification passed for this dataset. The application consumes data through October 16, 2026. Installed Chrome/Edge at 1440x900 and 412x915 phone/touch emulation each pass three governed indices across seven horizons and Fixed/Horizon modes against separately loaded ETL curves, Analyze QQQ raw observations against the ETL source, Library parking/restoration, X, and zero JavaScript errors. Physical-device acceptance and AI prose review remain pending.
+
+Only the isolated market-navigator-throwaway-review directory is published. The user's approved root throwaway.html, historical baseline, default product, existing review URLs and disabled jobstream publishers are preserved. Validation URL: https://acmeproducts.github.io/stuff/market-navigator-throwaway-review/throwaway.html .

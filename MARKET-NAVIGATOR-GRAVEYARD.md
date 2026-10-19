@@ -500,3 +500,8 @@ Recovery sequence: identify owner-confirmed working chart behavior from history;
 ## October 18, 2026 — data-only release boundary
 
 Do not use the rejected embedded MNChart candidate, modify Release 28 mechanics, or include ETL rail controls in the data-only review. The owner's explicit scope is exact Release 28 application plus corrected data. ETL is deferred until that proves out.
+
+
+## October 18, 2026 — approved throwaway integration boundary
+
+Do not substitute another Turn 28 artifact or PR 845 for owner-approved throwaway blob ee38d9c9da9af4b2795695a39519c76e6c5e5239. Connect ETL at its existing data-path boundary. Preserve the shared NOW/Analyze chart exactly. Jobstream status and rerun controls are deferred until this connection is validated.
