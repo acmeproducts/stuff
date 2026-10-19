@@ -6,7 +6,7 @@ const server=http.createServer((req,res)=>{const file=path.resolve(root,'.'+deco
 (async()=>{await new Promise(r=>server.listen(0,'127.0.0.1',r));const url=process.env.MN_SYNC_BROWSER_URL||`http://127.0.0.1:${server.address().port}/throwaway.html`,results=[];
 try{for(const channel of (process.env.MN_BROWSER_CHANNELS||'chrome,msedge').split(',')){const browser=await chromium.launch({channel,headless:true});try{for(const viewport of [{width:1440,height:900},{width:412,height:915}]){
  const page=await browser.newPage({viewport,hasTouch:viewport.width<500,isMobile:viewport.width<500}),errors=[];page.on('pageerror',e=>errors.push(e.message));
- const response=await page.goto(url);assert.equal(response.status(),200);const raw=await response.body();assert.equal(crypto.createHash('sha1').update(Buffer.concat([Buffer.from(`blob ${raw.length}\0`),raw])).digest('hex'),'bc384fd2bb00f25565d8d5c43ce0bdd8ccdad726');
+ const response=await page.goto(url);assert.equal(response.status(),200);const raw=await response.body();assert.equal(crypto.createHash('sha1').update(Buffer.concat([Buffer.from(`blob ${raw.length}\0`),raw])).digest('hex'),'1c2425aa5c4c8edacdc5438719e168f6a01f4c6b');
  const dataUrl=new URL('market-navigator-rebuild-data/',url).href;const derived=await (await page.request.get(dataUrl+'market-evidence/derived-indices-persistent-v1.json')).json();
  await page.waitForFunction(()=>window.__mnRebuild?.now()?.idle&&__mnRebuild.now().state?.chart?.series?.length);
  for(const h of ['1D','5D','MTD','YTD','1YR','3YR','5YR']){await page.locator(`#hzs [data-h="${h}"]`).click();await page.waitForFunction(h=>__mnRebuild.now()?.idle&&__mnRebuild.now().spec.h===h,h);
@@ -20,3 +20,4 @@ try{for(const channel of (process.env.MN_BROWSER_CHANNELS||'chrome,msedge').spli
  if(viewport.width<500)await page.locator('#toggle').click();await page.getByRole('button',{name:'LIBRARY',exact:true}).click();await page.getByRole('button',{name:'NOW',exact:true}).click();assert.deepEqual(await page.evaluate(()=>__mnRebuild.analyze()),state);await page.locator('#rebuildAnalyzeClose').click();await page.waitForFunction(()=>!__mnRebuild.analyze()&&__mnRebuild.now()?.idle);
  assert.equal(await page.locator('#mnEtlLauncher').count(),0);assert.deepEqual(errors,[]);results.push({channel,viewport,status:'PASS',indexHorizons:21,modes:2,mac5DPoints:mac.points.length,analyzeAndLibrary:'PASS'});await page.close();
 }}finally{await browser.close()}}console.log(JSON.stringify({url,results}));}finally{server.close()}})().catch(e=>{console.error(e);server.close();process.exitCode=1});
+

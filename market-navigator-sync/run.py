@@ -8,7 +8,7 @@ import argparse,bisect,concurrent.futures,contextlib,copy,csv,datetime as dt,has
 from pathlib import Path
 HERE=Path(__file__).resolve().parent
 H=['1D','5D','MTD','YTD','1YR','3YR','5YR'];UTC=dt.timezone.utc
-APP='bc384fd2bb00f25565d8d5c43ce0bdd8ccdad726'
+APP='1c2425aa5c4c8edacdc5438719e168f6a01f4c6b'
 REGISTRY='e423bd96ec47b960ff4dbbb169e3be6a42165f4a'
 HY_PREFIX='05a9a2ca600c573fd3e5a948a7fe2e7672186076c9f955f9db78e8858e90b287'
 def load(name):
@@ -303,3 +303,4 @@ def main():
         result={'status':'FAIL','error':message,'lastVerifiedVersionPreserved':True};write(Path(a.output).parent/'sync-status.json',result);print(json.dumps(result));raise SystemExit(1)
     write(Path(a.output).parent/'sync-status.json',result);print(json.dumps(result))
 if __name__=='__main__':main()
+

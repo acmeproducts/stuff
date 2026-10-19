@@ -6,15 +6,18 @@ These direct owner requirements override conflicting historical chart specificat
 
 - Assign by actual measurement family, never by insertion order or selected series.
 - All index series share the index axis. All compatible dollar series share the dollar axis, including the second, third, and subsequent additions.
-- A dollar-based series must never be silently assigned to the index axis. Selecting, inspecting, adding or removing another series must not cause that reassignment.
+- In Native/Y1+Y2, a dollar-based series must never be silently assigned to the index axis. Selecting, inspecting, adding or removing another series must not cause that reassignment. Explicit Indexed 100 deliberately normalizes every selected series and is available for comparisons.
 - The historical requirement that only the active non-index comparison occupies Y2 is superseded. Multiple compatible series on native Y2 are correct.
 - Preserve units and unit compatibility; do not silently equate USD, USD/barrel and USD/pound. The owner has not specified a new policy for more incompatible measurement families than available axes. Do not implement an automatic indexed fallback to resolve that case.
 
 ## Fixed / Horizon
 
+Owner-approved resolution: explicit Indexed 100 normalizes all selected series. Native/Y1+Y2 retains actual dollar values on the native-dollar axis. Fixed/Horizon changes all normalized series, not actual native prices. Fixed uses September 1, 2016: last real observation on or before that date; a later-starting series uses its first observation and discloses that later date. Governed indices retain their existing model anchor. Horizon rebases each normalized series to 100 for its window. This overrides conflicting earlier statements below; no dollar-change-from-zero transformation is authorized. Explicit Indexed 100 is a requested normalization, not a silent native-axis fallback.
+
 - The owner's “horizontal” refers to the existing Horizon selector.
-- Fixed/Horizon applies to every displayed series, not only the governed RSK/GRW/MAC indices or the active series.
-- Qualify each series' reference/calculation and resulting presentation in each mode. A changed label, changed composite alone, or unchanged native-dollar path while every index rebases is not sufficient proof.
+- Fixed/Horizon applies to every normalized series, not only the governed RSK/GRW/MAC indices or the active series. Native dollar prices retain their actual values; pure Native charts disable the irrelevant reference selector.
+- Qualify each normalized series' reference/calculation and resulting presentation in each mode. A changed label or changed composite alone is insufficient proof. Native-price invariance is separately required.
+- Horizon uses each series' first real observation in the selected window, equal to 100. Fixed uses the last eligible observation on or before September 1, 2016; a later-starting series discloses its first eligible observation instead. Dates remain actual source observation dates.
 - Preserve original source observations, source dates and governed index mathematics. Any display transformation must be explicit and consistent with the axis-family rule; do not silently turn native dollar values into indexed values to make a mode appear responsive.
 - Autoscaling can conceal a valid reference change; verify values and reference metadata as well as pixels. Do not manufacture a change for coincident reference values or flat data.
 

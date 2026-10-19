@@ -2,7 +2,7 @@ name: Synchronize verified Market Navigator chart data
 on:
   push:
     branches: [main]
-    paths: ['market-navigator-sync/**', '.github/workflows/market-navigator-sync.yml']
+    paths: ['market-navigator-sync/**', '.github/workflows/market-navigator-sync.yml', 'market-navigator-chart-correction-*.cjs', 'market-navigator-chart-correction-build.py']
   schedule:
     - cron: '20 * * * *'
   workflow_dispatch:
@@ -74,9 +74,12 @@ jobs:
           MN_PLAYWRIGHT_MODULE: ${{ runner.temp }}/mn-browser/node_modules/playwright
           MN_BROWSER_CHANNELS: chromium
           MN_SYNC_BROWSER_ROOT: .sync-publish/market-navigator-throwaway-review
+          MN_CHART_CANDIDATE_ROOT: .sync-publish/market-navigator-throwaway-review
         run: |
           node market-navigator-sync/browser.cjs
           node market-navigator-sync/test_axis_focus.cjs
+          node market-navigator-chart-correction-tests.cjs
+          node market-navigator-chart-correction-reference-tests.cjs
       - name: Publish one qualified data tree, preserving every other project
         id: publish
         if: steps.data.outputs.changed == 'true'
@@ -130,6 +133,7 @@ jobs:
             .sync-publish/sync-status.json
             .sync-publish/vintage-access.json
             .sync-publish/market-evidence/
+            .evidence/chart-correction-*.json
           include-hidden-files: true
           retention-days: 14
   deploy:
@@ -162,3 +166,4 @@ jobs:
           python-version: '3.12'
       - name: Verify actual public chart and data version
         run: python market-navigator-sync/verify_public.py
+

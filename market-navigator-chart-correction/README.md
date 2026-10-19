@@ -1,5 +1,11 @@
 # Owner-authorized chart correction
 
+## Approved reference semantics implemented
+
+The owner accepted separating representation from reference. Explicit Indexed 100 normalizes every series. Fixed uses September 1, 2016, taking its last real observation that day or earlier; a later-starting series uses and discloses its actual first observation. Horizon uses the first real observation in its selected window, so each normalized series starts at 100. Governed indices retain their existing model anchor and display-only rebasing. Native prices remain actual native prices in Native/Y1+Y2; compatible dollar quotes share the native axis regardless of insertion or selection. Crosshairs and Data retain source dates and native values alongside the same normalization reference.
+
+This supersedes the pending-product-question checkpoint below. Candidate `1c2425aa5c4c8edacdc5438719e168f6a01f4c6b` includes the completed definition, source-clock inclusive end-of-day handling, and valid market-clock inheritance for a raw-series Analyze launch. The ETL observations and index math are unchanged. Publication remains gated on the updated exact-candidate suite and synchronized hosted qualification.
+
 Execution plan: canonical Master Plan, October 19 section; requirements: `MARKET-NAVIGATOR-CHART-OWNER-CLARIFICATIONS.md`.
 
 `approved-throwaway.html` is an immutable construction fixture, Git blob `ee38d9c9da9af4b2795695a39519c76e6c5e5239`, from `market-navigator-rebuild-candidate.html` at commit `2114b608977d8a1399e02a345f253ac83317e4b8`. It is not a replacement product baseline or a new test URL.

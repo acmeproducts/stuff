@@ -1,6 +1,6 @@
 # Verified chart data synchronization
 
-The destination is the existing `market-navigator-throwaway-review` validation route. The accepted shared chart is pinned to blob `bc384fd2bb00f25565d8d5c43ce0bdd8ccdad726` (approved chart plus the native-series horizon rule, before the rejected aggregate-index disable workaround). No jobstream rail is added.
+The destination is the existing `market-navigator-throwaway-review` validation route. The accepted shared chart is pinned to blob `1c2425aa5c4c8edacdc5438719e168f6a01f4c6b` (approved chart plus the native-series horizon rule, before the rejected aggregate-index disable workaround). No jobstream rail is added.
 
 `run.py` copies the current hash-verified package into an isolated candidate, selectively checks approved sources when due, and checks each complete source history at least daily to catch old-period revisions. It retains and independently parses actual provider responses. Incomplete market candles are excluded using the existing publication calendars. The sole approved missing-provider-prefix exception is HY's exact pinned archival prefix.
 
@@ -23,3 +23,4 @@ python market-navigator-sync/test_vintage.py
 The output path must be new. Tests use the existing immutable qualification package for fixed-date regressions; moving live data is not the fixture. Publication updates the complete validation tree in one Git commit, after all gates, and checks that its source data version was not replaced concurrently.
 
 If HY's provider history window rolls forward, its original 1,893 archived observations remain pinned to the approved hash. Additional rows leaving that window are retained unchanged from the preceding hash-verified package, with that package version and native revision recorded. This prevents daily synchronization from deleting known observations or stopping merely because a rolling provider window advanced.
+

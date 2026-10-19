@@ -25,14 +25,16 @@ def function(name,new):
 edit("return obsRange(src,w).length>0||(/week|month|quarter/.test(m.native_cadence||'')&&!!baseline(src,w))", "return obsRange(src,w).length>0",'retained raw horizon eligibility')
 
 edit("function fmt(v){return Number.isFinite(+v)?(+v).toLocaleString(undefined,{maximumFractionDigits:2}):'—'}", "function fmt(v){return Number.isFinite(+v)?(+v).toLocaleString(undefined,{maximumFractionDigits:2}):'—'}\nfunction chartNumber(v,unit='Index'){if(!Number.isFinite(+v))return'—';const u=String(unit).toLowerCase(),digits=/percent|point|bps/.test(u)?3:/persons|claims|count|thousand|million/.test(u)?0:2;return (+v).toLocaleString(undefined,{minimumFractionDigits:digits,maximumFractionDigits:digits})}", 'measurement-aware chart formatting')
-function('canonicalWindow'," function canonicalWindow(h,k){const x=S.derived.indices[k].horizons[h];return{horizon:h,start:Date.parse(x.commonT0+'T00:00:00Z'),end:Date.parse(S.derived.commonMarketAnchor+'T00:00:00Z'),startLabel:x.commonT0,endLabel:S.derived.commonMarketAnchor}}")
+function('canonicalWindow'," function canonicalWindow(h,k){const x=S.derived.indices[k].horizons[h];return{horizon:h,start:Date.parse(x.commonT0+'T00:00:00Z'),end:Date.parse(S.derived.commonMarketAnchor+'T23:59:59.999Z'),startLabel:x.commonT0,endLabel:S.derived.commonMarketAnchor}}")
 function('observationWindow'," function observationWindow(sets,w){w.requestedWindow={...w};return w}")
 
 # Family ownership, never active-series ownership. Dollar quotes retain their individual units.
 start=html.index(' function applyAxes(sets,automaticMode){');end=html.index(' function reconcileAxes',start)
 old=html[start:end]
-new=old.replace(" if(S.axisOptions==='auto'){", " if(S.axisOptions==='auto'){\n  const money=z=>/usd|dollar/i.test(z.unit||''),dollars=sets.filter(money);\n  if(dollars.length){const mixed=sets.some(z=>!money(z)),units=[...new Set(dollars.map(z=>z.unit))],label=units.length===1?units[0]:'USD · per-series units';for(const z of sets){const native=money(z);z.axis=mixed&&native?1:0;z.a=z.a.map(q=>({...q,v:native?+q.raw:+q.idx}));z.axisLabel=native?label:'Indexed 100'}S.nowRepresentation=mixed?'dual':'native';return mixed?'dual':'native'}")
+new=old.replace(" if(S.axisOptions==='auto'){", " if(S.axisOptions==='auto'){\n  if(S.nowRepresentation==='indexed'){for(const z of sets){z.axis=0;z.a=z.a.map(q=>({...q,v:+q.idx}));z.axisLabel='Indexed 100'}return'indexed'}\n  const money=z=>/usd|dollar/i.test(z.unit||''),dollars=sets.filter(z=>money(z)&&z.a.length);\n  if(dollars.length){const mixed=sets.some(z=>!money(z)),units=[...new Set(dollars.map(z=>z.unit))],label=units.length===1?units[0]:'USD · per-series units';for(const z of sets){const native=money(z);z.axis=mixed&&native?1:0;z.a=z.a.map(q=>({...q,v:native?+q.raw:+q.idx}));z.axisLabel=native?label:'Indexed 100'}S.nowRepresentation=mixed?'dual':'native';return mixed?'dual':'native'}")
 edit(old,new,'dollar-family axis ownership')
+edit("S.nowActive=id;if(!IDX.includes(id))S.nativeAxisSeries=id;S.nowFocus=id;", "S.nowActive=id;S.nowFocus=id;", 'legend focus does not reassign axes')
+edit("clockIndex:nowOptions.clockIndex||nowState.root", "clockIndex:nowOptions.clockIndex||(IDX.includes(nowState.root)?nowState.root:'risk')", 'raw-series Analyze keeps a valid market clock')
 edit("if(next.nowRepresentation==='native'&&next.axisOptions==='auto'&&new Set(ids.map(measurementFamily)).size>1)throw new TypeError('Native representation requires one measurement family');", "if(next.nowRepresentation==='native'&&next.axisOptions==='auto'&&new Set(ids.map(measurementFamily)).size>1){if(options.representation==='native')throw new TypeError('Native representation requires one measurement family');next.nowRepresentation='dual'}",'composition change updates representation')
 edit("const axisChanged=!IDX.includes(sel.id)&&S.nativeAxisSeries!==sel.id;if(!IDX.includes(sel.id))S.nativeAxisSeries=sel.id;if(axisChanged&&S.axisOptions==='auto'&&S.nowRepresentation==='dual')renderV2();else publish()", "publish()",'inspection cannot reassign axes')
 
@@ -50,11 +52,26 @@ edit("function draw(sets,w,mode='indexed'){", "function draw(sets,w,mode='indexe
 edit("c.onpointerleave=()=>{};c.ontouchstart=null;c.ontouchmove=null}", "c.onpointerleave=()=>{};c.ontouchstart=null;c.ontouchmove=null;c.oncontextmenu=e=>e.preventDefault();const dismiss=()=>{S.inspection=null;tip.style.display='none';model=paint()};document.addEventListener('keydown',e=>{if(e.key==='Escape'&&S.inspection&&host.getClientRects().length){e.preventDefault();dismiss()}},{signal:inspectionEvents.signal});document.addEventListener('pointerdown',e=>{if(S.inspection&&host.getClientRects().length&&!wrap.contains(e.target))dismiss()},{signal:inspectionEvents.signal})}", 'legend-only information and crosshair dismissal')
 edit('dead=true;S.v2RenderSeq++;lifetime.abort();','dead=true;S.v2RenderSeq++;inspectionEvents?.abort();lifetime.abort();','inspection destruction')
 
-# Native-dollar charts cannot expose an Indexed 100 choice that contradicts their units.
-edit("<option value=\"indexed\" ${rep==='indexed'?'selected':''}>Indexed 100</option>","<option value=\"indexed\" ${rep==='indexed'?'selected':''} ${S.level!==1&&visibleIds25().some(id=>/usd|dollar/i.test(unit(id)))?'disabled':''}>Indexed 100</option>",'disable incompatible indexed representation')
+# Reference selection is independent of representation. Actual native prices stay raw.
+edit("b=S.indexDisplay==='rebase'?baseline(src,w):observations.find(p=>Number.isFinite(+p.v)&&+p.v!==0);", "b=S.indexDisplay==='rebase'?observations.find(p=>p.t>=w.start&&p.t<=w.end):(observations.filter(p=>p.t<=Date.UTC(2016,8,2)-1&&Number.isFinite(+p.v)&&+p.v!==0).at(-1)||observations.find(p=>Number.isFinite(+p.v)&&+p.v!==0));",'common fixed reference with later-start fallback')
+edit("if(prior&&(!a.length||a[0].t>w.start))a.unshift", "if(S.indexDisplay!=='rebase'&&prior&&(!a.length||a[0].t>w.start))a.unshift",'Horizon begins at first real observation')
+edit("const normalization={mode:S.indexDisplay==='rebase'?'Horizon':'Fixed',anchorDate:b?.t,anchorValue:b?.v,formula:'100 * native value / reference value'};", "const normalization={mode:S.indexDisplay==='rebase'?'Horizon':'Fixed',anchorDate:b?.t,anchorValue:b?.v,requestedAnchorDate:S.indexDisplay==='rebase'?w.start:Date.UTC(2016,8,1),laterStart:S.indexDisplay!=='rebase'&&b?.t>=Date.UTC(2016,8,2),formula:'100 * native value / reference value'};",'reference provenance')
+edit("+esc(sel.unit||''):''", "+esc(sel.unit||'')+(n.laterStart?' · later-starting series':''):''", 'later-start reference disclosure') if "+esc(sel.unit||''):''" in html else None
+# The reference line has a different expression; keep its actual unit and add disclosure.
+if "+' '+esc(sel.unit||''):'');tip.style.display" in html:
+    edit("+' '+esc(sel.unit||''):'');tip.style.display", "+' '+esc(sel.unit||'')+(n.laterStart?' · later-starting series':''):'');tip.style.display",'later-start reference disclosure')
+edit("Native units do not use an index reference.","Native values stay unchanged; select Indexed 100 to compare Fixed/Horizon references.",'native display explanation')
+edit("Fixed uses the historical reference; Horizon uses the start of this window. Autoscaling can preserve a single curve’s shape.","Normalized series: Fixed uses September 1, 2016 (or a disclosed later start); Horizon uses the window reference. Native prices stay unchanged.",'display explanation')
+start=html.index('async function dataSeries17(');end=html.index('async function openData17(',start)
+original=html[start:end]
+prefix="async function dataSeries17(z,state){"
+guard="if(!IDX.includes(z.id)&&z.normalization){const src=await getSeries(z.id),base=z.normalization.anchorValue;return{...z,points:(src.observations||[]).filter(p=>Number.isFinite(+p.t)&&Number.isFinite(+p.v)).map(p=>({t:+p.t,sourceT:+p.t,v:+p.v,raw:+p.v,idx:Number.isFinite(+base)&&+base!==0?100*+p.v/+base:null}))}}"
+edit(original,original.replace(prefix,prefix+guard,1),'Data uses the same chart reference; legacy frozen evidence retains its original path')
+# Update existing explanatory prose without introducing a new reporting path.
+html=html.replace('Fixed uses the earliest eligible nonzero canonical observation as the reference; Horizon uses the last observation at or before the requested start.', 'Fixed uses September 1, 2016, or the disclosed first observation for a later-starting series; Horizon uses the window reference. Actual native prices stay unchanged.')
 
 TARGET.parent.mkdir(parents=True,exist_ok=True);TARGET.write_text(html,encoding='utf-8',newline='')
 blob=hashlib.sha1(b'blob '+str(len(html.encode())).encode()+b'\0'+html.encode()).hexdigest()
-Path('.evidence/chart-correction-build.json').write_text(json.dumps({'baseline':'ee38d9c9da9af4b2795695a39519c76e6c5e5239','candidate':blob,'changes':changes,'nativeHorizonSemantics':'pending owner answer','published':False},indent=2))
+Path('.evidence/chart-correction-build.json').write_text(json.dumps({'baseline':'ee38d9c9da9af4b2795695a39519c76e6c5e5239','candidate':blob,'changes':changes,'nativeHorizonSemantics':'native prices unchanged; every normalized series rebases; Fixed 2016-09-01 with later-start disclosure','published':False},indent=2))
 print(json.dumps({'candidate':blob,'changes':len(changes),'target':str(TARGET)}))
 
