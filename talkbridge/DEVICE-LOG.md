@@ -1,19 +1,8 @@
 # TalkBridge device log
 
-Both handsets write here. Drained 2026-10-19T09:05:33Z, every 30s. Newest at the bottom.
+Both handsets write here. Drained 2026-10-19T09:06:05Z, every 30s. Newest at the bottom.
 
 ```
-16:55:36.773 [android-flz] trans_ok {"provider":"google","from":"en","to":"th","ms":1276,"inChars":22,"outChars":23}
-16:55:37.247 [android-flz] pr3_dot {"others":1,"dropped":2}
-16:55:41.089 [iphone-aza] dg_final {"t":"ใช่"}
-16:55:41.092 [iphone-aza] md1_rendered {"id":"-m-138"}
-16:55:41.092 [iphone-aza] speech_added {"id":"sp-m-138","seq":138,"before":284,"after":285,"added":1}
-16:55:41.092 [iphone-aza] r8_speech_kind {"kind":"video"}
-16:55:41.922 [iphone-aza] trans_ok {"provider":"google","from":"en","to":"th","ms":1067,"inChars":4,"outChars":5}
-16:55:41.922 [iphone-aza] dg_final {"t":"ชายย์"}
-16:55:41.923 [iphone-aza] said_kept {"id":"sp-m-139","lang":"en","chars":4,"who":"me"}
-16:55:41.925 [iphone-aza] speech_added {"id":"sp-m-139","seq":139,"before":285,"after":286,"added":1}
-16:55:41.925 [iphone-aza] r8_speech_kind {"kind":"video"}
 16:55:43.178 [iphone-aza] trans_ok {"provider":"google","from":"th","to":"en","ms":1253,"inChars":5,"outChars":4}
 16:55:41.290 [android-flz] md1_rendered {"id":"-p-138"}
 16:55:41.290 [android-flz] speech_added {"id":"sp-p-138","seq":138,"before":284,"after":285,"added":1}
@@ -4002,4 +3991,15 @@ Both handsets write here. Drained 2026-10-19T09:05:33Z, every 30s. Newest at the
 09:05:18.316 [android-tzc] joiner_create_control {"shown":true,"dropped":2}
 09:05:18.318 [android-tzc] pr3_dot {"others":0,"dropped":1}
 09:05:18.325 [android-tzc] t1_coalesced {"fn":"renderPanel","n":7}
-09:05:29.683 [android-tzc] pr3_dot {"others":0}```
+09:05:29.683 [android-tzc] pr3_dot {"others":0}
+09:05:38.320 [android-tzc] rc_panel_rendered {"live":8,"bin":1,"wired":8,"dropped":1}
+09:05:38.321 [android-tzc] rc_home_rendered {"cards":1,"wired":1,"dropped":1}
+09:05:38.323 [android-tzc] joiner_create_control {"shown":true,"dropped":1}
+09:05:38.345 [android-tzc] pr3_dot {"others":0}
+09:05:38.359 [android-tzc] t1_coalesced {"fn":"renderPanel","n":6}
+09:05:58.303 [android-tzc] rc_panel_rendered {"live":8,"bin":1,"wired":8,"dropped":2}
+09:05:58.305 [android-tzc] rc_home_rendered {"cards":1,"wired":1,"dropped":2}
+09:05:58.306 [android-tzc] joiner_create_control {"shown":true,"dropped":2}
+09:05:58.310 [android-tzc] pr3_dot {"others":0}
+09:05:58.324 [android-tzc] t1_coalesced {"fn":"renderPanel","n":3}
+09:05:58.368 [android-tzc] t1_coalesced {"fn":"renderPanel","n":3}```
