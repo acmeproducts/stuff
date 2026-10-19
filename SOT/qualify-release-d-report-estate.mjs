@@ -136,13 +136,13 @@ try{
  let rows=await rowsOf();ok(rows.length===3&&rows.map(r=>r.root).join()==='/mnt/a/Photos,/mnt/b/Video,/mnt/c/Archive'&&rows.every(r=>r.h==='☰'&&r.dot==='green'),'rows '+JSON.stringify(rows));
  ok(rows[0].files==='1'&&rows[0].size==='300.0 GB'&&rows[1].files==='2'&&rows[1].size==='250.0 GB'&&rows[2].files==='1'&&rows[2].size==='150.0 GB','root numbers from real placements '+JSON.stringify(rows));
  ok(rows[2].synced==='Never'&&rows[0].synced!=='Never','sync '+JSON.stringify(rows));
- ok(/% of assets/.test(rows[0].now)&&/^43% /.test(rows[0].now),'green rows carry a grey share-of-assets bar '+rows[0].now);
+ ok(/% of target/.test(rows[0].now)&&/^50% /.test(rows[0].now),'green rows carry a grey share-of-target bar '+rows[0].now);
  const sum=await txt(fr,'.estate-sum');ok(/^ROOTS 3 \| ASSETS 700\.0 GB \| TARGET 600\.0 GB \| DEFICIT 100\.0 GB/.test(sum),'summary '+sum);
  ok(/TARGET\s+\/mnt\/t/.test(await fr.$eval('.estate-table tr.trow',e=>e.innerText)),'the TARGET is pinned as the first row');
  pass('Roots: TARGET pinned first; rows are ☰ · dot · Root · Files · Size · Last synced · ⋯; green rows show their share of everything scanned');
  const red='rgb(198, 40, 40)',white='rgb(255, 255, 255)';ok(rows[2].bg===red&&rows[2].fg===white&&rows[0].bg!==red&&rows[1].bg!==red,'overflow colors '+JSON.stringify(rows.map(r=>[r.bg,r.fg])));
  pass('roots fill the TARGET in priority order; the first root that does not fit and everything after it is red');
- await fr.evaluate(()=>__ssotRootsSet('u','f'));rows=await rowsOf();ok(/^25% /.test(rows[0].now),'# switch shows share of files '+rows[0].now);await fr.evaluate(()=>__ssotRootsSet('u','g'));
+ ok(!(await fr.$('.rtop .fseg')),'no #/GB switch on Roots');
  // live scan: yellow dot, progress bar, current file
  mockJobs=[{job:{state:'RUNNING'},scope_sources:[{source_id:'s2'}],sources:[{source_id:'s2',discovered_files:200,hashed_files:50,discovered_bytes:4000,hashed_bytes:1000,current_file:'IMG_2041.jpg'}]}];await fr.evaluate(()=>{window.__ssotJobsSave=eval('jobs');eval("jobs=[{job:{state:'RUNNING'},scope_sources:[{source_id:'s2'}],sources:[{source_id:'s2',discovered_files:200,hashed_files:50,discovered_bytes:4000,hashed_bytes:1000,current_file:'IMG_2041.jpg'}]}]");renderPlan()});
  rows=await rowsOf();ok(rows[1].dot==='yellow'&&/^25% · 50 \/ 200 · IMG_2041\.jpg/.test(rows[1].now),'scanning row '+JSON.stringify(rows[1]));

@@ -58,3 +58,4 @@ Do not forward-patch this rejected design. Restore the pre-#770 Complete bytes (
 - **Remove root confirm dialog.** Owner wanted a toast; Remove now acts at once with Undo.
 - **"% of scanned" share bar** (counted Excess, so twin roots showed the same share). Replaced by share of assets.
 - **EVIDENCE INCOMPLETE banner on Report/Roots.** Status lives on the root dots.
+- **Roots "% of assets" bar and the Roots #/GB switch.** Owner: the bar is % of target.
