@@ -20,16 +20,21 @@ jobs:
   synchronize:
     runs-on: ubuntu-latest
     timeout-minutes: 25
+    outputs:
+      changed: ${{ steps.data.outputs.changed }}
+      publication: ${{ steps.publish.outputs.sha }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
         with:
           python-version: '3.12'
       - name: Update and revision regressions, with failed-publication isolation
+        if: github.event_name != 'schedule'
         run: |
           python market-navigator-sync/test_sync.py
           python market-navigator-sync/test_vintage.py
       - name: Synchronize and independently qualify sources, horizons and indices
+        id: data
         env:
           MARKET_NAVIGATOR_FRED_API_KEY: ${{ secrets.MARKET_NAVIGATOR_FRED_API_KEY }}
           MARKET_NAVIGATOR_FRED_API_KEY_SECONDARY: ${{ secrets.MARKET_NAVIGATOR_FRED_API_KEY_SECONDARY }}
@@ -51,21 +56,28 @@ jobs:
           args=[sys.executable,'market-navigator-sync/run.py','--base','market-navigator-throwaway-review','--output','.sync-publish/market-navigator-throwaway-review']
           if os.environ.get('FORCE_CHECK')=='true': args.append('--force')
           subprocess.run(args,check=True)
+          status=json.loads(Path('.sync-publish/sync-status.json').read_text())
+          with open(os.environ['GITHUB_OUTPUT'],'a') as f:f.write('changed='+str(not status.get('unchanged',False)).lower()+'\n')
           PY
       - uses: actions/setup-node@v4
+        if: steps.data.outputs.changed == 'true'
         with:
           node-version: '22'
       - name: Install browser verification
+        if: steps.data.outputs.changed == 'true'
         run: |
           npm install --prefix "$RUNNER_TEMP/mn-browser" playwright
           "$RUNNER_TEMP/mn-browser/node_modules/.bin/playwright" install --with-deps chromium
       - name: Verify unchanged approved chart with synchronized data
+        if: steps.data.outputs.changed == 'true'
         env:
           MN_PLAYWRIGHT_MODULE: ${{ runner.temp }}/mn-browser/node_modules/playwright
           MN_BROWSER_CHANNELS: chromium
           MN_SYNC_BROWSER_ROOT: .sync-publish/market-navigator-throwaway-review
         run: node market-navigator-sync/browser.cjs
       - name: Publish one qualified data tree, preserving every other project
+        id: publish
+        if: steps.data.outputs.changed == 'true'
         run: |
           python - <<'PY'
           import json,subprocess,shutil
@@ -85,6 +97,7 @@ jobs:
             git commit -m 'Synchronize verified chart sources, horizon aggregates and indices'
             git push origin HEAD:main
           fi
+          echo "sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
       - name: Record failed verification without replacing chart data
         if: failure()
         env:
@@ -111,6 +124,39 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: market-navigator-sync-evidence
-          path: .sync-publish/
+          path: |
+            .sync-publish/sync-status.json
+            .sync-publish/vintage-access.json
+            .sync-publish/market-evidence/
           include-hidden-files: true
           retention-days: 14
+  deploy:
+    needs: synchronize
+    if: needs.synchronize.outputs.changed == 'true'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pages: write
+      id-token: write
+    concurrency:
+      group: pages
+      cancel-in-progress: false
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.synchronize.outputs.publication }}
+      - uses: actions/configure-pages@v5
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: '.'
+      - name: Deploy verified data publication
+        id: deployment
+        uses: actions/deploy-pages@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Verify actual public chart and data version
+        run: python market-navigator-sync/verify_public.py

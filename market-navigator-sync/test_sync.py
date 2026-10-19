@@ -46,6 +46,29 @@ class Sync(unittest.TestCase):
         def failed(*a):raise RuntimeError('deliberate provider failure')
         with self.assertRaisesRegex(RuntimeError,'deliberate'):s.synchronize(self.first,target,dt.datetime(2026,10,19,6,tzinfo=s.UTC),True,failed)
         self.assertFalse(target.exists());self.assertEqual(before,(self.first/'market-navigator-rebuild-data/package.json').read_bytes())
+    def test_next_session_and_weekend_boundaries_remain_current(self):
+        now=dt.datetime(2026,10,20,1,tzinfo=s.UTC);collector=s.load('market-navigator-r7-data-pipeline')
+        rules=s.read(self.first/'market-navigator-rebuild-data/data/market-backend/publication-rules.json')['rules']
+        def next_session(meta,source,native,at):
+            points=copy.deepcopy(native['observations']);expected=collector._scheduler.expectation(meta,at,rules)['period']
+            if expected and s.date(points[-1]['t'])<expected:points.append({'t':s.ms(expected),'v':points[-1]['v']})
+            return points
+        def availability(root,rows,at):
+            registry=s.read(root/'data/market-backend/component-registry-v1.json');required={r['id'] for r in registry['components'] if r['provider']=='FRED'}
+            extension=s.load('market-navigator-etl-vintage')
+            for row in rows:
+                if not row['changed'] or row['id'] not in required:continue
+                sid=row['id'];path=root/f'market-evidence/vintage/{sid}.json';v=s.read(path)
+                if v['availabilityQualification']!='QUALIFIED_ALFRED':continue
+                p=s.read(root/f'market-evidence/source-observations/{sid}.json')['observations'][-1]
+                v['events']=extension.extend(v,[{'date':s.date(p['t']),'realtime_start':'2026-10-19','realtime_end':'9999-12-31','value':str(p['v'])}]);s.write(path,v)
+        output=self.folder/'next-session';result=s.synchronize(self.first,output,now,True,next_session,availability)
+        derived=s.read(output/'market-navigator-rebuild-data/market-evidence/derived-indices-persistent-v1.json')
+        self.assertEqual(derived['commonMarketAnchor'],'2026-10-19')
+        for index in ('risk','growth','macro'):
+            self.assertEqual([s.date(p['t']) for p in derived['indices'][index]['horizons']['1D']['curve']],['2026-10-16','2026-10-19'])
+            self.assertEqual([s.date(p['t']) for p in derived['indices'][index]['horizons']['5D']['curve']],['2026-10-13','2026-10-14','2026-10-15','2026-10-16','2026-10-19'])
+        self.assertEqual(result['qualification']['level3IndexHorizons'],21)
     def test_missing_index_date_is_rejected(self):
         root=self.first/'market-navigator-rebuild-data';p=root/'market-evidence/derived-indices-persistent-v1.json';before=p.read_bytes();obj=s.read(p)
         obj['indices']['macro']['horizons']['5D']['curve'].pop(0);s.write(p,obj)
@@ -61,4 +84,9 @@ class Sync(unittest.TestCase):
         def forbidden(*a):raise AssertionError('Should not fetch a source before due')
         output=self.folder/'no-due';r=s.synchronize(self.first,output,dt.datetime(2026,10,19,5,1,tzinfo=s.UTC),False,forbidden)
         self.assertTrue(r['unchanged']);self.assertEqual(r['version'],self.initial['version'])
+    def test_incorrect_aggregate_is_rejected(self):
+        root=self.first/'market-navigator-rebuild-data';p=root/'market-evidence/reports/spy.json';before=p.read_bytes();obj=s.read(p);obj['reports']['5D']['mean']+=1;s.write(p,obj)
+        try:
+            with self.assertRaisesRegex(ValueError,'horizon mismatch'):s.qualify(root,allow_fixture=True)
+        finally:p.write_bytes(before)
 if __name__=='__main__':unittest.main()

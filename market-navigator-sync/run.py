@@ -28,6 +28,10 @@ def shift(end,h):
     if h=='YTD':return str(d.replace(month=1,day=1))
     try:return str(d.replace(year=d.year-int(h[:-2])))
     except ValueError:return str(d.replace(year=d.year-int(h[:-2]),day=28))
+def shared_start(market_dates,end,h):
+    days=sorted(d for d in market_dates if d<=end)
+    if h in ('1D','5D'):return days[-(2 if h=='1D' else 5)]
+    return next(d for d in days if d>=shift(end,h))
 @contextlib.contextmanager
 def cwd(path):
     before=Path.cwd();os.chdir(path)
@@ -84,8 +88,11 @@ def collect(root,now,force=False,fetch=None):
         source.update(observations=newcanonical,sourceRevision=digest(newcanonical),count=len(newcanonical),first=newcanonical[0]['t'],last=newcanonical[-1]['t'],last_attempted=at,last_successful=at,last_error=None,sourceVerifiedAt=at,sourceResponses=local.responses,sourceProofMode='fixture' if fetch else 'retained-provider-response')
         write(root/f'market-evidence/series/{sid}.json',source)
         return {'id':sid,'status':'verified','changed':changed,'revisedDates':sorted(revised),'addedDates':added,'withdrawnDates':withdrawn,'sourceObservations':len(merged),'approvedRetainedPrefix':len(prefix),'responses':local.responses}
+    def guarded(meta):
+        try:return one(meta)
+        except Exception as error:raise RuntimeError('Source '+meta['id']+' failed: '+str(error)) from None
     with concurrent.futures.ThreadPoolExecutor(max_workers=4) as pool:
-        for result in pool.map(one,metas):results.append(result)
+        for result in pool.map(guarded,metas):results.append(result)
     return results
 def extend_vintages(root,rows,now):
     registry=read(root/'data/market-backend/component-registry-v1.json');required={m['id'] for m in registry['components'] if m['provider']=='FRED'}
@@ -150,7 +157,13 @@ def qualify(root,allow_fixture=False):
         if (native['provider'],native['providerIdentifier'],native['cadence'])!=(s['provider'],s['providerIdentifier'],meta['native_cadence']):raise ValueError('Level 0 identity mismatch: '+sid)
         times=[p['t'] for p in native['observations']]
         if times!=sorted(set(times)) or any(not math.isfinite(p['v']) for p in native['observations']):raise ValueError('Level 0 malformed vector: '+sid)
-        expected=canonical(native['observations'],meta)
+        if 'year-over-year percent change' in (meta.get('transformation') or '').lower():
+            monthly={(dt.datetime.fromtimestamp(p['t']/1000,UTC).year,dt.datetime.fromtimestamp(p['t']/1000,UTC).month):p['v'] for p in native['observations']}
+            expected=[]
+            for p in native['observations']:
+                d=dt.datetime.fromtimestamp(p['t']/1000,UTC);before=monthly.get((d.year-1,d.month))
+                if before:expected.append({'t':p['t'],'v':100*(p['v']/before-1)})
+        else:expected=native['observations']
         if len(a)!=len(expected) or any(p['t']!=q['t'] or not near(p['v'],q['v']) for p,q in zip(a,expected)):raise ValueError('Level 1 transformation mismatch: '+sid)
         if s['sourceRevision']!=digest(a) or native['sourceRevision']!=digest(native['observations']):raise ValueError('Level 0 revision mismatch: '+sid)
         verify_native_response(root,native,s,allow_fixture)
@@ -159,8 +172,12 @@ def qualify(root,allow_fixture=False):
         if set(reports)!=set(H):raise ValueError('Level 1 missing horizon: '+sid)
         for h,report in reports.items():
             start=derived['indices']['risk']['horizons'][h]['commonT0'];end=derived['commonMarketAnchor'];points=[p for p in a if ms(start)<=p['t']<ms(end)+86400000]
-            expected=aggregate(points)
-            if any(report.get(k)!=v for k,v in expected.items()) or report.get('window_start')!=start or report.get('window_end')!=end:raise ValueError('Level 1 horizon mismatch: '+sid+' '+h)
+            expected={'ready':bool(points),'observation_count':len(points)}
+            if points:
+                a0,a1=points[0],points[-1];values=sorted(p['v'] for p in points);n=len(values);delta=a1['v']-a0['v']
+                expected.update(t0_date=a0['t'],t0_value=a0['v'],now_date=a1['t'],now_value=a1['v'],absolute_change=delta,percentage_change=100*delta/a0['v'] if a0['v'] else None,min=values[0],max=values[-1],mean=math.fsum(values)/n,median=values[n//2] if n%2 else (values[n//2-1]+values[n//2])/2,percentile_now=round(100*(sum(v<a1['v'] for v in values)+.5*sum(v==a1['v'] for v in values))/n,2))
+            mismatch=any((report.get(k) is not None if v is None else not near(report.get(k,float('nan')),v)) for k,v in expected.items())
+            if mismatch or report.get('window_start')!=start or report.get('window_end')!=end:raise ValueError('Level 1 horizon mismatch: '+sid+' '+h)
             aggregates+=1
         if sid not in rules:continue
         vp=root/f'market-evidence/vintage/{sid}.json';v=read(vp) if vp.exists() else None
@@ -200,7 +217,7 @@ def qualify(root,allow_fixture=False):
             if not near(100+math.fsum(signals)/7,row['values'][i]):raise ValueError('Level 3 arithmetic mismatch: '+index+' '+d)
         if set(derived['indices'][index]['horizons'])!=set(H):raise ValueError('Level 3 missing horizon: '+index)
         for h,z in derived['indices'][index]['horizons'].items():
-            requested=shift(derived['commonMarketAnchor'],h);expected_dates=[d for d in dates if requested<=d<=derived['commonMarketAnchor']];actual_dates=[date(p['t']) for p in z['curve']]
+            requested=shared_start(market,derived['commonMarketAnchor'],h);expected_dates=[d for d in dates if requested<=d<=derived['commonMarketAnchor']];actual_dates=[date(p['t']) for p in z['curve']]
             if actual_dates!=expected_dates or len(actual_dates)<2:raise ValueError('Level 3 horizon coverage mismatch: '+index+' '+h)
             if market.intersection(d for d in market if requested<=d<=derived['commonMarketAnchor'])-set(actual_dates):raise ValueError('Level 3 horizon calendar gap')
             for p in z['curve']:

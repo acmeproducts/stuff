@@ -19,8 +19,13 @@ def read(path):
     return json.loads(Path(path).read_text())
 
 
-def shift_start(end,label):
+def shift_start(end,label,market_dates=None):
     d=dt.date.fromisoformat(end)
+    if market_dates and label in ('1D','5D'):
+        days=[x for x in market_dates if x<=end]
+        count=2 if label=='1D' else 5
+        if len(days)<count:raise ValueError('Insufficient market evaluation history')
+        return dt.date.fromisoformat(days[-count])
     if label=="1D": return d-dt.timedelta(days=1)
     if label=="5D": return d-dt.timedelta(days=5)
     if label=="MTD": return d.replace(day=1)
@@ -89,7 +94,8 @@ def main():
         end_i=max(i for i,d in enumerate(dates) if d<=common_end)
         horizons={}
         for label in HORIZONS:
-            requested=shift_start(common_end,label).isoformat()
+            requested=shift_start(common_end,label,persistent.get('marketEvaluationDates')).isoformat()
+            requested=next(d for d in persistent['marketEvaluationDates'] if d>=requested)
             start_i=next((i for i,d in enumerate(dates[:end_i+1]) if d>=requested),0)
             start_date=dates[start_i]
             end_date=dates[end_i]

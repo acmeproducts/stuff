@@ -116,6 +116,7 @@ def main():
         "candidateEffectiveDate":registry["effectiveDate"],
         "historyLabel":"RETROSPECTIVE BACKCAST",
         "horizonRule":"VIEWPORT_ONLY",
+        "marketEvaluationDates":sorted(market_dates),
         "rebase100Rule":"DISPLAY_ONLY",
         "indices":{},
     }
