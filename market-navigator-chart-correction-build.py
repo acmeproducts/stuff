@@ -106,8 +106,15 @@ html=html.replace(old,"x.fillStyle='#D9E6F2';")
 changes.append('same readable Y1 and Y2 ticks and unit labels')
 edit("let bars=sets.filter(z=>isBar(z)&&z.a.length)", "x.strokeStyle='#D9E6F2';x.lineWidth=1;x.beginPath();x.moveTo(p.l,p.t+ph);x.lineTo(p.l+pw,p.t+ph);x.stroke();let bars=sets.filter(z=>isBar(z)&&z.a.length)", 'matching X-axis boundary')
 
+# Daily provider bar hours are provenance, not positions within the observation date.
+edit("let a=obsRange(src,w).map(p=>({t:+p.t,v:100*+p.v/+b.v,idx:100*+p.v/+b.v,raw:+p.v,sourceT:+p.t}));",
+     "const intraday=/intraday|minute|hour/.test(cadence);let a=obsRange(src,w).map(p=>({t:intraday?+p.t:Math.floor(+p.t/86400000)*86400000,v:100*+p.v/+b.v,idx:100*+p.v/+b.v,raw:+p.v,sourceT:+p.t}));",
+     'daily X coordinates use observation date; original source time retained')
+edit(json.loads(Path('market-navigator-chart-correction/inspection-seam.json').read_text(encoding='utf-8'))['old'],
+     Path('market-navigator-chart-correction/inspection.js').read_text(encoding='utf-8').strip(),
+     'compact linked date, index and native value inspection')
+
 TARGET.parent.mkdir(parents=True,exist_ok=True);TARGET.write_text(html,encoding='utf-8',newline='')
 blob=hashlib.sha1(b'blob '+str(len(html.encode())).encode()+b'\0'+html.encode()).hexdigest()
 Path('.evidence/chart-correction-build.json').write_text(json.dumps({'baseline':'ee38d9c9da9af4b2795695a39519c76e6c5e5239','candidate':blob,'changes':changes,'nativeHorizonSemantics':'native prices unchanged; every normalized series rebases; Fixed 2016-09-01 with later-start disclosure','published':False},indent=2))
 print(json.dumps({'candidate':blob,'changes':len(changes),'target':str(TARGET)}))
-
