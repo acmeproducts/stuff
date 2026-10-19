@@ -1,6 +1,6 @@
 # Verified chart data synchronization
 
-The destination is the existing `market-navigator-throwaway-review` validation route. The accepted shared chart is pinned to blob `1c2425aa5c4c8edacdc5438719e168f6a01f4c6b` (approved chart plus the native-series horizon rule, before the rejected aggregate-index disable workaround). No jobstream rail is added.
+The destination is the existing `market-navigator-throwaway-review` validation route. The accepted shared chart is pinned to blob `3103a98d2aac9e5c054537660a6b2480d9752b9c` (approved chart plus the native-series horizon rule, before the rejected aggregate-index disable workaround). No jobstream rail is added.
 
 `run.py` copies the current hash-verified package into an isolated candidate, selectively checks approved sources when due, and checks each complete source history at least daily to catch old-period revisions. It retains and independently parses actual provider responses. Incomplete market candles are excluded using the existing publication calendars. The sole approved missing-provider-prefix exception is HY's exact pinned archival prefix.
 

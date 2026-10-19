@@ -4,6 +4,8 @@ These direct owner requirements override conflicting historical chart specificat
 
 ## Axis assignment
 
+Owner correction after phone testing: Y1+Y2 availability is calculated from the complete visible series set, never the highlighted chip. Requested representation and Fixed/Horizon are persistent choices: rendering, highlighting, inspection, resize, a temporarily ineligible horizon/family, navigation, Add/remove and background refresh cannot overwrite them. NOW restores these choices after reload; Analyze inherits them on launch and owns independent choices while open/parked. A context without a usable secondary family may omit its effective secondary axis and disable the option, while retaining the selected request for when the family is available again.
+
 - Assign by actual measurement family, never by insertion order or selected series.
 - All index series share the index axis. All compatible dollar series share the dollar axis, including the second, third, and subsequent additions.
 - In Native/Y1+Y2, a dollar-based series must never be silently assigned to the index axis. Selecting, inspecting, adding or removing another series must not cause that reassignment. Explicit Indexed 100 deliberately normalizes every selected series and is available for comparisons.
@@ -32,4 +34,6 @@ Owner-approved resolution: explicit Indexed 100 normalizes all selected series. 
 Use a traceable requirement matrix for both consumers before requesting owner testing. Cover at least three indices, three compatible dollar series, mixed index/dollar series, successive additions in different orders, selection/inspection/removal, Fixed/Horizon for every series, every supported horizon, legend information versus all plot gestures, full-observation crosshairs, and NOW/Analyze state isolation. Retain the existing baseline geometry, navigation, Library parking/restoration, close lifecycle, data identity, exports and other previously working functions. A passing test for a changed feature does not qualify the retained functions.
 
 Zero regressions is an acceptance requirement, not a claim established by updating this document. No deployment or application change is made by this clarification.
+
+The reported GRW shape comparison must be checked numerically: preserve timestamps/raw/indexed values across representations and preserve axis bounds and plotted coordinates across highlight changes within a representation. Moving normalized dollar comparators off Y1 can legitimately rescale Y1 when the user explicitly switches representation; it must not change GRW's canonical values or switch modes on selection.
 
