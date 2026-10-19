@@ -2464,3 +2464,14 @@ Sequence:
 7. Only qualify a complete candidate for the existing isolated validation route after all affected and retained gates pass. Preserve current published validation during incomplete work. Physical device disposition remains distinct from emulation.
 
 Audit findings and corrected conclusions: .evidence/CHART-SPEC-COMPARISON.md. Multiple compatible dollar series on Y2 are correct, not a failure. No fresh owner test cycle is requested until specification failures are resolved and the retained gates pass. “Zero regressions” is an acceptance requirement, not a guarantee inferred from a narrow green test.
+
+
+### October 19 chart-correction independent execution checkpoint
+
+Plan-first commit: aaee387393805b24272e86d21334db69cf123d46. Reproducible builder and tests are now stored in the repository alongside the immutable approved throwaway fixture. Candidate application blob: 49e12f025fcad1ae2bd8c623aad8acf814714096. It is not published or installed in the synchronization pipeline.
+
+Implemented independent work: full real-observation crosshairs, fixed common horizon bounds, date marker, Escape/outside dismissal with owned cleanup, measurement-aware chart number formatting, visible 100 reference, selection-independent native-dollar family axes, and no plot information-card gesture. Existing chart/application CSS and surrounding services remain inherited from the approved fixture.
+
+Local Chrome/Edge desktop 1440x900 and phone/touch 412x915 qualification passed 112 combined NOW/Analyze horizon/display cases plus insertion/focus order, three index/three native-dollar series, full-observation pointer selection and dismissal. Additional retained checks passed Library parking/restoration, Analyze X destruction, NOW controls after close, bounded chart layout, unobstructed horizon/More hit targets and no runtime errors. All manifest hashes of frozen package 3ae38952b2dd50a0f098ce216d73a936e71d5fdc9845abd66151c3cecccf44bc match before/after. Evidence files: market-navigator-chart-correction/qualification-independent.json and qualification-retained.json.
+
+Remaining product definition: how Horizon changes native-dollar presentation while preserving dollar-axis truth. The owner has been asked whether Horizon means dollar change from the starting observation or actual dollar prices with changed view/scale. No new dollar arithmetic is implemented pending that answer. Full Data/export, sparse/edge geometry, native mode, complete regression and hosted/public qualification remain open. No claim of complete zero regressions or owner acceptance. Current public chart, default products, ETL scheduling and existing publication path are unchanged.
