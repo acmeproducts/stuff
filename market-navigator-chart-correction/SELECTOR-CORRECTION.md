@@ -12,3 +12,11 @@ GRW's five Fixed values in both representations are exactly:
 
 The screenshot's shared indexed Y1 range is `49.08747342927728–692.695125427805`; after the user selects Y1+Y2, GRW-only indexed Y1 is `102.71827130671855–102.75634877595095`. Thus the apparent shape difference is magnification, not different GRW calculations. Within either representation, changing highlights must preserve axis bounds and all point coordinates. No data/math or unrelated axis-range policy was changed for this correction.
 
+## Public delivery verified
+
+Source commit: `87b0d2d4d48956dbf368826512db6c4baf2a1cb2`. Qualified data publication: `0fd8292821ad17ca91d1437b93114cce7f5abca6`. Data version: `14f23927192da73967a22a16944ad79a69dc20099beafbc8b43126189330cc7d`. The normal public URL serves application blob `3103a98d2aac9e5c054537660a6b2480d9752b9c`; independent verification matches all 197 resource hashes.
+
+The final local 224-state retained matrix and reference/Data/sparse-source checks passed. The hosted synchronization/source/model and complete browser/selector gates passed in run https://github.com/acmeproducts/stuff/actions/runs/39250087377 . After propagation, independent public Chrome/Edge desktop and phone-emulation checks passed all 32 selector cases, including actual GRW chip highlighting, control availability, both chosen values, unavailable-family horizons, Add/remove, ENV navigation, Analyze inheritance/isolation, Library/close and reload. No physical-device or blanket zero-regression claim is inferred.
+
+Operational record: that workflow's initial Pages deployment step succeeded, but its immediate public verification exhausted its two-minute window while the origin still served the preceding build. A job-only redeploy attempt then failed because two `github-pages` artifacts were present in that workflow run. Consequently the workflow's overall conclusion is failure; it is not reported as wholly green. Neither error changed the candidate data or chart calculations. The separately recorded public application/resource hashes and actual selector tests passed after propagation, proving which build is actually live. The default product and existing accepted baseline remain unchanged.
+
