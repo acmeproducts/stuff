@@ -83,6 +83,29 @@ edit("function ensureRebuildNow(){", "function rebuildStoredChartPreferences(){t
 edit("rebuildNow=MNChart.mount($('view-now'),{view:'overview'},services)", "rebuildNow=MNChart.mount($('view-now'),{view:'overview',...rebuildStoredChartPreferences()},services)",'restore choices on reload')
 edit("S.nowChartState=snapshot}}}", "S.nowChartState=snapshot;try{localStorage.setItem('marketNavigatorChartPreferencesV1:'+location.pathname,JSON.stringify({representation:options.representation,display:options.display}))}catch{}}}}",'persist NOW preferences without coupling Analyze state')
 
+# Source-bound configuration replaces the original implementation at its source seams.
+seams=json.loads(Path('market-navigator-chart-correction/style-seams.json').read_text(encoding='utf-8'))
+styles=Path('market-navigator-chart-correction/source-styles.js').read_text(encoding='utf-8')
+for part in styles.split('// @replace ')[1:]:
+    name,body=part.split('\n',1)
+    edit(seams[name.strip()],body.strip(), 'source-bound '+name.strip())
+edit('function seriesColor(id){let p=paletteState();return p.colors[colorSlot(id)]}',
+     'function seriesColor(id){return sourceStyle(id).color}', 'source-bound series colors')
+start=html.index("$('paletteImportInput').onchange=async e=>{")
+end=html.index(';function renderHealth(){',start)
+edit(html[start:end], """$('paletteImportInput').onchange=async e=>{const file=e.target.files?.[0];e.target.value='';if(!file)return;try{const next=sourceRead(JSON.parse(await file.text()));savePaletteState(next);renderPaletteSettings();repaintCharts()}catch(err){$('paletteStatus').className='paletteStatus bad';$('paletteStatus').textContent='Import failed: '+err.message}}""", 'validated persistent source-style import')
+edit('Identity-bound settings for Series 1–10. Series styling previews immediately; Save persists the current configuration.',
+     'Styles belong to each data source across all charts. Changes save automatically to Custom. Red is reserved for RSK.', 'source config instructions')
+edit('</head>', '<style>'+Path('market-navigator-chart-correction/source-styles.css').read_text(encoding='utf-8')+'</style></head>', 'scoped source configuration layout')
+# All axis text and boundaries use one high-contrast neutral color, independent of focus.
+edit("x.fillStyle='#91a8bb';x.textAlign=i===0", "x.fillStyle='#D9E6F2';x.textAlign=i===0", 'readable X-axis text')
+edit("x.strokeStyle='#49657c';x.lineWidth=1;x.beginPath();x.moveTo(xx,p.t);x.lineTo(xx,p.t+ph);x.stroke();", "x.strokeStyle='#D9E6F2';x.lineWidth=1;x.beginPath();x.moveTo(xx,p.t);x.lineTo(xx,p.t+ph);x.stroke();", 'readable Y-axis boundaries')
+old="x.fillStyle=dual?(rep?.color||'#91a8bb'):'#91a8bb';"
+assert html.count(old)==2
+html=html.replace(old,"x.fillStyle='#D9E6F2';")
+changes.append('same readable Y1 and Y2 ticks and unit labels')
+edit("let bars=sets.filter(z=>isBar(z)&&z.a.length)", "x.strokeStyle='#D9E6F2';x.lineWidth=1;x.beginPath();x.moveTo(p.l,p.t+ph);x.lineTo(p.l+pw,p.t+ph);x.stroke();let bars=sets.filter(z=>isBar(z)&&z.a.length)", 'matching X-axis boundary')
+
 TARGET.parent.mkdir(parents=True,exist_ok=True);TARGET.write_text(html,encoding='utf-8',newline='')
 blob=hashlib.sha1(b'blob '+str(len(html.encode())).encode()+b'\0'+html.encode()).hexdigest()
 Path('.evidence/chart-correction-build.json').write_text(json.dumps({'baseline':'ee38d9c9da9af4b2795695a39519c76e6c5e5239','candidate':blob,'changes':changes,'nativeHorizonSemantics':'native prices unchanged; every normalized series rebases; Fixed 2016-09-01 with later-start disclosure','published':False},indent=2))
