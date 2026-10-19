@@ -1,0 +1,62 @@
+name: Market Navigator PR 845 test publication
+on:
+  push:
+    branches: [main]
+    paths: ['.github/workflows/market-navigator-pr845-preview.yml']
+  workflow_dispatch:
+permissions:
+  contents: write
+  actions: write
+concurrency:
+  group: market-navigator-pr845-preview
+  cancel-in-progress: false
+jobs:
+  publish-test-candidate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: 9089bb7faaf3b4880669acf343e2c6369796ffbb
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Verify exact PR candidate and refresh its own data contract
+        run: |
+          test "$(git hash-object market-navigator-recovery-candidate.html)" = f51107fd508df90d3545f38bfbeccd714cf1cb82
+          python market-navigator-corpus.py --repair --collect --strict
+      - name: Publish only isolated PR 845 test directory
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          git clone --depth 1 "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" "$RUNNER_TEMP/mn-publication"
+          python - <<'PY'
+          import os,shutil,json,hashlib
+          from pathlib import Path
+          destination=Path(os.environ['RUNNER_TEMP'])/'mn-publication/market-navigator-pr845-review'
+          destination.mkdir(parents=True,exist_ok=True)
+          shutil.copyfile('market-navigator-recovery-candidate.html',destination/'throwaway.html')
+          for folder in ('market-evidence','data/market-backend'):
+              shutil.copytree(folder,destination/folder,dirs_exist_ok=True)
+          report={'source_commit':'9089bb7faaf3b4880669acf343e2c6369796ffbb','application_blob':'f51107fd508df90d3545f38bfbeccd714cf1cb82','acceptance':'Testing only. Windows 11, physical Android and AI prose review remain pending.','baseline_and_default':'unchanged','workflow':os.environ['GITHUB_SERVER_URL']+'/'+os.environ['GITHUB_REPOSITORY']+'/actions/runs/'+os.environ['GITHUB_RUN_ID']}
+          (destination/'review.json').write_text(json.dumps(report,indent=2)+'\n')
+          PY
+          cd "$RUNNER_TEMP/mn-publication"
+          git config user.name 'Market Navigator review'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git fetch origin main
+          git merge --ff-only origin/main
+          git add -- market-navigator-pr845-review
+          if ! git diff --cached --quiet; then
+            git commit -m "Publish exact PR 845 candidate for testing only"
+            git push origin HEAD:main
+          fi
+          curl --fail-with-body --silent --show-error -X POST -H "Authorization: Bearer ${GH_TOKEN}" -H "Accept: application/vnd.github+json" "https://api.github.com/repos/${GITHUB_REPOSITORY}/actions/workflows/static.yml/dispatches" -d '{"ref":"main"}'
+      - name: Retain actual audit and repair result
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: market-navigator-pr845-test-audit
+          path: |
+            market-evidence/corpus-health.json
+            market-evidence/corpus-repair.json
