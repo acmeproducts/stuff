@@ -148,9 +148,10 @@ footer{color:var(--ink-3);font-size:13px;margin-top:6px}
     chat:     { label: 'Chat',          short: 'chats',    color: 'var(--chat)',     shape: 'square' },
     answered: { label: 'Call answered', short: 'answered', color: 'var(--answered)', shape: 'circle', icon: '✓ ' },
     missed:   { label: 'Call missed',   short: 'missed',   color: 'var(--missed)',   shape: 'circle', icon: '✕ ' },
-    declined: { label: 'Call declined', short: 'declined', color: 'var(--declined)', shape: 'circle', icon: '– ' }
+    declined: { label: 'Call declined', short: 'declined', color: 'var(--declined)', shape: 'circle', icon: '– ' },
+    renamed:  { label: 'Room renamed',  short: 'renamed',  color: 'var(--ink-3)',    shape: 'circle' }
   };
-  var ORDER = ['created', 'joined', 'chat', 'answered', 'missed', 'declined'];
+  var ORDER = ['created', 'joined', 'chat', 'answered', 'missed', 'declined', 'renamed'];
   var CALLS = { answered: 1, missed: 1, declined: 1 };
   var $ = function (id) { return document.getElementById(id); };
   var esc = function (s) { var d = document.createElement('div'); d.textContent = s == null ? '' : String(s); return d.innerHTML; };
@@ -169,13 +170,14 @@ footer{color:var(--ink-3);font-size:13px;margin-top:6px}
     var out = []; titles = {};
     text.split('\n').forEach(function (line, i) {
       /* relay v6.16: "room <code> <name>" — the name (letters, digits, single spaces) follows the code when the room has one */
-      var m = /^(\d{4}-\d\d-\d\d \d\d:\d\d:\d\d)  room (\S+)(?: ((?:(?!  ).)+?))?  (.*)$/.exec(line.trim());
+      var m = /^(\d{4}-\d\d-\d\d \d\d:\d\d:\d\d)  room (\S+)(?: ([^ ](?:(?!  ).)*?))?  (.*)$/.exec(line.trim());
       if (!m) return;
       var e = { i: i, line: line.trim(), utc: m[1], ts: Date.parse(m[1].replace(' ', 'T') + 'Z'), room: m[2], title: m[3] || '', text: m[4] }, r, rest = m[4];
       if (e.title) titles[e.room] = e.title;
       if ((r = /^(.+?) created  (\S+) → (\S+)$/.exec(rest))) { e.kind = 'created'; e.who = r[1]; e.from = r[2]; e.to = r[3]; }
       else if ((r = /^(.+?) joined  (\S+) → (\S+)$/.exec(rest))) { e.kind = 'joined'; e.who = r[1]; e.from = r[2]; e.to = r[3]; }
       else if ((r = /^(.+?) chat$/.exec(rest))) { e.kind = 'chat'; e.who = r[1]; }
+      else if ((r = /^(.+?) renamed the room$/.exec(rest))) { e.kind = 'renamed'; e.who = r[1]; }
       else if ((r = /^(video|voice) call from (.+?) — answered by (.+?)(?:  started (\S+)  ended (\S+)  lasted (.+))?$/.exec(rest))) { e.kind = 'answered'; e.call = r[1]; e.who = r[2]; e.by = r[3]; if (r[6]) { e.durMs = parseLasted(r[6]); e.endTs = e.ts; e.startTs = e.ts - e.durMs; } }
       else if ((r = /^(video|voice) call from (.+?) — declined by (.+)$/.exec(rest))) { e.kind = 'declined'; e.call = r[1]; e.who = r[2]; e.by = r[3]; }
       else if ((r = /^(video|voice) call from (.+?) — missed$/.exec(rest))) { e.kind = 'missed'; e.call = r[1]; e.who = r[2]; }
@@ -193,6 +195,7 @@ footer{color:var(--ink-3);font-size:13px;margin-top:6px}
     if (e.kind === 'created') return e.who + ' created the room (' + e.from + ' → ' + e.to + ')';
     if (e.kind === 'joined') return e.who + ' joined (' + e.from + ' → ' + e.to + ')';
     if (e.kind === 'chat') return e.who + ' sent a chat';
+    if (e.kind === 'renamed') return e.who + ' renamed the room' + (e.title ? ' to ' + e.title : '');
     if (e.kind === 'answered') return cap(e.call) + ' call from ' + e.who + ', answered by ' + e.by + (e.durMs != null ? ' · ' + clock(e.startTs) + ' to ' + clock(e.endTs) + ' · ' + lastedWords(e.durMs) : '');
     if (e.kind === 'declined') return cap(e.call) + ' call from ' + e.who + ', declined by ' + e.by;
     if (e.kind === 'missed') return cap(e.call) + ' call from ' + e.who + ', missed';
@@ -387,9 +390,9 @@ footer{color:var(--ink-3);font-size:13px;margin-top:6px}
   function demoText() {
     var now = Date.now(), L = [], t = function (m) { return new Date(now - m * 60000).toISOString().replace('T', ' ').slice(0, 19); };
     L.push(t(1500) + '  room x7k2pa  Ann created  en → es'); L.push(t(1490) + '  room x7k2pa  Luz joined  es → en'); L.push(t(1480) + '  room x7k2pa  Luz chat');
-    L.push(t(130) + '  room bh5qos Ann and Bo  Ann created  en → th'); L.push(t(126) + '  room bh5qos Ann and Bo  Bo joined  th → en'); L.push(t(120) + '  room bh5qos Ann and Bo  Ann chat'); L.push(t(119) + '  room bh5qos Ann and Bo  Bo chat');
-    L.push(t(110) + '  room bh5qos Ann and Bo  video call from Ann — missed'); L.push(t(100) + '  room bh5qos Ann and Bo  video call from Bo — answered by Ann  started ' + new Date(now - 104.5 * 60000).toISOString().slice(11, 19) + '  ended ' + new Date(now - 100 * 60000).toISOString().slice(11, 19) + '  lasted 4m 30s'); L.push(t(40) + '  room q4hv8e Korean class  Ann created  en → ko'); L.push(t(38) + '  room q4hv8e Korean class  Kim joined  ko → en');
-    L.push(t(30) + '  room q4hv8e Korean class  voice call from Kim — declined by Ann'); L.push(t(12) + '  room q4hv8e Korean class  Kim chat'); L.push(t(2) + '  room bh5qos Ann and Bo  Bo chat');
+    L.push(t(130) + '  room bh5qos Ann and Bo  Ann created  en → th'); L.push(t(126) + '  room bh5qos  Bo joined  th → en'); L.push(t(120) + '  room bh5qos  Ann chat'); L.push(t(119) + '  room bh5qos  Bo chat');
+    L.push(t(110) + '  room bh5qos  video call from Ann — missed'); L.push(t(100) + '  room bh5qos  video call from Bo — answered by Ann  started ' + new Date(now - 104.5 * 60000).toISOString().slice(11, 19) + '  ended ' + new Date(now - 100 * 60000).toISOString().slice(11, 19) + '  lasted 4m 30s'); L.push(t(40) + '  room q4hv8e Korean class  Ann created  en → ko'); L.push(t(38) + '  room q4hv8e  Kim joined  ko → en');
+    L.push(t(30) + '  room q4hv8e  voice call from Kim — declined by Ann'); L.push(t(20) + '  room q4hv8e Korean lessons  Kim renamed the room'); L.push(t(12) + '  room q4hv8e  Kim chat'); L.push(t(2) + '  room bh5qos  Bo chat');
     return L.join('\n');
   }
   function tick() {

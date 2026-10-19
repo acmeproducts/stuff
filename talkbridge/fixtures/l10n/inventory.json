@@ -346,16 +346,51 @@
   {
    "mode": "raw",
    "find": "  ws.onopen = function () { self.send(room.id, { type: 'hello', lang: room.myLang, targetLang: room.theirLang, role: room.role, name: room.myName || S.user",
-   "replace": "  ws.onopen = function () { self.send(room.id, { type: 'hello', dev: (typeof _n16Dev === 'string' ? _n16Dev : ''), lang: room.myLang, targetLang: room.theirLang, role: room.role, title: (room.title || ''), name: room.myName || S.user",
+   "replace": "  ws.onopen = function () { self.send(room.id, { type: 'hello', dev: (typeof _n16Dev === 'string' ? _n16Dev : ''), lang: room.myLang, targetLang: room.theirLang, role: room.role, title: (room.title || ''), titleTs: (room.titleTs || 0), name: room.myName || S.user",
    "keys": [],
    "note": "the activity log names a phone by the same tag as the device log"
   },
   {
    "mode": "raw",
    "find": "      relaySend({ type: 'hello', lang: room.myLang, targetLang: room.theirLang, role: room.role, name: room.myName || S.user.name });",
-   "replace": "      relaySend({ type: 'hello', dev: (typeof _n16Dev === 'string' ? _n16Dev : ''), lang: room.myLang, targetLang: room.theirLang, role: room.role, title: (room.title || ''), name: room.myName || S.user.name });",
+   "replace": "      relaySend({ type: 'hello', dev: (typeof _n16Dev === 'string' ? _n16Dev : ''), lang: room.myLang, targetLang: room.theirLang, role: room.role, title: (room.title || ''), titleTs: (room.titleTs || 0), name: room.myName || S.user.name });",
    "keys": [],
    "note": "the active room's own hello carries the device tag and (29·post-ship c6, relay v6.16) the room's shared name too"
+  },
+  {
+   "mode": "raw",
+   "find": "self.send(roomId, { type: 'hello-ack', transient: true, name: room.myName || S.user.name });",
+   "replace": "self.send(roomId, { type: 'hello-ack', transient: true, title: (room.title || ''), titleTs: (room.titleTs || 0), name: room.myName || S.user.name });",
+   "keys": [],
+   "note": "the background lane's greeting reply carries the room name and when it was set"
+  },
+  {
+   "mode": "raw",
+   "find": "relaySend({ type: 'hello-ack', transient: true, name: room.myName || S.user.name });",
+   "replace": "relaySend({ type: 'hello-ack', transient: true, title: (room.title || ''), titleTs: (room.titleTs || 0), name: room.myName || S.user.name });",
+   "keys": [],
+   "note": "the open room's greeting reply carries the room name and when it was set"
+  },
+  {
+   "mode": "raw",
+   "find": "  if (d.type === 'ping') { self.send(roomId, { type: 'pong', transient: true }); return; }\n  if (d.type === 'hello') {",
+   "replace": "  if (d.type === 'ping') { self.send(roomId, { type: 'pong', transient: true }); return; }\n  if (d.type === 'hello' || d.type === 'hello-ack') { try { rnOnGreeting(roomId, d); } catch (_) {} }   /* RN-1 (29·post-ship c7): a newer room name in the greeting wins */\n  if (d.type === 'hello') {",
+   "keys": [],
+   "note": "a background room adopts a newer name from the other phone's greeting"
+  },
+  {
+   "mode": "raw",
+   "find": "  touchPresence();\n  if (d.type === 'hello') {",
+   "replace": "  touchPresence();\n  if (d.type === 'hello' || d.type === 'hello-ack') { try { rnOnGreeting((room && room.id) || S.roomId, d); } catch (_) {} }   /* RN-1 (29·post-ship c7) */\n  if (d.type === 'hello') {",
+   "keys": [],
+   "note": "the open room adopts a newer name from the other phone's greeting"
+  },
+  {
+   "mode": "raw",
+   "find": "}\nfunction onRoomNameSignal(roomId, d) {",
+   "replace": "}\n/* RN-1 (29·post-ship c7, owner 2026-10-19: \"last update wins, keep it simple\"; the server keeps no room name). A rename reaches the\n   other phone only while its connection is open; a phone asleep missed it for good. Now every greeting (hello, hello-ack) carries the\n   room's name and the time it was set; the receiver adopts it when it is NEWER than its own — K4's rule (later stamp wins; an equal\n   stamp breaks by text). A name never renamed has no stamp and moves nothing. */\nfunction rnOnGreeting(roomId, d) {\n  if (!d || typeof d.title !== 'string') return false;\n  var r = roomById(roomId); if (!r) return false;\n  var to = String(d.title).slice(0, 40), ts = Number(d.titleTs) || 0, mine = Number(r.titleTs) || 0;\n  if (!to || !ts || to === r.title) return false;\n  if (ts < mine || (ts === mine && to <= (r.title || ''))) return false;\n  var from = r.title || '';\n  r.title = to; r.titleTs = ts; saveRooms();\n  try { log('rn_name_adopted', { room: String(roomId).slice(-6), from: from, to: to }, 'ok'); } catch (_) {}\n  try { renderRoomHead(); renderPanel(); } catch (_) {}\n  return true;\n}\n/* (RN-1 ends; K4 follows) */\nfunction onRoomNameSignal(roomId, d) {",
+   "keys": [],
+   "note": "RN-1: adopt a newer room name from a greeting"
   },
   {
    "mode": "html",

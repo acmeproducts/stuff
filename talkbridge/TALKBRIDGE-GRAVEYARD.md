@@ -1,7 +1,7 @@
 <!-- v5.8.2.42 -->
 # TALKBRIDGE — THE GRAVEYARD (living; keep in project knowledge)
 ## Approaches PROVEN to fail. Scanned before every change and at every exit condition. Never resurrect.
-**Version: 2.35 | 2026-10-18 | G75 the ownership gate judged a merge of main into a branch by everything main brought | Maintained in GitHub by the build process (raw.githubusercontent.com/acmeproducts/stuff/main/talkbridge/TALKBRIDGE-GRAVEYARD.md). Updated on every exit-condition burial.**
+**Version: 2.36 | 2026-10-19 | G76 names kept on the server; a rename delivered only to an open connection | Maintained in GitHub by the build process (raw.githubusercontent.com/acmeproducts/stuff/main/talkbridge/TALKBRIDGE-GRAVEYARD.md). Updated on every exit-condition burial.**
 
 
 Each entry: the approach, its failure signature, what replaces it. A change matching a signature is forbidden BEFORE it is attempted — not rediscovered as if new.
@@ -148,6 +148,7 @@ Each entry: the approach, its failure signature, what replaces it. A change matc
 | G73 | 2026-10-16 | A typed name and a made-up default written raw into the activity log (`someone·ciA`, relay v6.12) |
 | G74 | 2026-10-18 | The room code kept only in the relay object's memory (activity lines after a sleep read `room none`, relay v6.12–v6.14) |
 | G75 | 2026-10-18 | The ownership gate judging a merge by its first-parent diff (a branch that merged main was refused for main's own TalkBridge commits) |
+| G76 | 2026-10-19 | Names kept on the server (typed names, the room's name, a scratch copy of messages); a rename delivered only to an open connection |
 | E134 | 2026-10-07 | Annotation · 2026-10-07: E076's corollary superseded by owner ruling (install optional) |
 
 </details>
@@ -2505,3 +2506,28 @@ Self-test cases 15–17; checked on PR #916's range (passes) and on a throwaway
 repository whose merge edits a TalkBridge file (refused).
 
 **Buried by.** Plan v21.107.0.
+
+## G76 — 2026-10-19 — Names kept on the server; a rename delivered only to an open connection
+
+**The approach.** The relay kept, beside its codes: a scratch copy of the last
+500 messages per room (text, sender names, rename notices), each phone's typed
+name in the room's device list, the sender's name on every chat and call
+record, and (v6.16) the room's name. A rename travelled once, as a pill, to
+whoever was connected at that moment.
+
+**Failure signature.** The owner, 2026-10-19: a rename made while the other
+phone was locked never reached it. Validated on the relay: the reconnecting
+phone received nothing; the relay held the pill but never replays, history sync
+drops system notices, and records and pushes cover chats and calls only. And
+v6.16's kept room name flipped back the moment the stale phone said hello.
+
+**Why it fails.** The design is phone-to-phone: phones are the truth and the
+relay passes things along. Anything the relay keeps as truth drifts from the
+phones; anything delivered once to an open socket is lost to a sleeping phone.
+
+**The rule.** The relay keeps codes only. A name lives on the open connection
+and in the activity log's lines while that log is on. A room's name travels
+phone to phone in every greeting with its stamp; the newest stamp wins. Relay
+harness v6.17 L10 opens the room's storage and finds no name; app harness T7.
+
+**Buried by.** 29·post-ship candidate 7, relay v6.17 (plan v21.109.0).
