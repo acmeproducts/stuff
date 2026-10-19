@@ -278,3 +278,13 @@ Spec: https://claude.ai/artifact/FE8bwsoWEh4GmLLyLGvfXm (sections A–K).
 - Add path picker: close button lived inside the re-rendered pane → fixed × outside it, Escape closes.
 - Diagnostics publisher: stale git `index.lock` blocked every publish → locks older than 10 min are cleared.
 - Owner: "% isn't of assets, it's % of target." Change: Roots bar = root's in-play GB ÷ TARGET free space ("N% of target"); the #/GB switch on Roots removed (files can't be a share of a drive).
+
+## Release F — left menu, one Search window, Land screen (2026-10-19)
+
+Owner spec (Q&A, defaults yes; "no Land all"):
+- Top icon row removed. Left menu (PRISM shape): header SOT · Release · date/time with the connection dot; Map · Roots · Duplicates · AI · Land; Config pinned at the bottom. Docked on desktop, ☰ overlay on phone.
+- Search with bulk operations is one window opened from: Map tiles (that folder, flat), Roots search icon (everything, nothing selected), Roots ⋯ Search (that root), Duplicates (global Keep/Excess groups with Keep boxes). × or Escape returns to where it was opened. Land removed from Search.
+- Roots: `ROOTS n` · search · Custom on one row; `Target | Assets | Open/Deficit` in TB (Target = free space); target row removed; ⋯ Search / Rescan / Remove.
+- Land: own screen in Roots order; ⋯ Land this root (Keep + Unique only, never Excess) → confirm (Fits/Deficit) → progress, Pause, Cancel on that row; dots green landed / yellow landing / grey not yet / red won't fit or unreadable; target ⋯ (Rescan, Change target) on the Land header.
+- Columns window: one box per column (unticked = hidden and not searched), drag to reorder, width slider saved, long cells end in ….
+- Checks: browser suite 55/55 (desktop + 412 px phone); real-server run: Land this root landed 202/202 Keep+Unique files, row turned green, 100% landed. Not yet confirmed on the owner's phone.
