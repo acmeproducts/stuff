@@ -1,14 +1,8 @@
 # TalkBridge device log
 
-Both handsets write here. Drained 2026-10-19T09:02:23Z, every 30s. Newest at the bottom.
+Both handsets write here. Drained 2026-10-19T09:02:55Z, every 30s. Newest at the bottom.
 
 ```
-16:55:12.516 [iphone-aza] speech_added {"id":"sp-m-135","seq":135,"before":279,"after":280,"added":1}
-16:55:12.516 [iphone-aza] r8_speech_kind {"kind":"video"}
-16:55:12.694 [iphone-aza] trans_ok {"provider":"google","from":"en","to":"th","ms":475,"inChars":3,"outChars":13}
-16:55:12.694 [iphone-aza] dg_final {"t":"รถไฟฟ้าใต้ดิน"}
-16:55:12.695 [iphone-aza] said_kept {"id":"sp-m-136","lang":"en","chars":3,"who":"me"}
-16:55:12.697 [iphone-aza] speech_added {"id":"sp-m-136","seq":136,"before":280,"after":281,"added":1}
 16:55:12.698 [iphone-aza] r8_speech_kind {"kind":"video"}
 16:55:12.774 [iphone-aza] trans_ok {"provider":"google","from":"th","to":"en","ms":76,"inChars":13,"outChars":6}
 16:55:13.888 [iphone-aza] trans_ok {"provider":"google","from":"th","to":"en","ms":1372,"inChars":12,"outChars":4}
@@ -4002,4 +3996,10 @@ Both handsets write here. Drained 2026-10-19T09:02:23Z, every 30s. Newest at the
 09:02:18.309 [android-tzc] rc_home_rendered {"cards":1,"wired":1,"dropped":3}
 09:02:18.311 [android-tzc] joiner_create_control {"shown":true,"dropped":3}
 09:02:18.342 [android-tzc] pr3_dot {"others":0,"dropped":1}
-09:02:18.352 [android-tzc] t1_coalesced {"fn":"renderPanel","n":6}```
+09:02:18.352 [android-tzc] t1_coalesced {"fn":"renderPanel","n":6}
+09:02:29.686 [android-tzc] pr3_dot {"others":0}
+09:02:38.310 [android-tzc] rc_panel_rendered {"live":8,"bin":1,"wired":8,"dropped":2}
+09:02:38.313 [android-tzc] rc_home_rendered {"cards":1,"wired":1,"dropped":2}
+09:02:38.314 [android-tzc] joiner_create_control {"shown":true,"dropped":2}
+09:02:38.337 [android-tzc] pr3_dot {"others":0}
+09:02:38.342 [android-tzc] t1_coalesced {"fn":"renderPanel","n":6}```
