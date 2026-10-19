@@ -34,13 +34,12 @@ const txt=(fr,sel)=>fr.$eval(sel,e=>e.innerText);
 try{
  let {ctx:ctx0,pg,fr}=await open(1280,900);
  // 1 labels
- const strip=await fr.$$eval('#tabs button',b=>b.filter(x=>x.style.display!=='none').map(x=>x.title));ok(JSON.stringify(strip.slice(0,4))==='["Report","Roots","Search","AI Tasks"]','top strip '+strip);
+ const rail=await fr.evaluate(()=>({nav:[...document.querySelectorAll('#ssot-rail .srnav button')].map(b=>b.textContent),foot:document.querySelector('#ssot-rail .srfoot')?.innerText.trim(),head:document.querySelector('#ssot-rail .srhead')?.innerText.replace(/\s+/g,' ').trim(),dot:!!document.getElementById('ssot-raildot'),header:getComputedStyle(document.querySelector('header')).display,on:[...document.querySelectorAll('#ssot-rail .srnav button.on')].map(b=>b.textContent)}));
+ ok(JSON.stringify(rail.nav)==='["Map","Roots","Duplicates","AI","Land"]'&&/Config/.test(rail.foot)&&/^SOT Release E/.test(rail.head)&&rail.dot&&rail.header==='none'&&JSON.stringify(rail.on)==='["Map"]','left menu '+JSON.stringify(rail));
  ok((await fr.$$('#Plan .subtabs, .ssot-report-switch')).length===0,'the Report|Job Status and Summary|Roots rows must be gone');
- const hdr=f=>f.evaluate(()=>{const t=document.querySelector('#tabs').getBoundingClientRect(),dot=document.getElementById('dot').getBoundingClientRect(),g=document.querySelector('.header-gear').getBoundingClientRect(),mid=r=>r.top+r.height/2,btn=[...document.querySelectorAll('#tabs button')].filter(b=>b.offsetParent).map(b=>b.getBoundingClientRect().width);return {brand:getComputedStyle(document.querySelector('.brand')).display,hw:document.getElementById('health').getBoundingClientRect().width,same:Math.abs(mid(t)-mid(dot))<6&&Math.abs(mid(t)-mid(g))<6,h:document.querySelector('header').getBoundingClientRect().height,minBtn:Math.min(...btn),over:document.documentElement.scrollWidth-document.documentElement.clientWidth}});
- const h1=await hdr(fr);ok(h1.brand==='none'&&h1.hw<=1&&h1.same&&h1.h<=60,'header must be a single row with only the dot '+JSON.stringify(h1));
- const onTab=()=>fr.$$eval('#tabs button.on',b=>b.map(x=>x.title));ok(JSON.stringify(await onTab())==='["Report"]','report tab highlighted: '+await onTab());
  const vis=await fr.evaluate(()=>[...document.querySelectorAll('button,a,[role=tab]')].filter(e=>e.offsetParent&&/analyze/i.test(e.textContent)).map(e=>e.textContent));ok(!vis.length,'visible Analyze label: '+vis);
- pass('top bar: Report, Roots, Search, AI, then the connection dot and settings; Job Status and Add are gone from the bar');
+ const onNav=()=>fr.$$eval('#ssot-rail .srnav button.on',b=>b.map(x=>x.textContent));
+ pass('left menu: SOT + release + connection on top, Map · Roots · Duplicates · AI · Land, Config pinned at the bottom; the top icon row is gone');
  // 2 subtabs
  // (sub-tabs removed: Roots and Job Status are top-strip icons)
  const F=()=>fr.evaluate(()=>({val:document.querySelector('#Plan .fval').innerText.trim(),chips:[...document.querySelectorAll('#Plan .fchip')].map(c=>c.innerText.replace(/[✕+]/g,'').trim()+(c.classList.contains('dim')?'~':'')+(c.classList.contains('off')?'-':'')),sq:[...document.querySelectorAll('#Plan .fsq')].map(q=>q.title||'_').join(','),tiles:[...document.querySelectorAll('#Plan .ftile')].map(t=>t.innerText.trim()+'@'+t.style.background.replace(/\s/g,'')),up:document.querySelector('#Plan .fcrumb')?.innerText||''}));
@@ -73,12 +72,12 @@ try{
  ok(f.sq==='Unique,Unique,_,_,_,_,_,_,_,_','bar follows the drill '+f.sq);
  await fr.evaluate(()=>__ssotFlowUp());f=await F();ok(!f.up&&f.val==='100%','Up returns to the roots '+JSON.stringify(f));
  pass('single tap shows a stats card; double tap opens a folder in its slice colour; top value and bar follow; ↑ Up goes back');
- const tapGo=async(fn,q,n,label,arg)=>{await fr.evaluate(fn,arg);await pg.waitForTimeout(450);const r=await fr.evaluate(()=>({on:document.getElementById('Database').classList.contains('on'),pane:document.querySelector('.pane.on')?.id,q:omniQuery,n:filterQuery(omniQuery).length,chip:document.querySelector('.ssot-back')?.textContent||''}));ok(r.on&&r.q===q&&r.n===n&&r.chip.includes(label),'search '+JSON.stringify(r));await fr.click('.ssot-back');await pg.waitForTimeout(300);ok(await fr.evaluate(()=>document.getElementById('Plan').classList.contains('on')),'back chip returns to the Report')};
+ const tapGo=async(fn,q,n,label,arg)=>{await fr.evaluate(fn,arg);await pg.waitForTimeout(450);const r=await fr.evaluate(()=>({on:document.getElementById('Database').classList.contains('on'),pane:document.querySelector('.pane.on')?.id,q:omniQuery,n:filterQuery(omniQuery).length,modal:document.documentElement.classList.contains('ssot-smodal')}));ok(r.on&&r.modal&&r.q===q&&r.n===n,'search '+JSON.stringify(r));await fr.click('.ssot-sclose');await pg.waitForTimeout(300);ok(await fr.evaluate(()=>document.getElementById('Plan').classList.contains('on')&&!document.documentElement.classList.contains('ssot-smodal')),'closing Search returns to the Map')};
  await tapGo(()=>__ssotFlowSearchSlice('excess'),'#report:flow:{"v":"scanned","s":["excess"],"p":null,"h":false}',2,'Excess');
  await setF({view:'capacity'});await tapGo(()=>__ssotFlowSearchSlice('deficit'),'#report:flow:{"v":"capacity","s":["deficit"],"p":null,"h":false}',1,'Deficit');
  await setF({view:'scanned',cur:'/mnt/b/Video',curSlice:'unique'});await tapGo(()=>__ssotFlowSearchHere(),'#report:flow:{"v":"scanned","s":["unique"],"p":"/mnt/b/Video","h":false}',1,'/mnt/b/Video');
  await setF({view:'scanned'});{const i=await fr.evaluate(()=>[...document.querySelectorAll('#Plan .ftile')].findIndex(t=>/^\/mnt\/a\/Photos/.test(t.innerText)));await tapGo(i=>{__ssotFlowTap({stopPropagation(){}},i);__ssotFlowTap({stopPropagation(){}},i)},'#report:flow:{"v":"scanned","s":["unique"],"p":"/mnt/a/Photos","h":false}',1,'/mnt/a/Photos',i)}
- pass('chip names, the breadcrumb and double-tapped leaf tiles open the real Search on exactly those files, with a "← Report" chip back');
+ pass('chip names, the breadcrumb and double-tapped leaf tiles open the Search window on exactly those files; × closes back to the Map');
  await fr.evaluate(()=>{__ssotFlowSet('view','stored');__ssotFlowSet('u','f');__ssotFlowSet('n','n')});await pg.reload();{let f4;for(let i=0;i<100;i++){try{const o=await (await (await pg.waitForSelector('#shell')).contentFrame()).waitForSelector('#app');f4=await o.contentFrame();if(await f4.evaluate(()=>!!window.__ssotCompletePlacementRefresh&&window.placements.length>0&&!document.querySelector('#ssot-db-blocker.on')))break}catch(e){}await pg.waitForTimeout(100)}
   const st=await f4.evaluate(()=>JSON.stringify(__ssotFlow));ok(/"view":"stored"/.test(st)&&/"u":"f"/.test(st)&&/"n":"n"/.test(st),'report choices not persisted '+st);
   await f4.evaluate(()=>{localStorage.removeItem('sotFlowUi');Object.assign(__ssotFlow,{view:'scanned',u:'g',n:'pct',off:[],cur:null,curSlice:null});renderPlan()});fr=f4}
@@ -86,40 +85,46 @@ try{
  // Release E: where a double-tap on a leaf goes
  const dbl=async(re,col)=>{const i=await fr.evaluate(([re,col])=>[...document.querySelectorAll('#Plan .ftile')].findIndex(t=>new RegExp(re).test(t.innerText)&&new RegExp(col).test(t.style.background)),[re,col]);ok(i>=0,'tile '+re);await fr.evaluate(i=>{__ssotFlowTap({stopPropagation(){}},i);__ssotFlowTap({stopPropagation(){}},i)},i);await pg.waitForTimeout(500)};
  await setF({view:'scanned'});await dbl('^/mnt/c/Archive','167, ?125, ?232');
- ok(await fr.evaluate(()=>__ssotDupMode&&omniQuery==='#dups:"/mnt/c/Archive"'&&document.getElementById('Database').classList.contains('on')&&!!document.querySelector('#Database tr.ssot-grp')),'Excess leaf opens Search grouped Keep + Excess for that path');
+ ok(await fr.evaluate(()=>!__ssotDupMode&&/^#report:flow:/.test(omniQuery)&&document.documentElement.classList.contains('ssot-smodal')&&!document.querySelector('#Database tr.ssot-grp')),'Excess leaf opens Search for that folder, flat');
+ await fr.evaluate(()=>__ssotCloseSearch());
  await fr.evaluate(()=>__ssotOpenReportMode('Report'));await setF({view:'capacity'});await dbl('^/mnt/c/Archive','229, ?72, ?77');
  ok(await fr.evaluate(()=>eval('planTab')==='Roots'&&!!document.querySelector('.estate-table tr.rhi[data-sid="s3"]')),'Deficit leaf opens Roots with that row highlighted');
  await fr.evaluate(()=>__ssotOpenReportMode('Report'));await setF({view:'capacity'});await dbl('^/mnt/a/Photos','59, ?158, ?230');
- {const r=await fr.evaluate(()=>({on:document.getElementById('Database').classList.contains('on'),sel:__ssotTableSelected.size,land:!!document.querySelector('.ssot-bulk .land'),del:document.querySelector('.ssot-bulk .danger')?.disabled}));ok(r.on&&r.sel===1&&r.land&&r.del,'In play leaf opens Search with those files selected, Land ready, Delete off '+JSON.stringify(r))}
- pass('double-tap: Excess → Search grouped Keep + Excess for that path · Deficit → Roots, row highlighted · In play → Search selected with Land ready');
+ {const r=await fr.evaluate(()=>({modal:document.documentElement.classList.contains('ssot-smodal'),sel:__ssotTableSelected.size,land:!!document.querySelector('.ssot-bulk .land')}));ok(r.modal&&r.sel===0&&!r.land,'In play leaf opens Search for that folder, nothing pre-selected, no Land '+JSON.stringify(r))}
+ pass('double-tap: a leaf opens Search for that folder · Deficit → Roots with the row highlighted');
  // Search: Delete only for Excess, Land only for in-play
  await fr.evaluate(()=>{__ssotTableSelected.clear();omniDraft=omniQuery='class:excess';renderDatabase()});await pg.waitForTimeout(400);
- {const r=await fr.evaluate(()=>({land:!!document.querySelector('.ssot-bulk .land'),del:document.querySelector('.ssot-bulk .danger')?.disabled}));ok(!r.land&&r.del===false,'Excess results: Delete allowed, no Land '+JSON.stringify(r))}
+ {const r=await fr.evaluate(()=>({land:!!document.querySelector('.ssot-bulk .land'),del:document.querySelector('.ssot-bulk .danger')?.disabled}));ok(!r.land&&r.del===false,'Excess results: Delete allowed, no Land in Search '+JSON.stringify(r))}
  await fr.evaluate(()=>{omniDraft=omniQuery='';renderDatabase()});await pg.waitForTimeout(300);
  ok(await fr.evaluate(()=>document.querySelector('.ssot-bulk .danger')?.disabled===true),'mixed results: Delete is off');
- pass('Search action bar: Delete is limited to Excess; Land appears only when the selection is in play');
- // Land: confirm screen first, never automatic
- ok(!landCalls.length,'nothing lands on its own');
- await fr.evaluate(()=>{omniDraft=omniQuery='class:unique';renderDatabase()});await pg.waitForTimeout(400);await fr.click('.ssot-bulk .land');await pg.waitForTimeout(500);
- {const m=await fr.evaluate(()=>({t:document.getElementById('modaltitle').textContent,b:document.getElementById('modalbody').innerText,ok:document.getElementById('modalok').textContent}));ok(/Land on the TARGET/.test(m.t)&&/3 files · 600\.0 GB/.test(m.b)&&/600\.0 GB free/.test(m.b)&&/Fits\./.test(m.b)&&m.ok==='Proceed','confirm screen '+JSON.stringify(m))}
- ok(landCalls.length===1&&landCalls[0][0]==='pre','only the preflight ran so far '+JSON.stringify(landCalls));
+ pass('Search action bar: Delete is limited to Excess; Land is not in Search');
+ // Land: its own screen in Roots order, root by root, confirm first, never automatic
+ ok(!landCalls.length,'nothing lands on its own');await fr.evaluate(()=>__ssotCloseSearch(true));
+ await fr.click('#ssot-rail button[data-nav="land"]');await pg.waitForTimeout(500);
+ const landRows=()=>fr.$$eval('#Plan .land tbody tr[data-sid]',r=>r.map(x=>({id:x.dataset.sid,dot:x.querySelector('.rdot').className.replace('rdot ',''),t:x.innerText.replace(/\s+/g,' ').trim()})));
+ {let r=await landRows();ok(JSON.stringify(await onNav())==='["Land"]'&&r.length===3&&r.map(x=>x.id).join()===(await fr.evaluate(()=>__ssotRootsOrder(__ssotReportModel().roots).map(r=>r.id).join())),'Land lists roots in Roots order '+JSON.stringify(r));
+  ok(/^Target: 0\.64 \| Assets: 0\.75 \| Deficit: 0\.11 TB$/.test(await txt(fr,'#Plan .land .estate-sum')),'TB line '+await txt(fr,'#Plan .land .estate-sum'));
+  ok(r.every(x=>/0% landed/.test(x.t)),'nothing landed yet '+JSON.stringify(r))}
+ await fr.click('#Plan .land tr[data-sid="s1"] .rdots');await pg.waitForTimeout(200);ok(JSON.stringify(await fr.$$eval('.rpop button',b=>b.map(x=>x.textContent)))==='["Land this root"]','row menu: Land this root');
+ await fr.click('.rpop button:has-text("Land this root")');await pg.waitForTimeout(600);
+ {const m=await fr.evaluate(()=>({t:document.getElementById('modaltitle').textContent,b:document.getElementById('modalbody').innerText,ok:document.getElementById('modalok').textContent}));ok(/Land on the TARGET/.test(m.t)&&/1 files · 300\.0 GB/.test(m.b)&&/600\.0 GB free/.test(m.b)&&/Fits\./.test(m.b)&&m.ok==='Proceed','confirm screen '+JSON.stringify(m))}
+ ok(landCalls.length===1&&landCalls[0][0]==='pre'&&landCalls[0][1]===1,'only the preflight ran so far, for that root only '+JSON.stringify(landCalls));
  await fr.click('#modalcancel');await pg.waitForTimeout(200);ok(landCalls.length===1,'Cancel backs out');
- targetBytes=500*GB;await fr.evaluate(()=>dataPoll());await pg.waitForTimeout(400);await fr.click('.ssot-bulk .land');await pg.waitForTimeout(500);
- {const b=await fr.evaluate(()=>document.getElementById('modalbody').innerText);ok(/Deficit: 100\.0 GB won't fit/.test(b)&&/\/mnt\/c\/Archive/.test(b),'deficit confirm lists the roots that will not make it '+b)}
+ await fr.click('#Plan .land tr[data-sid="s2"] .rdots');await pg.waitForTimeout(200);await fr.click('.rpop button:has-text("Land this root")');await pg.waitForTimeout(600);
+ ok(landCalls.at(-1)?.[1]===2,'Land sends only that root\'s Keep + Unique copies (never Excess) '+JSON.stringify(landCalls.at(-1)));
  await fr.click('#modalok');await pg.waitForTimeout(700);ok(landCalls.at(-1)?.[0]==='start','Proceed starts landing');
- ok(await fr.evaluate(()=>eval('planTab')==='Roots'),'landing opens Roots to watch it');
- await pg.waitForTimeout(1800);{const t=await fr.$eval('.estate-table tr.trow',e=>e.innerText);ok(/Landing 36% · 1 \/ 3/.test(t)&&/Pause/.test(t)&&/Cancel/.test(t),'target row shows landing progress '+t)}
- await fr.click('.estate-table tr.trow button:has-text("Pause")');await pg.waitForTimeout(400);ok(landCalls.at(-1)?.join()==='ctl,pause','pause');
- await fr.click('.estate-table tr.trow button:has-text("Cancel")');await pg.waitForTimeout(400);ok(landCalls.at(-1)?.join()==='ctl,cancel','cancel');
- targetBytes=600*GB;await fr.evaluate(()=>dataPoll());await pg.waitForTimeout(400);
- pass('Land: a confirm screen with files, GB, free space and Fits or Deficit (listing the roots that will not make it); Proceed or Cancel; progress, Pause and Cancel on the TARGET row');
- // Change target from the TARGET row
- await fr.click('.estate-table tr.trow .rdots');await pg.waitForTimeout(200);ok(JSON.stringify(await fr.$$eval('.rpop button',b=>b.map(x=>x.textContent)))==='["Rescan target","Change target…"]','target menu');
+ await pg.waitForTimeout(1800);{const r=await landRows(),row=r.find(x=>x.id==='s2');ok(row&&row.dot==='yellow'&&/Landing 36% · 1 \/ 3/.test(row.t)&&/Pause/.test(row.t)&&/Cancel/.test(row.t),'landing row shows progress, Pause, Cancel '+JSON.stringify(row))}
+ ok(await fr.evaluate(()=>document.querySelector('#ssot-rail [data-nav="land"]').classList.contains('busy')),'Land menu item shows the landing dot');
+ await fr.click('#Plan .land tr[data-sid="s2"] button:has-text("Pause")');await pg.waitForTimeout(400);ok(landCalls.at(-1)?.join()==='ctl,pause','pause');
+ await fr.click('#Plan .land tr[data-sid="s2"] button:has-text("Cancel")');await pg.waitForTimeout(400);ok(landCalls.at(-1)?.join()==='ctl,cancel','cancel');
+ pass('Land: roots in Roots order, ⋯ Land this root (Keep + Unique only), confirm with Fits or Deficit, progress with Pause and Cancel on that row');
+ // Change target from the Land header
+ await fr.click('#Plan .land .rtop .rdots');await pg.waitForTimeout(200);ok(JSON.stringify(await fr.$$eval('.rpop button',b=>b.map(x=>x.textContent)))==='["Rescan target","Change target…"]','target menu');
  await fr.click('.rpop button:has-text("Change target")');await pg.waitForTimeout(600);
  ok(await fr.evaluate(()=>document.getElementById('modaltitle').textContent==='Change TARGET'&&!!document.getElementById('keepOldTarget')),'change target asks, with a keep-old-as-root checkbox');await fr.click('#modalcancel');await pg.waitForTimeout(200);
- pass('Change target opens the folder picker with "Keep the old target as a root"');
+ pass('Change target lives on the Land header ⋯ with "Keep the old target as a root"');
  // + Add path opens the picker as a modal with a visible close
- await fr.click('#tabs button[data-tab="Roots"]');await pg.waitForTimeout(400);await fr.click('.raddpath');await pg.waitForTimeout(800);
+ await fr.click('#ssot-rail button[data-nav="roots"]');await pg.waitForTimeout(400);await fr.click('.raddpath');await pg.waitForTimeout(800);
  {const r=await fr.evaluate(()=>{const x=document.getElementById('ssot-addx'),b=x&&x.getBoundingClientRect();return {on:document.documentElement.classList.contains('ssot-addmodal'),vis:!!b&&b.width>0&&b.top>=0&&b.right<=innerWidth}});ok(r.on&&r.vis,'picker modal shows a close button '+JSON.stringify(r))}
  await fr.click('#ssot-addx');await pg.waitForTimeout(400);ok(await fr.evaluate(()=>!document.documentElement.classList.contains('ssot-addmodal')&&!!document.querySelector('#Plan .estate-table')),'close returns to Roots');
  await fr.click('.raddpath');await pg.waitForTimeout(600);await pg.keyboard.press('Escape');await pg.waitForTimeout(1500);ok(await fr.evaluate(()=>!document.documentElement.classList.contains('ssot-addmodal')),'Escape closes the picker');
@@ -137,8 +142,8 @@ try{
  ok(rows[0].files==='1'&&rows[0].size==='300.0 GB'&&rows[1].files==='2'&&rows[1].size==='250.0 GB'&&rows[2].files==='1'&&rows[2].size==='150.0 GB','root numbers from real placements '+JSON.stringify(rows));
  ok(rows[2].synced==='Never'&&rows[0].synced!=='Never','sync '+JSON.stringify(rows));
  ok(/% of target/.test(rows[0].now)&&/^50% /.test(rows[0].now),'green rows carry a grey share-of-target bar '+rows[0].now);
- const sum=await txt(fr,'.estate-sum');ok(/^ROOTS 3 \| ASSETS 700\.0 GB \| TARGET 600\.0 GB \| DEFICIT 100\.0 GB/.test(sum),'summary '+sum);
- ok(/TARGET\s+\/mnt\/t/.test(await fr.$eval('.estate-table tr.trow',e=>e.innerText)),'the TARGET is pinned as the first row');
+ const sum=await txt(fr,'.estate-sum');ok(/^Target: 0\.64 \| Assets: 0\.75 \| Deficit: 0\.11 TB$/.test(sum),'summary in TB '+sum);
+ ok(!(await fr.$('.estate-table tr.trow'))&&/^ROOTS 3$/.test(await txt(fr,'.roots .rcount'))&&!!(await fr.$('.roots .rtop .rsearch')),'no TARGET row; ROOTS count, search icon and Custom on one row');
  pass('Roots: TARGET pinned first; rows are ☰ · dot · Root · Files · Size · Last synced · ⋯; green rows show their share of everything scanned');
  const red='rgb(198, 40, 40)',white='rgb(255, 255, 255)';ok(rows[2].bg===red&&rows[2].fg===white&&rows[0].bg!==red&&rows[1].bg!==red,'overflow colors '+JSON.stringify(rows.map(r=>[r.bg,r.fg])));
  pass('roots fill the TARGET in priority order; the first root that does not fit and everything after it is red');
@@ -146,7 +151,7 @@ try{
  // live scan: yellow dot, progress bar, current file
  mockJobs=[{job:{state:'RUNNING'},scope_sources:[{source_id:'s2'}],sources:[{source_id:'s2',discovered_files:200,hashed_files:50,discovered_bytes:4000,hashed_bytes:1000,current_file:'IMG_2041.jpg'}]}];await fr.evaluate(()=>{window.__ssotJobsSave=eval('jobs');eval("jobs=[{job:{state:'RUNNING'},scope_sources:[{source_id:'s2'}],sources:[{source_id:'s2',discovered_files:200,hashed_files:50,discovered_bytes:4000,hashed_bytes:1000,current_file:'IMG_2041.jpg'}]}]");renderPlan()});
  rows=await rowsOf();ok(rows[1].dot==='yellow'&&/^25% · 50 \/ 200 · IMG_2041\.jpg/.test(rows[1].now),'scanning row '+JSON.stringify(rows[1]));
- ok(await fr.evaluate(()=>new Promise(r=>{let t0=Date.now(),iv=setInterval(()=>{if(document.querySelector('#tabs [data-tab="Roots"]').classList.contains('ssot-busy')){clearInterval(iv);r(true)}else if(Date.now()-t0>4000){clearInterval(iv);r(false)}},100)})),'Roots icon shows the scanning dot');
+ ok(await fr.evaluate(()=>new Promise(r=>{let t0=Date.now(),iv=setInterval(()=>{if(document.querySelector('#ssot-rail [data-nav="roots"]').classList.contains('busy')){clearInterval(iv);r(true)}else if(Date.now()-t0>4000){clearInterval(iv);r(false)}},100)})),'Roots icon shows the scanning dot');
  mockJobs=[];await fr.evaluate(()=>{eval('jobs=window.__ssotJobsSave||[]');renderPlan()});
  pass('a scanning root shows a yellow dot, a live progress bar and the file being fingerprinted; the Roots icon carries a yellow dot');
  // unreadable: red at the top, no numbers, only Retry / Remove
@@ -155,10 +160,15 @@ try{
  await fr.click('.rpop button:has-text("Retry")');await pg.waitForTimeout(400);ok(ctlCalls.at(-1)?.action==='rescan'&&ctlCalls.at(-1)?.source_id==='s3','retry sends rescan '+JSON.stringify(ctlCalls));
  await fr.evaluate(()=>{sources[2].reachable=true;renderPlan()});
  pass('a root that cannot be read is red, sits at the top with no numbers, and offers only Retry or Remove');
- await fr.click('.estate-table tbody tr:not(.trow):nth-child(3) .rdots');await pg.waitForTimeout(200);ok(JSON.stringify(await fr.$$eval('.rpop button',b=>b.map(x=>x.textContent)))==='["Rescan","Remove"]','row menu');
+ await fr.click('.estate-table tbody tr:not(.trow):nth-child(2) .rdots');await pg.waitForTimeout(200);ok(JSON.stringify(await fr.$$eval('.rpop button',b=>b.map(x=>x.textContent)))==='["Search","Rescan","Remove"]','row menu');
  await fr.click('.rpop button:has-text("Remove")');await pg.waitForTimeout(500);ok(ctlCalls.at(-1)?.action==='remove'&&ctlCalls.at(-1)?.source_id==='s2'&&!(await fr.evaluate(()=>document.getElementById('modal')?.classList.contains('on'))),'remove happens at once, no dialog '+JSON.stringify(ctlCalls.at(-1)));
  ok(/Removed \/mnt\/b\/Video/.test(await fr.$eval('#ssot-undo',e=>e.innerText)),'undo toast');await fr.click('#ssot-undo button');await pg.waitForTimeout(400);ok(ctlCalls.at(-1)?.action==='restore'&&ctlCalls.at(-1)?.source_id==='s2','Undo restores '+JSON.stringify(ctlCalls.at(-1)));
  pass('the ⋯ at the end of each row offers Rescan and Remove; Remove happens at once with an Undo toast');
+ await fr.click('.estate-table tbody tr:not(.trow):nth-child(1) .rdots');await pg.waitForTimeout(200);await fr.click('.rpop button:has-text("Search")');await pg.waitForTimeout(500);
+ {const r=await fr.evaluate(()=>({modal:document.documentElement.classList.contains('ssot-smodal'),q:omniQuery,n:filterQuery(omniQuery).length,want:placements.filter(p=>'#root:'+p.source_id===omniQuery).length}));ok(r.modal&&/^#root:/.test(r.q)&&r.n>0&&r.n===r.want,'⋯ Search opens the Search window on that root '+JSON.stringify(r))}
+ await fr.click('.ssot-sclose');await pg.waitForTimeout(300);ok(await fr.evaluate(()=>eval('planTab')==='Roots'&&!document.documentElement.classList.contains('ssot-smodal')),'closing returns to Roots');
+ await fr.click('.roots .rsearch');await pg.waitForTimeout(400);ok(await fr.evaluate(()=>document.documentElement.classList.contains('ssot-smodal')&&omniQuery===''&&!document.querySelector('.ssot-bulk .selection-count')),'Roots search icon opens Search on everything with nothing selected');await fr.click('.ssot-sclose');await pg.waitForTimeout(300);
+ pass('Roots: ⋯ Search opens the Search window on that root; the search icon opens it on everything; × returns to Roots');
  // priority: column sort sets it, Custom restores the drag order
  await fr.click('.estate-table th:has-text("Files")');await pg.waitForTimeout(700);ok(rankCalls.at(-1)?.join()==='s2,s1,s3'&&!(await fr.$eval('.rcustom',b=>b.classList.contains('live'))),'column sort becomes the priority '+JSON.stringify(rankCalls));
  {const box=async i=>(await fr.$$('.estate-table tbody tr:not(.trow) td.rank-h'))[i].boundingBox();const b3=await box(2),b1=await box(0);
@@ -174,7 +184,7 @@ try{
   {const o=['s1','s2','s3'];sources.sort((x,y)=>o.indexOf(x.source_id)-o.indexOf(y.source_id))}
   await fr.evaluate(()=>{__ssotRoots.custom=['s1','s2','s3'];__ssotRoots.mode='custom';const o=['s1','s2','s3'];sources.sort((x,y)=>o.indexOf(x.source_id)-o.indexOf(y.source_id));renderPlan()})}
  {const cs=await fr.$eval('.estate-table tr:not(.trow) td.estate-root .rpath',e=>{const c=getComputedStyle(e);return {o:c.textOverflow,w:c.whiteSpace,t:e.parentNode.title,copy:e.parentNode.dataset.copy}});ok(cs.o==='ellipsis'&&cs.w==='nowrap'&&/tap to copy/.test(cs.t)&&cs.copy.startsWith('/mnt/'),'root truncation/hover/copy attrs '+JSON.stringify(cs));
-  await ctx0.grantPermissions(['clipboard-read','clipboard-write']);await fr.click('.estate-table tbody tr:not(.trow):nth-child(3) td.estate-root');await pg.waitForTimeout(300);const copied=await pg.evaluate(()=>navigator.clipboard.readText());ok(copied.startsWith('/mnt/'),'tap-to-copy clipboard: '+copied);
+  await ctx0.grantPermissions(['clipboard-read','clipboard-write']);await fr.click('.estate-table tbody tr:not(.trow):nth-child(2) td.estate-root');await pg.waitForTimeout(300);const copied=await pg.evaluate(()=>navigator.clipboard.readText());ok(copied.startsWith('/mnt/'),'tap-to-copy clipboard: '+copied);
   pass('root paths truncate with an ellipsis, show the full value on hover, and copy on tap')}
  // MutationObserver idempotence at runtime
  await fr.evaluate(()=>renderPlan());await pg.waitForTimeout(500);
@@ -223,11 +233,14 @@ try{
   // exclude Estate from free-text search
   await fr2.locator('#ssotColList .colrow[data-f="estate"] input[data-k="s"]').click();await pg.waitForTimeout(200);
   await fr2.click('#modalcancel');await pg.waitForTimeout(300);
-  {const h=await fr2.$$eval('#Database thead th[data-f]',e=>e.map(x=>x.dataset.f));ok(h.indexOf('estate')<h.indexOf('path'),'column order applied '+h)}
+  {const h=await fr2.$$eval('#Database thead th[data-f]',e=>e.map(x=>x.dataset.f));ok(!h.includes('estate')&&h.includes('path'),'unticked column is hidden '+h)}
+  await fr2.evaluate(()=>__ssotColumnsModal('path'));await pg.waitForTimeout(300);
+  await fr2.evaluate(()=>{const r=document.querySelector('#ssotColList .colrow[data-f="path"] input[data-k="w"]');r.value='300';r.dispatchEvent(new Event('input',{bubbles:true}))});await pg.waitForTimeout(500);await fr2.click('#modalcancel');await pg.waitForTimeout(300);
+  {const r=await fr2.evaluate(()=>({w:Math.round(document.querySelector('#Database thead th[data-f="path"]').getBoundingClientRect().width),saved:JSON.parse(localStorage.sotDbLayout).widths?.path,td:getComputedStyle(document.querySelector('#Database tbody tr[data-pid] td:nth-child(3)')).textOverflow}));ok(Math.abs(r.w-300)<=2&&r.saved===300&&r.td==='ellipsis','width slider sizes the column, is saved, and cells end in … '+JSON.stringify(r))}
   const hit=async(q)=>fr2.evaluate(q=>{omniDraft=omniQuery=q;return filterQuery(q).length},q);
   const withEx=await hit('s2'),qual=await hit('estate:s2');ok(withEx===0&&qual>0,'excluded column ignored by free text but still searchable by name: '+withEx+'/'+qual);
   await fr2.evaluate(()=>{omniDraft='';omniQuery=''});
-  pass('column order by drag, per-column "Search" exclusion (free text ignores it; field:value still works)');
+  pass('Columns window: drag to reorder, one box per column (unticked = hidden and not searched), a width slider that is saved, long cells end in …');
   await fr2.evaluate(()=>{__ssotColumnsModal();document.getElementById('ssotColReset').click()});await pg.waitForTimeout(300);
   ok(JSON.parse(await fr2.evaluate(()=>localStorage.sotDbLayout)).groups.length===0,'reset');await fr2.click('#modalcancel');await pg.waitForTimeout(200);
   pass('Reset columns restores order and search');
@@ -270,11 +283,11 @@ try{
   ok(await f3.evaluate(()=>document.documentElement.dataset.dbZebra)==='blue','zebra choice lost after reload');pass('Colors choices save the moment they change and survive a reload');
   await f3.evaluate(()=>{localStorage.removeItem('sotUiConfig');localStorage.removeItem('sotUiMigrated2');applyUiCfg()});fr=f3}
  // tab highlight
- ok(await fr.evaluate(()=>{const b=document.querySelector('#tabs button[data-tab="Analyze"]');return !b||b.style.display==='none'}),'Job Status must be gone from the bar');
- await fr.click('#tabs button[data-tab="Roots"]');await pg.waitForTimeout(300);ok(JSON.stringify(await onTab())==='["Roots"]'&&await fr.evaluate(()=>!!document.querySelector('#Plan .estate-table')&&!document.querySelector('#Plan .flow')),'Roots tab shows only the roots table: '+await onTab());
- await fr.click('#tabs button[data-tab="Database"]');await pg.waitForTimeout(300);ok(JSON.stringify(await onTab())==='["Search"]','only Search highlighted: '+await onTab());
- await fr.click('#tabs button[data-tab="Plan"]');await pg.waitForTimeout(300);ok(JSON.stringify(await onTab())==='["Report"]'&&await fr.evaluate(()=>!!document.querySelector('#Plan .flow')),'Report tab back to the summary: '+await onTab());
- pass('exactly one top-bar icon is highlighted for the page you are on (Report, Roots, Search)');
+ await fr.click('#ssot-rail button[data-nav="roots"]');await pg.waitForTimeout(300);ok(JSON.stringify(await onNav())==='["Roots"]'&&await fr.evaluate(()=>!!document.querySelector('#Plan .estate-table')&&!document.querySelector('#Plan .flow')),'Roots shows only the roots table: '+await onNav());
+ await fr.click('#ssot-rail button[data-nav="dups"]');await pg.waitForTimeout(500);ok(JSON.stringify(await onNav())==='["Duplicates"]'&&await fr.evaluate(()=>__ssotDupMode&&document.documentElement.classList.contains('ssot-smodal')),'Duplicates opens the Search window grouped: '+await onNav());
+ await fr.click('.ssot-sclose');await pg.waitForTimeout(300);ok(JSON.stringify(await onNav())==='["Roots"]','closing Duplicates returns to Roots');
+ await fr.click('#ssot-rail button[data-nav="map"]');await pg.waitForTimeout(300);ok(JSON.stringify(await onNav())==='["Map"]'&&await fr.evaluate(()=>!!document.querySelector('#Plan .flow')),'Map back to the treemap: '+await onNav());
+ pass('exactly one menu item is highlighted for the page you are on (Map, Roots, Duplicates, Land)');
  await pg.context().close();
  // older backend without the staleness endpoint must still load the database and release the blocker
  stalenessMissing=true;{const o=await open(1280,900);ok(await o.fr.evaluate(()=>placements.length>0&&!document.querySelector('#ssot-db-blocker.on')),'database did not load without staleness endpoint');pass('database loads and the blocker clears when the staleness endpoint is unavailable (older backend)');await o.ctx.close()}stalenessMissing=false;
@@ -318,8 +331,11 @@ try{
  const m=await open(412,915);await m.fr.evaluate(()=>setPlanTab('Roots'));await m.pg.waitForTimeout(300);
  const lg=await m.fr.evaluate(()=>{sources[0].root='/mnt/a/'+'very-long-folder-name-'.repeat(6);setPlanTab('Roots');const tr=document.querySelectorAll('.estate-table tbody tr:not(.trow)')[0],c=tr.cells,rp=tr.querySelector('.rpath'),r=[...c].map(x=>x.getBoundingClientRect());return {txt:rp.textContent.length,cut:rp.scrollWidth>rp.clientWidth,h:tr.getBoundingClientRect().height,noOverlap:r[3].left>=r[2].right-1&&r[4].left>=r[3].right-1}});
  ok(lg.txt>100&&lg.cut&&lg.noOverlap&&lg.h<64,'long root must truncate on mobile '+JSON.stringify(lg));pass('long Estate root names truncate on mobile and no longer overlap the next column');
- {const h2=await hdr(m.fr);ok(h2.same&&h2.h<=60&&h2.minBtn>=36&&h2.over<=1,'mobile header fits on one row '+JSON.stringify(h2));pass('header is one row on desktop and at 412 px: icons, a connection dot and settings; title and status text removed')}
- const ov=await m.fr.evaluate(()=>({doc:document.documentElement.scrollWidth-document.documentElement.clientWidth,tbl:(()=>{let w=document.querySelector('.estate-wrap');return w.scrollWidth-w.clientWidth})(),rows:document.querySelectorAll('.estate-table tbody tr').length}));ok(ov.doc<=1&&ov.tbl<=1&&ov.rows===4,'mobile overflow '+JSON.stringify(ov));pass('Estate table usable at 412x915 without horizontal overflow');
+ {const r0=await m.fr.evaluate(()=>{const r=document.getElementById('ssot-rail').getBoundingClientRect(),b=document.getElementById('ssot-railbtn').getBoundingClientRect();return {hidden:r.right<=1,btn:b.width>0&&b.left<20&&b.top<20}});await m.fr.click('#ssot-railbtn');await m.pg.waitForTimeout(300);
+  const r1=await m.fr.evaluate(()=>{const r=document.getElementById('ssot-rail').getBoundingClientRect(),f=document.querySelector('#ssot-rail .srfoot').getBoundingClientRect();return {open:r.left>=0&&r.width>200,foot:f.bottom<=innerHeight+1&&f.height>0,pill:getComputedStyle(document.getElementById('ssot-db-status')||document.body).display}});
+  await m.fr.click('#ssot-scrim',{position:{x:380,y:400}});await m.pg.waitForTimeout(300);const r2=await m.fr.evaluate(()=>document.getElementById('ssot-rail').getBoundingClientRect().right<=1);
+  ok(r0.hidden&&r0.btn&&r1.open&&r1.foot&&r2,'phone: ☰ opens the menu over the page, Config pinned at the bottom, tapping outside closes '+JSON.stringify([r0,r1,r2]));pass('phone: the left menu slides in from ☰ and closes on a tap outside')}
+ const ov=await m.fr.evaluate(()=>({doc:document.documentElement.scrollWidth-document.documentElement.clientWidth,tbl:(()=>{let w=document.querySelector('.estate-wrap');return w.scrollWidth-w.clientWidth})(),rows:document.querySelectorAll('.estate-table tbody tr').length}));ok(ov.doc<=1&&ov.tbl<=1&&ov.rows===3,'mobile overflow '+JSON.stringify(ov));pass('Estate table usable at 412x915 without horizontal overflow');
  if(process.env.SOT_SHOTS){await m.pg.screenshot({path:process.env.SOT_SHOTS+'/estate-mobile.png'});await m.fr.evaluate(()=>setPlanTab('Summary'));await m.pg.waitForTimeout(300);await m.pg.screenshot({path:process.env.SOT_SHOTS+'/analysis-mobile.png'})}
  await m.fr.evaluate(()=>setPlanTab('Summary'));await m.pg.waitForTimeout(300);const wo=await m.fr.evaluate(()=>document.documentElement.scrollWidth-document.documentElement.clientWidth+document.querySelector('#Plan').scrollWidth-document.querySelector('#Plan').clientWidth);ok(wo<=2,'summary overflows horizontally on mobile: '+wo);pass('Summary report fits 412x915 without horizontal overflow');
  await m.ctx.close();

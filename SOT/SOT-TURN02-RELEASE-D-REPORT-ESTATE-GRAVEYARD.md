@@ -59,3 +59,11 @@ Do not forward-patch this rejected design. Restore the pre-#770 Complete bytes (
 - **"% of scanned" share bar** (counted Excess, so twin roots showed the same share). Replaced by share of assets.
 - **EVIDENCE INCOMPLETE banner on Report/Roots.** Status lives on the root dots.
 - **Roots "% of assets" bar and the Roots #/GB switch.** Owner: the bar is % of target.
+
+## Release F burials (2026-10-19)
+
+- **Top icon strip** (Report · Roots · Search · AI · dot · ⚙). Replaced by the left menu.
+- **Search as a page/tab** and its "← Report" back chip. Search is a window opened from other screens.
+- **Land button in Search** and **Land via In-play tile selection**. Landing is root by root on the Land screen. No "Land all" (owner).
+- **TARGET row in Roots**. Target figures live in the TB line; target actions on the Land header.
+- **Columns window Group checkbox and "biggest reclaimable" option**; separate Search/Show semantics merged into one box.
