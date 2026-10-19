@@ -6933,7 +6933,7 @@ LISTEN.open = function (room) {
   var self = this;
   var ws = new WebSocket(RELAY_WS + '?app=' + encodeURIComponent(RELAY_APP) + '&session=' + encodeURIComponent(room.id) + '&client=' + encodeURIComponent(deviceId));
   this.socks[room.id] = ws;
-  ws.onopen = function () { self.send(room.id, { type: 'hello', dev: (typeof _n16Dev === 'string' ? _n16Dev : ''), lang: room.myLang, targetLang: room.theirLang, role: room.role, title: (room.title || ''), name: room.myName || S.user.name }); log('listen_open', { room: room.id }); };
+  ws.onopen = function () { self.send(room.id, { type: 'hello', dev: (typeof _n16Dev === 'string' ? _n16Dev : ''), lang: room.myLang, targetLang: room.theirLang, role: room.role, title: (room.title || ''), titleTs: (room.titleTs || 0), name: room.myName || S.user.name }); log('listen_open', { room: room.id }); };
   ws.onmessage = function (e) { try { self.handle(room.id, JSON.parse(e.data)); } catch (_) {} };
   ws.onclose = function () {
     if (self.socks[room.id] === ws) {
@@ -6955,10 +6955,11 @@ function listenHandleCore(self, roomId, d) {
   if (!d || d.from === deviceId) return;
   var room = roomById(roomId); if (!room) return;
   if (d.type === 'ping') { self.send(roomId, { type: 'pong', transient: true }); return; }
+  if (d.type === 'hello' || d.type === 'hello-ack') { try { rnOnGreeting(roomId, d); } catch (_) {} }   /* RN-1 (29·post-ship c7): a newer room name in the greeting wins */
   if (d.type === 'hello') {
     if (d.name && d.name !== room.partnerName) { room.partnerName = d.name; saveRooms(); renderPanel(); }
     if (!room.joined) { room.joined = true; saveRooms(); }
-    self.send(roomId, { type: 'hello-ack', transient: true, name: room.myName || S.user.name });
+    self.send(roomId, { type: 'hello-ack', transient: true, title: (room.title || ''), titleTs: (room.titleTs || 0), name: room.myName || S.user.name });
     return;
   }
   if (d.type === 'chat-msg') {
@@ -7034,10 +7035,11 @@ function handleRelayCore(d) {
   if (!d || d.from === deviceId) return;
   var room = activeRoom(); if (!room) return;
   touchPresence();
+  if (d.type === 'hello' || d.type === 'hello-ack') { try { rnOnGreeting((room && room.id) || S.roomId, d); } catch (_) {} }   /* RN-1 (29·post-ship c7) */
   if (d.type === 'hello') {
     if (d.name && d.name !== room.partnerName) { room.partnerName = d.name; saveRooms(); renderRoomHead(); renderPanel(); }
     if (!room.joined) { room.joined = true; saveRooms(); addSysPill('pill_joined', { who: room.partnerName || l10n('partner') }); renderInviteCard(); }
-    relaySend({ type: 'hello-ack', transient: true, name: room.myName || S.user.name });
+    relaySend({ type: 'hello-ack', transient: true, title: (room.title || ''), titleTs: (room.titleTs || 0), name: room.myName || S.user.name });
     resendUndelivered();
     sendHistorySync(room);
     if (CALL.active && CALL.builds()) CALL.resendOffer();                        /* D-18 */
@@ -9669,6 +9671,23 @@ function onRoomNameSignalCore(roomId, d) {
   /* false, deliberately: the base still needs to write and render the pill. */
   return false;
 }
+/* RN-1 (29·post-ship c7, owner 2026-10-19: "last update wins, keep it simple"; the server keeps no room name). A rename reaches the
+   other phone only while its connection is open; a phone asleep missed it for good. Now every greeting (hello, hello-ack) carries the
+   room's name and the time it was set; the receiver adopts it when it is NEWER than its own — K4's rule (later stamp wins; an equal
+   stamp breaks by text). A name never renamed has no stamp and moves nothing. */
+function rnOnGreeting(roomId, d) {
+  if (!d || typeof d.title !== 'string') return false;
+  var r = roomById(roomId); if (!r) return false;
+  var to = String(d.title).slice(0, 40), ts = Number(d.titleTs) || 0, mine = Number(r.titleTs) || 0;
+  if (!to || !ts || to === r.title) return false;
+  if (ts < mine || (ts === mine && to <= (r.title || ''))) return false;
+  var from = r.title || '';
+  r.title = to; r.titleTs = ts; saveRooms();
+  try { log('rn_name_adopted', { room: String(roomId).slice(-6), from: from, to: to }, 'ok'); } catch (_) {}
+  try { renderRoomHead(); renderPanel(); } catch (_) {}
+  return true;
+}
+/* (RN-1 ends; K4 follows) */
 function onRoomNameSignal(roomId, d) {
   if (d && d.type === 'sys-pill' && typeof d.newRoomName === 'string') {
     var r = roomById(roomId || d.room);
@@ -9720,7 +9739,7 @@ function relayConnect() {
     ws.onopen = function () {
       if (ws !== _relayWs) return;
       log('relay_open', { room: room.id }, 'ok');
-      relaySend({ type: 'hello', dev: (typeof _n16Dev === 'string' ? _n16Dev : ''), lang: room.myLang, targetLang: room.theirLang, role: room.role, title: (room.title || ''), name: room.myName || S.user.name });
+      relaySend({ type: 'hello', dev: (typeof _n16Dev === 'string' ? _n16Dev : ''), lang: room.myLang, targetLang: room.theirLang, role: room.role, title: (room.title || ''), titleTs: (room.titleTs || 0), name: room.myName || S.user.name });
       startHB();
       resendUndelivered();
       _relayReconnecting = false; renderPartnerState();

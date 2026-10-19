@@ -80,7 +80,7 @@ async function scenario(name, fn) {
 const proj = async (sock) => (await sock.ask({ type: 'events-sync' }));
 const CHAT = (id, text) => ({ type: 'chat-msg', chatId: id, srcText: text || 'hi' });
 
-await scenario('R1 replay-seen · hidden-in-room receiver, socket loss, reopen, replay: unseen exactly once until explicit open', async () => {
+await scenario('R1 replay-seen · hidden-in-room receiver, socket loss, reopen, replay: unseen exactly once until explicit open (v6.17: the relay keeps no copy of the chat itself)', async () => {
   const w = world(); const a = await w.connect('A'); await w.subscribe('B'); let b = await w.connect('B');
   await b.say({ type: 'ev-state', visible: false, inRoom: true, muted: false });
   await a.say(CHAT('c1'));
@@ -89,7 +89,7 @@ await scenario('R1 replay-seen · hidden-in-room receiver, socket loss, reopen, 
   b.drop();
   b = await w.connect('B');
   await b.say({ type: 'ev-state', visible: true, inRoom: true, muted: false });
-  const h = await w.history('B'); assert.equal(h.filter((m) => m.type === 'chat-msg').length, 1, 'replay delivers the chat');
+  const h = await w.history('B'); assert.equal(h.length, 0, 'the relay kept a copy');   /* v6.17 (owner 2026-10-19): no scratch copy — no app build ever read it; a waking phone gets the chat phone to phone (resend + history sync) */
   let p = await proj(b); assert.deepEqual(p.proj, { chat: 1, voice: 0, video: 0 }, 'replay does not mark seen');
   p = await proj(b); assert.deepEqual(p.proj, { chat: 1, voice: 0, video: 0 }, 'reconciliation is idempotent');
   const o = await b.ask({ type: 'ev-open' }); assert.deepEqual(o.proj, { chat: 0, voice: 0, video: 0 }); assert.deepEqual(o.acked.map((u) => u.id), ['c1']);
@@ -199,7 +199,7 @@ await scenario('R10 read-only HTTPS reconciliation equals the socket answer; cal
   await a.say({ type: 'call-end', callId: 'k5', reason: 'missed' });
   const viaSocket = await proj(b); const viaHttp = await w.post('B', { type: 'events-sync' });
   assert.deepEqual(viaHttp.proj, viaSocket.proj); assert.deepEqual(viaHttp.proj, { chat: 0, voice: 1, video: 0 });
-  const d = await w.post('A', { type: 'diag' }); assert.equal(d.v, '6.16');   /* pinned to the live version: 6.7 at 29·base, 6.8 at c4, 6.9 at c5, 6.10 at c6, 6.12 at 29·post-ship c5, 6.13 at c6, 6.14 at c7, 6.15 at c8, 6.16 at c9 */ assert.ok(Array.isArray(d.events));
+  const d = await w.post('A', { type: 'diag' }); assert.equal(d.v, '6.17');   /* pinned to the live version: 6.7 at 29·base, 6.8 at c4, 6.9 at c5, 6.10 at c6, 6.12 at 29·post-ship c5, 6.13 at c6, 6.14 at c7, 6.15 at c8, 6.16 at c9, 6.17 at c10 */ assert.ok(Array.isArray(d.events));
 });
 
 const bad = results.filter((r) => !r.ok).length;

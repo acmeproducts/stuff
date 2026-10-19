@@ -15,7 +15,7 @@ import vm from 'node:vm';
 import { fileURLToPath } from 'node:url';
 import { JSDOM, VirtualConsole } from 'jsdom';
 import { runBoth, KEYS, diff } from './rig-28pos.mjs';
-import { basePage, baseWorker, pageReplacements, workerReplacements, assemblePage, assembleWorker, assembleManifests, FOLDER_PATH, STAGE_PAGE, WORKER_NAME, MANIFEST_NAME, MANIFEST_IOS_NAME, ADDED_SYMBOLS, EDIT_SYMBOLS, REMOVED_SYMBOLS, ADDED_MARKERS, ADDED_RECEIVED_TYPES, PART, PART2, TAIL } from './assemble-29pos.mjs';
+import { basePage, baseWorker, pageReplacements, workerReplacements, assemblePage, assembleWorker, assembleManifests, FOLDER_PATH, STAGE_PAGE, WORKER_NAME, MANIFEST_NAME, MANIFEST_IOS_NAME, ADDED_SYMBOLS, EDIT_SYMBOLS, EDIT_FUNCTIONS, REMOVED_SYMBOLS, ADDED_MARKERS, ADDED_RECEIVED_TYPES, PART, PART2, TAIL } from './assemble-29pos.mjs';
 import { sweep } from './graveyard-sweep.mjs';
 import { inventory, writeFixture, OUT_DIR, fullTableJson, swTableJson } from './l10n-edits.mjs';
 import { jsStrings, htmlTexts, appScript as scanScript } from './l10n-scan.mjs';
@@ -65,11 +65,12 @@ await T('S3 reversal: undo the replacements and drop the part and the stage is t
   assert(back === base, 'the stage minus the banked edits and the part is not the accepted page');
   let wb = worker; for (const r of workerReplacements().reverse()) wb = wb.replace(r.replace, () => r.find); assert(wb === baseW, 'the worker minus the banked edits is not the accepted worker');
 });
-await T('S4 L1 and RK-1 replace and wrap nothing; each symbol they add is declared, bound once in the stage and never in the accepted page; the table edit binds its four; I18N is gone', () => {
+await T('S4 L1 and RK-1 replace and wrap nothing; each symbol they add is declared, bound once in the stage and never in the accepted page; the table edit binds its four; RN-1\'s edit binds its one function once; I18N is gone', () => {
   for (const pt of parts) { const c1 = contractOf(pt); assert(/replaces:\s*\(none\)/.test(c1) && /wraps:\s*\(none\)/.test(c1), 'a part replaces or wraps'); assert(!/^(?:enterRoom|openPanel|showScreen|renderPanel|renderHome|renderTranscript|cr3Apply|log|toast|addSysPill|handleRelay|setPresence|n10Show)\s*=/m.test(code(pt)), 'a part reassigns a function'); }
   const cc = parts.map(contractOf).join('\n');
   const js = code(appScript(stage)), bjs = code(appScript(base));
   for (const s of ADDED_SYMBOLS) { assert(new RegExp('adds:[^\\n]*\\b' + s + '\\b').test(cc), s + ' not declared'); const re = new RegExp('^(?:function\\s+' + s + '\\s*\\(|var\\s+' + s + '\\s*=)', 'mg'); assert((js.match(re) || []).length === 1, s + ' bound ' + (js.match(re) || []).length + 'x in the stage'); assert(!(bjs.match(re) || []).length, s + ' already in the accepted page'); }
+  for (const s of EDIT_FUNCTIONS) { const re = new RegExp('^function\\s+' + s + '\\s*\\(', 'mg'); assert((js.match(re) || []).length === 1, s + ' bound ' + (js.match(re) || []).length + 'x in the stage'); assert(!(bjs.match(re) || []).length, s + ' already in the accepted page'); }
   for (const s of EDIT_SYMBOLS) { const re = new RegExp('\\b' + s + '\\s*=\\s*[{\\[]', 'g'); assert((js.match(re) || []).length === 1, s + ' bound ' + (js.match(re) || []).length + 'x'); assert(!(bjs.match(re) || []).length, s + ' already in the accepted page'); }
   const declared = [...cc.matchAll(/adds:([^\n]*)/g)].flatMap((mm) => mm[1].split(',')).map((x) => x.trim()).filter(Boolean); const defined = [...new Set(parts.flatMap((pt) => [...code(pt).matchAll(/^(?:function\s+(\w+)\s*\(|var\s+(\w+)\s*=)/mg)].map((m) => m[1] || m[2])))];
   for (const d of defined) assert(declared.includes(d), 'a part defines ' + d + ' without declaring it'); assert(declared.length === ADDED_SYMBOLS.length, 'declared ' + declared.length + ' ≠ ' + ADDED_SYMBOLS.length);
@@ -413,12 +414,37 @@ await T('T5 the activity log names a phone by the device log\'s tag: every hello
 await T('T6 the activity log names the room: every hello carries `title` = the room\'s shared name (relay v6.16 writes it after the code); a room with no name sends an empty title', async () => {
   const I = await live({ rooms: [ROOM] }); I.w.enterRoom('room-1'); await sleep(1100);
   const hellos = sentTypes(I).filter((m) => m.type === 'hello'); assert(hellos.length >= 1, 'no hello sent'); for (const h of hellos) assert(h.title === 'Gate', 'hello without the room name: ' + JSON.stringify(h));
-  assert((stage.match(/role: room\.role, title: \(room\.title \|\| ''\), name: room\.myName \|\| S\.user/g) || []).length === 2, 'the two hello sites do not both carry the title');
+  assert((stage.match(/role: room\.role, title: \(room\.title \|\| ''\), titleTs: \(room\.titleTs \|\| 0\), name: room\.myName \|\| S\.user/g) || []).length === 2, 'the two hello sites do not both carry the title and its stamp');
   const U = await live({ rooms: [{ ...ROOM, id: 'room-u', title: '' }] }); U.w.enterRoom('room-u'); await sleep(1100);
   const uh = sentTypes(U).filter((m) => m.type === 'hello'); assert(uh.length >= 1 && uh.every((h) => h.title === ''), 'a nameless room: ' + JSON.stringify(uh));
 });
 
 console.log('E · the whole 28·post-ship script, both builds installed: identical (pills compared by their English words)');
+await T('T7 a rename missed while asleep arrives with the next greeting (RN-1, newest wins): a hello or hello-ack with a NEWER stamp renames the room; an older or equal-and-lower one does not; a name with no stamp moves nothing; both greeting replies carry the name and its stamp', async () => {
+  const I = await live({ rooms: [{ ...ROOM, title: 'Old name', titleTs: 1000 }] }); I.w.enterRoom('room-1'); await sleep(600);
+  const room = () => I.w.roomById('room-1');
+  I.w.handleRelay({ type: 'hello', transient: true, from: 'bo-dev', ts: Date.now(), name: 'Bo', title: 'Older', titleTs: 500 }); await sleep(30);
+  assert(room().title === 'Old name', 'an older name won: ' + room().title);
+  I.w.handleRelay({ type: 'hello-ack', transient: true, from: 'bo-dev', ts: Date.now(), name: 'Bo', title: 'No stamp' }); await sleep(30);
+  assert(room().title === 'Old name', 'a name with no stamp moved it');
+  const N = await live({ rooms: [{ ...ROOM, id: 'room-n', title: 'Gate' }] }); N.w.enterRoom('room-n'); await sleep(400);
+  N.w.handleRelay({ type: 'hello', transient: true, from: 'bo-dev', ts: Date.now(), name: 'Bo', title: 'Zzz other' }); await sleep(30);
+  assert(N.w.roomById('room-n').title === 'Gate', 'a room never renamed took a name with no stamp: ' + N.w.roomById('room-n').title);
+  I.w.handleRelay({ type: 'hello-ack', transient: true, from: 'bo-dev', ts: Date.now(), name: 'Bo', title: 'New name', titleTs: 2000 }); await sleep(30);
+  assert(room().title === 'New name' && room().titleTs === 2000, 'a newer name did not win: ' + room().title);
+  assert(I.has('rn_name_adopted'), 'not logged');
+  assert(JSON.parse(I.w.localStorage.getItem('tba_rooms') || '[]').some((r) => r.id === 'room-1' && r.title === 'New name'), 'not saved');
+  I.w.handleRelay({ type: 'hello', transient: true, from: 'bo-dev', ts: Date.now(), name: 'Bo', title: 'Aaa', titleTs: 2000 }); await sleep(30);
+  assert(room().title === 'New name', 'an equal stamp with a lower name won');
+  const acks = sentTypes(I).filter((m) => m.type === 'hello-ack'); assert(acks.length >= 1 && acks.every((m) => typeof m.title === 'string' && 'titleTs' in m), 'a hello-ack without the name and stamp: ' + JSON.stringify(acks.slice(-1)));
+  assert((stage.match(/type: 'hello-ack', transient: true, title: \(room\.title \|\| ''\), titleTs: \(room\.titleTs \|\| 0\)/g) || []).length === 2, 'the two hello-ack sites do not both carry the name and stamp');
+  /* a background room (its own lane) adopts too */
+  const L = await live({ rooms: [{ ...ROOM, title: 'Old name', titleTs: 1000 }, { ...ROOM, id: 'room-2', title: 'Other', titleTs: 1000 }] }); L.w.enterRoom('room-1'); await sleep(900);
+  const lane = L.w.LISTEN && L.w.LISTEN.socks && L.w.LISTEN.socks['room-2'];
+  if (lane && lane.onmessage) { lane.onmessage({ data: JSON.stringify({ type: 'hello', transient: true, from: 'bo-dev', ts: Date.now(), name: 'Bo', title: 'Renamed away', titleTs: 3000 }) }); await sleep(30); assert(L.w.roomById('room-2').title === 'Renamed away', 'the background room did not adopt: ' + L.w.roomById('room-2').title); }
+  else assert(/if \(d\.type === 'hello' \|\| d\.type === 'hello-ack'\) \{ try \{ rnOnGreeting\(roomId, d\); \} catch \(_\) \{\} \}/.test(stage), 'the lane does not route greetings to RN-1');
+});
+
 if (!process.env.TB_IO_SKIP_E && (!ONLY || ONLY.has('E'))) {
   const force = (h) => h.replace('<head>', '<head><script>window.matchMedia = (q) => ({ matches: /standalone/.test(q), addEventListener() {}, addListener() {} });</script>');
   /* the differential runs the stage with an ALL-ENGLISH table and English dates: the rig's Thai-side phone would otherwise re-word in Thai, which is the feature (R3, R9), not the script. Everything else — the edits, the part, the keyed pills, the re-render at room entry — is live. */
@@ -431,7 +457,8 @@ if (!process.env.TB_IO_SKIP_E && (!ONLY || ONLY.has('E'))) {
   const wireWords = (m) => (m && m.type === 'sys-pill' && m.key) ? { ...m, text: fill(inv.keys[m.key], m.vars), key: undefined, vars: undefined } : m;
   const unmark = (h) => typeof h === 'string' ? h.replace(/ data-l10n(?:-html|-ph|-title|-aria)?="[a-z0-9_]+"/g, '').replace(/ dir="(?:ltr|rtl)"/g, '').replace(/<label class="field-label" for="s13-lang"[^<]*<\/label><select class="field-input" id="s13-lang">[\s\S]*?<\/select>/g, '') : h;
   const deep = (v, f) => Array.isArray(v) ? v.map((x) => deep(x, f)) : (v && typeof v === 'object') ? Object.fromEntries(Object.entries(v).map(([k, x]) => [k, deep(x, f)])) : f(v);
-  const norm = (c) => { for (const k of ['transcript', 'bgTranscript']) { if (Array.isArray(c[k])) c[k] = c[k].map(words); else if (c[k] && typeof c[k] === 'object') for (const r of Object.keys(c[k])) if (Array.isArray(c[k][r])) c[k][r] = c[k][r].map(words); } if (Array.isArray(c.wire)) c.wire = c.wire.map(wireWords); if (Array.isArray(c.sockets)) for (const sk of c.sockets) if (sk && Array.isArray(sk.sent)) sk.sent = sk.sent.map((m) => (m && m.type === 'hello' && ('dev' in m || 'title' in m)) ? Object.fromEntries(Object.entries(m).filter(([k]) => k !== 'dev' && k !== 'title')) : m);   /* c5: hello carries the device tag for the activity log — the declared difference */ for (const k of Object.keys(c)) if (k !== 'log') c[k] = deep(c[k], unmark); return c; };   /* the stage's data-l10n marks, per-column dir and the S13 language row are the feature; the words must be the same */
+  const greet = (m) => (m && (m.type === 'hello' || m.type === 'hello-ack')) ? Object.fromEntries(Object.entries(m).filter(([k]) => k !== 'dev' && k !== 'title' && k !== 'titleTs')) : m;
+  const norm = (c) => { for (const k of ['transcript', 'bgTranscript']) { if (Array.isArray(c[k])) c[k] = c[k].map(words); else if (c[k] && typeof c[k] === 'object') for (const r of Object.keys(c[k])) if (Array.isArray(c[k][r])) c[k][r] = c[k][r].map(words); } if (Array.isArray(c.wire)) c.wire = c.wire.map(wireWords).map(greet); if (Array.isArray(c.sockets)) for (const sk of c.sockets) if (sk && Array.isArray(sk.sent)) sk.sent = sk.sent.map(greet);   /* c5: hello carries the device tag; c6/c7: hello and hello-ack carry the room name and its stamp — the declared differences */ for (const k of Object.keys(c)) if (k !== 'log') c[k] = deep(c[k], unmark); return c; };   /* the stage's data-l10n marks, per-column dir and the S13 language row are the feature; the words must be the same */
   const strip = (s) => { const c = norm(JSON.parse(JSON.stringify(s))); c.log = c.log.map((l) => { if (l && l.d && 'dropped' in l.d) { const d = { ...l.d }; delete d.dropped; return { ...l, d }; } return l; }).filter((l) => !(l.ev === 'pb_writeback_err' && l.d && l.d.e === 'Error: get 0') && l.ev !== 'read_receipts_deferred' && !/^l10n_/.test(l.ev) && !/^rk_/.test(l.ev) && l.ev !== 'cr3_recover' && l.ev !== 'cr3_local_missed_pill_dropped'); if (c.housekeeping) delete c.housekeeping.t1_coalesced; return c; };   /* t1_coalesced: the stage's re-render when the first room adopts a language coalesces once — T-1's bookkeeping, not behaviour */
   if (process.env.TB_IO_DUMP) { for (const side of ['X', 'Y']) { fs.writeFileSync(process.env.TB_IO_DUMP + '-' + side + '-base.txt', strip(snapA[side]).log.map((l) => l.ev + ' ' + JSON.stringify(l.d || {})).join('\n')); fs.writeFileSync(process.env.TB_IO_DUMP + '-' + side + '-stage.txt', strip(snapC[side]).log.map((l) => l.ev + ' ' + JSON.stringify(l.d || {})).join('\n')); } }
   for (const side of ['X', 'Y']) { const a = strip(snapA[side]), c = strip(snapC[side]); for (const k of KEYS) await T('E ' + side + '.' + k + ' identical (installed, both builds)', () => { const out = []; diff(a[k], c[k], side + '.' + k, out); assert(out.length === 0, out.slice(0, 5).map((o) => { const m = /^(\S+): "([\s\S]*)" ≠ "([\s\S]*)"$/.exec(o); if (!m || m[2].length < 200) return o; let i = 0; while (i < m[2].length && m[2][i] === m[3][i]) i++; return m[1] + ' differs at ' + i + ': …' + m[2].slice(Math.max(0, i - 60), i + 120) + '… ≠ …' + m[3].slice(Math.max(0, i - 60), i + 120) + '…'; }).join('\n')); }); }

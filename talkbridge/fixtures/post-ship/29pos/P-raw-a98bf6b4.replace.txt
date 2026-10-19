@@ -1,0 +1,19 @@
+}
+/* RN-1 (29·post-ship c7, owner 2026-10-19: "last update wins, keep it simple"; the server keeps no room name). A rename reaches the
+   other phone only while its connection is open; a phone asleep missed it for good. Now every greeting (hello, hello-ack) carries the
+   room's name and the time it was set; the receiver adopts it when it is NEWER than its own — K4's rule (later stamp wins; an equal
+   stamp breaks by text). A name never renamed has no stamp and moves nothing. */
+function rnOnGreeting(roomId, d) {
+  if (!d || typeof d.title !== 'string') return false;
+  var r = roomById(roomId); if (!r) return false;
+  var to = String(d.title).slice(0, 40), ts = Number(d.titleTs) || 0, mine = Number(r.titleTs) || 0;
+  if (!to || !ts || to === r.title) return false;
+  if (ts < mine || (ts === mine && to <= (r.title || ''))) return false;
+  var from = r.title || '';
+  r.title = to; r.titleTs = ts; saveRooms();
+  try { log('rn_name_adopted', { room: String(roomId).slice(-6), from: from, to: to }, 'ok'); } catch (_) {}
+  try { renderRoomHead(); renderPanel(); } catch (_) {}
+  return true;
+}
+/* (RN-1 ends; K4 follows) */
+function onRoomNameSignal(roomId, d) {
