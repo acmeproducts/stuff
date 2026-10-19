@@ -1,16 +1,8 @@
 # TalkBridge device log
 
-Both handsets write here. Drained 2026-10-19T09:03:26Z, every 30s. Newest at the bottom.
+Both handsets write here. Drained 2026-10-19T09:03:58Z, every 30s. Newest at the bottom.
 
 ```
-16:55:16.186 [android-flz] pr3_dot {"others":1,"dropped":1}
-16:55:16.187 [android-flz] t1_coalesced {"fn":"renderPanel","n":2}
-16:55:16.200 [android-flz] t1_coalesced {"fn":"renderPanel","n":4}
-16:55:21.106 [iphone-aza] md1_rendered {"id":"-p-343","dropped":2}
-16:55:21.106 [iphone-aza] speech_added {"id":"sp-p-343","seq":343,"before":281,"after":282,"added":1}
-16:55:21.107 [iphone-aza] r8_speech_kind {"kind":"video"}
-16:55:20.939 [android-flz] dg_final {"t":"you're very brave"}
-16:55:20.951 [android-flz] md1_rendered {"id":"-m-343","dropped":2}
 16:55:20.951 [android-flz] speech_added {"id":"sp-m-343","seq":343,"before":281,"after":282,"added":1}
 16:55:20.954 [android-flz] r8_speech_kind {"kind":"video"}
 16:55:21.349 [android-flz] trans_ok {"provider":"google","from":"en","to":"th","ms":395,"inChars":17,"outChars":13}
@@ -4002,4 +3994,12 @@ Both handsets write here. Drained 2026-10-19T09:03:26Z, every 30s. Newest at the
 09:03:18.316 [android-tzc] rc_home_rendered {"cards":1,"wired":1,"dropped":3}
 09:03:18.318 [android-tzc] joiner_create_control {"shown":true,"dropped":3}
 09:03:18.345 [android-tzc] pr3_dot {"others":0,"dropped":1}
-09:03:18.354 [android-tzc] t1_coalesced {"fn":"renderPanel","n":6}```
+09:03:18.354 [android-tzc] t1_coalesced {"fn":"renderPanel","n":6}
+09:03:29.672 [android-tzc] pr3_dot {"others":0}
+09:03:38.305 [android-tzc] rc_panel_rendered {"live":8,"bin":1,"wired":8,"dropped":2}
+09:03:38.307 [android-tzc] rc_home_rendered {"cards":1,"wired":1,"dropped":2}
+09:03:38.308 [android-tzc] joiner_create_control {"shown":true,"dropped":2}
+09:03:38.310 [android-tzc] pr3_dot {"others":0}
+09:03:38.323 [android-tzc] t1_coalesced {"fn":"renderPanel","n":2}
+09:03:38.343 [android-tzc] t1_coalesced {"fn":"renderPanel","n":2}
+09:03:38.354 [android-tzc] t1_coalesced {"fn":"renderPanel","n":3}```
