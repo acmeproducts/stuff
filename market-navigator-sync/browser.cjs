@@ -6,7 +6,7 @@ const server=http.createServer((req,res)=>{const file=path.resolve(root,'.'+deco
 (async()=>{await new Promise(r=>server.listen(0,'127.0.0.1',r));const url=process.env.MN_SYNC_BROWSER_URL||`http://127.0.0.1:${server.address().port}/throwaway.html`,results=[];
 try{for(const channel of (process.env.MN_BROWSER_CHANNELS||'chrome,msedge').split(',')){const browser=await chromium.launch({channel,headless:true});try{for(const viewport of [{width:1440,height:900},{width:412,height:915}]){
  const page=await browser.newPage({viewport,hasTouch:viewport.width<500,isMobile:viewport.width<500}),errors=[];page.on('pageerror',e=>errors.push(e.message));
- const response=await page.goto(url);assert.equal(response.status(),200);const raw=await response.body();assert.equal(crypto.createHash('sha1').update(Buffer.concat([Buffer.from(`blob ${raw.length}\0`),raw])).digest('hex'),'3934d2e37e40e40f5c76a9b6a1763f122fbe8339');
+ const response=await page.goto(url);assert.equal(response.status(),200);const raw=await response.body();assert.equal(crypto.createHash('sha1').update(Buffer.concat([Buffer.from(`blob ${raw.length}\0`),raw])).digest('hex'),'6c445a102e38a145fd2bde1fb2408dca5617a60c');
  const dataUrl=new URL('market-navigator-rebuild-data/',url).href;const derived=await (await page.request.get(dataUrl+'market-evidence/derived-indices-persistent-v1.json')).json();
  await page.waitForFunction(()=>window.__mnRebuild?.now()?.idle&&__mnRebuild.now().state?.chart?.series?.length);
  for(const h of ['1D','5D','MTD','YTD','1YR','3YR','5YR']){await page.locator(`#hzs [data-h="${h}"]`).click();await page.waitForFunction(h=>__mnRebuild.now()?.idle&&__mnRebuild.now().spec.h===h,h);
