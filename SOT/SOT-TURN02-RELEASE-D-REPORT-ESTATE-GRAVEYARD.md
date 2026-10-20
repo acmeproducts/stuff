@@ -67,3 +67,4 @@ Do not forward-patch this rejected design. Restore the pre-#770 Complete bytes (
 - **Land button in Search** and **Land via In-play tile selection**. Landing is root by root on the Land screen. No "Land all" (owner).
 - **TARGET row in Roots**. Target figures live in the TB line; target actions on the Land header.
 - **Columns window Group checkbox and "biggest reclaimable" option**; separate Search/Show semantics merged into one box.
+- **Whole-square (10%) rounding of the Map bar** — hid anything under ~5%. **Fixed-unit sizes** ("Size MB" 0.00, "0.0 GB").

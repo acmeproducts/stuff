@@ -49,7 +49,7 @@ try{
  ok(await fr.$$eval('#Plan .ftop .fseg',g=>g.map(x=>x.innerText.replace(/\s+/g,' ').trim()).join('|'))==='# %|GB Files','top row switches');
  ok(JSON.stringify(await fr.$$eval('#Plan .fview option',o=>o.map(x=>x.value)))==='["scanned","capacity","stored"]','one dropdown with three views');
  ok(f.val==='100%'&&JSON.stringify(f.chips)==='["All~","Unique","Keep","Excess"]','scanned top/chips '+JSON.stringify(f));
- ok(f.sq==='Unique,Unique,Unique,Unique,Unique,Unique,Unique,Keep,Excess,Excess','10 squares 7/1/2 '+f.sq);
+ ok(f.sq==='Unique,Unique,Unique,Unique,Unique,Unique,Unique + Keep,Keep + Excess,Excess,Excess'&&await fr.$$eval('#Plan .fsq.fsplit .fq',q=>q.length)===8,'10 squares, split into quarters where a slice ends (67/11/22%) '+f.sq);
  ok(!/estate/i.test(await txt(fr,'#Plan .flow')),'"Estate" must not appear in the Report');
  pass('Report: # / % and GB / Files on top, one view dropdown, a 10-square bar and name-only legend chips with All');
  await fr.evaluate(()=>__ssotFlowToggle('excess'));f=await F();ok(f.val==='78%'&&f.chips[0]==='All'&&f.chips[3]==='Excess-'&&!f.tiles.some(t=>/a77de8|167,125,232/.test(t)),'hiding Excess '+JSON.stringify(f));
@@ -58,7 +58,7 @@ try{
  pass('chips hide and restore slices; the top value and bar follow; # / % and GB / Files change every number');
  ok(f.tiles.length>=5&&f.tiles.some(t=>/^\/mnt\/a\/Photos@/.test(t))&&f.tiles.filter(t=>/^\/mnt\/b\/Video/.test(t)).length===3,'scanned tiles: one per root per slice (Video appears in three colours) '+JSON.stringify(f.tiles));
  pass('treemap tiles are root paths coloured by slice; a root that holds several slices appears once per slice');
- await setF({view:'capacity'});f=await F();ok(JSON.stringify(f.chips)==='["All~","Assets","Deficit"]'&&f.sq==='Assets,Assets,Assets,Assets,Assets,Assets,Assets,Assets,Deficit,Deficit','capacity over target '+JSON.stringify(f));
+ await setF({view:'capacity'});f=await F();ok(JSON.stringify(f.chips)==='["All~","Assets","Deficit"]'&&f.sq==='Assets,Assets,Assets,Assets,Assets,Assets,Assets,Assets + Deficit,Deficit,Deficit','capacity over target '+JSON.stringify(f));
  ok(f.tiles.some(t=>/^\/mnt\/c\/Archive@.*(e5484d|229,72,77)/.test(t))&&!f.tiles.some(t=>/^Open/.test(t)),'deficit root is red, no Open tile '+JSON.stringify(f.tiles));
  targetBytes=800*GB;await fr.evaluate(()=>dataPoll());await pg.waitForTimeout(500);await setF({view:'capacity'});f=await F();ok(JSON.stringify(f.chips)==='["All~","Assets","Open"]'&&f.tiles.some(t=>/^Open/.test(t)),'capacity under target '+JSON.stringify(f));
  await setF({view:'stored'});f=await F();ok(JSON.stringify(f.chips)==='["All~","Landed","In play","Open"]','stored keeps all three chips even when Landed is 0 '+JSON.stringify(f.chips));
@@ -103,7 +103,7 @@ try{
  await fr.click('#ssot-rail button[data-nav="land"]');await pg.waitForTimeout(500);
  const landRows=()=>fr.$$eval('#Plan .land tbody tr[data-sid]',r=>r.map(x=>({id:x.dataset.sid,dot:x.querySelector('.rdot').className.replace('rdot ',''),t:x.innerText.replace(/\s+/g,' ').trim()})));
  {let r=await landRows();ok(JSON.stringify(await onNav())==='["Land"]'&&r.length===3&&r.map(x=>x.id).join()===(await fr.evaluate(()=>__ssotRootsOrder(__ssotReportModel().roots).map(r=>r.id).join())),'Land lists roots in Roots order '+JSON.stringify(r));
-  ok(/^Target: 0\.64 \| Assets: 0\.75 \| Deficit: 0\.11 TB$/.test(await txt(fr,'#Plan .land .estate-sum')),'TB line '+await txt(fr,'#Plan .land .estate-sum'));
+  ok(/^Target: 0\.64 TB \| Assets: 0\.75 TB \| Deficit: 0\.11 TB$/.test(await txt(fr,'#Plan .land .estate-sum')),'TB line '+await txt(fr,'#Plan .land .estate-sum'));
   ok(r.every(x=>/0% landed/.test(x.t)),'nothing landed yet '+JSON.stringify(r))}
  await fr.click('#Plan .land tr[data-sid="s1"] .rdots');await pg.waitForTimeout(200);ok(JSON.stringify(await fr.$$eval('.rpop button',b=>b.map(x=>x.textContent)))==='["Land this root"]','row menu: Land this root');
  await fr.click('.rpop button:has-text("Land this root")');await pg.waitForTimeout(600);
@@ -142,7 +142,7 @@ try{
  ok(rows[0].files==='1'&&rows[0].size==='300.0 GB'&&rows[1].files==='2'&&rows[1].size==='250.0 GB'&&rows[2].files==='1'&&rows[2].size==='150.0 GB','root numbers from real placements '+JSON.stringify(rows));
  ok(rows[2].synced==='Never'&&rows[0].synced!=='Never','sync '+JSON.stringify(rows));
  ok(/% of target/.test(rows[0].now)&&/^50% /.test(rows[0].now),'green rows carry a grey share-of-target bar '+rows[0].now);
- const sum=await txt(fr,'.estate-sum');ok(/^Target: 0\.64 \| Assets: 0\.75 \| Deficit: 0\.11 TB$/.test(sum),'summary in TB '+sum);
+ const sum=await txt(fr,'.estate-sum');ok(/^Target: 0\.64 TB \| Assets: 0\.75 TB \| Deficit: 0\.11 TB$/.test(sum),'summary in TB '+sum);
  ok(!(await fr.$('.estate-table tr.trow'))&&/^ROOTS 3$/.test(await txt(fr,'.roots .rcount'))&&!!(await fr.$('.roots .rtop .rsearch')),'no TARGET row; ROOTS count, search icon and Custom on one row');
  pass('Roots: TARGET pinned first; rows are ☰ · dot · Root · Files · Size · Last synced · ⋯; green rows show their share of everything scanned');
  const red='rgb(198, 40, 40)',white='rgb(255, 255, 255)';ok(rows[2].bg===red&&rows[2].fg===white&&rows[0].bg!==red&&rows[1].bg!==red,'overflow colors '+JSON.stringify(rows.map(r=>[r.bg,r.fg])));
