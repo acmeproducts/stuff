@@ -14,9 +14,10 @@ def main():
         try:
             app=get('throwaway.html');assert hashlib.sha1(b'blob '+str(len(app)).encode()+b'\0'+app).hexdigest()=='6c445a102e38a145fd2bde1fb2408dca5617a60c','Public chart is not the approved source'
             descriptor=json.loads(get('market-navigator-rebuild-data/package.json'));assert descriptor==expected,'Public data version has not reached this deployment'
-            paths=['market-evidence/derived-indices-persistent-v1.json','market-evidence/sync-proof.json','market-evidence/reports/cpi.json','market-evidence/series/wti.json','market-evidence/series/copper.json','market-evidence/health-envelope.json']
-            for path in paths:
+            paths=list(expected['resources'])
+            def verify(path):
                 assert hashlib.sha256(get('market-navigator-rebuild-data/'+path)).hexdigest()==expected['resources'][path],path
+            with ThreadPoolExecutor(max_workers=6) as pool:list(pool.map(verify,paths))
             print(json.dumps({'status':'PASS','url':URL+'throwaway.html','version':expected['version'],'approvedChart':'6c445a102e38a145fd2bde1fb2408dca5617a60c','publicResourceHashes':len(paths)}));return
         except Exception as e:
             errors.append(str(e))
