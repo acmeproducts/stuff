@@ -148,7 +148,7 @@ test('Vietnamese keyboard shows on the North side with tone marks',async({page})
  for(const side of ['north']){
   await page.locator('#in-'+side).focus();await page.waitForFunction(s=>INPUT.owner===s&&INPUT.mode==='kb',side);
   const keys=await page.evaluate(s=>document.getElementById('kb-'+s).textContent,side);
-  assert.ok(keys.includes('́')&&keys.includes('̣'),side+' keyboard has the tone marks');
+  assert.ok(['á','à','ả','ã','ạ'].every(c=>keys.includes(c)),side+' tone keys are labelled with a letter, not a bare combining mark (a box on phones)');assert.ok(!/\u25cc/.test(keys),'no dotted-circle placeholder');
   assert.ok(/[ăâêôơư]/.test(keys),side+' keyboard has Vietnamese letters');
  }
 });

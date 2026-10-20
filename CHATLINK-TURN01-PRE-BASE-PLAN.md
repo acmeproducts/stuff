@@ -788,3 +788,6 @@ Design brief written: `CHATLINK-SHARING-AND-USAGE-BRIEF.md`. Single-use guest li
 
 ### 2026-10-19 — Share tab reuses the saved GitHub token
 Owner reported: Share asked for the GitHub token again although it was already pasted. Cause: chat-test already saves that token (for the device log) under a different name; Share looked only under its own name. Change: Share now also reads the existing saved token, so nothing is asked twice. Guest-link suite 15/15. Not tried on a real phone.
+
+### 2026-10-19 — Vietnamese tone keys showed as empty boxes
+Owner reported (screenshot, Android Chrome): the Vietnamese keyboard appears on North, but the five tone keys were empty boxes. Cause: the keys were labelled with a bare accent mark plus a dotted-circle placeholder, which the phone's font cannot draw. Change: each tone key is now labelled with a letter carrying the mark (á à ả ã ạ); what the key types is unchanged. Checks: open mode 43/43, keyboard 32/32. Not yet confirmed on the phone.
