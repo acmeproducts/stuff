@@ -68,3 +68,8 @@ DECISION LOG
 
 APPENDIX
 - Authority order: This plan is the sole authority for the project. Chat history is secondary and may be overwritten by plan updates.
+
+## RUN LOG (written by DevStream)
+| Date | Tab | Result | What | Commit |
+|---|---|---|---|---|
+| 2026-10-20 00:51 | Main | built projects/circle-menu.html | Building Release 1 – Core Circle Menu as a mobile‑first interactive circular navigation menu with in‑app diagnostics. | 3fd0d4c |
