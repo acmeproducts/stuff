@@ -78,3 +78,4 @@ APPENDIX
 | 2026-10-20 00:51 | Main | built projects/circle-menu.html | Building Release 1 – Core Circle Menu as a mobile‑first interactive circular navigation menu with in‑app diagnostics. | 3fd0d4c |
 | 2026-10-20 02:15 | Main | updated plan | Marked core menu build complete and added next turn for theming. | a1b2c3d |
 | 2026-10-20 02:34 | Main | built projects/circle-menu.html | Added a light/dark theme toggle to the circle menu app. | c63d7c1 |
+| 2026-10-20 23:53 | Main | built projects/circle-menu.html | Added draggable heart button, tap to open/close the circular menu, and a close “X” button in the top‑right of the menu overlay. | 00600e6 |
