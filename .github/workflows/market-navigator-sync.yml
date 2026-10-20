@@ -28,11 +28,14 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: '3.12'
+      - name: Reproduce approved chart and source pins
+        run: python market-navigator-sync/rebuild_chart.py
       - name: Update and revision regressions, with failed-publication isolation
         if: github.event_name != 'schedule'
         run: |
           python market-navigator-sync/test_sync.py
           python market-navigator-sync/test_vintage.py
+          python market-navigator-sync/test_release_probe.py
       - name: Synchronize and independently qualify sources, horizons and indices
         id: data
         env:
@@ -84,16 +87,20 @@ jobs:
           node market-navigator-chart-correction-config-tests.cjs
           node market-navigator-chart-correction-date-tests.cjs
           node market-navigator-chart-correction-etl-tests.cjs
+          node market-navigator-chart-correction-calculation-tests.cjs
       - name: Publish one qualified data tree, preserving every other project
         id: publish
         if: steps.data.outputs.changed == 'true'
         run: |
           python - <<'PY'
-          import json,subprocess,shutil
+          import json,subprocess,shutil,hashlib
           from pathlib import Path
           old=json.loads(Path('market-navigator-throwaway-review/connection.json').read_text())['data_version']
           subprocess.run(['git','fetch','origin','main'],check=True)
           subprocess.run(['git','switch','-c','verified-sync-publication','FETCH_HEAD'],check=True)
+          construction=json.loads(Path('.evidence/chart-construction-proof.json').read_text())
+          for path,digest in construction['input_hashes'].items():
+              if hashlib.sha256(Path(path).read_bytes()).hexdigest()!=digest:raise SystemExit('Concurrent chart constructor change; publication preserved')
           current=json.loads(Path('market-navigator-throwaway-review/connection.json').read_text())['data_version']
           if old!=current:raise SystemExit('Published data changed concurrently; preserving it for the next scheduled run.')
           shutil.copytree('.sync-publish/market-navigator-throwaway-review','market-navigator-throwaway-review',dirs_exist_ok=True)
@@ -101,9 +108,9 @@ jobs:
           PY
           git config user.name 'Market Navigator verified synchronization'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-          git add -- market-navigator-throwaway-review market-navigator-sync-status.json
+          git add -- market-navigator-throwaway-review market-navigator-sync-status.json market-navigator-sync/approved-chart.html market-navigator-sync/run.py market-navigator-sync/browser.cjs market-navigator-sync/verify_public.py market-navigator-sync/README.md
           if ! git diff --cached --quiet; then
-            git commit -m 'Synchronize verified chart sources, horizon aggregates and indices'
+            git commit -m 'Synchronize verified chart sources, horizon aggregates and indices [skip ci]'
             git push origin HEAD:main
           fi
           echo "sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
@@ -139,6 +146,7 @@ jobs:
             .sync-publish/market-evidence/
             .evidence/chart-correction-*.json
             .evidence/chart-selector-tests.json
+            .evidence/chart-construction-proof.json
           include-hidden-files: true
           retention-days: 14
   deploy:

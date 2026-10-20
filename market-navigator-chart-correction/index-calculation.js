@@ -1,0 +1,17 @@
+function indexCalculation(state){
+const key=IDX.includes(state.root)?state.root:IDX.includes(state.active)?state.active:state.chart.series.find(z=>IDX.includes(z.id))?.id;
+if(!key)throw Error('Select an index to view its calculation.');
+const h=state.horizon||state.chart.horizon,r=S.derived.indices[key].horizons[h],horizon=state.chart.display==='horizon';
+const rows=r.components.map(c=>{const signal=horizon?100*(c.signalNow-c.signalT0)/r.baseline:c.signalNow;return{id:c.id,label:label(c.id),native:c.nowValue,unit:unit(c.id),observation:c.sourceNowDate,latest:health(c.id).actualLatestCanonicalObservation||null,direction:c.direction,scale:c.transformScale,signal,level:100+signal,weight:1/7,contribution:signal/7}});
+const value=100+rows.reduce((s,r)=>s+r.contribution,0),plotted=state.chart.series.find(z=>z.id===key)?.points.at(-1)?.v;
+if(rows.length!==7||!rows.every(r=>Number.isFinite(r.signal)&&Number.isFinite(r.native)&&Number.isFinite(r.scale)&&r.scale>0)||!Number.isFinite(plotted)||Math.abs(value-plotted)>1e-8)throw Error('Calculation inputs do not reconcile with the visible index.');
+return{key,horizon:h,display:horizon?'Horizon':'Fixed',rows,value,plotted,packageId:state.chart.dataPackageId||null,end:S.derived.commonMarketAnchor};
+}
+window.__mnIndexCalculation=state=>structuredClone(indexCalculation(state));
+function openIndexCalculation(state){
+let d=$('indexCalculationDialog');if(!d){d=document.createElement('dialog');d.id='indexCalculationDialog';document.body.append(d);d.addEventListener('keydown',e=>{if(e.key==='Escape')e.stopPropagation()})}
+const n=x=>Number(x).toLocaleString(undefined,{minimumFractionDigits:4,maximumFractionDigits:6});
+try{const c=indexCalculation(state);d.innerHTML='<header><h2>'+AB[c.key]+' calculation</h2><button id="downloadIndexCalculation">Download JSON</button><button id="closeIndexCalculation" aria-label="Close index calculation">×</button></header><p>'+esc(c.display)+' · '+esc(c.horizon)+' · '+esc(c.end)+'</p><p>These are the seven signed and scaled model components averaged by the index. Native-price chart comparisons use different units and keep their own axes.</p><div class="calculationTable"><table><thead><tr>'+['Component','Native input','Observation used','Latest in loaded package','Direction','Frozen scale','Model component level','Weight','Contribution'].map(x=>'<th>'+x+'</th>').join('')+'</tr></thead><tbody>'+c.rows.map(r=>'<tr data-calculation-source="'+esc(r.id)+'">'+[r.label,n(r.native)+' '+r.unit,r.observation,r.latest||'Not recorded',r.direction,n(r.scale),n(r.level),'1/7',n(r.contribution)].map(x=>'<td>'+esc(String(x))+'</td>').join('')+'</tr>').join('')+'</tbody></table></div><p data-calculation-total>100 + sum of contributions = <strong>'+n(c.value)+'</strong>. Mean of the seven component levels = plotted index: '+n(c.plotted)+'.</p><p>Fixed: component level = 100 + signalNow. Horizon: component level = 100 + 100 × (signalNow − signalStart) / indexStart.</p><p>Different publication schedules can require held observations. The existing HY current-vintage exception remains unchanged.</p><p>Loaded package: '+esc(c.packageId||'Not recorded')+'</p>';d.querySelector('#downloadIndexCalculation').onclick=()=>downloadBlob(AB[c.key]+'-calculation-'+c.end+'.json','application/json',JSON.stringify(c,null,2));}
+catch(e){d.innerHTML='<h2>Index calculation</h2><p>'+esc(e.message)+'</p><button id="closeIndexCalculation">Close</button>'}
+d.querySelector('#closeIndexCalculation').onclick=()=>d.close();d.showModal();
+}

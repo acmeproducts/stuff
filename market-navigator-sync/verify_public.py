@@ -1,5 +1,6 @@
 """Read-only verification of the actual public validation publication."""
 import hashlib,json,time,urllib.request
+from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 BASE=Path(__file__).resolve().parents[1]/'market-navigator-throwaway-review'
 URL='https://acmeproducts.github.io/stuff/market-navigator-throwaway-review/'

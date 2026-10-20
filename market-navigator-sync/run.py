@@ -50,8 +50,15 @@ def aggregate(points):
     if not points:return {'ready':False,'observation_count':0,'reason':'No native observations in selected calendar window'}
     values=[p['v'] for p in points];a,b=points[0],points[-1]
     return {'ready':True,'t0_date':a['t'],'t0_value':a['v'],'now_date':b['t'],'now_value':b['v'],'absolute_change':b['v']-a['v'],'percentage_change':100*(b['v']-a['v'])/a['v'] if a['v'] else None,'observation_count':len(points),'min':min(values),'max':max(values),'mean':statistics.fmean(values),'median':statistics.median(values),'percentile_now':round(100*(sum(x<b['v'] for x in values)+.5*sum(x==b['v'] for x in values))/len(values),2)}
+def release_probe_due(meta,source,now,market_anchor):
+    if meta.get('native_cadence')!='daily' or source.get('provider')!='FRED' or not market_anchor or not source.get('last'):return False
+    if date(source['last'])>=market_anchor:return False
+    verified=source.get('sourceVerifiedAt')
+    return not verified or now-dt.datetime.fromisoformat(verified.replace('Z','+00:00'))>=dt.timedelta(hours=1)
 def collect(root,now,force=False,fetch=None,previous_version=None):
     collector=load('market-navigator-r7-data-pipeline');catalog=read(root/'data/market-backend/data-catalog.json');rules=read(root/'data/market-backend/publication-rules.json')['rules']
+    anchor_path=root/'market-evidence/derived-indices-persistent-v1.json'
+    market_anchor=read(anchor_path).get('commonMarketAnchor') if anchor_path.exists() else None
     metas=[m for m in catalog['series'] if m.get('enabled',True)];changes=[];results=[];local=threading.local();original=collector.get
     def retained_get(url,accept='*/*'):
         raw,status=original(url,accept);sha=hashlib.sha256(raw).hexdigest()
@@ -64,7 +71,8 @@ def collect(root,now,force=False,fetch=None,previous_version=None):
         if (source['provider'],source['providerIdentifier']) not in {(p['provider'],p['identifier']) for p in collector.chain_for(meta)}:raise ValueError('Unapproved source identity: '+sid)
         verified=source.get('sourceVerifiedAt')
         due=collector._scheduler.eligibility(meta,source,now,rules,last_attempt=verified)[0]
-        if not force and verified and not due and now-dt.datetime.fromisoformat(verified.replace('Z','+00:00'))<dt.timedelta(hours=24):return {'id':sid,'status':'not-due','changed':False}
+        probe=release_probe_due(meta,source,now,market_anchor)
+        if not force and not probe and verified and not due and now-dt.datetime.fromisoformat(verified.replace('Z','+00:00'))<dt.timedelta(hours=24):return {'id':sid,'status':'not-due','changed':False}
         if fetch:incoming=fetch(meta,source,native,now)
         else:incoming,_=collector.fetch_source(source['provider'],source['providerIdentifier'],True)
         if not incoming:raise ValueError('Empty source history: '+sid)

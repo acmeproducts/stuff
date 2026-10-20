@@ -133,6 +133,17 @@ edit('async function load(){try{', 'let loadFailures=0;async function load(){try
 edit("}catch(e){message.textContent='Repairing market data. Saved reports remain available in Library.';setTimeout(load,15000)}}", "}catch(e){message.textContent='Data load failed: '+e.message+'. Saved reports remain available in Library.';loadFailures++;if(loadFailures<3&&!/mismatch|outside the loaded package|Invalid qualified/.test(e.message))setTimeout(load,15000*2**(loadFailures-1))}}", 'truthful integrity failure; no automatic integrity retries')
 edit("return{beforeRender:()=>{void rebuildRefreshData()}", "return{packageId:etlPackage?.version||null,beforeRender:()=>{void rebuildRefreshData()}", 'capture each chart service package identity')
 edit("paletteName:services.paletteName?.()||'Normal',series:", "paletteName:services.paletteName?.()||'Normal',dataPackageId:services.readOnly?null:(services.packageId||null),series:", 'new live snapshots retain their own package; read-only evidence is not relabeled')
+
+# Explicit reconciliation preserves all existing native chart mechanics.
+edit('<button id="nowData">Data</button>','<button id="nowCalculation">Index calculation</button><button id="nowData">Data</button>','NOW calculation action')
+edit('<button id="mn-analyze-nowData" data-mn-role="nowData">Data</button>','<button id="mn-analyze-nowCalculation" data-mn-role="nowCalculation">Index calculation</button><button id="mn-analyze-nowData" data-mn-role="nowData">Data</button>','Analyze calculation action')
+edit('<button data-mn-role=\\\"nowData\\\">Data</button>','<button data-mn-role=\\\"nowCalculation\\\">Index calculation</button><button data-mn-role=\\\"nowData\\\">Data</button>','Shared calculation action')
+edit("if(action==='data')return openData17(state);","if(action==='calculation')return openIndexCalculation(state);if(action==='data')return openData17(state);",'Calculation callback')
+assert html.count("nowAnalyze:'ai',nowData:'data'")==2
+html=html.replace("nowAnalyze:'ai',nowData:'data'","nowAnalyze:'ai',nowCalculation:'calculation',nowData:'data'")
+edit("boot();window.addEventListener('resize',scheduleGeometry25);",Path('market-navigator-chart-correction/index-calculation.js').read_text(encoding='utf-8').strip()+"\n"+"boot();window.addEventListener('resize',scheduleGeometry25);",'Reconciliation math')
+edit('</head>','<style>'+Path('market-navigator-chart-correction/index-calculation.css').read_text(encoding='utf-8')+'</style></head>','Scoped calculation dialog')
+
 edit('__ETL_BUILD_ID__', hashlib.sha256(html.encode('utf-8')).hexdigest(), 'content-bound application build identity')
 
 TARGET.parent.mkdir(parents=True,exist_ok=True);TARGET.write_text(html,encoding='utf-8',newline='')
