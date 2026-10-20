@@ -209,7 +209,7 @@ try{
   const kept=await fr.evaluate(async()=>{const el=document.querySelector('#Database .dbgrid');show('Plan');await new Promise(r=>setTimeout(r,50));show('Database');await new Promise(r=>setTimeout(r,50));return el===document.querySelector('#Database .dbgrid')});ok(kept,'switching back to Search rebuilt the table');
   pass('search and sort results are cached per loaded database and switching back to Search reuses the rendered table (no rebuild)')}
  // Search table layout: row numbers, long-press columns modal, grouping, order, search exclusion, persistence
- {await fr.evaluate(()=>{omniDraft='';omniQuery='';show('Database')});await pg.waitForTimeout(500);
+ {await fr.evaluate(()=>{__ssotGoSearch('','');omniDraft='';omniQuery='';renderDatabase()});await pg.waitForTimeout(500);
   const rowNos=()=>fr.$$eval('#Database tbody tr[data-pid] td.rownum',e=>e.map(x=>x.textContent.trim()));
   const heads=()=>fr.$$eval('#Database thead th',e=>e.map(x=>x.dataset.f||x.textContent.trim()));
   ok((await heads())[0]==='Row'&&(await rowNos()).join()==='1,2,3,4,5,6','row numbers 1..N '+await rowNos());
@@ -217,7 +217,7 @@ try{
   await fr.evaluate(()=>{omniDraft='';omniQuery='';renderDatabase()});await pg.waitForTimeout(400);
   pass('search results carry a Row column numbered 1..N that renumbers with every search');
   const hold=async(f)=>{const b=await fr.locator('#Database th[data-f="'+f+'"]').boundingBox();await pg.mouse.move(b.x+b.width/2-6,b.y+b.height/2);await pg.mouse.down();await pg.waitForTimeout(800);await pg.mouse.up();await pg.waitForTimeout(250)};
-  const sortBefore=await fr.evaluate(()=>sortField+sortDir);await hold('filename');ok(await fr.$('#ssotColList .colrow[data-f="filename"].focus'),'long press did not open the columns modal');ok(await fr.evaluate(()=>sortField+sortDir)===sortBefore,'long press must not sort');
+  const sortBefore=await fr.evaluate(()=>sortField+sortDir);await hold('filename');ok(await fr.$('#ssotColList .colrow[data-f="filename"].focus'),'long press did not open the columns modal');ok(await fr.evaluate(()=>{const r=document.getElementById('ssotColList').getBoundingClientRect(),el=document.elementFromPoint(r.left+r.width/2,r.top+10);return !!el&&!!el.closest('#modalback')}),'the Columns window must sit on top of the Search window, not behind it');ok(await fr.evaluate(()=>sortField+sortDir)===sortBefore,'long press must not sort');
   pass('long-pressing a column header opens the Columns modal (and does not sort)');
   ok(await fr.evaluate(()=>{const l=[...document.querySelectorAll('#ssotColList label')].find(x=>x.querySelector('input[data-k="g"]'));return !l||getComputedStyle(l).display==='none'}),'Group option must be gone from the Columns modal');
   await fr.click('#modalcancel');await pg.waitForTimeout(300);
