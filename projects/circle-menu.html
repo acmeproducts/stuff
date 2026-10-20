@@ -5,7 +5,6 @@
 <title>Circle Menu Demo</title>
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <style>
-  /* Theme variables */
   :root {
     --bg-color: #f0f0f0;
     --menu-bg: #007bff;
@@ -20,36 +19,26 @@
     --diag-bg: #2a2a2a;
     --text-color: #fff;
   }
-
-  /* Mobile‑first layout */
-  body, html {
-    margin:0; padding:0;
-    height:100%; width:100%;
-    font-family:Arial,Helvetica,sans-serif;
-    overflow:hidden;
-    background:var(--bg-color);
-    color:var(--text-color);
-  }
-  #menuContainer {
-    position:relative;
-    width:100%; height:100%;
-    display:flex;
-    align-items:center;
-    justify-content:center;
-  }
-  #centerBtn {
-    width:60px; height:60px;
+  body,html{margin:0;padding:0;height:100%;width:100%;font-family:Arial,Helvetica,sans-serif;overflow:hidden;background:var(--bg-color);color:var(--text-color);}
+  #menuContainer{position:relative;width:100%;height:100%;display:flex;align-items:center;justify-content:center;}
+  #heartBtn{
+    width:60px;height:60px;
     border-radius:50%;
-    background:var(--menu-bg);
+    background:#ff6666;
     color:#fff;
+    font-size:1.5rem;
     border:none;
-    font-size:1.2rem;
-    z-index:2;
-    position:relative;
-  }
-  .menuItem {
     position:absolute;
-    width:50px; height:50px;
+    left:calc(50% - 30px);
+    top:calc(50% - 30px);
+    z-index:2;
+    touch-action:none;
+    cursor:grab;
+  }
+  #centerBtn{display:none;} /* hidden, kept for compatibility */
+  .menuItem{
+    position:absolute;
+    width:50px;height:50px;
     border-radius:50%;
     background:var(--item-bg);
     color:#fff;
@@ -60,9 +49,9 @@
     opacity:0;
     transition:opacity 0.2s;
   }
-  #diagnostics {
+  #diagnostics{
     position:absolute;
-    bottom:0; left:0;
+    bottom:0;left:0;
     width:100%;
     max-height:30%;
     background:var(--diag-bg);
@@ -72,14 +61,10 @@
     padding:5px;
     box-sizing:border-box;
   }
-  #diagnostics h4 {
-    margin:0 0 5px 0;
-    font-size:0.9rem;
-  }
-  #themeToggle {
+  #diagnostics h4{margin:0 0 5px 0;font-size:0.9rem;}
+  #themeToggle{
     position:absolute;
-    top:10px;
-    right:10px;
+    top:10px;right:10px;
     background:transparent;
     border:1px solid var(--text-color);
     color:var(--text-color);
@@ -87,122 +72,129 @@
     border-radius:4px;
     font-size:0.9rem;
   }
+  #closeBtn{
+    position:absolute;
+    top:10px;right:10px;
+    background:transparent;
+    border:none;
+    color:var(--text-color);
+    font-size:1.2rem;
+    cursor:pointer;
+    z-index:3;
+  }
 </style>
 </head>
 <body>
 <div id="menuContainer">
+  <button id="heartBtn">❤️</button>
   <button id="centerBtn">☰</button>
-  <div id="diagnostics">
-    <h4>Diagnostics</h4>
-    <pre id="log"></pre>
-  </div>
+  <div id="diagnostics"><h4>Diagnostics</h4><pre id="log"></pre></div>
   <button id="themeToggle">Dark</button>
+  <button id="closeBtn" style="display:none;">✕</button>
 </div>
 
 <script>
-  // Core data
   const items = [
-    {label:'A', action:()=>log('Item A clicked')},
-    {label:'B', action:()=>log('Item B clicked')},
-    {label:'C', action:()=>log('Item C clicked')},
-    {label:'D', action:()=>log('Item D clicked')},
-    {label:'E', action:()=>log('Item E clicked')},
-    {label:'F', action:()=>log('Item F clicked')}
+    {label:'A',action:()=>log('Item A')},
+    {label:'B',action:()=>log('Item B')},
+    {label:'C',action:()=>log('Item C')},
+    {label:'D',action:()=>log('Item D')},
+    {label:'E',action:()=>log('Item E')},
+    {label:'F',action:()=>log('Item F')}
   ];
+  const container=document.getElementById('menuContainer');
+  const heartBtn=document.getElementById('heartBtn');
+  const closeBtn=document.getElementById('closeBtn');
+  const themeBtn=document.getElementById('themeToggle');
+  const logEl=document.getElementById('log');
+  let menuOpen=false;
+  let itemElements=[];
+  let currentTheme='light';
+  let dragOffset={x:0,y:0};
 
-  const centerBtn = document.getElementById('centerBtn');
-  const container = document.getElementById('menuContainer');
-  const logEl = document.getElementById('log');
-  const themeBtn = document.getElementById('themeToggle');
-  let menuOpen = false;
-  let itemElements = [];
-  let currentTheme = 'light';
-
-  function log(message) {
-    const time = new Date().toLocaleTimeString();
-    logEl.textContent += `[${time}] ${message}\n`;
-    logEl.scrollTop = logEl.scrollHeight;
+  function log(msg){
+    const t=new Date().toLocaleTimeString();
+    logEl.textContent+=`[${t}] ${msg}\n`;
+    logEl.scrollTop=logEl.scrollHeight;
   }
 
-  function createMenuItems() {
-    itemElements.forEach(el => el.remove());
-    itemElements = [];
-
-    const radius = Math.min(container.clientWidth, container.clientHeight) / 2 - 80;
-    const angleStep = (2 * Math.PI) / items.length;
-
-    items.forEach((item, i) => {
-      const btn = document.createElement('button');
-      btn.className = 'menuItem';
-      btn.textContent = item.label;
-      btn.addEventListener('click', (e) => {
+  function createMenuItems(){
+    itemElements.forEach(el=>el.remove());
+    itemElements=[];
+    const radius=Math.min(container.clientWidth,container.clientHeight)/2-80;
+    const step=(2*Math.PI)/items.length;
+    items.forEach((it,i)=>{
+      const btn=document.createElement('button');
+      btn.className='menuItem';
+      btn.textContent=it.label;
+      btn.addEventListener('click',e=>{
         e.stopPropagation();
-        item.action();
+        it.action();
         closeMenu();
       });
       container.appendChild(btn);
       itemElements.push(btn);
-
-      const angle = i * angleStep - Math.PI/2;
-      const x = Math.cos(angle) * radius;
-      const y = Math.sin(angle) * radius;
-      btn.style.transform = `translate(${x}px, ${y}px)`;
+      const angle=i*step-Math.PI/2;
+      const x=Math.cos(angle)*radius;
+      const y=Math.sin(angle)*radius;
+      btn.style.transform=`translate(${x}px,${y}px)`;
     });
   }
 
-  function openMenu() {
-    if (menuOpen) return;
-    menuOpen = true;
+  function openMenu(){
+    if(menuOpen) return;
+    menuOpen=true;
     log('Menu opened');
-    itemElements.forEach(el => el.style.opacity = '1');
+    itemElements.forEach(el=>el.style.opacity='1');
+    closeBtn.style.display='block';
   }
-
-  function closeMenu() {
-    if (!menuOpen) return;
-    menuOpen = false;
+  function closeMenu(){
+    if(!menuOpen) return;
+    menuOpen=false;
     log('Menu closed');
-    itemElements.forEach(el => el.style.opacity = '0');
+    itemElements.forEach(el=>el.style.opacity='0');
+    closeBtn.style.display='none';
   }
 
-  centerBtn.addEventListener('click', (e) => {
+  heartBtn.addEventListener('click',e=>{
     e.stopPropagation();
-    menuOpen ? closeMenu() : openMenu();
+    menuOpen?closeMenu():openMenu();
+  });
+  closeBtn.addEventListener('click',e=>{
+    e.stopPropagation();
+    closeMenu();
   });
 
-  container.addEventListener('click', (e) => {
-    if (menuOpen && e.target === container) closeMenu();
+  // Drag heart
+  heartBtn.addEventListener('pointerdown',e=>{
+    e.preventDefault();
+    dragOffset.x=e.clientX-heartBtn.offsetLeft;
+    dragOffset.y=e.clientY-heartBtn.offsetTop;
+    heartBtn.setPointerCapture(e.pointerId);
+    heartBtn.style.cursor='grabbing';
   });
-
-  // Simple touch handling
-  let touchStartX = 0, touchStartY = 0;
-  container.addEventListener('touchstart', (e) => {
-    const t = e.touches[0];
-    touchStartX = t.clientX;
-    touchStartY = t.clientY;
+  heartBtn.addEventListener('pointermove',e=>{
+    if(e.pressure===0) return;
+    const x=e.clientX-dragOffset.x;
+    const y=e.clientY-dragOffset.y;
+    heartBtn.style.left=`${x}px`;
+    heartBtn.style.top=`${y}px`;
   });
-  container.addEventListener('touchend', (e) => {
-    const t = e.changedTouches[0];
-    const dx = t.clientX - touchStartX;
-    const dy = t.clientY - touchStartY;
-    if (Math.hypot(dx, dy) < 30) {
-      if (e.target === centerBtn) return;
-      menuOpen ? closeMenu() : openMenu();
-    }
+  heartBtn.addEventListener('pointerup',e=>{
+    heartBtn.releasePointerCapture(e.pointerId);
+    heartBtn.style.cursor='grab';
   });
 
   // Theme toggle
-  function applyTheme(theme) {
-    document.documentElement.setAttribute('data-theme', theme);
-    themeBtn.textContent = theme === 'light' ? 'Dark' : 'Light';
-    currentTheme = theme;
-    log(`Theme set to ${theme}`);
+  function applyTheme(t){
+    document.documentElement.setAttribute('data-theme',t);
+    themeBtn.textContent=t==='light'?'Dark':'Light';
+    currentTheme=t;
+    log(`Theme set to ${t}`);
   }
+  themeBtn.addEventListener('click',()=>applyTheme(currentTheme==='light'?'dark':'light'));
 
-  themeBtn.addEventListener('click', () => {
-    applyTheme(currentTheme === 'light' ? 'dark' : 'light');
-  });
-
-  // Initialize
+  // Init
   createMenuItems();
   closeMenu();
   applyTheme('light');
