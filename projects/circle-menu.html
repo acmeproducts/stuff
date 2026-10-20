@@ -1,0 +1,175 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Circle Menu Demo</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<style>
+  /* Mobile‑first layout */
+  body, html {
+    margin:0; padding:0;
+    height:100%; width:100%;
+    font-family:Arial,Helvetica,sans-serif;
+    overflow:hidden;
+    background:#f0f0f0;
+  }
+  #menuContainer {
+    position:relative;
+    width:100%; height:100%;
+    display:flex;
+    align-items:center;
+    justify-content:center;
+  }
+  #centerBtn {
+    width:60px; height:60px;
+    border-radius:50%;
+    background:#007bff;
+    color:#fff;
+    border:none;
+    font-size:1.2rem;
+    z-index:2;
+    position:relative;
+  }
+  .menuItem {
+    position:absolute;
+    width:50px; height:50px;
+    border-radius:50%;
+    background:#28a745;
+    color:#fff;
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    font-size:0.9rem;
+    opacity:0;
+    transition:opacity 0.2s;
+  }
+  #diagnostics {
+    position:absolute;
+    bottom:0; left:0;
+    width:100%;
+    max-height:30%;
+    background:#fff;
+    border-top:1px solid #ccc;
+    font-size:0.8rem;
+    overflow:auto;
+    padding:5px;
+    box-sizing:border-box;
+  }
+  #diagnostics h4 {
+    margin:0 0 5px 0;
+    font-size:0.9rem;
+  }
+</style>
+</head>
+<body>
+<div id="menuContainer">
+  <button id="centerBtn">☰</button>
+  <!-- placeholder for items, will be positioned via JS -->
+  <div id="diagnostics">
+    <h4>Diagnostics</h4>
+    <pre id="log"></pre>
+  </div>
+</div>
+
+<script>
+  // Core data
+  const items = [
+    {label:'A', action:()=>log('Item A clicked')},
+    {label:'B', action:()=>log('Item B clicked')},
+    {label:'C', action:()=>log('Item C clicked')},
+    {label:'D', action:()=>log('Item D clicked')},
+    {label:'E', action:()=>log('Item E clicked')},
+    {label:'F', action:()=>log('Item F clicked')}
+  ];
+
+  const centerBtn = document.getElementById('centerBtn');
+  const container = document.getElementById('menuContainer');
+  const logEl = document.getElementById('log');
+  let menuOpen = false;
+  let itemElements = [];
+
+  function log(message) {
+    const time = new Date().toLocaleTimeString();
+    logEl.textContent += `[${time}] ${message}\n`;
+    logEl.scrollTop = logEl.scrollHeight;
+  }
+
+  function createMenuItems() {
+    // Remove any existing items
+    itemElements.forEach(el => el.remove());
+    itemElements = [];
+
+    const radius = Math.min(container.clientWidth, container.clientHeight) / 2 - 80;
+    const angleStep = (2 * Math.PI) / items.length;
+
+    items.forEach((item, i) => {
+      const btn = document.createElement('button');
+      btn.className = 'menuItem';
+      btn.textContent = item.label;
+      btn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        item.action();
+        closeMenu();
+      });
+      container.appendChild(btn);
+      itemElements.push(btn);
+
+      // Position around circle
+      const angle = i * angleStep - Math.PI/2; // start top
+      const x = Math.cos(angle) * radius;
+      const y = Math.sin(angle) * radius;
+      btn.style.transform = `translate(${x}px, ${y}px)`;
+    });
+  }
+
+  function openMenu() {
+    if (menuOpen) return;
+    menuOpen = true;
+    log('Menu opened');
+    itemElements.forEach(el => el.style.opacity = '1');
+  }
+
+  function closeMenu() {
+    if (!menuOpen) return;
+    menuOpen = false;
+    log('Menu closed');
+    itemElements.forEach(el => el.style.opacity = '0');
+  }
+
+  // Toggle on center button tap
+  centerBtn.addEventListener('click', (e) => {
+    e.stopPropagation();
+    if (menuOpen) closeMenu(); else openMenu();
+  });
+
+  // Close menu when tapping outside
+  container.addEventListener('click', (e) => {
+    if (menuOpen && e.target === container) closeMenu();
+  });
+
+  // Touch handling for swipe gestures (optional simple detection)
+  let touchStartX = 0, touchStartY = 0;
+  container.addEventListener('touchstart', (e) => {
+    const t = e.touches[0];
+    touchStartX = t.clientX;
+    touchStartY = t.clientY;
+  });
+  container.addEventListener('touchend', (e) => {
+    const t = e.changedTouches[0];
+    const dx = t.clientX - touchStartX;
+    const dy = t.clientY - touchStartY;
+    const dist = Math.hypot(dx, dy);
+    if (dist < 30) {
+      // treat as tap
+      if (e.target === centerBtn) return; // already handled
+      if (menuOpen) closeMenu(); else openMenu();
+    }
+  });
+
+  // Initial creation
+  createMenuItems();
+  // Ensure items are hidden initially
+  closeMenu();
+</script>
+</body>
+</html>
