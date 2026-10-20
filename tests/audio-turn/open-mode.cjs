@@ -143,3 +143,12 @@ test('open mode: settings show microphone mode and switching to ask restores tap
  await page.locator('#cl-close').click().catch(()=>{});await page.waitForFunction(()=>!document.body.classList.contains('cl-open'));
  await page.waitForFunction(()=>!mic.south.on&&!mic.north.on);await page.locator('#strip-south .micbtn').click();await page.waitForFunction(()=>INPUT.owner==='south'&&INPUT.mode==='mic'&&mic.south.on&&!mic.north.on);
 });
+test('Vietnamese keyboard shows on the North side with tone marks',async({page})=>{
+ await page.evaluate(()=>{localStorage.setItem('tb_dg_key','synthetic-key');localStorage.setItem('chat_test_audio',JSON.stringify({mode:'open',tones:true,resumeMs:300}))});await create(page,'ViKb','en','vi');await page.waitForFunction(()=>mic.south.active&&mic.north.active);
+ for(const side of ['north']){
+  await page.locator('#in-'+side).focus();await page.waitForFunction(s=>INPUT.owner===s&&INPUT.mode==='kb',side);
+  const keys=await page.evaluate(s=>document.getElementById('kb-'+s).textContent,side);
+  assert.ok(keys.includes('́')&&keys.includes('̣'),side+' keyboard has the tone marks');
+  assert.ok(/[ăâêôơư]/.test(keys),side+' keyboard has Vietnamese letters');
+ }
+});
