@@ -791,3 +791,6 @@ Owner reported: Share asked for the GitHub token again although it was already p
 
 ### 2026-10-19 — Vietnamese tone keys showed as empty boxes
 Owner reported (screenshot, Android Chrome): the Vietnamese keyboard appears on North, but the five tone keys were empty boxes. Cause: the keys were labelled with a bare accent mark plus a dotted-circle placeholder, which the phone's font cannot draw. Change: each tone key is now labelled with a letter carrying the mark (á à ả ã ạ); what the key types is unchanged. Checks: open mode 43/43, keyboard 32/32. Not yet confirmed on the phone.
+
+### 2026-10-19 — page title
+Owner reported the browser title read "Chatlink · Audio test". Changed to "Tabletop Xlate" (owner's suggestion). Title text only; no code path reads it.
