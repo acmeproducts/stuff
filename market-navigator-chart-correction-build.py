@@ -114,6 +114,27 @@ edit(json.loads(Path('market-navigator-chart-correction/inspection-seam.json').r
      Path('market-navigator-chart-correction/inspection.js').read_text(encoding='utf-8').strip(),
      'compact linked date, index and native value inspection')
 
+edit("async function j(p){let r=await fetch('market-navigator-rebuild-data/'+p,{cache:'no-store'});if(!r.ok)throw Error(`${p} HTTP ${r.status}`);return r.json()}",
+     Path('market-navigator-chart-correction/etl.js').read_text(encoding='utf-8').strip(),
+     'verified loaded-package receipts and live ETL view')
+old="['now','library','health','config'].includes(v)"
+assert html.count(old)==2
+html=html.replace(old,"['now','library','health','config','etl'].includes(v)")
+changes.append('ETL navigation uses the existing parked-chart lifecycle')
+edit("rebuildNavigateBase(restore?'now':v);", "rebuildNavigateBase(restore?'now':v);etlStop();if(v==='etl'){$('crumb').textContent='ETL';void etlRefresh()}", 'ETL panel lifecycle')
+edit('<button class="nav" data-view="health">HEALTH</button></nav>', '<button class="nav" data-view="health">HEALTH</button><button class="nav" data-view="etl" id="mnEtlLauncher">ETL</button></nav>', 'ETL left rail entry')
+edit('<section class="view" id="view-config">', '<section class="view" id="view-etl"><div class="etlCard"><h2>ETL</h2><p>Loaded data, source qualification and synchronization jobs</p><div class="etlActions"><button class="btn" id="etlRefresh">Refresh status</button><a class="btn" id="etlRun" href="https://github.com/acmeproducts/stuff/actions/workflows/market-navigator-sync.yml" target="_blank" rel="noopener noreferrer">Run ETL on GitHub ↗</a></div><p class="rowMeta">To rerun: sign in to GitHub, choose Run workflow on main, and enable Recheck all approved source histories for a full recheck. Scheduled checks run hourly.</p><p id="etlAvailable"></p><div id="etlProof" aria-live="polite"></div><hr><div id="etlJobs" aria-live="polite"></div></div></section><section class="view" id="view-config">', 'ETL panel and authenticated manual workflow control')
+edit("$('settingsGear').onclick=()=>openConfig('ai');", "$('etlRefresh').onclick=()=>void etlRefresh();document.addEventListener('visibilitychange',()=>{if(document.hidden)etlStop();else if(S.view==='etl')void etlRefreshJobs()});$('settingsGear').onclick=()=>openConfig('ai');", 'ETL manual refresh and conservative polling')
+edit('if(!q)return null;const a=q.assurance;', 'if(!q)return etlQualification();const a=q.assurance;', 'captured package identity on consumer snapshots')
+edit("j('data/market-backend/source-registry.json')]);", "j('data/market-backend/source-registry.json'),j('market-evidence/sync-proof.json')]);", 'capture qualification with the initial loaded package')
+edit('</head>', '<style>'+Path('market-navigator-chart-correction/etl.css').read_text(encoding='utf-8')+'</style></head>', 'scoped ETL layout')
+
+edit('async function load(){try{', 'let loadFailures=0;async function load(){try{', 'bounded initial data load recovery')
+edit("}catch(e){message.textContent='Repairing market data. Saved reports remain available in Library.';setTimeout(load,15000)}}", "}catch(e){message.textContent='Data load failed: '+e.message+'. Saved reports remain available in Library.';loadFailures++;if(loadFailures<3&&!/mismatch|outside the loaded package|Invalid qualified/.test(e.message))setTimeout(load,15000*2**(loadFailures-1))}}", 'truthful integrity failure; no automatic integrity retries')
+edit("return{beforeRender:()=>{void rebuildRefreshData()}", "return{packageId:etlPackage?.version||null,beforeRender:()=>{void rebuildRefreshData()}", 'capture each chart service package identity')
+edit("paletteName:services.paletteName?.()||'Normal',series:", "paletteName:services.paletteName?.()||'Normal',dataPackageId:services.readOnly?null:(services.packageId||null),series:", 'new live snapshots retain their own package; read-only evidence is not relabeled')
+edit('__ETL_BUILD_ID__', hashlib.sha256(html.encode('utf-8')).hexdigest(), 'content-bound application build identity')
+
 TARGET.parent.mkdir(parents=True,exist_ok=True);TARGET.write_text(html,encoding='utf-8',newline='')
 blob=hashlib.sha1(b'blob '+str(len(html.encode())).encode()+b'\0'+html.encode()).hexdigest()
 Path('.evidence/chart-correction-build.json').write_text(json.dumps({'baseline':'ee38d9c9da9af4b2795695a39519c76e6c5e5239','candidate':blob,'changes':changes,'nativeHorizonSemantics':'native prices unchanged; every normalized series rebases; Fixed 2016-09-01 with later-start disclosure','published':False},indent=2))

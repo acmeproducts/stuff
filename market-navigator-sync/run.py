@@ -8,7 +8,7 @@ import argparse,bisect,concurrent.futures,contextlib,copy,csv,datetime as dt,has
 from pathlib import Path
 HERE=Path(__file__).resolve().parent
 H=['1D','5D','MTD','YTD','1YR','3YR','5YR'];UTC=dt.timezone.utc
-APP='5f038238d25ed1f2bd57f6773c8893283f80de72'
+APP='3934d2e37e40e40f5c76a9b6a1763f122fbe8339'
 REGISTRY='e423bd96ec47b960ff4dbbb169e3be6a42165f4a'
 HY_PREFIX='05a9a2ca600c573fd3e5a948a7fe2e7672186076c9f955f9db78e8858e90b287'
 def load(name):
@@ -285,7 +285,7 @@ def synchronize(base,output,now=None,force=False,fetch=None,vintage_update=None)
         # Every output resource, including retained source responses, is pinned.
         resources={str(p.relative_to(root)).replace('\\','/'):hashlib.sha256(p.read_bytes()).hexdigest() for p in sorted(root.rglob('*')) if p.is_file() and p.name!='package.json'}
         version=digest(resources);write(root/'package.json',{'schema':'market-navigator-etl-package-v1','qualified':True,'version':version,'resources':resources})
-        (stage/'throwaway.html').write_bytes(app);write(stage/'connection.json',{'application_blob':APP,'approved_baseline_blob':'ee38d9c9da9af4b2795695a39519c76e6c5e5239','data_version':version,'verified_resources':len(resources),'status':'PASS','jobstream_ui':False,'qualification':proof})
+        (stage/'throwaway.html').write_bytes(app);write(stage/'connection.json',{'application_blob':APP,'approved_baseline_blob':'ee38d9c9da9af4b2795695a39519c76e6c5e5239','data_version':version,'verified_resources':len(resources),'status':'PASS','jobstream_ui':True,'qualification':proof})
         # The caller publishes this completed tree in one Git commit. An error
         # before this point cannot alter either the live or candidate directory.
         if output.exists():raise ValueError('Output must be a new candidate path')
