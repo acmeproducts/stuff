@@ -12,6 +12,8 @@ def main():
         p=ROOT/'market-navigator-sync'/name;text=p.read_text(encoding='utf-8');assert old in text,name;p.write_text(text.replace(old,blob),encoding='utf-8')
     (ROOT/'market-navigator-sync/approved-chart.html').write_bytes(raw)
     inputs=['market-navigator-chart-correction-build.py','market-navigator-sync/rebuild_chart.py']+[str(p.relative_to(ROOT)).replace('\\','/') for p in sorted((ROOT/'market-navigator-chart-correction').iterdir()) if p.suffix in ('.js','.css','.html','.json')]
+    contract=json.loads((ROOT/'market-navigator-acceptance/contract.json').read_text())
+    inputs+=['market-navigator-acceptance/contract.json','market-navigator-acceptance/run.cjs']+contract['authority']+contract['suites']
     (ROOT/'.evidence/chart-construction-proof.json').write_text(json.dumps({'application_blob':blob,'input_hashes':{p:hashlib.sha256((ROOT/p).read_bytes()).hexdigest() for p in inputs}},indent=2))
     print(json.dumps({'application_blob':blob}))
 if __name__=='__main__':main()

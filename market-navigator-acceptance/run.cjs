@@ -1,0 +1,16 @@
+'use strict';
+const fs=require('fs'),path=require('path'),crypto=require('crypto'),{spawnSync}=require('child_process'),assert=require('assert/strict');
+const manifest=JSON.parse(fs.readFileSync('market-navigator-acceptance/contract.json','utf8'));
+const root=path.resolve(process.env.MN_CHART_CANDIDATE_ROOT||'.evidence/chart-correction-candidate'),data=path.resolve(process.env.MN_SYNC_BROWSER_ROOT||'market-navigator-throwaway-review'),app=fs.readFileSync(path.join(root,'throwaway.html'));
+const hash=b=>crypto.createHash('sha256').update(b).digest('hex'),blob=crypto.createHash('sha1').update(Buffer.concat([Buffer.from('blob '+app.length+'\0'),app])).digest('hex');
+const pkg=JSON.parse(fs.readFileSync(path.join(data,'market-navigator-rebuild-data/package.json')));
+const report={status:'RUNNING',application_blob:blob,data_version:pkg.version,requirements:[],suites:[],pending:manifest.pending,authority:manifest.authority.map(p=>({path:p,sha256:hash(fs.readFileSync(p))}))};
+function save(){fs.mkdirSync('.evidence',{recursive:true});fs.writeFileSync('.evidence/chart-cumulative-acceptance.json',JSON.stringify(report,null,2))}
+try{
+assert(manifest.requirements.length>=20,'Empty or incomplete requirement contract');assert(manifest.suites.length>=11,'Missing mandatory suites');assert.equal(new Set(manifest.suites).size,manifest.suites.length);
+assert.equal(new Set(manifest.requirements.map(r=>r.id)).size,manifest.requirements.length);
+for(const r of manifest.requirements){assert(r.suites.length>0);for(const s of r.suites)assert(manifest.suites.includes(s),'Unknown requirement witness')}
+for(const suite of manifest.suites){assert(fs.existsSync(suite),'Missing mandatory suite '+suite);const started=new Date().toISOString(),result=spawnSync(process.execPath,[suite],{env:process.env,encoding:'utf8',maxBuffer:20*1024*1024});process.stdout.write(result.stdout||'');process.stderr.write(result.stderr||'');report.suites.push({suite,source_sha256:hash(fs.readFileSync(suite)),started,completed:new Date().toISOString(),status:result.status===0?'PASS':'FAIL',stdout_sha256:hash(Buffer.from(result.stdout||''))});save();assert.equal(result.status,0,'Mandatory suite failed: '+suite);assert.equal(hash(fs.readFileSync(path.join(root,'throwaway.html'))),hash(app),'Candidate changed during qualification')}
+for(const r of manifest.requirements)report.requirements.push({...r,status:r.suites.every(s=>report.suites.find(x=>x.suite===s)?.status==='PASS')?'PASS':'FAIL'});
+assert(report.requirements.every(r=>r.status==='PASS'));report.status='PASS';save();console.log(JSON.stringify({status:report.status,application_blob:blob,data_version:pkg.version,requirements:report.requirements.length,suites:report.suites.length,pending:report.pending}));
+}catch(e){report.status='FAIL';report.error=e.message;save();throw e}

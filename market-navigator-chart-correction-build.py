@@ -144,6 +144,8 @@ html=html.replace("nowAnalyze:'ai',nowData:'data'","nowAnalyze:'ai',nowCalculati
 edit("boot();window.addEventListener('resize',scheduleGeometry25);",Path('market-navigator-chart-correction/index-calculation.js').read_text(encoding='utf-8').strip()+"\n"+"boot();window.addEventListener('resize',scheduleGeometry25);",'Reconciliation math')
 edit('</head>','<style>'+Path('market-navigator-chart-correction/index-calculation.css').read_text(encoding='utf-8')+'</style></head>','Scoped calculation dialog')
 
+edit("status:Date.now()<Date.parse(qualification.validUntil)?'verified':'delayed'","status:qualification.status==='resource-hash-verified'?'resource-hash-verified':Date.now()<Date.parse(qualification.validUntil)?'verified':'delayed'","Retain loaded-resource integrity status independently of freshness")
+
 edit('__ETL_BUILD_ID__', hashlib.sha256(html.encode('utf-8')).hexdigest(), 'content-bound application build identity')
 
 TARGET.parent.mkdir(parents=True,exist_ok=True);TARGET.write_text(html,encoding='utf-8',newline='')
