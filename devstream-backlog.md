@@ -6,8 +6,8 @@ Deploy target: `https://acmeproducts.github.io/stuff/devstream.html`
 Test target: `https://acmeproducts.github.io/stuff/devstream-test.html`
 
 ## Status
-- Current release: v1.0 b77 on devstream-test.html (2026-10-18)
-- Stage: TEST (b77)
+- Current release: v1.0 b78 on devstream-test.html (2026-10-21)
+- Stage: TEST (b78)
 
 ## Release Rules (inherited, proven)
 1. Mobile-first. All diagnostics in-app. No DevTools ever.
@@ -255,6 +255,40 @@ b39 incorrectly changed stationary hold into context-menu activation. Devstream 
 ## Graveyard
 - **G-DS-13 — Hold opens context menu:** rejected; donor behavior is double-tap context, hold-to-drag.
 - **G-DS-14 — Legacy generic #tabContext button styling:** rejected; it corrupts the donor context-menu appearance.
+
+---
+
+# 2026-10-21 — b78 VOICE MODE, ONE COMPLETE DESIGN (replaces the b76/b77 pieces)
+
+## Owner report
+Listening keeps answering "I did not catch that, tap to try again"; it should transcribe what it hears and offer a (re)submit button with editing; the screen must be smarter (if something was delivered there must be an Open app button that launches the app); mobile first, no scrolling; and: "it keeps piecemealing every feature, which buys me nothing; it has strayed away from the basic commands we already agreed were standard."
+
+## What went wrong (owner is right)
+Voice mode was shipped in separate pieces (switch, speaker, talk button, watch screen) and never as one working flow; it also reimplemented its own small set of buttons instead of reusing the standard commands the app already has (Stop, Run again / Continue, Open your app, Undo, Something's wrong, Check it works, the chips). The listening failure is most likely caused by the sound graph asking the microphone for a second time while speech recognition was using it (the second request can starve recognition on Android and returns no words).
+
+## The design (one screen, one flow; this replaces the b76/b77 voice descriptions)
+**The voice screen mirrors the standard task banner. Same state, same actions, same chips — spoken or tapped.** No scrolling at any size.
+
+States (exactly one is shown):
+1. **Ready** — big Talk button, the coach's last reply (2–3 lines; tap it for the full text), the chips.
+2. **Listening** — Talk button red ("tap when done"), live sound graph, live transcript. If the browser ends listening early with no words it restarts by itself (up to 3 times) so a pause or a slow start does not lose the turn.
+3. **Review** — what was heard appears in an **editable box** with **Send**, **Talk again** (adds to it) and **Clear**. Nothing is sent until Send, except the standard commands below, which act at once. If nothing was heard the box opens empty with "I couldn't hear anything — tap Talk, or type here".
+4. **Working** — big **Stop**, what it is doing and for how long. (Same as the banner.)
+5. **Delivered** — big **Open app** (opens the built app in a new tab), Share, Undo, Problem, the chips, and a smaller Talk button.
+6. **Couldn't finish** — the plain reason and a big **Try again**; **Waiting to start** — big **Continue**.
+- **Standard voice commands** (work in any state, spoken or typed in the review box): *stop · try again / continue · open app · share app · undo · something's wrong · check it · keyboard · repeat that* plus the chip words (*build it · questions · more ideas …*). After a delivery the screen reads "Say: open app, build it, or more ideas."
+- **Sound graph:** driven by what the browser itself reports (sound heard, speech heard, words arriving), not by a second microphone request.
+- **Diagnostic line** under the transcript shows what the browser reported ("mic on · audio · sound · speech · ended" or the error), so a device that still hears nothing can be diagnosed from a screenshot.
+- **Fits the screen with no scrolling** at watch (240×240), small watch (320×320), phone (360×640) and large phone sizes: chips shown 1 / 2 / 3 by height, the reply clamped or hidden on very small heights, the Talk button sized from the screen.
+- Keeps from b77: tap-and-hold on the Talk button opens the transcript window (X and Copy), the speaker toggle, Share app sheet, `?watch=1`, voice project creation, header microphone button, screen stays awake.
+- **Process rule:** voice mode ships as this single design. Further changes to it are fixes against this list, not new features.
+
+## Acceptance
+- **DS-V-1:** listening never uses a second microphone request; with no words the screen says so and opens the empty editable box.
+- **DS-V-2:** after listening the words appear in an editable box with Send / Talk again / Clear; Send submits; standard commands act at once.
+- **DS-V-3:** the screen shows the right single state (Ready, Listening, Review, Working, Delivered, Couldn't finish, Waiting) with the same actions as the banner, including Stop, Open app, Try again, Continue, Undo, Problem, Share.
+- **DS-V-4:** no vertical scrolling at 240×240, 320×320, 360×640 and 420×800 in every state.
+- **DS-V-5:** every standard command works by voice and in the box.
 
 ---
 
