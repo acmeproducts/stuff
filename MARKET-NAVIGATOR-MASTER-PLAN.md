@@ -2676,3 +2676,14 @@ ETL now offers Repair data on GitHub (force recheck approved providers, qualify 
 Historical proof: 39 sources, 273 source horizons, 21 index horizons, all PASS through 2026-10-19. Phone/desktop browser tests verify the ETL selection path, blocking absent/wrong choice, bounded source/curve dates and CSV/Markdown/JSON disclosures. The frozen 2016 model anchors are preserved. This is current-vintage historical data, not a reconstruction of everything known on the cutoff date.
 
 Public app 022abc72fc78938a831a8c55aa03dadf05930bf4 and historical package 9493eaa781228b6a3a7ae784fc0dfc6c0ecfa5535cd9fe76d3bcbac8b3b2c28f were verified after deployment. Current displayPermitted remains false. Evidence: MARKET-NAVIGATOR-HISTORICAL-CHOICE-AUDIT.json; source/selection/deploy run 39677496173. Baseline/default product URL unchanged. Earlier physical-device and live-provider prose acceptance gates remain explicit.
+
+
+## October 21 — compact historical status and actionable update failures
+
+Owner-requested correction: accepted historical data uses the existing chart heading and an ETL rail indicator; no extra sticky banner. The unexplained brand byline is removed. ETL shows verification totals before technical hashes and separates current acquisition failure, historical qualification and deployment.
+
+The reported run 39677496173 received the FRED site-maintenance HTML with HTTP success; its saved response hash is bdf2306877291d6411b5b8efa1036e6753029f3b07192f3a30d647832e6d6e07. Parsing that page caused the old generic JSON error. The response decoder now identifies maintenance and malformed responses explicitly; four provider-response cases pass. Status records preserve the actionable provider reason. No current-data success is claimed.
+
+A separate publication failure was an unrelated concurrent repository update. The verified commit can now be replayed without force; constructor hashes are checked again. Three real-Git tests cover preserving unrelated work and dirty generated pins, rejecting changed constructors, and refusing conflicting chart changes.
+
+Historical October19 qualification remains separate: 39 sources, 273 source horizons and 21 index horizons PASS. Phone/desktop selection and evidence-display tests pass. Public app be32825ae8f3063b54cea90272474a4fe8b3960a is verified; current display remains withheld. Machine evidence: MARKET-NAVIGATOR-STATUS-CLARITY-AUDIT.json. Existing physical-device/live-provider acceptance gates remain explicit.
