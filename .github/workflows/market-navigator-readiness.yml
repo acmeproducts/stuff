@@ -1,0 +1,57 @@
+name: Full implementation readiness — retained data only
+on:
+  push:
+    branches: [main]
+    paths: ['market-navigator-readiness-lab.cjs', 'market-navigator-acceptance/**', 'market-navigator-chart-correction/**', 'market-navigator-chart-correction-build.py', 'market-navigator-chart-*.cjs', 'market-navigator-period-audit.cjs', 'market-navigator-sync/test_*.cjs', '.github/workflows/market-navigator-readiness.yml']
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: market-navigator-implementation-readiness
+  cancel-in-progress: false
+jobs:
+  readiness:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Reproduce candidate and immutable source pins
+        run: python market-navigator-sync/rebuild_chart.py
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Install Chromium verification
+        run: |
+          npm install --prefix "$RUNNER_TEMP/mn-browser" playwright
+          "$RUNNER_TEMP/mn-browser/node_modules/.bin/playwright" install --with-deps chromium
+      - name: Verify real fail-closed consumer and diagnostic layout
+        env:
+          MN_PLAYWRIGHT_MODULE: ${{ runner.temp }}/mn-browser/node_modules/playwright
+          MN_BROWSER_CHANNELS: chromium
+        run: |
+          python market-navigator-sync/test_freshness.py
+          node market-navigator-sync/test_consumer_freshness.cjs
+          node market-navigator-sync/test_blocked_browser.cjs
+      - name: Run all mandatory implementation suites in isolated non-release scope
+        env:
+          MN_PLAYWRIGHT_MODULE: ${{ runner.temp }}/mn-browser/node_modules/playwright
+          MN_BROWSER_CHANNELS: chromium
+          MN_CHART_CANDIDATE_ROOT: .evidence/chart-correction-candidate
+          MN_SYNC_BROWSER_ROOT: market-navigator-throwaway-review
+          MN_ACCEPTANCE_SCOPE: retained-data-lab
+        run: |
+          export NODE_OPTIONS="--require $GITHUB_WORKSPACE/market-navigator-readiness-lab.cjs"
+          node market-navigator-acceptance/run.cjs
+      - name: Preserve implementation evidence — not source qualification
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: implementation-readiness-NOT-A-DATA-RELEASE
+          path: |
+            .evidence/*.json
+            .evidence/*.png
+          include-hidden-files: true
+          retention-days: 14
