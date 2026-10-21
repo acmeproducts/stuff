@@ -140,7 +140,20 @@ jobs:
           "$RUNNER_TEMP/mn-browser/node_modules/.bin/playwright" install --with-deps chromium
           MN_PLAYWRIGHT_MODULE="$RUNNER_TEMP/mn-browser/node_modules/playwright" MN_BROWSER_CHANNELS=chromium node market-navigator-sync/test_blocked_browser.cjs
           python - <<'PY'
-          import json,subprocess,hashlib
+          import sys,json,subprocess,hashlib
+          from pathlib import Path
+          sys.path.insert(0,'market-navigator-sync')
+          import historical
+          candidates=sorted(Path('.sync-publish/rejected-evidence').glob('*'))
+          source=candidates[-1] if candidates else Path('market-navigator-throwaway-review/market-navigator-rebuild-data')
+          try:historical.build('market-navigator-throwaway-review',source,'.sync-publish/historical')
+          except Exception as error:
+              Path('.evidence/historical-unavailable.json').write_text(json.dumps({'status':'UNAVAILABLE','error':str(error)}))
+              print('No complete historical package qualified; live containment remains mandatory.')
+          PY
+          MN_PLAYWRIGHT_MODULE="$RUNNER_TEMP/mn-browser/node_modules/playwright" MN_BROWSER_CHANNELS=chromium node market-navigator-sync/test_historical_browser.cjs
+          python - <<'PY'
+          import json,subprocess,hashlib,shutil
           from pathlib import Path
           app=Path('.evidence/chart-correction-candidate/throwaway.html').read_bytes()
           proof=json.loads(Path('.evidence/chart-construction-proof.json').read_text())
@@ -149,6 +162,7 @@ jobs:
           for path,digest in proof['input_hashes'].items():
               if hashlib.sha256(Path(path).read_bytes()).hexdigest()!=digest:raise SystemExit('Concurrent constructor change; containment not published')
           target=Path('market-navigator-throwaway-review')
+          shutil.copytree('.sync-publish/historical',target/'previous',dirs_exist_ok=True)
           (target/'throwaway.html').write_bytes(app)
           connection=json.loads((target/'connection.json').read_text())
           connection.update(status='BLOCKED',displayPermitted=False,application_blob=hashlib.sha1(b'blob '+str(len(app)).encode()+b'\0'+app).hexdigest(),reason='ETL did not establish a complete current package. Live chart and analysis consumers are withheld.')
@@ -156,7 +170,7 @@ jobs:
           PY
           git config user.name 'Market Navigator verified synchronization'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-          git add -- market-navigator-throwaway-review/throwaway.html market-navigator-throwaway-review/connection.json
+          git add -- market-navigator-throwaway-review/throwaway.html market-navigator-throwaway-review/connection.json market-navigator-throwaway-review/previous
           if ! git diff --cached --quiet; then
             git commit -m 'Withhold incomplete live data pending strict ETL qualification [skip ci]'
             git push origin HEAD:main
@@ -180,6 +194,8 @@ jobs:
             .evidence/chart-period-audit.json
             .evidence/period-*.png
             .evidence/withheld-*.png
+            .evidence/historical-*.png
+            .evidence/historical-acceptance.json
             .evidence/chart-presentation-tests.json
             .evidence/presentation-*.png
           include-hidden-files: true
