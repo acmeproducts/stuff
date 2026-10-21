@@ -42,6 +42,11 @@ def build(base,source,output,now=None):
             if completeness['status']!='PASS':continue
             derived=s.rebuild(root);proof=s.qualify(root)
             if derived['commonMarketAnchor']!=cutoff:raise ValueError('Historical chart cutoff differs')
+            previous=s.read(base/'market-navigator-rebuild-data/market-evidence/persistent-indices-v1.json')
+            current=s.read(root/'market-evidence/persistent-indices-v1.json')
+            for index,row in current['indices'].items():
+                for sid in row['components']:
+                    if row['componentValues'][sid][0]!=previous['indices'][index]['componentValues'][sid][0]:raise ValueError('Historical source revision changes frozen model anchor: '+sid)
             completeness.update(scope='explicit-historical',evaluatedAt=evaluated.isoformat(),checkedAt=now.isoformat(),validUntil=None)
             proof.update(freshness=completeness,sourceProofMode='independently parsed retained provider responses; current-vintage historical cutoff')
             s.write(root/'market-evidence/sync-proof.json',{'generatedAt':now.isoformat(),'qualification':proof,'historical':{'cutoff':cutoff,'notPointInTimeVintage':True}})
