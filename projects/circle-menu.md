@@ -9,7 +9,8 @@
 - **Carousel rotation + inertia ✅** — tangential drag on the ring rotates nodes; flick decays with friction; angle wraps 0‑360; fully pointer‑event based (mouse + touch).
 - In‑app diagnostics panel (collapsible) logs all interactions. No console‑only output.
 - **Owner direction (2026-10-21):** next code must include tilt detents + pinch-to-resize AND seeded Configure-panel menus for real browser use plus at least one multi-level nested menu. GitHub token/save/load remains later unless owner re-prioritizes.
-- Not yet built in code: tilt detents, pinch radius, center‑action assignments, seeded config panel rendering, JSON menu loading, nested submenu navigation, GitHub persistence.
+- Built since: tilt detents (0/15/30/45/60 snap), pinch + wheel radius, seeded Browser & multi-level Launcher menus, nested submenu navigation with breadcrumbs + back node, Configure panel (menu list, add/delete items, view readouts, reset), hover tooltips, pop-out window + PWA manifest, GitHub token save/load of menus JSON.
+- Not yet built in code: editing existing items in-place, reordering items, center-action gesture assignment, icon tier system, embed mode.
 
 ## PRODUCT VISION
 A floating, always‑on‑top circular launcher. A smiling orange heart floats over everything. One tap blooms a rotatable, tiltable, zoomable ring of action nodes. Content is data‑driven (local seeded menus now; JSON/GitHub later), so menus can nest infinitely. Standalone first; designed to embed later into the owner's existing page.
@@ -33,11 +34,13 @@ A floating, always‑on‑top circular launcher. A smiling orange heart floats o
 ## BUILD ORDER (adjusted by owner 2026-10-21)
 1. **Production shell + heart command popover** — ✅
 2. **Carousel rotation + inertia** — ✅
-3. **Tilt detents + pinch radius + seeded Configure menus** — **active next code**
-4. **Menu navigation engine: nested submenus, breadcrumbs, center-button action assignment** — next after slice 3
-5. **JSON loading/saving + GitHub token workflow** — later
-6. **Icon tiers + polish** — later
-7. **Final integration & QA** — later
+3. **Tilt detents + pinch radius + seeded Configure menus** — ✅
+4. **Menu navigation engine: nested submenus, breadcrumbs, back node** — ✅
+5. **GitHub token save/load of menus JSON** — ✅ (shipped early with slice 3/4 code)
+6. **Editor upgrade: edit existing items in place + reorder (▲▼ first, drag later)** — **active next code**
+7. **Center-button gesture-action assignment** — next after editor upgrade
+8. **Icon tiers + polish** — later
+9. **Final integration & QA** — later
 
 ## ACTIVE BUILD — TURN 10 (2026-10-21)
 
@@ -77,17 +80,33 @@ Land code for slice 3: physical ring depth (tilt detents, pinch/wheel radius) pl
 - [ ] No v1 remnants reappear; no console-only diagnostics.
 - [ ] Usable at 360×800 and 390×844; tilted nodes remain inside panel.
 
-### Deferred
-- True nested submenu navigation/breadcrumbs and center gesture assignment (slice 4).
-- External JSON fetch and GitHub token/save/load (slice 5).
-- Full icon tier system (slice 6).
+### Deferred (turn 11)
+- Drag-to-reorder as a later enhancement on top of ▲▼ buttons.
+- Center gesture assignment and full icon tier system.
+
+## ACTIVE BUILD — TURN 11 (2026-10-21)
+
+### Goal
+Upgrade the Configure panel's menu editor: today items can only be added and deleted. Add in-place editing of existing items and reordering.
+
+### Scope
+- **Edit:** each row in "Edit: <menu>" gets an edit affordance. Clicking loads the item's label, icon, action and URL into the form, switches the form button to "Save Changes" with a Cancel option, and writes back to the same item on save (preserving id and children).
+- **Reorder:** each row gets ▲ ▼ buttons that move the item up/down within its parent menu, persist, and rebuild nodes so ring order updates live. Button-based (not drag) for v1 so it works on touch and mouse alike.
+- **Submenu safety:** editing an item with children keeps its children intact; reorder only touches the current level's array.
+- Persist via existing `persistMenus()`; rebuild nodes + refresh ring layout after every edit/reorder; log each operation to diagnostics.
+
+### Acceptance checks
+- [ ] Edit populates the form from an existing item and saving updates it in place (id/children preserved).
+- [ ] ▲▼ reorder updates ring node order immediately and survives reload.
+- [ ] Add mode still works; switching between add/edit modes is explicit (Cancel restores add mode).
+- [ ] No regressions: submenu navigation, GitHub save/load, gestures, tooltips.
 
 ## BACKLOG / FUTURE
-- Nested submenu navigation with breadcrumbs and back node.
+- Drag-to-reorder items in the editor (▲▼ shipped first).
 - Center button gesture-action assignment (tap/double-tap/long-press).
-- JSON import/export, schema validation, GitHub token save/load.
 - Icon tiers: built-in SVG, URL, emoji-free professional sets.
 - Embed mode for owner’s existing page.
+- Multi-window sync: pop-out window reflects menu edits via storage events.
 
 ## DECISION LOG
 - **2026-10-20:** v1 prototype built and iterated.
@@ -96,6 +115,7 @@ Land code for slice 3: physical ring depth (tilt detents, pinch/wheel radius) pl
 - **2026-10-21 — Turn 8:** Carousel rotation + inertia built; owner ordered purge of all v1 remnants; code rebuilt clean.
 - **2026-10-21 — Turn 9:** Tilt/pinch slice specified; earlier engine runs failed on credit/time.
 - **2026-10-21 — Turn 10:** Owner re-scoped slice 3 to include seeded Configure menus for browser and multi-level demo; plan updated before code.
+- **2026-10-21 — Turn 11:** Owner asked for editor item editing + reordering; plan updated before code. Build order re-baselined to reflect slices 3–5 already shipped.
 
 ## TURN/STAGE LEDGER
 | Turn | Stage | Status | Notes |
@@ -106,7 +126,9 @@ Land code for slice 3: physical ring depth (tilt detents, pinch/wheel radius) pl
 | 7 | Slice 1A: production shell + long-press popover | ✅ |
 | 8 | Slice 2: carousel rotation + inertia | ✅ |
 | 9 | Slice 3 planned | ✅ |
-| 10 | Slice 3 re-scoped: gestures + seeded config menus | 📋 Plan updated — code next |
+| 10 | Slice 3 re-scoped: gestures + seeded config menus | ✅ Built |
+| 10b | Submenus, tooltips, pop-out window, GitHub sync | ✅ Built |
+| 11 | Editor upgrade planned: edit + reorder items | 📋 Plan updated — code next |
 
 ## RUN LOG
 | Date | Result | What |
@@ -123,3 +145,4 @@ Land code for slice 3: physical ring depth (tilt detents, pinch/wheel radius) pl
 | 2026-10-21 | plan updated | Owner re-scope accepted; code for tilt/pinch + seeded menus is next |
 | 2026-10-21 14:14 | Main | built projects/circle-menu.html | Done. | 5c2fe4f |
 | 2026-10-21 14:41 | Main | built projects/circle-menu.html | Fixed the real bugs — node clicks were being killed by pointer capture, and tilt rotated the wrong way — and added the missing pieces: hover | 0fee5f2 |
+| 2026-10-21 | plan updated | Turn 11: editor item editing + reordering specified; build order re-baselined |
