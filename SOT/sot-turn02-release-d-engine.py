@@ -48,6 +48,7 @@ class Store:
    "stale":"INTEGER NOT NULL DEFAULT 0",
    "deleted_at":"REAL",
    "rank":"INTEGER",
+   "excluded":"INTEGER NOT NULL DEFAULT 0",
    "quick_signature":"TEXT"
   }
   for name,decl in source_additions.items():
@@ -407,12 +408,24 @@ class Manager:
   return (0 if str(r["plan"] or "").upper()=="LANDED" else 1,ranks.get(r["source_id"],1<<30),len(path),path)
  def target_source_ids(self):
   return {r["source_id"] for r in self.s.rows("SELECT source_id FROM sources WHERE role='target' AND enabled=1")}
+ def excluded_source_ids(self):
+  return {r["source_id"] for r in self.s.rows("SELECT source_id FROM sources WHERE enabled=1 AND excluded=1 AND role<>'target'")}
+ def set_excluded(self,source_id,on):
+  if not self.s.rows("SELECT 1 FROM sources WHERE source_id=? AND role<>'target'",(source_id,)):raise RuntimeError("root not found")
+  self.s.submit("UPDATE sources SET excluded=? WHERE source_id=?",(1 if on else 0,source_id),True);self.s.drain(10)
+  z=self.recompute_classifications();self.s.bump_catalog_revision()
+  self.event("source_excluded" if on else "source_included","Root excluded: its files sit out of Keep / Excess" if on else "Root included again: Keep / Excess recalculated",None,source_id,"INFO",{});return z
  def recompute_classifications(self):
   rows=self.s.rows("SELECT placement_id,placement_no,fingerprint,source_id,path,plan,keep_override FROM placements WHERE placement_state='ACTIVE' AND availability='AVAILABLE' AND fingerprint IS NOT NULL ORDER BY fingerprint,placement_no")
-  ranks=self.source_ranks();groups={};tgt=self.target_source_ids()
-  for r in rows:groups.setdefault(r["fingerprint"],[]).append(r)
+  ranks=self.source_ranks();groups={};tgt=self.target_source_ids();exc=self.excluded_source_ids();out=[]
+  # files of an excluded root take no part in Keep / Excess
+  for r in rows:
+   if r["source_id"] in exc:out.append(r)
+   else:groups.setdefault(r["fingerprint"],[]).append(r)
   stmts=[("UPDATE placements SET system_classification=NULL,duplicate_group=NULL,duplicate_cardinality=NULL WHERE placement_state<>'ACTIVE' OR availability<>'AVAILABLE' OR fingerprint IS NULL",()),
          ("UPDATE placements SET system_classification=NULL,duplicate_group=NULL,duplicate_cardinality=NULL WHERE placement_state='ACTIVE' AND availability='AVAILABLE' AND fingerprint IS NOT NULL",())]
+  exkept={r["fingerprint"] for r in out if r["keep_override"]==1}
+  for r in out:stmts.append(("UPDATE placements SET system_classification='EXCLUDED',duplicate_group=NULL,duplicate_cardinality=NULL WHERE placement_id=?",(r["placement_id"],)))
   for fp,items in groups.items():
    n=len(items)
    # content already on the TARGET is Landed; every source copy of it is Excess, whatever the priority or a manual tick
@@ -421,10 +434,11 @@ class Manager:
     for r in items:stmts.append(("UPDATE placements SET system_classification=?,duplicate_group=?,duplicate_cardinality=? WHERE placement_id=?",("LANDED" if r["source_id"] in tgt else "EXCESS",group,n,r["placement_id"])))
     continue
    if n==1:
-    cls="EXCESS" if items[0]["keep_override"]==0 else "UNIQUE"
+    cls="EXCESS" if items[0]["keep_override"]==0 and fp not in exkept else "UNIQUE"
     stmts.append(("UPDATE placements SET system_classification=?,duplicate_cardinality=1 WHERE placement_id=?",(cls,items[0]["placement_id"])));continue
    group=fp[:16]
-   if any(r["keep_override"] is not None for r in items):keep={r["placement_id"] for r in items if r["keep_override"]==1}
+   # a manual choice stands (even "keep none"), unless the only kept copy now sits in an excluded root
+   if any(r["keep_override"] is not None for r in items) and not (fp in exkept and not any(r["keep_override"]==1 for r in items)):keep={r["placement_id"] for r in items if r["keep_override"]==1}
    else:keep={min(items,key=lambda r:self.keep_order(r,ranks))["placement_id"]}
    for r in items:
     stmts.append(("UPDATE placements SET system_classification=?,duplicate_group=?,duplicate_cardinality=? WHERE placement_id=?",("KEEP" if r["placement_id"] in keep else "EXCESS",group,n,r["placement_id"])))
