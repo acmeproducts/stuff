@@ -1,3 +1,9 @@
+# Current release disposition: BLOCKED — incomplete source periods
+
+The owner identified daily sources through October 19 inside an October 20 package. Prior arithmetic/hash/browser PASS records did not enforce synchronized source periods. They are historical evidence, not current release acceptance. Full seven-horizon visual audit remains open.
+
+Strict upstream completeness and consumer withholding are implemented in 305483d60cc8fb47407c97a6e511134f5f5ac9ba. Verification: https://github.com/acmeproducts/stuff/actions/runs/39584145637. Live publication requires all enabled daily/trading-day/daily-NAV sources through the completed market date, with no gaps in the last five market sessions; other cadences must meet publication calendars. A successful fetch cannot override missing periods. No synthesized observations, proxy substitution or line extension.
+
 # Chart contract audit — current disposition
 
 The October 20 owner decision permits dollar-based series to share the dollar axis. Each legend information card explains its native quote unit; USD, USD/barrel and USD/pound retain actual native values. C21 remains resolved.
