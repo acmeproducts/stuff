@@ -41,5 +41,12 @@ try:
   srv.target_get=lambda:{"configured":True,"path":str(home/"t"),"free_bytes":10**9}
   assert not srv.land_candidates(ids),"excluded files never land"
   print("PASS files of an excluded root never land")
+  # an offline drive (root gone, or an empty mount folder) never retires a root's files
+  M.set_excluded(sa,False);n0=S.rows("SELECT COUNT(*) n FROM placements WHERE source_id=? AND placement_state='ACTIVE'",(sb,))[0]["n"]
+  b.rename(home/"b-offline");z=M.check_source_metadata(sb);assert z.get("offline") and not z["changed"],z
+  M.enqueue_info([sb]);wait_jobs(S);assert S.rows("SELECT COUNT(*) n FROM placements WHERE source_id=? AND placement_state='ACTIVE'",(sb,))[0]["n"]==n0
+  b.mkdir();M.enqueue_info([sb]);wait_jobs(S);assert S.rows("SELECT COUNT(*) n FROM placements WHERE source_id=? AND placement_state='ACTIVE'",(sb,))[0]["n"]==n0,"empty mount folder"
+  b.rmdir();(home/"b-offline").rename(b);M.enqueue_info([sb]);wait_jobs(S);assert cls(b/"dup.txt") in ("KEEP","EXCESS")
+  print("PASS a root that is offline (missing or an empty mount folder) keeps its files; nothing is retired, nothing recalculates")
 finally:
  if old is not None:os.environ["HOME"]=old

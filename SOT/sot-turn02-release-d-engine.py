@@ -408,6 +408,10 @@ class Manager:
   return (0 if str(r["plan"] or "").upper()=="LANDED" else 1,ranks.get(r["source_id"],1<<30),len(path),path)
  def target_source_ids(self):
   return {r["source_id"] for r in self.s.rows("SELECT source_id FROM sources WHERE role='target' AND enabled=1")}
+ @staticmethod
+ def root_readable(root):
+  try:return bool(root) and os.path.isdir(root) and os.access(root,os.R_OK|os.X_OK) and next(os.scandir(root),None) is not None
+  except OSError:return False
  def excluded_source_ids(self):
   return {r["source_id"] for r in self.s.rows("SELECT source_id FROM sources WHERE enabled=1 AND excluded=1 AND role<>'target'")}
  def set_excluded(self,source_id,on):
@@ -516,6 +520,9 @@ class Manager:
    if quick is not None and json.loads(src["quick_signature"])==quick:
     self.s.submit("UPDATE sources SET metadata_checked=? WHERE source_id=?",(time.time(),source_id),True);self.s.drain(10)
     return {"source_id":source_id,"checked":True,"changed":False,"quick":True}
+  if not self.root_readable(src["root"]):
+   self.s.submit("UPDATE sources SET metadata_checked=? WHERE source_id=?",(time.time(),source_id),True);self.s.drain(10)
+   return {"source_id":source_id,"checked":True,"changed":False,"offline":True}
   live=self.metadata_signature(source_id)
   baseline=json.loads(src["metadata_signature"]) if src["metadata_signature"] else self.placement_signature(source_id)
   upgrade=False
@@ -670,6 +677,10 @@ class Manager:
     seen=rt["seen"].get(sid,set())
     active=self.s.rows("SELECT placement_id,path FROM placements WHERE source_id=? AND placement_state='ACTIVE'",(sid,))
     missing=[r["placement_id"] for r in active if r["path"] not in seen]
+    # an offline drive looks like an empty folder: never retire a root's files because it could not be read
+    root=next((x["root"] for x in self._source_rows() if x["source_id"]==sid),None)
+    if missing and (not self.root_readable(root) or (active and not seen)):
+     self.event("source_unreachable","Root could not be read; its files were kept as they were",jid,sid,"WARNING",{"root":root,"kept":len(missing)});continue
     if missing:
      self.s.many("UPDATE placements SET placement_state='RETIRED',retired_at=?,availability='UNAVAILABLE',plan=NULL,system_classification=NULL,duplicate_group=NULL,duplicate_cardinality=NULL WHERE placement_id=?",[(now,pid) for pid in missing],True)
      self.event("source_missing_retired",f"{len(missing)} missing placements retired",jid,sid,"INFO",{"count":len(missing)})
