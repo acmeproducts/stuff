@@ -45,6 +45,19 @@ class Completeness(unittest.TestCase):
    if c in g.DAILY:self.save(i,['2026-10-12','2026-10-13']+self.dates[:3])
   q=g.require_complete(self.root,dt.datetime(2026,10,18,8,tzinfo=s.UTC),s.read,schedule)
   self.assertEqual(q['marketDate'],'2026-10-16')
+ def add_weekly(self,rule):
+  p=self.root/'data/market-backend/data-catalog.json';c=s.read(p);c['series'].append({'id':'nfci','native_cadence':'weekly','enabled':True});s.write(p,c)
+  p=self.root/'data/market-backend/publication-rules.json';r=s.read(p);r['rules']['nfci']=rule;s.write(p,r);self.save('nfci',['2026-10-09'])
+ def test_scheduled_release_expires_before_market_close(self):
+  self.add_weekly({'calendar_valid_through':'2026-12-31','releases':[{'period':'2026-10-09','published_at':'2026-10-14T13:30:00Z'},{'period':'2026-10-16','published_at':'2026-10-21T13:30:00Z'}]})
+  self.assertEqual(self.audit()['validUntil'],'2026-10-21T13:30:00+00:00')
+  with self.assertRaisesRegex(g.IncompleteData,'nfci'):g.require_complete(self.root,dt.datetime(2026,10,21,14,tzinfo=s.UTC),s.read,schedule)
+ def test_published_revision_also_expires_the_old_receipt(self):
+  self.add_weekly({'calendar_valid_through':'2026-12-31','releases':[{'period':'2026-10-09','published_at':'2026-10-14T13:30:00Z'},{'period':'2026-10-09','published_at':'2026-10-21T13:30:00Z','revision':True}]})
+  self.assertEqual(self.audit()['validUntil'],'2026-10-21T13:30:00+00:00')
+ def test_estimated_weekly_release_also_limits_expiry(self):
+  self.add_weekly({})
+  self.assertEqual(self.audit()['validUntil'],'2026-10-21T15:00:00+00:00')
  def test_no_due_shortcut_cannot_bypass_gate(self):
   base=HERE.parent/'market-navigator-throwaway-review';target=self.root/'should-not-exist'
   with patch.object(s,'collect',return_value=[{'id':'hySpread','status':'not-due','changed':False}]):

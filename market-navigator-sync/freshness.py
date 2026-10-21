@@ -40,6 +40,19 @@ def audit(root,now,read,scheduler):
         if scheduler.expectation(clock,probe,rules)['period']>target:
             expiry=probe.isoformat();break
     if not expiry:raise ValueError('No governed next-session expiry')
+    deadlines=[scheduler.instant(expiry)]
+    for meta in metas:
+        if meta['native_cadence'] in DAILY:continue
+        current=scheduler.expectation(meta,now,rules)
+        if current.get('next_release'):
+            release=scheduler.instant(current['next_release'])
+            if release>now:deadlines.append(release)
+        elif current.get('schedule')=='conservative-estimate':
+            for hour in range(1,24*11):
+                probe=now.replace(minute=0,second=0,microsecond=0)+dt.timedelta(hours=hour)
+                if scheduler.expectation(meta,probe,rules)['period']!=current['period']:
+                    deadlines.append(probe);break
+    expiry=min(deadlines).isoformat()
     return {'schema':'market-navigator-release-completeness-v1','status':'BLOCKED' if any(r['problems'] for r in rows) else 'PASS','marketDate':target,'checkedAt':now.isoformat(),'validUntil':expiry,'requiredMarketSessions':required,'requiredSourceIds':[m['id'] for m in metas],'sources':rows}
 def require_complete(root,now,read,scheduler):
     report=audit(root,now,read,scheduler)
