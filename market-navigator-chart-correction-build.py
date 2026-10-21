@@ -146,6 +146,8 @@ edit('</head>','<style>'+Path('market-navigator-chart-correction/index-calculati
 
 edit("status:Date.now()<Date.parse(qualification.validUntil)?'verified':'delayed'","status:qualification.status==='resource-hash-verified'?'resource-hash-verified':Date.now()<Date.parse(qualification.validUntil)?'verified':'delayed'","Retain loaded-resource integrity status independently of freshness")
 
+edit("${esc(hh.actualLatestCanonicalObservation||'—')}</span></div><div class=\"actions\">", "${esc(hh.actualLatestCanonicalObservation||'—')}</span></div>${!IDX.includes(id)&&/USD|dollar|currency/i.test(meta.native_unit||'')?`<p class=\"rowMeta\" data-dollar-unit=\"${esc(id)}\">Dollar axis · ${esc(meta.native_unit)}. Dollar-based series share the dollar axis. Each series retains its own quoted unit; grouping does not convert its quote basis.</p>`:''}<div class=\"actions\">", 'Owner-approved dollar grouping disclosure in legend information')
+
 edit('__ETL_BUILD_ID__', hashlib.sha256(html.encode('utf-8')).hexdigest(), 'content-bound application build identity')
 
 TARGET.parent.mkdir(parents=True,exist_ok=True);TARGET.write_text(html,encoding='utf-8',newline='')

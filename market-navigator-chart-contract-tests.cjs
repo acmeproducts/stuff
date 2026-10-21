@@ -21,6 +21,14 @@ assert.equal(await tip.locator('.inspectionValues > [data-inspection-source]').c
 await p.mouse.click(pt.x,pt.y);assert(!(await info.isVisible()));await p.mouse.click(pt.x,pt.y,{button:'right'});assert(!(await info.isVisible()));await p.mouse.move(pt.x,pt.y);await p.mouse.down();await p.waitForTimeout(650);await p.mouse.up();assert(!(await info.isVisible()),'Plot long press cannot open information');await p.touchscreen.tap(pt.x,pt.y);assert(!(await info.isVisible()));await p.keyboard.press('Escape');assert(!(await tip.isVisible()));}
 results.push({id:'plot-gestures-edge-inspection',channel,viewport,w});
 await p.locator('#'+pre+'legend [data-id="qqq"]').click({button:'right'});assert(await info.isVisible());await info.locator('[id$="closeNowSeriesAbout"]').click();
+for(const order of [['growth','risk','macro','qqq','wti','copper'],['growth','copper','wti','qqq','macro','risk']]){
+const mixed=await configure(p,w,{view:'index',anchor:'growth',series:order,horizon:'5D',representation:'dual',display:'fixed'});
+const dollars=mixed.chart.series.filter(z=>['qqq','wti','copper'].includes(z.id));assert.equal(dollars.length,3);
+for(const z of mixed.chart.series){assert.equal(z.axis,['qqq','wti','copper'].includes(z.id)?1:0);if(['qqq','wti','copper'].includes(z.id)){assert(z.points.length);for(const q of z.points)assert.equal(q.v,q.raw,'Dollar grouping retains actual native quotes')}}
+const before=JSON.stringify(mixed.chart);
+for(const z of dollars){await p.locator('#'+pre+'legend [data-id="'+z.id+'"]').click({button:'right'});await info.waitFor({state:'visible'});const text=await info.locator('[data-dollar-unit="'+z.id+'"]').innerText();assert(text.includes(z.unit),'Card shows exact native unit '+z.unit);assert(text.includes('Dollar-based series share the dollar axis'));assert(text.includes('does not convert'));await info.locator('[id$="closeNowSeriesAbout"]').click();assert.equal(JSON.stringify(await p.evaluate(w=>__mnRebuild[w]().state.chart,w)),before,'Information card preserves modes, axes, values and source dates')}
+}
+results.push({id:'dollar-grouping-unit-disclosure',channel,viewport,w});
 s=await configure(p,w,{view:'index',anchor:'growth',series:['growth','qqq','spy'],horizon:'5D',representation:'dual',display:'fixed'});
 for(const [button,kind] of [['nowJson','json'],['nowCsv','csv'],['nowMarkdown','md']]){
 await p.locator('#'+pre+'nowMoreBtn').click();const event=p.waitForEvent('download');await p.locator('#'+pre+button).click();const d=await event,text=fs.readFileSync(await d.path(),'utf8');assert(text.length>50);
