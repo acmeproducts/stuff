@@ -4,6 +4,11 @@
 <meta charset="UTF-8">
 <title>Circle Menu</title>
 <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<meta name="theme-color" content="#1a1e28">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<link id="pwaManifest" rel="manifest" href="">
 <style>
   :root{
     --accent:#ff7a1a;
@@ -60,7 +65,7 @@
     border:1px solid var(--panel-border);
     border-radius:24px;
     box-shadow:0 18px 50px rgba(0,0,0,0.5);
-    overflow:hidden;
+    overflow:visible;
     opacity:0;
     transform:scale(0.85);
     transition:opacity 0.22s ease, transform 0.22s cubic-bezier(.34,1.4,.5,1);
@@ -89,6 +94,19 @@
     z-index:5;
   }
   #closeBtn:hover{background:rgba(255,255,255,0.18);}
+
+  /* ---------- Breadcrumb ---------- */
+  #crumb{
+    position:absolute;
+    top:12px;left:14px;
+    font-size:11px;
+    letter-spacing:0.04em;
+    color:var(--muted);
+    z-index:5;
+    max-width:60%;
+    white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
+    pointer-events:none;
+  }
 
   /* ---------- Center button ---------- */
   #centerBtn{
@@ -121,12 +139,40 @@
     display:flex;align-items:center;justify-content:center;
     cursor:pointer;
     box-shadow:0 4px 12px rgba(0,0,0,0.35);
-    transition:background 0.15s ease, transform 0.15s ease;
+    transition:background 0.15s ease;
     z-index:3;
+    touch-action:none;
   }
   .node:hover{background:var(--node-bg-hover);}
-  .node:active{transform:scale(0.92);}
+  .node.pressed{background:var(--accent);border-color:var(--accent-dark);}
   .node svg{width:24px;height:24px;pointer-events:none;}
+  .node .sub{
+    position:absolute;right:-1px;bottom:-1px;
+    width:16px;height:16px;
+    border-radius:50%;
+    background:var(--accent);
+    display:flex;align-items:center;justify-content:center;
+    pointer-events:none;
+  }
+  .node .sub svg{width:10px;height:10px;color:#fff;}
+
+  /* ---------- Node tooltip ---------- */
+  #tip{
+    position:fixed;
+    display:none;
+    max-width:240px;
+    padding:8px 11px;
+    background:rgba(16,18,24,0.96);
+    border:1px solid var(--panel-border);
+    border-radius:9px;
+    box-shadow:0 8px 24px rgba(0,0,0,0.55);
+    z-index:1300;
+    pointer-events:none;
+    font-size:12px;
+    line-height:1.4;
+  }
+  #tip .t-label{font-weight:600;color:#fff;}
+  #tip .t-desc{color:var(--muted);margin-top:2px;}
 
   /* ---------- Long-press popover ---------- */
   #popover{
@@ -209,6 +255,22 @@
   .menuRow:hover{background:rgba(255,255,255,0.12);}
   .menuRow .count{color:var(--muted);font-size:11px;}
   .menuRow.active{border-color:var(--accent);background:rgba(255,122,26,0.12);}
+  .itemRow{
+    display:flex;align-items:center;gap:8px;
+    padding:7px 10px;margin-bottom:5px;
+    background:rgba(255,255,255,0.05);
+    border:1px solid var(--panel-border);
+    border-radius:9px;
+    font-size:12.5px;
+  }
+  .itemRow svg{width:16px;height:16px;flex:none;color:var(--icon-color);}
+  .itemRow .nm{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+  .itemRow .del{
+    flex:none;width:22px;height:22px;border-radius:6px;
+    border:none;background:rgba(255,80,80,0.15);color:#ff9c9c;
+    cursor:pointer;font-size:12px;line-height:1;
+  }
+  .itemRow .del:hover{background:rgba(255,80,80,0.3);}
   .row{display:flex;gap:8px;margin:8px 0;}
   .row .cfgBtn{flex:1;}
   .cfgBtn{
@@ -236,7 +298,7 @@
     color:var(--muted);
     margin:8px 0 3px;
   }
-  #configBody input{
+  #configBody input,#configBody select{
     width:100%;
     padding:8px 10px;
     border-radius:8px;
@@ -245,13 +307,13 @@
     color:var(--text-color);
     font-size:13px;
   }
-  #configBody input:focus{outline:none;border-color:var(--accent);}
+  #configBody input:focus,#configBody select:focus{outline:none;border-color:var(--accent);}
   #ghStatus{font-size:11px;color:#9fd18b;min-height:15px;margin-top:6px;}
   .hint{font-size:11px;color:var(--muted);margin-top:6px;line-height:1.45;}
   @media (max-width:560px){
     #configSheet{
       top:auto;bottom:0;left:0;
-      width:100%;height:62vh;
+      width:100%;height:68vh;
       border-left:none;
       border-top:1px solid var(--panel-border);
       border-radius:18px 18px 0 0;
@@ -259,6 +321,26 @@
     }
     #configSheet.open{transform:none;}
   }
+
+  /* ---------- Popout banner ---------- */
+  #popHint{
+    position:fixed;
+    top:10px;left:50%;transform:translateX(-50%);
+    display:none;
+    align-items:center;gap:10px;
+    padding:8px 14px;
+    background:rgba(22,25,33,0.95);
+    border:1px solid var(--panel-border);
+    border-radius:12px;
+    font-size:12.5px;
+    z-index:1400;
+    box-shadow:0 8px 24px rgba(0,0,0,0.5);
+  }
+  #popHint button{
+    padding:6px 12px;border-radius:8px;border:none;
+    background:var(--accent);color:#fff;font-size:12px;cursor:pointer;
+  }
+  #popHint .x{background:none;color:var(--muted);padding:4px 6px;}
 
   /* ---------- Diagnostics ---------- */
   #diag{
@@ -317,6 +399,9 @@
   <symbol id="i-volume" viewBox="0 0 24 24"><path d="M4 9.5v5h3.8L13 19V5L7.8 9.5H4z" fill="currentColor"/><path d="M16 9c1.7 1.6 1.7 4.4 0 6" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"/></symbol>
   <symbol id="i-upload" viewBox="0 0 24 24"><path d="M12 15.5V4.5m0 0L8 8.5m4-4l4 4M4.5 19.5h15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></symbol>
   <symbol id="i-download" viewBox="0 0 24 24"><path d="M12 4.5v11m0 0l-4-4m4 4l4-4M4.5 19.5h15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+  <symbol id="i-bookmark" viewBox="0 0 24 24"><path d="M7 4h10v16l-5-4-5 4z" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/></symbol>
+  <symbol id="i-popout" viewBox="0 0 24 24"><path d="M14 4h6v6M20 4l-8 8M9 6H5a1 1 0 0 0-1 1v12a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-4" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+  <symbol id="i-chev" viewBox="0 0 24 24"><path d="M9 5l7 7-7 7" fill="none" stroke="#fff" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/></symbol>
 </svg>
 
 <!-- Heart launcher -->
@@ -335,22 +420,38 @@
 <!-- Ring overlay -->
 <div id="overlay">
   <div id="ringPanel">
+    <div id="crumb"></div>
     <button id="closeBtn" aria-label="Close menu">✕</button>
     <div id="ringStage"></div>
     <button id="centerBtn" aria-label="Configure"><svg><use href="#i-gear"/></svg></button>
   </div>
 </div>
 
+<!-- Node tooltip -->
+<div id="tip"><div class="t-label"></div><div class="t-desc"></div></div>
+
 <!-- Long-press popover -->
 <div id="popover">
   <button id="optConfig"><svg><use href="#i-gear"/></svg>Configure</button>
+  <button id="optPopout"><svg><use href="#i-popout"/></svg>Pop out window</button>
   <button id="optQuit"><svg><use href="#i-quit"/></svg>Quit</button>
+</div>
+
+<!-- Popout banner -->
+<div id="popHint">
+  <span>Run as a floating window:</span>
+  <button id="btnPopHint">Pop out</button>
+  <button class="x" id="btnPopHide">✕</button>
 </div>
 
 <!-- Configure sheet -->
 <div id="configSheet">
   <div id="configHead"><span>Configure</span><button id="configClose" aria-label="Close configure">✕</button></div>
   <div id="configBody">
+    <h3>Window</h3>
+    <button class="cfgBtn primary" id="btnPopout" style="width:100%">Pop out as floating window</button>
+    <div class="hint">Opens the menu in its own small chromeless window that floats above other pages. You can also install it as an app from your browser menu for a permanent PWA window.</div>
+
     <h3>Menus</h3>
     <div id="menuList"></div>
     <div class="row">
@@ -358,6 +459,28 @@
       <button class="cfgBtn" id="btnLoadLauncher">Load Launcher Demo</button>
     </div>
     <button class="cfgBtn" id="btnResetMenus" style="width:100%">Reset Menus to Defaults</button>
+
+    <h3>Edit: <span id="editMenuName"></span></h3>
+    <div id="itemList"></div>
+    <label for="niLabel">New item label</label>
+    <input id="niLabel" placeholder="e.g. MDN Docs">
+    <label for="niIcon">Icon</label>
+    <select id="niIcon"></select>
+    <label for="niAction">Action</label>
+    <select id="niAction">
+      <option value="url">Open bookmark URL</option>
+      <option value="nav:back">Browser back</option>
+      <option value="nav:forward">Browser forward</option>
+      <option value="nav:reload">Reload page</option>
+      <option value="share">Share page</option>
+      <option value="print">Print page</option>
+      <option value="app:config">Open Configure</option>
+      <option value="app:quit">Quit</option>
+      <option value="submenu">Submenu (empty)</option>
+    </select>
+    <label for="niUrl">URL (bookmarks only)</label>
+    <input id="niUrl" placeholder="https://example.com">
+    <button class="cfgBtn primary" id="btnAddItem" style="width:100%;margin-top:8px">Add Item to Menu</button>
 
     <h3>Ring</h3>
     <div class="readout">Tilt <span id="roTilt">0°</span></div>
@@ -386,49 +509,70 @@
 </div>
 
 <!-- Diagnostics -->
-<div id="diag">
-  <div id="diagHead"><span>Diagnostics</span><span id="diagToggle">▾</span></div>
+<div id="diag" class="collapsed">
+  <div id="diagHead"><span>Diagnostics</span><span id="diagToggle">▸</span></div>
   <pre id="diagLog"></pre>
 </div>
 
 <script>
 'use strict';
 
+/* ================= PWA manifest (inline, single-file) ================= */
+(function(){
+  const manifest={
+    name:'Circle Menu',
+    short_name:'CircleMenu',
+    display:'standalone',
+    background_color:'#1a1e28',
+    theme_color:'#1a1e28',
+    start_url:location.href,
+    icons:[]
+  };
+  try{
+    document.getElementById('pwaManifest').href=
+      'data:application/manifest+json,'+encodeURIComponent(JSON.stringify(manifest));
+  }catch(_){}
+})();
+
+/* ================= Icon registry (for editor + tooltips) ================= */
+const ICONS=['i-back','i-forward','i-reload','i-share','i-print','i-gear','i-quit','i-dots','i-git','i-globe','i-play','i-volume','i-upload','i-download','i-bookmark','i-popout'];
+
 /* ================= Seeded menu data ================= */
 const DEFAULT_MENUS={
   browser:{id:'browser',label:'Browser',items:[
-    {id:'back',label:'Back',icon:'i-back',action:'nav:back'},
-    {id:'forward',label:'Forward',icon:'i-forward',action:'nav:forward'},
-    {id:'reload',label:'Reload',icon:'i-reload',action:'nav:reload'},
-    {id:'share',label:'Share',icon:'i-share',action:'share'},
-    {id:'print',label:'Print',icon:'i-print',action:'print'},
-    {id:'more',label:'More',icon:'i-dots',children:[
-      {id:'open-repo',label:'Open Repo',icon:'i-git',action:'gh:repo'},
-      {id:'gh-save',label:'Save Menu',icon:'i-upload',action:'gh:save'},
-      {id:'gh-load',label:'Load Menu',icon:'i-download',action:'gh:load'},
-      {id:'quit',label:'Quit',icon:'i-quit',action:'app:quit'}
+    {id:'back',label:'Back',icon:'i-back',action:'nav:back',desc:'Go back one page in this tab'},
+    {id:'forward',label:'Forward',icon:'i-forward',action:'nav:forward',desc:'Go forward one page in this tab'},
+    {id:'reload',label:'Reload',icon:'i-reload',action:'nav:reload',desc:'Reload the current page'},
+    {id:'share',label:'Share',icon:'i-share',action:'share',desc:'Share or copy the current page link'},
+    {id:'print',label:'Print',icon:'i-print',action:'print',desc:'Open the print dialog'},
+    {id:'bookmarks',label:'Bookmarks',icon:'i-bookmark',desc:'Saved sites',children:[
+      {id:'bm-github',label:'GitHub',icon:'i-git',action:'url:https://github.com',desc:'Open github.com in a new tab'},
+      {id:'bm-pages',label:'My GitHub Pages',icon:'i-globe',action:'gh:pages',desc:'Open your GitHub Pages site (set owner/repo in Configure)'},
+      {id:'bm-repo',label:'My Repository',icon:'i-git',action:'gh:repo',desc:'Open your repo (set owner/repo in Configure)'},
+      {id:'bm-mdn',label:'MDN Web Docs',icon:'i-globe',action:'url:https://developer.mozilla.org',desc:'Open developer.mozilla.org'}
     ]}
   ]},
   launcher:{id:'launcher',label:'Launcher Demo',items:[
-    {id:'m-browser',label:'Browser',icon:'i-globe',children:[
-      {id:'back',label:'Back',icon:'i-back',action:'nav:back'},
-      {id:'forward',label:'Forward',icon:'i-forward',action:'nav:forward'},
-      {id:'reload',label:'Reload',icon:'i-reload',action:'nav:reload'},
-      {id:'dev',label:'Dev',icon:'i-git',children:[
-        {id:'open-repo',label:'Open Repo',icon:'i-git',action:'gh:repo'},
-        {id:'pages',label:'GitHub Pages',icon:'i-globe',action:'gh:pages'},
-        {id:'gh-save',label:'Save Menu',icon:'i-upload',action:'gh:save'},
-        {id:'gh-load',label:'Load Menu',icon:'i-download',action:'gh:load'}
+    {id:'m-browser',label:'Browser',icon:'i-globe',desc:'Navigation and dev links',children:[
+      {id:'back',label:'Back',icon:'i-back',action:'nav:back',desc:'Go back one page'},
+      {id:'forward',label:'Forward',icon:'i-forward',action:'nav:forward',desc:'Go forward one page'},
+      {id:'reload',label:'Reload',icon:'i-reload',action:'nav:reload',desc:'Reload the current page'},
+      {id:'dev',label:'Dev',icon:'i-git',desc:'Developer shortcuts',children:[
+        {id:'open-repo',label:'Open Repo',icon:'i-git',action:'gh:repo',desc:'Open your repository'},
+        {id:'pages',label:'GitHub Pages',icon:'i-globe',action:'gh:pages',desc:'Open your GitHub Pages site'},
+        {id:'gh-save',label:'Save Menu',icon:'i-upload',action:'gh:save',desc:'Save menus to GitHub as JSON'},
+        {id:'gh-load',label:'Load Menu',icon:'i-download',action:'gh:load',desc:'Load menus from GitHub'}
       ]}
     ]},
-    {id:'media',label:'Media',icon:'i-play',children:[
-      {id:'play-pause',label:'Play / Pause',icon:'i-play',action:'media:playpause'},
-      {id:'vol-up',label:'Volume Up',icon:'i-volume',action:'media:volup'},
-      {id:'vol-down',label:'Volume Down',icon:'i-volume',action:'media:voldown'}
+    {id:'m-media',label:'Media',icon:'i-play',desc:'Media controls',children:[
+      {id:'play-pause',label:'Play / Pause',icon:'i-play',action:'media:playpause',desc:'Toggle page audio/video'},
+      {id:'vol-up',label:'Volume Up',icon:'i-volume',action:'media:volup',desc:'Raise volume of page media'},
+      {id:'vol-down',label:'Volume Down',icon:'i-volume',action:'media:voldown',desc:'Lower volume of page media'}
     ]},
-    {id:'system',label:'System',icon:'i-gear',children:[
-      {id:'config',label:'Configure',icon:'i-gear',action:'app:config'},
-      {id:'quit',label:'Quit',icon:'i-quit',action:'app:quit'}
+    {id:'m-system',label:'System',icon:'i-gear',desc:'App controls',children:[
+      {id:'config',label:'Configure',icon:'i-gear',action:'app:config',desc:'Open the Configure panel'},
+      {id:'popout',label:'Pop Out',icon:'i-popout',action:'app:popout',desc:'Reopen as a floating window'},
+      {id:'quit',label:'Quit',icon:'i-quit',action:'app:quit',desc:'Hide the launcher'}
     ]}
   ]}
 };
@@ -473,10 +617,13 @@ const ringStage=document.getElementById('ringStage');
 const centerBtn=document.getElementById('centerBtn');
 const closeBtn=document.getElementById('closeBtn');
 const popover=document.getElementById('popover');
+const crumb=document.getElementById('crumb');
+const tip=document.getElementById('tip');
 const diag=document.getElementById('diag');
 const diagLog=document.getElementById('diagLog');
 const configSheet=document.getElementById('configSheet');
 const menuList=document.getElementById('menuList');
+const itemList=document.getElementById('itemList');
 const ghStatus=document.getElementById('ghStatus');
 const roTilt=document.getElementById('roTilt');
 const roRadius=document.getElementById('roRadius');
@@ -504,8 +651,17 @@ function currentMenu(){
 }
 function currentItems(){
   const items=(currentMenu().items||[]).slice();
-  if(state.menuStack.length) items.unshift({id:'__back',label:'Back',icon:'i-back',back:true});
+  if(state.menuStack.length) items.unshift({id:'__back',label:'Back',icon:'i-back',back:true,desc:'Return to the previous ring'});
   return items;
+}
+function crumbPath(){
+  let m=state.menus[state.activeMenuId];
+  const names=[m?m.label:'?'];
+  for(const id of state.menuStack){
+    const next=(m.items||[]).find(i=>i.id===id);
+    if(next){names.push(next.label);m={items:next.children||[]};}
+  }
+  return names.join(' › ');
 }
 function loadMenu(id){
   if(!state.menus[id]) return;
@@ -515,28 +671,39 @@ function loadMenu(id){
   if(state.open) layoutRing();
   persistView();
   renderMenuList();
+  renderItemList();
   log(`Menu loaded: ${state.menus[id].label}`);
 }
 
 /* ================= Ring nodes ================= */
 let nodeEls=[];
 function buildNodes(){
+  hideTip();
   nodeEls.forEach(el=>el.remove());
   nodeEls=[];
   currentItems().forEach(item=>{
     const el=document.createElement('button');
     el.className='node';
     el.setAttribute('aria-label',item.label);
-    el.title=item.label;
     el.innerHTML=`<svg><use href="#${item.icon||'i-dots'}"/></svg>`;
+    if(item.children){
+      el.insertAdjacentHTML('beforeend','<span class="sub"><svg><use href="#i-chev"/></svg></span>');
+    }
     el.addEventListener('click',e=>{
       e.stopPropagation();
-      if(gesture.moved) return; // ignore clicks after a drag
+      flashNode(el);
       handleNode(item);
     });
+    el.addEventListener('mouseenter',()=>showTip(el,item));
+    el.addEventListener('mouseleave',hideTip);
     ringStage.appendChild(el);
     nodeEls.push(el);
   });
+  crumb.textContent=crumbPath();
+}
+function flashNode(el){
+  el.classList.add('pressed');
+  setTimeout(()=>el.classList.remove('pressed'),180);
 }
 function handleNode(item){
   if(item.back){
@@ -552,21 +719,55 @@ function handleNode(item){
   buildNodes();
   positionNodes();
 }
+
+/* ================= Tooltip ================= */
+function describeItem(item){
+  if(item.desc) return item.desc;
+  if(item.children) return `Opens a submenu with ${item.children.length} item${item.children.length===1?'':'s'}`;
+  const a=item.action||'';
+  if(a.startsWith('url:')) return 'Opens '+a.slice(4);
+  return a||'No action assigned yet';
+}
+function showTip(el,item){
+  tip.querySelector('.t-label').textContent=item.label;
+  tip.querySelector('.t-desc').textContent=describeItem(item);
+  tip.style.display='block';
+  const r=el.getBoundingClientRect();
+  const tw=tip.offsetWidth, th=tip.offsetHeight;
+  let x=r.left+r.width/2-tw/2;
+  let y=r.top-th-10;
+  if(y<6) y=r.bottom+10;
+  x=Math.max(6,Math.min(x,window.innerWidth-tw-6));
+  tip.style.left=x+'px';
+  tip.style.top=y+'px';
+}
+function hideTip(){tip.style.display='none';}
+
+/* ================= Actions ================= */
 function runAction(item){
   log(`Action: ${item.label}`);
   const a=item.action||'';
-  if(a==='nav:back') history.back();
+  if(a.startsWith('url:')){
+    const url=a.slice(4);
+    window.open(url,'_blank');
+    log(`Opened bookmark: ${url}`);
+  }
+  else if(a==='nav:back') history.back();
   else if(a==='nav:forward') history.forward();
   else if(a==='nav:reload') location.reload();
   else if(a==='print') window.print();
   else if(a==='share') doShare();
   else if(a==='app:quit') quitApp();
   else if(a==='app:config') openConfig();
+  else if(a==='app:popout') popOut();
   else if(a==='gh:save') ghSave();
   else if(a==='gh:load') ghLoad();
   else if(a==='gh:repo') openGh('repo');
   else if(a==='gh:pages') openGh('pages');
-  else log(`Stub action '${a||item.id}' — not wired yet`);
+  else if(a==='media:playpause') mediaToggle();
+  else if(a==='media:volup') mediaVolume(0.1);
+  else if(a==='media:voldown') mediaVolume(-0.1);
+  else log(`Stub action '${a||item.id}' — assign a URL or action in Configure`);
 }
 function doShare(){
   if(navigator.share){
@@ -586,6 +787,42 @@ function openGh(kind){
   window.open(url,'_blank');
   log(`Opened ${kind==='repo'?'repository':'GitHub Pages'}`);
 }
+function mediaToggle(){
+  const m=[...document.querySelectorAll('video,audio')];
+  if(!m.length){log('No media elements on this page');return;}
+  m.forEach(el=>el.paused?el.play():el.pause());
+  log('Media play/pause toggled');
+}
+function mediaVolume(d){
+  const m=[...document.querySelectorAll('video,audio')];
+  if(!m.length){log('No media elements on this page');return;}
+  m.forEach(el=>{el.volume=Math.max(0,Math.min(1,el.volume+d));});
+  log(`Volume ${d>0?'up':'down'}`);
+}
+
+/* ================= Pop-out floating window ================= */
+const IS_POPUP=window.opener&&window.opener!==window;
+function popOut(){
+  const w=460,h=680;
+  const x=window.screenX+window.outerWidth-w-24;
+  const y=window.screenY+60;
+  const win=window.open(location.href,'circleMenuPop',
+    `popup=yes,width=${w},height=${h},left=${x},top=${y},resizable=yes,scrollbars=no`);
+  if(win){log('Popped out as floating window');}
+  else log('Popup blocked — allow popups for this page');
+}
+document.getElementById('btnPopout').addEventListener('click',popOut);
+document.getElementById('optPopout').addEventListener('click',()=>{hidePopover();popOut();});
+(function popHint(){
+  if(IS_POPUP||loadJSON('cm_pophide')) return;
+  const banner=document.getElementById('popHint');
+  banner.style.display='flex';
+  document.getElementById('btnPopHint').addEventListener('click',()=>{banner.style.display='none';popOut();});
+  document.getElementById('btnPopHide').addEventListener('click',()=>{
+    banner.style.display='none';
+    saveJSON('cm_pophide',true);
+  });
+})();
 
 /* ================= Layout ================= */
 function layoutRing(){
@@ -610,7 +847,8 @@ function positionNodes(){
 }
 function setTilt(v){
   state.tilt=Math.max(0,Math.min(60,v));
-  ringStage.style.transform=`perspective(700px) rotateX(${state.tilt}deg)`;
+  /* negative rotateX = ring top tips AWAY from viewer (backwards) */
+  ringStage.style.transform=`perspective(700px) rotateX(${-state.tilt}deg)`;
   updateReadouts();
 }
 function setRadiusScale(s){
@@ -634,6 +872,7 @@ function openRing(){
 function closeRing(){
   if(!state.open) return;
   state.open=false;
+  hideTip();
   overlay.classList.remove('open');
   log('Ring closed');
 }
@@ -705,7 +944,9 @@ function snapTilt(){
 }
 
 ringStage.addEventListener('pointerdown',e=>{
-  if(e.target.closest('#centerBtn')||e.target.closest('#closeBtn')) return;
+  /* Let node buttons receive normal clicks — never capture pointers from them */
+  if(e.target.closest('.node')||e.target.closest('#centerBtn')||e.target.closest('#closeBtn')) return;
+  hideTip();
   stopInertia();
   pointers.set(e.pointerId,{x:e.clientX,y:e.clientY});
   try{ringStage.setPointerCapture(e.pointerId);}catch(_){}
@@ -874,6 +1115,7 @@ document.getElementById('optQuit').addEventListener('click',quitApp);
 function openConfig(){
   populateGhInputs();
   renderMenuList();
+  renderItemList();
   updateReadouts();
   configSheet.classList.add('open');
   log('Configure panel opened');
@@ -895,6 +1137,75 @@ function renderMenuList(){
     menuList.appendChild(row);
   });
 }
+function renderItemList(){
+  const m=state.menus[state.activeMenuId];
+  document.getElementById('editMenuName').textContent=m?m.label:'—';
+  itemList.innerHTML='';
+  if(!m) return;
+  m.items.forEach((it,idx)=>{
+    const row=document.createElement('div');
+    row.className='itemRow';
+    row.innerHTML=`<svg><use href="#${it.icon||'i-dots'}"/></svg><span class="nm">${it.label}${it.children?' ▸':''}</span>`;
+    const del=document.createElement('button');
+    del.className='del';
+    del.textContent='✕';
+    del.title='Remove item';
+    del.addEventListener('click',()=>{
+      m.items.splice(idx,1);
+      persistMenus();
+      buildNodes();
+      if(state.open) layoutRing();
+      renderItemList();
+      renderMenuList();
+      log(`Removed item: ${it.label}`);
+    });
+    row.appendChild(del);
+    itemList.appendChild(row);
+  });
+}
+(function fillIconSelect(){
+  const sel=document.getElementById('niIcon');
+  ICONS.forEach(id=>{
+    const o=document.createElement('option');
+    o.value=id;
+    o.textContent=id.replace('i-','');
+    sel.appendChild(o);
+  });
+  sel.value='i-bookmark';
+})();
+document.getElementById('btnAddItem').addEventListener('click',()=>{
+  const m=state.menus[state.activeMenuId];
+  if(!m) return;
+  const label=document.getElementById('niLabel').value.trim();
+  const icon=document.getElementById('niIcon').value;
+  const act=document.getElementById('niAction').value;
+  const url=document.getElementById('niUrl').value.trim();
+  if(!label){log('Add item: label is required');return;}
+  const item={
+    id:'it-'+Date.now().toString(36),
+    label,
+    icon
+  };
+  if(act==='submenu'){
+    item.children=[];
+    item.desc='Empty submenu — add items by loading it and editing';
+  }else if(act==='url'){
+    if(!url){log('Add item: URL required for a bookmark');return;}
+    item.action='url:'+url;
+    item.desc='Opens '+url;
+  }else{
+    item.action=act;
+  }
+  m.items.push(item);
+  persistMenus();
+  buildNodes();
+  if(state.open) layoutRing();
+  renderItemList();
+  renderMenuList();
+  document.getElementById('niLabel').value='';
+  document.getElementById('niUrl').value='';
+  log(`Added item: ${label}`);
+});
 document.getElementById('btnLoadBrowser').addEventListener('click',()=>loadMenu('browser'));
 document.getElementById('btnLoadLauncher').addEventListener('click',()=>loadMenu('launcher'));
 document.getElementById('btnResetMenus').addEventListener('click',()=>{
@@ -906,6 +1217,7 @@ document.getElementById('btnResetMenus').addEventListener('click',()=>{
   persistMenus();
   persistView();
   renderMenuList();
+  renderItemList();
   log('Menus reset to defaults');
 });
 document.getElementById('btnResetView').addEventListener('click',()=>{
@@ -1001,6 +1313,7 @@ async function ghLoad(){
     persistMenus();
     persistView();
     renderMenuList();
+    renderItemList();
     ghStatus.textContent='Loaded ✓';
     log(`GitHub load OK ← ${g.owner}/${g.repo}/${g.path||'circle-menu.json'}`);
   }catch(err){
@@ -1016,7 +1329,7 @@ window.addEventListener('resize',()=>{if(state.open) layoutRing();});
 buildNodes();
 setTilt(state.tilt);
 updateReadouts();
-log('Circle Menu initialized — tilt detents, pinch/wheel resize, seeded menus, GitHub sync ready');
+log('Circle Menu initialized — nodes clickable, tilt reversed (backwards), tooltips on, pop-out ready');
 </script>
 </body>
 </html>
