@@ -83,7 +83,6 @@
     z-index:3;
     display:none;
   }
-  /* Pop‑over for long‑press */
   #lpMenu{
     position:absolute;
     background:var(--diag-bg);
@@ -143,6 +142,13 @@
   let currentTheme='light';
   let dragOffset={x:0,y:0};
 
+  // Rotation state
+  const state={rotation:0}; // degrees
+  const ROT_SENSITIVITY=0.5; // degrees per pixel
+  const INERTIA_FRICTION=0.95;
+  const MIN_VELOCITY=0.1;
+  let inertiaAnim=null;
+
   // Long‑press handling
   let lpTimer=null;
   const LP_DELAY=600; // ms
@@ -169,10 +175,23 @@
       });
       container.appendChild(btn);
       itemElements.push(btn);
+      // initial placement
       const angle=i*step-Math.PI/2;
       const x=Math.cos(angle)*radius;
       const y=Math.sin(angle)*radius;
       btn.style.transform=`translate(${x}px,${y}px)`;
+    });
+  }
+
+  function updateItemPositions(){
+    const radius=Math.min(container.clientWidth,container.clientHeight)/2-80;
+    const step=(2*Math.PI)/items.length;
+    itemElements.forEach((el,i)=>{
+      const baseAngle=i*step-Math.PI/2;
+      const totalAngle=(baseAngle + state.rotation*Math.PI/180);
+      const x=Math.cos(totalAngle)*radius;
+      const y=Math.sin(totalAngle)*radius;
+      el.style.transform=`translate(${x}px,${y}px)`;
     });
   }
 
@@ -193,7 +212,6 @@
 
   heartBtn.addEventListener('click',e=>{
     e.stopPropagation();
-    // ignore click if long‑press menu is visible
     if(lpMenu.style.display==='block') return;
     menuOpen?closeMenu():openMenu();
   });
@@ -203,16 +221,14 @@
     closeMenu();
   });
 
-  // Drag heart
+  // Drag heart (move overlay)
   heartBtn.addEventListener('pointerdown',e=>{
     e.preventDefault();
     dragOffset.x=e.clientX-heartBtn.offsetLeft;
     dragOffset.y=e.clientY-heartBtn.offsetTop;
     heartBtn.setPointerCapture(e.pointerId);
     heartBtn.style.cursor='grabbing';
-    // start long‑press timer
     lpTimer=setTimeout(()=>{
-      // show pop‑over near heart
       const rect=heartBtn.getBoundingClientRect();
       lpMenu.style.left=`${rect.right+4}px`;
       lpMenu.style.top=`${rect.top}px`;
@@ -222,7 +238,6 @@
   });
   heartBtn.addEventListener('pointermove',e=>{
     if(e.pressure===0) return;
-    // cancel long‑press if moved beyond a small threshold
     if(lpTimer && (Math.abs(e.clientX-dragOffset.x-heartBtn.offsetLeft)>5 ||
                     Math.abs(e.clientY-dragOffset.y-heartBtn.offsetTop)>5)){
       clearTimeout(lpTimer);
@@ -241,6 +256,7 @@
       lpTimer=null;
     }
   });
+
   // Hide long‑press menu when clicking elsewhere
   document.addEventListener('click',e=>{
     if(lpMenu.style.display==='block' && !lpMenu.contains(e.target)){
@@ -249,10 +265,8 @@
     }
   });
 
-  // Config button (placeholder)
+  // Config / Quit
   configBtn.addEventListener('click',()=>log('Configure selected (TODO)'));
-
-  // Quit button – hide whole UI
   quitBtn.addEventListener('click',()=>{
     container.style.display='none';
     log('Application quit');
@@ -266,6 +280,60 @@
     log(`Theme set to ${t}`);
   }
   themeBtn.addEventListener('click',()=>applyTheme(currentTheme==='light'?'dark':'light'));
+
+  // ---------- Rotation handling ----------
+  let lastPointerX=null;
+  let lastTime=null;
+  let velocity=0;
+
+  function startInertia(){
+    if(inertiaAnim) cancelAnimationFrame(inertiaAnim);
+    function step(){
+      velocity*=INERTIA_FRICTION;
+      if(Math.abs(velocity)<MIN_VELOCITY){
+        velocity=0;
+        log('Inertia ended');
+        return;
+      }
+      state.rotation=(state.rotation+velocity)%360;
+      updateItemPositions();
+      inertiaAnim=requestAnimationFrame(step);
+    }
+    log('Inertia started');
+    inertiaAnim=requestAnimationFrame(step);
+  }
+
+  // Listen on the ring area (container) for drags that rotate
+  container.addEventListener('pointerdown',e=>{
+    if(!menuOpen) return;
+    // ignore if starting on heart or UI controls
+    if(e.target===heartBtn||e.target===closeBtn||e.target===lpMenu||e.target===themeBtn) return;
+    lastPointerX=e.clientX;
+    lastTime=performance.now();
+    velocity=0;
+    container.setPointerCapture(e.pointerId);
+  });
+  container.addEventListener('pointermove',e=>{
+    if(lastPointerX===null) return;
+    const dx=e.clientX-lastPointerX;
+    const dt=performance.now()-lastTime;
+    const deltaDeg=dx*ROT_SENSITIVITY;
+    state.rotation=(state.rotation+deltaDeg)%360;
+    updateItemPositions();
+    velocity=dx/dt*ROT_SENSITIVITY*1000; // deg per second
+    lastPointerX=e.clientX;
+    lastTime=performance.now();
+  });
+  container.addEventListener('pointerup',e=>{
+    if(lastPointerX===null) return;
+    container.releasePointerCapture(e.pointerId);
+    if(Math.abs(velocity)>0){
+      startInertia();
+    }
+    lastPointerX=null;
+    lastTime=null;
+  });
+  // ---------- End rotation ----------
 
   // Init
   createMenuItems();
