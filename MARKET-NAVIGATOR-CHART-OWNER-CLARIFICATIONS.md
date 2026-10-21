@@ -37,3 +37,10 @@ Zero regressions is an acceptance requirement, not a claim established by updati
 
 The reported GRW shape comparison must be checked numerically: preserve timestamps/raw/indexed values across representations and preserve axis bounds and plotted coordinates across highlight changes within a representation. Moving normalized dollar comparators off Y1 can legitimately rescale Y1 when the user explicitly switches representation; it must not change GRW's canonical values or switch modes on selection.
 
+
+
+## October 20 owner decision — dollar-axis grouping and per-series unit disclosure
+
+The owner explicitly permits dollar-based series to share the dollar axis, including USD quotes, USD per barrel and USD per pound. This supersedes the earlier prohibition on grouping these native dollar quote bases and resolves audit finding C21. All dollar-based series retain their actual native values on that axis; all normalized/index series retain their index axis. Do not reject these combinations, invent a third axis or silently change representation/reference choices.
+
+Use each series' existing legend information card to explain its exact native quote unit/basis. Keep the shared dollar-axis label readable and show the exact unit in the card. The disclosure does not convert barrels, pounds or share/unit quotes into a common physical quantity. Preserve legend-only information gestures, plot inspection, axes, colors and persistent choices. Add regression checks in both NOW and Analyze covering mixed dollar sources in different orders, true native values, exact per-series unit disclosure and unchanged geometry after information-card use.
