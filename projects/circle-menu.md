@@ -8,76 +8,94 @@
 - Glass ring overlay: close X, center gear button (stub), 5 real SVG action icons (back, forward, share, print, quit).
 - **Carousel rotation + inertia ✅** — tangential drag on the ring rotates nodes; flick decays with friction; angle wraps 0‑360; fully pointer‑event based (mouse + touch).
 - In‑app diagnostics panel (collapsible) logs all interactions. No console‑only output.
-- Not yet built: tilt detents, pinch radius, center‑action assignments, JSON menu loading, nested submenus, GitHub persistence.
+- **Owner direction (2026-10-21):** next code must include tilt detents + pinch-to-resize AND seeded Configure-panel menus for real browser use plus at least one multi-level nested menu. GitHub token/save/load remains later unless owner re-prioritizes.
+- Not yet built in code: tilt detents, pinch radius, center‑action assignments, seeded config panel rendering, JSON menu loading, nested submenu navigation, GitHub persistence.
 
 ## PRODUCT VISION
-A floating, always‑on‑top circular launcher. A smiling orange heart floats over everything. One tap blooms a rotatable, tiltable, zoomable ring of action nodes. Content is data‑driven (JSON, hosted on GitHub), so menus can nest infinitely. Standalone first; designed to embed later into the owner's existing page.
+A floating, always‑on‑top circular launcher. A smiling orange heart floats over everything. One tap blooms a rotatable, tiltable, zoomable ring of action nodes. Content is data‑driven (local seeded menus now; JSON/GitHub later), so menus can nest infinitely. Standalone first; designed to embed later into the owner's existing page.
 
 ## CORE CONCEPTS & VOCABULARY
-*(unchanged — see previous plan)*
+- **Heart:** floating launcher; tap toggles ring; drag moves; long-press opens command popover.
+- **Ring/Stage:** overlay surface containing nodes; supports rotation, tilt, radius scaling.
+- **Node:** circular action button positioned around the ring.
+- **Menu:** data object `{ id, label, icon?, action?, children?[] }`; children create nested submenus.
+- **Breadcrumb:** path stack for nested menus, rendered in config/ring header when menu engine lands.
+- **Detent:** fixed tilt angle the ring snaps to after a vertical drag.
 
 ## FEATURE SPECIFICATION (COMPLETE SCOPE)
-*(unchanged — see previous plan)*
+- Floating heart launcher: drag, tap bloom/collapse, long-press commands.
+- Ring overlay: glass panel, close X, center button.
+- Gestures: carousel rotation with inertia; axis-locked vertical tilt with detents; two-finger pinch and desktop wheel radius scaling.
+- Data-driven menus: seeded local menus now; JSON load and nested navigation next; GitHub persistence later.
+- Configure panel: local menu editor/seed viewer now; later imports/exports JSON, assigns center gestures, manages tokens.
+- Diagnostics always visible/collapsible in-app.
 
-## BUILD ORDER (one complete release, built in verifiable slices)
+## BUILD ORDER (adjusted by owner 2026-10-21)
 1. **Production shell + heart command popover** — ✅
 2. **Carousel rotation + inertia** — ✅
-3. **Tilt detents + pinch radius** — **next slice (active)**
-4. **Center button actions & settings** — later
-5. **Menu engine + nested JSON + breadcrumbs** — later
-6. **Content panel + GitHub save/load** — later
-7. **Icon tiers + polish** — later
-8. **Final integration & QA** — later
+3. **Tilt detents + pinch radius + seeded Configure menus** — **active next code**
+4. **Menu navigation engine: nested submenus, breadcrumbs, center-button action assignment** — next after slice 3
+5. **JSON loading/saving + GitHub token workflow** — later
+6. **Icon tiers + polish** — later
+7. **Final integration & QA** — later
 
-## ACTIVE BUILD — TURN 9 (2026-10-21)
+## ACTIVE BUILD — TURN 10 (2026-10-21)
 
 ### Goal
-Give the ring physical depth: vertical drags tilt it in 3D with snapping detents, and two‑finger pinch (plus mouse wheel) rescales the ring radius.
+Land code for slice 3: physical ring depth (tilt detents, pinch/wheel radius) plus a useful Configure panel seeded with professional menus: a Browser menu and a multi-level demo menu using repo/GitHub Pages-style entries and existing SVG icons. No GitHub network workflow yet.
+
+### Non-negotiables
+- Professional presentation only. No placeholder labels like A–F, no theme toggle, no cartoon/emoji assets.
+- Existing tap, drag-heart, long-press popover, close X, rotation inertia, and node click suppression must keep working.
+- All diagnostics in the in-app panel.
 
 ### Design decisions
-- **Tilt model:** `state.tilt` in degrees, clamped 0–60. Applied as `perspective() rotateX()` on `#ringStage` so the far edge recedes. Nodes stay children of the stage so they tilt together (no per-node math).
-- **Detents:** 0°, 15°, 30°, 45°, 60°. When a tilt drag ends, the tilt animates to the nearest detent over ~200 ms with ease-out. While dragging there is no snapping (direct control).
-- **Gesture split:** single-pointer drags on the ring stage classify by dominant axis after ~8 px of movement — horizontal → rotation (existing), vertical → tilt (new). Once classified, the axis locks until pointerup. This prevents accidental tilt while spinning.
-- **Pinch:** two pointers on the stage → track distance; radius scales by distance ratio. Desktop fallback: mouse wheel over the ring adjusts radius. Radius clamps to 70 px min and `(min(panelW,panelH)/2 − 46)` max. `state.radiusScale` (0.5–1.0 multiplier) persists across open/close.
-- **Inertia unchanged:** rotation inertia only applies to rotation gestures; tilt has no inertia (snaps to detent instead).
-- **Diagnostics:** log "tilt start", "tilt → N° (detent)", "pinch start", "radius → Npx", "wheel radius → Npx".
+- **Tilt model:** `state.tilt` degrees clamped 0–60. Applied to `#ringStage` as `transform: perspective(700px) rotateX(<tilt>deg)`; `transform-style: preserve-3d` on stage; nodes remain children so no per-node 3D math.
+- **Detents:** 0°, 15°, 30°, 45°, 60°. No snapping while dragging; on pointerup animate to nearest detent in ~200 ms ease-out cubic.
+- **Axis lock:** single-pointer stage drag classifies after ~8 px: dominant horizontal => rotation; dominant vertical => tilt. Lock until pointerup. Rotation inertia unchanged and only for rotation gestures; tilt has no inertia.
+- **Pinch:** track two active pointers on stage; radius scale = start distance ratio. Desktop fallback: wheel over `#ringPanel`. Clamp `state.radiusScale` 0.5–1.0 and final radius to `>=70px` and `<= min(panelW,panelH)/2 - 46`. Persist `radiusScale` across close/open.
+- **Seeded menus:** introduce `DEFAULT_MENUS` local data with at least:
+  - `browser`: Back, Forward, Reload, Share, Print, Open Repo (stub/logs for now), children example under “More”.
+  - `launcher`: nested multi-level sample such as Browser -> Dev -> GitHub Pages/Repo Actions; Media -> Volume/Play stubs; System -> Settings/Quit.
+- **Configure panel:** center gear and popover Configure open a right-side/bottom sheet listing seeded menus, current ring menu, tilt/radius readouts, and buttons: Load Browser, Load Launcher Demo, Reset Defaults. Actions log to diagnostics; real editing/JSON/GitHub later.
+- **Data boundary:** seeded menus are local constants in the HTML for this slice. They are shaped like final JSON so slice 4/5 can swap in loading without changing node rendering.
 
 ### Implementation scope
-- Extend `state` with `tilt` (0) and `radiusScale` (1.0).
-- Wrap ring contents: apply `transform: perspective(700px) rotateX(var)` on `#ringStage`; add CSS `transform-style: preserve-3d` where needed.
-- Extend the pointer handler on `#ringStage` to support two simultaneous pointers (pinch) and axis classification for single-pointer drags.
-- Add `snapTilt()` animation helper (requestAnimationFrame, ease-out cubic).
-- Add wheel listener on `#ringPanel` for desktop radius control.
-- `layoutRing()` computes `state.radius = baseRadius * state.radiusScale`; call `positionNodes()` after every tilt/radius change.
-- Node click suppression already keyed off `rotDrag.moved`; extend to tilt/pinch moves.
+- Extend `state`: `tilt`, `radiusScale`, `activeMenuId`, `menuStack`.
+- Add `TILT` constants, `PINCH` constants, pointer map for multi-pointer, axis classifier, `snapTilt()` rAF helper, wheel handler.
+- Update `layoutRing()` to use `baseRadius * radiusScale`; call `positionNodes()` after tilt/radius changes.
+- Extend click suppression from `rotDrag.moved` to shared `gesture.moved`.
+- Add config sheet DOM/CSS and `renderConfig()`; wire center gear + popover Configure.
+- Replace hard-coded `menuItems` usage with `renderMenu(currentMenu)` while preserving existing five browser actions as defaults.
 
 ### Acceptance checks
-- [ ] Dragging up/down on the ring tilts it smoothly (3D perspective visible).
-- [ ] Releasing a tilt drag snaps to the nearest detent (0/15/30/45/60) with a short animation.
-- [ ] Horizontal drags still rotate; vertical drags tilt; never both at once.
-- [ ] Two-finger pinch grows/shrinks the ring radius live; clamps at min/max.
-- [ ] Mouse wheel over the ring resizes on desktop.
-- [ ] Rotation inertia still works after these changes.
-- [ ] Tap, long-press popover, close X, and node clicks unaffected (no click fires after a drag).
-- [ ] Radius scale persists when closing and reopening the ring.
-- [ ] Diagnostics log tilt snaps and radius changes.
-- [ ] Usable at 360×800 and 390×844; tilt never clips nodes outside the panel.
+- [ ] Vertical drag tilts in 3D; release snaps to 0/15/30/45/60 with animation.
+- [ ] Horizontal drag rotates with existing inertia; a drag never does rotation and tilt simultaneously.
+- [ ] Pinch resizes live on touch; wheel resizes on desktop; clamps hold; radius persists across close/reopen.
+- [ ] Configure opens from center gear and long-press Configure; shows seeded Browser and multi-level Launcher demo.
+- [ ] Loading seeded menus rebuilds nodes using SVG icons; nested entries are present in data even if full navigation lands next slice.
+- [ ] No v1 remnants reappear; no console-only diagnostics.
+- [ ] Usable at 360×800 and 390×844; tilted nodes remain inside panel.
 
-### Deferred to later slices
-- Center-button gesture-action assignment (slice 4).
-- JSON menu loading, nested submenus, breadcrumbs (slice 5).
-- GitHub token, save, load workflow (slice 6).
-- Full icon tier system (slice 7).
+### Deferred
+- True nested submenu navigation/breadcrumbs and center gesture assignment (slice 4).
+- External JSON fetch and GitHub token/save/load (slice 5).
+- Full icon tier system (slice 6).
 
 ## BACKLOG / FUTURE
-*(unchanged — see previous plan)*
+- Nested submenu navigation with breadcrumbs and back node.
+- Center button gesture-action assignment (tap/double-tap/long-press).
+- JSON import/export, schema validation, GitHub token save/load.
+- Icon tiers: built-in SVG, URL, emoji-free professional sets.
+- Embed mode for owner’s existing page.
 
 ## DECISION LOG
 - **2026-10-20:** v1 prototype built and iterated.
 - **2026-10-21:** Owner rejected v1; full redesign plan created.
 - **2026-10-21 — Turn 7:** Production shell + long-press popover built.
-- **2026-10-21 — Turn 8:** Carousel rotation + inertia built (tangential drag, flick decay, wrap 0‑360). Owner then ordered purge of all v1 remnants; code rebuilt clean.
-- **2026-10-21 — Turn 9 (this update):** Tilt detents + pinch-to-resize slice planned; axis-locked gesture classification chosen so rotation and tilt never fight.
+- **2026-10-21 — Turn 8:** Carousel rotation + inertia built; owner ordered purge of all v1 remnants; code rebuilt clean.
+- **2026-10-21 — Turn 9:** Tilt/pinch slice specified; earlier engine runs failed on credit/time.
+- **2026-10-21 — Turn 10:** Owner re-scoped slice 3 to include seeded Configure menus for browser and multi-level demo; plan updated before code.
 
 ## TURN/STAGE LEDGER
 | Turn | Stage | Status | Notes |
@@ -87,7 +105,8 @@ Give the ring physical depth: vertical drags tilt it in 3D with snapping detents
 | 6 | Slice 1: Shell (heart + bloom + collapse) | ✅ |
 | 7 | Slice 1A: production shell + long-press popover | ✅ |
 | 8 | Slice 2: carousel rotation + inertia | ✅ |
-| 9 | Slice 3: tilt detents + pinch radius | 📋 Planned — code next |
+| 9 | Slice 3 planned | ✅ |
+| 10 | Slice 3 re-scoped: gestures + seeded config menus | 📋 Plan updated — code next |
 
 ## RUN LOG
 | Date | Result | What |
@@ -95,9 +114,10 @@ Give the ring physical depth: vertical drags tilt it in 3D with snapping detents
 | 2026-10-20 | built | v1 prototype (superseded) |
 | 2026-10-21 | updated plan | Full v2 redesign |
 | 2026-10-21 | added slice 1A | Heart popover, quick-settings placeholder |
-| 2026-10-21 | built | Carousel rotation + inertia (9b34031) |
-| 2026-10-21 | rebuilt | Professional shell, all v1 remnants purged (a853b33) |
-| 2026-10-21 | plan updated | Slice 3 (tilt detents + pinch radius) specified; code to land next turn |
-| 2026-10-21 11:54 | Main | failed | The AI account is out of credit or at its spending limit. |  |
-| 2026-10-21 13:01 | Main | failed | The AI account is out of credit or at its spending limit. |  |
-| 2026-10-21 13:22 | Main | failed | The AI account is out of credit or at its spending limit. |  |
+| 2026-10-21 | built | Carousel rotation + inertia |
+| 2026-10-21 | rebuilt | Professional shell, all v1 remnants purged |
+| 2026-10-21 | plan updated | Slice 3 specified |
+| 2026-10-21 11:54 | failed | Engine credit/time failure |
+| 2026-10-21 13:01 | failed | Engine credit/time failure |
+| 2026-10-21 13:22 | failed | Engine credit/time failure |
+| 2026-10-21 | plan updated | Owner re-scope accepted; code for tilt/pinch + seeded menus is next |
