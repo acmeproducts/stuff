@@ -68,3 +68,8 @@ Do not forward-patch this rejected design. Restore the pre-#770 Complete bytes (
 - **TARGET row in Roots**. Target figures live in the TB line; target actions on the Land header.
 - **Columns window Group checkbox and "biggest reclaimable" option**; separate Search/Show semantics merged into one box.
 - **Whole-square (10%) rounding of the Map bar** — hid anything under ~5%. **Fixed-unit sizes** ("Size MB" 0.00, "0.0 GB").
+
+## Release G burials (2026-10-21)
+
+- **The "DB current · updated N s ago" status pill and its 1-second timer.** Owner: antiquated, redundant, costs performance; actions trigger staleness checks instead.
+- **"N / N" count with no active search** and **the selection chip in the action row.**

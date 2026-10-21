@@ -960,6 +960,7 @@ class H(BaseHTTPRequestHandler):
      if not S.rows("SELECT 1 FROM sources WHERE source_id=? AND enabled=1",(sid,)):raise RuntimeError("source not found")
      S.submit("UPDATE sources SET stale=1 WHERE source_id=?",(sid,),True);reconcile_sources([sid]);M.enqueue_info([sid]);M.event("source_rescan","Rescan requested by the owner",None,sid,"INFO",{})
     elif act in ("remove",):M.source_control(sid,"soft-delete")
+    elif act in ("exclude","include"):M.set_excluded(sid,act=="exclude")
     elif act=="restore":
      # undo of Remove: bring the root back and rescan it (unchanged files keep their fingerprints)
      M.source_control(sid,"restore");S.drain(10);reconcile_sources([sid]);M.enqueue_info([sid]);M.event("source_rescan","Root restored by the owner",None,sid,"INFO",{})
