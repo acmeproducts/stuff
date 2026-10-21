@@ -30,4 +30,20 @@ class Vintage(unittest.TestCase):
         prior={'events':[{'observationDate':'2026-08-01','availableFrom':'2026-09-01','value':10}]}
         with self.assertRaises(ValueError):v.extend(prior,[{'date':'2026-08-01','realtime_start':'2026-09-01','value':'11','realtime_end':'9999-12-31'}])
 
+
+class ProviderResponse(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        spec=importlib.util.spec_from_file_location('response_sidecar',Path(__file__).with_name('market-navigator-vintage-sidecar.py'))
+        cls.sidecar=importlib.util.module_from_spec(spec);spec.loader.exec_module(cls.sidecar)
+    def test_maintenance_is_an_actionable_outage(self):
+        with self.assertRaisesRegex(RuntimeError,'FRED_MAINTENANCE'):
+            self.sidecar.decode_response(b'<!doctype html><html><title>Site Maintenance | St. Louis Fed</title></html>')
+    def test_invalid_html_is_not_accepted_as_data(self):
+        with self.assertRaisesRegex(RuntimeError,'FRED_INVALID_RESPONSE'):self.sidecar.decode_response(b'<html>upstream gateway failure</html>')
+    def test_empty_response_is_not_accepted_as_data(self):
+        with self.assertRaisesRegex(RuntimeError,'FRED_INVALID_RESPONSE'):self.sidecar.decode_response(b'')
+    def test_valid_observations_remain_unchanged(self):
+        self.assertEqual(self.sidecar.decode_response(b'{"observations":[{"date":"2026-10-19","value":"3"}]}'),{'observations':[{'date':'2026-10-19','value':'3'}]})
+
 if __name__=='__main__':unittest.main()

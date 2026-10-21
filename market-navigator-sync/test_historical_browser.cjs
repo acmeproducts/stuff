@@ -14,7 +14,7 @@ const server=http.createServer((req,res)=>{try{const name=new URL(req.url,'http:
  await page.goto(base);await page.locator('#mnIncompleteNotice').waitFor();assert(!await page.locator('#nowChart').isVisible(),'Historical package must require explicit selection');
  await page.goto(base+'?historical=2000-01-01');await page.locator('#mnIncompleteNotice').waitFor();assert(!await page.locator('#nowChart').isVisible(),'Wrong cutoff cannot authorize history');
  await page.goto(base+'?historical='+cutoff);await page.locator('#mnHistoricalNotice').waitFor();await page.waitForFunction(()=>window.__mnRebuild?.now()?.idle);
- assert(await page.locator('#nowChart').isVisible());assert((await page.locator('#mnHistoricalNotice').innerText()).includes(cutoff));assert(!await page.locator('body').evaluate(n=>n.classList.contains('mnIncomplete')));
+ assert(await page.locator('#nowChart').isVisible());const heading=await page.locator('.top').boundingBox(),tag=await page.locator('#mnHistoricalNotice').boundingBox();assert(tag.y>=heading.y&&tag.y+tag.height<=heading.y+heading.height+1,'Historical label must fit the existing heading');assert(await page.locator('#mnEtlHistoricalBadge').count()===1);assert(!await page.locator('.brand').innerText().then(t=>/canonical/i.test(t)),'No unexplained brand tagline');assert((await page.locator('#mnHistoricalNotice').innerText()).includes(cutoff));assert(!await page.locator('body').evaluate(n=>n.classList.contains('mnIncomplete')));
  const q=await page.evaluate(()=>__mnEtlReceipt().qualification);assert.equal(q.historicalCutoff,cutoff);
  const baseData=new URL('market-navigator-rebuild-data/',page.url()).href;
  const catalog=await(await page.request.get(baseData+'data/market-backend/data-catalog.json')).json();
@@ -25,6 +25,7 @@ const server=http.createServer((req,res)=>{try{const name=new URL(req.url,'http:
   await page.locator('#nowMoreBtn').click();const [download]=await Promise.all([page.waitForEvent('download'),page.locator('#'+button).click()]);const stream=await download.createReadStream();let text='';for await(const part of stream)text+=part.toString();assert(text.includes(label),'Historical scope missing in '+button);assert(text.includes(cutoff));
  }
  await page.screenshot({path:'.evidence/historical-'+width+'.png'});
+ await page.locator('#mnHistoricalNotice').click();await page.locator('#etlCurrentStatus').waitFor();assert(await page.locator('#view-etl').isVisible());await page.screenshot({path:'.evidence/historical-etl-'+width+'.png'});
  await page.close();
  }
  fs.writeFileSync('.evidence/historical-acceptance.json',JSON.stringify({status:'PASS',cutoff,application_blob:c.application_blob,data_version:c.data_version,explicitChoice:true,wrongCutoffBlocked:true,profiles:2,qualification:c.qualification},null,2));

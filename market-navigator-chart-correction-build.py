@@ -183,6 +183,19 @@ edit("if(evidence)rows.push(['Saved evidence'", "if(st.verification?.historicalC
 edit("function analysisMarkdown(a){let out=\x60# \x24{a.title}\\n\\n\x60;", "function analysisMarkdown(a){let out=\x60# \x24{a.title}\\n\\n\x60;if(a.state?.verification?.historicalCutoff)out+='Historical data through '+a.state.verification.historicalCutoff+' — not current data\\n\\n';", 'historical saved analysis Markdown disclosure')
 edit("function mnxDownloadExplanation(){\n  let md=mnxCurrentMarkdown();", "function mnxDownloadExplanation(){\n  let md=mnxCurrentMarkdown();if(md&&etlCompleteness?.scope==='explicit-historical')md='Historical data through '+etlCompleteness.marketDate+' — not current data\\n\\n'+md;", 'historical explanation download disclosure')
 
+
+edit('<small>canonical evidence</small>', '', 'remove unexplained brand tagline')
+for before,after in [
+ ('Canonical repository-backed registration control plane.','Source registrations are saved in the repository.'),
+ ('Canonical evidence is collected and persisted before chart/AI consumption.','Source data is collected and saved before charts and analysis use it.'),
+ ('canonical index','published index'),('canonical MAC weight','fixed MAC weight'),('Canonical MAC weight','Fixed MAC weight'),
+ ('canonical move','published movement'),('canonical model','published model'),('canonical component history','saved component history'),
+ ('canonical source observations','source observations'),('canonical provider','source provider'),
+ ('canonical derived-index evidence','saved index data'),('canonical history','saved history'),
+ ('canonical for inspection/data/export/AI','available for inspection, exports and analysis')]:
+    html=html.replace(before,after)
+changes.append('plain-language product labels')
+
 edit('__ETL_BUILD_ID__', hashlib.sha256(html.encode('utf-8')).hexdigest(), 'content-bound application build identity')
 
 TARGET.parent.mkdir(parents=True,exist_ok=True);TARGET.write_text(html,encoding='utf-8',newline='')

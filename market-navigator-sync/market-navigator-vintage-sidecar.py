@@ -37,6 +37,19 @@ RESPONSE_REFS=[]
 def read(p): return json.loads(Path(p).read_text())
 def iso_now(): return dt.datetime.now(UTC).replace(microsecond=0).isoformat().replace("+00:00","Z")
 
+
+def decode_response(raw):
+    text=raw.decode('utf-8',errors='replace')
+    if '<html' in text.lower() or '<!doctype' in text.lower():
+        if 'maintenance' in text.lower():
+            raise RuntimeError('FRED_MAINTENANCE: FRED returned its site-maintenance page instead of data. Use verified historical data until the provider is available; re-running cannot repair provider maintenance.')
+        raise RuntimeError('FRED_INVALID_RESPONSE: FRED returned a web page instead of data; current data was not updated.')
+    try:obj=json.loads(text)
+    except (ValueError,TypeError):raise RuntimeError('FRED_INVALID_RESPONSE: FRED returned empty or invalid data; current data was not updated.') from None
+    if not isinstance(obj,dict) or not isinstance(obj.get('observations'),list):
+        raise RuntimeError('FRED_INVALID_RESPONSE: Required observations are missing from the provider response.')
+    return obj
+
 def get_json(params):
     if not KEY:
         raise SystemExit("C4 BLOCKED: MARKET_NAVIGATOR_FRED_API_KEY is not configured")
@@ -53,7 +66,7 @@ def get_json(params):
                 (folder/(sha+'.json')).write_bytes(raw)
                 (folder/(sha+'.request.json')).write_text(json.dumps({'endpoint':API,'parameters':params,'sha256':sha,'checkedAt':iso_now()},sort_keys=True))
                 RESPONSE_REFS.append({'path':str(folder/(sha+'.json')).replace('\\','/'),'sha256':sha,'requestPath':str(folder/(sha+'.request.json')).replace('\\','/')})
-                obj=json.loads(raw.decode('utf-8'))
+                obj=decode_response(raw)
                 if obj.get('count',len(obj.get('observations',[])))>len(obj.get('observations',[])):raise RuntimeError('ALFRED response is truncated; retaining previous verified data')
                 return obj
             except urllib.error.HTTPError as exc:

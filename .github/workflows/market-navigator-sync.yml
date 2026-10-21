@@ -58,6 +58,14 @@ jobs:
               result=api.get_json({'series_id':'DFF','observation_start':(datetime.date.today()-datetime.timedelta(days=14)).isoformat()})
               if not result.get('observations'):raise RuntimeError('Configured vintage credential returned no observations')
               Path('vintage-access.json').write_text(json.dumps({'status':'PASS','provider':'FRED/ALFRED','credentialConfigured':True,'responses':api.RESPONSE_REFS}))
+          except Exception as error:
+              message=str(error)
+              for name in ('MARKET_NAVIGATOR_FRED_API_KEY','MARKET_NAVIGATOR_FRED_API_KEY_SECONDARY'):
+                  secret=os.environ.get(name)
+                  if secret:message=message.replace(secret,'[redacted]')
+              code='FRED_MAINTENANCE' if 'FRED_MAINTENANCE' in message else 'PROVIDER_ACCESS_FAILED'
+              Path('sync-status.json').write_text(json.dumps({'status':'BLOCKED','error':message,'displayPermitted':False,'diagnostic':{'code':code,'provider':'FRED','stage':'provider access','checkedAt':datetime.datetime.now(datetime.timezone.utc).isoformat()}}))
+              raise RuntimeError(message) from None
           finally:os.chdir(previous)
           args=[sys.executable,'market-navigator-sync/run.py','--base','market-navigator-throwaway-review','--output','.sync-publish/market-navigator-throwaway-review']
           if os.environ.get('FORCE_CHECK')=='true': args.append('--force')
