@@ -1,6 +1,6 @@
 # Verified chart data synchronization
 
-The destination is the existing `market-navigator-throwaway-review` validation route. The accepted shared chart is pinned to blob `bad364c59ec19ad84ff650ba0c6b99b1f778d3be` (approved shared chart with accepted reference/selector corrections and source-bound persistent Chart Config). The ETL rail exposes verified loaded-package receipts, per-source qualification and live synchronization job stages. Run ETL opens GitHub’s authenticated manual workflow control; no repository credential is delivered to the browser.
+The destination is the existing `market-navigator-throwaway-review` validation route. The accepted shared chart is pinned to blob `9a14c0ac776e6e8db70a6a10964308fa7b6eb28d` (approved shared chart with accepted reference/selector corrections and source-bound persistent Chart Config). The ETL rail exposes verified loaded-package receipts, per-source qualification and live synchronization job stages. Run ETL opens GitHub’s authenticated manual workflow control; no repository credential is delivered to the browser.
 
 `run.py` copies the current hash-verified package into an isolated candidate, selectively checks approved sources when due, and checks each complete source history at least daily to catch old-period revisions. It retains and independently parses actual provider responses. Incomplete market candles are excluded using the existing publication calendars. The sole approved missing-provider-prefix exception is HY's exact pinned archival prefix.
 
