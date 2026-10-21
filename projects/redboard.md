@@ -11,14 +11,15 @@
 | Date | Turn/Stage | Action | Status |
 |------|-----------|--------|--------|
 | 2026-10-21 | T0 | Plan created and seeded; all unknowns marked TBD | ✅ Done |
-| 2026-10-21 | T1 | Owner requested conversion of GitHub repo "detective-board" (acmeproducts/detective-board) into single-file HTML standard, images kept as separate files. Source code not provided in-session — blocked pending paste/attachment of repo files | ⏸ Blocked |
+| 2026-10-21 | T1 | Owner requested conversion of acmeproducts/detective-board into single-file HTML, images kept separate | ⏸ Blocked |
+| 2026-10-21 | T2 | Received repo index.html: it's a Vite + React + TypeScript SPA ("Case Board — Detective Boards"), entry src/main.tsx, theme #060b1f, favicon.svg. Real app code lives in src/ — not yet provided. Listed exact files needed from owner | ⏸ Awaiting src/ |
 
 ---
 
 ## 1) RELEASES
 | # | Goal (one line) |
 |---|-----------------|
-| R1 | Convert the "detective-board" web project into one self-contained mobile-first HTML file (projects/redboard.html), with image files kept separate |
+| R1 | Convert the "detective-board" (Case Board) React/Vite app into one self-contained mobile-first HTML file (projects/redboard.html), images kept as separate files |
 | R2 | TBD — polish/follow-ups after R1 works on real phones |
 
 ---
@@ -27,20 +28,26 @@
 
 ### Release 1 — Conversion
 - **Scope IN:**
-  - Port all app logic/markup/styles from the detective-board repo into projects/redboard.html (single file)
-  - Reference images as separate external files (not inlined); exact filenames taken from the repo
+  - Port all app logic/markup/styles from the repo's src/ into projects/redboard.html (single file, plain JS — no build step)
+  - Images referenced as separate external files; filenames taken from the repo
   - In-app diagnostics panel (never console-only)
 - **Scope OUT:**
   - New features beyond the repo's existing behavior
   - Server-side/backend functionality, if any (flag to owner if found)
+- **Source received so far:**
+  - index.html — shell only: `<div id="root">` + `<script type="module" src="/src/main.tsx">`, title "Case Board — Detective Boards", theme-color #060b1f, favicon.svg
+- **Source still needed (paste or attach):**
+  1. src/main.tsx (entry)
+  2. Every other file in src/ (App component, components, styles, state — whatever exists)
+  3. List of image/asset files in public/ or src/assets/ (favicon.svg, board textures, icons)
 - **Build gates (verify on real devices):**
   - Loads on a phone browser with no blank screen
   - Every feature that worked in the repo version works via touch
-  - Images load from their separate files (paths documented in-app or in plan)
+  - Images load from their separate files
   - Diagnostics visible in-app; zero console-only errors
   - Read-back verification after the push
 - **Backlog (deferred):** TBD after source review
-- **BLOCKER:** Repo source not yet provided. Owner must paste/attach the repo's files (HTML/JS/CSS + image list). No stubs or guessed reconstructions allowed (Rule 5), so conversion cannot start until real source arrives.
+- **BLOCKER (unchanged):** Only the shell index.html has arrived. Rule 5 forbids inventing a reconstruction of the React app — conversion starts when src/ source arrives.
 
 ### Release 2
 - **Scope IN:** TBD
@@ -52,7 +59,7 @@
 
 ## 3) FUTURE IDEAS
 *Unscheduled parking lot.*
-- TBD (owner ideas welcome once R1 scope is clear)
+- Fallback if repo source never arrives: build a fresh detective board (notes, images, connecting strings) in plain JS — owner may pick this via chip, which overrides the blocker.
 
 ---
 
@@ -72,6 +79,7 @@
 |------|----------|
 | 2026-10-21 | Project initialized; code file fixed as projects/redboard.html (single-file mobile-first HTML app). |
 | 2026-10-21 | R1 goal set: convert acmeproducts/detective-board repo to single-file HTML; images stay as separate files. Conversion waits for actual source — no guessing. |
+| 2026-10-21 | Repo confirmed as Vite + React + TypeScript SPA from its index.html. Port target: plain-JS single file (no build step). Owner asked us to "figure it out" from index.html alone — not possible without guessing, so src/ files requested; owner may instead choose a fresh build. |
 
 ---
 
