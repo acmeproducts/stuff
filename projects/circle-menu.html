@@ -271,6 +271,34 @@
     cursor:pointer;font-size:12px;line-height:1;
   }
   .itemRow .del:hover{background:rgba(255,80,80,0.3);}
+  .itemRow .grip{
+    flex:none;width:20px;height:22px;border:none;background:none;
+    color:var(--muted);cursor:grab;font-size:13px;line-height:1;padding:0;
+  }
+  .itemRow .grip:active{cursor:grabbing;}
+  .itemRow .mv,.itemRow .edit{
+    flex:none;width:22px;height:22px;border-radius:6px;
+    border:none;background:rgba(255,255,255,0.10);color:var(--text-color);
+    cursor:pointer;font-size:11px;line-height:1;
+  }
+  .itemRow .mv:hover,.itemRow .edit:hover{background:rgba(255,255,255,0.22);}
+  .itemRow.dragOver{border-color:var(--accent);background:rgba(255,122,26,0.12);}
+  #restoreBtn{
+    position:fixed;
+    right:14px;bottom:calc(24vh + 14px);
+    display:none;
+    align-items:center;gap:8px;
+    padding:10px 16px;
+    border-radius:24px;
+    border:1px solid var(--panel-border);
+    background:rgba(22,25,33,0.95);
+    color:var(--text-color);
+    font-size:13px;
+    cursor:pointer;
+    z-index:1500;
+    box-shadow:0 8px 24px rgba(0,0,0,0.5);
+  }
+  #restoreBtn svg{width:18px;height:18px;}
   .row{display:flex;gap:8px;margin:8px 0;}
   .row .cfgBtn{flex:1;}
   .cfgBtn{
@@ -480,7 +508,10 @@
     </select>
     <label for="niUrl">URL (bookmarks only)</label>
     <input id="niUrl" placeholder="https://example.com">
-    <button class="cfgBtn primary" id="btnAddItem" style="width:100%;margin-top:8px">Add Item to Menu</button>
+    <div class="row" style="margin-top:8px">
+      <button class="cfgBtn primary" id="btnAddItem">Add Item to Menu</button>
+      <button class="cfgBtn" id="btnCancelEdit" style="display:none">Cancel</button>
+    </div>
 
     <h3>Ring</h3>
     <div class="readout">Tilt <span id="roTilt">0°</span></div>
@@ -507,6 +538,9 @@
     <div class="hint">Settings are stored in this browser only. Saving writes your menus as JSON to the file path above; loading replaces your menus with the file's contents.</div>
   </div>
 </div>
+
+<!-- Restore launcher -->
+<button id="restoreBtn"><svg viewBox="0 0 100 100"><path d="M50 88 C20 64 8 46 8 30 C8 16 19 8 30 8 C39 8 46 13 50 21 C54 13 61 8 70 8 C81 8 92 16 92 30 C92 46 80 64 50 88 Z" fill="url(#heartGrad)"/></svg>Open Menu</button>
 
 <!-- Diagnostics -->
 <div id="diag" class="collapsed">
@@ -879,9 +913,20 @@ function closeRing(){
 function quitApp(){
   hidePopover();
   closeRing();
+  if(IS_POPUP){
+    log('Quit — closing popup window');
+    window.close();
+    return;
+  }
   heart.style.display='none';
-  log('Quit — launcher hidden');
+  document.getElementById('restoreBtn').style.display='flex';
+  log('Quit — launcher hidden (use the Open Menu button to bring it back)');
 }
+document.getElementById('restoreBtn').addEventListener('click',()=>{
+  heart.style.display='block';
+  document.getElementById('restoreBtn').style.display='none';
+  log('Launcher restored');
+});
 closeBtn.addEventListener('click',e=>{e.stopPropagation();closeRing();});
 overlay.addEventListener('click',e=>{if(e.target===overlay) closeRing();});
 centerBtn.addEventListener('click',e=>{e.stopPropagation();openConfig();});
@@ -1137,6 +1182,24 @@ function renderMenuList(){
     menuList.appendChild(row);
   });
 }
+function refreshAfterMenuEdit(){
+  persistMenus();
+  buildNodes();
+  if(state.open) layoutRing();
+  renderItemList();
+  renderMenuList();
+}
+function moveItem(idx,delta){
+  const m=state.menus[state.activeMenuId];
+  if(!m) return;
+  const j=idx+delta;
+  if(j<0||j>=m.items.length) return;
+  const it=m.items.splice(idx,1)[0];
+  m.items.splice(j,0,it);
+  refreshAfterMenuEdit();
+  log(`Moved '${it.label}' ${delta<0?'up':'down'}`);
+}
+let dragIdx=null;
 function renderItemList(){
   const m=state.menus[state.activeMenuId];
   document.getElementById('editMenuName').textContent=m?m.label:'—';
@@ -1146,20 +1209,68 @@ function renderItemList(){
     const row=document.createElement('div');
     row.className='itemRow';
     row.innerHTML=`<svg><use href="#${it.icon||'i-dots'}"/></svg><span class="nm">${it.label}${it.children?' ▸':''}</span>`;
+
+    const grip=document.createElement('button');
+    grip.className='grip';
+    grip.textContent='☰';
+    grip.title='Drag to reorder';
+    grip.draggable=true;
+    grip.addEventListener('dragstart',e=>{
+      dragIdx=idx;
+      e.dataTransfer.effectAllowed='move';
+      try{e.dataTransfer.setData('text/plain',it.label);}catch(_){}
+    });
+    grip.addEventListener('dragend',()=>{
+      dragIdx=null;
+      itemList.querySelectorAll('.dragOver').forEach(r=>r.classList.remove('dragOver'));
+    });
+    row.insertBefore(grip,row.firstChild);
+
+    const up=document.createElement('button');
+    up.className='mv';up.textContent='▲';up.title='Move up';
+    up.addEventListener('click',()=>moveItem(idx,-1));
+    const down=document.createElement('button');
+    down.className='mv';down.textContent='▼';down.title='Move down';
+    down.addEventListener('click',()=>moveItem(idx,1));
+
+    const edit=document.createElement('button');
+    edit.className='edit';edit.textContent='✎';edit.title='Edit item';
+    edit.addEventListener('click',()=>enterEditMode(it));
+
     const del=document.createElement('button');
     del.className='del';
     del.textContent='✕';
     del.title='Remove item';
     del.addEventListener('click',()=>{
+      if(editingId===it.id) enterAddMode();
       m.items.splice(idx,1);
-      persistMenus();
-      buildNodes();
-      if(state.open) layoutRing();
-      renderItemList();
-      renderMenuList();
+      refreshAfterMenuEdit();
       log(`Removed item: ${it.label}`);
     });
+
+    row.appendChild(up);
+    row.appendChild(down);
+    row.appendChild(edit);
     row.appendChild(del);
+
+    row.addEventListener('dragover',e=>{
+      if(dragIdx===null) return;
+      e.preventDefault();
+      row.classList.add('dragOver');
+    });
+    row.addEventListener('dragleave',()=>row.classList.remove('dragOver'));
+    row.addEventListener('drop',e=>{
+      e.preventDefault();
+      row.classList.remove('dragOver');
+      if(dragIdx===null||dragIdx===idx) return;
+      const mm=state.menus[state.activeMenuId];
+      const moved=mm.items.splice(dragIdx,1)[0];
+      mm.items.splice(idx,0,moved);
+      dragIdx=null;
+      refreshAfterMenuEdit();
+      log(`Reordered: '${moved.label}' dropped at position ${idx+1}`);
+    });
+
     itemList.appendChild(row);
   });
 }
@@ -1173,38 +1284,83 @@ function renderItemList(){
   });
   sel.value='i-bookmark';
 })();
-document.getElementById('btnAddItem').addEventListener('click',()=>{
+let editingId=null;
+const btnAddItem=document.getElementById('btnAddItem');
+const btnCancelEdit=document.getElementById('btnCancelEdit');
+function enterAddMode(){
+  editingId=null;
+  btnAddItem.textContent='Add Item to Menu';
+  btnCancelEdit.style.display='none';
+  document.getElementById('niLabel').value='';
+  document.getElementById('niUrl').value='';
+}
+function enterEditMode(item){
+  editingId=item.id;
+  document.getElementById('niLabel').value=item.label;
+  document.getElementById('niIcon').value=ICONS.includes(item.icon)?item.icon:'i-bookmark';
+  const a=item.action||'';
+  if(item.children){
+    document.getElementById('niAction').value='submenu';
+    document.getElementById('niUrl').value='';
+  }else if(a.startsWith('url:')){
+    document.getElementById('niAction').value='url';
+    document.getElementById('niUrl').value=a.slice(4);
+  }else{
+    document.getElementById('niAction').value=a||'url';
+    document.getElementById('niUrl').value='';
+  }
+  btnAddItem.textContent='Save Changes';
+  btnCancelEdit.style.display='';
+  document.getElementById('niLabel').focus();
+  log(`Editing item: ${item.label}`);
+}
+btnCancelEdit.addEventListener('click',()=>{
+  enterAddMode();
+  log('Edit cancelled — back to add mode');
+});
+btnAddItem.addEventListener('click',()=>{
   const m=state.menus[state.activeMenuId];
   if(!m) return;
   const label=document.getElementById('niLabel').value.trim();
   const icon=document.getElementById('niIcon').value;
   const act=document.getElementById('niAction').value;
   const url=document.getElementById('niUrl').value.trim();
-  if(!label){log('Add item: label is required');return;}
-  const item={
-    id:'it-'+Date.now().toString(36),
-    label,
-    icon
-  };
-  if(act==='submenu'){
-    item.children=[];
-    item.desc='Empty submenu — add items by loading it and editing';
-  }else if(act==='url'){
-    if(!url){log('Add item: URL required for a bookmark');return;}
-    item.action='url:'+url;
-    item.desc='Opens '+url;
+  if(!label){log('Item needs a label');return;}
+  if(act==='url'&&!url){log('Bookmark needs a URL');return;}
+  if(editingId){
+    const item=m.items.find(i=>i.id===editingId);
+    if(item){
+      item.label=label;
+      item.icon=icon;
+      if(act==='submenu'){
+        if(!item.children) item.children=[];
+        delete item.action;
+        if(!item.desc) item.desc='Submenu';
+      }else{
+        if(item.children){delete item.children;log(`Submenu contents of '${label}' removed (action changed)`);}
+        item.action=act==='url'?'url:'+url:act;
+        if(act==='url') item.desc='Opens '+url;
+      }
+      log(`Updated item: ${label}`);
+    }
+    enterAddMode();
   }else{
-    item.action=act;
+    const item={id:'it-'+Date.now().toString(36),label,icon};
+    if(act==='submenu'){
+      item.children=[];
+      item.desc='Empty submenu — add items by loading it and editing';
+    }else if(act==='url'){
+      item.action='url:'+url;
+      item.desc='Opens '+url;
+    }else{
+      item.action=act;
+    }
+    m.items.push(item);
+    document.getElementById('niLabel').value='';
+    document.getElementById('niUrl').value='';
+    log(`Added item: ${label}`);
   }
-  m.items.push(item);
-  persistMenus();
-  buildNodes();
-  if(state.open) layoutRing();
-  renderItemList();
-  renderMenuList();
-  document.getElementById('niLabel').value='';
-  document.getElementById('niUrl').value='';
-  log(`Added item: ${label}`);
+  refreshAfterMenuEdit();
 });
 document.getElementById('btnLoadBrowser').addEventListener('click',()=>loadMenu('browser'));
 document.getElementById('btnLoadLauncher').addEventListener('click',()=>loadMenu('launcher'));
