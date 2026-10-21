@@ -2,343 +2,489 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<title>Circle Menu Demo</title>
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Circle Menu</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
 <style>
-  :root {
-    --bg-color: #f0f0f0;
-    --menu-bg: #007bff;
-    --item-bg: #28a745;
-    --diag-bg: #fff;
-    --text-color: #000;
+  :root{
+    --accent:#ff7a1a;
+    --accent-dark:#e25e00;
+    --panel-bg:rgba(20,22,28,0.55);
+    --panel-border:rgba(255,255,255,0.14);
+    --node-bg:rgba(255,255,255,0.10);
+    --node-bg-hover:rgba(255,255,255,0.22);
+    --icon-color:#f2f4f8;
+    --text-color:#e8eaee;
   }
-  [data-theme="dark"] {
-    --bg-color: #202020;
-    --menu-bg: #1e90ff;
-    --item-bg: #3cb371;
-    --diag-bg: #2a2a2a;
-    --text-color: #fff;
+  *{box-sizing:border-box;-webkit-tap-highlight-color:transparent;}
+  html,body{
+    margin:0;padding:0;width:100%;height:100%;overflow:hidden;
+    font-family:"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+    background:linear-gradient(160deg,#2b3242 0%,#1a1e28 100%);
+    color:var(--text-color);
   }
-  body,html{margin:0;padding:0;height:100%;width:100%;font-family:Arial,Helvetica,sans-serif;overflow:hidden;background:var(--bg-color);color:var(--text-color);}
-  #menuContainer{position:relative;width:100%;height:100%;display:flex;align-items:center;justify-content:center;}
-  #heartBtn{
-    width:60px;height:60px;
-    border-radius:50%;
-    background:#ff6666;
-    color:#fff;
-    font-size:1.5rem;
-    border:none;
-    position:absolute;
-    left:calc(50% - 30px);
-    top:calc(50% - 30px);
-    z-index:2;
+
+  /* ---------- Heart launcher ---------- */
+  #heart{
+    position:fixed;
+    left:calc(50% - 34px);
+    top:calc(50% - 34px);
+    width:68px;height:68px;
+    z-index:1000;
+    cursor:grab;
+    touch-action:none;
+    filter:drop-shadow(0 6px 14px rgba(0,0,0,0.45));
+    transition:transform 0.15s ease;
+    user-select:none;
+  }
+  #heart:active{cursor:grabbing;}
+  #heart.pressed{transform:scale(0.92);}
+  #heart svg{width:100%;height:100%;display:block;pointer-events:none;}
+
+  /* ---------- Ring overlay ---------- */
+  #overlay{
+    position:fixed;inset:0;
+    display:none;
+    align-items:center;justify-content:center;
+    background:rgba(8,10,14,0.35);
+    backdrop-filter:blur(6px);
+    -webkit-backdrop-filter:blur(6px);
+    z-index:900;
+  }
+  #overlay.open{display:flex;}
+  #ringPanel{
+    position:relative;
+    width:min(88vw,88vh,420px);
+    height:min(88vw,88vh,420px);
+    background:var(--panel-bg);
+    border:1px solid var(--panel-border);
+    border-radius:24px;
+    box-shadow:0 18px 50px rgba(0,0,0,0.5);
+    overflow:hidden;
+    opacity:0;
+    transform:scale(0.85);
+    transition:opacity 0.22s ease, transform 0.22s cubic-bezier(.34,1.4,.5,1);
+  }
+  #overlay.open #ringPanel{opacity:1;transform:scale(1);}
+  #ringStage{
+    position:absolute;inset:0;
     touch-action:none;
     cursor:grab;
   }
-  #centerBtn{display:none;}
-  .menuItem{
-    position:absolute;
-    width:50px;height:50px;
-    border-radius:50%;
-    background:var(--item-bg);
-    color:#fff;
-    display:flex;
-    align-items:center;
-    justify-content:center;
-    font-size:0.9rem;
-    opacity:0;
-    transition:opacity 0.2s;
-  }
-  #diagnostics{
-    position:absolute;
-    bottom:0;left:0;
-    width:100%;
-    max-height:30%;
-    background:var(--diag-bg);
-    border-top:1px solid #ccc;
-    font-size:0.8rem;
-    overflow:auto;
-    padding:5px;
-    box-sizing:border-box;
-  }
-  #diagnostics h4{margin:0 0 5px 0;font-size:0.9rem;}
-  #themeToggle{
-    position:absolute;
-    top:10px;right:10px;
-    background:transparent;
-    border:1px solid var(--text-color);
-    color:var(--text-color);
-    padding:4px 8px;
-    border-radius:4px;
-    font-size:0.9rem;
-  }
+  #ringStage:active{cursor:grabbing;}
+
   #closeBtn{
     position:absolute;
     top:10px;right:10px;
-    background:transparent;
-    border:none;
+    width:32px;height:32px;
+    border-radius:50%;
+    border:1px solid var(--panel-border);
+    background:rgba(255,255,255,0.08);
     color:var(--text-color);
-    font-size:1.2rem;
+    font-size:15px;line-height:1;
+    display:flex;align-items:center;justify-content:center;
     cursor:pointer;
-    z-index:3;
-    display:none;
+    z-index:5;
   }
-  #lpMenu{
+  #closeBtn:hover{background:rgba(255,255,255,0.18);}
+
+  /* ---------- Center button ---------- */
+  #centerBtn{
     position:absolute;
-    background:var(--diag-bg);
-    border:1px solid #888;
-    border-radius:4px;
-    padding:4px 8px;
-    display:none;
-    z-index:4;
-    box-shadow:0 2px 6px rgba(0,0,0,0.2);
-  }
-  #lpMenu button{
-    background:none;
-    border:none;
-    color:var(--text-color);
-    padding:4px 0;
-    width:100%;
-    text-align:left;
+    left:50%;top:50%;
+    width:64px;height:64px;
+    margin:-32px 0 0 -32px;
+    border-radius:50%;
+    border:1px solid var(--panel-border);
+    background:radial-gradient(circle at 35% 30%, rgba(255,255,255,0.18), rgba(255,255,255,0.05));
+    color:var(--icon-color);
+    display:flex;align-items:center;justify-content:center;
     cursor:pointer;
-    font-size:0.9rem;
+    z-index:4;
+    box-shadow:0 4px 14px rgba(0,0,0,0.4);
   }
-  #lpMenu button:hover{background:rgba(0,0,0,0.1);}
+  #centerBtn:hover{background:radial-gradient(circle at 35% 30%, rgba(255,255,255,0.28), rgba(255,255,255,0.08));}
+  #centerBtn svg{width:28px;height:28px;}
+
+  /* ---------- Ring nodes ---------- */
+  .node{
+    position:absolute;
+    left:50%;top:50%;
+    width:56px;height:56px;
+    margin:-28px 0 0 -28px;
+    border-radius:50%;
+    border:1px solid var(--panel-border);
+    background:var(--node-bg);
+    color:var(--icon-color);
+    display:flex;align-items:center;justify-content:center;
+    cursor:pointer;
+    box-shadow:0 4px 12px rgba(0,0,0,0.35);
+    transition:background 0.15s ease, transform 0.15s ease;
+    z-index:3;
+  }
+  .node:hover{background:var(--node-bg-hover);}
+  .node:active{transform:scale(0.92);}
+  .node svg{width:24px;height:24px;pointer-events:none;}
+
+  /* ---------- Long-press popover ---------- */
+  #popover{
+    position:fixed;
+    display:none;
+    min-width:150px;
+    background:rgba(28,31,40,0.96);
+    border:1px solid var(--panel-border);
+    border-radius:12px;
+    box-shadow:0 12px 32px rgba(0,0,0,0.55);
+    overflow:hidden;
+    z-index:1100;
+  }
+  #popover button{
+    display:flex;align-items:center;gap:10px;
+    width:100%;
+    padding:12px 16px;
+    background:none;border:none;
+    color:var(--text-color);
+    font-size:14px;
+    cursor:pointer;
+    text-align:left;
+  }
+  #popover button:hover{background:rgba(255,255,255,0.08);}
+  #popover button svg{width:16px;height:16px;flex:none;}
+  #popover button + button{border-top:1px solid rgba(255,255,255,0.07);}
+
+  /* ---------- Diagnostics ---------- */
+  #diag{
+    position:fixed;
+    left:0;right:0;bottom:0;
+    max-height:24vh;
+    background:rgba(10,12,16,0.85);
+    border-top:1px solid rgba(255,255,255,0.1);
+    font-family:"SFMono-Regular",Consolas,monospace;
+    font-size:11px;
+    z-index:800;
+    display:flex;flex-direction:column;
+  }
+  #diagHead{
+    display:flex;align-items:center;justify-content:space-between;
+    padding:5px 10px;
+    color:#9aa3b2;
+    letter-spacing:0.06em;
+    text-transform:uppercase;
+    font-size:10px;
+    cursor:pointer;
+    user-select:none;
+  }
+  #diagLog{
+    overflow-y:auto;
+    padding:0 10px 8px;
+    margin:0;
+    color:#c8d0dc;
+    white-space:pre-wrap;
+  }
+  #diag.collapsed #diagLog{display:none;}
 </style>
 </head>
 <body>
-<div id="menuContainer">
-  <button id="heartBtn">❤️</button>
-  <button id="centerBtn">☰</button>
-  <div id="diagnostics"><h4>Diagnostics</h4><pre id="log"></pre></div>
-  <button id="themeToggle">Dark</button>
-  <button id="closeBtn" style="display:none;">✕</button>
-  <div id="lpMenu">
-    <button id="configBtn">Configure</button>
-    <button id="quitBtn">Quit</button>
+
+<!-- SVG icon defs -->
+<svg width="0" height="0" style="position:absolute">
+  <defs>
+    <linearGradient id="heartGrad" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#ffa94d"/>
+      <stop offset="55%" stop-color="#ff7a1a"/>
+      <stop offset="100%" stop-color="#e25e00"/>
+    </linearGradient>
+  </defs>
+  <symbol id="i-back" viewBox="0 0 24 24"><path d="M15 5l-7 7 7 7" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+  <symbol id="i-forward" viewBox="0 0 24 24"><path d="M9 5l7 7-7 7" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+  <symbol id="i-share" viewBox="0 0 24 24"><circle cx="6" cy="12" r="2.4" fill="none" stroke="currentColor" stroke-width="2"/><circle cx="17" cy="6" r="2.4" fill="none" stroke="currentColor" stroke-width="2"/><circle cx="17" cy="18" r="2.4" fill="none" stroke="currentColor" stroke-width="2"/><path d="M8.2 10.9l6.6-3.7M8.2 13.1l6.6 3.7" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></symbol>
+  <symbol id="i-print" viewBox="0 0 24 24"><path d="M7 8V4h10v4M7 16H4v-6h16v6h-3M7 14h10v6H7z" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/></symbol>
+  <symbol id="i-gear" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3.2" fill="none" stroke="currentColor" stroke-width="2"/><path d="M12 2.8v3M12 18.2v3M2.8 12h3M18.2 12h3M5.5 5.5l2.1 2.1M16.4 16.4l2.1 2.1M18.5 5.5l-2.1 2.1M7.6 16.4l-2.1 2.1" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></symbol>
+  <symbol id="i-quit" viewBox="0 0 24 24"><path d="M12 3v8" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/><path d="M6.5 6.5a8 8 0 1 0 11 0" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/></symbol>
+</svg>
+
+<!-- Heart launcher -->
+<div id="heart" role="button" aria-label="Circle menu launcher">
+  <svg viewBox="0 0 100 100">
+    <path d="M50 88 C20 64 8 46 8 30 C8 16 19 8 30 8 C39 8 46 13 50 21 C54 13 61 8 70 8 C81 8 92 16 92 30 C92 46 80 64 50 88 Z"
+          fill="url(#heartGrad)" stroke="#c24f00" stroke-width="2.5"/>
+    <circle cx="38" cy="36" r="4.5" fill="#5b2d00"/>
+    <circle cx="62" cy="36" r="4.5" fill="#5b2d00"/>
+    <circle cx="39.5" cy="34.5" r="1.5" fill="#fff" opacity="0.9"/>
+    <circle cx="63.5" cy="34.5" r="1.5" fill="#fff" opacity="0.9"/>
+    <path d="M36 50 Q50 62 64 50" fill="none" stroke="#5b2d00" stroke-width="4" stroke-linecap="round"/>
+  </svg>
+</div>
+
+<!-- Ring overlay -->
+<div id="overlay">
+  <div id="ringPanel">
+    <button id="closeBtn" aria-label="Close menu">✕</button>
+    <div id="ringStage"></div>
+    <button id="centerBtn" aria-label="Settings"><svg><use href="#i-gear"/></svg></button>
   </div>
 </div>
 
+<!-- Long-press popover -->
+<div id="popover">
+  <button id="optConfig"><svg><use href="#i-gear"/></svg>Configure</button>
+  <button id="optQuit"><svg><use href="#i-quit"/></svg>Quit</button>
+</div>
+
+<!-- Diagnostics -->
+<div id="diag">
+  <div id="diagHead"><span>Diagnostics</span><span id="diagToggle">▾</span></div>
+  <pre id="diagLog"></pre>
+</div>
+
 <script>
-  const items = [
-    {label:'A',action:()=>log('Item A')},
-    {label:'B',action:()=>log('Item B')},
-    {label:'C',action:()=>log('Item C')},
-    {label:'D',action:()=>log('Item D')},
-    {label:'E',action:()=>log('Item E')},
-    {label:'F',action:()=>log('Item F')}
-  ];
-  const container=document.getElementById('menuContainer');
-  const heartBtn=document.getElementById('heartBtn');
-  const closeBtn=document.getElementById('closeBtn');
-  const themeBtn=document.getElementById('themeToggle');
-  const logEl=document.getElementById('log');
-  const lpMenu=document.getElementById('lpMenu');
-  const configBtn=document.getElementById('configBtn');
-  const quitBtn=document.getElementById('quitBtn');
+'use strict';
 
-  let menuOpen=false;
-  let itemElements=[];
-  let currentTheme='light';
-  let dragOffset={x:0,y:0};
+/* ================= Data ================= */
+const menuItems=[
+  {id:'back',   label:'Back',    icon:'i-back'},
+  {id:'forward',label:'Forward', icon:'i-forward'},
+  {id:'share',  label:'Share',   icon:'i-share'},
+  {id:'print',  label:'Print',   icon:'i-print'},
+  {id:'quit',   label:'Quit',    icon:'i-quit'}
+];
 
-  // Rotation state
-  const state={rotation:0}; // degrees
-  const ROT_SENSITIVITY=0.5; // degrees per pixel
-  const INERTIA_FRICTION=0.95;
-  const MIN_VELOCITY=0.1;
-  let inertiaAnim=null;
+/* ================= State ================= */
+const state={
+  open:false,
+  rotation:0,          // degrees, wraps 0-360
+  radius:120,          // px, computed on layout
+  heart:{x:null,y:null}
+};
 
-  // Long‑press handling
-  let lpTimer=null;
-  const LP_DELAY=600; // ms
+/* ================= DOM ================= */
+const heart=document.getElementById('heart');
+const overlay=document.getElementById('overlay');
+const ringPanel=document.getElementById('ringPanel');
+const ringStage=document.getElementById('ringStage');
+const centerBtn=document.getElementById('centerBtn');
+const closeBtn=document.getElementById('closeBtn');
+const popover=document.getElementById('popover');
+const diag=document.getElementById('diag');
+const diagLog=document.getElementById('diagLog');
 
-  function log(msg){
-    const t=new Date().toLocaleTimeString();
-    logEl.textContent+=`[${t}] ${msg}\n`;
-    logEl.scrollTop=logEl.scrollHeight;
-  }
+/* ================= Diagnostics ================= */
+function log(msg){
+  const t=new Date().toLocaleTimeString();
+  diagLog.textContent+=`[${t}] ${msg}\n`;
+  diagLog.scrollTop=diagLog.scrollHeight;
+}
+document.getElementById('diagHead').addEventListener('click',()=>{
+  diag.classList.toggle('collapsed');
+  document.getElementById('diagToggle').textContent=diag.classList.contains('collapsed')?'▸':'▾';
+});
 
-  function createMenuItems(){
-    itemElements.forEach(el=>el.remove());
-    itemElements=[];
-    const radius=Math.min(container.clientWidth,container.clientHeight)/2-80;
-    const step=(2*Math.PI)/items.length;
-    items.forEach((it,i)=>{
-      const btn=document.createElement('button');
-      btn.className='menuItem';
-      btn.textContent=it.label;
-      btn.addEventListener('click',e=>{
-        e.stopPropagation();
-        it.action();
-        closeMenu();
-      });
-      container.appendChild(btn);
-      itemElements.push(btn);
-      // initial placement
-      const angle=i*step-Math.PI/2;
-      const x=Math.cos(angle)*radius;
-      const y=Math.sin(angle)*radius;
-      btn.style.transform=`translate(${x}px,${y}px)`;
+/* ================= Ring nodes ================= */
+let nodeEls=[];
+function buildNodes(){
+  nodeEls.forEach(el=>el.remove());
+  nodeEls=[];
+  menuItems.forEach(item=>{
+    const el=document.createElement('button');
+    el.className='node';
+    el.setAttribute('aria-label',item.label);
+    el.innerHTML=`<svg><use href="#${item.icon}"/></svg>`;
+    el.addEventListener('click',e=>{
+      e.stopPropagation();
+      if(rotDrag.moved) return; // ignore clicks after a drag
+      log(`Action: ${item.label}`);
+      if(item.id==='quit') closeRing();
     });
-  }
-
-  function updateItemPositions(){
-    const radius=Math.min(container.clientWidth,container.clientHeight)/2-80;
-    const step=(2*Math.PI)/items.length;
-    itemElements.forEach((el,i)=>{
-      const baseAngle=i*step-Math.PI/2;
-      const totalAngle=(baseAngle + state.rotation*Math.PI/180);
-      const x=Math.cos(totalAngle)*radius;
-      const y=Math.sin(totalAngle)*radius;
-      el.style.transform=`translate(${x}px,${y}px)`;
-    });
-  }
-
-  function openMenu(){
-    if(menuOpen) return;
-    menuOpen=true;
-    log('Menu opened');
-    itemElements.forEach(el=>el.style.opacity='1');
-    closeBtn.style.display='block';
-  }
-  function closeMenu(){
-    if(!menuOpen) return;
-    menuOpen=false;
-    log('Menu closed');
-    itemElements.forEach(el=>el.style.opacity='0');
-    closeBtn.style.display='none';
-  }
-
-  heartBtn.addEventListener('click',e=>{
-    e.stopPropagation();
-    if(lpMenu.style.display==='block') return;
-    menuOpen?closeMenu():openMenu();
+    ringStage.appendChild(el);
+    nodeEls.push(el);
   });
+}
 
-  closeBtn.addEventListener('click',e=>{
-    e.stopPropagation();
-    closeMenu();
-  });
+function layoutRing(){
+  const w=ringPanel.clientWidth, h=ringPanel.clientHeight;
+  state.radius=Math.min(w,h)/2-46;
+  positionNodes();
+}
 
-  // Drag heart (move overlay)
-  heartBtn.addEventListener('pointerdown',e=>{
-    e.preventDefault();
-    dragOffset.x=e.clientX-heartBtn.offsetLeft;
-    dragOffset.y=e.clientY-heartBtn.offsetTop;
-    heartBtn.setPointerCapture(e.pointerId);
-    heartBtn.style.cursor='grabbing';
-    lpTimer=setTimeout(()=>{
-      const rect=heartBtn.getBoundingClientRect();
-      lpMenu.style.left=`${rect.right+4}px`;
-      lpMenu.style.top=`${rect.top}px`;
-      lpMenu.style.display='block';
-      log('Long‑press menu shown');
-    },LP_DELAY);
+function positionNodes(){
+  const step=360/menuItems.length;
+  nodeEls.forEach((el,i)=>{
+    const deg=state.rotation+i*step-90; // first node at top
+    const rad=deg*Math.PI/180;
+    const x=Math.cos(rad)*state.radius;
+    const y=Math.sin(rad)*state.radius;
+    el.style.left=`calc(50% + ${x}px)`;
+    el.style.top=`calc(50% + ${y}px)`;
   });
-  heartBtn.addEventListener('pointermove',e=>{
-    if(e.pressure===0) return;
-    if(lpTimer && (Math.abs(e.clientX-dragOffset.x-heartBtn.offsetLeft)>5 ||
-                    Math.abs(e.clientY-dragOffset.y-heartBtn.offsetTop)>5)){
-      clearTimeout(lpTimer);
-      lpTimer=null;
+}
+
+/* ================= Open / Close ================= */
+function openRing(){
+  if(state.open) return;
+  state.open=true;
+  overlay.classList.add('open');
+  layoutRing();
+  log('Ring opened');
+}
+function closeRing(){
+  if(!state.open) return;
+  state.open=false;
+  overlay.classList.remove('open');
+  log('Ring closed');
+}
+closeBtn.addEventListener('click',e=>{e.stopPropagation();closeRing();});
+overlay.addEventListener('click',e=>{if(e.target===overlay) closeRing();});
+centerBtn.addEventListener('click',e=>{e.stopPropagation();log('Center gear tapped — settings modal (next slice)');});
+
+/* ================= Carousel rotation + inertia ================= */
+const ROT={
+  sensitivity:0.35,   // degrees per pixel of tangential drag
+  friction:0.94,      // inertia decay per frame
+  minVelocity:0.15,   // deg/frame below which inertia stops
+  flickBoost:14       // scales px/ms velocity to deg/frame
+};
+const rotDrag={active:false,moved:false,lastAngle:0,lastTime:0,velocity:0,raf:null};
+
+function pointerAngle(e){
+  const r=ringPanel.getBoundingClientRect();
+  const cx=r.left+r.width/2, cy=r.top+r.height/2;
+  return Math.atan2(e.clientY-cy,e.clientX-cx)*180/Math.PI;
+}
+function wrapDelta(d){
+  while(d>180) d-=360;
+  while(d<-180) d+=360;
+  return d;
+}
+function stopInertia(){
+  if(rotDrag.raf){cancelAnimationFrame(rotDrag.raf);rotDrag.raf=null;}
+}
+function startInertia(){
+  stopInertia();
+  log(`Inertia start (v=${rotDrag.velocity.toFixed(2)}°/f)`);
+  const step=()=>{
+    rotDrag.velocity*=ROT.friction;
+    if(Math.abs(rotDrag.velocity)<ROT.minVelocity){
+      rotDrag.velocity=0;
+      rotDrag.raf=null;
+      log(`Inertia end at ${state.rotation.toFixed(1)}°`);
+      return;
     }
-    const x=e.clientX-dragOffset.x;
-    const y=e.clientY-dragOffset.y;
-    heartBtn.style.left=`${x}px`;
-    heartBtn.style.top=`${y}px`;
-  });
-  heartBtn.addEventListener('pointerup',e=>{
-    heartBtn.releasePointerCapture(e.pointerId);
-    heartBtn.style.cursor='grab';
-    if(lpTimer){
-      clearTimeout(lpTimer);
-      lpTimer=null;
-    }
-  });
+    state.rotation=(state.rotation+rotDrag.velocity+360)%360;
+    positionNodes();
+    rotDrag.raf=requestAnimationFrame(step);
+  };
+  rotDrag.raf=requestAnimationFrame(step);
+}
 
-  // Hide long‑press menu when clicking elsewhere
-  document.addEventListener('click',e=>{
-    if(lpMenu.style.display==='block' && !lpMenu.contains(e.target)){
-      lpMenu.style.display='none';
-      log('Long‑press menu hidden');
-    }
-  });
+ringStage.addEventListener('pointerdown',e=>{
+  if(e.target.closest('#centerBtn')||e.target.closest('#closeBtn')) return;
+  stopInertia();
+  rotDrag.active=true;
+  rotDrag.moved=false;
+  rotDrag.velocity=0;
+  rotDrag.lastAngle=pointerAngle(e);
+  rotDrag.lastTime=performance.now();
+  ringStage.setPointerCapture(e.pointerId);
+  log('Rotation drag start');
+});
+ringStage.addEventListener('pointermove',e=>{
+  if(!rotDrag.active) return;
+  const now=performance.now();
+  const a=pointerAngle(e);
+  const d=wrapDelta(a-rotDrag.lastAngle);
+  if(Math.abs(d)>0.3) rotDrag.moved=true;
+  state.rotation=(state.rotation+d+360)%360;
+  positionNodes();
+  const dt=Math.max(now-rotDrag.lastTime,1);
+  rotDrag.velocity=rotDrag.velocity*0.6+(d/dt*ROT.flickBoost)*0.4;
+  rotDrag.lastAngle=a;
+  rotDrag.lastTime=now;
+});
+function endRotDrag(e){
+  if(!rotDrag.active) return;
+  rotDrag.active=false;
+  try{ringStage.releasePointerCapture(e.pointerId);}catch(_){}
+  log(`Rotation drag end at ${state.rotation.toFixed(1)}°`);
+  if(Math.abs(rotDrag.velocity)>ROT.minVelocity) startInertia();
+}
+ringStage.addEventListener('pointerup',endRotDrag);
+ringStage.addEventListener('pointercancel',endRotDrag);
 
-  // Config / Quit
-  configBtn.addEventListener('click',()=>log('Configure selected (TODO)'));
-  quitBtn.addEventListener('click',()=>{
-    container.style.display='none';
-    log('Application quit');
-  });
+/* ================= Heart: drag / tap / long-press ================= */
+const LP_DELAY=600;
+const heartDrag={active:false,moved:false,offX:0,offY:0,lpTimer:null};
 
-  // Theme toggle
-  function applyTheme(t){
-    document.documentElement.setAttribute('data-theme',t);
-    themeBtn.textContent=t==='light'?'Dark':'Light';
-    currentTheme=t;
-    log(`Theme set to ${t}`);
+heart.addEventListener('pointerdown',e=>{
+  e.preventDefault();
+  heartDrag.active=true;
+  heartDrag.moved=false;
+  const r=heart.getBoundingClientRect();
+  heartDrag.offX=e.clientX-r.left;
+  heartDrag.offY=e.clientY-r.top;
+  heart.setPointerCapture(e.pointerId);
+  heart.classList.add('pressed');
+  heartDrag.lpTimer=setTimeout(()=>{
+    heartDrag.lpTimer=null;
+    showPopover(r.left+r.width+8,r.top);
+    log('Long-press: command popover shown');
+  },LP_DELAY);
+});
+heart.addEventListener('pointermove',e=>{
+  if(!heartDrag.active) return;
+  const dx=e.clientX-heartDrag.offX;
+  const dy=e.clientY-heartDrag.offY;
+  if(Math.abs(e.movementX)+Math.abs(e.movementY)>2) heartDrag.moved=true;
+  if(heartDrag.moved&&heartDrag.lpTimer){clearTimeout(heartDrag.lpTimer);heartDrag.lpTimer=null;}
+  const maxX=window.innerWidth-heart.offsetWidth;
+  const maxY=window.innerHeight-heart.offsetHeight;
+  const x=Math.max(0,Math.min(dx,maxX));
+  const y=Math.max(0,Math.min(dy,maxY));
+  heart.style.left=x+'px';
+  heart.style.top=y+'px';
+  state.heart.x=x;state.heart.y=y;
+});
+heart.addEventListener('pointerup',e=>{
+  heartDrag.active=false;
+  heart.classList.remove('pressed');
+  try{heart.releasePointerCapture(e.pointerId);}catch(_){}
+  if(heartDrag.lpTimer){clearTimeout(heartDrag.lpTimer);heartDrag.lpTimer=null;}
+  if(!heartDrag.moved&&popover.style.display!=='block'){
+    state.open?closeRing():openRing();
   }
-  themeBtn.addEventListener('click',()=>applyTheme(currentTheme==='light'?'dark':'light'));
+});
+heart.addEventListener('pointercancel',()=>{
+  heartDrag.active=false;
+  heart.classList.remove('pressed');
+  if(heartDrag.lpTimer){clearTimeout(heartDrag.lpTimer);heartDrag.lpTimer=null;}
+});
 
-  // ---------- Rotation handling ----------
-  let lastPointerX=null;
-  let lastTime=null;
-  let velocity=0;
-
-  function startInertia(){
-    if(inertiaAnim) cancelAnimationFrame(inertiaAnim);
-    function step(){
-      velocity*=INERTIA_FRICTION;
-      if(Math.abs(velocity)<MIN_VELOCITY){
-        velocity=0;
-        log('Inertia ended');
-        return;
-      }
-      state.rotation=(state.rotation+velocity)%360;
-      updateItemPositions();
-      inertiaAnim=requestAnimationFrame(step);
-    }
-    log('Inertia started');
-    inertiaAnim=requestAnimationFrame(step);
+/* ================= Popover ================= */
+function showPopover(x,y){
+  popover.style.display='block';
+  const pw=popover.offsetWidth, ph=popover.offsetHeight;
+  popover.style.left=Math.min(x,window.innerWidth-pw-8)+'px';
+  popover.style.top=Math.min(y,window.innerHeight-ph-8)+'px';
+}
+function hidePopover(){popover.style.display='none';}
+document.addEventListener('pointerdown',e=>{
+  if(popover.style.display==='block'&&!popover.contains(e.target)&&e.target!==heart){
+    hidePopover();
   }
+});
+document.getElementById('optConfig').addEventListener('click',()=>{
+  hidePopover();
+  log('Configure selected — settings modal (next slice)');
+});
+document.getElementById('optQuit').addEventListener('click',()=>{
+  hidePopover();
+  closeRing();
+  heart.style.display='none';
+  log('Quit — launcher hidden');
+});
 
-  // Listen on the ring area (container) for drags that rotate
-  container.addEventListener('pointerdown',e=>{
-    if(!menuOpen) return;
-    // ignore if starting on heart or UI controls
-    if(e.target===heartBtn||e.target===closeBtn||e.target===lpMenu||e.target===themeBtn) return;
-    lastPointerX=e.clientX;
-    lastTime=performance.now();
-    velocity=0;
-    container.setPointerCapture(e.pointerId);
-  });
-  container.addEventListener('pointermove',e=>{
-    if(lastPointerX===null) return;
-    const dx=e.clientX-lastPointerX;
-    const dt=performance.now()-lastTime;
-    const deltaDeg=dx*ROT_SENSITIVITY;
-    state.rotation=(state.rotation+deltaDeg)%360;
-    updateItemPositions();
-    velocity=dx/dt*ROT_SENSITIVITY*1000; // deg per second
-    lastPointerX=e.clientX;
-    lastTime=performance.now();
-  });
-  container.addEventListener('pointerup',e=>{
-    if(lastPointerX===null) return;
-    container.releasePointerCapture(e.pointerId);
-    if(Math.abs(velocity)>0){
-      startInertia();
-    }
-    lastPointerX=null;
-    lastTime=null;
-  });
-  // ---------- End rotation ----------
-
-  // Init
-  createMenuItems();
-  closeMenu();
-  applyTheme('light');
+/* ================= Layout & init ================= */
+window.addEventListener('resize',()=>{if(state.open) layoutRing();});
+buildNodes();
+log('Circle Menu initialized — professional shell, rotation ready');
 </script>
 </body>
 </html>
