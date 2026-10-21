@@ -146,3 +146,4 @@ Upgrade the Configure panel's menu editor: today items can only be added and del
 | 2026-10-21 14:14 | Main | built projects/circle-menu.html | Done. | 5c2fe4f |
 | 2026-10-21 14:41 | Main | built projects/circle-menu.html | Fixed the real bugs — node clicks were being killed by pointer capture, and tilt rotated the wrong way — and added the missing pieces: hover | 0fee5f2 |
 | 2026-10-21 | plan updated | Turn 11: editor item editing + reordering specified; build order re-baselined |
+| 2026-10-21 23:08 | Main | built projects/circle-menu.html | Honest answer: the editor upgrade was planned but hadn't fully landed in the code yet — it's landing now. This update adds the missing "Open | a6f1032 |
