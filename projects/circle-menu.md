@@ -122,3 +122,4 @@ Land code for slice 3: physical ring depth (tilt detents, pinch/wheel radius) pl
 | 2026-10-21 13:22 | failed | Engine credit/time failure |
 | 2026-10-21 | plan updated | Owner re-scope accepted; code for tilt/pinch + seeded menus is next |
 | 2026-10-21 14:14 | Main | built projects/circle-menu.html | Done. | 5c2fe4f |
+| 2026-10-21 14:41 | Main | built projects/circle-menu.html | Fixed the real bugs — node clicks were being killed by pointer capture, and tilt rotated the wrong way — and added the missing pieces: hover | 0fee5f2 |
