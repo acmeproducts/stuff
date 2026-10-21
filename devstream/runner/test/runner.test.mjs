@@ -1,4 +1,4 @@
-import { runPipeline, verifyAccess, checkBuild, msgSig, b64enc, b64dec } from '../core.js';
+import { runPipeline, verifyAccess, checkBuild, msgSig, b64enc, b64dec, friendlyError } from '../core.js';
 
 let pass = 0, fail = 0;
 const ok = (n, c, extra) => { if (c) { pass++; console.log('PASS', n); } else { fail++; console.log('FAIL', n, extra === undefined ? '' : JSON.stringify(extra).slice(0, 300)); } };
@@ -123,6 +123,14 @@ const quiet = fetchFn => ({ fetch: fetchFn, sleep: () => new Promise(r => setTim
     const r = await runPipeline(sc, quiet(m.fetchFn));
     const th = read(m.fs, 'devstream/threads/p__app.html.json'), am = th.messages[th.messages.length - 1];
     ok('R1 plan reply without chips gets the standard plan chips', r.ok && am.chips && am.chips.length === 3 && /Build it now with your recommendations/.test(am.chips[0].label) && /Answer your questions first/.test(am.chips[1].label), am.chips);
+  }
+  /* AI errors say which AI and why */
+  {
+    const m1 = 'all engines failed: venice: venice 402: API key [redacted] spend limit exceeded. Your account may still have DIEM balance, but this API key reached its configured DIEM spending limit. | openrouter: openrouter 402: Insufficient credits. This account never purchased credits.';
+    const f = friendlyError(m1);
+    ok('B81 Venice key limit and OpenRouter credits are named separately (not "out of credit")', /Venice: this API key has reached its own spending limit/.test(f) && /OpenRouter has no credits left/.test(f) && !/AI account is out of credit/.test(f), f);
+    ok('B81 a single provider error names the provider', /^OpenRouter has no credits left\.$/.test(friendlyError('openrouter 402: Insufficient credits')), friendlyError('openrouter 402: Insufficient credits'));
+    ok('B81 other errors are unchanged', /took too long/.test(friendlyError('timeout 25s on x')) && /unchanged/.test(friendlyError('weird')));
   }
   /* B68-3 access */
   {
