@@ -37,6 +37,7 @@ async function etlRequireComplete(p){
   let tag=document.getElementById('mnHistoricalNotice');if(!tag){tag=document.createElement('button');tag.id='mnHistoricalNotice';tag.type='button';document.querySelector('.top').append(tag)}
   tag.textContent='As of '+q.marketDate;tag.title='Historical data through '+q.marketDate+'; not current. Open ETL for verification and current-data status.';tag.onclick=()=>document.getElementById('mnEtlLauncher').click();
   const launcher=document.getElementById('mnEtlLauncher');if(!document.getElementById('mnEtlHistoricalBadge')){const badge=document.createElement('span');badge.id='mnEtlHistoricalBadge';badge.textContent=' ●';badge.title='Using verified historical data through '+q.marketDate;launcher.append(badge)}
+  etlHistoricalLabels(q.marketDate);new MutationObserver(()=>etlHistoricalLabels(q.marketDate)).observe(document.body,{childList:true,subtree:true});
  }
  return q;
 }
@@ -90,3 +91,5 @@ async function etlCurrentStatus(){
   node.innerHTML='<h3>Current data update</h3><p data-etl-current-result>'+esc(status.status==='PASS'?'Update completed; chart data must still pass its completeness check.':maintenance?'BLOCKED — FRED is undergoing maintenance. It returned a web page instead of data.':detail.error||status.error||'The current update has not passed all required checks.')+'</p><p>'+esc(maintenance?'Re-running during provider maintenance cannot repair the provider. You can use the verified historical package. Scheduled checks will test the provider again.':'Current-update results and historical-data verification are separate. A successful deployment alone does not prove current data is complete.')+'</p>';
  }catch(e){node.textContent='Current-update details could not be loaded: '+e.message+'. No successful current update is being claimed.'}
 }
+
+function etlHistoricalLabels(cutoff){const label='As of '+new Date(cutoff+'T00:00:00Z').toLocaleDateString('en-US',{month:'short',day:'numeric',timeZone:'UTC'});for(const node of document.querySelectorAll('.chromeCrumb')){node.dataset.historicalLabel=label;node.setAttribute('aria-description','Historical data through '+cutoff+'; not current data')}}
