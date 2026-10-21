@@ -11,43 +11,44 @@
 | Date | Turn/Stage | Action | Status |
 |------|-----------|--------|--------|
 | 2026-10-21 | T0 | Plan created and seeded; all unknowns marked TBD | ✅ Done |
-| 2026-10-21 | T1 | Owner requested conversion of acmeproducts/detective-board into single-file HTML, images kept separate | ⏸ Blocked |
-| 2026-10-21 | T2 | Received repo index.html: it's a Vite + React + TypeScript SPA ("Case Board — Detective Boards"), entry src/main.tsx, theme #060b1f, favicon.svg. Real app code lives in src/ — not yet provided. Listed exact files needed from owner | ⏸ Awaiting src/ |
+| 2026-10-21 | T1 | Owner requested conversion of acmeproducts/detective-board into single-file HTML, images kept separate | ⏸ Superseded |
+| 2026-10-21 | T2 | Received repo index.html: Vite + React + TypeScript SPA ("Case Board — Detective Boards"), entry src/main.tsx, theme #060b1f, favicon.svg. src/ never provided | ⏸ Superseded |
+| 2026-10-21 | T3 | Owner directed build to proceed without repo source. R1 redefined: original plain-JS implementation of the Case Board concept (NOT a port — no repo code available). Plan updated before code | ✅ Done |
+| 2026-10-21 | T4 | Write projects/redboard.html v1 per R1 scope below | ⏳ Next |
 
 ---
 
 ## 1) RELEASES
 | # | Goal (one line) |
 |---|-----------------|
-| R1 | Convert the "detective-board" (Case Board) React/Vite app into one self-contained mobile-first HTML file (projects/redboard.html), images kept as separate files |
+| R1 | Build an original single-file "Case Board" detective-board app in plain JS/CSS: draggable note + photo cards, red-string connections, pan/zoom board, dark theme, in-app diagnostics |
 | R2 | TBD — polish/follow-ups after R1 works on real phones |
 
 ---
 
 ## 2) PER-RELEASE DETAIL
 
-### Release 1 — Conversion
+### Release 1 — Case Board v1 (original build)
+- **Context:** Repo src/ was never provided and can't be retrieved from here; owner directed us to build anyway. This is our own implementation of the detective-board concept, informed only by the repo's shell (title "Case Board", theme #060b1f, favicon.svg).
 - **Scope IN:**
-  - Port all app logic/markup/styles from the repo's src/ into projects/redboard.html (single file, plain JS — no build step)
-  - Images referenced as separate external files; filenames taken from the repo
-  - In-app diagnostics panel (never console-only)
+  - Full-screen board, dark theme (#060b1f), mobile-first touch
+  - Cards: text notes and photo cards (photo via device file picker); drag to move; add/edit/delete
+  - Connect mode: tap two cards to link them with a red string; strings redraw live while dragging; tap a string to delete it
+  - Pan and pinch-zoom the board
+  - Save/load board state in localStorage (photos stored inline as data URLs so the single file stays self-contained)
+  - In-app diagnostics panel (load status, card/string counts, save status, last error) — never console-only
+  - No stubs, no placeholder/fake content — board starts empty, owner adds real cards
 - **Scope OUT:**
-  - New features beyond the repo's existing behavior
-  - Server-side/backend functionality, if any (flag to owner if found)
-- **Source received so far:**
-  - index.html — shell only: `<div id="root">` + `<script type="module" src="/src/main.tsx">`, title "Case Board — Detective Boards", theme-color #060b1f, favicon.svg
-- **Source still needed (paste or attach):**
-  1. src/main.tsx (entry)
-  2. Every other file in src/ (App component, components, styles, state — whatever exists)
-  3. List of image/asset files in public/ or src/assets/ (favicon.svg, board textures, icons)
+  - Claiming any feature parity with the repo (we never saw its code)
+  - Backend/sync, accounts, sharing
 - **Build gates (verify on real devices):**
-  - Loads on a phone browser with no blank screen
-  - Every feature that worked in the repo version works via touch
-  - Images load from their separate files
-  - Diagnostics visible in-app; zero console-only errors
+  - Loads on a phone browser, no blank screen
+  - Add note card, add photo card, drag, connect with string, delete — all via touch
+  - Pan/zoom smooth on a phone
+  - Reload page → board restored from localStorage
+  - Diagnostics panel visible in-app; zero errors reported
   - Read-back verification after the push
-- **Backlog (deferred):** TBD after source review
-- **BLOCKER (unchanged):** Only the shell index.html has arrived. Rule 5 forbids inventing a reconstruction of the React app — conversion starts when src/ source arrives.
+- **Backlog (deferred):** TBD after v1 lands
 
 ### Release 2
 - **Scope IN:** TBD
@@ -59,7 +60,9 @@
 
 ## 3) FUTURE IDEAS
 *Unscheduled parking lot.*
-- Fallback if repo source never arrives: build a fresh detective board (notes, images, connecting strings) in plain JS — owner may pick this via chip, which overrides the blocker.
+- True port of acmeproducts/detective-board — only if its src/ code is ever pasted/attached.
+- Separate image files on disk (owner's original ask) if the app ever moves to a hosted folder instead of one local file.
+- Card colors/types (suspect, evidence, location), string colors, board export as image.
 
 ---
 
@@ -78,8 +81,9 @@
 | Date | Decision |
 |------|----------|
 | 2026-10-21 | Project initialized; code file fixed as projects/redboard.html (single-file mobile-first HTML app). |
-| 2026-10-21 | R1 goal set: convert acmeproducts/detective-board repo to single-file HTML; images stay as separate files. Conversion waits for actual source — no guessing. |
-| 2026-10-21 | Repo confirmed as Vite + React + TypeScript SPA from its index.html. Port target: plain-JS single file (no build step). Owner asked us to "figure it out" from index.html alone — not possible without guessing, so src/ files requested; owner may instead choose a fresh build. |
+| 2026-10-21 | R1 goal initially set: convert acmeproducts/detective-board repo; images separate. |
+| 2026-10-21 | Repo confirmed Vite + React + TS SPA from its index.html; src/ unobtainable in this environment. |
+| 2026-10-21 | Owner declined to paste src/ and directed build to proceed. R1 redefined as an ORIGINAL plain-JS Case Board implementation (concept only, zero repo code). Photos stored inline (data URLs) to keep the single file self-contained; separate image files parked in Future Ideas. |
 
 ---
 
