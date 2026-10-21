@@ -48,3 +48,8 @@ A single-file, mobile-first HTML app that faithfully recreates the **Caseboard**
 |------|-----------|--------|--------|
 | 2026-10-21 | T4 | Wrote projects/redboard.html v1 (dark theme, note/photo/string, localStorage) | ✅ Done |
 | 2026-10-21 | T5 | Owner supplied original Caseboard README + harsh feedback; recorded authoritative spec, v1 post-mortem, staged rebuild backlog R2–R9; plan corrected (TARGET stays projects/redboard.html) | ✅ Done |
+
+## RUN LOG (written by DevStream)
+| Date | Tab | Result | What | Commit |
+|---|---|---|---|---|
+| 2026-10-21 12:58 | Main | failed | The AI account is out of credit or at its spending limit. |  |
