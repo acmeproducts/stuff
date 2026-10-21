@@ -162,6 +162,12 @@ edit('</head>','<style>'+Path('market-navigator-chart-correction/presentation.cs
 
 edit("for(let i=0;i<5;i++){let yy=p.t+ph*i/4", "x.font='10px system-ui';for(let i=0;i<5;i++){let yy=p.t+ph*i/4", 'consistent readable Y-axis tick font')
 
+
+# Across-year viewports must identify the year in both shared and global formatters.
+period_tick="function tick(t,h=S.h){let d=new Date(t),o=(h==='3YR'||h==='5YR')?{month:'short',year:'2-digit'}:(h==='1YR'||h==='YTD')?{month:'short'}:{month:'short',day:'numeric'};return d.toLocaleDateString(undefined,{...o,timeZone:'UTC'})}"
+assert html.count(period_tick)==2,('period tick formatter seams',html.count(period_tick))
+html=html.replace(period_tick,"function tick(t,h=S.h){let d=new Date(t),o=(h==='1YR'||h==='3YR'||h==='5YR')?{month:'short',year:'2-digit'}:h==='YTD'?{month:'short'}:{month:'short',day:'numeric'};return d.toLocaleDateString(undefined,{...o,timeZone:'UTC'})}");changes.append('unambiguous years across annual period boundaries')
+
 edit('__ETL_BUILD_ID__', hashlib.sha256(html.encode('utf-8')).hexdigest(), 'content-bound application build identity')
 
 TARGET.parent.mkdir(parents=True,exist_ok=True);TARGET.write_text(html,encoding='utf-8',newline='')

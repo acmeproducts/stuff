@@ -27,6 +27,13 @@ class Completeness(unittest.TestCase):
  def test_interior_gap_rejected_even_current_endpoint(self):
   self.save('hySpread',[d for d in self.dates if d!='2026-10-16'])
   with self.assertRaisesRegex(g.IncompleteData,'2026-10-16'):self.audit()
+ def test_clock_source_gap_cannot_erase_expected_session(self):
+  self.save('spy',[d for d in self.dates if d!='2026-10-16'])
+  with self.assertRaisesRegex(g.IncompleteData,'spy'):self.audit()
+ def test_shared_gap_cannot_redefine_the_market_calendar(self):
+  for i,c in self.ids:
+   if c in g.DAILY:self.save(i,[d for d in self.dates if d!='2026-10-16'])
+  with self.assertRaisesRegex(g.IncompleteData,'2026-10-16'):self.audit()
  def test_daily_nav_is_not_exempt(self):
   self.save('fund',self.dates[:-1])
   with self.assertRaisesRegex(g.IncompleteData,'fund'):self.audit()
@@ -35,7 +42,7 @@ class Completeness(unittest.TestCase):
   with self.assertRaisesRegex(g.IncompleteData,'cpi'):self.audit()
  def test_weekend_does_not_demand_synthetic_observations(self):
   for i,c in self.ids:
-   if c in g.DAILY:self.save(i,self.dates[:3])
+   if c in g.DAILY:self.save(i,['2026-10-12','2026-10-13']+self.dates[:3])
   q=g.require_complete(self.root,dt.datetime(2026,10,18,8,tzinfo=s.UTC),s.read,schedule)
   self.assertEqual(q['marketDate'],'2026-10-16')
  def test_no_due_shortcut_cannot_bypass_gate(self):
