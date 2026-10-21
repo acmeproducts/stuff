@@ -3,7 +3,7 @@ const fs=require('fs'),vm=require('vm'),assert=require('assert/strict'),crypto=r
 const code=fs.readFileSync('market-navigator-chart-correction/etl.js','utf8'),guard=code.slice(0,code.indexOf("const ETL_BUILD_ID"));
 (async()=>{
 async function check(fresh,expectedError){let blocked=false;const bytes=Buffer.from(JSON.stringify({qualification:{freshness:fresh}})),hash=crypto.createHash('sha256').update(bytes).digest('hex');
-const scope={fetch:async()=>({ok:true,arrayBuffer:async()=>bytes}),etlHash:async b=>crypto.createHash('sha256').update(Buffer.from(b)).digest('hex'),TextDecoder,URL,Date,setTimeout:()=>1,clearTimeout:()=>{},location:{href:'https://example.test/throwaway.html'},document:{body:{classList:{remove:()=>{},add:()=>{blocked=true}}},getElementById:()=>null},console};
+const scope={fetch:async()=>({ok:true,arrayBuffer:async()=>bytes}),etlHash:async b=>crypto.createHash('sha256').update(Buffer.from(b)).digest('hex'),TextDecoder,URL,Date,setTimeout:()=>1,clearTimeout:()=>{},location:{href:'https://example.test/throwaway.html'},document:{body:{classList:{remove:()=>{},add:()=>{blocked=true}}},getElementById:()=>null,addEventListener:()=>{}},window:{addEventListener:()=>{}},console};
 vm.createContext(scope);vm.runInContext(guard+'\nglobalThis.check=etlRequireComplete',scope);
 if(expectedError)await assert.rejects(()=>scope.check({resources:{'market-evidence/sync-proof.json':hash}}),expectedError);else assert.equal((await scope.check({resources:{'market-evidence/sync-proof.json':hash}})).status,'PASS')}
 const row={id:'hySpread',cadence:'daily',latest:'2026-10-20',required:'2026-10-20',status:'PASS',problems:[],missingMarketSessions:[]};

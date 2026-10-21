@@ -19,7 +19,15 @@ jobs:
         with:
           python-version: '3.12'
       - name: Reproduce candidate and immutable source pins
-        run: python market-navigator-sync/rebuild_chart.py
+        run: |
+          python market-navigator-sync/rebuild_chart.py
+          python - <<'PY'
+          import shutil
+          from pathlib import Path
+          target=Path('.evidence/readiness-data')
+          shutil.copytree('market-navigator-throwaway-review',target)
+          shutil.copyfile('.evidence/chart-correction-candidate/throwaway.html',target/'throwaway.html')
+          PY
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
@@ -34,13 +42,14 @@ jobs:
         run: |
           python market-navigator-sync/test_freshness.py
           node market-navigator-sync/test_consumer_freshness.cjs
+          node market-navigator-sync/test_prose_contract.cjs
           node market-navigator-sync/test_blocked_browser.cjs
       - name: Run all mandatory implementation suites in isolated non-release scope
         env:
           MN_PLAYWRIGHT_MODULE: ${{ runner.temp }}/mn-browser/node_modules/playwright
           MN_BROWSER_CHANNELS: chromium
           MN_CHART_CANDIDATE_ROOT: .evidence/chart-correction-candidate
-          MN_SYNC_BROWSER_ROOT: market-navigator-throwaway-review
+          MN_SYNC_BROWSER_ROOT: .evidence/readiness-data
           MN_ACCEPTANCE_SCOPE: retained-data-lab
         run: |
           export NODE_OPTIONS="--require $GITHUB_WORKSPACE/market-navigator-readiness-lab.cjs"

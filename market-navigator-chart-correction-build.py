@@ -168,6 +168,9 @@ period_tick="function tick(t,h=S.h){let d=new Date(t),o=(h==='3YR'||h==='5YR')?{
 assert html.count(period_tick)==2,('period tick formatter seams',html.count(period_tick))
 html=html.replace(period_tick,"function tick(t,h=S.h){let d=new Date(t),o=(h==='1YR'||h==='3YR'||h==='5YR')?{month:'short',year:'2-digit'}:h==='YTD'?{month:'short'}:{month:'short',day:'numeric'};return d.toLocaleDateString(undefined,{...o,timeZone:'UTC'})}");changes.append('unambiguous years across annual period boundaries')
 
+
+edit("verificationInstruction:state.verification?.status==='delayed'?'This is an integrity-checked historical snapshot. Live source verification was delayed when this scope was captured. State its verification timestamp; do not claim it is currently source-verified.':null","verificationInstruction:etlSnapshotInstruction(state.verification)",'frozen prose source-completeness and expiry disclosure')
+
 edit('__ETL_BUILD_ID__', hashlib.sha256(html.encode('utf-8')).hexdigest(), 'content-bound application build identity')
 
 TARGET.parent.mkdir(parents=True,exist_ok=True);TARGET.write_text(html,encoding='utf-8',newline='')
