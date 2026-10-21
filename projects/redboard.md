@@ -57,3 +57,4 @@ A single-file, mobile-first HTML app that faithfully recreates the **Caseboard**
 | 2026-10-21 13:19 | Main | failed | The AI account is out of credit or at its spending limit. |  |
 | 2026-10-21 13:52 | Main | failed | Venice took too long. |  |
 | 2026-10-21 14:42 | Main | failed | Venice took too long. |  |
+| 2026-10-21 20:21 | Main | built projects/redboard.html | Full professional rebuild: warm procedural cork board with Figma-style pan/zoom (wheel + pinch), a neutral magnifying evidence dock (sticky  | a4852d4 |
