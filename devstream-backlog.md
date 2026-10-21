@@ -6,8 +6,8 @@ Deploy target: `https://acmeproducts.github.io/stuff/devstream.html`
 Test target: `https://acmeproducts.github.io/stuff/devstream-test.html`
 
 ## Status
-- Current release: v1.0 b80 on devstream-test.html (2026-10-21)
-- Stage: TEST (b80)
+- Current release: v1.0 b81 on devstream-test.html (2026-10-22)
+- Stage: TEST (b81)
 
 ## Release Rules (inherited, proven)
 1. Mobile-first. All diagnostics in-app. No DevTools ever.
@@ -255,6 +255,29 @@ b39 incorrectly changed stationary hold into context-menu activation. Devstream 
 ## Graveyard
 - **G-DS-13 — Hold opens context menu:** rejected; donor behavior is double-tap context, hold-to-drag.
 - **G-DS-14 — Legacy generic #tabContext button styling:** rejected; it corrupts the donor context-menu appearance.
+
+---
+
+# 2026-10-22 — b81 one visible AI per project; no silent switching; honest AI errors
+
+## Owner report
+"It keeps telling me AI out of credit. Two sessions were set to Venice, which has plenty of credit; I think it keeps trying OpenRouter, which has no credits. I can't identify and change the active AI platform for a given project."
+
+## Cause (from the app's own log)
+- Venice answered "API key spend limit exceeded — your account may still have DIEM balance, but this API key reached its configured DIEM spending limit". That is a limit on the *key*, not the account.
+- The app then quietly tried OpenRouter (no credits, HTTP 402) and the message blamed "the AI account is out of credit" for both.
+- The AI choice was hidden: since b75 the engine chip was removed from the chat and lived only in a per-tab dialog that did nothing unless you pressed Validate.
+
+## Change
+- **The chat header always shows which AI the project uses** ("Venice ▾"). Tapping it opens "AI for the project": choose the AI (only ones with a saved key) and the model, then **Use this AI for the whole project** — it checks the AI and applies to every tab of the project, and new tabs follow it.
+- **No silent switching.** If the chosen AI fails, the app stops and says why; it does not try another AI. An optional switch in Config → Advanced ("If the chosen AI fails, quietly try another") brings the old behaviour back; off by default.
+- **Honest errors** name the AI and the reason: "Venice: this API key has reached its own spending limit (your account may still have balance) — raise the key's limit in API keys, or paste a new key" / "OpenRouter has no credits left" / "rejected the key" / "rate-limiting this key" / "took too long" / "could not reach". Same in the cloud runner.
+
+## Acceptance
+- **DS-B81-1:** the header shows the active AI; the chooser changes it for all tabs of the project and for new tabs.
+- **DS-B81-2:** with the default setting a failing Venice run never calls OpenRouter.
+- **DS-B81-3:** with the fallback switch on, the other AI is tried.
+- **DS-B81-4:** a Venice key-limit error and an OpenRouter no-credits error are reported separately and in plain words.
 
 ---
 

@@ -7,8 +7,28 @@ export function b64enc(s) { const u = te.encode(s); let b = ''; for (let i = 0; 
 export function b64dec(s) { const b = atob(String(s).replace(/\n/g, '')), u = new Uint8Array(b.length); for (let i = 0; i < b.length; i++) u[i] = b.charCodeAt(i); return td.decode(u); }
 export const msgSig = m => (m.role || '') + '|' + (m.ts || '') + '|' + ((m.text || '').slice(0, 120));
 
+const AI_NAMES = { venice: 'Venice', openrouter: 'OpenRouter', 'anthropic-direct': 'Claude' };
+const aiName = e => AI_NAMES[e] || String(e || 'Venice');
+export function engineReason(eng, msg) {
+  const n = aiName(eng); msg = String(msg || '');
+  if (/spend limit/i.test(msg)) return n + ': this API key has reached its own spending limit (your account may still have balance) — raise the key’s limit in ' + n + ' under API keys, or paste a new key';
+  if (/402|insufficient credit|never purchased|out of credit|balance (is )?empty/i.test(msg)) return n + ' has no credits left';
+  if (/401|authentication|key.*(rejected|invalid)|invalid.*key/i.test(msg)) return n + ' rejected the key';
+  if (/429|rate limit/i.test(msg)) return n + ' is rate-limiting this key — try again in a minute';
+  if (/timeout|time limit|stalled/i.test(msg)) return n + ' took too long';
+  if (/Failed to fetch|network/i.test(msg)) return 'could not reach ' + n;
+  return n + ' failed';
+}
 export function friendlyError(m) {
   m = String(m || '');
+  {
+    const mm = /^all engines failed: (.*)$/s.exec(m);
+    if (mm) {
+      const parts = mm[1].split(' | ').map(x => { const q = /^(venice|openrouter|anthropic-direct|anthropic):\s*(.*)$/s.exec(x); return q ? engineReason(q[1] === 'anthropic' ? 'anthropic-direct' : q[1], q[2]) : ''; }).filter(Boolean);
+      if (parts.length) return parts.join('. ') + '.';
+    }
+    const one = /^(venice|openrouter|anthropic-direct|anthropic)\s+\d+/.exec(m); if (one) return engineReason(one[1] === 'anthropic' ? 'anthropic-direct' : one[1], m) + '.';
+  }
   if (/spend limit|402|insufficient credit|out of credit/i.test(m)) return 'The AI account is out of credit or at its spending limit.';
   if (/timed out|timeout|time limit|stalled/i.test(m)) return 'The AI took too long and was stopped.';
   if (/Unexpected output path/i.test(m)) return 'The plan points at a file that is not this project\'s build file.';
