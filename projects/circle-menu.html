@@ -35,7 +35,7 @@
     touch-action:none;
     cursor:grab;
   }
-  #centerBtn{display:none;} /* hidden, kept for compatibility */
+  #centerBtn{display:none;}
   .menuItem{
     position:absolute;
     width:50px;height:50px;
@@ -81,7 +81,30 @@
     font-size:1.2rem;
     cursor:pointer;
     z-index:3;
+    display:none;
   }
+  /* Pop‑over for long‑press */
+  #lpMenu{
+    position:absolute;
+    background:var(--diag-bg);
+    border:1px solid #888;
+    border-radius:4px;
+    padding:4px 8px;
+    display:none;
+    z-index:4;
+    box-shadow:0 2px 6px rgba(0,0,0,0.2);
+  }
+  #lpMenu button{
+    background:none;
+    border:none;
+    color:var(--text-color);
+    padding:4px 0;
+    width:100%;
+    text-align:left;
+    cursor:pointer;
+    font-size:0.9rem;
+  }
+  #lpMenu button:hover{background:rgba(0,0,0,0.1);}
 </style>
 </head>
 <body>
@@ -91,6 +114,10 @@
   <div id="diagnostics"><h4>Diagnostics</h4><pre id="log"></pre></div>
   <button id="themeToggle">Dark</button>
   <button id="closeBtn" style="display:none;">✕</button>
+  <div id="lpMenu">
+    <button id="configBtn">Configure</button>
+    <button id="quitBtn">Quit</button>
+  </div>
 </div>
 
 <script>
@@ -107,10 +134,18 @@
   const closeBtn=document.getElementById('closeBtn');
   const themeBtn=document.getElementById('themeToggle');
   const logEl=document.getElementById('log');
+  const lpMenu=document.getElementById('lpMenu');
+  const configBtn=document.getElementById('configBtn');
+  const quitBtn=document.getElementById('quitBtn');
+
   let menuOpen=false;
   let itemElements=[];
   let currentTheme='light';
   let dragOffset={x:0,y:0};
+
+  // Long‑press handling
+  let lpTimer=null;
+  const LP_DELAY=600; // ms
 
   function log(msg){
     const t=new Date().toLocaleTimeString();
@@ -158,8 +193,11 @@
 
   heartBtn.addEventListener('click',e=>{
     e.stopPropagation();
+    // ignore click if long‑press menu is visible
+    if(lpMenu.style.display==='block') return;
     menuOpen?closeMenu():openMenu();
   });
+
   closeBtn.addEventListener('click',e=>{
     e.stopPropagation();
     closeMenu();
@@ -172,9 +210,24 @@
     dragOffset.y=e.clientY-heartBtn.offsetTop;
     heartBtn.setPointerCapture(e.pointerId);
     heartBtn.style.cursor='grabbing';
+    // start long‑press timer
+    lpTimer=setTimeout(()=>{
+      // show pop‑over near heart
+      const rect=heartBtn.getBoundingClientRect();
+      lpMenu.style.left=`${rect.right+4}px`;
+      lpMenu.style.top=`${rect.top}px`;
+      lpMenu.style.display='block';
+      log('Long‑press menu shown');
+    },LP_DELAY);
   });
   heartBtn.addEventListener('pointermove',e=>{
     if(e.pressure===0) return;
+    // cancel long‑press if moved beyond a small threshold
+    if(lpTimer && (Math.abs(e.clientX-dragOffset.x-heartBtn.offsetLeft)>5 ||
+                    Math.abs(e.clientY-dragOffset.y-heartBtn.offsetTop)>5)){
+      clearTimeout(lpTimer);
+      lpTimer=null;
+    }
     const x=e.clientX-dragOffset.x;
     const y=e.clientY-dragOffset.y;
     heartBtn.style.left=`${x}px`;
@@ -183,6 +236,26 @@
   heartBtn.addEventListener('pointerup',e=>{
     heartBtn.releasePointerCapture(e.pointerId);
     heartBtn.style.cursor='grab';
+    if(lpTimer){
+      clearTimeout(lpTimer);
+      lpTimer=null;
+    }
+  });
+  // Hide long‑press menu when clicking elsewhere
+  document.addEventListener('click',e=>{
+    if(lpMenu.style.display==='block' && !lpMenu.contains(e.target)){
+      lpMenu.style.display='none';
+      log('Long‑press menu hidden');
+    }
+  });
+
+  // Config button (placeholder)
+  configBtn.addEventListener('click',()=>log('Configure selected (TODO)'));
+
+  // Quit button – hide whole UI
+  quitBtn.addEventListener('click',()=>{
+    container.style.display='none';
+    log('Application quit');
   });
 
   // Theme toggle
