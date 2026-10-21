@@ -1,6 +1,7 @@
 """Real-package regressions: update, old-period revision and failure isolation."""
 import copy,datetime as dt,importlib.util,json,os,tempfile,unittest
 from pathlib import Path
+from unittest.mock import patch
 HERE=Path(__file__).resolve().parent
 spec=importlib.util.spec_from_file_location('sync',HERE/'run.py');s=importlib.util.module_from_spec(spec);spec.loader.exec_module(s)
 BASE=Path(os.environ.get('MN_SYNC_TEST_BASE',str(HERE.parent/'market-navigator-throwaway-review'))).resolve()
@@ -8,6 +9,11 @@ FIXED_VERSION='7f4c5201e83de290cd7aba9cc0d5757b18707ab5f1cc3bdb49e9531cc093f7f9'
 class Sync(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
+        # This immutable historical fixture predates the strict live completeness rule.
+        # Isolate arithmetic/revision tests; test_freshness.py separately proves
+        # real synchronize() blocks this exact incomplete package, including not-due.
+        cls.completeness_mock=patch.object(s,'require_complete',return_value={'status':'PASS','scope':'historical model replay only; not live qualification'})
+        cls.completeness_mock.start()
         cls.temp=tempfile.TemporaryDirectory();cls.folder=Path(cls.temp.name)
         fixed=HERE.parent/'market-navigator-etl-review/versions'/FIXED_VERSION
         base=BASE
@@ -19,7 +25,7 @@ class Sync(unittest.TestCase):
         def unchanged(meta,source,native,now):return copy.deepcopy(native['observations'])
         cls.first=cls.folder/'first';cls.initial=s.synchronize(base,cls.first,dt.datetime(2026,10,19,5,tzinfo=s.UTC),True,unchanged,lambda *a:None)
     @classmethod
-    def tearDownClass(cls):cls.temp.cleanup()
+    def tearDownClass(cls):cls.temp.cleanup();cls.completeness_mock.stop()
     def test_initial_sync_corrects_all_horizons_and_daily_macro(self):
         q=self.initial['qualification'];self.assertEqual((q['level0Series'],q['level1SeriesHorizons'],q['level3IndexHorizons']),(39,273,21))
         row=s.read(self.first/'market-navigator-rebuild-data/market-evidence/derived-indices-persistent-v1.json')['indices']['macro']['horizons']['5D']

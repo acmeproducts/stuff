@@ -55,6 +55,26 @@ def release_probe_due(meta,source,now,market_anchor):
     if date(source['last'])>=market_anchor:return False
     verified=source.get('sourceVerifiedAt')
     return not verified or now-dt.datetime.fromisoformat(verified.replace('Z','+00:00'))>=dt.timedelta(hours=1)
+def fred_current_tail(root,identifier,now):
+    import urllib.request,urllib.error
+    keys=list(dict.fromkeys(os.environ.get(n,'').strip() for n in ('MARKET_NAVIGATOR_FRED_API_KEY','MARKET_NAVIGATOR_FRED_API_KEY_SECONDARY') if os.environ.get(n,'').strip()))
+    if not keys:raise ValueError('Configured FRED credential required for daily catch-up verification')
+    params={'series_id':identifier,'observation_start':str(now.date()-dt.timedelta(days=14)),'file_type':'json','limit':100000}
+    public='https://api.stlouisfed.org/fred/series/observations?'+urllib.parse.urlencode(params)
+    for i,key in enumerate(keys):
+        try:
+            req=urllib.request.Request(public+'&api_key='+urllib.parse.quote(key),headers={'User-Agent':'MarketNavigatorCompleteness/1.0'})
+            with urllib.request.urlopen(req,timeout=30) as response:raw=response.read()
+            if any(k.encode() in raw for k in keys):raise ValueError('Credential appeared in FRED response; response withheld')
+            payload=json.loads(raw);points=[{'t':ms(r['date']),'v':float(r['value'])} for r in payload.get('observations',[]) if r.get('value') not in (None,'','.')]
+            if not points:raise ValueError('FRED daily catch-up returned no numeric observations')
+            sha=hashlib.sha256(raw).hexdigest();path=root/'market-evidence/sync-responses'/(sha+'.bin');path.parent.mkdir(exist_ok=True);path.write_bytes(raw)
+            return points,{'path':str(path.relative_to(root)).replace('\\','/'),'sha256':sha,'url':public,'http':200,'format':'fred-observations-json'}
+        except urllib.error.HTTPError as e:
+            if e.code in (400,401,403,429) and i+1<len(keys):continue
+            raise ValueError('FRED daily catch-up HTTP '+str(e.code)) from None
+        except urllib.error.URLError:raise ValueError('FRED daily catch-up connection failed') from None
+
 def collect(root,now,force=False,fetch=None,previous_version=None):
     collector=load('market-navigator-r7-data-pipeline');catalog=read(root/'data/market-backend/data-catalog.json');rules=read(root/'data/market-backend/publication-rules.json')['rules']
     anchor_path=root/'market-evidence/derived-indices-persistent-v1.json'
@@ -75,6 +95,10 @@ def collect(root,now,force=False,fetch=None,previous_version=None):
         if not force and not probe and verified and not due and now-dt.datetime.fromisoformat(verified.replace('Z','+00:00'))<dt.timedelta(hours=24):return {'id':sid,'status':'not-due','changed':False}
         if fetch:incoming=fetch(meta,source,native,now)
         else:incoming,_=collector.fetch_source(source['provider'],source['providerIdentifier'],True)
+        if not fetch and source['provider']=='FRED' and meta['native_cadence']=='daily':
+            tail,response=fred_current_tail(root,source['providerIdentifier'],now);local.responses.append(response)
+            bydate={date(p['t']):p for p in incoming}
+            bydate.update({date(p['t']):p for p in tail});incoming=sorted(bydate.values(),key=lambda p:p['t'])
         if not incoming:raise ValueError('Empty source history: '+sid)
         if meta['native_cadence'] in ('trading-day','daily-nav'):
             completed=collector._scheduler.expectation(meta,now,rules)['period']
@@ -132,7 +156,11 @@ def verify_native_response(root,native,source,allow_fixture):
         raw=(root/response['path']).read_bytes()
         if hashlib.sha256(raw).hexdigest()!=response['sha256']:raise ValueError('Level 0 response hash mismatch')
         provider=source['provider']
-        if provider=='FRED':
+        if provider=='FRED' and response.get('format')=='fred-observations-json':
+            if urllib.parse.parse_qs(urllib.parse.urlparse(response['url']).query).get('series_id')!=[source['providerIdentifier']]:raise ValueError('Level 0 API identifier mismatch')
+            obj=json.loads(raw)
+            points.extend({'t':ms(r['date']),'v':float(r['value'])} for r in obj.get('observations',[]) if r.get('value') not in (None,'','.'))
+        elif provider=='FRED':
             rows=list(csv.reader(io.StringIO(raw.decode('utf-8-sig'))))
             if rows[0][1]!=source['providerIdentifier']:raise ValueError('Level 0 response identifier mismatch')
             for row in rows[1:]:
@@ -245,6 +273,8 @@ def qualify(root,allow_fixture=False):
                 if any(not near(c.get(k,float('nan')),v) for k,v in expected.items()) or c.get('sourceT0Date')!=row['componentObservationDates'][sid][i] or c.get('sourceNowDate')!=row['componentObservationDates'][sid][j]:raise ValueError('Level 3 horizon constituent mismatch: '+sid)
             proof[index+' '+h]={'start':actual_dates[0],'end':actual_dates[-1],'points':len(actual_dates),'value':z['value'],'status':'PASS'}
     return {'status':'PASS','level0Series':transforms,'level1SeriesHorizons':aggregates,'level3IndexHorizons':len(proof),'componentChecks':terms_checked,'horizonPointChecks':point_checks,'horizons':proof,'limitations':['HY approved archived prefix; retrospective current-vintage backcast exception','Historical ALFRED events retained; subsequent availability updates source-checked when FRED data changes']}
+def require_complete(root,now):
+    gate=load('freshness');return gate.require_complete(root,now,read,load('market-navigator-r7-data-pipeline')._scheduler)
 def synchronize(base,output,now=None,force=False,fetch=None,vintage_update=None):
     base=Path(base).resolve();output=Path(output).resolve();now=now or dt.datetime.now(UTC)
     descriptor=read(base/'market-navigator-rebuild-data/package.json')
@@ -257,7 +287,8 @@ def synchronize(base,output,now=None,force=False,fetch=None,vintage_update=None)
     with tempfile.TemporaryDirectory(prefix='mn-sync-',dir=output.parent) as temporary:
         stage=Path(temporary)/'candidate';shutil.copytree(base,stage);root=stage/'market-navigator-rebuild-data'
         rows=collect(root,now,force,fetch,descriptor['version'])
-        if all(r['status']=='not-due' for r in rows) and (root/'market-evidence/sync-proof.json').exists():
+        completeness=require_complete(root,now)
+        if all(r['status']=='not-due' for r in rows) and (root/'market-evidence/sync-proof.json').exists() and read(root/'market-evidence/sync-proof.json').get('qualification',{}).get('freshness',{}).get('status')=='PASS' and blob((base/'throwaway.html').read_bytes())==APP:
             if output.exists():raise ValueError('Output must be a new candidate path')
             shutil.copytree(base,output)
             return {'status':'PASS','unchanged':True,'version':descriptor['version'],'previousVersion':descriptor['version'],'changedSeries':[],'qualification':read(root/'market-evidence/sync-proof.json')['qualification']}
@@ -267,6 +298,7 @@ def synchronize(base,output,now=None,force=False,fetch=None,vintage_update=None)
         for index,row in new_model['indices'].items():
             for sid in row['components']:
                 if row['componentValues'][sid][0]!=previous_model['indices'][index]['componentValues'][sid][0]:raise ValueError('A source revision changes the frozen model anchor; preserving verified data: '+sid)
+        proof['freshness']=completeness
         proof['sourceProofMode']='fixture replay' if fetch else 'independently parsed retained provider responses'
         write(root/'market-evidence/sync-proof.json',{'generatedAt':now.isoformat(),'sourceCollection':rows,'qualification':proof,'previousVersion':descriptor['version']})
         health=read(root/'market-evidence/health-envelope.json');health.update(generatedAt=now.isoformat(),marketAnchor=derived['commonMarketAnchor'])
@@ -308,6 +340,6 @@ def main():
         for name in ('MARKET_NAVIGATOR_FRED_API_KEY','MARKET_NAVIGATOR_FRED_API_KEY_SECONDARY'):
             key=os.environ.get(name)
             if key:message=message.replace(key,'[redacted]')
-        result={'status':'FAIL','error':message,'lastVerifiedVersionPreserved':True};write(Path(a.output).parent/'sync-status.json',result);print(json.dumps(result));raise SystemExit(1)
+        result={'status':'FAIL','error':message,'lastVerifiedVersionPreserved':True,'displayPermitted':False,**({'freshness':error.report} if hasattr(error,'report') else {})};write(Path(a.output).parent/'sync-status.json',result);print(json.dumps(result));raise SystemExit(1)
     write(Path(a.output).parent/'sync-status.json',result);print(json.dumps(result))
 if __name__=='__main__':main()

@@ -130,7 +130,7 @@ edit("j('data/market-backend/source-registry.json')]);", "j('data/market-backend
 edit('</head>', '<style>'+Path('market-navigator-chart-correction/etl.css').read_text(encoding='utf-8')+'</style></head>', 'scoped ETL layout')
 
 edit('async function load(){try{', 'let loadFailures=0;async function load(){try{', 'bounded initial data load recovery')
-edit("}catch(e){message.textContent='Repairing market data. Saved reports remain available in Library.';setTimeout(load,15000)}}", "}catch(e){message.textContent='Data load failed: '+e.message+'. Saved reports remain available in Library.';loadFailures++;if(loadFailures<3&&!/mismatch|outside the loaded package|Invalid qualified/.test(e.message))setTimeout(load,15000*2**(loadFailures-1))}}", 'truthful integrity failure; no automatic integrity retries')
+edit("}catch(e){message.textContent='Repairing market data. Saved reports remain available in Library.';setTimeout(load,15000)}}", "}catch(e){message.textContent='Data load failed: '+e.message+'. Saved reports remain available in Library.';loadFailures++;if(loadFailures<3&&!/mismatch|outside the loaded package|Invalid qualified|INCOMPLETE_DATA/.test(e.message))setTimeout(load,15000*2**(loadFailures-1))}}", 'truthful integrity failure; no automatic integrity retries')
 edit("return{beforeRender:()=>{void rebuildRefreshData()}", "return{packageId:etlPackage?.version||null,beforeRender:()=>{void rebuildRefreshData()}", 'capture each chart service package identity')
 edit("paletteName:services.paletteName?.()||'Normal',series:", "paletteName:services.paletteName?.()||'Normal',dataPackageId:services.readOnly?null:(services.packageId||null),series:", 'new live snapshots retain their own package; read-only evidence is not relabeled')
 

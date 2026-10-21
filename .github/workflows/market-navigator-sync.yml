@@ -23,6 +23,7 @@ jobs:
     outputs:
       changed: ${{ steps.data.outputs.changed }}
       publication: ${{ steps.publish.outputs.sha }}
+      containment: ${{ steps.contain.outputs.sha }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
@@ -36,6 +37,8 @@ jobs:
           python market-navigator-sync/test_sync.py
           python market-navigator-sync/test_vintage.py
           python market-navigator-sync/test_release_probe.py
+          python market-navigator-sync/test_freshness.py
+          node market-navigator-sync/test_consumer_freshness.cjs
       - name: Synchronize and independently qualify sources, horizons and indices
         id: data
         env:
@@ -127,6 +130,38 @@ jobs:
               if e.code!=404:raise
           with urllib.request.urlopen(urllib.request.Request(url,data=json.dumps(body).encode(),headers=headers,method='PUT'),timeout=30) as r:assert r.status in (200,201)
           PY
+      - name: Withhold incomplete data from live consumers
+        id: contain
+        if: failure()
+        run: |
+          python market-navigator-sync/test_freshness.py
+          node market-navigator-sync/test_consumer_freshness.cjs
+          npm install --prefix "$RUNNER_TEMP/mn-browser" playwright
+          "$RUNNER_TEMP/mn-browser/node_modules/.bin/playwright" install --with-deps chromium
+          MN_PLAYWRIGHT_MODULE="$RUNNER_TEMP/mn-browser/node_modules/playwright" MN_BROWSER_CHANNELS=chromium node market-navigator-sync/test_blocked_browser.cjs
+          python - <<'PY'
+          import json,subprocess,hashlib
+          from pathlib import Path
+          app=Path('.evidence/chart-correction-candidate/throwaway.html').read_bytes()
+          proof=json.loads(Path('.evidence/chart-construction-proof.json').read_text())
+          subprocess.run(['git','fetch','origin','main'],check=True)
+          subprocess.run(['git','switch','-C','withhold-incomplete-data','FETCH_HEAD'],check=True)
+          for path,digest in proof['input_hashes'].items():
+              if hashlib.sha256(Path(path).read_bytes()).hexdigest()!=digest:raise SystemExit('Concurrent constructor change; containment not published')
+          target=Path('market-navigator-throwaway-review')
+          (target/'throwaway.html').write_bytes(app)
+          connection=json.loads((target/'connection.json').read_text())
+          connection.update(status='BLOCKED',displayPermitted=False,application_blob=hashlib.sha1(b'blob '+str(len(app)).encode()+b'\0'+app).hexdigest(),reason='ETL did not establish a complete current package. Live chart and analysis consumers are withheld.')
+          (target/'connection.json').write_text(json.dumps(connection,sort_keys=True)+'\n')
+          PY
+          git config user.name 'Market Navigator verified synchronization'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add -- market-navigator-throwaway-review/throwaway.html market-navigator-throwaway-review/connection.json
+          if ! git diff --cached --quiet; then
+            git commit -m 'Withhold incomplete live data pending strict ETL qualification [skip ci]'
+            git push origin HEAD:main
+          fi
+          echo "sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
       - name: Retain synchronization evidence, including failures
         if: always()
         uses: actions/upload-artifact@v4
@@ -141,13 +176,14 @@ jobs:
             .evidence/chart-construction-proof.json
             .evidence/chart-cumulative-acceptance.json
             .evidence/chart-contract-tests.json
+            .evidence/withheld-*.png
             .evidence/chart-presentation-tests.json
             .evidence/presentation-*.png
           include-hidden-files: true
           retention-days: 14
   deploy:
     needs: synchronize
-    if: needs.synchronize.outputs.changed == 'true'
+    if: always() && (needs.synchronize.outputs.publication != '' || needs.synchronize.outputs.containment != '')
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -162,7 +198,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          ref: ${{ needs.synchronize.outputs.publication }}
+          ref: ${{ needs.synchronize.outputs.publication || needs.synchronize.outputs.containment }}
       - uses: actions/configure-pages@v5
       - uses: actions/upload-pages-artifact@v3
         with:
@@ -174,4 +210,9 @@ jobs:
         with:
           python-version: '3.12'
       - name: Verify actual public chart and data version
+        if: needs.synchronize.outputs.publication != ''
         run: python market-navigator-sync/verify_public.py
+
+      - name: Verify incomplete publication is withheld
+        if: needs.synchronize.outputs.containment != ''
+        run: python market-navigator-sync/verify_blocked.py

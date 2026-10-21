@@ -1,10 +1,33 @@
+
+let etlFreshnessTimer=0,etlCompleteness=null;
+function etlBlockIncomplete(reason){
+ document.body.classList.add('mnIncomplete');
+ let notice=document.getElementById('mnIncompleteNotice');
+ if(!notice){notice=document.createElement('div');notice.id='mnIncompleteNotice';notice.setAttribute('role','alert');document.body.prepend(notice)}
+ notice.textContent='Market data withheld — '+reason+'. ETL must complete and qualify all required sources before charts or analysis are available.';
+ for(const id of['nowTip','mn-analyze-nowTip','libChartTip']){const node=document.getElementById(id);if(node)node.style.display='none'}
+}
+async function etlRequireComplete(p){
+ const path='market-evidence/sync-proof.json',expected=p.resources[path];
+ if(!expected)throw Error('INCOMPLETE_DATA: completeness proof missing');
+ const response=await fetch(new URL('market-navigator-rebuild-data/'+path,location.href),{cache:'no-store',credentials:'omit'});
+ if(!response.ok)throw Error('INCOMPLETE_DATA: completeness proof unavailable');
+ const bytes=await response.arrayBuffer();if(await etlHash(bytes)!==expected)throw Error('Completeness proof resource mismatch');
+ const proof=JSON.parse(new TextDecoder().decode(bytes)),q=proof.qualification?.freshness;
+ if(q?.schema!=='market-navigator-release-completeness-v1'||q.status!=='PASS'||!Array.isArray(q.requiredSourceIds)||!q.requiredSourceIds.length||!Array.isArray(q.sources)||q.sources.length!==q.requiredSourceIds.length||new Set(q.requiredSourceIds).size!==q.requiredSourceIds.length||q.requiredSourceIds.some(id=>!q.sources.some(r=>r.id===id&&r.status==='PASS'&&Array.isArray(r.problems)&&r.problems.length===0))||q.sources.some(r=>['daily','trading-day','daily-nav'].includes(r.cadence)&&(r.latest<q.marketDate||r.required!==q.marketDate||!Array.isArray(r.missingMarketSessions)||r.missingMarketSessions.length)))throw Error('INCOMPLETE_DATA: required daily/source periods are not complete');
+ const expiry=Date.parse(q.validUntil);if(!Number.isFinite(expiry)||expiry<=Date.now())throw Error('INCOMPLETE_DATA: completeness proof expired');
+ etlCompleteness=q;clearTimeout(etlFreshnessTimer);etlFreshnessTimer=setTimeout(()=>etlBlockIncomplete('the next market session requires a new complete package'),Math.min(expiry-Date.now(),2147483647));
+ document.body.classList.remove('mnIncomplete');document.getElementById('mnIncompleteNotice')?.remove();
+ return q;
+}
+
 const ETL_BUILD_ID='__ETL_BUILD_ID__';
 let etlPackagePromise=null,etlPackage=null,etlManifestReceipt=null,etlTimer=0,etlJobPending=null;
 const etlResourcePromises=new Map(),etlReceipts=new Map();
 const ETL_WORKFLOW='https://github.com/acmeproducts/stuff/actions/workflows/market-navigator-sync.yml';
 const ETL_API='https://api.github.com/repos/acmeproducts/stuff/actions';
 async function etlHash(bytes){return Array.from(new Uint8Array(await crypto.subtle.digest('SHA-256',bytes)),x=>x.toString(16).padStart(2,'0')).join('')}
-async function etlDescriptor(){if(etlPackagePromise)return etlPackagePromise;etlPackagePromise=(async()=>{const url=new URL('market-navigator-rebuild-data/package.json',location.href),r=await fetch(url,{cache:'no-store',credentials:'omit'});if(!r.ok)throw Error('Package HTTP '+r.status);const bytes=await r.arrayBuffer(),p=JSON.parse(new TextDecoder().decode(bytes));if(p.schema!=='market-navigator-etl-package-v1'||p.qualified!==true||!p.resources||!/^[a-f0-9]{64}$/.test(p.version))throw Error('Invalid qualified package');const sorted=Object.fromEntries(Object.keys(p.resources).sort().map(k=>[k,p.resources[k]]));if(await etlHash(new TextEncoder().encode(JSON.stringify(sorted)))!==p.version)throw Error('Package identity mismatch');etlPackage=p;etlManifestReceipt={url:url.href,sha256:await etlHash(bytes),receivedAt:new Date().toISOString()};return p})().catch(e=>{etlPackagePromise=null;throw e});return etlPackagePromise}
+async function etlDescriptor(){if(etlPackagePromise)return etlPackagePromise;etlPackagePromise=(async()=>{const url=new URL('market-navigator-rebuild-data/package.json',location.href),r=await fetch(url,{cache:'no-store',credentials:'omit'});if(!r.ok)throw Error('Package HTTP '+r.status);const bytes=await r.arrayBuffer(),p=JSON.parse(new TextDecoder().decode(bytes));if(p.schema!=='market-navigator-etl-package-v1'||p.qualified!==true||!p.resources||!/^[a-f0-9]{64}$/.test(p.version))throw Error('Invalid qualified package');const sorted=Object.fromEntries(Object.keys(p.resources).sort().map(k=>[k,p.resources[k]]));if(await etlHash(new TextEncoder().encode(JSON.stringify(sorted)))!==p.version)throw Error('Package identity mismatch');await etlRequireComplete(p);etlPackage=p;etlManifestReceipt={url:url.href,sha256:await etlHash(bytes),receivedAt:new Date().toISOString()};return p})().catch(e=>{etlPackagePromise=null;etlBlockIncomplete(e.message);throw e});return etlPackagePromise}
 async function j(p){if(etlResourcePromises.has(p))return etlResourcePromises.get(p);const task=(async()=>{const descriptor=await etlDescriptor(),expected=descriptor.resources[p];if(!/^[a-f0-9]{64}$/.test(expected||''))throw Error('Resource is outside the loaded package: '+p);const url=new URL('market-navigator-rebuild-data/'+p,location.href),r=await fetch(url,{cache:'no-store',credentials:'omit'});if(!r.ok)throw Error(p+' HTTP '+r.status);const bytes=await r.arrayBuffer(),actual=await etlHash(bytes);if(actual!==expected)throw Error('Loaded package resource mismatch: '+p);const value=JSON.parse(new TextDecoder().decode(bytes));etlReceipts.set(p,{url:url.href,sha256:actual,verifiedAt:new Date().toISOString()});return value})().catch(e=>{etlResourcePromises.delete(p);throw e});etlResourcePromises.set(p,task);return task}
 function etlQualification(){return etlPackage?{generation:etlPackage.version,revision:etlPackage.version,verifiedAt:etlManifestReceipt.receivedAt,validUntil:null,status:'resource-hash-verified',capturedAt:new Date().toISOString()}:null}
 window.__mnEtlReceipt=()=>structuredClone({package:etlPackage,manifest:etlManifestReceipt,resources:Object.fromEntries(etlReceipts)});
