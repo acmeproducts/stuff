@@ -1,0 +1,304 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Case Board</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<style>
+  :root {
+    --bg:#060b1f;
+    --card-bg:#1a1e2b;
+    --card-fg:#e0e0e0;
+    --accent:#ff4d4d;
+  }
+  body,html{margin:0;padding:0;height:100%;overflow:hidden;background:var(--bg);font-family:sans-serif;color:#fff}
+  #board{position:absolute;top:0;left:0;width:100%;height:100%;touch-action:none;overflow:hidden}
+  .card{
+    position:absolute;
+    min-width:120px;
+    min-height:80px;
+    background:var(--card-bg);
+    color:var(--card-fg);
+    border-radius:8px;
+    padding:8px;
+    box-sizing:border-box;
+    box-shadow:0 2px 6px rgba(0,0,0,.5);
+    user-select:none;
+    touch-action:none;
+  }
+  .card textarea{
+    width:100%;height:100%;border:none;background:transparent;color:inherit;resize:none;
+    font:inherit;outline:none;
+  }
+  #toolbar{
+    position:fixed;bottom:0;left:0;width:100%;background:rgba(0,0,0,.6);
+    display:flex;gap:8px;padding:8px;box-sizing:border-box;
+  }
+  #toolbar button{
+    flex:1;padding:8px;background:var(--accent);border:none;color:#fff;border-radius:4px;
+    font:inherit;cursor:pointer;
+  }
+  #diag{
+    position:fixed;top:0;right:0;background:rgba(0,0,0,.6);
+    padding:8px;max-width:200px;font-size:12px;line-height:1.4;
+  }
+  .string{
+    position:absolute;
+    pointer-events:none;
+  }
+</style>
+</head>
+<body>
+<div id="board"></div>
+<div id="toolbar">
+  <button id="addNote">Add Note</button>
+  <button id="addPhoto">Add Photo</button>
+  <button id="connectMode">Connect</button>
+  <button id="panMode">Pan/Zoom</button>
+</div>
+<div id="diag"></div>
+
+<script>
+(() => {
+  const board = document.getElementById('board');
+  const diag = document.getElementById('diag');
+  const state = {
+    cards: [], // {id,x,y,w,h,content,type,photoData}
+    strings: [], // {id, from, to}
+    mode: 'pan', // 'pan' | 'note' | 'photo' | 'connect'
+    connectStep: [], // hold two card ids
+    pan: {x:0,y:0,scale:1},
+    dragging: null,
+    lastTouchDist: null,
+  };
+
+  // ---------- Utils ----------
+  const uid = () => '_' + Math.random().toString(36).substr(2,9);
+  const saveState = () => {
+    try{
+      localStorage.setItem('caseboard', JSON.stringify(state));
+      updateDiag('Saved');
+    }catch(e){updateDiag('Save error: '+e.message);}
+  };
+  const loadState = () => {
+    const data = localStorage.getItem('caseboard');
+    if(data){
+      const obj = JSON.parse(data);
+      Object.assign(state, obj);
+      renderAll();
+    }
+  };
+  const updateDiag = (msg='')=>{
+    diag.innerHTML = `
+Cards: ${state.cards.length}<br>
+Strings: ${state.strings.length}<br>
+Mode: ${state.mode}<br>
+${msg}
+`;
+  };
+  const toBoardPos = (clientX,clientY)=>{
+    const rect = board.getBoundingClientRect();
+    const x = (clientX - rect.left - state.pan.x)/state.pan.scale;
+    const y = (clientY - rect.top - state.pan.y)/state.pan.scale;
+    return {x,y};
+  };
+  const applyTransform = ()=>{
+    board.style.transform = `translate(${state.pan.x}px,${state.pan.y}px) scale(${state.pan.scale})`;
+  };
+
+  // ---------- Card handling ----------
+  const createCard = (type, content='')=>{
+    const id = uid();
+    const card = {id,x:0,y:0,w:150,h:100,content,type,photoData:null};
+    if(type==='photo'){
+      card.photoData = content; // dataURL
+    }else{
+      card.content = content;
+    }
+    state.cards.push(card);
+    renderCard(card);
+    saveState();
+  };
+  const renderCard = (card)=>{
+    const el = document.createElement('div');
+    el.className='card';
+    el.dataset.id=card.id;
+    el.style.width=card.w+'px';
+    el.style.height=card.h+'px';
+    el.style.transform=`translate(${card.x}px,${card.y}px)`;
+    if(card.type==='photo'){
+      const img=document.createElement('img');
+      img.src=card.photoData;
+      img.style.width='100%';
+      img.style.height='100%';
+      img.style.objectFit='cover';
+      el.appendChild(img);
+    }else{
+      const ta=document.createElement('textarea');
+      ta.value=card.content;
+      ta.placeholder='Enter note...';
+      ta.addEventListener('input',()=>{card.content=ta.value;saveState();});
+      el.appendChild(ta);
+    }
+    board.appendChild(el);
+  };
+  const renderAll = ()=>{
+    board.innerHTML='';
+    state.cards.forEach(renderCard);
+    renderAllStrings();
+    applyTransform();
+    updateDiag();
+  };
+
+  // ---------- String handling ----------
+  const renderString = (str)=>{
+    const from = state.cards.find(c=>c.id===str.from);
+    const to   = state.cards.find(c=>c.id===str.to);
+    if(!from||!to) return;
+    const line=document.createElement('svg');
+    line.className='string';
+    line.style.position='absolute';
+    line.style.left='0';
+    line.style.top='0';
+    line.style.width='100%';
+    line.style.height='100%';
+    line.style.pointerEvents='none';
+    const path=document.createElementNS('http://www.w3.org/2000/svg','path');
+    path.setAttribute('stroke', 'var(--accent)');
+    path.setAttribute('stroke-width','2');
+    path.setAttribute('fill','none');
+    const updatePath=()=>{
+      const p1=toBoardPos(from.x+from.w/2, from.y+from.h/2);
+      const p2=toBoardPos(to.x+to.w/2, to.y+to.h/2);
+      path.setAttribute('d',`M${p1.x},${p1.y} L${p2.x},${p2.y}`);
+    };
+    updatePath();
+    line.appendChild(path);
+    board.appendChild(line);
+    // store for later updates
+    str._el=line;
+    str._update=updatePath;
+  };
+  const renderAllStrings = ()=>{
+    state.strings.forEach(renderString);
+  };
+  const updateAllStrings = ()=>{
+    state.strings.forEach(s=>s._update && s._update());
+  };
+
+  // ---------- Interaction ----------
+  const startDrag = (e,cardEl)=>{
+    e.preventDefault();
+    const id=cardEl.dataset.id;
+    const card=state.cards.find(c=>c.id===id);
+    if(!card) return;
+    state.dragging={card, startX:e.clientX, startY:e.clientY, origX:card.x, origY:card.y};
+    document.addEventListener('mousemove',onDrag);
+    document.addEventListener('mouseup',endDrag);
+  };
+  const onDrag = (e)=>{
+    if(!state.dragging) return;
+    const dx=e.clientX-state.dragging.startX;
+    const dy=e.clientY-state.dragging.startY;
+    state.dragging.card.x=state.dragging.origX+dx/state.pan.scale;
+    state.dragging.card.y=state.dragging.origY+dy/state.pan.scale;
+    const el=board.querySelector(`.card[data-id="${state.dragging.card.id}"]`);
+    if(el) el.style.transform=`translate(${state.dragging.card.x}px,${state.dragging.card.y}px)`;
+    updateAllStrings();
+  };
+  const endDrag = ()=>{
+    document.removeEventListener('mousemove',onDrag);
+    document.removeEventListener('mouseup',endDrag);
+    if(state.dragging){
+      saveState();
+      state.dragging=null;
+    }
+  };
+  const boardClick = (e)=>{
+    if(state.mode==='connect'){
+      const target = e.target.closest('.card');
+      if(!target) return;
+      const id=target.dataset.id;
+      state.connectStep.push(id);
+      if(state.connectStep.length===2){
+        const [from,to]=state.connectStep;
+        if(from!==to){
+          const str={id:uid(),from,to};
+          state.strings.push(str);
+          renderString(str);
+          saveState();
+        }
+        state.connectStep=[];
+      }
+    }
+  };
+  const boardTouchStart = (e)=>{
+    if(e.touches.length===2){
+      state.lastTouchDist = Math.hypot(
+        e.touches[0].clientX - e.touches[1].clientX,
+        e.touches[0].clientY - e.touches[1].clientY
+      );
+    }else if(e.touches.length===1 && state.mode==='pan'){
+      state.dragStart={x:e.touches[0].clientX, y:e.touches[0].clientY, panX:state.pan.x, panY:state.pan.y};
+    }
+  };
+  const boardTouchMove = (e)=>{
+    if(e.touches.length===2 && state.lastTouchDist){
+      const curDist = Math.hypot(
+        e.touches[0].clientX - e.touches[1].clientX,
+        e.touches[0].clientY - e.touches[1].clientY
+      );
+      const delta = curDist/state.lastTouchDist;
+      state.pan.scale *= delta;
+      state.lastTouchDist = curDist;
+      applyTransform();
+      updateAllStrings();
+    }else if(e.touches.length===1 && state.dragStart){
+      const dx = e.touches[0].clientX - state.dragStart.x;
+      const dy = e.touches[0].clientY - state.dragStart.y;
+      state.pan.x = state.dragStart.panX + dx;
+      state.pan.y = state.dragStart.panY + dy;
+      applyTransform();
+      updateAllStrings();
+    }
+  };
+  const boardTouchEnd = (e)=>{
+    if(e.touches.length<2) state.lastTouchDist=null;
+    if(e.touches.length===0) state.dragStart=null;
+  };
+
+  // ---------- Toolbar ----------
+  document.getElementById('addNote').onclick=()=>{state.mode='note';createCard('note','');};
+  document.getElementById('addPhoto').onclick=()=>{
+    const input=document.createElement('input');
+    input.type='file';
+    input.accept='image/*';
+    input.onchange=()=>{
+      const file=input.files[0];
+      const reader=new FileReader();
+      reader.onload=e=>{createCard('photo',e.target.result);};
+      reader.readAsDataURL(file);
+    };
+    input.click();
+  };
+  document.getElementById('connectMode').onclick=()=>{state.mode='connect';state.connectStep=[];};
+  document.getElementById('panMode').onclick=()=>{state.mode='pan';};
+
+  // ---------- Event listeners ----------
+  board.addEventListener('mousedown',e=>{
+    const cardEl=e.target.closest('.card');
+    if(cardEl && state.mode!=='connect') startDrag(e,cardEl);
+  });
+  board.addEventListener('click',boardClick);
+  board.addEventListener('touchstart',boardTouchStart,{passive:false});
+  board.addEventListener('touchmove',boardTouchMove,{passive:false});
+  board.addEventListener('touchend',boardTouchEnd);
+  board.addEventListener('touchcancel',boardTouchEnd);
+
+  // ---------- Init ----------
+  loadState();
+  updateDiag('Ready');
+})();
+</script>
+</body>
+</html>
