@@ -6,8 +6,8 @@ Deploy target: `https://acmeproducts.github.io/stuff/devstream.html`
 Test target: `https://acmeproducts.github.io/stuff/devstream-test.html`
 
 ## Status
-- Current release: v1.0 b79 on devstream-test.html (2026-10-21)
-- Stage: TEST (b79)
+- Current release: v1.0 b80 on devstream-test.html (2026-10-21)
+- Stage: TEST (b80)
 
 ## Release Rules (inherited, proven)
 1. Mobile-first. All diagnostics in-app. No DevTools ever.
@@ -255,6 +255,19 @@ b39 incorrectly changed stationary hold into context-menu activation. Devstream 
 ## Graveyard
 - **G-DS-13 — Hold opens context menu:** rejected; donor behavior is double-tap context, hold-to-drag.
 - **G-DS-14 — Legacy generic #tabContext button styling:** rejected; it corrupts the donor context-menu appearance.
+
+---
+
+# 2026-10-21 — b80 the message box never grows; it scrolls
+
+## Owner report
+"The box shouldn't grow, only scroll."
+
+## Change
+- The message box is a fixed two lines tall. Longer text scrolls inside it. The automatic growing is removed, so the compose area never changes height while typing, on focus, or after sending.
+
+## Acceptance
+- **DS-B80-1:** the box keeps one fixed height whatever is typed (including many lines) and scrolls instead; the compose area height never changes.
 
 ---
 
