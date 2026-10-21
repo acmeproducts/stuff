@@ -2665,3 +2665,14 @@ Presentation period mismatch finding is closed for the enumerated matrix. Data/r
 ## October 21 implementation closure
 
 All 27 requirements / 14 suites PASS in the explicitly isolated retained-data implementation scope, run 39599784142. Phone ETL wrapping is closed; disabled-source labels and frozen evidence expiry are implemented. Release remains withheld pending actual source completeness, normal current-data cumulative acceptance, physical Windows11/Android and live-provider prose acceptance. Full evidence and operating procedure: MARKET-NAVIGATOR-RELEASE-READINESS.md and MARKET-NAVIGATOR-IMPLEMENTATION-READINESS.json. These do not supersede the master plan or authorize incomplete data publication.
+
+
+## October 21 — explicit complete historical-data choice
+
+The owner explicitly approved using a previous complete day when current observations cannot be qualified. This is an explicit historical choice, never an automatic market-date rollback or a mixed-date live package. Current consumers remain withheld.
+
+ETL now offers Repair data on GitHub (force recheck approved providers, qualify and rebuild) and Use complete data through the verified cutoff. A separate historical package is rebuilt at one common cutoff, independently checked at Levels 0/1/3, and requires a matching explicit URL choice before rendering. The cutoff stays visible and is retained in analysis, crosshairs, downloads and reports. Returning to current data requires an explicit action and current completeness verification.
+
+Historical proof: 39 sources, 273 source horizons, 21 index horizons, all PASS through 2026-10-19. Phone/desktop browser tests verify the ETL selection path, blocking absent/wrong choice, bounded source/curve dates and CSV/Markdown/JSON disclosures. The frozen 2016 model anchors are preserved. This is current-vintage historical data, not a reconstruction of everything known on the cutoff date.
+
+Public app 022abc72fc78938a831a8c55aa03dadf05930bf4 and historical package 9493eaa781228b6a3a7ae784fc0dfc6c0ecfa5535cd9fe76d3bcbac8b3b2c28f were verified after deployment. Current displayPermitted remains false. Evidence: MARKET-NAVIGATOR-HISTORICAL-CHOICE-AUDIT.json; source/selection/deploy run 39677496173. Baseline/default product URL unchanged. Earlier physical-device and live-provider prose acceptance gates remain explicit.
