@@ -1,0 +1,46 @@
+name: Audit all chart periods against retained evidence
+on:
+  push:
+    branches: [main]
+    paths: ['market-navigator-period-audit.cjs', '.github/workflows/market-navigator-period-audit.yml', 'market-navigator-chart-correction-build.py', 'market-navigator-chart-correction/**']
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: market-navigator-isolated-period-audit
+  cancel-in-progress: false
+jobs:
+  audit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Build exact consumer source without publication
+        run: python market-navigator-chart-correction-build.py
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Install Chromium verification
+        run: |
+          npm install --prefix "$RUNNER_TEMP/mn-browser" playwright
+          "$RUNNER_TEMP/mn-browser/node_modules/.bin/playwright" install --with-deps chromium
+      - name: Audit all seven periods in NOW and Analyze
+        env:
+          MN_PLAYWRIGHT_MODULE: ${{ runner.temp }}/mn-browser/node_modules/playwright
+          MN_BROWSER_CHANNELS: chromium
+          MN_PERIOD_AUDIT_LAB: retained-data-only
+        run: node market-navigator-period-audit.cjs
+      - name: Retain exact per-case periods, findings and screenshots
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: isolated-chart-period-audit
+          path: |
+            .evidence/chart-period-audit.json
+            .evidence/period-*.png
+            .evidence/chart-correction-build.json
+          include-hidden-files: true
+          retention-days: 14
