@@ -287,7 +287,11 @@ def synchronize(base,output,now=None,force=False,fetch=None,vintage_update=None)
     with tempfile.TemporaryDirectory(prefix='mn-sync-',dir=output.parent) as temporary:
         stage=Path(temporary)/'candidate';shutil.copytree(base,stage);root=stage/'market-navigator-rebuild-data'
         rows=collect(root,now,force,fetch,descriptor['version'])
-        completeness=require_complete(root,now)
+        try:completeness=require_complete(root,now)
+        except Exception:
+            rejected=output.parent/'rejected-evidence'/now.strftime('%Y%m%dT%H%M%S%fZ')
+            shutil.copytree(root,rejected)
+            raise
         if all(r['status']=='not-due' for r in rows) and (root/'market-evidence/sync-proof.json').exists() and read(root/'market-evidence/sync-proof.json').get('qualification',{}).get('freshness',{}).get('status')=='PASS' and blob((base/'throwaway.html').read_bytes())==APP:
             if output.exists():raise ValueError('Output must be a new candidate path')
             shutil.copytree(base,output)
