@@ -6,8 +6,8 @@ Deploy target: `https://acmeproducts.github.io/stuff/devstream.html`
 Test target: `https://acmeproducts.github.io/stuff/devstream-test.html`
 
 ## Status
-- Current release: v1.0 b78 on devstream-test.html (2026-10-21)
-- Stage: TEST (b78)
+- Current release: v1.0 b79 on devstream-test.html (2026-10-21)
+- Stage: TEST (b79)
 
 ## Release Rules (inherited, proven)
 1. Mobile-first. All diagnostics in-app. No DevTools ever.
@@ -255,6 +255,20 @@ b39 incorrectly changed stationary hold into context-menu activation. Devstream 
 ## Graveyard
 - **G-DS-13 — Hold opens context menu:** rejected; donor behavior is double-tap context, hold-to-drag.
 - **G-DS-14 — Legacy generic #tabContext button styling:** rejected; it corrupts the donor context-menu appearance.
+
+---
+
+# 2026-10-21 — b79 the message box no longer flickers on focus
+
+## Owner report
+"The input keeps flickering because on focus it stays 'Enter sends · Shift+Enter newline' … which is unnecessary."
+
+## Change
+- Removed the strip under the message box (the "Enter sends · Shift+Enter newline" hint). It was the only thing left in it (engine and web moved to Config → Advanced in b75), and it made the box change height when the keyboard opened.
+- The box now stays the same height when focused. (The real flicker: it started two lines tall, then jumped to one line the moment you typed. It now starts one line tall and grows only as you type more lines.)
+
+## Acceptance
+- **DS-B79-1:** the message area has no hint strip; focusing the box does not change the height of the compose area.
 
 ---
 
