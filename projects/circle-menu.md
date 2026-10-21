@@ -93,3 +93,4 @@ Add carousel rotation with inertia to the existing production shell.
 | 2026-10-21 | updated plan | Full v2 redesign |
 | 2026-10-21 | added slice 1A | Heart popover, quick‑settings placeholder |
 | 2026-10-21 | plan updated | Carousel rotation slice added |
+| 2026-10-21 08:40 | Main | built projects/circle-menu.html | Updated the plan to include carousel rotation with inertia as the next slice and added the rotation implementation to the HTML file. | 9b34031 |
