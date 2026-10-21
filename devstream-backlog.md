@@ -6,8 +6,8 @@ Deploy target: `https://acmeproducts.github.io/stuff/devstream.html`
 Test target: `https://acmeproducts.github.io/stuff/devstream-test.html`
 
 ## Status
-- Current release: v1.0 b81 on devstream-test.html (2026-10-22)
-- Stage: TEST (b81)
+- Current release: v1.0 b82 on devstream-test.html (2026-10-22)
+- Stage: TEST (b82)
 
 ## Release Rules (inherited, proven)
 1. Mobile-first. All diagnostics in-app. No DevTools ever.
@@ -257,6 +257,10 @@ b39 incorrectly changed stationary hold into context-menu activation. Devstream 
 - **G-DS-14 — Legacy generic #tabContext button styling:** rejected; it corrupts the donor context-menu appearance.
 
 ---
+
+# 2026-10-22 — b82 longer wait for slow AI answers
+- Finding: the OpenRouter "no credits" text on redboard was left over from an earlier run (the project is on Venice and switching is off). The live problem is Venice taking over 4 minutes per answer on big files.
+- Plan: allow up to 10 minutes per AI answer (cloud runner and in-page runs); total run budget 12 min on the runner, 8 min in-page. Errors and AI choice unchanged.
 
 # 2026-10-22 — b81 one visible AI per project; no silent switching; honest AI errors
 

@@ -209,7 +209,7 @@ async function callEngine(io, ctl, cfg, eng, model, system, history, user, image
     : (images.length ? user + '\n\n(Note: ' + images.length + ' image attachment(s) provided but this engine is text-only here: ' + images.map(i => i.name).join(', ') + ')' : user);
   const payload = { model: (eng === 'openrouter' && webSearch && !/:online$/.test(M.model)) ? M.model + ':online' : M.model, max_tokens: maxTok || 64000, messages: [{ role: 'system', content: system }, ...history, { role: 'user', content: userContent }] };
   if (eng === 'venice' && webSearch) payload.venice_parameters = { enable_web_search: 'auto', include_search_results_in_stream: false };
-  const budget = Math.max(15000, Math.min(budgetMs || 240000, 240000));
+  const budget = Math.max(15000, Math.min(budgetMs || 600000, 600000));
   let res = await streamChat(io, ctl, M.url, M.key, payload, 90000, budget, onText);
   if (!res.ok) {
     const j = res.j || {}, msg = String((j.error && (j.error.message || j.error)) || '');
