@@ -25,7 +25,7 @@
   html,body{
     margin:0;padding:0;width:100%;height:100%;overflow:hidden;
     font-family:"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
-    background:linear-gradient(160deg,#2b3242 0%,#1a1e28 100%);
+    background:transparent;
     color:var(--text-color);
   }
 
@@ -51,9 +51,7 @@
     position:fixed;inset:0;
     display:none;
     align-items:center;justify-content:center;
-    background:rgba(8,10,14,0.35);
-    backdrop-filter:blur(6px);
-    -webkit-backdrop-filter:blur(6px);
+    background:transparent;
     z-index:900;
   }
   #overlay.open{display:flex;}
@@ -400,6 +398,40 @@
     white-space:pre-wrap;
   }
   #diag.collapsed #diagLog{display:none;}
+
+  /* ---------- Node move handles ---------- */
+  .node .mv-handle{
+    display:none;
+    position:absolute;left:-5px;top:-5px;
+    width:18px;height:18px;
+    border-radius:50%;
+    background:#3a4152;
+    border:1px solid var(--panel-border);
+    color:#fff;font-size:10px;line-height:1;
+    align-items:center;justify-content:center;
+    cursor:grab;
+    z-index:6;
+    touch-action:none;
+    box-shadow:0 2px 6px rgba(0,0,0,0.4);
+  }
+  .node .mv-handle:active{cursor:grabbing;}
+  #ringStage.layoutEdit .node{border-style:dashed;}
+  #ringStage.layoutEdit .node .mv-handle{display:flex;}
+
+  /* ---------- Reading mode ---------- */
+  #reader{position:fixed;inset:0;display:none;align-items:center;justify-content:center;background:rgba(8,10,14,0.6);z-index:1600;}
+  #reader.open{display:flex;}
+  #readerPanel{width:min(620px,92vw);max-height:86vh;background:#f6f2e9;color:#26221a;border-radius:16px;box-shadow:0 24px 60px rgba(0,0,0,0.6);display:flex;flex-direction:column;overflow:hidden;}
+  #readerHead{display:flex;align-items:center;gap:8px;padding:12px 16px;border-bottom:1px solid rgba(0,0,0,0.1);font-weight:600;font-size:14px;flex:none;}
+  #readerHead span{flex:1;}
+  #readerHead button{padding:6px 12px;border-radius:8px;border:1px solid rgba(0,0,0,0.15);background:#fff;color:#26221a;font-size:12px;cursor:pointer;}
+  #readerHead button:hover{background:#eee;}
+  #readerBody{overflow-y:auto;padding:18px 22px 28px;font-family:Georgia,'Times New Roman',serif;font-size:17px;line-height:1.65;}
+  #readerBody h1{font-size:24px;margin:14px 0 8px;}
+  #readerBody h2{font-size:20px;margin:14px 0 6px;}
+  #readerBody h3{font-size:17px;margin:12px 0 6px;}
+  #readerBody p{margin:0 0 12px;}
+  #readerBody .empty{color:#8a8375;font-style:italic;}
 </style>
 </head>
 <body>
@@ -430,6 +462,8 @@
   <symbol id="i-bookmark" viewBox="0 0 24 24"><path d="M7 4h10v16l-5-4-5 4z" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/></symbol>
   <symbol id="i-popout" viewBox="0 0 24 24"><path d="M14 4h6v6M20 4l-8 8M9 6H5a1 1 0 0 0-1 1v12a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-4" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></symbol>
   <symbol id="i-chev" viewBox="0 0 24 24"><path d="M9 5l7 7-7 7" fill="none" stroke="#fff" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+  <symbol id="i-speaker" viewBox="0 0 24 24"><path d="M4 9.5v5h3.8L13 19V5L7.8 9.5H4z" fill="currentColor"/><path d="M16 8.5c2.2 2 2.2 5 0 7M18.5 6c3.2 3 3.2 9 0 12" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"/></symbol>
+  <symbol id="i-book" viewBox="0 0 24 24"><path d="M12 6c-2-1.6-4.5-2-7-2v14c2.5 0 5 .4 7 2 2-1.6 4.5-2 7-2V4c-2.5 0-5 .4-7 2zm0 0v14" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linejoin="round"/></symbol>
 </svg>
 
 <!-- Heart launcher -->
@@ -502,6 +536,8 @@
       <option value="nav:reload">Reload page</option>
       <option value="share">Share page</option>
       <option value="print">Print page</option>
+      <option value="readaloud">Read page aloud</option>
+      <option value="readmode">Reading mode</option>
       <option value="app:config">Open Configure</option>
       <option value="app:quit">Quit</option>
       <option value="submenu">Submenu (empty)</option>
@@ -518,6 +554,8 @@
     <div class="readout">Radius <span id="roRadius">85%</span></div>
     <div class="readout">Rotation <span id="roRotation">0°</span></div>
     <button class="cfgBtn" id="btnResetView" style="width:100%;margin-top:6px">Reset View</button>
+    <button class="cfgBtn" id="btnLayoutEdit" style="width:100%;margin-top:6px">Edit Ring Layout: Off</button>
+    <div class="hint">When layout editing is on, drag the ☰ handle on any ring node to move it to a new position around the ring.</div>
 
     <h3>GitHub Sync</h3>
     <label for="ghToken">Personal access token</label>
@@ -536,6 +574,14 @@
     </div>
     <div id="ghStatus"></div>
     <div class="hint">Settings are stored in this browser only. Saving writes your menus as JSON to the file path above; loading replaces your menus with the file's contents.</div>
+  </div>
+</div>
+
+<!-- Reading mode -->
+<div id="reader">
+  <div id="readerPanel">
+    <div id="readerHead"><span>Reading Mode</span><button id="readerListen">Read aloud</button><button id="readerClose">✕</button></div>
+    <div id="readerBody"></div>
   </div>
 </div>
 
@@ -569,7 +615,7 @@
 })();
 
 /* ================= Icon registry (for editor + tooltips) ================= */
-const ICONS=['i-back','i-forward','i-reload','i-share','i-print','i-gear','i-quit','i-dots','i-git','i-globe','i-play','i-volume','i-upload','i-download','i-bookmark','i-popout'];
+const ICONS=['i-back','i-forward','i-reload','i-share','i-print','i-gear','i-quit','i-dots','i-git','i-globe','i-play','i-volume','i-upload','i-download','i-bookmark','i-popout','i-speaker','i-book'];
 
 /* ================= Seeded menu data ================= */
 const DEFAULT_MENUS={
@@ -579,10 +625,22 @@ const DEFAULT_MENUS={
     {id:'reload',label:'Reload',icon:'i-reload',action:'nav:reload',desc:'Reload the current page'},
     {id:'share',label:'Share',icon:'i-share',action:'share',desc:'Share or copy the current page link'},
     {id:'print',label:'Print',icon:'i-print',action:'print',desc:'Open the print dialog'},
+    {id:'readaloud',label:'Read Aloud',icon:'i-speaker',action:'readaloud',desc:'Read the page out loud — press again to stop'},
+    {id:'readmode',label:'Reading Mode',icon:'i-book',action:'readmode',desc:'Open a clean reading view of the page'},
     {id:'bookmarks',label:'Bookmarks',icon:'i-bookmark',desc:'Saved sites',children:[
-      {id:'bm-github',label:'GitHub',icon:'i-git',action:'url:https://github.com',desc:'Open github.com in a new tab'},
+      {id:'repo-pages',label:'Repo Pages',icon:'i-git',desc:'Your repository pages (set owner/repo in Configure)',children:[
+        {id:'gh-code',label:'Code',icon:'i-git',action:'gh:code',desc:'Open your repo code page'},
+        {id:'gh-issues',label:'Issues',icon:'i-bookmark',action:'gh:issues',desc:'Open your repo issues'},
+        {id:'gh-prs',label:'Pull Requests',icon:'i-git',action:'gh:prs',desc:'Open your repo pull requests'},
+        {id:'gh-actions',label:'Actions',icon:'i-play',action:'gh:actions',desc:'Open your repo actions'},
+        {id:'gh-wiki',label:'Wiki',icon:'i-book',action:'gh:wiki',desc:'Open your repo wiki'}
+      ]},
+      {id:'web',label:'Web',icon:'i-globe',desc:'Favorite sites',children:[
+        {id:'w-google',label:'Google',icon:'i-globe',action:'url:https://www.google.com',desc:'Opens google.com'},
+        {id:'w-alterslash',label:'Alterslash',icon:'i-globe',action:'url:https://alterslash.org',desc:'Opens alterslash.org'},
+        {id:'w-npr',label:'NPR',icon:'i-globe',action:'url:https://www.npr.org',desc:'Opens npr.org'}
+      ]},
       {id:'bm-pages',label:'My GitHub Pages',icon:'i-globe',action:'gh:pages',desc:'Open your GitHub Pages site (set owner/repo in Configure)'},
-      {id:'bm-repo',label:'My Repository',icon:'i-git',action:'gh:repo',desc:'Open your repo (set owner/repo in Configure)'},
       {id:'bm-mdn',label:'MDN Web Docs',icon:'i-globe',action:'url:https://developer.mozilla.org',desc:'Open developer.mozilla.org'}
     ]}
   ]},
@@ -629,6 +687,7 @@ const state={
   menus:loadJSON('cm_menus')||clone(DEFAULT_MENUS),
   activeMenuId:'browser',
   menuStack:[],
+  layoutEdit:false,
   gh:Object.assign({token:'',owner:'',repo:'',path:'circle-menu.json',branch:'main'},loadJSON('cm_gh')||{})
 };
 (function restoreView(){
@@ -638,8 +697,9 @@ const state={
   if(typeof v.tilt==='number') state.tilt=Math.max(0,Math.min(60,v.tilt));
   if(typeof v.radiusScale==='number') state.radiusScale=Math.max(0.5,Math.min(1,v.radiusScale));
   if(v.activeMenuId&&state.menus[v.activeMenuId]) state.activeMenuId=v.activeMenuId;
+  if(v.layoutEdit) state.layoutEdit=true;
 })();
-function persistView(){saveJSON('cm_view',{rotation:state.rotation,tilt:state.tilt,radiusScale:state.radiusScale,activeMenuId:state.activeMenuId});}
+function persistView(){saveJSON('cm_view',{rotation:state.rotation,tilt:state.tilt,radiusScale:state.radiusScale,activeMenuId:state.activeMenuId,layoutEdit:state.layoutEdit});}
 function persistMenus(){saveJSON('cm_menus',state.menus);}
 function persistGh(){saveJSON('cm_gh',state.gh);}
 
@@ -723,7 +783,9 @@ function buildNodes(){
     if(item.children){
       el.insertAdjacentHTML('beforeend','<span class="sub"><svg><use href="#i-chev"/></svg></span>');
     }
+    if(!item.back) attachMoveHandle(el,item);
     el.addEventListener('click',e=>{
+      if(e.target.closest('.mv-handle')) return;
       e.stopPropagation();
       flashNode(el);
       handleNode(item);
@@ -734,6 +796,65 @@ function buildNodes(){
     nodeEls.push(el);
   });
   crumb.textContent=crumbPath();
+}
+/* ---- Layout edit: drag node handles around the ring ---- */
+function currentArr(){
+  let items=state.menus[state.activeMenuId]?state.menus[state.activeMenuId].items:[];
+  for(const id of state.menuStack){
+    const next=(items||[]).find(i=>i.id===id);
+    if(next&&next.children) items=next.children;
+  }
+  return items||[];
+}
+function attachMoveHandle(el,item){
+  const h=document.createElement('span');
+  h.className='mv-handle';
+  h.textContent='☰';
+  el.appendChild(h);
+  const drag={active:false};
+  h.addEventListener('pointerdown',e=>{
+    if(!state.layoutEdit) return;
+    e.preventDefault();
+    e.stopPropagation();
+    hideTip();
+    stopInertia();
+    drag.active=true;
+    try{h.setPointerCapture(e.pointerId);}catch(_){}
+  });
+  h.addEventListener('pointermove',e=>{
+    if(!drag.active) return;
+    const n=nodeEls.length;
+    if(n<2) return;
+    const arr=currentArr();
+    const from=arr.indexOf(item);
+    if(from<0) return;
+    const step=360/n;
+    const offset=state.menuStack.length?1:0; /* slot 0 is the back node */
+    const deg=pointerAngle(e);
+    let slot=Math.round(((((deg-state.rotation+90)%360)+360)%360)/step)%n;
+    if(state.menuStack.length) slot=Math.max(1,slot);
+    const to=slot-offset;
+    if(to===from||to<0||to>=arr.length) return;
+    arr.splice(to,0,arr.splice(from,1)[0]);
+    const elFrom=nodeEls.indexOf(el);
+    if(elFrom>=0) nodeEls.splice(to+offset,0,nodeEls.splice(elFrom,1)[0]);
+    positionNodes();
+  });
+  const end=()=>{
+    if(!drag.active) return;
+    drag.active=false;
+    persistMenus();
+    renderItemList();
+    log(`Ring layout: '${item.label}' repositioned`);
+  };
+  h.addEventListener('pointerup',end);
+  h.addEventListener('pointercancel',end);
+}
+function setLayoutEdit(v){
+  state.layoutEdit=!!v;
+  ringStage.classList.toggle('layoutEdit',state.layoutEdit);
+  document.getElementById('btnLayoutEdit').textContent='Edit Ring Layout: '+(state.layoutEdit?'On':'Off');
+  persistView();
 }
 function flashNode(el){
   el.classList.add('pressed');
@@ -796,8 +917,9 @@ function runAction(item){
   else if(a==='app:popout') popOut();
   else if(a==='gh:save') ghSave();
   else if(a==='gh:load') ghLoad();
-  else if(a==='gh:repo') openGh('repo');
-  else if(a==='gh:pages') openGh('pages');
+  else if(a.startsWith('gh:')) openGh(a.slice(3));
+  else if(a==='readaloud') toggleReadAloud();
+  else if(a==='readmode') openReader();
   else if(a==='media:playpause') mediaToggle();
   else if(a==='media:volup') mediaVolume(0.1);
   else if(a==='media:voldown') mediaVolume(-0.1);
@@ -815,11 +937,18 @@ function doShare(){
 function openGh(kind){
   const g=state.gh;
   if(!g.owner||!g.repo){log('Set GitHub owner/repo in Configure first');openConfig();return;}
-  const url=kind==='repo'
-    ?`https://github.com/${g.owner}/${g.repo}`
-    :`https://${g.owner}.github.io/${g.repo}/`;
+  const base=`https://github.com/${g.owner}/${g.repo}`;
+  const map={
+    repo:base,code:base,
+    issues:base+'/issues',
+    prs:base+'/pulls',
+    actions:base+'/actions',
+    wiki:base+'/wiki',
+    pages:`https://${g.owner}.github.io/${g.repo}/`
+  };
+  const url=map[kind]||base;
   window.open(url,'_blank');
-  log(`Opened ${kind==='repo'?'repository':'GitHub Pages'}`);
+  log(`Opened repo page: ${kind}`);
 }
 function mediaToggle(){
   const m=[...document.querySelectorAll('video,audio')];
@@ -833,6 +962,65 @@ function mediaVolume(d){
   m.forEach(el=>{el.volume=Math.max(0,Math.min(1,el.volume+d));});
   log(`Volume ${d>0?'up':'down'}`);
 }
+
+/* ================= Read aloud & reading mode ================= */
+const reader=document.getElementById('reader');
+const readerBody=document.getElementById('readerBody');
+let speaking=false;
+function extractArticle(){
+  let nodes=[...document.querySelectorAll('article h1,article h2,article h3,article p,main h1,main h2,main h3,main p')];
+  if(!nodes.length) nodes=[...document.querySelectorAll('h1,h2,h3,p')];
+  return nodes
+    .filter(el=>!el.closest('#configSheet,#diag,#reader,#ringPanel,#popover,#popHint'))
+    .map(el=>({tag:el.tagName.toLowerCase(),text:el.textContent.replace(/\s+/g,' ').trim()}))
+    .filter(b=>b.text.length)
+    .slice(0,80);
+}
+function pageText(){
+  const blocks=extractArticle();
+  if(blocks.length) return blocks.map(b=>b.text).join('. ');
+  return document.body.innerText.replace(/\s+/g,' ').trim();
+}
+function toggleReadAloud(){
+  if(!('speechSynthesis' in window)){log('Read aloud not supported in this browser');return;}
+  if(speaking){
+    speechSynthesis.cancel();
+    speaking=false;
+    log('Read aloud stopped');
+    return;
+  }
+  const text=pageText();
+  if(!text){log('Nothing readable on this page');return;}
+  const u=new SpeechSynthesisUtterance(text.slice(0,4000));
+  u.onend=()=>{speaking=false;};
+  u.onerror=()=>{speaking=false;};
+  speechSynthesis.cancel();
+  speechSynthesis.speak(u);
+  speaking=true;
+  log('Read aloud started');
+}
+function openReader(){
+  const blocks=extractArticle();
+  readerBody.innerHTML='';
+  if(!blocks.length){
+    readerBody.innerHTML='<p class="empty">No article text found on this page. Reading mode works best on pages with headings and paragraphs.</p>';
+  }else{
+    blocks.forEach(b=>{
+      const el=document.createElement(b.tag);
+      el.textContent=b.text;
+      readerBody.appendChild(el);
+    });
+  }
+  reader.classList.add('open');
+  log(`Reading mode opened (${blocks.length} blocks)`);
+}
+function closeReader(){
+  reader.classList.remove('open');
+  log('Reading mode closed');
+}
+document.getElementById('readerClose').addEventListener('click',closeReader);
+document.getElementById('readerListen').addEventListener('click',toggleReadAloud);
+reader.addEventListener('click',e=>{if(e.target===reader) closeReader();});
 
 /* ================= Pop-out floating window ================= */
 const IS_POPUP=window.opener&&window.opener!==window;
@@ -1384,6 +1572,10 @@ document.getElementById('btnResetView').addEventListener('click',()=>{
   persistView();
   log('View reset (tilt 0°, radius 85%, rotation 0°)');
 });
+document.getElementById('btnLayoutEdit').addEventListener('click',()=>{
+  setLayoutEdit(!state.layoutEdit);
+  log(`Ring layout editing ${state.layoutEdit?'on — drag node handles to reposition':'off'}`);
+});
 
 /* ================= GitHub sync ================= */
 const ghInputs={
@@ -1484,6 +1676,7 @@ document.getElementById('btnGhLoad').addEventListener('click',ghLoad);
 window.addEventListener('resize',()=>{if(state.open) layoutRing();});
 buildNodes();
 setTilt(state.tilt);
+setLayoutEdit(state.layoutEdit);
 updateReadouts();
 log('Circle Menu initialized — nodes clickable, tilt reversed (backwards), tooltips on, pop-out ready');
 </script>
