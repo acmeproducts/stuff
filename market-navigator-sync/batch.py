@@ -55,9 +55,23 @@ def publish_receipt(output,now,closed,days,collection):
     version=s.digest(resources);s.write(root/'package.json',{'schema':'market-navigator-etl-package-v1','qualified':True,'version':version,'resources':resources})
     s.write(output/'connection.json',{'status':'PASS','application_blob':s.APP,'approved_baseline_blob':'ee38d9c9da9af4b2795695a39519c76e6c5e5239','data_version':version,'batch':batch,'qualification':proof,'jobstream_ui':True})
     return {'status':'PASS','unchanged':False,'version':version,'batch':batch,'collection':collection,'qualification':proof,'run':os.environ.get('GITHUB_SERVER_URL','https://github.com')+'/'+os.environ.get('GITHUB_REPOSITORY','acmeproducts/stuff')+'/actions/runs/'+os.environ.get('GITHUB_RUN_ID','local')}
+def verified_previous(base):
+    found=[]
+    for candidate in (base,base/'previous'):
+        root=candidate/'market-navigator-rebuild-data'
+        try:
+            descriptor=s.read(root/'package.json')
+            if s.digest(descriptor['resources'])!=descriptor['version']:continue
+            for path,digest in descriptor['resources'].items():
+                target=(root/path).resolve()
+                if not target.is_relative_to(root.resolve()) or s.hashlib.sha256(target.read_bytes()).hexdigest()!=digest:raise ValueError('Previous batch integrity failed')
+            proof=s.read(root/'market-evidence/sync-proof.json')['qualification'];q=proof['freshness']
+            if proof['status']=='PASS' and q['status']=='PASS' and q.get('scope') in ('daily-batch','explicit-historical'):found.append((q['marketDate'],candidate))
+        except (OSError,ValueError,KeyError,TypeError):continue
+    return max(found,key=lambda item:item[0]) if found else None
 def synchronize(base,output,now=None,force=False):
     base,output=Path(base).resolve(),Path(output).resolve();now=now or dt.datetime.now(s.UTC)
-    closed,days=market_days(now,base/'market-navigator-rebuild-data')
+    closed,days=market_days(now,base/'market-navigator-rebuild-data');previous=verified_previous(base)
     output.parent.mkdir(parents=True,exist_ok=True)
     with tempfile.TemporaryDirectory(prefix='mn-batch-',dir=output.parent) as tmp:
         stage=Path(tmp)/'collected';collection={'status':'PASS'}
@@ -72,7 +86,7 @@ def synchronize(base,output,now=None,force=False):
             collection={'status':'INCOMPLETE' if hasattr(error,'report') else 'ERROR','error':message}
             if hasattr(error,'report'):collection['freshness']=error.report
             candidates=sorted((Path(tmp)/'rejected-evidence').glob('*'))
-            source=candidates[-1] if candidates else base/'market-navigator-rebuild-data'
+            source=candidates[-1] if candidates else (previous[1] if previous else base)/'market-navigator-rebuild-data'
             # Keep the rejected native collection and raw provider captures for diagnosis.
             if candidates:shutil.copytree(source,output.parent/'rejected-evidence'/candidates[-1].name)
         candidate=Path(tmp)/'qualified'
@@ -82,9 +96,12 @@ def synchronize(base,output,now=None,force=False):
             if candidate.exists():
                 if candidate.resolve().parent!=Path(tmp).resolve():raise ValueError('Unexpected batch candidate path')
                 shutil.rmtree(candidate)
-            previous=base/'previous'
-            fallback=previous if previous.exists() and (previous/'market-navigator-rebuild-data/package.json').exists() else base
+            fallback=previous[1] if previous else base
             historical.build(base,fallback/'market-navigator-rebuild-data',candidate,now=now,latest_limit=closed)
+        if previous and s.read(candidate/'connection.json').get('historicalCutoff',previous[0])<previous[0]:
+            if candidate.resolve().parent!=Path(tmp).resolve():raise ValueError('Unexpected batch candidate path')
+            shutil.rmtree(candidate)
+            historical.build(base,previous[1]/'market-navigator-rebuild-data',candidate,now=now,latest_limit=closed)
         result=publish_receipt(candidate,now,closed,days,collection)
         if output.exists():raise ValueError('Batch output must be new')
         shutil.copytree(candidate,output)

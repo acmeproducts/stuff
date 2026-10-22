@@ -64,6 +64,25 @@ class DailyBatch(unittest.TestCase):
      result=b.synchronize(base,output,now)
     self.assertEqual(result['status'],'PASS');self.assertEqual(result['batch']['state'],state);self.assertEqual(result['batch']['servingDate'],'2026-10-20')
     self.assertEqual((base/'market-navigator-rebuild-data/market-evidence/sync-proof.json').read_bytes(),before)
+ def test_previous_batch_is_selected_only_with_matching_resource_hashes(self):
+  with tempfile.TemporaryDirectory() as tmp:
+   base=Path(tmp);self.fixture(base)
+   previous=base/'previous';previous.mkdir();self.fixture(previous)
+   b.publish_receipt(previous,dt.datetime(2026,10,21,13,tzinfo=UTC),'2026-10-20',['2026-10-20'],{})
+   self.assertEqual(b.verified_previous(base)[0],'2026-10-20')
+   proof=previous/'market-navigator-rebuild-data/market-evidence/sync-proof.json';proof.write_text('{}')
+   self.assertIsNone(b.verified_previous(base))
+ def test_new_collection_cannot_roll_back_the_last_complete_batch(self):
+  with tempfile.TemporaryDirectory() as tmp:
+   base=Path(tmp)/'base';base.mkdir();self.fixture(base)
+   b.publish_receipt(base,dt.datetime(2026,10,21,13,tzinfo=UTC),'2026-10-20',['2026-10-20'],{})
+   output=Path(tmp)/'published';calls=[]
+   def build(base_arg,source,candidate,**kwargs):
+    calls.append(source);shutil.copytree(base,candidate)
+    if len(calls)==1:s.write(candidate/'connection.json',{'historicalCutoff':'2026-10-19'})
+   with patch.object(b,'market_days',return_value=('2026-10-21',['2026-10-21','2026-10-20'])),patch.object(b.s,'synchronize',return_value={}),patch.object(b.historical,'build',side_effect=build):
+    result=b.synchronize(base,output,dt.datetime(2026,10,22,12,tzinfo=UTC))
+   self.assertEqual(len(calls),2);self.assertEqual(result['batch']['servingDate'],'2026-10-20')
  def test_no_unqualified_batch_can_be_published(self):
   with tempfile.TemporaryDirectory() as tmp:
    base=Path(tmp)/'base';base.mkdir();self.fixture(base);output=Path(tmp)/'published'

@@ -29,8 +29,8 @@ const server=http.createServer((req,res)=>{try{const route=new URL(req.url,'http
   await page.screenshot({path:'.evidence/batch-etl-'+width+'.png'});
   await page.getByRole('button',{name:'NOW',exact:true}).click();assert(await page.locator('#nowChart').isVisible());
   assert.deepEqual(await page.evaluate(()=>__mnRebuild.now().state.chart),original);
-  await page.locator('#legend [data-id="growth"]').click({button:'right'});await page.locator('#analyzeNowSeries26').click();
-  await page.waitForFunction(()=>__mnRebuild.analyze()?.idle);assert(await page.locator('#mn-analyze-nowChart').isVisible());
+  await page.locator('#legend [data-id="growth"]').click();await page.waitForFunction(()=>__mnRebuild.now()?.idle&&__mnRebuild.now().spec.index==='growth');await page.locator('#legend [data-id="growth"]').click({button:'right'});await page.locator('#analyzeNowSeries26').click();
+  await page.waitForFunction(()=>__mnRebuild.analyze()?.idle);assert((await page.evaluate(()=>__mnRebuild.analyze().state.chart.series)).every(row=>row.points.every(p=>new Date(p.t).toISOString().slice(0,10)<=q.marketDate)));
   await page.screenshot({path:'.evidence/batch-chart-'+width+'.png'});
   assert.deepEqual(errors,[]);results.push({width,cutoff:q.marketDate,status:'PASS',lateBatchRemainsAvailable:true});await page.close();
  }
