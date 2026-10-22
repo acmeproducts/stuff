@@ -26,7 +26,7 @@ edit("return obsRange(src,w).length>0||(/week|month|quarter/.test(m.native_caden
 
 edit("function fmt(v){return Number.isFinite(+v)?(+v).toLocaleString(undefined,{maximumFractionDigits:2}):'—'}", "function fmt(v){return Number.isFinite(+v)?(+v).toLocaleString(undefined,{maximumFractionDigits:2}):'—'}\nfunction chartNumber(v,unit='Index'){if(!Number.isFinite(+v))return'—';const u=String(unit).toLowerCase(),digits=/percent|point|bps/.test(u)?3:/persons|claims|count|thousand|million/.test(u)?0:2;return (+v).toLocaleString(undefined,{minimumFractionDigits:digits,maximumFractionDigits:digits})}", 'measurement-aware chart formatting')
 function('canonicalWindow'," function canonicalWindow(h,k){const x=S.derived.indices[k].horizons[h];return{horizon:h,start:Date.parse(x.commonT0+'T00:00:00Z'),end:Date.parse(S.derived.commonMarketAnchor+'T23:59:59.999Z'),startLabel:x.commonT0,endLabel:S.derived.commonMarketAnchor}}")
-function('observationWindow'," function observationWindow(sets,w){w.requestedWindow={...w};return w}")
+function('observationWindow'," function observationWindow(sets,w){w.requestedWindow={...w};const lastDate=Math.floor(w.end/86400000)*86400000;w.plotEnd=lastDate>w.start&&sets.every(z=>z.a.every(q=>q.t%86400000===0))?lastDate:w.end;return w}")
 
 # Family ownership, never active-series ownership. Dollar quotes retain their individual units.
 start=html.index(' function applyAxes(sets,automaticMode){');end=html.index(' function reconcileAxes',start)
@@ -195,6 +195,15 @@ for before,after in [
  ('canonical for inspection/data/export/AI','available for inspection, exports and analysis')]:
     html=html.replace(before,after)
 changes.append('plain-language product labels')
+
+
+# Eligibility keeps the complete observation day; daily plotting ends on its date.
+assert html.count('(w.end-w.start)')>=3,'shared X projection seams'
+html=html.replace('(w.end-w.start)','((w.plotEnd??w.end)-w.start)')
+edit("cx<p.l||cx>p.l+pw||cy<p.t", "cx<p.l-0.5||cx>p.l+pw+0.5||cy<p.t", 'right-edge inspection tolerance')
+edit("(cx-p.l)/pw*((w.plotEnd??w.end)-w.start)", "Math.max(0,Math.min(1,(cx-p.l)/pw))*((w.plotEnd??w.end)-w.start)", 'inspection target uses the plotted time domain')
+edit("sets.filter(z=>z!==ref).forEach(plot);if(ref)plot(ref);if(cross)", "x.save();x.beginPath();x.rect(p.l,p.t,pw,ph);x.clip();sets.filter(z=>z!==ref).forEach(plot);if(ref)plot(ref);x.restore();if(cross)", 'contain endpoint strokes and bars inside plot')
+changes.append('daily last-date tick, traces and inspection align with right plot boundary')
 
 edit('__ETL_BUILD_ID__', hashlib.sha256(html.encode('utf-8')).hexdigest(), 'content-bound application build identity')
 
