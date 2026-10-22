@@ -10,7 +10,7 @@
 - In‑app diagnostics panel (collapsible) logs all interactions. No console‑only output.
 - **Owner direction (2026-10-21):** next code must include tilt detents + pinch-to-resize AND seeded Configure-panel menus for real browser use plus at least one multi-level nested menu. GitHub token/save/load remains later unless owner re-prioritizes.
 - Built since: tilt detents (0/15/30/45/60 snap), pinch + wheel radius, seeded Browser & multi-level Launcher menus, nested submenu navigation with breadcrumbs + back node, Configure panel (menu list, add/delete items, view readouts, reset), hover tooltips, pop-out window + PWA manifest, GitHub token save/load of menus JSON.
-- Not yet built in code: editing existing items in-place, reordering items, center-action gesture assignment, icon tier system, embed mode.
+- Not yet built in code: transparent background, node reposition handles, seeded repo/web bookmarks, read aloud, reading mode, center-action gesture assignment, icon tier system, embed mode.
 
 ## PRODUCT VISION
 A floating, always‑on‑top circular launcher. A smiling orange heart floats over everything. One tap blooms a rotatable, tiltable, zoomable ring of action nodes. Content is data‑driven (local seeded menus now; JSON/GitHub later), so menus can nest infinitely. Standalone first; designed to embed later into the owner's existing page.
@@ -37,10 +37,11 @@ A floating, always‑on‑top circular launcher. A smiling orange heart floats o
 3. **Tilt detents + pinch radius + seeded Configure menus** — ✅
 4. **Menu navigation engine: nested submenus, breadcrumbs, back node** — ✅
 5. **GitHub token save/load of menus JSON** — ✅ (shipped early with slice 3/4 code)
-6. **Editor upgrade: edit existing items in place + reorder (▲▼ first, drag later)** — **active next code**
-7. **Center-button gesture-action assignment** — next after editor upgrade
-8. **Icon tiers + polish** — later
-9. **Final integration & QA** — later
+6. **Editor upgrade: edit existing items in place + reorder (▲▼ + drag)** — ✅
+7. **Turn 12: transparent overlay, node handles, seeded bookmarks, read aloud, reading mode** — **active next code**
+8. **Center-button gesture-action assignment** — next after turn 12
+9. **Icon tiers + polish** — later
+10. **Final integration & QA** — later
 
 ## ACTIVE BUILD — TURN 10 (2026-10-21)
 
@@ -101,8 +102,28 @@ Upgrade the Configure panel's menu editor: today items can only be added and del
 - [ ] Add mode still works; switching between add/edit modes is explicit (Cancel restores add mode).
 - [ ] No regressions: submenu navigation, GitHub save/load, gestures, tooltips.
 
+## ACTIVE BUILD — TURN 12 (2026-10-22)
+
+### Goal
+Make the pop-out truly float over other content, give ring nodes reposition handles, seed real bookmarks (5 repo pages + Google, Alterslash, NPR), and add read-aloud + reading-mode actions.
+
+### Scope
+- **Transparent background:** body and overlay become fully transparent; panels keep their glass styling so the pop-out window visually floats over whatever is behind it.
+- **Node reposition handles:** Configure gains an "Edit ring layout" toggle; while on, each ring node shows a small ☰ handle and dragging a node around the ring reorders that menu's items (persists; list drag in editor still works).
+- **Seeded bookmarks:** default Browser menu gains a "Repo Pages" submenu with 5 repo pages (Code, Issues, Pull Requests, Actions, Wiki — URLs built from Configure's GitHub owner/repo) and a "Web" submenu (Google, Alterslash, NPR) using `gh:` / `url:` actions so hover tooltips show destinations.
+- **Browser controls:** back/forward/reload/share/print already exist; keep unchanged.
+- **Read aloud:** new action `readaloud` — speechSynthesis reads extracted page text (or the reader overlay's content); pressing again stops.
+- **Reading mode:** new action `readmode` — opens a clean reader overlay of extracted headings/paragraphs with a close button; read aloud reads from it while open.
+- New built-in icons for read aloud and reading mode; both actions seeded in the default Browser menu.
+
+### Acceptance checks
+- [ ] Body/overlay transparent; pop-out visually floats; panels still legible.
+- [ ] Layout-edit toggle shows node handles; dragging nodes reorders the menu and survives reload.
+- [ ] Browser menu shows Repo Pages (5 entries) and Web (Google/Alterslash/NPR) submenus with correct tooltip URLs.
+- [ ] Read aloud speaks and stops on second press; reading mode opens/closes cleanly.
+- [ ] No regressions: rotation/tilt/pinch, editor add/edit/reorder, GitHub sync, pop-out.
+
 ## BACKLOG / FUTURE
-- Drag-to-reorder items in the editor (▲▼ shipped first).
 - Center button gesture-action assignment (tap/double-tap/long-press).
 - Icon tiers: built-in SVG, URL, emoji-free professional sets.
 - Embed mode for owner’s existing page.
@@ -116,6 +137,7 @@ Upgrade the Configure panel's menu editor: today items can only be added and del
 - **2026-10-21 — Turn 9:** Tilt/pinch slice specified; earlier engine runs failed on credit/time.
 - **2026-10-21 — Turn 10:** Owner re-scoped slice 3 to include seeded Configure menus for browser and multi-level demo; plan updated before code.
 - **2026-10-21 — Turn 11:** Owner asked for editor item editing + reordering; plan updated before code. Build order re-baselined to reflect slices 3–5 already shipped.
+- **2026-10-22 — Turn 12:** Owner asked for transparent pop-out background, node reposition handles, seeded repo/web bookmarks (5 repo pages, Google, Alterslash, NPR), read aloud and reading mode; plan updated before code after two engine failures.
 
 ## TURN/STAGE LEDGER
 | Turn | Stage | Status | Notes |
@@ -128,7 +150,8 @@ Upgrade the Configure panel's menu editor: today items can only be added and del
 | 9 | Slice 3 planned | ✅ |
 | 10 | Slice 3 re-scoped: gestures + seeded config menus | ✅ Built |
 | 10b | Submenus, tooltips, pop-out window, GitHub sync | ✅ Built |
-| 11 | Editor upgrade planned: edit + reorder items | 📋 Plan updated — code next |
+| 11 | Editor upgrade: edit in place + ▲▼ reorder + drag handles | ✅ Built |
+| 12 | Transparent bg, node handles, seeded bookmarks, read aloud, reading mode | 📋 Plan updated — code next |
 
 ## RUN LOG
 | Date | Result | What |
