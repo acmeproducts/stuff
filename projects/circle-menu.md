@@ -148,3 +148,4 @@ Upgrade the Configure panel's menu editor: today items can only be added and del
 | 2026-10-21 | plan updated | Turn 11: editor item editing + reordering specified; build order re-baselined |
 | 2026-10-21 23:08 | Main | built projects/circle-menu.html | Honest answer: the editor upgrade was planned but hadn't fully landed in the code yet — it's landing now. This update adds the missing "Open | a6f1032 |
 | 2026-10-22 00:41 | Main | failed | I couldn't finish that one. Your app is unchanged. |  |
+| 2026-10-22 03:05 | Main | failed | I couldn't finish that one. Your app is unchanged. |  |
