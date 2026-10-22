@@ -1,7 +1,7 @@
 <!-- v5.8.2.42 -->
 # TALKBRIDGE — THE GRAVEYARD (living; keep in project knowledge)
 ## Approaches PROVEN to fail. Scanned before every change and at every exit condition. Never resurrect.
-**Version: 2.36 | 2026-10-19 | G76 names kept on the server; a rename delivered only to an open connection | Maintained in GitHub by the build process (raw.githubusercontent.com/acmeproducts/stuff/main/talkbridge/TALKBRIDGE-GRAVEYARD.md). Updated on every exit-condition burial.**
+**Version: 2.37 | 2026-10-22 | G77 30·base candidate 1 (the video box) rejected: a fixed 9:16 window with whole pictures, and the camera asked for a tall shape | Maintained in GitHub by the build process (raw.githubusercontent.com/acmeproducts/stuff/main/talkbridge/TALKBRIDGE-GRAVEYARD.md). Updated on every exit-condition burial.**
 
 
 Each entry: the approach, its failure signature, what replaces it. A change matching a signature is forbidden BEFORE it is attempted — not rediscovered as if new.
@@ -149,6 +149,7 @@ Each entry: the approach, its failure signature, what replaces it. A change matc
 | G74 | 2026-10-18 | The room code kept only in the relay object's memory (activity lines after a sleep read `room none`, relay v6.12–v6.14) |
 | G75 | 2026-10-18 | The ownership gate judging a merge by its first-parent diff (a branch that merged main was refused for main's own TalkBridge commits) |
 | G76 | 2026-10-19 | Names kept on the server (typed names, the room's name, a scratch copy of messages); a rename delivered only to an open connection |
+| G77 | 2026-10-22 | 30·base c1, the video box: a FIXED 9:16 window showing whole pictures (contain), and the camera asked for 720×1280 |
 | E134 | 2026-10-07 | Annotation · 2026-10-07: E076's corollary superseded by owner ruling (install optional) |
 
 </details>
@@ -2531,3 +2532,26 @@ phone to phone in every greeting with its stamp; the newest stamp wins. Relay
 harness v6.17 L10 opens the room's storage and finds no name; app harness T7.
 
 **Buried by.** 29·post-ship candidate 7, relay v6.17 (plan v21.109.0).
+
+## G77 — 2026-10-22 — 30·base candidate 1, the video box, rejected
+
+**The approach.** During a video call the video became a floating, draggable window of a FIXED 9:16 shape; both pictures were
+shown whole (object-fit:contain) inside it; and both places that open the camera asked for 720×1280 (9:16) as an ideal, so the
+window would fill.
+
+**Failure signature.** The owner's two-phone call (device log 2026-10-22 21:58–22:00 UTC): the Android (Chrome) camera, asked for
+720×1280, delivered **1280×720 — landscape** (`vb_camera`); the iPhone delivered 720×1280. A landscape picture inside a fixed
+9:16 window is a thin strip between black bands — what the receiver saw. The call's media never connected (Android `connecting`
+→ timeout → recovery; two relay-socket drops during setup; iPhone `failed`, `ice_failed`), so the owner saw no picture at all;
+nothing in the log ties that to the window, and it is recorded, not explained. Owner: "in the past the format for receivers was
+flawless."
+
+**Why it fails.** Two guesses about the picture were wrong: that asking for a shape gets that shape (Chrome on Android reads
+width/height in the sensor's landscape terms), and that a fixed window shape fits the pictures people actually send. A window
+whose shape does not match the picture must either crop it or band it.
+
+**The rule.** The window takes the shape of the picture it shows (the big video's videoWidth/videoHeight, re-read on every
+`resize`), so it neither crops nor bands; the self-view inset takes the shape of the self picture; the camera is opened exactly
+as the accepted app opens it. Measure the received picture, never assume it.
+
+**Buried by.** Rejection 2026-10-22 (plan v21.112.0); candidate 2 rebuilds from the accepted 29·post-ship page.
