@@ -103,3 +103,37 @@ Record the candidate hash and review result before any production chart replacem
 
 Completed in this turn: source/spec/baseline audit, deterministic reproduction and this recovery plan.
 No chart code, data values, model formula, workflow or deployed product file was changed by this audit. The daily-batch delivery contract remains in force.
+
+
+## Recovery addendum — model boundary and owner interaction clarification
+
+The X-axis diagnosis is not a certification of the data model. No X-axis correction has been implemented during these audits.
+
+### Confirmed structural weakness
+
+The current source adapter creates real observations and synthetic held endpoints in the same point array. It also computes indexed/reference values in the browser. Downstream projection, snapshots and hit testing then consume that mixed array. The batch receipt verifies stored source/model facts but does not certify all display points later manufactured by the renderer. This is a broken boundary between verified data and chart preparation, not merely a mislabeled X tick.
+
+Current selection likewise has multiple representations (`sel`, local `active`, `S.nowActive` and captured chart active state). Inspection changes `sel` to the nearest series regardless of tap distance, while selection/outline synchronization occurs only inside a 24-pixel gate. A pure-function probe confirms that a distance-25 inspection can show A while B remains selected. This proves a permitted inconsistent state; it does not claim that the exact physical Android tap sequence has already been reproduced.
+
+Current popup code positions a normal interior box at `point.x + 8`, uses one inline date/index/native row, and has no visible series-title row. The owner's newly specified left-side, three-row shape supersedes that old layout.
+
+### Required data-to-chart contract before recovery implementation
+
+1. **Source observations:** stable observation IDs, source series ID, actual observation date/timestamp, native value and unit, collection/publication provenance and retained source evidence. A collection time is not an observation date.
+2. **Governed index facts:** model version, fixed anchors, weights/signs/scales, per-component contribution and index evaluation session, referencing the actual source observations used. Preserve the approved formulas; do not create another model to compensate for display faults.
+3. **Certified horizon payload:** batch identity/cutoff, official ordered session grid, eligibility, references and precomputed native/indexed comparison values for each supported horizon/reference. Keep source observations, index evaluations and any permitted display decorations as distinct types. Decorations cannot enter source counts, period selection, axis-domain ownership or crosshair readings.
+4. **View state:** one authoritative selected series ID per consumer, with a committed observation ID for inspection. Outline, marker and popup derive from that state; they do not independently decide which series is active. Browser work is pixel/layout/interaction work, not a second financial calculation pipeline.
+
+These contracts must reconcile Level 0 source observations, Level 1 horizon/reference values and Level 3 index contributions/values against the same verified batch. Existing evidence does not establish corruption of raw provider values or approved model weights. That must be determined by reconciliation, not by changing providers, dates, weights or anchors speculatively.
+
+### Added acceptance witnesses
+
+The owner clarification in MARKET-NAVIGATOR-CHART-OWNER-CLARIFICATIONS.md is controlling. Machine-readable expectations are in market-navigator-acceptance/recovery-audit/owner-additions.json and are **specified, not yet implemented or passed**.
+
+- Select B, then tap A: exactly A is outlined and the marker/popup identify A; repeat with a nearby miss, overlapping lines, touch, rerender and parked NOW/Analyze.
+- Verify the three rows, readable near-square proportions, actionable date link and matching certified indexed/native values.
+- Verify left-of-point placement at both endpoints and the center, on phone/desktop, with long labels/values and rail open/closed. No right-side fallback, clipped essential content or geometry changes.
+- Validate typed data/horizon contracts before geometry tests. Reject synthetic source observations, a display-owned session domain and consumer-specific financial arithmetic.
+- Retain the existing legend-only information card, family axes, persistent choices, exports and saved Library evidence.
+
+The probes in recovery-audit/inspect-interactions.cjs and interaction-seams.json reproduce current-code weaknesses with mocked events/layout. They are forensic evidence, not browser, physical-device or data-model acceptance. No runtime patch is being added as a separate quick fix.

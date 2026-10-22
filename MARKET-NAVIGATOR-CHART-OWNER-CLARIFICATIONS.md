@@ -44,3 +44,18 @@ The reported GRW shape comparison must be checked numerically: preserve timestam
 The owner explicitly permits dollar-based series to share the dollar axis, including USD quotes, USD per barrel and USD per pound. This supersedes the earlier prohibition on grouping these native dollar quote bases and resolves audit finding C21. All dollar-based series retain their actual native values on that axis; all normalized/index series retain their index axis. Do not reject these combinations, invent a third axis or silently change representation/reference choices.
 
 Use each series' existing legend information card to explain its exact native quote unit/basis. Keep the shared dollar-axis label readable and show the exact unit in the card. The disclosure does not convert barrels, pounds or share/unit quotes into a common physical quantity. Preserve legend-only information gestures, plot inspection, axes, colors and persistent choices. Add regression checks in both NOW and Analyze covering mixed dollar sources in different orders, true native values, exact per-series unit disclosure and unchanged geometry after information-card use.
+
+
+## October 22 owner addition — selection and three-row crosshair
+
+This supersedes the earlier single-line date | index | value popup layout.
+
+- A successful tap on series A after series B selects A atomically: remove B's outline and apply A's outline. After selection exactly one eligible chip is outlined. Repeating a tap does not clear selection. Preserve the initial overview's existing unselected state until a selection occurs.
+- The point marker, selected series, legend outline and committed inspection use the same selected series identity. A hit outside the accepted tap target must not open A's inspection while leaving B selected. Hover and tap semantics must not be confused.
+- This applies independently in NOW and Analyze. Selection must not change data, axes, normalization, horizon, Fixed/Horizon, representation, style or the parked state of the other consumer.
+- Crosshair popup: a near-square box, slightly wider than tall; not the former long thin strip.
+- Row 1: the series display name, with the existing close control.
+- Row 2: the actual observation date, as the source hyperlink.
+- Row 3: the indexed comparison value and native value. Use dollars only for dollar-valued sources; retain other true native units and the existing dash for an index without a native-dollar quote. Both values must describe that same observation and the certified selected reference.
+- Always place the popup to the left of the selected data point. Do not flip it right. Use a viewport-aware overlay and responsive wrapping at the left edge; do not move the point, change the chart domain or shrink text into unreadability to make it fit. Prove first/last-point, narrow-phone and long-name/value cases before release.
+- Plot taps show crosshair inspection only. The fuller series information card remains a legend-only action.
