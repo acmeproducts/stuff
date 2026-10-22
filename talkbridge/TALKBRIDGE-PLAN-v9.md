@@ -1,5 +1,5 @@
-<!-- TALKBRIDGE-PLAN v21.112.0 -->
-# TALKBRIDGE MASTER PLAN v21.112.0
+<!-- TALKBRIDGE-PLAN v21.113.0 -->
+# TALKBRIDGE MASTER PLAN v21.113.0
 
 **Location:** `talkbridge/TALKBRIDGE-PLAN-v9.md` in `acmeproducts/stuff`.
 **Owner:** Confi — sole decision-maker, runs every device gate.
@@ -149,7 +149,7 @@ the directory release and IndexedDB each moved one turn later; nothing was dropp
 | 29·post-ship | **localization** — the app's own words in the user's language, both sides (§7.17) — moved up from 30·base by owner ruling 2026-10-10 | **ACCEPTED 2026-10-20 · candidate 7 · sha `c1c417e21dd1` · tb-sw5.js · relay v6.17 (owner: "approved")** — localization, the reach bar, reachability, the activity log, the room name phone to phone, no names on the server. Candidate history: c1–c7 (§7.17, §7.20, §7.21; changelog v21.96.0–v21.109.0) | **https://acmeproducts.github.io/stuff/talkbridge-app/bridge-turn29-post-ship.html** |
 | 30·post-ship | IndexedDB — behind its POC; if the owner defers it past beta, it stays here | queued | — |
 | 30·pre-base | byte-identical snapshot of accepted 29·post-ship | **BANKED 2026-10-22 BY REFERENCE** — the accepted `talkbridge-app/bridge-turn29-post-ship.html` (sha `c1c417e21dd1`), immutable under §0c; 30·base's assembler sha-checks it | — |
-| 30·base | **THE VIDEO BOX (§7.22)** — owner 2026-10-22: "it should be the tall 9:16 that's draggable"; multi-user (conference-room model) moves later, only after its spec is written and approved | **CANDIDATE 1 REJECTED 2026-10-22 (owner: "this is a reject release, start from baseline and try again") — G77. The second door is back on the accepted 29·post-ship page; candidate 2 next.** | **https://acmeproducts.github.io/stuff/talkbridge-app/bridge-turn30-base.html** (and next.html) |
+| 30·base | **THE VIDEO BOX (§7.22)** — owner 2026-10-22: "it should be the tall 9:16 that's draggable"; multi-user (conference-room model) moves later, only after its spec is written and approved | **CANDIDATE 2 · BUILT 2026-10-22 · relay v6.17 (unchanged) · tb-sw5.js (unchanged) — the window takes the SHAPE OF ITS PICTURE (no band, no crop); the camera is opened exactly as the accepted app opens it; awaiting the owner's two-phone device gate.** Candidate 1 REJECTED 2026-10-22 (G77). | **https://acmeproducts.github.io/stuff/talkbridge-app/bridge-turn30-base.html** (and next.html) |
 | 30·pre-ship | beta readiness | queued | — |
 
 Every accepted or built stage carries its live address here and in the ledger; a row without a link is not built.
@@ -2090,6 +2090,8 @@ Green means allowed to push. It never means done.
 ---
 
 ## 10 · CHANGE LOG
+
+**v21.113.0 · 2026-10-22.** 30·base candidate 2 (§7.22 "Candidate 2"): rebuilt from the accepted 29·post-ship page. The camera is opened exactly as the accepted app opens it; the floating, draggable window takes the shape of the picture it shows (a phone's tall picture → a tall window; no band, no crop); the inset takes the small picture's shape. Reviewed again before the build. next.html → the 30·base page. Gates: harness-30b 59/59 (K: the camera asked exactly as the accepted page asks), browser 17/17, mutations 23/23, prior gate:29pos.
 
 **v21.112.0 · 2026-10-22.** 30·base candidate 1 REJECTED (owner, after a two-phone call: "on my side my camera never showed up, and on the receiver side they kept showing an image that had the black bands; in the past the format for receivers was flawless — this is a reject release, start from baseline and try again"). Device log read: the Android camera, asked for 720×1280, delivered 1280×720 LANDSCAPE (vb_camera) — its picture letterboxed in a 9:16 window; the iPhone delivered 720×1280. The call's media never connected (Android stuck `connecting`, two relay-socket drops during setup, iPhone `failed`/`ice_failed`) — no picture reached the Android. Graveyard G77. next.html → the accepted 29·post-ship page.
 
@@ -5798,6 +5800,21 @@ G4 rotate: the box stays on screen. G5 voice call: unchanged.
 - **Found while building**: the accepted 29·post-ship page swapped its manifest link to 29·ship's at load (DR-1's line,
   carried) and logged its build as "turn29-ship-c6" — an install made from it opened the 29·ship page. 30·base names its own
   manifests in all three places and logs its own build.
+
+### Candidate 2 (2026-10-22, after the owner rejected candidate 1 — G77)
+- **The camera is the accepted app's** (`video:true`; `{facingMode}` on the flip). c1's 720×1280 ask is gone; harness K proves the
+  stage asks the camera exactly what the accepted page asks.
+- **The window takes the shape of the picture it shows**: aspect = the big video's videoWidth/videoHeight (3:4 portrait until
+  the first frame), re-read on loadedmetadata/resize/playing, on a swap, and once a second; a change under 3% is not a change.
+  A tall phone picture → a tall window (W = 55% of the app column, 140–260 px); a wide laptop picture → a wide window (80%,
+  ≤ 380 px); capped by the room under the ribbon. A reshape keeps the window's top edge and its nearer side.
+- **Whole pictures, no bands**: contain inside frames of the pictures' own shapes — a misread shape shows as a thin band
+  (visible, logged), never a silent crop. The inset takes the small picture's shape, capped at 45% of the window's height.
+- **Logs** for the device gate: `vb_shown {w,h,self:{vw,vh,rs,paused,shown},camOn}`, `vb_shape {why,big:[w,h],small:[w,h],
+  cam:[getSettings w,h],w,h}` — the drawn shapes AND what the camera reports (G77: Android's getSettings may be landscape).
+- Second independent review (2026-10-22) applied: the shape-reading guards, contain over cover, the inset cap, the logs, G77's
+  wording (the shape c1 drew was never measured; the call never connected). Its advice for the device gate: if the media again
+  fails to connect, repeat the same two phones and networks on the accepted page before blaming the window (C6).
 
 ### Built (candidate 1)
 `talkbridge/build/assemble-30b.mjs` (accepted page sha-checked; 5 edits: 2 manifest names, 2 camera shapes, the build line;

@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-/* 30·base assembler — THE VIDEO BOX (§7.22), candidate 1 (owner 2026-10-22: "it should be the tall 9:16 that's draggable").
+/* 30·base assembler — THE VIDEO BOX (§7.22), candidate 2 (owner 2026-10-22: "it should be the tall 9:16 that's draggable").
 
    Input (sha-checked): the ACCEPTED 29·post-ship folder page (30·pre-base, banked by reference — immutable under §0c).
    Outputs, in talkbridge-app/ (nothing hand-written; no accepted file touched):
@@ -12,9 +12,9 @@
    at load (DR-1's line, carried) and logged its build as 29·ship c6 — an install from it opened the 29·ship page. This stage
    names itself in all three places.
 
-   CAMERA (owner 2026-10-22, option A: "my side is short and I'm cut off"): the app opened the camera with no shape, so phones
-   sent 3:4; in a 9:16 window that is bands. Both places that open the camera — the call's start and the flip — ask for a tall
-   picture (720×1280, 9:16) as an IDEAL: a camera that cannot do it sends what it sends today; nothing can fail on it. */
+   CANDIDATE 2 (2026-10-22, after the owner rejected c1 — G77): the camera is opened EXACTLY as the accepted app opens it
+   (c1 asked for 720×1280; the Android sent 1280×720 landscape, banded in a fixed 9:16 window). The window takes the shape of
+   the picture it shows instead. */
 import crypto from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
@@ -27,22 +27,20 @@ export const BASE_PAGE = FOLDER + '/bridge-turn29-post-ship.html';
 export const BASE_PAGE_SHA256 = 'c1c417e21dd1015e6a3519edbc90a796b80033f8e3412238932633ac4c974828';
 export const PARTS = ['talkbridge/parts/vb1-video-box.js'];
 export const STAGE_PAGE = 'bridge-turn30-base.html';
-export const STAGE_TAG = 'turn30-base-c1';
+export const STAGE_TAG = 'turn30-base-c2';
 export const BUILT = '2026-10-22';
 export const MANIFEST_NAME = 'tb-manifest-turn30-base.webmanifest';
 export const MANIFEST_IOS_NAME = 'tb-manifest-turn30-base-ios.webmanifest';
 export const MANIFEST_SRC = 'tb-manifest-turn28.webmanifest';
 export const OUT = { page: FOLDER + '/' + STAGE_PAGE, manifest: FOLDER + '/' + MANIFEST_NAME, manifestIos: FOLDER + '/' + MANIFEST_IOS_NAME };
-export const ADDED_SYMBOLS = ['VB', 'vbLog', 'vbCss', 'vbBox', 'vbActive', 'vbBounds', 'vbSize', 'vbClamp', 'vbPlace', 'vbSave', 'vbLoad', 'vbShow', 'vbHide', 'vbWire', 'vbInit'];
-export const ADDED_MARKERS = ['vb_shown', 'vb_moved', 'vb_init_failed', 'vb_camera', 'vb_partner'];
+export const ADDED_SYMBOLS = ['VB', 'vbLog', 'vbCss', 'vbBox', 'vbActive', 'vbBounds', 'vbAspect', 'vbShapes', 'vbSize', 'vbClamp', 'vbPlace', 'vbReshape', 'vbSave', 'vbLoad', 'vbShow', 'vbHide', 'vbWire', 'vbInit'];
+export const ADDED_MARKERS = ['vb_shown', 'vb_moved', 'vb_init_failed', 'vb_camera', 'vb_shape'];
 export const TAIL = '\n</script>\n</body>\n</html>';
 
 /* the stage's identity — each find occurs exactly once in the accepted page */
 export const IDENTITY = [
   { id: 'I-manifest-link', find: "'tb-manifest-turn29-post-ship-ios.webmanifest' : 'tb-manifest-turn29-post-ship.webmanifest'", replace: "'tb-manifest-turn30-base-ios.webmanifest' : 'tb-manifest-turn30-base.webmanifest'" },
   { id: 'I-manifest-swap', find: "lk.href = (p2Platform() === 'ios') ? 'tb-manifest-turn29-ship-ios.webmanifest' : 'tb-manifest-turn29-ship.webmanifest';", replace: "lk.href = (p2Platform() === 'ios') ? 'tb-manifest-turn30-base-ios.webmanifest' : 'tb-manifest-turn30-base.webmanifest';" },
-  { id: 'C-start', find: "getUserMedia({video:wantVideo,audio:this.micConstraints()})", replace: "getUserMedia({video:wantVideo?{width:{ideal:720},height:{ideal:1280},aspectRatio:{ideal:0.5625}}:false,audio:this.micConstraints()})" },
-  { id: 'C-flip', find: "getUserMedia({ video: { facingMode: next }, audio: false })", replace: "getUserMedia({ video: { facingMode: next, width: { ideal: 720 }, height: { ideal: 1280 }, aspectRatio: { ideal: 0.5625 } }, audio: false })" },
   { id: 'I-build', find: "log('build', { c: 'turn29-ship-c6', file: 'talkbridge-app/bridge-turn29-ship.html', built: '2026-10-12' }, 'ok');", replace: "log('build', { c: '" + STAGE_TAG + "', file: 'talkbridge-app/" + STAGE_PAGE + "', built: '" + BUILT + "' }, 'ok');" }
 ];
 
