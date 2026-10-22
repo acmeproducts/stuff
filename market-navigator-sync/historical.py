@@ -3,14 +3,14 @@ import argparse,datetime as dt,json,shutil,tempfile
 from pathlib import Path
 import run as s
 
-def build(base,source,output,now=None):
+def build(base,source,output,now=None,latest_limit=None):
     base,source,output=map(lambda p:Path(p).resolve(),(base,source,output))
     now=now or dt.datetime.now(s.UTC)
     if output.exists():raise ValueError('Historical output must be new')
     catalog=s.read(source/'data/market-backend/data-catalog.json')
     metas=[m for m in catalog['series'] if m.get('enabled',True)]
     daily=[s.date(s.read(source/f"market-evidence/series/{m['id']}.json")['observations'][-1]['t']) for m in metas if m['native_cadence'] in ('daily','trading-day','daily-nav')]
-    latest=min(daily);scheduler=s.load('market-navigator-r7-data-pipeline')._scheduler
+    latest=min(daily+[latest_limit] if latest_limit else daily);scheduler=s.load('market-navigator-r7-data-pipeline')._scheduler
     failures=[]
     with tempfile.TemporaryDirectory(prefix='mn-historical-',dir=output.parent) as tmp:
         for offset in range(15):

@@ -1,6 +1,6 @@
 const fs=require('node:fs'),vm=require('node:vm'),assert=require('node:assert/strict');
 const file=process.argv[2]||'market-navigator-chart-correction/etl.js',source=fs.readFileSync(file,'utf8');
-const start=source.indexOf('function etlOperationSummary('),end=source.indexOf('\nasync function etlHistoricalOption',start),statusStart=source.indexOf('async function etlCurrentStatus('),statusEnd=source.indexOf('\nfunction etlHistoricalLabels',statusStart);
+const start=source.indexOf('function etlBatchStatus('),end=source.indexOf('\nasync function etlHistoricalOption',start),statusStart=source.indexOf('async function etlCurrentStatus('),statusEnd=source.indexOf('\nfunction etlHistoricalLabels',statusStart);
 assert(start>=0&&end>start&&statusStart>=0&&statusEnd>statusStart);
 let status={status:'FAIL',run:'https://github.com/acmeproducts/stuff/actions/runs/50',detail:{error:'FRED maintenance',diagnostic:{code:'FRED_MAINTENANCE',checkedAt:'2026-10-22T04:32:04Z'}}};
 let run={id:50,run_number:50,status:'completed',conclusion:'failure'};
@@ -24,5 +24,6 @@ vm.createContext(ctx);vm.runInContext(source.slice(start,end)+'\n'+source.slice(
  run=newer;await ctx.etlRefreshJobs();assert.match(get('etlCurrentStatus').innerHTML,/running/);assert.doesNotMatch(get('etlCurrentStatus').innerHTML,/FRED maintenance/);assert.equal(JSON.parse(get('etlDiagnosticText').value).diagnostic,null);
  for(let i=0;i<9;i++)await ctx.etlRefreshJobs();assert.equal(lastDelay,180000);
  ctx.fetch=async()=>{throw Error('offline')};await ctx.etlRefreshJobs();assert.match(get('etlCurrentStatus').textContent,/No successful current update/);assert.equal(JSON.parse(get('etlDiagnosticText').value).diagnostic,null);
- console.log(JSON.stringify({status:'PASS',cases:12,scope:'operational status, run correlation, diagnostics and copy fallback; no source readiness claim'}));
+ const batch={state:'READY',servingDate:'2026-10-20',nextBatchDate:'2026-10-21',nextDeliveryDeadline:'2026-10-22T06:00:00-07:00'};assert.equal(ctx.etlBatchStatus(batch,Date.parse('2026-10-22T12:59:59Z')).state,'READY');assert.equal(ctx.etlBatchStatus(batch,Date.parse('2026-10-22T13:00:00Z')).state,'LATE');assert.equal(batch.state,'READY');
+ console.log(JSON.stringify({status:'PASS',cases:14,scope:'operational status, run correlation, diagnostics and copy fallback; no source readiness claim'}));
 })().catch(e=>{console.error(e);process.exitCode=1});

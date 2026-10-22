@@ -5,6 +5,8 @@ on:
     paths: ['market-navigator-sync/**', '.github/workflows/market-navigator-sync.yml', 'market-navigator-chart-correction-*.cjs', 'market-navigator-chart-selector-tests.cjs', 'market-navigator-chart-correction-build.py', 'market-navigator-chart-correction/**', 'market-navigator-acceptance/**', 'market-navigator-chart-contract-tests.cjs', 'market-navigator-chart-presentation-tests.cjs', 'MARKET-NAVIGATOR-CHART-OWNER-CLARIFICATIONS.md', 'MARKET-VIEW-CHART-ACCEPTANCE-MATRIX.md', 'MARKET-NAVIGATOR-NOW-EXPLORE-CONTRACT.md', 'MARKET-NAVIGATOR-PERSISTENT-INDEX-SPEC.md']
   schedule:
     - cron: '20 * * * *'
+    # 05:00/05:30 Pacific staging and 06:00 deadline checks across PST/PDT.
+    - cron: '0,30 12,13,14 * * *'
   workflow_dispatch:
     inputs:
       force:
@@ -39,9 +41,10 @@ jobs:
           python market-navigator-sync/test_publish.py
           python market-navigator-sync/test_release_probe.py
           python market-navigator-sync/test_freshness.py
+          python market-navigator-sync/test_batch.py
           node market-navigator-sync/test_consumer_freshness.cjs
           node market-navigator-sync/test_etl_operations.cjs
-      - name: Synchronize and independently qualify sources, horizons and indices
+      - name: Collect and qualify the closing-day batch; retain the last complete batch
         id: data
         env:
           MARKET_NAVIGATOR_FRED_API_KEY: ${{ secrets.MARKET_NAVIGATOR_FRED_API_KEY }}
@@ -49,28 +52,10 @@ jobs:
           FORCE_CHECK: ${{ inputs.force || github.event_name == 'push' }}
         run: |
           python - <<'PY'
-          import os,subprocess,sys
-          import importlib.util,datetime,json
+          import os,subprocess,sys,json
           from pathlib import Path
-          spec=importlib.util.spec_from_file_location('vintage_access',Path('market-navigator-sync/market-navigator-vintage-sidecar.py').resolve())
-          api=importlib.util.module_from_spec(spec);spec.loader.exec_module(api)
-          Path('.sync-publish').mkdir(exist_ok=True)
-          previous=Path.cwd();os.chdir('.sync-publish')
-          try:
-              result=api.get_json({'series_id':'DFF','observation_start':(datetime.date.today()-datetime.timedelta(days=14)).isoformat()})
-              if not result.get('observations'):raise RuntimeError('Configured vintage credential returned no observations')
-              Path('vintage-access.json').write_text(json.dumps({'status':'PASS','provider':'FRED/ALFRED','credentialConfigured':True,'responses':api.RESPONSE_REFS}))
-          except Exception as error:
-              message=str(error)
-              for name in ('MARKET_NAVIGATOR_FRED_API_KEY','MARKET_NAVIGATOR_FRED_API_KEY_SECONDARY'):
-                  secret=os.environ.get(name)
-                  if secret:message=message.replace(secret,'[redacted]')
-              code='FRED_MAINTENANCE' if 'FRED_MAINTENANCE' in message else 'PROVIDER_ACCESS_FAILED'
-              Path('sync-status.json').write_text(json.dumps({'status':'BLOCKED','error':message,'displayPermitted':False,'diagnostic':{'code':code,'provider':'FRED','stage':'provider access','checkedAt':datetime.datetime.now(datetime.timezone.utc).isoformat()}}))
-              raise RuntimeError(message) from None
-          finally:os.chdir(previous)
-          args=[sys.executable,'market-navigator-sync/run.py','--base','market-navigator-throwaway-review','--output','.sync-publish/market-navigator-throwaway-review']
-          if os.environ.get('FORCE_CHECK')=='true': args.append('--force')
+          args=[sys.executable,'market-navigator-sync/batch.py','--base','market-navigator-throwaway-review','--output','.sync-publish/market-navigator-throwaway-review']
+          if os.environ.get('FORCE_CHECK')=='true':args.append('--force')
           subprocess.run(args,check=True)
           status=json.loads(Path('.sync-publish/sync-status.json').read_text())
           with open(os.environ['GITHUB_OUTPUT'],'a') as f:f.write('changed='+str(not status.get('unchanged',False)).lower()+'\n')
@@ -92,6 +77,7 @@ jobs:
           MN_SYNC_BROWSER_ROOT: .sync-publish/market-navigator-throwaway-review
           MN_CHART_CANDIDATE_ROOT: .sync-publish/market-navigator-throwaway-review
         run: |
+          node market-navigator-sync/test_batch_browser.cjs
           node market-navigator-acceptance/run.cjs
       - name: Publish one qualified data tree, preserving every other project
         id: publish
@@ -206,6 +192,8 @@ jobs:
             .evidence/withheld-*.png
             .evidence/historical-*.png
             .evidence/historical-acceptance.json
+            .evidence/batch-*.json
+            .evidence/batch-*.png
             .evidence/chart-presentation-tests.json
             .evidence/presentation-*.png
           include-hidden-files: true

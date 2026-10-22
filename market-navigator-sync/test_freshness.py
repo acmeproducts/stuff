@@ -1,5 +1,5 @@
 """Release gate tests, independent of historical model replay fixtures."""
-import datetime as dt,importlib.util,json,tempfile,unittest
+import datetime as dt,importlib.util,json,tempfile,unittest,shutil,hashlib
 from pathlib import Path
 from unittest.mock import patch
 HERE=Path(__file__).resolve().parent
@@ -59,7 +59,10 @@ class Completeness(unittest.TestCase):
   self.add_weekly({})
   self.assertEqual(self.audit()['validUntil'],'2026-10-21T15:00:00+00:00')
  def test_no_due_shortcut_cannot_bypass_gate(self):
-  base=HERE.parent/'market-navigator-throwaway-review';target=self.root/'should-not-exist'
+  base=self.root/'trusted';shutil.copytree(HERE.parent/'market-navigator-throwaway-review',base,ignore=shutil.ignore_patterns('previous'))
+  data=base/'market-navigator-rebuild-data';path='market-evidence/series/hySpread.json';row=s.read(data/path);row['observations']=[p for p in row['observations'] if s.date(p['t'])!='2026-10-20'];s.write(data/path,row)
+  package=s.read(data/'package.json');package['resources'][path]=hashlib.sha256((data/path).read_bytes()).hexdigest();package['version']=s.digest(package['resources']);s.write(data/'package.json',package)
+  target=self.root/'should-not-exist'
   with patch.object(s,'collect',return_value=[{'id':'hySpread','status':'not-due','changed':False}]):
    with self.assertRaisesRegex(ValueError,'INCOMPLETE_DATA'):s.synchronize(base,target,NOW)
   self.assertFalse(target.exists())
