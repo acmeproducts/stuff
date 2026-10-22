@@ -2687,3 +2687,12 @@ The reported run 39677496173 received the FRED site-maintenance HTML with HTTP s
 A separate publication failure was an unrelated concurrent repository update. The verified commit can now be replayed without force; constructor hashes are checked again. Three real-Git tests cover preserving unrelated work and dirty generated pins, rejecting changed constructors, and refusing conflicting chart changes.
 
 Historical October19 qualification remains separate: 39 sources, 273 source horizons and 21 index horizons PASS. Phone/desktop selection and evidence-display tests pass. Public app be32825ae8f3063b54cea90272474a4fe8b3960a is verified; current display remains withheld. Machine evidence: MARKET-NAVIGATOR-STATUS-CLARITY-AUDIT.json. Existing physical-device/live-provider acceptance gates remain explicit.
+
+
+## October 22 — daily X-axis endpoint alignment
+
+Owner screenshot exposed a full-day tail after the final daily reading: the eligibility window ended at 23:59:59.999 while daily chart points represented their dates at 00:00 UTC. Source selection must keep the full observation day, so the fix adds a separate plotted endpoint rather than truncating eligible observations. Daily points, date ticks and inspection use that same endpoint; genuine intraday timestamps keep their existing full time range. Endpoint strokes and bars remain inside the plot, and border inspection tolerates half-pixel rounding.
+
+All source values, index calculations, normalization references and requested date periods are unchanged. The shared NOW/Analyze component and newly captured frozen geometry use the explicit plot endpoint; older frozen snapshots retain their saved fallback geometry.
+
+C26 now checks all 504 period combinations against the independently calculated final date, the actual colored index stroke recorded from canvas, and the final tick label at the right plot boundary. Existing endpoint date/value inspection and 108 native/index parity checks remain mandatory. Evidence: MARKET-NAVIGATOR-RIGHT-EDGE-AUDIT.json. The source gate and explicit historical choice remain active.
