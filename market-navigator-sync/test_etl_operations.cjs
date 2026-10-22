@@ -6,8 +6,8 @@ let status={status:'FAIL',run:'https://github.com/acmeproducts/stuff/actions/run
 let run={id:50,run_number:50,status:'completed',conclusion:'failure'};
 let jobs=[{name:'synchronize',conclusion:'failure',steps:[{name:'Fetch and qualify',conclusion:'failure'}]},{name:'deploy',conclusion:'success',steps:[]}];
 const nodes=new Map(),get=id=>{if(!nodes.has(id))nodes.set(id,{id,textContent:'',innerHTML:'',value:'',hidden:true,before(){},focus(){this.focused=true},select(){this.selected=true}});return nodes.get(id)};
-let timerCount=0;
-const ctx={window:{},Date,Number,JSON,structuredClone,Blob,URL,console,esc:String,S:{view:'etl'},etlCompleteness:null,etlPackage:null,etlJobPending:null,etlTimer:0,etlStop(){},etlDate:v=>v||'Not recorded',location:{href:'https://acmeproducts.github.io/stuff/market-navigator-throwaway-review/throwaway.html'},document:{hidden:false,getElementById:get,createElement:()=>({click(){}})},$:get,navigator:{clipboard:{writeText:async()=>{throw Error('denied')}}},fetch:async()=>({ok:true,json:async()=>status}),etlReadAPI:async p=>p.includes('/jobs')?{jobs}:{workflow_runs:[run]},setTimeout(){timerCount++;return 1}};
+let timerCount=0,lastDelay=0;
+const ctx={window:{},Date,Number,JSON,structuredClone,Blob,URL,console,esc:String,S:{view:'etl'},etlCompleteness:null,etlPackage:null,etlJobPending:null,etlTimer:0,etlStop(){},etlDate:v=>v||'Not recorded',location:{href:'https://acmeproducts.github.io/stuff/market-navigator-throwaway-review/throwaway.html'},document:{hidden:false,getElementById:get,createElement:()=>({click(){}})},$:get,navigator:{clipboard:{writeText:async()=>{throw Error('denied')}}},fetch:async()=>({ok:true,json:async()=>status}),etlReadAPI:async p=>p.includes('/jobs')?{jobs}:{workflow_runs:[run]},setTimeout(fn,delay){timerCount++;lastDelay=delay;return 1}};
 vm.createContext(ctx);vm.runInContext(source.slice(start,end)+'\n'+source.slice(statusStart,statusEnd),ctx);
 (async()=>{
  const summary=(r=run,j=jobs,s=status)=>ctx.etlOperationSummary(r,j,s);
@@ -18,10 +18,11 @@ vm.createContext(ctx);vm.runInContext(source.slice(start,end)+'\n'+source.slice(
  assert.equal(summary(run,[],status).state,'failure');assert.equal(summary(run,jobs,null).diagnostic,null);
  assert.doesNotMatch(summary({...run,conclusion:'success'},[{name:'deploy',conclusion:'success'}]).message,/finished/);
  const success=summary({...run,conclusion:'success'},[{name:'synchronize',conclusion:'success'}]);assert.match(success.message,/Check the published/);
- await ctx.etlRefreshJobs();assert.match(get('etlJobs').innerHTML,/Data update failed/);assert.match(get('etlCurrentStatus').innerHTML,/maintenance/i);assert.equal(timerCount,1);
+ await ctx.etlRefreshJobs();assert.match(get('etlJobs').innerHTML,/Data update failed/);assert.match(get('etlCurrentStatus').innerHTML,/maintenance/i);assert.equal(timerCount,1);assert.equal(lastDelay,180000);
  const report=JSON.parse(get('etlDiagnosticText').value);assert.equal(report.run,status.run);assert.equal(report.loadedData.scope,'not certified');assert.equal(report.diagnostic.code,'FRED_MAINTENANCE');assert(!JSON.stringify(report).includes('GITHUB_PAT'));
  await ctx.etlCopyDiagnostic();assert.equal(get('etlDiagnosticText').hidden,false);assert.equal(get('etlDiagnosticText').selected,true);
  run=newer;await ctx.etlRefreshJobs();assert.match(get('etlCurrentStatus').innerHTML,/running/);assert.doesNotMatch(get('etlCurrentStatus').innerHTML,/FRED maintenance/);assert.equal(JSON.parse(get('etlDiagnosticText').value).diagnostic,null);
+ for(let i=0;i<9;i++)await ctx.etlRefreshJobs();assert.equal(lastDelay,180000);
  ctx.fetch=async()=>{throw Error('offline')};await ctx.etlRefreshJobs();assert.match(get('etlCurrentStatus').textContent,/No successful current update/);assert.equal(JSON.parse(get('etlDiagnosticText').value).diagnostic,null);
- console.log(JSON.stringify({status:'PASS',cases:11,scope:'operational status, run correlation, diagnostics and copy fallback; no source readiness claim'}));
+ console.log(JSON.stringify({status:'PASS',cases:12,scope:'operational status, run correlation, diagnostics and copy fallback; no source readiness claim'}));
 })().catch(e=>{console.error(e);process.exitCode=1});
