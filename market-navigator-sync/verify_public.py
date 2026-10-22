@@ -12,13 +12,13 @@ def main():
     errors=[]
     for attempt in range(36):
         try:
-            app=get('throwaway.html');assert hashlib.sha1(b'blob '+str(len(app)).encode()+b'\0'+app).hexdigest()=='4736cb233a37ee593fda0f078b38b7b7bdcac752','Public chart is not the approved source'
+            app=get('throwaway.html');assert hashlib.sha1(b'blob '+str(len(app)).encode()+b'\0'+app).hexdigest()=='67b5d7fe981322ee06d22abd4e8503d3ad5e3882','Public chart is not the approved source'
             descriptor=json.loads(get('market-navigator-rebuild-data/package.json'));assert descriptor==expected,'Public data version has not reached this deployment'
             paths=list(expected['resources'])
             def verify(path):
                 assert hashlib.sha256(get('market-navigator-rebuild-data/'+path)).hexdigest()==expected['resources'][path],path
             with ThreadPoolExecutor(max_workers=6) as pool:list(pool.map(verify,paths))
-            print(json.dumps({'status':'PASS','url':URL+'throwaway.html','version':expected['version'],'approvedChart':'4736cb233a37ee593fda0f078b38b7b7bdcac752','publicResourceHashes':len(paths)}));return
+            print(json.dumps({'status':'PASS','url':URL+'throwaway.html','version':expected['version'],'approvedChart':'67b5d7fe981322ee06d22abd4e8503d3ad5e3882','publicResourceHashes':len(paths)}));return
         except Exception as e:
             errors.append(str(e))
             if attempt<35:time.sleep(10)

@@ -220,6 +220,7 @@ end=html.index(" return{id,label:label(id)",start)
 edit(html[start:end],'','source lines contain only actual observations')
 edit("sel=hit.near.z;if(allowSelect&&hit.near.dist<24){setActive(sel.id,true);syncActive()}","if(allowSelect){sel=hit.near.z;setActive(sel.id,true);syncActive()}else if(active){sel=sets.find(z=>z.id===active)||sel}",'one selected series for legend and inspection')
 edit("if(allowSelect&&hit.near.dist<24){publish()}","if(allowSelect){publish()}",'publish the committed selected series')
+edit("near:cands.reduce((a,b)=>b.dist<a.dist?b:a)","near:(()=>{const nearest=cands.reduce((a,b)=>b.dist<a.dist?b:a),selected=cands.find(q=>q.z.id===active);return selected&&selected.dist<=nearest.dist+0.75?selected:nearest})()",'preserve active series at visually coincident dual-axis points')
 
 edit('__ETL_BUILD_ID__', hashlib.sha256(html.encode('utf-8')).hexdigest(), 'content-bound application build identity')
 
