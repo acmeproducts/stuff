@@ -172,3 +172,4 @@ Make the pop-out truly float over other content, give ring nodes reposition hand
 | 2026-10-21 23:08 | Main | built projects/circle-menu.html | Honest answer: the editor upgrade was planned but hadn't fully landed in the code yet — it's landing now. This update adds the missing "Open | a6f1032 |
 | 2026-10-22 00:41 | Main | failed | I couldn't finish that one. Your app is unchanged. |  |
 | 2026-10-22 03:05 | Main | failed | I couldn't finish that one. Your app is unchanged. |  |
+| 2026-10-22 05:45 | Main | built projects/circle-menu.html | Transparent pop-out background, node drag handles for ring repositioning, seeded repo/web bookmark submenus, and read-aloud + reading-mode a | a3b39fe |
