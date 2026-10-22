@@ -26,7 +26,7 @@ edit("return obsRange(src,w).length>0||(/week|month|quarter/.test(m.native_caden
 
 edit("function fmt(v){return Number.isFinite(+v)?(+v).toLocaleString(undefined,{maximumFractionDigits:2}):'—'}", "function fmt(v){return Number.isFinite(+v)?(+v).toLocaleString(undefined,{maximumFractionDigits:2}):'—'}\nfunction chartNumber(v,unit='Index'){if(!Number.isFinite(+v))return'—';const u=String(unit).toLowerCase(),digits=/percent|point|bps/.test(u)?3:/persons|claims|count|thousand|million/.test(u)?0:2;return (+v).toLocaleString(undefined,{minimumFractionDigits:digits,maximumFractionDigits:digits})}", 'measurement-aware chart formatting')
 function('canonicalWindow'," function canonicalWindow(h,k){const x=S.derived.indices[k].horizons[h];return{horizon:h,start:Date.parse(x.commonT0+'T00:00:00Z'),end:Date.parse(S.derived.commonMarketAnchor+'T23:59:59.999Z'),startLabel:x.commonT0,endLabel:S.derived.commonMarketAnchor}}")
-function('observationWindow'," function observationWindow(sets,w){w.requestedWindow={...w};const lastDate=Math.floor(w.end/86400000)*86400000;w.plotEnd=lastDate>w.start&&sets.every(z=>z.a.every(q=>q.t%86400000===0))?lastDate:w.end;return w}")
+function('observationWindow'," function observationWindow(sets,w){w.requestedWindow={...w};const lastDate=Math.floor(w.end/86400000)*86400000;w.plotEnd=w.horizon==='1D'&&sets.some(z=>z.a.some(q=>q.t%86400000!==0))?w.end:lastDate;const curve=S.derived.indices[S.clockIndex||S.index||'risk']?.horizons[w.horizon]?.curve||[];if(w.horizon==='5D')w.sessions=[...new Set(curve.map(q=>Math.floor(q.t/86400000)*86400000).filter(t=>t>=w.start&&t<=w.plotEnd))].sort((a,b)=>a-b);return w}")
 
 # Family ownership, never active-series ownership. Dollar quotes retain their individual units.
 start=html.index(' function applyAxes(sets,automaticMode){');end=html.index(' function reconcileAxes',start)
@@ -204,6 +204,22 @@ edit("cx<p.l||cx>p.l+pw||cy<p.t", "cx<p.l-0.5||cx>p.l+pw+0.5||cy<p.t", 'right-ed
 edit("(cx-p.l)/pw*((w.plotEnd??w.end)-w.start)", "Math.max(0,Math.min(1,(cx-p.l)/pw))*((w.plotEnd??w.end)-w.start)", 'inspection target uses the plotted time domain')
 edit("sets.filter(z=>z!==ref).forEach(plot);if(ref)plot(ref);if(cross)", "x.save();x.beginPath();x.rect(p.l,p.t,pw,ph);x.clip();sets.filter(z=>z!==ref).forEach(plot);if(ref)plot(ref);x.restore();if(cross)", 'contain endpoint strokes and bars inside plot')
 changes.append('daily last-date tick, traces and inspection align with right plot boundary')
+
+
+# One time projection for strokes, ticks and inspection; the batch supplies sessions.
+projection="""function chartTimeFraction(t,w){const a=w.sessions;if(!a?.length)return(t-w.start)/((w.plotEnd??w.end)-w.start||1);if(a.length===1)return 0;let i=a.findIndex(x=>x>=t);if(i<0)return 1;if(i===0)return 0;return(i-1+(t-a[i-1])/(a[i]-a[i-1]))/(a.length-1)}
+function chartTimeAt(f,w){const a=w.sessions;if(!a?.length)return w.start+f*((w.plotEnd??w.end)-w.start);return a[Math.round(Math.max(0,Math.min(1,f))*(a.length-1))]}
+"""
+edit("function draw(sets,w,mode='indexed'){",projection+"function draw(sets,w,mode='indexed'){",'batch-session time projection')
+edit("(q.t-w.start)/((w.plotEnd??w.end)-w.start)*pw","chartTimeFraction(q.t,w)*pw",'session positions for plotted observations')
+edit("xx=p.l+pw*(tt-w.start)/((w.plotEnd??w.end)-w.start)","xx=p.l+pw*chartTimeFraction(tt,w)",'session positions for tick labels')
+edit("function chartTimeTicks(w,count){", "function chartTimeTicks(w,count){if(w.sessions?.length)return [...new Set(Array.from({length:Math.min(count,w.sessions.length)},(_,i)=>chartTimeAt(i/(Math.min(count,w.sessions.length)-1||1),w)))];", 'ticks use the same certified sessions')
+edit("target=w.start+Math.max(0,Math.min(1,(cx-p.l)/pw))*((w.plotEnd??w.end)-w.start)","target=chartTimeAt((cx-p.l)/pw,w)",'session positions for inspection')
+start=html.index(" if(periodic&&S.h!=='1D'){")
+end=html.index(" return{id,label:label(id)",start)
+edit(html[start:end],'','source lines contain only actual observations')
+edit("sel=hit.near.z;if(allowSelect&&hit.near.dist<24){setActive(sel.id,true);syncActive()}","if(allowSelect){sel=hit.near.z;setActive(sel.id,true);syncActive()}else if(active){sel=sets.find(z=>z.id===active)||sel}",'one selected series for legend and inspection')
+edit("if(allowSelect&&hit.near.dist<24){publish()}","if(allowSelect){publish()}",'publish the committed selected series')
 
 edit('__ETL_BUILD_ID__', hashlib.sha256(html.encode('utf-8')).hexdigest(), 'content-bound application build identity')
 

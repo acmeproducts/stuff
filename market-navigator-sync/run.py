@@ -8,7 +8,7 @@ import argparse,bisect,concurrent.futures,contextlib,copy,csv,datetime as dt,has
 from pathlib import Path
 HERE=Path(__file__).resolve().parent
 H=['1D','5D','MTD','YTD','1YR','3YR','5YR'];UTC=dt.timezone.utc
-APP='03fac31e5cfc91f2351257e19e227ec98842f557'
+APP='4736cb233a37ee593fda0f078b38b7b7bdcac752'
 REGISTRY='e423bd96ec47b960ff4dbbb169e3be6a42165f4a'
 HY_PREFIX='05a9a2ca600c573fd3e5a948a7fe2e7672186076c9f955f9db78e8858e90b287'
 def load(name):
