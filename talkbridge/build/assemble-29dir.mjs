@@ -45,7 +45,7 @@ export const ADDED_MARKERS = ['dr_root_worker_retired', 'dr_retire_deferred', 'd
 export const ADDED_SYMBOLS = ['drRetireRoot'];
 export const TAIL = '\n</script>\n</body>\n</html>';
 /* the folder holds every stage; this stage's check ignores what the later stages' assemblers write */
-export const LATER_STAGES = /^(bridge-turn29-(ship|post-ship)\.html|tb-sw[4-9]\.js|tb-manifest-turn29-(ship|post-ship)(-ios)?\.webmanifest)$/;
+export const LATER_STAGES = /^(bridge-turn(29-(ship|post-ship)|[3-9]\d-[a-z-]+)\.html|tb-sw[4-9]\.js|tb-manifest-turn(29-(ship|post-ship)|[3-9]\d-[a-z-]+)(-ios)?\.webmanifest)$/;   /* 30·base on (2026-10-22): any later turn's stage files */
 export const OUT = { page: FOLDER + '/' + STAGE_PAGE, index: FOLDER + '/index.html', next: FOLDER + '/next.html', worker: FOLDER + '/tb-sw3.js', manifest: FOLDER + '/' + MANIFEST_NAME, manifestIos: FOLDER + '/' + MANIFEST_IOS_NAME };
 /* the folder's face: the forwarder §7.5 specifies for old addresses, used here for the folder URL itself */
 /* the folder's face forwards to the CURRENT ACCEPTED stage — recorded in one fixture, moved only at an acceptance (29·ship c6 accepted 2026-10-11) */

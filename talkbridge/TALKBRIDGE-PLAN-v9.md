@@ -1,5 +1,5 @@
-<!-- TALKBRIDGE-PLAN v21.110.0 -->
-# TALKBRIDGE MASTER PLAN v21.110.0
+<!-- TALKBRIDGE-PLAN v21.111.0 -->
+# TALKBRIDGE MASTER PLAN v21.111.0
 
 **Location:** `talkbridge/TALKBRIDGE-PLAN-v9.md` in `acmeproducts/stuff`.
 **Owner:** Confi — sole decision-maker, runs every device gate.
@@ -148,8 +148,8 @@ the directory release and IndexedDB each moved one turn later; nothing was dropp
 | 29·ship | **install optional (§7.19)** — moved up from 29·post-ship 2026-10-09; the owner's two call-sound items slotted in 2026-10-10 | **ACCEPTED 2026-10-11 · candidate 6 · sha `7c61a68ee1c8` (owner: "pass")** | **https://acmeproducts.github.io/stuff/talkbridge-app/bridge-turn29-ship.html** |
 | 29·post-ship | **localization** — the app's own words in the user's language, both sides (§7.17) — moved up from 30·base by owner ruling 2026-10-10 | **ACCEPTED 2026-10-20 · candidate 7 · sha `c1c417e21dd1` · tb-sw5.js · relay v6.17 (owner: "approved")** — localization, the reach bar, reachability, the activity log, the room name phone to phone, no names on the server. Candidate history: c1–c7 (§7.17, §7.20, §7.21; changelog v21.96.0–v21.109.0) | **https://acmeproducts.github.io/stuff/talkbridge-app/bridge-turn29-post-ship.html** |
 | 30·post-ship | IndexedDB — behind its POC; if the owner defers it past beta, it stays here | queued | — |
-| 30·pre-base | byte-identical snapshot of accepted 29·post-ship | queued | — |
-| 30·base | open — multi-user (conference-room model) returns here or later, only after its spec is written and approved | queued | — |
+| 30·pre-base | byte-identical snapshot of accepted 29·post-ship | **BANKED 2026-10-22 BY REFERENCE** — the accepted `talkbridge-app/bridge-turn29-post-ship.html` (sha `c1c417e21dd1`), immutable under §0c; 30·base's assembler sha-checks it | — |
+| 30·base | **THE VIDEO BOX (§7.22)** — owner 2026-10-22: "it should be the tall 9:16 that's draggable"; multi-user (conference-room model) moves later, only after its spec is written and approved | **CANDIDATE 1 · BUILT 2026-10-22 · relay v6.17 (unchanged) · tb-sw5.js (unchanged) — the call's video is a floating 9:16 window you drag; nothing cut off; the camera is asked for a tall picture; the stage names its own manifests (the accepted page swapped to 29·ship's); awaiting the owner's two-phone device gate** | **https://acmeproducts.github.io/stuff/talkbridge-app/bridge-turn30-base.html** (and next.html) |
 | 30·pre-ship | beta readiness | queued | — |
 
 Every accepted or built stage carries its live address here and in the ledger; a row without a link is not built.
@@ -2090,6 +2090,8 @@ Green means allowed to push. It never means done.
 ---
 
 ## 10 · CHANGE LOG
+
+**v21.111.0 · 2026-10-22.** 30·pre-base BANKED by reference (the accepted 29·post-ship page). 30·base candidate 1: THE VIDEO BOX (§7.22, owner: "it should be the tall 9:16 that's draggable, because in its current state it cuts off what you can see and what the recipient can see"; option A for the camera). The call's video is a floating 9:16 window over the room: dragged anywhere inside the app column, remembered per phone; both pictures whole (contain), the self-view 9:16; a tap still swaps; voice calls unchanged. The camera is asked for 720×1280 as an ideal at the call's start and on the flip. The stage names its own manifests (the accepted page swapped to 29·ship's at load — an install from it opened the 29·ship page) and its own build. Reviewed independently before the build (§7.22 "Independent review"). next.html → the 30·base page. Older stage pages stay reachable by design (owner, 2026-10-22).
 
 **v21.110.0 · 2026-10-20.** 29·post-ship ACCEPTED (candidate 7, owner: "approved"). §7.5 (8)(a): the folder's `index.html` forwards to `bridge-turn29-post-ship.html` through `fixtures/dir/current-stage.json`; the stage's files (the page, its two manifests, tb-sw5.js) are immutable under §0c from here. (8)(b) — the 29·ship page becoming a forwarder to the folder — is the post-accept step, on the owner's order. The two OPEN timing races closed first, each by its root cause: the app differential's room snapshot ignores the reach bar (c3 made WHEN it appears a declared difference; R12 and the rh_ tests gate it), and the directory differential ignores `read_receipts_deferred` (logged only when the rig's socket has not opened at that render — harness-29pos already ignored it). Six runs each clean, the two run together. Gates: directory 79/79, app 94/94, prior 53/53 + 112/112, relay 28/28 + 10/10, mutations 68/68 + 73/73, governance.
 
@@ -5700,6 +5702,106 @@ The repository is public: the names people type will be readable there beside th
 
 ### Gates
 Relay L1 (created/joined once, the label shape), L2 (chat once, no text), L3 (answered/declined/missed once each), L4 (read, clear, no endpoint or full id, the nameless label); mutations; version 6.12; r10-cr3 pin; governance pin. App T5 (both hello sites carry `dev`). The drain: the workflow writes `ACTIVITY-LOG.md`.
+
+────────────────────────────────────────────────────────────────────────
+────────────────────────────────────────────────────────────────────────
+## §7.22 BUILDER SPEC — 30·base candidate 1: THE VIDEO BOX (owner 2026-10-22)
+────────────────────────────────────────────────────────────────────────
+### The owner's words
+"I want to change the video. Instead of being just a percentage of the screen it should be the tall 9:16 that's draggable,
+because in its current state it cuts off what you can see and what the recipient can see." Older stage pages stay reachable
+by design (owner, same message) — no forwarder for 29·ship.
+
+### What is there today (accepted 29·post-ship, sha c1c417e21dd1) — the R13 inventory, written before any edit
+- Markup (≈388–397): `#call-band` > `#local-video-handle`, `#pip-x` (hidden, dead), `#call-videos.videos` > `#btn-flip-overlay`,
+  `#remote-ph`, `#remote-video`, `#local-video`, `#subtitle-area`.
+- Head CSS (≈268–303): `#call-band` relative, full width, `.on` shows it; `.videos` height **228px**, full width;
+  `#remote-video` 100%×100% **object-fit:cover** (a phone's 9:16 picture is cut to a wide strip); `#local-video` absolute
+  bottom-right **82×110, cover** (a 3:4 crop of a 9:16 camera — not what the partner receives); `.videos.swapped` swaps those two
+  rule sets; `#subtitle-area` absolute bottom-left, `right:98px` (clears the small video); `#btn-flip-overlay` bottom-left,
+  shown under `#scr-room.st-video`; `#local-video-handle` fixed 16px edge handle; `touch-action:none` on both videos.
+- R8B_CSS (≈4815): two `#scr-room.pip #call-band` cursor rules — dead (nothing adds `.pip`; G53).
+- Ribbon CSS (≈4183–4196, injected): `st-phone`/`st-video` show the hang-up and timer — untouched here.
+- JS: `tbWireDrag` (≈6200–6235) + the small-video wiring (≈6253–6290) drag the SMALL element (whichever holds the small role)
+  with `allowOffscreen`, placing the edge handle; `tbSwapTap` (≈6238) toggles `.swapped` on `#call-videos`, clears both
+  elements' drag positions; wired as `#call-videos` click (≈1812); `tbFlipCamera` (≈6300) + its click (≈6322);
+  `CALL.mount` (≈7440–7456) adds `st-video`, `#call-band.on`, binds `local-video`; `ontrack` (≈2768) binds `remote-video`,
+  hides `#remote-ph`; `CALL.toggleCam` (≈3565) hides `local-video` when the camera is off; `CALL.hangUp` wrap (≈7773–7786)
+  stops drags, clears positions, hides the handle, un-swaps; `callTeardownCore` (≈7790–7806) removes `.on`, `st-video`, `.pip`.
+- Back button during a call: absorbed (S-2, §7.15) — untouched.
+
+### The change — one part, VB-1 (`talkbridge/parts/vb1-video-box.js`), additive, reassigns no function
+1. **The box.** During a VIDEO call only (`#scr-room.st-video`), `#call-band.on` becomes a floating window: `position:fixed`,
+   rounded, shadowed, black, **9:16** (width W, height W×16/9), above the transcript and composer, below the ring overlay
+   (z 80) and every modal. Default W = clamp(140px, 40vw, 240px); default place: top-right, just under the room ribbon.
+   Voice calls are untouched (the band never shows for them).
+2. **Nothing cut off.** Inside the box both videos use **object-fit:contain**: a phone's portrait picture fills the 9:16 box
+   exactly; a landscape picture (a laptop) shows whole, with bars. The self-view inset is itself **9:16** (≈32% of the box's
+   width, bottom-right, 6px in), contain — the shape the partner receives.
+3. **Drag the box.** Press anywhere on the box and move: the whole box follows, clamped to the screen on every side (always
+   fully visible). A press that moves less than 8px is a TAP and swaps the two videos exactly as today (`tbSwapTap`, the click
+   on `#call-videos`); a press that moves suppresses that click. The old small-video drag and its edge handle are switched off
+   while the box exists (the inset stays in its corner; dragging the box moves both). The flip button keeps working (buttons
+   are never a drag start).
+4. **Remembered.** The box's place is kept per phone (localStorage `tb_vbox_pos`, as fractions of the screen) and restored at
+   the next call; re-clamped on rotation and resize.
+5. **Subtitles** move to the TOP of the box, full inner width (they would collide with the inset at the bottom of a narrow box).
+6. **Ends cleanly.** When the call ends the box disappears with the band (teardown already removes `.on`/`st-video`); no
+   position or class is left on the page for the next call except the remembered place.
+7. Logs: `vb_shown {w, h}` at each video call's start, `vb_moved {x, y}` at the end of a drag (fractions), prefix `vb_`.
+
+### Not in scope (stated so nobody infers it)
+No resize gesture, no minimise/expand, no picture-in-picture window, no change to the ribbon, hang-up, mute, camera
+toggle, flip, back-button absorb, swap semantics, relay, worker or words. No new words (nothing to translate).
+
+### Files
+`talkbridge-app/bridge-turn30-base.html` = accepted 29·post-ship bytes (sha-checked) + edits for the stage's identity only
+(its manifest links and build line) + VB-1 appended. Its manifests `tb-manifest-turn30-base(.webmanifest|-ios.webmanifest)`
+(same rules as 29·post-ship's). Worker `tb-sw5.js` unchanged (accepted). Relay unchanged (v6.17). 30·pre-base is banked BY
+REFERENCE: the accepted 29·post-ship bytes, immutable under §0c.
+
+### Gates (machine)
+B1 the stage = base + identity edits + VB-1, nothing else (unified-diff shape asserted). B2 VB-1 replaces/wraps nothing;
+its symbols declared, bound once. B3 voice call: no box, band hidden, nothing moved. B4 video call: the band is fixed, 9:16
+(height/width = 16/9 ± 1px), fully on screen, default top-right under the ribbon. B5 both videos contain; the inset is 9:16.
+B6 drag moves the box, clamped on all four sides; a sub-8px press swaps; a drag does not swap. B7 the old small-video drag
+and handle do nothing while the box exists. B8 the place is saved and restored at the next call, and re-clamped on resize.
+B9 subtitles at the top. B10 hang-up/teardown leaves no box, no inline position on the videos, no swapped class. B11 the
+flip button press is not a drag and still flips. E differential: every non-video flow of the 28·post-ship script identical to
+the accepted page (the build line and the vb_ markers the only declared differences). Mutations for B3–B10.
+
+### Device gate (owner, two phones)
+G1 video call: the partner fills a tall box, nothing cut off; your own inset shows what they see. G2 drag the box to each
+corner; it stays fully on screen; tap swaps; drag never swaps. G3 end and call again: the box is where you left it.
+G4 rotate: the box stays on screen. G5 voice call: unchanged.
+
+### Independent review (2026-10-22, before the build) and what changed because of it
+- **The 9:16 premise was false**: `acquire` opened the camera with `video:true` (≈1973), so phones send 640×480 — 3:4 in
+  portrait; a 9:16 window would show bands. Owner's call (option A, "my side is short and I'm cut off"): both places that open
+  the camera (the call's start, the flip ≈6310) ask for 720×1280, aspect 9:16, as an IDEAL — a camera that cannot do it sends
+  what it sends today. Logged per call: `vb_camera {w,h,facing}`, `vb_partner {w,h}`.
+- **z-order**: 15 — above the ribbon (5) and the scroll button (8), below every dialog (the translation check 20), panel,
+  sheet, drawer, overlay, the calling screen and toasts.
+- **Bounds**: the app column (`#app`, max 480 px), less the safe areas (`viewport-fit=cover`); the height is capped by the
+  room below the ribbon (a phone on its side); `visualViewport` resize re-clamps (an iPhone keyboard).
+- **Ends cleanly on every path**: the partner's hang-up, a decline and the caller's cancel call `teardown()` without the
+  hang-up wrap — today that leaves the swap and dragged positions behind (existing). VB-1 resets them when the band closes.
+- **Disabling the old drag**: a capture-phase press on the box stops the small-video drag; no `preventDefault` on the press
+  (the native click is the tap); the move is non-passive; a capture click swallows the click after a drag; `touch-action:none`
+  on everything in the box; the box is positioned by left/top, never a transform. W-3's real cause (the small video's screen
+  coordinates written into an absolute element inside an `overflow:hidden` pane) is moot while the box shows.
+- **Graveyard**: G35/G54 and the 2026-09-14 "V2 dropped" note buried an in-page CSS box AS A WAY TO SURVIVE LEAVING THE APP
+  (it cannot). This box answers a different ask — the crop and the drag during the call — and, like the band before it, does
+  not survive leaving the app. The owner's words of 2026-10-22 are the explicit approval to bring a draggable 9:16 box back.
+- **Found while building**: the accepted 29·post-ship page swapped its manifest link to 29·ship's at load (DR-1's line,
+  carried) and logged its build as "turn29-ship-c6" — an install made from it opened the 29·ship page. 30·base names its own
+  manifests in all three places and logs its own build.
+
+### Built (candidate 1)
+`talkbridge/build/assemble-30b.mjs` (accepted page sha-checked; 5 edits: 2 manifest names, 2 camera shapes, the build line;
+VB-1 appended; the two manifests). Gates: `harness-30b.mjs` (B1 shape, B2 contract, C scope, F manifests, K camera, E the
+whole 28·post-ship script identical on both builds but the declared differences), `harness-30b-browser.mjs` (real Chromium,
+390×844, 844×390 and 1280×800: B3–B12), `mutate-30b.mjs` (20). 30·pre-base banked by reference.
 
 ────────────────────────────────────────────────────────────────────────
 ## §7.18 PROPOSAL — A TRANSLATION OVERLAY THAT LEARNS (owner draft 2026-10-03; FOR DISCUSSION, not scheduled)
