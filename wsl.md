@@ -69,6 +69,9 @@ Change: wsl.html restored byte-for-byte from snow-v1.html, then built up in thre
   - Pause: double-tap the score (400 ms window) to pause; a single **▶ Resume** button appears at the top centre. While paused the game, timer and recording freeze and canvas taps/drawing are ignored; settings can still be opened without resuming; the score is excluded from game gestures so tapping it never jumps. In Zen (score hidden) double-tapping the Flow label does the same.
   - Tests: `pause.mjs`; `curves.mjs` checks there are no Earned/Classic buttons; `physics.mjs` now drives the two slider ends (standard and fast); `tune.mjs` unchanged and passing. All suites pass.
 
+- **Rollback + slider sensitivity (2026-10-22).** Owner rolled back PR #908 (single slow-to-fast slider with no Earned/Classic buttons, and double-tap-score pause); `wsl.html` on main is the PR #906 version again (Feel slider, Earned/Classic buttons, no pause). Tests for the rolled-back work (`pause.mjs`, the #908 versions of `curves.mjs` and `physics.mjs`) removed or restored to match. The #908 code stays in git history (commit 406366e83) if wanted again.
+  - Owner request: "slider needs to be more sensitive". The Feel slider moved the feel only about 18-22% per 10 units. Now steeper, and asymmetric so the slow end cannot stall: toward fast ×2^(units/30), toward slow ×2^(units/45) (range ×0.46 to ×3.2; top speed capped at 2,100 px/s). Measured on desktop, 100→500 px/s on a 30° slope: 10 units toward fast shortens it by 35% (was 18%); 10 units toward slow lengthens it by 45% (was 22%); standard (50) unchanged at 2.9 s. Test: `tune.mjs` sensitivity checks.
+
 ## RUN LOG (written by DevStream)
 | Date | Tab | Result | What | Commit |
 |---|---|---|---|---|
