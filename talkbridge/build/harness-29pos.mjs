@@ -401,7 +401,7 @@ await T('T2 the phone\'s language is the one app-level setting: saved in tba_use
 await T('T3 size: the stage grows by the table alone (within 300 KB of the accepted page); the worker by its five rows', () => { const g = stage.length - base.length; assert(g > 150000 && g < 320000, 'growth ' + g); assert(worker.length - baseW.length < 12000, 'worker growth ' + (worker.length - baseW.length)); });
 
 await T('T4 the second door names this stage: fixtures/dir/next-stage.json points at ' + STAGE_PAGE + ' (the newest candidate) and the folder\'s next.html forwards to it', () => {
-  const nx = JSON.parse(rd(path.join(root, 'talkbridge/fixtures/dir/next-stage.json'))); assert(nx.page === STAGE_PAGE, 'next-stage.json names ' + nx.page);
+  const nx = JSON.parse(rd(path.join(root, 'talkbridge/fixtures/dir/next-stage.json'))); if (nx.page !== STAGE_PAGE) { assert(/^bridge-turn([3-9]\d)-[a-z-]+\.html$/.test(nx.page) && fs.existsSync(path.join(dir, nx.page)), 'next-stage.json names ' + nx.page + ' (neither this stage nor a later one in the folder)'); return; }   /* accepted 2026-10-20: a later stage's candidate may hold the second door */
   const door = rd(path.join(dir, 'next.html')); assert(door.indexOf("location.replace('./" + STAGE_PAGE + "' + location.search + location.hash)") !== -1, 'next.html does not forward to this stage');
 });
 
