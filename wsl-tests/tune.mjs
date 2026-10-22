@@ -34,6 +34,12 @@ async function regain(p){ // seconds to go 100 -> 500 px/s on a 30 degree slope,
   ok('lower setting = momentum builds slower',(r[0].t500||99)>r[50].t500+0.8,{t0:r[0].t500,t50:r[50].t500});
   ok('higher setting = momentum builds faster',(r[100].t500||99)<r[50].t500-0.5,{t100:r[100].t500,t50:r[50].t500});
   ok('higher setting = holds speed longer on the flat',r[100].flat>r[50].flat+25&&r[50].flat>r[0].flat+25,{f0:Math.round(r[0].flat),f50:Math.round(r[50].flat),f100:Math.round(r[100].flat)});
+  // sensitivity: a small move of the slider should be clearly noticeable
+  const q={};for(const v of [40,60]){await setTune(p,v);q[v]=await regain(p);}
+  const up=(r[50].t500-q[60].t500)/r[50].t500,down=((q[40].t500||14)-r[50].t500)/r[50].t500;
+  console.log('  10 units up: regain time changes by',(up*100).toFixed(0)+'%',' 10 units down:',(down*100).toFixed(0)+'%');
+  ok('sensitive: 10 units toward fast shortens the regain time by at least 30%',up>=0.30,+up.toFixed(2));
+  ok('sensitive: 10 units toward slow lengthens it by at least 25%',down>=0.25,+down.toFixed(2));
   ok('no page errors (desktop)',errs.length===0,errs.slice(0,2));
   await c.close();
 }
