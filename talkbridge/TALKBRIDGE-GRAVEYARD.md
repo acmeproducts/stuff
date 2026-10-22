@@ -2540,8 +2540,9 @@ shown whole (object-fit:contain) inside it; and both places that open the camera
 window would fill.
 
 **Failure signature.** The owner's two-phone call (device log 2026-10-22 21:58–22:00 UTC): the Android (Chrome) camera, asked for
-720×1280, delivered **1280×720 — landscape** (`vb_camera`); the iPhone delivered 720×1280. A landscape picture inside a fixed
-9:16 window is a thin strip between black bands — what the receiver saw. The call's media never connected (Android `connecting`
+720×1280, REPORTED 1280×720 (`vb_camera`, from `track.getSettings()` — on Android Chrome that may be the sensor's landscape
+size while the frames themselves are upright; the shape actually drawn was never measured); the iPhone reported 720×1280. The
+owner saw black bands on the receiving phone. The call's media never connected (Android `connecting`
 → timeout → recovery; two relay-socket drops during setup; iPhone `failed`, `ice_failed`), so the owner saw no picture at all;
 nothing in the log ties that to the window, and it is recorded, not explained. Owner: "in the past the format for receivers was
 flawless."

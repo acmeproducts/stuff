@@ -1,7 +1,7 @@
 #!/usr/bin/env node
-/* 30·base gate — THE VIDEO BOX (§7.22), candidate 1. Structure (B1, B2, C), the install files (F), the camera's asked shape (K),
+/* 30·base gate — THE VIDEO BOX (§7.22), candidate 2 (c1 rejected, G77). Structure (B1, B2, C), the install files (F), the camera's asked shape (K),
    and the differential (E): the whole 28·post-ship script on the ACCEPTED 29·post-ship page and on this stage, identical but the
-   declared differences (the build line, the vb_ markers, the camera constraints, the box's own inline variables).
+   declared differences (the build line, the vb_ markers, the box's own inline variables). The camera is the accepted app's.
    Layout (B3–B12) is gated in a real browser by harness-30b-browser.mjs. */
 import fs from 'node:fs';
 import path from 'node:path';
@@ -22,9 +22,9 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const code = (t) => t.replace(/\/\*[\s\S]*?\*\//g, '').replace(/(^|[^:'"\\])\/\/[^\n]*/g, '$1');
 const contract = /\/\* @contract([\s\S]*?)\*\//.exec(PART_TEXT); const cc = contract ? contract[1] : '';
 
-await T('B1 the stage is the accepted 29·post-ship page + the five declared edits (2 identity, 2 camera, 1 build line) + VB-1 appended — nothing else', () => {
+await T('B1 the stage is the accepted 29·post-ship page + the three declared identity edits (2 manifest names, the build line) + VB-1 appended — nothing else', () => {
   assert(stage === assemblePage({ part: PART_TEXT }), 'the stage is not the assembled output');
-  assert(IDENTITY.length === 5, 'edits ' + IDENTITY.length);
+  assert(IDENTITY.length === 3 && IDENTITY.every((r) => /^I-/.test(r.id)), 'edits ' + IDENTITY.map((r) => r.id).join(','));
   const edited = applyIdentity(base);
   for (const r of IDENTITY) { assert(base.split(r.find).length === 2, r.id + ' not once in the base'); assert(stage.split(r.replace).length >= 2 && stage.split(r.replace).length === edited.split(r.replace).length, r.id + ' not in the stage as assembled'); assert(stage.indexOf(r.find) === -1, r.id + ' find left in the stage'); }
   const head = edited.slice(0, -TAIL.length); assert(stage.startsWith(head) && stage.endsWith(TAIL), 'the edited base is not the stage\'s head');
@@ -70,16 +70,11 @@ async function phone(html) {
   } });
   await sleep(700); return { w: dom.window, errors, dom };
 }
-await T('K the camera is asked for a tall picture as an IDEAL (720×1280, 9:16) at the call\'s start and on the flip; never exact, never min/max (a camera that cannot do it must still open); a voice call asks for no video', async () => {
-  const P = await phone(stage), w = P.w;
-  await w.CALL.acquire('video'); await w.CALL.acquire('voice');
-  const v = w.__gum[0], a = w.__gum[1];
-  assert(v && v.video && v.video.width.ideal === 720 && v.video.height.ideal === 1280 && Math.abs(v.video.aspectRatio.ideal - 0.5625) < 1e-9, 'start ' + JSON.stringify(v));
-  assert(a && a.video === false, 'voice asked for video ' + JSON.stringify(a));
-  w.CALL.active = true; w.CALL.kind = 'video'; w.CALL.stream = { getVideoTracks: () => [], removeTrack() {}, addTrack() {} }; w.tbFlipCamera(); await sleep(30);
-  const f = w.__gum[2]; assert(f && f.video && f.video.facingMode === 'environment' && f.video.width.ideal === 720 && f.video.height.ideal === 1280 && f.audio === false, 'flip ' + JSON.stringify(f));
-  for (const g of [v, f]) assert(!/"exact"|"min"|"max"/.test(JSON.stringify(g)), 'a hard constraint ' + JSON.stringify(g));
-  const B = await phone(base); await B.w.CALL.acquire('video'); assert(B.w.__gum[0].video === true, 'the base asked ' + JSON.stringify(B.w.__gum[0]));
+await T('K the camera is opened EXACTLY as the accepted app opens it (G77): video:true at the call\'s start, { facingMode } alone on the flip, no shape asked; a voice call asks for no video', async () => {
+  const P = await phone(stage), B = await phone(base);
+  for (const X of [P, B]) { await X.w.CALL.acquire('video'); await X.w.CALL.acquire('voice'); X.w.CALL.active = true; X.w.CALL.kind = 'video'; X.w.CALL.stream = { getVideoTracks: () => [], removeTrack() {}, addTrack() {} }; X.w.tbFlipCamera(); await sleep(30); }
+  assert(JSON.stringify(P.w.__gum) === JSON.stringify(B.w.__gum), 'the stage asks the camera differently: ' + JSON.stringify(P.w.__gum) + ' vs ' + JSON.stringify(B.w.__gum));
+  assert(P.w.__gum[0].video === true && P.w.__gum[1].video === false && JSON.stringify(P.w.__gum[2].video) === JSON.stringify({ facingMode: 'environment' }), JSON.stringify(P.w.__gum));
   assert(P.errors.length === 0, P.errors.join(' | ')); P.dom.window.close(); B.dom.window.close();
 });
 
