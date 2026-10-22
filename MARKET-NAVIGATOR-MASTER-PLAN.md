@@ -2696,3 +2696,16 @@ Owner screenshot exposed a full-day tail after the final daily reading: the elig
 All source values, index calculations, normalization references and requested date periods are unchanged. The shared NOW/Analyze component and newly captured frozen geometry use the explicit plot endpoint; older frozen snapshots retain their saved fallback geometry.
 
 C26 now checks all 504 period combinations against the independently calculated final date, the actual colored index stroke recorded from canvas, and the final tick label at the right plot boundary. Existing endpoint date/value inspection and 108 native/index parity checks remain mandatory. Evidence: MARKET-NAVIGATOR-RIGHT-EDGE-AUDIT.json. The source gate and explicit historical choice remain active.
+
+
+### 2026-10-21 — ETL operation visibility and saved diagnosis
+
+Owner request: show running/status/failure evidence in ETL, make a diagnostic report easy to share, and diagnose why current data remains unavailable.
+
+Verified run 50 (39722651156), source job 119640026373: provider access failed at 2026-10-22T04:32:04Z with FRED_MAINTENANCE. The provider returned maintenance HTML rather than observations. The successful deploy job published containment, not refreshed current data. Run 49 failed for the same reason. Hourly scheduling is already configured; no extra manual retry was dispatched for this investigation. Logs and sync evidence already remain attached to each run.
+
+Implement: correlate displayed provider failure to its exact run; show active/queued stage separately from previous failures; poll visible ETL every 30 seconds even after failure so scheduled work appears; refresh provider status along with jobs; copy/download a credential-free report with exact run, failed stage, diagnostic code, loaded package/scope/cutoff and GitHub evidence links. Keep detailed job steps collapsible. Clarify optional manual GitHub launch instructions. Preserve complete-source gate, explicit historical choice and all chart arithmetic/geometry.
+
+Verification: operational regression covers failure versus successful containment deployment, queued/running states, stale status from another run, unavailable diagnostics, copy fallback, package scope and refresh. Browser acceptance checks the saved report in phone and desktop historical mode with explicitly simulated provider/run fixtures. Fixtures are not live source qualification.
+
+Remaining deployment capability: no authenticated ETL dispatch service is connected to this Pages app. An earlier local gateway design is undeployed and is not a usable service. A GitHub Actions secret cannot be read by this static page. Embedded PATs are excluded. Manual starts still use GitHub owner authentication until an authenticated server endpoint is configured; hourly ETL and in-app status require no manual start. This UI change does not repair FRED or certify current source completeness. Actual Windows 11/Android and live AI prose acceptance remain pending.
