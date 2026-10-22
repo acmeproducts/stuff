@@ -1,13 +1,8 @@
 # TalkBridge device log
 
-Both handsets write here. Drained 2026-10-22T22:01:09Z, every 30s. Newest at the bottom.
+Both handsets write here. Drained 2026-10-22T22:03:10Z, every 30s. Newest at the bottom.
 
 ```
-09:09:34.216 [android-flz] r8_name_msg {"type":"chat-msg","name":"lolo","had":"lolo"}
-09:09:34.218 [android-flz] said_kept {"id":"cm-cac838ff-mvf19ehtl2xdui","lang":"en","chars":65,"who":"partner"}
-09:09:34.243 [android-flz] md1_rendered {"id":"l2xdui"}
-09:09:34.244 [android-flz] cr3_os_notify_owned_by_relay {"room":"31af0eb5-muzib9xhwvshos"}
-09:09:34.244 [android-flz] chat_rx {"t":"월요일은 꽤 빨리 예약이 마감될 것 같은 느낌이 들어요"}
 09:09:34.245 [android-flz] cr3_bump_ignored {"room":"31af0eb5-muzib9xhwvshos","kind":"chat"}
 09:09:38.315 [android-tzc] pr3_dot {"others":0,"dropped":3}
 09:09:38.327 [android-tzc] t1_coalesced {"fn":"renderPanel","n":5}
@@ -4002,4 +3997,9 @@ Both handsets write here. Drained 2026-10-22T22:01:09Z, every 30s. Newest at the
 22:00:18.542 [iphone-gak] dg_en_close {"code":1011,"capturedGen":3,"currentGen":3}
 22:00:18.600 [iphone-gak] pr3_dot {"others":0,"dropped":4}
 22:00:21.334 [iphone-gak] dg_en_close {"code":1011,"capturedGen":3,"currentGen":3}
-22:00:48.568 [iphone-gak] pr3_dot {"others":0}```
+22:00:48.568 [iphone-gak] pr3_dot {"others":0}
+22:01:18.612 [iphone-gak] pr3_dot {"others":0}
+22:01:48.590 [iphone-gak] pr3_dot {"others":0}
+22:01:55.362 [iphone-gak] pr3_dot {"others":0}
+22:02:19.434 [iphone-gak] pr3_dot {"others":0}
+22:02:50.365 [iphone-gak] pr3_dot {"others":0}```
