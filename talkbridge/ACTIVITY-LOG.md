@@ -1,6 +1,6 @@
 # TalkBridge activity log
 
-Who created, joined, called and chatted, one line per event, no message text (§7.21; relay v6.14). Drained 2026-10-23T06:04:38Z. Newest at the bottom. Person = the name typed in the app, letters and digits only (no name: Guest 1, Guest 2 … per room); room = its short id. Live view: https://acmeproducts.github.io/stuff/talkbridge/dash.html
+Who created, joined, called and chatted, one line per event, no message text (§7.21; relay v6.14). Drained 2026-10-23T07:18:51Z. Newest at the bottom. Person = the name typed in the app, letters and digits only (no name: Guest 1, Guest 2 … per room); room = its short id. Live view: https://acmeproducts.github.io/stuff/talkbridge/dash.html
 
 ```
 2026-10-19 07:05:25  room wvshos  voice call from miko — answered by text
@@ -61,4 +61,15 @@ Who created, joined, called and chatted, one line per event, no message text (§
 2026-10-20 05:39:20  room yn1i7b Jenny V  mike created  en → vi
 2026-10-20 05:39:48  room yn1i7b  mike chat
 2026-10-22 21:58:10  room t3sxxu huoi  mike created  en → zh
-2026-10-22 21:58:48  room t3sxxu huoi  慧 joined  zh → en```
+2026-10-22 21:58:48  room t3sxxu huoi  慧 joined  zh → en
+2026-10-23 07:06:32  room fj4d34 10 20  lolo joined  en → th
+2026-10-23 07:06:33  room abpmy3 movie  lolo joined  es → en
+2026-10-23 07:06:34  room ombd9l group 3  lolo joined  ko → en
+2026-10-23 07:06:34  room bh5qos t29 ship  lolo joined  ko → en
+2026-10-23 07:07:01  room fj4d34  lolo chat
+2026-10-23 07:07:09  room fj4d34  video call from lolo — declined by momo
+2026-10-23 07:10:49  room fj4d34  video call from lolo — answered by momo  started 07:07:20  ended 07:10:49  lasted 3m 28s
+2026-10-23 07:12:10  room fj4d34  lolo chat
+2026-10-23 07:12:32  room fj4d34  video call from lolo — answered by momo  started 07:11:43  ended 07:12:32  lasted 49s
+2026-10-23 07:13:23  room fj4d34  lolo chat
+2026-10-23 07:13:43  room fj4d34  video call from momo — answered by lolo  started 07:12:36  ended 07:13:43  lasted 1m 07s```
