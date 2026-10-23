@@ -1,7 +1,7 @@
 <!-- v5.8.2.42 -->
 # TALKBRIDGE — THE GRAVEYARD (living; keep in project knowledge)
 ## Approaches PROVEN to fail. Scanned before every change and at every exit condition. Never resurrect.
-**Version: 2.37 | 2026-10-22 | G77 30·base candidate 1 (the video box) rejected: a fixed 9:16 window with whole pictures, and the camera asked for a tall shape | Maintained in GitHub by the build process (raw.githubusercontent.com/acmeproducts/stuff/main/talkbridge/TALKBRIDGE-GRAVEYARD.md). Updated on every exit-condition burial.**
+**Version: 2.38 | 2026-10-23 | G78 the room's name capped for a centred cluster (the cluster is not centred; 50 px left unused) | Maintained in GitHub by the build process (raw.githubusercontent.com/acmeproducts/stuff/main/talkbridge/TALKBRIDGE-GRAVEYARD.md). Updated on every exit-condition burial.**
 
 
 Each entry: the approach, its failure signature, what replaces it. A change matching a signature is forbidden BEFORE it is attempted — not rediscovered as if new.
@@ -150,6 +150,7 @@ Each entry: the approach, its failure signature, what replaces it. A change matc
 | G75 | 2026-10-18 | The ownership gate judging a merge by its first-parent diff (a branch that merged main was refused for main's own TalkBridge commits) |
 | G76 | 2026-10-19 | Names kept on the server (typed names, the room's name, a scratch copy of messages); a rename delivered only to an open connection |
 | G77 | 2026-10-22 | 30·base c1, the video box: a FIXED 9:16 window showing whole pictures (contain), and the camera asked for 720×1280 |
+| G78 | 2026-10-23 | The room's name capped at `50vw − 79px`, derived for a centred cluster (the cluster is anchored on the microphone; 50 px unused, "m.." on an iPhone 13) |
 | E134 | 2026-10-07 | Annotation · 2026-10-07: E076's corollary superseded by owner ruling (install optional) |
 
 </details>
@@ -2556,3 +2557,22 @@ whose shape does not match the picture must either crop it or band it.
 as the accepted app opens it. Measure the received picture, never assume it.
 
 **Buried by.** Rejection 2026-10-22 (plan v21.112.0); candidate 2 rebuilds from the accepted 29·post-ship page.
+
+## G78 — 2026-10-23 — The room's name capped for a centred cluster
+
+**The approach.** The ribbon's name side was capped at `max-width: calc(50vw − 79px)`, "derived, not guessed: half the widest
+cluster (57) + ribbon padding (12) + breathing room (10)".
+
+**Failure signature.** The owner (2026-10-23, iPhone 13): the name "seems to prematurely cut off and truncate". Measured in
+Chromium at 390 px: the name's side was 116 px wide while the microphone's slot began at 178 px — 50 px unused; in a call the
+timer ("Speaking…" ≈ 75 px) shares the side, leaving ~32 px of name ("m.."). In the 480 px app column on a wide screen `50vw`
+also overran the column (the name could run into the cluster).
+
+**Why it fails.** The derivation assumed the cluster was centred on the ribbon. It is not: the microphone is (translateX −17 px),
+so the cluster starts at the centre − 17 px whatever its width. And `vw` measures the window, not the ribbon.
+
+**The rule.** Derive layout limits from what is actually anchored, against the box that contains them: the name's side is
+`calc(50% − 25px)` of the ribbon (the microphone's slot − 17 px, 8 px of air), and right-to-left anchors the cluster by its
+right edge. Gate it with a real layout engine at several widths and both directions (harness-30b-browser N1/N2).
+
+**Buried by.** 30·base candidate 3 (plan v21.114.0), part NM-1.

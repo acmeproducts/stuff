@@ -14,7 +14,11 @@
 
    CANDIDATE 2 (2026-10-22, after the owner rejected c1 — G77): the camera is opened EXACTLY as the accepted app opens it
    (c1 asked for 720×1280; the Android sent 1280×720 landscape, banded in a fixed 9:16 window). The window takes the shape of
-   the picture it shows instead. */
+   the picture it shows instead.
+
+   CANDIDATE 3 (2026-10-23, the owner's feedback on c2): two more parts — CV-1 (the camera comes back after keyboard dictation
+   takes it) and NM-1 (the room's name gets the room up to the microphone) — and the Android manifest's background is teal, the
+   colour Android paints under its own buttons (it was cream: pale buttons on cream). VB-1 is unchanged. */
 import crypto from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
@@ -25,16 +29,24 @@ export const FOLDER = 'talkbridge-app';
 export const FOLDER_PATH = '/stuff/talkbridge-app/';
 export const BASE_PAGE = FOLDER + '/bridge-turn29-post-ship.html';
 export const BASE_PAGE_SHA256 = 'c1c417e21dd1015e6a3519edbc90a796b80033f8e3412238932633ac4c974828';
-export const PARTS = ['talkbridge/parts/vb1-video-box.js'];
+export const PARTS = ['talkbridge/parts/vb1-video-box.js', 'talkbridge/parts/cv1-camera-back.js', 'talkbridge/parts/nm1-name-room.js'];
 export const STAGE_PAGE = 'bridge-turn30-base.html';
-export const STAGE_TAG = 'turn30-base-c2';
-export const BUILT = '2026-10-22';
+export const STAGE_TAG = 'turn30-base-c3';
+export const BUILT = '2026-10-23';
 export const MANIFEST_NAME = 'tb-manifest-turn30-base.webmanifest';
 export const MANIFEST_IOS_NAME = 'tb-manifest-turn30-base-ios.webmanifest';
 export const MANIFEST_SRC = 'tb-manifest-turn28.webmanifest';
 export const OUT = { page: FOLDER + '/' + STAGE_PAGE, manifest: FOLDER + '/' + MANIFEST_NAME, manifestIos: FOLDER + '/' + MANIFEST_IOS_NAME };
 export const ADDED_SYMBOLS = ['VB', 'vbLog', 'vbCss', 'vbBox', 'vbActive', 'vbBounds', 'vbAspect', 'vbShapes', 'vbSize', 'vbClamp', 'vbPlace', 'vbReshape', 'vbSave', 'vbLoad', 'vbShow', 'vbHide', 'vbWire', 'vbInit'];
 export const ADDED_MARKERS = ['vb_shown', 'vb_moved', 'vb_init_failed', 'vb_camera', 'vb_shape'];
+/* per part, in PARTS order: the symbols its @contract declares and the markers it logs (prefix, the part's own logger) */
+export const PART_DECL = [
+  { file: PARTS[0], logger: 'vbLog', prefix: 'vb_', symbols: ADDED_SYMBOLS, markers: ADDED_MARKERS },
+  { file: PARTS[1], logger: 'cvLog', prefix: 'cv_', symbols: ['CV', 'cvLog', 'cvTrack', 'cvWire', 'cvFacing', 'cvDue', 'cvCheck', 'cvRestore', 'cvTick', 'cvInit'], markers: ['cv_track', 'cv_restore', 'cv_restored', 'cv_restore_failed', 'cv_restore_abandoned', 'cv_init_failed'] },
+  { file: PARTS[2], logger: 'log', prefix: 'nm_', symbols: ['NM_CSS', 'nmInit'], markers: ['nm_init_failed'] }
+];
+/* the Android manifest only: the colour Android paints under its own Back/Home/Recents (candidate 3) */
+export const CHROME_BACKGROUND = process.env.TB_30B_CHROME_BG || '#2E8B8B';   /* the env is the mutation gate's only lever */
 export const TAIL = '\n</script>\n</body>\n</html>';
 
 /* the stage's identity — each find occurs exactly once in the accepted page */
@@ -54,18 +66,23 @@ export function applyIdentity(out, keep) {
   }
   return out;
 }
+/* opts.part overrides VB-1 (PARTS[0]); opts.parts = { <PARTS path>: text } overrides any part */
+export function partTexts(opts) {
+  opts = opts || {};
+  return PARTS.map((f, i) => (opts.parts && opts.parts[f] != null) ? opts.parts[f] : (i === 0 && opts.part != null) ? opts.part : fs.readFileSync(path.join(root, f), 'utf8'));
+}
 export function assemblePage(opts) {
   opts = opts || {}; let out = basePage();
   if (!out.endsWith(TAIL)) throw new Error('assemble-30b: unexpected baseline tail');
   out = applyIdentity(out, new Set(opts.keepIdentity || []));
-  const part = opts.part != null ? opts.part : fs.readFileSync(path.join(root, PARTS[0]), 'utf8');
-  return out.slice(0, -TAIL.length) + '\n\n' + part + TAIL;
+  const parts = partTexts(opts);
+  return out.slice(0, -TAIL.length) + parts.map((p) => '\n\n' + p).join('') + TAIL;
 }
 export function assembleManifests() {
   const src = JSON.parse(fs.readFileSync(path.join(root, MANIFEST_SRC), 'utf8')); const chrome = {}, ios = {};
   for (const k of Object.keys(src)) {
     if (k === 'scope') { chrome.scope = './'; ios.scope = './'; chrome.start_url = './' + STAGE_PAGE; chrome.id = FOLDER_PATH; continue; }
-    chrome[k] = src[k]; ios[k] = src[k];
+    chrome[k] = k === 'background_color' ? CHROME_BACKGROUND : src[k]; ios[k] = src[k];
   }
   return { chrome: JSON.stringify(chrome, null, 2) + '\n', ios: JSON.stringify(ios, null, 2) + '\n' };
 }
