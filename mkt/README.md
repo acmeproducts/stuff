@@ -1,11 +1,11 @@
-# mkt — Market Navigator recovery candidates
+# mkt — Market Navigator restore points
 
-Each folder is self-contained: front end + its own data. Nothing outside mkt/ is touched.
+Each folder is a git snapshot: the front end and its data exactly as they sat together in one commit. Nothing was edited or mixed.
 
-| Folder | Front end (blob) | Data vintage | Source |
+| Folder | Role | Commit | What it is |
 |---|---|---|---|
-| candidate1-t28-sep23 | Turn 28 post-ship (9ce7f674) | Sep 22 cutoff (persistent file dated Sep 23) | market-navigator-chart-only-review |
-| candidate2-t28-oct23 | Turn 28 post-ship (9ce7f674) | Oct 21 complete batch | market-navigator-throwaway-review data |
-| candidate3-approved-oct23 | Owner-approved throwaway (ee38d9c9) | Oct 21 complete batch | market-navigator-chart-correction + same data |
+| floor-sep27-t28-postship | Floor | 996e9a71b (Sep 27) | Turn 28 post-ship + root data at that commit. No Analyze surface. |
+| mid-oct06-modular-analyze | Middle | 9bc57e080 (Oct 6) | Modular NOW + Analyze recovery + root data at that commit. |
+| ceiling-oct22-rejected | Ceiling | 2da429140 (Oct 22) | Rejected app 67b5d7fe + its own data package. |
 
-Data copied: persistent index file, health envelope, sync proof, series, data/market-backend. Heavy capture/vintage folders omitted.
+Earlier cross-wired candidates (candidate1-3) were removed: they mixed front ends and data from different points in time.
