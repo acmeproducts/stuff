@@ -45,9 +45,9 @@ for(const vp of VIEWPORTS){
     ok('it explodes in the last 10% of the screen (88-97% down)',s.boomFrac>=0.88&&s.boomFrac<=0.97,s.boomFrac);
     const inc=fr.length>3&&fr.every((v,i)=>i===0||v>=fr[i-1]-0.002);
     ok('the view does not chase a falling cart down the screen',inc,fr.slice(0,6).map(v=>+v.toFixed(2)));
-    for(let i=0;i<60&&(await p.evaluate(()=>__wsl().state))!==4;i++)await p.waitForTimeout(100);
-    const g=await p.evaluate(()=>({st:__wsl().state,ov:document.getElementById('overlay').innerText}));
-    ok('the run ends after the explosion (game-over screen with 💥)',g.st===4&&/💥/.test(g.ov),{st:g.st,ov:g.ov.replace(/\n/g,' | ').slice(0,60)});
+    for(let i=0;i<60&&!(await p.evaluate(()=>__wsl().boomDlg));i++)await p.waitForTimeout(100);
+    const g=await p.evaluate(()=>({dlg:__wsl().boomDlg,ch:__wsl().charges,msg:document.getElementById('boomDlg').innerText}));
+    ok('after the explosion a message appears and a rescue is spent',g.dlg===true&&g.ch===2&&/rescue/i.test(g.msg),{dlg:g.dlg,ch:g.ch});
     await p.close();
   }
   { // catching it in time prevents the explosion

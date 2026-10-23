@@ -42,6 +42,14 @@
   #replayUI #repLabel{min-width:92px;text-align:center;font-weight:700;}
   body.replaying #replayUI{display:flex;}
   body.replaying #hud,body.replaying #hud2,body.replaying #flowbar,body.replaying #btnSettings,body.replaying #hint,body.replaying #diag{display:none!important;}
+  .dlg{position:fixed;inset:0;display:none;align-items:center;justify-content:center;background:rgba(3,10,22,.62);z-index:13;touch-action:none;}
+  .dlg .card{background:#101c3a;border:2px solid #3a4a7a;border-radius:18px;padding:22px 26px;width:min(340px,calc(100vw - 44px));box-sizing:border-box;text-align:center;color:#fff;box-shadow:0 10px 40px rgba(0,0,0,.6);}
+  .dlg h2{margin:0 0 8px;font-size:26px;}.dlg p{margin:6px 0 12px;opacity:.9;font-size:15px;line-height:1.35;}
+  .okb{padding:14px 34px;border-radius:14px;border:none;background:linear-gradient(180deg,#39b54a,#2a8a36);color:#fff;font-weight:800;font-size:19px;cursor:pointer;touch-action:manipulation;}
+  #pauseClock{font-size:46px;font-weight:900;font-variant-numeric:tabular-nums;letter-spacing:1px;margin:2px 0;}
+  #pausePenalty{min-height:20px;margin:0 0 14px;font-weight:800;color:#ff8a8a;font-size:15px;}
+  #hud .score{pointer-events:auto;cursor:pointer;padding:0 10px;}
+  #hud2 .fl{pointer-events:auto;cursor:pointer;}
   #flipmult{position:fixed;top:calc(env(safe-area-inset-top,0px) + 82px);left:0;right:0;text-align:center;display:none;pointer-events:none;
     font-size:26px;font-weight:900;color:#ffd700;text-shadow:0 2px 8px rgba(0,0,0,.8);z-index:5;letter-spacing:1px;}
   body.replaying #flipmult{display:none!important;}
@@ -73,6 +81,8 @@
 <button id="btnSettings" aria-label="Settings">⚙️</button>
 <div id="replayUI"><span id="repLabel"></span><button class="opt" id="repSpeed">1×</button><button class="opt" id="repSkip">Skip ▸</button><button class="opt" id="repClose">✕ Close</button></div>
 <div id="flipmult"></div>
+<div id="boomDlg" class="dlg"><div class="card"><h2>💥 Boom!</h2><p id="boomMsg"></p><button id="boomOk" class="okb">OK</button></div></div>
+<div id="pauseDlg" class="dlg"><div class="card"><h2>⏸ Paused</h2><div id="pauseClock">0:00</div><p id="pauseNote"></p><div id="pausePenalty"></div><button id="pauseGo" class="okb">▶ Continue</button></div></div>
 <div id="hint">Draw to extend • Tap ON track to release ⛄🛒</div>
 <div id="diag">boot…</div>
 <div id="err"></div>
@@ -129,6 +139,7 @@ var chain=0,lastTapT=0,lp=null,resPrev=0,lastResult=null,PX_PER_INCH=20,FLOW_PTS
 // Flips: every full spin in one flight scores +100 x a rising multiplier (x1, x2, x3, x4, x5, then stays x5).
 // The multiplier resets on landing. An uncaught cart explodes in the last 10% of the screen (not in Zen).
 var flightFlips=0,flipPtsTotal=0,multHide=0,deathBy='',boomFrac=0,BOOM_AT=0.90,BOOM_T=0.9;
+var boomDlgOpen=false,boomMode='',userPaused=false,pauseStart=0,pauseBonus=0,pauseScore=0,lastScoreTap=0;
 // Session recording for replay: cart samples ~30x/s plus every track point as it was drawn.
 var rec=null,replay=null,REC_MAX=120000;
 function recNew(){rec={t:0,acc:0,samples:[],log:[]};}
@@ -401,8 +412,52 @@ function gentleReturn(){
   addFloater(cart.x,cart.y-50,'welcome back','#bfe9ff');setHint('Draw more track ahead');beep(520,200);
 }
 function explode(frac){
-  state=ST.BOOM;suck.scale=0;boomFrac=frac;deathBy='boom';flightFlips=flightFlips;beep(110,420);beep(70,500);
+  state=ST.BOOM;suck.scale=0;boomFrac=frac;beep(110,420);beep(70,500);
 }
+// After the explosion animation the game pauses and says what it cost; OK puts the cart back on its track.
+function boomDone(){
+  if(boomDlgOpen)return;
+  var msg=document.getElementById('boomMsg');
+  if(charges>0){
+    charges--;boomMode='lost';
+    msg.textContent='Your cart exploded. You lost a rescue — '+(charges===0?'none':charges)+' left. Tap OK to restart from your track.';
+  }else{
+    boomMode='over';deathBy='boom';
+    msg.textContent='Your cart exploded and you have no rescues left. The run is over.';
+  }
+  boomDlgOpen=true;syncUI();
+}
+function boomOk(){
+  if(!boomDlgOpen)return;
+  boomDlgOpen=false;
+  if(boomMode==='lost')respawnAfterBoom();else gameOver();
+  syncUI();
+}
+function respawnAfterBoom(){
+  var ti=lastOn.track<tracks.length?lastOn.track:0,tr=tracks[ti];
+  if(!tr||tr.pts.length<2){ti=0;tr=tracks[0];}
+  var s0=Math.max(0,Math.min(tr.totalLen,lastOn.s)-150),p=pointAt(ti,s0);
+  cart.track=ti;cart.s=s0;cart.v=0;cart.x=p.x;cart.y=p.y;cart.ang=p.ang;cart.flip=0;cart.flipAng=0;cart.burst=0;cart.armed=false;
+  flightFlips=0;multHide=0;fall.t=0;chain=0;stuckT=0;noProgressT=0;lastProgressX=cart.x;floaters=[];editTrack=ti;
+  state=ST.READY;gestureReset();pointers.clear();
+  setHint('Draw ahead, then tap the track to ride again');beep(520,160);
+}
+// Pause: double-tap the score. Every full minute paused costs 25% of the score you had when you paused.
+function pauseElapsed(){return (performance.now()-pauseStart)/1000+pauseBonus;}
+function pauseGame(){
+  if(userPaused||boomDlgOpen)return;
+  userPaused=true;pauseStart=performance.now();pauseBonus=0;pauseScore=score;lastScoreTap=0;gestureReset();pointers.clear();
+  document.getElementById('pauseNote').textContent=zen()?'Take your time.':'Every full minute paused costs 25% of your score.';
+  syncUI();
+}
+function resumeGame(){
+  if(!userPaused)return;
+  var el=pauseElapsed(),pct=zen()?0:Math.min(1,0.25*Math.floor(el/60)),loss=Math.round(pauseScore*pct);
+  if(loss>0){score=Math.max(0,score-loss);}
+  userPaused=false;syncUI();
+  if(loss>0)setHint('Paused '+fmt(el)+': −'+Math.round(pct*100)+'% of your score (−'+loss+')');
+}
+function scoreTap(){var n=performance.now();if(n-lastScoreTap<400){lastScoreTap=0;pauseGame();}else lastScoreTap=n;}
 function die(){
   state=ST.SUCK;suck.t=0;suck.scale=1;suck.rot=cart.ang;
   beep(140,300);
@@ -483,7 +538,7 @@ function update(dt){
     if(!zen()&&sy>H*BOOM_AT){explode(sy/H);return;}
     if(cart.y>Math.max(H/zoom,camY+H/zoom)+220||fall.t>6){if(zen())gentleReturn();else{hole.x=cart.x;hole.y=cart.y+180;die();}}
   }else if(state===ST.BOOM){
-    suck.scale+=dt;if(suck.scale>=BOOM_T)gameOver();
+    suck.scale+=dt;if(suck.scale>=BOOM_T)boomDone();
   }else if(state===ST.SUCK){
     suck.t+=dt;
     var dx=hole.x-cart.x,dy=hole.y-cart.y,d=Math.hypot(dx,dy)||1;
@@ -616,7 +671,7 @@ function pair(){
 function gestureReset(){g.phase='idle';g.mode='none';g.kind='none';g.moved=false;lp=null;pendingSwitch=null;}
 
 window.addEventListener('pointerdown',function(e){
-  if(replay||paused||e.target.closest('#btnSettings,#settingsPanel,#modeSel,#btnReplay,#replayUI'))return;
+  if(replay||paused||e.target.closest('#btnSettings,#settingsPanel,#modeSel,#btnReplay,#replayUI,#score,#flowtxt,#pauseDlg,#boomDlg'))return;
   pointers.set(e.pointerId,{x:e.clientX,y:e.clientY});
   if(g.phase==='idle'){
     if(state===ST.OVER){reset();g.phase='ignore';return;}
@@ -804,6 +859,11 @@ function drawJourney(){
   ctx.restore();
 }
 function hud(){
+  if(userPaused){
+    var pe=pauseElapsed();document.getElementById('pauseClock').textContent=fmt(pe);
+    var pp=zen()?0:Math.min(100,25*Math.floor(pe/60));
+    document.getElementById('pausePenalty').textContent=pp>0?'Penalty so far: −'+pp+'% of your score':'';
+  }
   var fmEl=document.getElementById('flipmult');
   if(!replay&&!zen()&&flightFlips>0&&(state===ST.FALL||multHide>0)){
     var fmv=Math.min(5,flightFlips);fmEl.style.display='block';fmEl.textContent='FLIP ×'+fmv;
@@ -862,7 +922,9 @@ function syncUI(){
   document.getElementById('jumpForce').value=cfg.jump;
   document.getElementById('jumpVal').textContent=cfg.jump;
   document.getElementById('modeSel').style.display=cfg.mode?'none':'flex';
-  paused=!cfg.mode||pn.style.display==='flex';
+  paused=!cfg.mode||pn.style.display==='flex'||userPaused||boomDlgOpen;
+  document.getElementById('pauseDlg').style.display=userPaused?'flex':'none';
+  document.getElementById('boomDlg').style.display=boomDlgOpen?'flex':'none';
 }
 function setMode(m){var changed=cfg.mode!==m;cfg.mode=m;saveCfg();syncUI();if(changed)reset();}
 document.getElementById('modeRegular').addEventListener('click',function(){setMode('regular');});
@@ -879,6 +941,10 @@ document.getElementById('tuneReset').addEventListener('click',function(){if(!cfg
 $('[data-momentum]').forEach(function(b){b.addEventListener('click',function(){cfg.momentum=b.getAttribute('data-momentum');applyMomentum();saveCfg();syncUI();});});
 $('[data-audio]').forEach(function(b){b.addEventListener('click',function(){cfg.audio=b.getAttribute('data-audio');saveCfg();syncUI();beep(660,120);});});
 document.getElementById('jumpForce').addEventListener('input',function(e){cfg.jump=+e.target.value;cfg.preset='custom';saveCfg();syncUI();});
+document.getElementById('score').addEventListener('pointerdown',scoreTap);
+document.getElementById('flowtxt').addEventListener('pointerdown',scoreTap);
+document.getElementById('pauseGo').addEventListener('click',resumeGame);
+document.getElementById('boomOk').addEventListener('click',boomOk);
 document.getElementById('btnReplay').addEventListener('click',function(){startReplay();});
 document.getElementById('btnReplaySession').addEventListener('click',function(){startReplay();});
 document.getElementById('repSpeed').addEventListener('click',function(){if(replay)replay.speed=replay.speed===1?2:replay.speed===2?4:1;});
@@ -892,7 +958,8 @@ function replayInfo(){
   for(var j=0;j<2;j++){var sx=(c[j][0]-camX)*zoom,sy=(c[j][1]-camY)*zoom;if(sx<0||sx>W||sy<0||sy>H)ok=false;}
   return{active:true,phase:replay.phase,speed:replay.speed,tracksPts:n,fit:ok};
 }
-window.__wsl=function(){var t=tracks[0];return{flips:flightFlips,flipPts:flipPtsTotal,mult:Math.min(5,flightFlips),boom:deathBy==='boom',boomFrac:boomFrac,cartSY:(cart.y-camY)*zoom/H,state:state,zoom:zoom/baseScale,zoomE:zoom,scale:baseScale,cartPx:Math.round(36*Math.max(1,30/(36*zoom))*zoom),landTolPx:Math.round(24*Math.max(1,0.6/zoom)*zoom),camX:camX,camY:camY,score:score,flip:cart.flip,flipDir:cart.flipDir,charges:charges,timer:survival,dist:distPx,flow:(flowSamples.length?flowSamples.reduce(function(a,b){return a+b;},0)/flowSamples.length:0),cartTrack:cart.track,gphase:g.phase,mode:cfg.mode,preset:cfg.preset,jump:cfg.jump,momentum:cfg.momentum,profile:PROFILE,tune:tuneNow(),tunes:cfg.tune,character:cfg.character,armed:cart.armed,burst:Math.round(cart.burst||0),audio:cfg.audio,theme:theme(),paused:paused,chain:chain,vy:fall.vy,cart:{x:cart.x,y:cart.y,v:cart.v},pts:t?t.pts.slice():[],ntracks:tracks.length,last:lastResult,rec:rec?{n:rec.samples.length,duration:rec.t}:null,replay:replayInfo(),npts:tracks.reduce(function(n,t){return n+t.pts.length;},0)};};
+window.__wslSetScore=function(n){score=n;};window.__wslAddPause=function(sec){pauseBonus+=sec;};
+window.__wsl=function(){var t=tracks[0];return{boomDlg:boomDlgOpen,userPaused:userPaused,paused:paused,flips:flightFlips,flipPts:flipPtsTotal,mult:Math.min(5,flightFlips),boom:deathBy==='boom',boomFrac:boomFrac,cartSY:(cart.y-camY)*zoom/H,state:state,zoom:zoom/baseScale,zoomE:zoom,scale:baseScale,cartPx:Math.round(36*Math.max(1,30/(36*zoom))*zoom),landTolPx:Math.round(24*Math.max(1,0.6/zoom)*zoom),camX:camX,camY:camY,score:score,flip:cart.flip,flipDir:cart.flipDir,charges:charges,timer:survival,dist:distPx,flow:(flowSamples.length?flowSamples.reduce(function(a,b){return a+b;},0)/flowSamples.length:0),cartTrack:cart.track,gphase:g.phase,mode:cfg.mode,preset:cfg.preset,jump:cfg.jump,momentum:cfg.momentum,profile:PROFILE,tune:tuneNow(),tunes:cfg.tune,character:cfg.character,armed:cart.armed,burst:Math.round(cart.burst||0),audio:cfg.audio,theme:theme(),paused:paused,chain:chain,vy:fall.vy,cart:{x:cart.x,y:cart.y,v:cart.v},pts:t?t.pts.slice():[],ntracks:tracks.length,last:lastResult,rec:rec?{n:rec.samples.length,duration:rec.t}:null,replay:replayInfo(),npts:tracks.reduce(function(n,t){return n+t.pts.length;},0)};};
 window.__wslLoad=function(pts){reset();var t=tracks[0];t.pts=[];t.cum=[0];t.totalLen=0;t.raw=[];t.segEnd=[];pts.forEach(function(p){addPoint(0,p.x,p.y);});var p0=pointAt(0,0);cart.x=p0.x;cart.y=p0.y;cart.ang=p0.ang;};
 window.__wslSetV=function(v){cart.v=v;};
 resize();reset();requestAnimationFrame(loop);

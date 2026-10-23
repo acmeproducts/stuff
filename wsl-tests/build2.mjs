@@ -1,5 +1,5 @@
 // WSL Build 2 checks: rescue, flow, timer/distance, jump chain. Usage: node wsl-tests/build2.mjs [file]
-import {launch,VIEWPORTS,HELPERS,fresh,reporter,seeded} from './lib.mjs';
+import {launch,VIEWPORTS,HELPERS,fresh,reporter,seeded,endRun} from './lib.mjs';
 const file=process.argv[2]||'wsl.html';const url='file://'+process.cwd()+'/'+file;
 const {ok,done}=reporter();const b=await launch();
 for(const vp of VIEWPORTS){
@@ -54,7 +54,7 @@ for(const vp of VIEWPORTS){
   const h1=await apex(1),h3b=await apex(3);
   ok('three quick taps = bigger jump',h3b>h1*1.4,{one:Math.round(h1),three:Math.round(h3b)});
   // game over summary
-  await fresh(p,false);await p.evaluate(()=>{const s=__wsl();const e=s.pts[s.pts.length-1];const q=__scr(e.x,e.y);return __drag(q.x,q.y,q.x+30,innerHeight-20,14,400);});await p.evaluate(()=>__release());for(let i=0;i<40&&(await S()).state!==4;i++)await p.waitForTimeout(500);s=await S();
+  await fresh(p,false);await p.evaluate(()=>{const s=__wsl();const e=s.pts[s.pts.length-1];const q=__scr(e.x,e.y);return __drag(q.x,q.y,q.x+30,innerHeight-20,14,400);});await p.evaluate(()=>__release());await endRun(p);s=await S();
   const ov=await p.evaluate(()=>document.getElementById('overlay').innerText);
   ok('game over shows flow, distance, time',s.state===4&&/Flow/i.test(ov)&&/Time/i.test(ov),{state:s.state,ov:ov.replace(/\n/g,' | ')});
   ok('no page errors',errs.length===0,errs.slice(0,2));

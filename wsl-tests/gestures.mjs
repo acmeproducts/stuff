@@ -39,6 +39,7 @@ for(const vp of VIEWPORTS){
     const q=await S();if(q.gphase!=='idle')bad=name+' left phase '+q.gphase;
   }
   ok('fuzz: 60 random gestures never leave input stuck',bad===null,bad);
+  s=await S();if(s.boomDlg){await p.evaluate(()=>document.getElementById('boomOk').click());await p.waitForTimeout(100);}
   s=await S();if(s.state===4){await p.evaluate(()=>__tap(200,300));await p.waitForTimeout(100);}
   const n1=(await S()).npts;await p.evaluate(()=>__drag(100,300,200,330,6,200));s=await S();
   ok('after the fuzz, drawing still works',s.npts>n1,{n1,n:s.npts,st:s.state});

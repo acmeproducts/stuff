@@ -78,6 +78,11 @@ Change: wsl.html restored byte-for-byte from snow-v1.html, then built up in thre
   - Interpretation to confirm: "you lose a restart" was taken as the run ending (restart needed). If it should instead cost a rescue charge and respawn the cart, say so.
   - Tests: `flips.mjs` (multiplier maths and cap, label shows and clears, explosion at ~90% in both screen shapes, drawing a track in time prevents it, Zen exempt); `build2.mjs` rescue-limit check now uses a long track so the cart survives while charges are spent.
 
+- **Explosion costs a rescue + pause with a score penalty (2026-10-23, owner request).**
+  - Explosion now: after the animation the game pauses with a message ("Your cart exploded. You lost a rescue — N left. Tap OK to restart from your track."). A rescue charge is spent when it appears. **OK** puts the cart back on its track about 150 px before where it last rode, stopped, ready for you to draw ahead and tap the track to ride again; the run, score and time continue. With no rescues left the message says the run is over and OK shows the game-over screen. Zen never explodes. (Replaces the earlier "explosion ends the run at once".)
+  - Pause: double-tap the score (400 ms; in Zen the Flow label) opens a centred pause card with a running counter (m:ss) and a **▶ Continue** button; the game, timer and recording freeze and canvas input is ignored. Every full minute paused costs 25% of the score you had when you paused (linear, shown live as "Penalty so far: −N%", capped at the whole score); applied when you press Continue and announced in the hint line. Zen: no penalty.
+  - Tests: `boom.mjs` (message, charge spent 3→2→1→0, OK restarts and the score is kept, no rescues = run over), `pause.mjs` (double-tap only, centred Continue, counter, frozen, penalties 25/50/100% via a simulated clock, Zen exempt); other suites click through the explosion message with a new `endRun` helper where they used to wait for game over.
+
 ## RUN LOG (written by DevStream)
 | Date | Tab | Result | What | Commit |
 |---|---|---|---|---|
