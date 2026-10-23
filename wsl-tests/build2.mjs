@@ -25,8 +25,10 @@ for(const vp of VIEWPORTS){
   const hp2=await p.evaluate(()=>{const s=__wsl();return __scr(s.cart.x+120,s.cart.y+60);});
   await p.evaluate(({x,y})=>__hold(x,y,400),hp2);s=await S();
   ok('short hold is not a rescue',s.charges===3&&s.state!==5,{ch:s.charges,state:s.state});
-  // charge limit
-  await fresh(p);
+  // charge limit (a long track keeps the cart alive while we spend all the charges)
+  await fresh(p,false);
+  await p.evaluate(()=>{const pts=[];const a=8*Math.PI/180;for(let i=0;i<=200;i++)pts.push({x:100+i*30*Math.cos(a),y:200+i*30*Math.sin(a)});__wslLoad(pts);});await p.waitForTimeout(900);
+  await p.evaluate(()=>{const s=__wsl();const m=s.pts[Math.floor(s.pts.length/30)];const q=__scr(m.x,m.y);return __tap(q.x,q.y);});await p.waitForTimeout(250);
   for(let i=0;i<4;i++){
     const h=await p.evaluate(()=>{const s=__wsl();return __scr(s.cart.x+100,s.cart.y+50);});
     await p.evaluate(({x,y})=>__hold(x,y,900),h);await p.waitForTimeout(80);

@@ -42,6 +42,9 @@
   #replayUI #repLabel{min-width:92px;text-align:center;font-weight:700;}
   body.replaying #replayUI{display:flex;}
   body.replaying #hud,body.replaying #hud2,body.replaying #flowbar,body.replaying #btnSettings,body.replaying #hint,body.replaying #diag{display:none!important;}
+  #flipmult{position:fixed;top:calc(env(safe-area-inset-top,0px) + 82px);left:0;right:0;text-align:center;display:none;pointer-events:none;
+    font-size:26px;font-weight:900;color:#ffd700;text-shadow:0 2px 8px rgba(0,0,0,.8);z-index:5;letter-spacing:1px;}
+  body.replaying #flipmult{display:none!important;}
   #hint{position:fixed;bottom:calc(env(safe-area-inset-bottom,0px) + 24px);left:50%;transform:translateX(-50%);
     max-width:calc(100vw - 24px);text-align:center;pointer-events:none;color:#fff;font-size:14px;
     background:rgba(0,0,0,.45);padding:6px 14px;border-radius:20px;z-index:5;
@@ -69,10 +72,11 @@
 <div id="flowbar"><i id="flowfill"></i></div>
 <button id="btnSettings" aria-label="Settings">⚙️</button>
 <div id="replayUI"><span id="repLabel"></span><button class="opt" id="repSpeed">1×</button><button class="opt" id="repSkip">Skip ▸</button><button class="opt" id="repClose">✕ Close</button></div>
+<div id="flipmult"></div>
 <div id="hint">Draw to extend • Tap ON track to release ⛄🛒</div>
 <div id="diag">boot…</div>
 <div id="err"></div>
-<div id="overlay"><h1><span id="ovChar">⛄</span>🛒 → 🕳️</h1><div class="big" id="finalScore">0</div><p id="finalBest"></p><p id="finalStats"></p><button class="opt" id="btnReplay" style="margin-top:10px;flex:none;min-width:160px">▶ Replay</button><div class="cta">TAP TO RIDE AGAIN</div></div>
+<div id="overlay"><h1><span id="ovChar">⛄</span>🛒 → <span id="ovEnd">🕳️</span></h1><div class="big" id="finalScore">0</div><p id="finalBest"></p><p id="finalStats"></p><button class="opt" id="btnReplay" style="margin-top:10px;flex:none;min-width:160px">▶ Replay</button><div class="cta">TAP TO RIDE AGAIN</div></div>
 
 <div id="modeSel"><h1>⛄ Choose your ride</h1><p>Zen is endless and calm: no game over, no score, soft sound. You can switch any time in ⚙️.</p>
   <div class="row"><button class="opt big" id="modeRegular">Regular</button><button class="opt big" id="modeZen">Zen</button></div></div>
@@ -105,8 +109,8 @@ var W=0,H=0,DPR=1,zoom=1,baseScale=1,WV=1280,HV=800;
 // The game world is the same on every screen: a phone shows the same width of world a desktop does (zoomed out),
 // so pace, reaction time and room to draw ahead feel the same. Desktop (1280 px wide or more) is unchanged.
 var stars=[],flakes=[];
-var ST={READY:0,RUN:1,FALL:2,SUCK:3,OVER:4,RESCUE:5};
-var STNAME=['READY','RUN','FALL','SUCK','OVER','RESCUE'];
+var ST={READY:0,RUN:1,FALL:2,SUCK:3,OVER:4,RESCUE:5,BOOM:6};
+var STNAME=['READY','RUN','FALL','SUCK','OVER','RESCUE','BOOM'];
 var state=ST.READY;
 
 var tracks=[],editTrack=0;
@@ -122,12 +126,15 @@ var pendingSwitch=null;
 var pointers=new Map();
 var charges=3,survival=0,distPx=0,flowSamples=[],flowSum=0,flowN=0,flowT=0,flowBonus=0;
 var chain=0,lastTapT=0,lp=null,resPrev=0,lastResult=null,PX_PER_INCH=20,FLOW_PTS=100;
+// Flips: every full spin in one flight scores +100 x a rising multiplier (x1, x2, x3, x4, x5, then stays x5).
+// The multiplier resets on landing. An uncaught cart explodes in the last 10% of the screen (not in Zen).
+var flightFlips=0,flipPtsTotal=0,multHide=0,deathBy='',boomFrac=0,BOOM_AT=0.90,BOOM_T=0.9;
 // Session recording for replay: cart samples ~30x/s plus every track point as it was drawn.
 var rec=null,replay=null,REC_MAX=120000;
 function recNew(){rec={t:0,acc:0,samples:[],log:[]};}
 function recSample(){
   if(!rec||replay||rec.samples.length>=REC_MAX)return;
-  rec.samples.push([rec.t,cart.x,cart.y,cart.ang,(state===ST.FALL&&cart.flip>0)?cart.flipAng:0,state,(state===ST.SUCK?suck.scale:1),hole.x,hole.y]);
+  rec.samples.push([rec.t,cart.x,cart.y,cart.ang,(state===ST.FALL&&cart.flip>0)?cart.flipAng:0,state,(state===ST.SUCK||state===ST.BOOM?suck.scale:1),hole.x,hole.y]);
 }
 function recLog(ti,x,y,c,r){if(rec&&!replay&&rec.log.length<REC_MAX*3)rec.log.push([rec.t,ti,x,y,c,r]);}
 var BURST_V=450,BURST_TAU=0.45,HIT_R=60,MAXCHARGES=3,LONGPRESS_MS=800,CHAIN_MS=450,BIGJUMP=1.6,FLOW_EVERY=0.5;
@@ -296,6 +303,7 @@ function reset(){
   state=ST.READY;
   cart={track:0,s:0,v:0,x:0,y:0,ang:0,flip:0,flipAng:0,flipDir:1,armed:false,burst:0};
   var p=pointAt(0,0);cart.x=p.x;cart.y=p.y;cart.ang=p.ang;
+  flightFlips=0;flipPtsTotal=0;multHide=0;deathBy='';boomFrac=0;
   score=0;maxPage=0;floaters=[];charges=MAXCHARGES;survival=0;distPx=0;flowSamples=[];flowSum=0;flowN=0;flowT=0;flowBonus=0;chain=0;lastTapT=0;lp=null;stuckT=0;fall.t=0;pendingSwitch=null;
   lastProgressX=cart.x;noProgressT=0;zoom=baseScale;
   snapCamera();
@@ -347,7 +355,7 @@ function doJump(){
   fall.vx=Math.cos(cart.ang)*cart.v;fall.vy=Math.sin(cart.ang)*cart.v-cfg.jump;
   fall.rot=cart.ang;fall.spin=0;fall.t=0;fall.grace=0.12;
   // the jump spins the way the cart is travelling: forward momentum = front flip, backward = back flip
-  cart.flip=1;cart.flipAng=0;cart.flipDir=cart.v<0?-1:1;cart.armed=false;cart.burst=0;
+  cart.flip=1;cart.flipAng=0;cart.flipDir=cart.v<0?-1:1;cart.armed=false;cart.burst=0;flightFlips=0;multHide=0;
   state=ST.FALL;diagExtra='jump';beep(520,140);
 }
 function startRescue(x,y){
@@ -379,11 +387,7 @@ function landOnTrack(ti,s){
   cart.v=Math.min(VMAX,Math.max(-VMAX,dot));
   state=ST.RUN;stuckT=0;noProgressT=0;
   if(cart.x>lastProgressX)lastProgressX=cart.x;
-  if(cart.flip===2){
-    var bonus=tracks[ti]&&tracks[ti].rescue?50:100;
-    addFloater(cart.x,cart.y-60,'+'+bonus,'#ffd700');
-    score+=bonus;beep(1100,120);
-  }
+  if(flightFlips>0)multHide=1.2;
   cart.flip=0;cart.flipAng=0;
   cart.burst=0;
   if(cart.armed){cart.burst=BURST_V;cart.armed=false;addFloater(cart.x,cart.y-60,'BURST!','#00eaff');beep(980,140);}
@@ -396,12 +400,15 @@ function gentleReturn(){
   state=ST.RUN;stuckT=0;noProgressT=0;lastProgressX=cart.x;
   addFloater(cart.x,cart.y-50,'welcome back','#bfe9ff');setHint('Draw more track ahead');beep(520,200);
 }
+function explode(frac){
+  state=ST.BOOM;suck.scale=0;boomFrac=frac;deathBy='boom';flightFlips=flightFlips;beep(110,420);beep(70,500);
+}
 function die(){
   state=ST.SUCK;suck.t=0;suck.scale=1;suck.rot=cart.ang;
   beep(140,300);
 }
 function gameOver(){
-  state=ST.OVER;recSample();
+  state=ST.OVER;recSample();document.getElementById('ovEnd').textContent=deathBy==='boom'?'💥':'🕳️';
   var avg=flowN?flowSum/flowN:0;flowBonus=Math.round(avg*FLOW_PTS);
   // Final score = base (pages + trick bonuses) + distance inches + survival seconds x 10 + Flow bonus
   var base=score,distPts=Math.floor(distPx/PX_PER_INCH),timePts=Math.floor(survival*10);
@@ -426,6 +433,8 @@ function update(dt){
   }else{
     tx=cart.x-W*0.35/zoom;ty=cart.y-H*0.55/zoom;
   }
+  if(state===ST.FALL&&!zen())ty=camY;   // in flight the view holds its height, so the last 10% is measured against where the track was
+  if(multHide>0)multHide-=dt;
   k=Math.min(1,dt*5);camX+=(tx-camX)*k;camY+=(ty-camY)*k;
 
   if(state===ST.RUN){
@@ -458,7 +467,11 @@ function update(dt){
     fall.t+=dt;if(fall.grace>0)fall.grace-=dt;
     if(cart.flip===1){
       cart.flipAng+=cart.flipDir*(Math.PI*2)/0.38*dt;
-      if(Math.abs(cart.flipAng)>=Math.PI*2){cart.flip=2;cart.flipAng=cart.flipDir*Math.PI*2;}
+      if(Math.abs(cart.flipAng)>=Math.PI*2){
+        flightFlips++;var fm=Math.min(5,flightFlips),fp=100*fm;score+=fp;flipPtsTotal+=fp;
+        addFloater(cart.x,cart.y-70,'+'+fp+' ×'+fm,fm>=5?'#ff6ad5':fm>=3?'#ffd700':'#8cff5a');beep(560+70*fm,90);
+        cart.flipAng-=cart.flipDir*Math.PI*2;
+      }
     }
     fall.vy+=G*dt;fall.vx*=0.998;
     cart.x+=fall.vx*dt;cart.y+=fall.vy*dt;
@@ -466,7 +479,11 @@ function update(dt){
     var land=nearestOnAnyTrack(cart.x,cart.y);
     var LK=Math.max(1,0.6/zoom);
     if(fall.grace<=0&&land.d<24*LK&&land.d<(Math.abs(fall.vy)*0.06+10)*LK){landOnTrack(land.track,land.s);return;}
+    var sy=(cart.y-camY)*zoom;
+    if(!zen()&&sy>H*BOOM_AT){explode(sy/H);return;}
     if(cart.y>Math.max(H/zoom,camY+H/zoom)+220||fall.t>6){if(zen())gentleReturn();else{hole.x=cart.x;hole.y=cart.y+180;die();}}
+  }else if(state===ST.BOOM){
+    suck.scale+=dt;if(suck.scale>=BOOM_T)gameOver();
   }else if(state===ST.SUCK){
     suck.t+=dt;
     var dx=hole.x-cart.x,dy=hole.y-cart.y,d=Math.hypot(dx,dy)||1;
@@ -494,9 +511,17 @@ function draw(){
   var vis=Math.max(1,30/(36*zoom));
   var scl=((state===ST.SUCK)?suck.scale:1)*vis;
   var ang=cart.ang+((state===ST.FALL&&cart.flip>0)?cart.flipAng:0);
-  drawCart(cart.x,cart.y,ang,scl);
+  if(state===ST.BOOM)drawBoom(vis);else drawCart(cart.x,cart.y,ang,scl);
+  if(state===ST.FALL&&!replay&&(cart.y-camY)*zoom<6){   // cart is above the top edge: show where it is
+    var ix=Math.max(24,Math.min(W-24,(cart.x-camX)*zoom));
+    ctx.save();ctx.setTransform(DPR,0,0,DPR,0,0);
+    ctx.fillStyle='rgba(0,0,0,.55)';ctx.beginPath();ctx.arc(ix,26,20,0,7);ctx.fill();
+    ctx.font='20px system-ui,sans-serif';ctx.textAlign='center';ctx.textBaseline='middle';ctx.fillStyle='#fff';ctx.fillText(charEmoji(),ix,28);
+    ctx.fillStyle='#00eaff';ctx.font='bold 14px system-ui,sans-serif';ctx.fillText('▲',ix,8);
+    ctx.restore();
+  }
   if(cart.armed&&state===ST.FALL){ctx.strokeStyle='rgba(0,234,255,'+(0.55+0.35*Math.sin(performance.now()/90))+')';ctx.lineWidth=4/zoom;ctx.beginPath();ctx.arc(cart.x,cart.y-10,34*vis,0,7);ctx.stroke();}
-  if(state===ST.FALL||state===ST.SUCK||state===ST.OVER){ctx.save();ctx.translate(hole.x,hole.y);ctx.scale(vis,vis);ctx.translate(-hole.x,-hole.y);drawHole();ctx.restore();}
+  if(state===ST.SUCK||state===ST.OVER){ctx.save();ctx.translate(hole.x,hole.y);ctx.scale(vis,vis);ctx.translate(-hole.x,-hole.y);drawHole();ctx.restore();}
   for(i=0;i<floaters.length;i++){
     var f=floaters[i];f.t+=0.016;
     ctx.globalAlpha=Math.max(0,1-f.t/1.2);
@@ -519,6 +544,19 @@ function drawRing(){
   ctx.save();ctx.setTransform(DPR,0,0,DPR,0,0);
   ctx.lineWidth=5;ctx.strokeStyle='rgba(255,255,255,.25)';ctx.beginPath();ctx.arc(lp.x,lp.y,32,0,7);ctx.stroke();
   ctx.strokeStyle='#00eaff';ctx.beginPath();ctx.arc(lp.x,lp.y,32,-Math.PI/2,-Math.PI/2+f*Math.PI*2);ctx.stroke();
+  ctx.restore();
+}
+function drawBoom(vis){
+  var t=Math.min(1,suck.scale/BOOM_T),x=cart.x,y=cart.y;
+  ctx.save();ctx.translate(x,y);ctx.scale(vis,vis);
+  ctx.globalAlpha=Math.max(0,1-t);
+  ctx.fillStyle='#fff6c0';ctx.beginPath();ctx.arc(0,0,(18+150*t)*(1-t*0.5),0,7);ctx.fill();
+  ctx.strokeStyle='#ff9a2a';ctx.lineWidth=6;ctx.beginPath();ctx.arc(0,0,30+240*t,0,7);ctx.stroke();
+  for(var i=0;i<22;i++){
+    var a=i*2.399963,d=(50+(i%5)*34)*(0.25+t*2.4);
+    ctx.fillStyle=(i%3===0)?'#ffd23a':(i%3===1)?'#ff6a2a':'#3a3f4a';
+    ctx.beginPath();ctx.arc(Math.cos(a)*d,Math.sin(a)*d+60*t*t,(7+(i%4)*3)*(1-t*0.6),0,7);ctx.fill();
+  }
   ctx.restore();
 }
 function drawTrack(ti){
@@ -766,6 +804,11 @@ function drawJourney(){
   ctx.restore();
 }
 function hud(){
+  var fmEl=document.getElementById('flipmult');
+  if(!replay&&!zen()&&flightFlips>0&&(state===ST.FALL||multHide>0)){
+    var fmv=Math.min(5,flightFlips);fmEl.style.display='block';fmEl.textContent='FLIP ×'+fmv;
+    fmEl.style.color=fmv>=5?'#ff6ad5':fmv>=3?'#ffd700':'#8cff5a';fmEl.style.fontSize=(24+fmv*3)+'px';
+  }else fmEl.style.display='none';
   if(replay){
     var r=replay,lab=r.phase==='overview'?'Whole journey':r.phase==='zoom'?'Back to the start':r.phase==='play'?'Replay '+fmt(Math.min(r.pt,rec.t)):'Finished';
     document.getElementById('repLabel').textContent=lab;
@@ -849,7 +892,7 @@ function replayInfo(){
   for(var j=0;j<2;j++){var sx=(c[j][0]-camX)*zoom,sy=(c[j][1]-camY)*zoom;if(sx<0||sx>W||sy<0||sy>H)ok=false;}
   return{active:true,phase:replay.phase,speed:replay.speed,tracksPts:n,fit:ok};
 }
-window.__wsl=function(){var t=tracks[0];return{state:state,zoom:zoom/baseScale,zoomE:zoom,scale:baseScale,cartPx:Math.round(36*Math.max(1,30/(36*zoom))*zoom),landTolPx:Math.round(24*Math.max(1,0.6/zoom)*zoom),camX:camX,camY:camY,score:score,flip:cart.flip,flipDir:cart.flipDir,charges:charges,timer:survival,dist:distPx,flow:(flowSamples.length?flowSamples.reduce(function(a,b){return a+b;},0)/flowSamples.length:0),cartTrack:cart.track,gphase:g.phase,mode:cfg.mode,preset:cfg.preset,jump:cfg.jump,momentum:cfg.momentum,profile:PROFILE,tune:tuneNow(),tunes:cfg.tune,character:cfg.character,armed:cart.armed,burst:Math.round(cart.burst||0),audio:cfg.audio,theme:theme(),paused:paused,chain:chain,vy:fall.vy,cart:{x:cart.x,y:cart.y,v:cart.v},pts:t?t.pts.slice():[],ntracks:tracks.length,last:lastResult,rec:rec?{n:rec.samples.length,duration:rec.t}:null,replay:replayInfo(),npts:tracks.reduce(function(n,t){return n+t.pts.length;},0)};};
+window.__wsl=function(){var t=tracks[0];return{flips:flightFlips,flipPts:flipPtsTotal,mult:Math.min(5,flightFlips),boom:deathBy==='boom',boomFrac:boomFrac,cartSY:(cart.y-camY)*zoom/H,state:state,zoom:zoom/baseScale,zoomE:zoom,scale:baseScale,cartPx:Math.round(36*Math.max(1,30/(36*zoom))*zoom),landTolPx:Math.round(24*Math.max(1,0.6/zoom)*zoom),camX:camX,camY:camY,score:score,flip:cart.flip,flipDir:cart.flipDir,charges:charges,timer:survival,dist:distPx,flow:(flowSamples.length?flowSamples.reduce(function(a,b){return a+b;},0)/flowSamples.length:0),cartTrack:cart.track,gphase:g.phase,mode:cfg.mode,preset:cfg.preset,jump:cfg.jump,momentum:cfg.momentum,profile:PROFILE,tune:tuneNow(),tunes:cfg.tune,character:cfg.character,armed:cart.armed,burst:Math.round(cart.burst||0),audio:cfg.audio,theme:theme(),paused:paused,chain:chain,vy:fall.vy,cart:{x:cart.x,y:cart.y,v:cart.v},pts:t?t.pts.slice():[],ntracks:tracks.length,last:lastResult,rec:rec?{n:rec.samples.length,duration:rec.t}:null,replay:replayInfo(),npts:tracks.reduce(function(n,t){return n+t.pts.length;},0)};};
 window.__wslLoad=function(pts){reset();var t=tracks[0];t.pts=[];t.cum=[0];t.totalLen=0;t.raw=[];t.segEnd=[];pts.forEach(function(p){addPoint(0,p.x,p.y);});var p0=pointAt(0,0);cart.x=p0.x;cart.y=p0.y;cart.ang=p0.ang;};
 window.__wslSetV=function(v){cart.v=v;};
 resize();reset();requestAnimationFrame(loop);
