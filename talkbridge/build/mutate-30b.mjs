@@ -6,8 +6,9 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { execFileSync } from 'node:child_process';
-import { assemblePage, PARTS } from './assemble-30b.mjs';
+import { assemblePage, assembleManifests, PARTS } from './assemble-30b.mjs';
 const part = fs.readFileSync(PARTS[0], 'utf8');
+const CV = PARTS[1], NM = PARTS[2];   /* { file: CV|NM, part } mutates that part instead of VB-1 */
 const once = (s, a, b) => { const n = s.split(a).length - 1; if (n !== 1) throw new Error('mutation text found ' + n + 'x: ' + a.slice(0, 60)); return s.replace(a, () => b); };
 const M = [
   { by: 'browser', catches: 'B12', name: 'the box sits above dialogs (z 50)', part: (s) => once(s, 'z-index:15;', 'z-index:50;') },
@@ -32,19 +33,43 @@ const M = [
   { by: 'browser', catches: 'B3', name: 'a voice call shows the band', part: (s) => once(s, "var S = '#scr-room.st-video #call-band.on';", "var S = '#scr-room.st-video #call-band.on';\n  var V = '#scr-room.st-phone #call-band{display:block!important}';") .replace("var st = document.createElement('style'); st.id = 'vb-css'; st.textContent = css;", "var st = document.createElement('style'); st.id = 'vb-css'; st.textContent = css + V;") },
   { by: 'node', catches: 'F', name: 'the load-time swap names 29·ship\'s manifests again', page: (h) => once(h, "lk.href = (p2Platform() === 'ios') ? 'tb-manifest-turn30-base-ios.webmanifest' : 'tb-manifest-turn30-base.webmanifest';", "lk.href = (p2Platform() === 'ios') ? 'tb-manifest-turn29-ship-ios.webmanifest' : 'tb-manifest-turn29-ship.webmanifest';") },
   { by: 'node', catches: 'B1', name: 'something else is appended', page: (h) => h.replace(/\n<\/script>\n<\/body>\n<\/html>$/, '\nvar extra = 1;\n</script>\n</body>\n</html>') },
-  { by: 'node', catches: 'C', name: 'a rule escapes the video-call scope', part: (s) => once(s, "var S = '#scr-room.st-video #call-band.on';", "var S = '#call-band.on';") }
+  { by: 'node', catches: 'C', name: 'a rule escapes the video-call scope', part: (s) => once(s, "var S = '#scr-room.st-video #call-band.on';", "var S = '#call-band.on';") },
+  /* candidate 3 */
+  { by: 'node', catches: 'CV1', file: CV, name: 'an ended camera is never replaced', part: (s) => once(s, "if (r) cvRestore(r + (why ? '/' + why : ''));", '') },
+  { by: 'node', catches: 'CV1', file: CV, name: 'the dead track is left in the stream (two video tracks)', part: (s) => once(s, 'try { if (old) { s0.removeTrack(old); old.stop(); } } catch (_) {}', '') },
+  { by: 'node', catches: 'CV2', file: CV, name: 'a mute is replaced at once (no 2 s grace)', part: (s) => once(s, 'if (now - CV.badSince < CV.MUTE_MS) return null;', '') },
+  { by: 'node', catches: 'CV3', file: CV, name: 'it fights dictation (no focus gate)', part: (s) => once(s, "if (document.hidden || !document.hasFocus()) { CV.badSince = 0; return null; }", '') },
+  { by: 'node', catches: 'CV4', file: CV, name: 'the camera is reopened while the person has it off', part: (s) => once(s, 'if (!CALL.camOn) return null;', '') },
+  { by: 'node', catches: 'CV5', file: CV, name: 'the facing follows TB_FACING, not the dying track', part: (s) => once(s, "function cvFacing(t) { return (t && t.__cvFacing === 'environment')", "function cvFacing(t) { return (TB_FACING === 'environment')") },
+  { by: 'node', catches: 'CV6', file: CV, name: 'a call that ends during the ask leaves the camera running', part: (s) => once(s, "if (!CALL.active || CALL.stream !== s0 || (live && live.readyState === 'live')) {", "if (false) {") },
+  { by: 'node', catches: 'CV8', file: CV, name: 'failures are retried for ever', part: (s) => once(s, 'if (CV.fails >= CV.MAX) return null;', '') },
+  { by: 'node', catches: 'CV9', file: CV, name: 'a refused camera is counted and never waits for a tap', part: (s) => once(s, "if (name === 'NotAllowedError') CV.needTap = true; else CV.fails++;", 'CV.fails++;') },
+  { by: 'node', catches: 'CV10', file: CV, name: '"restored" is logged though the sender refused the track', part: (s) => once(s, "return Promise.resolve(sender.replaceTrack(t)).then(function () { return sender.track === t; }, function () { return false; });", "return Promise.resolve(sender.replaceTrack(t)).then(function () { return true; }, function () { return true; });") },
+  { by: 'node', catches: 'CV11', file: CV, name: 'a voice call reopens the camera', part: (s) => once(s, "if (!CALL.active || CALL.kind !== 'video' || CV.busy) return null;", "if (!CALL.active || CV.busy) return null;") },
+  { by: 'browser', catches: 'CV12', file: CV, name: 'the real sender is never given the new track', part: (s) => once(s, "var senders = CALL.camOn ? camSenders() : [];", "var senders = [];") },
+  { by: 'browser', catches: 'N2', file: NM, name: 'the name keeps candidate 2\'s cap', part: (s) => once(s, "'#room-ribbon .rz-left{max-width:calc(50% - 25px)}' +", "") },
+  { by: 'browser', catches: 'N1', file: NM, name: 'the name runs into the microphone', part: (s) => once(s, "max-width:calc(50% - 25px)", "max-width:none;flex:0 0 auto") },
+  { by: 'browser', catches: 'N1', file: NM, name: 'right-to-left is not mirrored', part: (s) => once(s, "+\n  '[dir=rtl] #room-ribbon .rz-center{left:auto;right:50%;transform:translateX(17px)}'", "") },
+  { by: 'node', catches: 'F', manifest: true, name: 'the Android strip is cream again', page: (h) => h }
 ];
 const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'tb30bm-'));
 let caught = 0, missed = 0;
 for (let i = 0; i < M.length; i++) {
-  const m = M[i]; let p = part, page;
-  try { if (m.part) p = m.part(part); page = assemblePage({ part: p }); if (m.page) page = m.page(page); } catch (e) { console.log('MISS  mutation did not apply: ' + m.name + ' — ' + e.message); missed++; continue; }
+  const m = M[i]; let p = part, page, other = null;
+  try {
+    if (m.file) { other = m.part(fs.readFileSync(m.file, 'utf8')); page = assemblePage({ parts: { [m.file]: other } }); }
+    else { if (m.part) p = m.part(part); page = assemblePage({ part: p }); }
+    if (m.page) page = m.page(page);
+  } catch (e) { console.log('MISS  mutation did not apply: ' + m.name + ' — ' + e.message); missed++; continue; }
   const pf = path.join(dir, 'page-' + i + '.html'), tf = path.join(dir, 'part-' + i + '.js'); fs.writeFileSync(pf, page); fs.writeFileSync(tf, p);
+  const env = { ...process.env, TB_30B_PAGE: pf, TB_30B_PART: tf };
+  if (other != null) { const of = path.join(dir, 'other-' + i + '.js'); fs.writeFileSync(of, other); env.TB_30B_PARTS = JSON.stringify({ [m.file]: of }); }
+  if (m.manifest) env.TB_30B_CHROME_BG = '#FDFAF7';
   let out = '', exit = 0;
   try {
     out = m.by === 'browser'
       ? execFileSync('node', ['talkbridge/build/harness-30b-browser.mjs', '--page', pf, '--quiet'], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'], timeout: 600000 })
-      : execFileSync('node', ['talkbridge/build/harness-30b.mjs', '--quiet'], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'], env: { ...process.env, TB_30B_PAGE: pf, TB_30B_PART: tf }, timeout: 900000 });
+      : execFileSync('node', ['talkbridge/build/harness-30b.mjs', '--quiet'], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'], env, timeout: 900000 });
   } catch (e) { exit = e.status || 1; out = (e.stdout || '') + (e.stderr || ''); }
   const named = out.split('\n').some((l) => l.startsWith('FAIL  ' + m.catches + ' '));
   if (exit !== 0 && named) { console.log('  ok  [' + m.catches + '] catches: ' + m.name); caught++; }

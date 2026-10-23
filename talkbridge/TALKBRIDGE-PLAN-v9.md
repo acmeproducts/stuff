@@ -1,5 +1,5 @@
-<!-- TALKBRIDGE-PLAN v21.113.0 -->
-# TALKBRIDGE MASTER PLAN v21.113.0
+<!-- TALKBRIDGE-PLAN v21.114.0 -->
+# TALKBRIDGE MASTER PLAN v21.114.0
 
 **Location:** `talkbridge/TALKBRIDGE-PLAN-v9.md` in `acmeproducts/stuff`.
 **Owner:** Confi — sole decision-maker, runs every device gate.
@@ -149,7 +149,7 @@ the directory release and IndexedDB each moved one turn later; nothing was dropp
 | 29·post-ship | **localization** — the app's own words in the user's language, both sides (§7.17) — moved up from 30·base by owner ruling 2026-10-10 | **ACCEPTED 2026-10-20 · candidate 7 · sha `c1c417e21dd1` · tb-sw5.js · relay v6.17 (owner: "approved")** — localization, the reach bar, reachability, the activity log, the room name phone to phone, no names on the server. Candidate history: c1–c7 (§7.17, §7.20, §7.21; changelog v21.96.0–v21.109.0) | **https://acmeproducts.github.io/stuff/talkbridge-app/bridge-turn29-post-ship.html** |
 | 30·post-ship | IndexedDB — behind its POC; if the owner defers it past beta, it stays here | queued | — |
 | 30·pre-base | byte-identical snapshot of accepted 29·post-ship | **BANKED 2026-10-22 BY REFERENCE** — the accepted `talkbridge-app/bridge-turn29-post-ship.html` (sha `c1c417e21dd1`), immutable under §0c; 30·base's assembler sha-checks it | — |
-| 30·base | **THE VIDEO BOX (§7.22)** — owner 2026-10-22: "it should be the tall 9:16 that's draggable"; multi-user (conference-room model) moves later, only after its spec is written and approved | **CANDIDATE 2 · BUILT 2026-10-22 · relay v6.17 (unchanged) · tb-sw5.js (unchanged) — the window takes the SHAPE OF ITS PICTURE (no band, no crop); the camera is opened exactly as the accepted app opens it; awaiting the owner's two-phone device gate.** Candidate 1 REJECTED 2026-10-22 (G77). | **https://acmeproducts.github.io/stuff/talkbridge-app/bridge-turn30-base.html** (and next.html) |
+| 30·base | **THE VIDEO BOX (§7.22)** — owner 2026-10-22: "it should be the tall 9:16 that's draggable"; multi-user (conference-room model) moves later, only after its spec is written and approved | **CANDIDATE 3 · BUILT 2026-10-23 · relay v6.17 (unchanged) · tb-sw5.js (unchanged) — candidate 2's window (the SHAPE OF ITS PICTURE) + the camera comes back after iPhone dictation (CV-1) + the room's name gets the room up to the microphone (NM-1) + the Android strip teal; awaiting the owner's two-phone device gate.** Candidate 2 (2026-10-22): the owner's test 2026-10-23 — the timer right, three findings, all in c3. Candidate 1 REJECTED 2026-10-22 (G77). | **https://acmeproducts.github.io/stuff/talkbridge-app/bridge-turn30-base.html** (and next.html) |
 | 30·pre-ship | beta readiness | queued | — |
 
 Every accepted or built stage carries its live address here and in the ledger; a row without a link is not built.
@@ -2090,6 +2090,8 @@ Green means allowed to push. It never means done.
 ---
 
 ## 10 · CHANGE LOG
+
+**v21.114.0 · 2026-10-23.** 30·base candidate 3 (§7.22 "Candidate 3"), the owner's feedback on c2 ("go"): (1) iPhone keyboard dictation in a video call killed the video for good — the camera track is taken and nothing asked for it again (present in the accepted page too); CV-1 brings the camera back when the app is visible and focused again, the flip's own way, and logs what dictation does to each track. (2) The room's name cut to "m.." on an iPhone 13 — its cap was derived for a centred cluster (G78); NM-1 gives it the room up to the microphone (+42 px at 390), right-to-left mirrored. (3) The Android's bottom strip cream with pale buttons — the Android manifest's background is now teal (unproven until the phone shows it). Independently reviewed before the code (4 must-fix applied). Not in this candidate: the microphone after dictation (logged now), the iPhone's full storage (`QuotaExceededError`; IndexedDB is on the plan). Gates: harness-30b 72/72, browser 20/20, mutations 39/39, prior gate:29pos.
 
 **v21.113.0 · 2026-10-22.** 30·base candidate 2 (§7.22 "Candidate 2"): rebuilt from the accepted 29·post-ship page. The camera is opened exactly as the accepted app opens it; the floating, draggable window takes the shape of the picture it shows (a phone's tall picture → a tall window; no band, no crop); the inset takes the small picture's shape. Reviewed again before the build. next.html → the 30·base page. Gates: harness-30b 59/59 (K: the camera asked exactly as the accepted page asks), browser 17/17, mutations 23/23, prior gate:29pos.
 
@@ -5815,6 +5817,92 @@ G4 rotate: the box stays on screen. G5 voice call: unchanged.
 - Second independent review (2026-10-22) applied: the shape-reading guards, contain over cover, the inset cap, the logs, G77's
   wording (the shape c1 drew was never measured; the call never connected). Its advice for the device gate: if the media again
   fails to connect, repeat the same two phones and networks on the accepted page before blaming the window (C6).
+
+### Candidate 3 (2026-10-23, owner's feedback on candidate 2 — "go")
+**The owner's words** (two-phone test, 2026-10-23): "the counter appears to be working correctly … if I tap the chat compose and
+then tap the iPhone keyboard microphone, granted while the microphone is muted on the conference call, it does allow me to voice
+type, but it also kills the video transmission and never returns. … the name … seems to prematurely cut off and truncate. It could
+be a little bit more forgiving on the iPhone 13. It looks fine on the android side. … below the chat compose strip because it's a
+PWA … the buttons on the bottom of the android … are white icons on a white background so they're difficult to see … it looks as if
+there's just a weird white gap."
+**What the device log shows** (07:06–07:12 UTC): both phones `turn30-base-c2`; the call connected on both; the iPhone blurred at
+07:09:28 for 241 s (the dictation) and came back `net_call_ok connected` — the CONNECTION survived; nothing logs the camera
+track, so its end is unrecorded. Also: iPhone `storage_write_failed QuotaExceededError` on a transcript key (not in this
+candidate; IndexedDB is already on the plan for it).
+
+Three changes, each additive, on top of candidate 2 (VB-1 unchanged):
+
+**1 · CV-1 — the camera comes back (`talkbridge/parts/cv1-camera-back.js`).** CAUSE (from the code; the device proof is this
+candidate's log): iOS hands the microphone to keyboard dictation and interrupts the page's capture; the camera track ends (or
+stays muted) and nothing in the app ever asks for the camera again — the call's only camera opens are the call's start and the
+flip. Present in the accepted page too; the window did not cause it.
+- A watcher runs once a second only while a VIDEO call is active. It never fights dictation: it acts only while the page is
+  visible AND focused (`!document.hidden && document.hasFocus()`).
+- Recovery when the call's video track is `ended`, or `muted` for 2 consecutive visible-and-focused seconds. No video track at
+  all is NOT a trigger (the flip has that gap by design; a call that opened without a camera has camOn false and no track).
+- Recovery is the flip's own sequence (R17: release first): senders released, old track removed and stopped, the camera asked
+  EXACTLY as the app asks it — `video:true` for the front camera (the call's start), `{facingMode:'environment'}` for the back
+  (the flip's ask) — the facing being the one the DYING TRACK was opened with (TB_FACING is never reset between calls), the new
+  track added to CALL.stream, the senders given it (awaited and checked: `sender.track === new`; a refusal is a failure, never
+  "restored"), the self-view re-pointed.
+- Camera OFF: nothing is opened (no camera light after the person turned it off); the check runs again once it is back on.
+- Races: the call ends or a new call's stream replaces it while the camera is being asked → the new track is STOPPED, logged
+  `cv_restore_abandoned` (no orphaned camera); the flip adds a live track meanwhile → the flip's wins, ours is stopped; the
+  dead track removed and the ask failed → the missing track IS a trigger (it was ours to bring back); the connection rebuilt
+  while asking → logged (`cv_restore_failed {e:'connection rebuilt…'}`), not repaired here.
+- Guards: one recovery in flight; three failures in a row stop the tries, ≥ 5 s apart; the person coming back (focus) or a
+  recovery that stays live 5 s starts a new incident, so a second dictation in the same call recovers too; a refused permission
+  (`NotAllowedError`) is not counted and is asked again inside the person's next tap; all of it resets when the call ends.
+- Logs: `cv_track {kind, ev, hidden}` for every `mute`/`unmute`/`ended` on the call's audio and video tracks (so the next device log shows
+  exactly what dictation does to each); `cv_restore {why, try, ask}`, `cv_restored {ms, w, h, senders}`, `cv_restore_failed {e}`, `cv_restore_abandoned {why}`.
+- The MICROPHONE is not reopened in this candidate (its pipeline — transcription, the meter — holds the old track; reopening it
+  is a bigger change). The new `cv_track` lines will show whether dictation ends the audio track too; if it does, that is the
+  next candidate, stated now so it is not forgotten.
+
+**2 · NM-1 — the name gets the room up to the microphone (`talkbridge/parts/nm1-name-room.js`, CSS only).** CAUSE (measured in
+Chromium at 390 px, the iPhone 13's width): the name's side of the ribbon is capped at `50vw − 79px` = 116 px, derived for a
+centred cluster ("half the widest cluster (57)"). The cluster is not centred: the microphone's slot is (translateX −17 px), so the
+cluster starts at the centre − 17 px = 178 px and 50 px before it are unused. During a call the timer ("12:34", or "Speaking…"
+≈ 75 px) shares those 116 px — the name was left ~20 px ("m.."). THE FIX: `max-width: calc(50% − 25px)` — the ribbon's content
+box, so it holds for any equal side padding including the safe areas; it stops 8 px before the microphone's slot (12 + 158 = 170
+at 390 px). +42 px on an iPhone 13 (~5 more letters). (Found while gating: `50% − 25px` is exactly the share the ribbon's flex already gives the name's side — two flex:1 sides around the … button — so the old cap was the only thing taking the 42 px; NM-1's cap states the share so no later rule can let the name reach the microphone.) The microphone stays on the centre line (unchanged). It also fixes a desktop
+overlap: in the 480 px app column on a wide screen, `50vw` exceeded the column.
+
+**3 · The Android bottom strip is teal.** CAUSE (from the screenshot and the manifest; no official Chrome document — reports
+from other projects): on recent Android (15+) Chrome leaves an installed app's navigation bar transparent over the window, which
+is painted with the manifest's `background_color` — ours is cream `#FDFAF7`, while the system draws the buttons for a dark bar
+(our `theme_color` is teal) — pale buttons on cream. THE FIX: the stage's Android manifest gets `background_color: "#2E8B8B"`
+(= theme_color; on older Android Chrome already paints the bar with theme_color, so both agree), so the strip should be teal and
+the buttons readable — UNPROVEN until the owner's phone shows it (no official Chrome document; the gap's colour matches the
+manifest's cream, not the page's `#EFEAE4`, by the owner's description: "white"). The launch splash becomes teal with the icon.
+Set in the assembler for the Android manifest only; the shared source manifest is untouched. The iOS manifest is unchanged. CAVEAT for the device gate: Chrome refreshes an installed app's manifest on its own
+schedule (up to about a day); reinstalling from the page shows it at once.
+
+**Not in scope:** the microphone reopen (above), the storage quota, any change to VB-1, the relay, the worker.
+
+**Independent review (2026-10-23, before the code) and what changed because of it.** MUST-FIX, all applied: (1) a call ending
+while the camera is being asked must not orphan a running camera — the new track is stopped (the flip has this bug too, left
+as accepted); (2) TB_FACING is never reset between calls — the facing comes from the dying track; (3) "3 tries per call" would
+leave a fourth dictation dead — the count is per incident; reopening while the camera is off would light the camera — it waits;
+(6) right-to-left: the microphone (the cluster's first child) is its right end there, and the name already ran into it —
+mirrored. SHOULD, applied: replaceTrack awaited and checked; a check at once on focus (the log's `net_call_ok` after the blur
+proves focus fires after dictation); `NotAllowedError` waits for a tap; the Android colour set in the assembler only and its claim
+qualified; the gates below. NOTED, not done: a connection rebuilt mid-ask (logged only); the far phone's own `video_stalled`
+recovery may race a long dictation; the MICROPHONE stays dead after dictation if iOS ended its track — `cv_track` will show it.
+
+### Built (candidate 3, 2026-10-23)
+Parts `cv1-camera-back.js`, `nm1-name-room.js` appended after VB-1 (unchanged); the Android manifest's background teal; build
+`turn30-base-c3`. Gates: `harness-30b.mjs` 72 (B2 per part; F3 the manifest colours; CV1–CV11 in jsdom with a camera, senders,
+focus and permission under the test's control — ended, muted ≥ 2 s, hidden/unfocused, camera off, facing, the call ending
+mid-ask, the flip mid-ask, three failures, a refused permission, a second dictation, a refusing sender, a voice call);
+`harness-30b-browser.mjs` 20 (N1 the name's side ≥ 8 px from the microphone's slot and the microphone on the centre line —
+idle/voice/video, LTR and RTL, 360/390/430/1280; N2 at 390 in a call a long name shows ≥ 70 px (c2: ~32); CV12 a REAL camera
+track (Chromium's fake camera, Playwright) and a real RTCPeerConnection sender: stopped mid-call, it comes back live on the
+sender, and the hang-up stops it). C5: N1, N2 and CV12 FAIL on candidate 2's page; CV1–CV11 cannot run on it (no CV-1).
+`mutate-30b.mjs` 39 (16 new). Prior `gate:29pos` green. A browser-gate race found and fixed on the way: B4/B5 read the shapes ~0.4 s into the call, and under the headless browser's virtual clock the first frames sometimes landed later (the inset read the 3:4 default once in four runs; candidate 2's bytes, not CV-1); the shapes are now read ≥ 1.3 s in, past the 1 s shape poll (6/6 clean).
+**Device gate (owner, two phones):** (a) in a video call on the iPhone, dictate into the chat, finish — the partner sees your
+camera again within a few seconds; (b) the room's name on the iPhone 13 shows more; (c) the Android's bottom strip is teal with
+readable buttons (reinstall from the page, or wait for Chrome to refresh the installed app); (d) everything candidate 2 passed.
 
 ### Built (candidate 1)
 `talkbridge/build/assemble-30b.mjs` (accepted page sha-checked; 5 edits: 2 manifest names, 2 camera shapes, the build line;

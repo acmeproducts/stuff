@@ -52,6 +52,9 @@ setTimeout(function(){ try{
     var b3=box(); M('mousedown',b3.x+30,b3.y+30); W('mousemove',b3.x+3000,b3.y-3000); W('mouseup',b3.x+3000,b3.y-3000);
     R.clampHigh=box();
     setTimeout(function(){ try{
+      /* the shapes are read here, ≥ 1.3 s into the call (past the 1 s shape poll): under the browser's virtual clock the first frames can
+         land after the early measure, which then reads the 3:4 default (seen 2026-10-23, once in four runs) — the early box keeps its place checks */
+      R.boxLate=box(); R.insetLate=rect('local-video'); R.bigLate=rect('remote-video');
       var b4=box(); M('mousedown',b4.x+40,b4.y+40); W('mouseup',b4.x+40,b4.y+40); M('click',b4.x+40,b4.y+40);
       R.beforeSwap=b4; R.swapAfterTap=document.getElementById('call-videos').classList.contains('swapped');
       setTimeout(function(){ try{
@@ -85,13 +88,32 @@ setTimeout(function(){ try{
   laptop: String.raw`
 PARTNER=[1280,720];
 setTimeout(function(){ try{ startCall('video'); setTimeout(function(){ R.box=box(); R.app=APP(); R.fit=getComputedStyle(document.getElementById('remote-video')).objectFit; document.title='VBRESULT'+JSON.stringify(R); },1600); }catch(e){R.err.push(''+e); document.title='VBRESULT'+JSON.stringify(R);} },1500);`,
+  ribbon: String.raw`
+/* NM-1: the name's side against the microphone's slot, each call state, left-to-right and right-to-left */
+function rr(sel){var e=document.querySelector(sel);if(!e)return null;var b=e.getBoundingClientRect();return {l:Math.round(b.left*10)/10,r:Math.round(b.right*10)/10,w:Math.round(b.width*10)/10};}
+function measure(){var s=document.getElementById('scr-room');var out={};[['idle',''],['voice','st-phone'],['video','st-video']].forEach(function(st){s.classList.remove('st-phone','st-video');if(st[1])s.classList.add(st[1]);document.getElementById('rz-timer').textContent=st[1]?'Speaking…':'';
+  out[st[0]]={left:rr('#room-ribbon .rz-left'),mic:rr('#room-ribbon .rz-slot.mic-slot'),rib:rr('#room-ribbon'),title:rr('#room-head-title'),titleFull:document.getElementById('room-head-title').scrollWidth};});s.classList.remove('st-phone','st-video');return out;}
+setTimeout(function(){ try{ enterRoom('room-1'); R.ltr=measure(); document.documentElement.dir='rtl'; R.rtl=measure(); document.documentElement.dir='ltr'; R.vw=innerWidth; }catch(e){R.err.push(''+e);} document.title='VBRESULT'+JSON.stringify(R); },1500);`,
+  cam: String.raw`
+/* CV-1 with a REAL camera stream (Chromium's fake camera) and a real RTCPeerConnection video sender */
+setTimeout(function(){ try{ startCall('video'); document.hasFocus=function(){return true;};
+  navigator.mediaDevices.getUserMedia({video:true,audio:true}).then(function(st){ CALL.stream=st; CALL.camOn=true; var pc=new RTCPeerConnection(); st.getTracks().forEach(function(t){pc.addTrack(t,st);}); CALL.pc=pc; document.getElementById('local-video').srcObject=st;
+    setTimeout(function(){ var old=st.getVideoTracks()[0]; R.oldLive=old.readyState; old.stop(); R.stopped=old.readyState;
+      setTimeout(function(){ var nv=CALL.stream.getVideoTracks(); var snd=pc.getSenders().filter(function(x){return x.track&&x.track.kind==='video';});
+        R.after={n:nv.length,live:nv[0]&&nv[0].readyState,same:nv[0]===old,sent:snd.length&&snd[0].track===nv[0],self:document.getElementById('local-video').srcObject===CALL.stream};
+        R.cv=(window.debugLog||[]).filter(function(l){return /^cv_/.test(l.ev);}).map(function(l){return l.ev;});
+        try{ CALL.hangUp(false); }catch(e){} R.endLive=nv[0]&&nv[0].readyState; document.title='VBRESULT'+JSON.stringify(R); },3000);
+    },1200);
+  }).catch(function(e){R.err.push('gum '+e); document.title='VBRESULT'+JSON.stringify(R);});
+}catch(e){R.err.push(''+e); document.title='VBRESULT'+JSON.stringify(R);} },1500);`,
   rotate: String.raw`
 setTimeout(function(){ try{ startCall('video'); setTimeout(function(){ /* after the 1 s shape poll */ R.box=box(); R.app=APP(); var rib=document.getElementById('room-ribbon'); R.ribBottom=rib?Math.round(rib.getBoundingClientRect().bottom):0;
   var b=R.box; M('mousedown',b.x+20,b.y+20); W('mousemove',b.x+3000,b.y+3000); W('mouseup',b.x+3000,b.y+3000); R.far=box(); M('mousedown',R.far.x+20,R.far.y+20); W('mousemove',R.far.x-3000,R.far.y-3000); W('mouseup',R.far.x-3000,R.far.y-3000); R.near=box();
   document.title='VBRESULT'+JSON.stringify(R); },1600); }catch(e){R.err.push(''+e); document.title='VBRESULT'+JSON.stringify(R);} },1500);`
 };
-function run(name, w, h, seedPos) {
-  const page = html.replace('<head>', '<head>' + SEED.replace('__SEEDPOS__', seedPos ? "localStorage.setItem('tb_vbox_pos','" + seedPos + "');" : ''), 1).replace(/<\/body>(?![\s\S]*<\/body>)/, '<script>' + STAGE + SCENARIOS[name] + '</script></body>');
+function run(name, w, h, seedPos, longName) {
+  const seed = longName ? SEED.replace("partnerName:'Bo'", "partnerName:'" + longName + "'") : SEED;
+  const page = html.replace('<head>', '<head>' + seed.replace('__SEEDPOS__', seedPos ? "localStorage.setItem('tb_vbox_pos','" + seedPos + "');" : ''), 1).replace(/<\/body>(?![\s\S]*<\/body>)/, '<script>' + STAGE + SCENARIOS[name] + '</script></body>');
   const pf = path.join(dir, name + '.html'); fs.writeFileSync(pf, page);
   for (const f of fs.readdirSync('talkbridge-app')) if (/\.(png|webmanifest)$/.test(f)) { try { fs.copyFileSync(path.join('talkbridge-app', f), path.join(dir, f)); } catch (_) {} }
   const frame = path.join(dir, name + '-frame.html');
@@ -101,17 +123,49 @@ function run(name, w, h, seedPos) {
   return JSON.parse(m[1].replace(/&quot;/g, '"').replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>'));
 }
 
+/* a real camera needs a live browser (headless --dump-dom never settles getUserMedia): the same page, the same Chromium, driven
+   by Playwright with Chromium's fake camera. Playwright is the machine's global install (TB_PLAYWRIGHT overrides). */
+async function runLive(name, w, h) {
+  const pw = process.env.TB_PLAYWRIGHT || path.join(execFileSync('npm', ['root', '-g'], { encoding: 'utf8' }).trim(), 'playwright', 'index.mjs');
+  const { chromium } = await import(pw);
+  const page = html.replace('<head>', '<head>' + SEED.replace('__SEEDPOS__', ''), 1).replace(/<\/body>(?![\s\S]*<\/body>)/, '<script>' + STAGE + SCENARIOS[name] + '</script></body>');
+  const pf = path.join(dir, name + '.html'); fs.writeFileSync(pf, page);
+  const b = await chromium.launch({ executablePath: CHROME, args: ['--use-fake-device-for-media-stream', '--use-fake-ui-for-media-stream', '--allow-file-access-from-files'] });
+  try {
+    const p = await b.newPage({ viewport: { width: w, height: h } }); await p.goto('file://' + pf);
+    await p.waitForFunction(() => document.title.indexOf('VBRESULT') === 0, null, { timeout: 30000 });
+    return JSON.parse((await p.title()).slice(8));
+  } finally { await b.close(); }
+}
+
 let pass = 0, fail = 0;
 const T = (n, f) => { try { f(); pass++; if (!quiet) console.log('  ok  ' + n); } catch (e) { fail++; console.log('FAIL  ' + n + ' — ' + (e && e.message || e)); } };
 const ok = (c, m) => { if (!c) throw new Error(m); };
-let R, Q, L, D, X, P;
-try { R = run('main', 390, 844); Q = run('main', 390, 844, '{"fx":0,"fy":1}'); L = run('rotate', 844, 390); D = run('rotate', 1280, 800); X = run('rotate', 390, 844, '{"fx":"garbage","fy":null}'); P = run('laptop', 390, 844); }
+let R, Q, L, D, X, P, N = {}, CM;
+const LONG = 'Marisol Fernandez Ortega';
+try { R = run('main', 390, 844); Q = run('main', 390, 844, '{"fx":0,"fy":1}'); L = run('rotate', 844, 390); D = run('rotate', 1280, 800); X = run('rotate', 390, 844, '{"fx":"garbage","fy":null}'); P = run('laptop', 390, 844);
+  for (const w of [360, 390, 430, 1280]) N[w] = run('ribbon', w, w === 1280 ? 800 : 844, null, LONG); CM = await runLive('cam', 390, 844); }
 catch (e) { console.log('FAIL  the browser run — ' + e.message); process.exit(1); }
 const near = (a, b, d) => Math.abs(a - b) <= (d || 1);
-T('B0 no page error through the whole script', () => ok([R, Q, L, D, X, P].every((z) => z.err.length === 0), JSON.stringify([R.err, Q.err, L.err, D.err, X.err, P.err])));
+T('B0 no page error through the whole script', () => ok([R, Q, L, D, X, P, CM, ...Object.values(N)].every((z) => z.err.length === 0), JSON.stringify([R.err, Q.err, L.err, D.err, X.err, P.err, CM.err, Object.values(N).map((z) => z.err)])));
+T('N1 the name\'s side ends at least 8 px before the microphone\'s slot, and the microphone stays on the centre line — idle, voice call, video call; left-to-right and right-to-left (Arabic); at 360, 390, 430 px and a 1280 px window', () => {
+  for (const [w, z] of Object.entries(N)) for (const dir of ['ltr', 'rtl']) for (const st of ['idle', 'voice', 'video']) {
+    const m = z[dir][st], c = (m.rib.l + m.rib.r) / 2, mc = (m.mic.l + m.mic.r) / 2, at = w + ' ' + dir + ' ' + st + ' ' + JSON.stringify(m);
+    ok(Math.abs(mc - c) <= 1, 'the microphone left the centre line ' + at);
+    ok(dir === 'ltr' ? m.left.r <= m.mic.l - 8 + 0.5 : m.left.l >= m.mic.r + 8 - 0.5, 'the name\'s side reaches the microphone ' + at);
+    ok(m.left.l >= m.rib.l && m.left.r <= m.rib.r, 'the name\'s side left the ribbon ' + at);
+  }
+});
+T('N2 the name gets the room up to the microphone: at 390 px (an iPhone 13) in a video call with "Speaking…" showing, a long name\'s side reaches within 9 px of the microphone\'s slot and shows at least 70 px of the name (candidate 2: a 116 px side, ~32 px of the name — "m..")', () => {
+  const m = N[390].ltr.video; ok(m.mic.l - m.left.r <= 9, 'room left unused ' + JSON.stringify(m)); ok(m.title.w >= 70 && m.titleFull > m.title.w, 'name shown ' + JSON.stringify(m.title) + ' of ' + m.titleFull);
+});
+T('CV12 a REAL camera track (Chromium\'s fake camera) stopped mid video call comes back: one live video track, a real RTCPeerConnection sender sending it, the self-view re-pointed, cv_restored logged; the hang-up stops it', () => {
+  ok(CM.oldLive === 'live' && CM.stopped === 'ended', 'setup ' + JSON.stringify(CM));
+  const a = CM.after; ok(a.n === 1 && a.live === 'live' && !a.same && a.sent && a.self, JSON.stringify(a)); ok(CM.cv.includes('cv_restored'), CM.cv.join(',')); ok(CM.endLive === 'ended', 'still running after the hang-up: ' + CM.endLive);
+});
 T('B3 a voice call shows no window (the band stays hidden)', () => ok(R.voice.display === 'none', JSON.stringify(R.voice)));
-T('B4 a video call: the band is fixed to the screen, shaped like the partner\'s picture (a tall 360×640 phone picture → a tall 9:16 window), fully on screen, first place top-right under the ribbon', () => { const b = R.box0; ok(R.pos === 'fixed', 'position ' + R.pos); ok(near(b.h, b.w * 640 / 360, 2), 'not the partner\'s shape: ' + JSON.stringify(b)); ok(b.x >= 0 && b.y >= 0 && b.x + b.w <= R.vw && b.y + b.h <= R.vh, 'off screen ' + JSON.stringify(b)); ok(b.x + b.w >= R.vw - 12 && b.y >= (R.ribBottom || 0), 'not top-right under the ribbon ' + JSON.stringify(b) + ' ribbon ' + R.ribBottom); ok(b.w >= 140 && b.w <= 240, 'width ' + b.w); ok(R.shown === 1, 'vb_shown ' + R.shown); });
-T('B5 no band, no crop: each picture is whole in a frame of its OWN shape (contain in a matching frame) — the big one the window, the inset my own wide 640×480 picture', () => { ok(R.fit[0] === 'contain' && R.fit[1] === 'contain', R.fit.join('/')); ok(near(R.inset.h, R.inset.w * 480 / 640, 2), 'the inset is not my picture\'s shape ' + JSON.stringify(R.inset)); ok(near(R.big.w, R.box0.w, 1) && near(R.big.h, R.box0.h, 1), 'big ' + JSON.stringify(R.big)); });
+T('B4 a video call: the band is fixed to the screen, shaped like the partner\'s picture (a tall 360×640 phone picture → a tall 9:16 window), fully on screen, first place top-right under the ribbon', () => { const b = R.box0; ok(R.pos === 'fixed', 'position ' + R.pos); ok(near(R.boxLate.h, R.boxLate.w * 640 / 360, 2), 'not the partner\'s shape: ' + JSON.stringify(R.boxLate)); ok(b.x >= 0 && b.y >= 0 && b.x + b.w <= R.vw && b.y + b.h <= R.vh, 'off screen ' + JSON.stringify(b)); ok(b.x + b.w >= R.vw - 12 && b.y >= (R.ribBottom || 0), 'not top-right under the ribbon ' + JSON.stringify(b) + ' ribbon ' + R.ribBottom); ok(b.w >= 140 && b.w <= 240, 'width ' + b.w); ok(R.shown === 1, 'vb_shown ' + R.shown); });
+T('B5 no band, no crop: each picture is whole in a frame of its OWN shape (contain in a matching frame) — the big one the window, the inset my own wide 640×480 picture', () => { ok(R.fit[0] === 'contain' && R.fit[1] === 'contain', R.fit.join('/')); ok(near(R.insetLate.h, R.insetLate.w * 480 / 640, 2), 'the inset is not my picture\'s shape ' + JSON.stringify(R.insetLate)); ok(near(R.bigLate.w, R.boxLate.w, 1) && near(R.bigLate.h, R.boxLate.h, 1), 'big ' + JSON.stringify([R.bigLate, R.boxLate])); });
 T('B6 a press that moves drags the box and never swaps; the place is saved and logged', () => { ok(R.afterDrag.x === R.box0.x - 150 && R.afterDrag.y === R.box0.y + 300, JSON.stringify([R.box0, R.afterDrag])); ok(R.swapAfterDrag === false, 'a drag swapped'); ok(/"fx":/.test(R.saved || ''), 'not saved ' + R.saved); ok(R.moved >= 1, 'not logged'); });
 T('B6b clamped on all four sides', () => { ok(R.clampLow.x === 0 && R.clampLow.y === R.vh - R.clampLow.h, 'low ' + JSON.stringify(R.clampLow)); ok(R.clampHigh.x === R.vw - R.clampHigh.w && R.clampHigh.y === 0, 'high ' + JSON.stringify(R.clampHigh)); });
 T('B6c a press that does not move is a tap and swaps; the window RESHAPES to the new big picture (my wide one: a wide window), the partner goes to the corner in its tall shape; the window stays fully in the app column', () => { const w = R.boxAfterSwap; ok(R.swapAfterTap === true, 'no swap'); ok(near(w.h, w.w * 480 / 640, 2), 'the window did not take my picture\'s shape ' + JSON.stringify(w)); ok(near(R.bigAfterSwap.w, w.w, 1) && near(R.bigAfterSwap.h, w.h, 1), 'big after swap ' + JSON.stringify(R.bigAfterSwap)); ok(near(R.smallAfterSwap.h, R.smallAfterSwap.w * 640 / 360, 2) && R.smallAfterSwap.w < w.w / 2, 'small after swap ' + JSON.stringify(R.smallAfterSwap)); ok(R.smallAfterSwap.h <= w.h * 0.45 + 2, 'the tall inset overflows the wide window ' + JSON.stringify([R.smallAfterSwap, w])); ok(w.x >= R.app.x && w.x + w.w <= R.app.x + R.app.w && w.y >= 0 && w.y + w.h <= R.vh, 'left the app ' + JSON.stringify([w, R.app])); ok(w.y === R.beforeSwap.y, 'the top edge moved on the reshape ' + JSON.stringify([R.beforeSwap, w])); });
