@@ -7,9 +7,9 @@ const sources=[['s1','/mnt/a/Photos',300,now-3600],['s2','/mnt/b/Video',250,now-
 let n=0;const P=(src,cls,gb,fp,sub)=>({placement_id:'p'+(++n),placement_no:n,source_id:src,estate:src,path:sources.find(x=>x.source_id===src).root+(sub?'/'+sub:'')+'/f'+n,filename:'f'+n,size:gb*GB,fingerprint:fp||'fp'+n,system_classification:cls,availability:'OK',placement_state:'ACTIVE'});
 // SCANNED 900 = UNIQUE 600 + KEEP 100 + EXCESS 200 ; ESTATE 700 ; roots retained a=300 b=250 c=150
 let placements=[P('s1','UNIQUE',300),P('s2','UNIQUE',150,null,'2024'),P('s3','UNIQUE',150),P('s2','KEEP',100,'dup','2024/trips'),P('s3','EXCESS',100,'dup'),P('s2','EXCESS',100,'dup2')];
-let targetOffline=false,mockJobs=[],removedIds=[],rev=1,counts={page:0,delta:0},deltaMode='ok',targetBytes=600*GB,stalenessMissing=false,pageDelay=0,stalenessSlow=false;
+let jobsSlow=false,targetOffline=false,mockJobs=[],removedIds=[],rev=1,counts={page:0,delta:0},deltaMode='ok',targetBytes=600*GB,stalenessMissing=false,pageDelay=0,stalenessSlow=false;
 const api=(u)=>{const p=u.pathname.replace(/^\/sot/,'');
- if(p==='/api/jobs')return {ok:true,jobs:mockJobs,scheduler:{}};if(p==='/api/events')return {ok:true,events:[]};if(p==='/api/sources')return {ok:true,sources};
+ if(p==='/api/jobs'&&jobsSlow)return 'slow';if(p==='/api/events'&&jobsSlow)return 'slow';if(p==='/api/jobs')return {ok:true,jobs:mockJobs,scheduler:{}};if(p==='/api/events')return {ok:true,events:[]};if(p==='/api/sources')return {ok:true,sources};
  if(p==='/api/target')return targetOffline?{ok:true,target:{configured:true,path:'/mnt/t',label:'T',available:false,registered_free_bytes:targetBytes}}:{ok:true,target:{configured:true,path:'/mnt/t',free_bytes:targetBytes,registered_free_bytes:targetBytes,available:true}};
  if(p==='/api/health')return {ok:true,catalog_revision:rev,creation_revision:1,db:{state:'healthy'}};
  if(p==='/api/placements/delta'){counts.delta++;if(deltaMode==='missing')return {ok:false,error:'not found'};const since=Number(u.searchParams.get('since'));if(since===rev)return {ok:true,full:false,unchanged:true,catalog_revision:rev,upserts:[],removed:[]};if(deltaMode==='full')return {ok:true,full:true,catalog_revision:rev,total:placements.length};return {ok:true,full:false,unchanged:false,catalog_revision:rev,total:placements.length,upserts:placements.filter(x=>x.rev===rev),removed:removedIds}}
@@ -166,10 +166,10 @@ try{
  mockJobs=[];await fr.evaluate(()=>{eval('jobs=window.__ssotJobsSave||[]');renderPlan()});
  pass('a scanning root shows a yellow dot, a live progress bar and the file being fingerprinted; the Roots icon carries a yellow dot');
  // unreadable: red at the top, no numbers, only Retry / Remove
- await fr.evaluate(()=>{sources[2].reachable=false;renderPlan()});rows=await rowsOf();ok(rows[0].red&&rows[0].dot==='red'&&/Archive/.test(rows[0].root)&&rows[0].files===''&&rows[0].size===''&&!rows[0].now,'red row '+JSON.stringify(rows[0]));
+ sources[2].reachable=false;await fr.evaluate(()=>{sources[2].reachable=false;renderPlan()});rows=await rowsOf();ok(rows[0].red&&rows[0].dot==='red'&&/Archive/.test(rows[0].root)&&rows[0].files===''&&rows[0].size===''&&!rows[0].now,'red row '+JSON.stringify(rows[0]));
  await fr.click('.estate-table tr.redrow .rdots');await pg.waitForTimeout(200);ok(JSON.stringify(await fr.$$eval('.rpop button',b=>b.map(x=>x.textContent)))==='["Retry","Remove"]','red row menu');
  await fr.click('.rpop button:has-text("Retry")');await pg.waitForTimeout(400);ok(ctlCalls.at(-1)?.action==='rescan'&&ctlCalls.at(-1)?.source_id==='s3','retry sends rescan '+JSON.stringify(ctlCalls));
- await fr.evaluate(()=>{sources[2].reachable=true;renderPlan()});
+ sources[2].reachable=true;await fr.evaluate(()=>{sources[2].reachable=true;renderPlan()});
  pass('a root that cannot be read is red, sits at the top with no numbers, and offers only Retry or Remove');
  await fr.click('.estate-table tbody tr:not(.trow):nth-child(2) .rdots');await pg.waitForTimeout(200);ok(JSON.stringify(await fr.$$eval('.rpop button',b=>b.map(x=>x.textContent)))==='["Search","Exclude","Rescan","Remove"]','row menu');
  await fr.click('.rpop button:has-text("Remove")');await pg.waitForTimeout(500);ok(ctlCalls.at(-1)?.action==='remove'&&ctlCalls.at(-1)?.source_id==='s2'&&!(await fr.evaluate(()=>document.getElementById('modal')?.classList.contains('on'))),'remove happens at once, no dialog '+JSON.stringify(ctlCalls.at(-1)));
@@ -316,6 +316,8 @@ try{
  await fr.click('#ssot-rail button[data-nav="map"]');await pg.waitForTimeout(300);ok(JSON.stringify(await onNav())==='["Map"]'&&await fr.evaluate(()=>!!document.querySelector('#Plan .flow')),'Map back to the treemap: '+await onNav());
  pass('exactly one menu item is highlighted for the page you are on (Map, Roots, Duplicates, Land)');
  await pg.context().close();
+ // a slow jobs/events endpoint must not hide the roots (they load on their own)
+ jobsSlow=true;{const o=await open(1280,900);await o.fr.evaluate(()=>{localStorage.removeItem('sotSourcesCache');__ssotGo('roots')});await o.pg.waitForTimeout(2500);const n=await o.fr.evaluate(()=>document.querySelectorAll('.estate-table tbody tr[data-sid]').length);ok(n===3,'roots still show while /api/jobs is slow: '+n);pass('roots load even when the jobs or events request is slow');await o.ctx.close()}jobsSlow=false;
  // older backend without the staleness endpoint must still load the database and release the blocker
  stalenessMissing=true;{const o=await open(1280,900);ok(await o.fr.evaluate(()=>placements.length>0&&!document.querySelector('#ssot-db-blocker.on')),'database did not load without staleness endpoint');pass('database loads and the blocker clears when the staleness endpoint is unavailable (older backend)');await o.ctx.close()}stalenessMissing=false;
  // refresh indicator: started + progressing, last updated, stale detection
