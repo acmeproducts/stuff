@@ -10,7 +10,7 @@
 - In‑app diagnostics panel (collapsible) logs all interactions. No console‑only output.
 - **Owner direction (2026-10-21):** next code must include tilt detents + pinch-to-resize AND seeded Configure-panel menus for real browser use plus at least one multi-level nested menu. GitHub token/save/load remains later unless owner re-prioritizes.
 - Built since: tilt detents (0/15/30/45/60 snap), pinch + wheel radius, seeded Browser & multi-level Launcher menus, nested submenu navigation with breadcrumbs + back node, Configure panel (menu list, add/delete items, view readouts, reset), hover tooltips, pop-out window + PWA manifest, GitHub token save/load of menus JSON.
-- Not yet built in code: transparent background, node reposition handles, seeded repo/web bookmarks, read aloud, reading mode, center-action gesture assignment, icon tier system, embed mode.
+- Not yet built in code: in-page web navigation (links must not open new tabs), page→menu payload handshake, center-action gesture assignment, icon tier system, embed mode.
 
 ## PRODUCT VISION
 A floating, always‑on‑top circular launcher. A smiling orange heart floats over everything. One tap blooms a rotatable, tiltable, zoomable ring of action nodes. Content is data‑driven (local seeded menus now; JSON/GitHub later), so menus can nest infinitely. Standalone first; designed to embed later into the owner's existing page.
@@ -151,7 +151,7 @@ Make the pop-out truly float over other content, give ring nodes reposition hand
 | 10 | Slice 3 re-scoped: gestures + seeded config menus | ✅ Built |
 | 10b | Submenus, tooltips, pop-out window, GitHub sync | ✅ Built |
 | 11 | Editor upgrade: edit in place + ▲▼ reorder + drag handles | ✅ Built |
-| 12 | Transparent bg, node handles, seeded bookmarks, read aloud, reading mode | 📋 Plan updated — code next |
+| 12 | Transparent bg, node handles, seeded bookmarks, read aloud, reading mode | ✅ Built (2026-10-22, a3b39fe) |
 
 ## RUN LOG
 | Date | Result | What |
