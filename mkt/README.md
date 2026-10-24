@@ -26,3 +26,7 @@ Open: no double-tap card code exists in any Market Navigator HTML from Sep 6 to 
 Floor = mkt/floor-sep27-t28-postship (commit 996e9a71b): NOW complete (Fixed/Horizon, dual axis, grouped USD on Y2); Analyze present via long-press card but malformed (oval chips, no Fixed/Horizon). floor-sep22-t26 removed: Turn 25/26 NOW lacks Fixed/Horizon and Y2 grouping; DXY ends short at 5D.
 Known open: indices end Sep 22 vs raw Sep 25; 5D alignment of index components not yet verified on this pair.
 Gesture: long-press legend chip opens the card (Analyze icon inside); tap never does.
+
+## work-sep27-nodata-greyout (one change on the floor)
+Rule (owner): if a series has no data for the horizon, do not draw it; grey the chip. Change: a series needs at least 2 real readings inside the horizon (one-line edit in the in-window indexing function). Floor folder untouched.
+Lab result, RSK components: 5D greys NFCI (1 reading); MTD, 1YR, 5YR unchanged; no page errors. Not yet checked: GRW and MAC, Analyze, real phone. Remaining ragged cause (different clock times per series) not touched.
