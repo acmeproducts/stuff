@@ -16,3 +16,8 @@ Removed (fail the test or no Analyze clone): Sep 22 and Sep 27 builds, Oct 22 bu
 
 ## baseline-sep27-t28-postship (proposed baseline)
 Exact pair at commit 996e9a71b (Sep 27, Turn 28 post-ship): front end as index.html, with market-evidence and data/market-backend from the same commit. NOW only; dual axis and Fixed/Horizon present; chart clicks never open the series card. Known gap: indices end Sep 22 while raw series end Sep 24-25 (end-alignment rule not yet built).
+
+## Re-scoped (owner, Oct 24)
+Floor = mkt/floor-sep22-t26-standalone-analyze: exact pair at commit 8e4b8864c (Turn 26 ship, daily-rebuild data, standalone Analyze opened from the series card). Known: its Analyze mimics NOW rather than reusing its code.
+The Oct 5-6 folders are renamed reference-*: how to modularize Analyze, not ceilings. baseline-sep27-t28-postship was removed (wrong era; still in git history at 996e9a71b).
+Open: no double-tap card code exists in any Market Navigator HTML from Sep 6 to Oct 5; the card opens by long-press/right-click on a legend chip.
