@@ -1,15 +1,15 @@
-# mkt — Market Navigator restore points
+# mkt — Market Navigator restore points (chosen by behavior, not approvals)
 
-Each folder is a git snapshot: the front end and its data exactly as they sat together in one commit. Nothing was edited or mixed.
+Each folder is one git commit: the front end and its data exactly as they sat together.
 
-| Folder | Role | Commit | What it is |
-|---|---|---|---|
-| approved-oct18-throwaway-etl | RECOMMENDED BASE | 2dd7826ee (Oct 18) | Owner-approved throwaway (blob ee38d9c9) exactly as connected to its ETL data. |
-| floor0-sep22-t26-daily-rebuild | Floor 0 (pre-method-change) | 8e4b8864c (Sep 22) | Turn 26 + daily full-rebuild index file (derived-indices.json). Last pair before the Sep 23 switch. |
-| floor-sep27-t28-postship | Floor | 996e9a71b (Sep 27) | Turn 28 post-ship + root data at that commit. No Analyze surface. |
-| mid-oct06-modular-analyze | Middle | 9bc57e080 (Oct 6) | Modular NOW + Analyze recovery + root data at that commit. |
-| ceiling-oct22-rejected | Ceiling | 2da429140 (Oct 22) | Rejected app 67b5d7fe + its own data package. |
+Test used: Analyze spawns as a pixel-identical clone of NOW; dual Y-axis works in both; Horizon vs Fixed works in both; changing Analyze leaves NOW untouched; no page errors.
+Result: 15 of 49 builds with an Analyze clone pass all checks. Earliest: Oct 5 23:40. Latest before the data gate: Oct 21 05:54. From Oct 21 10:23 the throwaway build shows "Market data withheld" and no chart.
 
-Earlier cross-wired candidates (candidate1-3) were removed: they mixed front ends and data from different points in time.
+| Folder | Role | Commit |
+|---|---|---|
+| floor-oct05-first-working-modular | Floor | d5bcf9094 (Oct 5 23:40) |
+| mid-oct06-modular-analyze | Between | 9bc57e080 (Oct 6 04:07) |
+| approved-oct18-throwaway-etl | Between | 2dd7826ee (Oct 18 20:48) |
+| ceiling-oct21-last-before-data-gate | Ceiling | 90ef0e63e (Oct 21 05:54) |
 
-Data eras: (1) to Sep 22 index file rebuilt in full every day; (2) Sep 23 persistent index file, frozen at Sep 22, series window changed; (3) Oct 18+ sync pipeline (static history + daily append).
+Removed (fail the test or no Analyze clone): Sep 22 and Sep 27 builds, Oct 22 build. All remain in git history.
