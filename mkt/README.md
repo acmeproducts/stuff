@@ -21,3 +21,8 @@ Exact pair at commit 996e9a71b (Sep 27, Turn 28 post-ship): front end as index.h
 Floor = mkt/floor-sep22-t26-standalone-analyze: exact pair at commit 8e4b8864c (Turn 26 ship, daily-rebuild data, standalone Analyze opened from the series card). Known: its Analyze mimics NOW rather than reusing its code.
 The Oct 5-6 folders are renamed reference-*: how to modularize Analyze, not ceilings. baseline-sep27-t28-postship was removed (wrong era; still in git history at 996e9a71b).
 Open: no double-tap card code exists in any Market Navigator HTML from Sep 6 to Oct 5; the card opens by long-press/right-click on a legend chip.
+
+## Re-scoped again (owner, Oct 24)
+Floor = mkt/floor-sep27-t28-postship (commit 996e9a71b): NOW complete (Fixed/Horizon, dual axis, grouped USD on Y2); Analyze present via long-press card but malformed (oval chips, no Fixed/Horizon). floor-sep22-t26 removed: Turn 25/26 NOW lacks Fixed/Horizon and Y2 grouping; DXY ends short at 5D.
+Known open: indices end Sep 22 vs raw Sep 25; 5D alignment of index components not yet verified on this pair.
+Gesture: long-press legend chip opens the card (Analyze icon inside); tap never does.
