@@ -31,7 +31,5 @@ Gesture: long-press legend chip opens the card (Analyze icon inside); tap never 
 Rule (owner): if a series has no data for the horizon, do not draw it; grey the chip. Change: a series needs at least 2 real readings inside the horizon (one-line edit in the in-window indexing function). Floor folder untouched.
 Lab result, RSK components: 5D greys NFCI (1 reading); MTD, 1YR, 5YR unchanged; no page errors. Not yet checked: GRW and MAC, Analyze, real phone. Remaining ragged cause (different clock times per series) not touched.
 
-### work-sep27-nodata-greyout: change 2 and 3 (owner rule: readings are stamped by batch date; time of day is irrelevant)
-- Readings are placed by their date (last reading of the day wins); 1D keeps intraday times.
-- Horizons other than 1D end on the last batch day, not the end of it, so the last reading sits on the right edge.
-Lab result, RSK components at 5D: all lines end flush at the right edge; 1YR also flush; no page errors. Not yet checked: GRW, MAC, Analyze, dual axis, real phone.
+### Reverted (owner, Oct 24): batch-date placement and day-end horizon
+Wrong premise: the date is only a batch identifier. A reading for batch 10/22 can arrive on 10/23, so placing by timestamp date would put it in the wrong batch. Work copy is back to change 1 only (no-data greyout). Fix needs a batch id carried with each reading, assigned by the collector.
