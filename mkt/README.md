@@ -13,3 +13,6 @@ Result: 15 of 49 builds with an Analyze clone pass all checks. Earliest: Oct 5 2
 | ceiling-oct21-last-before-data-gate | Ceiling | 90ef0e63e (Oct 21 05:54) |
 
 Removed (fail the test or no Analyze clone): Sep 22 and Sep 27 builds, Oct 22 build. All remain in git history.
+
+## baseline-sep27-t28-postship (proposed baseline)
+Exact pair at commit 996e9a71b (Sep 27, Turn 28 post-ship): front end as index.html, with market-evidence and data/market-backend from the same commit. NOW only; dual axis and Fixed/Horizon present; chart clicks never open the series card. Known gap: indices end Sep 22 while raw series end Sep 24-25 (end-alignment rule not yet built).
