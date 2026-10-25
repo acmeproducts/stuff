@@ -11,21 +11,22 @@ Every build session appends a row here BEFORE touching code.
 | 2026-09-27 | T0 — Plan init | Created master plan; seeded known facts | Done |
 | 2026-10-25 | T1 — Analysis request | Owner asked to audit particle.html; source not yet in hand | Blocked → resolved T2 |
 | 2026-10-25 | T2 — Audit done | Owner pasted full particle.html source. Four-part audit completed and recorded under R1 (below). Verdict: keep the core; fix mobile/perf; add presets + touch | Done |
+| 2026-10-25 | T3 — Build ordered + rename | Owner said "build the whole thing, call it sndwiz.html". Code file officially renamed to projects/sndwiz.html (owner explicit instruction overrides default path; recorded in Decision Log). Plan updated before code per Rule 3. Build of full R1 scope begins next run | Plan done → code next |
 
 ## 1. RELEASES
 
 | # | Name | One-line goal |
 |---|---|---|
-| R1 | Particle Waves — mobile-first rebuild | Port particle.html into projects/test-product.html: touch-first, phone-fast, same visuals + mic reactivity, plus presets |
+| R1 | sndwiz — mobile-first particle waves | Build projects/sndwiz.html: touch-first, phone-fast rebuild of particle.html with same visuals + mic reactivity, plus presets |
 
 ## 2. RELEASE DETAIL
 
-### R1 — Particle Waves, mobile-first
-- **Goal:** A compelling single-file phone-first particle wave app at projects/test-product.html, rebuilt from the audited baseline.
+### R1 — sndwiz, mobile-first
+- **Goal:** A compelling single-file phone-first particle wave app at **projects/sndwiz.html**, rebuilt from the audited baseline.
 - **Scope IN:**
   - Everything in "Keep" + "Needs work" fixes below.
-  - Touch camera (orbit + pinch), collapsible controls, viewport meta, DPR-aware canvas, adaptive resolution.
-  - Presets, mic UX with in-app status/errors, settings persistence.
+  - Touch camera (orbit + pinch + double-tap reset), collapsible bottom-sheet controls, viewport meta, DPR-aware canvas, adaptive resolution.
+  - Presets, mic UX with in-app status/errors, settings persistence, first-run hint, fullscreen, prefers-reduced-motion respect.
 - **Scope OUT:** WebGL renderer, multi-user/share links, audio file input (Future Ideas).
 - **Build gates (verify on real devices):**
   - Opens on a phone browser; no blank screen, no dead controls.
@@ -74,9 +75,8 @@ Every build session appends a row here BEFORE touching code.
 - Respect prefers-reduced-motion.
 
 ### Open items (top priority first)
-1. Owner confirms R1 scope (default: all "fix" + "add" items above) — or just say "build it".
-2. First build of projects/test-product.html per audit.
-3. Device-test gates above; log results in ledger.
+1. Build projects/sndwiz.html with full R1 scope (owner confirmed: "build the whole thing") — **next run, code write**.
+2. Device-test gates above; log results in ledger.
 
 ## 3. FUTURE IDEAS
 
@@ -93,7 +93,7 @@ Unscheduled parking lot. Nothing here is promised.
 3. Update plan before code: this file changes first, code second, every time.
 4. Read-back verification after every push: re-read what was written and confirm it matches intent.
 5. No stubs or fake data: everything on screen works with real logic.
-6. One file write per response; code lives at projects/test-product.html unless the owner says otherwise.
+6. One file write per response; code lives at projects/sndwiz.html (owner-renamed from projects/test-product.html, 2026-10-25).
 7. Never fabricate analysis of a file whose contents were not provided; ask for the source instead.
 
 ## 5. DECISION LOG
@@ -103,6 +103,8 @@ Unscheduled parking lot. Nothing here is promised.
 | 2026-09-27 | Plan structure adopted (ledger → releases → detail → ideas → rules → decisions → appendix) | Owner |
 | 2026-10-25 | particle.html chosen as candidate baseline; audit precedes any build | Owner |
 | 2026-10-25 | Audit verdict: keep core engine + audio pipeline; rebuild UI mobile-first; R1 = fix list + add list | Agent (recorded) |
+| 2026-10-25 | Full R1 scope confirmed for build ("build the whole thing") | Owner |
+| 2026-10-25 | Code file renamed: projects/test-product.html → projects/sndwiz.html. Owner explicit instruction in-request overrides default path; sndwiz.html is the project's code file from now on | Owner |
 
 ## 6. APPENDIX
 
@@ -113,6 +115,7 @@ Unscheduled parking lot. Nothing here is promised.
 4. Chat history — partial or missing; loses to all of the above.
 
 **Known facts:**
-- Code file: projects/test-product.html — single-file, mobile-first HTML app. Not yet created.
+- Code file: **projects/sndwiz.html** — single-file, mobile-first HTML app. Not yet created. (Supersedes projects/test-product.html per owner instruction, 2026-10-25.)
+- Plan file: projects/test-product.md (this file) — path never changes.
 - Baseline: particle.html (acmeproducts/dev) — full source received and audited 2026-10-25; catalog stored under R1.
 - App concept: audio-reactive 3D particle wave field; audience/features per R1 scope.
