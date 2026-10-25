@@ -205,3 +205,4 @@ Owner asked for a separate "demo web page" file. Project constraint: the ONLY co
 | 2026-10-22 00:41 | Main | failed | I couldn't finish that one. Your app is unchanged. |  |
 | 2026-10-22 03:05 | Main | failed | I couldn't finish that one. Your app is unchanged. |  |
 | 2026-10-22 05:45 | Main | built projects/circle-menu.html | Transparent pop-out background, node drag handles for ring repositioning, seeded repo/web bookmark submenus, and read-aloud + reading-mode a | a3b39fe |
+| 2026-10-25 06:23 | Main | built projects/circle-menu.html | The whole demo suite is built: a built-in demo page (article, tone media pad, nav trail, counter and flash box) that the ring drives end-to- | 37c11f2 |
