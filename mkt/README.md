@@ -33,3 +33,7 @@ Lab result, RSK components: 5D greys NFCI (1 reading); MTD, 1YR, 5YR unchanged; 
 
 ### Reverted (owner, Oct 24): batch-date placement and day-end horizon
 Wrong premise: the date is only a batch identifier. A reading for batch 10/22 can arrive on 10/23, so placing by timestamp date would put it in the wrong batch. Work copy is back to change 1 only (no-data greyout). Fix needs a batch id carried with each reading, assigned by the collector.
+
+## Graveyard (owner rejected, Oct 24)
+Removed: dumb-now (from-scratch modular NOW/Analyze), model-batch-store (modeled data), check_design.py, work-sep27-nodata-greyout. Reason: the agreed plan is to restore a working front-end/data pair from history (floor and ceiling), not to rebuild. All remain in git history at commit 2396c81.
+Kept: DESIGN-IMPERATIVE.md (the principle, for the later rebuild of the data pipeline), the floor, the Oct reference folders.
