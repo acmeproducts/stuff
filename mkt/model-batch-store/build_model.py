@@ -76,7 +76,7 @@ manifest={'now':NOW,'horizons':['1D','5D','MTD','YTD','1YR','3YR','5YR'],'indice
 for k,idef in defn.items(): manifest['indices'][k]={'name':idef['name'],'label':k.upper(),'components':[c['id'] for c in idef['components']]}
 comp_tr={c['id']:c['transform'] for idef in defn.values() for c in idef['components']}
 ids=[sid for sid in cat if os.path.exists(os.path.join(SRC,f'market-evidence/series/{sid}.json')) and cat[sid].get('enabled',True)]
-for sid in ids: manifest['catalog'].append({'id':sid,'label':cat[sid].get('short_name',sid),'name':cat[sid].get('name',sid),'unit':cat[sid].get('native_unit',''),'cadence':cat[sid].get('native_cadence','')})
+for sid in ids: manifest['catalog'].append({'id':sid,'label':cat[sid].get('short_name',sid),'name':cat[sid].get('name',sid),'unit':cat[sid].get('native_unit',''),'quote':(cat[sid].get('native_unit','')+' per share') if cat[sid].get('native_unit')=='USD' else cat[sid].get('native_unit',''),'axis':'Y2' if cat[sid].get('native_unit','').startswith('USD') else 'Y1','cadence':cat[sid].get('native_cadence','')})
 for k in defn: manifest['catalog'].append({'id':k,'label':k.upper(),'name':defn[k]['name'],'unit':'Index','cadence':'derived'})
 colors={'risk':'#29d3ff','growth':'#ffd166','macro':'#5be3a0'}
 for h in manifest['horizons']:
