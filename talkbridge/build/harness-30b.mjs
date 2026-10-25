@@ -8,7 +8,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { JSDOM, VirtualConsole } from 'jsdom';
 import { runBoth, KEYS, diff } from './rig-28pos.mjs';
-import { basePage, assemblePage, assembleManifests, applyIdentity, IDENTITY, PARTS, PART_DECL, CHROME_BACKGROUND, STAGE_PAGE, STAGE_TAG, MANIFEST_NAME, MANIFEST_IOS_NAME, FOLDER_PATH, TAIL } from './assemble-30b.mjs';
+import { basePage, assemblePage, assembleManifests, applyIdentity, IDENTITY, PARTS, PART_DECL, CHROME_BACKGROUND, JENNY, JENNY_EDITS, assembleJenny, STAGE_PAGE, STAGE_TAG, MANIFEST_NAME, MANIFEST_IOS_NAME, FOLDER_PATH, TAIL } from './assemble-30b.mjs';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
 const quiet = process.argv.includes('--quiet');
@@ -68,6 +68,19 @@ await T('F the stage\'s manifests: Chrome\'s starts THIS page with the folder id
   for (const f of [MANIFEST_NAME, MANIFEST_IOS_NAME]) assert(fs.readFileSync(path.join(root, 'talkbridge-app', f), 'utf8') === (f === MANIFEST_NAME ? m.chrome : m.ios), f + ' is not the assembled output');
   assert(stage.indexOf('tb-manifest-turn29') === -1, 'the stage still names a 29 manifest');
   assert(stage.indexOf("log('build', { c: '" + STAGE_TAG + "', file: 'talkbridge-app/" + STAGE_PAGE + "'") !== -1, 'build line');
+});
+
+await T('J Jenny\'s instance (owner 2026-10-25, "a separate instance"): the stage page with ONLY its identity changed — its own manifests, its own home-screen title, its own build file — and its own install identity (its own app id and start page, named TalkBridge Jenny); the files on disk are the assembled output', () => {
+  const jp = process.env.TB_30B_JENNY ? fs.readFileSync(process.env.TB_30B_JENNY, 'utf8') : fs.readFileSync(path.join(root, 'talkbridge-app', JENNY.page), 'utf8');
+  const m = assembleManifests(), j = assembleJenny(stage, m);
+  assert(jp === j.page, 'the Jenny page is not the stage page with the Jenny edits');
+  let back = jp; for (const e of JENNY_EDITS) back = back.split(e.replace).join(e.find); assert(back === stage, 'the Jenny page differs from the stage page by more than its identity');
+  assert(jp.indexOf(MANIFEST_NAME) === -1 && jp.indexOf(MANIFEST_IOS_NAME) === -1, 'the Jenny page still names the owner\'s manifests');
+  const c = JSON.parse(fs.readFileSync(path.join(root, 'talkbridge-app', JENNY.manifest), 'utf8')), i = JSON.parse(fs.readFileSync(path.join(root, 'talkbridge-app', JENNY.manifestIos), 'utf8'));
+  assert(fs.readFileSync(path.join(root, 'talkbridge-app', JENNY.manifest), 'utf8') === j.chrome && fs.readFileSync(path.join(root, 'talkbridge-app', JENNY.manifestIos), 'utf8') === j.ios, 'the Jenny manifests are not the assembled output');
+  assert(c.id === JENNY.id && c.id !== FOLDER_PATH && c.start_url === './' + JENNY.page && c.name === 'TalkBridge Jenny' && c.scope === './', 'chrome ' + JSON.stringify(c));
+  assert(!('id' in i) && !('start_url' in i) && i.name === 'TalkBridge Jenny', 'ios ' + JSON.stringify(i));
+  assert(/<meta name="apple-mobile-web-app-title" content="TB Jenny">/.test(jp), 'home-screen title');
 });
 
 /* a phone with a recording camera: what is asked of getUserMedia */
