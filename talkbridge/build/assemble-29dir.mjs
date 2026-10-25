@@ -46,7 +46,7 @@ export const ADDED_SYMBOLS = ['drRetireRoot'];
 export const TAIL = '\n</script>\n</body>\n</html>';
 /* the folder holds every stage; this stage's check ignores what the later stages' assemblers write */
 export const LATER_STAGES = /^(bridge-turn(29-(ship|post-ship)|[3-9]\d-[a-z-]+)\.html|tb-sw[4-9]\.js|tb-manifest-turn(29-(ship|post-ship)|[3-9]\d-[a-z-]+)(-ios)?\.webmanifest)$/;   /* 30·base on (2026-10-22): any later turn's stage files */
-export const OUT = { page: FOLDER + '/' + STAGE_PAGE, index: FOLDER + '/index.html', next: FOLDER + '/next.html', worker: FOLDER + '/tb-sw3.js', manifest: FOLDER + '/' + MANIFEST_NAME, manifestIos: FOLDER + '/' + MANIFEST_IOS_NAME };
+export const OUT = { page: FOLDER + '/' + STAGE_PAGE, index: FOLDER + '/index.html', next: FOLDER + '/next.html', nextJenny: FOLDER + '/next-jenny.html', worker: FOLDER + '/tb-sw3.js', manifest: FOLDER + '/' + MANIFEST_NAME, manifestIos: FOLDER + '/' + MANIFEST_IOS_NAME };
 /* the folder's face: the forwarder §7.5 specifies for old addresses, used here for the folder URL itself */
 /* the folder's face forwards to the CURRENT ACCEPTED stage — recorded in one fixture, moved only at an acceptance (29·ship c6 accepted 2026-10-11) */
 export const CURRENT_STAGE_FILE = 'talkbridge/fixtures/dir/current-stage.json';
@@ -55,7 +55,7 @@ export function currentStage() { return JSON.parse(fs.readFileSync(path.join(roo
 export const NEXT_STAGE_FILE = 'talkbridge/fixtures/dir/next-stage.json';
 export function nextStage() { return JSON.parse(fs.readFileSync(path.join(root, NEXT_STAGE_FILE), 'utf8')).page; }
 export function forwarder(stagePage, door) {
-  return '<!-- /stuff/talkbridge-app/ · the folder is the app; this page opens ' + (door === 'next' ? 'the NEWEST CANDIDATE (the second door, for the owner\'s testing; the folder itself opens the accepted stage): ' : 'the current stage: ') + stagePage + ' -->\n<!DOCTYPE html>\n<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>TalkBridge</title>\n<meta name="theme-color" content="#2E8B8B"><link rel="icon" href="icon-v2-192.png" type="image/png">\n<style>body{margin:0;background:#FDFAF7;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;color:#243230;display:flex;align-items:center;justify-content:center;height:100vh}</style>\n</head><body>\n<noscript><a href="' + stagePage + '">Open TalkBridge</a></noscript>\n<script>location.replace(\'./' + stagePage + '\' + location.search + location.hash);</script>\n</body></html>\n';
+  return '<!-- /stuff/talkbridge-app/ · the folder is the app; this page opens ' + (door === 'next' ? 'the NEWEST CANDIDATE (the second door, for the owner\'s testing; the folder itself opens the accepted stage): ' : door === 'next-jenny' ? 'the NEWEST CANDIDATE (Jenny\'s copy of the second door, owner 2026-10-25; it moves with next.html): ' : 'the current stage: ') + stagePage + ' -->\n<!DOCTYPE html>\n<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>TalkBridge</title>\n<meta name="theme-color" content="#2E8B8B"><link rel="icon" href="icon-v2-192.png" type="image/png">\n<style>body{margin:0;background:#FDFAF7;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;color:#243230;display:flex;align-items:center;justify-content:center;height:100vh}</style>\n</head><body>\n<noscript><a href="' + stagePage + '">Open TalkBridge</a></noscript>\n<script>location.replace(\'./' + stagePage + '\' + location.search + location.hash);</script>\n</body></html>\n';
 }
 
 function checked(file, want) { const b = fs.readFileSync(path.join(root, file)); if (want && sha(b) !== want) throw new Error('assemble: ' + file + ' is not the expected bytes\n  expected ' + want + '\n  found    ' + sha(b)); return b; }
@@ -110,7 +110,7 @@ export function assembleManifests(opts) {
 export function assembleAll(opts) {
   opts = opts || {};
   const m = assembleManifests(opts);
-  const files = { [OUT.page]: assemblePage(opts), [OUT.index]: forwarder(opts.forwardTo || currentStage()), [OUT.next]: forwarder(opts.nextTo || nextStage(), 'next'), [OUT.worker]: assembleWorker(opts), [OUT.manifest]: m.chrome, [OUT.manifestIos]: m.ios };
+  const files = { [OUT.page]: assemblePage(opts), [OUT.index]: forwarder(opts.forwardTo || currentStage()), [OUT.next]: forwarder(opts.nextTo || nextStage(), 'next'), [OUT.nextJenny]: forwarder(opts.nextTo || nextStage(), 'next-jenny'), [OUT.worker]: assembleWorker(opts), [OUT.manifest]: m.chrome, [OUT.manifestIos]: m.ios };
   for (const c of COPIES) files[FOLDER + '/' + c] = fs.readFileSync(path.join(root, c));
   return files;
 }

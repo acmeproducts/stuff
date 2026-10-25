@@ -1,5 +1,5 @@
-<!-- TALKBRIDGE-PLAN v21.114.0 -->
-# TALKBRIDGE MASTER PLAN v21.114.0
+<!-- TALKBRIDGE-PLAN v21.114.1 -->
+# TALKBRIDGE MASTER PLAN v21.114.1
 
 **Location:** `talkbridge/TALKBRIDGE-PLAN-v9.md` in `acmeproducts/stuff`.
 **Owner:** Confi — sole decision-maker, runs every device gate.
@@ -149,7 +149,7 @@ the directory release and IndexedDB each moved one turn later; nothing was dropp
 | 29·post-ship | **localization** — the app's own words in the user's language, both sides (§7.17) — moved up from 30·base by owner ruling 2026-10-10 | **ACCEPTED 2026-10-20 · candidate 7 · sha `c1c417e21dd1` · tb-sw5.js · relay v6.17 (owner: "approved")** — localization, the reach bar, reachability, the activity log, the room name phone to phone, no names on the server. Candidate history: c1–c7 (§7.17, §7.20, §7.21; changelog v21.96.0–v21.109.0) | **https://acmeproducts.github.io/stuff/talkbridge-app/bridge-turn29-post-ship.html** |
 | 30·post-ship | IndexedDB — behind its POC; if the owner defers it past beta, it stays here | queued | — |
 | 30·pre-base | byte-identical snapshot of accepted 29·post-ship | **BANKED 2026-10-22 BY REFERENCE** — the accepted `talkbridge-app/bridge-turn29-post-ship.html` (sha `c1c417e21dd1`), immutable under §0c; 30·base's assembler sha-checks it | — |
-| 30·base | **THE VIDEO BOX (§7.22)** — owner 2026-10-22: "it should be the tall 9:16 that's draggable"; multi-user (conference-room model) moves later, only after its spec is written and approved | **CANDIDATE 3 · BUILT 2026-10-23 · relay v6.17 (unchanged) · tb-sw5.js (unchanged) — candidate 2's window (the SHAPE OF ITS PICTURE) + the camera comes back after iPhone dictation (CV-1) + the room's name gets the room up to the microphone (NM-1) + the Android strip teal; awaiting the owner's two-phone device gate.** Candidate 2 (2026-10-22): the owner's test 2026-10-23 — the timer right, three findings, all in c3. Candidate 1 REJECTED 2026-10-22 (G77). | **https://acmeproducts.github.io/stuff/talkbridge-app/bridge-turn30-base.html** (and next.html) |
+| 30·base | **THE VIDEO BOX (§7.22)** — owner 2026-10-22: "it should be the tall 9:16 that's draggable"; multi-user (conference-room model) moves later, only after its spec is written and approved | **CANDIDATE 3 · BUILT 2026-10-23 · relay v6.17 (unchanged) · tb-sw5.js (unchanged) — candidate 2's window (the SHAPE OF ITS PICTURE) + the camera comes back after iPhone dictation (CV-1) + the room's name gets the room up to the microphone (NM-1) + the Android strip teal; awaiting the owner's two-phone device gate.** Candidate 2 (2026-10-22): the owner's test 2026-10-23 — the timer right, three findings, all in c3. Candidate 1 REJECTED 2026-10-22 (G77). | **https://acmeproducts.github.io/stuff/talkbridge-app/bridge-turn30-base.html** (and next.html, next-jenny.html) |
 | 30·pre-ship | beta readiness | queued | — |
 
 Every accepted or built stage carries its live address here and in the ledger; a row without a link is not built.
@@ -2090,6 +2090,8 @@ Green means allowed to push. It never means done.
 ---
 
 ## 10 · CHANGE LOG
+
+**v21.114.1 · 2026-10-25.** Owner: "please create a special instance of the test URL with a suffix of Jenny." `talkbridge-app/next-jenny.html` — the same second door as next.html (forwards to the newest candidate, carrying search and hash), written by the folder's assembler and gated with it (harness-29dir M1.3, M4.1); it moves whenever next.html moves. No app bytes change.
 
 **v21.114.0 · 2026-10-23.** 30·base candidate 3 (§7.22 "Candidate 3"), the owner's feedback on c2 ("go"): (1) iPhone keyboard dictation in a video call killed the video for good — the camera track is taken and nothing asked for it again (present in the accepted page too); CV-1 brings the camera back when the app is visible and focused again, the flip's own way, and logs what dictation does to each track. (2) The room's name cut to "m.." on an iPhone 13 — its cap was derived for a centred cluster (G78); NM-1 gives it the room up to the microphone (+42 px at 390), right-to-left mirrored. (3) The Android's bottom strip cream with pale buttons — the Android manifest's background is now teal (unproven until the phone shows it). Independently reviewed before the code (4 must-fix applied). Not in this candidate: the microphone after dictation (logged now), the iPhone's full storage (`QuotaExceededError`; IndexedDB is on the plan). Gates: harness-30b 72/72, browser 20/20, mutations 39/39, prior gate:29pos.
 
