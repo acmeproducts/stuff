@@ -8,39 +8,83 @@ Every build session appends a row here BEFORE touching code.
 
 | Date | Turn/Stage | What happened | Status |
 |---|---|---|---|
-| 2026-09-27 | T0 — Plan init | Created master plan; seeded known facts; all else TBD | Done |
-| 2026-10-25 | T1 — Analysis request | Owner asked to audit https://acmeproducts.github.io/dev/particle.html as candidate baseline (works well / needs work / eliminate / add). Search results did not include the file's contents; cannot fetch it directly. Awaiting owner to paste source. | Blocked — need source |
+| 2026-09-27 | T0 — Plan init | Created master plan; seeded known facts | Done |
+| 2026-10-25 | T1 — Analysis request | Owner asked to audit particle.html; source not yet in hand | Blocked → resolved T2 |
+| 2026-10-25 | T2 — Audit done | Owner pasted full particle.html source. Four-part audit completed and recorded under R1 (below). Verdict: keep the core; fix mobile/perf; add presets + touch | Done |
 
 ## 1. RELEASES
 
 | # | Name | One-line goal |
 |---|---|---|
-| R1 | TBD — particle-based app (likely) | Audit particle.html, then build a compelling mobile-first version in projects/test-product.html |
+| R1 | Particle Waves — mobile-first rebuild | Port particle.html into projects/test-product.html: touch-first, phone-fast, same visuals + mic reactivity, plus presets |
 
 ## 2. RELEASE DETAIL
 
-### R1 — TBD (pending particle.html audit)
-- **Goal:** Turn the owner's particle.html into (or replace it with) a compelling single-file mobile-first app at projects/test-product.html.
+### R1 — Particle Waves, mobile-first
+- **Goal:** A compelling single-file phone-first particle wave app at projects/test-product.html, rebuilt from the audited baseline.
 - **Scope IN:**
-  - Four-part capability audit of particle.html: works well / needs work to keep / eliminate / add to be compelling.
-  - First playable build informed by that audit.
-- **Scope OUT:** TBD once audit lands.
+  - Everything in "Keep" + "Needs work" fixes below.
+  - Touch camera (orbit + pinch), collapsible controls, viewport meta, DPR-aware canvas, adaptive resolution.
+  - Presets, mic UX with in-app status/errors, settings persistence.
+- **Scope OUT:** WebGL renderer, multi-user/share links, audio file input (Future Ideas).
 - **Build gates (verify on real devices):**
-  - Opens and runs on a phone browser with no blank screen or dead buttons.
-  - Every control does something visible — no stubs, no fake data.
-  - Any problem is reported inside the app itself (never DevTools/console only).
-  - Additional gates TBD once scope is set.
-- **Backlog (deferred from R1):** TBD
+  - Opens on a phone browser; no blank screen, no dead controls.
+  - Holds ~30+ fps on a mid-range phone at default settings (in-app FPS readout proves it).
+  - One-finger orbit and pinch zoom work; no page-scroll fighting (touch-action handled).
+  - Every control visibly works; no stubs, no fake data.
+  - Mic flow: permission, denial, and errors all reported inside the app.
+  - Desktop still works (mouse orbit, wheel zoom).
+- **Backlog (deferred from R1):** screenshot/PNG export, color-trail fade effect, WebGL path.
+
+#### AUDIT of particle.html (2026-10-25)
+
+**✅ WORKS WELL (keep as-is):**
+- Self-contained: zero dependencies, hand-rolled 4×4 matrix math, 2D canvas.
+- Animated 3D point grid (wave / radial / noise modes) with height-based 2-color gradient.
+- All sliders live-wired: resolution, amplitude, frequency, point size, speed.
+- Camera: drag orbit + wheel zoom + auto-rotate; behind-camera points culled (outW check).
+- Mic pipeline: getUserMedia → AnalyserNode; FFT column mapping (min/max Hz, clamped) and RMS→dB loudness with EMA beat detection; beat pulse drives color bias + point size.
+- On-screen FPS counter and mic status line (matches our in-app-diagnostics rule).
+- Pause/resume, resize handling, min<max frequency clamping.
+
+**🔧 NEEDS WORK (fix to keep):**
+- **No touch events** — orbit/zoom are mouse-only; broken on phones (violates mobile-first).
+- **No `<meta viewport>`** — page renders wrong on mobile.
+- **Perf:** up to 300×300 = 90k points/frame, each building an `rgb()` string + fillRect → stutters on phones. Add color lookup table, cap DPR, adaptive resolution tied to FPS.
+- **GUI panel:** fixed 240px, 12px font, always covers canvas — needs collapsible sheet with 44px targets.
+- **DPR ignored** → blurry on retina screens.
+- **Grid desync bug:** resolution slider updates `resolution` on 'input' but only regenerates points on 'change' → row/col mapping skews while dragging. Regenerate (throttled) on input.
+- **AudioContext/mic edge cases:** no handling for revoked permission, track end, or suspended context resume.
+- FFT mode modulates by column only (rows identical) — fine, but radial/band mapping would look better.
+
+**🗑 ELIMINATE / REPLACE:**
+- Always-on desktop GUI panel → replace with collapsible bottom sheet.
+- Per-frame string color building → replace with precomputed gradient LUT.
+- "Mic already enabled" dead-end button state → replace with proper enable/disable toggle.
+- Desktop-era `<hr>` layout and tiny fonts.
+
+**➕ ADD (to be compelling):**
+- Touch: one-finger orbit, pinch zoom, double-tap reset; `touch-action: none`.
+- One-tap presets (e.g., Calm Sea, Storm, Bass Reactor) — instant wow on first open.
+- Auto-quality: FPS-driven resolution scaling + in-app perf status.
+- Mic onboarding: clear in-app prompts for allow/deny/no-mic/insecure-context.
+- Palette picker + dark trails option.
+- Settings persist (localStorage); fullscreen button.
+- First-run hint overlay ("drag to orbit · pinch to zoom · enable mic to react").
+- Respect prefers-reduced-motion.
 
 ### Open items (top priority first)
-1. **BLOCKER:** Obtain particle.html source — owner pastes the code or provides a referenced-file block. Search results confirmed repo acmeproducts/dev exists but contained no file contents.
-2. Run the four-part audit once source is in hand; record findings under R1.
-3. Set R1 scope and final gates from audit results.
+1. Owner confirms R1 scope (default: all "fix" + "add" items above) — or just say "build it".
+2. First build of projects/test-product.html per audit.
+3. Device-test gates above; log results in ledger.
 
 ## 3. FUTURE IDEAS
 
 Unscheduled parking lot. Nothing here is promised.
-- Particle playground variant (if audit shows the original is too thin to salvage): touch-driven particles, presets, in-app stats.
+- WebGL renderer for 1M+ points.
+- Screenshot/PNG export + shareable settings link.
+- Audio file / tab audio input (not just mic).
+- Beat-synced color palettes; radial FFT surface mode.
 
 ## 4. IMMUTABLE WORKING RULES
 
@@ -57,7 +101,8 @@ Unscheduled parking lot. Nothing here is promised.
 | Date | Decision | By |
 |---|---|---|
 | 2026-09-27 | Plan structure adopted (ledger → releases → detail → ideas → rules → decisions → appendix) | Owner |
-| 2026-10-25 | particle.html (acmeproducts/dev repo) chosen as candidate baseline for the app; audit precedes any build | Owner |
+| 2026-10-25 | particle.html chosen as candidate baseline; audit precedes any build | Owner |
+| 2026-10-25 | Audit verdict: keep core engine + audio pipeline; rebuild UI mobile-first; R1 = fix list + add list | Agent (recorded) |
 
 ## 6. APPENDIX
 
@@ -69,5 +114,5 @@ Unscheduled parking lot. Nothing here is promised.
 
 **Known facts:**
 - Code file: projects/test-product.html — single-file, mobile-first HTML app. Not yet created.
-- Candidate baseline: https://acmeproducts.github.io/dev/particle.html (repo acmeproducts/dev). Contents not yet provided — audit pending.
-- App concept, audience, and features: TBD pending audit.
+- Baseline: particle.html (acmeproducts/dev) — full source received and audited 2026-10-25; catalog stored under R1.
+- App concept: audio-reactive 3D particle wave field; audience/features per R1 scope.
