@@ -30,18 +30,21 @@ def rebase(v,base,additive):
 os.makedirs(OUT,exist_ok=True); report={'now':NOW,'assumptions':['batch id = date part of stored stamp','weekend stamps dropped for daily sources','last reading in a batch wins','5D/MTD/... start (T0) taken from the floor index file','Horizon-mode index = 100 + (value - value at T0)'],'packages':[]}
 for k,idef in defn.items():
     comps={c['id']:c for c in idef['components']}
-    for h,x in pers['indices'][k]['horizons'].items():
-        if h=='1D': continue
-        T0=x['commonT0']; slots=[]; idx={}
-        for p in x['curve']:
-            d=day(p['t'])
-            if d.weekday()>=5: continue
-            slots.append(str(d)); idx[str(d)]=p['v']
-        cal=[d for d in B('spy') if T0<=d<=NOW]; slots=sorted(cal); assert slots and slots[-1]==NOW  # ONE common trading calendar (SPY batches) for every index and series
+    full={str(day(p['t'])):p['v'] for p in pers['indices'][k]['horizons']['5YR']['curve'] if day(p['t']).weekday()<5}
+    for h in ['1D','5D','MTD','YTD','1YR','3YR','5YR']:
+        cal=sorted(d for d in B('spy') if d<=NOW); assert cal[-1]==NOW
+        nd=dt.date.fromisoformat(NOW)
+        if h=='1D': slots=cal[-1:]
+        elif h=='5D': slots=cal[-5:]          # current business day + 4 previous
+        elif h=='MTD': slots=[d for d in cal if d>=NOW[:8]+'01']
+        elif h=='YTD': slots=[d for d in cal if d>=NOW[:5]+'01-01']
+        else:
+            n=int(h[0]); start=str(nd.replace(year=nd.year-n)); slots=[d for d in cal if d>=start]
+        T0=slots[0]; idx=full
         series=[]
         t0v=idx.get(slots[0])
         series.append({'id':k,'label':k.upper(),'kind':'index','unit':'Index','axis':'Y1','available':True,'reason':'ok',
-            'fixed':[round(idx.get(s),6) if s in idx else None for s in slots],'horizon':[round(100+(idx[s]-t0v),6) if s in idx else None for s in slots],'native':[round(idx[s],6) if s in idx else None for s in slots]})
+            'fixed':[round(idx.get(s),6) if s in idx else None for s in slots],'horizon':[round(100+(idx[s]-t0v),6) if (s in idx and t0v is not None) else None for s in slots],'native':[round(idx[s],6) if s in idx else None for s in slots]})
         for cid,c in comps.items():
             m=B(cid); u=cat[cid].get('native_unit',''); add=c['transform']!='log_return'
             slow=not any(k2 in str(cat[cid].get('native_cadence','')) for k2 in DAILY)
@@ -50,11 +53,11 @@ for k,idef in defn.items():
                 real=len({d for d in sd if d is not None and d>T0})
             else:
                 pts=[m.get(s) for s in slots]; sd=[s if m.get(s) is not None else None for s in slots]; real=sum(v is not None for v in pts)
-            _,bT0=last_le(m,T0); _,bA=last_le(m,ANCHOR)
-            av=real>=2
-            series.append({'id':cid,'label':cat[cid].get('short_name',cid),'kind':'component','unit':u,'cadence':cat[cid].get('native_cadence'),'axis':'Y2' if u.startswith('USD') else 'Y1','available':av,'reason':'ok' if av else 'fewer than 2 readings in horizon',
+            bT0=m.get(T0) if not slow else last_le(m,T0)[1]; _,bA=last_le(m,ANCHOR)
+            av=(real>=1) if h=='1D' else (real>=2)
+            series.append({'id':cid,'label':cat[cid].get('short_name',cid),'kind':'component','unit':u,'cadence':cat[cid].get('native_cadence'),'axis':'Y2' if u.startswith('USD') else 'Y1','available':av,'reason':'ok' if av else ('no reading in horizon' if h=='1D' else 'fewer than 2 readings in horizon'),
                 'sourceDate':sd if av else None,'native':pts if av else None,'horizon':[rebase(v,bT0,add) for v in pts] if av else None,'fixed':[rebase(v,bA,add) for v in pts] if av else None})
-        pkg={'index':k,'horizon':h,'t0':T0,'now':NOW,'slots':slots,'series':series}
+        pkg={'index':k,'horizon':h,'render':'point' if h=='1D' else 'line','t0':T0,'now':NOW,'slots':slots,'series':series}
         json.dump(pkg,open(os.path.join(OUT,f'{k}-{h}.json'),'w'),separators=(',',':'))
         # validation
         n=len(slots); bad=[]
