@@ -37,3 +37,9 @@ Wrong premise: the date is only a batch identifier. A reading for batch 10/22 ca
 ## Graveyard (owner rejected, Oct 24)
 Removed: dumb-now (from-scratch modular NOW/Analyze), model-batch-store (modeled data), check_design.py, work-sep27-nodata-greyout. Reason: the agreed plan is to restore a working front-end/data pair from history (floor and ceiling), not to rebuild. All remain in git history at commit 2396c81.
 Kept: DESIGN-IMPERATIVE.md (the principle, for the later rebuild of the data pipeline), the floor, the Oct reference folders.
+
+## recovery-sep23-synchronized-backend
+Exact pair at commit ed89bea39 (Sep 23 2026 02:45 Pacific). Page: market-navigator-turn28-pre-ship.html (dual axis, no Fixed/Horizon yet). Data: market-evidence/ and data/market-backend/ from the same commit.
+Fact: last state where index file and daily series both end Sep 21-22. From Sep 23 the index stays frozen at Sep 22 while series continue.
+Fact: HY spread ends one day before the other series on every day measured (Sep 16-27).
+Role: recovery point / backend anchor. Floor with Fixed/Horizon remains floor-sep27-t28-postship.
