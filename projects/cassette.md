@@ -125,3 +125,8 @@ Authority order:
 Known so far, owner's words: "I want the phone screen to look like a cassete tape that is playing that has floating controls that are old school buttons that have a analog travel and click as well as the ability to recorrd and playaback you can pulldown your library (opensource for now or spotiy of local) and play a song with pause, stop reviind and fast forward".
 
 Everything else: TBD.
+
+## RUN LOG (written by DevStream)
+| Date | Tab | Result | What | Commit |
+|---|---|---|---|---|
+| 2026-10-25 07:01 | Main | built projects/cassette.html | Built the first playable version: the screen is a cassette with spinning reels, five chunky transport buttons that physically press in with  | b9df5c7 |
