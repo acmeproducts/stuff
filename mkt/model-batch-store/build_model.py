@@ -69,3 +69,34 @@ for k,idef in defn.items():
         report['packages'].append({'indexGaps':sum(v is None for v in series[0]['fixed']),'index':k,'horizon':h,'slots':n,'first':slots[0],'last':slots[-1],'available':[s['id'] for s in series if s['available']],'greyed':[s['id'] for s in series if not s['available']],'problems':bad})
 json.dump(report,open(os.path.join(OUT,'_report.json'),'w'),indent=1)
 for r in report['packages']: print(r['index'],r['horizon'],'idxGaps',r['indexGaps'],'slots',r['slots'],r['first'],'->',r['last'],'greyed',r['greyed'],'PROBLEMS' if r['problems'] else '',r['problems'])
+
+# ---- one package per horizon with EVERY series aligned to the common calendar, plus a manifest (what the dumb front end reads)
+ADD_UNITS=('percent','percentage')
+manifest={'now':NOW,'horizons':['1D','5D','MTD','YTD','1YR','3YR','5YR'],'indices':{},'catalog':[]}
+for k,idef in defn.items(): manifest['indices'][k]={'name':idef['name'],'label':k.upper(),'components':[c['id'] for c in idef['components']]}
+comp_tr={c['id']:c['transform'] for idef in defn.values() for c in idef['components']}
+ids=[sid for sid in cat if os.path.exists(os.path.join(SRC,f'market-evidence/series/{sid}.json')) and cat[sid].get('enabled',True)]
+for sid in ids: manifest['catalog'].append({'id':sid,'label':cat[sid].get('short_name',sid),'name':cat[sid].get('name',sid),'unit':cat[sid].get('native_unit',''),'cadence':cat[sid].get('native_cadence','')})
+for k in defn: manifest['catalog'].append({'id':k,'label':k.upper(),'name':defn[k]['name'],'unit':'Index','cadence':'derived'})
+colors={'risk':'#29d3ff','growth':'#ffd166','macro':'#5be3a0'}
+for h in manifest['horizons']:
+    cal=sorted(d for d in B('spy') if d<=NOW); nd=dt.date.fromisoformat(NOW)
+    slots=cal[-1:] if h=='1D' else cal[-5:] if h=='5D' else [d for d in cal if d>=NOW[:8]+'01'] if h=='MTD' else [d for d in cal if d>=NOW[:5]+'01-01'] if h=='YTD' else [d for d in cal if d>=str(nd.replace(year=nd.year-int(h[0])))]
+    T0=slots[0]; S={}
+    for k in defn:
+        full={str(day(p['t'])):p['v'] for p in pers['indices'][k]['horizons']['5YR']['curve'] if day(p['t']).weekday()<5}
+        t0=full.get(T0); raw=[full.get(s) for s in slots]
+        S[k]={'unit':'Index','axis':'Y1','available':all(v is not None for v in raw) or sum(v is not None for v in raw)>=(1 if h=='1D' else 2),'reason':'ok','native':[None if v is None else round(v,6) for v in raw],'fixed':[None if v is None else round(v,6) for v in raw],'horizon':[None if (v is None or t0 is None) else round(100+(v-t0),6) for v in raw]}
+    for sid in ids:
+        m=B(sid); u=cat[sid].get('native_unit',''); cad=str(cat[sid].get('native_cadence',''))
+        slow=not any(k2 in cad for k2 in DAILY)
+        if slow:
+            src=[last_le(m,s) for s in slots]; pts=[v for _,v in src]; sd=[d for d,_ in src]; real=len({d for d in sd if d is not None and d>T0}); bT0=last_le(m,T0)[1]
+        else:
+            pts=[m.get(s) for s in slots]; sd=[s if m.get(s) is not None else None for s in slots]; real=sum(v is not None for v in pts); bT0=m.get(T0)
+        add=(comp_tr.get(sid)!='log_return') if sid in comp_tr else (u.startswith(ADD_UNITS) or (bT0 is not None and bT0<=0))
+        _,bA=last_le(m,ANCHOR); av=(real>=1) if h=='1D' else (real>=2)
+        S[sid]={'unit':u,'cadence':cad,'axis':'Y2' if u.startswith('USD') else 'Y1','available':av,'reason':'ok' if av else 'not enough readings in horizon','sourceDate':sd if av else None,'native':pts if av else None,'horizon':[rebase(v,bT0,add) for v in pts] if av else None,'fixed':[rebase(v,bA,add) for v in pts] if av else None}
+    json.dump({'horizon':h,'render':'point' if h=='1D' else 'line','now':NOW,'t0':T0,'slots':slots,'series':S},open(os.path.join(OUT,f'series-{h}.json'),'w'),separators=(',',':'))
+json.dump(manifest,open(os.path.join(OUT,'manifest.json'),'w'),separators=(',',':'))
+print('series packages written',len(ids)+3,'series x',len(manifest['horizons']),'horizons')
