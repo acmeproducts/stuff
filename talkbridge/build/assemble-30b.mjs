@@ -36,7 +36,13 @@ export const BUILT = '2026-10-23';
 export const MANIFEST_NAME = 'tb-manifest-turn30-base.webmanifest';
 export const MANIFEST_IOS_NAME = 'tb-manifest-turn30-base-ios.webmanifest';
 export const MANIFEST_SRC = 'tb-manifest-turn28.webmanifest';
-export const OUT = { page: FOLDER + '/' + STAGE_PAGE, manifest: FOLDER + '/' + MANIFEST_NAME, manifestIos: FOLDER + '/' + MANIFEST_IOS_NAME };
+/* JENNY'S INSTANCE (owner 2026-10-25: "a separate instance", not a pointer): the same candidate at its own address with its own
+   install identity — its own manifests (its own app id, named "TalkBridge Jenny"), its own home-screen title — so it installs as a
+   separate app beside the owner's. Rebuilt with every 30·base candidate. Same site, so on ONE phone it shares the browser's storage
+   (name, rooms) with the other copies; on Jenny's own phone that does not arise. */
+export const JENNY = { page: 'bridge-turn30-base-jenny.html', manifest: 'tb-manifest-turn30-base-jenny.webmanifest', manifestIos: 'tb-manifest-turn30-base-jenny-ios.webmanifest', name: 'TalkBridge Jenny', short: 'TB Jenny', id: FOLDER_PATH + 'jenny' };
+export const OUT = { page: FOLDER + '/' + STAGE_PAGE, manifest: FOLDER + '/' + MANIFEST_NAME, manifestIos: FOLDER + '/' + MANIFEST_IOS_NAME,
+  jennyPage: FOLDER + '/' + JENNY.page, jennyManifest: FOLDER + '/' + JENNY.manifest, jennyManifestIos: FOLDER + '/' + JENNY.manifestIos };
 export const ADDED_SYMBOLS = ['VB', 'vbLog', 'vbCss', 'vbBox', 'vbActive', 'vbBounds', 'vbAspect', 'vbShapes', 'vbSize', 'vbClamp', 'vbPlace', 'vbReshape', 'vbSave', 'vbLoad', 'vbShow', 'vbHide', 'vbWire', 'vbInit'];
 export const ADDED_MARKERS = ['vb_shown', 'vb_moved', 'vb_init_failed', 'vb_camera', 'vb_shape'];
 /* per part, in PARTS order: the symbols its @contract declares and the markers it logs (prefix, the part's own logger) */
@@ -86,9 +92,22 @@ export function assembleManifests() {
   }
   return { chrome: JSON.stringify(chrome, null, 2) + '\n', ios: JSON.stringify(ios, null, 2) + '\n' };
 }
+/* each find occurs a known number of times in the stage page (the link at load + the load-time swap; the title; the build line) */
+export const JENNY_EDITS = [
+  { find: "'" + MANIFEST_IOS_NAME + "'", replace: "'" + JENNY.manifestIos + "'", n: 2 },
+  { find: "'" + MANIFEST_NAME + "'", replace: "'" + JENNY.manifest + "'", n: 2 },
+  { find: '<meta name="apple-mobile-web-app-title" content="TalkBridge">', replace: '<meta name="apple-mobile-web-app-title" content="' + JENNY.short + '">', n: 1 },
+  { find: "file: 'talkbridge-app/" + STAGE_PAGE + "'", replace: "file: 'talkbridge-app/" + JENNY.page + "'", n: 1 }
+];
+export function assembleJenny(page, m) {
+  let out = page;
+  for (const e of JENNY_EDITS) { const n = out.split(e.find).length - 1; if (n !== e.n) throw new Error('assemble-30b: jenny edit finds ' + e.find + ' ' + n + ' times (must be ' + e.n + ')'); out = out.split(e.find).join(e.replace); }
+  const re = (j, start) => { const o = JSON.parse(j); o.name = JENNY.name; o.short_name = JENNY.short; if (start) { o.start_url = './' + JENNY.page; o.id = JENNY.id; } return JSON.stringify(o, null, 2) + '\n'; };
+  return { page: out, chrome: re(m.chrome, true), ios: re(m.ios, false) };
+}
 export function assembleAll(opts) {
-  const m = assembleManifests();
-  return { [OUT.page]: assemblePage(opts), [OUT.manifest]: m.chrome, [OUT.manifestIos]: m.ios };
+  const m = assembleManifests(), page = assemblePage(opts), j = assembleJenny(page, m);
+  return { [OUT.page]: page, [OUT.manifest]: m.chrome, [OUT.manifestIos]: m.ios, [OUT.jennyPage]: j.page, [OUT.jennyManifest]: j.chrome, [OUT.jennyManifestIos]: j.ios };
 }
 
 if (process.argv[1] && process.argv[1].endsWith('assemble-30b.mjs')) {

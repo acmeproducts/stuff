@@ -50,7 +50,8 @@ const M = [
   { by: 'browser', catches: 'N2', file: NM, name: 'the name keeps candidate 2\'s cap', part: (s) => once(s, "'#room-ribbon .rz-left{max-width:calc(50% - 25px)}' +", "") },
   { by: 'browser', catches: 'N1', file: NM, name: 'the name runs into the microphone', part: (s) => once(s, "max-width:calc(50% - 25px)", "max-width:none;flex:0 0 auto") },
   { by: 'browser', catches: 'N1', file: NM, name: 'right-to-left is not mirrored', part: (s) => once(s, "+\n  '[dir=rtl] #room-ribbon .rz-center{left:auto;right:50%;transform:translateX(17px)}'", "") },
-  { by: 'node', catches: 'F', manifest: true, name: 'the Android strip is cream again', page: (h) => h }
+  { by: 'node', catches: 'F', manifest: true, name: 'the Android strip is cream again', page: (h) => h },
+  { by: 'node', catches: 'J', jenny: (j) => once(j, "'tb-manifest-turn30-base-jenny.webmanifest') + '\">');", "'tb-manifest-turn30-base.webmanifest') + '\">');"), name: 'Jenny\'s page installs as the owner\'s app', page: (h) => h }
 ];
 const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'tb30bm-'));
 let caught = 0, missed = 0;
@@ -65,6 +66,7 @@ for (let i = 0; i < M.length; i++) {
   const env = { ...process.env, TB_30B_PAGE: pf, TB_30B_PART: tf };
   if (other != null) { const of = path.join(dir, 'other-' + i + '.js'); fs.writeFileSync(of, other); env.TB_30B_PARTS = JSON.stringify({ [m.file]: of }); }
   if (m.manifest) env.TB_30B_CHROME_BG = '#FDFAF7';
+  if (m.jenny) { const jf = path.join(dir, 'jenny-' + i + '.html'); fs.writeFileSync(jf, m.jenny(fs.readFileSync('talkbridge-app/bridge-turn30-base-jenny.html', 'utf8'))); env.TB_30B_JENNY = jf; }
   let out = '', exit = 0;
   try {
     out = m.by === 'browser'
