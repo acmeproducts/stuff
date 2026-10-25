@@ -96,7 +96,9 @@ for h in manifest['horizons']:
             pts=[m.get(s) for s in slots]; sd=[s if m.get(s) is not None else None for s in slots]; real=sum(v is not None for v in pts); bT0=m.get(T0)
         add=(comp_tr.get(sid)!='log_return') if sid in comp_tr else (u.startswith(ADD_UNITS) or (bT0 is not None and bT0<=0))
         _,bA=last_le(m,ANCHOR); av=(real>=1) if h=='1D' else (real>=2)
-        S[sid]={'unit':u,'cadence':cad,'axis':'Y2' if u.startswith('USD') else 'Y1','available':av,'reason':'ok' if av else 'not enough readings in horizon','sourceDate':sd if av else None,'native':pts if av else None,'horizon':[rebase(v,bT0,add) for v in pts] if av else None,'fixed':[rebase(v,bA,add) for v in pts] if av else None}
+        if av and bT0 is None: av=False  # no reading at the horizon start: cannot rebase
+        if av and not slow and pts[-1] is None: av=False  # daily source without a reading in the current batch: not drawn (would end short)
+        S[sid]={'unit':u,'cadence':cad,'axis':'Y2' if u.startswith('USD') else 'Y1','available':av,'reason':'ok' if av else 'not enough readings, or no reading in the current batch','sourceDate':sd if av else None,'native':pts if av else None,'horizon':[rebase(v,bT0,add) for v in pts] if av else None,'fixed':[rebase(v,bA,add) for v in pts] if av else None}
     json.dump({'horizon':h,'render':'point' if h=='1D' else 'line','now':NOW,'t0':T0,'slots':slots,'series':S},open(os.path.join(OUT,f'series-{h}.json'),'w'),separators=(',',':'))
 json.dump(manifest,open(os.path.join(OUT,'manifest.json'),'w'),separators=(',',':'))
 print('series packages written',len(ids)+3,'series x',len(manifest['horizons']),'horizons')
