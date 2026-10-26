@@ -8,12 +8,13 @@ const DG='deepgram_test_key_0123456789abcdef0123456789',OWNER_TOKEN='ghp_owner_t
 let pass=0,fail=0;
 async function check(name,fn){try{await fn();pass++;console.log('PASS',name)}catch(e){fail++;console.log('FAIL',name,'\n   ',String(e&&e.message||e).split('\n')[0])}}
 (async()=>{
- const {default:worker,Vault}=await import('file://'+path.join(root,'chatlink/runner/worker.js'));
+ const {default:worker,Vault,Usage}=await import('file://'+path.join(root,'chatlink/runner/worker.js'));
  globalThis.fetch=async(url,opts={})=>{url=String(url);
   if(/api\.github\.com\/repos\/[^/]+\/[^/]+$/.test(url))return new Response(JSON.stringify({permissions:{push:opts.headers.Authorization==='Bearer '+OWNER_TOKEN}}),{status:200});
   return new Response('?',{status:500})};
  const mem=new Map();let vault=null;
- const env={ALLOWED_OWNER:'acmeproducts',VAULT:{idFromName:n=>n,get:()=>{if(!vault)vault=new Vault({storage:{get:async k=>mem.get(k),put:async(k,v)=>{mem.set(k,JSON.parse(JSON.stringify(v)))}}},env);return{fetch:(u,o)=>vault.fetch(new Request(u,o))}}}};
+ const umem=new Map();let usage=null;
+ const env={ALLOWED_OWNER:'acmeproducts',USAGE:{idFromName:n=>n,get:()=>{if(!usage)usage=new Usage({storage:{get:async k=>umem.get(k),put:async(k,v)=>{umem.set(k,JSON.parse(JSON.stringify(v)))},delete:async k=>{umem.delete(k)}}},env);return{fetch:(u,o)=>usage.fetch(new Request(u,o))}}},VAULT:{idFromName:n=>n,get:()=>{if(!vault)vault=new Vault({storage:{get:async k=>mem.get(k),put:async(k,v)=>{mem.set(k,JSON.parse(JSON.stringify(v)))}}},env);return{fetch:(u,o)=>vault.fetch(new Request(u,o))}}}};
  const html=fs.readFileSync(process.env.CHAT_HTML||path.join(root,'chat-test.html'),'utf8');
  const browser=await chromium.launch({channel:process.env.CHAT_BROWSER_CHANNEL||undefined});
  const redeems=[];
@@ -47,7 +48,7 @@ async function check(name,fn){try{await fn();pass++;console.log('PASS',name)}cat
  await check('the key the owner holds was stored for guests, and only that',async()=>{assert.equal([...mem.get('vault').keys.deepgram].length>20,true);assert.equal(mem.get('vault').keys.deepgram,DG)});
 
  let g;
- await check('opening the link shows a welcome and does NOT use the link up',async()=>{g=await openGuest(link);assert.match(await gateText(g.p),/Welcome, Sam/);assert.equal(redeems.length,0);assert.equal((await ownerList()).find(i=>i.name==='Sam').state,'unopened');assert.equal(await ls(g.p,'tb_dg_key'),null)});
+ await check('opening the link shows a welcome and does NOT use the link up',async()=>{g=await openGuest(link);assert.match(await gateText(g.p),/Welcome, Sam/);assert.match(await gateText(g.p),/Usage is counted.*Never your words/);assert.equal(redeems.length,0);assert.equal((await ownerList()).find(i=>i.name==='Sam').state,'unopened');assert.equal(await ls(g.p,'tb_dg_key'),null)});
  await check('a page load repeated many times (like a chat-app preview) still leaves the link unused',async()=>{for(let n=0;n<3;n++){await g.p.reload();await g.p.waitForSelector('#cl-guestgate.show')}assert.equal((await ownerList()).find(i=>i.name==='Sam').state,'unopened')});
  await check('Start sets the phone up: key saved, guest flag set, link stripped from the address, welcome closed',async()=>{
   await g.p.getByRole('button',{name:'Start'}).click();await g.p.waitForSelector('#cl-guestgate:not(.show)',{state:'attached',timeout:8000});
