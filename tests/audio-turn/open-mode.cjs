@@ -152,3 +152,10 @@ test('Vietnamese keyboard shows on the North side with tone marks',async({page})
   assert.ok(/[ăâêôơư]/.test(keys),side+' keyboard has Vietnamese letters');
  }
 });
+for(const lang of ['km','lo','th','hi','vi'])test('No '+lang+' keyboard key is labelled with a bare combining mark (phones draw it as an empty box)',async({page})=>{
+ await page.evaluate(()=>{localStorage.setItem('tb_dg_key','synthetic-key');localStorage.setItem('chat_test_audio',JSON.stringify({mode:'open',tones:true,resumeMs:300}))});
+ await create(page,'MarkKb','en',lang);
+ await page.locator('#in-north').focus();await page.waitForFunction(()=>INPUT.owner==='north'&&INPUT.mode==='kb');
+ const bad=await page.evaluate(()=>[...document.querySelectorAll('#kb-north .key')].map(b=>b.textContent).filter(t=>/^\p{M}/u.test(t)));
+ assert.deepEqual(bad,[],lang+' keys labelled with a bare mark');
+});

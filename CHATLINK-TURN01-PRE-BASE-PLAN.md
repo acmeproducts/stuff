@@ -803,3 +803,6 @@ Owner reported the browser title read "Chatlink · Audio test". Changed to "Tabl
 **Change.** When an AI key is saved, the AI also returns `reading`: what a native speaker of the target language understands from the translation at face value. Implied words go in [brackets], with a note when the text is vague or a fragment. It is written in the language of the person who opened the check, and shown as a "Listener reads it as" row directly under Target. Copy includes it. This is one instruction for every language, with no per-language rules. Google's target and back-translation are shown unchanged.
 
 **Gates (lab).** 20/20 controller tests. Ask mode: 34/34, including the r17 scenario. Open mode: 44/44, which includes newer language scenarios from another session's work on main. Keyboard: 32/32.
+
+### 2026-10-26 — Khmer, Lao, Thai and Hindi mark keys
+Owner asked for the same check on the Khmer and Lao extra keys after the Vietnamese tone keys showed as empty boxes. Checks added first: no key on the km, lo, th, hi or vi keyboard may be labelled with a bare combining mark. km, lo, th and hi failed. Change: a mark key is now drawn on a base letter of its own script (the typed character is unchanged). Open mode 49/49, keyboard 32/32. Lab only; not confirmed on the phone.
