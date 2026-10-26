@@ -794,3 +794,12 @@ Owner reported (screenshot, Android Chrome): the Vietnamese keyboard appears on 
 
 ### 2026-10-19 — page title
 Owner reported the browser title read "Chatlink · Audio test". Changed to "Tabletop Xlate" (owner's suggestion). Title text only; no code path reads it.
+
+
+### chat-test r17: "Listener reads it as" (2026-10-26)
+
+**Owner question.** What did the listener understand, at face value, from what was sent to them? Example: "whenever you get tired" → 피곤할 때마다. Google's back-translation guessed "I", which misrepresented what the listener understood.
+
+**Change.** When an AI key is saved, the AI also returns `reading`: what a native speaker of the target language understands from the translation at face value. Implied words go in [brackets], with a note when the text is vague or a fragment. It is written in the language of the person who opened the check, and shown as a "Listener reads it as" row directly under Target. Copy includes it. This is one instruction for every language, with no per-language rules. Google's target and back-translation are shown unchanged.
+
+**Gates (lab).** 20/20 controller tests. Ask mode: 34/34, including the r17 scenario. Open mode: 44/44, which includes newer language scenarios from another session's work on main. Keyboard: 32/32.

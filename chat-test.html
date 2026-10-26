@@ -1713,8 +1713,10 @@ function dgLangParam(room) {
             if(!portal.aiReady()){aiBox.textContent=window.clIsGuest&&window.clIsGuest()?'AI review is not available on this device':'AI review: add a key in Settings → AI keys';aiBox.className='cl-bt-ai off';return}
             verdict.textContent='Wording '+verdict.textContent;verdict.classList.add('secondary');
             var head=document.createElement('div');head.className='cl-bt-ai-head';var av=document.createElement('span');av.className='cl-bt-verdict wait';av.textContent='AI: checking meaning…';head.appendChild(av);aiBox.replaceChildren(head);
-            portal.aiReview(spoken,lang,e.tr,e.tgt).then(function(a){
+            portal.aiReview(spoken,lang,e.tr,e.tgt,langOf(panel)).then(function(a){
                 if(!ov.isConnected)return;
+                /* r17: what the listener actually understands at face value, placed right under Target. */
+                if(a.reading){var rr0=row('Listener reads it as','AI · in '+name(langOf(panel)),a.reading);rTarget.tr.after(rr0.tr);rows.splice(rows.indexOf(rr0),1);rows.splice(rows.indexOf(rTarget)+1,0,rr0);}
                 av.className='cl-bt-verdict '+a.verdict;av.textContent='AI: '+(a.verdict==='match'?'Match':a.verdict==='partial'?'Partial':'Miss');
                 report.ai=a;var rr=document.createElement('div');rr.className='cl-bt-reason';rr.textContent=a.reason;aiBox.appendChild(rr);
                 if(a.suggestion&&norm(a.suggestion)!==norm(e.tr)){
@@ -1858,7 +1860,7 @@ function dgLangParam(room) {
     var candidateTxn={south:null,north:null},compAnchor={south:null,north:null};
     var pendingConversion={south:null,north:null},undoEdit={south:null,north:null};
     var predictionTxn={south:null,north:null};
-    var CHAT_BUILD='chat-test-audio-r16';
+    var CHAT_BUILD='chat-test-audio-r17';
     var UNDO_LABEL={en:'Undo',th:'เลิกทำ',es:'Deshacer',fr:'Annuler',de:'Rückgängig',
         it:'Annulla',pt:'Desfazer',nl:'Ongedaan maken',sv:'Ångra',pl:'Cofnij',tr:'Geri al',
         ru:'Отменить',ar:'تراجع',hi:'पूर्ववत करें',vi:'Hoàn tác',id:'Urungkan',ms:'Buat asal',
@@ -2974,12 +2976,12 @@ var portal=(function(){
  /* r15: AI review for the translation check. Runs only when the owner opens a check. Venice first, OpenRouter as
     backup, using the keys validated in Settings → AI keys. Returns {verdict, reason, suggestion, provider, model}. */
  function aiReady(){var c=aiCfg();return !!((c.vkey&&c.vmodel)||(c.orkey&&c.ormodel))}
- async function aiReview(spoken,spokenLang,translation,tgtLang){
+ async function aiReview(spoken,spokenLang,translation,tgtLang,readerLang){
   var c=aiCfg(),order=[];if(c.vkey&&c.vmodel)order.push({id:'venice',url:'https://api.venice.ai/api/v1/chat/completions',key:c.vkey,model:c.vmodel});
   if(c.orkey&&c.ormodel)order.push({id:'openrouter',url:'https://openrouter.ai/api/v1/chat/completions',key:c.orkey,model:c.ormodel});
   if(!order.length)throw new Error('no AI key — add one in Settings → AI keys');
-  var sys='You check spoken-conversation translations for meaning. Reply with JSON only, no prose: {"verdict":"match"|"partial"|"miss","reason":"<one short sentence in English>","suggestion":"<better translation in the target language, or empty if verdict is match>"}. match = same meaning (wording may differ); partial = meaning mostly kept but something is lost, added or changed (tone, contrast words, politeness, numbers, names); miss = meaning wrong. Keep the suggestion natural and conversational.';
-  var user='Source language: '+(LANG_NAMES[spokenLang]||spokenLang)+'\nSpoken: '+spoken+'\nTarget language: '+(LANG_NAMES[tgtLang]||tgtLang)+'\nTranslation: '+translation;
+  var sys='You check spoken-conversation translations for meaning. Reply with JSON only, no prose: {"verdict":"match"|"partial"|"miss","reason":"<one short sentence in English>","suggestion":"<better translation in the target language, or empty if verdict is match>","reading":"<what a native speaker of the target language understands from the Translation at face value, written in the reader language; put implied words in [brackets]; say briefly if it is vague or a fragment>"}. match = same meaning (wording may differ); partial = meaning mostly kept but something is lost, added or changed (tone, contrast words, politeness, numbers, names); miss = meaning wrong. Keep the suggestion natural and conversational.';
+  var user='Source language: '+(LANG_NAMES[spokenLang]||spokenLang)+'\nSpoken: '+spoken+'\nTarget language: '+(LANG_NAMES[tgtLang]||tgtLang)+'\nTranslation: '+translation+'\nReader language: '+(LANG_NAMES[readerLang||spokenLang]||readerLang||spokenLang);
   var lastErr=null;
   for(var i=0;i<order.length;i++){var o=order[i],t0=Date.now();
    try{var body={model:o.model,max_tokens:400,temperature:0,messages:[{role:'system',content:sys},{role:'user',content:user}]};if(o.id==='venice')body.venice_parameters={include_venice_system_prompt:false};
@@ -2990,7 +2992,7 @@ var portal=(function(){
     var m=txt.match(/\{[\s\S]*\}/);if(!m)throw new Error(o.id+' gave no JSON');
     var out=JSON.parse(m[0]),v=String(out.verdict||'').toLowerCase();if(['match','partial','miss'].indexOf(v)<0)throw new Error(o.id+' gave no verdict');
     log('ai_review',{outcome:'ok',provider:o.id,model:o.model,verdict:v,ms:Date.now()-t0,suggested:!!(out.suggestion&&v!=='match')},v==='miss'?'warn':'ok');
-    return {verdict:v,reason:String(out.reason||'').slice(0,240),suggestion:v==='match'?'':String(out.suggestion||'').trim(),provider:o.id,model:o.model};
+    return {verdict:v,reason:String(out.reason||'').slice(0,240),suggestion:v==='match'?'':String(out.suggestion||'').trim(),reading:String(out.reading||'').trim().slice(0,400),provider:o.id,model:o.model};
    }catch(e){lastErr=e;log('ai_review',{outcome:'error',provider:o.id,model:o.model,ms:Date.now()-t0,e:String(e.message).slice(0,80)},'error')}
   }
   throw lastErr;
