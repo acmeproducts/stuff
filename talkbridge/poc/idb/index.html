@@ -1,0 +1,504 @@
+<!DOCTYPE html>
+<!-- TalkBridge · IndexedDB transcript PROOF (plan §7.23, owner 2026-10-25: "its own standalone proof point").
+     Standalone: no app code, no service worker, its own database (tb-poc-idb). It never writes localStorage or sessionStorage;
+     it only READS the app's tba_tr_* keys (P5). Results go to the shared device log as counts, sizes and times — never message text. -->
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>TB storage test</title>
+<meta name="theme-color" content="#2E8B8B">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="TB storage test">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="../../../icon-v2-192.png" type="image/png">
+<link rel="apple-touch-icon" href="../../../icon-v2-180.png">
+<style>
+:root{--teal:#2E8B8B;--ink:#243230;--dim:#6b7775;--bg:#FDFAF7;--card:#fff;--line:#E2DDD8;--ok:#1d7a46;--bad:#A32D2D;--warn:#9a6a00}
+html,body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.4 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif}
+main{max-width:520px;margin:0 auto;padding:16px 16px calc(24px + env(safe-area-inset-bottom))}
+h1{font-size:19px;margin:4px 0 2px}.sub{color:var(--dim);font-size:13px;margin-bottom:14px}
+.btns{display:flex;flex-wrap:wrap;gap:8px;margin:12px 0}
+button{font:inherit;font-weight:700;border:0;border-radius:10px;padding:11px 14px;background:var(--teal);color:#fff}
+button.ghost{background:#fff;color:var(--teal);border:1px solid var(--teal)}button:disabled{opacity:.5}
+.card{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:10px 12px;margin:8px 0}
+.row{display:flex;gap:8px;align-items:baseline}.row b{min-width:34px}.row .st{margin-left:auto;font-weight:700;white-space:nowrap}
+.pass{color:var(--ok)}.fail{color:var(--bad)}.obs{color:var(--warn)}.run{color:var(--dim)}
+.det{color:var(--dim);font-size:12.5px;word-break:break-word}
+#note{font-size:13.5px}
+</style></head><body><main>
+<h1>TalkBridge storage test</h1>
+<div class="sub">A standalone test of the bigger storage (IndexedDB). It does not touch the TalkBridge app or its chats.</div>
+<div class="card" id="note">Tap <b>Run all</b> and wait for "Done" (about a minute). Then switch to another app for 30 seconds and come back.</div>
+<div class="btns"><button id="run">Run all</button><button class="ghost" id="kill">Kill test</button><button class="ghost" id="clean">Delete test data</button></div>
+<div id="ctx" class="card det">…</div>
+<div id="out"></div>
+<script>
+"use strict";
+/* ─────────── settings ─────────── */
+var Q = new URLSearchParams(location.search);
+var POC = window.POC = {
+  DBN: 'tb-poc-idb', VER: 1,
+  LOG_URL: 'https://talk-signal.myacctfortracking.workers.dev/log',
+  TARGET_MB: +(Q.get('mb') || 50), PASS_MB: 25, CAP_MS: +(Q.get('capms') || 60000),
+  db: null, ver: 1, inject: null, retries: 0, rows: [], results: {}, t0: Date.now()
+};
+var $ = function (id) { return document.getElementById(id); };
+function now() { return (performance && performance.now) ? performance.now() : Date.now(); }
+function sleep(ms) { return new Promise(function (r) { setTimeout(r, ms); }); }
+/* a short, stable, non-reversible tag for a room id: logs never carry real ids or text */
+function tag(s) { var h = 2166136261; s = String(s); for (var i = 0; i < s.length; i++) { h ^= s.charCodeAt(i); h = Math.imul(h, 16777619); } return (h >>> 0).toString(36); }
+
+/* ─────────── the run state lives in window.name: it survives a reload and is not storage ─────────── */
+function stGet() { try { var o = JSON.parse(window.name || '{}'); return o && o.tbpoc ? o.tbpoc : null; } catch (_) { return null; } }
+function stSet(v) { try { window.name = v ? JSON.stringify({ tbpoc: v }) : ''; } catch (_) {} }
+
+/* ─────────── the device log: at most ~15 rows a run, each detail ≤ 350 chars, counts/sizes/times only ─────────── */
+function label() { var l = ''; try { l = localStorage.getItem('tb_devlog_name') || ''; } catch (_) {} if (!l) { var ua = navigator.userAgent || ''; l = (/iPhone|iPad|iPod/.test(ua) ? 'iphone' : /Android/.test(ua) ? 'android' : 'desktop') + '-new'; } return ('poc-' + l).slice(0, 24); }
+function plog(e, d) {
+  var s = JSON.stringify(d || {}); if (s.length > 350) { d = { cut: true, s: s.slice(0, 330) }; }
+  POC.rows.push({ t: Date.now(), e: e, d: d || {} });
+  if (POC.rows.length > 40) POC.rows.shift();
+  flush();
+}
+var _flushing = false;
+/* wait (≤ 5 s) until every row is sent */
+function drain() { var t0 = Date.now(); return new Promise(function (res) { (function w() { if ((!POC.rows.length && !_flushing) || Date.now() - t0 > 5000) res(); else { flush(); setTimeout(w, 100); } })(); }); }
+function flush() {
+  if (_flushing || !POC.rows.length || Q.get('log') === 'off') return;
+  var rows = POC.rows.splice(0, 20); _flushing = true;
+  fetch(POC.LOG_URL, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ dev: label(), rows: rows }), keepalive: true })
+    .catch(function () {}).then(function () { _flushing = false; if (POC.rows.length) setTimeout(flush, 200); });
+}
+
+/* ─────────── screen ─────────── */
+var NAMES = { P0: 'This phone', P1: 'Open the store', P2: 'Room for 50 MB', P3: 'Chat-like reads and writes', P4: 'Survives a reload', P4b: 'Survives closing the app',
+  P5: 'Copy chats from the old storage', P6: 'Reconnects after a drop', P7: 'Works after time away', P8: 'Cleans up', P10: 'Upgrades with data inside' };
+function show(id, status, det) {
+  var el = $('r-' + id);
+  if (!el) { el = document.createElement('div'); el.className = 'card'; el.id = 'r-' + id; $('out').appendChild(el); }
+  var cls = status === 'PASS' ? 'pass' : status === 'FAIL' ? 'fail' : status === 'running' ? 'run' : 'obs';
+  el.innerHTML = '<div class="row"><b>' + id + '</b><span>' + (NAMES[id] || id) + '</span><span class="st ' + cls + '">' + status + '</span></div>' + (det ? '<div class="det"></div>' : '');
+  if (det) el.querySelector('.det').textContent = det;
+}
+function result(id, pass, d, observed) {
+  var status = observed ? 'NOTED' : (pass ? 'PASS' : 'FAIL');
+  POC.results[id] = { pass: !!pass, observed: !!observed, d: d };
+  var st = stGet(); if (st) { st.res = st.res || {}; st.res[id] = status; stSet(st); }
+  show(id, status, Object.keys(d || {}).map(function (k) { return k + ' ' + (typeof d[k] === 'object' ? JSON.stringify(d[k]) : d[k]); }).join(' · '));
+  plog('poc_result', Object.assign({ id: id, pass: observed ? null : !!pass }, d || {}));
+}
+
+/* ─────────── the database wrapper: one place opens, reopens and retries ─────────── */
+function upgrade(db, oldV, tx) {
+  if (oldV < 1) {
+    db.createObjectStore('rooms', { keyPath: 'room' });
+    var m = db.createObjectStore('msgs', { keyPath: ['room', 'seq'] });
+    m.createIndex('byId', ['room', 'id'], { unique: true });   /* a message id is unique within its room (the app dedupes by id) */
+    db.createObjectStore('meta', { keyPath: 'k' });
+  }
+  if (oldV < 2 && db.version >= 2) tx.objectStore('msgs').createIndex('byTs', ['room', 'ts']);
+}
+function openDb(ver) {
+  ver = ver || POC.ver;
+  return new Promise(function (res, rej) {
+    var r; try { r = indexedDB.open(POC.DBN, ver); } catch (e) { rej(e); return; }
+    r.onupgradeneeded = function (e) { upgrade(r.result, e.oldVersion, r.transaction); };
+    r.onsuccess = function () {
+      var db = r.result;
+      db.onversionchange = function () { try { db.close(); } catch (_) {} if (POC.db === db) POC.db = null; POC.vchanges = (POC.vchanges || 0) + 1; };
+      db.onclose = function () { if (POC.db === db) POC.db = null; };   /* Safari/Chrome: the browser closed it under us */
+      res(db);
+    };
+    r.onerror = function () { rej(r.error); };
+    r.onblocked = function () { POC.blocked = (POC.blocked || 0) + 1; };
+  });
+}
+function getDb() { return POC.db ? Promise.resolve(POC.db) : openDb().then(function (db) { POC.db = db; POC.ver = db.version; return db; }); }
+var RETRY = { InvalidStateError: 1, UnknownError: 1, TransactionInactiveError: 1 };
+/* run fn(stores) in one transaction; resolves with fn's value when the transaction COMMITS; on a dropped connection, reopen and retry once */
+function tx(names, mode, fn, opts) {
+  function once() {
+    return getDb().then(function (db) {
+      return new Promise(function (res, rej) {
+        if (POC.inject) { var n = POC.inject; POC.inject = null; throw new DOMException('injected ' + n, n); }
+        var t = (opts && opts.durability && mode === 'readwrite') ? db.transaction(names, mode, { durability: opts.durability }) : db.transaction(names, mode);
+        var out, S = {}; [].concat(names).forEach(function (n) { S[n] = t.objectStore(n); });
+        t.oncomplete = function () { res(out); };
+        t.onerror = function (e) { if (e.stopPropagation) e.stopPropagation(); };   /* a failed request still aborts the transaction */
+        t.onabort = function () { rej(t.error || new DOMException('aborted', 'AbortError')); };
+        try { out = fn(S, t); } catch (e) { try { t.abort(); } catch (_) {} rej(e); }
+      });
+    });
+  }
+  return once().catch(function (e) {
+    if (!RETRY[e && e.name]) throw e;
+    POC.retries++; try { if (POC.db) POC.db.close(); } catch (_) {} POC.db = null;
+    return once();
+  });
+}
+function req(r) { return new Promise(function (res, rej) { r.onsuccess = function () { res(r.result); }; r.onerror = function (e) { e.preventDefault(); rej(r.error); }; }); }
+function range(room) { return IDBKeyRange.bound([room, -Infinity], [room, Infinity]); }
+
+/* the app's message, wrapped: {room, seq, id, ts, m}; seq is taken from the room's counter INSIDE the same transaction */
+function append(room, msg, opts) {
+  return tx(['rooms', 'msgs'], 'readwrite', function (S) {
+    var box = {};
+    var g = S.rooms.get(room);
+    g.onsuccess = function () {
+      var r = g.result || { room: room, n: 0 };
+      var seq = r.n + 1; r.n = seq; box.seq = seq;
+      S.msgs.add({ room: room, seq: seq, id: msg.id, ts: msg.ts || Date.now(), m: msg });
+      S.rooms.put(r);
+    };
+    return box;
+  }, opts).then(function (box) { return box.seq; });
+}
+/* many messages in ONE transaction (seeding, migration) */
+function appendMany(room, msgs) {
+  return tx(['rooms', 'msgs'], 'readwrite', function (S) {
+    var g = S.rooms.get(room);
+    g.onsuccess = function () {
+      var r = g.result || { room: room, n: 0 };
+      for (var i = 0; i < msgs.length; i++) { r.n++; S.msgs.add({ room: room, seq: r.n, id: msgs[i].id, ts: msgs[i].ts || 0, m: msgs[i] }); }
+      S.rooms.put(r);
+    };
+  });
+}
+function newest(room, n) {
+  return tx('msgs', 'readonly', function (S) {
+    var out = []; var c = S.msgs.openCursor(range(room), 'prev');
+    c.onsuccess = function () { var cur = c.result; if (cur && out.length < n) { out.push(cur.value); cur.continue(); } };
+    return out;
+  });
+}
+function all(room) { return tx('msgs', 'readonly', function (S) { var box = {}; req(S.msgs.getAll(range(room))).then(function (v) { box.v = v; }); return box; }).then(function (b) { return b.v; }); }
+function count(room) { return tx('msgs', 'readonly', function (S) { var box = {}; req(S.msgs.count(range(room))).then(function (v) { box.v = v; }); return box; }).then(function (b) { return b.v; }); }
+function dropRoom(room) { return tx(['rooms', 'msgs'], 'readwrite', function (S) { S.msgs.delete(range(room)); S.rooms.delete(room); }); }
+function updateById(room, id, patch) {
+  return tx('msgs', 'readwrite', function (S) {
+    var g = S.msgs.index('byId').get([room, id]);
+    g.onsuccess = function () { var v = g.result; if (!v) return; for (var k in patch) v.m[k] = patch[k]; S.msgs.put(v); };
+  });
+}
+function meta(k, v) {
+  if (v === undefined) return tx('meta', 'readonly', function (S) { var b = {}; req(S.meta.get(k)).then(function (x) { b.v = x ? x.v : null; }); return b; }).then(function (b) { return b.v; });
+  return tx('meta', 'readwrite', function (S) { if (v === null) S.meta.delete(k); else S.meta.put({ k: k, v: v }); });
+}
+function wipe() {
+  try { if (POC.db) POC.db.close(); } catch (_) {} POC.db = null;
+  return new Promise(function (res) { var r = indexedDB.deleteDatabase(POC.DBN); r.onsuccess = r.onerror = r.onblocked = function () { res(); }; });
+}
+function estimate() { try { return navigator.storage && navigator.storage.estimate ? navigator.storage.estimate() : Promise.resolve({}); } catch (_) { return Promise.resolve({}); } }
+var MB = 1048576;
+function mb(x) { return Math.round((x || 0) / MB * 10) / 10; }
+
+/* ─────────── synthetic messages shaped like the app's (no real text) ─────────── */
+var WORDS = 'the quick brown fox jumps over lazy dog hello thank you see later today tomorrow please yes no good morning call me'.split(' ');
+function words(n, seed) { var s = []; for (var i = 0; i < n; i++) s.push(WORDS[(seed * 7 + i * 13) % WORDS.length]); return s.join(' '); }
+function fake(i, room, big) {
+  return { id: 'poc-' + room + '-' + i, kind: 'chat', who: i % 2 ? 'me' : 'partner', sourceText: words(big ? 6 : 14, i), translatedText: words(big ? 6 : 14, i + 3),
+    srcLang: 'en', tgtLang: 'th', ts: 1760000000000 + i * 1000, senderName: 'Test', origin: 'typed', attachment: null };
+}
+
+/* ─────────── P0 · this phone ─────────── */
+function p0() {
+  var standalone = (window.matchMedia && matchMedia('(display-mode: standalone)').matches) || navigator.standalone === true;
+  var sw = (navigator.serviceWorker && navigator.serviceWorker.controller) ? String(navigator.serviceWorker.controller.scriptURL).replace(/^.*\/stuff\//, '/') : null;
+  var persisted = (navigator.storage && navigator.storage.persisted) ? navigator.storage.persisted() : Promise.resolve(null);
+  return Promise.all([estimate(), persisted.catch(function () { return null; })]).then(function (a) {
+    var d = { standalone: !!standalone, quotaMB: mb(a[0].quota), usedMB: mb(a[0].usage), persisted: a[1], sw: sw, idb: !!window.indexedDB,
+      durability: (function () { try { return 'durability' in IDBTransaction.prototype; } catch (_) { return false; } })() };
+    POC.ctx = d;
+    $('ctx').textContent = (standalone ? 'Installed app' : 'Browser tab') + ' · storage allowed ' + d.quotaMB + ' MB · used ' + d.usedMB + ' MB';
+    result('P0', true, d, true);
+  });
+}
+/* ─────────── P1 · open ─────────── */
+function p1() {
+  return getDb().then(function (db) {
+    var names = [].slice.call(db.objectStoreNames);
+    result('P1', names.indexOf('rooms') >= 0 && names.indexOf('msgs') >= 0 && names.indexOf('meta') >= 0, { stores: names.length, ver: db.version });
+  }).catch(function (e) { result('P1', false, { e: e && e.name }); throw e; });
+}
+/* ─────────── P2 · capacity ─────────── */
+function p2() {
+  var room = 'cap', per = 500, batch = [], i, stored = 0, n = 0, t0 = now(), err = null, base;
+  return estimate().then(function (e0) {
+    base = e0.usage || 0;
+    function next() {
+      if (stored >= POC.TARGET_MB * MB || now() - t0 > POC.CAP_MS) return Promise.resolve();
+      batch = []; for (i = 0; i < per; i++) { var m = fake(n + i, room); batch.push(m); }
+      var bytes = JSON.stringify(batch).length;
+      return appendMany(room, batch).then(function () { n += per; stored += bytes; show('P2', 'running', mb(stored) + ' MB'); return next(); });
+    }
+    return next().catch(function (e) { err = e; });
+  }).then(function () {
+    var secs = (now() - t0) / 1000;
+    return count(room).then(function (c) {
+      return estimate().then(function (e1) {
+        var d = { storedMB: mb(stored), written: n, readBack: c, secs: Math.round(secs), mbPerSec: Math.round(mb(stored) / Math.max(secs, 0.01) * 10) / 10, deltaMB: mb((e1.usage || 0) - base), e: err ? err.name : null };
+        /* on a quota error: the batches that committed must all still be there */
+        d.intact = c === n;
+        var pass = !err && mb(stored) >= POC.PASS_MB && c === n;
+        return dropRoom(room).then(function () { result('P2', pass, d); });
+      });
+    });
+  });
+}
+/* ─────────── P3 · the chat pattern ─────────── */
+function p3() {
+  var room = 'p3', d = {}, ok = true, i;
+  var seed = []; for (i = 0; i < 2000; i++) seed.push(fake(i, room));
+  return appendMany(room, seed).then(function () {
+    var t = now(); return newest(room, 50).then(function (v) { d.newest50ms = Math.round(now() - t); ok = ok && v.length === 50 && v[0].seq === 2000; });
+  }).then(function () {
+    var t = now(); return all(room).then(function (v) { d.allMs = Math.round(now() - t); d.all = v.length; ok = ok && v.length === 2000; });   /* the in-memory copy the app would render from */
+  }).then(function () {
+    /* (c) 200 appends fired at once, as messages arrive */
+    var ps = []; for (i = 0; i < 200; i++) ps.push(append(room, fake(2000 + i, room)));
+    return Promise.all(ps);
+  }).then(function () { return all(room); }).then(function (v) {
+    var seqOk = v.length === 2200 && v.every(function (x, k) { return x.seq === k + 1; });
+    var ids = {}; var dup = v.some(function (x) { if (ids[x.id]) return true; ids[x.id] = 1; return false; });
+    d.burst = seqOk && !dup; ok = ok && d.burst;
+    /* (d) read-your-write: the read is started before the write completes */
+    var w = append(room, fake(9999, room)); var r = newest(room, 1);
+    return Promise.all([w, r]);
+  }).then(function (a) {
+    d.ryw = a[1][0] && a[1][0].id === 'poc-' + room + '-9999'; ok = ok && d.ryw;
+    /* (e) two writers: a second connection appends at the same time */
+    return openDb().then(function (db2) {
+      var other = function (k) { return new Promise(function (res, rej) { var t = db2.transaction(['rooms', 'msgs'], 'readwrite'); var g = t.objectStore('rooms').get(room);
+        g.onsuccess = function () { var r = g.result; r.n++; t.objectStore('msgs').add({ room: room, seq: r.n, id: 'two-' + k, ts: 0, m: { id: 'two-' + k } }); t.objectStore('rooms').put(r); };
+        t.oncomplete = function () { res(); }; t.onabort = function () { rej(t.error); }; }); };
+      var ps = []; for (i = 0; i < 100; i++) { ps.push(other(i)); ps.push(append(room, fake(20000 + i, room))); }
+      return Promise.all(ps).then(function () { db2.close(); });
+    });
+  }).then(function () { return all(room); }).then(function (v) {
+    d.twoWriters = v.length === 2401 && v.every(function (x, k) { return x.seq === k + 1; }); ok = ok && d.twoWriters;
+    /* (f) a duplicate id is refused, nothing changes */
+    return append(room, fake(5, room)).then(function () { return false; }, function (e) { return e && e.name === 'ConstraintError'; });
+  }).then(function (refused) {
+    d.dupRefused = refused; ok = ok && refused;
+    return count(room);
+  }).then(function (c) {
+    ok = ok && c === 2401;
+    /* (g) a read receipt updates a message in place */
+    return updateById(room, 'poc-' + room + '-7', { readAt: 12345 }).then(function () { return all(room); });
+  }).then(function (v) {
+    var m = v.filter(function (x) { return x.id === 'poc-' + room + '-7'; })[0];
+    d.update = !!m && m.m.readAt === 12345 && m.seq === 8 && v.length === 2401; ok = ok && d.update;
+    /* (h) one large message (a photo-sized attachment, 1 MB) */
+    var big = fake(30000, room); big.attachment = { kind: 'image', data: new Array(MB + 1).join('x') };
+    return append(room, big).then(function () { return newest(room, 1); });
+  }).then(function (v) {
+    d.big1MB = !!v[0] && v[0].m.attachment && v[0].m.attachment.data.length === MB; ok = ok && d.big1MB;
+    return dropRoom(room);
+  }).then(function () { result('P3', ok, d); }, function (e) { d.e = e && e.name; result('P3', false, d); });
+}
+/* ─────────── P4 · reload ─────────── */
+function p4start() {
+  var room = 'p4', st = stGet() || {}; st.step = 'P4'; st.p4 = { committed: 0 }; stSet(st);
+  var fired = 0, reloaded = false;
+  return dropRoom(room).then(function () {
+    function one(k) {
+      return append(room, fake(k, room), { durability: 'strict' }).then(function () {
+        var s = stGet(); s.p4.committed++; stSet(s);    /* counted only when its transaction COMPLETED */
+        if (s.p4.committed >= 40 && !reloaded) { reloaded = true; location.reload(); }
+      });
+    }
+    for (fired = 0; fired < 100; fired++) one(fired).catch(function () {});
+    return new Promise(function () {});   /* the reload ends this page */
+  });
+}
+function p4check() {
+  var st = stGet(), room = 'p4';
+  return all(room).then(function (v) {
+    var noGap = v.every(function (x, k) { return x.seq === k + 1; });
+    var d = { committed: st.p4.committed, stored: v.length, noGap: noGap };
+    result('P4', v.length >= st.p4.committed && noGap, d);
+    return dropRoom(room);
+  });
+}
+/* ─────────── P4b · survives closing the app (manual: Kill test) ─────────── */
+function killPrep() {
+  var room = 'kill', n = 0;
+  return dropRoom(room).then(function () {
+    var ps = []; for (var k = 0; k < 100; k++) ps.push(append(room, fake(k, room), { durability: 'strict' }).then(function () { n++; }));
+    return Promise.all(ps);
+  }).then(function () { return meta('kill', { committed: n, at: Date.now() }); }).then(function () {
+    show('P4b', 'waiting', n + ' messages saved. Now close this app completely (swipe it away), then open it again.');
+    plog('poc_kill_prepared', { committed: n });
+  });
+}
+function killCheck() {
+  return meta('kill').then(function (k) {
+    if (!k) return;
+    return all('kill').then(function (v) {
+      var noGap = v.every(function (x, i) { return x.seq === i + 1; });
+      result('P4b', v.length >= k.committed && noGap, { committed: k.committed, stored: v.length, noGap: noGap, awayS: Math.round((Date.now() - k.at) / 1000) });
+      return meta('kill', null).then(function () { return dropRoom('kill'); });
+    });
+  }).catch(function (e) { plog('poc_error', { at: 'killCheck', e: e && e.name }); });
+}
+/* ─────────── P5 · migration from the old storage (READ ONLY) ─────────── */
+function h32(s) { return tag(s) + ':' + s.length; }
+function sources() {
+  var out = [], real = 0;
+  try { for (var i = 0; i < localStorage.length; i++) { var k = localStorage.key(i); if (k && k.indexOf('tba_tr_') === 0) { out.push({ id: k.slice(7), raw: localStorage.getItem(k) }); real++; } } } catch (_) {}
+  if (!real) {   /* this storage holds no app chats (an installed copy has its own): about 5 MB of synthetic rooms, in memory only */
+    for (var r = 0; r < 20; r++) { var a = []; for (var j = 0; j < 830; j++) a.push(fake(j, 'syn' + r)); out.push({ id: 'syn' + r, raw: JSON.stringify(a) }); }
+  }
+  if (!real) { out.push({ id: 'bad-json', raw: '{"broken":' }); out.push({ id: 'empty', raw: '[]' }); }
+  /* a source that does not parse is counted, never copied (a phone's real data may hold one) */
+  var bad = out.filter(function (s) { try { return !Array.isArray(JSON.parse(s.raw)); } catch (_) { return true; } }).length;
+  return { list: out, real: real, bad: bad };
+}
+function migrateOne(src) {
+  var arr; try { arr = JSON.parse(src.raw); } catch (_) { return Promise.resolve('bad'); }
+  if (!Array.isArray(arr)) return Promise.resolve('bad');
+  var room = 'mig:' + src.id, hash = h32(src.raw), seen = {}, dups = 0;
+  /* an id seen twice in one room keeps its message but not its place in the id index (counted, never dropped) */
+  var ids = arr.map(function (x) { var id = x && x.id; if (id == null) return undefined; if (seen[id]) { dups++; return undefined; } seen[id] = 1; return id; });
+
+  /* ONE transaction per room: skip if the same source is already in; replace if it grew or changed */
+  return tx(['rooms', 'msgs'], 'readwrite', function (S) {
+    var box = {}; var g = S.rooms.get(room);
+    g.onsuccess = function () {
+      var r = g.result;
+      if (r && r.src === hash) { box.v = 'same'; return; }
+      S.msgs.delete(range(room));
+      for (var i = 0; i < arr.length; i++) S.msgs.add({ room: room, seq: i + 1, id: ids[i], ts: (arr[i] && arr[i].ts) || 0, m: arr[i] });
+      S.rooms.put({ room: room, n: arr.length, src: hash });
+      box.v = r ? 'updated' : 'copied'; POC.migDups = (POC.migDups || 0) + dups;
+    };
+    return box;
+  }).then(function (b) { return b.v; });
+}
+function verifyOne(src) {
+  var arr; try { arr = JSON.parse(src.raw); } catch (_) { return Promise.resolve(true); }
+  if (!Array.isArray(arr)) return Promise.resolve(true);
+  return all('mig:' + src.id).then(function (v) { return v.length === arr.length && v.every(function (x, i) { return JSON.stringify(x.m) === JSON.stringify(arr[i]); }); });
+}
+function p5() {
+  var S = sources(), list = S.list, d = { realRooms: S.real, rooms: list.length, badSrc: S.bad, msgs: 0, kb: 0 }, t0 = now(), ok = true;
+  list.forEach(function (s) { d.kb += s.raw.length; try { var a = JSON.parse(s.raw); if (Array.isArray(a)) d.msgs += a.length; } catch (_) {} });
+  d.kb = Math.round(d.kb / 1024);
+  function seq(fn) { return list.reduce(function (p, s) { return p.then(function (acc) { return fn(s).then(function (x) { acc.push(x); return acc; }); }); }, Promise.resolve([])); }
+  /* the page "dies" after 5 rooms (a stop mid-run), then the run starts over: everything ends complete */
+  var stopAt = 5, k = 0;
+  return list.slice(0, stopAt).reduce(function (p, s) { return p.then(function () { return migrateOne(s); }); }, Promise.resolve()).then(function () {
+    return seq(migrateOne);
+  }).then(function (states) {
+    d.dupIds = POC.migDups || 0;
+    d.copied = states.filter(function (x) { return x === 'copied'; }).length; d.same = states.filter(function (x) { return x === 'same'; }).length;
+    d.bad = states.filter(function (x) { return x === 'bad'; }).length;
+    d.ms = Math.round(now() - t0);
+    return seq(verifyOne);
+  }).then(function (eq) {
+    d.equal = eq.every(Boolean); ok = ok && d.equal && d.bad === d.badSrc;
+    /* re-run: nothing changes */
+    return seq(migrateOne);
+  }).then(function (states) {
+    d.rerunSame = states.filter(function (x) { return x === 'same' || x === 'bad'; }).length === list.length; ok = ok && d.rerunSame;
+    /* a room that grew since: updated whole */
+    var g = { id: 'grow', raw: JSON.stringify([fake(1, 'g'), fake(2, 'g')]) };
+    return migrateOne(g).then(function () { g.raw = JSON.stringify([fake(1, 'g'), fake(2, 'g'), fake(3, 'g')]); return migrateOne(g); }).then(function (st) { return verifyOne(g).then(function (e) { d.grew = st === 'updated' && e; ok = ok && d.grew; }); });
+  }).then(function () {
+    /* a room's copy cut off halfway leaves the room absent, not partial */
+    return tx(['rooms', 'msgs'], 'readwrite', function (S, t) { for (var i = 0; i < 50; i++) S.msgs.add({ room: 'mig:cut', seq: i + 1, id: 'c' + i, ts: 0, m: {} }); S.rooms.put({ room: 'mig:cut', n: 100 }); t.abort(); })
+      .then(function () { return false; }, function () { return count('mig:cut').then(function (c) { return c === 0; }); });
+  }).then(function (cutOk) {
+    d.cutAbsent = cutOk; ok = ok && cutOk;
+    return seq(function (s) { return dropRoom('mig:' + s.id); }).then(function () { return dropRoom('mig:grow'); });
+  }).then(function () { result('P5', ok, d); }, function (e) { d.e = e && e.name; result('P5', false, d); });
+}
+/* ─────────── P6 · the connection comes back ─────────── */
+function p6() {
+  var d = {}, room = 'p6', r0 = POC.retries;
+  return getDb().then(function (db) {
+    db.close();                                    /* closed under the wrapper (it does not know) */
+    return append(room, fake(1, room));
+  }).then(function () {
+    d.afterClose = true; POC.inject = 'UnknownError';   /* what Safari raises after a lost connection */
+    return append(room, fake(2, room));
+  }).then(function () { d.afterUnknown = true; d.retries = POC.retries - r0; return count(room); }).then(function (c) {
+    d.count = c; return dropRoom(room);
+  }).then(function () { result('P6', d.afterClose && d.afterUnknown && d.count === 2 && d.retries === 2, d); }, function (e) { d.e = e && e.name; result('P6', false, d); });
+}
+/* ─────────── P10 · an upgrade with data inside and the old connection open ─────────── */
+function p10() {
+  var room = 'p10', d = {}, t0;
+  var seed = []; for (var i = 0; i < 300; i++) seed.push(fake(i, room));
+  return appendMany(room, seed).then(function () { return getDb(); }).then(function () {
+    t0 = now(); POC.blocked = 0;
+    return openDb(POC.ver + 1);                    /* a newer page version opens while this one holds the old connection */
+  }).then(function (db2) {
+    d.upgradeMs = Math.round(now() - t0); d.blocked = POC.blocked; d.oldClosed = POC.db === null;
+    d.ver = db2.version; d.byTs = [].slice.call(db2.transaction('msgs').objectStore('msgs').indexNames).indexOf('byTs') >= 0;
+    POC.db = db2; POC.ver = db2.version;
+    return count(room);
+  }).then(function (c) { d.count = c; return dropRoom(room); }).then(function () {
+    result('P10', d.count === 300 && d.byTs && d.oldClosed && d.upgradeMs < 3000, d);
+  }, function (e) { d.e = e && e.name; result('P10', false, d); });
+}
+/* ─────────── P7 · after time away (automatic on return) ─────────── */
+var awayAt = 0, p7n = 0;
+document.addEventListener('visibilitychange', function () {
+  if (document.hidden) { awayAt = Date.now(); flush(); return; }
+  var away = awayAt ? Date.now() - awayAt : 0; awayAt = 0;
+  if (away < 30000 || p7n >= 5) return;
+  p7n++; var r0 = POC.retries;
+  append('p7', fake(p7n, 'p7')).then(function () { return count('p7'); }).then(function (c) {
+    result('P7', c >= 1, { awayS: Math.round(away / 1000), retried: POC.retries - r0 });
+    return dropRoom('p7');
+  }).catch(function (e) { result('P7', false, { awayS: Math.round(away / 1000), e: e && e.name }); });
+});
+/* ─────────── run all ─────────── */
+function done() {
+  var ids = Object.keys(POC.results).filter(function (k) { return !POC.results[k].observed; });
+  var st = stGet(); var res = Object.assign({}, st && st.res || {});
+  ids.forEach(function (k) { res[k] = POC.results[k].pass ? 'PASS' : 'FAIL'; });
+  var failed = Object.keys(res).filter(function (k) { return res[k] === 'FAIL'; });
+  return wipe().then(function () { return indexedDB.databases ? indexedDB.databases() : null; }).then(function (l) {
+    var gone = !l || !l.some(function (x) { return x.name === POC.DBN; });
+    return estimate().then(function (e) { result('P8', gone, { deleted: gone, usedMB: mb(e.usage) }); });
+  }).then(function () {
+    plog('poc_done', { res: res, failed: failed.length, retries: POC.retries, ms: Date.now() - POC.t0 });
+    stSet(null);
+    return drain().then(function () { window.POC_DONE = { res: res, failed: failed }; });
+  }).then(function () {
+    var failed = window.POC_DONE.failed;
+    $('note').textContent = failed.length ? 'Done — ' + failed.length + ' check(s) failed. The results are already sent; nothing else to do.' : 'Done — all checks passed. The results are already sent. Now switch to another app for 30 seconds and come back.';
+    $('run').disabled = false;
+  });
+}
+function runAll() {
+  $('run').disabled = true; $('out').innerHTML = ''; POC.results = {};
+  stSet({ step: 'start', res: {} });
+  plog('poc_start', { cold: false, run: true });
+  return wipe().then(p0).then(p1).then(p2).then(p3).then(p5).then(p6).then(p10).then(function () {
+    POC.ver = 1; return wipe();                   /* P4 starts on a fresh v1 store */
+  }).then(p4start).catch(function (e) { plog('poc_error', { at: 'run', e: e && e.name }); result('P1', false, { e: e && e.name }); $('run').disabled = false; });
+}
+/* a reload during P4 lands here and the run carries on */
+function boot() {
+  var st = stGet();
+  plog('poc_start', { cold: !st, step: st ? st.step : null });
+  if (st && st.res) Object.keys(st.res).forEach(function (k) { show(k, st.res[k]); });
+  var go = Promise.resolve();
+  if (st && st.step === 'P4') { $('run').disabled = true; go = p0().then(p4check).then(done); }
+  go.then(function () {
+    /* only look for a kill test if the database exists (never create one just by opening the page) */
+    if (!indexedDB.databases) return killCheck();
+    return indexedDB.databases().then(function (l) { if (l.some(function (x) { return x.name === POC.DBN; })) return killCheck(); });
+  }).catch(function (e) { plog('poc_error', { at: 'boot', e: e && e.name }); });
+  if (!st) p0().catch(function () {});
+}
+$('run').addEventListener('click', runAll);
+$('kill').addEventListener('click', function () { killPrep().catch(function (e) { show('P4b', 'FAIL', String(e && e.name)); }); });
+$('clean').addEventListener('click', function () { wipe().then(estimate).then(function (e) { show('P8', 'PASS', 'deleted · used ' + mb(e.usage) + ' MB'); plog('poc_clean', { usedMB: mb(e.usage) }); }); });
+POC.runP2 = p2;   /* the quota check runs P2 alone */
+POC.api = { append: append, appendMany: appendMany, all: all, count: count, newest: newest, dropRoom: dropRoom, wipe: wipe, killPrep: killPrep, runAll: runAll, getDb: getDb };
+boot();
+</script>
+</main></body></html>
