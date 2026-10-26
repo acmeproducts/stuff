@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 from __future__ import annotations
-import csv,datetime as dt,hashlib,json,math,os,statistics,urllib.parse,urllib.request
+import csv,datetime as dt,hashlib,json,math,os,statistics,time,urllib.parse,urllib.request
 from pathlib import Path
 
 CATALOG=Path('data/market-backend/data-catalog.json');ROOT=Path('market-evidence');SERIES=ROOT/'series';REPORTS=ROOT/'reports';MANIFEST=ROOT/'operational-manifest.json'
@@ -68,10 +68,15 @@ def fred(sid,boot):
  if not out:raise RuntimeError('FRED returned zero observations')
  return canon(out),http
 def fetch_source(provider,identifier,boot):
- if provider=='Yahoo Finance':return yahoo(identifier,boot)
- if provider=='Stooq':return stooq(identifier,boot)
- if provider=='FRED':return fred(identifier,boot)
- raise RuntimeError('unsupported provider '+str(provider))
+ fn={'Yahoo Finance':yahoo,'Stooq':stooq,'FRED':fred}.get(provider)
+ if fn is None:raise RuntimeError('unsupported provider '+str(provider))
+ last=None
+ for i in range(3):
+  try:return fn(identifier,boot)
+  except Exception as e:
+   last=e
+   if i<2:time.sleep(5*(i+1))
+ raise last
 def yoy(a):
  a=canon(a);m={}
  for p in a:
@@ -147,7 +152,7 @@ def main():
   except Exception as e:
    err=str(e);obs=canon(obs0);success=old.get('last_successful');failures.append(f'{sid}: {e}')
   if obs:
-   cutoff=int((now()-dt.timedelta(days=365.25*10.25)).timestamp()*1000);obs=[x for x in obs if x['t']>=cutoff]
+   cutoff=int(dt.datetime(2016,7,1,tzinfo=dt.timezone.utc).timestamp()*1000);obs=[x for x in obs if x['t']>=cutoff]
   rev=sha(obs);configured=chain_for(m);provider_name=(used or {}).get('provider') or old.get('provider') or m.get('provider');provider_id=(used or {}).get('identifier') or old.get('providerIdentifier') or m.get('provider_identifier')
   obj={'schema':'market-navigator-evidence-series-v1','pipelineVersion':VERSION,'id':sid,'catalogVersion':c.get('version'),'provider':provider_name,'providerIdentifier':provider_id,'providerChain':configured,'providerFallbackUsed':bool(used and used.get('position',0)>0),'providerErrors':source_errors,'unit':m.get('native_unit'),'cadence':m.get('native_cadence'),'description':m.get('description'),'first':obs[0]['t'] if obs else None,'last':obs[-1]['t'] if obs else None,'count':len(obs),'sourceRevision':rev,'last_attempted':attempt,'last_successful':success,'last_error':err,'http':http,'observations':obs};write(p,obj)
   supported=set(m.get('supported_horizons') or H);rr={}
