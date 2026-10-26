@@ -159,3 +159,33 @@ for(const lang of ['km','lo','th','hi','vi'])test('No '+lang+' keyboard key is l
  const bad=await page.evaluate(()=>[...document.querySelectorAll('#kb-north .key')].map(b=>b.textContent).filter(t=>/^\p{M}/u.test(t)));
  assert.deepEqual(bad,[],lang+' keys labelled with a bare mark');
 });
+const RUNNER_USAGE='https://chatlink-runner.myacctfortracking.workers.dev/usage';
+async function captureUsage(page,mode){const got=[];await page.route(RUNNER_USAGE,async route=>{if(mode&&mode.fail)return route.abort();got.push(JSON.parse(route.request().postData()));await route.fulfill({status:200,contentType:'application/json',headers:{'access-control-allow-origin':'*'},body:'{"ok":true}'})});return got}
+const usageEvents=got=>got.flatMap(b=>b.events);
+test('usage log: a typed message is recorded with room, languages, side and typed, and never its words',async({page})=>{
+ const got=await captureUsage(page);
+ await create(page,'Market');await send(page,'south','hello friend');await settled(page,1);
+ await page.waitForFunction(()=>window.clUsage&&window.clUsage.pending()===0,null,{timeout:8000});
+ const ev=usageEvents(got).find(e=>e.kind==='message');
+ assert.ok(ev,'a message event was sent');assert.equal(ev.room,'Market');assert.equal(ev.pair,'en>th');assert.equal(ev.side,'south');assert.equal(ev.mode,'typed');assert.equal(ev.trOk,true);assert.equal(ev.who,'owner');
+ assert.ok(!JSON.stringify(got).includes('hello friend'),'the words are never sent');
+ assert.ok(usageEvents(got).some(e=>e.kind==='room'&&e.room==='Market'&&e.pair==='en>th'),'room creation is recorded');
+});
+test('usage log: a spoken message is recorded as spoken with its speech engine',async({page})=>{
+ const got=await captureUsage(page);
+ const s=await openRoom(page,'Spoken');final(s.south,'hello friend',.93);await settled(page,1);
+ await page.waitForFunction(()=>window.clUsage&&window.clUsage.pending()===0,null,{timeout:8000});
+ const ev=usageEvents(got).find(e=>e.kind==='message');
+ assert.equal(ev.mode,'spoken');assert.ok(ev.stt,'the speech engine is recorded');assert.ok(!JSON.stringify(got).includes('hello friend'));
+});
+test('usage log: offline events wait on the phone and are sent once when back online',async({page})=>{
+ await captureUsage(page,{fail:true});
+ await create(page,'Offline');await send(page,'south','good morning');await settled(page,1);
+ await page.waitForTimeout(500);
+ assert.ok(await page.evaluate(()=>window.clUsage.pending())>=2,'events are kept while the send fails');
+ await page.unroute(RUNNER_USAGE);const got=await captureUsage(page);
+ await page.evaluate(()=>window.dispatchEvent(new Event('online')));
+ await page.waitForFunction(()=>window.clUsage.pending()===0,null,{timeout:8000});
+ const evs=usageEvents(got);assert.equal(evs.filter(e=>e.kind==='message').length,1,'sent once, no duplicates');
+ assert.ok(evs.some(e=>e.kind==='room'));
+});

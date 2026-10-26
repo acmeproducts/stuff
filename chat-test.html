@@ -1864,6 +1864,28 @@ function dgLangParam(room) {
     var pendingConversion={south:null,north:null},undoEdit={south:null,north:null};
     var predictionTxn={south:null,north:null};
     var CHAT_BUILD='chat-test-audio-r17';
+    /* ===== usage log: one small row per event (room name, language pair, side, typed or spoken, worked or not). Never the words. Sent in the background; kept on the phone while offline. ===== */
+    window.clUsage=(function(){
+        var QK='cl_usage_q',sending=false,timer=null;
+        function lsGet(k){try{return localStorage.getItem(k)}catch(e){return null}}
+        function lsSet(k,v){try{localStorage.setItem(k,v);return true}catch(e){return false}}
+        function queue(){try{var q=JSON.parse(lsGet(QK)||'[]');return Array.isArray(q)?q:[]}catch(e){return[]}}
+        function who(){try{var g=JSON.parse(lsGet('cl_guest')||'null');return g&&g.name?String(g.name):'owner'}catch(e){return'owner'}}
+        function dev(){var d=lsGet('cl_dev');if(!d){d=Math.random().toString(36).slice(2,10)+Date.now().toString(36).slice(-4);lsSet('cl_dev',d)}return d}
+        function flush(){
+            if(sending)return;var q=queue();if(!q.length)return;if(navigator.onLine===false)return;
+            var batch=q.slice(0,50);sending=true;
+            fetch(window.clRunner()+'/usage',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({dev:dev(),events:batch}),keepalive:true})
+            .then(function(r){if(!r.ok)throw new Error('usage '+r.status);var cur=queue();lsSet(QK,JSON.stringify(cur.slice(batch.length)));sending=false;if(cur.length>batch.length)flush()})
+            .catch(function(){sending=false});
+        }
+        function add(kind,x){
+            var e=Object.assign({kind:kind,t:Date.now(),who:who(),build:CHAT_BUILD},x||{}),q=queue();q.push(e);if(q.length>200)q=q.slice(-200);lsSet(QK,JSON.stringify(q));
+            clearTimeout(timer);timer=setTimeout(flush,1500);
+        }
+        window.addEventListener('online',flush);document.addEventListener('visibilitychange',function(){if(document.visibilityState==='hidden')flush()});
+        return{add:add,flush:flush,pending:function(){return queue().length}};
+    })();
     var UNDO_LABEL={en:'Undo',th:'เลิกทำ',es:'Deshacer',fr:'Annuler',de:'Rückgängig',
         it:'Annulla',pt:'Desfazer',nl:'Ongedaan maken',sv:'Ångra',pl:'Cofnij',tr:'Geri al',
         ru:'Отменить',ar:'تراجع',hi:'पूर्ववत करें',vi:'Hoàn tác',id:'Urungkan',ms:'Buat asal',
@@ -2863,7 +2885,7 @@ var portal=(function(){
  async function editRoom(r){view='edit';requireWriter();clearError();$('cl-heading').textContent=r?'Conversation settings':'New conversation';var f=node('form');$('cl-body').replaceChildren(f);var prefs=await read('state','defaults'),seed=r||Object.assign(defaults(),prefs&&prefs.value);var name=field(f,'Conversation name',seed.label||'');name.maxLength=100;name.placeholder='Optional name';var south=language(f,'Device owner · South',seed.southLang),north=language(f,'Partner · North',seed.northLang);if(r&&r.messages.length){f.appendChild(node('p','You can change languages at any time (for example with a third language). Earlier messages keep the languages they were spoken in.','cl-note'));}
   var appearance=node('details');appearance.appendChild(node('summary','Appearance'));f.appendChild(appearance);var sb=field(appearance,'South bubble colour',seed.southBg,'color'),nb=field(appearance,'North bubble colour',seed.northBg,'color'),fc=field(appearance,'Text colour',seed.fontColor,'color'),size=field(appearance,'Text size',seed.fontSize,'number');size.min=12;size.max=24;
   var actions=node('div',null,'cl-actions'),save=node('button',r?'Save changes':'Create conversation','cl-primary');save.type='submit';actions.append(save,button('Cancel',function(){return list()}));if(r)actions.appendChild(button('Export conversation',async function(){var room=await read('rooms',r.id);if(!room)throw new Error('Conversation no longer exists.');var data=JSON.stringify({format:'chatlink-audio-test',version:1,exportedAt:new Date().toISOString(),rooms:[room]},null,2);var a=node('a');a.href=URL.createObjectURL(new Blob([data],{type:'application/json'}));a.download='chatlink-'+(title(room).replace(/[^\w\-]+/g,'-').replace(/^-+|-+$/g,'')||'conversation')+'-'+new Date().toISOString().slice(0,10)+'.json';a.click();setTimeout(function(){URL.revokeObjectURL(a.href)},1000);log('room_export',{messages:(room.messages||[]).length},'ok')}));if(r)actions.appendChild(button('Move to Trash',function(){return trashRoom(r)},'cl-danger'));f.appendChild(actions);
-  f.onsubmit=function(e){e.preventDefault();action(async function(){if(save.disabled)return;save.disabled=true;try{var fields={label:name.value.trim(),southLang:south.value,northLang:north.value,southBg:sb.value,northBg:nb.value,fontColor:fc.value,fontSize:Math.max(12,Math.min(24,Number(size.value)||15))};await flush();var saved=await change('rooms',r?r.id:'',function(old){if(r&&!old)throw new Error('Conversation no longer exists.');if(r){Object.assign(old,fields);old.updatedAt=Date.now();old.revision++;return old;}return fresh(fields)});await state('defaults',{southLang:fields.southLang,northLang:fields.northLang});await select(saved.id); }finally{save.disabled=false;}})};
+  f.onsubmit=function(e){e.preventDefault();action(async function(){if(save.disabled)return;save.disabled=true;try{var fields={label:name.value.trim(),southLang:south.value,northLang:north.value,southBg:sb.value,northBg:nb.value,fontColor:fc.value,fontSize:Math.max(12,Math.min(24,Number(size.value)||15))};await flush();var saved=await change('rooms',r?r.id:'',function(old){if(r&&!old)throw new Error('Conversation no longer exists.');if(r){Object.assign(old,fields);old.updatedAt=Date.now();old.revision++;return old;}return fresh(fields)});await state('defaults',{southLang:fields.southLang,northLang:fields.northLang});if(!r)window.clUsage.add('room',{room:fields.label,pair:fields.southLang+'>'+fields.northLang});await select(saved.id); }finally{save.disabled=false;}})};
  }
  async function trashRoom(r){if(!confirm('Move “'+title(r)+'” to Trash? Its history will be retained.'))return;await flush();if(active&&active.id===r.id){teardown('trash room');generation++;setActive(null);await state('activeRoomId',null);history.replaceState({},'',location.pathname);}await change('rooms',r.id,function(x){if(!x)return;x.trashedAt=Date.now();return x});await list();}
  async function restore(r){await change('rooms',r.id,function(x){if(!x)return;delete x.trashedAt;return x});await list()}
@@ -2971,7 +2993,7 @@ var portal=(function(){
    if(!await track(saveNormalized(),saveNormalized))return;await refresh(ctx.roomId);
    var tr=normalized.lang===ctx.tgt?{ok:true,text:normalized.text}:await translateWithRetry(normalized.text,normalized.lang,ctx.tgt,2);window.audioTurn.note(tr&&tr.ok?'translation-completed':'translation-failed',tr&&tr.ok?'ok':'error',{side:ctx.side,tgt:ctx.tgt});
    var update=function(){return change('rooms',ctx.roomId,function(r){if(!r||r.trashedAt)return;var m=r.messages.find(function(m){return m.id===id});if(!m)return;m.tr=tr&&tr.ok?norm(tr.text):null;m.status=m.tr?'complete':'failed';return r})};
-   if(!await track(update(),update))return;await refresh(ctx.roomId);if(active&&active.id===ctx.roomId&&generation===ctx.gen&&!opened&&tr.ok)speakIfOn(ctx.side,norm(tr.text),ctx.tgt);
+   if(!await track(update(),update))return;await refresh(ctx.roomId);window.clUsage.add('message',{room:active&&active.id===ctx.roomId?active.label:'',pair:ctx.src+'>'+ctx.tgt,side:ctx.side,mode:entry.via&&entry.via.input==='voice'?'spoken':'typed',trOk:!!(tr&&tr.ok),stt:entry.via&&entry.via.input==='voice'?String(entry.via.pipe||'speech'):undefined});if(active&&active.id===ctx.roomId&&generation===ctx.gen&&!opened&&tr.ok)speakIfOn(ctx.side,norm(tr.text),ctx.tgt);
   }finally{jobs.delete(job);if(active&&active.id===ctx.roomId)renderAll();}
  }
  function retryMessage(id){if(!visible())return;var m=HIST.find(function(x){return x.id===id});if(!m)return;return action(function(){return processMessage({roomId:active.id,side:m.side,src:m.ownerLang||m.src,tgt:m.tgt,gen:generation},id)})}
@@ -3018,7 +3040,7 @@ var portal=(function(){
   window.addEventListener('popstate',function(){action(function(){return select(new URL(location.href).searchParams.get('room'),'none')})});document.addEventListener('visibilitychange',function(){if(document.hidden){saveDraft().catch(showError);teardown('hidden')}});window.addEventListener('pagehide',function(){saveDraft().catch(function(){});teardown('pagehide')});
   if(!navigator.locks){showError(new Error('This browser needs Web Locks support for safe conversation storage. Please use a current browser.'));freeze();return;}
   await new Promise(function(resolve){navigator.locks.request('chatlink-audio-test-writer',{ifAvailable:true},async function(lock){writer=!!lock;resolve();if(lock)await new Promise(function(r){releaseLock=r})}).catch(function(e){showError(e);resolve()});});
-  await openDB();rooms=await read('rooms');var last=await read('state','activeRoomId'),id=new URL(location.href).searchParams.get('room')||(last&&last.value),r=id?await read('rooms',id):null;setActive(r&&!r.trashedAt?r:null);if(id&&!active)showError(new Error('That conversation is unavailable. Choose one from the menu.'));if(!active||!writer)await open();document.documentElement.dataset.chatlinkReady='true';
+  await openDB();rooms=await read('rooms');var last=await read('state','activeRoomId'),id=new URL(location.href).searchParams.get('room')||(last&&last.value),r=id?await read('rooms',id):null;setActive(r&&!r.trashedAt?r:null);if(id&&!active)showError(new Error('That conversation is unavailable. Choose one from the menu.'));if(!active||!writer)await open();document.documentElement.dataset.chatlinkReady='true';window.clUsage.add('session');
  }
  return {start:start,open:open,select:select,submit:submit,scheduleDraft:scheduleDraft,deleteMessage:deleteMessage,aiReady:aiReady,aiReview:aiReview,replaceTranslation:replaceTranslation,decorateMessage:decorateMessage,older:older,pageSize:function(s){return pages[s]},visible:visible,flush:flush};
 })();
@@ -3063,7 +3085,7 @@ var portal=(function(){
                 }
                 if(own)return card('This device is already set up',['This browser already has its own settings. Open the link on the guest\'s phone instead. Using it here would turn this browser into a guest browser with no settings.'],[{text:'Cancel',fn:finish},{text:'Use here anyway',alt:true,fn:start}]);
                 if(inApp){var link=location.href;return card('Open in Chrome',[name+', this link was opened inside another app, which would keep the setup out of your browser.','Open it in Chrome, then tap Start.'],[{text:'Copy link',fn:function(){try{navigator.clipboard.writeText(link)}catch(e){}}},{text:'Start here anyway',alt:true,fn:start}])}
-                card('Welcome, '+name,['Tap Start to set up chat-test on this phone.','This link works once. It cannot be opened again or on another phone.'],[{text:'Start',fn:start}])
+                card('Welcome, '+name,['Tap Start to set up chat-test on this phone.','This link works once. It cannot be opened again or on another phone.','Usage is counted: room name, languages, typed or spoken. Never your words.'],[{text:'Start',fn:start}])
             }).catch(function(){card('No connection',[{text:'Could not reach the setup service. Check your connection and try again.',cls:'err'}],[{text:'Continue without it',alt:true,fn:finish}])})
         })
     }

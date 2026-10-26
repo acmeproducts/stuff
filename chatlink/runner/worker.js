@@ -6,13 +6,37 @@
      GET  /invite/<code>/info   is the link usable (never consumes it, never returns a key)
      POST /redeem               hands over the key ONCE, with a claim token
      POST /confirm              the device says it saved the key; the link is then locked for good
+   Usage log (own storage, no message text):
+     POST /usage          a device sends a batch of events          GET /admin/usage    owner reads them back
    GET /health
    A link cannot be passed on: after /confirm the server never serves the key for that code again. */
-const VERSION = 'c1';
+const VERSION = 'c2';
 const ALLOWED_ORIGINS = ['https://acmeproducts.github.io'];
 const PENDING_MS = 10 * 60 * 1000;          // a redeem that is never confirmed frees the link again after this
 const DEFAULT_DAYS = 7, MAX_DAYS = 30;       // a never-opened link expires
 const CODE_RE = /^[a-z0-9]{32,64}$/;
+const KEEP_DAYS = 90, MAX_BATCH = 50, MAX_DAY_EVENTS = 5000, DAY_MS = 86400000;
+const KINDS = ['message', 'room', 'session', 'opened'];
+const str = (v, n) => String(v == null ? '' : v).replace(/[\u0000-\u001f<>]/g, '').trim().slice(0, n);
+/* only these fields are ever kept; anything else a device sends (including message text) is dropped */
+function cleanEvent(e, dev, now) {
+  if (!e || KINDS.indexOf(e.kind) < 0) return null;
+  const t = +e.t, o = { kind: e.kind, t: t > now - DAY_MS && t < now + DAY_MS ? t : now, who: str(e.who, 40) || 'unknown', dev: str(dev, 16).replace(/[^a-z0-9]/gi, '') };
+  if (e.room) o.room = str(e.room, 60);
+  if (/^[a-z]{2,3}>[a-z]{2,3}$/.test(e.pair)) o.pair = e.pair;
+  if (e.side === 'south' || e.side === 'north') o.side = e.side;
+  if (e.mode === 'typed' || e.mode === 'spoken') o.mode = e.mode;
+  if (typeof e.trOk === 'boolean') o.trOk = e.trOk;
+  if (e.stt) o.stt = str(e.stt, 16);
+  if (e.build) o.build = str(e.build, 40);
+  return o;
+}
+const ucall = async (env, path, body) => {
+  const stub = env.USAGE.get(env.USAGE.idFromName('usage'));
+  const r = await stub.fetch('https://do' + path, { method: 'POST', body: JSON.stringify(body || {}) });
+  return { status: r.status, body: await r.json() };
+};
+const dayOf = t => new Date(t).toISOString().slice(0, 10);
 
 const cors = req => {
   const o = req.headers.get('Origin') || '';
@@ -67,7 +91,21 @@ export default {
         const body = await req.json().catch(() => ({}));
         if (!CODE_RE.test(String(body.code || ''))) return json(req, { ok: false, error: 'This link is not valid.' }, 404);
         const r = await vcall(env, url.pathname, { code: body.code, claim: String(body.claim || '') });
+        if (url.pathname === '/confirm' && r.body.ok && r.body.name) {      // the first row of a guest's log: their link was opened
+          const now = env.NOW ? env.NOW() : Date.now();
+          try { await ucall(env, '/add', { events: [{ kind: 'opened', t: now, who: str(r.body.name, 40), dev: '' }], now }); } catch (e) { }   // the log can never block a guest
+          delete r.body.name;
+        }
         return json(req, r.body, r.status);
+      }
+      if (url.pathname === '/usage' && req.method === 'POST') {
+        const raw = await req.text();
+        if (raw.length > 32768) return json(req, { ok: false, error: 'too large' }, 413);
+        let body = {}; try { body = JSON.parse(raw); } catch (e) { }
+        const now = env.NOW ? env.NOW() : Date.now();
+        const events = (Array.isArray(body.events) ? body.events : []).slice(0, MAX_BATCH).map(e => cleanEvent(e, body.dev, now)).filter(Boolean);
+        try { if (events.length) await ucall(env, '/add', { events, now }); } catch (e) { return json(req, { ok: false, error: 'not saved' }, 500); }
+        return json(req, { ok: true, kept: events.length });
       }
       /* ---- owner side ---- */
       if (url.pathname.startsWith('/admin/')) {
@@ -91,6 +129,7 @@ export default {
           const r = await vcall(env, '/add-invite', { name, code: randomId(40), days });
           return json(req, r.body, r.status);
         }
+        if (url.pathname === '/admin/usage' && req.method === 'GET') { const r = await ucall(env, '/read', { days: Math.min(Math.max(+url.searchParams.get('days') || 30, 1), KEEP_DAYS), now: env.NOW ? env.NOW() : Date.now() }); return json(req, r.body, r.status); }
         if (url.pathname === '/admin/invites' && req.method === 'GET') { const r = await vcall(env, '/list'); return json(req, r.body, r.status); }
         if (url.pathname === '/admin/revoke' && req.method === 'POST') { const r = await vcall(env, '/revoke', { code: String(body.code || '') }); return json(req, r.body, r.status); }
       }
@@ -157,7 +196,46 @@ export class Vault {
       if (!i.pending || !body.claim || i.pending.token !== body.claim) return J({ ok: false, error: 'This link was opened somewhere else first.' }, 409);
       i.claimedAt = t; i.pending = null;
       await st.put('invites', invites);
+      return J({ ok: true, name: i.name });
+    }
+    return J({ ok: false, error: 'not found' }, 404);
+  }
+}
+
+
+/* the usage log: its own Durable Object and its own storage, nothing shared with the vault. One row per event, no message text.
+   Raw events are kept 90 days; daily totals are kept for good. */
+export class Usage {
+  constructor(state, env) { this.state = state; this.env = env || {}; }
+  async fetch(request) {
+    const path = new URL(request.url).pathname, body = await request.json().catch(() => ({}));
+    const st = this.state.storage, J = (o, s) => new Response(JSON.stringify(o), { status: s || 200 });
+    const now = body.now || Date.now();
+    if (path === '/add') {
+      let days = (await st.get('days')) || [], totals = (await st.get('totals')) || {};
+      const byDay = {};
+      for (const e of body.events) (byDay[dayOf(e.t)] = byDay[dayOf(e.t)] || []).push(e);
+      for (const d of Object.keys(byDay)) {
+        const cur = (await st.get('d:' + d)) || [];
+        await st.put('d:' + d, cur.concat(byDay[d]).slice(-MAX_DAY_EVENTS));
+        if (days.indexOf(d) < 0) days.push(d);
+        const tot = totals[d] = totals[d] || { day: d, n: {}, pairs: {}, spoken: 0, typed: 0, failed: 0 };
+        for (const e of byDay[d]) {
+          tot.n[e.kind] = (tot.n[e.kind] || 0) + 1;
+          if (e.kind === 'message') { if (e.pair) tot.pairs[e.pair] = (tot.pairs[e.pair] || 0) + 1; if (e.mode === 'spoken') tot.spoken++; if (e.mode === 'typed') tot.typed++; if (e.trOk === false) tot.failed++; }
+        }
+      }
+      const cutoff = dayOf(now - KEEP_DAYS * DAY_MS), keep = [];
+      for (const d of days) { if (d < cutoff) await st.delete('d:' + d); else keep.push(d); }
+      await st.put('days', keep.sort()); await st.put('totals', totals);
       return J({ ok: true });
+    }
+    if (path === '/read') {
+      const from = dayOf(now - (body.days || 30) * DAY_MS), days = ((await st.get('days')) || []).filter(d => d >= from), events = [];
+      for (const d of days) events.push(...((await st.get('d:' + d)) || []));
+      events.sort((a, b) => a.t - b.t);
+      const totals = Object.values((await st.get('totals')) || {}).sort((a, b) => a.day < b.day ? -1 : 1);
+      return J({ ok: true, events: events.slice(-5000), totals, keepDays: KEEP_DAYS });
     }
     return J({ ok: false, error: 'not found' }, 404);
   }
