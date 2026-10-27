@@ -64,3 +64,9 @@ Open assumptions (override me): rules 4-6 above are my calls. NFCI weekly and mo
 
 ## ETL (mkt/etl)
 Scheduled incremental ETL keeps work-batch-stamped current: see mkt/etl/README.md. First live batch 2026-10-27 (run 40598776852): all 40 automated sources fetched; Yahoo through Oct 27 close, FRED dailies through Oct 26 (FRED posts next business day), anchor 2026-10-26. CPI/core CPI/PCE/core PCE are stored as year-over-year percent and computed from FRED levels. Source revisions found and applied on the first pass: PCE (annual revision, ~0.25pp), retail sales (benchmark), payrolls, NFCI, industrial production, GDP.
+
+## lkg-turn29-pre-ship and lkg-turn28-post-ship (pristine pages, current backend)
+- lkg-turn28-post-ship/index.html is byte-identical to blob 9ce7f674 (market-navigator-turn28-post-ship.html at 996e9a71b, Sep 27). No edits.
+- lkg-turn29-pre-ship/index.html is produced by the repo's own builder (market-navigator-build-turn29-dashboard.py, kept as mkt/etl/build-turn29-page.py) from the pinned Turn 28 ship blob 54466188 and the current data; the only difference from blob 58282a74 (Oct 5) is the embedded dashboard rollup, which that page carries inside the HTML.
+- Both read the same backend, mkt/live-data, which the ETL updates each batch and copies into each folder.
+- Fact: both pages open the series card when a tap lands within 24 px of a line on the plot, as does every build from turn 25 (Sep 18) through turn 37. Left as-is because the pages are pristine.
