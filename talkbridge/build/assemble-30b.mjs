@@ -18,7 +18,11 @@
 
    CANDIDATE 3 (2026-10-23, the owner's feedback on c2): two more parts — CV-1 (the camera comes back after keyboard dictation
    takes it) and NM-1 (the room's name gets the room up to the microphone) — and the Android manifest's background is teal, the
-   colour Android paints under its own buttons (it was cream: pale buttons on cream). VB-1 is unchanged. */
+   colour Android paints under its own buttons (it was cream: pale buttons on cream). VB-1 is unchanged.
+
+   CANDIDATE 4 (2026-10-27, the owner after testing c3: "maybe being able to just drag the length of the video … with the tall pip
+   inside maybe that's a better solve"): VB-2 (the strip you pull down) replaces VB-1 (the floating window); CV-1, NM-1, the teal
+   Android strip and Jenny's instance are unchanged. */
 import crypto from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
@@ -29,10 +33,10 @@ export const FOLDER = 'talkbridge-app';
 export const FOLDER_PATH = '/stuff/talkbridge-app/';
 export const BASE_PAGE = FOLDER + '/bridge-turn29-post-ship.html';
 export const BASE_PAGE_SHA256 = 'c1c417e21dd1015e6a3519edbc90a796b80033f8e3412238932633ac4c974828';
-export const PARTS = ['talkbridge/parts/vb1-video-box.js', 'talkbridge/parts/cv1-camera-back.js', 'talkbridge/parts/nm1-name-room.js'];
+export const PARTS = ['talkbridge/parts/vb2-video-strip.js', 'talkbridge/parts/cv1-camera-back.js', 'talkbridge/parts/nm1-name-room.js'];
 export const STAGE_PAGE = 'bridge-turn30-base.html';
-export const STAGE_TAG = 'turn30-base-c3';
-export const BUILT = '2026-10-23';
+export const STAGE_TAG = 'turn30-base-c4';
+export const BUILT = '2026-10-27';
 export const MANIFEST_NAME = 'tb-manifest-turn30-base.webmanifest';
 export const MANIFEST_IOS_NAME = 'tb-manifest-turn30-base-ios.webmanifest';
 export const MANIFEST_SRC = 'tb-manifest-turn28.webmanifest';
@@ -43,8 +47,8 @@ export const MANIFEST_SRC = 'tb-manifest-turn28.webmanifest';
 export const JENNY = { page: 'bridge-turn30-base-jenny.html', manifest: 'tb-manifest-turn30-base-jenny.webmanifest', manifestIos: 'tb-manifest-turn30-base-jenny-ios.webmanifest', name: 'TalkBridge Jenny', short: 'TB Jenny', id: FOLDER_PATH + 'jenny' };
 export const OUT = { page: FOLDER + '/' + STAGE_PAGE, manifest: FOLDER + '/' + MANIFEST_NAME, manifestIos: FOLDER + '/' + MANIFEST_IOS_NAME,
   jennyPage: FOLDER + '/' + JENNY.page, jennyManifest: FOLDER + '/' + JENNY.manifest, jennyManifestIos: FOLDER + '/' + JENNY.manifestIos };
-export const ADDED_SYMBOLS = ['VB', 'vbLog', 'vbCss', 'vbBox', 'vbActive', 'vbBounds', 'vbAspect', 'vbShapes', 'vbSize', 'vbClamp', 'vbPlace', 'vbReshape', 'vbSave', 'vbLoad', 'vbShow', 'vbHide', 'vbWire', 'vbInit'];
-export const ADDED_MARKERS = ['vb_shown', 'vb_moved', 'vb_init_failed', 'vb_camera', 'vb_shape'];
+export const ADDED_SYMBOLS = ['VB', 'vbLog', 'vbCss', 'vbBox', 'vbActive', 'vbAspect', 'vbShapes', 'vbLimits', 'vbApply', 'vbCorner', 'vbReshape', 'vbShow', 'vbHide', 'vbWire', 'vbInit'];
+export const ADDED_MARKERS = ['vb_shown', 'vb_resized', 'vb_corner', 'vb_shape', 'vb_camera', 'vb_init_failed'];
 /* per part, in PARTS order: the symbols its @contract declares and the markers it logs (prefix, the part's own logger) */
 export const PART_DECL = [
   { file: PARTS[0], logger: 'vbLog', prefix: 'vb_', symbols: ADDED_SYMBOLS, markers: ADDED_MARKERS },

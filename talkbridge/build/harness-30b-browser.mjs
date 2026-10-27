@@ -1,8 +1,9 @@
 #!/usr/bin/env node
-/* 30·base browser gate — THE VIDEO BOX (§7.22, candidate 2) in a REAL layout engine (headless Chromium; jsdom has no layout).
-   Stages a video call on the assembled page (seeded phone, CALL marked active, canvas streams: the partner a tall phone picture
-   360×640, me a wide 640×480 — the Android's shape in G77), at phone size 390×844 inside a frame, and measures. The window must
-   take the shape of the picture it shows; the inset the shape of the small picture. B3–B14.
+/* 30·base browser gate — THE STRIP YOU PULL DOWN (§7.22, candidate 4) in a REAL layout engine (headless Chromium; jsdom has no layout).
+   Stages a video call on the assembled page (seeded phone with a chat, CALL marked active, canvas streams: the partner a tall phone
+   picture 360×640, me a wide 640×480 — the Android's shape in G77) and drives it with REAL TOUCH (CDP Input.dispatchTouchEvent on a
+   touch-enabled page): the grab bar, a chat swipe, the small picture's drag and tap, the flip button. B3–B15; N1–N2 the room's name;
+   CV12 the camera coming back.
    Usage: node talkbridge/build/harness-30b-browser.mjs [--page <html>] [--quiet]   (TB_CHROME overrides the browser path) */
 import fs from 'node:fs';
 import os from 'node:os';
@@ -31,63 +32,6 @@ var R={err:[]};
 window.addEventListener('error',function(e){R.err.push(String(e.message))});
 `;
 const SCENARIOS = {
-  main: String.raw`
-setTimeout(function(){ try{
-  startCall('voice'); var cb=getComputedStyle(document.getElementById('call-band')); R.voice={display:cb.display,position:cb.position};
-  endCall();
-  setTimeout(function(){ startCall('video'); },100);
-  setTimeout(function(){ try{
-    var cs=getComputedStyle(document.getElementById('call-band')); R.pos=cs.position; R.box0=box(); R.vw=innerWidth; R.vh=innerHeight;
-    var rib=document.getElementById('room-ribbon'); R.ribBottom=rib?Math.round(rib.getBoundingClientRect().bottom):null;
-    R.fit=[getComputedStyle(document.getElementById('remote-video')).objectFit,getComputedStyle(document.getElementById('local-video')).objectFit];
-    R.inset=rect('local-video'); R.big=rect('remote-video');
-    R.sub=rect('subtitle-area'); R.handle=getComputedStyle(document.getElementById('local-video-handle')).display;
-    R.shown=(window.debugLog||[]).filter(function(l){return l.ev==='vb_shown'}).length;
-    var b=R.box0, cx=b.x+40, cy=b.y+60;
-    M('mousedown',cx,cy); W('mousemove',cx-60,cy+100); W('mousemove',cx-150,cy+300); W('mouseup',cx-150,cy+300); M('click',cx-150,cy+300);
-    R.afterDrag=box(); R.swapAfterDrag=document.getElementById('call-videos').classList.contains('swapped'); R.saved=localStorage.getItem('tb_vbox_pos');
-    R.moved=(window.debugLog||[]).filter(function(l){return l.ev==='vb_moved'}).length;
-    var b2=box(); M('mousedown',b2.x+30,b2.y+30); W('mousemove',b2.x-900,b2.y+2000); W('mouseup',b2.x-900,b2.y+2000);
-    R.clampLow=box();
-    var b3=box(); M('mousedown',b3.x+30,b3.y+30); W('mousemove',b3.x+3000,b3.y-3000); W('mouseup',b3.x+3000,b3.y-3000);
-    R.clampHigh=box();
-    setTimeout(function(){ try{
-      /* the shapes are read here, ≥ 1.3 s into the call (past the 1 s shape poll): under the browser's virtual clock the first frames can
-         land after the early measure, which then reads the 3:4 default (seen 2026-10-23, once in four runs) — the early box keeps its place checks */
-      R.boxLate=box(); R.insetLate=rect('local-video'); R.bigLate=rect('remote-video');
-      var b4=box(); M('mousedown',b4.x+40,b4.y+40); W('mouseup',b4.x+40,b4.y+40); M('click',b4.x+40,b4.y+40);
-      R.beforeSwap=b4; R.swapAfterTap=document.getElementById('call-videos').classList.contains('swapped');
-      setTimeout(function(){ try{
-      R.bigAfterSwap=rect('local-video'); R.smallAfterSwap=rect('remote-video'); R.boxAfterSwap=box();
-      var rv=rect('remote-video'), RVE=document.getElementById('remote-video'); M('mousedown',rv.x+10,rv.y+10,RVE); M('mousemove',rv.x-60,rv.y-60,RVE); M('mousemove',rv.x-120,rv.y-120,RVE); M('mouseup',rv.x-120,rv.y-120,RVE);   /* the move goes to the element the press began on, as on a phone — the old drag listens there */
-      var rv2=rect('remote-video'), bb=box(); R.afterInsetDrag=bb; R.insetInBox=(rv2.x>=bb.x&&rv2.x+rv2.w<=bb.x+bb.w+1&&rv2.y>=bb.y&&rv2.y+rv2.h<=bb.y+bb.h+1); R.insetInline=document.getElementById('remote-video').getAttribute('style');
-      var fb=document.getElementById('btn-flip-overlay').getBoundingClientRect(); var before=box(); var flips=0; var orig=window.tbFlipCamera; window.tbFlipCamera=function(){flips++;};
-      M('mousedown',fb.left+5,fb.top+5,document.getElementById('btn-flip-overlay')); W('mousemove',fb.left+80,fb.top+80); W('mouseup',fb.left+80,fb.top+80);
-      R.flipNoDrag=JSON.stringify(before)===JSON.stringify(box());
-      window.tbFlipCamera=orig;
-      var mid=box(); R.shapes=(window.debugLog||[]).filter(function(l){return l.ev==='vb_shape'}).length; var dlg=document.createElement('div'); dlg.className='cl-bt'; document.getElementById('scr-room').appendChild(dlg);
-      var top=document.elementFromPoint(mid.x+mid.w/2, mid.y+mid.h/2); R.dialogAbove=!!(top&&top.closest&&top.closest('.cl-bt')); dlg.remove();
-      var top2=document.elementFromPoint(mid.x+mid.w/2, mid.y+mid.h/2); R.boxOnTopOfChat=!!(top2&&top2.closest&&top2.closest('#call-band'));
-      endCall();
-      var cb=getComputedStyle(document.getElementById('call-band')); R.afterEnd={display:cb.display,swapped:document.getElementById('call-videos').classList.contains('swapped'),lv:document.getElementById('local-video').getAttribute('style'),rv:document.getElementById('remote-video').getAttribute('style'),st:document.getElementById('scr-room').className};
-      setTimeout(function(){ startCall('video');
-      setTimeout(function(){ R.reopen=box(); try{ var sp=JSON.parse(localStorage.getItem('tb_vbox_pos')); var a=APP(); var rib=document.getElementById('room-ribbon').getBoundingClientRect(); R.savedPos=sp; R.reopenApp=a; }catch(e){}
-        /* the partner hangs up while swapped and mid-press: teardown() directly, no hang-up wrap */
-        var b5=box(); M('mousedown',b5.x+40,b5.y+40); W('mouseup',b5.x+40,b5.y+40); M('click',b5.x+40,b5.y+40); R.swappedBeforeRemoteEnd=document.getElementById('call-videos').classList.contains('swapped');
-        M('mousedown',b5.x+40,b5.y+40);
-        try{ CALL.onRemoteEnd(CALL.room||{id:'room-1'},{type:'call-end'}); }catch(e){ try{ CALL.teardown(); }catch(e2){ R.err.push('remoteEnd '+e2); } }
-        setTimeout(function(){ W('mousemove',b5.x-100,b5.y+100); W('mouseup',b5.x-100,b5.y+100);
-        R.afterRemoteEnd={display:getComputedStyle(document.getElementById('call-band')).display,swapped:document.getElementById('call-videos').classList.contains('swapped'),tbswap:(typeof TB_SWAP!=='undefined'?TB_SWAP:null),lv:document.getElementById('local-video').getAttribute('style'),rv:document.getElementById('remote-video').getAttribute('style')};
-        setTimeout(function(){ startCall('video'); setTimeout(function(){ R.afterRemoteReopen=box(); R.app=APP(); document.title='VBRESULT'+JSON.stringify(R); },300); },100);
-        },60);
-      },300); },100);
-      }catch(e){R.err.push('s3 '+e); document.title='VBRESULT'+JSON.stringify(R);} },1300);
-    }catch(e){R.err.push('s2 '+e); document.title='VBRESULT'+JSON.stringify(R);} },500);
-  }catch(e){R.err.push('s1 '+e); document.title='VBRESULT'+JSON.stringify(R);} },700);
-}catch(e){R.err.push('s0 '+e); document.title='VBRESULT'+JSON.stringify(R);} },1500);`,
-  laptop: String.raw`
-PARTNER=[1280,720];
-setTimeout(function(){ try{ startCall('video'); setTimeout(function(){ R.box=box(); R.app=APP(); R.fit=getComputedStyle(document.getElementById('remote-video')).objectFit; document.title='VBRESULT'+JSON.stringify(R); },1600); }catch(e){R.err.push(''+e); document.title='VBRESULT'+JSON.stringify(R);} },1500);`,
   ribbon: String.raw`
 /* NM-1: the name's side against the microphone's slot, each call state, left-to-right and right-to-left */
 function rr(sel){var e=document.querySelector(sel);if(!e)return null;var b=e.getBoundingClientRect();return {l:Math.round(b.left*10)/10,r:Math.round(b.right*10)/10,w:Math.round(b.width*10)/10};}
@@ -106,10 +50,7 @@ setTimeout(function(){ try{ startCall('video'); document.hasFocus=function(){ret
     },1200);
   }).catch(function(e){R.err.push('gum '+e); document.title='VBRESULT'+JSON.stringify(R);});
 }catch(e){R.err.push(''+e); document.title='VBRESULT'+JSON.stringify(R);} },1500);`,
-  rotate: String.raw`
-setTimeout(function(){ try{ startCall('video'); setTimeout(function(){ /* after the 1 s shape poll */ R.box=box(); R.app=APP(); var rib=document.getElementById('room-ribbon'); R.ribBottom=rib?Math.round(rib.getBoundingClientRect().bottom):0;
-  var b=R.box; M('mousedown',b.x+20,b.y+20); W('mousemove',b.x+3000,b.y+3000); W('mouseup',b.x+3000,b.y+3000); R.far=box(); M('mousedown',R.far.x+20,R.far.y+20); W('mousemove',R.far.x-3000,R.far.y-3000); W('mouseup',R.far.x-3000,R.far.y-3000); R.near=box();
-  document.title='VBRESULT'+JSON.stringify(R); },1600); }catch(e){R.err.push(''+e); document.title='VBRESULT'+JSON.stringify(R);} },1500);`
+
 };
 function run(name, w, h, seedPos, longName) {
   const seed = longName ? SEED.replace("partnerName:'Bo'", "partnerName:'" + longName + "'") : SEED;
@@ -141,13 +82,77 @@ async function runLive(name, w, h) {
 let pass = 0, fail = 0;
 const T = (n, f) => { try { f(); pass++; if (!quiet) console.log('  ok  ' + n); } catch (e) { fail++; console.log('FAIL  ' + n + ' — ' + (e && e.message || e)); } };
 const ok = (c, m) => { if (!c) throw new Error(m); };
-let R, Q, L, D, X, P, N = {}, CM;
+/* THE STRIP, driven by touch in a live page */
+const CHAT = JSON.stringify(Array.from({ length: 60 }, (_, i) => ({ id: 'm' + i, kind: 'chat', who: i % 2 ? 'me' : 'partner', sourceText: 'line ' + i + ' of the chat so it scrolls', translatedText: 'บรรทัด ' + i, srcLang: 'en', tgtLang: 'th', ts: 1760000000000 + i * 1000, senderName: 'Bo', origin: 'typed' })));
+async function runStrip(w, h, partner) {
+  const pw = process.env.TB_PLAYWRIGHT || path.join(execFileSync('npm', ['root', '-g'], { encoding: 'utf8' }).trim(), 'playwright', 'index.mjs');
+  const { chromium } = await import(pw);
+  const seed = SEED.replace('__SEEDPOS__', "localStorage.setItem('tba_tr_room-1'," + JSON.stringify(CHAT) + ");");
+  const page = html.replace('<head>', '<head>' + seed, 1).replace(/<\/body>(?![\s\S]*<\/body>)/, '<script>' + STAGE + (partner ? 'PARTNER=' + JSON.stringify(partner) + ';' : '') + '</script></body>');
+  const pf = path.join(dir, 'strip-' + w + 'x' + h + '.html'); fs.writeFileSync(pf, page);
+  const b = await chromium.launch({ executablePath: CHROME, args: ['--allow-file-access-from-files'] });
+  const ctx = await b.newContext({ viewport: { width: w, height: h }, hasTouch: true });
+  const p = await ctx.newPage(); const cdp = await ctx.newCDPSession(p);
+  const wait = (ms) => p.waitForTimeout(ms);
+  const touch = async (pts) => { await cdp.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: [{ x: pts[0][0], y: pts[0][1] }] }); for (let i = 1; i < pts.length; i++) await cdp.send('Input.dispatchTouchEvent', { type: 'touchMove', touchPoints: [{ x: pts[i][0], y: pts[i][1] }] }); await cdp.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] }); await wait(120); };
+  const drag = (x0, y0, x1, y1) => { const pts = []; for (let i = 0; i <= 10; i++) pts.push([x0 + (x1 - x0) * i / 10, y0 + (y1 - y0) * i / 10]); return touch(pts); };
+  const tap = (x, y) => touch([[x, y]]);
+  const M = () => p.evaluate(() => {
+    const r = (el) => { if (!el) return null; const q = el.getBoundingClientRect(); return { x: Math.round(q.left), y: Math.round(q.top), w: Math.round(q.width), h: Math.round(q.height), b: Math.round(q.bottom) }; };
+    const $ = (id) => document.getElementById(id), sw = $('call-videos').classList.contains('swapped');
+    const small = sw ? $('remote-video') : $('local-video'), big = sw ? $('local-video') : $('remote-video');
+    const band = $('call-band'), bs = getComputedStyle(band);
+    return { band: r(band), display: bs.display, position: bs.position, videos: r($('call-videos')), bar: r($('vb-bar')), barShown: $('vb-bar') ? getComputedStyle($('vb-bar')).display : null, ribbon: r($('room-ribbon')), transcript: r($('transcript')), tScroll: $('transcript').scrollTop, app: r($('app')),
+      small: r(small), big: r(big), fit: [getComputedStyle(big).objectFit, getComputedStyle(small).objectFit], swapped: sw, corner: ['tl', 'tr', 'bl', 'br'].filter((c) => band.classList.contains('vb-c-' + c))[0] || null,
+      inline: [$('remote-video').getAttribute('style') || '', $('local-video').getAttribute('style') || ''], bandVars: band.getAttribute('style') || '', flip: r($('btn-flip-overlay')),
+      vb: { min: VB.min, max: VB.max, vmax: VB.vmax, h: VB.h, shown: VB.shown }, saved: [localStorage.getItem('tb_vband_h'), localStorage.getItem('tb_vband_corner')],
+      st: $('scr-room').className, err: R.err.slice(), logs: (window.debugLog || []).filter((l) => /^vb_/.test(l.ev)).map((l) => l.ev) };
+  });
+  const out = {};
+  try {
+    await p.goto('file://' + pf); await wait(1500);
+    await p.evaluate(() => startCall('voice')); out.voice = await M(); await p.evaluate(() => endCall()); await wait(150);
+    await p.evaluate(() => startCall('video')); await wait(1800);
+    out.first = await M();
+    const bar = () => [out.cur.bar.x + out.cur.bar.w / 2, out.cur.bar.y + out.cur.bar.h / 2];
+    out.cur = out.first; let [bx, by] = bar(); await drag(bx, by, bx, by + 200); out.down200 = out.cur = await M();
+    [bx, by] = bar(); await drag(bx, by, bx, by + 1000); out.downMax = out.cur = await M();
+    [bx, by] = bar(); await drag(bx, by, bx, Math.max(2, by - 2000)); out.upMin = out.cur = await M();
+    [bx, by] = bar(); await drag(bx, by, bx, by + 100); out.down100 = out.cur = await M();
+    /* a swipe on the chat scrolls the chat and never resizes */
+    const t = out.cur.transcript; await p.evaluate(() => { document.getElementById('transcript').scrollTop = 0; }); out.cur = await M();
+    await drag(t.x + t.w / 2, t.y + t.h - 20, t.x + t.w / 2, t.y + 20); out.chatSwipe = out.cur = await M();
+    /* the small picture dragged to the top-left snaps there; a drag never swaps */
+    const s0 = out.cur.small, v0 = out.cur.videos; await drag(s0.x + s0.w / 2, s0.y + s0.h / 2, v0.x + 30, v0.y + 30); await wait(300); out.inset = out.cur = await M();
+    /* a tap on it swaps; after the shape poll the inset is the partner's tall picture */
+    const s1 = out.cur.small; await tap(s1.x + s1.w / 2, s1.y + s1.h / 2); await wait(1600); out.swap = out.cur = await M();
+    /* a press on the flip button that moves is never a drag or a resize */
+    const f = out.cur.flip; await p.evaluate(() => { window.__flips = 0; window.tbFlipCamera = function () { window.__flips++; }; });
+    await drag(f.x + f.w / 2, f.y + f.h / 2, f.x + f.w / 2 + 60, f.y + f.h / 2 + 80); out.flip = out.cur = await M();
+    /* the call ends by the hang-up while swapped */
+    await p.evaluate(() => endCall()); await wait(200); out.ended = await M();
+    await p.evaluate(() => startCall('video')); await wait(1500); out.again = out.cur = await M();
+    /* the partner hangs up while swapped and mid-press */
+    const s2 = out.cur.small; await tap(s2.x + s2.w / 2, s2.y + s2.h / 2); await wait(300);
+    await cdp.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: [{ x: out.cur.bar.x + 20, y: out.cur.bar.y + 10 }] });
+    await p.evaluate(() => { try { CALL.onRemoteEnd(CALL.room || { id: 'room-1' }, { type: 'call-end' }); } catch (e) { try { CALL.teardown(); } catch (e2) { R.err.push('remoteEnd ' + e2); } } });
+    await cdp.send('Input.dispatchTouchEvent', { type: 'touchMove', touchPoints: [{ x: out.cur.bar.x + 20, y: out.cur.bar.y + 150 }] }); await cdp.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] }); await wait(150);
+    out.remoteEnd = await M(); out.tbswap = await p.evaluate(() => TB_SWAP);
+    await p.evaluate(() => startCall('video')); await wait(1500); out.again2 = await M();
+    /* the banner and the reach bar showing: the chat keeps its floor */
+    await p.evaluate(() => { const d = document.getElementById('dg-fail-banner'); if (d) d.style.display = 'flex'; }); await wait(300);
+    out.cur = await M(); [bx, by] = bar(); await drag(bx, by, bx, by + 1000); await wait(300); out.banner = await M();
+    out.dialog = await p.evaluate(() => { const v = document.getElementById('call-videos').getBoundingClientRect(); const dlg = document.createElement('div'); dlg.className = 'cl-bt'; document.getElementById('scr-room').appendChild(dlg); const top = document.elementFromPoint(v.left + v.width / 2, v.top + v.height / 2); const r = !!(top && top.closest && top.closest('.cl-bt')); dlg.remove(); return r; });
+  } catch (e) { out.harnessError = e && e.message; }
+  await b.close(); return out;
+}
+let N = {}, CM, S = {}, SL, SP;
 const LONG = 'Marisol Fernandez Ortega';
-try { R = run('main', 390, 844); Q = run('main', 390, 844, '{"fx":0,"fy":1}'); L = run('rotate', 844, 390); D = run('rotate', 1280, 800); X = run('rotate', 390, 844, '{"fx":"garbage","fy":null}'); P = run('laptop', 390, 844);
-  for (const w of [360, 390, 430, 1280]) N[w] = run('ribbon', w, w === 1280 ? 800 : 844, null, LONG); CM = await runLive('cam', 390, 844); }
+try { for (const w of [360, 390, 430, 1280]) N[w] = run('ribbon', w, w === 1280 ? 800 : 844, null, LONG); CM = await runLive('cam', 390, 844);
+  S = await runStrip(390, 844); SL = await runStrip(844, 390); SP = await runStrip(390, 844, [1280, 720]); }
 catch (e) { console.log('FAIL  the browser run — ' + e.message); process.exit(1); }
 const near = (a, b, d) => Math.abs(a - b) <= (d || 1);
-T('B0 no page error through the whole script', () => ok([R, Q, L, D, X, P, CM, ...Object.values(N)].every((z) => z.err.length === 0), JSON.stringify([R.err, Q.err, L.err, D.err, X.err, P.err, CM.err, Object.values(N).map((z) => z.err)])));
+T('B0 no page error through the whole script; every strip run completed', () => { ok([CM, ...Object.values(N)].every((z) => z.err.length === 0), JSON.stringify([CM.err, Object.values(N).map((z) => z.err)])); for (const [n, z] of [['phone', S], ['side', SL], ['laptop', SP]]) { ok(!z.harnessError, n + ' ' + z.harnessError); ok(((z.banner || z.again2 || z.first || {}).err || []).length === 0, n + ' ' + JSON.stringify((z.banner || {}).err)); } });
 T('N1 the name\'s side ends at least 8 px before the microphone\'s slot, and the microphone stays on the centre line — idle, voice call, video call; left-to-right and right-to-left (Arabic); at 360, 390, 430 px and a 1280 px window', () => {
   for (const [w, z] of Object.entries(N)) for (const dir of ['ltr', 'rtl']) for (const st of ['idle', 'voice', 'video']) {
     const m = z[dir][st], c = (m.rib.l + m.rib.r) / 2, mc = (m.mic.l + m.mic.r) / 2, at = w + ' ' + dir + ' ' + st + ' ' + JSON.stringify(m);
@@ -163,23 +168,27 @@ T('CV12 a REAL camera track (Chromium\'s fake camera) stopped mid video call com
   ok(CM.oldLive === 'live' && CM.stopped === 'ended', 'setup ' + JSON.stringify(CM));
   const a = CM.after; ok(a.n === 1 && a.live === 'live' && !a.same && a.sent && a.self, JSON.stringify(a)); ok(CM.cv.includes('cv_restored'), CM.cv.join(',')); ok(CM.endLive === 'ended', 'still running after the hang-up: ' + CM.endLive);
 });
-T('B3 a voice call shows no window (the band stays hidden)', () => ok(R.voice.display === 'none', JSON.stringify(R.voice)));
-T('B4 a video call: the band is fixed to the screen, shaped like the partner\'s picture (a tall 360×640 phone picture → a tall 9:16 window), fully on screen, first place top-right under the ribbon', () => { const b = R.box0; ok(R.pos === 'fixed', 'position ' + R.pos); ok(near(R.boxLate.h, R.boxLate.w * 640 / 360, 2), 'not the partner\'s shape: ' + JSON.stringify(R.boxLate)); ok(b.x >= 0 && b.y >= 0 && b.x + b.w <= R.vw && b.y + b.h <= R.vh, 'off screen ' + JSON.stringify(b)); ok(b.x + b.w >= R.vw - 12 && b.y >= (R.ribBottom || 0), 'not top-right under the ribbon ' + JSON.stringify(b) + ' ribbon ' + R.ribBottom); ok(b.w >= 140 && b.w <= 240, 'width ' + b.w); ok(R.shown === 1, 'vb_shown ' + R.shown); });
-T('B5 no band, no crop: each picture is whole in a frame of its OWN shape (contain in a matching frame) — the big one the window, the inset my own wide 640×480 picture', () => { ok(R.fit[0] === 'contain' && R.fit[1] === 'contain', R.fit.join('/')); ok(near(R.insetLate.h, R.insetLate.w * 480 / 640, 2), 'the inset is not my picture\'s shape ' + JSON.stringify(R.insetLate)); ok(near(R.bigLate.w, R.boxLate.w, 1) && near(R.bigLate.h, R.boxLate.h, 1), 'big ' + JSON.stringify([R.bigLate, R.boxLate])); });
-T('B6 a press that moves drags the box and never swaps; the place is saved and logged', () => { ok(R.afterDrag.x === R.box0.x - 150 && R.afterDrag.y === R.box0.y + 300, JSON.stringify([R.box0, R.afterDrag])); ok(R.swapAfterDrag === false, 'a drag swapped'); ok(/"fx":/.test(R.saved || ''), 'not saved ' + R.saved); ok(R.moved >= 1, 'not logged'); });
-T('B6b clamped on all four sides', () => { ok(R.clampLow.x === 0 && R.clampLow.y === R.vh - R.clampLow.h, 'low ' + JSON.stringify(R.clampLow)); ok(R.clampHigh.x === R.vw - R.clampHigh.w && R.clampHigh.y === 0, 'high ' + JSON.stringify(R.clampHigh)); });
-T('B6c a press that does not move is a tap and swaps; the window RESHAPES to the new big picture (my wide one: a wide window), the partner goes to the corner in its tall shape; the window stays fully in the app column', () => { const w = R.boxAfterSwap; ok(R.swapAfterTap === true, 'no swap'); ok(near(w.h, w.w * 480 / 640, 2), 'the window did not take my picture\'s shape ' + JSON.stringify(w)); ok(near(R.bigAfterSwap.w, w.w, 1) && near(R.bigAfterSwap.h, w.h, 1), 'big after swap ' + JSON.stringify(R.bigAfterSwap)); ok(near(R.smallAfterSwap.h, R.smallAfterSwap.w * 640 / 360, 2) && R.smallAfterSwap.w < w.w / 2, 'small after swap ' + JSON.stringify(R.smallAfterSwap)); ok(R.smallAfterSwap.h <= w.h * 0.45 + 2, 'the tall inset overflows the wide window ' + JSON.stringify([R.smallAfterSwap, w])); ok(w.x >= R.app.x && w.x + w.w <= R.app.x + R.app.w && w.y >= 0 && w.y + w.h <= R.vh, 'left the app ' + JSON.stringify([w, R.app])); ok(w.y === R.beforeSwap.y, 'the top edge moved on the reshape ' + JSON.stringify([R.beforeSwap, w])); });
-T('B7 the old small-video drag does nothing while the box shows (the inset stays in the box, no inline position); the edge handle is hidden', () => { ok(R.insetInBox, 'the inset left the box'); ok(!R.insetInline, 'inline style ' + R.insetInline); ok(R.handle === 'none', 'handle ' + R.handle); });
-T('B8 the place is restored at the next call — as the same fraction of the free room (the window may be a different shape by then); a saved place restores exactly (bottom-left); a damaged saved place falls back to top-right', () => { const sp = R.savedPos, a = R.reopenApp, b = R.reopen; ok(sp && near(b.x, a.x + sp.fx * (a.w - b.w), 2), 'x ' + JSON.stringify([sp, a, b])); ok(X.box.x + X.box.w >= X.app.x + X.app.w - 12 && X.box.y >= X.ribBottom, 'damaged ' + JSON.stringify([X.box, X.app])); ok(Q.box0.x === 0 && Q.box0.y === Q.vh - Q.box0.h, 'seeded ' + JSON.stringify(Q.box0)); });
-const inApp = (b, a) => b.x >= a.x && b.y >= a.y && b.x + b.w <= a.x + a.w && b.y + b.h <= a.y + a.h;
-T('B8b a phone on its side and a wide desktop: the box keeps the picture\'s shape, fits under the ribbon, and never leaves the app column, even dragged to every corner', () => { for (const [n, z] of [['side', L], ['desktop', D]]) { const b = z.box; ok(near(b.h, b.w * 640 / 360, 2), n + ' not the picture\'s shape ' + JSON.stringify(b)); for (const c of [z.box, z.far, z.near]) ok(inApp(c, z.app), n + ' left the app column ' + JSON.stringify([c, z.app])); ok(b.y >= z.ribBottom, n + ' over the ribbon'); } });
-T('B9 subtitles sit at the top of the box, inside it', () => ok(R.sub.y >= R.box0.y && R.sub.y <= R.box0.y + 12 && R.sub.x >= R.box0.x, JSON.stringify([R.sub, R.box0])));
-T('B10 the call ends clean by the hang-up: no window, no swap, no inline position, no call class', () => { const a = R.afterEnd; ok(a.display === 'none' && !a.swapped && !a.lv && !a.rv && !/st-video|st-phone/.test(a.st), JSON.stringify(a)); });
-T('B10b the partner hangs up while swapped and mid-press (teardown without the hang-up wrap): no window, no swap, TB_SWAP false, no inline position; the next call opens where it was', () => { const a = R.afterRemoteEnd; ok(R.swappedBeforeRemoteEnd === true, 'not swapped first'); ok(a.display === 'none' && !a.swapped && a.tbswap === false && !a.lv && !a.rv, JSON.stringify(a)); ok(R.afterRemoteReopen.x === R.reopen.x && R.afterRemoteReopen.y === R.reopen.y, 'moved by the press across the end ' + JSON.stringify([R.reopen, R.afterRemoteReopen])); });
-T('B13 a laptop\'s wide 1280×720 picture makes a wide window, inside the app column, no band (contain in a matching frame)', () => { const b = P.box; ok(near(b.h, b.w * 720 / 1280, 2) && b.w > b.h, 'not wide ' + JSON.stringify(b)); ok(b.x >= P.app.x && b.x + b.w <= P.app.x + P.app.w, 'left the app ' + JSON.stringify([b, P.app])); ok(P.fit === 'contain', P.fit); });
-T('B14 the shape is logged (vb_shape) when the first frames arrive', () => ok(R.shapes >= 1, 'no vb_shape'));
-T('B12 layering: the box sits above the chat, and a dialog opened in the room sits above the box', () => { ok(R.boxOnTopOfChat, 'the box is under the chat'); ok(R.dialogAbove, 'a dialog is under the box'); });
-T('B11 a press on the flip button is never a drag', () => ok(R.flipNoDrag, 'the box moved'));
+const sh = (r) => r.w / r.h;
+T('B3 a voice call shows no band and no grab bar', () => ok(S.voice.display === 'none' && S.voice.barShown === 'none', JSON.stringify([S.voice.display, S.voice.barShown])));
+T('B4 a video call: the band is IN THE ROOM\'S FLOW under the ribbon (not floating), the app column\'s width, the pictures MIN (228 px) high at the first call, the grab bar its own row under them, and the chat starts below it — never covered', () => { const m = S.first;
+  ok(m.position !== 'fixed' && m.position !== 'absolute', 'position ' + m.position); ok(near(m.band.y, m.ribbon.b, 1), 'not under the ribbon ' + JSON.stringify([m.band, m.ribbon])); ok(near(m.band.w, m.app.w, 1), 'width ' + m.band.w + ' vs ' + m.app.w);
+  ok(m.videos.h === 228 && m.vb.min === 228, 'height ' + m.videos.h + ' min ' + m.vb.min); ok(m.bar.y >= m.videos.b - 1 && m.bar.h === 20, 'bar ' + JSON.stringify([m.bar, m.videos])); ok(m.transcript.y >= m.band.b - 1, 'the chat is under the band ' + JSON.stringify([m.transcript, m.band])); });
+T('B5 no crop at any height: both pictures contain; the small picture\'s frame is MY picture\'s shape (640×480, wide), ≥ 110 px high, ≤ 40% of the strip\'s width, inside the strip', () => { const m = S.first; ok(m.fit[0] === 'contain' && m.fit[1] === 'contain', m.fit.join('/')); ok(near(sh(m.small), 640 / 480, 0.03), 'shape ' + JSON.stringify(m.small)); ok(m.small.h >= 109 && m.small.w <= 0.4 * m.videos.w + 1, 'size ' + JSON.stringify(m.small)); ok(m.small.x >= m.videos.x && m.small.y >= m.videos.y && m.small.x + m.small.w <= m.videos.x + m.videos.w + 1 && m.small.y + m.small.h <= m.videos.y + m.videos.h + 1, 'outside ' + JSON.stringify([m.small, m.videos])); });
+T('B6 THE GRAB BAR, by touch: down 200 → +200; down past MAX → MAX; up past MIN → MIN; the height is saved only by the drag and restored at the next call', () => {
+  ok(S.down200.videos.h === Math.min(428, S.first.vb.vmax), 'down 200 → ' + S.down200.videos.h); ok(S.downMax.videos.h === S.downMax.vb.vmax && S.downMax.vb.vmax > 428, 'max ' + S.downMax.videos.h + ' / ' + S.downMax.vb.vmax);
+  ok(S.upMin.videos.h === 228, 'min ' + S.upMin.videos.h); ok(S.down100.saved[0] === '328' && S.down100.videos.h === 328, 'saved ' + S.down100.saved[0]); ok(S.again.videos.h === 328, 'restored ' + S.again.videos.h); ok(S.down100.logs.includes('vb_resized'), 'not logged'); });
+T('B7 a swipe on the chat scrolls the chat and never resizes the strip', () => ok(S.chatSwipe.tScroll > 50 && S.chatSwipe.videos.h === S.down100.videos.h, JSON.stringify([S.chatSwipe.tScroll, S.chatSwipe.videos.h])));
+T('B8 the small picture dragged by touch snaps to the nearest corner (top-left), remembered; no inline position; a drag never swaps; a tap swaps', () => { const m = S.inset; ok(m.corner === 'tl' && m.saved[1] === 'tl', 'corner ' + m.corner + ' saved ' + m.saved[1]); ok(m.small.x - m.videos.x <= 8 && m.small.y - m.videos.y <= 8, 'not in the corner ' + JSON.stringify([m.small, m.videos])); ok(!/left|top/.test(m.inline.join(' ')), 'inline ' + m.inline.join(' | ')); ok(m.swapped === false, 'a drag swapped'); ok(S.swap.swapped === true, 'a tap did not swap'); ok(S.again.corner === 'tl', 'not restored ' + S.again.corner); });
+T('B9 after a swap the big picture is my wide 640×480 (contain), the small frame the partner\'s TALL 360×640 shape, in the remembered corner', () => { const m = S.swap; ok(m.fit[0] === 'contain', m.fit[0]); ok(near(sh(m.small), 360 / 640, 0.03), 'shape ' + JSON.stringify(m.small)); ok(m.corner === 'tl', m.corner); });
+T('B10 subtitles clear a small picture in a bottom corner (they follow its live width)', () => { const v = S.first.bandVars; ok(/--vb-sr:\s*\d+px/.test(v) && parseInt(/--vb-sr:\s*(\d+)px/.exec(v)[1], 10) >= S.first.small.w + 10, v); });
+T('B11 the call ends by the hang-up (swapped) and by the partner (swapped, mid-press): no band, no swap, TB_SWAP false, no inline position, no strip size left on the band; the next call opens at the remembered height and corner', () => {
+  for (const [n, m] of [['hang-up', S.ended], ['partner', S.remoteEnd]]) { ok(m.display === 'none' && m.swapped === false && !/left|top/.test(m.inline.join(' ')) && !/--vb-/.test(m.bandVars) && !/st-video|st-phone/.test(m.st), n + ' ' + JSON.stringify([m.display, m.swapped, m.inline, m.bandVars, m.st])); }
+  ok(S.tbswap === false, 'TB_SWAP'); ok(S.again2.videos.h === 328 && S.again2.corner === 'tl', 'next call ' + S.again2.videos.h + ' ' + S.again2.corner); });
+T('B12 the chat keeps a floor: pulled all the way down, ≥ 118 px of chat stays — on a phone with the error banner and the reach bar showing, and on a phone on its side with the reach bar; on its side with the banner too the picture stops at its 80 px floor; MIN never above MAX', () => { for (const [n, m] of [['phone+banner', S.banner], ['side', SL.downMax]]) { ok(m && m.transcript.h >= 118, n + ' chat ' + (m && m.transcript.h)); ok(m.vb.min <= m.vb.max, n + ' min ' + m.vb.min + ' max ' + m.vb.max); } ok(SL.banner.videos.h >= 80 && SL.banner.vb.min <= SL.banner.vb.max, 'side+banner ' + SL.banner.videos.h); });
+T('B13 a laptop\'s wide 1280×720 picture: contain, and the strip does not grow past what the picture can use (no black added below it)', () => { ok(SP.first.fit[0] === 'contain', SP.first.fit[0]); ok(SP.downMax.videos.h <= Math.max(228, Math.ceil(SP.downMax.videos.w * 720 / 1280)) + 1, 'grew to ' + SP.downMax.videos.h); });
+T('B14 a press on the flip button that moves is never a resize or a corner move', () => ok(S.flip.videos.h === S.swap.videos.h && S.flip.corner === S.swap.corner, JSON.stringify([S.flip.videos.h, S.swap.videos.h, S.flip.corner])));
+T('B15 layering: a dialog opened in the room sits above the strip', () => ok(S.dialog === true, 'dialog under the strip'));
+T('B16 logged: vb_shown at each call, vb_shape when the frames arrive, vb_corner on a move', () => { const l = S.again.logs; ok(l.includes('vb_shown') && l.includes('vb_shape') && l.includes('vb_corner'), l.join(',')); });
 fs.rmSync(dir, { recursive: true, force: true });
 console.log('\n30·base browser: ' + pass + ' pass, ' + fail + ' fail');
 process.exit(fail ? 1 : 0);
