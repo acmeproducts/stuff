@@ -48,3 +48,8 @@ Role: recovery point / backend anchor. Floor with Fixed/Horizon remains floor-se
 Exact pair at commit 0f3099342 (Oct 5 2026): page market-navigator-turn29-pre-ship.html (dashboard landing, CHART view with Fixed/Horizon and dual axis, long-press card, Analyze) with market-evidence/ and data/market-backend/ from the same commit.
 Tested: tap on chip or plot opens no card; right-click/long-press opens card; Analyze button present.
 Fact: index file frozen at Sep 22 while raw series run to Oct 2 (HY Oct 1, NFCI Sep 25), so 5D components end ragged. Backend was not synced to this front end.
+
+## work-batch-stamped
+Floor pair (996e9a71b) with one data-only change: every trading-day series (Yahoo) restamped to one batch-day stamp (00:00 UTC of its market day), duplicate same-day readings keep the last, weekend readings dropped. Page byte-identical to the floor. FRED daily, weekly, monthly series untouched.
+Fact: before, equity/VIX/FX series carried different clock times on the same day (13:30, 07:00, 04:00 UTC), so lines ended at different x positions. After, RSK, GRW and MAC 5D all end flush at Sep 22.
+Not done: index still frozen at Sep 22; no-data greying not checked; HY still lags one day at the newest edge (beyond the Sep 22 anchor).
