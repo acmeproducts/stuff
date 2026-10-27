@@ -1,5 +1,5 @@
-<!-- TALKBRIDGE-PLAN v21.116.0 -->
-# TALKBRIDGE MASTER PLAN v21.116.0
+<!-- TALKBRIDGE-PLAN v21.117.0 -->
+# TALKBRIDGE MASTER PLAN v21.117.0
 
 **Location:** `talkbridge/TALKBRIDGE-PLAN-v9.md` in `acmeproducts/stuff`.
 **Owner:** Confi — sole decision-maker, runs every device gate.
@@ -149,7 +149,7 @@ the directory release and IndexedDB each moved one turn later; nothing was dropp
 | 29·post-ship | **localization** — the app's own words in the user's language, both sides (§7.17) — moved up from 30·base by owner ruling 2026-10-10 | **ACCEPTED 2026-10-20 · candidate 7 · sha `c1c417e21dd1` · tb-sw5.js · relay v6.17 (owner: "approved")** — localization, the reach bar, reachability, the activity log, the room name phone to phone, no names on the server. Candidate history: c1–c7 (§7.17, §7.20, §7.21; changelog v21.96.0–v21.109.0) | **https://acmeproducts.github.io/stuff/talkbridge-app/bridge-turn29-post-ship.html** |
 | 30·post-ship | IndexedDB — behind its POC; if the owner defers it past beta, it stays here | queued | — |
 | 30·pre-base | byte-identical snapshot of accepted 29·post-ship | **BANKED 2026-10-22 BY REFERENCE** — the accepted `talkbridge-app/bridge-turn29-post-ship.html` (sha `c1c417e21dd1`), immutable under §0c; 30·base's assembler sha-checks it | — |
-| 30·base | **THE VIDEO BOX (§7.22)** — owner 2026-10-22: "it should be the tall 9:16 that's draggable"; multi-user (conference-room model) moves later, only after its spec is written and approved | **CANDIDATE 3 · BUILT 2026-10-23 · relay v6.17 (unchanged) · tb-sw5.js (unchanged) — candidate 2's window (the SHAPE OF ITS PICTURE) + the camera comes back after iPhone dictation (CV-1) + the room's name gets the room up to the microphone (NM-1) + the Android strip teal; awaiting the owner's two-phone device gate.** Candidate 2 (2026-10-22): the owner's test 2026-10-23 — the timer right, three findings, all in c3. Candidate 1 REJECTED 2026-10-22 (G77). | **https://acmeproducts.github.io/stuff/talkbridge-app/bridge-turn30-base.html** (and next.html) · Jenny's instance: https://acmeproducts.github.io/stuff/talkbridge-app/bridge-turn30-base-jenny.html |
+| 30·base | **THE VIDEO BOX (§7.22)** — owner 2026-10-22: "it should be the tall 9:16 that's draggable"; multi-user (conference-room model) moves later, only after its spec is written and approved | **CANDIDATE 4 · BUILT 2026-10-27 · relay v6.17 (unchanged) · tb-sw5.js (unchanged) — THE STRIP YOU PULL DOWN (VB-2: the accepted band in place, its height the person's, the whole picture at any height, the small picture in a corner) + CV-1 + NM-1 + the Android strip teal; awaiting the owner's two-phone device gate.** Candidate 3 (2026-10-23): the owner tested it 2026-10-27 — "it works as expected but I'm not really crazy about it" → the floating window superseded (G79). Candidate 2 (2026-10-22): the owner's test 2026-10-23 — the timer right, three findings, all in c3. Candidate 1 REJECTED 2026-10-22 (G77). | **https://acmeproducts.github.io/stuff/talkbridge-app/bridge-turn30-base.html** (and next.html) · Jenny's instance: https://acmeproducts.github.io/stuff/talkbridge-app/bridge-turn30-base-jenny.html |
 | 30·pre-ship | beta readiness | queued | — |
 
 Every accepted or built stage carries its live address here and in the ledger; a row without a link is not built.
@@ -2090,6 +2090,8 @@ Green means allowed to push. It never means done.
 ---
 
 ## 10 · CHANGE LOG
+
+**v21.117.0 · 2026-10-27.** 30·base candidate 4 (§7.22 "Candidate 4"): the owner after testing c3 — "maybe being able to just drag the length of the video … with the tall pip inside maybe that's a better solve"; then "Both, video first" (and decision 1 of §7.24 accepted: an older page shows migrated rooms empty). VB-2 replaces the floating window: the accepted band stays in the room's flow, the person pulls its grab bar to set its height (MIN 228 px; MAX keeps 120 px of chat beside every other row), both pictures whole, the small picture in a corner (dragged, it snaps; a tap swaps). Independently reviewed before the code (5 must-fix applied — the keyboard rule dropped on a wrong premise). Gates: harness-30b 73/73, browser 18/18 by real touch, mutations 38/38, prior gate:29pos. G79: the floating window.
 
 **v21.116.0 · 2026-10-27.** The IndexedDB proof's device results recorded (§7.23: both phones PASS; the iPhone kill test not reachable). §7.24 written (owner: "go ahead with the plan"): TS-1, chats in IndexedDB under an in-memory copy, every caller unchanged; absorbed from the old storage at every start; held start-up merging by id; per-message rows numbered by the store; a journal mode instead of a silent fallback; two copies kept in step. Independently reviewed before any code (7 must-fix applied). Awaiting the owner's approval, the old-page consequence, and its place in the chain.
 
@@ -5909,6 +5911,71 @@ sender, and the hang-up stops it). C5: N1, N2 and CV12 FAIL on candidate 2's pag
 **Device gate (owner, two phones):** (a) in a video call on the iPhone, dictate into the chat, finish — the partner sees your
 camera again within a few seconds; (b) the room's name on the iPhone 13 shows more; (c) the Android's bottom strip is teal with
 readable buttons (reinstall from the page, or wait for Chrome to refresh the installed app); (d) everything candidate 2 passed.
+
+### Candidate 4 (2026-10-27) — THE STRIP YOU PULL DOWN (VB-2 replaces VB-1; CV-1, NM-1 and the teal Android strip stay)
+**The owner's words** (after testing c3: "it works as expected but I'm not really crazy about it … maybe being able to just drag the
+length of the video to where it could be longer if you needed to see more of the person and that there was basically a minimum
+height with the tall pip inside maybe that's a better solve"; then "Both, video first").
+**Why the floating window goes:** it covers the chat — the main surface of a translating app — and it is a thing to park.
+**THE CHANGE — `talkbridge/parts/vb2-video-strip.js` replaces `vb1-video-box.js` in the 30·base assembly:**
+1. **The strip is the accepted band, in place:** `#call-band` stays in the room's flow under the ribbon (not floating), the full
+   width of the app column; the chat below is pushed down, never covered. Voice calls: no band, as accepted.
+2. **Its height is the person's choice:** the pictures' height between MIN = 228 px (the accepted band's) and MAX = the smaller of
+   66% of the room below the ribbon and what leaves 120 px of chat beside every other row then showing (the error banner, the
+   typing line, the reach bar, the composer — re-measured when any of them appears or changes), less the bar; MIN never above MAX;
+   the chat's floor wins down to an 80 px picture (a phone on its side with every row showing can hold no more — stated). A wide
+   picture (a laptop) caps MAX at what it can fill (no black added below it). First call: MIN. Only a drag saves the height
+   (`tb_vband_h`); a rotation's clamp never overwrites it. When the strip grows, a chat that was at its newest message stays there.
+3. **A visible grab bar, its own row:** a 20 px row UNDER the pictures, outside `#call-videos` (a press there must never swap),
+   with a 40×5 px pill. A vertical drag that starts on it resizes (pointer events with capture, `touch-action:none` on the bar
+   only); a drag anywhere else does what it does today (the chat scrolls; its overscroll is contained during a video call). No hover.
+4. **The whole person, at any height:** both pictures `object-fit: contain` on black (no crop, ever); a tall phone picture in a
+   wide strip shows black at its sides — pulling the strip down makes the person bigger.
+5. **The picture-in-picture inside:** the small frame takes the small picture's own shape (videoWidth/videoHeight; the last good
+   shape is kept while a stream is re-pointed — the flip, CV-1; 3:4 only before the first frame; re-read on loadedmetadata/resize/
+   playing, a swap and a 1 s poll), 45% of the strip high but ≥ 110 px (the accepted inset was 82×110) and ≤ 240, and ≤ 40% of the
+   strip's width (a wide picture is width-capped), in a corner (default bottom-right; the corners keep clear of the safe areas). A
+   press that moves drags it (a CSS offset, never an inline position); on release it snaps to the nearest corner (a class,
+   remembered, `tb_vband_corner`). A press that does not move is a tap and swaps, as accepted. The accepted page-wide small-video
+   drag is kept dead while the strip shows (capture; it writes viewport coordinates onto an element inside the band). NOTE for the
+   gate: "the tall pip" is tall only when the picture is (the Android sends a tall 480×640 self-view; a laptop is wide).
+6. **The flip button** stays bottom-left, moving to top-left when the small picture sits bottom-left; a press on it is never a drag.
+7. **Subtitles** stay at the strip's bottom, clear of the small picture when it sits in a bottom corner.
+8. **Typing: unchanged from today.** (The review found that `#app` is fixed and the soft keyboard shrinks only the visual
+   viewport — the page pans; a "smaller while typing" rule would change nothing the person sees. Dropped; what typing looks like
+   during a call is a device-gate observation.)
+9. **A call that ends by any path** (the hang-up, the partner, a decline, a cancel) leaves no swap and no inline position or size;
+   the remembered height and corner stay for the next call.
+10. **Logs:** `vb_shown {h, min, max, big, small}`, `vb_resized {h}`, `vb_corner {c}`, `vb_shape` on a change of shape,
+    `vb_camera` (what the camera reports), as c2.
+**Not in scope:** the camera's asked shape (the accepted ask, unchanged — G77), CV-1, NM-1, the manifests, Jenny's instance
+(rebuilt with the candidate), the relay, the worker.
+**Independent review (2026-10-27, before the code) — what changed:** MUST-FIX, all applied: the keyboard premise was wrong (rule
+dropped); "chat always shows" had no floor and ignored the other rows (MAX now keeps 120 px of chat beside them, re-measured); the
+grab bar overlapped the chat and the small picture and would have swapped on a tap (its own row, outside `#call-videos`); the small
+frame had no width cap (≤ 40%); the gates never used touch (now real touch through CDP). SHOULD, applied: pointer events with
+capture and `touch-action` only on the bar and the small frame, the chat's overscroll contained; the accepted drag kept dead and the
+corners as classes; the last good shape kept; the newest message kept in view; only a drag saves; safe areas on the corners; a wide
+picture's useful height. NOTED: `tb_vbox_pos` (c2/c3) is left unused; the old `.pip` path is dead.
+**Gates (rewritten for the strip, driven by real touch):** browser — B3 a voice call shows no band; B4 a video call: the band in flow under the ribbon,
+the app column's width, MIN high, the chat's top at or below the band's bottom (never covered); B5 both pictures contain, the inset
+the small picture's shape, inside the band; B6 the grab bar dragged down 200 px → +200, past MAX → MAX, up past MIN → MIN; saved;
+restored at the next call; B7 a drag on the chat does not resize; B8 the inset dragged → snaps to the nearest corner, saved; a tap
+swaps; a drag never swaps; B9 after a swap the big picture is my wide 640×480 (contain), the inset the partner's tall shape; B10 subtitles clear a small frame in a bottom corner; B11 the call ends (hang-up and the partner's end, swapped, mid-press) →
+no band, no swap, no inline position; B12 a phone on its side and a wide desktop: MIN ≤ MAX, the band inside the app column;
+B13 a laptop's wide picture contain; B14 the flip button never drags or resizes; B15 layering: dialogs above the band. Node — B1
+the stage = the accepted page + identity + VB-2, CV-1, NM-1; B2 contracts; K the camera asked exactly as accepted; E the whole
+28·post-ship script identical but the declared differences; J Jenny's instance. Mutations for each rule.
+**Device gate (owner, two phones):** a video call; pull the strip down and up; move your own picture to another corner; tap to
+swap; type in the chat during the call; hang up and call again (the height and corner remembered).
+
+### Built (candidate 4, 2026-10-27)
+`talkbridge/parts/vb2-video-strip.js` replaces VB-1 in the assembly (VB-1 is kept in the repository, buried as G79); build
+`turn30-base-c4`; Jenny's instance rebuilt with it. Gates: `harness-30b.mjs` 73/73 (B1 with VB-2, B2 per part, C the strip's scope
+and flow, F, J, K, CV1–CV11, E the whole 28·post-ship script); `harness-30b-browser.mjs` 18/18 (B3–B16 by real touch on a live page
+at 390×844, 844×390 and with a laptop's 1280×720 partner; N1–N2; CV12); `mutate-30b.mjs` 38/38; prior `gate:29pos` green.
+**Device gate (owner, two phones):** a video call; pull the strip down and up; move your own picture to another corner; tap it to
+swap; hang up and call again (the height and corner remembered); note what typing during a call looks like.
 
 ### Built (candidate 1)
 `talkbridge/build/assemble-30b.mjs` (accepted page sha-checked; 5 edits: 2 manifest names, 2 camera shapes, the build line;
