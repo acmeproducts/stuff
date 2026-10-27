@@ -60,3 +60,6 @@ Floor pair (996e9a71b). Data changes 1-3, then three small page changes 4-6:
 Audit (every index x every horizon, from the page's own series builder): 1D, 5D and MTD all start at the window start and end Sep 24 flush for every drawn series; slow series greyed. No page errors. Taps on chip, series and plot open no card; long-press does; Analyze opens with oval chips.
 Result (rendered, all three indices at 5D): all series start Sep 18 and end Sep 24 flush. Monthly series greyed at 5D.
 Open assumptions (override me): rules 4-6 above are my calls. NFCI weekly and monthly series end at their last release in MTD/YTD/1-3-5YR views (not held forward); NFCI held at its Sep 11 state (no release known); generatedAt field not updated; the index history before Sep 22 kept as stored.
+
+## ETL (mkt/etl)
+Scheduled incremental ETL keeps work-batch-stamped current: see mkt/etl/README.md. First live batch 2026-10-27 (run 40598776852): all 40 automated sources fetched; Yahoo through Oct 27 close, FRED dailies through Oct 26 (FRED posts next business day), anchor 2026-10-26. CPI/core CPI/PCE/core PCE are stored as year-over-year percent and computed from FRED levels. Source revisions found and applied on the first pass: PCE (annual revision, ~0.25pp), retail sales (benchmark), payrolls, NFCI, industrial production, GDP.
