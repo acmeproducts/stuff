@@ -43,4 +43,11 @@ for(const vp of [{width:320,height:480},{width:2560,height:1440},{width:1024,hei
  await p.evaluate(()=>__wslAddPause(65));await p.click('#closeSettings');await p.waitForTimeout(200);s=await p.evaluate(()=>__wsl());
  ok('a minute spent in settings costs 25% like any pause (400 -> about 300)',s.score>=300&&s.score<=330&&s.paused===false,{score:s.score,paused:s.paused});
  await c.close();}
+{ // the top of a long settings screen must be reachable on a short landscape phone
+  const {c,p}=await mk({width:667,height:375});seeded(p,{mode:'regular'});await p.goto(url);await p.waitForTimeout(500);await p.evaluate(HELPERS);
+  await p.click('#btnSettings');await p.waitForTimeout(150);
+  const top=await p.evaluate(()=>{const pn=document.getElementById('settingsPanel');pn.scrollTop=0;const h=pn.querySelector('h2').getBoundingClientRect();return {top:h.top,scrollable:pn.scrollHeight>pn.clientHeight};});
+  ok('settings: the title at the top is reachable (not cut off) when the screen is short',top.top>=0&&top.scrollable,top);
+  await c.close();
+}
 await b.close();done();
