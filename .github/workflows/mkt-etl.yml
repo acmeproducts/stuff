@@ -1,0 +1,57 @@
+name: mkt ETL (incremental, restartable)
+on:
+  workflow_dispatch:
+  schedule:
+    # 06:15 and 14:15 Pacific (PDT); the batch id is the last completed market day, so a late
+    # reading (e.g. HY spread posts the next morning) is picked up by the later run.
+    - cron: '15 13 * * 1-6'
+    - cron: '15 21 * * 1-6'
+permissions:
+  contents: write
+  actions: write
+concurrency:
+  group: mkt-etl
+  cancel-in-progress: false
+jobs:
+  etl:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+          sparse-checkout: |
+            mkt
+            .github/workflows/mkt-etl.yml
+          sparse-checkout-cone-mode: true
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Run ETL
+        id: etl
+        run: |
+          python3 mkt/etl/etl.py --root mkt/work-batch-stamped --reports mkt/etl/runs
+      - name: Commit data (only if the run passed)
+        if: success()
+        run: |
+          git config user.name 'mkt-etl'
+          git config user.email 'mkt-etl@users.noreply.github.com'
+          git add mkt/work-batch-stamped/market-evidence mkt/work-batch-stamped/data mkt/etl/runs
+          if git diff --cached --quiet; then echo "no data changes"; exit 0; fi
+          BATCH=$(python3 -c "import json;print(json.load(open('mkt/etl/runs/last-run.json'))['batch'])")
+          git commit -m "mkt etl: batch $BATCH"
+          for i in 1 2 3 4 5; do
+            git pull --rebase origin main && git push origin HEAD:main && break
+            sleep 15
+          done
+          # pushes made with GITHUB_TOKEN do not trigger the Pages deploy, so start it explicitly
+          gh workflow run static.yml --ref main
+        env:
+          GH_TOKEN: ${{ github.token }}
+      - name: Keep the run report even on failure
+        if: failure()
+        run: |
+          git config user.name 'mkt-etl'
+          git config user.email 'mkt-etl@users.noreply.github.com'
+          git add mkt/etl/runs || true
+          git diff --cached --quiet || (git commit -m "mkt etl: FAILED run report" && git pull --rebase origin main && git push origin HEAD:main) || true
