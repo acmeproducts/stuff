@@ -229,6 +229,26 @@ def build_compat(root):
     try: compat.main()
     finally: os.chdir(cwd)
 
+def refresh_health(root, report, common):
+    """Keep the card's Health/Latest fields truthful: latest observation, collector status and timestamps from this run."""
+    hp = root/'market-evidence'/'health-envelope.json'
+    if not hp.exists(): return
+    h = json.load(open(hp)); now = dt.datetime.now(UTC).isoformat(timespec='seconds').replace('+00:00','Z')
+    byid = {r['id']: r for r in report['series']}
+    for sid, row in (h.get('series') or {}).items():
+        sp = root/'market-evidence'/'series'/f'{sid}.json'
+        if not sp.exists(): continue
+        s = json.load(open(sp)); obs = s.get('observations') or []
+        if obs: row['actualLatestCanonicalObservation'] = ms_day(obs[-1]['t']); row['latestObservation'] = ms_day(obs[-1]['t'])
+        r = byid.get(sid)
+        if r:
+            row['collectorStatus'] = 'healthy' if r['status'] in ('OK','CURRENT','LATE') else ('unchanged' if r['status']=='SKIP' else 'error')
+            row['collectorError'] = r.get('error'); row['classification'] = 'current' if r['status'] in ('OK','CURRENT','LATE') else row.get('classification')
+            row['lastCollectionAttempt'] = s.get('last_attempted'); row['lastSuccessfulCollection'] = s.get('last_successful'); row['observationCount'] = len(obs)
+            row['why'] = f"Canonical evidence ends {row.get('actualLatestCanonicalObservation')}; common market anchor {common}. Collector last success {s.get('last_successful')}."
+    h['generatedAt'] = now; h['marketAnchor'] = common
+    json.dump(h, open(hp, 'w'), separators=(',',':'), sort_keys=True)
+
 # ---------- run ----------
 def run(root, out_reports, mock=None, now=None):
     now = now or dt.datetime.now(UTC); batch = batch_day(now)
@@ -249,6 +269,7 @@ def run(root, out_reports, mock=None, now=None):
         live = [r for r in report['series'] if r['cadence'] in LIVE and r['status'] in ('OK','CURRENT','LATE')]
         report['changedSeries'] = changed_ids; report['errors'] = [{'id': r['id'], 'error': r['error']} for r in errors]
         common = extend_index(stage, report); build_compat(stage)
+        refresh_health(stage, report, common)
         d = json.load(open(stage/'market-evidence'/'derived-indices-persistent-v1.json'))
         if d['commonMarketAnchor'] != common: raise RuntimeError(f"anchor mismatch {d['commonMarketAnchor']} vs {common}")
         for idx in d['indices']:

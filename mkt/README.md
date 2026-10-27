@@ -56,7 +56,8 @@ Floor pair (996e9a71b). Data changes 1-3, then three small page changes 4-6:
 3. 5D horizon start changed from 5 calendar days to 4 business days back (your rule: current day plus 4 previous business days), via market-navigator-build-persistent-compat.py copy logic.
 4. Page: Y2 now holds every dollar series (SPY, QQQ, gold, WTI, copper...) together, labeled USD; before, only the last-added series was on Y2 in its own unit and USD per barrel / per pound counted as separate kinds. The card still shows the specific unit.
 5. Page: a series needs two readings inside the horizon to draw; otherwise it is greyed and not drawn (fixes NFCI showing a lone dot at 5D).
-6. Page: long-press on a legend chip now takes 0.75 s (was 0.45 s) and cancels if the finger moves more than 8 px.
+6. Page: a tap on a series line only selects it (turn 24 behavior); every build from turn 25 to 37 opened the card from a plot tap, which is why no committed file had Fixed/Horizon without that defect. Dates (axis, tooltip, card) formatted in UTC so batch day Oct 20 never shows as Oct 19.
+7. Page: long-press on a legend chip now takes 0.75 s (was 0.45 s) and cancels if the finger moves more than 8 px.
 Audit (every index x every horizon, from the page's own series builder): 1D, 5D and MTD all start at the window start and end Sep 24 flush for every drawn series; slow series greyed. No page errors. Taps on chip, series and plot open no card; long-press does; Analyze opens with oval chips.
 Result (rendered, all three indices at 5D): all series start Sep 18 and end Sep 24 flush. Monthly series greyed at 5D.
 Open assumptions (override me): rules 4-6 above are my calls. NFCI weekly and monthly series end at their last release in MTD/YTD/1-3-5YR views (not held forward); NFCI held at its Sep 11 state (no release known); generatedAt field not updated; the index history before Sep 22 kept as stored.
