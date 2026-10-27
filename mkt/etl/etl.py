@@ -21,7 +21,7 @@ UTC = dt.timezone.utc
 ET = ZoneInfo('America/New_York')
 PT = ZoneInfo('America/Los_Angeles')
 UA = 'MarketNavigatorETL/1.0 (+acmeproducts/stuff mkt)'
-TIMEOUT = 40
+TIMEOUT = 25
 VERIFY = 3                      # stored readings re-fetched for cross-check
 PRICE_TOL = 0.002               # 0.2% tolerance on Yahoo closes
 sys.path.insert(0, str(Path(__file__).resolve().parent))
@@ -67,14 +67,35 @@ def fetch_yahoo(sym, start, end):
     return out, http, hashlib.sha256(raw).hexdigest(), url
 
 def fetch_fred(sid, start, end):
-    url = 'https://fred.stlouisfed.org/graph/fredgraph.csv?'+urllib.parse.urlencode({'id':sid,'cosd':start,'coed':end})
-    raw, http = http_get(url, 'text/csv,*/*'); rows = raw.decode('utf-8-sig','replace').splitlines()
-    out = {}
-    for r in csv.reader(rows[1:]):
-        if len(r) < 2 or r[1].strip() in ('', '.'): continue
-        try: out[r[0]] = float(r[1])
-        except ValueError: pass
-    return out, http, hashlib.sha256(raw).hexdigest(), url
+    """FRED observations. Uses the API with the repository key when present (fredgraph.csv times out from GitHub runners); falls back to fredgraph.csv. Retries with backoff."""
+    keys = [k for k in (os.environ.get('MARKET_NAVIGATOR_FRED_API_KEY'), os.environ.get('MARKET_NAVIGATOR_FRED_API_KEY_SECONDARY')) if k]
+    attempts = []
+    for key in keys: attempts.append(('api', key))
+    attempts.append(('csv', None))
+    last_err = None
+    for kind, key in attempts:
+        for tries in range(2):
+            try:
+                if kind == 'api':
+                    q = {'series_id': sid, 'observation_start': start, 'observation_end': end, 'file_type': 'json', 'limit': 100000, 'api_key': key}
+                    url = 'https://api.stlouisfed.org/fred/series/observations?'+urllib.parse.urlencode(q)
+                    raw, http = http_get(url, 'application/json'); j = json.loads(raw); out = {}
+                    for o in j.get('observations', []):
+                        if o.get('value', '.').strip() in ('', '.'): continue
+                        try: out[o['date']] = float(o['value'])
+                        except ValueError: pass
+                    safe = url.replace(key, '[redacted]')
+                    return out, http, hashlib.sha256(raw).hexdigest(), safe
+                url = 'https://fred.stlouisfed.org/graph/fredgraph.csv?'+urllib.parse.urlencode({'id': sid, 'cosd': start, 'coed': end})
+                raw, http = http_get(url, 'text/csv,*/*'); rows = raw.decode('utf-8-sig', 'replace').splitlines(); out = {}
+                for r in csv.reader(rows[1:]):
+                    if len(r) < 2 or r[1].strip() in ('', '.'): continue
+                    try: out[r[0]] = float(r[1])
+                    except ValueError: pass
+                return out, http, hashlib.sha256(raw).hexdigest(), url
+            except Exception as e:
+                last_err = e; time.sleep(3*(tries+1))
+    raise RuntimeError('FRED unreachable (api key present: %s): %s' % (bool(keys), str(last_err)[:120]))
 
 # ---------- core ----------
 def load_series(root):
