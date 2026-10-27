@@ -1,6 +1,6 @@
 # TalkBridge activity log
 
-Who created, joined, called and chatted, one line per event, no message text (§7.21; relay v6.14). Drained 2026-10-27T06:17:57Z. Newest at the bottom. Person = the name typed in the app, letters and digits only (no name: Guest 1, Guest 2 … per room); room = its short id. Live view: https://acmeproducts.github.io/stuff/talkbridge/dash.html
+Who created, joined, called and chatted, one line per event, no message text (§7.21; relay v6.14). Drained 2026-10-27T12:23:31Z. Newest at the bottom. Person = the name typed in the app, letters and digits only (no name: Guest 1, Guest 2 … per room); room = its short id. Live view: https://acmeproducts.github.io/stuff/talkbridge/dash.html
 
 ```
 2026-10-19 07:05:25  room wvshos  voice call from miko — answered by text
@@ -114,4 +114,9 @@ Who created, joined, called and chatted, one line per event, no message text (§
 2026-10-26 06:41:08  room 9fp2xl  Huoi chat
 2026-10-26 06:41:59  room 9fp2xl  mike chat
 2026-10-26 06:42:16  room 9fp2xl  voice call from mike — answered by Huoi  started 06:41:21  ended 06:42:16  lasted 55s
-2026-10-26 06:42:54  room 0cigqx  Huoi created  en → zh```
+2026-10-26 06:42:54  room 0cigqx  Huoi created  en → zh
+2026-10-27 07:45:00  room fj4d34  voice call from momo — missed
+2026-10-27 07:45:09  room fpyu1m  voice call from mike — missed
+2026-10-27 07:47:28  room wvshos  video call from lolo — answered by miko  started 07:47:20  ended 07:47:28  lasted 9s
+2026-10-27 07:48:25  room wvshos  voice call from miko — answered by lolo  started 07:48:20  ended 07:48:25  lasted 5s
+2026-10-27 07:49:07  room wvshos  video call from lolo — answered by miko  started 07:48:32  ended 07:49:07  lasted 35s```
