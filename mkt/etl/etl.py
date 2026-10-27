@@ -98,6 +98,18 @@ def fetch_fred(sid, start, end):
     raise RuntimeError('FRED unreachable (api key present: %s): %s' % (bool(keys), str(last_err)[:120]))
 
 # ---------- core ----------
+YOY = {}
+def yoy_from_levels(raw, start):
+    out = {}
+    for d, v in raw.items():
+        y = dt.date.fromisoformat(d); prior = y.replace(year=y.year-1).isoformat()
+        if d >= start and prior in raw and raw[prior] > 0: out[d] = (v/raw[prior]-1)*100
+    return out
+def load_catalog(root):
+    c = json.load(open(root/'data'/'market-backend'/'data-catalog.json'))
+    for x in c['series']:
+        YOY[x['id']] = str(x.get('transformation', '')).startswith('year-over-year percent change')
+
 def load_series(root):
     d = root/'market-evidence'/'series'; out = {}
     for f in sorted(d.glob('*.json')):
@@ -123,13 +135,20 @@ def update_series(sid, s, batch, mock):
         start = (dt.date.fromisoformat(last) - dt.timedelta(days=100)).isoformat()
     try:
         if mock is not None:
-            src = {d: v for d, v in mock.get(sid, {}).items() if start <= d <= batch}; http, digest, url = 200, 'mock', 'mock'
+            http, digest, url = 200, 'mock', 'mock'
+            src = yoy_from_levels(mock.get(sid, {}), start) if YOY.get(sid) else {d: v for d, v in mock.get(sid, {}).items() if start <= d <= batch}
+            src = {d: v for d, v in src.items() if d <= batch}
         elif prov == 'Yahoo Finance': src, http, digest, url = fetch_yahoo(ident, start, batch)
+        elif YOY.get(sid):
+            # stored as year-over-year percent; FRED serves the index level, so fetch 13 extra months and compute
+            back = (dt.date.fromisoformat(start) - dt.timedelta(days=400)).isoformat()
+            raw, http, digest, url = fetch_fred(ident, back, batch)
+            src = yoy_from_levels(raw, start)
         else: src, http, digest, url = fetch_fred(ident, start, batch)
     except Exception as e:
         rep.update(status='ERROR', error=str(e)[:300]); s['last_attempted'] = dt.datetime.now(UTC).isoformat(timespec='seconds').replace('+00:00','Z'); s['last_error'] = str(e)[:300]
         return False, rep
-    rep.update(fetched=len(src), window=[start, batch], http=http, sourceDigest=digest)
+    rep.update(fetched=len(src), window=[start, batch], http=http, sourceDigest=digest, transform='yoy_percent_from_level' if YOY.get(sid) else 'none')
     # cross-check overlap
     for d in sorted(src):
         if d in stored:
@@ -220,7 +239,7 @@ def run(root, out_reports, mock=None, now=None):
     stage = Path(tempfile.mkdtemp(prefix='mkt-etl-stage-', dir=root.parent))
     try:
         for sub in ('market-evidence', 'data'): shutil.copytree(root/sub, stage/sub)
-        series = load_series(stage); changed_ids = []
+        load_catalog(stage); series = load_series(stage); changed_ids = []
         for sid, s in series.items():
             ch, rep = update_series(sid, s, batch, mock); report['series'].append(rep)
             log(f"{sid:28s} {rep['status']:8s} fetched={rep['fetched']} added={rep['added']} revised={rep['revised']} mismatch={len(rep['mismatch'])} {rep.get('error','')}")
