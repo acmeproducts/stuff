@@ -16,3 +16,7 @@ Change:
 Open assumption (override me if wrong): new index days use stored canonical values, not ALFRED vintages (no API key stored in the repo). Rebuilding the whole history this way differs from the Sep 23 file by 0.06-0.22 points on average (max 1.4), which is why history is append-only.
 
 Not done: GDP q/q and y/y unit labels; 0.28 RSK offset; front end pairing.
+
+## GDP labels (2026-10-26)
+Fact: gdpQoq and gdpYoy held raw GDP dollar levels (24,408) labeled percent; the catalog named the derivation but the pipeline ignored it.
+Fix: pipeline now derives both from realGdp (q/q 0.55%, y/y 2.19% latest). Gate no longer treats a shorter derived history as lost history.

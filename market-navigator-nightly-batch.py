@@ -20,7 +20,7 @@ def gate():
         if not o.get('observations'):bad.append(f'{sid}: no observations');continue
         if (o.get('last_successful') or '')[:10]!=today.isoformat():bad.append(f'{sid}: not refreshed this run')
         if sid in COMP and day(o['first'])>ANCHOR:bad.append(f'{sid}: history starts {day(o["first"])}, after anchor {ANCHOR}')
-        if old.get('first') and o['first']>old['first']:bad.append(f'{sid}: lost early history ({day(old["first"])} -> {day(o["first"])})')
+        if old.get('first') and o['first']>old['first'] and not m.get('transform_source_id'):bad.append(f'{sid}: lost early history ({day(old["first"])} -> {day(o["first"])})')
         if old.get('count') and o['count']<old['count']-3:bad.append(f'{sid}: shrank {old["count"]} -> {o["count"]}')
         if old.get('last') and o['last']<old['last']:bad.append(f'{sid}: last date moved back')
         info[sid]={'cadence':m.get('native_cadence'),'first':day(o['first']),'last':day(o['last']),'count':o['count']}

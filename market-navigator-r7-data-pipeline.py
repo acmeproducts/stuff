@@ -86,6 +86,11 @@ def yoy(a):
   d=dt.datetime.fromtimestamp(p['t']/1000,dt.timezone.utc);q=m.get((d.year-1,d.month))
   if q and q['v']:out.append({'t':p['t'],'v':(p['v']/q['v']-1)*100})
  return canon(out)
+def qoq(a):
+ a=canon(a);out=[]
+ for i in range(1,len(a)):
+  if a[i-1]['v']:out.append({'t':a[i]['t'],'v':(a[i]['v']/a[i-1]['v']-1)*100})
+ return canon(out)
 def merge(a,b,provider=None):
  z=canon((a or [])+(b or []))
  return canon_fred(z) if provider=='FRED' else z
@@ -151,6 +156,9 @@ def main():
    success=iso()
   except Exception as e:
    err=str(e);obs=canon(obs0);success=old.get('last_successful');failures.append(f'{sid}: {e}')
+  if m.get('transform_source_id'):
+   base=read(SERIES/f"{m['transform_source_id']}.json",{}).get('observations') or []
+   obs=qoq(base) if m.get('transform')=='qoq_percent_change' else yoy(base)
   if obs:
    cutoff=int(dt.datetime(2016,7,1,tzinfo=dt.timezone.utc).timestamp()*1000);obs=[x for x in obs if x['t']>=cutoff]
   rev=sha(obs);configured=chain_for(m);provider_name=(used or {}).get('provider') or old.get('provider') or m.get('provider');provider_id=(used or {}).get('identifier') or old.get('providerIdentifier') or m.get('provider_identifier')
