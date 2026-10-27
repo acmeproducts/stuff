@@ -50,9 +50,13 @@ Tested: tap on chip or plot opens no card; right-click/long-press opens card; An
 Fact: index file frozen at Sep 22 while raw series run to Oct 2 (HY Oct 1, NFCI Sep 25), so 5D components end ragged. Backend was not synced to this front end.
 
 ## work-batch-stamped
-Floor pair (996e9a71b), page byte-identical, data-only changes:
+Floor pair (996e9a71b). Data changes 1-3, then three small page changes 4-6:
 1. Every trading-day series (Yahoo) restamped to one batch-day stamp (00:00 UTC of its market day); same-day duplicates keep the last; weekend readings dropped. FRED, weekly, monthly series untouched.
 2. Index extended from Sep 22 to Sep 24 (last day every daily component exists; HY posts a day late). New rows use the stored model's own anchors and frozen scales; slow series (monthly, weekly, quarterly) held. Sep 23 risk row matches the stored value exactly. Weekend rows removed from index history (36).
 3. 5D horizon start changed from 5 calendar days to 4 business days back (your rule: current day plus 4 previous business days), via market-navigator-build-persistent-compat.py copy logic.
+4. Page: Y2 now holds every dollar series (SPY, QQQ, gold, WTI, copper...) together, labeled USD; before, only the last-added series was on Y2 in its own unit and USD per barrel / per pound counted as separate kinds. The card still shows the specific unit.
+5. Page: a series needs two readings inside the horizon to draw; otherwise it is greyed and not drawn (fixes NFCI showing a lone dot at 5D).
+6. Page: long-press on a legend chip now takes 0.75 s (was 0.45 s) and cancels if the finger moves more than 8 px.
+Audit (every index x every horizon, from the page's own series builder): 1D, 5D and MTD all start at the window start and end Sep 24 flush for every drawn series; slow series greyed. No page errors. Taps on chip, series and plot open no card; long-press does; Analyze opens with oval chips.
 Result (rendered, all three indices at 5D): all series start Sep 18 and end Sep 24 flush. Monthly series greyed at 5D.
-Open assumptions: NFCI held at its Sep 11 state (no release known); generatedAt field not updated; the index history before Sep 22 kept as stored.
+Open assumptions (override me): rules 4-6 above are my calls. NFCI weekly and monthly series end at their last release in MTD/YTD/1-3-5YR views (not held forward); NFCI held at its Sep 11 state (no release known); generatedAt field not updated; the index history before Sep 22 kept as stored.
