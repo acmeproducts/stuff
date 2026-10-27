@@ -1,9 +1,8 @@
 # TalkBridge device log
 
-Both handsets write here. Drained 2026-10-27T04:46:43Z, every 30s. Newest at the bottom.
+Both handsets write here. Drained 2026-10-27T04:49:39Z, every 30s. Newest at the bottom.
 
 ```
-07:13:47.415 [iphone-xzu] cr3_announce {"why":"blur","visible":false,"lanes":4,"dropped":2}
 07:13:43.823 [android-flz] pr3_dot {"others":1,"dropped":2}
 07:13:43.832 [android-flz] dg_stopped {}
 07:13:43.851 [android-flz] call_end {}
@@ -4002,4 +4001,5 @@ Both handsets write here. Drained 2026-10-27T04:46:43Z, every 30s. Newest at the
 04:33:17.809 [poc-iphone-new] poc_result {"id":"P8","pass":true,"deleted":true,"usedMB":171.6}
 04:33:17.809 [poc-iphone-new] poc_done {"res":{"P0":"NOTED","P1":"PASS","P2":"PASS","P3":"PASS","P5":"PASS","P6":"PASS","P10":"PASS","P4":"PASS"},"failed":0,"retries":0,"ms":24}
 04:33:31.343 [poc-iphone-new] poc_kill_prepared {"committed":100}
-04:37:39.712 [poc-iphone-new] poc_result {"id":"P7","pass":true,"awayS":162,"retried":0}```
+04:37:39.712 [poc-iphone-new] poc_result {"id":"P7","pass":true,"awayS":162,"retried":0}
+04:48:29.073 [poc-iphone-new] poc_result {"id":"P7","pass":true,"awayS":631,"retried":0}```
