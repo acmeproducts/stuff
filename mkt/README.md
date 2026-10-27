@@ -43,3 +43,8 @@ Exact pair at commit ed89bea39 (Sep 23 2026 02:45 Pacific). Page: market-navigat
 Fact: last state where index file and daily series both end Sep 21-22. From Sep 23 the index stays frozen at Sep 22 while series continue.
 Fact: HY spread ends one day before the other series on every day measured (Sep 16-27).
 Role: recovery point / backend anchor. Floor with Fixed/Horizon remains floor-sep27-t28-postship.
+
+## baseline-turn29-pre-ship
+Exact pair at commit 0f3099342 (Oct 5 2026): page market-navigator-turn29-pre-ship.html (dashboard landing, CHART view with Fixed/Horizon and dual axis, long-press card, Analyze) with market-evidence/ and data/market-backend/ from the same commit.
+Tested: tap on chip or plot opens no card; right-click/long-press opens card; Analyze button present.
+Fact: index file frozen at Sep 22 while raw series run to Oct 2 (HY Oct 1, NFCI Sep 25), so 5D components end ragged. Backend was not synced to this front end.
