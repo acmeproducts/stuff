@@ -50,6 +50,9 @@ Tested: tap on chip or plot opens no card; right-click/long-press opens card; An
 Fact: index file frozen at Sep 22 while raw series run to Oct 2 (HY Oct 1, NFCI Sep 25), so 5D components end ragged. Backend was not synced to this front end.
 
 ## work-batch-stamped
-Floor pair (996e9a71b) with one data-only change: every trading-day series (Yahoo) restamped to one batch-day stamp (00:00 UTC of its market day), duplicate same-day readings keep the last, weekend readings dropped. Page byte-identical to the floor. FRED daily, weekly, monthly series untouched.
-Fact: before, equity/VIX/FX series carried different clock times on the same day (13:30, 07:00, 04:00 UTC), so lines ended at different x positions. After, RSK, GRW and MAC 5D all end flush at Sep 22.
-Not done: index still frozen at Sep 22; no-data greying not checked; HY still lags one day at the newest edge (beyond the Sep 22 anchor).
+Floor pair (996e9a71b), page byte-identical, data-only changes:
+1. Every trading-day series (Yahoo) restamped to one batch-day stamp (00:00 UTC of its market day); same-day duplicates keep the last; weekend readings dropped. FRED, weekly, monthly series untouched.
+2. Index extended from Sep 22 to Sep 24 (last day every daily component exists; HY posts a day late). New rows use the stored model's own anchors and frozen scales; slow series (monthly, weekly, quarterly) held. Sep 23 risk row matches the stored value exactly. Weekend rows removed from index history (36).
+3. 5D horizon start changed from 5 calendar days to 4 business days back (your rule: current day plus 4 previous business days), via market-navigator-build-persistent-compat.py copy logic.
+Result (rendered, all three indices at 5D): all series start Sep 18 and end Sep 24 flush. Monthly series greyed at 5D.
+Open assumptions: NFCI held at its Sep 11 state (no release known); generatedAt field not updated; the index history before Sep 22 kept as stored.
