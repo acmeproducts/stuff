@@ -1,25 +1,8 @@
 # TalkBridge device log
 
-Both handsets write here. Drained 2026-10-27T04:30:19Z, every 30s. Newest at the bottom.
+Both handsets write here. Drained 2026-10-27T04:35:40Z, every 30s. Newest at the bottom.
 
 ```
-07:13:31.377 [android-flz] joiner_create_control {"shown":true,"dropped":1}
-07:13:31.433 [android-flz] t1_coalesced {"fn":"renderPanel","n":7}
-07:13:32.771 [android-flz] v1_swap {"swapped":true}
-07:13:33.337 [android-flz] v1_swap {"swapped":false}
-07:13:33.732 [android-flz] v1_swap {"swapped":true}
-07:13:34.053 [android-flz] v1_swap {"swapped":false}
-07:13:34.378 [android-flz] v1_swap {"swapped":true}
-07:13:42.808 [iphone-xzu] vb_moved {"fx":0.852,"fy":0.614}
-07:13:43.653 [iphone-xzu] storage_write_failed {"key":"tba_tr_9a0c161b-muzk40n7fj4d34","e":"QuotaExceededError","bytes":25377}
-07:13:43.654 [iphone-xzu] dg_stopped {}
-07:13:43.662 [iphone-xzu] call_end {}
-07:13:43.662 [iphone-xzu] gen_bump {"n":10,"r":"call_end"}
-07:13:43.670 [iphone-xzu] storage_estimate {"usage":68461299,"quota":41231686042}
-07:13:43.700 [iphone-xzu] rc_panel_rendered {"live":4,"bin":0,"wired":4,"dropped":3}
-07:13:43.700 [iphone-xzu] rc_home_rendered {"cards":0,"wired":0,"dropped":3}
-07:13:43.700 [iphone-xzu] joiner_create_control {"shown":false,"dropped":3}
-07:13:43.892 [iphone-xzu] pr3_dot {"others":1,"dropped":2}
 07:13:47.414 [iphone-xzu] cr3_attended {"on":false,"why":"blur"}
 07:13:47.415 [iphone-xzu] cr3_announce {"why":"blur","visible":false,"lanes":4,"dropped":2}
 07:13:43.823 [android-flz] pr3_dot {"others":1,"dropped":2}
@@ -4002,4 +3985,21 @@ Both handsets write here. Drained 2026-10-27T04:30:19Z, every 30s. Newest at the
 04:15:54.291 [iphone-xzu] ft_ready {}
 04:15:54.341 [iphone-xzu] listen_open {"room":"31af0eb5-muzk2t5lbh5qos"}
 04:15:54.342 [iphone-xzu] cr3_lane_open {"room":"31af0eb5-muzk2t5lbh5qos","explicit":false}
-04:17:55.957 [poc-iphone-new] poc_result {"id":"P7","pass":true,"awayS":285,"retried":0}```
+04:17:55.957 [poc-iphone-new] poc_result {"id":"P7","pass":true,"awayS":285,"retried":0}
+04:32:17.879 [poc-iphone-ttd] poc_result {"id":"P7","pass":true,"awayS":1251,"retried":0}
+04:32:53.711 [poc-iphone-new] poc_result {"id":"P7","pass":true,"awayS":873,"retried":0}
+04:33:01.399 [poc-iphone-new] poc_clean {"usedMB":85.8}
+04:33:04.756 [poc-iphone-new] poc_start {"cold":false,"run":true}
+04:33:04.761 [poc-iphone-new] poc_result {"id":"P0","pass":null,"standalone":true,"quotaMB":39321.6,"usedMB":85.8,"persisted":false,"sw":null,"idb":true,"durability":true}
+04:33:04.779 [poc-iphone-new] poc_result {"id":"P1","pass":true,"stores":3,"ver":1}
+04:33:15.954 [poc-iphone-new] poc_result {"id":"P2","pass":true,"storedMB":50.1,"written":156000,"readBack":156000,"secs":8,"mbPerSec":6.4,"deltaMB":75.1,"e":null,"intact":true}
+04:33:16.204 [poc-iphone-new] poc_result {"id":"P3","pass":true,"newest50ms":2,"allMs":10,"all":2000,"burst":true,"ryw":true,"twoWriters":true,"dupRefused":true,"update":true,"big1MB":true}
+04:33:17.357 [poc-iphone-new] poc_result {"id":"P5","pass":true,"realRooms":0,"rooms":22,"badSrc":1,"msgs":16600,"kb":5439,"dupIds":0,"copied":16,"same":5,"bad":1,"ms":789,"equal":true,"rerunSame":true,"grew":true,"cutAbsent":true}
+04:33:17.373 [poc-iphone-new] poc_result {"id":"P6","pass":true,"afterClose":true,"afterUnknown":true,"retries":2,"count":2}
+04:33:17.390 [poc-iphone-new] poc_result {"id":"P10","pass":true,"upgradeMs":3,"blocked":0,"oldClosed":true,"ver":2,"byTs":true,"count":300}
+04:33:17.785 [poc-iphone-new] poc_start {"cold":false,"step":"P4"}
+04:33:17.795 [poc-iphone-new] poc_result {"id":"P0","pass":null,"standalone":true,"quotaMB":39321.6,"usedMB":171.6,"persisted":false,"sw":null,"idb":true,"durability":true}
+04:33:17.800 [poc-iphone-new] poc_result {"id":"P4","pass":true,"committed":100,"stored":100,"noGap":true}
+04:33:17.809 [poc-iphone-new] poc_result {"id":"P8","pass":true,"deleted":true,"usedMB":171.6}
+04:33:17.809 [poc-iphone-new] poc_done {"res":{"P0":"NOTED","P1":"PASS","P2":"PASS","P3":"PASS","P5":"PASS","P6":"PASS","P10":"PASS","P4":"PASS"},"failed":0,"retries":0,"ms":24}
+04:33:31.343 [poc-iphone-new] poc_kill_prepared {"committed":100}```
