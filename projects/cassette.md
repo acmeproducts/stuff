@@ -163,3 +163,4 @@ Everything else: TBD.
 | 2026-10-25 07:01 | Main | built projects/cassette.html | Built the first playable version: the screen is a cassette with spinning reels, five chunky transport buttons that physically press in with a click sound and a small buzz, and hold-to-scrub REW/FF. Pull-down drawer library with local file add; in-app diagnostics strip. | b9df5c7 |
 | 2026-10-27 23:30 | Main | built projects/cassette.html | The app now switches between a Walkman look on phones and a carry-unit-with-handle look on tablets, per your direction, with an in-app toggl | 8f872b0 |
 | 2026-10-29 04:27 | Main | failed | Venice has no credits left. |  |
+| 2026-10-29 07:25 | Main | failed | Venice has no credits left. |  |
