@@ -97,6 +97,14 @@ Change: wsl.html restored byte-for-byte from snow-v1.html, then built up in thre
   - Also fixed while testing: the settings screen centred its content, so once it grew the title at the top could not be scrolled to on a short screen; it now centres when short and scrolls from the top when long (checked on a 667×375 phone).
   - Tests: `sound.mjs` (click measurement old vs new, mix ceiling, voice cap, slots, upload, play in game, persistence across reload, refusals for non-audio / too long / too big, remove, volume); `robust.mjs` gains the settings-top check.
 
+- **Replay pinch zoom + sharing (2026-10-30, owner request).**
+  - Pinch zoom in replay: two-finger pinch now works in every replay phase as a multiplier on whatever view the replay is showing (0.1× to 6×; whole-journey and zoom-in phases zoom about the centre, playback zooms about the cart). Taps and one-finger drags are still ignored; "↻ Again" resets the zoom; recording a video forces 1×.
+  - Share (📤 in the replay bar): **🔗 Link** packs the run into a link (samples every third frame and every track point, delta-encoded, compressed, URL-safe) and hands it to the phone's share sheet, or copies it. A 13-second run is 776 characters. Opening a link starts that replay straight away (a first-time visitor sees it before the Regular/Zen choice, drawn with the sharer's character) and closing it starts a fresh game and clears the link. Broken or unsupported links are ignored. Links over 16,000 characters say "too long, try video". **🎥 Video** records the whole replay (whole journey, zoom to start, playback, 1×) from the game canvas with a small "Snowman Line Rider" mark and shares the file (mp4 where the browser can, else webm) through the share sheet, or downloads it. A 13-second run made a 3 MB mp4 (~17 s). Progress shows as a percentage; Close cancels. No sound in the video.
+  - Also: an explosion no longer leaves a black hole drawn on the game-over screen or in the replay.
+  - Tests: `share.mjs` (pinch in overview and playback, limits, link size, opening the link in a second browser at a different screen size, matching journey, broken link, video file size and type); every earlier suite passes.
+
+- Share button now uses the standard share glyph (box with an up arrow, drawn as an SVG so it looks the same on every phone) instead of the 📤 emoji.
+
 ## RUN LOG (written by DevStream)
 | Date | Tab | Result | What | Commit |
 |---|---|---|---|---|
