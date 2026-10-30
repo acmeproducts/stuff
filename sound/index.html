@@ -1,0 +1,680 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
+<meta name="theme-color" content="#121623">
+<title>Sound of Time</title>
+<style>
+:root{
+  --bg:#121623; --bg2:#1a1f2e; --ink:#e6e8ef; --ink2:#9aa1b4; --ink3:#5e6578;
+  --line:#2a3043; --chip:#1f2535; --chip-on:#e6e8ef; --chip-on-ink:#121623;
+  --hatch:#3a4156; --future:#262c3d; --sel:#ffffff;
+}
+:root[data-theme="paper"]{
+  --bg:#f3efe6; --bg2:#eae5d9; --ink:#1d1b17; --ink2:#5a5750; --ink3:#9a968c;
+  --line:#d8d2c4; --chip:#e4dfd2; --chip-on:#1d1b17; --chip-on-ink:#f3efe6;
+  --hatch:#c9c2b2; --future:#e2dccd; --sel:#1d1b17;
+}
+:root[data-theme="black"]{
+  --bg:#000; --bg2:#0b0b0b; --ink:#eee; --ink2:#999; --ink3:#555;
+  --line:#1f1f1f; --chip:#141414; --chip-on:#eee; --chip-on-ink:#000;
+  --hatch:#2a2a2a; --future:#161616; --sel:#fff;
+}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{margin:0;height:100%;background:var(--bg);color:var(--ink);font:15px/1.35 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;overflow:hidden;overscroll-behavior:none}
+button{font:inherit;color:inherit;background:none;border:0;padding:0;cursor:pointer}
+#app{position:fixed;inset:0;display:flex;flex-direction:column}
+header{display:flex;align-items:center;gap:10px;padding:calc(env(safe-area-inset-top) + 8px) 14px 8px;min-height:52px}
+#up{width:36px;height:36px;border-radius:50%;background:var(--chip);display:grid;place-items:center;flex:none}
+#up:disabled{opacity:.3}
+#crumb{flex:1;min-width:0}
+#crumb .big{font-size:17px;font-weight:600;letter-spacing:-.01em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+#crumb .small{font-size:12.5px;color:var(--ink2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+#hdr-btns{display:flex;gap:6px;flex:none}
+#hdr-btns button{width:36px;height:36px;border-radius:50%;background:var(--chip);display:grid;place-items:center}
+#hdr-btns button.on{background:var(--chip-on);color:var(--chip-on-ink)}
+#stage{flex:1;position:relative;min-height:0}
+canvas{position:absolute;inset:0;width:100%;height:100%;display:block;touch-action:none}
+#info{position:absolute;left:12px;right:12px;bottom:10px;background:color-mix(in srgb,var(--bg2) 92%,transparent);backdrop-filter:blur(8px);border:1px solid var(--line);border-radius:14px;padding:10px 12px;display:none;gap:10px;align-items:center}
+#info.show{display:flex}
+#info .t{flex:1;min-width:0}
+#info .t b{display:block;font-weight:600;font-size:14px}
+#info .t span{font-size:12.5px;color:var(--ink2)}
+#info button{padding:8px 12px;border-radius:10px;background:var(--chip-on);color:var(--chip-on-ink);font-weight:600;font-size:13px;flex:none}
+#info button.ghost{background:var(--chip);color:var(--ink)}
+#rails{padding:6px 0 calc(env(safe-area-inset-bottom) + 8px);background:var(--bg);border-top:1px solid var(--line)}
+.rail{display:flex;gap:6px;overflow-x:auto;padding:5px 12px;scrollbar-width:none;align-items:center}
+.rail::-webkit-scrollbar{display:none}
+.rail .lbl{font-size:12px;color:var(--ink3);flex:none;width:46px}
+.chip{flex:none;padding:7px 12px;border-radius:999px;background:var(--chip);font-size:13px;white-space:nowrap;color:var(--ink)}
+.chip.on{background:var(--chip-on);color:var(--chip-on-ink);font-weight:600}
+.chip.dim{opacity:.4}
+#status{font-size:11px;color:var(--ink3);padding:2px 14px 0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+/* sheet */
+#sheet{position:fixed;left:0;right:0;bottom:0;max-height:82%;background:var(--bg2);border-radius:18px 18px 0 0;border-top:1px solid var(--line);transform:translateY(105%);transition:transform .28s cubic-bezier(.2,.8,.2,1);overflow:auto;padding:8px 16px calc(env(safe-area-inset-bottom) + 20px);z-index:5}
+#sheet.open{transform:none}
+#scrim{position:fixed;inset:0;background:rgba(0,0,0,.35);opacity:0;pointer-events:none;transition:opacity .25s;z-index:4}
+#scrim.open{opacity:1;pointer-events:auto}
+.grab{width:40px;height:4px;border-radius:2px;background:var(--line);margin:4px auto 10px}
+.tabs{display:flex;gap:4px;margin-bottom:12px;background:var(--chip);border-radius:12px;padding:3px}
+.tabs button{flex:1;padding:8px;border-radius:9px;font-size:13.5px;color:var(--ink2)}
+.tabs button.on{background:var(--bg2);color:var(--ink);font-weight:600}
+.pane{display:none}.pane.on{display:block}
+.row{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:10px 0;border-bottom:1px solid var(--line)}
+.row:last-child{border-bottom:0}
+.row .k{font-size:14px}
+.row .k small{display:block;color:var(--ink2);font-size:12px;margin-top:2px}
+.seg{display:flex;gap:4px;flex-wrap:wrap;justify-content:flex-end}
+.seg button{padding:6px 10px;border-radius:8px;background:var(--chip);font-size:12.5px}
+.seg button.on{background:var(--chip-on);color:var(--chip-on-ink);font-weight:600}
+input[type=range]{width:140px;accent-color:var(--ink)}
+.sw{width:44px;height:26px;border-radius:13px;background:var(--chip);position:relative;transition:background .2s;flex:none}
+.sw::after{content:"";position:absolute;top:3px;left:3px;width:20px;height:20px;border-radius:50%;background:var(--ink2);transition:transform .2s,background .2s}
+.sw.on{background:var(--chip-on)}.sw.on::after{transform:translateX(18px);background:var(--chip-on-ink)}
+.stat{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin:6px 0 12px}
+.stat div{background:var(--chip);border-radius:12px;padding:10px 12px}
+.stat .v{font-size:20px;font-weight:600;letter-spacing:-.02em}
+.stat .l{font-size:12px;color:var(--ink2)}
+.bars{display:flex;gap:3px;align-items:flex-end;height:64px;margin:8px 0 2px}
+.bars i{flex:1;border-radius:3px 3px 0 0;min-height:2px}
+.bands-l{display:flex;justify-content:space-between;font-size:10.5px;color:var(--ink3);margin-bottom:12px}
+p.note{font-size:12.5px;color:var(--ink2);margin:6px 0 10px;line-height:1.45}
+.big-btn{display:block;width:100%;padding:12px;border-radius:12px;background:var(--chip-on);color:var(--chip-on-ink);font-weight:600;margin-top:10px}
+.big-btn.ghost{background:var(--chip);color:var(--ink)}
+#playbar{position:absolute;left:12px;right:12px;top:8px;display:none;align-items:center;gap:10px;background:color-mix(in srgb,var(--bg2) 92%,transparent);border:1px solid var(--line);border-radius:12px;padding:8px 12px;font-size:13px}
+#playbar.show{display:flex}
+#playbar .bar{flex:1;height:4px;background:var(--line);border-radius:2px;overflow:hidden}
+#playbar .bar i{display:block;height:100%;width:0;background:var(--ink)}
+@media (prefers-reduced-motion:reduce){#sheet,#scrim,.sw,.sw::after{transition:none}}
+</style>
+</head>
+<body>
+<div id="app">
+  <header>
+    <button id="up" aria-label="Zoom out">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 18l-6-6 6-6"/></svg>
+    </button>
+    <div id="crumb"><div class="big">—</div><div class="small">—</div></div>
+    <div id="hdr-btns">
+      <button id="playBtn" aria-label="Play">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M7 4l12 8-12 8z"/></svg>
+      </button>
+      <button id="moreBtn" aria-label="Settings">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M4 7h16M4 12h16M4 17h16"/></svg>
+      </button>
+    </div>
+  </header>
+  <div id="stage">
+    <canvas id="cv"></canvas>
+    <div id="playbar"><span id="playT">0:00</span><div class="bar"><i id="playFill"></i></div><button id="stopBtn" style="font-weight:600">Stop</button></div>
+    <div id="info"><div class="t"><b id="infoT">—</b><span id="infoS">—</span></div><button class="ghost" id="hearBtn">Hear</button><button id="drillBtn">Zoom in</button></div>
+  </div>
+  <div id="rails">
+    <div class="rail" id="railSpan"><span class="lbl">Span</span></div>
+    <div class="rail" id="railShape"><span class="lbl">Shape</span></div>
+    <div class="rail" id="railContent"><span class="lbl">Show</span></div>
+    <div class="rail" id="railScale"><span class="lbl">Scale</span></div>
+    <div id="status">—</div>
+  </div>
+</div>
+
+<div id="scrim"></div>
+<div id="sheet">
+  <div class="grab"></div>
+  <div class="tabs">
+    <button data-tab="summary" class="on">Summary</button>
+    <button data-tab="look">Look</button>
+    <button data-tab="sound">Sound</button>
+    <button data-tab="data">Data</button>
+  </div>
+
+  <div class="pane on" id="pane-summary">
+    <div id="sumTitle" style="font-weight:600;margin:4px 0 2px">—</div>
+    <div id="sumSub" style="font-size:12.5px;color:var(--ink2);margin-bottom:6px">—</div>
+    <div class="stat" id="sumStats"></div>
+    <div style="font-size:13px;color:var(--ink2)">Where the sound sat, by band</div>
+    <div class="bars" id="sumBars"></div>
+    <div class="bands-l"><span>31 Hz</span><span>125</span><span>500</span><span>2k</span><span>8k</span><span>16k</span></div>
+    <p class="note" id="sumVibe">—</p>
+    <button class="big-btn ghost" id="exportBtn">Save this view as an image</button>
+  </div>
+
+  <div class="pane" id="pane-look">
+    <div class="row"><div class="k">Resolution<small id="resNote">—</small></div><div class="seg" id="segRes"><button data-v="-1">Coarser</button><button data-v="0" class="on">Auto</button><button data-v="1">Finer</button></div></div>
+    <div class="row"><div class="k">Palette</div><div class="seg" id="segPal"></div></div>
+    <div class="row"><div class="k">Background</div><div class="seg" id="segTheme"><button data-v="dark">Slate</button><button data-v="black">Black</button><button data-v="paper">Paper</button></div></div>
+    <div class="row"><div class="k">Cell gap</div><input type="range" id="rngGap" min="0" max="6" step="0.5"></div>
+    <div class="row"><div class="k">Group gap</div><input type="range" id="rngGGap" min="0" max="24" step="1"></div>
+    <div class="row"><div class="k">Ring hole</div><input type="range" id="rngHole" min="0" max="0.7" step="0.05"></div>
+    <div class="row"><div class="k">Brightness</div><input type="range" id="rngGamma" min="0.5" max="2" step="0.05"></div>
+    <div class="row"><div class="k">Band order<small>Low frequencies at the inside / bottom, or the outside / top</small></div><div class="seg" id="segOrder"><button data-v="low-in" class="on">Low inside</button><button data-v="low-out">Low outside</button></div></div>
+    <div class="row"><div class="k">Horizon<small>Show the years ahead as empty space</small></div><button class="sw" id="swHorizon"></button></div>
+    <div class="row"><div class="k">Years ahead<small id="horizonNote">—</small></div><input type="range" id="rngHorizon" min="1" max="90" step="1"></div>
+    <div class="row"><div class="k">Share basis<small>For the % scale</small></div><div class="seg" id="segShare"><button data-v="time" class="on">Time above 50 dB</button><button data-v="energy">Energy</button></div></div>
+  </div>
+
+  <div class="pane" id="pane-sound">
+    <p class="note">Playback turns every cell of the current view into a tone, in order, so you can hear a day or a year go by.</p>
+    <div class="row"><div class="k">Length</div><div class="seg" id="segDur"><button data-v="10">10 s</button><button data-v="30" class="on">30 s</button><button data-v="60">1 min</button><button data-v="180">3 min</button></div></div>
+    <div class="row"><div class="k">Voice<small>How the 10 bands become sound</small></div><div class="seg" id="segVoice"><button data-v="chord" class="on">Chord</button><button data-v="pitch">Pitch</button><button data-v="dominant">Melody</button></div></div>
+    <div class="row"><div class="k">Tone</div><div class="seg" id="segWave"><button data-v="sine" class="on">Soft</button><button data-v="triangle">Warm</button><button data-v="sawtooth">Bright</button></div></div>
+    <div class="row"><div class="k">Root note</div><input type="range" id="rngRoot" min="55" max="330" step="1"></div>
+    <div class="row"><div class="k">Tapping a cell plays it</div><button class="sw" id="swTapHear"></button></div>
+    <div class="row"><div class="k">Volume</div><input type="range" id="rngVol" min="0" max="1" step="0.05"></div>
+  </div>
+
+  <div class="pane" id="pane-data">
+    <p class="note">This build runs on generated test data: 20 years of one person's days, with sleep, commutes, meetings, a louder city stretch early on, a louder-at-home stretch in the middle, one quiet year, concerts, travel, and days the phone was off. Hatching means nothing was recorded.</p>
+    <p class="note">The calendar tiles cleanly: a month is 4 weeks, a year is 13 months (364 days), a decade is 10 of those years. Days, hours and minutes follow the real clock.</p>
+    <div class="row"><div class="k">Seed<small>Different seed, different life</small></div><input type="range" id="rngSeed" min="1" max="99" step="1"></div>
+    <div class="row"><div class="k">Band centres</div><div style="font-size:12px;color:var(--ink2);text-align:right">31.5 · 63 · 125 · 250 · 500<br>1k · 2k · 4k · 8k · 16k Hz</div></div>
+    <div class="row"><div class="k">Absolute scale</div><div style="font-size:12px;color:var(--ink2)">20 dB dark → 100 dB bright</div></div>
+    <div class="row"><div class="k">Relative scale</div><div style="font-size:12px;color:var(--ink2);text-align:right">Your own median is the midpoint<br>(<span id="baseNote">—</span>)</div></div>
+    <button class="big-btn ghost" id="resetBtn">Reset all settings</button>
+  </div>
+</div>
+
+<script>
+(() => {
+'use strict';
+// ───────────────────────── constants
+const SEC=1000, MIN=60*SEC, HOUR=60*MIN, DAY=24*HOUR, WEEK=7*DAY, MONTH=28*DAY, YEAR=364*DAY, DECADE=10*YEAR;
+const UNITS=[
+ {id:'second',ms:SEC,name:'second',pl:'seconds'},
+ {id:'minute',ms:MIN,name:'minute',pl:'minutes'},
+ {id:'hour',ms:HOUR,name:'hour',pl:'hours'},
+ {id:'day',ms:DAY,name:'day',pl:'days'},
+ {id:'week',ms:WEEK,name:'week',pl:'weeks'},
+ {id:'month',ms:MONTH,name:'month',pl:'months'},
+ {id:'year',ms:YEAR,name:'year',pl:'years'},
+ {id:'decade',ms:DECADE,name:'decade',pl:'decades'},
+ {id:'life',ms:0,name:'life',pl:'life'},
+];
+const UI=Object.fromEntries(UNITS.map((u,i)=>[u.id,i]));
+const BANDS=[31.5,63,125,250,500,1000,2000,4000,8000,16000];
+const BAND_L=['31','63','125','250','500','1k','2k','4k','8k','16k'];
+const MAX_CELLS=5200;
+const DEBUG=/[?&]debug=1/.test(location.search);
+const DATA_YEARS=20;
+
+// ───────────────────────── settings
+const DEF={span:'day',shape:'tiles',content:'bands',scale:'abs',res:0,pal:'spectrum',theme:'dark',gap:1,ggap:6,hole:0.3,gamma:1,order:'low-in',horizon:true,horizonYears:40,share:'time',dur:30,voice:'chord',wave:'sine',root:110,tapHear:false,vol:0.6,seed:7};
+let S={...DEF};
+try{const s=JSON.parse(localStorage.getItem('sot.settings')||'{}');S={...DEF,...s};}catch(e){}
+const save=()=>{try{localStorage.setItem('sot.settings',JSON.stringify(S));}catch(e){}};
+
+// ───────────────────────── time anchors
+const nowReal=Date.now();
+const todayMid=(()=>{const d=new Date(nowReal);d.setHours(0,0,0,0);return d.getTime();})();
+const T_END=nowReal;
+const T0=todayMid-DATA_YEARS*YEAR;            // data start, local midnight
+const startDow=new Date(T0).getDay();
+let view={span:S.span,t0:0};                    // current view anchor
+function unitMs(id){return id==='life'?(DATA_YEARS+(S.horizon?S.horizonYears:0))*YEAR:UNITS[UI[id]].ms;}
+function alignDown(t,id){
+  const i=UI[id];
+  if(id==='life')return T0;
+  if(i<=UI.day){const d=new Date(t);if(id==='day')d.setHours(0,0,0,0);else if(id==='hour')d.setMinutes(0,0,0);else if(id==='minute')d.setSeconds(0,0);else d.setMilliseconds(0);return d.getTime();}
+  const ms=UNITS[i].ms;return T0+Math.floor((t-T0)/ms)*ms;
+}
+function stepUnit(t,id,n){const i=UI[id];if(i<=UI.day){const d=new Date(t);if(id==='day')d.setDate(d.getDate()+n);else if(id==='hour')d.setHours(d.getHours()+n);else if(id==='minute')d.setMinutes(d.getMinutes()+n);else d.setSeconds(d.getSeconds()+n);return d.getTime();}return t+n*UNITS[i].ms;}
+
+// ───────────────────────── deterministic generator
+function h32(a,b,c){let n=(a*73856093)^(b*19349663)^(c*83492791)^(S.seed*2654435761);n=(n^61)^(n>>>16);n=(n+(n<<3))|0;n=n^(n>>>4);n=Math.imul(n,0x27d4eb2d);n=n^(n>>>15);return (n>>>0)/4294967296;}
+const SCENE={
+  sleep:   [34,30,26,22,20,18,16,14,12,10],
+  quiet:   [40,38,36,34,32,30,28,26,22,18],
+  commute: [74,72,68,64,62,60,58,54,50,44],
+  work:    [50,48,47,50,54,55,52,46,40,34],
+  meeting: [48,47,50,58,63,64,60,52,44,36],
+  evening: [56,55,54,56,58,58,55,50,46,40],
+  concert: [104,106,102,98,97,98,96,92,86,78],
+  travel:  [84,82,78,74,72,70,68,62,56,48],
+  kids:    [56,55,56,60,66,70,72,70,64,56],
+  night:   [44,42,40,38,36,34,32,30,26,22],
+};
+function phaseOf(y){ // years since start (float)
+  if(y<4.5)return 'city'; if(y<9.5)return 'suburb'; if(y<13.3)return 'home'; if(y<14.3)return 'quietyear'; if(y<17)return 'base'; return 'studio';
+}
+const out=new Array(10);
+function sample(t,dest){ // dest: Float32Array(10) dB, returns false if no data
+  const rel=t-T0; if(rel<0||t>T_END)return false;
+  const dayIdx=Math.floor(rel/DAY);
+  const dow=(startDow+dayIdx)%7, wknd=dow===0||dow===6;
+  const dm=rel-dayIdx*DAY, hour=dm/HOUR, minuteIdx=Math.floor(rel/MIN), secIdx=Math.floor(rel/SEC);
+  const years=rel/YEAR, ph=phaseOf(years);
+  // gaps
+  if(h32(dayIdx,1,0)<0.03)return false;
+  if(years>3.1&&years<3.3)return false;                 // lost phone
+  if(h32(dayIdx,Math.floor(hour),2)<0.018)return false;  // dead hour
+  // scene
+  let sc;
+  const wake=wknd?8.5:6.5;
+  if(hour<wake-0.5||hour>=23.5)sc='sleep';
+  else if(hour<wake+1)sc='quiet';
+  else if(!wknd&&hour<wake+2.5)sc='commute';
+  else if(!wknd&&hour<17.5){sc='work'; if((hour>=10&&hour<11)||(hour>=14&&hour<15))sc='meeting';}
+  else if(!wknd&&hour<18.5)sc='commute';
+  else if(hour<22)sc='evening';
+  else sc='night';
+  if(wknd&&hour>=wake+1&&hour<22)sc=hour<12?'quiet':'evening';
+  // events
+  const concertP=ph==='city'?0.018:ph==='studio'?0.012:0.006;
+  const isConcert=hour>=20&&hour<23.2&&h32(dayIdx,3,0)<concertP;
+  const isTravel=hour>=6&&hour<14&&h32(dayIdx,4,0)<0.012;
+  const doy=dayIdx%364; const isFireworks=(doy>=245&&doy<=246)&&hour>=20.5&&hour<22;
+  if(isConcert)sc='concert'; else if(isTravel)sc='travel';
+  const base=SCENE[sc];
+  // slow drift per minute and per-second grain
+  const drift=(h32(minuteIdx,9,0)-0.5)*5, season=Math.sin((doy/364)*6.283)*2.5;
+  for(let b=0;b<10;b++){
+    let v=base[b]+drift+season+(h32(secIdx,b,11)-0.5)*7;
+    if(ph==='city'){v+=b<4?7:2;}
+    else if(ph==='suburb'){v-=3;}
+    else if(ph==='home'){ if(hour>=16&&hour<20.5&&sc!=='concert'){v=Math.max(v,SCENE.kids[b]+(h32(secIdx,b,12)-0.5)*8);} if(hour>=1&&hour<4&&h32(dayIdx,5,0)<0.35)v+=(b>=3&&b<=7)?22:6; }
+    else if(ph==='quietyear'){v-=9; if(sc==='commute')v-=14; if(sc==='meeting')v-=6;}
+    else if(ph==='studio'){ if(hour>=19&&hour<22.5&&!wknd)v+=b>=5?9:3; }
+    if(isFireworks)v=Math.max(v,92-b*2+(h32(secIdx,b,13)-0.5)*20);
+    dest[b]=v;
+  }
+  return true;
+}
+
+// ───────────────────────── aggregation with cache
+const cache=new Map();
+const tmp=new Float32Array(10);
+function agg(a,b){
+  const key=a+'|'+b; const c=cache.get(key); if(c)return c;
+  const len=b-a; const k=len<=MIN?10:len<=HOUR?12:len<=DAY?24:len<=WEEK?28:len<=MONTH?32:40;
+  const e=new Float64Array(10); const Ls=[]; let valid=0, future=0;
+  for(let i=0;i<k;i++){
+    const t=a+(i+0.5)*len/k;
+    if(t>T_END){future++;continue;}
+    if(!sample(t,tmp))continue;
+    valid++; let s=0;
+    for(let bnd=0;bnd<10;bnd++){const en=Math.pow(10,tmp[bnd]/10);e[bnd]+=en;s+=en;}
+    Ls.push(10*Math.log10(s));
+  }
+  const cell={a,b,valid,k,cov:valid/Math.max(1,k-future),future:future/k,nodata:valid===0,bands:new Float32Array(10),L10:0,L50:0,L90:0,Lmax:0,ent:0,ev:0,energy:0,tAbove:0,dom:0};
+  if(valid){
+    let gm=0,am=0,mx=-1,mi=0;
+    for(let bnd=0;bnd<10;bnd++){const m=e[bnd]/valid;cell.bands[bnd]=10*Math.log10(m);gm+=Math.log(m);am+=m;if(m>mx){mx=m;mi=bnd;}}
+    cell.ent=Math.exp(gm/10)/(am/10); cell.dom=mi; cell.energy=am;
+    Ls.sort((x,y)=>x-y); const q=p=>Ls[Math.min(Ls.length-1,Math.floor(p*Ls.length))];
+    cell.L10=q(.9);cell.L50=q(.5);cell.L90=q(.1);cell.Lmax=Ls[Ls.length-1];
+    let ev=0,ta=0;for(const L of Ls){if(L>cell.L50+8)ev++;if(L>50)ta++;} cell.ev=ev/valid; cell.tAbove=ta/valid;
+  }
+  if(cache.size>60000)cache.clear();
+  cache.set(key,cell);return cell;
+}
+
+// baseline (median L50 over random hours)
+let BASELINE=50;
+(function(){const v=[];for(let i=0;i<1500;i++){const t=T0+h32(i,77,1)*(T_END-T0);const c=agg(alignDown(t,'hour'),alignDown(t,'hour')+HOUR);if(!c.nodata)v.push(c.L50);}v.sort((a,b)=>a-b);BASELINE=v[v.length>>1]||50;})();
+
+// ───────────────────────── view model
+function cellUnitFor(spanId,res){
+  const si=UI[spanId]; const spanLen=unitMs(spanId);
+  let ci=si-1; while(ci>0&&spanLen/UNITS[ci-1].ms<=MAX_CELLS)ci--; // finest with ≤ MAX
+  ci=Math.max(0,Math.min(si-1,ci-res));
+  return UNITS[ci].id;
+}
+function buildCells(){
+  const spanId=view.span, len=unitMs(spanId), cu=cellUnitFor(spanId,S.res), ci=UI[cu];
+  const cells=[]; let t=view.t0, end=view.t0+len, idx=0;
+  while(t<end-1){const n=stepUnit(t,cu,1);cells.push({a:t,b:n,i:idx++});t=n;}
+  // grouping unit: one step under the span, stepping down while a group would hold more than 400 cells
+  let gi=UI[spanId]-1; if(spanId==='life')gi=UI.decade;
+  while(gi>ci+1&&UNITS[gi].ms/UNITS[ci].ms>400)gi--;
+  if(gi<=ci)gi=-1;
+  let groups=[];
+  if(gi>=0){const gu=UNITS[gi].id;let gt=view.t0,g=[];let gEnd=stepUnit(alignDown(view.t0,gu),gu,1);for(const c of cells){if(c.a>=gEnd){groups.push(g);g=[];gEnd=stepUnit(gEnd,gu,1);}g.push(c);}if(g.length)groups.push(g);}
+  else{const n=cells.length;const per=n===60?10:n===24?6:n===7?7:n===10?5:n===13?13:n===4?4:Math.max(1,Math.round(Math.sqrt(n)));for(let i=0;i<n;i+=per)groups.push(cells.slice(i,i+per));}
+  for(const c of cells)Object.assign(c,agg(c.a,c.b));
+  return {cells,groups,cu,spanId};
+}
+
+// ───────────────────────── palettes
+const PALS={
+  spectrum:{name:'Spectrum',hue:b=>[352,20,38,55,95,160,195,225,262,300][b],sat:.85},
+  ember:{name:'Ember',hue:b=>10+b*5,sat:.9},
+  ice:{name:'Ice',hue:b=>190+b*9,sat:.7},
+  forest:{name:'Forest',hue:b=>70+b*12,sat:.6},
+  mono:{name:'Mono',hue:b=>220,sat:0},
+};
+const isLight=()=>S.theme==='paper';
+function col(hue,sat,v){ // v 0..1 brightness
+  v=Math.pow(Math.max(0,Math.min(1,v)),1/S.gamma);
+  if(isLight()){const l=92-v*62;return `hsl(${hue} ${sat*100}% ${l}%)`;}
+  const l=6+v*58; return `hsl(${hue} ${sat*100}% ${l}%)`;
+}
+function mix(colorsV){ // too thin for stripes: the strongest band gives the hue, how much it stands out gives the saturation
+  let vmax=-1,bi=0,sum=0;const pal=PALS[S.pal];
+  colorsV.forEach(([b,v])=>{sum+=v;if(v>vmax){vmax=v;bi=b;}});
+  const mean=sum/colorsV.length; const sat=pal.sat*Math.min(1,0.35+(vmax-mean)*4);
+  return col(pal.hue(bi),sat,vmax);
+}
+
+// ───────────────────────── scaling
+function makeScaler(cells){
+  const mode=S.scale;
+  if(mode==='abs')return{band:(c,b)=>(c.bands[b]-20)/80,lvl:(c,v)=>(v-20)/80};
+  if(mode==='rel')return{band:(c,b)=>(c.bands[b]-BASELINE+12)/40+.3,lvl:(c,v)=>(v-BASELINE+12)/40+.3};
+  if(mode==='pct'){
+    const all=[],lv=[];for(const c of cells){if(c.nodata)continue;lv.push(c.L50);for(let b=0;b<10;b++)all.push(c.bands[b]);}
+    all.sort((a,b)=>a-b);lv.sort((a,b)=>a-b);
+    const rank=(arr,x)=>{let lo=0,hi=arr.length;while(lo<hi){const m=(lo+hi)>>1;if(arr[m]<x)lo=m+1;else hi=m;}return arr.length?lo/arr.length:0;};
+    return{band:(c,b)=>rank(all,c.bands[b]),lvl:(c,v)=>rank(lv,v)};
+  }
+  // share
+  let tot=0,maxS=0;const sh=new Map();
+  for(const c of cells){if(c.nodata)continue;const s=S.share==='energy'?c.energy:c.tAbove;sh.set(c,s);tot+=s;}
+  for(const s of sh.values())maxS=Math.max(maxS,s);
+  let totB=new Float64Array(10),maxB=0;
+  if(S.share==='energy'){for(const c of cells){if(c.nodata)continue;for(let b=0;b<10;b++){const e=Math.pow(10,c.bands[b]/10);totB[b]+=e;}}for(const c of cells){if(c.nodata)continue;for(let b=0;b<10;b++)maxB=Math.max(maxB,Math.pow(10,c.bands[b]/10));}}
+  return{share:true,tot,
+    band:(c,b)=>{if(S.share==='energy')return Math.pow(10,c.bands[b]/10)/maxB;return (sh.get(c)||0)/maxS*((c.bands[b]-20)/80);},
+    lvl:(c,v)=>(sh.get(c)||0)/maxS, pctOf:c=>tot?100*(sh.get(c)||0)/tot:0};
+}
+
+// ───────────────────────── canvas
+const cv=document.getElementById('cv'),ctx=cv.getContext('2d');
+let W=0,H=0,DPR=1,hatchPat=null,hatchPatFut=null;
+function resize(){const r=cv.parentElement.getBoundingClientRect();DPR=Math.min(2.5,window.devicePixelRatio||1);W=r.width;H=r.height;cv.width=Math.round(W*DPR);cv.height=Math.round(H*DPR);ctx.setTransform(DPR,0,0,DPR,0,0);hatchPat=mkHatch(getVar('--hatch'));hatchPatFut=mkHatch(getVar('--future'));render();}
+const getVar=n=>getComputedStyle(document.documentElement).getPropertyValue(n).trim();
+function mkHatch(color){const c=document.createElement('canvas');c.width=c.height=8;const x=c.getContext('2d');x.strokeStyle=color;x.lineWidth=1.2;x.beginPath();x.moveTo(-2,10);x.lineTo(10,-2);x.moveTo(-2,2);x.lineTo(2,-2);x.moveTo(6,10);x.lineTo(10,6);x.stroke();return ctx.createPattern(c,'repeat');}
+
+let model=null, hit=[], selected=null, playIdx=-1;
+function render(){
+  const t1=performance.now();
+  model=buildCells(); hit=[];
+  ctx.fillStyle=getVar('--bg');ctx.fillRect(0,0,W,H);
+  const sc=makeScaler(model.cells);
+  const draw={tiles:drawTiles,rows:drawRows,ring:drawRing,spiral:drawSpiral}[S.shape];
+  draw(model,sc);
+  if(selected!=null)drawSelection(selected);
+  if(playIdx>=0)drawSelection(playIdx,true);
+  updateCrumb(); updateStatus(performance.now()-t1);
+}
+
+// cell paint: returns nothing, paints in rect or polar segment
+function cellStyle(c,sc){ // returns {stripes:[color...]} or {fill}
+  if(c.future)return{future:true};
+  if(c.nodata)return{nodata:true};
+  const pal=PALS[S.pal];
+  if(S.content==='bands'){const st=[];for(let b=0;b<10;b++)st.push([b,sc.band(c,b)]);return{stripes:st,partial:c.cov<0.6};}
+  if(S.content==='loud'){return{fill:col(pal.hue(5),pal.sat*.6,sc.lvl(c,c.L50)),partial:c.cov<0.6};}
+  if(S.content==='bed'){const bed=sc.lvl(c,c.L90),sp=c.L10-c.L90;return{fill:col(pal.hue(2),pal.sat*.5,bed*.85),spark:sp>14?Math.min(1,(sp-14)/25):0,sparkV:sc.lvl(c,c.Lmax),partial:c.cov<0.6};}
+  if(S.content==='vibe'){const hue=pal.hue(c.dom);const sat=pal.sat*(1-Math.pow(c.ent,0.5));return{fill:col(hue,sat,sc.lvl(c,c.L50)),partial:c.cov<0.6};}
+  if(S.content==='gaps'){return{fill:col(150,.5,0.25+c.cov*.6)};}
+}
+function paintRect(c,sc,x,y,w,h){
+  const st=cellStyle(c,sc);
+  hit.push({i:c.i,x,y,w,h});
+  if(st.future){ctx.fillStyle=getVar('--future');ctx.globalAlpha=.45;ctx.fillRect(x,y,w,h);ctx.globalAlpha=1;return;}
+  if(st.nodata){ctx.fillStyle=hatchPat;ctx.fillRect(x,y,w,h);return;}
+  if(st.stripes){
+    const vertical=w>h*1.6; const n=10; const th=(vertical?w:h)/n;
+    if(th<0.6){ctx.fillStyle=mix(st.stripes);ctx.fillRect(x,y,w,h);}
+    else{const pal=PALS[S.pal];for(let k=0;k<n;k++){const b=S.order==='low-in'?(vertical?k:9-k):(vertical?9-k:k);ctx.fillStyle=col(pal.hue(b),pal.sat,st.stripes[b][1]);if(vertical)ctx.fillRect(x+k*th,y,th+.3,h);else ctx.fillRect(x,y+k*th,w,th+.3);}}
+  }else{ctx.fillStyle=st.fill;ctx.fillRect(x,y,w,h);}
+  if(st.spark){const r=Math.min(w,h)*0.3*st.spark+0.6;ctx.fillStyle=col(40,.9,0.6+st.sparkV*.4);ctx.beginPath();ctx.arc(x+w/2,y+h/2,r,0,6.283);ctx.fill();}
+  if(st.partial){ctx.fillStyle=hatchPat;ctx.globalAlpha=.55;ctx.fillRect(x,y,w,h);ctx.globalAlpha=1;}
+}
+function paintArc(c,sc,cx,cy,r0,r1,a0,a1){
+  const st=cellStyle(c,sc);
+  hit.push({i:c.i,polar:true,cx,cy,r0,r1,a0,a1});
+  const seg=(ri,ro,fill)=>{ctx.beginPath();ctx.arc(cx,cy,ro,a0,a1);ctx.arc(cx,cy,ri,a1,a0,true);ctx.closePath();ctx.fillStyle=fill;ctx.fill();};
+  if(st.future){ctx.globalAlpha=.45;seg(r0,r1,getVar('--future'));ctx.globalAlpha=1;return;}
+  if(st.nodata){seg(r0,r1,hatchPat);return;}
+  if(st.stripes){
+    const th=(r1-r0)/10;
+    if(th<0.6)seg(r0,r1,mix(st.stripes));
+    else{const pal=PALS[S.pal];for(let k=0;k<10;k++){const b=S.order==='low-in'?k:9-k;seg(r0+k*th,r0+(k+1)*th+.4,col(pal.hue(b),pal.sat,st.stripes[b][1]));}}
+  }else seg(r0,r1,st.fill);
+  if(st.spark){const rm=(r0+r1)/2,am=(a0+a1)/2,rr=Math.min(r1-r0,(a1-a0)*rm)*0.3*st.spark+0.6;ctx.fillStyle=col(40,.9,0.6+st.sparkV*.4);ctx.beginPath();ctx.arc(cx+Math.cos(am)*rm,cy+Math.sin(am)*rm,rr,0,6.283);ctx.fill();}
+  if(st.partial){ctx.globalAlpha=.55;seg(r0,r1,hatchPat);ctx.globalAlpha=1;}
+}
+function gridFor(n,w,h){let cols=Math.max(1,Math.round(Math.sqrt(n*w/Math.max(1,h))));cols=Math.min(n,Math.max(1,cols));const rows=Math.ceil(n/cols);return{cols,rows};}
+const PAD=12;
+function drawTiles(m,sc){
+  const G=m.groups.length,gg=S.ggap,gap=S.gap;
+  const aw=W-PAD*2,ah=H-PAD*2;
+  let {cols,rows}=gridFor(G,aw,ah);
+  // prefer natural factorings
+  if(G===24){cols=W>H?6:4;rows=24/cols;} if(G===60){cols=W>H?10:6;rows=60/cols;} if(G===52){cols=W>H?13:4;rows=52/cols;} if(G===13){cols=W>H?13:1;rows=13/cols;} if(G===10){cols=W>H?5:2;rows=10/cols;}
+  const gw=(aw-(cols-1)*gg)/cols, gh=(ah-(rows-1)*gg)/rows;
+  m.groups.forEach((g,gi)=>{
+    const gx=PAD+(gi%cols)*(gw+gg), gy=PAD+Math.floor(gi/cols)*(gh+gg);
+    const n=g[0]&&g.length; let {cols:cc,rows:cr}=gridFor(n,gw,gh);
+    if(n===60){cc=gw>gh?10:6;cr=60/cc;} if(n===7){cc=gw>gh?7:1;cr=7/cc;} if(n===28){cc=7;cr=4;} if(n===24){cc=gw>gh?6:4;cr=24/cc;} if(n===13){cc=gw>gh?13:1;cr=13/cc;} if(n===4){cc=gw>gh?4:1;cr=4/cc;}
+    const g2=Math.min(gap,gw/cc*0.3,gh/cr*0.3);
+    const cw=(gw-(cc-1)*g2)/cc, ch=(gh-(cr-1)*g2)/cr;
+    g.forEach((c,k)=>paintRect(c,sc,gx+(k%cc)*(cw+g2),gy+Math.floor(k/cc)*(ch+g2),cw,ch));
+  });
+}
+function drawRows(m,sc){
+  const G=m.groups.length,gg=Math.min(S.ggap,8,(H-PAD*2)/G*0.3);
+  const aw=W-PAD*2,ah=H-PAD*2;
+  const rh=(ah-(G-1)*gg)/G;
+  m.groups.forEach((g,gi)=>{const y=PAD+gi*(rh+gg);const n=g.length;const gap=Math.min(S.gap,aw/n*0.3);const cw=(aw-(n-1)*gap)/n;g.forEach((c,k)=>paintRect(c,sc,PAD+k*(cw+gap),y,cw,rh));});
+}
+function drawRing(m,sc){
+  const cx=W/2,cy=H/2,R=Math.min(W,H)/2-PAD,r0=R*S.hole;
+  const n=m.cells.length;
+  const start=-Math.PI/2;
+  const ggA=m.groups.length>1?Math.min(0.03,S.ggap*0.002,Math.PI/m.groups.length*0.4):0;
+  const totalGap=ggA*m.groups.length; const per=(2*Math.PI-totalGap)/n;
+  const gapA=Math.min(per*0.3,S.gap*0.004);
+  let a=start;
+  m.groups.forEach(g=>{g.forEach(c=>{paintArc(c,sc,cx,cy,r0,R,a+gapA/2,a+per-gapA/2+0.002);a+=per;});a+=ggA;});
+  // group ticks
+  if(m.groups.length>1&&m.groups.length<=60){ctx.strokeStyle=getVar('--line');ctx.lineWidth=1;let aa=start;m.groups.forEach(g=>{ctx.beginPath();ctx.moveTo(cx+Math.cos(aa)*(r0-4),cy+Math.sin(aa)*(r0-4));ctx.lineTo(cx+Math.cos(aa)*(r0-10),cy+Math.sin(aa)*(r0-10));ctx.stroke();aa+=per*g.length+ggA;});}
+  // now marker in horizon
+  if(view.span==='life'&&S.horizon){const f=(T_END-view.t0)/unitMs('life');const an=start+f*(2*Math.PI);ctx.strokeStyle=getVar('--ink');ctx.lineWidth=1.5;ctx.beginPath();ctx.moveTo(cx+Math.cos(an)*(r0-2),cy+Math.sin(an)*(r0-2));ctx.lineTo(cx+Math.cos(an)*(R+6),cy+Math.sin(an)*(R+6));ctx.stroke();}
+}
+function drawSpiral(m,sc){
+  const cx=W/2,cy=H/2,R=Math.min(W,H)/2-PAD;
+  const turns=Math.max(2,m.groups.length), r0=R*Math.min(S.hole,0.5);
+  const th=(R-r0)/turns; const start=-Math.PI/2;
+  let gi=0;
+  m.groups.forEach(g=>{
+    const n=g.length;const per=2*Math.PI/n;
+    g.forEach((c,k)=>{
+      const f0=gi+k/n,f1=gi+(k+1)/n;
+      const ri=r0+f0*th, ro=r0+f1*th;      // radius grows along the turn
+      const a0=start+k*per,a1=start+(k+1)*per;
+      // approximate the spiral segment as an annular sector at mean radius
+      const rm=(ri+ro)/2, rg=Math.min(S.gap*0.3,th*0.2), ag=Math.min(per*0.3,S.gap*0.003);
+      paintArc(c,sc,cx,cy,rm-th/2+rg,rm+th/2-rg,a0+ag/2,a1-ag/2+0.002);
+    });
+    gi++;
+  });
+}
+function drawSelection(i,play){
+  const h=hit.find(h=>h.i===i);if(!h)return;
+  ctx.save();ctx.strokeStyle=getVar('--sel');ctx.lineWidth=play?2:1.5;ctx.setLineDash(play?[]:[]);
+  if(h.polar){ctx.beginPath();ctx.arc(h.cx,h.cy,h.r1+1,h.a0,h.a1);ctx.arc(h.cx,h.cy,Math.max(0,h.r0-1),h.a1,h.a0,true);ctx.closePath();ctx.stroke();}
+  else ctx.strokeRect(h.x-1,h.y-1,h.w+2,h.h+2);
+  ctx.restore();
+}
+function hitTest(x,y){
+  for(let k=hit.length-1;k>=0;k--){const h=hit[k];
+    if(h.polar){const dx=x-h.cx,dy=y-h.cy,r=Math.hypot(dx,dy);if(r<h.r0-2||r>h.r1+2)continue;let a=Math.atan2(dy,dx);while(a<h.a0)a+=2*Math.PI;while(a>h.a0+2*Math.PI)a-=2*Math.PI;if(a>=h.a0-0.012&&a<=h.a1+0.012)return h.i;}
+    else if(x>=h.x&&x<=h.x+h.w&&y>=h.y&&y<=h.y+h.h)return h.i;
+  }
+  return null;
+}
+
+// ───────────────────────── labels
+const fmtD=t=>new Date(t).toLocaleDateString(undefined,{year:'numeric',month:'short',day:'numeric'});
+const fmtT=t=>new Date(t).toLocaleTimeString(undefined,{hour:'numeric',minute:'2-digit'});
+const fmtTs=t=>new Date(t).toLocaleTimeString(undefined,{hour:'numeric',minute:'2-digit',second:'2-digit'});
+function rangeLabel(a,b,unit){
+  const i=UI[unit];
+  if(unit==='second')return fmtTs(a); if(unit==='minute')return fmtT(a)+', '+fmtD(a); if(unit==='hour')return fmtT(a)+'–'+fmtT(b)+', '+fmtD(a);
+  if(unit==='day')return new Date(a).toLocaleDateString(undefined,{weekday:'long',year:'numeric',month:'long',day:'numeric'});
+  if(unit==='life')return 'Your life, '+fmtD(T0).slice(-4)+' → '+fmtD(b-1).slice(-4);
+  return fmtD(a)+' → '+fmtD(b-1);
+}
+function updateCrumb(){
+  const u=UNITS[UI[view.span]]; const len=unitMs(view.span);
+  document.querySelector('#crumb .big').textContent=(view.span==='life'?'Life':'One '+u.name)+' · '+rangeLabel(view.t0,view.t0+len,view.span);
+  const cu=model.cu;const n=model.cells.length;
+  document.querySelector('#crumb .small').textContent=`${n.toLocaleString()} ${UNITS[UI[cu]].pl} · ${m2(S.shape)} · ${CONTENT_N[S.content]} · ${SCALE_N[S.scale]}`;
+  document.getElementById('up').disabled=view.span==='life'||(view.span==='decade'&&!S.horizon&&DATA_YEARS<=10)?false:false;
+  document.getElementById('up').disabled=(view.span==='life');
+}
+const m2=s=>({tiles:'Tiles',rows:'Rows',ring:'Ring',spiral:'Spiral'})[s];
+const CONTENT_N={bands:'10 bands',loud:'Loudness',bed:'Bed + sparks',vibe:'Vibe',gaps:'Coverage'};
+const SCALE_N={abs:'Absolute',rel:'Relative to you',pct:'Percentile',share:'Share %'};
+function updateStatus(ms){
+  const cov=model.cells.filter(c=>!c.future);const nd=cov.filter(c=>c.nodata).length;
+  document.getElementById('status').textContent=`${model.cells.length} cells · ${nd} unrecorded · rendered in ${ms.toFixed(0)} ms · test data, seed ${S.seed}`;
+  document.getElementById('baseNote').textContent=`your median is ${BASELINE.toFixed(0)} dB`;
+}
+
+// ───────────────────────── interaction
+let lastTap=0,lastTapI=null;
+cv.addEventListener('pointerdown',e=>{
+  const r=cv.getBoundingClientRect();const i=hitTest(e.clientX-r.left,e.clientY-r.top);
+  const now=performance.now();
+  if(DEBUG)setTimeout(()=>{document.getElementById('status').textContent=`tap ${(e.clientX-r.left).toFixed(0)},${(e.clientY-r.top).toFixed(0)} → cell ${i} · hits ${hit.length}`;},0);
+  if(i!=null&&i===lastTapI&&now-lastTap<320){drillInto(i);lastTap=0;return;}
+  lastTap=now;lastTapI=i;
+  select(i);
+});
+function select(i){
+  selected=i; const info=document.getElementById('info');
+  if(i==null){info.classList.remove('show');render();return;}
+  const c=model.cells[i];
+  document.getElementById('infoT').textContent=rangeLabel(c.a,c.b,model.cu);
+  const sub=c.future?'Not yet lived':c.nodata?'Nothing recorded':`${c.L50.toFixed(0)} dB typical · ${c.Lmax.toFixed(0)} peak · loudest band ${BAND_L[c.dom]} Hz · ${Math.round(c.cov*100)}% recorded`+(makeScaler([]).share?'':'');
+  document.getElementById('infoS').textContent=sub;
+  document.getElementById('drillBtn').style.display=UI[model.cu]>0?'':'none';
+  document.getElementById('drillBtn').textContent=view.span==='life'?'Open decade':'Open '+UNITS[UI[view.span]-1].name;
+  document.getElementById('hearBtn').style.display=c.nodata||c.future?'none':'';
+  info.classList.add('show');
+  if(S.tapHear&&!c.nodata&&!c.future)hearCell(c);
+  render();
+}
+function drillInto(i){const c=model.cells[i];if(UI[model.cu]===0)return;
+  let tu=UI[view.span]-1; if(view.span==='life')tu=UI.decade; if(UNITS[tu].id==='decade'&&DATA_YEARS<=10)tu=UI.year;
+  const id=UNITS[tu].id; view={span:id,t0:alignDown(c.a,id)};selected=null;document.getElementById('info').classList.remove('show');S.span=view.span;save();syncChips();render();}
+document.getElementById('drillBtn').onclick=()=>{if(selected!=null)drillInto(selected);};
+document.getElementById('hearBtn').onclick=()=>{if(selected!=null)hearCell(model.cells[selected]);};
+document.getElementById('up').onclick=()=>{
+  const i=UI[view.span]; if(view.span==='life')return;
+  let ni=i+1; if(ni>=UI.life)ni=UI.life; if(UNITS[ni].id==='decade'&&DATA_YEARS<=10)ni=UI.life;
+  const mid=view.t0+unitMs(view.span)/2;
+  const id=UNITS[ni].id; view={span:id,t0:alignDown(mid,id)}; S.span=id; selected=null;document.getElementById('info').classList.remove('show');save();syncChips();render();
+};
+
+// chips
+const SPANS=[['minute','Minute'],['hour','Hour'],['day','Day'],['week','Week'],['month','Month'],['year','Year'],['decade','Decade'],['life','Life']];
+const SHAPES=[['tiles','Tiles'],['rows','Rows'],['ring','Ring'],['spiral','Spiral']];
+const CONTENTS=[['bands','10 bands'],['loud','Loudness'],['bed','Bed + sparks'],['vibe','Vibe'],['gaps','Coverage']];
+const SCALES=[['abs','Absolute'],['rel','Relative to you'],['pct','Percentile'],['share','Share %']];
+function rail(id,items,key,on){const el=document.getElementById(id);items.forEach(([v,l])=>{const b=document.createElement('button');b.className='chip';b.textContent=l;b.dataset.v=v;b.onclick=()=>{on(v);};el.appendChild(b);});}
+function anchorFor(v){let t=alignDown(T_END-1,v);if(v!=='life'&&(T_END-t)<unitMs(v)*0.25)t=stepUnit(t,v,-1);return t;}
+rail('railSpan',SPANS,'span',v=>{view={span:v,t0:anchorFor(v)};S.span=v;selected=null;document.getElementById('info').classList.remove('show');save();syncChips();render();});
+rail('railShape',SHAPES,'shape',v=>{S.shape=v;save();syncChips();render();});
+rail('railContent',CONTENTS,'content',v=>{S.content=v;save();syncChips();render();});
+rail('railScale',SCALES,'scale',v=>{S.scale=v;save();syncChips();render();});
+function syncChips(){
+  const set=(id,val)=>document.querySelectorAll('#'+id+' .chip').forEach(b=>{b.classList.toggle('on',b.dataset.v===val);if(b.classList.contains('on'))b.scrollIntoView({inline:'nearest',block:'nearest'});});
+  set('railSpan',view.span);set('railShape',S.shape);set('railContent',S.content);set('railScale',S.scale);
+  document.querySelectorAll('#railSpan .chip').forEach(b=>b.classList.toggle('dim',b.dataset.v==='decade'&&DATA_YEARS<10));
+}
+
+// sheet
+const sheet=document.getElementById('sheet'),scrim=document.getElementById('scrim');
+function openSheet(){sheet.classList.add('open');scrim.classList.add('open');fillSummary();}
+function closeSheet(){sheet.classList.remove('open');scrim.classList.remove('open');}
+document.getElementById('moreBtn').onclick=openSheet; scrim.onclick=closeSheet;
+document.querySelectorAll('.tabs button').forEach(b=>b.onclick=()=>{document.querySelectorAll('.tabs button').forEach(x=>x.classList.toggle('on',x===b));document.querySelectorAll('.pane').forEach(p=>p.classList.toggle('on',p.id==='pane-'+b.dataset.tab));if(b.dataset.tab==='summary')fillSummary();});
+function seg(id,key,after){const el=document.getElementById(id);el.querySelectorAll('button').forEach(b=>{b.classList.toggle('on',String(S[key])===b.dataset.v);b.onclick=()=>{let v=b.dataset.v;if(!isNaN(v)&&key!=='theme')v=+v;S[key]=v;save();el.querySelectorAll('button').forEach(x=>x.classList.toggle('on',x===b));after&&after();render();};});}
+const palEl=document.getElementById('segPal');Object.entries(PALS).forEach(([k,p])=>{const b=document.createElement('button');b.dataset.v=k;b.textContent=p.name;palEl.appendChild(b);});
+seg('segPal','pal');seg('segRes','res',()=>{});seg('segOrder','order');seg('segShare','share');seg('segDur','dur');seg('segVoice','voice');seg('segWave','wave');
+seg('segTheme','theme',applyTheme);
+function applyTheme(){document.documentElement.dataset.theme=S.theme;document.querySelector('meta[name=theme-color]').content=getVar('--bg');hatchPat=mkHatch(getVar('--hatch'));hatchPatFut=mkHatch(getVar('--future'));}
+function range(id,key,after){const el=document.getElementById(id);el.value=S[key];el.oninput=()=>{S[key]=+el.value;save();after&&after();render();};}
+range('rngGap','gap');range('rngGGap','ggap');range('rngHole','hole');range('rngGamma','gamma');range('rngRoot','root');range('rngVol','vol',()=>{if(master)master.gain.value=S.vol;});
+range('rngHorizon','horizonYears',()=>{horizonNote();if(view.span==='life')view.t0=T0;});
+range('rngSeed','seed',()=>{cache.clear();});
+function sw(id,key,after){const el=document.getElementById(id);el.classList.toggle('on',!!S[key]);el.onclick=()=>{S[key]=!S[key];el.classList.toggle('on',S[key]);save();after&&after();render();};}
+sw('swHorizon','horizon',horizonNote);sw('swTapHear','tapHear');
+function horizonNote(){document.getElementById('horizonNote').textContent=S.horizon?`${DATA_YEARS} years lived + ${S.horizonYears} ahead = a ${DATA_YEARS+S.horizonYears}-year life`:'Horizon off — life shows only the recorded years';document.getElementById('rngHorizon').disabled=!S.horizon;}
+document.getElementById('resetBtn').onclick=()=>{S={...DEF};save();location.reload();};
+document.getElementById('exportBtn').onclick=()=>{const a=document.createElement('a');a.download=`sound-of-time-${view.span}-${new Date(view.t0).toISOString().slice(0,10)}.png`;a.href=cv.toDataURL('image/png');a.click();};
+
+function fillSummary(){
+  const cells=model.cells.filter(c=>!c.future), rec=cells.filter(c=>!c.nodata);
+  document.getElementById('sumTitle').textContent=document.querySelector('#crumb .big').textContent;
+  document.getElementById('sumSub').textContent=`${rec.length} of ${cells.length} ${UNITS[UI[model.cu]].pl} recorded`;
+  const st=document.getElementById('sumStats');
+  if(!rec.length){st.innerHTML='<div><div class="v">—</div><div class="l">Nothing recorded in this span</div></div>';document.getElementById('sumBars').innerHTML='';document.getElementById('sumVibe').textContent='';return;}
+  const mean=rec.reduce((s,c)=>s+c.L50,0)/rec.length;
+  const loud=rec.reduce((m,c)=>c.Lmax>m.Lmax?c:m,rec[0]); const quiet=rec.reduce((m,c)=>c.L50<m.L50?c:m,rec[0]);
+  const bursts=rec.filter(c=>c.Lmax>95).length;
+  const eb=new Float64Array(10);rec.forEach(c=>{for(let b=0;b<10;b++)eb[b]+=Math.pow(10,c.bands[b]/10);});
+  let dom=0;for(let b=1;b<10;b++)if(eb[b]>eb[dom])dom=b;
+  const cov=rec.length/cells.length;
+  st.innerHTML=`<div><div class="v">${mean.toFixed(0)} dB</div><div class="l">typical level</div></div>
+  <div><div class="v">${loud.Lmax.toFixed(0)} dB</div><div class="l">loudest, ${shortLbl(loud)}</div></div>
+  <div><div class="v">${quiet.L50.toFixed(0)} dB</div><div class="l">quietest, ${shortLbl(quiet)}</div></div>
+  <div><div class="v">${Math.round(cov*100)}%</div><div class="l">of the span recorded</div></div>
+  <div><div class="v">${bursts}</div><div class="l">very loud ${UNITS[UI[model.cu]].pl} (over 95 dB)</div></div>
+  <div><div class="v">${BAND_L[dom]} Hz</div><div class="l">where most energy sat</div></div>`;
+  const pal=PALS[S.pal];
+  document.getElementById('sumBars').innerHTML=Array.from(eb).map((e,b)=>`<i style="height:${Math.max(3,Math.min(100,(10*Math.log10(e/rec.length)-20)/80*100))}%;background:${col(pal.hue(b),pal.sat,0.85)}"></i>`).join('');
+  const sp=rec.reduce((s,c)=>s+(c.L10-c.L90),0)/rec.length;
+  let v='Theory, not fact: ';
+  v+=mean<42?'a quiet stretch':mean<55?'an ordinary, lived-in stretch':mean<65?'a busy stretch':'a loud stretch';
+  v+=sp>18?', with big swings between calm and noise':sp>10?', with a normal rhythm of ups and downs':', unusually even';
+  v+=dom>=6?'; the energy sat high, which reads as voices, kids or music':dom<=2?'; the energy sat low, which reads as traffic, engines or rooms humming':'; the energy sat in the middle of the range';
+  v+='. Treat the words as a prompt for your own memory, not a verdict.';
+  document.getElementById('sumVibe').textContent=v;
+}
+function shortLbl(c){const u=model.cu;if(UI[u]<=UI.minute)return fmtTs(c.a);if(u==='hour')return fmtT(c.a)+' '+fmtD(c.a);return fmtD(c.a);}
+
+// ───────────────────────── audio
+let AC=null,master=null,voices=null,playing=false,playStart=0,playRAF=0;
+const PENTA=[0,2,4,7,9,12,14,16,19,21];
+function ensureAudio(){if(AC)return;AC=new (window.AudioContext||window.webkitAudioContext)();master=AC.createGain();master.gain.value=S.vol;const comp=AC.createDynamicsCompressor();master.connect(comp);comp.connect(AC.destination);}
+function mkVoices(){voices=[];for(let b=0;b<10;b++){const o=AC.createOscillator();o.type=S.wave;const f=AC.createBiquadFilter();f.type='lowpass';f.frequency.value=S.wave==='sawtooth'?1800:6000;const g=AC.createGain();g.gain.value=0;o.connect(f);f.connect(g);g.connect(master);o.start();voices.push({o,g});}}
+function killVoices(){if(!voices)return;voices.forEach(v=>{try{v.g.gain.setTargetAtTime(0,AC.currentTime,0.03);v.o.stop(AC.currentTime+0.2);}catch(e){}});voices=null;}
+function setVoices(c,sc,when,ramp){
+  const t=when??AC.currentTime, r=ramp??0.03;
+  if(c.nodata||c.future){voices.forEach(v=>v.g.gain.setTargetAtTime(0,t,r));return;}
+  if(S.voice==='chord'){for(let b=0;b<10;b++){const v=Math.max(0,Math.min(1,sc.band(c,b)));voices[b].o.frequency.setTargetAtTime(S.root*Math.pow(2,PENTA[b]/12),t,r);voices[b].g.gain.setTargetAtTime(Math.pow(v,2.2)*0.16,t,r);}}
+  else if(S.voice==='pitch'){const v=Math.max(0,Math.min(1,sc.lvl(c,c.L50)));voices[0].o.frequency.setTargetAtTime(S.root*Math.pow(2,v*2.5),t,r);voices[0].g.gain.setTargetAtTime(0.18,t,r);for(let b=1;b<10;b++)voices[b].g.gain.setTargetAtTime(0,t,r);}
+  else{const v=Math.max(0,Math.min(1,sc.lvl(c,c.L50)));voices[0].o.frequency.setTargetAtTime(S.root*Math.pow(2,PENTA[c.dom]/12),t,r);voices[0].g.gain.setTargetAtTime(0.06+v*0.16,t,r);for(let b=1;b<10;b++)voices[b].g.gain.setTargetAtTime(0,t,r);}
+}
+function hearCell(c){ensureAudio();AC.resume();if(playing)stopPlay();killVoices();mkVoices();const sc=makeScaler(model.cells);setVoices(c,sc,AC.currentTime,0.02);const vv=voices;setTimeout(()=>{if(voices===vv)killVoices();},700);}
+function startPlay(){
+  ensureAudio();AC.resume();killVoices();mkVoices();playing=true;playStart=performance.now();
+  document.getElementById('playbar').classList.add('show');document.getElementById('playBtn').classList.add('on');
+  const sc=makeScaler(model.cells);const cells=model.cells.filter(c=>!c.future);const n=cells.length;const dur=S.dur*1000;
+  let last=-1;
+  const tick=()=>{if(!playing)return;const el=performance.now()-playStart;if(el>=dur){stopPlay();return;}
+    const i=Math.min(n-1,Math.floor(el/dur*n));if(i!==last){last=i;setVoices(cells[i],sc,AC.currentTime,Math.min(0.08,dur/n/2000));playIdx=cells[i].i;render();}
+    document.getElementById('playFill').style.width=(el/dur*100)+'%';const s=Math.floor(el/1000);document.getElementById('playT').textContent=`${Math.floor(s/60)}:${String(s%60).padStart(2,'0')}`;
+    playRAF=requestAnimationFrame(tick);};
+  playRAF=requestAnimationFrame(tick);
+}
+function stopPlay(){playing=false;cancelAnimationFrame(playRAF);killVoices();playIdx=-1;document.getElementById('playbar').classList.remove('show');document.getElementById('playBtn').classList.remove('on');render();}
+document.getElementById('playBtn').onclick=()=>{playing?stopPlay():startPlay();};
+document.getElementById('stopBtn').onclick=stopPlay;
+
+// ───────────────────────── boot
+applyTheme();horizonNote();
+view={span:S.span,t0:anchorFor(S.span)};
+syncChips();
+window.addEventListener('resize',resize);
+resize();
+})();
+</script>
+</body>
+</html>
