@@ -794,3 +794,24 @@ Owner reported (screenshot, Android Chrome): the Vietnamese keyboard appears on 
 
 ### 2026-10-19 — page title
 Owner reported the browser title read "Chatlink · Audio test". Changed to "Tabletop Xlate" (owner's suggestion). Title text only; no code path reads it.
+
+
+### chat-test r17: "Listener reads it as" (2026-10-26)
+
+**Owner question.** What did the listener understand, at face value, from what was sent to them? Example: "whenever you get tired" → 피곤할 때마다. Google's back-translation guessed "I", which misrepresented what the listener understood.
+
+**Change.** When an AI key is saved, the AI also returns `reading`: what a native speaker of the target language understands from the translation at face value. Implied words go in [brackets], with a note when the text is vague or a fragment. It is written in the language of the person who opened the check, and shown as a "Listener reads it as" row directly under Target. Copy includes it. This is one instruction for every language, with no per-language rules. Google's target and back-translation are shown unchanged.
+
+**Gates (lab).** 20/20 controller tests. Ask mode: 34/34, including the r17 scenario. Open mode: 44/44, which includes newer language scenarios from another session's work on main. Keyboard: 32/32.
+
+### 2026-10-26 — Khmer, Lao, Thai and Hindi mark keys
+Owner asked for the same check on the Khmer and Lao extra keys after the Vietnamese tone keys showed as empty boxes. Checks added first: no key on the km, lo, th, hi or vi keyboard may be labelled with a bare combining mark. km, lo, th and hi failed. Change: a mark key is now drawn on a base letter of its own script (the typed character is unchanged). Open mode 49/49, keyboard 32/32. Lab only; not confirmed on the phone.
+
+### 2026-10-26 — usage log and viewer for chat-test (backlog item, built)
+Owner asked for logging and a dashboard like TalkBridge's (`talkbridge/dash.html`), kept separate (see `CHATLINK-SHARING-AND-USAGE-BRIEF.md`).
+**What it records.** One small row per event: when, who (owner or the guest's name), a device id, room name, language pair, side, typed or spoken, whether translation worked, the speech engine, the app build. Kinds: message, room created, app opened, and guest link opened (written by the server when a guest's phone confirms, so it is the first row of that guest's log). Never the words: the server keeps only a fixed list of fields and drops anything else, and a test sends the words on purpose to prove they are not stored.
+**Where.** The same Worker as the guest links, but its own storage (a second Durable Object); the vault and the usage log never touch each other. Raw rows are kept 90 days; daily totals are kept for good. The log can never block a guest: if it is down, the guest link still opens (tested).
+**In the app.** Rows are queued on the phone and sent in the background in batches; offline rows wait and are sent once when the phone is back online. Guests see one line on the welcome card saying usage is counted and never their words.
+**Viewer.** `chat-usage.html`: tiles (messages, spoken share, translation failures, rooms, app opens, guest links opened), by hour, language pairs, rooms, people, by day, recent events, CSV download. Owner only: reads with the same GitHub token as the Share tab (reuses the saved one). Room names are shown as text only.
+**Checks.** Server 55/55 (a deliberate break of the no-text rule and of the totals was caught); app: 3 new scenarios in open mode (typed, spoken, offline) failed before and pass after; viewer 7/7; guest link 15/15. Server version is now c2; the deploy workflow expects it.
+**Not verified.** Nothing has run against the real Cloudflare Worker or on a phone. First real check after the deploy: open `chat-usage.html`, send a message in chat-test, refresh. Guest names appear in rows (my recommendation; the owner has not answered).

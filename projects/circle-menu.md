@@ -10,7 +10,7 @@
 - In‑app diagnostics panel (collapsible) logs all interactions. No console‑only output.
 - **Owner direction (2026-10-21):** next code must include tilt detents + pinch-to-resize AND seeded Configure-panel menus for real browser use plus at least one multi-level nested menu. GitHub token/save/load remains later unless owner re-prioritizes.
 - Built since: tilt detents (0/15/30/45/60 snap), pinch + wheel radius, seeded Browser & multi-level Launcher menus, nested submenu navigation with breadcrumbs + back node, Configure panel (menu list, add/delete items, view readouts, reset), hover tooltips, pop-out window + PWA manifest, GitHub token save/load of menus JSON.
-- Not yet built in code: transparent background, node reposition handles, seeded repo/web bookmarks, read aloud, reading mode, center-action gesture assignment, icon tier system, embed mode.
+- Not yet built in code: in-page web navigation (links must not open new tabs), page→menu payload handshake, center-action gesture assignment, icon tier system, embed mode.
 
 ## PRODUCT VISION
 A floating, always‑on‑top circular launcher. A smiling orange heart floats over everything. One tap blooms a rotatable, tiltable, zoomable ring of action nodes. Content is data‑driven (local seeded menus now; JSON/GitHub later), so menus can nest infinitely. Standalone first; designed to embed later into the owner's existing page.
@@ -38,8 +38,9 @@ A floating, always‑on‑top circular launcher. A smiling orange heart floats o
 4. **Menu navigation engine: nested submenus, breadcrumbs, back node** — ✅
 5. **GitHub token save/load of menus JSON** — ✅ (shipped early with slice 3/4 code)
 6. **Editor upgrade: edit existing items in place + reorder (▲▼ + drag)** — ✅
-7. **Turn 12: transparent overlay, node handles, seeded bookmarks, read aloud, reading mode** — **active next code**
-8. **Center-button gesture-action assignment** — next after turn 12
+7. **Turn 12: transparent overlay, node handles, seeded bookmarks, read aloud, reading mode** — ✅
+8. **Turn 13: demo page suite + payload handshake (Galaxy Watch / Samsung Internet target)** — **active next code**
+9. **Center-button gesture-action assignment** — next after turn 13
 9. **Icon tiers + polish** — later
 10. **Final integration & QA** — later
 
@@ -123,6 +124,35 @@ Make the pop-out truly float over other content, give ring nodes reposition hand
 - [ ] Read aloud speaks and stops on second press; reading mode opens/closes cleanly.
 - [ ] No regressions: rotation/tilt/pinch, editor add/edit/reorder, GitHub sync, pop-out.
 
+## ACTIVE BUILD — TURN 13 (2026-10-25)
+
+### Goal
+Ship the demo web page suite the owner asked for: a real page the ring menu controls end-to-end, tuned for the owner's Galaxy Watch running Samsung Internet (small round ~360px screen), plus the page→menu payload handshake so any host page can instantiate the ring with its own menu.
+
+### Correction recorded
+Owner asked for a separate "demo web page" file. Project constraint: the ONLY code file is `projects/circle-menu.html`. Resolution: the demo page ships as a built-in **Demo Mode** inside the single HTML file (a full-screen demo document behind the floating UI). The file stays the deployable artifact for the watch browser; the handshake below is how future external pages will supply menus.
+
+### Scope
+- **Demo Mode (the demo page):** new `demo:toggle` action (seeded in Browser menu + heart popover) shows/hides a full-screen demo document under the floating UI containing:
+  - an **article** (headings + paragraphs) so Read Aloud and Reading Mode have real content;
+  - a **media pad** (tone-generating audio element + play/pause/volume buttons) wired to the existing `media:*` actions;
+  - a **nav trail** of in-page links using `history.pushState` so Back/Forward/Reload are testable;
+  - a **counter + highlight toggle** driven by new ring actions (`demo:count`, `demo:flash`) proving page control;
+  - Demo Mode never blocks the heart/ring; pointer events only on its content.
+- **Payload handshake:** a host page defines `window.CIRCLE_MENU_PAYLOAD={menus,activeMenuId}` before the script runs; init validates and merges those menus and selects `activeMenuId`. Demo Mode itself installs a "Watch Demo" payload menu (Counter, Flash, Read Article, Reading Mode, Media) — the handshake is demonstrated end-to-end in the same file.
+- **In-page web viewer (owner requirement: no new tabs):** `url:` and `gh:` actions open an in-app iframe viewer overlay (address bar, close button, "open externally" fallback for sites that block framing via X-Frame-Options). Ring stays usable above the viewer; `window.open('_blank')` retained only as the explicit fallback.
+- **Watch layout:** `@media (max-width:430px)` pass — smaller ring panel (≈92vmin), 48px nodes with larger hit slop, collapsed diagnostics by default, compact config sheet, heart 56px; radius clamps rechecked at 360×360 round; tilt detents unchanged.
+- All demo/payload/viewer activity logs to the in-app diagnostics panel.
+
+### Acceptance checks
+- [ ] Demo Mode opens a readable page; Read Aloud speaks it; Reading Mode extracts it.
+- [ ] Media pad plays/pauses and volumes change from ring actions and on-page buttons.
+- [ ] Nav-trail links push history; ring Back/Forward traverse it without leaving the page.
+- [ ] "Watch Demo" menu appears via payload handshake and its actions drive the counter/flash.
+- [ ] Bookmarks (Google/Alterslash/NPR/repo pages) open in the in-app viewer, not new tabs; blocked sites offer the external fallback.
+- [ ] At 360×360 the ring, nodes and heart are comfortably tappable; nothing clipped by the round bezel.
+- [ ] No regressions: rotation/tilt/pinch, layout-edit handles, editor, GitHub sync, pop-out.
+
 ## BACKLOG / FUTURE
 - Center button gesture-action assignment (tap/double-tap/long-press).
 - Icon tiers: built-in SVG, URL, emoji-free professional sets.
@@ -138,6 +168,7 @@ Make the pop-out truly float over other content, give ring nodes reposition hand
 - **2026-10-21 — Turn 10:** Owner re-scoped slice 3 to include seeded Configure menus for browser and multi-level demo; plan updated before code.
 - **2026-10-21 — Turn 11:** Owner asked for editor item editing + reordering; plan updated before code. Build order re-baselined to reflect slices 3–5 already shipped.
 - **2026-10-22 — Turn 12:** Owner asked for transparent pop-out background, node reposition handles, seeded repo/web bookmarks (5 repo pages, Google, Alterslash, NPR), read aloud and reading mode; plan updated before code after two engine failures.
+- **2026-10-25 — Turn 13:** Owner asked for a full demo web page (Galaxy Watch + Samsung Internet) exercising the whole ring suite. Constraint correction recorded: demo ships as Demo Mode inside the single code file, not a new file. Scope adds payload handshake, in-page web viewer (no new tabs), and watch-sized layout; plan updated before code.
 
 ## TURN/STAGE LEDGER
 | Turn | Stage | Status | Notes |
@@ -151,7 +182,8 @@ Make the pop-out truly float over other content, give ring nodes reposition hand
 | 10 | Slice 3 re-scoped: gestures + seeded config menus | ✅ Built |
 | 10b | Submenus, tooltips, pop-out window, GitHub sync | ✅ Built |
 | 11 | Editor upgrade: edit in place + ▲▼ reorder + drag handles | ✅ Built |
-| 12 | Transparent bg, node handles, seeded bookmarks, read aloud, reading mode | 📋 Plan updated — code next |
+| 12 | Transparent bg, node handles, seeded bookmarks, read aloud, reading mode | ✅ Built (2026-10-22, a3b39fe) |
+| 13 | Demo page suite + payload handshake + watch layout | ✅ Planned (2026-10-25) |
 
 ## RUN LOG
 | Date | Result | What |
@@ -173,3 +205,4 @@ Make the pop-out truly float over other content, give ring nodes reposition hand
 | 2026-10-22 00:41 | Main | failed | I couldn't finish that one. Your app is unchanged. |  |
 | 2026-10-22 03:05 | Main | failed | I couldn't finish that one. Your app is unchanged. |  |
 | 2026-10-22 05:45 | Main | built projects/circle-menu.html | Transparent pop-out background, node drag handles for ring repositioning, seeded repo/web bookmark submenus, and read-aloud + reading-mode a | a3b39fe |
+| 2026-10-25 06:23 | Main | built projects/circle-menu.html | The whole demo suite is built: a built-in demo page (article, tone media pad, nav trail, counter and flash box) that the ring drives end-to- | 37c11f2 |

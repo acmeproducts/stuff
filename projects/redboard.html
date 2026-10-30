@@ -91,11 +91,12 @@
   #picker button{width:44px;height:44px;border-radius:8px;border:2px solid rgba(255,255,255,.25);cursor:pointer;transition:transform .12s}
   #picker button:hover{transform:scale(1.15)}
 
-  /* ---------- brand / hints ---------- */
-  #brand{position:fixed;top:10px;left:12px;z-index:1000;background:rgba(28,24,20,.85);color:#f0e7d8;
-    border-radius:12px;padding:8px 14px;font-size:14px;box-shadow:0 4px 12px rgba(0,0,0,.35);border:1px solid rgba(255,255,255,.1)}
-  #brand b{font-size:15px}
-  #brand small{display:block;opacity:.7;font-size:11px;margin-top:2px}
+  /* ---------- thread cut bar ---------- */
+  #threadbar{position:fixed;display:none;background:rgba(28,24,20,.94);border:1px solid rgba(255,255,255,.14);
+    border-radius:10px;padding:4px;transform:translate(-50%,-50%);z-index:1000;box-shadow:0 6px 16px rgba(0,0,0,.4)}
+  #threadbar button{background:#8a2a20;color:#fff;border:0;border-radius:7px;padding:8px 12px;
+    font-size:13px;cursor:pointer;font-weight:600}
+  #threadbar button:hover{background:#a83528}
 
   /* ---------- diagnostics ---------- */
   #diag{position:fixed;top:60px;right:10px;z-index:1000;background:rgba(20,17,14,.9);color:#d8cfc0;
@@ -143,7 +144,6 @@
 
   @media (max-width:560px){
     #dock button{min-width:48px;font-size:19px}
-    #brand small{display:none}
     #diag{max-width:170px;top:56px}
     #topbar button{padding:7px 10px;font-size:15px}
   }
@@ -154,11 +154,9 @@
 <div id="viewport"><div id="world"><svg id="threads"></svg></div></div>
 <div id="vignette"></div>
 
-<div id="brand"><b>🕵️ Redboard</b><small>tap = select · double-tap = move/resize/rotate · hold a pin to unpin · T = thread</small></div>
-
 <div id="topbar">
-  <button id="btnUndo" title="Undo (⌘Z)">↶<small>undo</small></button>
-  <button id="btnRedo" title="Redo (⇧⌘Z)">↷<small>redo</small></button>
+  <button id="btnUndo" title="Undo">↶<small>undo</small></button>
+  <button id="btnRedo" title="Redo">↷<small>redo</small></button>
   <button id="btnSync" title="GitHub sync">☁️<small>sync</small></button>
 </div>
 
@@ -170,6 +168,8 @@
   <button data-act="dup" title="Duplicate">⧉</button>
   <button data-act="del" title="Delete" class="danger">🗑</button>
 </div>
+
+<div id="threadbar"><button id="btnCutThread">✂ cut thread</button></div>
 
 <div id="picker"></div>
 
@@ -345,7 +345,7 @@ function applyView(){
   world.style.transform='translate('+S.pan.x+'px,'+S.pan.y+'px) scale('+S.zoom+')';
   vp.style.backgroundPosition=S.pan.x+'px '+S.pan.y+'px';
   vp.style.backgroundSize=(256*S.zoom)+'px '+(256*S.zoom)+'px';
-  positionSelbar();renderDiag();
+  positionSelbar();positionThreadbar();renderDiag();
 }
 
 /* ================= url helpers ================= */
@@ -464,6 +464,17 @@ function positionSelbar(){
   const a=anchorOf(it),s=w2s(a.x,a.y);
   selbar.style.display='flex';selbar.style.left=s.x+'px';selbar.style.top=(s.y-14)+'px';
 }
+const threadbar=$('#threadbar');
+function positionThreadbar(){
+  const t=S.selThread&&S.threads.find(x=>x.id===S.selThread);
+  const a=t&&byId(t.from),b=t&&byId(t.to);
+  if(!a||!b){threadbar.style.display='none';return;}
+  const p1=anchorOf(a),p2=anchorOf(b);
+  const mx=(p1.x+p2.x)/2,my=(p1.y+p2.y)/2+Math.min(130,Math.hypot(p2.x-p1.x,p2.y-p1.y)*.18)+12;
+  const s=w2s((p1.x+2*mx+p2.x)/4,(p1.y+2*my+p2.y)/4); // curve midpoint
+  threadbar.style.display='block';threadbar.style.left=s.x+'px';threadbar.style.top=s.y+'px';
+}
+$('#btnCutThread').addEventListener('click',()=>{if(S.selThread)cutThread(S.selThread);});
 selbar.addEventListener('click',e=>{
   const b=e.target.closest('button');if(!b||!S.sel)return;
   const it=byId(S.sel);if(!it)return;
@@ -540,8 +551,7 @@ function renderThreads(){
     hit.addEventListener('click',e=>{
       e.stopPropagation();S.sel=null;setEdit(null);
       world.querySelectorAll('.item.sel').forEach(x=>x.classList.remove('sel'));
-      S.selThread=t.id;renderThreads();positionSelbar();
-      toast('Thread selected — press Delete to cut, Esc to keep');});
+      S.selThread=t.id;renderThreads();positionSelbar();});
     svg.appendChild(hit);
     const p=document.createElementNS(SVGNS,'path');
     p.setAttribute('d',d);p.setAttribute('fill','none');
@@ -570,14 +580,14 @@ function renderThreads(){
       g.addEventListener(ev,()=>{clearTimeout(pinTimer);pinTimer=null;}));
     svg.appendChild(g);
   }
-  renderDiag();
+  positionThreadbar();renderDiag();
 }
 
 /* ================= modes ================= */
 function setMode(m){
   S.mode=m;clearPend();S.threadFrom=null;
   dock.querySelectorAll('button').forEach(b=>b.classList.toggle('active',b.dataset.tool==='thread'&&m==='thread'));
-  if(m==='thread')toast('Thread mode — tap two items to tie red thread · Esc to exit');
+  if(m==='thread')toast('Thread mode — tap two items to tie red thread · tap 🧵 again to exit');
   renderDiag();
 }
 
@@ -592,8 +602,9 @@ function handleTap(it){
   const now=Date.now();
   const dbl=lastTap.id===it.id&&now-lastTap.t<380;
   lastTap={id:it.id,t:now};
-  if(dbl){select(it);setEdit(it);toast('Edit mode — drag to move · orange handles resize & rotate');return;}
-  if(S.editId===it.id)return; // already editing; textareas handle their own taps
+  if(dbl){select(it);setEdit(it);toast('Edit mode — drag to move · click the surface to type · handles resize & rotate');return;}
+  if(S.editId===it.id)return;
+  if(S.sel===it.id){setEdit(it);return;} // clicking an already-selected item enters edit mode
   setEdit(null);select(it);
 }
 vp.addEventListener('pointerdown',e=>{
@@ -662,7 +673,10 @@ window.addEventListener('pointermove',e=>{
       g.it.h=clamp(g.h0+(wp.y-g.wy0),70,2000);
     }else{
       let ang=Math.atan2(wp.y-g.cy,wp.x-g.cx)*180/Math.PI+90;
-      if(e.shiftKey)ang=Math.round(ang/15)*15;
+      ang=((ang+540)%360)-180; // normalize to (-180,180]
+      for(const L of [0,10,25,45,90,135,180]){ // snap to fixed orientation locks
+        for(const s of [L,-L]){if(Math.abs(ang-s)<5){ang=s;}}
+      }
       g.it.rot=Math.round(ang*10)/10;
     }
     place(g.it);renderThreads();positionSelbar();
@@ -675,6 +689,7 @@ function endPointer(e){
   if(pinch&&ptrs.size<2){pinch=null;save();}
   if(g){
     if(g.type==='tap'&&!g.moved)handleTap(g.it);
+    else if(g.type==='move'&&!g.moved)enableEdit(g.it); // click the surface in edit mode = type on it
     else if(g.moved)save();
   }
   g=null;
@@ -887,35 +902,11 @@ window.addEventListener('paste',e=>{
 });
 
 /* ================= keyboard ================= */
+// No keyboard shortcuts — every action is mouse/touch driven (owner directive).
+// Keys only work inside dialogs and text surfaces.
 window.addEventListener('keydown',e=>{
   const modalOpen=document.querySelector('.overlay.open');
-  if(modalOpen){if(e.key==='Escape')modalOpen.classList.remove('open');return;}
-  if(editing){if(e.key==='Escape')document.activeElement.blur();return;}
-  const k=e.key,mod=e.metaKey||e.ctrlKey;
-  if(mod&&!e.shiftKey&&(k==='z'||k==='Z')){e.preventDefault();undo();return;}
-  if((mod&&e.shiftKey&&(k==='z'||k==='Z'))||(mod&&(k==='y'||k==='Y'))){e.preventDefault();redo();return;}
-  if(k==='t'||k==='T'){setMode(S.mode==='thread'?'select':'thread');}
-  else if(k==='Escape'){
-    if(S.selThread){S.selThread=null;renderThreads();}
-    else if(S.mode==='thread')setMode('select');
-    else if(S.editId)setEdit(null);
-    else select(null);
-  }
-  else if(k==='Delete'||k==='Backspace'){
-    if(S.selThread)cutThread(S.selThread);
-    else if(S.sel)deleteItem(S.sel);
-  }
-  else if(k==='Enter'&&S.sel){
-    const it=byId(S.sel);
-    if(it){if(S.editId!==it.id){setEdit(it);}enableEdit(it);}
-  }
-  else if(mod&&(k==='d'||k==='D')){
-    e.preventDefault();
-    const it=S.sel&&byId(S.sel);
-    if(it){pushUndo();const copy=JSON.parse(JSON.stringify({...it,el:undefined}));
-      copy.id=uid();copy.x+=26;copy.y+=26;copy.z=++S.zTop;
-      S.items.push(copy);buildEl(copy);select(copy);save();log('duplicated');}
-  }
+  if(modalOpen&&e.key==='Escape')modalOpen.classList.remove('open');
 });
 
 /* ================= init ================= */

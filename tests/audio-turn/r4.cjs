@@ -192,3 +192,17 @@ test('r16: keys are saved to and restored from the browser password manager as o
  await page.waitForFunction(()=>localStorage.getItem('tb_dg_key')==='dg-key-1');assert.equal(await page.evaluate(()=>JSON.parse(localStorage.getItem('chat_ai_cfg')).vkey),'vk');
  assert.ok(!(await page.evaluate(()=>JSON.stringify(debugLog))).includes('dg-key-1'),'keys never logged');
 });
+test('r17: the check shows what the listener reads at face value, in the reader\'s language, under Target',async({page})=>{
+ await page.route('https://translate.googleapis.com/**',route=>{const u=new URL(route.request().url());return route.fulfill({json:[[[u.searchParams.get('sl')==='en'?'피곤할 때마다':'Whenever I\'m tired','x']]]})});
+ let body=null;await page.route('https://api.venice.ai/**',route=>{body=JSON.parse(route.request().postData());return route.fulfill({json:{choices:[{message:{content:'{"verdict":"match","reason":"Same meaning.","suggestion":"","reading":"Whenever [someone] is tired — a fragment; \'you\' is implied."}'}}]}})});
+ await page.evaluate(()=>localStorage.setItem('chat_ai_cfg',JSON.stringify({vkey:'vk',vmodel:'vm'})));
+ await create(page,'Reads','en','ko');await send(page,'south','whenever you get tired');await settled(page,1);
+ const h=page.locator('#tx-south .bhdr').first();await h.scrollIntoViewIfNeeded();const b=await h.boundingBox();await page.mouse.click(b.x+10,b.y+b.height/2);await page.waitForTimeout(60);await page.mouse.click(b.x+10,b.y+b.height/2);
+ const ov=page.locator('.half.south .cl-bt');await ov.getByText('AI: Match').waitFor({timeout:5000});
+ const cells=await ov.locator('tr').evaluateAll(rs=>rs.map(r=>r.children[0].firstChild.textContent));
+ assert.deepEqual(cells,['Spoken','Back-translation','Target','Listener reads it as','Route']);
+ assert.ok(await ov.getByText("Whenever [someone] is tired — a fragment; 'you' is implied.").isVisible());
+ assert.ok(body.messages[1].content.includes('Reader language: English'));
+ await page.context().grantPermissions(['clipboard-read','clipboard-write']);await ov.getByRole('button',{name:'Copy',exact:true}).click();
+ assert.match(await page.evaluate(()=>navigator.clipboard.readText()),/Target \(Korean\): 피곤할 때마다\nListener reads it as \(AI · in English\): Whenever \[someone\] is tired/);
+});

@@ -77,3 +77,7 @@ Not wanted: usage caps, quotas, cutting off keys, or monitoring of key use.
 ## Not verified
 
 Everything here is a design. Nothing is built, deployed or tested. Deepgram, Cloudflare and GitHub behaviours cited are from the existing DevStream and TalkBridge code, not from new checks.
+
+
+## Status, 2026-10-26
+Part 2 (usage log and viewer `chat-usage.html`) is built. It lives in the same Worker as the guest links but in its own storage, so it deploys with the same workflow. See the plan entry of the same date.

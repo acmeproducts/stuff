@@ -1,5 +1,5 @@
 /* guest links end to end through the Worker: owner-only creation, one-time key delivery, lock after confirm, retries, expiry, stop */
-import worker, { Vault } from '../worker.js';
+import worker, { Vault, Usage } from '../worker.js';
 let pass = 0, fail = 0;
 const ok = (n, c, x) => { if (c) { pass++; console.log('PASS', n); } else { fail++; console.log('FAIL', n, x === undefined ? '' : JSON.stringify(x).slice(0, 260)); } };
 
@@ -13,7 +13,9 @@ let clock = 1_800_000_000_000;
 const mem = new Map();
 const state = { storage: { get: async k => mem.get(k), put: async (k, v) => { mem.set(k, JSON.parse(JSON.stringify(v))); } } };
 let vault = null;
+const umem = new Map(); let usage = null;                  // the usage log has its own storage, separate from the vault's
 const env = { ALLOWED_OWNER: 'acmeproducts', NOW: () => clock,
+  USAGE: { idFromName: n => n, get: () => { if (!usage) usage = new Usage({ storage: { get: async k => umem.get(k), put: async (k, v) => { umem.set(k, JSON.parse(JSON.stringify(v))); }, delete: async k => { umem.delete(k); } } }, env); return { fetch: (u, o) => usage.fetch(new Request(u, o)) }; } },
   VAULT: { idFromName: n => n, get: () => { if (!vault) vault = new Vault(state, env); return { fetch: (u, o) => vault.fetch(new Request(u, o)) }; } } };
 const O = 'https://acmeproducts.github.io';
 const call = (path, { method = 'GET', body, token, origin = O } = {}) => worker.fetch(new Request('https://runner.example' + path, { method, headers: { Origin: origin, 'Content-Type': 'application/json', ...(token ? { Authorization: 'Bearer ' + token } : {}) }, body: body ? JSON.stringify(body) : undefined }), env);
@@ -22,7 +24,7 @@ const list = async () => (await (await call('/admin/invites?owner=acmeproducts&r
 const newLink = async (name = 'Sam') => (await (await call('/admin/invite', { method: 'POST', body: { cfg, name } })).json());
 
 (async () => {
-  let r = await call('/health'); let j = await r.json(); ok('health answers', j.ok && j.v === 'c1');
+  let r = await call('/health'); let j = await r.json(); ok('health answers', j.ok && j.v === 'c2');
   r = await call('/admin/vault', { method: 'POST', body: { cfg: { ...cfg, pat: 'nopush_token' }, keys: { deepgram: DG } } }); ok('owner area: a token without push access is refused', r.status === 403);
   r = await call('/admin/vault', { method: 'POST', body: { cfg: { ...cfg, pat: 'bad_token' }, keys: { deepgram: DG } } }); ok('owner area: a token GitHub rejects is refused', r.status === 403);
   r = await call('/admin/vault', { method: 'POST', body: { cfg: { ...cfg, owner: 'someoneelse' }, keys: { deepgram: DG } } }); ok('owner area: another owner is refused', r.status === 403);
@@ -81,5 +83,36 @@ const newLink = async (name = 'Sam') => (await (await call('/admin/invite', { me
 
   r = await call('/invite/' + code + '/info', { origin: 'https://evil.example' }); ok('another website cannot be allowed by CORS', r.headers.get('Access-Control-Allow-Origin') === O);
   r = await call('/redeem', { method: 'OPTIONS' }); ok('preflight answers', r.status === 204);
+
+  /* ---- usage log: separate storage, no message text, owner-only reading ---- */
+  const U = (events, dev = 'abc123') => call('/usage', { method: 'POST', body: { dev, events } });
+  const readU = async (days = 30) => (await call('/admin/usage?owner=acmeproducts&repo=stuff&days=' + days, { token: OWNER })).json();
+  r = await U([{ kind: 'message', who: 'owner', room: 'Market', pair: 'en>th', side: 'south', mode: 'typed', trOk: true, build: 'r17', text: 'SECRET WORDS', original: 'SECRET WORDS', tr: 'SECRET WORDS' }]);
+  ok('a device can send usage events', r.status === 200);
+  j = await readU(); const ev = j.events.find(x => x.kind === 'message');
+  ok('the owner reads the event back with room, pair, side, typed/spoken', j.ok && ev && ev.room === 'Market' && ev.pair === 'en>th' && ev.side === 'south' && ev.mode === 'typed' && ev.trOk === true, j);
+  ok('no message text is ever stored, even if a device sends it', !JSON.stringify(j).includes('SECRET WORDS') && !JSON.stringify([...umem.values()]).includes('SECRET WORDS'));
+  r = await call('/admin/usage?owner=acmeproducts&repo=stuff', { token: 'nopush_token' }); ok('usage can only be read by the owner', r.status === 403);
+  r = await call('/admin/usage?owner=acmeproducts&repo=stuff'); ok('usage cannot be read with no token', r.status === 403);
+  r = await U([{ kind: 'drop table', who: 'x', pair: 'bad pair', side: 'up', mode: 'telepathy' }]); j = await readU();
+  ok('unknown kinds are ignored and odd values are cleaned', !j.events.some(x => x.kind === 'drop table') && !j.events.some(x => x.pair === 'bad pair'), j.events);
+  r = await U(Array.from({ length: 80 }, () => ({ kind: 'session', who: 'owner' }))); j = await readU();
+  ok('a batch is limited to 50 events', j.events.filter(x => x.kind === 'session').length === 50);
+  ok('usage storage is separate from the vault', ![...mem.keys()].some(k => /^d:|^t:|^days$/.test(k)) && [...umem.keys()].some(k => /^d:/.test(k)));
+  ok('the vault never holds usage and usage never holds the key', !JSON.stringify([...umem.values()]).includes(DG));
+  const g = await newLink('Pat'); r = await call('/redeem', { method: 'POST', body: { code: g.code } }); const patClaim = (await r.json()).claim;
+  r = await call('/confirm', { method: 'POST', body: { code: g.code, claim: patClaim } });
+  j = await readU(); ok('opening a link is the first row for that guest', j.events.some(x => x.kind === 'opened' && x.who === 'Pat'), j.events.filter(x => x.kind === 'opened'));
+  r = await call('/confirm', { method: 'POST', body: { code: g.code, claim: patClaim } }); j = await readU();
+  ok('a repeated confirm does not add a second opened row', j.events.filter(x => x.kind === 'opened' && x.who === 'Pat').length === 1);
+  clock += 100 * 86400000; await U([{ kind: 'message', who: 'owner', room: 'Late', pair: 'en>es', side: 'north', mode: 'spoken', trOk: false, stt: 'deepgram' }]);
+  j = await readU(90); ok('raw events older than 90 days are dropped', !j.events.some(x => x.room === 'Market') && j.events.some(x => x.room === 'Late'), j.events.map(x => x.room));
+  ok('the old raw day is really deleted from storage', [...umem.keys()].filter(k => /^d:/.test(k)).length === 1, [...umem.keys()]);
+  ok('daily totals are kept after the raw events go', j.totals.some(t => t.n.message >= 1 && t.pairs['en>th'] >= 1), j.totals);
+  ok('failed translations and speech engines are recorded', j.events.find(x => x.room === 'Late').trOk === false && j.events.find(x => x.room === 'Late').stt === 'deepgram');
+  const brokenUsage = env.USAGE; env.USAGE = { idFromName: n => n, get: () => ({ fetch: async () => { throw new Error('usage storage down'); } }) };
+  const h = await newLink('Ren'); r = await call('/redeem', { method: 'POST', body: { code: h.code } }); const renClaim = (await r.json()).claim;
+  r = await call('/confirm', { method: 'POST', body: { code: h.code, claim: renClaim } }); ok('if the usage log is down, a guest link still opens', r.status === 200);
+  env.USAGE = brokenUsage;
   console.log(pass + ' passed, ' + fail + ' failed'); process.exit(fail ? 1 : 0);
 })();

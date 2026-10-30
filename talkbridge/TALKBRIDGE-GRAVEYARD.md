@@ -1,7 +1,7 @@
 <!-- v5.8.2.42 -->
 # TALKBRIDGE — THE GRAVEYARD (living; keep in project knowledge)
 ## Approaches PROVEN to fail. Scanned before every change and at every exit condition. Never resurrect.
-**Version: 2.38 | 2026-10-23 | G78 the room's name capped for a centred cluster (the cluster is not centred; 50 px left unused) | Maintained in GitHub by the build process (raw.githubusercontent.com/acmeproducts/stuff/main/talkbridge/TALKBRIDGE-GRAVEYARD.md). Updated on every exit-condition burial.**
+**Version: 2.39 | 2026-10-27 | G79 the video as a floating window over the chat (30·base c2/c3) | Maintained in GitHub by the build process (raw.githubusercontent.com/acmeproducts/stuff/main/talkbridge/TALKBRIDGE-GRAVEYARD.md). Updated on every exit-condition burial.**
 
 
 Each entry: the approach, its failure signature, what replaces it. A change matching a signature is forbidden BEFORE it is attempted — not rediscovered as if new.
@@ -151,6 +151,7 @@ Each entry: the approach, its failure signature, what replaces it. A change matc
 | G76 | 2026-10-19 | Names kept on the server (typed names, the room's name, a scratch copy of messages); a rename delivered only to an open connection |
 | G77 | 2026-10-22 | 30·base c1, the video box: a FIXED 9:16 window showing whole pictures (contain), and the camera asked for 720×1280 |
 | G78 | 2026-10-23 | The room's name capped at `50vw − 79px`, derived for a centred cluster (the cluster is anchored on the microphone; 50 px unused, "m.." on an iPhone 13) |
+| G79 | 2026-10-27 | The call's video as a FLOATING, draggable window over the chat (30·base c2/c3, VB-1) — superseded by the strip you pull down |
 | E134 | 2026-10-07 | Annotation · 2026-10-07: E076's corollary superseded by owner ruling (install optional) |
 
 </details>
@@ -2576,3 +2577,20 @@ so the cluster starts at the centre − 17 px whatever its width. And `vw` measu
 right edge. Gate it with a real layout engine at several widths and both directions (harness-30b-browser N1/N2).
 
 **Buried by.** 30·base candidate 3 (plan v21.114.0), part NM-1.
+
+## G79 — 2026-10-27 — The call's video as a floating window over the chat (30·base c2/c3, VB-1)
+
+**The approach.** During a video call the video left the band and became a floating window, shaped like the picture it showed,
+dragged anywhere in the app column and remembered (`talkbridge/parts/vb1-video-box.js`).
+
+**What the owner said.** After testing c3 (2026-10-27): "it works as expected but I'm not really crazy about it I feel like maybe it
+was mistake to do it this way maybe being able to just drag the length of the video to where it could be longer if you needed to
+see more of the person and that there was basically a minimum height with the tall pip inside maybe that's a better solve."
+
+**Why it is not the answer.** It worked, but it sat over the chat — the main surface of a translating app — and it was a thing to
+park. The owner's need was to see more of the person when wanted, without losing the chat.
+
+**The rule.** The call's video stays in the room's flow and the person sets how much of the screen it takes (the strip you pull
+down, VB-2); the whole picture shows at any height (contain); the chat keeps a floor.
+
+**Buried by.** 30·base candidate 4 (plan v21.117.0). The part file stays in the repository for the record; no assembly uses it.

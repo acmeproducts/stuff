@@ -51,3 +51,9 @@ Goal: Add procedural generation of light paths and sound patterns so each sessio
 # APPENDIX – AUTHORITY ORDER  
 1. This master plan (relax.md) is the sole authority.  
 2. Chat history is secondary and may be overwritten by the plan.
+
+## RUN LOG (written by DevStream)
+| Date | Tab | Result | What | Commit |
+|---|---|---|---|---|
+| 2026-10-27 06:19 | Main | failed | Venice took too long. |  |
+| 2026-10-28 11:21 | Main | built projects/relax.html | I rebuilt Resonance as a mobile-first experience: the light field now fills the screen in portrait and landscape, all settings moved into a  | e7f19af |

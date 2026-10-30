@@ -1,6 +1,6 @@
 # TalkBridge activity log
 
-Who created, joined, called and chatted, one line per event, no message text (§7.21; relay v6.14). Drained 2026-10-23T15:59:32Z. Newest at the bottom. Person = the name typed in the app, letters and digits only (no name: Guest 1, Guest 2 … per room); room = its short id. Live view: https://acmeproducts.github.io/stuff/talkbridge/dash.html
+Who created, joined, called and chatted, one line per event, no message text (§7.21; relay v6.14). Drained 2026-10-30T01:13:30Z. Newest at the bottom. Person = the name typed in the app, letters and digits only (no name: Guest 1, Guest 2 … per room); room = its short id. Live view: https://acmeproducts.github.io/stuff/talkbridge/dash.html
 
 ```
 2026-10-19 07:05:25  room wvshos  voice call from miko — answered by text
@@ -72,4 +72,52 @@ Who created, joined, called and chatted, one line per event, no message text (§
 2026-10-23 07:12:10  room fj4d34  lolo chat
 2026-10-23 07:12:32  room fj4d34  video call from lolo — answered by momo  started 07:11:43  ended 07:12:32  lasted 49s
 2026-10-23 07:13:23  room fj4d34  lolo chat
-2026-10-23 07:13:43  room fj4d34  video call from momo — answered by lolo  started 07:12:36  ended 07:13:43  lasted 1m 07s```
+2026-10-23 07:13:43  room fj4d34  video call from momo — answered by lolo  started 07:12:36  ended 07:13:43  lasted 1m 07s
+2026-10-23 23:04:37  room t3sxxu  video call from mike — missed
+2026-10-26 06:15:25  room d5nggf  Huoi created  en → zh
+2026-10-26 06:16:09  room d5nggf Huoi  mike joined  zh → en
+2026-10-26 06:16:23  room d5nggf  mike chat
+2026-10-26 06:16:34  room d5nggf  mike chat
+2026-10-26 06:16:40  room d5nggf  mike chat
+2026-10-26 06:16:46  room d5nggf  mike chat
+2026-10-26 06:16:52  room d5nggf  mike chat
+2026-10-26 06:16:56  room d5nggf  mike chat
+2026-10-26 06:17:00  room d5nggf  mike chat
+2026-10-26 06:17:05  room d5nggf  mike chat
+2026-10-26 06:17:13  room d5nggf  mike chat
+2026-10-26 06:17:18  room d5nggf  mike chat
+2026-10-26 06:17:25  room d5nggf  mike chat
+2026-10-26 06:17:31  room d5nggf  mike chat
+2026-10-26 06:17:40  room d5nggf  mike chat
+2026-10-26 06:17:46  room d5nggf  mike chat
+2026-10-26 06:17:49  room d5nggf  mike chat
+2026-10-26 06:17:52  room d5nggf  mike chat
+2026-10-26 06:17:58  room d5nggf  mike chat
+2026-10-26 06:18:04  room d5nggf  mike chat
+2026-10-26 06:18:04  room d5nggf  mike chat
+2026-10-26 06:18:07  room d5nggf  mike chat
+2026-10-26 06:18:12  room d5nggf  mike chat
+2026-10-26 06:18:13  room d5nggf  mike chat
+2026-10-26 06:18:17  room d5nggf  mike chat
+2026-10-26 06:23:07  room 6xof90 for huoi  mike created  es → en
+2026-10-26 06:25:53  room 9fp2xl  mike created  es → en
+2026-10-26 06:27:11  room 9fp2xl mike  慧 joined  en → es
+2026-10-26 06:39:14  room 9fp2xl mike  Huoi joined  en → es
+2026-10-26 06:40:17  room 9fp2xl mike  Huoi joined  en → es
+2026-10-26 06:40:33  room 9fp2xl  Huoi chat
+2026-10-26 06:40:37  room 9fp2xl  Huoi chat
+2026-10-26 06:40:41  room 9fp2xl  Huoi chat
+2026-10-26 06:40:43  room 9fp2xl  Huoi chat
+2026-10-26 06:40:48  room 9fp2xl  Huoi chat
+2026-10-26 06:41:01  room 9fp2xl  Huoi chat
+2026-10-26 06:41:05  room 9fp2xl  Huoi chat
+2026-10-26 06:41:08  room 9fp2xl  Huoi chat
+2026-10-26 06:41:59  room 9fp2xl  mike chat
+2026-10-26 06:42:16  room 9fp2xl  voice call from mike — answered by Huoi  started 06:41:21  ended 06:42:16  lasted 55s
+2026-10-26 06:42:54  room 0cigqx  Huoi created  en → zh
+2026-10-27 07:45:00  room fj4d34  voice call from momo — missed
+2026-10-27 07:45:09  room fpyu1m  voice call from mike — missed
+2026-10-27 07:47:28  room wvshos  video call from lolo — answered by miko  started 07:47:20  ended 07:47:28  lasted 9s
+2026-10-27 07:48:25  room wvshos  voice call from miko — answered by lolo  started 07:48:20  ended 07:48:25  lasted 5s
+2026-10-27 07:49:07  room wvshos  video call from lolo — answered by miko  started 07:48:32  ended 07:49:07  lasted 35s
+2026-10-28 09:24:55  room bh5qos  video call from mike — missed```

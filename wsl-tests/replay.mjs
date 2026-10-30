@@ -1,5 +1,5 @@
 // Session replay: zoom out to the whole journey, zoom in to the start, play it back. Usage: node wsl-tests/replay.mjs [file]
-import {launch,VIEWPORTS,HELPERS,fresh,reporter,seeded} from './lib.mjs';
+import {launch,VIEWPORTS,HELPERS,fresh,reporter,seeded,endRun} from './lib.mjs';
 const file=process.argv[2]||'wsl.html';const url='file://'+process.cwd()+'/'+file;
 const {ok,done}=reporter();const b=await launch();
 const until=async(p,fn,ms=15000)=>{const t0=Date.now();while(Date.now()-t0<ms){if(await p.evaluate(fn))return true;await p.waitForTimeout(80);}return false;};
@@ -12,7 +12,7 @@ for(const vp of VIEWPORTS){
   await fresh(p,false);
   await p.evaluate(()=>{const s=__wsl();const e=s.pts[s.pts.length-1];const q=__scr(e.x,e.y);return __drag(q.x,q.y,q.x+30,innerHeight-20,14,400);});
   await p.evaluate(()=>__release());
-  await until(p,()=>__wsl().state===4,40000);
+  await endRun(p);
   let s=await S();const finalPts=s.npts,finalScore=s.last&&s.last.final;
   ok('run ended and was recorded',s.state===4&&s.rec&&s.rec.n>20,s.rec);
   ok('Replay button on the game-over screen',await p.evaluate(()=>{const e=document.getElementById('btnReplay');return !!e&&getComputedStyle(e).display!=='none';}));

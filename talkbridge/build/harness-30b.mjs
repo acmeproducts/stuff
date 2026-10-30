@@ -8,7 +8,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { JSDOM, VirtualConsole } from 'jsdom';
 import { runBoth, KEYS, diff } from './rig-28pos.mjs';
-import { basePage, assemblePage, assembleManifests, applyIdentity, IDENTITY, PARTS, PART_DECL, CHROME_BACKGROUND, STAGE_PAGE, STAGE_TAG, MANIFEST_NAME, MANIFEST_IOS_NAME, FOLDER_PATH, TAIL } from './assemble-30b.mjs';
+import { basePage, assemblePage, assembleManifests, applyIdentity, IDENTITY, PARTS, PART_DECL, CHROME_BACKGROUND, JENNY, JENNY_EDITS, assembleJenny, STAGE_PAGE, STAGE_TAG, MANIFEST_NAME, MANIFEST_IOS_NAME, FOLDER_PATH, TAIL } from './assemble-30b.mjs';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
 const quiet = process.argv.includes('--quiet');
@@ -26,8 +26,8 @@ const code = (t) => t.replace(/\/\*[\s\S]*?\*\//g, '').replace(/(^|[^:'"\\])\/\/
 const contractOf = (t) => { const m = /\/\* @contract([\s\S]*?)\*\//.exec(t); return m ? m[1] : ''; };
 const cc = contractOf(PART_TEXT);
 
-await T('B1 the stage is the accepted 29·post-ship page + the three declared identity edits (2 manifest names, the build line) + VB-1, CV-1, NM-1 appended in order — nothing else', () => {
-  assert(PARTS.length === 3 && /vb1/.test(PARTS[0]) && /cv1/.test(PARTS[1]) && /nm1/.test(PARTS[2]), 'parts ' + PARTS.join(','));
+await T('B1 the stage is the accepted 29·post-ship page + the three declared identity edits (2 manifest names, the build line) + VB-2, CV-1, NM-1 appended in order — nothing else', () => {
+  assert(PARTS.length === 3 && /vb2/.test(PARTS[0]) && /cv1/.test(PARTS[1]) && /nm1/.test(PARTS[2]), 'parts ' + PARTS.join(','));
   assert(stage === assemblePage({ parts: PT }), 'the stage is not the assembled output');
   assert(IDENTITY.length === 3 && IDENTITY.every((r) => /^I-/.test(r.id)), 'edits ' + IDENTITY.map((r) => r.id).join(','));
   const edited = applyIdentity(base);
@@ -52,11 +52,15 @@ for (const P of PART_DECL) await T('B2 ' + path.basename(P.file) + ' replaces an
     assert(text.indexOf(call) !== -1, mk + ' never logged'); assert(listed.indexOf(mk.slice(P.prefix.length)) !== -1, mk + ' not in the contract');
   }
 });
-await T('C the box is scoped to a VIDEO call: every VB-1 rule sits under #scr-room.st-video #call-band.on (or is its own probe); no transform positions the box (a transform would capture the fixed handle)', () => {
+await T('C the strip is scoped to a VIDEO call: every VB-2 rule sits under #scr-room.st-video (the bar\'s hidden default aside); the band itself is never moved by a transform; it is never fixed or absolute (it stays in the room\'s flow)', () => {
   const css = /var css =([\s\S]*?);\n  var st =/.exec(PART_TEXT); assert(css, 'no css block');
-  const sels = [...css[1].matchAll(/S \+ '([^{']*)\{/g)].map((m) => m[1]);
-  assert(sels.length >= 8, 'selectors ' + sels.length); assert(/var S = '#scr-room\.st-video #call-band\.on';/.test(PART_TEXT), 'scope');
-  assert(!/transform\s*:/.test(css[1]), 'a transform in the box css'); assert(/position:fixed/.test(css[1]) && /z-index:15/.test(css[1]), 'not fixed at z 15');
+  assert(/var S = '#scr-room\.st-video #call-band\.on';/.test(PART_TEXT), 'scope');
+  /* every literal selector not built on S (or on SMALL / corner(), both built on S) is one of the two declared exceptions */
+  const bare = [...css[1].matchAll(/(S \+ |\) \+ |corner\('\w\w', )?'([^'{]*)\{/g)].filter((m) => !m[1] && m[2] !== '').map((m) => m[2]);
+  for (const l of bare) assert(l === '#vb-bar' || l === '#scr-room.st-video #transcript', 'unscoped selector ' + JSON.stringify(l));
+  assert(bare.length === 2, 'bare selectors ' + JSON.stringify(bare));
+  assert(!/S \+ '\{[^}]*transform/.test(css[1]) && !/S \+ '\{[^}]*position:(fixed|absolute)/.test(css[1]), 'the band moved by a transform or taken out of the flow');
+  assert(/'#scr-room\.st-video #transcript\{overscroll-behavior:contain\}'/.test(css[1]), 'the chat\'s overscroll is not contained during a video call');
 });
 await T('F the stage\'s manifests: Chrome\'s starts THIS page with the folder id; the iPhone\'s has no start_url and no id; the page links them by platform and its load-time swap names them too (the accepted page swapped to 29·ship\'s — fixed here)', () => {
   const m = assembleManifests(), c = JSON.parse(m.chrome), i = JSON.parse(m.ios);
@@ -68,6 +72,19 @@ await T('F the stage\'s manifests: Chrome\'s starts THIS page with the folder id
   for (const f of [MANIFEST_NAME, MANIFEST_IOS_NAME]) assert(fs.readFileSync(path.join(root, 'talkbridge-app', f), 'utf8') === (f === MANIFEST_NAME ? m.chrome : m.ios), f + ' is not the assembled output');
   assert(stage.indexOf('tb-manifest-turn29') === -1, 'the stage still names a 29 manifest');
   assert(stage.indexOf("log('build', { c: '" + STAGE_TAG + "', file: 'talkbridge-app/" + STAGE_PAGE + "'") !== -1, 'build line');
+});
+
+await T('J Jenny\'s instance (owner 2026-10-25, "a separate instance"): the stage page with ONLY its identity changed — its own manifests, its own home-screen title, its own build file — and its own install identity (its own app id and start page, named TalkBridge Jenny); the files on disk are the assembled output', () => {
+  const jp = process.env.TB_30B_JENNY ? fs.readFileSync(process.env.TB_30B_JENNY, 'utf8') : fs.readFileSync(path.join(root, 'talkbridge-app', JENNY.page), 'utf8');
+  const m = assembleManifests(), j = assembleJenny(stage, m);
+  assert(jp === j.page, 'the Jenny page is not the stage page with the Jenny edits');
+  let back = jp; for (const e of JENNY_EDITS) back = back.split(e.replace).join(e.find); assert(back === stage, 'the Jenny page differs from the stage page by more than its identity');
+  assert(jp.indexOf(MANIFEST_NAME) === -1 && jp.indexOf(MANIFEST_IOS_NAME) === -1, 'the Jenny page still names the owner\'s manifests');
+  const c = JSON.parse(fs.readFileSync(path.join(root, 'talkbridge-app', JENNY.manifest), 'utf8')), i = JSON.parse(fs.readFileSync(path.join(root, 'talkbridge-app', JENNY.manifestIos), 'utf8'));
+  assert(fs.readFileSync(path.join(root, 'talkbridge-app', JENNY.manifest), 'utf8') === j.chrome && fs.readFileSync(path.join(root, 'talkbridge-app', JENNY.manifestIos), 'utf8') === j.ios, 'the Jenny manifests are not the assembled output');
+  assert(c.id === JENNY.id && c.id !== FOLDER_PATH && c.start_url === './' + JENNY.page && c.name === 'TalkBridge Jenny' && c.scope === './', 'chrome ' + JSON.stringify(c));
+  assert(!('id' in i) && !('start_url' in i) && i.name === 'TalkBridge Jenny', 'ios ' + JSON.stringify(i));
+  assert(/<meta name="apple-mobile-web-app-title" content="TB Jenny">/.test(jp), 'home-screen title');
 });
 
 /* a phone with a recording camera: what is asked of getUserMedia */

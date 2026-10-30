@@ -19,3 +19,16 @@ export function reporter(){let fails=0;return{ok(n,c,x){console.log((c?'PASS ':'
 
 // Seed saved settings reliably: load, write storage, reload (early init scripts occasionally lose the write).
 export function seeded(p,obj){const g=p.goto.bind(p);p.goto=async(u,o)=>{const r=await g(u,o);await p.evaluate(x=>{localStorage.setItem('wsl_settings',JSON.stringify(x));},obj);await p.reload();return r;};}
+
+// Play a run to its end: click through each explosion message and ride again until the game-over screen.
+export async function endRun(p,maxMs=90000){
+  const t0=Date.now();
+  while(Date.now()-t0<maxMs){
+    const s=await p.evaluate(()=>__wsl());
+    if(s.state===4)return s;
+    if(s.boomDlg){await p.evaluate(()=>document.getElementById('boomOk').click());await p.waitForTimeout(60);continue;}
+    if(s.state===0){await p.evaluate(()=>__release());await p.waitForTimeout(60);continue;}
+    await p.waitForTimeout(50);
+  }
+  return p.evaluate(()=>__wsl());
+}

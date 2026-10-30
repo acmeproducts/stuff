@@ -1,0 +1,94 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Tabletop Xlate usage</title>
+<meta name="description" content="Owner-only view of how Tabletop Xlate (chat-test) is used: rooms, language pairs, typed or spoken, guests. Never message text.">
+<style>
+:root{--bg:#f6f1e9;--card:#fff;--ink:#254c4c;--mute:#5d7a75;--line:#e6dfd5;--acc:#2e8b8b;--bad:#b4322d;--ok:#15803d}
+@media (prefers-color-scheme:dark){:root{--bg:#14201f;--card:#1c2c2b;--ink:#e3eeec;--mute:#93b0ab;--line:#2c4240;--acc:#5cc4c0;--bad:#f08a84;--ok:#6fd49a}}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.45 -apple-system,system-ui,sans-serif}
+main{max-width:880px;margin:0 auto;padding:16px}h1{font-size:20px;margin:0 0 2px}h2{font-size:15px;margin:0 0 8px}
+.sub{color:var(--mute);margin:0 0 12px}.card{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:12px;margin:12px 0}
+.tiles{display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:8px}.tile{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:10px}
+.tile .k{display:block;color:var(--mute);font-size:12px}.tile b{font-size:24px}
+table{border-collapse:collapse;width:100%}td,th{text-align:left;padding:6px 4px;border-bottom:1px solid var(--line);vertical-align:top}th{color:var(--mute);font-weight:600;font-size:12px}
+td.n,th.n{text-align:right;font-variant-numeric:tabular-nums}.bar{height:8px;background:var(--acc);border-radius:4px;min-width:2px}
+.row{display:flex;gap:8px;flex-wrap:wrap;align-items:center}button,select,input{font:inherit;padding:8px 12px;border-radius:10px;border:1px solid var(--line);background:var(--card);color:var(--ink)}
+button.p{background:var(--acc);border-color:var(--acc);color:#fff;font-weight:600}.err{color:var(--bad)}.ok{color:var(--ok)}.mute{color:var(--mute)}
+.scroll{overflow-x:auto}.hours{display:grid;grid-template-columns:repeat(24,1fr);gap:2px;align-items:end;height:70px}.hours div{background:var(--acc);border-radius:3px 3px 0 0;min-height:2px}
+.hl{display:grid;grid-template-columns:repeat(24,1fr);gap:2px;font-size:10px;color:var(--mute);text-align:center}
+input[type=password]{width:100%}
+</style></head><body><main>
+<h1>Tabletop Xlate usage</h1>
+<p class="sub">Rooms, language pairs, typed or spoken, and guests. Never message text. Owner only.</p>
+<div id="auth" class="card" hidden>
+  <h2>Owner sign-in</h2>
+  <p class="mute">Paste your GitHub token (the same one used on the Share tab). It stays in this browser.</p>
+  <input id="tok" type="password" autocomplete="off" placeholder="GitHub token">
+  <div class="row" style="margin-top:8px"><button class="p" id="go">Show usage</button></div>
+</div>
+<div id="app" hidden>
+  <div class="row"><label>Range <select id="days"><option value="7">7 days</option><option value="30" selected>30 days</option><option value="90">90 days</option></select></label>
+  <button id="refresh">Refresh</button><button id="csv">Download CSV</button><span id="status" class="mute" role="status"></span></div>
+  <div class="tiles" id="tiles" style="margin-top:10px"></div>
+  <div class="card"><h2>By hour of day (your local time)</h2><div class="hours" id="hours"></div><div class="hl" id="hl"></div></div>
+  <div class="card"><h2>Language pairs</h2><div class="scroll" id="pairs"></div></div>
+  <div class="card"><h2>Rooms</h2><div class="scroll" id="rooms"></div></div>
+  <div class="card"><h2>People</h2><div class="scroll" id="people"></div></div>
+  <div class="card"><h2>By day</h2><div class="scroll" id="days-t"></div></div>
+  <div class="card"><h2>Recent events</h2><div class="scroll" id="recent"></div></div>
+</div>
+<p id="msg" class="err" role="alert"></p>
+</main>
+<script>
+var RUNNER='https://chatlink-runner.myacctfortracking.workers.dev',OWNER='acmeproducts',REPO='stuff';
+var $=function(i){return document.getElementById(i)};
+function esc(s){return String(s==null?'':s).replace(/[&<>"']/g,function(c){return{'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]})}
+function lsGet(k){try{return localStorage.getItem(k)||''}catch(e){return''}}
+function lsSet(k,v){try{localStorage.setItem(k,v)}catch(e){}}
+function token(){return lsGet('cl_owner_pat')||lsGet('duck_gh_pat')}
+var DATA=null;
+function pairName(p){return p?p.replace('>',' → '):'?'}
+function pct(a,b){return b?Math.round(100*a/b)+'%':'-'}
+function when(t){var d=new Date(t);return d.toLocaleDateString(undefined,{month:'short',day:'numeric'})+' '+d.toLocaleTimeString(undefined,{hour:'numeric',minute:'2-digit'})}
+function table(head,rows,numCols){
+  if(!rows.length)return'<p class="mute">Nothing in this range.</p>';
+  return'<table><thead><tr>'+head.map(function(h,i){return'<th'+(numCols.indexOf(i)>=0?' class="n"':'')+'>'+esc(h)+'</th>'}).join('')+'</tr></thead><tbody>'+
+    rows.map(function(r){return'<tr>'+r.map(function(c,i){return'<td'+(numCols.indexOf(i)>=0?' class="n"':'')+'>'+c+'</td>'}).join('')+'</tr>'}).join('')+'</tbody></table>'}
+function render(d){
+  var ev=d.events,msgs=ev.filter(function(e){return e.kind==='message'});
+  var spoken=msgs.filter(function(e){return e.mode==='spoken'}).length,failed=msgs.filter(function(e){return e.trOk===false}).length;
+  var rooms={},ppl={};ev.forEach(function(e){if(e.room)rooms[e.room]=1;if(e.who)ppl[e.who]=1});
+  var opened=ev.filter(function(e){return e.kind==='opened'}).length,sessions=ev.filter(function(e){return e.kind==='session'}).length;
+  $('tiles').innerHTML=[['Messages',msgs.length],['Spoken',pct(spoken,msgs.length)],['Translation failed',failed],['Rooms',Object.keys(rooms).length],['App opens',sessions],['Guest links opened',opened]].map(function(t){return'<div class="tile"><span class="k">'+esc(t[0])+'</span><b>'+esc(t[1])+'</b></div>'}).join('');
+  var hrs=[];for(var h=0;h<24;h++)hrs.push(0);msgs.forEach(function(e){hrs[new Date(e.t).getHours()]++});var mx=Math.max.apply(null,hrs.concat([1]));
+  $('hours').innerHTML=hrs.map(function(n,h){return'<div title="'+h+':00 · '+n+' messages" style="height:'+Math.round(100*n/mx)+'%"></div>'}).join('');
+  $('hl').innerHTML=hrs.map(function(n,h){return'<span>'+(h%6===0?h:'')+'</span>'}).join('');
+  var by={};msgs.forEach(function(e){var k=e.pair||'?',r=by[k]=by[k]||{n:0,sp:0,fail:0};r.n++;if(e.mode==='spoken')r.sp++;if(e.trOk===false)r.fail++});
+  var pr=Object.keys(by).sort(function(a,b){return by[b].n-by[a].n}).map(function(k){var r=by[k];return[esc(pairName(k)),r.n,pct(r.sp,r.n),r.fail]});
+  $('pairs').innerHTML=table(['Pair','Messages','Spoken','Failed'],pr,[1,2,3]);
+  var rm={};ev.forEach(function(e){if(!e.room)return;var r=rm[e.room]=rm[e.room]||{n:0,pairs:{},last:0};if(e.kind==='message')r.n++;if(e.pair)r.pairs[e.pair]=1;r.last=Math.max(r.last,e.t)});
+  $('rooms').innerHTML=table(['Room','Messages','Languages','Last used'],Object.keys(rm).sort(function(a,b){return rm[b].n-rm[a].n}).map(function(k){var r=rm[k];return[esc(k),r.n,esc(Object.keys(r.pairs).map(pairName).join(', ')),esc(when(r.last))]}),[1]);
+  var pp={};ev.forEach(function(e){var p=pp[e.who]=pp[e.who]||{msgs:0,opened:0,last:0};if(e.kind==='message')p.msgs++;if(e.kind==='opened')p.opened=e.t;p.last=Math.max(p.last,e.t)});
+  $('people').innerHTML=table(['Who','Messages','Link opened','Last seen'],Object.keys(pp).sort(function(a,b){return pp[b].last-pp[a].last}).map(function(k){var p=pp[k];return[esc(k),p.msgs,p.opened?esc(when(p.opened)):'-',esc(when(p.last))]}),[1]);
+  $('days-t').innerHTML=table(['Day (UTC)','Messages','Spoken','Typed','Failed','Rooms made'],d.totals.slice(-90).reverse().map(function(t){return[esc(t.day),t.n.message||0,t.spoken,t.typed,t.failed,t.n.room||0]}),[1,2,3,4,5]);
+  $('recent').innerHTML=table(['When','Who','Event','Room','Pair','Side','How','OK'],ev.slice(-100).reverse().map(function(e){return[esc(when(e.t)),esc(e.who),esc(e.kind),esc(e.room||''),esc(e.pair?pairName(e.pair):''),esc(e.side||''),esc(e.mode||''),e.trOk===false?'<span class="err">failed</span>':e.kind==='message'?'<span class="ok">yes</span>':'']}),[]);
+}
+function csv(){
+  if(!DATA)return;var cols=['t','who','dev','kind','room','pair','side','mode','trOk','stt','build'];
+  var q=function(v){v=v==null?'':String(v);return /[",\n]/.test(v)?'"'+v.replace(/"/g,'""')+'"':v};
+  var out=[cols.join(',')].concat(DATA.events.map(function(e){return cols.map(function(c){return q(c==='t'?new Date(e.t).toISOString():e[c])}).join(',')})).join('\n');
+  var a=document.createElement('a');a.href=URL.createObjectURL(new Blob([out],{type:'text/csv'}));a.download='tabletop-xlate-usage.csv';document.body.appendChild(a);a.click();a.remove()}
+async function load(){
+  $('msg').textContent='';$('status').textContent='Loading…';
+  try{
+    var r=await fetch(RUNNER+'/admin/usage?owner='+OWNER+'&repo='+REPO+'&days='+$('days').value,{cache:'no-store',headers:{Authorization:'Bearer '+token()}});
+    var j=await r.json().catch(function(){return{}});
+    if(!r.ok||!j.ok){if(r.status===403){lsSet('cl_owner_pat','');$('app').hidden=true;$('auth').hidden=false}throw new Error(j.error||('the server answered '+r.status))}
+    DATA=j;$('auth').hidden=true;$('app').hidden=false;render(j);$('status').textContent='Updated '+new Date().toLocaleTimeString(undefined,{hour:'numeric',minute:'2-digit'})+' · '+j.events.length+' events';
+  }catch(e){$('status').textContent='';$('msg').textContent='Could not load usage: '+e.message}
+}
+$('go').onclick=function(){var v=$('tok').value.trim();if(v){lsSet('cl_owner_pat',v);load()}};
+$('refresh').onclick=load;$('days').onchange=load;$('csv').onclick=csv;
+if(token())load();else $('auth').hidden=false;
+window.__usage={render:render};
+</script></body></html>

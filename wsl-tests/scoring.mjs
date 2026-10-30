@@ -1,6 +1,6 @@
 // Scoring model: final = base (pages + trick bonuses) + distance inches + survival seconds x10 (+ Flow bonus).
 // Usage: node wsl-tests/scoring.mjs [file]
-import {launch,VIEWPORTS,HELPERS,fresh,reporter,seeded} from './lib.mjs';
+import {launch,VIEWPORTS,HELPERS,fresh,reporter,seeded,endRun} from './lib.mjs';
 const file=process.argv[2]||'wsl.html';const url='file://'+process.cwd()+'/'+file;
 const {ok,done}=reporter();const b=await launch();
 for(const vp of VIEWPORTS){
@@ -11,7 +11,7 @@ for(const vp of VIEWPORTS){
   await fresh(p,false);
   await p.evaluate(()=>{const s=__wsl();const e=s.pts[s.pts.length-1];const q=__scr(e.x,e.y);return __drag(q.x,q.y,q.x+30,innerHeight-20,14,400);});
   await p.evaluate(()=>__release());
-  let s;for(let i=0;i<40&&(s=await S()).state!==4;i++)await p.waitForTimeout(500);
+  let s=await endRun(p);
   s=await S();ok('run ended',s.state===4,s.state);
   const L=s.last||{};console.log('  breakdown:',JSON.stringify(L));
   ok('breakdown recorded',L.final!==undefined);
