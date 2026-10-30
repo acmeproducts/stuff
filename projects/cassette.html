@@ -19,6 +19,45 @@
   #app{position:fixed;inset:0;display:flex;flex-direction:column;
     padding:calc(env(safe-area-inset-top) + 52px) 12px calc(env(safe-area-inset-bottom) + 8px)}
 
+  /* Walkman portrait lock (owner direction 2026-10-30):
+     walkman look stays vertical even when the phone is held landscape.
+     JS adds body.rotlock; the whole app rotates 90° and swaps width/height. */
+  body.rotlock #app{
+    inset:auto;top:0;left:100vw;
+    width:100vh;height:100vw;
+    transform:rotate(90deg);
+    transform-origin:left top;
+  }
+
+  /* ---------- launch screen (OPEN APP button) ---------- */
+  #launch{position:fixed;inset:0;z-index:100;display:flex;flex-direction:column;
+    align-items:center;justify-content:center;gap:20px;padding:24px;text-align:center;
+    background:radial-gradient(circle at 50% 32%,#26221e,#0f0d0c 78%);
+    transition:opacity .35s ease}
+  #launch.hide{opacity:0;pointer-events:none}
+  #launchTitle{font-size:14px;letter-spacing:7px;color:var(--dim);font-weight:800}
+  #launchTape{width:min(64vw,240px);aspect-ratio:1.586;border-radius:10px;position:relative;
+    background:linear-gradient(160deg,var(--shell2),var(--shell) 55%,#211e1b);
+    border:2px solid var(--edge);
+    box-shadow:0 14px 34px rgba(0,0,0,.55), inset 0 1px 0 rgba(255,255,255,.08);
+    display:flex;align-items:center;justify-content:space-around;padding:0 16%}
+  #launchTape::before{content:"";position:absolute;top:8%;left:8%;right:8%;height:30%;
+    border-radius:5px;background:linear-gradient(180deg,var(--label),var(--label2))}
+  .lreel{width:26%;aspect-ratio:1;border-radius:50%;margin-top:22%;
+    background:radial-gradient(circle at 50% 50%,#d8d2c8 0 22%,#b8b2a8 22% 26%,transparent 26%),
+    repeating-conic-gradient(#cfc9bf 0 12deg,#8f897f 12deg 24deg);
+    border:3px solid #1c1a18;animation:spin 3s linear infinite}
+  .lreel:nth-child(2){animation-duration:3.9s}
+  #openAppBtn{padding:18px 46px;border:none;border-radius:14px;cursor:pointer;
+    background:linear-gradient(180deg,var(--btn-top),var(--btn-face) 45%,var(--btn));
+    color:#f2ede6;font-size:18px;font-weight:800;letter-spacing:2px;
+    box-shadow:0 8px 0 #232019, 0 12px 18px rgba(0,0,0,.5), inset 0 1px 0 rgba(255,255,255,.18);
+    transform:translateY(0);transition:transform .05s, box-shadow .05s, filter .1s;
+    user-select:none;-webkit-user-select:none}
+  #openAppBtn:active{transform:translateY(6px);filter:brightness(1.15);
+    box-shadow:0 2px 0 #232019, 0 4px 8px rgba(0,0,0,.5), inset 0 1px 0 rgba(255,255,255,.1)}
+  #launchNote{font-size:11px;letter-spacing:1px;color:var(--dim);max-width:280px;line-height:1.6}
+
   /* ---------- drawer (library) ---------- */
   #drawer{position:fixed;top:0;left:0;right:0;z-index:40;
     background:linear-gradient(#211e1b,#191715);border-bottom:2px solid var(--edge);
@@ -156,6 +195,14 @@
 </style>
 </head>
 <body>
+
+<div id="launch">
+  <div id="launchTitle">C A S S E T T E</div>
+  <div id="launchTape"><div class="lreel"></div><div class="lreel"></div></div>
+  <button id="openAppBtn">▶ OPEN APP</button>
+  <div id="launchNote">One tap opens the deck and turns sound on (phones block audio until you touch the screen).</div>
+</div>
+
 <div id="app">
 
   <div id="drawer">
@@ -235,6 +282,22 @@
   var state = "IDLE";       // IDLE LOADED PLAYING PAUSED STOPPED ERROR
   var lastError = "";
   var actx = null;
+  var appOpened = false;
+
+  /* ---------- launch screen: OPEN APP button ---------- */
+  $("openAppBtn").addEventListener("click", function(){
+    click();                 // first user gesture: creates/resumes audio context
+    appOpened = true;
+    $("launch").classList.add("hide");
+    // try fullscreen on touch devices; harmless if refused
+    try{
+      if(window.matchMedia("(pointer: coarse)").matches &&
+         document.documentElement.requestFullscreen){
+        document.documentElement.requestFullscreen().catch(function(){});
+      }
+    }catch(e){}
+    renderDiag();
+  });
 
   /* ---------- adaptive look (R5): phone=walkman, tablet=carry unit ---------- */
   var lookMode = "auto";            // auto | walkman | boombox
@@ -247,6 +310,7 @@
     $("lookToggle").textContent = "LOOK: " + (lookMode === "auto"
       ? "AUTO (" + (effectiveLook === "boombox" ? "CARRY" : "WALKMAN") + ")"
       : (effectiveLook === "boombox" ? "CARRY" : "WALKMAN"));
+    checkRot();
     renderDiag();
   }
   if(mqTablet.addEventListener) mqTablet.addEventListener("change", resolveLook);
@@ -257,18 +321,34 @@
     resolveLook();
   });
 
+  /* ---------- walkman portrait lock (owner direction 2026-10-30) ---------- */
+  function checkRot(){
+    var landscape = window.innerWidth > window.innerHeight;
+    var lock = effectiveLook === "walkman" && landscape;
+    document.body.classList.toggle("rotlock", lock);
+  }
+  window.addEventListener("resize", function(){ checkRot(); renderDiag(); });
+  window.addEventListener("orientationchange", function(){
+    setTimeout(function(){ checkRot(); renderDiag(); }, 60);
+  });
+
   /* ---------- diagnostics (in-app only, per plan) ---------- */
   function fmt(t){ if(!isFinite(t)||t==null) return "--:--";
     t=Math.max(0,Math.floor(t)); var m=Math.floor(t/60), s=t%60;
     return (m<10?"0":"")+m+":"+(s<10?"0":"")+s; }
   function renderDiag(){
+    var landscape = window.innerWidth > window.innerHeight;
+    var locked = document.body.classList.contains("rotlock");
     var lines = [];
     lines.push("state   : " + state);
+    lines.push("opened  : " + (appOpened ? "yes (OPEN APP tapped)" : "no — launch screen showing"));
     lines.push("look    : " + (effectiveLook === "boombox" ? "carry unit (tablet)" : "walkman (phone)")
       + "  [" + lookMode + "]");
+    lines.push("orient  : " + (landscape ? "landscape" : "portrait")
+      + "  portrait lock: " + (locked ? "ON (app rotated upright)" : "off"));
     lines.push("source  : " + (current>=0 ? tracks[current].name : "(none)"));
     lines.push("audio   : readyState=" + audio.readyState + "  time=" + fmt(audio.currentTime) + "/" + fmt(audio.duration));
-    lines.push("audioCtx: " + (actx ? actx.state : "not created yet (created on first button press)"));
+    lines.push("audioCtx: " + (actx ? actx.state : "not created yet (created on OPEN APP / first button press)"));
     lines.push("tracks  : " + tracks.length);
     lines.push(lastError ? "error   : " + lastError : "error   : none");
     $("diag").innerHTML = lines.map(function(l){
@@ -469,7 +549,7 @@
     $("diagToggle").textContent = diagOpen ? "DIAGNOSTICS ▾" : "DIAGNOSTICS ▸";
   });
 
-  renderList(); resolveLook(); setState("IDLE"); renderDiag();
+  renderList(); resolveLook(); checkRot(); setState("IDLE"); renderDiag();
 })();
 </script>
 </body>
