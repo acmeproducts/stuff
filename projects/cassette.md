@@ -175,3 +175,4 @@ Everything else: TBD.
 | 2026-10-29 04:27 | Main | failed | Venice has no credits left. |  |
 | 2026-10-29 07:25 | Main | failed | Venice has no credits left. |  |
 | 2026-10-30 | Main | built projects/cassette.md | Plan updated: owner direction "walkman always displays vertical regardless of phone orientation" logged (decision, R5 scope/gates, Q9 recommendation: CSS 90° rotation of app container in Walkman look, carry unit rotates freely). Code build is next. |  |
+| 2026-10-30 00:52 | Main | built projects/cassette.html | Two things landed in one build: a launch screen with a big OPEN APP button (one tap turns sound on and tries full-screen, which also fixes p | 3881cb2 |
