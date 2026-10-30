@@ -203,6 +203,9 @@ p.note{font-size:12.5px;color:var(--ink2);margin:6px 0 10px;line-height:1.45}
     <div class="row" style="display:block"><div class="k" style="margin-bottom:6px">GitHub token<small>Fine-grained token with Contents read &amp; write on acmeproducts/stuff. Stays on this phone only.</small></div><input type="password" id="tokenIn" placeholder="github_pat_…" autocomplete="off"></div>
     <button class="big-btn" id="syncBtn">Sync now</button>
     <div class="log" id="recLog">—</div>
+    <p class="note" style="margin-top:14px">Diagnostics (live)</p>
+    <div class="log" id="diag">—</div>
+    <button class="big-btn ghost" id="diagUp">Upload diagnostics to the shared store</button>
   </div>
 
   <div class="pane" id="pane-data">
@@ -594,8 +597,11 @@ function updateStatus(ms){
 // ───────────────────────── interaction
 let lastTap=0,lastTapI=null;
 cv.addEventListener('pointerdown',e=>{
-  const r=cv.getBoundingClientRect();const i=hitTest(e.clientX-r.left,e.clientY-r.top);const now=performance.now();
-  if(DEBUG)statusExtra=` · tap ${(e.clientX-r.left).toFixed(0)},${(e.clientY-r.top).toFixed(0)} → ${i}`;
+  const r=cv.getBoundingClientRect();
+  if(Math.abs(r.width-W)>1||Math.abs(r.height-H)>1){resize();}
+  const x=(e.clientX-r.left)*W/r.width, y=(e.clientY-r.top)*H/r.height;
+  const i=hitTest(x,y);const now=performance.now();
+  if(DEBUG)statusExtra=` · tap ${x.toFixed(0)},${y.toFixed(0)} → ${i} · canvas ${r.width.toFixed(0)}×${r.height.toFixed(0)} drawn ${W.toFixed(0)}×${H.toFixed(0)}`;
   if(i!=null&&i===lastTapI&&now-lastTap<320){drillInto(i);lastTap=0;return;}
   lastTap=now;lastTapI=i;select(i);
 });
@@ -712,12 +718,37 @@ document.getElementById('playBtn').onclick=()=>{playing?stopPlay():startPlay();}
 document.getElementById('stopBtn').onclick=stopPlay;
 
 // ───────────────────────── recording (numbers only)
-let recState='off', stream=null, analyser=null, recAC=null, recTimer=0, wl=null;
+let recState='off', stream=null, analyser=null, recAC=null, recTimer=0, wl=null, proc=null;
 let secAcc=null, secFrames=0, curMinute=-1, minSecs=[], minBands=new Float64Array(10), minSecCount=0, secTrace=[];
+const DIAG={raw:null,L:null,fps:0,frames:0,lastFrameAt:0,lastFlush:null,lastSecAt:0,src:'none',audioFrames:0,timerFrames:0,throttled:0};
 const bandBins=[];
 function log(m){const el=document.getElementById('recLog');el.textContent=(new Date().toLocaleTimeString()+' '+m+'\n'+el.textContent).split('\n').slice(0,40).join('\n');}
 async function wakeLock(on){try{if(on&&'wakeLock' in navigator){wl=await navigator.wakeLock.request('screen');wl.onrelease=()=>{wl=null;};}else if(!on&&wl){await wl.release();wl=null;}}catch(e){log('Screen lock not granted: '+e.message);}}
 document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible'&&recState!=='off'&&S.wake&&!wl)wakeLock(true);});
+let buf=null,lastSec=0;
+function frame(from){
+  if(recState!=='on'||!analyser)return;
+  const t=Date.now(); if(t-DIAG.lastFrameAt<40)return; // both clocks may fire; take at most ~25/s
+  DIAG.lastFrameAt=t; DIAG.frames++; DIAG[from+'Frames']++;
+  analyser.getFloatFrequencyData(buf);
+  for(let b=0;b<10;b++){let p=0;for(let i=bandBins[b][0];i<=bandBins[b][1];i++){const d=buf[i];if(isFinite(d))p+=Math.pow(10,d/10);}secAcc[b]+=p;}
+  secFrames++;
+  const nowS=Math.floor(t/1000);
+  if(nowS!==lastSec&&secFrames){
+    if(nowS-lastSec>2)DIAG.throttled++;
+    let tot=0;const bd=new Array(10);for(let b=0;b<10;b++){const p=secAcc[b]/secFrames;bd[b]=10*Math.log10(Math.max(1e-12,p))+S.cal;tot+=p;}
+    const raw=10*Math.log10(Math.max(1e-12,tot)), L=raw+S.cal;
+    DIAG.raw=raw;DIAG.L=L;DIAG.fps=secFrames;DIAG.lastSecAt=t;
+    document.getElementById('meterFill').style.width=Math.max(0,Math.min(100,(L-20)/80*100))+'%';
+    document.getElementById('meterTxt').textContent=`${L.toFixed(0)} dB now · ${REC.size.toLocaleString()} minutes stored · loudest band ${BAND_L[bd.indexOf(Math.max(...bd))]} Hz`;
+    const mk=Math.floor(lastSec/60);
+    if(mk!==curMinute){flushMinute(true);curMinute=mk;minSecs=[];minBands.fill(0);minSecCount=0;secTrace=[];}
+    minSecs.push(L);for(let b=0;b<10;b++)minBands[b]+=Math.pow(10,bd[b]/10);minSecCount++;secTrace[lastSec%60]=Math.round(L);
+    if(minSecCount%5===0)flushMinute(false); // live, provisional
+    secAcc.fill(0);secFrames=0;lastSec=nowS;
+    if(document.getElementById('sheet').classList.contains('open'))fillDiag();
+  }
+}
 async function startRec(){
   try{stream=await navigator.mediaDevices.getUserMedia({audio:{echoCancellation:false,noiseSuppression:false,autoGainControl:false}});}
   catch(e){log('Microphone refused: '+e.message);return;}
@@ -725,39 +756,41 @@ async function startRec(){
   const src=recAC.createMediaStreamSource(stream);analyser=recAC.createAnalyser();analyser.fftSize=4096;analyser.smoothingTimeConstant=0;src.connect(analyser);
   const binHz=recAC.sampleRate/analyser.fftSize;bandBins.length=0;
   for(const f of BANDS){const lo=Math.max(1,Math.round(f/1.4142/binHz)),hi=Math.min(analyser.frequencyBinCount-1,Math.round(f*1.4142/binHz));bandBins.push([lo,Math.max(lo,hi)]);}
-  secAcc=new Float64Array(10);secFrames=0;curMinute=-1;recState='on';
+  secAcc=new Float64Array(10);secFrames=0;curMinute=-1;recState='on';buf=new Float32Array(analyser.frequencyBinCount);lastSec=Math.floor(Date.now()/1000);
+  DIAG.frames=DIAG.audioFrames=DIAG.timerFrames=DIAG.throttled=0;
   document.getElementById('recBtn').textContent='Stop recording';document.getElementById('recDot').className='on';
   if(S.wake)wakeLock(true);
-  log(`Recording at ${recAC.sampleRate} Hz, ${binHz.toFixed(1)} Hz per bin.`);
-  const buf=new Float32Array(analyser.frequencyBinCount);
-  let lastSec=Math.floor(Date.now()/1000);
-  recTimer=setInterval(()=>{
-    if(recState!=='on')return;
-    analyser.getFloatFrequencyData(buf);
-    for(let b=0;b<10;b++){let p=0;for(let i=bandBins[b][0];i<=bandBins[b][1];i++){const d=buf[i];if(isFinite(d))p+=Math.pow(10,d/10);}secAcc[b]+=p;}
-    secFrames++;
-    const nowS=Math.floor(Date.now()/1000);
-    if(nowS!==lastSec&&secFrames){
-      let tot=0;const bd=new Array(10);for(let b=0;b<10;b++){const p=secAcc[b]/secFrames;bd[b]=10*Math.log10(Math.max(1e-12,p))+S.cal;tot+=p;}
-      const L=10*Math.log10(Math.max(1e-12,tot))+S.cal;
-      document.getElementById('meterFill').style.width=Math.max(0,Math.min(100,(L-20)/80*100))+'%';
-      document.getElementById('meterTxt').textContent=`${L.toFixed(0)} dB now · ${REC.size.toLocaleString()} minutes stored · loudest band ${BAND_L[bd.indexOf(Math.max(...bd))]} Hz`;
-      const mk=Math.floor(lastSec/60);
-      if(mk!==curMinute){flushMinute();curMinute=mk;minSecs=[];minBands.fill(0);minSecCount=0;secTrace=[];}
-      minSecs.push(L);for(let b=0;b<10;b++)minBands[b]+=Math.pow(10,bd[b]/10);minSecCount++;secTrace[lastSec%60]=Math.round(L);
-      secAcc.fill(0);secFrames=0;lastSec=nowS;
-    }
-  },250);
+  // audio-clock driven frames keep going when the tab is in the background; the timer is a fallback
+  try{proc=recAC.createScriptProcessor(4096,1,1);const sink=recAC.createGain();sink.gain.value=0;analyser.connect(proc);proc.connect(sink);sink.connect(recAC.destination);proc.onaudioprocess=()=>frame('audio');DIAG.src='audio clock + timer';}
+  catch(e){DIAG.src='timer only';log('Audio clock unavailable, using timer: '+e.message);}
+  recTimer=setInterval(()=>frame('timer'),250);
+  const tr=stream.getAudioTracks()[0];const st=tr.getSettings?tr.getSettings():{};
+  log(`Recording: ${recAC.sampleRate} Hz, ${binHz.toFixed(1)} Hz per bin, mic "${tr.label||'?'}", AGC ${st.autoGainControl}, NS ${st.noiseSuppression}.`);
 }
-function flushMinute(){
+function flushMinute(final){
   if(curMinute<0||!minSecCount)return;
   const Ls=[...minSecs].sort((a,b)=>a-b),q=p=>Ls[Math.min(Ls.length-1,Math.floor(p*Ls.length))];
   const r={k:curMinute,d:S.devId,u:Date.now(),n:minSecCount,L:[q(.1),q(.5),q(.9),Ls[Ls.length-1]].map(x=>Math.round(x)),b:Array.from(minBands,p=>Math.round(10*Math.log10(Math.max(1e-12,p/minSecCount)))),s:secTrace.slice()};
-  putRec(r,true);dirty.add(curMinute);if(S.src==='rec'&&view.t0<=curMinute*MIN&&curMinute*MIN<spanEnd(view.t0,view.span))render();
+  putRec(r,!!final);if(final){dirty.add(curMinute);DIAG.lastFlush=r;}
+  if(S.src==='rec'&&view.t0<=curMinute*MIN&&curMinute*MIN<spanEnd(view.t0,view.span))render();
 }
-function stopRec(){flushMinute();clearInterval(recTimer);recState='off';if(stream)stream.getTracks().forEach(t=>t.stop());stream=null;if(recAC)recAC.close();recAC=null;wakeLock(false);
+function stopRec(){flushMinute(true);clearInterval(recTimer);recState='off';if(proc){try{proc.disconnect();}catch(e){}proc=null;}if(stream)stream.getTracks().forEach(t=>t.stop());stream=null;if(recAC)recAC.close();recAC=null;wakeLock(false);
   document.getElementById('recBtn').textContent='Start recording';document.getElementById('recDot').className='';document.getElementById('meterTxt').textContent='Microphone off';document.getElementById('meterFill').style.width='0';log('Recording stopped.');render();}
-function pauseRec(p){if(recState==='off')return;if(p){flushMinute();curMinute=-1;recState='paused';document.getElementById('recDot').className='paused';}else{recState='on';document.getElementById('recDot').className='on';}render();}
+function pauseRec(p){if(recState==='off')return;if(p){flushMinute(true);curMinute=-1;recState='paused';document.getElementById('recDot').className='paused';}else{recState='on';document.getElementById('recDot').className='on';}render();}
+function diagText(){
+  const f=DIAG.lastFlush;
+  return [
+    `state ${recState} · source ${DIAG.src} · visible ${document.visibilityState} · screen lock ${wl?'held':'off'}`,
+    `now raw ${DIAG.raw==null?'—':DIAG.raw.toFixed(1)} dBFS + cal ${S.cal} = ${DIAG.L==null?'—':DIAG.L.toFixed(0)} dB · ${DIAG.fps} frames last second · audio ${DIAG.audioFrames} / timer ${DIAG.timerFrames} · gaps over 2 s: ${DIAG.throttled}`,
+    `audio ${recAC?recAC.state+' '+recAC.sampleRate+' Hz':'closed'} · last second ${DIAG.lastSecAt?Math.round((Date.now()-DIAG.lastSecAt)/1000)+' s ago':'—'}`,
+    `stored ${REC.size} minutes (${[...REC.values()].filter(r=>r.d===S.devId).length} from this phone) · unsynced ${dirty.size} · local store ${db?'ok':'unavailable'} · token ${TOKEN?'set':'none'}`,
+    f?`last minute ${new Date(f.k*MIN).toLocaleTimeString()}: ${f.n} s, L90/L50/L10/max ${f.L.join('/')} dB, bands ${f.b.join(' ')}`:'last minute —',
+    `device ${S.devName} (${S.devId}) · ${navigator.userAgent.slice(0,80)}`
+  ].join('\n');
+}
+function fillDiag(){const el=document.getElementById('diag');if(el)el.textContent=diagText();}
+document.getElementById('diagUp').onclick=async()=>{if(!TOKEN){log('No token: add a GitHub token first.');return;}try{const path=`${DATA_DIR}/${S.devId}/diag.json`;const cur=await ghGet(path);await ghPut(path,{at:new Date().toString(),text:diagText(),log:document.getElementById('recLog').textContent,settings:{...S},sample:[...REC.values()].filter(r=>r.d===S.devId).slice(-30).map(r=>({...r,s:undefined}))},cur&&cur.sha,`sound: diagnostics ${S.devName} [skip ci]`);log('Diagnostics uploaded.');}catch(e){log('Diagnostics upload failed: '+e.message);}};
+setInterval(()=>{if(document.getElementById('sheet').classList.contains('open'))fillDiag();},2000);
 document.getElementById('recBtn').onclick=()=>{recState==='off'?startRec():stopRec();};
 
 // ───────────────────────── sync with the shared store in GitHub
@@ -828,6 +861,8 @@ applyTheme();horizonNote();rampPreview();
 view={span:S.span,t0:anchorFor(S.span)};
 computeBaseline();srcChanged();
 window.addEventListener('resize',resize);
+if(window.visualViewport)visualViewport.addEventListener('resize',resize);
+if('ResizeObserver' in window)new ResizeObserver(()=>{const r=cv.getBoundingClientRect();if(Math.abs(r.width-W)>1||Math.abs(r.height-H)>1)resize();}).observe(document.getElementById('stage'));
 resize();
 (async()=>{await loadLocal();await loadShared();setupAutoSync();if(S.src==='rec'){computeBaseline();render();}})();
 })();

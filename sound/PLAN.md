@@ -40,3 +40,10 @@ Open assumptions (owner can override): token-per-phone rather than a server; sec
 
 ## Verified (build 2)
 - Lab (Playwright 390×844, fake mic): all spans × shapes render, drawer/popup picks work, drill one rung, recording produced minute packets into IndexedDB, Recorded source renders them. Sync not exercised in the lab (no token). Not yet verified on the owner's phone.
+
+## Build 2.1 — 2026-10-30
+Owner reported: data not collecting correctly; view not correct; taps land only when aimed below-right of the target.
+- Taps: the canvas was drawn at the size measured at load; when the phone's viewport changed (URL bar, keyboard), the drawn image was squeezed but taps were measured in screen pixels. Taps are now scaled to the drawn size and the canvas re-measures itself whenever the stage resizes (lab: verified by shrinking the viewport after load, tap on minute 43 selects 12:43).
+- Collection: the loop ran on a 250 ms timer, which Android Chrome throttles to once a minute in the background (theory for the owner's symptom; the fix removes the dependency either way). Frames are now driven by the audio clock, with the timer as fallback. The in-progress minute is shown live every 5 s.
+- Diagnostics: live panel on the Record tab (raw dBFS, calibration, frames per second by source, gaps, audio state, stored/unsynced counts, last packet, mic settings) and an "Upload diagnostics" button that writes sound/data/<device>/diag.json when a token is set.
+Unverified: the owner's phone. "View not correct" is not yet pinned down; the diagnostics exist so the next report carries numbers.
