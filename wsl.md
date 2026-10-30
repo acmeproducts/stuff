@@ -103,6 +103,8 @@ Change: wsl.html restored byte-for-byte from snow-v1.html, then built up in thre
   - Also: an explosion no longer leaves a black hole drawn on the game-over screen or in the replay.
   - Tests: `share.mjs` (pinch in overview and playback, limits, link size, opening the link in a second browser at a different screen size, matching journey, broken link, video file size and type); every earlier suite passes.
 
+- Share button now uses the standard share glyph (box with an up arrow, drawn as an SVG so it looks the same on every phone) instead of the 📤 emoji.
+
 ## RUN LOG (written by DevStream)
 | Date | Tab | Result | What | Commit |
 |---|---|---|---|---|
