@@ -119,3 +119,8 @@ Unscheduled parking lot. Nothing here is promised.
 - Plan file: projects/test-product.md (this file) — path never changes.
 - Baseline: particle.html (acmeproducts/dev) — full source received and audited 2026-10-25; catalog stored under R1.
 - App concept: audio-reactive 3D particle wave field; audience/features per R1 scope.
+
+## RUN LOG (written by DevStream)
+| Date | Tab | Result | What | Commit |
+|---|---|---|---|---|
+| 2026-10-30 01:11 | Main | built projects/sndwiz.html | sndwiz is built — the full R1 scope in one mobile-first file: touch camera (one-finger orbit, pinch zoom, double-tap reset), collapsible bot | 5699e20 |
