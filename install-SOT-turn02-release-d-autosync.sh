@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 set -Eeuo pipefail
-REF="a1b304e77c9646cfc973ab0bdfbda4451e1b8f18"
+REF="5dfc7495cdddf8662cb313484e3d31fe0c9f548a"
 BASE="https://raw.githubusercontent.com/acmeproducts/stuff/$REF/SOT"
 ROOT="$HOME/.sot-turn02/release-d/SOT"
 UNIT="$HOME/.config/systemd/user/sot-turn02-release-d.service"
