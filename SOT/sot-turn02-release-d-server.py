@@ -892,6 +892,11 @@ class H(BaseHTTPRequestHandler):
      else:
       w["identity_source"]="windows_inventory";vols.append(w);by_path[w["path"]]=w
     vols.sort(key=lambda v:(0 if v["path"]=="/" else 1,str(v.get("windows_drive") or v.get("path") or "").lower()))
+    # capacity and free space for every reachable volume (the TARGET picker shows them)
+    for v in vols:
+     try:
+      if v.get("available",True) and os.path.isdir(v["path"]):st=os.statvfs(v["path"]);v["total_bytes"]=st.f_blocks*st.f_frsize;v["free_bytes"]=st.f_bavail*st.f_frsize
+     except OSError:pass
     return self.sendj({"ok":True,"volumes":vols,"reconciled_at":time.time()})
    if p=="/api/folder-search/status":
     sid=parse_qs(u.query).get("id",[""])[0];return self.sendj({"ok":True,**folder_search_status(sid)})
