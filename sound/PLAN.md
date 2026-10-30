@@ -26,3 +26,17 @@ Open assumptions (owner can override): calendar tiles with 364-day years; second
 
 ## Verified
 - Lab (Playwright, 390×844, DPR 2, touch): all spans × shapes render without errors; tap selects; Open-unit drill works; sheet opens. Not yet verified on the owner's phone.
+
+## Build 2 — 2026-10-30
+Owner asked (own words, condensed): glyphs by unit (dots for seconds, squares for minutes, bars for hours, rectangles for months), selectable in config; counts must follow the real calendar; control surface = pull-down drawer from the top with tap-to-pick Span / Shape / Show / Scale; recording with central storage in GitHub under /sound, multiple devices, last update wins, collect on one device and view on another, recording pauses during playback; colours felt random — needs a scheme that clearly shows intensity; simplify.
+- Calendar: real months (28–31 days), real years, weeks start Sunday. 364-day tiling year buried.
+- Colour: one job, intensity. Five dark→bright ramps (Heat default). Band hue dropped everywhere; "10 bands" now stripes each band on the same ramp. New "Tone" show: warm = low rumble, cool = voices/hiss, brightness = loudness.
+- Glyphs: dot / square / bar / fill per cell kind (seconds, minutes, hours, days, weeks+); dot and bar size follow loudness.
+- Controls: tap the title → top drawer with Span, Shape, Show, Scale rows → popup pick. Settings sheet keeps Look / Sound / Record / Data.
+- Recording: mic → 10 octave bands at 4 frames/s → per-second levels → per-minute packet {L90,L50,L10,Lmax, 10 bands, seconds counted, updatedAt, device}. Stored in IndexedDB; seconds trace kept locally only. Screen wake lock while recording. Playback and tap-to-hear pause recording and resume after.
+- Sync: GitHub Contents API with a per-phone fine-grained token (Contents read/write on this repo). Files: sound/data/<deviceId>/<YYYY-MM-DD>.json and sound/data/index.json. Merge per minute by updatedAt (last update wins). Auto-sync every 15 min by default. Commits carry [skip ci].
+- Viewer: loads index.json then day files (latest 400 cap) from raw.githubusercontent (no token) or the API (token). Data tab: Test data / Recorded.
+Open assumptions (owner can override): token-per-phone rather than a server; seconds not synced; mic dB is phone-relative with a calibration slider (not true SPL); recording needs the tab open — Android may still stop a background tab.
+
+## Verified (build 2)
+- Lab (Playwright 390×844, fake mic): all spans × shapes render, drawer/popup picks work, drill one rung, recording produced minute packets into IndexedDB, Recorded source renders them. Sync not exercised in the lab (no token). Not yet verified on the owner's phone.
