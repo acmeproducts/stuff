@@ -73,3 +73,4 @@ Do not forward-patch this rejected design. Restore the pre-#770 Complete bytes (
 
 - **The "DB current · updated N s ago" status pill and its 1-second timer.** Owner: antiquated, redundant, costs performance; actions trigger staleness checks instead.
 - **"N / N" count with no active search** and **the selection chip in the action row.**
+- **The separate "Choose TARGET" modal picker** (2026-10-30). Owner: target selection must use the three-panel picker; it now does.
