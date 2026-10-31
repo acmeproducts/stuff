@@ -193,7 +193,9 @@ p.note{font-size:12.5px;color:var(--ink2);margin:6px 0 10px;line-height:1.45}
 
   <div class="pane" id="pane-record">
     <p class="note">Recording keeps numbers only, never audio: one packet per minute (loudness, peaks, 10 bands) saved on this phone, then synced to the shared store in GitHub so another phone can view it. Keep this tab open and the screen on while recording.</p>
-    <button class="big-btn rec" id="recBtn">Start recording</button>
+    <a class="big-btn" style="text-align:center;text-decoration:none" href="rec.html">Open the recorder (runs on its own, can float)</a>
+    <p class="note">For all-day collection use the recorder page: install it from the Chrome menu (Add to Home screen), start it, and tap Float. The button below records inside this viewer instead, while it stays open.</p>
+    <button class="big-btn rec" id="recBtn">Start recording here</button>
     <div class="meter"><i id="meterFill"></i></div>
     <div id="meterTxt" style="font-size:12.5px;color:var(--ink2)">Microphone off</div>
     <div class="row"><div class="k">Device name<small>Shown in the shared store</small></div><input type="text" id="devName" style="width:150px" maxlength="20"></div>
@@ -322,6 +324,8 @@ function sampleTest(t,dest){
 const REC=new Map();            // k -> record (merged, last update wins)
 let tiers={hour:new Map(),day:new Map()}; let tiersDirty=true;
 let db=null;
+if('BroadcastChannel' in window){const ch=new BroadcastChannel('sot');ch.onmessage=e=>{const m=e.data;if(m&&m.type==='minute'&&m.rec&&m.rec.d!==S.devId+'-never'){if(putRec(m.rec,false)&&S.src==='rec'){const t=m.rec.k*MIN;if(view.t0<=t&&t<spanEnd(view.t0,view.span))render();}}};}
+document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible'&&db){loadLocal().then(()=>{if(S.src==='rec'){computeBaseline();render();}});}});
 function openDB(){return new Promise((res,rej)=>{const r=indexedDB.open('sot',1);r.onupgradeneeded=()=>{r.result.createObjectStore('min',{keyPath:'k'});r.result.createObjectStore('meta',{keyPath:'k'});};r.onsuccess=()=>res(r.result);r.onerror=()=>rej(r.error);});}
 async function loadLocal(){try{db=await openDB();const tx=db.transaction('min');const st=tx.objectStore('min');await new Promise((res,rej)=>{const c=st.openCursor();c.onsuccess=()=>{const cur=c.result;if(!cur){res();return;}putRec(cur.value,false);cur.continue();};c.onerror=()=>rej(c.error);});}catch(e){log('Local store unavailable: '+e.message);}}
 function putRec(r,persist){const old=REC.get(r.k);if(old&&old.u>r.u)return false;if(old&&old.s&&!r.s)r.s=old.s;REC.set(r.k,r);tiersDirty=true;if(persist&&db){try{db.transaction('min','readwrite').objectStore('min').put(r);}catch(e){}}return true;}

@@ -47,3 +47,10 @@ Owner reported: data not collecting correctly; view not correct; taps land only 
 - Collection: the loop ran on a 250 ms timer, which Android Chrome throttles to once a minute in the background (theory for the owner's symptom; the fix removes the dependency either way). Frames are now driven by the audio clock, with the timer as fallback. The in-progress minute is shown live every 5 s.
 - Diagnostics: live panel on the Record tab (raw dBFS, calibration, frames per second by source, gaps, audio state, stored/unsynced counts, last packet, mic settings) and an "Upload diagnostics" button that writes sound/data/<device>/diag.json when a token is set.
 Unverified: the owner's phone. "View not correct" is not yet pinned down; the diagnostics exist so the next report carries numbers.
+
+## Build 2.2 — 2026-10-30
+Owner asked: collection must run in the background, as a separate tab, preferably floating on Android.
+- New sound/rec.html: standalone recorder (same minute packets, same local store, same sync). Installable as its own app (rec.webmanifest, icon.svg). "Float as a small window" streams a live meter canvas into a video and opens Android's picture-in-picture, so a small window with dB, minutes and unsynced count stays on top of other apps. Media-session hook asks Chrome to float automatically when the app is sent to the background (theory: depends on Chrome version).
+- Viewer (index.html) links to the recorder, receives each minute live over a same-origin channel, and re-reads the local store whenever it comes back to the front.
+Facts: in the lab the recorder produced minute packets, the floating window opened, and the viewer showed the new minutes. Theory: Chrome on Android keeps a tab with an active microphone running in the background and shows a mic notice; not yet confirmed on the owner's phone.
+Open assumption: the viewer's own "Start recording here" button stays as a convenience; the recorder page is the intended collector.

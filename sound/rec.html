@@ -1,0 +1,249 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#121623">
+<link rel="manifest" href="rec.webmanifest">
+<title>Sound Recorder</title>
+<style>
+:root{--bg:#121623;--bg2:#1a1f2e;--ink:#e6e8ef;--ink2:#9aa1b4;--ink3:#5e6578;--line:#2a3043;--chip:#1f2535;--on:#e6e8ef;--on-ink:#121623;--rec:#ff5a5a}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.4 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif}
+button{font:inherit;color:inherit;background:none;border:0;padding:0;cursor:pointer}
+input{font:inherit}
+main{max-width:520px;margin:0 auto;padding:calc(env(safe-area-inset-top) + 16px) 16px calc(env(safe-area-inset-bottom) + 24px)}
+h1{font-size:17px;font-weight:600;margin:0 0 2px;display:flex;align-items:center;gap:8px}
+h1 i{width:9px;height:9px;border-radius:50%;background:var(--ink3);display:inline-block}
+h1 i.on{background:var(--rec);animation:blink 1.6s infinite}
+@keyframes blink{50%{opacity:.25}}
+.sub{font-size:12.5px;color:var(--ink2);margin-bottom:14px}
+.big{font-size:56px;font-weight:600;letter-spacing:-.03em;line-height:1;margin:8px 0 2px}
+.big small{font-size:18px;color:var(--ink2);font-weight:500;margin-left:4px}
+.meter{height:14px;border-radius:7px;background:var(--chip);overflow:hidden;margin:10px 0 6px}
+.meter i{display:block;height:100%;width:0;background:linear-gradient(90deg,#4a1a78,#e86a38,#fff7cf);transition:width .25s}
+.facts{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin:12px 0}
+.facts div{background:var(--chip);border-radius:12px;padding:10px 12px}
+.facts b{display:block;font-size:19px;font-weight:600;letter-spacing:-.02em}
+.facts span{font-size:12px;color:var(--ink2)}
+.btn{display:block;width:100%;padding:13px;border-radius:12px;background:var(--on);color:var(--on-ink);font-weight:600;margin-top:10px;font-size:15px}
+.btn.ghost{background:var(--chip);color:var(--ink)}
+.btn.rec{background:var(--rec);color:#fff}
+.btn:disabled{opacity:.4}
+.row{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:11px 0;border-bottom:1px solid var(--line)}
+.row .k{font-size:14px}.row .k small{display:block;color:var(--ink2);font-size:12px;margin-top:2px}
+.seg{display:flex;gap:4px;flex-wrap:wrap;justify-content:flex-end}
+.seg button{padding:6px 10px;border-radius:8px;background:var(--chip);font-size:12.5px}
+.seg button.on{background:var(--on);color:var(--on-ink);font-weight:600}
+input[type=range]{width:140px;accent-color:var(--ink)}
+input[type=text],input[type=password]{width:100%;padding:10px 12px;border-radius:10px;border:1px solid var(--line);background:var(--bg);color:var(--ink)}
+.sw{width:44px;height:26px;border-radius:13px;background:var(--chip);position:relative;flex:none}
+.sw::after{content:"";position:absolute;top:3px;left:3px;width:20px;height:20px;border-radius:50%;background:var(--ink2);transition:transform .2s}
+.sw.on{background:var(--on)}.sw.on::after{transform:translateX(18px);background:var(--on-ink)}
+h2{font-size:13px;color:var(--ink2);font-weight:500;margin:22px 0 4px}
+p.note{font-size:12.5px;color:var(--ink2);margin:6px 0 10px}
+.log{font-size:11.5px;color:var(--ink2);background:var(--bg2);border-radius:10px;padding:8px 10px;max-height:160px;overflow:auto;white-space:pre-wrap;word-break:break-word;margin-top:8px}
+#pipWrap{position:fixed;left:-9999px;top:0;width:1px;height:1px;overflow:hidden}
+#pipVideo{width:320px;height:180px}
+</style>
+</head>
+<body>
+<main>
+  <h1><i id="dot"></i>Sound Recorder</h1>
+  <div class="sub">Numbers only, never audio. One packet per minute, kept on this phone and synced to the shared store.</div>
+  <div class="big"><span id="dbNow">—</span><small>dB</small></div>
+  <div class="meter"><i id="meter"></i></div>
+  <div id="line" style="font-size:12.5px;color:var(--ink2)">Microphone off</div>
+  <div class="facts">
+    <div><b id="fMin">0</b><span>minutes on this phone</span></div>
+    <div><b id="fDirty">0</b><span>not yet synced</span></div>
+    <div><b id="fSync">never</b><span>last sync</span></div>
+    <div><b id="fUp">—</b><span>recording for</span></div>
+  </div>
+  <button class="btn rec" id="recBtn">Start recording</button>
+  <button class="btn ghost" id="pipBtn" disabled>Float as a small window</button>
+  <button class="btn ghost" id="syncBtn">Sync now</button>
+  <a class="btn ghost" style="text-align:center;text-decoration:none" href="index.html">Open the viewer</a>
+
+  <h2>How to keep it running</h2>
+  <p class="note" id="howto">Install this page as an app: Chrome menu → Add to Home screen. Open it from the home screen, tap Start recording, then tap Float. The small window stays on top while you use other apps. Chrome shows a microphone notice while it records.</p>
+
+  <h2>Settings</h2>
+  <div class="row"><div class="k">Device name<small>Shown in the shared store</small></div><input type="text" id="devName" style="width:150px" maxlength="20"></div>
+  <div class="row"><div class="k">Calibration<small>Shift until a quiet room reads about 35–40 dB</small></div><input type="range" id="rngCal" min="60" max="130" step="1"></div>
+  <div class="row"><div class="k">Keep screen on while recording</div><button class="sw" id="swWake"></button></div>
+  <div class="row"><div class="k">Auto-sync every</div><div class="seg" id="segSync"><button data-v="0">Off</button><button data-v="5">5 min</button><button data-v="15">15 min</button><button data-v="60">1 h</button></div></div>
+  <div class="row" style="display:block"><div class="k" style="margin-bottom:6px">GitHub token<small>Fine-grained token with Contents read &amp; write on acmeproducts/stuff. Stays on this phone only.</small></div><input type="password" id="tokenIn" placeholder="github_pat_…" autocomplete="off"></div>
+
+  <h2>Diagnostics</h2>
+  <div class="log" id="diag">—</div>
+  <button class="btn ghost" id="diagUp">Upload diagnostics to the shared store</button>
+  <div class="log" id="log">—</div>
+</main>
+<div id="pipWrap"><canvas id="pipCv" width="320" height="180"></canvas><video id="pipVideo" muted playsinline autoplay></video></div>
+
+<script>
+(()=>{
+'use strict';
+const MIN=60000, REPO='acmeproducts/stuff', BRANCH='main', DATA_DIR='sound/data';
+const BANDS=[31.5,63,125,250,500,1000,2000,4000,8000,16000], BAND_L=['31','63','125','250','500','1k','2k','4k','8k','16k'];
+// settings are shared with the viewer (same keys)
+const DEF={cal:100,wake:true,sync:15,devName:'',devId:''};
+let S={};try{S=JSON.parse(localStorage.getItem('sot.settings')||'{}');}catch(e){}
+for(const k in DEF)if(S[k]==null)S[k]=DEF[k];
+if(!S.devId)S.devId=Math.random().toString(36).slice(2,8);
+if(!S.devName)S.devName=/iPhone|iPad/.test(navigator.userAgent)?'iPhone':/Android/.test(navigator.userAgent)?'Android':'Phone';
+const save=()=>{try{const cur=JSON.parse(localStorage.getItem('sot.settings')||'{}');localStorage.setItem('sot.settings',JSON.stringify({...cur,...S}));}catch(e){}};
+save();
+let TOKEN='';try{TOKEN=localStorage.getItem('sot.token')||'';}catch(e){}
+const $=id=>document.getElementById(id);
+function log(m){$('log').textContent=(new Date().toLocaleTimeString()+' '+m+'\n'+$('log').textContent).split('\n').slice(0,60).join('\n');}
+
+// ── local store
+const REC=new Map(); let db=null;
+function openDB(){return new Promise((res,rej)=>{const r=indexedDB.open('sot',1);r.onupgradeneeded=()=>{r.result.createObjectStore('min',{keyPath:'k'});r.result.createObjectStore('meta',{keyPath:'k'});};r.onsuccess=()=>res(r.result);r.onerror=()=>rej(r.error);});}
+async function loadLocal(){try{db=await openDB();await new Promise((res,rej)=>{const c=db.transaction('min').objectStore('min').openCursor();c.onsuccess=()=>{const cur=c.result;if(!cur){res();return;}const r=cur.value;if(!REC.has(r.k)||REC.get(r.k).u<r.u)REC.set(r.k,r);cur.continue();};c.onerror=()=>rej(c.error);});log(`Local store: ${REC.size} minutes.`);}catch(e){log('Local store unavailable: '+e.message);}}
+const chan=('BroadcastChannel' in window)?new BroadcastChannel('sot'):null;
+function putRec(r,persist){const old=REC.get(r.k);if(old&&old.u>r.u)return;REC.set(r.k,r);if(persist&&db){try{db.transaction('min','readwrite').objectStore('min').put(r);}catch(e){}}if(chan)chan.postMessage({type:'minute',rec:{...r,s:undefined},final:!!persist});}
+const dirty=new Set();try{JSON.parse(localStorage.getItem('sot.dirty')||'[]').forEach(k=>dirty.add(k));}catch(e){}
+const saveDirty=()=>{try{localStorage.setItem('sot.dirty',JSON.stringify([...dirty]));}catch(e){}};
+setInterval(saveDirty,5000);
+
+// ── recording
+let recState='off',stream=null,analyser=null,AC=null,proc=null,timer=0,wl=null,buf=null,lastSec=0,startedAt=0;
+let secAcc=new Float64Array(10),secFrames=0,curMinute=-1,minSecs=[],minBands=new Float64Array(10),minSecCount=0,secTrace=[];
+const DIAG={raw:null,L:null,fps:0,lastFrameAt:0,lastSecAt:0,audioFrames:0,timerFrames:0,throttled:0,lastFlush:null,src:'none',pip:'not tried'};
+const bandBins=[];
+async function wakeLock(on){try{if(on&&'wakeLock' in navigator){wl=await navigator.wakeLock.request('screen');wl.onrelease=()=>{wl=null;};}else if(!on&&wl){await wl.release();wl=null;}}catch(e){log('Screen lock not granted: '+e.message);}}
+document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible'&&recState==='on'&&S.wake&&!wl)wakeLock(true);});
+function frame(from){
+  if(recState!=='on'||!analyser)return;
+  const t=Date.now();if(t-DIAG.lastFrameAt<40)return;DIAG.lastFrameAt=t;DIAG[from+'Frames']++;
+  analyser.getFloatFrequencyData(buf);
+  for(let b=0;b<10;b++){let p=0;for(let i=bandBins[b][0];i<=bandBins[b][1];i++){const d=buf[i];if(isFinite(d))p+=Math.pow(10,d/10);}secAcc[b]+=p;}
+  secFrames++;
+  const nowS=Math.floor(t/1000);
+  if(nowS!==lastSec&&secFrames){
+    if(nowS-lastSec>2)DIAG.throttled++;
+    let tot=0;const bd=new Array(10);for(let b=0;b<10;b++){const p=secAcc[b]/secFrames;bd[b]=10*Math.log10(Math.max(1e-12,p))+S.cal;tot+=p;}
+    const raw=10*Math.log10(Math.max(1e-12,tot)),L=raw+S.cal;
+    DIAG.raw=raw;DIAG.L=L;DIAG.fps=secFrames;DIAG.lastSecAt=t;
+    const mk=Math.floor(lastSec/60);
+    if(mk!==curMinute){flush(true);curMinute=mk;minSecs=[];minBands.fill(0);minSecCount=0;secTrace=[];}
+    minSecs.push(L);for(let b=0;b<10;b++)minBands[b]+=Math.pow(10,bd[b]/10);minSecCount++;secTrace[lastSec%60]=Math.round(L);
+    if(minSecCount%5===0)flush(false);
+    secAcc.fill(0);secFrames=0;lastSec=nowS;
+    paint(L,bd);
+  }
+}
+function flush(final){
+  if(curMinute<0||!minSecCount)return;
+  const Ls=[...minSecs].sort((a,b)=>a-b),q=p=>Ls[Math.min(Ls.length-1,Math.floor(p*Ls.length))];
+  const r={k:curMinute,d:S.devId,u:Date.now(),n:minSecCount,L:[q(.1),q(.5),q(.9),Ls[Ls.length-1]].map(Math.round),b:Array.from(minBands,p=>Math.round(10*Math.log10(Math.max(1e-12,p/minSecCount)))),s:secTrace.slice()};
+  putRec(r,final);if(final){dirty.add(curMinute);DIAG.lastFlush=r;}
+}
+async function start(){
+  try{stream=await navigator.mediaDevices.getUserMedia({audio:{echoCancellation:false,noiseSuppression:false,autoGainControl:false}});}
+  catch(e){log('Microphone refused: '+e.message);return;}
+  AC=new (window.AudioContext||window.webkitAudioContext)();await AC.resume();
+  const src=AC.createMediaStreamSource(stream);analyser=AC.createAnalyser();analyser.fftSize=4096;analyser.smoothingTimeConstant=0;src.connect(analyser);
+  const binHz=AC.sampleRate/analyser.fftSize;bandBins.length=0;
+  for(const f of BANDS){const lo=Math.max(1,Math.round(f/1.4142/binHz)),hi=Math.min(analyser.frequencyBinCount-1,Math.round(f*1.4142/binHz));bandBins.push([lo,Math.max(lo,hi)]);}
+  buf=new Float32Array(analyser.frequencyBinCount);secAcc.fill(0);secFrames=0;curMinute=-1;lastSec=Math.floor(Date.now()/1000);startedAt=Date.now();
+  DIAG.audioFrames=DIAG.timerFrames=DIAG.throttled=0;
+  try{proc=AC.createScriptProcessor(4096,1,1);const sink=AC.createGain();sink.gain.value=0;analyser.connect(proc);proc.connect(sink);sink.connect(AC.destination);proc.onaudioprocess=()=>frame('audio');DIAG.src='audio clock + timer';}
+  catch(e){DIAG.src='timer only';log('Audio clock unavailable: '+e.message);}
+  timer=setInterval(()=>frame('timer'),250);
+  recState='on';$('dot').className='on';$('recBtn').textContent='Stop recording';$('pipBtn').disabled=!document.pictureInPictureEnabled;
+  if(S.wake)wakeLock(true);
+  const tr=stream.getAudioTracks()[0],st=tr.getSettings?tr.getSettings():{};
+  log(`Recording: ${AC.sampleRate} Hz, mic "${tr.label||'?'}", AGC ${st.autoGainControl}, NS ${st.noiseSuppression}.`);
+  try{navigator.mediaSession.metadata=new MediaMetadata({title:'Sound Recorder',artist:'recording'});}catch(e){}
+  startPipStream();
+}
+function stop(){flush(true);clearInterval(timer);recState='off';if(proc){try{proc.disconnect();}catch(e){}proc=null;}if(stream)stream.getTracks().forEach(t=>t.stop());stream=null;if(AC)AC.close();AC=null;wakeLock(false);
+  $('dot').className='';$('recBtn').textContent='Start recording';$('line').textContent='Microphone off';$('meter').style.width='0';$('dbNow').textContent='—';$('pipBtn').disabled=true;
+  if(document.pictureInPictureElement)document.exitPictureInPicture().catch(()=>{});log('Recording stopped.');}
+$('recBtn').onclick=()=>recState==='off'?start():stop();
+
+// ── the floating window: a small canvas streamed into a video, shown with picture-in-picture
+const pcv=$('pipCv'),pctx=pcv.getContext('2d'),pv=$('pipVideo');
+let pipStream=null;
+function startPipStream(){try{if(!pipStream){pipStream=pcv.captureStream(2);pv.srcObject=pipStream;}pv.play().catch(()=>{});}catch(e){DIAG.pip='canvas stream failed: '+e.message;}}
+function paint(L,bd){
+  const own=[...REC.values()].filter(r=>r.d===S.devId).length;
+  $('dbNow').textContent=L.toFixed(0);$('meter').style.width=Math.max(0,Math.min(100,(L-20)/80*100))+'%';
+  $('line').textContent=`loudest band ${BAND_L[bd.indexOf(Math.max(...bd))]} Hz · ${minSecCount} s into this minute`;
+  $('fMin').textContent=own;$('fDirty').textContent=dirty.size;
+  const up=Date.now()-startedAt;$('fUp').textContent=up<3600000?Math.floor(up/60000)+' min':(up/3600000).toFixed(1)+' h';
+  // floating window content
+  pctx.fillStyle='#121623';pctx.fillRect(0,0,320,180);
+  const v=Math.max(0,Math.min(1,(L-20)/80));
+  pctx.fillStyle='#1f2535';pctx.fillRect(16,120,288,22);
+  const g=pctx.createLinearGradient(16,0,304,0);g.addColorStop(0,'#4a1a78');g.addColorStop(.6,'#e86a38');g.addColorStop(1,'#fff7cf');
+  pctx.fillStyle=g;pctx.fillRect(16,120,288*v,22);
+  pctx.fillStyle='#e6e8ef';pctx.font='600 64px system-ui,sans-serif';pctx.textBaseline='alphabetic';pctx.fillText(L.toFixed(0),16,96);
+  pctx.font='500 20px system-ui,sans-serif';pctx.fillStyle='#9aa1b4';pctx.fillText('dB',16+pctx.measureText(L.toFixed(0)).width*3.2+8,96);
+  pctx.fillText(`${own} min · ${dirty.size} unsynced`,16,166);
+  pctx.fillStyle='#ff5a5a';pctx.beginPath();pctx.arc(296,28,7,0,6.283);pctx.fill();
+}
+paint(0,new Array(10).fill(0));
+$('pipBtn').onclick=async()=>{try{startPipStream();await pv.play();await pv.requestPictureInPicture();DIAG.pip='floating';log('Floating window opened.');}catch(e){DIAG.pip='failed: '+e.message;log('Floating window failed: '+e.message);}};
+pv.addEventListener('leavepictureinpicture',()=>{DIAG.pip='closed';});
+try{navigator.mediaSession.setActionHandler('enterpictureinpicture',()=>{pv.requestPictureInPicture().catch(()=>{});});}catch(e){}
+$('pipBtn').disabled=true;
+if(!document.pictureInPictureEnabled)$('howto').textContent='This browser cannot float a window. Install the page as an app (Chrome menu → Add to Home screen), start recording, and leave it open; Chrome shows a microphone notice while it records.';
+
+// ── sync
+const API='https://api.github.com/repos/'+REPO+'/contents/';
+const hdr=()=>({Authorization:'Bearer '+TOKEN,Accept:'application/vnd.github+json','X-GitHub-Api-Version':'2022-11-28'});
+async function ghGet(path){const r=await fetch(API+path+'?ref='+BRANCH+'&t='+Date.now(),{headers:TOKEN?hdr():{Accept:'application/vnd.github+json'}});if(r.status===404)return null;if(!r.ok)throw new Error('GET '+path+' → '+r.status);const j=await r.json();return{sha:j.sha,json:JSON.parse(decodeURIComponent(escape(atob(j.content.replace(/\n/g,'')))))};}
+async function ghPut(path,obj,sha,msg){const body={message:msg,branch:BRANCH,content:btoa(unescape(encodeURIComponent(JSON.stringify(obj))))};if(sha)body.sha=sha;const r=await fetch(API+path,{method:'PUT',headers:{...hdr(),'Content-Type':'application/json'},body:JSON.stringify(body)});if(!r.ok)throw new Error('PUT '+path+' → '+r.status+' '+(await r.text()).slice(0,120));return (await r.json()).content.sha;}
+const dayOf=k=>{const d=new Date(k*MIN);return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');};
+const pack=r=>[r.u,r.n,...r.L,...r.b];
+let syncing=false,lastSync=0;
+async function syncNow(){
+  if(syncing)return;if(!TOKEN){log('No token: add a GitHub token first.');return;}
+  syncing=true;$('syncBtn').textContent='Syncing…';
+  try{
+    const byDay=new Map();for(const k of dirty){const r=REC.get(k);if(!r||r.d!==S.devId)continue;const dy=dayOf(k);if(!byDay.has(dy))byDay.set(dy,[]);byDay.get(dy).push(r);}
+    let pushed=0;
+    for(const [dy,recs] of byDay){const path=`${DATA_DIR}/${S.devId}/${dy}.json`;
+      for(let attempt=0;attempt<2;attempt++){try{const cur=await ghGet(path);const file=cur?cur.json:{dev:S.devId,name:S.devName,day:dy,m:{}};
+        for(const r of recs){const old=file.m[r.k];if(!old||old[0]<=r.u)file.m[r.k]=pack(r);}file.name=S.devName;file.updated=Date.now();
+        await ghPut(path,file,cur&&cur.sha,`sound: ${S.devName} ${dy} (${recs.length} min) [skip ci]`);recs.forEach(r=>dirty.delete(r.k));pushed+=recs.length;break;}catch(e){if(attempt)throw e;}}}
+    for(let attempt=0;attempt<2;attempt++){try{const cur=await ghGet(DATA_DIR+'/index.json');const idx=cur?cur.json:{devices:{}};
+      const me=idx.devices[S.devId]||{name:S.devName,days:[]};me.name=S.devName;me.updated=Date.now();
+      const days=new Set(me.days);for(const r of REC.values())if(r.d===S.devId)days.add(dayOf(r.k));me.days=[...days].sort();
+      idx.devices[S.devId]=me;await ghPut(DATA_DIR+'/index.json',idx,cur&&cur.sha,`sound: index ${S.devName} [skip ci]`);break;}catch(e){if(attempt)throw e;}}
+    saveDirty();lastSync=Date.now();$('fSync').textContent=new Date().toLocaleTimeString([], {hour:'numeric',minute:'2-digit'});$('fDirty').textContent=dirty.size;
+    log(`Synced ${pushed} minutes across ${byDay.size} day file(s).`);
+  }catch(e){log('Sync failed: '+e.message);}
+  syncing=false;$('syncBtn').textContent='Sync now';
+}
+$('syncBtn').onclick=syncNow;
+let autoTimer=0;function setupAutoSync(){clearInterval(autoTimer);if(S.sync>0)autoTimer=setInterval(()=>{if(dirty.size&&TOKEN)syncNow();},S.sync*60000);}
+
+// ── settings UI
+$('devName').value=S.devName;$('devName').onchange=e=>{S.devName=e.target.value.trim()||S.devName;save();};
+$('rngCal').value=S.cal;$('rngCal').oninput=e=>{S.cal=+e.target.value;save();};
+$('swWake').classList.toggle('on',!!S.wake);$('swWake').onclick=()=>{S.wake=!S.wake;$('swWake').classList.toggle('on',S.wake);save();if(recState==='on')wakeLock(S.wake);};
+$('segSync').querySelectorAll('button').forEach(b=>{b.classList.toggle('on',String(S.sync)===b.dataset.v);b.onclick=()=>{S.sync=+b.dataset.v;save();$('segSync').querySelectorAll('button').forEach(x=>x.classList.toggle('on',x===b));setupAutoSync();};});
+$('tokenIn').value=TOKEN;$('tokenIn').onchange=e=>{TOKEN=e.target.value.trim();try{localStorage.setItem('sot.token',TOKEN);}catch(x){}log(TOKEN?'Token saved on this phone.':'Token cleared.');};
+
+// ── diagnostics
+function diagText(){const f=DIAG.lastFlush;return [
+  `state ${recState} · source ${DIAG.src} · visible ${document.visibilityState} · screen lock ${wl?'held':'off'} · float ${DIAG.pip}${document.pictureInPictureElement?' (open)':''}`,
+  `now raw ${DIAG.raw==null?'—':DIAG.raw.toFixed(1)} dBFS + cal ${S.cal} = ${DIAG.L==null?'—':DIAG.L.toFixed(0)} dB · ${DIAG.fps} frames last second · audio ${DIAG.audioFrames} / timer ${DIAG.timerFrames} · gaps over 2 s: ${DIAG.throttled}`,
+  `audio ${AC?AC.state+' '+AC.sampleRate+' Hz':'closed'} · last second ${DIAG.lastSecAt?Math.round((Date.now()-DIAG.lastSecAt)/1000)+' s ago':'—'} · installed ${matchMedia('(display-mode: standalone)').matches?'yes':'no (browser tab)'}`,
+  `stored ${REC.size} minutes (${[...REC.values()].filter(r=>r.d===S.devId).length} from this phone) · unsynced ${dirty.size} · local store ${db?'ok':'unavailable'} · token ${TOKEN?'set':'none'}`,
+  f?`last minute ${new Date(f.k*MIN).toLocaleTimeString()}: ${f.n} s, L90/L50/L10/max ${f.L.join('/')} dB, bands ${f.b.join(' ')}`:'last minute —',
+  `device ${S.devName} (${S.devId}) · ${navigator.userAgent.slice(0,90)}`].join('\n');}
+setInterval(()=>{$('diag').textContent=diagText();},2000);
+$('diagUp').onclick=async()=>{if(!TOKEN){log('No token: add a GitHub token first.');return;}try{const path=`${DATA_DIR}/${S.devId}/diag.json`;const cur=await ghGet(path);await ghPut(path,{at:new Date().toString(),page:'rec',text:diagText(),log:$('log').textContent,settings:S,sample:[...REC.values()].filter(r=>r.d===S.devId).slice(-30).map(r=>({...r,s:undefined}))},cur&&cur.sha,`sound: diagnostics ${S.devName} [skip ci]`);log('Diagnostics uploaded.');}catch(e){log('Diagnostics upload failed: '+e.message);}};
+
+(async()=>{await loadLocal();$('fMin').textContent=[...REC.values()].filter(r=>r.d===S.devId).length;$('fDirty').textContent=dirty.size;setupAutoSync();$('diag').textContent=diagText();})();
+})();
+</script>
+</body>
+</html>
