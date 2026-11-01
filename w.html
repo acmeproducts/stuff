@@ -1,0 +1,269 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <title>Mobile Web</title>
+    <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
+    <style>
+        :root {
+            --bg-color: #f3f4f6;
+            --icon-size: 4rem; /* 64px */
+        }
+        body { 
+            background-color: var(--bg-color);
+            touch-action: manipulation; 
+        }
+        .mobile-shell {
+            width: 100vw; height: 100vh;
+            display: flex; flex-direction: column;
+            overflow: hidden; position: relative;
+        }
+        #app-wrapper {
+            display: none;
+        }
+        #app-wrapper.active {
+            display: flex;
+        }
+        .app-icon-container { width: var(--icon-size); height: var(--icon-size); }
+        .app-icon img, .app-icon svg { width: 100%; height: 100%; object-fit: cover; }
+        .last-launched { box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.5); }
+        #configPanel { transition: transform 0.3s ease; transform: translateY(100%); }
+        #configPanel.active { transform: translateY(0); }
+    </style>
+</head>
+<body class="flex items-center justify-center">
+
+<div class="mobile-shell bg-white">
+    <main class="flex-1 relative">
+        <div id="homeScreen" class="absolute inset-0 p-4 pt-8 overflow-y-auto">
+            <button id="configBtn" class="absolute top-4 right-4 text-gray-500">
+                <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"></circle><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path></svg>
+            </button>
+            <div id="iconGrid" class="grid grid-cols-4 gap-y-6 gap-x-4">
+                <!-- Icons will be injected here -->
+            </div>
+        </div>
+        
+        <div id="app-wrapper" class="absolute inset-0 flex-col">
+            <div id="appTitleBar" class="bg-gray-100 p-2 text-center text-sm font-semibold flex-shrink-0 flex items-center justify-between">
+                 <span class="flex-1 text-center"></span>
+                 <button id="closeAppBtn" class="text-gray-500 font-bold text-lg leading-none p-1">✕</button>
+            </div>
+            <div id="appContainer" class="flex-1">
+                 <!-- iframes for each app will be added here -->
+            </div>
+        </div>
+    </main>
+    
+    <div id="configPanel" class="absolute bottom-0 left-0 right-0 bg-white p-4 border-t-2 rounded-t-lg z-10 shadow-lg">
+        <h3 class="font-bold text-center mb-4">Settings</h3>
+        <div class="space-y-4">
+            <div>
+                <label for="bgColor" class="block text-sm">Background Color</label>
+                <input type="color" id="bgColor" class="w-full h-8 p-0 border-none rounded">
+            </div>
+            <div>
+                <label for="iconSize" class="block text-sm">Icon Size: <span id="iconSizeLabel">64</span>px</label>
+                <input type="range" id="iconSize" min="48" max="96" value="64" class="w-full">
+            </div>
+        </div>
+        <button id="closeConfigBtn" class="absolute top-2 right-2 text-gray-500">✕</button>
+    </div>
+    
+    <nav class="bg-white border-t h-12 flex items-center justify-around flex-shrink-0">
+         <button id="cycleButton" class="w-12 h-12 flex items-center justify-center text-gray-600 rounded-full hover:bg-gray-100">
+            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 4 23 10 17 10"></polyline><polyline points="1 20 1 14 7 14"></polyline><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"></path></svg>
+         </button>
+         <button id="homeButton" class="w-12 h-12 flex items-center justify-center text-gray-600 rounded-full hover:bg-gray-100">
+            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path><polyline points="9 22 9 12 15 12 15 22"></polyline></svg>
+         </button>
+         <button id="backButton" class="w-12 h-12 flex items-center justify-center text-gray-600 rounded-full hover:bg-gray-100">
+            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"></polyline></svg>
+         </button>
+    </nav>
+</div>
+
+<script>
+    const links = [{"title":"watch.html","url":"https://acmeproducts.github.io/stuff/watch.html","fileId":null,"included":true,"order":0,"source":"github","mic":false,"iconUrl":null,"id":1},{"title":"evolve.html","url":"https://acmeproducts.github.io/stuff/evolve.html","fileId":null,"included":true,"order":1,"source":"github","mic":false,"iconUrl":null,"id":2},{"title":"bridge-turn29-pre-ship.html","url":"https://acmeproducts.github.io/stuff/bridge-turn29-pre-ship.html","fileId":null,"included":true,"order":2,"source":"github","mic":false,"iconUrl":null,"id":3},{"title":"groove.html","url":"https://acmeproducts.github.io/stuff/groove.html","fileId":null,"included":true,"order":3,"source":"github","mic":false,"iconUrl":null,"id":4},{"title":"love.html","url":"https://acmeproducts.github.io/stuff/love.html","fileId":null,"included":true,"order":4,"source":"github","mic":false,"iconUrl":null,"id":5},{"title":"mob.html","url":"https://acmeproducts.github.io/stuff/mob.html","fileId":null,"included":true,"order":6,"source":"github","mic":false,"iconUrl":null,"id":7},{"title":"particlelife.html","url":"https://acmeproducts.github.io/stuff/particlelife.html","fileId":null,"included":true,"order":7,"source":"github","mic":false,"iconUrl":null,"id":8},{"title":"roll.html","url":"https://acmeproducts.github.io/stuff/roll.html","fileId":null,"included":true,"order":8,"source":"github","mic":false,"iconUrl":null,"id":9},{"title":"chat-test.html","url":"https://acmeproducts.github.io/stuff/chat-test.html","fileId":null,"included":true,"order":9,"source":"github","mic":false,"iconUrl":null,"id":14},{"title":"chat-usage.html","url":"https://acmeproducts.github.io/stuff/chat-usage.html","fileId":null,"included":true,"order":10,"source":"github","mic":false,"iconUrl":null,"id":15},{"title":"serene.html","url":"https://acmeproducts.github.io/stuff/serene.html","fileId":null,"included":true,"order":11,"source":"github","mic":false,"iconUrl":null,"id":12},{"title":"PIX","url":"https://acmeproducts.github.io/perf/ui-v2.html","fileId":null,"included":true,"order":11,"source":"custom","mic":false,"iconUrl":null,"id":16},{"title":"circle","url":"https://acmeproducts.github.io/stuff/projects/circle-menu.html?cb=1792911622286","fileId":null,"included":true,"order":12,"source":"custom","mic":false,"iconUrl":null,"id":17}];
+    const files = {};
+    const blobUrls = new Map();
+    
+    let runningApps = []; // Stores link.id of running apps
+    let currentAppIndex = -1;
+    let lastLaunchedId = null;
+
+    const homeScreen = document.getElementById('homeScreen');
+    const appWrapper = document.getElementById('app-wrapper');
+    const appContainer = document.getElementById('appContainer');
+    const appTitleSpan = document.querySelector('#appTitleBar span');
+    const closeAppBtn = document.getElementById('closeAppBtn');
+    const iconGrid = document.getElementById('iconGrid');
+    const homeButton = document.getElementById('homeButton');
+    const cycleButton = document.getElementById('cycleButton');
+    const backButton = document.getElementById('backButton');
+    const configBtn = document.getElementById('configBtn');
+    const closeConfigBtn = document.getElementById('closeConfigBtn');
+    const configPanel = document.getElementById('configPanel');
+
+    // --- Core App Logic ---
+    function base64ToArrayBuffer(base64) {
+        const binary_string = window.atob(base64);
+        const bytes = new Uint8Array(binary_string.length);
+        for (let i = 0; i < binary_string.length; i++) {
+            bytes[i] = binary_string.charCodeAt(i);
+        }
+        return bytes.buffer;
+    }
+
+    function getFileUrl(fileId) {
+        if (blobUrls.has(fileId)) return blobUrls.get(fileId);
+        const fileData = files[fileId];
+        if (!fileData) return null;
+        const buffer = base64ToArrayBuffer(fileData.content);
+        const blob = new Blob([buffer], { type: fileData.type });
+        const url = URL.createObjectURL(blob);
+        blobUrls.set(fileId, url);
+        return url;
+    }
+
+    function showApp(link) {
+        document.querySelectorAll('#appContainer iframe').forEach(frame => frame.style.display = 'none');
+        const frame = document.getElementById(`iframe-${link.id}`);
+        if(frame) {
+            frame.style.display = 'block';
+            appTitleSpan.textContent = link.title;
+            homeScreen.style.display = 'none';
+            appWrapper.classList.add('active');
+            lastLaunchedId = link.id;
+        }
+    }
+    
+    function launchApp(link) {
+        let frame = document.getElementById(`iframe-${link.id}`);
+        if (!frame) { // Create if it doesn't exist (lazy load)
+            frame = document.createElement('iframe');
+            frame.id = `iframe-${link.id}`;
+            frame.className = 'w-full h-full border-0';
+            const url = link.fileId ? getFileUrl(link.fileId) : link.url;
+            frame.src = url;
+            if(link.mic) frame.allow = 'microphone';
+            appContainer.appendChild(frame);
+            runningApps.push(link.id);
+        }
+        currentAppIndex = runningApps.indexOf(link.id);
+        showApp(link);
+    }
+
+    function goHome() {
+        homeScreen.style.display = 'block';
+        appWrapper.classList.remove('active');
+        highlightLastLaunched();
+    }
+    
+    function closeCurrentApp() {
+        const appIdToClose = runningApps[currentAppIndex];
+        if (appIdToClose === undefined) return goHome();
+
+        const frame = document.getElementById(`iframe-${appIdToClose}`);
+        if (frame) frame.remove();
+        
+        runningApps.splice(currentAppIndex, 1);
+        currentAppIndex = -1;
+        goHome();
+    }
+    
+    function highlightLastLaunched() {
+        document.querySelectorAll('.app-icon').forEach(icon => icon.classList.remove('last-launched'));
+        if(lastLaunchedId) {
+            const iconToHighlight = document.querySelector(`[data-link-id="${lastLaunchedId}"] .app-icon`);
+            if (iconToHighlight) {
+                iconToHighlight.classList.add('last-launched');
+            }
+        }
+    }
+
+    function cycleApps() {
+        if (runningApps.length === 0) return;
+        currentAppIndex = (currentAppIndex + 1) % runningApps.length;
+        const nextAppId = runningApps[currentAppIndex];
+        const nextAppLink = links.find(l => l.id === nextAppId);
+        if (nextAppLink) {
+            showApp(nextAppLink);
+        }
+    }
+    
+    // --- UI Setup ---
+    links.forEach(link => {
+        const iconContainer = document.createElement('div');
+        iconContainer.className = 'flex flex-col items-center gap-1';
+        iconContainer.dataset.linkId = link.id;
+        
+        const iconEl = document.createElement('div');
+        iconEl.className = 'app-icon app-icon-container bg-gray-100 rounded-xl shadow-md overflow-hidden cursor-pointer';
+        
+        if (link.iconUrl) {
+            iconEl.innerHTML = `<img src="${link.iconUrl}" onerror="this.onerror=null;this.src='data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAyNCAyNCIgZmlsbD0iY3VycmVudENvbG9yIiBjbGFzcz0idy1mdWxsIGgtZnVsbCI+PHBhdGggZD0iTTEyLjM3OCAxLjYwMmEuNzUuNzUgMCAwMC0uNzU2IDBMMy4zNjYgNi4xMjZBLjc1Ljc1IDAgMDAzIDYuODI4djEwLjM0NGEuNzUuNzUgMCAwMC4zNjYuNjQ2bDguMjU2IDQuNTI0YS43NS43NSAwIDAwLjc1NiAwbDguMjU2LTQuNTI0YS43NS43NSAwIDAwLjM2Ni0uNjQ2VjYuODI4YS43NS43NSAwIDAwLS4zNjYtLjY0NkwxMi4zNzggMS42MDJ6TTEyIDE1LjI1YTMuMjUgMy4yNSAwIDEwMC02LjUgMy4yNSAzLjI1IDAgMDAwIDYuNXoiIC8+PHBhdGggZD0iTTEyIDMuODRhOC43NTMgOC43NTMgMCAwMTQuMjggMS4yNTVsLTMuNzIgMi4wMzVhMy4yNTMgMy4yNTMgMCAwMC0xLjEyIDBMNy43MiA1LjA5NUE4Ljc1MyA4Ljc1MyAwIDAxMTIgMy44NHpNNC41IDcuMzMxbDMuNzIgMi4wMzVhMy4yNSAzLjI1IDAgMDAwIDUuMjY4bC0zLjcyIDIuMDM1VjcuMzMxem0xNSAwdjcuMzM4bC0zLjcyLTIuMDM1YTMuMjUgMy4yNSAwIDAwMC01LjI2OGwzLjcyLTIuMDM1ek04LjQ0IDE2LjkwNWwzLjU2LTEuOTQ1YS43NS43NSAwIDEwLS43NS0xLjNsLTMuNTYgMS45NDVhOC43NTMgOC43NTMgMCAwMS0xLjI4LS42OTVsMy43Mi0yLjAzNWEzLjI1IDMuMjUgMCAwMDAtNS4yNjhMNy4xNiA1LjA5NWE4Ljc1MyA4Ljc1MyAwIDAxLTEuMjguNjk1TDkuNiA3LjczNWEuNzUuNzUgMCAxMC43NSAxLjNsLTMuNzItMi4wMzVhOC43NTMgOC43NTMgMCAwMTAgOC41OThsMy43Mi0yLjAzNWEuNzUuNzUgMCAxMC43NSAxLjNsLTMuNzIgMi4wMzV6bTcuMTItMTEuODFhOC43NTMgOC43NTMgMCAwMTEuMjguNjk1bC0zLjcyIDIuMDM1YS43NS43NSAwIDEwLS43NSAxLjNsMy43Mi0yLjAzNWE4Ljc1MyA4Ljc1MyAwIDAxMCA4LjU5OGwtMy43Mi0yLjAzNWEuNzUuNzUgMCAxMC0uNzUgMS4zbDMuNzIgMi4wMzVhOC43NTMgOC43NTMgMCAwMS0xLjI4LjY5NWwtMy43Mi0yLjAzNWEzLjI1IDMuMjUgMCAwMDAtNS4yNjhsMy43Mi0yLjAzNXoiIC8+PC9zdmc+'" alt="${link.title}" class="w-full h-full object-cover">`;
+        } else {
+            iconEl.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" class="w-full h-full"><path d="M12.378 1.602a.75.75 0 00-.756 0L3.366 6.126A.75.75 0 003 6.828v10.344a.75.75 0 00.366.646l8.256 4.524a.75.75 0 00.756 0l8.256-4.524a.75.75 0 00.366-.646V6.828a.75.75 0 00-.366-.646L12.378 1.602zM12 15.25a3.25 3.25 0 100-6.5 3.25 3.25 0 000 6.5z" /><path d="M12 3.84a8.753 8.753 0 014.28 1.255l-3.72 2.035a3.253 3.253 0 00-1.12 0L7.72 5.095A8.753 8.753 0 0112 3.84zM4.5 7.331l3.72 2.035a3.25 3.25 0 000 5.268l-3.72 2.035V7.331zm15 0v7.338l-3.72-2.035a3.25 3.25 0 000-5.268l3.72-2.035zM8.44 16.905l3.56-1.945a.75.75 0 10-.75-1.3l-3.56 1.945a8.753 8.753 0 01-1.28-.695l3.72-2.035a3.25 3.25 0 000-5.268L7.16 5.095a8.753 8.753 0 01-1.28.695L9.6 7.735a.75.75 0 10.75 1.3l-3.72-2.035a8.753 8.753 0 010 8.598l3.72-2.035a.75.75 0 10.75 1.3l-3.72 2.035zm7.12-11.81a8.753 8.753 0 011.28.695l-3.72 2.035a.75.75 0 10-.75 1.3l3.72-2.035a8.753 8.753 0 010 8.598l-3.72-2.035a.75.75 0 10-.75 1.3l3.72 2.035a8.753 8.753 0 01-1.28.695l-3.72-2.035a3.25 3.25 0 000-5.268l3.72-2.035z" /></svg>`;
+        }
+        
+        iconEl.addEventListener('click', () => launchApp(link));
+        
+        const titleEl = document.createElement('span');
+        titleEl.className = 'text-xs text-center truncate w-full px-1';
+        titleEl.textContent = link.title;
+
+        iconContainer.appendChild(iconEl);
+        iconContainer.appendChild(titleEl);
+        iconGrid.appendChild(iconContainer);
+    });
+
+    // --- Settings Logic ---
+    const bgColorInput = document.getElementById('bgColor');
+    const iconSizeInput = document.getElementById('iconSize');
+    const iconSizeLabel = document.getElementById('iconSizeLabel');
+
+    function applySettings() {
+        const bgColor = localStorage.getItem('mobweb_bgColor') || '#ffffff';
+        const iconSize = localStorage.getItem('mobweb_iconSize') || '64';
+        
+        document.querySelector('.mobile-shell').style.backgroundColor = bgColor;
+        document.documentElement.style.setProperty('--icon-size', `${iconSize}px`);
+
+        bgColorInput.value = bgColor;
+        iconSizeInput.value = iconSize;
+        iconSizeLabel.textContent = iconSize;
+    }
+
+    bgColorInput.addEventListener('input', (e) => {
+        localStorage.setItem('mobweb_bgColor', e.target.value);
+        applySettings();
+    });
+
+    iconSizeInput.addEventListener('input', (e) => {
+        localStorage.setItem('mobweb_iconSize', e.target.value);
+        applySettings();
+    });
+
+    configBtn.addEventListener('click', () => configPanel.classList.add('active'));
+    closeConfigBtn.addEventListener('click', () => configPanel.classList.remove('active'));
+
+    // --- Event Listeners ---
+    homeButton.addEventListener('click', goHome);
+    closeAppBtn.addEventListener('click', closeCurrentApp);
+    cycleButton.addEventListener('click', cycleApps);
+    backButton.addEventListener('click', () => {
+        try { 
+            const activeFrame = document.querySelector('#appContainer iframe[style*="display: block"]');
+            if(activeFrame) activeFrame.contentWindow.history.back();
+        } catch (e) { console.warn("Can't go back.", e); }
+    });
+
+    // --- Initial Load ---
+    applySettings();
+
+</script>
+
+</body>
+</html>
