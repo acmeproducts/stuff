@@ -54,3 +54,9 @@ Owner asked: collection must run in the background, as a separate tab, preferabl
 - Viewer (index.html) links to the recorder, receives each minute live over a same-origin channel, and re-reads the local store whenever it comes back to the front.
 Facts: in the lab the recorder produced minute packets, the floating window opened, and the viewer showed the new minutes. Theory: Chrome on Android keeps a tab with an active microphone running in the background and shows a mic notice; not yet confirmed on the owner's phone.
 Open assumption: the viewer's own "Start recording here" button stays as a convenience; the recorder page is the intended collector.
+
+## Build 2.3 — 2026-11-01
+Owner reported: the floating window does not survive opening the viewer; requirement is to collect and view at the same time.
+Cause (fact): the recorder's "Open the viewer" link replaced the recorder page, ending its recording. Also, Android only shows a floating window while Chrome is in the background, so a second Chrome tab can never sit beside it.
+Change: the viewer is now the collector. Record tab has Start recording and Float; recording keeps running while every view is used; the header shows the live dB next to the red dot; the float appears when you leave the app. The page remembers that recording was on and resumes it on reopen (banner "Tap to resume recording" if the browser needs a tap). Installable (app.webmanifest). rec.html stays as a meter-only option and opens the viewer in a new tab.
+Lab: recorded while switching span/shape, float opened, auto-resume after reload. Not yet on the owner's phone.

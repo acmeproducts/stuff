@@ -4,6 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
 <meta name="theme-color" content="#121623">
+<link rel="manifest" href="app.webmanifest">
 <title>Sound of Time</title>
 <style>
 :root{
@@ -117,7 +118,7 @@ p.note{font-size:12.5px;color:var(--ink2);margin:6px 0 10px;line-height:1.45}
   <header>
     <button id="up" class="rb" aria-label="Zoom out"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 18l-6-6 6-6"/></svg></button>
     <button id="crumb"><div class="big">—</div><div class="small">—</div></button>
-    <i id="recDot"></i>
+    <span id="recLive" style="font-size:12px;color:var(--ink2);display:none;flex:none"></span><i id="recDot"></i>
     <button id="playBtn" class="rb" aria-label="Play"><svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M7 4l12 8-12 8z"/></svg></button>
     <button id="moreBtn" class="rb" aria-label="Settings"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M4 7h16M4 12h16M4 17h16"/></svg></button>
   </header>
@@ -129,6 +130,8 @@ p.note{font-size:12.5px;color:var(--ink2);margin:6px 0 10px;line-height:1.45}
   <div id="status">—</div>
 </div>
 
+<div id="resume" style="display:none;position:fixed;left:12px;right:12px;top:calc(env(safe-area-inset-top) + 60px);z-index:7;background:var(--rec);color:#fff;border-radius:12px;padding:12px 14px;font-weight:600;text-align:center">Tap to resume recording</div>
+<div id="pipWrap" style="position:fixed;left:-9999px;top:0;width:1px;height:1px;overflow:hidden"><canvas id="pipCv" width="320" height="180"></canvas><video id="pipVideo" muted playsinline autoplay style="width:320px;height:180px"></video></div>
 <div id="scrim"></div>
 <div id="drawer">
   <button class="drow" data-pick="span"><span>Span</span><b id="dSpan">—</b></button>
@@ -193,9 +196,9 @@ p.note{font-size:12.5px;color:var(--ink2);margin:6px 0 10px;line-height:1.45}
 
   <div class="pane" id="pane-record">
     <p class="note">Recording keeps numbers only, never audio: one packet per minute (loudness, peaks, 10 bands) saved on this phone, then synced to the shared store in GitHub so another phone can view it. Keep this tab open and the screen on while recording.</p>
-    <a class="big-btn" style="text-align:center;text-decoration:none" href="rec.html">Open the recorder (runs on its own, can float)</a>
-    <p class="note">For all-day collection use the recorder page: install it from the Chrome menu (Add to Home screen), start it, and tap Float. The button below records inside this viewer instead, while it stays open.</p>
-    <button class="big-btn rec" id="recBtn">Start recording here</button>
+    <button class="big-btn rec" id="recBtn">Start recording</button>
+    <button class="big-btn ghost" id="pipBtn" disabled>Float as a small window</button>
+    <p class="note">Recording keeps going while you look at the data here. When you leave the app, the small window keeps the live level on top of other apps. Install this page as an app (Chrome menu → Add to Home screen) so it reopens straight into recording.</p>
     <div class="meter"><i id="meterFill"></i></div>
     <div id="meterTxt" style="font-size:12.5px;color:var(--ink2)">Microphone off</div>
     <div class="row"><div class="k">Device name<small>Shown in the shared store</small></div><input type="text" id="devName" style="width:150px" maxlength="20"></div>
@@ -745,6 +748,7 @@ function frame(from){
     DIAG.raw=raw;DIAG.L=L;DIAG.fps=secFrames;DIAG.lastSecAt=t;
     document.getElementById('meterFill').style.width=Math.max(0,Math.min(100,(L-20)/80*100))+'%';
     document.getElementById('meterTxt').textContent=`${L.toFixed(0)} dB now · ${REC.size.toLocaleString()} minutes stored · loudest band ${BAND_L[bd.indexOf(Math.max(...bd))]} Hz`;
+    document.getElementById('recLive').textContent=L.toFixed(0)+' dB';paintPip(L);
     const mk=Math.floor(lastSec/60);
     if(mk!==curMinute){flushMinute(true);curMinute=mk;minSecs=[];minBands.fill(0);minSecCount=0;secTrace=[];}
     minSecs.push(L);for(let b=0;b<10;b++)minBands[b]+=Math.pow(10,bd[b]/10);minSecCount++;secTrace[lastSec%60]=Math.round(L);
@@ -762,7 +766,10 @@ async function startRec(){
   for(const f of BANDS){const lo=Math.max(1,Math.round(f/1.4142/binHz)),hi=Math.min(analyser.frequencyBinCount-1,Math.round(f*1.4142/binHz));bandBins.push([lo,Math.max(lo,hi)]);}
   secAcc=new Float64Array(10);secFrames=0;curMinute=-1;recState='on';buf=new Float32Array(analyser.frequencyBinCount);lastSec=Math.floor(Date.now()/1000);
   DIAG.frames=DIAG.audioFrames=DIAG.timerFrames=DIAG.throttled=0;
-  document.getElementById('recBtn').textContent='Stop recording';document.getElementById('recDot').className='on';
+  document.getElementById('recBtn').textContent='Stop recording';document.getElementById('recDot').className='on';document.getElementById('recLive').style.display='';document.getElementById('pipBtn').disabled=!document.pictureInPictureEnabled;
+  try{localStorage.setItem('sot.wantRec','1');}catch(e){}
+  try{navigator.mediaSession.metadata=new MediaMetadata({title:'Sound of Time',artist:'recording'});}catch(e){}
+  startPipStream();
   if(S.wake)wakeLock(true);
   // audio-clock driven frames keep going when the tab is in the background; the timer is a fallback
   try{proc=recAC.createScriptProcessor(4096,1,1);const sink=recAC.createGain();sink.gain.value=0;analyser.connect(proc);proc.connect(sink);sink.connect(recAC.destination);proc.onaudioprocess=()=>frame('audio');DIAG.src='audio clock + timer';}
@@ -778,13 +785,36 @@ function flushMinute(final){
   putRec(r,!!final);if(final){dirty.add(curMinute);DIAG.lastFlush=r;}
   if(S.src==='rec'&&view.t0<=curMinute*MIN&&curMinute*MIN<spanEnd(view.t0,view.span))render();
 }
-function stopRec(){flushMinute(true);clearInterval(recTimer);recState='off';if(proc){try{proc.disconnect();}catch(e){}proc=null;}if(stream)stream.getTracks().forEach(t=>t.stop());stream=null;if(recAC)recAC.close();recAC=null;wakeLock(false);
+function stopRec(){try{localStorage.setItem('sot.wantRec','0');}catch(e){}document.getElementById('recLive').style.display='none';document.getElementById('pipBtn').disabled=true;if(document.pictureInPictureElement)document.exitPictureInPicture().catch(()=>{});flushMinute(true);clearInterval(recTimer);recState='off';if(proc){try{proc.disconnect();}catch(e){}proc=null;}if(stream)stream.getTracks().forEach(t=>t.stop());stream=null;if(recAC)recAC.close();recAC=null;wakeLock(false);
   document.getElementById('recBtn').textContent='Start recording';document.getElementById('recDot').className='';document.getElementById('meterTxt').textContent='Microphone off';document.getElementById('meterFill').style.width='0';log('Recording stopped.');render();}
 function pauseRec(p){if(recState==='off')return;if(p){flushMinute(true);curMinute=-1;recState='paused';document.getElementById('recDot').className='paused';}else{recState='on';document.getElementById('recDot').className='on';}render();}
+// floating window: a small meter canvas streamed into a video shown with picture-in-picture
+const pcv=document.getElementById('pipCv'),pctx=pcv.getContext('2d'),pv=document.getElementById('pipVideo');let pipStream=null;
+function startPipStream(){try{if(!pipStream){pipStream=pcv.captureStream(2);pv.srcObject=pipStream;}pv.play().catch(()=>{});}catch(e){DIAG.pip='canvas stream failed: '+e.message;}}
+function paintPip(L){
+  const own=[...REC.values()].filter(r=>r.d===S.devId).length;
+  pctx.fillStyle='#121623';pctx.fillRect(0,0,320,180);
+  const v=Math.max(0,Math.min(1,(L-20)/80));pctx.fillStyle='#1f2535';pctx.fillRect(16,120,288,22);
+  const g=pctx.createLinearGradient(16,0,304,0);g.addColorStop(0,'#4a1a78');g.addColorStop(.6,'#e86a38');g.addColorStop(1,'#fff7cf');pctx.fillStyle=g;pctx.fillRect(16,120,288*v,22);
+  pctx.fillStyle='#e6e8ef';pctx.font='600 64px system-ui,sans-serif';pctx.fillText(L.toFixed(0),16,96);
+  pctx.font='500 20px system-ui,sans-serif';pctx.fillStyle='#9aa1b4';pctx.fillText('dB',16+pctx.measureText(L.toFixed(0)).width*3.2+8,96);
+  pctx.fillText(`${own} min · ${dirty.size} unsynced`,16,166);pctx.fillStyle='#ff5a5a';pctx.beginPath();pctx.arc(296,28,7,0,6.283);pctx.fill();
+}
+DIAG.pip='not tried';
+document.getElementById('pipBtn').onclick=async()=>{try{startPipStream();await pv.play();await pv.requestPictureInPicture();DIAG.pip='floating';log('Floating window opened.');}catch(e){DIAG.pip='failed: '+e.message;log('Floating window failed: '+e.message);}};
+pv.addEventListener('leavepictureinpicture',()=>{DIAG.pip='closed';});
+try{navigator.mediaSession.setActionHandler('enterpictureinpicture',()=>{pv.requestPictureInPicture().catch(()=>{});});}catch(e){}
+// reopen straight into recording when the app comes back
+async function autoResume(){
+  let want=false;try{want=localStorage.getItem('sot.wantRec')==='1';}catch(e){}
+  if(!want||recState!=='off')return;
+  try{await startRec();}catch(e){}
+  if(recState==='off'||(recAC&&recAC.state!=='running')){const b=document.getElementById('resume');b.style.display='';b.onclick=async()=>{b.style.display='none';if(recState==='off')await startRec();else if(recAC)await recAC.resume();};}
+}
 function diagText(){
   const f=DIAG.lastFlush;
   return [
-    `state ${recState} · source ${DIAG.src} · visible ${document.visibilityState} · screen lock ${wl?'held':'off'}`,
+    `state ${recState} · source ${DIAG.src} · visible ${document.visibilityState} · screen lock ${wl?'held':'off'} · float ${DIAG.pip}${document.pictureInPictureElement?' (open)':''} · installed ${matchMedia('(display-mode: standalone)').matches?'yes':'no'}`,
     `now raw ${DIAG.raw==null?'—':DIAG.raw.toFixed(1)} dBFS + cal ${S.cal} = ${DIAG.L==null?'—':DIAG.L.toFixed(0)} dB · ${DIAG.fps} frames last second · audio ${DIAG.audioFrames} / timer ${DIAG.timerFrames} · gaps over 2 s: ${DIAG.throttled}`,
     `audio ${recAC?recAC.state+' '+recAC.sampleRate+' Hz':'closed'} · last second ${DIAG.lastSecAt?Math.round((Date.now()-DIAG.lastSecAt)/1000)+' s ago':'—'}`,
     `stored ${REC.size} minutes (${[...REC.values()].filter(r=>r.d===S.devId).length} from this phone) · unsynced ${dirty.size} · local store ${db?'ok':'unavailable'} · token ${TOKEN?'set':'none'}`,
@@ -868,7 +898,8 @@ window.addEventListener('resize',resize);
 if(window.visualViewport)visualViewport.addEventListener('resize',resize);
 if('ResizeObserver' in window)new ResizeObserver(()=>{const r=cv.getBoundingClientRect();if(Math.abs(r.width-W)>1||Math.abs(r.height-H)>1)resize();}).observe(document.getElementById('stage'));
 resize();
-(async()=>{await loadLocal();await loadShared();setupAutoSync();if(S.src==='rec'){computeBaseline();render();}})();
+paintPip(0);
+(async()=>{await loadLocal();autoResume();await loadShared();setupAutoSync();if(S.src==='rec'){computeBaseline();render();}})();
 })();
 </script>
 </body>
