@@ -72,3 +72,13 @@ Owner asked: all four new shapes, as mytime.html; data persists locally and sync
 - Settings live under their own key; device id, name and calibration are shared with Sound of Time; the local minute store is shared (same phone, same data).
 Lab: all shapes render at day/year/life; helix tap selects; sunburst inner-ring tap drills; terrain shows the live column while recording. Not yet on the owner's phone.
 Open assumption: Terrain always uses the 10 bands for height regardless of the Show setting (Show still picks colour elsewhere). Override me if wrong.
+
+## My Time — build 2 — 2026-11-02
+Owner said: continue the build-out. Six more shapes, each chosen for what it tells:
+- Treemap: real calendar proportions (a 31-day month is wider than February).
+- Calendar grid: time-of-day across, days down (year = 24 × 365 hours; decade = days by year; life = weeks by year; day = minutes by hour). Weekly rhythm, fixed-time events and gaps all line up in columns and rows.
+- Serpentine: one line snaking back and forth; neighbours stay neighbours.
+- Tree rings: one ring per group, thickness by loudness.
+- Sphere: groups as latitude, cells as longitude; back side dimmed; drag to spin.
+- Torus: groups around the ring, cells around the tube; two cycles on one surface.
+Lab: all six render at the spans tested (year, month, decade, life, day) without errors; the year calendar grid is 8,760 cells in 157 ms. Not yet on the owner's phone.

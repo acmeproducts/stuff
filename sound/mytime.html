@@ -387,6 +387,7 @@ function computeBaseline(){const v=[];if(S.src==='rec'){for(const r of REC.value
 
 // ───────────────────────── view model
 function cellUnitFor(spanId,t0,res){
+  if(S.shape==='clock'){return({minute:'second',hour:'second',day:'minute',week:'hour',month:'hour',year:'hour',decade:'day',life:'week'})[spanId];}
   const si=UI[spanId]; const spanLen=spanEnd(t0,spanId)-t0;
   let ci=si-1; if(spanId==='life')ci=UI.year;
   while(ci>0&&spanLen/UNITS[ci-1].ms<=MAX_CELLS)ci--;
@@ -399,7 +400,8 @@ function buildCells(){
   while(t<end){const n=stepUnit(t,cu,1);cells.push({a:t,b:Math.min(n,end),i:idx++});t=n;}
   const NAT={second:'minute',minute:'hour',hour:'day',day:'month',week:'year',month:'year',year:'decade'};
   let gi=NAT[cu]?UI[NAT[cu]]:-1; const spanLen=end-view.t0;
-  while(gi>=0&&gi<UI[spanId]&&spanLen/UNITS[gi].ms>80)gi++;
+  if(S.shape==='clock'){gi=UI[({second:'minute',minute:'hour',hour:'day',day:'year',week:'year'})[cu]];}
+  else while(gi>=0&&gi<UI[spanId]&&spanLen/UNITS[gi].ms>80)gi++;
   if(gi>=UI[spanId]&&spanId!=='life')gi=-1; if(gi>=0&&UNITS[gi].id==='life')gi=-1;
   let groups=[];
   if(gi>=0){const gu=UNITS[gi].id;let g=[];let gEnd=stepUnit(alignDown(view.t0,gu),gu,1);for(const c of cells){if(c.a>=gEnd){groups.push(g);g=[];gEnd=stepUnit(gEnd,gu,1);}g.push(c);}if(g.length)groups.push(g);}
@@ -460,7 +462,7 @@ function render(){
   model=buildCells(); hit=[];
   ctx.fillStyle=getVar('--bg');ctx.fillRect(0,0,W,H);
   const sc=makeScaler(model.cells);
-  extra=[];({tiles:drawTiles,rows:drawRows,ring:drawRing,spiral:drawSpiral,hilbert:drawHilbert,sunburst:drawSunburst,terrain:drawTerrain,helix:drawHelix})[S.shape](model,sc);
+  extra=[];({tiles:drawTiles,rows:drawRows,ring:drawRing,spiral:drawSpiral,hilbert:drawHilbert,sunburst:drawSunburst,terrain:drawTerrain,helix:drawHelix,treemap:drawTreemap,clock:drawClock,serpentine:drawSerpentine,rings:drawRings,sphere:drawSphere,torus:drawTorus})[S.shape](model,sc);
   if(selected!=null)drawSelection(selected);
   if(playIdx>=0)drawSelection(playIdx,true);
   updateCrumb(); updateStatus(performance.now()-t1);
@@ -606,6 +608,63 @@ function drawHelix(m,sc){
   for(const {p,q} of proj){const sz=Math.max(1,base*q[2]*0.25*(0.6+p.v));ctx.fillStyle=p.fill;ctx.beginPath();ctx.arc(q[0],q[1],sz/2,0,6.283);ctx.fill();hit.push({i:p.i,pt:true,x:q[0],y:q[1],r:Math.max(8,sz)});}
   if(G>1&&G<=40){ctx.fillStyle=getVar('--ink3');ctx.font='11px system-ui';let kk=0;m.groups.forEach((g,gi)=>{const q=project(R*1.4,-height/2+height*(kk/Math.max(1,N-1)),0);if(q&&(G<=14||gi%Math.ceil(G/12)===0))ctx.fillText(rangeLabel(g[0].a,g[0].b,UNITS[UI[m.cu]+1]?UNITS[UI[m.cu]+1].id:m.cu).split(',')[0].slice(0,12),q[0],q[1]);kk+=g.length;});}
 }
+// ── Treemap: groups sliced along the long side by real duration, cells along the other
+function drawTreemap(m,sc){
+  const aw=W-PAD*2,ah=H-PAD*2,port=ah>aw,gg=Math.min(S.ggap,4),gap=S.gap;
+  const G=m.groups,tot=G.reduce((s,g)=>s+(g[g.length-1].b-g[0].a),0);
+  let off=0;
+  G.forEach(g=>{const dur=g[g.length-1].b-g[0].a,frac=dur/tot;
+    const gx=port?PAD:PAD+off*aw,gy=port?PAD+off*ah:PAD,gw=port?aw:frac*aw-gg,gh=port?frac*ah-gg:ah;
+    const n=g.length;let cc=port?Math.min(n,Math.max(1,Math.round(Math.sqrt(n*gw/Math.max(1,gh))))):Math.max(1,Math.round(Math.sqrt(n*gw/Math.max(1,gh))));
+    if(n>=28&&n<=31)cc=port?7:Math.max(1,Math.round(n/4));if(n===24)cc=port?6:4;if(n===60)cc=port?10:6;if(n===7)cc=7;
+    const cr=Math.ceil(n/cc),g2=Math.min(gap,gw/cc*0.3,gh/cr*0.3),cw=(gw-(cc-1)*g2)/cc,ch=(gh-(cr-1)*g2)/cr;
+    g.forEach((c,k)=>paintRect(c,sc,gx+(k%cc)*(cw+g2),gy+Math.floor(k/cc)*(ch+g2),cw,ch));
+    off+=frac;});
+}
+// ── Calendar grid: x = position inside the group, y = group
+function drawClock(m,sc){
+  const G=m.groups.length,aw=W-PAD*2,ah=H-PAD*2-14,rh=ah/G,gap=G>200?0:Math.min(S.gap,rh*0.2);
+  const per=Math.max(...m.groups.map(g=>g.length));const cw=aw/per;
+  m.groups.forEach((g,gi)=>{const y=PAD+14+gi*rh;
+    g.forEach((c,k)=>{if(gi===0)k+=per-g.length;paintRect(c,sc,PAD+k*cw,y,Math.max(0.5,cw-(per>60?0:gap)),Math.max(0.5,rh-gap));});});
+  ctx.fillStyle=getVar('--ink3');ctx.font='11px system-ui';
+  const labels=per===24?[0,6,12,18].map(h=>[h,(h%12||12)+(h<12?' am':' pm')]):per===60?[0,15,30,45].map(x=>[x,String(x)]):per>=52?[0,13,26,39].map(w=>[w,['Jan','Apr','Jul','Oct'][w/13]]):per>=365?[0,91,182,274].map((d,i)=>[d,['Jan','Apr','Jul','Oct'][i]]):[];
+  labels.forEach(([k,l])=>ctx.fillText(l,PAD+k*cw,PAD+10));
+}
+// ── Serpentine: rows that alternate direction
+function drawSerpentine(m,sc){
+  const N=m.cells.length,aw=W-PAD*2,ah=H-PAD*2;let cols=Math.max(1,Math.round(Math.sqrt(N*aw/ah)));const rows=Math.ceil(N/cols);
+  const cs=Math.min(aw/cols,ah/rows),ox=(W-cols*cs)/2,oy=(H-rows*cs)/2,gap=Math.min(S.gap,cs*0.25);
+  m.cells.forEach((c,i)=>{const r=Math.floor(i/cols);let k=i%cols;if(r%2)k=cols-1-k;paintRect(c,sc,ox+k*cs+gap/2,oy+r*cs+gap/2,cs-gap,cs-gap);});
+}
+// ── Tree rings: one ring per group, thickness by loudness
+function drawRings(m,sc){
+  const cx=W/2,cy=H/2,R=Math.min(W,H)/2-PAD,start=-Math.PI/2;
+  const w=m.groups.map(g=>{const rec=g.filter(c=>!c.nodata&&c.future<0.999);const v=rec.length?rec.reduce((s,c)=>s+Math.max(0,Math.min(1,sc.lvl(c,c.L50))),0)/rec.length:0;return 0.35+v;});
+  const tot=w.reduce((a,b)=>a+b,0);let r=R*0.08;
+  m.groups.forEach((g,gi)=>{const th=(R-R*0.08)*w[gi]/tot,n=g.length,per=2*Math.PI/n;
+    g.forEach((c,k)=>paintArc(c,sc,cx,cy,r,r+th-Math.min(S.ggap*0.15,th*0.3),start+k*per,start+(k+1)*per+0.002));r+=th;});
+}
+// ── Sphere: groups = latitude bands, cells = longitude
+function drawSphere(m,sc){
+  const G=m.groups.length,R=26,pts=[];
+  m.groups.forEach((g,gi)=>{const lat=(-80+160*((gi+0.5)/G))*Math.PI/180,n=g.length;
+    g.forEach((c,j)=>{const lon=(j/n)*2*Math.PI,vv=cellV(c,sc);pts.push({x:Math.cos(lat)*Math.cos(lon)*R,y:Math.sin(lat)*R,z:Math.cos(lat)*Math.sin(lon)*R,fill:vv.fill,i:c.i,v:vv.v});});});
+  drawPoints(pts,m.cells.length,R,true);
+}
+// ── Torus: groups around the ring, cells around the tube
+function drawTorus(m,sc){
+  const G=m.groups.length,Rb=24,rt=9,pts=[];
+  m.groups.forEach((g,gi)=>{const th=(gi/G)*2*Math.PI,n=g.length;
+    g.forEach((c,j)=>{const ph=(j/n)*2*Math.PI,vv=cellV(c,sc),r=rt*(0.7+0.6*vv.v);pts.push({x:(Rb+r*Math.cos(ph))*Math.cos(th),y:r*Math.sin(ph),z:(Rb+r*Math.cos(ph))*Math.sin(th),fill:vv.fill,i:c.i,v:vv.v});});});
+  drawPoints(pts,m.cells.length,Rb+rt,false);
+}
+function drawPoints(pts,N,R,dimBack){
+  const proj=pts.map(p=>({p,q:project(p.x,p.y,p.z)})).filter(o=>o.q).sort((a,b)=>b.q[3]-a.q[3]);
+  const base=Math.max(1.2,Math.min(8,2600/N))*S.gamma;
+  for(const {p,q} of proj){const back=dimBack&&q[3]>cam.dist;const sz=Math.max(1,base*q[2]*0.25*(0.6+p.v));ctx.globalAlpha=back?0.18:1;ctx.fillStyle=p.fill;ctx.beginPath();ctx.arc(q[0],q[1],sz/2,0,6.283);ctx.fill();if(!back)hit.push({i:p.i,pt:true,x:q[0],y:q[1],r:Math.max(8,sz)});}
+  ctx.globalAlpha=1;
+}
 function drawSelection(i,play){
   const h=hit.find(h=>h.i===i);if(!h)return;
   ctx.save();ctx.strokeStyle=getVar('--sel');ctx.lineWidth=play?2:1.5;
@@ -637,8 +696,8 @@ function rangeLabel(a,b,unit){
   return fmtD(a)+' → '+fmtD(b-1);
 }
 const SPANS=[['minute','Minute'],['hour','Hour'],['day','Day'],['week','Week'],['month','Month'],['year','Year'],['decade','Decade'],['life','Life']];
-const SHAPES=[['tiles','Tiles','Nested grid, like the concept piece'],['rows','Rows','One row per group, like a seismograph'],['ring','Ring','One lap around the circle'],['spiral','Spiral','One turn per group'],['hilbert','Hilbert','One square at every scale; any quarter of it is one stretch of time'],['sunburst','Sunburst','Nested rings from the span down to its finest cells; tap an inner ring to open it'],['terrain','Terrain','A 3D sheet: time across, the 10 bands deep, loudness as height. Drag to orbit, pinch to zoom'],['helix','Helix','A 3D coil, one turn per group, loud cells pushed outward. Drag to orbit']];
-const IS3D=()=>S.shape==='terrain'||S.shape==='helix';
+const SHAPES=[['tiles','Tiles','Nested grid, like the concept piece'],['rows','Rows','One row per group, like a seismograph'],['ring','Ring','One lap around the circle'],['spiral','Spiral','One turn per group'],['hilbert','Hilbert','One square at every scale; any quarter of it is one stretch of time'],['sunburst','Sunburst','Nested rings from the span down to its finest cells; tap an inner ring to open it'],['terrain','Terrain','A 3D sheet: time across, the 10 bands deep, loudness as height. Drag to orbit, pinch to zoom'],['helix','Helix','A 3D coil, one turn per group, loud cells pushed outward. Drag to orbit'],['treemap','Treemap','Nested boxes with true calendar proportions: a 31-day month is wider than a 28-day one'],['clock','Calendar grid','Time of day across, days down: everything at 2 pm lands in one column'],['serpentine','Serpentine','One line that snakes back and forth, so neighbours stay neighbours at the turns'],['rings','Tree rings','One ring per group, thick when loud, like a trunk'],['sphere','Sphere','Groups as latitude bands, cells around the globe. Drag to spin'],['torus','Torus','Groups around the ring, cells around the tube: two cycles on one surface, no seam']];
+const IS3D=()=>['terrain','helix','sphere','torus'].includes(S.shape);
 const CONTENTS=[['loud','Loudness','Typical level of each cell'],['bed','Bed + sparks','Quiet floor, with a spark wherever it passed 85 dB'],['tone','Tone','Warm = low rumble, cool = voices and hiss; brightness = loudness'],['bands','10 bands','Each cell striped by octave band, low at the bottom'],['gaps','Coverage','How much of each cell was recorded']];
 const SCALES=[['abs','Absolute','20 dB dark → 100 dB bright'],['rel','Relative to you','Your own median is the midpoint'],['pct','Percentile','Rank within this view'],['share','Share %','Each cell as a share of the whole view']];
 const GLYPHS=[['dot','Dot'],['square','Square'],['bar','Bar'],['rect','Fill']];
