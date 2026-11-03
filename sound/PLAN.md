@@ -112,3 +112,11 @@ Owner: the original concentric model needs a preset; pinch should traverse lifet
 - Listening already set-and-forget: start once, auto-resume on reopen, continues through View and Configure.
 Open assumption: in 3D shapes a two-finger pinch now travels time rather than moving the camera; override me if wrong.
 Lab: preset applied; pinch ladder in and out verified; playback at 1 hour/s ran to live. Not yet on the owner's phone.
+
+## My Time — build 5 — 2026-11-03
+Owner showed sndwiz's radial field (Bass Reactor, 150×150, continuous pinch) as what Listen and the default View should look like.
+- Listen: full-screen sndwiz radial field driven by the mic (spectrum lifts columns, level raises amplitude, beats flash), auto-quality 60–150 points per side, drag to orbit, pinch/wheel to zoom; a translucent card at the bottom holds dB, Start/Stop, minutes, unsynced, listening time; settings and diagnostics scroll below.
+- View: new default shape "Radial sheet": the same dense field, but rings outward are the groups (hours of a day, months of a year, years of a life), each ring a lap of its cells, height = loudness, ripple animated, unrecorded flat/hatched colour, unlived flat and dim, the current cell's ring swells with the live mic. New palette "Reactor" (the green). Presets: Concentric life (radial), Today radial, flat sunburst kept.
+- Pinch in 3D shapes is a continuous camera zoom; closing in past a threshold opens the next rung under your fingers and resets the camera, pulling far zooms a rung out. Wheel does the same. 2D shapes keep the step pinch.
+- Playback on the radial sheet grows the surface outward (unbuilt rings flat and dark) and hands the edge to the live mic when it reaches now.
+Lab: default day radial, life radial, pinch in (year → month → week) and out, listen field with fake mic, playback build. Not yet on the owner's phone.
