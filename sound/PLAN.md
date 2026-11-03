@@ -60,3 +60,15 @@ Owner reported: the floating window does not survive opening the viewer; require
 Cause (fact): the recorder's "Open the viewer" link replaced the recorder page, ending its recording. Also, Android only shows a floating window while Chrome is in the background, so a second Chrome tab can never sit beside it.
 Change: the viewer is now the collector. Record tab has Start recording and Float; recording keeps running while every view is used; the header shows the live dB next to the red dot; the float appears when you leave the app. The page remembers that recording was on and resumes it on reopen (banner "Tap to resume recording" if the browser needs a tap). Installable (app.webmanifest). rec.html stays as a meter-only option and opens the viewer in a new tab.
 Lab: recorded while switching span/shape, float opened, auto-resume after reload. Not yet on the owner's phone.
+
+## My Time — build 1 — 2026-11-02 (sound/mytime.html)
+Owner asked: all four new shapes, as mytime.html; data persists locally and syncs to GitHub like the original; the zoom runs decades → decade → year → month → day → hour → minute; shapes are not limited to circle and square.
+- Same engine as Sound of Time (recording, local store, sync, scales, glyphs, playback) plus four shapes:
+  - Hilbert: one square at every scale; any quarter is one contiguous stretch of time; fitted to the used area.
+  - Sunburst: up to three inner rings of coarser units (life: decades, years, then weeks); tap an inner wedge to open that unit.
+  - Terrain: 3D surface, time across, 10 bands deep, loudness as height; drag to orbit, pinch to zoom; a red live column at the right edge while recording (the sndwiz join).
+  - Helix: 3D coil, one turn per group, loud cells pushed outward; drag to orbit.
+- Taps select on release so drags orbit without selecting. Terrain buckets to ≤360 columns, so a tap reports the first cell and how many it stands for.
+- Settings live under their own key; device id, name and calibration are shared with Sound of Time; the local minute store is shared (same phone, same data).
+Lab: all shapes render at day/year/life; helix tap selects; sunburst inner-ring tap drills; terrain shows the live column while recording. Not yet on the owner's phone.
+Open assumption: Terrain always uses the 10 bands for height regardless of the Show setting (Show still picks colour elsewhere). Override me if wrong.
