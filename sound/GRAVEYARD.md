@@ -8,3 +8,4 @@
 - Sparks on L10−L90 spread: every day sparked. Sparks now mean a peak over 85 dB.
 - Floating picture-in-picture meter in My Time: buried 2026-11-02, owner reports it doesn't work on the phone; the Listen sheet is the live view instead.
 - Top drawer + bottom settings sheet in My Time: replaced by the left rail with three sheets.
+- My Time v1 (fourteen shapes, rail, sub-menus, SVG/ABC exports): archived 2026-11-03 as archive-mytime-v1.html; owner asked to start over on the sndwiz donor. Exports beyond PNG/Share can return on request.

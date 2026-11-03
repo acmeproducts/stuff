@@ -120,3 +120,13 @@ Owner showed sndwiz's radial field (Bass Reactor, 150×150, continuous pinch) as
 - Pinch in 3D shapes is a continuous camera zoom; closing in past a threshold opens the next rung under your fingers and resets the camera, pulling far zooms a rung out. Wheel does the same. 2D shapes keep the step pinch.
 - Playback on the radial sheet grows the surface outward (unbuilt rings flat and dark) and hands the edge to the live mic when it reaches now.
 Lab: default day radial, life radial, pinch in (year → month → week) and out, listen field with fake mic, playback build. Not yet on the owner's phone.
+
+## My Time — v2, build 1 — 2026-11-03 (started over on the donor)
+Owner: start over and build the core around sndwiz (projects/sndwiz.html). Listening while the sheet undulates is distracting: the visual shows what was picked up, the audio tells the story. A handle must hide the panel completely for a full-screen sensor. Keep it fully configurable like the original.
+- sound/mytime.html is now the donor file plus: a Live / History switch at the top of the Controls sheet; History maps the donor grid to the span (Radial: rings outward are the groups, a lap is the cells; Wave/Noise: rows are groups, columns are cells), height = loudness, colour from the donor LUT; Speed is forced to 0 when entering History so nothing undulates (raise it if you want it); the live cell swells with the mic.
+- Pinch is the donor camera zoom; in History, pushing in past the near limit opens the next rung under your fingers (life → decade → year → month → day → hour → minute), pulling past the far limit zooms a rung out; Out and Now buttons too. Double-tap resets the camera (donor). Tap a point for its time and level in the status line.
+- Listening: the donor's mic path now also writes one packet per minute (local IndexedDB, GitHub sync, auto-sync, token, device name, calibration) and resumes on reopen.
+- Play history: the story at Real time, ×2…×600, an hour/day/week/month per second, then live; unbuilt points lie flat and dim while it plays.
+- Controls sheet: donor presets (Calm Sea, Storm, Bass Reactor) plus Save-as presets kept on the phone and in the cloud; donor sliders unchanged; Horizon, Years ahead, History scale, Data source; PNG and Share; × on the grab bar hides the sheet completely, ⚙ brings it back.
+- Previous build archived as sound/archive-mytime-v1.html (not linked).
+Lab: live field, history day/year radial, life wave, pinch rungs in and out, hide/show, listening with fake mic, playback at an hour per second. Not yet on the owner's phone.
