@@ -182,3 +182,4 @@ Everything else: TBD.
 | 2026-10-30 | Main | built projects/cassette.md | Plan sync: ledger corrected to show the portrait lock already shipped in 3881cb2; R5 gates marked met; next build queued — synthesized tape hiss during play and deck-engage thunk on PLAY/STOP as fallback until real sound files are added to projects/sounds/. |  |
 | 2026-10-30 01:09 | Main | built projects/cassette.html | The intro screen is gone — the app now opens straight on the deck: a paper-label cassette (no counter, no digital readouts, no diagnostics p | deca968 |
 | 2026-10-30 21:39 | Main | built projects/cassette.html | Fixed orientation lock for Walkman and restyled transport buttons to look like physical, tactile keys. | f654e85 |
+| 2026-11-03 00:52 | Main | built projects/cassette.html | Adjusted layout so the cassette player fills the whole screen in portrait and uses full width in landscape. | 4a50966 |
