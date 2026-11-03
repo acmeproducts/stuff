@@ -82,3 +82,12 @@ Owner said: continue the build-out. Six more shapes, each chosen for what it tel
 - Sphere: groups as latitude, cells as longitude; back side dimmed; drag to spin.
 - Torus: groups around the ring, cells around the tube; two cycles on one surface.
 Lab: all six render at the spans tested (year, month, decade, life, day) without errors; the year calendar grid is 8,760 cells in 157 ms. Not yet on the owner's phone.
+
+## My Time — build 3 — 2026-11-02
+Owner asked: stop separating recording from showing; the small-window scheme doesn't work; three sheets (Listen, View, Configure) on a left rail with a hamburger fixed top-left, rail closes completely; View gets share / print / save as SVG, JPG, PNG, ABC; Configure gets true presets plus custom saves on the device and in the cloud.
+- Rail: hamburger top-left → Listen, View, Configure. View section of the rail holds Span/Shape/Show/Scale picks, Now / Zoom out / Summary, and the exports.
+- Listen sheet: big live dB, meter, minutes stored, unsynced, last sync, listening time, Start/Stop, Sync, device, calibration, wake lock, auto-sync, token, diagnostics. Listening runs while View and Configure are used; the header keeps the red dot and live dB.
+- Exports: Share (system share sheet with the PNG), Print (print-only image), PNG, JPG, SVG (true vector: the same draw code records rects, arcs, paths and text; hatching as a pattern), ABC (the view as a tune: up to 64 notes, louder = higher on a pentatonic scale, rests for unrecorded).
+- Presets: 8 built-ins; custom saves keep span, shape, show, scale, colours, glyphs, gaps, horizon; stored on the phone (localStorage) and merged into sound/data/presets.json by name, last update wins; deletions propagate.
+- Floating window and auto-float removed from My Time (Sound of Time keeps its version).
+Lab: rail/panels work; listening ran while in Configure; preset Year patterns applied; custom preset saved; PNG/JPG/SVG/ABC files downloaded, SVG re-rendered identically. Share and Print cannot be exercised in the lab. Not yet on the owner's phone.

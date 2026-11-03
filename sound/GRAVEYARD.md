@@ -6,3 +6,5 @@
 - Hue-per-band rainbow as the default colour: buried, owner read it as random. Colour now encodes intensity only.
 - Bottom chip rails for Span/Shape/Show/Scale: replaced by the top drawer with popup picks.
 - Sparks on L10−L90 spread: every day sparked. Sparks now mean a peak over 85 dB.
+- Floating picture-in-picture meter in My Time: buried 2026-11-02, owner reports it doesn't work on the phone; the Listen sheet is the live view instead.
+- Top drawer + bottom settings sheet in My Time: replaced by the left rail with three sheets.
