@@ -1,6 +1,6 @@
 # TalkBridge device log
 
-Both handsets write here. Drained 2026-11-03T08:52:07Z, every 30s. Newest at the bottom.
+Both handsets write here. Drained 2026-11-03T08:52:40Z, every 30s. Newest at the bottom.
 
 ```
 06:18:07.281 [android-flz] chat_sent {"t":"到这个应用程序"}
