@@ -66,6 +66,15 @@
   .sfxrow .fn{flex:1;text-align:right;opacity:.65;font-size:12px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0;}
   .sfxrow button{flex:none;min-width:0;padding:6px 10px;border-radius:8px;border:2px solid #3a4a7a;background:#16224a;color:#fff;font-size:14px;cursor:pointer;}
   .sfxrow.has .fn{color:#8cff5a;opacity:1;}
+  body.tiny #hud2,body.tiny #flowbar,body.tiny #hint,body.tiny #diag,body.tiny #hud .best{display:none!important;}
+  body.tiny #hud .score{font-size:20px;padding:0 8px;}
+  body.tiny #btnSettings{width:30px;height:30px;font-size:15px;top:calc(env(safe-area-inset-top,0px) + 4px);right:calc(env(safe-area-inset-right,0px) + 4px);}
+  body.tiny #flipmult{top:calc(env(safe-area-inset-top,0px) + 30px);}
+  body.tiny .dlg .card{padding:12px 12px;width:calc(100vw - 16px);}
+  body.tiny .dlg h2{font-size:18px;margin-bottom:4px;}body.tiny .dlg p{font-size:12px;margin:4px 0 8px;}
+  body.tiny #pauseClock{font-size:28px;}body.tiny .okb{padding:9px 20px;font-size:15px;}
+  body.tiny #overlay h1{font-size:20px;}body.tiny #overlay .big{font-size:30px;}body.tiny #overlay p{font-size:12px;}
+  body.tiny #replayUI{gap:4px;padding:5px 6px;}body.tiny #replayUI .opt{padding:6px 8px;font-size:12px;}body.tiny #replayUI #repLabel{min-width:0;font-size:11px;}
   #hint{position:fixed;bottom:calc(env(safe-area-inset-bottom,0px) + 24px);left:50%;transform:translateX(-50%);
     max-width:calc(100vw - 24px);text-align:center;pointer-events:none;color:#fff;font-size:14px;
     background:rgba(0,0,0,.45);padding:6px 14px;border-radius:20px;z-index:5;
@@ -110,6 +119,8 @@
   <h3>Intensity</h3><div class="row"><button class="opt" data-preset="low">Low</button><button class="opt" data-preset="med">Med</button><button class="opt" data-preset="high">High</button><button class="opt" data-preset="custom">Custom</button></div>
   <div class="slr"><span>Jump</span><input type="range" id="jumpForce" min="400" max="2000" step="50"><span class="v" id="jumpVal"></span></div>
   <h3>Character</h3><div class="row" id="charRow"></div>
+  <h3>View</h3><div class="row"><button class="opt" data-view="auto">Auto</button><button class="opt" data-view="scroll">Scrolling</button><button class="opt" data-view="fixed">Fixed height</button></div>
+  <div style="font-size:12px;opacity:.7;max-width:420px">Fixed height never scrolls up or down (needed on a watch; Auto picks it for tiny screens).</div>
   <h3>Momentum</h3><div class="row"><button class="opt" data-momentum="earned">Earned</button><button class="opt" data-momentum="classic">Classic</button></div>
   <div class="slr"><span>Feel</span><input type="range" id="momentumTune" min="0" max="100" step="1"><span class="v" id="tuneVal"></span></div>
   <div id="tuneProfile" style="font-size:12px;opacity:.75;max-width:420px"></div>
@@ -168,6 +179,10 @@ function recSample(){
   rec.samples.push([rec.t,cart.x,cart.y,cart.ang,(state===ST.FALL&&cart.flip>0)?cart.flipAng:0,state,(state===ST.SUCK||state===ST.BOOM?suck.scale:1),hole.x,hole.y]);
 }
 function recLog(ti,x,y,c,r){if(rec&&!replay&&rec.log.length<REC_MAX*3)rec.log.push([rec.t,ti,x,y,c,r]);}
+// Fixed-height view: the picture never scrolls up or down (it only follows the cart sideways). Chosen automatically on watch-size
+// screens, and available everywhere in Settings. UI_S shrinks sizes meant for fingers (cart, tolerances) on small screens.
+var TINY=false,UI_S=1;
+function fixedView(){return cfg.view==='fixed'||((cfg.view==null||cfg.view==='auto')&&TINY);}
 var BURST_V=450,BURST_TAU=0.45,HIT_R=60,MAXCHARGES=3,LONGPRESS_MS=800,CHAIN_MS=450,BIGJUMP=1.6,FLOW_EVERY=0.5;
 
 var G=1050,SLOPEK=0.45,DRAG=0.2,ROLL=30,VMAX=1300,RESCUE_MINV=60,LAUNCH_V=320;
@@ -180,7 +195,7 @@ var PROFILE='desktop-landscape';
 function profileKey(){
   var coarse=false;try{coarse=matchMedia('(pointer: coarse)').matches||(navigator.maxTouchPoints>0&&!matchMedia('(pointer: fine)').matches);}catch(e){}
   var w=window.innerWidth,h=window.innerHeight;
-  return (!coarse?'desktop':(Math.min(w,h)<600?'phone':'tablet'))+'-'+(w>=h?'landscape':'portrait');
+  return (!coarse?(Math.min(w,h)<280?'watch':'desktop'):(Math.min(w,h)<280?'watch':Math.min(w,h)<600?'phone':'tablet'))+'-'+(w>=h?'landscape':'portrait');
 }
 function tuneNow(){var v=cfg.tune&&cfg.tune[PROFILE];return typeof v==='number'?v:50;}
 // Steeper than before: 10 slider units is about a x1.25 change in momentum toward fast, x0.86 toward slow.
@@ -195,7 +210,7 @@ var AC=null;
 var PRESETS={low:{jump:500},med:{jump:800},high:{jump:1200}};
 var CHARS=[['snowman','⛄'],['penguin','🐧'],['fox','🦊'],['cat','🐱'],['dog','🐶'],['panda','🐼'],['duck','🦆'],['santa','🎅'],['robot','🤖'],['alien','👽'],['ghost','👻'],['pumpkin','🎃'],['pizza','🍕'],['potato','🥔'],['rocket','🚀'],['ball','⚽']];
 function charEmoji(){var id=(replay&&replay.char)||cfg.character;for(var i=0;i<CHARS.length;i++)if(CHARS[i][0]===id)return CHARS[i][1];return '⛄';}
-var cfg={mode:null,preset:'med',jump:800,audio:'fun',momentum:'earned',character:'snowman',tune:{},volume:80};
+var cfg={mode:null,preset:'med',jump:800,audio:'fun',momentum:'earned',character:'snowman',tune:{},volume:80,view:'auto'};
 var paused=false,TIMESCALE_ZEN=0.75,lastOn={track:0,s:0};
 try{var sv=JSON.parse(localStorage.getItem('wsl_settings')||'{}');for(var k in sv)if(k in cfg)cfg[k]=sv[k];}catch(e){}
 if(PRESETS[cfg.preset])cfg.jump=PRESETS[cfg.preset].jump;
@@ -275,13 +290,15 @@ function resize(){
   W=window.innerWidth;H=window.innerHeight;
   if(W===oW&&H===oH&&cvs.width===Math.round(W*DPR))return;
   var rel=baseScale>0?zoom/baseScale:1;
-  baseScale=Math.max(0.28,Math.min(1,W/1280));zoom=rel*baseScale;
+  baseScale=Math.max(0.14,Math.min(1,W/1280));zoom=rel*baseScale;
+  TINY=Math.min(W,H)<280;UI_S=Math.max(0.5,Math.min(1,Math.min(W,H)/390));
+  document.body.classList.toggle('tiny',TINY);
   WV=W/baseScale;HV=H/baseScale;
   PROFILE=profileKey();applyMomentum();if(typeof syncTuneUI==='function')syncTuneUI();
   pageW=Math.max(320,WV);
   cvs.width=Math.round(W*DPR);cvs.height=Math.round(H*DPR);
   cvs.style.width=W+'px';cvs.style.height=H+'px';
-  if(haveCart&&!replay){camX=cart.x-fx*W/zoom;camY=cart.y-fy*H/zoom;}
+  if(haveCart&&!replay){camX=cart.x-fx*W/zoom;camY=fixedView()?0:cart.y-fy*H/zoom;}
   if(replay)replayRefit();
   var flipped=oW>0&&((oW>=oH)!==(W>=H));
   if(flipped&&typeof g!=='undefined'&&g.phase!=='idle'){   // a press that was in progress belongs to the old layout
@@ -404,7 +421,7 @@ function reset(){
 }
 function snapCamera(){
   var tr=tracks[editTrack],e=tr&&tr.pts.length?tr.pts[tr.pts.length-1]:{x:0,y:0};
-  camX=Math.max(-10,e.x-W*0.58/zoom);camY=e.y-H*0.55/zoom;
+  camX=Math.max(-10,e.x-W*0.58/zoom);camY=fixedView()?0:e.y-H*0.55/zoom;
 }
 function release(s,trackIdx){
   if(state!==ST.READY)return;
@@ -425,7 +442,7 @@ function startFallOffTrack(reason){
   diagExtra=reason||'fall';
   sfx('fall',160,200);
 }
-function hitCart(px,py){var sx=(cart.x-camX)*zoom,sy=(cart.y-camY)*zoom;return Math.hypot(px-sx,py-sy)<=HIT_R;}
+function hitCart(px,py){var sx=(cart.x-camX)*zoom,sy=(cart.y-camY)*zoom;return Math.hypot(px-sx,py-sy)<=Math.max(34,HIT_R*UI_S);}
 function armBurst(){
   if(state!==ST.FALL||cart.armed)return;
   cart.armed=true;addFloater(cart.x,cart.y-60,'BURST READY','#00eaff');sfx('burstArm',740,90);
@@ -570,8 +587,9 @@ function update(dt){
   }
   if(state===ST.FALL&&!zen())ty=camY;   // in flight the view holds its height, so the last 10% is measured against where the track was
   if(multHide>0)multHide-=dt;
-  k=Math.min(1,dt*5);camX+=(tx-camX)*k;camY+=(ty-camY)*k;
+  k=Math.min(1,dt*5);camX+=(tx-camX)*k;if(fixedView())camY=0;else camY+=(ty-camY)*k;
 
+  if(state===ST.RUN&&fixedView()&&!zen()&&(cart.y-camY)*zoom>H*1.0){explode((cart.y-camY)*zoom/H);return;}   // rode off the bottom of a view that does not scroll
   if(state===ST.RUN){
     var tr=tracks[cart.track];
     if(!tr||tr.pts.length<2){startFallOffTrack('notrack');return;}
@@ -612,7 +630,7 @@ function update(dt){
     cart.x+=fall.vx*dt;cart.y+=fall.vy*dt;
     cart.ang+=fall.spin*dt;
     var land=nearestOnAnyTrack(cart.x,cart.y);
-    var LK=Math.max(1,0.6/zoom);
+    var LK=Math.max(1,0.6*UI_S/zoom);
     if(fall.grace<=0&&land.d<24*LK&&land.d<(Math.abs(fall.vy)*0.06+10)*LK){landOnTrack(land.track,land.s);return;}
     var sy=(cart.y-camY)*zoom;
     if(!zen()&&sy>H*BOOM_AT){explode(sy/H);return;}
@@ -643,12 +661,13 @@ function draw(){
   for(var ti=0;ti<tracks.length;ti++)drawTrack(ti);
   if(state===ST.READY&&!replay)drawEndMarker();
   if(replay)drawJourney();
+  if(!replay&&fixedView()&&(state===ST.RUN||state===ST.FALL)){ctx.save();ctx.setTransform(DPR,0,0,DPR,0,0);var gy=H*BOOM_AT,gr=ctx.createLinearGradient(0,gy,0,H);gr.addColorStop(0,'rgba(255,70,70,0)');gr.addColorStop(1,'rgba(255,70,70,.28)');ctx.fillStyle=gr;ctx.fillRect(0,gy,W,H-gy);ctx.restore();}
   if(replay&&replay.recording){ctx.save();ctx.setTransform(DPR,0,0,DPR,0,0);ctx.font='bold 14px system-ui,sans-serif';ctx.textAlign='left';ctx.textBaseline='top';ctx.fillStyle='rgba(255,255,255,.75)';ctx.fillText(charEmoji()+' Snowman Line Rider',14,Math.max(14,12));ctx.restore();}
-  var vis=Math.max(1,30/(36*zoom));
+  var vis=Math.max(1,30*UI_S/(36*zoom));
   var scl=((state===ST.SUCK)?suck.scale:1)*vis;
   var ang=cart.ang+((state===ST.FALL&&cart.flip>0)?cart.flipAng:0);
   if(state===ST.BOOM)drawBoom(vis);else drawCart(cart.x,cart.y,ang,scl);
-  if(state===ST.FALL&&!replay&&(cart.y-camY)*zoom<6){   // cart is above the top edge: show where it is
+  if((state===ST.FALL||(fixedView()&&state===ST.RUN))&&!replay&&(cart.y-camY)*zoom<6){   // cart is above the top edge: show where it is
     var ix=Math.max(24,Math.min(W-24,(cart.x-camX)*zoom));
     ctx.save();ctx.setTransform(DPR,0,0,DPR,0,0);
     ctx.fillStyle='rgba(0,0,0,.55)';ctx.beginPath();ctx.arc(ix,26,20,0,7);ctx.fill();
@@ -814,7 +833,7 @@ window.addEventListener('pointermove',function(e){
     if(g.kind==='none'){
       if(Math.abs(dd)>PINCH_PX&&Math.abs(dd)>Math.abs(dcx))g.kind='pinch';
     }
-    if(g.kind==='pinch'){zoom=Math.max(ZMIN*baseScale,Math.min(ZMAX*baseScale,g.z0*q.d/g.d0));applyTransform();}
+    if(g.kind==='pinch'&&!fixedView()){zoom=Math.max(ZMIN*baseScale,Math.min(ZMAX*baseScale,g.z0*q.d/g.d0));applyTransform();}
   }
 },{passive:false});
 
@@ -829,7 +848,7 @@ function gestureEnd(e){
     else if(!g.moved&&performance.now()-g.t0<=TAP_MS&&Math.hypot(e.clientX-g.x0,e.clientY-g.y0)<=TAP_PX){
       if(state===ST.READY){
         var w=toWorld(e.clientX,e.clientY),best=nearestOnAnyTrack(w.x,w.y);
-        if(best.d<50/Math.min(1,zoom))release(best.s,best.track);
+        if(best.d<50*Math.max(0.7,UI_S)/Math.min(1,zoom))release(best.s,best.track);
         else addFloater(w.x,w.y,'Tap the track','#ffd76a');
       }else if(state===ST.RUN||state===ST.FALL){if(state===ST.FALL&&hitCart(e.clientX,e.clientY))armBurst();else if(!chainTap()&&state===ST.RUN)doJump();}
     }
@@ -847,7 +866,7 @@ window.addEventListener('pointercancel',function(){
 });
 
 window.addEventListener('wheel',function(e){
-  if(e.ctrlKey||e.metaKey){e.preventDefault();zoom=Math.max(ZMIN*baseScale,Math.min(ZMAX*baseScale,zoom*(e.deltaY>0?0.9:1.1)));applyTransform();}
+  if(e.ctrlKey||e.metaKey){e.preventDefault();if(fixedView())return;zoom=Math.max(ZMIN*baseScale,Math.min(ZMAX*baseScale,zoom*(e.deltaY>0?0.9:1.1)));applyTransform();}
 },{passive:false});
 
 window.addEventListener('error',function(ev){
@@ -986,7 +1005,7 @@ function replayStep(dt){
     var tx,ty;
     if(state===ST.READY){var tr=tracks[r.lastTi],e=tr&&tr.pts.length?tr.pts[tr.pts.length-1]:{x:cart.x,y:cart.y};tx=e.x-W*0.58/zoom;ty=e.y-H*0.55/zoom;}
     else{tx=cart.x-W*0.35/zoom;ty=cart.y-H*0.55/zoom;}
-    var k=Math.min(1,dt*5);camX+=(tx-camX)*k;camY+=(ty-camY)*k;
+    var k=Math.min(1,dt*5);camX+=(tx-camX)*k;if(fixedView())camY=0;else camY+=(ty-camY)*k;
     if(r.pt>=rec.t+0.8)replayPhase('done');
   }else if(r.phase==='done'&&r.recording&&!r.stopping){r.stopping=true;setTimeout(function(){stopRecording();},900);}
 }
@@ -1025,7 +1044,7 @@ function closeReplay(){
   }
   var sn=replay.snap;replay=null;
   tracks=sn.tracks;state=sn.state;Object.assign(cart,sn.cart);Object.assign(suck,sn.suck);hole.x=sn.hole.x;hole.y=sn.hole.y;
-  zoom=sn.rel*baseScale;camX=cart.x-W*0.35/zoom;camY=cart.y-H*0.55/zoom;floaters=sn.floaters;editTrack=sn.editTrack;elOverlay.style.display=sn.overlay;
+  zoom=sn.rel*baseScale;camX=cart.x-W*0.35/zoom;camY=fixedView()?0:cart.y-H*0.55/zoom;floaters=sn.floaters;editTrack=sn.editTrack;elOverlay.style.display=sn.overlay;
   document.body.classList.remove('replaying');gestureReset();pointers.clear();syncUI();
 }
 // ---------- Sharing a replay: as a link (the run is packed into the link) or as a video file ----------
@@ -1138,7 +1157,7 @@ function hud(){
   var fmEl=document.getElementById('flipmult');
   if(!replay&&!zen()&&flightFlips>0&&(state===ST.FALL||multHide>0)){
     var fmv=Math.min(5,flightFlips);fmEl.style.display='block';fmEl.textContent='FLIP ×'+fmv;
-    fmEl.style.color=fmv>=5?'#ff6ad5':fmv>=3?'#ffd700':'#8cff5a';fmEl.style.fontSize=(24+fmv*3)+'px';
+    fmEl.style.color=fmv>=5?'#ff6ad5':fmv>=3?'#ffd700':'#8cff5a';fmEl.style.fontSize=Math.round((24+fmv*3)*Math.max(0.6,UI_S))+'px';
   }else fmEl.style.display='none';
   if(replay){
     var r=replay,lab=r.phase==='overview'?'Whole journey':r.phase==='zoom'?'Back to the start':r.phase==='play'?'Replay '+fmt(Math.min(r.pt,rec.t)):'Finished';
@@ -1194,6 +1213,7 @@ function syncUI(){
   $('[data-preset]').forEach(function(b){b.classList.toggle('on',b.getAttribute('data-preset')===cfg.preset);});
   $('[data-char]').forEach(function(b){b.classList.toggle('on',b.getAttribute('data-char')===cfg.character);});
   document.getElementById('ovChar').textContent=charEmoji();
+  $('[data-view]').forEach(function(b){b.classList.toggle('on',b.getAttribute('data-view')===(cfg.view||'auto'));});
   $('[data-momentum]').forEach(function(b){b.classList.toggle('on',b.getAttribute('data-momentum')===cfg.momentum);});
   $('[data-audio]').forEach(function(b){b.classList.toggle('on',b.getAttribute('data-audio')===cfg.audio);});
   document.getElementById('jumpForce').value=cfg.jump;
@@ -1215,6 +1235,7 @@ $('[data-preset]').forEach(function(b){b.addEventListener('click',function(){var
     b.addEventListener('click',function(){cfg.character=c[0];saveCfg();syncUI();});row.appendChild(b);});})();
 document.getElementById('momentumTune').addEventListener('input',function(e){if(!cfg.tune)cfg.tune={};cfg.tune[PROFILE]=+e.target.value;applyMomentum();saveCfg();syncTuneUI();});
 document.getElementById('tuneReset').addEventListener('click',function(){if(!cfg.tune)cfg.tune={};cfg.tune[PROFILE]=50;applyMomentum();saveCfg();syncTuneUI();});
+$('[data-view]').forEach(function(b){b.addEventListener('click',function(){var v=b.getAttribute('data-view');if(cfg.view===v)return;cfg.view=v;saveCfg();syncUI();zoom=baseScale;camY=fixedView()?0:camY;reset();});});
 $('[data-momentum]').forEach(function(b){b.addEventListener('click',function(){cfg.momentum=b.getAttribute('data-momentum');applyMomentum();saveCfg();syncUI();});});
 $('[data-audio]').forEach(function(b){b.addEventListener('click',function(){cfg.audio=b.getAttribute('data-audio');saveCfg();syncUI();beep(660,120);});});
 document.getElementById('jumpForce').addEventListener('input',function(e){cfg.jump=+e.target.value;cfg.preset='custom';saveCfg();syncUI();});
@@ -1249,7 +1270,7 @@ window.__wslRenderMix=function(n,themeName){
   return ctx.startRendering().then(function(b){return Array.from(b.getChannelData(0));});
 };
 window.__wslSetScore=function(n){score=n;};window.__wslAddPause=function(sec){pauseBonus+=sec;};
-window.__wsl=function(){var t=tracks[0];return{boomDlg:boomDlgOpen,userPaused:userPaused,paused:paused,flips:flightFlips,flipPts:flipPtsTotal,mult:Math.min(5,flightFlips),boom:deathBy==='boom',boomFrac:boomFrac,cartSY:(cart.y-camY)*zoom/H,cartSX:(cart.x-camX)*zoom/W,vw:W,vh:H,state:state,zoom:zoom/baseScale,zoomE:zoom,scale:baseScale,cartPx:Math.round(36*Math.max(1,30/(36*zoom))*zoom),landTolPx:Math.round(24*Math.max(1,0.6/zoom)*zoom),camX:camX,camY:camY,score:score,flip:cart.flip,flipDir:cart.flipDir,charges:charges,timer:survival,dist:distPx,flow:(flowSamples.length?flowSamples.reduce(function(a,b){return a+b;},0)/flowSamples.length:0),cartTrack:cart.track,gphase:g.phase,mode:cfg.mode,preset:cfg.preset,jump:cfg.jump,momentum:cfg.momentum,profile:PROFILE,tune:tuneNow(),tunes:cfg.tune,character:cfg.character,armed:cart.armed,burst:Math.round(cart.burst||0),audio:cfg.audio,theme:theme(),paused:paused,chain:chain,vy:fall.vy,cart:{x:cart.x,y:cart.y,v:cart.v},pts:t?t.pts.slice():[],ntracks:tracks.length,last:lastResult,rec:rec?{n:rec.samples.length,duration:rec.t}:null,replay:replayInfo(),npts:tracks.reduce(function(n,t){return n+t.pts.length;},0)};};
+window.__wsl=function(){var t=tracks[0];return{boomDlg:boomDlgOpen,userPaused:userPaused,paused:paused,flips:flightFlips,flipPts:flipPtsTotal,mult:Math.min(5,flightFlips),boom:deathBy==='boom',boomFrac:boomFrac,cartSY:(cart.y-camY)*zoom/H,cartSX:(cart.x-camX)*zoom/W,vw:W,vh:H,state:state,zoom:zoom/baseScale,zoomE:zoom,scale:baseScale,cartPx:Math.round(36*Math.max(1,30*UI_S/(36*zoom))*zoom),landTolPx:Math.round(24*Math.max(1,0.6*UI_S/zoom)*zoom),uiScale:UI_S,fixedView:fixedView(),view:cfg.view,camX:camX,camY:camY,score:score,flip:cart.flip,flipDir:cart.flipDir,charges:charges,timer:survival,dist:distPx,flow:(flowSamples.length?flowSamples.reduce(function(a,b){return a+b;},0)/flowSamples.length:0),cartTrack:cart.track,gphase:g.phase,mode:cfg.mode,preset:cfg.preset,jump:cfg.jump,momentum:cfg.momentum,profile:PROFILE,tune:tuneNow(),tunes:cfg.tune,character:cfg.character,armed:cart.armed,burst:Math.round(cart.burst||0),audio:cfg.audio,theme:theme(),paused:paused,chain:chain,vy:fall.vy,cart:{x:cart.x,y:cart.y,v:cart.v},pts:t?t.pts.slice():[],ntracks:tracks.length,last:lastResult,rec:rec?{n:rec.samples.length,duration:rec.t}:null,replay:replayInfo(),npts:tracks.reduce(function(n,t){return n+t.pts.length;},0)};};
 window.__wslLoad=function(pts){reset();var t=tracks[0];t.pts=[];t.cum=[0];t.totalLen=0;t.raw=[];t.segEnd=[];pts.forEach(function(p){addPoint(0,p.x,p.y);});var p0=pointAt(0,0);cart.x=p0.x;cart.y=p0.y;cart.ang=p0.ang;};
 window.__wslSetV=function(v){cart.v=v;};
 resize();reset();requestAnimationFrame(loop);

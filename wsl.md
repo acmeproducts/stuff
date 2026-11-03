@@ -105,6 +105,13 @@ Change: wsl.html restored byte-for-byte from snow-v1.html, then built up in thre
 
 - Share button now uses the standard share glyph (box with an up arrow, drawn as an SVG so it looks the same on every phone) instead of the 📤 emoji.
 
+- **Watch support: no vertical scrolling while playing (2026-11-03, owner request: "in order for this to run on a watch it cannot scroll up and down while you're playing").**
+  - New **fixed-height view**: the picture follows the cart sideways only; the vertical position never changes (measured: camera Y range 0 while riding, jumping and falling on 200×200, 198×242 and 240×240 screens; on a normal screen in Scrolling mode it moved 2,800 px on the same ride). Settings → View: **Auto** (default; fixed on screens under 280 px on the short side, scrolling elsewhere), **Scrolling**, **Fixed height**; saved on the device; changing it restarts the run.
+  - What fixed height changes in play: pinch and wheel zoom are off (they would shift the picture); the last 10% of the screen gets a faint red danger band; the explosion rule applies to a cart that rides a track off the bottom of the screen as well as one that falls (it cannot be followed down, so it costs a rescue instead of vanishing); a cart above the top edge shows its arrow marker whether riding or flying.
+  - Watch-sized layout (short side under 280 px): view scaled so pace matches desktop (0.99× in screens per second); cart about 8% of the short side (15 px on 200 px); catch and tap tolerances scaled to the screen; score only on the HUD (best, stats row, bar, hint and debug strip hidden); smaller gear, dialogs, pause card, replay bar and game-over text; its own momentum tuning profile ("watch-portrait" / "watch-landscape").
+  - Tests: new `watch.mjs` (auto-selection, no vertical scroll in ride/jump/fall, explosion off the bottom, layout fit of score, gear, explosion message, pause card and settings, pinch ignored, the three settings, persistence, Scrolling override); `scale.mjs` now includes a 200×200 watch; every earlier suite still passes.
+  - Not verified: no real watch or watch browser was available (emulated 200×200 touch screens only); round screens will clip the corners of the square canvas, so the corner HUD items may need moving inward for a round display.
+
 ## RUN LOG (written by DevStream)
 | Date | Tab | Result | What | Commit |
 |---|---|---|---|---|
