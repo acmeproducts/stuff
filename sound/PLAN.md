@@ -97,3 +97,9 @@ Owner reported: the Span/Shape/Show/Scale pick appeared underneath the rail (unu
 - Picks are now sub-menus that open inline under their row in the rail, one at a time, and close on choice.
 - Listen now carries sndwiz's living sheet: a particle grid lifted by the live spectrum (low frequencies on one side, high on the other), beat flashes, orbit and pinch. Idle (mic off) it runs free and dim. This is the "now" end; Terrain in View is the same sheet lifted by stored data, with the red live column at its edge while listening.
 Lab: sub-menu selects a span; Listen renders the sheet idle and live with a fake mic. Not yet on the owner's phone.
+
+## My Time — build 3.2 — 2026-11-02
+Owner: the living sheet should also be a View shape, since it zooms all the way out and in.
+- New shape "Living sheet": rows = groups (hours, months, years…), columns = the cells inside them, height = loudness, breathing ripple and slow turn like sndwiz; when listening the current cell glows red and the ripple swells with the room. Works minute → life; large spans bucket to ≤6,000 points. Drag orbits, pinch zooms, tap selects, double-tap drills. Preset "Living sheet" added.
+- Fix: while a shape animates, an open sub-menu was rebuilt every frame and swallowed taps; it now rebuilds only when the selection changes.
+Lab: minute/day/year/decade/life render and animate; tap selects a week on the life sheet. Not yet on the owner's phone.

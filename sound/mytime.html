@@ -390,10 +390,11 @@ const REC=new Map();            // k -> record (merged, last update wins)
 let tiers={hour:new Map(),day:new Map()}; let tiersDirty=true;
 let db=null;
 if('BroadcastChannel' in window){const ch=new BroadcastChannel('sot');ch.onmessage=e=>{const m=e.data;if(m&&m.type==='minute'&&m.rec&&m.rec.d!==S.devId+'-never'){if(putRec(m.rec,false)&&S.src==='rec'){const t=m.rec.k*MIN;if(view.t0<=t&&t<spanEnd(view.t0,view.span))render();}}};}
-document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible'&&db){loadLocal().then(()=>{if(S.src==='rec'){computeBaseline();render();}});}});
+document.addEventListener('visibilitychange',()=>{sheetAnim(S.shape==='sheet'&&panel==='view'&&!document.hidden);if(document.visibilityState==='visible'&&db){loadLocal().then(()=>{if(S.src==='rec'){computeBaseline();render();}});}});
 function openDB(){return new Promise((res,rej)=>{const r=indexedDB.open('sot',1);r.onupgradeneeded=()=>{r.result.createObjectStore('min',{keyPath:'k'});r.result.createObjectStore('meta',{keyPath:'k'});};r.onsuccess=()=>res(r.result);r.onerror=()=>rej(r.error);});}
 async function loadLocal(){try{db=await openDB();const tx=db.transaction('min');const st=tx.objectStore('min');await new Promise((res,rej)=>{const c=st.openCursor();c.onsuccess=()=>{const cur=c.result;if(!cur){res();return;}putRec(cur.value,false);cur.continue();};c.onerror=()=>rej(c.error);});}catch(e){log('Local store unavailable: '+e.message);}}
-function putRec(r,persist){const old=REC.get(r.k);if(old&&old.u>r.u)return false;if(old&&old.s&&!r.s)r.s=old.s;REC.set(r.k,r);tiersDirty=true;if(persist&&db){try{db.transaction('min','readwrite').objectStore('min').put(r);}catch(e){}}return true;}
+let recVer=0;
+function putRec(r,persist){const old=REC.get(r.k);if(old&&old.u>r.u)return false;recVer++;if(old&&old.s&&!r.s)r.s=old.s;REC.set(r.k,r);tiersDirty=true;if(persist&&db){try{db.transaction('min','readwrite').objectStore('min').put(r);}catch(e){}}return true;}
 function rebuildTiers(){
   tiers={hour:new Map(),day:new Map()};
   for(const r of REC.values()){
@@ -469,7 +470,7 @@ function buildCells(){
   if(gi>=0){const gu=UNITS[gi].id;let g=[];let gEnd=stepUnit(alignDown(view.t0,gu),gu,1);for(const c of cells){if(c.a>=gEnd){groups.push(g);g=[];gEnd=stepUnit(gEnd,gu,1);}g.push(c);}if(g.length)groups.push(g);}
   else{const n=cells.length;const per=n===60?10:n===24?6:n===7?7:n===10?5:Math.max(1,Math.round(Math.sqrt(n)));for(let i=0;i<n;i+=per)groups.push(cells.slice(i,i+per));}
   for(const c of cells)Object.assign(c,agg(c.a,c.b),{i:c.i});
-  return {cells,groups,cu,spanId};
+  return {cells,groups,cu,spanId,gu:gi>=0?UNITS[gi].id:cu};
 }
 
 // ───────────────────────── colour: one job, intensity
@@ -519,15 +520,18 @@ function mkHatch(color){const c=document.createElement('canvas');c.width=c.heigh
 function resize(){const r=cv.parentElement.getBoundingClientRect();DPR=Math.min(2.5,window.devicePixelRatio||1);W=r.width;H=r.height;cv.width=Math.round(W*DPR);cv.height=Math.round(H*DPR);ctx.setTransform(DPR,0,0,DPR,0,0);hatchPat=mkHatch(getVar('--hatch'));render();}
 
 let model=null, hit=[], selected=null, playIdx=-1;
+let modelKey='';
 function render(){
   const t1=performance.now();
-  model=buildCells(); hit=[];
+  const key=[view.span,view.t0,S.res,S.src,S.seed,S.shape,S.horizon,S.horizonYears,REC.size,recVer].join('|');
+  if(key!==modelKey||!model){model=buildCells();modelKey=key;} hit=[];
   ctx.fillStyle=getVar('--bg');ctx.fillRect(0,0,W,H);
   const sc=makeScaler(model.cells);
-  extra=[];({tiles:drawTiles,rows:drawRows,ring:drawRing,spiral:drawSpiral,hilbert:drawHilbert,sunburst:drawSunburst,terrain:drawTerrain,helix:drawHelix,treemap:drawTreemap,clock:drawClock,serpentine:drawSerpentine,rings:drawRings,sphere:drawSphere,torus:drawTorus})[S.shape](model,sc);
+  extra=[];({sheet:drawSheet,tiles:drawTiles,rows:drawRows,ring:drawRing,spiral:drawSpiral,hilbert:drawHilbert,sunburst:drawSunburst,terrain:drawTerrain,helix:drawHelix,treemap:drawTreemap,clock:drawClock,serpentine:drawSerpentine,rings:drawRings,sphere:drawSphere,torus:drawTorus})[S.shape](model,sc);
   if(selected!=null)drawSelection(selected);
   if(playIdx>=0)drawSelection(playIdx,true);
   updateCrumb(); updateStatus(performance.now()-t1);
+  sheetAnim(S.shape==='sheet'&&panel==='view'&&!document.hidden);
 }
 function glyphFor(cu){const i=UI[cu];return i>=UI.week?S.glyph.week:S.glyph[cu];}
 function cellStyle(c,sc){
@@ -727,6 +731,29 @@ function drawPoints(pts,N,R,dimBack){
   for(const {p,q} of proj){const back=dimBack&&q[3]>cam.dist;const sz=Math.max(1,base*q[2]*0.25*(0.6+p.v));ctx.globalAlpha=back?0.18:1;ctx.fillStyle=p.fill;ctx.beginPath();ctx.arc(q[0],q[1],sz/2,0,6.283);ctx.fill();if(!back)hit.push({i:p.i,pt:true,x:q[0],y:q[1],r:Math.max(8,sz)});}
   ctx.globalAlpha=1;
 }
+// ── Living sheet: groups as rows, cells as columns, loudness as height, animated
+let sheetT=0,sheetRAF=0,sheetOn=false,sheetLast=0;
+function sheetLoop(now){if(!sheetOn)return;const dt=Math.min(0.05,(now-sheetLast)/1000)||0;sheetLast=now;sheetT+=0.6*dt;if(ptrs.size===0)cam.yaw+=0.04*dt;render();sheetRAF=requestAnimationFrame(sheetLoop);}
+function sheetAnim(on){if(on&&!sheetOn){sheetOn=true;sheetLast=performance.now();sheetRAF=requestAnimationFrame(sheetLoop);}else if(!on&&sheetOn){sheetOn=false;cancelAnimationFrame(sheetRAF);}}
+function drawSheet(m,sc){
+  const G=m.groups.length,maxN=Math.max(...m.groups.map(g=>g.length));const per=Math.max(1,Math.ceil((G*maxN)/6000));
+  const cols=Math.ceil(maxN/per),S2=40,zs=G>1?S2*Math.min(1,G/cols*1.2+0.2):0,pts=[];
+  const liveV=recState==='on'&&liveBands?Math.max(0,Math.min(1,(Math.max(...liveBands)-20)/80)):0;
+  m.groups.forEach((g,gi)=>{const z=G>1?-zs+2*zs*(gi/(G-1)):0;
+    for(let ci=0;ci<cols;ci++){const slice=g.slice(ci*per,ci*per+per);if(!slice.length)continue;const c0=slice[0];let v=0,n=0,fut=0,nod=0;
+      for(const c of slice){const vv=cellV(c,sc);if(vv.future){fut++;continue;}if(vv.nodata){nod++;continue;}v+=vv.v;n++;}
+      const x=-S2+2*S2*(cols>1?ci/(cols-1):0.5),val=n?v/n:0;
+      const ripple=Math.sin(x*0.3+sheetT)*Math.cos(z*0.27+sheetT*0.8)*(1.2+liveV*4);
+      const y=val*22+ripple-1;
+      const isNow=c0.a<=T_END&&T_END<c0.b;
+      pts.push({x,y,z,v:val,fill:n?(isNow&&liveV?'#ff5a5a':ramp(val)):(fut===slice.length?getVar('--future'):getVar('--hatch')),i:c0.i,span:slice.length,dim:!n});}});
+  const proj=pts.map(p=>({p,q:project(p.x,p.y,p.z)})).filter(o=>o.q).sort((a,b)=>b.q[3]-a.q[3]);
+  const base=Math.max(2.2,Math.min(7,3000/pts.length))*S.gamma;
+  for(const {p,q} of proj){const sz=Math.max(1.2,base*q[2]*0.35*(0.75+p.v*0.6));ctx.globalAlpha=p.dim?0.45:1;ctx.fillStyle=p.fill;ctx.fillRect(q[0]-sz/2,q[1]-sz/2,sz,sz);hit.push({i:p.i,pt:true,x:q[0],y:q[1],r:Math.max(7,sz),span:p.span});}
+  ctx.globalAlpha=1;
+  if(G>1&&G<=40){ctx.fillStyle=getVar('--ink3');ctx.font='11px system-ui';m.groups.forEach((g,gi)=>{if(G>14&&gi%Math.ceil(G/12))return;const q=project(-S2-4,0,-zs+2*zs*(gi/(G-1)));if(q){ctx.textAlign='right';ctx.fillText(shortLabel(g[0].a,m.gu),q[0],q[1]);}});ctx.textAlign='left';}
+}
+function shortLabel(t,u){const d=new Date(t);if(u==='second'||u==='minute')return fmtT(t);if(u==='hour')return d.toLocaleTimeString(undefined,{hour:'numeric'});if(u==='day'||u==='week')return d.toLocaleDateString(undefined,{month:'short',day:'numeric'});if(u==='month')return d.toLocaleDateString(undefined,{month:'short'});if(u==='year')return String(d.getFullYear());if(u==='decade')return d.getFullYear()+'s';return fmtD(t);}
 function drawSelection(i,play){
   const h=hit.find(h=>h.i===i);if(!h)return;
   ctx.save();ctx.strokeStyle=getVar('--sel');ctx.lineWidth=play?2:1.5;
@@ -758,8 +785,8 @@ function rangeLabel(a,b,unit){
   return fmtD(a)+' → '+fmtD(b-1);
 }
 const SPANS=[['minute','Minute'],['hour','Hour'],['day','Day'],['week','Week'],['month','Month'],['year','Year'],['decade','Decade'],['life','Life']];
-const SHAPES=[['tiles','Tiles','Nested grid, like the concept piece'],['rows','Rows','One row per group, like a seismograph'],['ring','Ring','One lap around the circle'],['spiral','Spiral','One turn per group'],['hilbert','Hilbert','One square at every scale; any quarter of it is one stretch of time'],['sunburst','Sunburst','Nested rings from the span down to its finest cells; tap an inner ring to open it'],['terrain','Terrain','A 3D sheet: time across, the 10 bands deep, loudness as height. Drag to orbit, pinch to zoom'],['helix','Helix','A 3D coil, one turn per group, loud cells pushed outward. Drag to orbit'],['treemap','Treemap','Nested boxes with true calendar proportions: a 31-day month is wider than a 28-day one'],['clock','Calendar grid','Time of day across, days down: everything at 2 pm lands in one column'],['serpentine','Serpentine','One line that snakes back and forth, so neighbours stay neighbours at the turns'],['rings','Tree rings','One ring per group, thick when loud, like a trunk'],['sphere','Sphere','Groups as latitude bands, cells around the globe. Drag to spin'],['torus','Torus','Groups around the ring, cells around the tube: two cycles on one surface, no seam']];
-const IS3D=()=>['terrain','helix','sphere','torus'].includes(S.shape);
+const SHAPES=[['sheet','Living sheet','The sndwiz sheet: one row per group, loudness as height, breathing and slowly turning. Drag to orbit, pinch to zoom'],['tiles','Tiles','Nested grid, like the concept piece'],['rows','Rows','One row per group, like a seismograph'],['ring','Ring','One lap around the circle'],['spiral','Spiral','One turn per group'],['hilbert','Hilbert','One square at every scale; any quarter of it is one stretch of time'],['sunburst','Sunburst','Nested rings from the span down to its finest cells; tap an inner ring to open it'],['terrain','Terrain','A 3D sheet: time across, the 10 bands deep, loudness as height. Drag to orbit, pinch to zoom'],['helix','Helix','A 3D coil, one turn per group, loud cells pushed outward. Drag to orbit'],['treemap','Treemap','Nested boxes with true calendar proportions: a 31-day month is wider than a 28-day one'],['clock','Calendar grid','Time of day across, days down: everything at 2 pm lands in one column'],['serpentine','Serpentine','One line that snakes back and forth, so neighbours stay neighbours at the turns'],['rings','Tree rings','One ring per group, thick when loud, like a trunk'],['sphere','Sphere','Groups as latitude bands, cells around the globe. Drag to spin'],['torus','Torus','Groups around the ring, cells around the tube: two cycles on one surface, no seam']];
+const IS3D=()=>['sheet','terrain','helix','sphere','torus'].includes(S.shape);
 const CONTENTS=[['loud','Loudness','Typical level of each cell'],['bed','Bed + sparks','Quiet floor, with a spark wherever it passed 85 dB'],['tone','Tone','Warm = low rumble, cool = voices and hiss; brightness = loudness'],['bands','10 bands','Each cell striped by octave band, low at the bottom'],['gaps','Coverage','How much of each cell was recorded']];
 const SCALES=[['abs','Absolute','20 dB dark → 100 dB bright'],['rel','Relative to you','Your own median is the midpoint'],['pct','Percentile','Rank within this view'],['share','Share %','Each cell as a share of the whole view']];
 const GLYPHS=[['dot','Dot'],['square','Square'],['bar','Bar'],['rect','Fill']];
@@ -771,9 +798,9 @@ function updateCrumb(){
   document.getElementById('up').disabled=(view.span==='life');
   document.getElementById('dSpan').textContent=nameOf(SPANS,view.span);document.getElementById('dShape').textContent=nameOf(SHAPES,S.shape);
   document.getElementById('dContent').textContent=nameOf(CONTENTS,S.content);document.getElementById('dScale').textContent=nameOf(SCALES,S.scale);updateNav();
-  document.querySelectorAll('.sub-menu').forEach(x=>{if(x.classList.contains('open'))syncSubs();});
+  const sk=[view.span,S.shape,S.content,S.scale].join('|');if(sk!==subKey){subKey=sk;document.querySelectorAll('.sub-menu').forEach(x=>{if(x.classList.contains('open'))syncSubs();});}
 }
-let statusExtra='';
+let statusExtra='',subKey='';
 function updateStatus(ms){
   const cov=model.cells.filter(c=>c.future<0.999);const nd=cov.filter(c=>c.nodata).length;
   const rec=recState==='on'?' · REC':recState==='paused'?' · REC paused':'';
@@ -831,7 +858,7 @@ function go(p){panel=p;document.querySelectorAll('.nav button').forEach(b=>b.cla
 document.querySelectorAll('.nav button').forEach(b=>b.onclick=()=>go(b.dataset.go));
 document.getElementById('crumb').onclick=openRail;
 function fillSub(k,items,cur,on){const el=document.getElementById('sub-'+k);el.innerHTML=items.map(([v,l,d])=>`<button data-v="${v}" class="${v===cur?'on':''}"><span>${l}${d?`<small>${d}</small>`:''}</span></button>`).join('');el.querySelectorAll('button').forEach(b=>b.onclick=()=>{el.classList.remove('open');on(b.dataset.v);});}
-function syncSubs(){fillSub('span',SPANS,view.span,v=>setView(v,anchorFor(v)));fillSub('shape',SHAPES,S.shape,v=>{S.shape=v;save();render();});fillSub('content',CONTENTS,S.content,v=>{S.content=v;save();render();});fillSub('scale',SCALES,S.scale,v=>{S.scale=v;save();render();});}
+function syncSubs(){fillSub('span',SPANS,view.span,v=>setView(v,anchorFor(v)));fillSub('shape',SHAPES,S.shape,v=>{S.shape=v;if(IS3D())cam={yaw:0.45,pitch:0.75,dist:95};save();render();});fillSub('content',CONTENTS,S.content,v=>{S.content=v;save();render();});fillSub('scale',SCALES,S.scale,v=>{S.scale=v;save();render();});}
 document.querySelectorAll('.drow').forEach(b=>b.onclick=()=>{const k=b.dataset.pick;const el=document.getElementById('sub-'+k);const was=el.classList.contains('open');document.querySelectorAll('.sub-menu').forEach(x=>x.classList.remove('open'));if(!was){syncSubs();el.classList.add('open');el.scrollIntoView({block:'nearest'});}});
 document.getElementById('upBtn').onclick=()=>{document.getElementById('up').click();closeRail();};
 function openSheet(){sheet.classList.add('open');scrim.classList.add('open');fillSummary();}
@@ -886,6 +913,7 @@ const BUILTIN=[
  {name:'Week rhythm',note:'Week · Rows · Bed + sparks',p:{span:'week',shape:'rows',content:'bed',scale:'abs',pal:'heat'}},
  {name:'Year patterns',note:'Year · Calendar grid · Loudness · Relative',p:{span:'year',shape:'clock',content:'loud',scale:'rel',pal:'heat'}},
  {name:'Life ring',note:'Life · Ring · Loudness, horizon on',p:{span:'life',shape:'ring',content:'loud',scale:'abs',pal:'ember',horizon:true}},
+ {name:'Living sheet',note:'Year · Living sheet · Loudness',p:{span:'year',shape:'sheet',content:'loud',scale:'abs',pal:'heat'}},
  {name:'Landscape',note:'Day · Terrain · 10 bands',p:{span:'day',shape:'terrain',content:'bands',scale:'abs',pal:'heat'}},
  {name:'That meeting',note:'Hour · Rows · 10 bands · Percentile',p:{span:'hour',shape:'rows',content:'bands',scale:'pct',pal:'ice'}},
  {name:'Decades',note:'Life · Sunburst · Loudness',p:{span:'life',shape:'sunburst',content:'loud',scale:'abs',pal:'moss'}},
@@ -893,7 +921,7 @@ const BUILTIN=[
 ];
 let myPresets={};try{myPresets=JSON.parse(localStorage.getItem('mytime.presets')||'{}');}catch(e){}
 const savePresets=()=>{try{localStorage.setItem('mytime.presets',JSON.stringify(myPresets));}catch(e){}};
-function applyPreset(p){for(const k of PRESET_KEYS)if(p[k]!==undefined)S[k]=k==='glyph'?{...S.glyph,...p[k]}:p[k];save();applyTheme();rampPreview();horizonNote();syncLookUI();setView(S.span,anchorFor(S.span));go('view');}
+function applyPreset(p){cam={yaw:0.45,pitch:0.75,dist:95};for(const k of PRESET_KEYS)if(p[k]!==undefined)S[k]=k==='glyph'?{...S.glyph,...p[k]}:p[k];save();applyTheme();rampPreview();horizonNote();syncLookUI();setView(S.span,anchorFor(S.span));go('view');}
 function currentPreset(){const p={};for(const k of PRESET_KEYS)p[k]=k==='glyph'?{...S.glyph}:S[k];p.span=view.span;return p;}
 function renderPresets(){
   const el=document.getElementById('presetList');const mine=Object.entries(myPresets).sort((a,b)=>b[1].u-a[1].u);
