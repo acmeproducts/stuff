@@ -103,3 +103,12 @@ Owner: the living sheet should also be a View shape, since it zooms all the way 
 - New shape "Living sheet": rows = groups (hours, months, years…), columns = the cells inside them, height = loudness, breathing ripple and slow turn like sndwiz; when listening the current cell glows red and the ripple swells with the room. Works minute → life; large spans bucket to ≤6,000 points. Drag orbits, pinch zooms, tap selects, double-tap drills. Preset "Living sheet" added.
 - Fix: while a shape animates, an open sub-menu was rebuilt every frame and swallowed taps; it now rebuilds only when the selection changes.
 Lab: minute/day/year/decade/life render and animate; tap selects a week on the life sheet. Not yet on the owner's phone.
+
+## My Time — build 4 — 2026-11-03
+Owner: the original concentric model needs a preset; pinch should traverse lifetime → minute without menus; listening to a view should run in real time (30 s recorded = 30 s heard) with an accelerator ×2…×60 and beyond, relative to the span (a month per second → 5 years in a minute); listen mode must be set-and-forget; the view should show all history building in real time, and be listenable.
+- Presets: "Concentric life" (sunburst: decades, years, weeks) first; "The original" (day, tiles, 10 bands) second.
+- Pinch = time travel in every shape: spread to open the unit under your fingers one rung at a time (life → decade → year → month → day → hour → minute), squeeze to zoom out; mouse wheel does the same. Camera distance for 3D shapes moved to a slider in Look.
+- Playback: Speed in the rail (Real time, ×2, ×10, ×60, ×600, 1 hour/s, 1 day/s, 1 week/s, 1 month/s). The playhead moves through the span at that rate, each cell sounds for its own duration; when it reaches now it switches to live and keeps sounding the live minute while listening continues. Cells past the playhead draw as unbuilt, so the model visibly builds. The status line says how long the current view takes at the chosen speed.
+- Listening already set-and-forget: start once, auto-resume on reopen, continues through View and Configure.
+Open assumption: in 3D shapes a two-finger pinch now travels time rather than moving the camera; override me if wrong.
+Lab: preset applied; pinch ladder in and out verified; playback at 1 hour/s ran to live. Not yet on the owner's phone.
