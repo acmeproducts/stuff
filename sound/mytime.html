@@ -143,6 +143,13 @@ p.note{font-size:12.5px;color:var(--ink2);margin:6px 0 10px;line-height:1.45}
 .preset button{padding:8px 12px;border-radius:10px;background:var(--chip);font-size:13px;font-weight:600}
 .preset button.go{background:var(--chip-on);color:var(--chip-on-ink)}
 header{padding-left:58px}
+.sub-menu{display:none;padding:4px 0 8px}
+.sub-menu.open{display:block}
+.sub-menu button{display:flex;width:100%;align-items:center;justify-content:space-between;padding:10px 12px;border-radius:10px;font-size:14px;text-align:left}
+.sub-menu button small{display:block;color:var(--ink2);font-size:11.5px;margin-top:1px}
+.sub-menu button.on{background:var(--chip)}
+.sub-menu button.on::after{content:"✓";font-weight:700}
+#liveCv{display:block;width:100%;height:42vh;border-radius:14px;background:#0a0c12;touch-action:none;margin:4px 0 10px}
 #crumb{text-align:left}
 @media print{body>*{display:none!important}#printImg{display:block!important;width:100%}}
 </style>
@@ -157,10 +164,10 @@ header{padding-left:58px}
     <button data-go="config"><i style="background:var(--ink2)"></i><span>Configure<small>Presets, look, sound, data</small></span></button>
   </div>
   <div class="railsec" id="railView">
-    <button class="drow" data-pick="span"><span>Span</span><b id="dSpan">—</b></button>
-    <button class="drow" data-pick="shape"><span>Shape</span><b id="dShape">—</b></button>
-    <button class="drow" data-pick="content"><span>Show</span><b id="dContent">—</b></button>
-    <button class="drow" data-pick="scale"><span>Scale</span><b id="dScale">—</b></button>
+    <button class="drow" data-pick="span"><span>Span</span><b id="dSpan">—</b></button><div class="sub-menu" id="sub-span"></div>
+    <button class="drow" data-pick="shape"><span>Shape</span><b id="dShape">—</b></button><div class="sub-menu" id="sub-shape"></div>
+    <button class="drow" data-pick="content"><span>Show</span><b id="dContent">—</b></button><div class="sub-menu" id="sub-content"></div>
+    <button class="drow" data-pick="scale"><span>Scale</span><b id="dScale">—</b></button><div class="sub-menu" id="sub-scale"></div>
     <h5>Go</h5>
     <div class="xrow"><button id="nowBtn">Now</button><button id="upBtn">Zoom out</button><button id="sumBtn">Summary</button></div>
     <h5>Take it with you</h5>
@@ -186,7 +193,8 @@ header{padding-left:58px}
 
 <section class="panel" id="listen">
   <h2>Listen</h2>
-  <div class="sub">Numbers only, never audio. One packet per minute, kept on this phone and synced to the shared store.</div>
+  <div class="sub">The sheet is lifted by what the microphone hears right now; the same sheet, lifted by what it heard before, is Terrain in View. Drag to orbit.</div>
+  <canvas id="liveCv"></canvas>
   <div class="bigdb"><span id="dbNow">—</span><small>dB</small></div>
   <div class="meter"><i id="meterFill"></i></div>
   <div id="meterTxt" style="font-size:12.5px;color:var(--ink2)">Microphone off</div>
@@ -763,6 +771,7 @@ function updateCrumb(){
   document.getElementById('up').disabled=(view.span==='life');
   document.getElementById('dSpan').textContent=nameOf(SPANS,view.span);document.getElementById('dShape').textContent=nameOf(SHAPES,S.shape);
   document.getElementById('dContent').textContent=nameOf(CONTENTS,S.content);document.getElementById('dScale').textContent=nameOf(SCALES,S.scale);updateNav();
+  document.querySelectorAll('.sub-menu').forEach(x=>{if(x.classList.contains('open'))syncSubs();});
 }
 let statusExtra='';
 function updateStatus(ms){
@@ -818,24 +827,12 @@ function openRail(){rail.classList.add('open');railScrim.classList.add('open');}
 function closeRail(){rail.classList.remove('open');railScrim.classList.remove('open');}
 document.getElementById('ham').onclick=()=>rail.classList.contains('open')?closeRail():openRail();
 railScrim.onclick=closeRail;
-function go(p){panel=p;document.querySelectorAll('.nav button').forEach(b=>b.classList.toggle('on',b.dataset.go===p));document.getElementById('listen').classList.toggle('on',p==='listen');document.getElementById('config').classList.toggle('on',p==='config');document.getElementById('railView').style.display=p==='view'?'':'none';closeRail();if(p==='view')setTimeout(resize,50);if(p==='listen')fillDiag();if(p==='config')renderPresets();}
+function go(p){panel=p;document.querySelectorAll('.nav button').forEach(b=>b.classList.toggle('on',b.dataset.go===p));document.getElementById('listen').classList.toggle('on',p==='listen');document.getElementById('config').classList.toggle('on',p==='config');document.getElementById('railView').style.display=p==='view'?'':'none';closeRail();if(p==='view')setTimeout(resize,50);if(p==='listen'){fillDiag();setTimeout(()=>{live.size();live.start();},60);}else live.stop();if(p==='config')renderPresets();}
 document.querySelectorAll('.nav button').forEach(b=>b.onclick=()=>go(b.dataset.go));
 document.getElementById('crumb').onclick=openRail;
-const pop=document.getElementById('pop'),popScrim=document.getElementById('popScrim');
-function openPop(title,items,cur,on){
-  pop.innerHTML=`<h4>${title}</h4>`+items.map(([v,l,d])=>`<button data-v="${v}" class="${v===cur?'on':''}"><span>${l}${d?`<small>${d}</small>`:''}</span></button>`).join('');
-  pop.querySelectorAll('button').forEach(b=>b.onclick=()=>{closePop();on(b.dataset.v);});
-  pop.classList.add('open');popScrim.classList.add('open');
-}
-function closePop(){pop.classList.remove('open');popScrim.classList.remove('open');}
-popScrim.onclick=closePop;
-document.querySelectorAll('.drow').forEach(b=>b.onclick=()=>{
-  const k=b.dataset.pick;
-  if(k==='span')openPop('Span',SPANS,view.span,v=>setView(v,anchorFor(v)));
-  if(k==='shape')openPop('Shape',SHAPES,S.shape,v=>{S.shape=v;save();render();});
-  if(k==='content')openPop('Show',CONTENTS,S.content,v=>{S.content=v;save();render();});
-  if(k==='scale')openPop('Scale',SCALES,S.scale,v=>{S.scale=v;save();render();});
-});
+function fillSub(k,items,cur,on){const el=document.getElementById('sub-'+k);el.innerHTML=items.map(([v,l,d])=>`<button data-v="${v}" class="${v===cur?'on':''}"><span>${l}${d?`<small>${d}</small>`:''}</span></button>`).join('');el.querySelectorAll('button').forEach(b=>b.onclick=()=>{el.classList.remove('open');on(b.dataset.v);});}
+function syncSubs(){fillSub('span',SPANS,view.span,v=>setView(v,anchorFor(v)));fillSub('shape',SHAPES,S.shape,v=>{S.shape=v;save();render();});fillSub('content',CONTENTS,S.content,v=>{S.content=v;save();render();});fillSub('scale',SCALES,S.scale,v=>{S.scale=v;save();render();});}
+document.querySelectorAll('.drow').forEach(b=>b.onclick=()=>{const k=b.dataset.pick;const el=document.getElementById('sub-'+k);const was=el.classList.contains('open');document.querySelectorAll('.sub-menu').forEach(x=>x.classList.remove('open'));if(!was){syncSubs();el.classList.add('open');el.scrollIntoView({block:'nearest'});}});
 document.getElementById('upBtn').onclick=()=>{document.getElementById('up').click();closeRail();};
 function openSheet(){sheet.classList.add('open');scrim.classList.add('open');fillSummary();}
 function closeSheet(){sheet.classList.remove('open');scrim.classList.remove('open');}
@@ -1054,6 +1051,32 @@ async function autoResume(){
   if(recState==='off'||(recAC&&recAC.state!=='running')){const b=document.getElementById('resume');b.style.display='';b.onclick=async()=>{b.style.display='none';if(recState==='off')await startRec();else if(recAC)await recAC.resume();};}
 }
 let recStartedAt=0;
+// ── the living sheet (from sndwiz): a particle grid lifted by the live spectrum
+const live=(()=>{
+  const c=document.getElementById('liveCv');const x=c.getContext('2d',{alpha:false});
+  let w=0,h=0,dpr=1,cols=64,rows=64,px=null,pz=null,colF=null,level=0,beat=0,beatCool=0,dbBase=-60,t=0,last=0,raf=0,running=false;
+  let yaw=0.6,pitch=0.9,dist=100;const ptrs=new Map();let pd=0;
+  function size(){const r=c.getBoundingClientRect();dpr=Math.min(2,devicePixelRatio||1);if(!r.width)return;w=c.width=Math.round(r.width*dpr);h=c.height=Math.round(r.height*dpr);}
+  function grid(n){cols=rows=n;px=new Float32Array(n*n);pz=new Float32Array(n*n);let i=0;for(let r=0;r<n;r++)for(let cc=0;cc<n;cc++,i++){px[i]=-40+80*(cc/(n-1));pz[i]=-40+80*(r/(n-1));}colF=new Float32Array(n);}
+  grid(64);
+  const freqBuf=new Uint8Array(2048),tdBuf=new Uint8Array(4096);
+  function audio(){if(recState!=='on'||!analyser){level*=0.95;beat*=0.93;colF.fill(0);return;}
+    analyser.getByteFrequencyData(freqBuf);const n=analyser.frequencyBinCount;for(let i=0;i<cols;i++){const lo=Math.pow(i/(cols-1),2)*(n*0.5);colF[i]=freqBuf[Math.min(n-1,lo|0)]/255;}
+    analyser.getByteTimeDomainData(tdBuf);let sum=0;const m=analyser.fftSize;for(let i=0;i<m;i++){const v=(tdBuf[i]-128)/128;sum+=v*v;}const rms=Math.sqrt(sum/m);level+=(Math.min(1,rms*3)-level)*0.2;
+    const db=rms>0?20*Math.log10(rms):-80;dbBase+=(db-dbBase)*0.06;if(beatCool>0)beatCool--;if(db>dbBase+5&&beatCool===0){beat=1;beatCool=8;}beat*=0.93;}
+  function frame(now){if(!running)return;raf=requestAnimationFrame(frame);const dt=Math.min(0.05,(now-last)/1000)||0;last=now;t+=0.6*dt;if(ptrs.size===0)yaw+=0.08*dt;audio();draw();}
+  function draw(){if(!w)size();if(!w)return;x.fillStyle='#0a0c12';x.fillRect(0,0,w,h);
+    const cyw=Math.cos(yaw),syw=Math.sin(yaw),cp=Math.cos(pitch),sp=Math.sin(pitch),cx=w/2,cy=h/2,fov=Math.min(w,h)*1.1;
+    const amp=Math.max(0.001,(recState==='on'?3:5)*(1+level*1.2)),norm=amp*1.6,beatBoost=beat*0.35;
+    let i=0;for(let r=0;r<rows;r++)for(let cc=0;cc<cols;cc++,i++){const X=px[i],Z=pz[i];let Y=Math.sin(X*0.3+t)*Math.cos(Z*0.27+t*0.8)*amp;if(recState==='on')Y=Y*0.35+colF[cc]*22;
+      const x1=X*cyw-Z*syw,z1=X*syw+Z*cyw,y1=Y*cp-z1*sp,z2=Y*sp+z1*cp+dist;if(z2<2)continue;const sc=fov/z2,sx=cx+x1*sc,sy=cy-y1*sc;if(sx<-10||sx>w+10||sy<-10||sy>h+10)continue;
+      let v=recState==='on'?Math.min(1,colF[cc]*1.2+beatBoost):(Y/norm*0.5+0.5);x.fillStyle=ramp(Math.max(0,Math.min(1,v)));const sz=Math.max(0.8,Math.min(26,1.6*sc*0.25*(1+beat*0.8)*dpr));x.fillRect(sx-sz/2,sy-sz/2,sz,sz);}}
+  c.addEventListener('pointerdown',e=>{c.setPointerCapture(e.pointerId);ptrs.set(e.pointerId,{x:e.clientX,y:e.clientY});if(ptrs.size===2){const p=[...ptrs.values()];pd=Math.hypot(p[0].x-p[1].x,p[0].y-p[1].y);}});
+  c.addEventListener('pointermove',e=>{const pt=ptrs.get(e.pointerId);if(!pt)return;const dx=e.clientX-pt.x,dy=e.clientY-pt.y;pt.x=e.clientX;pt.y=e.clientY;if(ptrs.size===1){yaw+=dx*0.005;pitch=Math.max(0.15,Math.min(1.45,pitch+dy*0.005));}else if(ptrs.size===2){const p=[...ptrs.values()];const d=Math.hypot(p[0].x-p[1].x,p[0].y-p[1].y);if(pd>0&&d>0)dist=Math.max(18,Math.min(220,dist*pd/d));pd=d;}});
+  const end=e=>{ptrs.delete(e.pointerId);if(ptrs.size<2)pd=0;};c.addEventListener('pointerup',end);c.addEventListener('pointercancel',end);
+  return{start(){if(running)return;running=true;size();last=performance.now();raf=requestAnimationFrame(frame);},stop(){running=false;cancelAnimationFrame(raf);},size};
+})();
+window.addEventListener('resize',()=>live.size());
 function updateListen(L,bd){const own=[...REC.values()].filter(r=>r.d===S.devId).length;document.getElementById('dbNow').textContent=L.toFixed(0);document.getElementById('fMin').textContent=own;document.getElementById('fDirty').textContent=dirty.size;const up=Date.now()-recStartedAt;document.getElementById('fUp').textContent=up<3600000?Math.floor(up/60000)+' min':(up/3600000).toFixed(1)+' h';document.getElementById('navListen').textContent=`${L.toFixed(0)} dB · ${own} min stored`;}
 function diagText(){
   const f=DIAG.lastFlush;

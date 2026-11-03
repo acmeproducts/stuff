@@ -91,3 +91,9 @@ Owner asked: stop separating recording from showing; the small-window scheme doe
 - Presets: 8 built-ins; custom saves keep span, shape, show, scale, colours, glyphs, gaps, horizon; stored on the phone (localStorage) and merged into sound/data/presets.json by name, last update wins; deletions propagate.
 - Floating window and auto-float removed from My Time (Sound of Time keeps its version).
 Lab: rail/panels work; listening ran while in Configure; preset Year patterns applied; custom preset saved; PNG/JPG/SVG/ABC files downloaded, SVG re-rendered identically. Share and Print cannot be exercised in the lab. Not yet on the owner's phone.
+
+## My Time — build 3.1 — 2026-11-02
+Owner reported: the Span/Shape/Show/Scale pick appeared underneath the rail (unusable for navigation); sndwiz not visibly incorporated into Listen and View.
+- Picks are now sub-menus that open inline under their row in the rail, one at a time, and close on choice.
+- Listen now carries sndwiz's living sheet: a particle grid lifted by the live spectrum (low frequencies on one side, high on the other), beat flashes, orbit and pinch. Idle (mic off) it runs free and dim. This is the "now" end; Terrain in View is the same sheet lifted by stored data, with the red live column at its edge while listening.
+Lab: sub-menu selects a span; Listen renders the sheet idle and live with a fake mic. Not yet on the owner's phone.
