@@ -138,3 +138,7 @@ Owner: start over again. Left rail: Listen (the sndwiz field, visualised live an
 - Config: source (heard / fake life + seed), horizon and years ahead, level scale; nine colour schemes with swatches, light background; tile shape (square, rounded, circle, bar), size (fill / by loudness), gap, 3D height, labels; live look (donor presets, mode, resolution, amplitude, point size, speed, use scheme); device, calibration, keep screen on, token, auto-sync, sync, reload, log, reset.
 Lab: fake life drills life → decade → year → month → week → day → hour → minute; 3D renders; listening stored a minute with the fake mic. Not yet on the owner's phone.
 Cut for now (owner said keep it focused): playback, exports, custom presets. Override me if any should come back now.
+
+## The Time — build 1.1 — 2026-11-04
+Owner asked what tile size means; default must be duration.
+- Config → Tiles → "Size means": Duration (default; regular levels keep the clean grid), Loudness (perceived, doubles every 10 dB), Time above 65 dB, Recorded time, Distance from my normal. Any choice but Duration lays the level out squarified by that weight, in time order.

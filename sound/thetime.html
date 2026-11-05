@@ -111,6 +111,7 @@
   <div class="row"><div class="k">Light background</div><button class="sw" id="swLight"></button></div>
 
   <h4>Tiles</h4>
+  <div class="row"><div class="k">Size means<small>Duration keeps the calendar grid</small></div><select id="sizeBy"><option value="duration">Duration</option><option value="energy">Loudness (perceived)</option><option value="above">Time above 65 dB</option><option value="recorded">Recorded time</option><option value="unusual">Distance from my normal</option></select></div>
   <div class="row"><div class="k">Shape</div><div class="seg" id="segShape"><button data-v="square">Square</button><button data-v="rounded">Rounded</button><button data-v="circle">Circle</button><button data-v="bar">Bar</button></div></div>
   <div class="row"><div class="k">Size<small>Tiles fill their box, or shrink with loudness</small></div><div class="seg" id="segSize"><button data-v="fill">Fill</button><button data-v="loud">By loudness</button></div></div>
   <div class="row"><div class="k">Gap</div><input type="range" id="gap" min="0" max="12" step="1"></div>
@@ -143,7 +144,7 @@
 /* ===================== settings ===================== */
 var KEY='thetime-settings';
 var DEF={ src:'rec', seed:7, horizon:true, ahead:40, scale:'abs', scheme:'reactor', light:false,
-  shape:'rounded', size:'fill', gap:3, height:18, labels:true, d3:false,
+  sizeBy:'duration', shape:'rounded', size:'fill', gap:3, height:18, labels:true, d3:false,
   live:{mode:'radial',res:90,amp:8,freq:0.28,size:2.2,speed:1.2,cA:'#0a3d2e',cB:'#7cff4f',trails:false,rotate:false,autoq:true}, liveScheme:false,
   cal:100, wake:true, autosync:15, devName:'', devId:'' };
 var S=JSON.parse(JSON.stringify(DEF));
@@ -228,13 +229,16 @@ function loadLocal(){return openDB().then(function(d){db=d;return new Promise(fu
 function putRec(r,persist){var old=REC.get(r.k);if(old&&old.u>r.u)return false;if(old&&old.s&&!r.s)r.s=old.s;REC.set(r.k,r);recVer++;tiers=null;if(persist&&db){try{db.transaction('min','readwrite').objectStore('min').put(r);}catch(e){}}return true;}
 function rebuildTiers(){ tiers={hour:new Map(),day:new Map()};
   REC.forEach(function(r){var tm=r.k*MIN,hk=Math.floor(tm/HOUR),dk=alignDown(tm,'day');
-    [[tiers.hour,hk],[tiers.day,dk]].forEach(function(p){var a=p[0].get(p[1]);if(!a){a={sum:0,n:0};p[0].set(p[1],a);}a.sum+=r.L[1];a.n++;});}); }
-function levelOf(a,b){
-  if(S.src==='test'){ var k=(b-a)<=MIN?4:10, s=0, n=0; for(var i=0;i<k;i++){var tm=a+(i+0.5)*(b-a)/k; if(tm>T_END)break; var v=sampleTest(tm); if(v!=null){s+=v;n++;}} return n?s/n:null; }
+    [[tiers.hour,hk],[tiers.day,dk]].forEach(function(p){var a=p[0].get(p[1]);if(!a){a={sum:0,n:0,ab:0};p[0].set(p[1],a);}a.sum+=r.L[1];a.n++;if(r.L[1]>65)a.ab++;});}); }
+var LAST={cov:null,above:null};
+function levelOf(a,b){ LAST.cov=null; LAST.above=null;
+  if(S.src==='test'){ var k=(b-a)<=MIN?4:10, s=0, n=0, ab=0, tries=0; for(var i=0;i<k;i++){var tm=a+(i+0.5)*(b-a)/k; if(tm>T_END)break; tries++; var v=sampleTest(tm); if(v!=null){s+=v;n++;if(v>65)ab++;}} if(n){LAST.cov=n/tries;LAST.above=ab/n;} return n?s/n:null; }
   if(!tiers)rebuildTiers(); var len=b-a, s2=0, n2=0, tm;
-  if(len>=DAY){ for(tm=alignDown(a,'day');tm<b;tm=stepUnit(tm,'day',1)){var x=tiers.day.get(tm);if(x){s2+=x.sum;n2+=x.n;}} }
-  else if(len>=HOUR){ for(tm=alignDown(a,'hour');tm<b;tm+=HOUR){var y=tiers.hour.get(Math.floor(tm/HOUR));if(y){s2+=y.sum;n2+=y.n;}} }
-  else if(len>=MIN){ for(var kk=Math.floor(a/MIN);kk*MIN<b;kk++){var r=REC.get(kk);if(r){s2+=r.L[1];n2++;}} }
+  var ab2=0;
+  if(len>=DAY){ for(tm=alignDown(a,'day');tm<b;tm=stepUnit(tm,'day',1)){var x=tiers.day.get(tm);if(x){s2+=x.sum;n2+=x.n;ab2+=x.ab;}} }
+  else if(len>=HOUR){ for(tm=alignDown(a,'hour');tm<b;tm+=HOUR){var y=tiers.hour.get(Math.floor(tm/HOUR));if(y){s2+=y.sum;n2+=y.n;ab2+=y.ab;}} }
+  else if(len>=MIN){ for(var kk=Math.floor(a/MIN);kk*MIN<b;kk++){var r=REC.get(kk);if(r){s2+=r.L[1];n2++;if(r.L[1]>65)ab2++;}} }
+  if(n2){ LAST.cov=Math.min(1,n2/Math.max(1,(Math.min(b,T_END)-a)/MIN)); LAST.above=ab2/n2; }
   else { var r2=REC.get(Math.floor(a/MIN)); if(!r2)return null; var si=Math.floor((a-Math.floor(a/MIN)*MIN)/SEC); return r2.s&&r2.s[si]!=null?r2.s[si]:(r2.n>=60||r2.final?r2.L[1]:null); }
   return n2?s2/n2:null;
 }
@@ -249,7 +253,7 @@ function childrenOf(node){ var cu=childUnit(node.unit); if(!cu)return []; var ou
 var cur=null, kids=[], layout=[], modelKey='';
 function build(){
   T_END=Date.now(); cur=path[path.length-1]; kids=childrenOf(cur);
-  kids.forEach(function(c){ c.L=levelOf(c.a,c.b); c.future=c.a>=T_END; c.now=c.a<=T_END&&T_END<c.b; });
+  kids.forEach(function(c){ c.L=levelOf(c.a,c.b); c.cov=LAST.cov; c.above=LAST.above; c.future=c.a>=T_END; c.now=c.a<=T_END&&T_END<c.b; });
   var vals=kids.filter(function(c){return c.L!=null;}).map(function(c){return c.L;}).sort(function(a,b){return a-b;}), med=vals.length?vals[vals.length>>1]:50;
   kids.forEach(function(c){ if(c.L==null){c.v=0;return;} if(S.scale==='abs')c.v=(c.L-20)/80; else if(S.scale==='rel')c.v=(c.L-med+12)/40+0.3; else{var lo=0,hi=vals.length;while(lo<hi){var m=(lo+hi)>>1;if(vals[m]<c.L)lo=m+1;else hi=m;}c.v=vals.length?lo/Math.max(1,vals.length-1):0;} c.v=clamp(c.v,0,1); });
   doLayout(); renderCrumb();
@@ -272,10 +276,16 @@ function squarify(items,x,y,w,h){
 }
 function doLayout(){
   var W=innerWidth, H=innerHeight, top=60, pad=12, area={x:pad,y:top+pad,w:W-pad*2,h:H-top-pad*2-36};
-  var items=kids.map(function(c){ return {c:c,wt:c.b-c.a}; });
-  var n=kids.length, grid=null;
+  var med=0, vals=kids.filter(function(c){return c.L!=null;}).map(function(c){return c.L;}).sort(function(a,b){return a-b;}); if(vals.length)med=vals[vals.length>>1];
+  var items=kids.map(function(c){ var dur=c.b-c.a, wt=dur;
+    if(S.sizeBy==='energy')wt=c.L==null?dur*0.05:dur*Math.pow(2,(c.L-40)/10);
+    else if(S.sizeBy==='above')wt=c.L==null?dur*0.02:dur*(c.above!=null?c.above:(c.L>65?1:0.05));
+    else if(S.sizeBy==='recorded')wt=c.L==null?dur*0.02:dur*(c.cov!=null?c.cov:1);
+    else if(S.sizeBy==='unusual')wt=c.L==null?dur*0.1:dur*(0.15+Math.abs(c.L-med)/20);
+    return {c:c,wt:Math.max(wt,1)}; });
+  var n=kids.length, grid=S.sizeBy==='duration'?null:false;
   // regular units get a clean grid; irregular (weeks in a month, decades of a life) squarify by duration
-  if(cur.unit==='year'&&n===12)grid=[3,4]; else if(cur.unit==='day'&&n===24)grid=[4,6]; else if(cur.unit==='hour'&&n===60)grid=[6,10]; else if(cur.unit==='minute'&&n===60)grid=[6,10]; else if(cur.unit==='week'&&n===7)grid=[1,7]; else if(cur.unit==='decade'&&n===10)grid=[2,5];
+  if(grid===null){ if(cur.unit==='year'&&n===12)grid=[3,4]; else if(cur.unit==='day'&&n===24)grid=[4,6]; else if(cur.unit==='hour'&&n===60)grid=[6,10]; else if(cur.unit==='minute'&&n===60)grid=[6,10]; else if(cur.unit==='week'&&n===7)grid=[1,7]; else if(cur.unit==='decade'&&n===10)grid=[2,5]; }
   if(grid){ var cols=grid[0], rows=grid[1]; if(area.w>area.h){cols=grid[1];rows=grid[0];} var cw=area.w/cols, ch=area.h/rows; layout=kids.map(function(c,i){ return {it:{c:c},x:area.x+(i%cols)*cw,y:area.y+Math.floor(i/cols)*ch,w:cw,h:ch}; }); }
   else layout=squarify(items,area.x,area.y,area.w,area.h);
 }
@@ -467,6 +477,7 @@ rng('seed',function(){return S.seed;},function(v){ S.seed=v; SEED=v; build(); })
 sw('swHorizon',function(){return S.horizon;},function(v){ S.horizon=v; path=[root()]; build(); });
 rng('ahead',function(){return S.ahead;},function(v){ S.ahead=v; if(cur&&cur.unit==='life'){ path=[root()]; build(); } });
 sel('scale',function(){return S.scale;},function(v){ S.scale=v; build(); });
+sel('sizeBy',function(){return S.sizeBy;},function(v){ S.sizeBy=v; build(); });
 sw('swLight',function(){return S.light;},function(v){ S.light=v; applyTheme(); });
 seg('segShape',function(){return S.shape;},function(v){ S.shape=v; });
 seg('segSize',function(){return S.size;},function(v){ S.size=v; });
