@@ -151,3 +151,7 @@ Owner sent a life screen with circles: empty corners, labels floating outside th
 ## The Time — build 2 — 2026-11-04
 Owner: a classic treemap is squarified; duration is not a size. Keep it straight and simple.
 - View is a classic squarified treemap at every level: tile size = sound carried (perceived loudness × duration), colour = typical level, time order kept. Unrecorded and unlived spans are thin slivers so they can still be entered. Shape and size options removed; rounded tiles only.
+
+## The Time — build 2.1 — 2026-11-04
+Owner: how to listen; it can't be buried in settings.
+- ▶ in the View header plays the tiles on screen in time order (each tile ~0.35–0.7 s, its 10 bands as a chord when recorded, its level otherwise), outlining the playing tile; tap again to stop. Listening pauses while it plays and resumes after.
