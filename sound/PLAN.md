@@ -159,3 +159,7 @@ Owner: how to listen; it can't be buried in settings.
 ## The Time — build 2.3 — 2026-11-05
 Owner: group tiles in sequence or by colour; replace the up arrow with a toggle (● sequence, ○ colour); applies to 3D and any other view.
 - ● / ○ in the View header: sequence keeps time order; colour sorts the level loudest-first so like tiles sit together (classic treemap order). Same layout feeds 2D and 3D. Up is the breadcrumb or a squeeze.
+
+## The Time — build 2.4 — 2026-11-05
+Owner: colour order low → high; 3D needs full freedom of rotation.
+- By-colour order now runs quiet → loud. 3D orbit is unrestricted on both axes (drag over the top and under the floor).
