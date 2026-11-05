@@ -147,3 +147,7 @@ Owner asked what tile size means; default must be duration.
 Owner sent a life screen with circles: empty corners, labels floating outside the discs, one decade black and one cream.
 - Circle shape: the disc is now sized by the tile's area and centred, with its label inside; labels pick dark or light text from the fill's brightness; unlived tiles label dim.
 - Percentile scale falls back to Absolute when a level has fewer than 8 recorded values (three decades ranked 0 / ½ / 1 was the black-and-cream).
+
+## The Time — build 2 — 2026-11-04
+Owner: a classic treemap is squarified; duration is not a size. Keep it straight and simple.
+- View is a classic squarified treemap at every level: tile size = sound carried (perceived loudness × duration), colour = typical level, time order kept. Unrecorded and unlived spans are thin slivers so they can still be entered. Shape and size options removed; rounded tiles only.
