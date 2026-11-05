@@ -142,3 +142,8 @@ Cut for now (owner said keep it focused): playback, exports, custom presets. Ove
 ## The Time — build 1.1 — 2026-11-04
 Owner asked what tile size means; default must be duration.
 - Config → Tiles → "Size means": Duration (default; regular levels keep the clean grid), Loudness (perceived, doubles every 10 dB), Time above 65 dB, Recorded time, Distance from my normal. Any choice but Duration lays the level out squarified by that weight, in time order.
+
+## The Time — build 1.2 — 2026-11-04
+Owner sent a life screen with circles: empty corners, labels floating outside the discs, one decade black and one cream.
+- Circle shape: the disc is now sized by the tile's area and centred, with its label inside; labels pick dark or light text from the fill's brightness; unlived tiles label dim.
+- Percentile scale falls back to Absolute when a level has fewer than 8 recorded values (three decades ranked 0 / ½ / 1 was the black-and-cream).
