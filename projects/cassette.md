@@ -99,3 +99,8 @@ Authority order:
 2. Owner's latest explicit request.
 3. Referenced files provided in‑run.
 4. Chat history loses to the plan.
+
+## RUN LOG (written by DevStream)
+| Date | Tab | Result | What | Commit |
+|---|---|---|---|---|
+| 2026-11-05 13:01 | Main | built projects/cassette.html | Fixed the JavaScript syntax error and added synthetic tape‑hiss & deck‑engage thunk audio fallback. | 97213e8 |
