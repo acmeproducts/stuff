@@ -37,6 +37,9 @@
   .rb{ width:38px; height:38px; border-radius:50%; background:var(--chip); border:1px solid var(--line); display:grid; place-items:center; flex:none; font-size:13px; font-weight:600; }
   .rb.on{ background:var(--txt); color:var(--bg); }
   #vfoot{ position:fixed; left:12px; right:12px; bottom:calc(10px + env(safe-area-inset-bottom)); z-index:3; font-size:12px; color:var(--dim); display:flex; justify-content:space-between; gap:10px; pointer-events:none; }
+  #legend{ position:fixed; left:12px; right:12px; bottom:calc(32px + env(safe-area-inset-bottom)); z-index:3; font-size:11px; color:var(--dim); display:flex; align-items:center; gap:8px; pointer-events:none; }
+  #legend i{ flex:1; height:8px; border-radius:4px; max-width:160px; }
+  #legend b{ color:var(--txt); font-weight:600; }
   #vfoot b{ color:var(--txt); font-weight:600; }
   /* listen */
   #lcard{ position:fixed; left:12px; right:12px; bottom:calc(12px + env(safe-area-inset-bottom)); z-index:3; background:color-mix(in srgb,var(--panel) 86%,transparent); backdrop-filter:blur(10px); border:1px solid var(--line); border-radius:16px; padding:12px 14px; }
@@ -94,6 +97,7 @@
 <section class="screen on" id="view">
   <canvas id="vc"></canvas>
   <div id="vhead"><div id="crumb"></div><button class="rb" id="playBtn" aria-label="Listen to this">▶</button><button class="rb" id="upBtn" aria-label="Up">↑</button><button class="rb" id="d3Btn">3D</button></div>
+  <div id="legend"><span id="lgLo">20 dB</span><i id="lgBar"></i><span id="lgHi">100 dB</span><span style="margin-left:auto"><b>size</b> = sound level × time</span></div>
   <div id="vfoot"><span id="vinfo">—</span><span id="vlive"></span></div>
 </section>
 
@@ -274,13 +278,14 @@ function squarify(items,x,y,w,h){
   return res;
 }
 function doLayout(){
-  var W=innerWidth, H=innerHeight, top=60, pad=12, area={x:pad,y:top+pad,w:W-pad*2,h:H-top-pad*2-36};
+  var W=innerWidth, H=innerHeight, top=60, pad=12, area={x:pad,y:top+pad,w:W-pad*2,h:H-top-pad*2-58};
   var lit=kids.filter(function(c){return c.L!=null;}), mean=0; lit.forEach(function(c){ mean+=(c.b-c.a)*Math.pow(2,(c.L-40)/10); }); mean=lit.length?mean/lit.length:1;
   var items=kids.map(function(c){ var dur=c.b-c.a, wt=c.L==null?mean*0.03:dur*Math.pow(2,(c.L-40)/10); return {c:c,wt:Math.max(wt,1e-6)}; });
   layout=squarify(items,area.x,area.y,area.w,area.h);
 
 }
-function renderCrumb(){ var el=$('crumb'); el.innerHTML=''; path.forEach(function(p,i){ if(i){var s=document.createElement('span');s.textContent='›';el.appendChild(s);} var b=document.createElement('button'); b.textContent=label(p.a,p.unit,p.b); if(i===path.length-1)b.className='cur'; b.onclick=function(){ path=path.slice(0,i+1); build(); }; el.appendChild(b); }); el.scrollLeft=el.scrollWidth; $('navView').textContent=longLabel(cur.a,cur.unit,cur.b); }
+function renderLegend(){ $('lgBar').style.background='linear-gradient(90deg,'+SCHEMES[S.scheme].stops.join(',')+')'; var sc=S.scale; if(sc==='pct'&&kids.filter(function(c){return c.L!=null;}).length<8)sc='abs'; $('lgLo').textContent=sc==='abs'?'20 dB':sc==='rel'?'quieter than usual':'quietest here'; $('lgHi').textContent=sc==='abs'?'100 dB':sc==='rel'?'louder than usual':'loudest here'; }
+function renderCrumb(){ renderLegend(); var el=$('crumb'); el.innerHTML=''; path.forEach(function(p,i){ if(i){var s=document.createElement('span');s.textContent='›';el.appendChild(s);} var b=document.createElement('button'); b.textContent=label(p.a,p.unit,p.b); if(i===path.length-1)b.className='cur'; b.onclick=function(){ path=path.slice(0,i+1); build(); }; el.appendChild(b); }); el.scrollLeft=el.scrollWidth; $('navView').textContent=longLabel(cur.a,cur.unit,cur.b); }
 function drillInto(c){ if(c.unit==='second')return; if(playing)stopPlay(); path.push(c); build(); }
 /* ── listen to the level on screen: each tile in order, its level as a chord ── */
 var AC2=null, master=null, voices=null, playing=false, playingCell=null, playTimer=0;
@@ -321,7 +326,7 @@ function render2D(){
 function proj(x,y,z){ var cyw=Math.cos(cam.yaw),syw=Math.sin(cam.yaw),cp=Math.cos(cam.pitch),sp=Math.sin(cam.pitch);
   var x1=x*cyw-z*syw,z1=x*syw+z*cyw,y1=y*cp-z1*sp,z2=y*sp+z1*cp+cam.dist*1.0; if(z2<0.05)return null; var s=Math.min(VW,VH)*0.95/z2; return [VW/2+x1*s,VH/2-y1*s,s,z2]; }
 function render3D(){
-  var liveNow=liveLevel, area={x:12,y:68,w:VW-24,h:VH-116}, cx=area.x+area.w/2, cy=area.y+area.h/2, sc=1/Math.max(area.w,area.h);
+  var liveNow=liveLevel, area={x:12,y:68,w:VW-24,h:VH-138}, cx=area.x+area.w/2, cy=area.y+area.h/2, sc=1/Math.max(area.w,area.h);
   var blocks=[];
   layout.forEach(function(t){ var c=t.it.c, r=tileRect(t), f=fillFor(c,liveNow); var v=c.L!=null&&!c.future?(c.now&&liveNow!=null?clamp((liveNow-20)/80,0,1):c.v):0;
     var hgt=v*S.height/100, x0=(r.x-cx)*sc, x1=(r.x+r.w-cx)*sc, z0=(r.y-cy)*sc, z1=(r.y+r.h-cy)*sc;
