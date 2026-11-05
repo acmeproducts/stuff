@@ -155,3 +155,7 @@ Owner: a classic treemap is squarified; duration is not a size. Keep it straight
 ## The Time — build 2.1 — 2026-11-04
 Owner: how to listen; it can't be buried in settings.
 - ▶ in the View header plays the tiles on screen in time order (each tile ~0.35–0.7 s, its 10 bands as a chord when recorded, its level otherwise), outlining the playing tile; tap again to stop. Listening pauses while it plays and resumes after.
+
+## The Time — build 2.3 — 2026-11-05
+Owner: group tiles in sequence or by colour; replace the up arrow with a toggle (● sequence, ○ colour); applies to 3D and any other view.
+- ● / ○ in the View header: sequence keeps time order; colour sorts the level loudest-first so like tiles sit together (classic treemap order). Same layout feeds 2D and 3D. Up is the breadcrumb or a squeeze.

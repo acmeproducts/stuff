@@ -96,7 +96,7 @@
 
 <section class="screen on" id="view">
   <canvas id="vc"></canvas>
-  <div id="vhead"><div id="crumb"></div><button class="rb" id="playBtn" aria-label="Listen to this">▶</button><button class="rb" id="upBtn" aria-label="Up">↑</button><button class="rb" id="d3Btn">3D</button></div>
+  <div id="vhead"><div id="crumb"></div><button class="rb" id="playBtn" aria-label="Listen to this">▶</button><button class="rb" id="orderBtn" aria-label="Tile order" style="font-size:18px">●</button><button class="rb" id="d3Btn">3D</button></div>
   <div id="legend"><span id="lgLo">20 dB</span><i id="lgBar"></i><span id="lgHi">100 dB</span><span style="margin-left:auto"><b>size</b> = sound level × time</span></div>
   <div id="vfoot"><span id="vinfo">—</span><span id="vlive"></span></div>
 </section>
@@ -146,7 +146,7 @@
 /* ===================== settings ===================== */
 var KEY='thetime-settings';
 var DEF={ src:'rec', seed:7, horizon:true, ahead:40, scale:'abs', scheme:'reactor', light:false,
-   gap:3, height:18, labels:true, d3:false,
+   gap:3, height:18, labels:true, d3:false, order:'seq',
   live:{mode:'radial',res:90,amp:8,freq:0.28,size:2.2,speed:1.2,cA:'#0a3d2e',cB:'#7cff4f',trails:false,rotate:false,autoq:true}, liveScheme:false,
   cal:100, wake:true, autosync:15, devName:'', devId:'' };
 var S=JSON.parse(JSON.stringify(DEF));
@@ -281,6 +281,7 @@ function doLayout(){
   var W=innerWidth, H=innerHeight, top=60, pad=12, area={x:pad,y:top+pad,w:W-pad*2,h:H-top-pad*2-58};
   var lit=kids.filter(function(c){return c.L!=null;}), mean=0; lit.forEach(function(c){ mean+=(c.b-c.a)*Math.pow(2,(c.L-40)/10); }); mean=lit.length?mean/lit.length:1;
   var items=kids.map(function(c){ var dur=c.b-c.a, wt=c.L==null?mean*0.03:dur*Math.pow(2,(c.L-40)/10); return {c:c,wt:Math.max(wt,1e-6)}; });
+  if(S.order==='color')items=items.slice().sort(function(a,b){ return (b.c.L==null?-1:b.c.L)-(a.c.L==null?-1:a.c.L); });
   layout=squarify(items,area.x,area.y,area.w,area.h);
 
 }
@@ -367,7 +368,8 @@ function endPtr(e){ if(!ptrs.has(e.pointerId))return; ptrs.delete(e.pointerId); 
   if(ptrs.size===0&&downAt){ if(!moved&&performance.now()-downAt.t<500){ var t=tileAt(e.clientX,e.clientY); if(t)drillInto(t); } downAt=null; } }
 vc.addEventListener('pointerup',endPtr); vc.addEventListener('pointercancel',endPtr);
 vc.addEventListener('wheel',function(e){ e.preventDefault(); if(e.deltaY>0)up(); else { var t=tileAt(e.clientX,e.clientY); if(t)drillInto(t); } },{passive:false});
-$('upBtn').onclick=up;
+$('orderBtn').onclick=function(){ S.order=S.order==='color'?'seq':'color'; syncOrder(); save(); build(); };
+function syncOrder(){ $('orderBtn').textContent=S.order==='color'?'○':'●'; $('orderBtn').title=S.order==='color'?'Grouped by colour':'In sequence'; }
 $('d3Btn').onclick=function(){ S.d3=!S.d3; $('d3Btn').classList.toggle('on',S.d3); save(); render(); };
 var vRAF=0, lastBuild=0; function viewLoop(now){ if(screenNow==='view'){ if(cur&&cur.a<=Date.now()&&Date.now()<cur.b&&now-lastBuild>1000){ lastBuild=now; build(); } render(); } vRAF=requestAnimationFrame(viewLoop); }
 
@@ -509,7 +511,7 @@ function renderSchemes(){ var el=$('schemes'); el.innerHTML=''; Object.keys(SCHE
 function applyTheme(){ document.documentElement.dataset.light=S.light?'1':''; document.querySelector('meta[name=theme-color]').content=cssVar('--bg'); mkHatch(); }
 
 /* ===================== boot ===================== */
-applyTheme(); renderSchemes(); buildGrid(L.res); buildLUT(); syncLive(); $('d3Btn').classList.toggle('on',S.d3);
+applyTheme(); renderSchemes(); buildGrid(L.res); buildLUT(); syncLive(); $('d3Btn').classList.toggle('on',S.d3); syncOrder();
 vsize(); path=[root()]; build(); go('view'); requestAnimationFrame(liveLoop); requestAnimationFrame(viewLoop);
 loadLocal().then(function(){ var want=false; try{ want=localStorage.getItem('thetime-wantRec')==='1'; }catch(e){} if(want&&!micOn)enableMic(); build(); return loadShared(); }).then(function(){ setupAutoSync(); build(); });
 })();
