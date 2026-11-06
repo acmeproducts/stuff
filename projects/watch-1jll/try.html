@@ -194,6 +194,11 @@ button.warn { background: var(--warn); color: #422006; }
   let manualStop = false;
   let restartCount = 0;
 
+  // IndexedDB constants
+  const DB_NAME = 'stt_app_v1';
+  const DB_VERSION = 1;
+  const STORE_NAME = 'sessions';
+
   const els = {
     btnToggle: document.getElementById('btnToggle'),
     btnSave: document.getElementById('btnSave'),
@@ -211,7 +216,79 @@ button.warn { background: var(--warn); color: #422006; }
     dRestarts: document.getElementById('d-restarts')
   };
 
-  const storageKey = 'stts_sessions_v1';
+  function initDB() {
+    return new Promise((resolve, reject) => {
+      const request = indexedDB.open(DB_NAME, DB_VERSION);
+      request.onerror = () => {
+        console.error('IDB open error:', request.error);
+        reject(request.error);
+      };
+      request.onsuccess = () => resolve(request.result);
+      request.onupgradeneeded = (event) => {
+        const db = event.target.result;
+        if (!db.objectStoreNames.contains(STORE_NAME)) {
+          const store = db.createObjectStore(STORE_NAME, { keyPath: 'id' });
+          store.createIndex('date', 'date', { unique: false });
+        }
+      };
+    });
+  }
+
+  async function loadSessions() {
+    try {
+      const db = await initDB();
+      return new Promise((resolve, reject) => {
+        const tx = db.transaction(STORE_NAME, 'readonly');
+        const store = tx.objectStore(STORE_NAME);
+        const request = store.getAll();
+        request.onsuccess = () => resolve(request.result || []);
+        request.onerror = () => {
+          console.error('IDB load error:', request.error);
+          reject(request.error);
+        };
+      });
+    } catch (e) {
+      console.error('Failed to load sessions:', e);
+      setError('Storage read error');
+      return [];
+    }
+  }
+
+  async function saveSession(session) {
+    try {
+      const db = await initDB();
+      return new Promise((resolve, reject) => {
+        const tx = db.transaction(STORE_NAME, 'readwrite');
+        const store = tx.objectStore(STORE_NAME);
+        const request = store.put(session);
+        request.onsuccess = () => resolve();
+        request.onerror = () => {
+          console.error('IDB save error:', request.error);
+          reject(request.error);
+        };
+      });
+    } catch (e) {
+      console.error('Failed to save session:', e);
+      setError('Storage save error');
+      throw e;
+    }
+  }
+
+  async function deleteSession(id) {
+    try {
+      const db = await initDB();
+      return new Promise((resolve, reject) => {
+        const tx = db.transaction(STORE_NAME, 'readwrite');
+        const store = tx.objectStore(STORE_NAME);
+        const request = store.delete(id);
+        request.onsuccess = () => resolve();
+        request.onerror = () => reject(request.error);
+      });
+    } catch (e) {
+      console.error('Failed to delete session:', e);
+      setError('Delete error');
+    }
+  }
 
   function showToast(msg) {
     els.toast.textContent = msg;
@@ -254,32 +331,14 @@ button.warn { background: var(--warn); color: #422006; }
     updateDiagnostics();
   }
 
-  function loadSessions() {
-    try {
-      const raw = localStorage.getItem(storageKey);
-      return raw ? JSON.parse(raw) : [];
-    } catch (e) {
-      setError('Storage read error');
-      return [];
-    }
-  }
-
-  function saveSessions(list) {
-    try {
-      localStorage.setItem(storageKey, JSON.stringify(list));
-    } catch (e) {
-      setError('Storage save error');
-    }
-  }
-
-  function renderSessions() {
-    const list = loadSessions();
+  async function renderSessions() {
+    const list = await loadSessions();
     els.sessionList.innerHTML = '';
     if (!list.length) {
       els.sessionList.innerHTML = '<div class="empty">No saved sessions yet.</div>';
       return;
     }
-    list.slice().reverse().forEach(s => {
+    list.sort((a, b) => b.id - a.id).forEach(s => {
       const card = document.createElement('div');
       card.className = 'session-card';
       const meta = document.createElement('div');
@@ -295,14 +354,16 @@ button.warn { background: var(--warn); color: #422006; }
     });
   }
 
-  function pushSession(text) {
+  async function pushSession(text) {
     if (!text.trim()) return;
     const now = Date.now();
     const duration = sessionStartTime ? Math.max(1, Math.round((now - sessionStartTime) / 1000)) : 0;
-    const list = loadSessions();
-    list.push({ id: now, date: new Date(now).toISOString(), text: text.trim(), duration });
-    saveSessions(list);
-    renderSessions();
+    try {
+      await saveSession({ id: now, date: new Date(now).toISOString(), text: text.trim(), duration });
+      renderSessions();
+    } catch (e) {
+      // Error already shown by saveSession
+    }
   }
 
   function setupRec() {
@@ -325,18 +386,16 @@ button.warn { background: var(--warn); color: #422006; }
 
     r.onend = () => {
       isRunning = false;
-      // Flush any remaining interim to final on stop (best effort)
       if (interimTranscript) {
         finalTranscript += interimTranscript;
         interimTranscript = '';
         renderTranscript();
       }
       
-      // Auto-restart if not manually stopped (mitigates BUG-002)
       if (!manualStop && r === rec) {
         restartCount++;
         updateDiagnostics();
-        lastProcessedIndex = 0; // Reset index tracking for new instance
+        lastProcessedIndex = 0;
         setTimeout(() => {
           try {
             rec.start();
@@ -356,7 +415,6 @@ button.warn { background: var(--warn); color: #422006; }
 
     r.onresult = (e) => {
       let interim = '';
-      // Prevent duplicate processing by tracking lastProcessedIndex (fixes BUG-001)
       const startIndex = Math.max(e.resultIndex, lastProcessedIndex);
       
       for (let i = startIndex; i < e.results.length; ++i) {
@@ -378,9 +436,8 @@ button.warn { background: var(--warn); color: #422006; }
       setError(msg);
       if (msg === 'not-allowed') {
         els.status.textContent = 'Mic permission denied';
-        manualStop = true; // Prevent restart loop on permission error
+        manualStop = true;
       }
-      // Let onend handle cleanup/restart for other errors
     };
 
     return r;
@@ -407,7 +464,7 @@ button.warn { background: var(--warn); color: #422006; }
     }
   });
 
-  els.btnSave.addEventListener('click', () => {
+  els.btnSave.addEventListener('click', async () => {
     const text = finalTranscript + interimTranscript;
     if (!text.trim()) return;
     
@@ -416,9 +473,9 @@ button.warn { background: var(--warn); color: #422006; }
       rec.stop();
     }
     
-    setTimeout(() => {
+    setTimeout(async () => {
       const finalText = finalTranscript || text;
-      pushSession(finalText);
+      await pushSession(finalText);
       showToast('Session saved');
       finalTranscript = '';
       interimTranscript = '';
