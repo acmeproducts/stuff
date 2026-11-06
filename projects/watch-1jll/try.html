@@ -40,6 +40,7 @@ h1 { margin: 0; font-size: 1.25rem; letter-spacing: 0.02em; }
   gap: 0.5rem;
   margin-bottom: 0.75rem;
   flex-wrap: wrap;
+  align-items: center;
 }
 button {
   border: none;
@@ -57,6 +58,7 @@ button:disabled { opacity: 0.5; }
 button.secondary { background: #334155; }
 button.accent { background: var(--accent); color: #052e16; }
 button.warn { background: var(--warn); color: #422006; }
+button.danger { background: #dc2626; color: white; font-size: 0.85rem; padding: 0.5rem 0.75rem; min-width: auto; }
 .live-box {
   flex: 1;
   background: var(--panel);
@@ -115,6 +117,7 @@ button.warn { background: var(--warn); color: #422006; }
   font-size: 0.8rem;
   color: var(--muted);
   margin-bottom: 0.25rem;
+  align-items: center;
 }
 .session-text {
   font-size: 0.95rem;
@@ -191,6 +194,7 @@ button.warn { background: var(--warn); color: #422006; }
   let lastConfidence = 0;
   let sessionStartTime = 0;
   let lastProcessedIndex = 0;
+  let lastFinalChunk = ''; // Deduplication guard
   let manualStop = false;
   let restartCount = 0;
 
@@ -219,10 +223,7 @@ button.warn { background: var(--warn); color: #422006; }
   function initDB() {
     return new Promise((resolve, reject) => {
       const request = indexedDB.open(DB_NAME, DB_VERSION);
-      request.onerror = () => {
-        console.error('IDB open error:', request.error);
-        reject(request.error);
-      };
+      request.onerror = () => reject(request.error);
       request.onsuccess = () => resolve(request.result);
       request.onupgradeneeded = (event) => {
         const db = event.target.result;
@@ -242,10 +243,7 @@ button.warn { background: var(--warn); color: #422006; }
         const store = tx.objectStore(STORE_NAME);
         const request = store.getAll();
         request.onsuccess = () => resolve(request.result || []);
-        request.onerror = () => {
-          console.error('IDB load error:', request.error);
-          reject(request.error);
-        };
+        request.onerror = () => reject(request.error);
       });
     } catch (e) {
       console.error('Failed to load sessions:', e);
@@ -262,10 +260,7 @@ button.warn { background: var(--warn); color: #422006; }
         const store = tx.objectStore(STORE_NAME);
         const request = store.put(session);
         request.onsuccess = () => resolve();
-        request.onerror = () => {
-          console.error('IDB save error:', request.error);
-          reject(request.error);
-        };
+        request.onerror = () => reject(request.error);
       });
     } catch (e) {
       console.error('Failed to save session:', e);
@@ -345,6 +340,18 @@ button.warn { background: var(--warn); color: #422006; }
       meta.className = 'session-meta';
       const dt = new Date(s.id);
       meta.innerHTML = `<span>${dt.toLocaleString()}</span><span>${s.duration}s</span>`;
+      
+      const delBtn = document.createElement('button');
+      delBtn.className = 'danger';
+      delBtn.textContent = 'Delete';
+      delBtn.onclick = async (e) => {
+        e.stopPropagation();
+        await deleteSession(s.id);
+        showToast('Deleted');
+        renderSessions();
+      };
+      meta.appendChild(delBtn);
+      
       const body = document.createElement('div');
       body.className = 'session-text';
       body.textContent = s.text.slice(0, 200) + (s.text.length > 200 ? '…' : '');
@@ -386,8 +393,13 @@ button.warn { background: var(--warn); color: #422006; }
 
     r.onend = () => {
       isRunning = false;
+      // Commit any pending interim to final buffer to prevent loss
       if (interimTranscript) {
-        finalTranscript += interimTranscript;
+        const trimmed = interimTranscript.trim();
+        // Avoid duplicating if it matches last final chunk
+        if (trimmed && trimmed !== lastFinalChunk) {
+          finalTranscript += interimTranscript;
+        }
         interimTranscript = '';
         renderTranscript();
       }
@@ -395,15 +407,19 @@ button.warn { background: var(--warn); color: #422006; }
       if (!manualStop && r === rec) {
         restartCount++;
         updateDiagnostics();
-        lastProcessedIndex = 0;
+        // Do NOT reset lastProcessedIndex or lastFinalChunk here - carry over for dedup across restart
         setTimeout(() => {
-          try {
-            rec.start();
-          } catch (e) {
-            setError('Restart failed: ' + e.message);
-            rec = null;
-            manualStop = true;
-            renderButtons();
+          // Create fresh instance - required after onend
+          rec = setupRec();
+          if (rec) {
+            try {
+              rec.start();
+            } catch (e) {
+              setError('Restart failed: ' + e.message);
+              manualStop = true;
+              rec = null;
+              renderButtons();
+            }
           }
         }, 150);
       } else {
@@ -415,13 +431,19 @@ button.warn { background: var(--warn); color: #422006; }
 
     r.onresult = (e) => {
       let interim = '';
+      // Safety: never process indices we've already processed (should not happen, but guards against API quirks)
       const startIndex = Math.max(e.resultIndex, lastProcessedIndex);
       
       for (let i = startIndex; i < e.results.length; ++i) {
         const tr = e.results[i][0].transcript;
         lastConfidence = e.results[i][0].confidence || 0;
         if (e.results[i].isFinal) {
-          finalTranscript += tr + ' ';
+          const chunk = tr.trim();
+          // Deduplication: skip exact duplicate of last finalized chunk (handles browser-internal restarts)
+          if (chunk && chunk !== lastFinalChunk) {
+            finalTranscript += tr + ' ';
+            lastFinalChunk = chunk;
+          }
           lastProcessedIndex = i + 1;
         } else {
           interim += tr;
@@ -438,6 +460,7 @@ button.warn { background: var(--warn); color: #422006; }
         els.status.textContent = 'Mic permission denied';
         manualStop = true;
       }
+      // Do not auto-restart on error, let onend handle it if applicable
     };
 
     return r;
@@ -448,8 +471,10 @@ button.warn { background: var(--warn); color: #422006; }
       manualStop = true;
       rec.stop();
     } else {
+      // Fresh session: reset all state
       manualStop = false;
       lastProcessedIndex = 0;
+      lastFinalChunk = '';
       restartCount = 0;
       if (!sessionStartTime) sessionStartTime = Date.now();
       interimTranscript = '';
@@ -477,10 +502,12 @@ button.warn { background: var(--warn); color: #422006; }
       const finalText = finalTranscript || text;
       await pushSession(finalText);
       showToast('Session saved');
+      // Reset for new session
       finalTranscript = '';
       interimTranscript = '';
       sessionStartTime = 0;
       lastProcessedIndex = 0;
+      lastFinalChunk = '';
       renderTranscript();
       renderButtons();
     }, 60);
@@ -495,6 +522,7 @@ button.warn { background: var(--warn); color: #422006; }
     interimTranscript = '';
     sessionStartTime = 0;
     lastProcessedIndex = 0;
+    lastFinalChunk = '';
     restartCount = 0;
     renderTranscript();
     renderButtons();
