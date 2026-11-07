@@ -75,3 +75,4 @@ Do not forward-patch this rejected design. Restore the pre-#770 Complete bytes (
 - **"N / N" count with no active search** and **the selection chip in the action row.**
 - **The separate "Choose TARGET" modal picker** (2026-10-30). Owner: target selection must use the three-panel picker; it now does.
 - **Drives listed without size in the TARGET picker** (2026-10-30). Owner wants capacity / available in whole GB.
+- **Always-pinned left menu on wide screens with no ☰** (2026-11-07). Owner wants a fixed top-left ☰ that collapses and expands it.
