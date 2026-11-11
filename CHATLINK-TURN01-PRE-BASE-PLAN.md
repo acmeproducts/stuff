@@ -824,3 +824,8 @@ Owner asked: each chat card gets a toggle, H2H (head to head, as before) or SBS 
 
 ### 2026-11-11 — SBS language chip: centred and bigger
 Owner (screenshot): the EN ⇄ TH chip sat at the far right and was small. Change: it is now centred on the keyboard, up to 320 px wide (62% of the keyboard on a phone) and 42 px tall. Check added first: chip centred within 3 px and at least 300 px or 55% of the keyboard wide, 36 px tall; it failed before and passes now. Open mode 56/56, keyboard 32/32. Not seen on a real phone.
+
+### 2026-11-11 — SBS: one look for both languages, compose line stays put
+Owner (two screenshots): switching EN ⇄ TH gave two different experiences. The Thai side was a separate rounded card, and the compose line jumped up compared with English. Wanted: line does not jump, and the rounded card look.
+Cause: the English composer lived inside the transcript's card, the Thai one in its own card, and the Thai keyboard is taller than the English one, so the line moved.
+Change: in SBS the transcript and the composer are always two rounded cards (blue for South, green for North), and the keyboard is the same height for every language (up to 372 px, 55% of the screen at most; very tall layouts scroll inside it). H2H unchanged (a wrapper with no visual effect). Check added first: compose line within 2 px after the switch and rounded corners on both; failed before, passes now. Open mode 56/56, keyboard 32/32, guest link 15/15. Not seen on a real phone. Side effect to look at: English now has some blank space under its last key row, because it is shorter than Thai.
