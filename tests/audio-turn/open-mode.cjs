@@ -209,6 +209,9 @@ test('SBS: tapping the compose opens the keyboard at once, and the language swit
  await page.locator('#in-south').focus();await page.waitForFunction(()=>INPUT.owner==='south'&&INPUT.mode==='kb');
  assert.equal(await page.locator('.ask.show').count(),0,'no permission card');
  const t=page.locator('#kb-south .ktoggle');assert.match((await t.textContent()).replace(/\s+/g,''),/^EN.?TH$|^EN.TH$|EN.*TH/);
+ const tb=await t.boundingBox(),kbb=await page.locator('#kb-south').boundingBox();
+ assert.ok(Math.abs((tb.x+tb.width/2)-(kbb.x+kbb.width/2))<=3,'language chip is centred on the keyboard');
+ assert.ok(tb.width>=Math.min(300,kbb.width*0.55)&&tb.height>=36,'language chip is wide and tall enough to tap');
  await t.click();await page.waitForFunction(()=>INPUT.owner==='north'&&INPUT.mode==='kb');
  assert.equal(await page.locator('.ask.show').count(),0,'still no permission card');
  assert.equal(await page.evaluate(()=>document.body.classList.contains('sbs-n')),true);
