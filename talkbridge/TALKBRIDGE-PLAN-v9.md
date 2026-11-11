@@ -1,5 +1,5 @@
-<!-- TALKBRIDGE-PLAN v21.117.0 -->
-# TALKBRIDGE MASTER PLAN v21.117.0
+<!-- TALKBRIDGE-PLAN v21.118.0 -->
+# TALKBRIDGE MASTER PLAN v21.118.0
 
 **Location:** `talkbridge/TALKBRIDGE-PLAN-v9.md` in `acmeproducts/stuff`.
 **Owner:** Confi — sole decision-maker, runs every device gate.
@@ -147,10 +147,11 @@ the directory release and IndexedDB each moved one turn later; nothing was dropp
 | 29·pre-ship | **the directory release (fixing the PWA: D-2 + D-6, §7.5 + §7.12)** — moved up 2026-10-09 when multi-user c1 was withdrawn (warm storage `bridge-turn29-multi-user-v1.html`) | **CANDIDATE 2 · ACCEPTED 2026-10-10 (owner: "iPhone install successful") · sha `f8919a976bbd`** — Android passed on c1 (same bytes but one head line), iPhone on c2; desktop G1 untested | **https://acmeproducts.github.io/stuff/talkbridge-app/bridge-turn29-pre-ship.html** |
 | 29·ship | **install optional (§7.19)** — moved up from 29·post-ship 2026-10-09; the owner's two call-sound items slotted in 2026-10-10 | **ACCEPTED 2026-10-11 · candidate 6 · sha `7c61a68ee1c8` (owner: "pass")** | **https://acmeproducts.github.io/stuff/talkbridge-app/bridge-turn29-ship.html** |
 | 29·post-ship | **localization** — the app's own words in the user's language, both sides (§7.17) — moved up from 30·base by owner ruling 2026-10-10 | **ACCEPTED 2026-10-20 · candidate 7 · sha `c1c417e21dd1` · tb-sw5.js · relay v6.17 (owner: "approved")** — localization, the reach bar, reachability, the activity log, the room name phone to phone, no names on the server. Candidate history: c1–c7 (§7.17, §7.20, §7.21; changelog v21.96.0–v21.109.0) | **https://acmeproducts.github.io/stuff/talkbridge-app/bridge-turn29-post-ship.html** |
-| 30·post-ship | IndexedDB — behind its POC; if the owner defers it past beta, it stays here | queued | — |
+| 30·post-ship | open (IndexedDB moved up to 30·pre-ship, owner 2026-10-27) | — | — |
 | 30·pre-base | byte-identical snapshot of accepted 29·post-ship | **BANKED 2026-10-22 BY REFERENCE** — the accepted `talkbridge-app/bridge-turn29-post-ship.html` (sha `c1c417e21dd1`), immutable under §0c; 30·base's assembler sha-checks it | — |
-| 30·base | **THE VIDEO BOX (§7.22)** — owner 2026-10-22: "it should be the tall 9:16 that's draggable"; multi-user (conference-room model) moves later, only after its spec is written and approved | **CANDIDATE 4 · BUILT 2026-10-27 · relay v6.17 (unchanged) · tb-sw5.js (unchanged) — THE STRIP YOU PULL DOWN (VB-2: the accepted band in place, its height the person's, the whole picture at any height, the small picture in a corner) + CV-1 + NM-1 + the Android strip teal; awaiting the owner's two-phone device gate.** Candidate 3 (2026-10-23): the owner tested it 2026-10-27 — "it works as expected but I'm not really crazy about it" → the floating window superseded (G79). Candidate 2 (2026-10-22): the owner's test 2026-10-23 — the timer right, three findings, all in c3. Candidate 1 REJECTED 2026-10-22 (G77). | **https://acmeproducts.github.io/stuff/talkbridge-app/bridge-turn30-base.html** (and next.html) · Jenny's instance: https://acmeproducts.github.io/stuff/talkbridge-app/bridge-turn30-base-jenny.html |
-| 30·pre-ship | beta readiness | queued | — |
+| 30·base | **THE VIDEO BOX (§7.22)** — owner 2026-10-22: "it should be the tall 9:16 that's draggable"; then the strip you pull down (2026-10-27) | **ACCEPTED 2026-11-11 · candidate 4 · sha `a4155be904a9` · tb-sw5.js · relay v6.17 (owner: "video approved")** — the strip you pull down (VB-2), the camera back after dictation (CV-1), the room's name to the microphone (NM-1), the Android strip teal; Jenny's instance with it. Candidate history: c1 rejected (G77); c2 tested (three findings → c3); c3 "works … not crazy about it" (G79) → c4 (§7.22; changelog v21.111.0–v21.117.0) | **https://acmeproducts.github.io/stuff/talkbridge-app/bridge-turn30-base.html** (the folder's face forwards here) · Jenny: …/bridge-turn30-base-jenny.html |
+| 30·pre-ship | **chats in IndexedDB — TS-1 (§7.24)**; input: accepted 30·base | NEXT — spec written and reviewed; building (owner: "Both, video first") | — |
+| 30·ship | beta readiness (moved from 30·pre-ship, owner 2026-10-27) | queued | — |
 
 Every accepted or built stage carries its live address here and in the ledger; a row without a link is not built.
 
@@ -2090,6 +2091,8 @@ Green means allowed to push. It never means done.
 ---
 
 ## 10 · CHANGE LOG
+
+**v21.118.0 · 2026-11-11.** 30·base ACCEPTED (owner: "video approved") — candidate 4, sha `a4155be904a9`: the strip you pull down, CV-1, NM-1, the teal Android strip. The folder's face (`index.html`) forwards to it (`current-stage.json`); the stage is immutable from here (§0c). next.html stays on it until 30·pre-ship's first candidate. NEXT: 30·pre-ship = TS-1, chats in IndexedDB (§7.24; the owner's "Both, video first" — decision 1 accepted: an older page shows migrated rooms empty); beta readiness moves to 30·ship.
 
 **v21.117.0 · 2026-10-27.** 30·base candidate 4 (§7.22 "Candidate 4"): the owner after testing c3 — "maybe being able to just drag the length of the video … with the tall pip inside maybe that's a better solve"; then "Both, video first" (and decision 1 of §7.24 accepted: an older page shows migrated rooms empty). VB-2 replaces the floating window: the accepted band stays in the room's flow, the person pulls its grab bar to set its height (MIN 228 px; MAX keeps 120 px of chat beside every other row), both pictures whole, the small picture in a corner (dragged, it snaps; a tap swaps). Independently reviewed before the code (5 must-fix applied — the keyboard rule dropped on a wrong premise). Gates: harness-30b 73/73, browser 18/18 by real touch, mutations 38/38, prior gate:29pos. G79: the floating window.
 
