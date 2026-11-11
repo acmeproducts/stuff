@@ -244,3 +244,18 @@ test('SBS: the composer defaults to the language last spoken',async({page})=>{
  final(s.south,'hello friend',.95);await page.waitForFunction(()=>HIST.length===2&&HIST[1].side==='south');
  await page.waitForFunction(()=>!document.body.classList.contains('sbs-n'));
 });
+test('keyboard: clearing the draft with the X brings the word suggestions back',async({page})=>{
+ await create(page,'PredClear');
+ await page.locator('#in-south').focus();await page.waitForFunction(()=>INPUT.owner==='south'&&INPUT.mode==='kb');
+ const chips=()=>page.locator('#kb-south .kpredictions:visible .kcand').count();
+ await page.waitForFunction(()=>document.querySelectorAll('#kb-south .kpredictions .kcand').length===3);assert.equal(await chips(),3,'suggestions show on an empty box');
+ await page.evaluate(()=>{press('south','h');press('south','i')});await page.waitForTimeout(200);
+ await page.locator('#strip-south .clearbtn').click();await page.waitForTimeout(300);
+ assert.equal(await page.locator('#in-south').inputValue(),'');assert.equal(await chips(),3,'suggestions are back after the X');
+});
+test('SBS: the keys use the spare room, so there is no empty band under the last row',async({page})=>{
+ await create(page,'Fill');await setLayout(page,'Fill','sbs');
+ await page.locator('#in-south').focus();await page.waitForFunction(()=>INPUT.owner==='south'&&INPUT.mode==='kb');await page.waitForTimeout(450);
+ const gap=await page.evaluate(()=>{const kb=document.getElementById('kb-south').getBoundingClientRect(),rows=document.querySelectorAll('#kb-south .krow'),last=rows[rows.length-1].getBoundingClientRect(),q=document.querySelector('#kb-south .key').getBoundingClientRect();return{gap:kb.bottom-last.bottom,key:q.height}});
+ assert.ok(gap.gap<=14,'no blank band under the last row ('+Math.round(gap.gap)+'px)');assert.ok(gap.key>=50,'keys are taller than before ('+Math.round(gap.key)+'px)');
+});
