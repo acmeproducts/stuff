@@ -189,3 +189,49 @@ test('usage log: offline events wait on the phone and are sent once when back on
  const evs=usageEvents(got);assert.equal(evs.filter(e=>e.kind==='message').length,1,'sent once, no duplicates');
  assert.ok(evs.some(e=>e.kind==='room'));
 });
+async function setLayout(page,name,want){await menu(page);const btn=page.locator('.cl-room',{hasText:name}).locator('.cl-layout');if((await btn.textContent()).trim().toLowerCase()!==want){await btn.click();await page.waitForFunction(w=>window.ROOM&&window.ROOM.layout===w,want)}await page.locator('#cl-close').click();await page.waitForFunction(()=>!document.body.classList.contains('cl-open'))}
+test('layout: a chat card toggles H2H and SBS; SBS shows one transcript and one composer; it survives a reload',async({page})=>{
+ await create(page,'Layout');await menu(page);
+ const btn=()=>page.locator('.cl-room',{hasText:'Layout'}).locator('.cl-layout');
+ assert.equal((await btn().textContent()).trim(),'H2H');assert.equal(await page.evaluate(()=>document.body.classList.contains('sbs')),false);
+ await btn().click();await page.waitForFunction(()=>document.body.classList.contains('sbs'));
+ assert.equal((await records(page)).find(r=>r.label==='Layout').layout,'sbs');assert.equal((await btn().textContent()).trim(),'SBS');
+ await page.locator('#cl-close').click();await page.waitForFunction(()=>!document.body.classList.contains('cl-open'));
+ assert.equal(await page.locator('#tx-north').isHidden(),true,'one transcript only');assert.equal(await page.locator('#tx-south').isVisible(),true);
+ assert.equal(await page.locator('#strip-south').isVisible(),true,'one composer');assert.equal(await page.locator('#strip-north').isHidden(),true);
+ await page.reload();await page.waitForFunction(()=>document.documentElement.dataset.chatlinkReady==='true');
+ assert.equal(await page.evaluate(()=>document.body.classList.contains('sbs')),true,'layout kept after reload');
+ await menu(page);await btn().click();await page.waitForFunction(()=>!document.body.classList.contains('sbs'));
+ assert.equal((await records(page)).find(r=>r.label==='Layout').layout,'h2h','and it can go back');
+});
+test('SBS: tapping the compose opens the keyboard at once, and the language switch moves the keyboard with no permission step',async({page})=>{
+ await create(page,'Sbs2');await setLayout(page,'Sbs2','sbs');
+ await page.locator('#in-south').focus();await page.waitForFunction(()=>INPUT.owner==='south'&&INPUT.mode==='kb');
+ assert.equal(await page.locator('.ask.show').count(),0,'no permission card');
+ const t=page.locator('#kb-south .ktoggle');assert.match((await t.textContent()).replace(/\s+/g,''),/^EN.?TH$|^EN.TH$|EN.*TH/);
+ await t.click();await page.waitForFunction(()=>INPUT.owner==='north'&&INPUT.mode==='kb');
+ assert.equal(await page.locator('.ask.show').count(),0,'still no permission card');
+ assert.equal(await page.evaluate(()=>document.body.classList.contains('sbs-n')),true);
+ assert.equal(await page.locator('#kb-north').isVisible(),true);assert.match(await page.locator('#kb-north .klang').textContent(),/ไทย|Thai/);
+ assert.equal(await page.locator('#kb-north .ktoggle').count(),1,'and it switches back');
+ await page.locator('#kb-north .ktoggle').click();await page.waitForFunction(()=>INPUT.owner==='south'&&INPUT.mode==='kb');
+});
+test('SBS: a message typed in the other language is recorded for that language and shown in the one transcript as the other speaker',async({page})=>{
+ await create(page,'Sbs3');await setLayout(page,'Sbs3','sbs');
+ await page.locator('#in-south').focus();await page.waitForFunction(()=>INPUT.owner==='south'&&INPUT.mode==='kb');
+ await page.locator('#kb-south .ktoggle').click();await page.waitForFunction(()=>INPUT.owner==='north');
+ await send(page,'north','สวัสดี');await settled(page,1);
+ const m=await page.evaluate(()=>({side:HIST[0].side,src:HIST[0].src,tgt:HIST[0].tgt}));
+ assert.deepEqual(m,{side:'north',src:'th',tgt:'en'});
+ assert.equal(await page.locator('#tx-south .row.them').count(),1,'shown in the single transcript as the other speaker');
+});
+test('SBS: the composer defaults to the language last spoken',async({page})=>{
+ await openRoom(page,'LastLang');await setLayout(page,'LastLang','sbs');
+ await page.waitForFunction(()=>mic.south.active&&mic.north.active);await page.waitForTimeout(400);
+ const byLang=l=>page.testSockets.filter(w=>w.url().includes('language='+l)).slice(-1)[0],s={south:byLang('en-US'),north:byLang('th')};
+ assert.equal(await page.evaluate(()=>document.body.classList.contains('sbs-n')),false,'starts on the device owner language');
+ final(s.north,'เฮลโล เฟรนด์',.95);await page.waitForFunction(()=>HIST.length===1&&HIST[0].side==='north');
+ await page.waitForFunction(()=>document.body.classList.contains('sbs-n'));
+ final(s.south,'hello friend',.95);await page.waitForFunction(()=>HIST.length===2&&HIST[1].side==='south');
+ await page.waitForFunction(()=>!document.body.classList.contains('sbs-n'));
+});
