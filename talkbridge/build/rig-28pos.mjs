@@ -4,6 +4,8 @@
    harness-diff-28pos (flattening identity) and harness-fixes-28pos (the
    declared behaviour changes). */
 import { JSDOM, VirtualConsole } from 'jsdom';
+/* TB_RIG_IDB=1 (30·pre-ship, TS-1): each phone gets its own IndexedDB (fake-indexeddb), so the whole script runs on the new chat store */
+import { IDBFactory as FakeIDBFactory, IDBKeyRange as FakeIDBKeyRange } from 'fake-indexeddb';
 export const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 export const clock = { t: 1758400000000 };
 function mulberry32(a) { return function () { a |= 0; a = a + 0x6D2B79F5 | 0; let t = Math.imul(a ^ a >>> 15, 1 | a); t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t; return ((t ^ t >>> 14) >>> 0) / 4294967296; }; }
@@ -58,6 +60,7 @@ export function makeWindow(html, tag, dev, seed) {
       w.__fetches = []; w.__fetchPlan = null;
       w.fetch = (u) => { w.__fetches.push(String(u)); const plan = w.__fetchPlan && w.__fetchPlan(String(u)); if (plan) return plan; return Promise.resolve({ ok: false, status: 0, json: () => Promise.resolve({}), text: () => Promise.resolve('') }); };
       w.matchMedia = () => ({ matches: false, addEventListener() {}, addListener() {} });
+      if (process.env.TB_RIG_IDB) { w.indexedDB = new FakeIDBFactory(); w.IDBKeyRange = FakeIDBKeyRange; }
       w.HTMLMediaElement.prototype.play = function () { return Promise.resolve(); };
       w.__clip = []; Object.defineProperty(w.navigator, 'clipboard', { value: { writeText(s) { w.__clip.push(s); return Promise.resolve(); } } });
       w.confirm = () => true;

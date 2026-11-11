@@ -1,5 +1,5 @@
-<!-- TALKBRIDGE-PLAN v21.118.0 -->
-# TALKBRIDGE MASTER PLAN v21.118.0
+<!-- TALKBRIDGE-PLAN v21.119.0 -->
+# TALKBRIDGE MASTER PLAN v21.119.0
 
 **Location:** `talkbridge/TALKBRIDGE-PLAN-v9.md` in `acmeproducts/stuff`.
 **Owner:** Confi — sole decision-maker, runs every device gate.
@@ -150,7 +150,7 @@ the directory release and IndexedDB each moved one turn later; nothing was dropp
 | 30·post-ship | open (IndexedDB moved up to 30·pre-ship, owner 2026-10-27) | — | — |
 | 30·pre-base | byte-identical snapshot of accepted 29·post-ship | **BANKED 2026-10-22 BY REFERENCE** — the accepted `talkbridge-app/bridge-turn29-post-ship.html` (sha `c1c417e21dd1`), immutable under §0c; 30·base's assembler sha-checks it | — |
 | 30·base | **THE VIDEO BOX (§7.22)** — owner 2026-10-22: "it should be the tall 9:16 that's draggable"; then the strip you pull down (2026-10-27) | **ACCEPTED 2026-11-11 · candidate 4 · sha `a4155be904a9` · tb-sw5.js · relay v6.17 (owner: "video approved")** — the strip you pull down (VB-2), the camera back after dictation (CV-1), the room's name to the microphone (NM-1), the Android strip teal; Jenny's instance with it. Candidate history: c1 rejected (G77); c2 tested (three findings → c3); c3 "works … not crazy about it" (G79) → c4 (§7.22; changelog v21.111.0–v21.117.0) | **https://acmeproducts.github.io/stuff/talkbridge-app/bridge-turn30-base.html** (the folder's face forwards here) · Jenny: …/bridge-turn30-base-jenny.html |
-| 30·pre-ship | **chats in IndexedDB — TS-1 (§7.24)**; input: accepted 30·base | NEXT — spec written and reviewed; building (owner: "Both, video first") | — |
+| 30·pre-ship | **chats in IndexedDB — TS-1 (§7.24)**; input: accepted 30·base | **CANDIDATE 1 · BUILT 2026-11-11 · relay v6.17 (unchanged) · tb-sw5.js (unchanged) — the chats move to IndexedDB under an in-memory copy, every caller unchanged; awaiting the owner's two-phone device gate** | **https://acmeproducts.github.io/stuff/talkbridge-app/bridge-turn30-pre-ship.html** (and next.html) |
 | 30·ship | beta readiness (moved from 30·pre-ship, owner 2026-10-27) | queued | — |
 
 Every accepted or built stage carries its live address here and in the ledger; a row without a link is not built.
@@ -2091,6 +2091,8 @@ Green means allowed to push. It never means done.
 ---
 
 ## 10 · CHANGE LOG
+
+**v21.119.0 · 2026-11-11.** 30·pre-ship candidate 1 (§7.24 "Built"): TS-1 — the chats leave localStorage for IndexedDB on the accepted 30·base page; every caller unchanged; absorbed at every start; the app's start held until they are in; per-message rows numbered by the store; journal mode instead of a silent fallback; two copies in step. Gates: harness-30ps 115 (incl. the whole-script differential with and without an IndexedDB), browser 13 in real Chromium, mutations 18/18, prior gate:30b. Jenny's instance stays on the accepted 30·base. next.html → the 30·pre-ship page.
 
 **v21.118.0 · 2026-11-11.** 30·base ACCEPTED (owner: "video approved") — candidate 4, sha `a4155be904a9`: the strip you pull down, CV-1, NM-1, the teal Android strip. The folder's face (`index.html`) forwards to it (`current-stage.json`); the stage is immutable from here (§0c). next.html stays on it until 30·pre-ship's first candidate. NEXT: 30·pre-ship = TS-1, chats in IndexedDB (§7.24; the owner's "Both, video first" — decision 1 accepted: an older page shows migrated rooms empty); beta readiness moves to 30·ship.
 
@@ -6176,6 +6178,30 @@ absorb at every start, remove a key only if unchanged, take turns; (7) the index
 delete → no index in the hash; order rewritten only when it changes. SHOULD, applied: hashes not JSON copies, attachment hash
 cached, the mirror size logged with a ceiling; the hard-delete hook named; the hold's runners listed; JSON-clean rows; `fake-indexeddb`
 for a second rig run; the quota mechanism named; unproven claims marked.
+
+### Built (30·pre-ship candidate 1, 2026-11-11)
+`talkbridge/build/assemble-30ps.mjs`: the ACCEPTED 30·base page (sha `a4155be904a9`) + its identity (its manifests ×2, the build line
+`turn30-pre-ship-c1`) + TS-1 (`talkbridge/parts/ts1-transcript-store.js`) → `talkbridge-app/bridge-turn30-pre-ship.html` and its two
+manifests; next.html → this page. Deviations from the spec, stated: (1) no toast in journal mode — a toast is a new string in 21
+languages; the fallback is logged (`ts_fallback`) instead; (2) no `navigator.locks` — IndexedDB readwrite transactions on the same
+stores already run one at a time, and absorption merges by id inside one transaction per room, so two copies starting together
+cannot double a message (gate S7 writes 40 at once from two copies). Found while building: the copy-over first dropped a second
+message with the same id and collapsed identical messages without an id — both now kept (gate S1); TS-1 first drew one number on
+`Math.random`, which shifted every id the app makes after it (caught by the differential; now `crypto`).
+Gates: `harness-30ps.mjs` 115 — B1, B2, W (the four wraps; TS-1 p2Entry's outermost), F, and THE WHOLE 28·post-ship SCRIPT on the
+accepted 30·base page and on this stage, identical but the declared differences, twice: (a) jsdom without IndexedDB (mode ls) and
+(b) with an IndexedDB in each phone (`fake-indexeddb`, a new dev dependency; mode idb — the chats really in the store, none left in
+localStorage). `harness-30ps-browser.mjs` 13 in real Chromium over http: S1 first start (equal, old keys gone, the broken key kept,
+rooms/user untouched), S2 the app starts once AFTER the chats, the transcript is the mirror, S3 each save writes only what changed
+(send 1 add · receipt 1 write · fill 1 write · delete 1 delete 0 writes · background pill 1 add · a function-holding entry stored as
+JSON), S4 reload, S5 a message during the hold merged by id, S6 an older page's write absorbed next start, S6b written mid-absorption
+→ kept and absorbed next start, S7 two copies 20 + 20 at once → 40 in each and once in the store, S8 a full store (3 MB) → the
+toast, the room kept dirty, nothing saved lost, S9 no IndexedDB → today's app, S10 IndexedDB stalled → journal after 10 s, absorbed
+next start, S12 a 5 MB / 15-room phone: first start 2.1–2.5 s (moving 16,500 messages), warm start 0.2–0.3 s. `mutate-30ps.mjs`
+18/18. Prior `gate:30b` (with its prior chain). NOT proven: Safari (the proof ran there; this page has not), an iPhone killed outright.
+**Device gate (owner, two phones):** open the newest-build link on each phone (and the installed app); every old room shows its
+history; chat and call both ways; reload; switch away and back; on the Android, the app and a tab open at once, sending from each.
+The builder reads `ts_absorbed` / `ts_ready` from the device log.
 
 ────────────────────────────────────────────────────────────────────────
 ## §7.18 PROPOSAL — A TRANSLATION OVERLAY THAT LEARNS (owner draft 2026-10-03; FOR DISCUSSION, not scheduled)
