@@ -208,12 +208,18 @@ test('SBS: tapping the compose opens the keyboard at once, and the language swit
  await create(page,'Sbs2');await setLayout(page,'Sbs2','sbs');
  await page.locator('#in-south').focus();await page.waitForFunction(()=>INPUT.owner==='south'&&INPUT.mode==='kb');
  assert.equal(await page.locator('.ask.show').count(),0,'no permission card');
+ await page.waitForTimeout(450);
+ const stripY1=(await page.locator('#strip-south').boundingBox()).y,radius1=await page.evaluate(()=>parseFloat(getComputedStyle(document.getElementById('cmp-south')).borderTopLeftRadius));
  const t=page.locator('#kb-south .ktoggle');assert.match((await t.textContent()).replace(/\s+/g,''),/^EN.?TH$|^EN.TH$|EN.*TH/);
  const tb=await t.boundingBox(),kbb=await page.locator('#kb-south').boundingBox();
  assert.ok(Math.abs((tb.x+tb.width/2)-(kbb.x+kbb.width/2))<=3,'language chip is centred on the keyboard');
  assert.ok(tb.width>=Math.min(300,kbb.width*0.55)&&tb.height>=36,'language chip is wide and tall enough to tap');
  await t.click();await page.waitForFunction(()=>INPUT.owner==='north'&&INPUT.mode==='kb');
  assert.equal(await page.locator('.ask.show').count(),0,'still no permission card');
+ await page.waitForTimeout(450);
+ const stripY2=(await page.locator('#strip-north').boundingBox()).y,radius2=await page.evaluate(()=>parseFloat(getComputedStyle(document.getElementById('cmp-north')).borderTopLeftRadius));
+ assert.ok(Math.abs(stripY1-stripY2)<=2,'the compose line does not jump when the language switches ('+stripY1+' vs '+stripY2+')');
+ assert.ok(radius1>=12&&radius2>=12,'both languages use the same rounded composer card ('+radius1+', '+radius2+')');
  assert.equal(await page.evaluate(()=>document.body.classList.contains('sbs-n')),true);
  assert.equal(await page.locator('#kb-north').isVisible(),true);assert.match(await page.locator('#kb-north .klang').textContent(),/ไทย|Thai/);
  assert.equal(await page.locator('#kb-north .ktoggle').count(),1,'and it switches back');
