@@ -487,3 +487,9 @@ Removed the ⋮ button from project cards. Cards now use the same gesture contra
 
 # v2.10.4 MARKDOWN RENDER ROUTING — 2026-08-21
 A message containing any single HTML tag was routed to the raw-HTML path, so its markdown rendered as literal text. Markdown is now the default; the HTML path triggers only for actual HTML documents/block markup. Preview HTML button unchanged.
+
+# v2.10.5 SESSIONS FALLING INTO UNASSIGNED — 2026-11-12
+**Reported.** Sessions assigned to Projects show as 61 Unassigned; many of the 125 sessions hidden.
+**Cause.** The SOT holds assignments to Projects whose definitions are gone (only General and three test Projects survive), and the apply step silently dropped those assignments. Separately, sessions still flagged Missing were hidden from Unassigned even when the Gateway reported them live.
+**Change.** (1) An assignment to an unknown Project now creates a placeholder Project ("Recovered xxxxxx") holding it; renaming it syncs the real name. (2) Unassigned lists every live, non-deleted, unowned session regardless of Missing flags.
+**Unverified.** Not tested against the live Gateway.
