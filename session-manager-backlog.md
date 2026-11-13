@@ -515,3 +515,10 @@ A message containing any single HTML tag was routed to the raw-HTML path, so its
 **Finding.** The shared file already held the right data (8 projects, 65 members); the device was not applying it. The restored snapshot kept its August timestamp, which an already-synced device treats as old.
 **Change.** Snapshot re-issued with a current timestamp and all later assignments, ordering and deletions folded in, so every device adopts it.
 **Unverified.** Not seen on the owner's device.
+
+# v2.10.8 NO SESSION HIDES WHEN THE GATEWAY LIST IS SHORT — 2026-11-13
+**Reported.** Still 61 Unassigned. Owner's debug log: Gateway returns 63 sessions; the app knows 192; 125 are absent.
+**Finding.** The Gateway no longer has the 125 older sessions (its own session store reports 63), so project data restored correctly but its sessions are gone from the Gateway. The app's "implausible list" guard skipped Missing classification whenever more than 30% were absent, so those 125 appeared nowhere: not in projects, Unassigned or Missing.
+**Change.** The guard now skips only when the Gateway returns zero sessions (a failed or early load). Otherwise absent sessions go to Missing with their previous Project recorded, after three consecutive refreshes.
+**Open.** Getting the 125 sessions back requires the Gateway side (its sessions store or transcripts), which this app cannot do.
+**Unverified.** Not tested on a live device.
