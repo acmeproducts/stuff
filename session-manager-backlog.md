@@ -499,3 +499,8 @@ A message containing any single HTML tag was routed to the raw-HTML path, so its
 **Cause.** A stale device pushed a snapshot holding only General plus three test projects (dispo, session, delete) over the real one. Not a Gateway problem: the Gateway reports all sessions; only project names and membership were lost.
 **Change.** SOT `projects.snapshot` restored from commit `3bbe3a12f` (2026-08-24, 8 projects, 65 members, original timestamp so later assignments still apply on top). No app change.
 **Unverified.** Not yet seen on the owner's device. A device holding stale local state may need a Sync.
+
+# v2.10.6 SNAPSHOT WINS BY DATETIME, NOT COUNTS — 2026-11-12
+**Reported.** The guard deciding which project snapshot to keep compared project and member counts.
+**Change.** A snapshot is accepted only if its timestamp is newer than the last one this device applied (or this device has no projects). Counts are no longer used.
+**Unverified.** Not tested on a live device.
