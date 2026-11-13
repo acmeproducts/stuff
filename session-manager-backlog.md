@@ -555,3 +555,8 @@ A message containing any single HTML tag was routed to the raw-HTML path, so its
 **Requested.** Create Cron and Dreams projects and have matching sessions assign themselves.
 **Change.** Two fixed Projects, "Cron" (`p-auto-cron`) and "Dreams" (`p-auto-dreams`), are created on first need. Each time the session list loads, live sessions whose key contains `:cron:` or `:dreaming-` and which no Project owns, are not in the Recycle Bin, and were never deliberately placed in Unassigned are filed into them. Changes sync as normal project events. Anything you move elsewhere stays where you put it.
 **Verified.** Logic tested against a stub (owned, trashed, deliberately unassigned and non-matching sessions skipped; second run adds nothing). Not tested against the live Gateway.
+
+# v2.10.11 AUTO-FILE FIX — 2026-11-13
+**Reported.** Cron and Dreams projects did not appear after v2.10.10.
+**Cause (likely, not confirmed on device).** v2.10.10 skipped any session with a recorded position in Unassigned; reordering that list records every session, so all were skipped.
+**Change.** That skip is removed; any live cron or dreaming session no Project owns and not in the Recycle Bin is filed. Re-tested against a stub with every session listed in Unassigned order.
