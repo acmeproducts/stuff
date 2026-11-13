@@ -544,3 +544,9 @@ A message containing any single HTML tag was routed to the raw-HTML path, so its
 **Reported.** Only one older `sessions.json` copy exists (45 entries, 2026-08-09); only 4 of 108 sessions matched by ID.
 **Change.** For keys still unmatched, the script now (1) tries the file path recorded in old index entries, then (2) matches the transcript whose first user message begins with the session's saved label (the app stores each session's title, which is the start of its first message). Ambiguous matches are skipped and reported; labels that are generic ("Conversation info…") are never matched this way.
 **Unverified.** Transcript line layout guessed generically (any line with role "user"); tested only on fake folders.
+
+# v2.10.9 A NEW SNAPSHOT NEVER REPLACES THE BASELINE — 2026-11-13
+**Reported.** Project file "hammered"; owner asked for the lineage.
+**Finding.** The project data broke in SOT commit `340c8ac` (2026-08-25 00:24 PT), 51 minutes after the last good state `3bbe3a1`. That commit replaced the 8-project, 65-member snapshot with one holding General plus three old test projects and no members, written by a browser with no Gateway identity (device id "browser"). It was accepted because compaction (introduced v2.9.20 / v2.10.0, 2026-08-21) lets the newest-timestamp snapshot win. Everything after that point was missing its project membership; the restore on 2026-11-13 returned it. Session Manager only ever calls `sessions.delete` for one session at a time after an explicit Delete Permanently confirmation; no version calls cleanup/reset. The Gateway removing sessions idle for ~30 days is unconfirmed.
+**Change.** Compaction keeps the oldest snapshot per Gateway; later snapshots can no longer replace it. All changes travel as fine-grained events. To re-baseline deliberately, edit the SOT file directly.
+**Unverified.** Not tested on a live device.
