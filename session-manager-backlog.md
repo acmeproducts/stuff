@@ -493,3 +493,9 @@ A message containing any single HTML tag was routed to the raw-HTML path, so its
 **Cause.** The SOT holds assignments to Projects whose definitions are gone (only General and three test Projects survive), and the apply step silently dropped those assignments. Separately, sessions still flagged Missing were hidden from Unassigned even when the Gateway reported them live.
 **Change.** (1) An assignment to an unknown Project now creates a placeholder Project ("Recovered xxxxxx") holding it; renaming it syncs the real name. (2) Unassigned lists every live, non-deleted, unowned session regardless of Missing flags.
 **Unverified.** Not tested against the live Gateway.
+
+# SOT RECOVERY — 2026-11-13
+**Reported.** Projects show as "Recovered xxxxxx" with 0 sessions; real project data should exist in earlier versions.
+**Cause.** A stale device pushed a snapshot holding only General plus three test projects (dispo, session, delete) over the real one. Not a Gateway problem: the Gateway reports all sessions; only project names and membership were lost.
+**Change.** SOT `projects.snapshot` restored from commit `3bbe3a12f` (2026-08-24, 8 projects, 65 members, original timestamp so later assignments still apply on top). No app change.
+**Unverified.** Not yet seen on the owner's device. A device holding stale local state may need a Sync.
