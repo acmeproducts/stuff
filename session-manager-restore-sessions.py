@@ -75,6 +75,57 @@ def best(paths):
 
 template = next((v for k, v in index.items() if ":dashboard:" in k and isinstance(v, dict)),
                 next((v for v in index.values() if isinstance(v, dict)), {}))
+
+def first_user_text(path):
+    try:
+        with open(path, "r", errors="ignore") as fh:
+            for n, line in enumerate(fh):
+                if n > 80:
+                    break
+                try:
+                    obj = json.loads(line)
+                except Exception:
+                    continue
+                stack = [obj]
+                while stack:
+                    o = stack.pop()
+                    if isinstance(o, dict):
+                        if o.get("role") == "user":
+                            c = o.get("content")
+                            if isinstance(c, list):
+                                c = " ".join(x.get("text", "") for x in c if isinstance(x, dict))
+                            if isinstance(c, str) and c.strip():
+                                return " ".join(c.split())
+                        stack.extend(v for v in o.values() if isinstance(v, (dict, list)))
+                    elif isinstance(o, list):
+                        stack.extend(o)
+    except OSError:
+        pass
+    return ""
+
+claimed = {os.path.basename(str(v.get("sessionFile", ""))).split(".")[0] for v in index.values() if isinstance(v, dict)} | {v.get("sessionId") for v in index.values() if isinstance(v, dict)}
+titles = None
+def title_index():
+    global titles
+    if titles is None:
+        titles = []
+        for sid, paths in files.items():
+            if sid in claimed or sid not in {os.path.basename(p).split(".")[0] for p in paths}:
+                continue
+            p = best(paths)
+            t = first_user_text(p)
+            if t:
+                titles.append((sid, p, t))
+    return titles
+
+def by_label(label):
+    lab = label.strip().rstrip("…").rstrip(".").strip()
+    lab = " ".join(lab.split())
+    if len(lab) < 15 or lab.startswith("Conversation info"):
+        return None, 0
+    hits = [(sid, p) for sid, p, t in title_index() if t.startswith(lab)]
+    return (hits[0] if len(hits) == 1 else None), len(hits)
+
 old = collections.defaultdict(list)   # key -> entries from older sessions.json copies, newest first
 for p, d in backups:
     for k, v in d.items():
@@ -91,15 +142,29 @@ for key in wanted:
     entries = old.get(key, [])
     cands = [(e["sessionId"], e) for e in entries] + [(c, None) for c in (m.get("sessionId"), *UUID.findall(key)) if c]
     pick = next(((sid, e, best(files[sid])) for sid, e in cands if files.get(sid)), None)
+    why = ""
+    if not pick:
+        for e in entries:
+            sf = str(e.get("sessionFile", ""))
+            if sf and os.path.exists(sf):
+                pick = (e["sessionId"], e, sf)
+                break
+    if not pick and m.get("label"):
+        hit, n = by_label(m["label"])
+        if hit:
+            pick = (hit[0], None, hit[1])
+            why = " (matched by first message)"
+        elif n > 1:
+            why = f" ({n} transcripts start the same; skipped)"
     if pick:
-        add.append((key, m, pick[0], pick[2], pick[1]))
+        add.append((key, m, pick[0], pick[2], pick[1], why))
     else:
-        lost.append((key, m, None, None, None))
+        lost.append((key, m, None, None, None, why))
 print(f"\nrestorable: {len(add)} | not found anywhere: {len(lost)} | already in sessions.json: {sum(1 for k in keymap if k in index)}")
-for key, m, sid, hit, ent in add:
-    print("  restore", key, "<-", hit, "|", m.get("project", ""), "|", (m.get("label") or "")[:40])
-for key, m, sid, hit, ent in lost:
-    print("  not found", key, "| sessionId", m.get("sessionId"))
+for key, m, sid, hit, ent, why in add:
+    print("  restore", key[14:], "<-", os.path.basename(hit)[:60], "|", m.get("project", ""), "|", (m.get("label") or "")[:40] + why)
+for key, m, sid, hit, ent, why in lost:
+    print("  not found", key[14:], "|", (m.get("label") or "")[:50] + why)
 
 if not a.apply:
     print("\nDry run. Nothing changed. Re-run with --apply to restore.")
@@ -112,7 +177,7 @@ shutil.copy2(index_path, backup)
 print("backup:", backup)
 KEEP = ("agentHarnessId", "modelProvider", "model", "channel", "chatType", "deliveryContext", "lastChannel", "origin", "systemSent")
 import copy
-for key, m, sid, hit, ent in add:
+for key, m, sid, hit, ent, why in add:
     live = os.path.join(a.dir, sid + ".jsonl")
     if not os.path.exists(live) and not hit.endswith(".jsonl") or not os.path.exists(live):
         shutil.copy2(hit, live)

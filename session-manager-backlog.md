@@ -539,3 +539,8 @@ A message containing any single HTML tag was routed to the raw-HTML path, so its
 **Cause.** Sessions get a new session ID when reset, so the IDs saved in Session Manager no longer name the files. Trajectory and checkpoint files were also mistaken for transcripts.
 **Change.** Script now reads every older `sessions.json` copy under `~/.openclaw` (backups, config-backup folders) to learn each key's real session ID history, matches transcripts by those IDs newest first, ignores trajectory/checkpoint files, and restores the full original entry. `--all` restores every key found in the old copies, not just known project sessions.
 **Unverified.** Tested only on a fake folder.
+
+# RESTORE SCRIPT v4 — 2026-11-13
+**Reported.** Only one older `sessions.json` copy exists (45 entries, 2026-08-09); only 4 of 108 sessions matched by ID.
+**Change.** For keys still unmatched, the script now (1) tries the file path recorded in old index entries, then (2) matches the transcript whose first user message begins with the session's saved label (the app stores each session's title, which is the start of its first message). Ambiguous matches are skipped and reported; labels that are generic ("Conversation info…") are never matched this way.
+**Unverified.** Transcript line layout guessed generically (any line with role "user"); tested only on fake folders.
