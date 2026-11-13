@@ -509,3 +509,9 @@ A message containing any single HTML tag was routed to the raw-HTML path, so its
 **Cause.** A device kept an old full project snapshot queued in its outbox. When the shared file had no snapshot, the old one was sent as if current, replacing the real project data with test projects.
 **Change.** A queued snapshot older than the device's last successful sync is discarded, never sent. Snapshots already ignored when the shared file has one remain ignored.
 **Unverified.** Not tested on a live device.
+
+# SOT RECOVERY 2 — 2026-11-13
+**Reported.** Owner's device still showed 61 Unassigned after the first restore.
+**Finding.** The shared file already held the right data (8 projects, 65 members); the device was not applying it. The restored snapshot kept its August timestamp, which an already-synced device treats as old.
+**Change.** Snapshot re-issued with a current timestamp and all later assignments, ordering and deletions folded in, so every device adopts it.
+**Unverified.** Not seen on the owner's device.
