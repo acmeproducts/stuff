@@ -504,3 +504,8 @@ A message containing any single HTML tag was routed to the raw-HTML path, so its
 **Reported.** The guard deciding which project snapshot to keep compared project and member counts.
 **Change.** A snapshot is accepted only if its timestamp is newer than the last one this device applied (or this device has no projects). Counts are no longer used.
 **Unverified.** Not tested on a live device.
+
+# v2.10.7 STALE DEVICE CANNOT OVERWRITE PROJECTS — 2026-11-12
+**Cause.** A device kept an old full project snapshot queued in its outbox. When the shared file had no snapshot, the old one was sent as if current, replacing the real project data with test projects.
+**Change.** A queued snapshot older than the device's last successful sync is discarded, never sent. Snapshots already ignored when the shared file has one remain ignored.
+**Unverified.** Not tested on a live device.
