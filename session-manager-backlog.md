@@ -533,3 +533,9 @@ A message containing any single HTML tag was routed to the raw-HTML path, so its
 **Cause.** v1 looked only in the sessions folder and only by recorded session ID.
 **Change.** Script now searches all of `~/.openclaw` (plus any `--root` folder) recursively, matches each transcript by the UUID in its file name or in its first line, tries both the recorded session ID and the UUID inside the session key, prefers a live `.jsonl` over archived copies, and prints which folders hold transcripts. Entries now carry model/channel/file path copied from an existing entry.
 **Unverified.** Tested only on a fake folder; real Gateway format unconfirmed.
+
+# RESTORE SCRIPT v3 — 2026-11-13
+**Reported.** Owner's dry run: 1,716 transcript files found but only 6 of 108 sessions matched.
+**Cause.** Sessions get a new session ID when reset, so the IDs saved in Session Manager no longer name the files. Trajectory and checkpoint files were also mistaken for transcripts.
+**Change.** Script now reads every older `sessions.json` copy under `~/.openclaw` (backups, config-backup folders) to learn each key's real session ID history, matches transcripts by those IDs newest first, ignores trajectory/checkpoint files, and restores the full original entry. `--all` restores every key found in the old copies, not just known project sessions.
+**Unverified.** Tested only on a fake folder.
