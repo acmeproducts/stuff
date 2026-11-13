@@ -522,3 +522,8 @@ A message containing any single HTML tag was routed to the raw-HTML path, so its
 **Change.** The guard now skips only when the Gateway returns zero sessions (a failed or early load). Otherwise absent sessions go to Missing with their previous Project recorded, after three consecutive refreshes.
 **Open.** Getting the 125 sessions back requires the Gateway side (its sessions store or transcripts), which this app cannot do.
 **Unverified.** Not tested on a live device.
+
+# GATEWAY SESSION RESTORE SCRIPT — 2026-11-13
+**Reported.** 125 sessions referenced by Projects no longer exist on the Gateway (it lists 63).
+**Change.** Added `session-manager-restore-sessions.py` and `session-manager-key-map.json` (108 session keys with their session IDs and Projects, taken from every earlier SOT snapshot). Run on the Gateway machine: it re-adds any key whose transcript file is still on disk (including archived `.deleted`/`.reset` copies). Dry run by default; `--apply` backs up `sessions.json` first.
+**Limits.** Keys not in the 108 cannot be rebuilt. Entry format is copied from the Gateway's own entries but not verified against this Gateway version. Tested only against a fake folder.
