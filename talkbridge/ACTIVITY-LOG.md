@@ -1,6 +1,6 @@
 # TalkBridge activity log
 
-Who created, joined, called and chatted, one line per event, no message text (§7.21; relay v6.14). Drained 2026-11-15T09:22:19Z. Newest at the bottom. Person = the name typed in the app, letters and digits only (no name: Guest 1, Guest 2 … per room); room = its short id. Live view: https://acmeproducts.github.io/stuff/talkbridge/dash.html
+Who created, joined, called and chatted, one line per event, no message text (§7.21; relay v6.14). Drained 2026-11-15T11:55:01Z. Newest at the bottom. Person = the name typed in the app, letters and digits only (no name: Guest 1, Guest 2 … per room); room = its short id. Live view: https://acmeproducts.github.io/stuff/talkbridge/dash.html
 
 ```
 2026-10-19 07:05:25  room wvshos  voice call from miko — answered by text
@@ -127,4 +127,166 @@ Who created, joined, called and chatted, one line per event, no message text (§
 2026-11-01 10:11:53  room gql592  video call from lolo — missed
 2026-11-15 09:16:16  room hme0p3  Guest 1 chat
 2026-11-15 09:16:18  room hme0p3  Guest 1 chat
-2026-11-15 09:16:22  room hme0p3  voice call from Guest 1 — missed```
+2026-11-15 09:16:22  room hme0p3  voice call from Guest 1 — missed
+2026-11-15 09:24:47  room 974bew chat  moko created  en → th
+2026-11-15 09:24:47  room 4k16dd Noon Mike  Mike created  en → th
+2026-11-15 09:24:47  room 6wyjxz  mike created  th → en
+2026-11-15 09:24:47  room 6s17ol Chat with Noon  Mike created  en → th
+2026-11-15 09:25:38  room 6wyjxz mike  text joined  en → th
+2026-11-15 09:26:00  room 6wyjxz lolo  mike renamed the room
+2026-11-15 09:26:11  room 6wyjxz  text chat
+2026-11-15 09:26:30  room 6wyjxz  text chat
+2026-11-15 09:26:38  room 6wyjxz  text chat
+2026-11-15 09:30:45  room 6wyjxz  text chat
+2026-11-15 09:37:44  room 6wyjxz  text chat
+2026-11-15 09:38:55  room 6wyjxz  text chat
+2026-11-15 09:39:21  room 6wyjxz  text chat
+2026-11-15 09:39:26  room 6wyjxz  text chat
+2026-11-15 09:47:35  room 6wyjxz  text chat
+2026-11-15 09:47:50  room 6wyjxz  text chat
+2026-11-15 09:48:27  room 6wyjxz mike  Lolo joined  en → th
+2026-11-15 09:48:42  room 6wyjxz  text chat
+2026-11-15 09:48:47  room 6wyjxz  text chat
+2026-11-15 09:48:47  room 6wyjxz  text chat
+2026-11-15 09:48:53  room 6wyjxz  text chat
+2026-11-15 09:49:16  room 6wyjxz  text chat
+2026-11-15 09:49:21  room 6wyjxz  text chat
+2026-11-15 09:49:24  room 6wyjxz  text chat
+2026-11-15 09:49:27  room 6wyjxz  text chat
+2026-11-15 09:49:32  room 6wyjxz  text chat
+2026-11-15 09:49:33  room 6wyjxz  text chat
+2026-11-15 09:49:39  room 6wyjxz  text chat
+2026-11-15 09:49:41  room 6wyjxz  text chat
+2026-11-15 09:49:48  room 6wyjxz  text chat
+2026-11-15 09:49:53  room 6wyjxz  text chat
+2026-11-15 09:49:56  room 6wyjxz  text chat
+2026-11-15 09:50:01  room 6wyjxz  text chat
+2026-11-15 09:50:05  room 6wyjxz  text chat
+2026-11-15 09:50:06  room 6wyjxz  text chat
+2026-11-15 09:50:10  room 6wyjxz  text chat
+2026-11-15 09:50:13  room 6wyjxz  text chat
+2026-11-15 09:50:13  room 6wyjxz  text chat
+2026-11-15 09:50:23  room 6wyjxz  text chat
+2026-11-15 09:50:27  room 6wyjxz  text chat
+2026-11-15 09:50:29  room 6wyjxz  text chat
+2026-11-15 09:50:32  room 6wyjxz  text chat
+2026-11-15 09:50:35  room 6wyjxz  text chat
+2026-11-15 09:50:44  room 6wyjxz  text chat
+2026-11-15 09:50:44  room 6wyjxz  text chat
+2026-11-15 09:50:49  room 6wyjxz  text chat
+2026-11-15 09:50:54  room 6wyjxz  text chat
+2026-11-15 09:50:55  room 6wyjxz  text chat
+2026-11-15 09:51:00  room 6wyjxz  text chat
+2026-11-15 09:51:02  room 6wyjxz  text chat
+2026-11-15 09:51:07  room 6wyjxz  text chat
+2026-11-15 09:51:10  room 6wyjxz  text chat
+2026-11-15 09:51:13  room 6wyjxz  text chat
+2026-11-15 09:51:18  room 6wyjxz  text chat
+2026-11-15 09:51:21  room 6wyjxz  text chat
+2026-11-15 09:51:22  room 6wyjxz  text chat
+2026-11-15 09:51:27  room 6wyjxz  text chat
+2026-11-15 09:51:30  room 6wyjxz  text chat
+2026-11-15 09:51:35  room 6wyjxz  text chat
+2026-11-15 09:51:38  room 6wyjxz  text chat
+2026-11-15 09:51:42  room 6wyjxz  text chat
+2026-11-15 09:51:43  room 6wyjxz  text chat
+2026-11-15 09:51:50  room 6wyjxz  text chat
+2026-11-15 09:51:53  room 6wyjxz  text chat
+2026-11-15 09:51:57  room 6wyjxz  text chat
+2026-11-15 09:51:59  room 6wyjxz  text chat
+2026-11-15 09:52:24  room 6wyjxz  text chat
+2026-11-15 09:52:29  room 6wyjxz  text chat
+2026-11-15 09:52:38  room 6wyjxz  text chat
+2026-11-15 09:52:42  room 6wyjxz  text chat
+2026-11-15 09:52:47  room 6wyjxz  text chat
+2026-11-15 09:52:50  room 6wyjxz  text chat
+2026-11-15 09:52:54  room 6wyjxz  text chat
+2026-11-15 09:52:58  room 6wyjxz  text chat
+2026-11-15 09:53:03  room 6wyjxz  text chat
+2026-11-15 09:53:06  room 6wyjxz  text chat
+2026-11-15 09:53:09  room 6wyjxz  text chat
+2026-11-15 09:53:14  room 6wyjxz  text chat
+2026-11-15 09:53:17  room 6wyjxz  text chat
+2026-11-15 09:53:22  room 6wyjxz  text chat
+2026-11-15 09:53:24  room 6wyjxz  text chat
+2026-11-15 09:53:29  room 6wyjxz  text chat
+2026-11-15 09:53:33  room 6wyjxz  text chat
+2026-11-15 09:53:38  room 6wyjxz  text chat
+2026-11-15 09:53:42  room 6wyjxz  text chat
+2026-11-15 09:53:47  room 6wyjxz  text chat
+2026-11-15 09:53:51  room 6wyjxz  text chat
+2026-11-15 09:53:52  room 6wyjxz  text chat
+2026-11-15 09:53:57  room 6wyjxz  text chat
+2026-11-15 09:54:02  room 6wyjxz  text chat
+2026-11-15 09:54:07  room 6wyjxz  text chat
+2026-11-15 09:54:11  room 6wyjxz  text chat
+2026-11-15 09:54:13  room 6wyjxz  text chat
+2026-11-15 09:54:15  room 6wyjxz  text chat
+2026-11-15 09:54:20  room 6wyjxz  text chat
+2026-11-15 09:54:28  room 6wyjxz  text chat
+2026-11-15 09:54:28  room 6wyjxz  text chat
+2026-11-15 09:54:30  room 6wyjxz  text chat
+2026-11-15 09:54:36  room 6wyjxz  text chat
+2026-11-15 09:54:37  room 6wyjxz  text chat
+2026-11-15 09:54:38  room 6wyjxz  text chat
+2026-11-15 09:54:44  room 6wyjxz  text chat
+2026-11-15 09:54:47  room 6wyjxz  text chat
+2026-11-15 09:54:49  room 6wyjxz  text chat
+2026-11-15 09:54:52  room 6wyjxz  text chat
+2026-11-15 09:54:58  room 6wyjxz  text chat
+2026-11-15 09:55:09  room 6wyjxz  text chat
+2026-11-15 09:55:11  room 6wyjxz  text chat
+2026-11-15 09:55:14  room 6wyjxz  text chat
+2026-11-15 09:55:19  room 6wyjxz  text chat
+2026-11-15 09:55:23  room 6wyjxz  text chat
+2026-11-15 09:55:28  room 6wyjxz  text chat
+2026-11-15 09:55:33  room 6wyjxz  text chat
+2026-11-15 09:55:37  room 6wyjxz  text chat
+2026-11-15 09:55:42  room 6wyjxz  text chat
+2026-11-15 09:55:46  room 6wyjxz  text chat
+2026-11-15 09:55:51  room 6wyjxz  text chat
+2026-11-15 09:55:52  room 6wyjxz  text chat
+2026-11-15 09:55:53  room 6wyjxz  text chat
+2026-11-15 09:55:57  room 6wyjxz  text chat
+2026-11-15 09:56:04  room 6wyjxz  text chat
+2026-11-15 09:56:06  room 6wyjxz  text chat
+2026-11-15 09:56:10  room 6wyjxz  text chat
+2026-11-15 09:56:24  room 6wyjxz  text chat
+2026-11-15 09:56:31  room 6wyjxz  text chat
+2026-11-15 09:56:31  room 6wyjxz  text chat
+2026-11-15 09:56:36  room 6wyjxz  text chat
+2026-11-15 09:56:41  room 6wyjxz  text chat
+2026-11-15 09:56:46  room 6wyjxz  text chat
+2026-11-15 09:56:50  room 6wyjxz  text chat
+2026-11-15 09:56:54  room 6wyjxz  text chat
+2026-11-15 09:56:56  room 6wyjxz  text chat
+2026-11-15 09:57:02  room 6wyjxz  text chat
+2026-11-15 09:57:07  room 6wyjxz  text chat
+2026-11-15 09:57:09  room 6wyjxz  text chat
+2026-11-15 09:57:14  room 6wyjxz  text chat
+2026-11-15 09:57:19  room 6wyjxz  text chat
+2026-11-15 09:57:20  room 6wyjxz  text chat
+2026-11-15 09:57:35  room 6wyjxz  text chat
+2026-11-15 09:57:40  room 6wyjxz  text chat
+2026-11-15 09:57:45  room 6wyjxz  text chat
+2026-11-15 09:57:51  room 6wyjxz  text chat
+2026-11-15 09:57:55  room 6wyjxz  text chat
+2026-11-15 09:58:02  room 6wyjxz  text chat
+2026-11-15 09:58:04  room 6wyjxz  text chat
+2026-11-15 09:58:05  room 6wyjxz  text chat
+2026-11-15 09:58:09  room 6wyjxz  text chat
+2026-11-15 09:58:15  room 6wyjxz  text chat
+2026-11-15 09:58:19  room 6wyjxz  text chat
+2026-11-15 09:58:21  room 6wyjxz  text chat
+2026-11-15 09:58:26  room 6wyjxz  text chat
+2026-11-15 09:58:29  room 6wyjxz  text chat
+2026-11-15 09:58:35  room 6wyjxz  text chat
+2026-11-15 09:58:36  room 6wyjxz  text chat
+2026-11-15 09:58:42  room 6wyjxz  text chat
+2026-11-15 09:58:45  room 6wyjxz  text chat
+2026-11-15 09:58:46  room 6wyjxz  text chat
+2026-11-15 09:58:49  room 6wyjxz  text chat
+2026-11-15 09:58:51  room 6wyjxz  text chat
+2026-11-15 09:58:56  room 6wyjxz  text chat
+2026-11-15 09:58:56  room 6wyjxz  text chat
+2026-11-15 09:59:02  room 6wyjxz  text chat```
