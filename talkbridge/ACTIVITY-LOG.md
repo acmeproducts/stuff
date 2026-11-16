@@ -1,6 +1,6 @@
 # TalkBridge activity log
 
-Who created, joined, called and chatted, one line per event, no message text (§7.21; relay v6.14). Drained 2026-11-16T10:18:37Z. Newest at the bottom. Person = the name typed in the app, letters and digits only (no name: Guest 1, Guest 2 … per room); room = its short id. Live view: https://acmeproducts.github.io/stuff/talkbridge/dash.html
+Who created, joined, called and chatted, one line per event, no message text (§7.21; relay v6.14). Drained 2026-11-16T20:33:30Z. Newest at the bottom. Person = the name typed in the app, letters and digits only (no name: Guest 1, Guest 2 … per room); room = its short id. Live view: https://acmeproducts.github.io/stuff/talkbridge/dash.html
 
 ```
 2026-10-19 07:05:25  room wvshos  voice call from miko — answered by text
@@ -318,4 +318,28 @@ Who created, joined, called and chatted, one line per event, no message text (§
 2026-11-16 09:40:10  room pvo42n  text chat
 2026-11-16 09:40:48  room pvo42n  moko chat
 2026-11-16 09:42:24  room pvo42n  video call from text — answered by moko  started 09:41:57  ended 09:42:24  lasted 26s
-2026-11-16 09:47:29  room pvo42n  video call from Unknown — answered by text  started 09:42:30  ended 09:47:29  lasted 5m 00s```
+2026-11-16 09:47:29  room pvo42n  video call from Unknown — answered by text  started 09:42:30  ended 09:47:29  lasted 5m 00s
+2026-11-16 10:27:28  room pvo42n  video call from moko — answered by Unknown  started 10:18:11  ended 10:27:28  lasted 9m 17s
+2026-11-16 10:28:16  room pvo42n  video call from moko — answered by text  started 10:27:44  ended 10:28:16  lasted 32s
+2026-11-16 11:24:23  room pvo42n  video call from moko — answered by text  started 11:23:52  ended 11:24:23  lasted 31s
+2026-11-16 11:33:29  room 974bew  moko chat
+2026-11-16 11:34:26  room 974bew  moko chat
+2026-11-16 11:36:06  room pvo42n  text chat
+2026-11-16 12:12:43  room 974bew  moko chat
+2026-11-16 12:12:43  room 974bew  moko chat
+2026-11-16 12:12:47  room 974bew  moko chat
+2026-11-16 12:12:59  room 974bew  moko chat
+2026-11-16 12:14:56  room pvo42n  moko chat
+2026-11-16 12:15:10  room pvo42n  moko chat
+2026-11-16 12:16:29  room pvo42n  moko chat
+2026-11-16 12:16:33  room pvo42n  moko chat
+2026-11-16 12:17:01  room pvo42n  moko chat
+2026-11-16 12:17:17  room pvo42n  moko chat
+2026-11-16 12:17:24  room pvo42n  moko chat
+2026-11-16 13:28:39  room pvo42n  moko chat
+2026-11-16 13:28:41  room pvo42n  moko chat
+2026-11-16 13:40:01  room pvo42n  text chat
+2026-11-16 13:40:15  room pvo42n  moko chat
+2026-11-16 13:40:24  room pvo42n  moko chat
+2026-11-16 13:40:28  room pvo42n  moko chat
+2026-11-16 13:40:33  room pvo42n  moko chat```
