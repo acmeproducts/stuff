@@ -1,5 +1,5 @@
-<!-- TALKBRIDGE-PLAN v21.124.0 -->
-# TALKBRIDGE MASTER PLAN v21.124.0
+<!-- TALKBRIDGE-PLAN v21.125.0 -->
+# TALKBRIDGE MASTER PLAN v21.125.0
 
 **Location:** `talkbridge/TALKBRIDGE-PLAN-v9.md` in `acmeproducts/stuff`.
 **Owner:** Confi — sole decision-maker, runs every device gate.
@@ -391,12 +391,22 @@ current). Fix in 30·ship: the label reads the stage's own build record.
       under the 11.7 DO-NOT-BREAK exception, nothing else in the ribbon moves.
   (c) with the left rail open, a message in the current room counts as unread
       (count on its card, the soft alert) until the rail closes with it on screen.
-  (d)+(e) one rule: while the app is on screen an incoming call takes the
-      screen above everything (menus and pickers close); the OS notification
-      only when truly away; a notification tapped during a call returns to
-      the call; the far side sees "camera paused", not a frozen frame. One
-      logged test first (room menu open, then a call) to prove (d)'s cause.
-  Order: (d)+(e), then (c), then (a) and (b). One stage after 30·ship.
+  (d) while the app is on screen an incoming call takes the screen above
+      everything (menus and pickers close); the OS notification only when
+      truly away. One logged test first (room menu open, then a call) to
+      prove the cause.
+  (e) REVISED by the owner 2026-11-16 ("we need to rethink and simplify"):
+      no "camera paused", no hold. Read in code: a tapped notification for
+      another room runs enterRoom → leaveRoomInternals → CALL.hangUp — the
+      call ends silently, with ONE app copy too. Rule: a notification tapped
+      during a call never leaves the call; that room is marked unread and
+      waits. A second call during a call stays as today (no ring; the
+      caller's reach shows it missed). Testing note: one browser per phone,
+      one TalkBridge page open at a time — the 2026-11-16 freeze came from a
+      second copy taking the camera.
+  DELIVERY (owner 2026-11-16: "all separate and distinct concerns", no
+  grouping): ONE stage carries all seven — B-11, B-9(a), (b), (c), (d), (e)
+  and B-12 — each its own part with its own gates.
 (B-12, 2026-11-16 — owner, DESIGN, no code) Creator rights a room hands on
 (the "grant": the creator's own service keys copied to the partner's phone,
 30 days by default, the partner's app enforcing the date). Owner's three
@@ -2153,6 +2163,8 @@ Green means allowed to push. It never means done.
 ---
 
 ## 10 · CHANGE LOG
+
+**v21.125.0 · 2026-11-16.** B-9(e) simplified by the owner: a notification tapped during a call never leaves the call (today it hangs up silently via enterRoom → leaveRoomInternals); no "camera paused", no hold. Delivery: all seven items (B-11, B-9 a–e, B-12) in one stage, each a separate part. No code.
 
 **v21.124.0 · 2026-11-16.** B-12 ruled (owner): level 1 only — an indicator on a room that handed on creator rights, a tap shows the end date and days remaining; delete revokes, restore reinstates (existing design). No code.
 
