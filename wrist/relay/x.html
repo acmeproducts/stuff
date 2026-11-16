@@ -1,0 +1,172 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>X · wrist practice</title>
+<style>
+:root{--bg:#0b1016;--panel:#131b24;--line:#243140;--text:#e8eef4;--muted:#8a98a6;--good:#4cc38a;--bad:#e5534b;--warn:#e5a23b;--accent:#39c5cf}
+*{box-sizing:border-box}
+html,body{height:100%;margin:0;background:var(--bg);color:var(--text);font:17px/1.4 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;overflow:hidden;-webkit-text-size-adjust:100%}
+#app{height:100%;display:grid;grid-template-rows:auto minmax(0,1fr) auto}
+header{padding:calc(10px + env(safe-area-inset-top)) 16px 10px;border-bottom:1px solid var(--line);display:flex;align-items:baseline;gap:12px}
+#threadName{font-size:24px;font-weight:750;letter-spacing:.2px;flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+#dots{display:flex;gap:7px}
+#dots i{width:9px;height:9px;border-radius:50%;background:var(--line);display:block}
+#dots i.on{background:var(--accent)}
+#stage{position:relative;overflow:hidden}
+#track{position:absolute;inset:0;display:flex;width:400%;transition:transform .28s cubic-bezier(.2,.8,.2,1)}
+.thread{width:25%;height:100%;overflow:hidden;position:relative}
+.scroller{position:absolute;inset:0;overflow-y:auto;padding:38vh 14px;scrollbar-width:none}
+.scroller::-webkit-scrollbar{display:none}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:16px 16px 15px;margin:0 auto 12px;max-width:640px;display:grid;grid-template-columns:minmax(0,1fr) auto;gap:10px;align-items:center;transition:border-color .12s,background .12s,transform .12s}
+.card b{display:block;font-size:20px;font-weight:650}
+.card span{display:block;color:var(--muted);font-size:15px;margin-top:2px}
+.card em{font-style:normal;font-size:24px;color:var(--good);opacity:0;transition:opacity .12s}
+.card.focus{border-color:var(--accent);background:#17232e;transform:scale(1.015)}
+.card.chosen em{opacity:1}
+.card.chosen{border-color:var(--good)}
+#aim{position:absolute;left:0;right:0;top:50%;height:0;border-top:1px dashed #2c3b4b;pointer-events:none}
+#flash{position:absolute;left:50%;top:14px;transform:translateX(-50%);background:#1b2a37;border:1px solid var(--line);border-radius:999px;padding:7px 16px;font-size:16px;font-weight:650;opacity:0;transition:opacity .25s;pointer-events:none;white-space:nowrap}
+#flash.show{opacity:1;transition:none}
+footer{border-top:1px solid var(--line);padding:9px 14px calc(9px + env(safe-area-inset-bottom));display:grid;gap:5px}
+#statusRow{display:flex;align-items:center;gap:9px;font-size:15px}
+#lamp{width:11px;height:11px;border-radius:50%;background:var(--bad);flex:none}
+#lamp.link{background:var(--warn)}
+#lamp.live{background:var(--good)}
+#statusText{flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+#codeBtn{background:none;border:1px solid var(--line);color:var(--muted);border-radius:8px;padding:5px 10px;font:inherit;font-size:13px}
+#counts{color:var(--muted);font-size:13px;font-variant-numeric:tabular-nums}
+#log{color:var(--muted);font:12px/1.35 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;height:4.1em;overflow:hidden;white-space:pre}
+#pair{position:fixed;inset:0;background:var(--bg);display:none;place-items:center;padding:24px;z-index:5}
+#pair.show{display:grid}
+#pair div{max-width:420px;width:100%;text-align:center}
+#pair h1{font-size:26px;margin:0 0 8px}
+#pair p{color:var(--muted);margin:0 0 20px}
+#code{width:100%;font:700 44px/1.2 ui-monospace,Menlo,Consolas,monospace;letter-spacing:10px;text-align:center;background:var(--panel);color:var(--text);border:2px solid var(--line);border-radius:16px;padding:16px 8px}
+#code:focus{outline:none;border-color:var(--accent)}
+@media (prefers-reduced-motion:reduce){#track,.card{transition:none}}
+</style>
+</head>
+<body>
+<div id="app">
+  <header><div id="threadName"></div><div id="dots"></div></header>
+  <div id="stage"><div id="track"></div><div id="aim"></div><div id="flash"></div></div>
+  <footer>
+    <div id="statusRow"><i id="lamp"></i><span id="statusText">Starting…</span><button id="codeBtn" type="button">Code</button></div>
+    <div id="counts"></div>
+    <div id="log" aria-live="off"></div>
+  </footer>
+</div>
+<div id="pair"><div>
+  <h1>Enter the watch code</h1>
+  <p>Open Wrist on the watch. Type the 6 digits it shows. You only do this once on this device.</p>
+  <input id="code" type="tel" inputmode="numeric" autocomplete="off" maxlength="6" placeholder="······" aria-label="6-digit watch code">
+</div></div>
+<script>
+(function(){
+'use strict';
+var BUILD='x-turn02-r1';
+var THREADS=['Messages','Research','Shopping','Code'];
+var FULL_PX_PER_S=1100, SCROLL_STALE_MS=1300;
+var $=function(id){return document.getElementById(id)};
+var thread=0, rate=0, lastScrollMsg=0, lastFrame=0, ws=null, retry=0, pingT=null, lastWatchAt=0, watchBuild='';
+var n={left:0,right:0,tap:0,scroll:0}, lines=[];
+
+/* ---------- build the practice surface ---------- */
+var track=$('track'), scrollers=[];
+THREADS.forEach(function(name,ti){
+  var th=document.createElement('section');th.className='thread';
+  var sc=document.createElement('div');sc.className='scroller';
+  for(var i=1;i<=24;i++){
+    var c=document.createElement('div');c.className='card';
+    c.innerHTML='<div><b>'+name+' · item '+i+'</b><span>Practice row. A knock chooses it.</span></div><em>✓</em>';
+    sc.appendChild(c);
+  }
+  th.appendChild(sc);track.appendChild(th);scrollers.push(sc);
+  var d=document.createElement('i');$('dots').appendChild(d);
+});
+function paintThread(){
+  track.style.transform='translateX(-'+(thread*25)+'%)';
+  $('threadName').textContent=THREADS[thread];
+  Array.prototype.forEach.call($('dots').children,function(d,i){d.className=i===thread?'on':''});
+  paintFocus();
+}
+function focusCard(){
+  var sc=scrollers[thread], mid=sc.getBoundingClientRect().top+sc.clientHeight/2, best=null, bd=1e9;
+  Array.prototype.forEach.call(sc.children,function(c){var r=c.getBoundingClientRect(),d=Math.abs((r.top+r.bottom)/2-mid);if(d<bd){bd=d;best=c}});
+  return best;
+}
+var focused=null;
+function paintFocus(){var f=focusCard();if(f===focused)return;if(focused)focused.classList.remove('focus');focused=f;if(f)f.classList.add('focus')}
+function flash(text){var f=$('flash');f.textContent=text;f.classList.add('show');void f.offsetWidth;clearTimeout(flash.t);flash.t=setTimeout(function(){f.classList.remove('show')},700)}
+
+/* ---------- what each motion does on X ---------- */
+function act(m){
+  lastWatchAt=Date.now();
+  if(m.b)watchBuild=m.b;
+  if(m.t==='swipe'){
+    if(m.d==='left'){thread=(thread+THREADS.length-1)%THREADS.length;n.left++;flash('◀ previous')}
+    else{thread=(thread+1)%THREADS.length;n.right++;flash('next ▶')}
+    paintThread();note('swipe '+m.d);
+  }else if(m.t==='tap'){
+    var f=focusCard();if(f)f.classList.toggle('chosen');n.tap++;flash('✓ chosen');note('tap'+(m.how?' ('+m.how+')':'')+(m.pk!=null?' knock '+m.pk+'/'+m.th:''));
+  }else if(m.t==='scroll'){
+    var r=Math.max(-4,Math.min(4,Number(m.r)||0));
+    if(r!==0&&rate===0){n.scroll++;note('tilt '+(r>0?'up':'down'))}
+    if(r===0&&rate!==0)note('level');
+    rate=r;lastScrollMsg=performance.now();
+  }
+  paintStatus();
+}
+function frame(t){
+  var dt=lastFrame?Math.min(0.1,(t-lastFrame)/1000):0;lastFrame=t;
+  if(rate!==0&&t-lastScrollMsg>SCROLL_STALE_MS){rate=0;note('tilt signal lost: stopped')}
+  if(rate!==0){scrollers[thread].scrollTop-=rate/4*FULL_PX_PER_S*dt}   /* hand raised = towards the top */
+  paintFocus();
+  requestAnimationFrame(frame);
+}
+
+/* ---------- link to the relay ---------- */
+function code(){try{return localStorage.getItem('wrist_code')||''}catch(e){return ''}}
+function setCode(c){try{localStorage.setItem('wrist_code',c)}catch(e){}}
+function connect(){
+  var c=code();if(!/^\d{6}$/.test(c)){askCode();return}
+  if(ws){try{ws.onclose=null;ws.close()}catch(e){}}
+  var url=(location.protocol==='https:'?'wss://':'ws://')+location.host+'/s/'+c;
+  var s=new WebSocket(url);ws=s;
+  s.onopen=function(){if(ws!==s)return;retry=0;note('linked to relay');paintStatus();clearInterval(pingT);pingT=setInterval(function(){try{s.send('ping')}catch(e){}},20000)};
+  s.onmessage=function(ev){if(ws!==s||ev.data==='pong')return;var m;try{m=JSON.parse(ev.data)}catch(e){note('unreadable message');return}act(m)};
+  s.onclose=function(){if(ws!==s)return;clearInterval(pingT);ws=null;rate=0;paintStatus();var wait=Math.min(8000,500*Math.pow(2,retry++));note('relay link dropped, retry in '+(wait/1000)+'s');setTimeout(connect,wait)};
+  s.onerror=function(){};
+  paintStatus();
+}
+function paintStatus(){
+  var linked=ws&&ws.readyState===1, age=lastWatchAt?Math.round((Date.now()-lastWatchAt)/1000):-1, live=linked&&age>=0&&age<25;
+  $('lamp').className=live?'live':linked?'link':'';
+  $('statusText').textContent=!linked?'No link to the relay. Retrying…':live?'Watch connected'+(watchBuild?' · '+watchBuild:''):age<0?'Waiting for the watch. Open Wrist on the watch.':'Watch silent for '+age+'s. Is Wrist open on the watch?';
+  $('counts').textContent='◀ '+n.left+'   ▶ '+n.right+'   ✓ '+n.tap+'   tilts '+n.scroll+'   ·   code '+(code()||'none')+'   ·   '+BUILD;
+}
+function note(text){
+  var d=new Date(),p=function(x){return(x<10?'0':'')+x};
+  lines.push(p(d.getHours())+':'+p(d.getMinutes())+':'+p(d.getSeconds())+'  '+text);if(lines.length>3)lines.shift();
+  $('log').textContent=lines.join('\n');
+}
+function askCode(){var b=$('pair'),i=$('code');b.classList.add('show');i.value='';setTimeout(function(){try{i.focus()}catch(e){}},50)}
+$('code').addEventListener('input',function(){var v=this.value.replace(/\D/g,'').slice(0,6);this.value=v;if(v.length===6){setCode(v);$('pair').classList.remove('show');this.blur();note('code saved');connect()}});
+$('codeBtn').addEventListener('click',askCode);
+
+/* a code in the link (?code=123456) saves the typing */
+var q=/[?&]code=(\d{6})\b/.exec(location.search);if(q){setCode(q[1]);try{history.replaceState(null,'',location.pathname)}catch(e){}}
+
+/* keep the screen awake while X is open; silently skipped where the browser refuses */
+function awake(){try{if(navigator.wakeLock&&document.visibilityState==='visible')navigator.wakeLock.request('screen').catch(function(){})}catch(e){}}
+document.addEventListener('visibilitychange',function(){awake();if(document.visibilityState==='visible'&&!ws)connect()});
+
+paintThread();paintStatus();awake();connect();
+setInterval(paintStatus,1000);
+requestAnimationFrame(frame);
+})();
+</script>
+</body>
+</html>
