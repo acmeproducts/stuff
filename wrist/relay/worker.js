@@ -6,7 +6,7 @@
 //   GET  /log         recent events, newest last, codes masked (diagnostics the build session can read)
 import PAGE from './x.html';
 
-const V = 'w1';
+const V = 'w2';
 const json = (o, status = 200) => new Response(JSON.stringify(o), { status, headers: { 'content-type': 'application/json', 'cache-control': 'no-store' } });
 
 export default {
@@ -29,9 +29,12 @@ export class Room {
   async fetch(req) {
     const u = new URL(req.url), p = u.pathname;
     if (p === '/log') {
+      // Read the request before touching storage: get and put must run back to back, or two
+      // events arriving together each save their own copy and one line is lost.
+      const text = req.method === 'POST' ? (await req.text()).slice(0, 700) : '';
       let lines = (await this.state.storage.get('lines')) || [];
       if (req.method === 'POST') {
-        lines.push(new Date().toISOString() + ' ' + (await req.text()).slice(0, 700));
+        lines.push(new Date().toISOString() + ' ' + text);
         if (lines.length > 500) lines = lines.slice(-500);
         await this.state.storage.put('lines', lines);
         return json({ ok: true });
@@ -43,21 +46,21 @@ export class Room {
       if (req.headers.get('Upgrade') !== 'websocket') return new Response('websocket only', { status: 426 });
       const pair = new WebSocketPair();
       this.state.acceptWebSocket(pair[1]);
-      this.note(p.slice(-2), '{"t":"page-joined","pages":' + this.state.getWebSockets().length + '}');
+      await this.note(p.slice(-2), '{"t":"page-joined","pages":' + this.state.getWebSockets().length + '}');
       return new Response(null, { status: 101, webSocket: pair[0] });
     }
     if (p.startsWith('/e/') && req.method === 'POST') {
       const body = (await req.text()).slice(0, 600);
       let n = 0;
       for (const ws of this.state.getWebSockets()) { try { ws.send(body); n++; } catch (e) { /* a dead page */ } }
-      if (body.indexOf('"rep":1') < 0) this.note(p.slice(-2), body + ' pages=' + n);
+      if (body.indexOf('"rep":1') < 0) await this.note(p.slice(-2), body + ' pages=' + n);   // after the pages already have it
       return json({ ok: true, pages: n });
     }
     return new Response('not found', { status: 404 });
   }
   note(tail, text) {
     const log = this.env.ROOM.get(this.env.ROOM.idFromName('log'));
-    this.state.waitUntil(log.fetch('https://log/log', { method: 'POST', body: '****' + tail + ' ' + text }).catch(() => {}));
+    return log.fetch('https://log/log', { method: 'POST', body: '****' + tail + ' ' + text }).then(r => r.text()).catch(() => {});
   }
   webSocketMessage(ws, msg) { if (msg === 'ping') { try { ws.send('pong'); } catch (e) { /* closed */ } } }
   webSocketClose(ws, code) { try { ws.close(code === 1005 || code === 1006 ? 1000 : code, 'closed'); } catch (e) { /* already closed */ } }
