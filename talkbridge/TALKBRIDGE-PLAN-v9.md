@@ -1,5 +1,5 @@
-<!-- TALKBRIDGE-PLAN v21.119.0 -->
-# TALKBRIDGE MASTER PLAN v21.119.0
+<!-- TALKBRIDGE-PLAN v21.120.0 -->
+# TALKBRIDGE MASTER PLAN v21.120.0
 
 **Location:** `talkbridge/TALKBRIDGE-PLAN-v9.md` in `acmeproducts/stuff`.
 **Owner:** Confi — sole decision-maker, runs every device gate.
@@ -2091,6 +2091,8 @@ Green means allowed to push. It never means done.
 ---
 
 ## 10 · CHANGE LOG
+
+**v21.120.0 · 2026-11-16.** RELAY INCIDENT, recorded (no app or relay code changed). From 2026-11-03 (first at 09:53 UTC) to 2026-11-15 (09:16 UTC) the live relay `talk-signal` was NOT relay v6.17: a Cloudflare Workers Builds Git connection on the `talk-signal` worker pointed at `acmeproducts/joy`, and every merge to joy's main (four on 11-03, all Peace-chat work) rebuilt joy's main config — Peace's `gift-signal` worker — under the name `talk-signal` and deployed it over TalkBridge's relay. Symptoms: `/log` and `/activity` answered "Not found" (12 days of device and activity logs lost; the stored ones survived), push sign-up refused ("Method not allowed"); calls themselves still connected. Found from the owner's report "voice didn't work during video call" (2026-11-15); that report is still OPEN — its diagnosis waits for one logged two-phone call on the restored relay. Fixed: relay v6.17 redeployed from this repository's pipeline (2026-11-15, all three deploy checks passed); the owner disconnected the `talk-signal` Git connection in Cloudflare (2026-11-16); joy PR #306 removed the stale relay copy (`worker-talk.js`, `wrangler-talk.toml`). `gift-signal` (Peace) keeps its own connection, untouched. Owner rulings 2026-11-16: no split of the other pages still on `talk-signal` (2vid, vsay, noon, Talk-Say, joy's j/vid/test pages) — "we're just engineering ourselves into another potential set of regressions"; TalkBridge unchanged; 30·pre-ship testable as built. BACKLOG (owner): a RELAY WATCHDOG — the device-log drain flags at once when `/log` stops answering as relay v6.17 (this outage would have shown within minutes, not 12 days).
 
 **v21.119.0 · 2026-11-11.** 30·pre-ship candidate 1 (§7.24 "Built"): TS-1 — the chats leave localStorage for IndexedDB on the accepted 30·base page; every caller unchanged; absorbed at every start; the app's start held until they are in; per-message rows numbered by the store; journal mode instead of a silent fallback; two copies in step. Gates: harness-30ps 115 (incl. the whole-script differential with and without an IndexedDB), browser 13 in real Chromium, mutations 18/18, prior gate:30b. Jenny's instance stays on the accepted 30·base. next.html → the 30·pre-ship page.
 
