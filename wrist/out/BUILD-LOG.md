@@ -1,6 +1,6 @@
 # Wrist build log
 
-Run 2, commit 6b4357eaed53c61652988594194aab1d51fc173b, 2026-11-16T13:29:31Z, exit 0
+Run 3, commit 564ba6da0e65c0a25945d65d3c9e3dbf81166817, 2026-11-16T13:41:40Z, exit 0
 
 ```
 build-tools: /usr/local/lib/android/sdk/build-tools/37.0.0/
@@ -24,9 +24,12 @@ PASS one 20 ms knock: exactly one TAP
 PASS two knocks 0.6 s apart: two TAPs
 PASS 0.4 s shove: no TAP
 PASS jolt while the arm is turning fast: no TAP
-17/17 lab checks passed
+PASS arm hanging at the side is not a use pose
+PASS watch face down is not a use pose
+PASS hand flat and hand vertical are use poses
+20/20 lab checks passed
 == compile ==
-Note: app/src/com/acmeproducts/wrist/MainActivity.java uses or overrides a deprecated API.
+Note: app/src/com/acmeproducts/wrist/WristService.java uses or overrides a deprecated API.
 Note: Recompile with -Xlint:deprecation for details.
 == package ==
 WARNING: A restricted method in java.lang.System has been called
@@ -45,9 +48,9 @@ Verified using v2 scheme (APK Signature Scheme v2): false
 Verified using v3 scheme (APK Signature Scheme v3): true
 Verified using v3.1 scheme (APK Signature Scheme v3.1): false
 Verified using v3.2 scheme (APK Signature Scheme v3.2): false
-package: name='com.acmeproducts.wrist' versionCode='2' versionName='turn02-b2' platformBuildVersionName='17' platformBuildVersionCode='37' compileSdkVersion='37' compileSdkVersionCodename='17'
+package: name='com.acmeproducts.wrist' versionCode='3' versionName='turn03-b3' platformBuildVersionName='17' platformBuildVersionCode='37' compileSdkVersion='37' compileSdkVersionCodename='17'
 minSdkVersion:'30'
-targetSdkVersion:'34'
+targetSdkVersion:'30'
 uses-permission: name='android.permission.VIBRATE'
-BUILD OK turn02-b2 (16805 bytes)
+BUILD OK turn03-b3 (20901 bytes)
 ```
