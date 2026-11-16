@@ -1,5 +1,5 @@
-<!-- TALKBRIDGE-PLAN v21.125.0 -->
-# TALKBRIDGE MASTER PLAN v21.125.0
+<!-- TALKBRIDGE-PLAN v21.126.0 -->
+# TALKBRIDGE MASTER PLAN v21.126.0
 
 **Location:** `talkbridge/TALKBRIDGE-PLAN-v9.md` in `acmeproducts/stuff`.
 **Owner:** Confi — sole decision-maker, runs every device gate.
@@ -151,7 +151,7 @@ the directory release and IndexedDB each moved one turn later; nothing was dropp
 | 30·pre-base | byte-identical snapshot of accepted 29·post-ship | **BANKED 2026-10-22 BY REFERENCE** — the accepted `talkbridge-app/bridge-turn29-post-ship.html` (sha `c1c417e21dd1`), immutable under §0c; 30·base's assembler sha-checks it | — |
 | 30·base | **THE VIDEO BOX (§7.22)** — owner 2026-10-22: "it should be the tall 9:16 that's draggable"; then the strip you pull down (2026-10-27) | **ACCEPTED 2026-11-11 · candidate 4 · sha `a4155be904a9` · tb-sw5.js · relay v6.17 (owner: "video approved")** — the strip you pull down (VB-2), the camera back after dictation (CV-1), the room's name to the microphone (NM-1), the Android strip teal; Jenny's instance with it. Candidate history: c1 rejected (G77); c2 tested (three findings → c3); c3 "works … not crazy about it" (G79) → c4 (§7.22; changelog v21.111.0–v21.117.0) | **https://acmeproducts.github.io/stuff/talkbridge-app/bridge-turn30-base.html** (the folder's face forwards here) · Jenny: …/bridge-turn30-base-jenny.html |
 | 30·pre-ship | **chats in IndexedDB — TS-1 (§7.24)**; input: accepted 30·base | **ACCEPTED 2026-11-16 · candidate 1 · sha `4dddf3c35284` · tb-sw5.js · relay v6.17 (owner: "it seems to test alright")** — chats move from localStorage to IndexedDB under an in-memory copy; device run: both phones mode idb, no failures (v21.121.0) | **https://acmeproducts.github.io/stuff/talkbridge-app/bridge-turn30-pre-ship.html** |
-| 30·ship | beta readiness (moved from 30·pre-ship, owner 2026-10-27) — includes B-11 (the settings build line kept current) | NEXT | — |
+| 30·ship | beta readiness (moved from 30·pre-ship, owner 2026-10-27) — **seven separate fixes (§7.25)**: B-11 build labels, B-9 (a) room card X, (b) camera-off icon, (c) rail unread, (d) ring on screen, (e) a tap during a call, B-12 creator-rights key | **CANDIDATE 1 · BUILT 2026-11-16 · relay v6.17 (unchanged) · tb-sw5.js (unchanged) — awaiting the owner's two-phone device gate and the language sweep** | **https://acmeproducts.github.io/stuff/talkbridge-app/bridge-turn30-ship.html** |
 
 Every accepted or built stage carries its live address here and in the ledger; a row without a link is not built.
 
@@ -2163,6 +2163,8 @@ Green means allowed to push. It never means done.
 ---
 
 ## 10 · CHANGE LOG
+
+**v21.126.0 · 2026-11-16.** 30·ship candidate 1 (§7.25 "Built"; owner: "go"): seven separate parts on the accepted 30·pre-ship page — BL-1 every visible build label reads one build record; MC-1 a muted room keeps its X, the bell beside the name; CI-1 the camera-off icon keeps its body; RL-1 a message under the open rail stays unread until the rail closes over the room; RG-1 a call rings on screen whenever the app is on screen (healed on the ring path only, logged un-healed first; the OS call card and the menus close); RT-1 a notification tapped during a call never leaves it; GK-1 the creator-rights key with its end date (21 languages). Spec reviewed independently before code (RL-1's leave-path flush, RG-1's scope and double alert, BL-1's third label and date, RT-1's starting call — all corrected). next.html → this page.
 
 **v21.125.0 · 2026-11-16.** B-9(e) simplified by the owner: a notification tapped during a call never leaves the call (today it hangs up silently via enterRoom → leaveRoomInternals); no "camera paused", no hold. Delivery: all seven items (B-11, B-9 a–e, B-12) in one stage, each a separate part. No code.
 
@@ -6288,6 +6290,122 @@ history; chat and call both ways; reload; switch away and back; on the Android, 
 The builder reads `ts_absorbed` / `ts_ready` from the device log.
 
 ────────────────────────────────────────────────────────────────────────
+## §7.25 BUILDER SPEC — 30·ship: SEVEN SEPARATE FIXES (owner 2026-11-16: "go"; B-9 a–e, B-11, B-12)
+
+**Input (sha-checked):** the ACCEPTED 30·pre-ship page `talkbridge-app/bridge-turn30-pre-ship.html`, sha `4dddf3c35284…`
+(immutable under §0c). **Output:** `bridge-turn30-ship.html` + its two manifests (as 30·pre-ship: Android starts this page,
+the iPhone's unchanged); `next.html` moves to it. Worker `tb-sw5.js` and relay v6.17 unchanged. Every fix is its own part (or
+its own identity edit), each with its own gates and planted defects; a part touches nothing another part touches except where
+stated (two parts wrap `roomCardHtmlCore`, in a fixed order). Beta readiness (the language sweep) is this stage's device gate.
+
+**1 · B-11 BL-1 — every visible build label reads ONE build record.** Three visible labels are frozen text from old stages:
+the settings sheet's footer (27·ship's painter, closure `var BUILD = { c: 'turn27-ship-video-c5', … }`, re-painted on every
+open), the keys sheet's line (`BUILD_INFO`, turn23) and About's version (`VERSION`, turn23). The stage's identity build line —
+which every stage already rewrites — becomes `var TB_STAGE = { c, file, built, at }; log('build', TB_STAGE, 'ok');` (`at` a full
+ISO time with Z, so the keys sheet's date is not shifted a day). BL-1 (appended) sets `VERSION` and `BUILD_INFO` from
+`TB_STAGE` and paints the settings footer from it after the old painter (its own observer, registered later, runs last). A
+later stage changes only its identity line. Gates: all three labels show the stage tag in Chromium; the old literal strings are
+untouched in the base text but never shown. Planted: BL-1 removed → the footer shows turn27.
+
+**2 · B-9(a) MC-1 — the X stays; a muted room's bell moves beside the name.** Today `roomCardHtmlCore` puts EITHER the bell
+(muted) OR the delete X in the card's one corner, so a muted room cannot be deleted from its card. MC-1 wraps
+`roomCardHtmlCore`: it renders the card as for an unmuted room (the X) and, when the room is muted, inserts a 13 px
+crossed-out bell at the START of the name line (before the text, so a long name's ellipsis never hides it). The delete wiring is
+unchanged (it already wires every `[data-del]`). Gates: muted card has exactly one X and the bell inside `.rc2-name`; unmuted
+card byte-identical to the base's; delete from a muted card soft-deletes. Planted: bell left in the corner; X missing.
+
+**3 · B-9(b) CI-1 — the camera-off icon keeps its body.** Cause (owner screenshots 2026-11-16): `.meter-btn.off .cam-fill
+{display:none}` hides the camera's body outline when off (on the microphone `.mic-fill` is only the level fill). CI-1 adds one
+style rule after it: `#rb-cam.off .cam-fill{display:inline}`. Nothing else in the ribbon moves (11.7 exception, owner-scoped).
+Gates (real Chromium): with `#rb-cam.off` the rect is displayed and the slash is displayed; without `.off` the slash is hidden;
+the microphone's off state still hides `.mic-fill`. Planted: rule removed → red.
+
+**4 · B-9(c) RL-1 — a message under the open rail is unread until you close the rail with the room on screen.** Today a chat
+in the room you are in is acknowledged on arrival whenever the app is attended (`ev-seen` to the relay, `chat-read` to the
+partner), even with the left rail (an overlay drawer over the chat) covering it — no count, no alert. RL-1, only while
+`S.panelOpen` AND `S.view === 'room'`, for the current room only: wraps `cr3Send` — `ev-seen` is not sent, `ev-open` is sent as
+`events-sync`; wraps `sendReadReceipts` — returns without sending. The relay keeps the message unseen and pushes its projection;
+the room's card in the open rail shows the count (`cr3Apply` → `renderPanel`). One 120 ms vibration (not in a muted room, only
+while `cr3Attended()`, at most once per 3 s; the iPhone has no vibration — count only) marks the arrival. Wraps `closePanel`
+(reassigned at the part's top level — the scrim's listener is bound by reference): only if the rail WAS open, on the next tick
+and only if still `S.view === 'room'`, the same room, the rail closed and `cr3Attended()`, it sends `ev-open` for the room (the
+relay marks its whole unseen set seen) and runs `sendReadReceipts()`. A rail closed by leaving the room (card tap, create, exit,
+route, call accept) sends nothing: re-entry already sends `ev-open`, and unsent read marks persist (`readSent:false`). Known and
+accepted: the base visibility handler zeroes the local count on return until the next projection restores it. Gates (Chromium,
+stubbed sockets): rail open → the words a partner chat produces carry no `ev-seen` / `chat-read`; close → `ev-open` + `chat-read`;
+close by tapping another room's card → no `ev-open` for the old room. Rail closed: unchanged. Planted: hold removed; leave-path
+flush.
+
+**5 · B-9(d) RG-1 — an incoming call rings on screen whenever the app is on screen.** The ring is deferred when the app
+thinks nobody is watching (`cr3Attended()` = visible AND the attended flag; blur clears it, focus / a return to visible / a route
+tap set it). A blur without its matching `focus` (the room menu holds five colour pickers and selects; the shade) can leave the
+flag false while the person is looking: the relay was told `visible:false`, pushes the call to the OS, and the ring screen never
+comes (the owner's report). RG-1 heals ONLY on the ring path, never inside `cr3Attended` (G23's attendance elsewhere unchanged):
+wraps `CALL.onIncoming` and `cr3PresentCalls` — first logs `rg_ring_check` with the UN-healed state (flag, hidden, hasFocus,
+view, open menus) — the owner's logged test, carried in this build — then, if the flag is false while visible AND
+`document.hasFocus()`, sets it (`cr3SetAttended(true,'ring_heal')`, `rg_healed`) and announces. A real input (pointerdown /
+keydown, capture, visible) while the flag is false also sets it (`rg_input_heal`) — a touch is attention. When the ring
+presents: the OS call card (`tb-call-<callId>`) and the room's notification are closed (no double alert), and the menus close —
+the rail, the Customize drawer (its own close, which keeps the room name: what D-14 already does at accept), any open modal sheet
+and the room-info pop-up; a native picker is blurred. Gates: flag false + visible + focused → ring, `rg_healed`; hidden → deferred;
+not focused → deferred; ring with rail/drawer/modal open → all closed; the call card closed by tag. Planted: heal removed;
+menus left open.
+
+**6 · B-9(e) RT-1 — a notification tapped during a call never leaves the call.** Today `cr3RouteEvent` → `enterRoom(other)`
+→ `leaveRoomInternals` → `CALL.hangUp(true)`: the call ends silently. The call's room is `S.roomId`. RT-1 wraps `cr3RouteEvent`:
+while `CALL.active || CALL._starting` (a call being accepted or started, before `active`) and the tapped room is not `S.roomId`,
+it does not close the rail or enter the room; if visible it marks the person attended, runs `cr3Recover('route_held')` and logs
+`rt_held`; the tapped room keeps its unread count and waits. Same room, or no call: unchanged. A second call during a call:
+unchanged. Gates: in a call (and while starting), route to another room → still in the call, `S.roomId` unchanged, no hang-up;
+no call → enters as today. Planted: guard removed; `_starting` guard removed.
+
+**7 · B-12 GK-1 — the creator-rights indicator.** A room this phone created WITH initiator status granted (`room.grant` and
+`room.grantExpires`, local 23:59:59 of the end day) shows a small key at the start of its card's name line (outermost wrap, so
+the key comes before MC-1's bell; a padded tap area; `aria-label`). A tap on the key (not the card) shows a toast: "Initiator
+status · until {date} · {n} days left" (singular when 1), or after the date "Initiator status · ended {date}" — the date in the
+app language's locale (`l10nLocale()`; Thai shows the Buddhist year), {n} = whole days remaining, rounded up. Three new strings
+in all 21 languages (`gk_until`, `gk_until_1`, `gk_ended`). Revoke = delete the room; reinstate = restore it (existing). GK-1
+wraps `roomCardHtmlCore` after MC-1 and `wireRoomCards` (the key's tap stops at the key). Gates (TZ pinned): granted card has
+the key, ungranted none; toast text for 1 / 30 days and past, en and th; tap does not open the room; all three keys in every
+language. Planted: key on every card; tap opens the room; singular missing.
+
+**MC-1 detail (review):** the original is called with `Object.assign({}, r, { muted: false })`; the bell is `aria-hidden`, with
+`vertical-align:-2px` and `margin-inline-end:4px`. Muted home cards now show the X too (consistent).
+
+**REVIEW 2026-11-16 (independent, before code):** confirmed CI-1 and the facts of MC-1, RT-1 and GK-1; corrected RL-1 (the
+close-path flush would have marked a room read when the rail closed by leaving it), RG-1 (healing inside `cr3Attended` changed
+G23 attendance everywhere and hid the logged evidence; the OS call card stayed up beside the ring; ruling (d) closes menus),
+BL-1 (a third stale label, About's VERSION; a date-only build time shows the previous day; one record instead of three
+per-stage replacements), RT-1 (`CALL._starting`). No item repeats a buried idea. All corrections are in the text above.
+
+**Not in this stage:** the phrasebook discussion (B-10, parallel with beta), the relay watchdog (backlog), Jenny's instance (a
+30·base build only).
+
+### Built (30·ship candidate 1, 2026-11-16)
+`talkbridge/build/assemble-30s.mjs`: the ACCEPTED 30·pre-ship page (sha `4dddf3c35284`) + its identity (its manifests ×2; the build
+line now RECORDS the stage: `window.TB_STAGE`) + seven parts, in order — `bl1-build-label.js`, `mc1-mute-card.js`, `ci1-camera-icon.js`,
+`rl1-rail-unread.js`, `rg1-ring-on-screen.js`, `rt1-route-in-call.js`, `gk1-grant-key.js` → `talkbridge-app/bridge-turn30-ship.html`
+and its two manifests; next.html → this page. Names, stated: the ring part is RG-1 (prefix `rg_`) and the key part GK-1 (`gk_`,
+its state object `GKEY`) — `RN`/`rn*` (29·post-ship's room-name part) and `GK` (the grant's storage keys) were already taken; the
+first assembly reused `GK` and the whole-script differential caught it at once (the joiner's granted keys vanished). Found while
+building: nothing else.
+Gates: `harness-30s.mjs` 121 — B1, B2 (each part's names new, its markers its own), W (the declared wraps only, originals kept;
+MC-1 inside GK-1; RL-1's closePanel at the top level), I (the build record), F, and THE WHOLE 28·post-ship SCRIPT on the accepted
+30·pre-ship page and on this stage, identical but the declared differences (the parts' own log lines; the cards' key and moved
+bell), twice: (a) mode ls, (b) an IndexedDB in each phone. `harness-30s-browser.mjs` 27 in real Chromium (zone pinned): BL1–3, MC1–3,
+CI1–2, RL1–5, RG1–5, RT1–3, GK1–5, no page error. `mutate-30s.mjs` 25/25 (each part broken on purpose: the named test turns red). Found by the differential, not the change: in mode idb the app's 400 ms start-up timer races the store's open in real time — the same page on both sides differed 4 of 6 runs under load — so that one log line is not compared in mode idb (stated in `harness-30s-e.mjs`). Prior `gate:30ps` (with its chain). NOT proven:
+Safari/iPhone (the browser gates run Chromium); `document.hasFocus()` after a native picker on a real Android (the device log's
+`rg_ring_check` answers it).
+**Device gate (owner, two phones) — also beta readiness:** (1) settings footer, keys sheet and About show `turn30-ship-c1`;
+(2) mute a room: its card keeps the X, the bell sits before the name; (3) in a video call, camera off: the camera icon with a slash;
+(4) open the rail in a room, have the other phone send: the room's card counts it (and an Android buzz); close the rail: the count
+clears; (5) open the room menu (…), even a colour picker, then call it: the ring screen comes, the menu closes, no notification
+card left; (6) in a call, tap a notification for another room: the call stays; (7) a room created with initiator status shows a
+key; tap it: the end date and days left. Then THE LANGUAGE SWEEP (the 30·ship gate since 2026-10-07): each offered language with
+English, two phones. The builder reads `rg_ring_check` / `rg_healed` / `rl_*` / `rt_held` from the device log.
+
+---
+
 ## §7.18 PROPOSAL — A TRANSLATION OVERLAY THAT LEARNS (owner draft 2026-10-03; FOR DISCUSSION, not scheduled)
 ────────────────────────────────────────────────────────────────────────
 ### The owner's draft, verbatim in substance
