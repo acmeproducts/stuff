@@ -1,5 +1,5 @@
-<!-- TALKBRIDGE-PLAN v21.122.0 -->
-# TALKBRIDGE MASTER PLAN v21.122.0
+<!-- TALKBRIDGE-PLAN v21.123.0 -->
+# TALKBRIDGE MASTER PLAN v21.123.0
 
 **Location:** `talkbridge/TALKBRIDGE-PLAN-v9.md` in `acmeproducts/stuff`.
 **Owner:** Confi — sole decision-maker, runs every device gate.
@@ -379,6 +379,37 @@ line at the foot of the settings sheet still reads `turn27-ship-video-c5 · buil
 2026-09-15 00:31 UTC` on every stage since 27·ship: a hard-coded label from
 27·ship that no stage's IDENTITY edit replaces (the log's `build` line IS
 current). Fix in 30·ship: the label reads the stage's own build record.
+(B-9 RULINGS, 2026-11-16 — owner: "all other recommendations are approved")
+  (a) the X stays in the card's corner always; a muted room shows a small
+      crossed-out bell beside its name.
+  (b) CAUSE FOUND from the owner's two screenshots: the style rule
+      `.meter-btn.off .cam-fill{display:none}` hides the camera's BODY when the
+      camera is off (on the microphone, `.mic-fill` is only the level fill, so
+      the same rule is right there; on the camera, `.cam-fill` is the outline
+      itself). Off leaves the lens and the slash, which reads as a speaker.
+      Fix: the off state keeps the body and adds the slash — one style rule,
+      under the 11.7 DO-NOT-BREAK exception, nothing else in the ribbon moves.
+  (c) with the left rail open, a message in the current room counts as unread
+      (count on its card, the soft alert) until the rail closes with it on screen.
+  (d)+(e) one rule: while the app is on screen an incoming call takes the
+      screen above everything (menus and pickers close); the OS notification
+      only when truly away; a notification tapped during a call returns to
+      the call; the far side sees "camera paused", not a frozen frame. One
+      logged test first (room menu open, then a call) to prove (d)'s cause.
+  Order: (d)+(e), then (c), then (a) and (b). One stage after 30·ship.
+(B-12, 2026-11-16 — owner, DESIGN, no code) Creator rights a room hands on
+(the "grant": the creator's own service keys copied to the partner's phone,
+30 days by default, the partner's app enforcing the date). Owner's three
+levels: (1) an icon on a room that has handed on creator rights; (2) revoke;
+(3) edit the effective date (backdating doubles as revoke). Builder's counsel
+given 2026-11-16 (awaiting the owner's ruling): (1) no risk — display only;
+(2) low — the revoke message already exists (room delete sends it) but is a
+request the partner's app honours, so it must be re-sent until the partner's
+app confirms, and asks before firing; (3) materially riskier — every date
+change re-sends the keys themselves through the relay, and a backdate relies
+on the partner phone's clock. Recommended: build (1) and (2); instead of (3),
+"renew for 30 days" as a fresh grant. The true backstop for a key that must
+die is replacing it at the provider.
 
 ---
 
@@ -2113,6 +2144,8 @@ Green means allowed to push. It never means done.
 ---
 
 ## 10 · CHANGE LOG
+
+**v21.123.0 · 2026-11-16.** B-9 rulings recorded (owner approved the builder's recommendations); B-9(b), the video-mute icon (11.7), cause found from the owner's screenshots — the off state hides the camera's body. B-12 recorded: creator-rights controls, the three levels and the builder's counsel, awaiting the owner's ruling. No code.
 
 **v21.122.0 · 2026-11-16.** 30·pre-ship ACCEPTED (owner: "it seems to test alright") — candidate 1, sha `4dddf3c35284`: TS-1, chats in IndexedDB. The folder's face (`index.html`) forwards to it (`current-stage.json`); the stage is immutable from here (§0c). next.html stays on it until 30·ship's first candidate. NEXT: 30·ship (beta readiness), carrying B-11 (the settings build line, stale since 27·ship). Recorded: B-10, the phrasebook design discussion (phrasebook targets in place of translation calls; phrasebook-like translation for speech), in parallel with the beta test. B-9 (the owner's design discussion) is now unblocked.
 
