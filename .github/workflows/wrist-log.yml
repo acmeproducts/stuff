@@ -1,0 +1,42 @@
+name: Wrist device log
+# Copies the relay's recent events (motions with the sensor readings behind them, battery,
+# mode changes; pairing codes masked) into wrist/out/DEVICE-LOG.md so the build session can
+# read what the watch really did. Runs when wrist/DRAIN.trigger is pushed.
+on:
+  push:
+    branches: [main, 'wrist-**']
+    paths:
+      - 'wrist/DRAIN.trigger'
+  workflow_dispatch:
+permissions:
+  contents: write
+jobs:
+  drain:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - name: Drain
+        run: |
+          mkdir -p wrist/out
+          curl -sS --max-time 20 "https://wrist-relay.myacctfortracking.workers.dev/log" -o /tmp/wrist.log || echo "(relay unreachable)" > /tmp/wrist.log
+          {
+            echo "# Wrist device log"
+            echo ""
+            echo "Drained $(date -u +%FT%TZ). Newest at the bottom. $(wc -l < /tmp/wrist.log) lines."
+            echo ""
+            echo '```'
+            tail -c 300000 /tmp/wrist.log
+            echo '```'
+          } > wrist/out/DEVICE-LOG.md
+          git config user.name acmeproducts
+          git config user.email 182510673+acmeproducts@users.noreply.github.com
+          git add wrist/out/DEVICE-LOG.md
+          if ! git diff --staged --quiet; then
+            git commit -q -m "wrist device log [skip ci]"
+            for i in 1 2 3 4; do
+              git pull --rebase -q origin "${GITHUB_REF_NAME}" || true
+              git push -q origin "HEAD:${GITHUB_REF_NAME}" && break
+              sleep 5
+            done
+          fi

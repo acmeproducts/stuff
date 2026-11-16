@@ -66,11 +66,11 @@ footer{border-top:1px solid var(--line);padding:9px 14px calc(9px + env(safe-are
 <script>
 (function(){
 'use strict';
-var BUILD='x-turn02-r1';
+var BUILD='x-turn03-r1';
 var THREADS=['Messages','Research','Shopping','Code'];
 var FULL_PX_PER_S=1100, SCROLL_STALE_MS=1300;
 var $=function(id){return document.getElementById(id)};
-var thread=0, rate=0, lastScrollMsg=0, lastFrame=0, ws=null, retry=0, pingT=null, lastWatchAt=0, watchBuild='';
+var thread=0, rate=0, lastScrollMsg=0, lastFrame=0, ws=null, retry=0, pingT=null, lastWatchAt=0, watchBuild='', resting=false;
 var n={left:0,right:0,tap:0,scroll:0}, lines=[];
 
 /* ---------- build the practice surface ---------- */
@@ -105,6 +105,8 @@ function flash(text){var f=$('flash');f.textContent=text;f.classList.add('show')
 function act(m){
   lastWatchAt=Date.now();
   if(m.b)watchBuild=m.b;
+  if(m.t==='mode'){resting=m.m==='resting';if(resting)rate=0;note(resting?'watch resting ('+(m.why||'')+')':'watch awake');paintStatus();return}
+  resting=false;
   if(m.t==='swipe'){
     if(m.d==='left'){thread=(thread+THREADS.length-1)%THREADS.length;n.left++;flash('◀ previous')}
     else{thread=(thread+1)%THREADS.length;n.right++;flash('next ▶')}
@@ -143,8 +145,9 @@ function connect(){
 }
 function paintStatus(){
   var linked=ws&&ws.readyState===1, age=lastWatchAt?Math.round((Date.now()-lastWatchAt)/1000):-1, live=linked&&age>=0&&age<25;
+  if(resting&&linked)live=false;
   $('lamp').className=live?'live':linked?'link':'';
-  $('statusText').textContent=!linked?'No link to the relay. Retrying…':live?'Watch connected'+(watchBuild?' · '+watchBuild:''):age<0?'Waiting for the watch. Open Wrist on the watch.':'Watch silent for '+age+'s. Is Wrist open on the watch?';
+  $('statusText').textContent=!linked?'No link to the relay. Retrying…':resting?'Watch resting. Raise your arm to wake it.':live?'Watch connected'+(watchBuild?' · '+watchBuild:''):age<0?'Waiting for the watch. Open Wrist on the watch once.':'Watch silent for '+age+'s.';
   $('counts').textContent='◀ '+n.left+'   ▶ '+n.right+'   ✓ '+n.tap+'   tilts '+n.scroll+'   ·   code '+(code()||'none')+'   ·   '+BUILD;
 }
 function note(text){

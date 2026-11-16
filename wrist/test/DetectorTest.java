@@ -90,6 +90,10 @@ public class DetectorTest {
         run(d, flat(0), STILL, 0.1f, 5);
         check("jolt while the arm is turning fast: no TAP", ev[Detector.TAP] == 0);
 
+        check("arm hanging at the side is not a use pose", Detector.poseOf(-G, 0, 0.5f) == Detector.POSE_OTHER);
+        check("watch face down is not a use pose", Detector.poseOf(0, 0, -G) == Detector.POSE_OTHER);
+        check("hand flat and hand vertical are use poses", Detector.poseOf(0, 0, G) == Detector.POSE_FLAT && Detector.poseOf(0, G, 0) == Detector.POSE_VERTICAL);
+
         System.out.println(checks - fails + "/" + checks + " lab checks passed");
         if (fails > 0) System.exit(1);
     }

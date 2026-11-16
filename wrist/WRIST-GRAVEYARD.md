@@ -9,3 +9,4 @@ Approaches rejected or removed. Do not bring one back without the owner's explic
 | G3 | 2026-11-16 | Gradle / Android Studio project | Owner wants no IDE anywhere. Plain SDK tools build the app in CI. |
 | G4 | 2026-11-16 | Sending watch logs through the TalkBridge relay | That relay belongs to another project. |
 | G5 | 2026-11-16 | Showing content on the watch (turn01 practice list) | Owner rejected: nothing is to be read on the watch. The watch reads motions; X on the phone or desktop shows the result. |
+| G6 | 2026-11-16 | Keeping the watch screen on while Wrist runs (turn01, turn02) | Owner rejected: no reasonable battery life. Replaced by a background service with a resting mode. |

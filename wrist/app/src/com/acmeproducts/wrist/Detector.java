@@ -54,10 +54,7 @@ public final class Detector {
         float s = x / n; if (s > 1f) s = 1f; if (s < -1f) s = -1f;
         pitchDeg = (float) Math.toDegrees(Math.asin(s));
         rollDeg = (float) Math.toDegrees(Math.atan2(y, z));
-        float ar = Math.abs(rollDeg), ap = Math.abs(pitchDeg);
-        int p = POSE_OTHER;
-        if (ar < 40f && ap < 60f) p = POSE_FLAT;
-        else if (ar > 50f && ar < 130f && ap < 45f) p = POSE_VERTICAL;
+        int p = poseOf(x, y, z);
         if (p != pose) { pose = p; if (p == POSE_FLAT) haveNeutral = false; resetYaw(); }
         float dt = lastGravNs == 0 ? 0.01f : (tNs - lastGravNs) / 1e9f;
         if (dt < 0f || dt > 0.5f) dt = 0.01f;
@@ -72,6 +69,18 @@ public final class Detector {
             float r = (Math.abs(d) - DEAD_DEG) / FULL_DEG; if (r > 1f) r = 1f;
             scrollRate = d > 0f ? r : -r;
         }
+    }
+
+    /** Which pose a gravity (or resting accelerometer) reading is. FLAT and VERTICAL are the two "in use" poses. */
+    public static int poseOf(float x, float y, float z) {
+        float n = (float) Math.sqrt(x * x + y * y + z * z);
+        if (n < 1f) return POSE_OTHER;
+        float s = x / n; if (s > 1f) s = 1f; if (s < -1f) s = -1f;
+        float ap = Math.abs((float) Math.toDegrees(Math.asin(s)));
+        float ar = Math.abs((float) Math.toDegrees(Math.atan2(y, z)));
+        if (ar < 40f && ap < 60f) return POSE_FLAT;
+        if (ar > 50f && ar < 130f && ap < 45f) return POSE_VERTICAL;
+        return POSE_OTHER;
     }
 
     public int onGyro(float wx, float wy, float wz, long tNs) {

@@ -24,7 +24,7 @@ javac -encoding UTF-8 -Xlint:-options -source 8 -target 8 -bootclasspath "$PLAT"
 
 echo "== package =="
 "$BT/aapt2" link -o build/base.apk --manifest app/AndroidManifest.xml -I "$PLAT" \
-  --min-sdk-version 30 --target-sdk-version 34 --version-code "$CODE" --version-name "$NAME"
+  --min-sdk-version 30 --target-sdk-version 30 --version-code "$CODE" --version-name "$NAME"
 (cd build/dex && zip -q ../base.apk classes.dex)
 "$BT/zipalign" -f 4 build/base.apk build/aligned.apk
 "$BT/apksigner" sign --ks debug.keystore --ks-pass pass:android --key-pass pass:android --ks-key-alias wrist \
