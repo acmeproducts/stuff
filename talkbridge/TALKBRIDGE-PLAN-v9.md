@@ -1,5 +1,5 @@
-<!-- TALKBRIDGE-PLAN v21.123.0 -->
-# TALKBRIDGE MASTER PLAN v21.123.0
+<!-- TALKBRIDGE-PLAN v21.124.0 -->
+# TALKBRIDGE MASTER PLAN v21.124.0
 
 **Location:** `talkbridge/TALKBRIDGE-PLAN-v9.md` in `acmeproducts/stuff`.
 **Owner:** Confi — sole decision-maker, runs every device gate.
@@ -410,6 +410,15 @@ change re-sends the keys themselves through the relay, and a backdate relies
 on the partner phone's clock. Recommended: build (1) and (2); instead of (3),
 "renew for 30 days" as a fresh grant. The true backstop for a key that must
 die is replacing it at the provider.
+  RULING 2026-11-16 (owner): LEVEL 1 ONLY — "I don't want to add more
+  complexity." An indicator on a room that has handed on creator rights; a tap
+  on it shows the end date and the days remaining. No revoke control and no
+  date editing: revoking is deleting the room (already sends the revoke; the
+  relay keeps it in the room's history, so a phone that was offline gets it on
+  return), reinstating is restoring the room (re-sends the grant with its
+  ORIGINAL end date — a room restored after that date reinstates nothing).
+  Key exposure and clock skew accepted by the owner; the provider-side key
+  replacement remains the backstop.
 
 ---
 
@@ -2144,6 +2153,8 @@ Green means allowed to push. It never means done.
 ---
 
 ## 10 · CHANGE LOG
+
+**v21.124.0 · 2026-11-16.** B-12 ruled (owner): level 1 only — an indicator on a room that handed on creator rights, a tap shows the end date and days remaining; delete revokes, restore reinstates (existing design). No code.
 
 **v21.123.0 · 2026-11-16.** B-9 rulings recorded (owner approved the builder's recommendations); B-9(b), the video-mute icon (11.7), cause found from the owner's screenshots — the off state hides the camera's body. B-12 recorded: creator-rights controls, the three levels and the builder's counsel, awaiting the owner's ruling. No code.
 
