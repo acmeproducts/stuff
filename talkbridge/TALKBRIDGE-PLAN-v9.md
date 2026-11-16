@@ -1,5 +1,5 @@
-<!-- TALKBRIDGE-PLAN v21.120.1 -->
-# TALKBRIDGE MASTER PLAN v21.120.1
+<!-- TALKBRIDGE-PLAN v21.121.0 -->
+# TALKBRIDGE MASTER PLAN v21.121.0
 
 **Location:** `talkbridge/TALKBRIDGE-PLAN-v9.md` in `acmeproducts/stuff`.
 **Owner:** Confi — sole decision-maker, runs every device gate.
@@ -357,6 +357,19 @@ invite says ("Bob is inviting you…" persists after Bob → Alice). Owner rulin
 on the clean fix, when scheduled: room CREATION gets a name field that
 SUGGESTS the standing name but can be overridden per room (e.g. "Mr Jones"
 for formal invites); the invite carries that room's name.
+(B-9, 2026-11-16 — owner, DESIGN DISCUSSION, no code; held until 30·pre-ship
+TS-1 passes its device gate) Four items, discussed together:
+  (a) the room-mute indicator overwrites the X on the room card;
+  (b) the video-mute icon during a video call — the long-standing 11.7 report;
+  (c) with the left rail open, a message that arrives shows no waiting
+      indicator anywhere;
+  (d) ringing while the room menu (…) is open is sporadic: a notification icon
+      appears, the shade must be pulled down to tap the call banner, then the
+      call screen appears, then answer/decline. Owner: a confluence of the call
+      screen and what triggers it, the notification behaviour and the room menu.
+  (e) from the 2026-11-16 freeze diagnosis below: a notification tapped during a
+      call opens another copy of the app instead of returning to the call, and
+      the far side is not told the picture is paused.
 
 ---
 
@@ -2091,6 +2104,8 @@ Green means allowed to push. It never means done.
 ---
 
 ## 10 · CHANGE LOG
+
+**v21.121.0 · 2026-11-16.** VIDEO FREEZE DIAGNOSED (no code). Owner report: "1 of the 4 video screens froze" (30·pre-ship, call 2 at 09:42:31 UTC, phones flz [English, caller] and tzc [Thai]). Device log: tzc's decoded frames from flz stopped at 1493 (~09:43:23) and never resumed; recovery step 1 ran every 6 s without effect; the connection failed at 09:44:42. Cause: at 09:43:20.064 a chat notification was tapped on flz's phone (receipt `tapped`, room 974bew); flz blurred at 09:43:20.103, the app muted its microphone as designed (`r8_away_muted`), and a second copy of TalkBridge (device e4t, the accepted index page, same phone) opened in front. Android stops camera frames from a page in the background, so flz's picture froze on tzc; flz's page then went silent (last line 09:44:20). NOT a TS-1 regression: no storage call is on the video path, and the same sequence freezes any stage. TS-1 on the same run: both phones `ts_ready` mode idb (flz 20 rooms / 2,296 messages, tzc 11 / 713, warm start 79–116 ms), no `ts_flush_failed`, `ts_row_failed`, `ts_fallback` or `ts_early_read` — so no IndexedDB re-implementation. The design gap (notification during a call; no "camera paused" notice to the far side) joins the owner's design discussion as B-9(e), with B-9(a)–(d) recorded the same day.
 
 **v21.120.0 · 2026-11-16.** RELAY INCIDENT, recorded (no app or relay code changed). From 2026-11-03 (first at 09:53 UTC) to 2026-11-15 (09:16 UTC) the live relay `talk-signal` was NOT relay v6.17: a Cloudflare Workers Builds Git connection on the `talk-signal` worker pointed at `acmeproducts/joy`, and every merge to joy's main (four on 11-03, all Peace-chat work) rebuilt joy's main config — Peace's `gift-signal` worker — under the name `talk-signal` and deployed it over TalkBridge's relay. Symptoms: `/log` and `/activity` answered "Not found" (12 days of device and activity logs lost; the stored ones survived), push sign-up refused ("Method not allowed"); calls themselves still connected. Found from the owner's report "voice didn't work during video call" (2026-11-15); that report is CLOSED (v21.120.1, owner 2026-11-16: voice works on the restored relay; the goal of this work was only to let Peace run independently of TalkBridge). Fixed: relay v6.17 redeployed from this repository's pipeline (2026-11-15, all three deploy checks passed); the owner disconnected the `talk-signal` Git connection in Cloudflare (2026-11-16); joy PR #306 removed the stale relay copy (`worker-talk.js`, `wrangler-talk.toml`). `gift-signal` (Peace) keeps its own connection, untouched. Owner rulings 2026-11-16: no split of the other pages still on `talk-signal` (2vid, vsay, noon, Talk-Say, joy's j/vid/test pages) — "we're just engineering ourselves into another potential set of regressions"; TalkBridge unchanged; 30·pre-ship testable as built. BACKLOG (owner): a RELAY WATCHDOG — the device-log drain flags at once when `/log` stops answering as relay v6.17 (this outage would have shown within minutes, not 12 days).
 
