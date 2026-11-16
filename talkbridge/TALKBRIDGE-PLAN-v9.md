@@ -1,5 +1,5 @@
-<!-- TALKBRIDGE-PLAN v21.121.0 -->
-# TALKBRIDGE MASTER PLAN v21.121.0
+<!-- TALKBRIDGE-PLAN v21.122.0 -->
+# TALKBRIDGE MASTER PLAN v21.122.0
 
 **Location:** `talkbridge/TALKBRIDGE-PLAN-v9.md` in `acmeproducts/stuff`.
 **Owner:** Confi — sole decision-maker, runs every device gate.
@@ -150,8 +150,8 @@ the directory release and IndexedDB each moved one turn later; nothing was dropp
 | 30·post-ship | open (IndexedDB moved up to 30·pre-ship, owner 2026-10-27) | — | — |
 | 30·pre-base | byte-identical snapshot of accepted 29·post-ship | **BANKED 2026-10-22 BY REFERENCE** — the accepted `talkbridge-app/bridge-turn29-post-ship.html` (sha `c1c417e21dd1`), immutable under §0c; 30·base's assembler sha-checks it | — |
 | 30·base | **THE VIDEO BOX (§7.22)** — owner 2026-10-22: "it should be the tall 9:16 that's draggable"; then the strip you pull down (2026-10-27) | **ACCEPTED 2026-11-11 · candidate 4 · sha `a4155be904a9` · tb-sw5.js · relay v6.17 (owner: "video approved")** — the strip you pull down (VB-2), the camera back after dictation (CV-1), the room's name to the microphone (NM-1), the Android strip teal; Jenny's instance with it. Candidate history: c1 rejected (G77); c2 tested (three findings → c3); c3 "works … not crazy about it" (G79) → c4 (§7.22; changelog v21.111.0–v21.117.0) | **https://acmeproducts.github.io/stuff/talkbridge-app/bridge-turn30-base.html** (the folder's face forwards here) · Jenny: …/bridge-turn30-base-jenny.html |
-| 30·pre-ship | **chats in IndexedDB — TS-1 (§7.24)**; input: accepted 30·base | **CANDIDATE 1 · BUILT 2026-11-11 · relay v6.17 (unchanged) · tb-sw5.js (unchanged) — the chats move to IndexedDB under an in-memory copy, every caller unchanged; awaiting the owner's two-phone device gate** | **https://acmeproducts.github.io/stuff/talkbridge-app/bridge-turn30-pre-ship.html** (and next.html) |
-| 30·ship | beta readiness (moved from 30·pre-ship, owner 2026-10-27) | queued | — |
+| 30·pre-ship | **chats in IndexedDB — TS-1 (§7.24)**; input: accepted 30·base | **ACCEPTED 2026-11-16 · candidate 1 · sha `4dddf3c35284` · tb-sw5.js · relay v6.17 (owner: "it seems to test alright")** — chats move from localStorage to IndexedDB under an in-memory copy; device run: both phones mode idb, no failures (v21.121.0) | **https://acmeproducts.github.io/stuff/talkbridge-app/bridge-turn30-pre-ship.html** |
+| 30·ship | beta readiness (moved from 30·pre-ship, owner 2026-10-27) — includes B-11 (the settings build line kept current) | NEXT | — |
 
 Every accepted or built stage carries its live address here and in the ledger; a row without a link is not built.
 
@@ -370,6 +370,15 @@ TS-1 passes its device gate) Four items, discussed together:
   (e) from the 2026-11-16 freeze diagnosis below: a notification tapped during a
       call opens another copy of the app instead of returning to the call, and
       the far side is not told the picture is paused.
+(B-10, 2026-11-16 — owner, SEPARATE DESIGN DISCUSSION, no code; runs IN
+PARALLEL with the beta test, not held behind anything) Use the phrasebook's
+target text in place of translation calls where a phrasebook entry matches, and
+discuss how phrasebook-like translation could serve spoken lines.
+(B-11, 2026-11-16 — owner: "I don't think we're keeping it current") The build
+line at the foot of the settings sheet still reads `turn27-ship-video-c5 · built
+2026-09-15 00:31 UTC` on every stage since 27·ship: a hard-coded label from
+27·ship that no stage's IDENTITY edit replaces (the log's `build` line IS
+current). Fix in 30·ship: the label reads the stage's own build record.
 
 ---
 
@@ -2104,6 +2113,8 @@ Green means allowed to push. It never means done.
 ---
 
 ## 10 · CHANGE LOG
+
+**v21.122.0 · 2026-11-16.** 30·pre-ship ACCEPTED (owner: "it seems to test alright") — candidate 1, sha `4dddf3c35284`: TS-1, chats in IndexedDB. The folder's face (`index.html`) forwards to it (`current-stage.json`); the stage is immutable from here (§0c). next.html stays on it until 30·ship's first candidate. NEXT: 30·ship (beta readiness), carrying B-11 (the settings build line, stale since 27·ship). Recorded: B-10, the phrasebook design discussion (phrasebook targets in place of translation calls; phrasebook-like translation for speech), in parallel with the beta test. B-9 (the owner's design discussion) is now unblocked.
 
 **v21.121.0 · 2026-11-16.** VIDEO FREEZE DIAGNOSED (no code). Owner report: "1 of the 4 video screens froze" (30·pre-ship, call 2 at 09:42:31 UTC, phones flz [English, caller] and tzc [Thai]). Device log: tzc's decoded frames from flz stopped at 1493 (~09:43:23) and never resumed; recovery step 1 ran every 6 s without effect; the connection failed at 09:44:42. Cause: at 09:43:20.064 a chat notification was tapped on flz's phone (receipt `tapped`, room 974bew); flz blurred at 09:43:20.103, the app muted its microphone as designed (`r8_away_muted`), and a second copy of TalkBridge (device e4t, the accepted index page, same phone) opened in front. Android stops camera frames from a page in the background, so flz's picture froze on tzc; flz's page then went silent (last line 09:44:20). NOT a TS-1 regression: no storage call is on the video path, and the same sequence freezes any stage. TS-1 on the same run: both phones `ts_ready` mode idb (flz 20 rooms / 2,296 messages, tzc 11 / 713, warm start 79–116 ms), no `ts_flush_failed`, `ts_row_failed`, `ts_fallback` or `ts_early_read` — so no IndexedDB re-implementation. The design gap (notification during a call; no "camera paused" notice to the far side) joins the owner's design discussion as B-9(e), with B-9(a)–(d) recorded the same day.
 
