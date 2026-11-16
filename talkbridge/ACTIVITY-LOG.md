@@ -1,6 +1,6 @@
 # TalkBridge activity log
 
-Who created, joined, called and chatted, one line per event, no message text (§7.21; relay v6.14). Drained 2026-11-16T02:53:31Z. Newest at the bottom. Person = the name typed in the app, letters and digits only (no name: Guest 1, Guest 2 … per room); room = its short id. Live view: https://acmeproducts.github.io/stuff/talkbridge/dash.html
+Who created, joined, called and chatted, one line per event, no message text (§7.21; relay v6.14). Drained 2026-11-16T09:58:48Z. Newest at the bottom. Person = the name typed in the app, letters and digits only (no name: Guest 1, Guest 2 … per room); room = its short id. Live view: https://acmeproducts.github.io/stuff/talkbridge/dash.html
 
 ```
 2026-10-19 07:05:25  room wvshos  voice call from miko — answered by text
@@ -298,4 +298,24 @@ Who created, joined, called and chatted, one line per event, no message text (§
 2026-11-15 23:17:44  room 31hdbb The plan  Myotherphone joined  zh → en
 2026-11-15 23:17:49  room 6wyjxz lolo  A26 joined  en → th
 2026-11-16 02:04:54  room q4hv8e joy  Enjoy joined  th → en
-2026-11-16 02:04:54  room 8ve20t Mike  Enjoy joined  th → en```
+2026-11-16 02:04:54  room 8ve20t Mike  Enjoy joined  th → en
+2026-11-16 05:44:21  room 6wyjxz  voice call from Lolo — answered by mike  started 05:43:00  ended 05:44:21  lasted 1m 21s
+2026-11-16 05:45:19  room 6wyjxz  video call from mike — answered by Lolo  started 05:44:30  ended 05:45:19  lasted 49s
+2026-11-16 05:47:40  room 974bew chat  mike joined  th → en
+2026-11-16 05:47:40  room 974bew  mike chat
+2026-11-16 05:47:40  room 974bew  mike chat
+2026-11-16 05:47:40  room 974bew  mike chat
+2026-11-16 05:47:41  room 6wyjxz chat  mike joined  en → th
+2026-11-16 08:53:58  room 974bew  moko chat
+2026-11-16 08:54:39  room 974bew  mike chat
+2026-11-16 08:55:12  room 974bew  mike chat
+2026-11-16 08:55:14  room 974bew  mike chat
+2026-11-16 08:55:19  room 974bew  mike chat
+2026-11-16 08:55:25  room 974bew  mike chat
+2026-11-16 09:35:08  room 974bew chat  text joined  th → en
+2026-11-16 09:37:29  room pvo42n dbtest  moko created  en → th
+2026-11-16 09:39:43  room pvo42n dbtest  text joined  th → en
+2026-11-16 09:40:10  room pvo42n  text chat
+2026-11-16 09:40:48  room pvo42n  moko chat
+2026-11-16 09:42:24  room pvo42n  video call from text — answered by moko  started 09:41:57  ended 09:42:24  lasted 26s
+2026-11-16 09:47:29  room pvo42n  video call from Unknown — answered by text  started 09:42:30  ended 09:47:29  lasted 5m 00s```
