@@ -1,6 +1,6 @@
 # Wrist device log
 
-Drained 2026-11-17T12:53:39Z. Newest at the bottom. 285 lines.
+Drained 2026-11-17T13:20:32Z. Newest at the bottom. 314 lines.
 
 ```
 2026-11-16T13:29:35.990Z ****14 {"t":"scroll","r":3,"seq":3} pages=1
@@ -288,4 +288,33 @@ Drained 2026-11-17T12:53:39Z. Newest at the bottom. 285 lines.
 2026-11-17T12:49:38.780Z ****63 {"t":"hb","seq":277,"b":"turn03-b3","pose":0,"tilt":-36,"roll":-70,"pk":0.6,"th":3.6,"noise":0.7,"bat":45,"screen":0,"exempt":0} pages=1
 2026-11-17T12:49:39.061Z ****63 {"t":"mode","m":"resting","why":"arm down","idle":"lock","seq":278,"b":"turn03-b3","pose":0,"tilt":1,"roll":-133,"pk":1.2,"th":5.5,"noise":1.1,"bat":45,"screen":0,"exempt":0} pages=1
 2026-11-17T12:49:39.194Z ****63 {"t":"mode","m":"active","why":"arm up","seq":279,"b":"turn03-b3","pose":0,"tilt":1,"roll":-133,"pk":1.2,"th":5.5,"noise":1.1,"bat":45,"screen":0,"exempt":0} pages=1
+2026-11-17T12:54:02.014Z ****05 {"t":"page-joined","pages":1}
+2026-11-17T12:54:02.015Z ****55 {"t":"page-joined","pages":1}
+2026-11-17T12:54:02.160Z ****05 {"t":"swipe","d":"left","seq":1} pages=1
+2026-11-17T12:54:02.291Z ****05 {"t":"tap","seq":2} pages=1
+2026-11-17T12:54:02.418Z ****05 {"t":"scroll","r":3,"seq":3} pages=1
+2026-11-17T12:54:06.415Z ****05 {"t":"hb","seq":5} pages=1
+2026-11-17T12:54:07.888Z ****05 {"t":"hb","seq":6} pages=1
+2026-11-17T12:55:54.486Z ****55 {"t":"page-joined","pages":1}
+2026-11-17T12:55:54.536Z ****20 {"t":"page-joined","pages":1}
+2026-11-17T12:55:54.625Z ****20 {"t":"swipe","d":"left","seq":1} pages=1
+2026-11-17T12:55:54.725Z ****20 {"t":"tap","seq":2} pages=1
+2026-11-17T12:55:54.831Z ****20 {"t":"scroll","r":3,"seq":3} pages=1
+2026-11-17T12:55:58.704Z ****20 {"t":"hb","seq":5} pages=1
+2026-11-17T12:56:00.089Z ****20 {"t":"hb","seq":6} pages=1
+2026-11-17T12:56:19.897Z ****63 {"t":"hb","seq":280,"b":"turn03-b3","pose":1,"tilt":1,"roll":-36,"pk":0.7,"th":4.2,"noise":0.8,"bat":45,"screen":0,"exempt":0} pages=0
+2026-11-17T12:56:20.178Z ****63 {"t":"mode","m":"resting","why":"arm down","idle":"lock","seq":281,"b":"turn03-b3","pose":0,"tilt":0,"roll":-45,"pk":1.1,"th":4.6,"noise":0.9,"bat":45,"screen":0,"exempt":0} pages=0
+2026-11-17T13:03:00.717Z ****63 {"t":"hb","seq":282,"b":"turn03-b3","pose":0,"tilt":0,"roll":-45,"pk":1.1,"th":4.6,"noise":0.9,"bat":44,"screen":0,"exempt":0} pages=0
+2026-11-17T13:03:00.941Z ****63 {"t":"mode","m":"active","why":"arm up","seq":283,"b":"turn03-b3","pose":0,"tilt":0,"roll":-45,"pk":1.1,"th":4.6,"noise":0.9,"bat":44,"screen":0,"exempt":0} pages=0
+2026-11-17T13:09:41.440Z ****63 {"t":"hb","seq":284,"b":"turn03-b3","pose":0,"tilt":4,"roll":-40,"pk":0.2,"th":3.5,"noise":0.2,"bat":44,"screen":0,"exempt":0} pages=0
+2026-11-17T13:09:41.752Z ****63 {"t":"mode","m":"resting","why":"arm down","idle":"lock","seq":285,"b":"turn03-b3","pose":0,"tilt":3,"roll":-40,"pk":0.2,"th":3.5,"noise":0.2,"bat":44,"screen":0,"exempt":0} pages=0
+2026-11-17T13:09:42.062Z ****63 {"t":"mode","m":"active","why":"arm up","seq":286,"b":"turn03-b3","pose":0,"tilt":3,"roll":-40,"pk":0.2,"th":3.5,"noise":0.2,"bat":44,"screen":0,"exempt":0} pages=0
+2026-11-17T13:16:22.626Z ****63 {"t":"hb","seq":287,"b":"turn03-b3","pose":0,"tilt":95,"roll":-112,"pk":1.4,"th":4.2,"noise":0.8,"bat":43,"screen":0,"exempt":0} pages=0
+2026-11-17T13:16:22.943Z ****63 {"t":"mode","m":"resting","why":"arm down","idle":"lock","seq":288,"b":"turn03-b3","pose":0,"tilt":95,"roll":-112,"pk":1.4,"th":4.2,"noise":0.8,"bat":43,"screen":0,"exempt":0} pages=0
+2026-11-17T13:16:23.089Z ****63 {"t":"mode","m":"active","why":"arm up","seq":289,"b":"turn03-b3","pose":0,"tilt":95,"roll":-112,"pk":1.4,"th":4.2,"noise":0.8,"bat":43,"screen":0,"exempt":0} pages=0
+2026-11-17T13:16:24.235Z ****63 {"t":"scroll","r":1,"seq":290,"b":"turn03-b3","pose":1,"tilt":16,"roll":18,"pk":1.6,"th":3.9,"noise":0.8,"bat":43,"screen":0,"exempt":0} pages=0
+2026-11-17T13:16:24.536Z ****63 {"t":"scroll","r":4,"seq":291,"b":"turn03-b3","pose":1,"tilt":60,"roll":8,"pk":4.8,"th":5.5,"noise":1.1,"bat":43,"screen":0,"exempt":0} pages=0
+2026-11-17T13:16:24.740Z ****63 {"t":"scroll","r":0,"seq":292,"b":"turn03-b3","pose":0,"tilt":106,"roll":-28,"pk":5.7,"th":6.6,"noise":1.3,"bat":43,"screen":0,"exempt":0} pages=0
+2026-11-17T13:16:32.300Z ****63 {"t":"swipe","d":"left","seq":293,"b":"turn03-b3","pose":2,"tilt":59,"roll":-94,"pk":1.9,"th":3.8,"noise":0.8,"bat":43,"screen":0,"exempt":0} pages=0
+2026-11-17T13:16:32.414Z ****63 {"t":"hb","seq":294,"b":"turn03-b3","pose":2,"tilt":63,"roll":-98,"pk":1.7,"th":4.5,"noise":0.9,"bat":43,"screen":0,"exempt":0} pages=0
 ```
