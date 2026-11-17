@@ -62,7 +62,7 @@ One surface for trying many motion concepts. Served by the relay at `/` (`wrist/
 - **Tap the experiment**: drops an "I meant that" marker in the recording. **Double-tap** (or Notes): the card flips to what-to-try, 👍/👎, the verdict and notes (typed or spoken).
 - **Closing a card saves the trial** to the relay: every raw sensor row the watch sent, every start/stop/choice the concept decided, every touch on the page, the verdict and the notes, on one clock.
 
-Concepts in `lab-r3`. Each concept's deciding logic is a recogniser (`R.<id>`) with no screen attached, so the same code runs in its own card and in Keepers. Adding a concept that works from raw rows needs no watch update.
+Concepts in `lab-r4`. Each concept's deciding logic is a recogniser (`R.<id>`) with no screen attached, so the same code runs in its own card and in Keepers. Adding a concept that works from raw rows needs no watch update.
 
 | id | What | Gestures it fires | Decided by |
 |---|---|---|---|
@@ -77,7 +77,7 @@ Concepts in `lab-r3`. Each concept's deciding logic is a recogniser (`R.<id>`) w
 | swing2 | same swing with lower thresholds (17° in 0.7 s, more tilt allowed); a guess, no owner data behind it | swing left/right | page, raw |
 | raise | lift the hand towards the face to open the mic, lower to close | talk open/close | page, raw |
 | body | **not commands**: what X could notice. Arm still (20 s, then each minute), arm held overhead 1.5 s, shoulder rolls (four slow half-turns of tilt with the arm level) | still…, arms overhead, shoulder roll | page, raw |
-| ok | the OK pose as the owner defined it: forearm held between 35° and 60° (centre 47°), 0.8 s; records tilt and roll each time | ok pose | page, raw |
+| ok | the OK pose as the owner defined it: forearm held between 30° and 52° with the wrist not rolled (|roll| < 30°), 0.8 s; records tilt and roll each time | ok pose | page, raw |
 
 Design rule from the owner (2026-11-17): **no two gestures share a meaning**, and the Lab is an interim workshop for X's interaction model, **not app navigation**. Gestures are named for what the body does; meanings are assigned later, in X.
 
@@ -140,9 +140,26 @@ First data to arrive through the log channel. 256 watch events in 10 minutes.
 
 Changes made from this: knock removed; `tilt2` in the Lab addresses the stutter and the lowered arm; `swing1` kept unchanged so the Lab can record why it does not fire.
 
+## 9. First Lab trials from the real watch, 2026-11-17 13:37–13:47 UTC (watch turn04-b4, read from `wrist/out/trials/`)
+First data through the trial channel: three trials, two with raw rows (3,823 and 2,560).
+
+| Observed | Evidence |
+|---|---|
+| The raw stream works end to end | rows arrive in batches about 115 ms apart, 26–40 rows a second (target 50) |
+| Owner's OK pose, as the watch measures it | four steady holds during the prompts: tilt 36°, 38°, 40°, 42°, roll −7° to +2°. The owner describes it as about 47° |
+| Pose assumptions confirmed | thumb up held at roll −82° and −96°; palm up at −168°; thumb down at +83° and +90°; arm overhead at tilt 65° |
+| The battery exemption is still not granted on turn04 | `exempt:0` on all 200 turn04 events |
+| With the screen off the watch pauses the app in 400 s blocks | six gaps of exactly 400 s on turn03 (12:36–13:16 UTC), each followed by about ten seconds of activity; the event counter carries on, so the app is suspended, not stopped |
+| The reader was restarted once | counter reset at 13:37 UTC after a 596 s gap |
+| Battery fell 41% to 35% in 24 minutes on turn04 | `bat` field |
+
+Owner's notes on the trials: "Watch still keeps timing out, I think it has more to do with the overall global battery setting than anything else."
+
+Change made from this: the `ok` card's band moved from 35–60° to 30–52° and now requires the wrist not rolled (`lab-r4`).
+
 ## 7. Lab checks
 `wrist/test/DetectorTest.java`, synthetic 100 Hz traces, run on every build. 2026-11-17: 16/16 pass (knock checks removed with the knock).
 
 `wrist/relay/e2e.mjs` (relay, run on every deploy against the live worker; 16/16 against the live worker on 2026-11-17).
 
-`wrist/relay/page-test.py` (the Lab in a phone-sized Chrome, driven by relay events and a synthetic raw stream; run by hand, 48/48 on 2026-11-17).
+`wrist/relay/page-test.py` (the Lab in a phone-sized Chrome, driven by relay events and a synthetic raw stream; run by hand, 49/49 on 2026-11-17).

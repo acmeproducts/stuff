@@ -145,12 +145,14 @@ with sync_playwright() as pw:
     pg.click('.tile[data-id=ok]')
     feed(0, 0, 0.6); feed(20, 0, 1.2)
     check('ok pose: a low forearm does not fire', txt('.big .count') == '0', txt('.big .count'))
-    feed(47, 0, 1.6)
-    check('ok pose: forearm held at 47 degrees fires once', txt('.big .count') == '1', txt('.big .count'))
-    feed(47, 0, 1.0)
+    feed(39, -4, 1.6)
+    check('ok pose: forearm held at 39 degrees, the middle of the owner\'s own holds, fires once', txt('.big .count') == '1', txt('.big .count'))
+    feed(39, -4, 1.0)
     check('ok pose: still holding does not fire again', txt('.big .count') == '1', txt('.big .count'))
     feed(0, 0, 0.6); feed(72, 0, 1.6)
     check('ok pose: an arm raised well past 60 degrees does not fire', txt('.big .count') == '1', txt('.big .count'))
+    feed(0, 0, 0.6); feed(39, -90, 1.6)
+    check('ok pose: the same angle with the thumb up is a different pose and does not fire', txt('.big .count') == '1', txt('.big .count'))
     pg.click('#closeBtn'); time.sleep(0.5)
 
     # ---- Keepers: everything rated Keep, running together
