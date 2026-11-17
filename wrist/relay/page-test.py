@@ -19,14 +19,14 @@ def http(path, body=None):
 
 def post(o): return json.loads(http('/e/' + code, json.dumps(o)))
 
-def feed(pitch, roll, seconds, gyro=0.0):
-    """Send a steady pose as raw rows: 50 a second, in batches of 5."""
+def feed(pitch, roll, seconds, gyro=0.0, w=None, acc=0.0):
+    """Send a steady pose as raw rows: 50 a second, in batches of 5. w = turn rate [x,y,z] rad/s, acc = jolt m/s^2."""
     p, r = math.radians(pitch), math.radians(roll)
     g = [round(981 * math.sin(p)), round(981 * math.cos(p) * math.sin(r)), round(981 * math.cos(p) * math.cos(r))]
-    w = round(gyro * 100)
+    wv = [round(v * 100) for v in w] if w else [round(gyro * 100), 0, 0]
     end = time.time() + seconds
     while time.time() < end:
-        rows = [[i * 20] + g + [w, 0, 0, 0, 0, 0] for i in range(5)]
+        rows = [[i * 20] + g + wv + [round(acc * 100), 0, 0] for i in range(5)]
         post({'t': 'raw', 'w': int(time.time() * 1000), 's': rows})
         time.sleep(0.085)
 
@@ -48,7 +48,7 @@ with sync_playwright() as pw:
     check('first visit asks for the watch code', pg.locator('#pair.show').count() == 1)
     pg.fill('#code', code)
     pg.wait_for_function("document.getElementById('statusText').textContent.indexOf('Waiting for the watch')===0", timeout=8000)
-    check('grid shows seven concepts', pg.locator('.tile').count() == 7, pg.locator('.tile').count())
+    check('grid shows twelve concepts, Keepers first', pg.locator('.tile').count() == 12 and pg.locator('.tile').first.get_attribute('data-id') == 'keepers', pg.locator('.tile').count())
     check('every concept starts unrated', pg.locator('.chip.keep,.chip.shop,.chip.dump').count() == 0)
     post({'t': 'hb', 'b': 'turn04-test'})
     pg.wait_for_function("document.getElementById('statusText').textContent==='Watch connected'", timeout=5000)
@@ -96,14 +96,76 @@ with sync_playwright() as pw:
     check('dial: holding still for a second chooses the highlighted one', picked == hot() and picked >= 3, picked)
     pg.click('#closeBtn'); time.sleep(0.5)
 
-    # ---- verdict
-    pg.click('.tile[data-id=verdict]')
-    feed(0, 0, 0.4); feed(0, -90, 1.4)
-    check('verdict: thumb up held one second = yes', txt('.big .count').startswith('👍 1'), txt('.big .count'))
-    feed(0, 0, 0.4); feed(0, 178, 1.4)
-    check('verdict: palm up held one second = no', '👎 1' in txt('.big .count'), txt('.big .count'))
-    feed(0, 0, 0.3); feed(0, 90, 1.4)
-    check('verdict: thumb down also = no', '👎 2' in txt('.big .count'), txt('.big .count'))
+    # ---- four poses: four different gestures
+    pg.click('.tile[data-id=poses]')
+    n = lambda k: ev("Array.from(document.querySelectorAll('.quad .q')).map(q=>q.querySelector('b').textContent+'='+q.querySelector('em').textContent).join(',')")
+    feed(0, 0, 1.2)
+    check('poses: resting palm down is not counted on its own', 'palm down=0' in n(0), n(0))
+    feed(0, -90, 1.2); feed(0, 0, 1.2); feed(0, 178, 1.2); feed(0, 90, 1.2)
+    check('poses: thumb up, palm down (arrived from another pose), palm up, thumb down each fire once, separately', n(0) == 'palm down=1,palm up=1,thumb up=1,thumb down=1', n(0))
+    pg.click('#closeBtn'); time.sleep(0.5)
+
+    # ---- flap
+    pg.click('.tile[data-id=flap]')
+    feed(0, 0, 0.8)
+    feed(0, -40, 0.16, gyro=3.0); feed(0, 0, 0.5, gyro=0.2)
+    check('flap: quick roll out and back = one flap, thumb rising', txt('.big .count').startswith('thumb rising 1') and 'pinky rising 0' in txt('.big .count'), txt('.big .count'))
+    feed(0, -40, 1.2, gyro=3.0); feed(0, 0, 0.6)
+    check('flap: a roll that stays out is not a flap', txt('.big .count').startswith('thumb rising 1'), txt('.big .count'))
+    feed(0, 0, 0.6); feed(0, 40, 0.16, gyro=3.0); feed(0, 0, 0.5, gyro=0.2)
+    check('flap: the other direction is its own gesture', 'pinky rising 1' in txt('.big .count'), txt('.big .count'))
+    pg.click('#closeBtn'); time.sleep(0.5)
+
+    # ---- swing v2, decided on the page
+    pg.click('.tile[data-id=swing2]')
+    th = lambda: txt('#play .th span')
+    feed(0, -90, 0.5)
+    feed(0, -90, 0.3, w=[0, -3, 0]); feed(0, -90, 0.3, w=[0, 3, 0]); feed(0, -90, 0.6)
+    check('swing v2: one swing left and back changes thread once', th() == 'Code', th())
+    feed(0, -90, 0.3, w=[0, 3, 0]); feed(0, -90, 0.3, w=[0, -3, 0]); feed(0, -90, 0.6)
+    check('swing v2: one swing right and back returns', th() == 'Messages', th())
+    feed(0, 0, 0.4); feed(0, 0, 0.3, w=[0, 0, 3]); feed(0, 0, 0.5)
+    check('swing v2: the same turn with the hand flat does nothing', th() == 'Messages', th())
+    pg.click('#closeBtn'); time.sleep(0.5)
+
+    # ---- what X could notice
+    pg.click('.tile[data-id=body]')
+    feed(0, 0, 0.5, gyro=1.0); feed(70, 0, 2.2)
+    check('body: arm held overhead is noticed once', txt('#bOver') == '1', txt('#bOver'))
+    feed(0, 0, 3.0, gyro=1.0)          # let the slow baseline settle after the big overhead move
+    t0 = time.time()
+    while time.time() - t0 < 8.0:
+        feed(13 * math.sin(2 * math.pi * (time.time() - t0) / 2.0), 0, 0.1, gyro=1.0)
+    check('body: slow circling of the arm is noticed as a shoulder roll', int(txt('#bRoll')) >= 1, txt('#bRoll'))
+    feed(0, 0, 21.5)
+    check('body: an unmoving arm is timed', txt('#bStill').startswith('2') and txt('#nE') == 'still 20 s', txt('#bStill') + ' / ' + txt('#nE'))
+    pg.click('#closeBtn'); time.sleep(0.5)
+
+    # ---- pinch probe: prompted, recording only
+    pg.click('.tile[data-id=pinch]')
+    pg.wait_for_function("document.querySelector('.big p').textContent==='NOW: pinch'", timeout=6000)
+    feed(0, 0, 0.12, acc=2.0); feed(0, 0, 1.1)
+    check('pinch probe: a jolt after the prompt is counted', txt('.big .count').startswith('1 of 1'), txt('.big .count'))
+    pg.wait_for_function("document.querySelector('.big p').textContent==='NOW: pinch'", timeout=6000)
+    feed(0, 0, 1.3)
+    check('pinch probe: a prompt with no jolt is not', txt('.big .count').startswith('1 of 2'), txt('.big .count'))
+    pg.click('#closeBtn'); time.sleep(0.5)
+
+    # ---- Keepers: everything rated Keep, running together
+    pg.click('.tile[data-id=keepers]')
+    check('keepers: says so when nothing is rated Keep', 'Nothing is rated Keep yet' in txt('.kboard p'))
+    pg.click('#closeBtn'); time.sleep(0.4)
+    ev("(function(){var s=JSON.parse(localStorage.getItem('wrist_lab'));s.poses.rating='keep';s.dial.rating='keep';s.flap.rating='keep';localStorage.setItem('wrist_lab',JSON.stringify(s))})()")
+    pg.reload(); time.sleep(0.8)
+    pg.click('.tile[data-id=keepers]')
+    check('keepers: shows one row per kept concept', pg.locator('.krow').count() == 3, pg.locator('.krow').count())
+    feed(0, 0, 0.6); feed(0, -40, 0.16, gyro=3.0); feed(0, 0, 0.6, gyro=0.2)
+    chips = lambda: ev("Array.from(document.querySelectorAll('.kchip')).map(c=>c.textContent).filter(t=>/ \\d+$/.test(t)).join(',')")
+    check('keepers: a kept gesture lights its chip', 'flap, thumb rising 1' in chips(), chips())
+    feed(0, -90, 1.7)
+    c2 = chips()
+    check('keepers: two kept concepts firing together are reported as a collision', 'thumb up 1' in c2 and 'dial choose 1' in c2 and 'thumb up + dial choose' in txt('.kboard p'), c2 + ' / ' + txt('.kboard p'))
+    if shot: pg.screenshot(path=shot + '-keepers.png')
     pg.click('#closeBtn'); time.sleep(0.5)
 
     # ---- raise to talk
@@ -153,7 +215,7 @@ with sync_playwright() as pw:
     check('card that needs the raw stream says the watch app is too old', 'needs the newer watch app' in txt('#need'), txt('#need'))
     check('ratings survive a reload', 'Keep' in txt('.tile[data-id=see] .foot') if pg.locator('#active.show').count() == 0 else True)
     if shot:
-        pg.click('#closeBtn'); time.sleep(0.4); pg.click('.tile[data-id=verdict]'); feed(0, -90, 1.3); pg.screenshot(path=shot + '-verdict.png')
+        pg.click('#closeBtn'); time.sleep(0.4); pg.click('.tile[data-id=poses]'); feed(0, 0, 0.3); feed(0, -90, 1.1); pg.screenshot(path=shot + '-poses.png')
     check('no script errors on the page', not errors, errors)
     b.close()
 

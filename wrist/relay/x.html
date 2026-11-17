@@ -33,7 +33,7 @@ button:active{background:var(--panel2)}
 #active.show{display:block}
 #flip{position:absolute;inset:0;transform-style:preserve-3d;transition:transform .45s cubic-bezier(.3,.7,.2,1)}
 #flip.back{transform:rotateY(180deg)}
-.face{position:absolute;inset:0;backface-visibility:hidden;-webkit-backface-visibility:hidden;background:var(--bg);display:grid}
+.face{position:absolute;inset:0;backface-visibility:hidden;-webkit-backface-visibility:hidden;background:var(--bg);display:grid;grid-template-columns:minmax(0,1fr)}
 #front{grid-template-rows:auto minmax(0,1fr) auto}
 #backFace{transform:rotateY(180deg);grid-template-rows:auto minmax(0,1fr);}
 .bar{display:flex;align-items:center;gap:10px;padding:calc(8px + env(safe-area-inset-top)) 12px 8px;border-bottom:1px solid var(--line)}
@@ -84,6 +84,27 @@ button:active{background:var(--panel2)}
 .meter{height:12px;border-radius:6px;background:var(--panel);border:1px solid var(--line);width:min(70vw,360px);margin:14px auto 0;overflow:hidden}
 .meter i{display:block;height:100%;width:0;background:var(--accent)}
 #seeCanvas{position:absolute;inset:0;width:100%;height:100%}
+.pg{position:absolute;inset:0}
+.quad{position:absolute;inset:0;display:grid;grid-template-columns:1fr 1fr;grid-template-rows:1fr 1fr;gap:10px;padding:12px 12px 34px}
+.quad .q{border:2px solid var(--line);border-radius:18px;background:var(--panel);display:grid;place-items:center;align-content:center;gap:2px;position:relative;overflow:hidden;transition:border-color .12s,background .12s}
+.quad .q span{font-size:min(17vw,84px);line-height:1.1}
+.quad .q b{font-size:18px}
+.quad .q em{font-style:normal;color:var(--muted);font-variant-numeric:tabular-nums}
+.quad .q i{position:absolute;left:0;bottom:0;height:6px;background:var(--accent);width:0}
+.quad .q.in{border-color:var(--accent)}
+.quad .q.lit{background:#12301f;border-color:var(--good)}
+.stats{position:absolute;inset:0;display:grid;gap:10px;padding:14px 14px 36px;align-content:center}
+.stats>div{background:var(--panel);border:1px solid var(--line);border-radius:16px;padding:14px 18px;display:grid;grid-template-columns:auto 1fr;column-gap:16px;align-items:center}
+.stats span{font-size:44px;grid-row:1/3}
+.stats b{font-size:30px;font-variant-numeric:tabular-nums}
+.stats em{font-style:normal;color:var(--muted)}
+.kboard{position:absolute;inset:0;overflow-y:auto;padding:12px 14px 40px;display:grid;gap:10px;align-content:start}
+.krow{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:11px 13px}
+.krow b{display:block;font-size:15px;margin-bottom:7px}
+.krow div{display:flex;flex-wrap:wrap;gap:7px}
+.kchip{border:1px solid var(--line);border-radius:999px;padding:4px 11px;font-size:14px;color:var(--muted);font-variant-numeric:tabular-nums;transition:background .15s,color .15s}
+.kchip.lit{background:var(--good);border-color:var(--good);color:#06140d}
+.kboard p{color:var(--muted);margin:4px 2px;font-size:14.5px}
 /* ---------- pairing ---------- */
 #pair{position:fixed;inset:0;background:var(--bg);display:none;place-items:center;padding:24px;z-index:5}
 #pair.show{display:grid}
@@ -134,7 +155,7 @@ button:active{background:var(--panel2)}
 <script>
 (function(){
 'use strict';
-var BUILD='lab-r1';
+var BUILD='lab-r2';
 var $=function(id){return document.getElementById(id)};
 var DEG=180/Math.PI;
 var ws=null,retry=0,pingT=null,lastWatchAt=0,watchBuild='',resting=false,lastRawAt=0;
@@ -186,17 +207,192 @@ function makeList(root){
 }
 
 /* =====================================================================
+   Recognisers: the part of each concept that decides, with no screen attached.
+   Each takes derived samples and returns the gestures it fired, so the same
+   code runs inside its own card and inside the Keepers card.
+   ===================================================================== */
+var R={};
+R.tilt2=function(){var o={lp:null,on:false,nv:false,neutral:0,rate:0};
+  o.sample=function(d){var f=[];
+    o.lp=o.lp==null?d.pitch:o.lp+(d.pitch-o.lp)*0.25;
+    var usable=Math.abs(d.roll)<35&&o.lp>-45&&o.lp<70;
+    if(!usable){if(o.on){o.on=false;f.push({g:'scroll stop',why:'arm not in scroll pose'})}o.nv=false;o.rate=0;return f}
+    if(!o.nv){o.neutral=o.lp;o.nv=true}
+    var x=o.lp-o.neutral,a=Math.abs(x);
+    if(!o.on){if(a>14){o.on=true;f.push({g:'scroll start',dir:x>0?'up':'down'})}else if(d.gyro<0.3)o.neutral+=x*0.01}
+    else if(a<8){o.on=false;f.push({g:'scroll stop',why:'level'})}
+    o.rate=o.on?(x>0?1:-1)*Math.pow(Math.min(1,(a-8)/22),1.5):0;
+    return f};
+  return o};
+R.swing2=function(){var o={acc:0,t:0,lock:0,idle:0,vertical:false};
+  o.sample=function(d,dt){var f=[];
+    o.vertical=Math.abs(d.roll)>50&&Math.abs(d.roll)<130&&Math.abs(d.pitch)<60;
+    if(o.lock>0){o.lock-=dt;o.acc=0;return f}
+    if(!o.vertical){o.acc=0;return f}
+    var a=Math.abs(d.yaw);
+    if(a>=0.7){if(o.acc!==0&&(o.acc>0)!==(d.yaw>0)){o.acc=0}if(o.acc===0)o.t=0;o.acc+=d.yaw*dt/1000;o.t+=dt;o.idle=0;
+      if(o.t>700){o.acc=0}
+      else if(Math.abs(o.acc)>=0.3){f.push({g:o.acc>0?'swing left':'swing right',swept:Math.round(Math.abs(o.acc)*DEG)});o.acc=0;o.lock=800}}
+    else if(a<0.4&&o.acc!==0){o.idle+=dt;if(o.idle>150)o.acc=0}
+    return f};
+  return o};
+R.dial=function(){var names=['Reply','Later','Call','Archive','Read','Forward','Skip'];
+  var o={names:names,idx:-1,lp:null,still:0,locked:false,level:true};
+  o.sample=function(d,dt){var f=[];
+    o.level=Math.abs(d.pitch)<=45;if(!o.level)return f;
+    o.lp=o.lp==null?d.roll:o.lp+(d.roll-o.lp)*0.2;
+    var pos=(15-Math.max(-75,Math.min(15,o.lp)))/90*6;                      /* roll +15..-75 -> 0..6 */
+    var t=o.idx<0?Math.round(pos):(Math.abs(pos-o.idx)>0.65?Math.round(pos):o.idx);
+    if(t!==o.idx){var first=o.idx<0;o.idx=t;o.still=0;o.locked=false;if(!first)f.push({g:'dial move',to:names[t]})}
+    if(!o.locked){o.still=d.gyro<0.5?o.still+dt:0;if(o.still>=1000){o.locked=true;f.push({g:'dial choose',what:names[o.idx]})}}
+    return f};
+  return o};
+/* Four hand poses, four different gestures. Palm down is also how an arm rests, so it only
+   counts when you arrive at it from one of the other three. */
+R.poses=function(){var o={band:'',held:0,fired:false,fromOther:false};
+  o.sample=function(d,dt){var f=[],b='';
+    if(Math.abs(d.pitch)<50){var r=d.roll,a=Math.abs(r);
+      if(a<25)b='palm down';else if(r<-55&&r>-130)b='thumb up';else if(r>55&&r<130)b='thumb down';else if(a>150)b='palm up'}
+    if(b!==o.band){o.band=b;o.held=0;o.fired=false;if(b&&b!=='palm down')o.fromOther=true}
+    else if(b&&!o.fired){o.held+=dt;
+      if(o.held>=800){o.fired=true;if(b!=='palm down'||o.fromOther){f.push({g:b,roll:Math.round(d.roll)});if(b==='palm down')o.fromOther=false}}}
+    return f};
+  return o};
+/* A flap: from palm down, a quick roll out and straight back. A roll that stays out is a pose, not a flap. */
+R.flap=function(){var o={base:null,state:0,dir:0,t:0,lock:0,e:0};
+  o.sample=function(d,dt){var f=[];
+    if(o.lock>0)o.lock-=dt;
+    var flat=Math.abs(d.pitch)<50;
+    if(o.base==null){if(flat&&Math.abs(d.roll)<35)o.base=d.roll;return f}
+    o.e=d.roll-o.base;
+    if(o.state===0){
+      if(d.gyro<0.6&&flat&&Math.abs(d.roll)<35)o.base+=(d.roll-o.base)*0.05;
+      if(o.lock<=0&&flat&&Math.abs(o.e)>28&&d.gyro>1.5){o.state=1;o.dir=o.e<0?-1:1;o.t=0}
+    }else{o.t+=dt;
+      if(Math.abs(o.e)<10){f.push({g:o.dir<0?'flap, thumb rising':'flap, pinky rising',ms:Math.round(o.t)});o.state=0;o.lock=500}
+      else if(o.t>700){o.state=0;o.base=null}}
+    return f};
+  return o};
+R.raise=function(){var o={lp:null,on:false,above:0};
+  o.sample=function(d,dt){var f=[];
+    o.lp=o.lp==null?d.pitch:o.lp+(d.pitch-o.lp)*0.2;
+    if(!o.on){o.above=o.lp>40?o.above+dt:0;if(o.above>=500){o.on=true;f.push({g:'talk open',tilt:Math.round(o.lp)})}}
+    else if(o.lp<20){o.on=false;o.above=0;f.push({g:'talk close'})}
+    return f};
+  return o};
+/* Things X might want to know about you. None of these is a command. */
+R.body=function(){var o={still:0,moving:false,next:20000,lp:null,up:0,overhead:false,overheads:0,slow:null,sign:0,half:0,halfMs:0,peak:0,rolls:0};
+  o.sample=function(d,dt){var f=[];
+    /* how long the watch arm has not moved */
+    if(d.gyro>0.6){o.still=0;o.next=20000}else if(d.gyro<0.25||o.still>0){o.still+=dt;if(o.still>=o.next){f.push({g:o.next===20000?'still 20 s':'still '+Math.round(o.next/60000)+' min'});o.next=o.next===20000?60000:o.next+60000}}
+    /* hand above the head: forearm pointing well up and held */
+    o.lp=o.lp==null?d.pitch:o.lp+(d.pitch-o.lp)*0.2;
+    if(!o.overhead){o.up=o.lp>62?o.up+dt:0;if(o.up>=1500){o.overhead=true;o.overheads++;f.push({g:'arms overhead',tilt:Math.round(o.lp)})}}
+    else if(o.lp<40){o.overhead=false;o.up=0}
+    /* shoulder rolls: arm out roughly level, tilt circling slowly: four half-turns in a row */
+    o.slow=o.slow==null?d.pitch:o.slow+(d.pitch-o.slow)*Math.min(1,dt/2000);
+    var hp=d.pitch-o.slow,sg=hp>3?1:hp<-3?-1:0;
+    o.halfMs+=dt;o.peak=Math.max(o.peak,Math.abs(hp));
+    if(Math.abs(o.lp)>40||o.halfMs>2500){o.half=0;o.halfMs=0;o.peak=0;o.sign=sg}
+    else if(sg!==0&&sg!==o.sign){if(o.sign!==0&&o.peak>6&&o.halfMs>400)o.half++;else o.half=0;o.sign=sg;o.halfMs=0;o.peak=0;
+      if(o.half>=4){o.half=0;o.rolls++;f.push({g:'shoulder roll'})}}
+    return f};
+  return o};
+/* A pinch cannot be seen by a wrist sensor as a shape. This only looks for the small jolt a pinch might make. */
+R.pinch=function(){var o={lock:0};
+  o.sample=function(d,dt){var f=[];if(o.lock>0){o.lock-=dt;return f}
+    if(d.acc>1.2&&d.gyro<0.8){f.push({g:'jolt',acc:Math.round(d.acc*10)/10});o.lock=400}
+    return f};
+  return o};
+
+function fire(list){for(var i=0;i<list.length;i++)detect(list[i].g,list[i])}
+
+/* =====================================================================
    The concepts. Each one is small and self-contained so more can be added.
    needsRaw: it works from the raw stream (watch app turn04 or later).
+   g: the gestures it can fire (shown in the Keepers card).
    ===================================================================== */
 var CONCEPTS=[
-{id:'see',name:'What the watch sees',needsRaw:true,
+{id:'keepers',name:'Keepers',needsRaw:true,g:[],
+ blurb:'Every gesture you rated Keep, running at once. Shows which fire, and which collide.',
+ how:'This card is the working vocabulary: every concept you have rated Keep runs here at the same time. Do the gestures in any order. A chip lights each time one fires. "Collisions" counts two different concepts firing within half a second of each other: those two cannot both stay as they are.',
+ mount:function(root){
+   var self=this,el=document.createElement('div');el.className='kboard';root.appendChild(el);
+   this.sets=[];this.last=null;this.hits=0;this.pairs=[];
+   CONCEPTS.forEach(function(c){if(c.id==='keepers'||store[c.id].rating!=='keep'||!c.g.length)return;
+     var row=document.createElement('div');row.className='krow';row.innerHTML='<b></b><div></div>';row.querySelector('b').textContent=c.name;
+     var chips={};c.g.forEach(function(n){var ch=document.createElement('span');ch.className='kchip';ch.dataset.n=0;ch.textContent=n;row.lastElementChild.appendChild(ch);chips[n]=ch});
+     el.appendChild(row);self.sets.push({c:c,r:R[c.id]?R[c.id]():null,chips:chips})});
+   this.foot=document.createElement('p');el.appendChild(this.foot);
+   if(!this.sets.length)this.foot.textContent='Nothing is rated Keep yet. Open a card, try it, flip it over and choose Keep. It will appear here.';else this.paint();
+ },
+ paint:function(){this.foot.textContent='Collisions: '+this.hits+(this.pairs.length?'  ·  '+this.pairs.slice(-3).join('  |  '):'')},
+ hit:function(set,name){
+   var ch=set.chips[name];if(!ch)return;
+   ch.dataset.n=Number(ch.dataset.n)+1;ch.textContent=name+' '+ch.dataset.n;ch.classList.add('lit');setTimeout(function(){ch.classList.remove('lit')},450);
+   var t=now();detect(set.c.id+': '+name);
+   if(this.last&&this.last.id!==set.c.id&&t-this.last.t<500){this.hits++;var p=this.last.name+' + '+name;this.pairs.push(p);ev('concept','collision',{a:this.last.id+': '+this.last.name,b:set.c.id+': '+name})}
+   this.last={id:set.c.id,name:name,t:t};this.paint();
+ },
+ sample:function(d,dt){for(var i=0;i<this.sets.length;i++){var s=this.sets[i];if(!s.r)continue;var f=s.r.sample(d,dt);for(var k=0;k<f.length;k++)this.hit(s,f[k].g)}},
+ watch:function(m){for(var i=0;i<this.sets.length;i++){var s=this.sets[i];
+   if(s.c.id==='swing1'&&m.t==='swipe')this.hit(s,'swing '+m.d);
+   if(s.c.id==='tilt1'&&m.t==='scroll'){var on=Number(m.r)!==0;if(on!==!!s.on){s.on=on;this.hit(s,on?'scroll start':'scroll stop')}}}}
+},
+{id:'see',name:'What the watch sees',needsRaw:true,g:[],
  blurb:'Live tilt, roll, turn and movement from the watch. No gestures: just look.',
  how:'Move your left arm any way you like and watch the lines. Tap the screen at the moment you do something you care about: it drops a marker in the recording so the motion can be found later.',
  mount:function(root){var c=document.createElement('canvas');c.id='seeCanvas';root.appendChild(c);this.c=c},
  draw:function(){drawTraces(this.c,true)}
 },
-{id:'tilt1',name:'Tilt to scroll · v1',needsRaw:false,
+{id:'poses',name:'Four hand poses',needsRaw:true,g:['palm down','palm up','thumb up','thumb down'],
+ blurb:'Palm down, palm up, thumb up, thumb down: four different gestures, each held briefly.',
+ how:'Hold each pose for about a second: palm down, palm up, thumb up, thumb down. Each is its own gesture and lights its own tile; none shares a meaning with another. Palm down is also how an arm rests, so it only counts when you arrive at it from one of the other three. Notice which poses strain and say so in the notes.',
+ mount:function(root){
+   var el=document.createElement('div');el.className='quad';this.r=R.poses();this.t={};var self=this;
+   [['palm down','🫳'],['palm up','🫴'],['thumb up','👍'],['thumb down','👎']].forEach(function(p){var q=document.createElement('div');q.className='q';q.innerHTML='<span>'+p[1]+'</span><b>'+p[0]+'</b><em>0</em><i></i>';el.appendChild(q);self.t[p[0]]=q});
+   root.appendChild(el);
+ },
+ sample:function(d,dt){
+   var f=this.r.sample(d,dt),self=this;
+   for(var k in this.t){var q=this.t[k],on=k===this.r.band;q.classList.toggle('in',on);q.lastElementChild.style.width=(on&&!this.r.fired?Math.min(100,this.r.held/8):0)+'%'}
+   f.forEach(function(e){var q=self.t[e.g];q.querySelector('em').textContent=Number(q.querySelector('em').textContent)+1;q.classList.add('lit');setTimeout(function(){q.classList.remove('lit')},500);flash(e.g)});
+   fire(f);
+ }
+},
+{id:'flap',name:'Flap',needsRaw:true,g:['flap, thumb rising','flap, pinky rising'],
+ blurb:'Palm down, a quick roll of the hand and straight back. Two directions, two gestures.',
+ how:'Start palm down. Roll your hand quickly so the thumb side rises, and let it fall straight back. That is one flap. Try the other direction too (pinky side rising). A roll that stays out is a pose, not a flap, and is ignored here. A flap is a quick movement: if it bothers your arm at all, rate it Dump.',
+ mount:function(root){
+   var el=document.createElement('div');el.className='big';this.r=R.flap();this.n={'flap, thumb rising':0,'flap, pinky rising':0};
+   el.innerHTML='<div><div class="glyph">🫳</div><p></p><div class="count"></div></div>';root.appendChild(el);
+   this.g=el.querySelector('.glyph');this.p=el.querySelector('p');this.c=el.querySelector('.count');this.paint();
+ },
+ paint:function(){this.c.textContent='thumb rising '+this.n['flap, thumb rising']+'   ·   pinky rising '+this.n['flap, pinky rising']},
+ sample:function(d,dt){
+   var f=this.r.sample(d,dt),self=this;
+   this.p.textContent=this.r.base==null?'Rest palm down for a moment':'roll '+Math.round(this.r.e)+'° from rest';
+   f.forEach(function(e){self.n[e.g]++;self.paint();flash(e.g)});fire(f);
+ }
+},
+{id:'dial',name:'Twist to pick, rest to choose',needsRaw:true,g:['dial move','dial choose'],
+ blurb:'Roll your forearm like a dial to move across options. Hold still to choose. No knock.',
+ how:'Hand out, palm down. Slowly roll your forearm towards thumb-up: the highlight walks across the options. Stop on one and hold still for a second: the bar fills and it is chosen. This replaces the knock: nothing strikes anything.',
+ mount:function(root){
+   var el=document.createElement('div');el.className='dial';this.r=R.dial();this.shown=-2;
+   el.innerHTML='<div><div class="opts">'+this.r.names.map(function(n){return '<div class="o">'+n+'<i></i></div>'}).join('')+'</div><p></p></div>';
+   root.appendChild(el);this.o=el.querySelectorAll('.o');this.p=el.querySelector('p');
+ },
+ sample:function(d,dt){
+   var r=this.r,f=r.sample(d,dt),self=this;
+   if(!r.level){this.p.textContent='Hold your forearm roughly level';return}
+   if(r.idx!==this.shown){this.shown=r.idx;for(var i=0;i<this.o.length;i++){this.o[i].classList.toggle('hot',i===r.idx);this.o[i].firstElementChild.style.width='0'}}
+   if(r.idx>=0)this.o[r.idx].firstElementChild.style.width=(r.locked?100:Math.min(100,r.still/10))+'%';
+   f.forEach(function(e){if(e.g==='dial choose'){for(var j=0;j<self.o.length;j++)self.o[j].classList.remove('picked');self.o[r.idx].classList.add('picked');flash('✓ '+e.what)}});
+   this.p.textContent='roll '+Math.round(r.lp)+'°';fire(f);
+ }
+},
+{id:'tilt1',name:'Tilt to scroll · v1',needsRaw:false,g:['scroll start','scroll stop'],
  blurb:'The first version, decided on the watch. Hand flat: raise or lower and hold.',
  how:'Hand flat. Raise the hand end and hold: the list should move one way and keep moving. Lower it for the other way. Level stops it. This is the untuned first guess, kept as the baseline to compare against.',
  mount:function(root){this.list=makeList(root)},
@@ -205,91 +401,76 @@ var CONCEPTS=[
  tick:function(){if(this.list.rate()&&performance.now()-this.at>1300){this.list.setRate(0);detect('scroll signal lost')}},
  unmount:function(){this.list.stop()}
 },
-{id:'tilt2',name:'Tilt to scroll · v2',needsRaw:true,
+{id:'tilt2',name:'Tilt to scroll · v2',needsRaw:true,g:['scroll start','scroll stop'],
  blurb:'Tuned from your first session: steadier start and stop, ignores a resting or hanging arm.',
  how:'Same motion as v1. Three changes: it needs a clearer tilt to start and a clear return to stop (no stutter at the edge), it ignores your arm when it is hanging or resting steeply, and speed builds more gently. Compare it with v1 and rate both.',
- mount:function(root){this.list=makeList(root);this.lp=null;this.on=false;this.nv=false},
- sample:function(d){
-   this.lp=this.lp==null?d.pitch:this.lp+(d.pitch-this.lp)*0.25;
-   var usable=Math.abs(d.roll)<35&&this.lp>-45&&this.lp<70;
-   if(!usable){if(this.on){this.on=false;detect('scroll stop',{why:'arm not in scroll pose'})}this.nv=false;this.list.setRate(0);return}
-   if(!this.nv){this.neutral=this.lp;this.nv=true}
-   var x=this.lp-this.neutral,a=Math.abs(x);
-   if(!this.on){if(a>14){this.on=true;detect('scroll start',{dir:x>0?'up':'down'})}else if(d.gyro<0.3)this.neutral+=x*0.01}
-   else if(a<8){this.on=false;detect('scroll stop',{why:'level'})}
-   this.list.setRate(this.on?(x>0?1:-1)*Math.pow(Math.min(1,(a-8)/22),1.5):0);
- },
+ mount:function(root){this.list=makeList(root);this.r=R.tilt2()},
+ sample:function(d,dt){fire(this.r.sample(d,dt));this.list.setRate(this.r.rate)},
  unmount:function(){this.list.stop()}
 },
-{id:'swing1',name:'Swing to switch · v1',needsRaw:false,
+{id:'swing1',name:'Swing to switch · v1',needsRaw:false,g:['swing left','swing right'],
  blurb:'Hand vertical, swing left or right to change thread. Decided on the watch.',
- how:'Turn your hand thumb-up, then swing it left or right once. The thread at the top should change once per swing; the return swing should not count. In your first session this never fired, so the recording here matters.',
+ how:'Turn your hand thumb-up, then swing it left or right once. The thread at the top should change once per swing; the return swing should not count. In your first session this fired once in fifty minutes, so the recording here matters.',
  mount:function(root){this.list=makeList(root)},
  watch:function(m){if(m.t==='swipe'){if(m.d==='left')this.list.prev();else this.list.next();detect('swing '+m.d);flash(m.d==='left'?'◀ previous':'next ▶')}},
  unmount:function(){this.list.stop()}
 },
-{id:'dial',name:'Twist to pick, rest to choose',needsRaw:true,
- blurb:'Roll your forearm like a dial to move across options. Hold still to choose. No knock.',
- how:'Hand out, palm down. Slowly roll your forearm towards thumb-up: the highlight walks across the options. Stop on one and hold still for a second: the bar fills and it is chosen. This replaces the knock: nothing strikes anything.',
- mount:function(root){
-   var el=document.createElement('div');el.className='dial';
-   var names=['Reply','Later','Call','Archive','Read','Forward','Skip'];
-   el.innerHTML='<div><div class="opts">'+names.map(function(n){return '<div class="o">'+n+'<i></i></div>'}).join('')+'</div><p></p></div>';
-   root.appendChild(el);this.o=el.querySelectorAll('.o');this.p=el.querySelector('p');this.names=names;this.idx=-1;this.lp=null;this.still=0;this.locked=false;
- },
- sample:function(d,dt){
-   if(Math.abs(d.pitch)>45){this.p.textContent='Hold your forearm roughly level';return}
-   this.lp=this.lp==null?d.roll:this.lp+(d.roll-this.lp)*0.2;
-   var pos=(15-Math.max(-75,Math.min(15,this.lp)))/90*6;                      /* roll +15..-75 -> 0..6 */
-   var t=this.idx<0?Math.round(pos):(Math.abs(pos-this.idx)>0.65?Math.round(pos):this.idx);
-   if(t!==this.idx){this.idx=t;this.still=0;this.locked=false;for(var i=0;i<this.o.length;i++){this.o[i].classList.toggle('hot',i===t);this.o[i].firstElementChild.style.width='0'}detect('dial move',{to:this.names[t]})}
-   if(!this.locked){
-     this.still=d.gyro<0.5?this.still+dt:0;
-     this.o[this.idx].firstElementChild.style.width=Math.min(100,this.still/1000*100)+'%';
-     if(this.still>=1000){this.locked=true;for(var j=0;j<this.o.length;j++)this.o[j].classList.remove('picked');this.o[this.idx].classList.add('picked');detect('dial choose',{what:this.names[this.idx]});flash('✓ '+this.names[this.idx])}
-   }
-   this.p.textContent='roll '+Math.round(this.lp)+'°';
- }
+{id:'swing2',name:'Swing to switch · v2',needsRaw:true,g:['swing left','swing right'],
+ blurb:'Same swing, decided on the page and much easier to trigger. Compare with v1.',
+ how:'Thumb-up, swing left or right once. This version needs a smaller, slower swing than v1 (about 17° instead of 26°) and allows more forearm tilt. It is a guess made without your sensor data: if it fires when you did not mean it, say so in the notes.',
+ mount:function(root){this.list=makeList(root);this.r=R.swing2()},
+ sample:function(d,dt){var f=this.r.sample(d,dt),self=this;f.forEach(function(e){if(e.g==='swing left')self.list.prev();else self.list.next();flash(e.g==='swing left'?'◀ previous':'next ▶')});fire(f)},
+ unmount:function(){this.list.stop()}
 },
-{id:'verdict',name:'Thumb verdict',needsRaw:true,
- blurb:'Hold thumb up for yes. For no, try thumb down or palm up: the lab records which you use.',
- how:'Hold a thumb-up for one second: 👍. For 👎 try two ways and see which is kinder to your arm: a true thumb-down, or simply turning your palm up. Both count as 👎 and the recording notes which one you used. This is a candidate for giving feedback anywhere without touching.',
- mount:function(root){
-   var el=document.createElement('div');el.className='big';
-   el.innerHTML='<div><div class="glyph">✋</div><p></p><div class="meter"><i></i></div><div class="count"></div></div>';
-   root.appendChild(el);this.g=el.querySelector('.glyph');this.p=el.querySelector('p');this.m=el.querySelector('.meter i');this.c=el.querySelector('.count');
-   this.up=0;this.down=0;this.band='';this.held=0;this.fired=false;this.paint();
- },
- paint:function(){this.c.textContent='👍 '+this.up+'   👎 '+this.down},
- sample:function(d,dt){
-   var b='';
-   if(Math.abs(d.pitch)<50){if(d.roll<-55&&d.roll>-130)b='thumb up';else if(d.roll>55&&d.roll<130)b='thumb down';else if(Math.abs(d.roll)>150)b='palm up'}
-   if(b!==this.band){this.band=b;this.held=0;this.fired=false}
-   else if(b&&!this.fired){this.held+=dt;if(this.held>=1000){this.fired=true;var yes=b==='thumb up';if(yes)this.up++;else this.down++;this.g.textContent=yes?'👍':'👎';this.paint();detect('verdict',{v:yes?'up':'down',by:b});flash(yes?'👍 yes':'👎 no ('+b+')')}}
-   this.m.style.width=(b&&!this.fired?Math.min(100,this.held/10):0)+'%';
-   this.p.textContent=(b||'neutral')+' · roll '+Math.round(d.roll)+'°';
-   if(!b)this.g.textContent='✋';
- }
-},
-{id:'raise',name:'Raise to talk',needsRaw:true,
+{id:'raise',name:'Raise to talk',needsRaw:true,g:['talk open','talk close'],
  blurb:'Lift your hand towards your face to open the mic; lower it to finish. No button, no wake word.',
  how:'Raise your left hand towards your face, as if checking the time up close, and hold: the mic opens. Speak. Lower your hand: it closes. If the browser allows it you will see your words appear. This is the candidate for starting to talk to X with no tap.',
  mount:function(root){
-   var el=document.createElement('div');el.className='big';
+   var el=document.createElement('div');el.className='big';this.r=R.raise();
    el.innerHTML='<div><div class="glyph">🤫</div><p>Hand down: not listening</p><div class="count" style="font-size:19px;max-width:600px"></div></div>';
-   root.appendChild(el);this.g=el.querySelector('.glyph');this.p=el.querySelector('p');this.t=el.querySelector('.count');this.lp=null;this.on=false;this.above=0;
-   var R=window.SpeechRecognition||window.webkitSpeechRecognition,self=this;this.rec=null;
-   if(R){try{this.rec=new R();this.rec.continuous=true;this.rec.interimResults=true;
+   root.appendChild(el);this.g=el.querySelector('.glyph');this.p=el.querySelector('p');this.t=el.querySelector('.count');
+   var S=window.SpeechRecognition||window.webkitSpeechRecognition,self=this;this.rec=null;
+   if(S){try{this.rec=new S();this.rec.continuous=true;this.rec.interimResults=true;
      this.rec.onresult=function(e){var s='';for(var i=0;i<e.results.length;i++)s+=e.results[i][0].transcript;self.t.textContent=s;self.said=s};
      this.rec.onerror=function(e){self.t.textContent='(mic: '+e.error+')';detect('mic error',{e:e.error})}}catch(e){this.rec=null}}
  },
  sample:function(d,dt){
-   this.lp=this.lp==null?d.pitch:this.lp+(d.pitch-this.lp)*0.2;
-   if(!this.on){this.above=this.lp>40?this.above+dt:0;
-     if(this.above>=500){this.on=true;this.said='';this.g.textContent='🎙️';this.p.textContent='Listening. Lower your hand to finish.';detect('talk open',{tilt:Math.round(this.lp)});if(this.rec){try{this.rec.start()}catch(e){}}else this.t.textContent='(this browser has no speech recognition; the raise still registers)'}}
-   else if(this.lp<20){this.on=false;this.above=0;this.g.textContent='🤫';this.p.textContent='Hand down: not listening';detect('talk close',{said:this.said||''});if(this.rec){try{this.rec.stop()}catch(e){}}}
+   var f=this.r.sample(d,dt),self=this;
+   f.forEach(function(e){
+     if(e.g==='talk open'){self.said='';self.g.textContent='🎙️';self.p.textContent='Listening. Lower your hand to finish.';if(self.rec){try{self.rec.start()}catch(x){}}else self.t.textContent='(this browser has no speech recognition; the raise still registers)'}
+     else{e.said=self.said||'';self.g.textContent='🤫';self.p.textContent='Hand down: not listening';if(self.rec){try{self.rec.stop()}catch(x){}}}});
+   fire(f);
  },
  unmount:function(){if(this.rec){try{this.rec.abort()}catch(e){}}}
+},
+{id:'body',name:'What X could notice about you',needsRaw:true,g:['still 20 s','still 1 min','arms overhead','shoulder roll'],
+ blurb:'Not commands. How long your arm has been still, arms raised overhead, shoulder rolls.',
+ how:'Nothing here is an instruction to X. It is what X could quietly know: how long your watch arm has not moved, when you stretch your arms above your head, and when you do shoulder rolls with your arm out. Sit still, then stretch, then roll your shoulders, and see whether each is noticed. The shoulder-roll detector is a rough first guess.',
+ mount:function(root){
+   var el=document.createElement('div');el.className='stats';this.r=R.body();
+   el.innerHTML='<div><span>🪑</span><b id="bStill">0 s</b><em>arm still</em></div><div><span>🙆</span><b id="bOver">0</b><em>arms overhead</em></div><div><span>🔄</span><b id="bRoll">0</b><em>shoulder rolls</em></div>';
+   root.appendChild(el);
+ },
+ sample:function(d,dt){
+   var f=this.r.sample(d,dt),s=Math.floor(this.r.still/1000);
+   $('bStill').textContent=s<60?s+' s':Math.floor(s/60)+' min '+(s%60)+' s';$('bOver').textContent=this.r.overheads;$('bRoll').textContent=this.r.rolls;
+   f.forEach(function(e){flash(e.g)});fire(f);
+ }
+},
+{id:'pinch',name:'Pinch / OK probe',needsRaw:true,g:['jolt'],
+ blurb:'Can the watch feel a pinch or an OK sign at all? Ten prompts, recording only.',
+ how:'A wrist sensor cannot see finger shapes, so a held OK sign is invisible to it. What it might feel is the small jolt when thumb and finger snap together. This card prompts you ten times: each time it says NOW, pinch thumb to index finger firmly once (the start of an OK sign) and keep the rest of the arm still. It shows how many prompts were followed by a jolt. If that number is low, the OK sign is not readable from this watch and should be dumped.',
+ mount:function(root){
+   var el=document.createElement('div');el.className='big';this.r=R.pinch();this.i=0;this.hits=0;this.at=now()+3000;this.open=0;this.got=false;
+   el.innerHTML='<div><div class="glyph">👌</div><p>Get ready. Keep your arm still.</p><div class="count"></div></div>';root.appendChild(el);
+   this.g=el.querySelector('.glyph');this.p=el.querySelector('p');this.c=el.querySelector('.count');
+ },
+ tick:function(){
+   var t=now();
+   if(this.open&&t>this.open){this.open=0;if(this.got)this.hits++;this.c.textContent=this.hits+' of '+this.i+' prompts were followed by a jolt';this.p.textContent=this.i>=10?'Done. Double-tap for notes and a verdict.':'Wait…';this.g.style.opacity=.35;if(this.i>=10)ev('concept','probe result',{hits:this.hits,of:this.i})}
+   if(this.i<10&&!this.open&&t>=this.at){this.i++;this.got=false;this.open=t+900;this.at=t+3000;this.p.textContent='NOW: pinch';this.g.style.opacity=1;ev('concept','prompt',{n:this.i})}
+ },
+ sample:function(d,dt){var f=this.r.sample(d,dt);if(f.length&&this.open)this.got=true;fire(f)}
 }
 ];
 
@@ -334,8 +515,9 @@ function open(c){
   cur=c;hist=[];marks=[];
   $('cName').textContent=$('cName2').textContent=c.name;$('how').textContent=c.how;
   $('notes').value=store[c.id].notes||'';paintBack();$('saved').textContent='';
-  var play=$('play');Array.prototype.slice.call(play.querySelectorAll('.list,.big,.dial,#seeCanvas')).forEach(function(n){n.remove()});
-  c.mount(play);
+  var play=$('play');Array.prototype.slice.call(play.querySelectorAll('.pg')).forEach(function(n){n.remove()});
+  var pg=document.createElement('div');pg.className='pg';play.insertBefore(pg,play.firstChild);
+  c.mount(pg);
   $('flip').classList.remove('back');$('active').classList.add('show');
   startTrial(c);ev('page','open');wantRaw(true);paintNeed();
 }
