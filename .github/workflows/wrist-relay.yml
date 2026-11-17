@@ -39,8 +39,12 @@ jobs:
           e=1
           if [ "$d" = "0" ]; then
             echo "== waiting for $BASE ==" >> /tmp/relay.txt
-            for i in $(seq 1 18); do
-              curl -fsS -m 10 "$BASE/health" >> /tmp/relay.txt 2>&1 && { echo >> /tmp/relay.txt; break; }
+            # wait until the version just deployed is the one answering (a fresh deploy is served by the old version for a few seconds)
+            WANT="$(sed -n "s/^const V = '\(.*\)';$/\1/p" worker.js)"
+            for i in $(seq 1 24); do
+              GOT="$(curl -fsS -m 10 "$BASE/health" 2>/dev/null || true)"
+              echo "$GOT" >> /tmp/relay.txt
+              case "$GOT" in *"\"v\":\"$WANT\""*) sleep 5; break;; esac
               sleep 5
             done
             echo "== end-to-end ==" >> /tmp/relay.txt
