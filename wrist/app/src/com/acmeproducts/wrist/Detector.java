@@ -5,16 +5,15 @@ package com.acmeproducts.wrist;
  * imports, so the same class runs in the lab tests (wrist/test) and on the watch.
  *
  * Inputs are the three watch sensors, in the watch's own axes:
- *   gravity (m/s^2, reads +9.81 on the axis pointing up), gyroscope (rad/s),
- *   linear acceleration (m/s^2, gravity removed).
+ *   gravity (m/s^2, reads +9.81 on the axis pointing up), gyroscope (rad/s).
  *
  * Outputs:
  *   scrollRate  held posture, -1..1. Positive = hand end of the forearm raised.
  *   SWIPE_LEFT / SWIPE_RIGHT  one swing of the hand while the hand is vertical.
- *   TAP  one short knock.
+ *   (Knock detection was removed in turn04: the owner judged a knock would aggravate the wrist.)
  */
 public final class Detector {
-    public static final int NONE = 0, SWIPE_LEFT = 1, SWIPE_RIGHT = 2, TAP = 3;
+    public static final int NONE = 0, SWIPE_LEFT = 1, SWIPE_RIGHT = 2, TAP = 3;   // TAP now only ever comes from a touch on the watch face
     public static final int POSE_OTHER = 0, POSE_FLAT = 1, POSE_VERTICAL = 2;
 
     /* ---- tunables (turn01 first guesses; none proven on the owner's arm) ---- */
@@ -27,25 +26,16 @@ public final class Detector {
     static final long SWIPE_MAX_NS = 600000000L;
     static final long SWIPE_LOCK_NS = 800000000L;   // swallows the return swing
     static final long YAW_IDLE_NS = 150000000L;
-    static final float TAP_MIN = 3.5f;        // m/s^2
-    static final float TAP_NOISE_X = 5f;      // or this many times the noise floor
-    static final long TAP_MAX_NS = 100000000L;      // a knock is over within this
-    static final long TAP_LOCK_NS = 350000000L;
-    static final float GYRO_BUSY = 2.5f;      // rad/s: the arm is moving, not knocking
-    static final long GYRO_QUIET_NS = 150000000L;
 
     /* ---- readable state (shown on the watch as diagnostics) ---- */
     public int pose = POSE_OTHER;
-    public float pitchDeg, rollDeg, neutralPitch, scrollRate, yawRate, tapPeak, noise = 0.3f;
-    public float tapThreshold = TAP_MIN;
+    public float pitchDeg, rollDeg, neutralPitch, scrollRate, yawRate;
 
     private float gx, gy, gz = 9.81f;
     private boolean haveNeutral;
     private long lastGravNs, lastGyroNs;
     private float yawAcc;
     private long yawStartNs, yawIdleSinceNs, swipeLockUntilNs;
-    private long tapLockUntilNs, lastGyroBusyNs = Long.MIN_VALUE / 2, tapCandNs;
-    private boolean tapCand, tapArmed = true;
 
     public void onGravity(float x, float y, float z, long tNs) {
         gx = x; gy = y; gz = z;
@@ -85,8 +75,6 @@ public final class Detector {
 
     public int onGyro(float wx, float wy, float wz, long tNs) {
         float n = (float) Math.sqrt(gx * gx + gy * gy + gz * gz);
-        float mag = (float) Math.sqrt(wx * wx + wy * wy + wz * wz);
-        if (mag > GYRO_BUSY) lastGyroBusyNs = tNs;
         yawRate = n < 1f ? 0f : (wx * gx + wy * gy + wz * gz) / n;   // + = counter-clockwise seen from above
         float dt = lastGyroNs == 0 ? 0.01f : (tNs - lastGyroNs) / 1e9f;
         if (dt < 0f || dt > 0.5f) dt = 0.01f;
@@ -103,37 +91,11 @@ public final class Detector {
                 int ev = yawAcc > 0f ? SWIPE_LEFT : SWIPE_RIGHT;
                 resetYaw();
                 swipeLockUntilNs = tNs + SWIPE_LOCK_NS;
-                tapLockUntilNs = Math.max(tapLockUntilNs, tNs + TAP_LOCK_NS);
                 return ev;
             }
         } else if (a < YAW_IDLE && yawAcc != 0f) {
             if (yawIdleSinceNs == 0) yawIdleSinceNs = tNs;
             else if (tNs - yawIdleSinceNs > YAW_IDLE_NS) resetYaw();
-        }
-        return NONE;
-    }
-
-    public int onLinear(float ax, float ay, float az, long tNs) {
-        float m = (float) Math.sqrt(ax * ax + ay * ay + az * az);
-        noise += (Math.min(m, 2f) - noise) * 0.01f;
-        tapPeak = Math.max(m, tapPeak * 0.97f);
-        float thr = Math.max(TAP_MIN, TAP_NOISE_X * noise);
-        tapThreshold = thr;
-        if (tapCand) {
-            if (m < thr * 0.5f) {                       // it ended quickly: a knock
-                tapCand = false; tapArmed = true;
-                if (tNs - lastGyroBusyNs > GYRO_QUIET_NS && tNs >= tapLockUntilNs) {
-                    tapLockUntilNs = tNs + TAP_LOCK_NS;
-                    return TAP;
-                }
-            } else if (tNs - tapCandNs > TAP_MAX_NS) {  // it went on: arm movement, not a knock
-                tapCand = false; tapArmed = false;
-            }
-            return NONE;
-        }
-        if (!tapArmed) { if (m < thr * 0.5f) tapArmed = true; return NONE; }
-        if (m >= thr && tNs >= tapLockUntilNs && tNs - lastGyroBusyNs > GYRO_QUIET_NS) {
-            tapCand = true; tapCandNs = tNs;
         }
         return NONE;
     }

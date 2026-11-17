@@ -1,6 +1,6 @@
 # Wrist — plan (sole authority for `wrist/`)
 
-Version 3.0.0 · 2026-11-16 · Owner/device gate: Confi · Device: Galaxy Watch 9, left wrist
+Version 4.0.0 · 2026-11-17 · Owner/device gate: Confi · Device: Galaxy Watch 9, left wrist
 
 ## 0. Turn ledger
 | Date | Turn | Status | Notes |
@@ -8,6 +8,7 @@ Version 3.0.0 · 2026-11-16 · Owner/device gate: Confi · Device: Galaxy Watch 
 | 2026-11-16 | turn01 | **rejected by owner, buried (G5)** | Practice list drawn on the watch. Owner: "how am I supposed to read anything on a watch … it's intended to read the gestures and then have them shown on X which runs on your phone or on the desktop." |
 | 2026-11-16 | turn02 | built, device gate pending | Watch is a sensor only. Motions go through the wrist relay to the X practice page on the phone or desktop. Lab: 17/17 detector, 9/9 relay, 16/16 page. Not yet run on the owner's arm. |
 | 2026-11-16 | turn03 | built, device gate pending | Owner: "need to run with watch screen off, there is no way to keep it on all the time and have any reasonable battery life." Sensing moved to a background service with active and resting modes. Lab: 20/20 detector, 9/9 relay, 18/18 page. Not yet run on a watch. |
+| 2026-11-17 | turn04 | built, device gate pending | First real session read from the device log (section 8). Owner: knock "is going to exacerbate wrist problems"; wants "a proving area where multiple concepts are trialed and logged … a grid that once you tap it it becomes active and full screen … double tap it and the card flips over and you can add notes … keep or go back to the shop and refine or dump." Knock removed (G7). Practice page replaced by the Wrist Lab (G8). Watch app can stream raw sensor rows on request. Lab: 16/16 detector, 17/17 relay, 36/36 page. Lab not yet used with a real watch. |
 
 ## 1. Why this exists (owner's words, 2026-11-16)
 - "I really can't type using a keyboard or a mouse … or for that matter a touch screen for more than 15 minutes at a time."
@@ -23,7 +24,7 @@ Few motions, same meaning everywhere. All on the left arm; the right hand is nev
 |---|---|---|
 | Hand flat, raise or lower the hand end and **hold** | move through content; level out to stop | forearm tilt from gravity, 12° level band, full speed 25° past it |
 | Hand vertical (thumb up), swing left or right | previous / next item or thread | turn rate about the up direction; about 26° swept inside 0.6 s |
-| A knock (or a touch anywhere on the watch face) | yes / choose this | short jolt, over within 0.1 s, arm otherwise quiet |
+| ~~A knock~~ | removed in turn04 (G7) | a touch anywhere on the watch face still counts as "choose" |
 | Buzz | X has something | not built yet |
 
 Tilt is a held posture, not a repeated flick, so the left wrist does not inherit a repetitive load.
@@ -50,6 +51,32 @@ The Wrist screen no longer stays on. A background service does the reading:
 Waking from rest takes the arm coming into a use pose while moving; expect up to about 1.5 s. Motions in the first 0.6 s after waking are ignored (that was the arm coming up).
 
 Open Wrist once to start the reader; it keeps going after the screen turns off. Holding a finger on the Wrist screen stops it. On first open the watch may ask to exempt Wrist from battery optimisation: allow it, or the watch may cut its network a few minutes after the screen goes off.
+
+## 3b. The Wrist Lab (turn04)
+One surface for trying many motion concepts. Served by the relay at `/` (`wrist/relay/x.html`, page build `lab-r1`).
+
+- **Grid** of concept cards, each showing its verdict (Keep / Back to shop / Dump / not rated) and how many trials it has had.
+- **Tap a card**: it opens full screen and a trial starts recording. A strip at the bottom shows live tilt, roll and turn.
+- **Tap the experiment**: drops an "I meant that" marker in the recording. **Double-tap** (or Notes): the card flips to what-to-try, 👍/👎, the verdict and notes (typed or spoken).
+- **Closing a card saves the trial** to the relay: every raw sensor row the watch sent, every start/stop/choice the concept decided, every touch on the page, the verdict and the notes, on one clock.
+
+Concepts in `lab-r1` (a concept is one small object in `CONCEPTS`; adding one needs no watch update if it works from raw rows):
+
+| id | What | Decided by |
+|---|---|---|
+| see | live traces of what the watch sees | page, raw |
+| tilt1 | tilt to scroll, the untuned first version (baseline) | watch |
+| tilt2 | tilt to scroll with start/stop hysteresis, smoothing, and a steep or rolled arm ignored | page, raw |
+| swing1 | swing with hand vertical to change thread | watch |
+| dial | roll the forearm to move across options, hold still one second to choose (replaces the knock) | page, raw |
+| verdict | hold thumb up = yes; thumb down or palm up = no; records which was used | page, raw |
+| raise | lift the hand towards the face to open the mic, lower to close | page, raw |
+
+Raw stream: when a page with an open card asks, the relay tells the watch in the reply to its next post; the watch then sends about 50 rows a second (`[ms, gravity xyz, turn-rate xyz, linear-acceleration xyz]`, each ×100). Raw rows go to pages only and are never written to the device log. While a page is asking, the watch does not drop to resting.
+
+Open assumptions (owner may override):
+- The thumb gesture is a card to trial, not yet a way to rate every card: thumb-up is the same pose as "hand vertical", so it would fire during the swing concept. Rating is by buttons on the back of the card for now.
+- Raw-based cards need watch app turn04. Cards `tilt1` and `swing1` work with turn03.
 
 ## 4. Build and delivery
 - Watch app: `.github/workflows/wrist-build.yml` runs `wrist/build.sh` (Android SDK tools only, no Gradle) and commits `wrist/out/wrist.apk` and `wrist/out/BUILD-LOG.md` to the branch.
@@ -81,9 +108,27 @@ Open Wrist once to start the reader; it keeps going after the screen turns off. 
 - X shows link state, counts and the last three events on screen.
 - Every event carries the readings behind it (tilt, roll, knock strength, threshold, noise). The relay keeps them at `/log`; pushing `wrist/DRAIN.trigger` makes `.github/workflows/wrist-log.yml` copy that into `wrist/out/DEVICE-LOG.md`, so thresholds and battery use can be tuned from real data without the owner relaying numbers. No watch data has arrived through this channel yet.
 
+## 8. First real session, 2026-11-17 12:26–12:36 UTC (watch turn03-b3, read from `wrist/out/DEVICE-LOG.md`)
+First data to arrive through the log channel. 256 watch events in 10 minutes.
+
+| Observed | Evidence |
+|---|---|
+| The app runs and sends | 195 scroll events, 41 heartbeats, 18 taps |
+| Sensing continues with the watch screen off | 77 events carry `screen:0` |
+| The battery exemption was not granted | `exempt:0` on every event |
+| This watch has no wake-up accelerometer | the one resting event carries `idle:lock`, so resting keeps the processor awake |
+| Battery fell 49% to 46% in ten minutes of active use | `bat` field; small sample |
+| Swing never fired | no swipe event; the vertical pose was reached a few times (roll −52° to −70°) |
+| Tilt stutters at the edge of the level band | runs of `r` flipping 0/1 with tilt near 15° |
+| A lowered arm scrolls | `r:-4` held for 10–30 s with tilt −55° to −68° (the arm coming down to rest still counts as "hand flat") |
+| Knock fires during ordinary arm movement | wrist taps logged while tilt was changing |
+| Events stop at 12:36:07 with no resting event | cause unknown; the next build reports uptime in every event so a restart can be told from a pause |
+
+Changes made from this: knock removed; `tilt2` in the Lab addresses the stutter and the lowered arm; `swing1` kept unchanged so the Lab can record why it does not fire.
+
 ## 7. Lab checks
-`wrist/test/DetectorTest.java`, synthetic 100 Hz traces, run on every build. 2026-11-16: 20/20 pass.
+`wrist/test/DetectorTest.java`, synthetic 100 Hz traces, run on every build. 2026-11-17: 16/16 pass (knock checks removed with the knock).
 
-`wrist/relay/e2e.mjs` (relay, run on every deploy against the live worker; 9/9 against a local worker on 2026-11-16).
+`wrist/relay/e2e.mjs` (relay, run on every deploy against the live worker; 17/17 against a local worker on 2026-11-17).
 
-`wrist/relay/page-test.py` (X page in a phone-sized Chrome driven by relay events; run by hand, 18/18 on 2026-11-16).
+`wrist/relay/page-test.py` (the Lab in a phone-sized Chrome, driven by relay events and a synthetic raw stream; run by hand, 36/36 on 2026-11-17).

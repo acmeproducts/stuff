@@ -27,7 +27,9 @@ import java.util.concurrent.LinkedBlockingDeque;
 import java.util.concurrent.TimeUnit;
 
 /**
- * Wrist turn03: reads the left-wrist motions with the watch screen off and sends each one to X.
+ * Wrist turn04: reads the left wrist with the watch screen off and sends what it sees to X.
+ * Two kinds of output: motions it recognises itself (tilt, swing), and, when a Lab page asks
+ * for it, the raw sensor stream so new motions can be tried and tuned on the page without a new watch app.
  *
  * Two modes, to spare the battery:
  *   active  - the arm is in a use pose (hand flat or hand vertical): all three sensors at 100 Hz, processor kept awake.
@@ -63,6 +65,16 @@ public class WristService extends Service implements SensorEventListener {
     private boolean havePrev;
     private int usePoseRun;
     private long lastMoveNs;
+
+    /* ---- raw stream for the Lab: 50 samples a second, only while a page asks for it ---- */
+    static final int RAW_FIELDS = 10, RAW_MAX = 200;
+    volatile boolean rawWanted;
+    private final Object rawGuard = new Object();
+    private final int[] rawBuf = new int[RAW_FIELDS * RAW_MAX];
+    private int rawN, gravTick;
+    private long rawBaseNs, rawBaseMs;
+    private float wx, wy, wz, ax, ay, az;
+    private final long startedMs = System.currentTimeMillis();
 
     static String codeFor(Context c) {
         SharedPreferences sp = c.getSharedPreferences("wrist", MODE_PRIVATE);
@@ -160,20 +172,52 @@ public class WristService extends Service implements SensorEventListener {
         if (!active) { if (type == Sensor.TYPE_ACCELEROMETER) resting(v[0], v[1], v[2], t); return; }
         if (activeSinceNs == 0) activeSinceNs = t;
         int ev = Detector.NONE;
+        boolean lab = rawWanted;                         // while a Lab page is watching, never drop to resting
         if (type == Sensor.TYPE_GRAVITY) {
             det.onGravity(v[0], v[1], v[2], t);
             tiltStep = t - activeSinceNs < SETTLE_NS ? 0 : Math.round(det.scrollRate * 4f);
-            if (det.pose == Detector.POSE_OTHER) { if (otherSinceNs == 0) otherSinceNs = t; else if (t - otherSinceNs > OTHER_POSE_NS) { goIdle("arm down"); return; } }
+            if (lab && (++gravTick & 1) == 0) rawSample(v[0], v[1], v[2], t);
+            if (det.pose == Detector.POSE_OTHER && !lab) { if (otherSinceNs == 0) otherSinceNs = t; else if (t - otherSinceNs > OTHER_POSE_NS) { goIdle("arm down"); return; } }
             else otherSinceNs = 0;
         } else if (type == Sensor.TYPE_GYROSCOPE) {
+            wx = v[0]; wy = v[1]; wz = v[2];
             ev = det.onGyro(v[0], v[1], v[2], t);
             float mag = (float) Math.sqrt(v[0] * v[0] + v[1] * v[1] + v[2] * v[2]);
-            if (mag < STILL_GYRO && tiltStep == 0) { if (stillSinceNs == 0) stillSinceNs = t; else if (t - stillSinceNs > STILL_NS) { goIdle("still"); return; } }
+            if (mag < STILL_GYRO && tiltStep == 0 && !lab) { if (stillSinceNs == 0) stillSinceNs = t; else if (t - stillSinceNs > STILL_NS) { goIdle("still"); return; } }
             else stillSinceNs = 0;
         } else if (type == Sensor.TYPE_LINEAR_ACCELERATION) {
-            ev = det.onLinear(v[0], v[1], v[2], t);
+            ax = v[0]; ay = v[1]; az = v[2];
         }
         if (ev != Detector.NONE && t - activeSinceNs >= SETTLE_NS) act(ev, "wrist");
+    }
+
+    /** One raw row: ms since the batch began, then gravity, turn rate and linear acceleration, each x100. */
+    private void rawSample(float gx, float gy, float gz, long t) {
+        synchronized (rawGuard) {
+            if (rawN >= RAW_MAX) return;                 // the sender is behind: drop, never block the sensor thread
+            if (rawN == 0) { rawBaseNs = t; rawBaseMs = System.currentTimeMillis(); }
+            int o = rawN * RAW_FIELDS;
+            rawBuf[o] = (int) ((t - rawBaseNs) / 1000000L);
+            rawBuf[o + 1] = Math.round(gx * 100f); rawBuf[o + 2] = Math.round(gy * 100f); rawBuf[o + 3] = Math.round(gz * 100f);
+            rawBuf[o + 4] = Math.round(wx * 100f); rawBuf[o + 5] = Math.round(wy * 100f); rawBuf[o + 6] = Math.round(wz * 100f);
+            rawBuf[o + 7] = Math.round(ax * 100f); rawBuf[o + 8] = Math.round(ay * 100f); rawBuf[o + 9] = Math.round(az * 100f);
+            rawN++;
+        }
+    }
+
+    private String rawBatch() {
+        synchronized (rawGuard) {
+            if (rawN == 0) return null;
+            StringBuilder b = new StringBuilder(64 + rawN * 48);
+            b.append("{\"t\":\"raw\",\"w\":").append(rawBaseMs).append(",\"s\":[");
+            for (int i = 0; i < rawN; i++) {
+                b.append(i == 0 ? "[" : ",[");
+                for (int k = 0; k < RAW_FIELDS; k++) { if (k > 0) b.append(','); b.append(rawBuf[i * RAW_FIELDS + k]); }
+                b.append(']');
+            }
+            rawN = 0;
+            return b.append("]}").toString();
+        }
     }
 
     /** Resting: wake only when the arm comes into a use pose and is actually moving. */
@@ -192,7 +236,7 @@ public class WristService extends Service implements SensorEventListener {
         if (ev == Detector.SWIPE_LEFT) { last = "swing left"; queue.offer(event("swipe", ",\"d\":\"left\"")); buzz(new long[]{0, 35}); }
         else if (ev == Detector.SWIPE_RIGHT) { last = "swing right"; queue.offer(event("swipe", ",\"d\":\"right\"")); buzz(new long[]{0, 35}); }
         else if (ev == Detector.TAP) {
-            last = "knock (" + how + ")"; queue.offer(event("tap", ",\"how\":\"" + how + "\"")); buzz(new long[]{0, 25, 70, 25});
+            last = "touch"; queue.offer(event("tap", ",\"how\":\"" + how + "\"")); buzz(new long[]{0, 25, 70, 25});
             synchronized (lockGuard) { if (!lock.isHeld()) lock.acquire(3000); }   // a touch while resting still has to get out
         }
     }
@@ -209,7 +253,7 @@ public class WristService extends Service implements SensorEventListener {
         try { screen = pm.isInteractive(); } catch (Exception e) { screen = false; }
         return "{\"t\":\"" + type + "\"" + extra + ",\"seq\":" + (++seq) + ",\"b\":\"" + build + "\""
                 + ",\"pose\":" + det.pose + ",\"tilt\":" + Math.round(det.pitchDeg - det.neutralPitch) + ",\"roll\":" + Math.round(det.rollDeg)
-                + ",\"pk\":" + one(det.tapPeak) + ",\"th\":" + one(det.tapThreshold) + ",\"noise\":" + one(det.noise)
+                + ",\"up\":" + ((System.currentTimeMillis() - startedMs) / 1000L) + ",\"mode\":\"" + mode + "\",\"raw\":" + (rawWanted ? 1 : 0)
                 + ",\"bat\":" + bat + ",\"screen\":" + (screen ? 1 : 0) + ",\"exempt\":" + (exempt ? 1 : 0) + "}";
     }
 
@@ -226,7 +270,12 @@ public class WristService extends Service implements SensorEventListener {
             int step = tiltStep;
             if (step != sentStep) { post(event("scroll", ",\"r\":" + step)); sentStep = step; lastTilt = now; }
             else if (step != 0 && now - lastTilt > 400) { post("{\"t\":\"scroll\",\"r\":" + step + ",\"rep\":1}"); lastTilt = now; }
-            if (active && now - lastBeat > 10000) { post(event("hb", missing.length() > 0 ? ",\"missing\":\"" + missing + "\"" : "")); lastBeat = now; }
+            if (rawWanted) { String raw = rawBatch(); if (raw != null) post(raw); }
+            // heartbeat: every 3 s while a page is listening (so a Lab request reaches the watch quickly), else every 10 s.
+            // Also while resting if the processor is awake anyway, so a Lab page can wake the watch.
+            boolean beat = active || "lock".equals(idleKind);
+            if (beat && now - lastBeat > (pages > 0 ? 3000 : 10000)) { post(event("hb", missing.length() > 0 ? ",\"missing\":\"" + missing + "\"" : "")); lastBeat = now; }
+            if (rawWanted && !active) goActive("lab");
             synchronized (lockGuard) {
                 // resting with a wake-up sensor: once everything is sent, let the processor sleep
                 if (!active && queue.isEmpty() && "wakeup".equals(idleKind) && lock.isHeld()) lock.release();
@@ -252,6 +301,8 @@ public class WristService extends Service implements SensorEventListener {
                 sentOk++; net = "ok";
                 int i = reply.indexOf("\"pages\":");
                 if (i >= 0) { try { pages = Integer.parseInt(reply.substring(i + 8).replaceAll("[^0-9].*", "")); } catch (Exception e) { pages = -1; } }
+                boolean want = reply.indexOf("\"raw\":1") >= 0;
+                if (want != rawWanted) { rawWanted = want; if (!want) synchronized (rawGuard) { rawN = 0; } }
             } else { sentErr++; net = "relay said " + status; }
         } catch (Exception e) {
             sentErr++; net = e.getClass().getSimpleName();

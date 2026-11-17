@@ -10,7 +10,7 @@ const post = (c, o) => fetch(base + '/e/' + c, { method: 'POST', headers: { 'con
 const h = await fetch(base + '/health').then(r => r.json());
 check('health answers', h.ok === true, JSON.stringify(h));
 const page = await fetch(base + '/').then(r => r.text());
-check('X page is served', page.includes('<title>X · wrist practice</title>'), page.length + ' bytes');
+check('X page is served', page.includes('<title>X · wrist lab</title>'), page.length + ' bytes');
 check('bad code is refused', (await fetch(base + '/e/12', { method: 'POST', body: '{}' })).status === 404);
 
 const got = [], other = [];
@@ -35,6 +35,29 @@ await new Promise(r => setTimeout(r, 1500));
 const log = await fetch(base + '/log').then(r => r.text());
 const mine = log.split('\n').filter(l => l.includes('****' + code.slice(-2) + ' '));
 check('log holds all three events with the code masked', ['"seq":1', '"seq":2', '"seq":3'].every(k => mine.some(l => l.includes(k))) && !log.includes(code), mine.length + ' lines for this code');
+// Lab: a page asks for the raw stream; the watch is told in its next reply; raw rows reach the page but not the log
+ws.send(JSON.stringify({ cmd: 'raw', on: 1 }));
+await new Promise(r => setTimeout(r, 400));
+const r5 = await post(code, { t: 'hb', seq: 5 });
+check('page asked for raw: the watch is told', r5.j.raw === 1, JSON.stringify(r5.j));
+const before = got.length;
+await fetch(base + '/e/' + code, { method: 'POST', body: '{"t":"raw","w":1,"s":[[0,1,2,981,0,0,0,0,0,0]]}' });
+await new Promise(r => setTimeout(r, 800));
+check('raw rows reach the page', got.slice(before).some(x => x.includes('"t":"raw"')), (got.length - before) + ' new messages');
+const log2 = await fetch(base + '/log').then(r => r.text());
+check('raw rows are not written to the log', !log2.includes('"t":"raw"'));
+ws.send(JSON.stringify({ cmd: 'raw', on: 0 }));
+await new Promise(r => setTimeout(r, 400));
+check('page stops asking: the watch is told', (await post(code, { t: 'hb', seq: 6 })).j.raw === 0);
+// Lab: trials are saved in parts and can be read back
+const tid = 'e2e-' + Date.now() + '-check';
+const t1 = await fetch(base + '/t/' + code + '/' + tid + '/0', { method: 'POST', body: JSON.stringify({ id: tid, concept: 'e2e', part: 0 }) }).then(r => r.json());
+check('trial part saved', t1.ok === true, JSON.stringify(t1));
+const list = await fetch(base + '/trials').then(r => r.json());
+const mineT = list.filter(x => x.key.startsWith(tid));
+check('trial listed', mineT.length === 1 && mineT[0].key === tid + ':000', JSON.stringify(mineT));
+const back = await fetch(base + '/trial/' + encodeURIComponent(mineT[0] ? mineT[0].key : 'none')).then(r => r.text());
+check('trial read back', back.includes('"concept":"e2e"'));
 console.log('round trip for first post: ' + (Date.now() - t0) + ' ms total incl. waits');
 ws.close(); ws2.close();
 console.log(fails ? fails + ' relay checks FAILED' : 'all relay checks passed');

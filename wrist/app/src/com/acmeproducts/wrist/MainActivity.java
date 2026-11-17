@@ -28,7 +28,7 @@ public class MainActivity extends Activity {
         screen = new Screen(this);
         setContentView(screen);
         startReader();
-        askBatteryExemptionOnce();
+        askBatteryExemption();
     }
 
     private void startReader() {
@@ -36,13 +36,14 @@ public class MainActivity extends Activity {
         try { startForegroundService(new Intent(this, WristService.class)); } catch (Exception e) { stopped = true; }
     }
 
-    /** Without this the watch may cut the app's network a few minutes after the screen goes off. One tap, once. */
-    private void askBatteryExemptionOnce() {
+    /** Without this the watch may cut the app's network a few minutes after the screen goes off. Asked on up to three opens. */
+    private void askBatteryExemption() {
         try {
             PowerManager pm = (PowerManager) getSystemService(Context.POWER_SERVICE);
             SharedPreferences sp = getSharedPreferences("wrist", MODE_PRIVATE);
-            if (pm.isIgnoringBatteryOptimizations(getPackageName()) || sp.getBoolean("askedExempt", false)) return;
-            sp.edit().putBoolean("askedExempt", true).apply();
+            int asked = sp.getInt("askedExemptTimes", 0);
+            if (pm.isIgnoringBatteryOptimizations(getPackageName()) || asked >= 3) return;
+            sp.edit().putInt("askedExemptTimes", asked + 1).apply();
             startActivity(new Intent(Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS, Uri.parse("package:" + getPackageName())));
         } catch (Exception e) { /* this watch has no such screen; the relay log will show "exempt":0 */ }
     }
