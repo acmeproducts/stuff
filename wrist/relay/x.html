@@ -155,7 +155,7 @@ button:active{background:var(--panel2)}
 <script>
 (function(){
 'use strict';
-var BUILD='lab-r2';
+var BUILD='lab-r3';
 var $=function(id){return document.getElementById(id)};
 var DEG=180/Math.PI;
 var ws=null,retry=0,pingT=null,lastWatchAt=0,watchBuild='',resting=false,lastRawAt=0;
@@ -298,10 +298,13 @@ R.body=function(){var o={still:0,moving:false,next:20000,lp:null,up:0,overhead:f
       if(o.half>=4){o.half=0;o.rolls++;f.push({g:'shoulder roll'})}}
     return f};
   return o};
-/* A pinch cannot be seen by a wrist sensor as a shape. This only looks for the small jolt a pinch might make. */
-R.pinch=function(){var o={lock:0};
-  o.sample=function(d,dt){var f=[];if(o.lock>0){o.lock-=dt;return f}
-    if(d.acc>1.2&&d.gyro<0.8){f.push({g:'jolt',acc:Math.round(d.acc*10)/10});o.lock=400}
+/* The OK pose, as the owner defined it: not fingers. The forearm is held at roughly 47 degrees, hand about throat height. */
+R.ok=function(){var o={lp:null,inBand:false,held:0,fired:false};
+  o.sample=function(d,dt){var f=[];
+    o.lp=o.lp==null?d.pitch:o.lp+(d.pitch-o.lp)*0.2;
+    if(!o.inBand){if(o.lp>=35&&o.lp<=60){o.inBand=true;o.held=0;o.fired=false}}
+    else if(o.lp<30||o.lp>65){o.inBand=false;o.held=0}
+    else if(!o.fired){o.held=d.gyro<0.8?o.held+dt:0;if(o.held>=800){o.fired=true;f.push({g:'ok pose',tilt:Math.round(o.lp),roll:Math.round(d.roll)})}}
     return f};
   return o};
 
@@ -457,20 +460,21 @@ var CONCEPTS=[
    f.forEach(function(e){flash(e.g)});fire(f);
  }
 },
-{id:'pinch',name:'Pinch / OK probe',needsRaw:true,g:['jolt'],
- blurb:'Can the watch feel a pinch or an OK sign at all? Ten prompts, recording only.',
- how:'A wrist sensor cannot see finger shapes, so a held OK sign is invisible to it. What it might feel is the small jolt when thumb and finger snap together. This card prompts you ten times: each time it says NOW, pinch thumb to index finger firmly once (the start of an OK sign) and keep the rest of the arm still. It shows how many prompts were followed by a jolt. If that number is low, the OK sign is not readable from this watch and should be dumped.',
+{id:'ok',name:'OK pose',needsRaw:true,g:['ok pose'],
+ blurb:'Forearm held at about 47°, hand near throat height, as when you make an OK sign.',
+ how:'Make an OK sign the way you naturally would: forearm up at roughly 47°, hand about throat height, and hold it for a second. The watch does not look at your fingers; it reads the angle of your forearm and that it is being held. It fires anywhere between 35° and 60°. The recording keeps the exact tilt and roll each time, so the pose can be told apart from raising your hand to talk, which is close to it.',
  mount:function(root){
-   var el=document.createElement('div');el.className='big';this.r=R.pinch();this.i=0;this.hits=0;this.at=now()+3000;this.open=0;this.got=false;
-   el.innerHTML='<div><div class="glyph">👌</div><p>Get ready. Keep your arm still.</p><div class="count"></div></div>';root.appendChild(el);
-   this.g=el.querySelector('.glyph');this.p=el.querySelector('p');this.c=el.querySelector('.count');
+   var el=document.createElement('div');el.className='big';this.r=R.ok();this.n=0;
+   el.innerHTML='<div><div class="glyph">👌</div><p></p><div class="meter"><i></i></div><div class="count">0</div></div>';root.appendChild(el);
+   this.g=el.querySelector('.glyph');this.p=el.querySelector('p');this.m=el.querySelector('.meter i');this.c=el.querySelector('.count');
  },
- tick:function(){
-   var t=now();
-   if(this.open&&t>this.open){this.open=0;if(this.got)this.hits++;this.c.textContent=this.hits+' of '+this.i+' prompts were followed by a jolt';this.p.textContent=this.i>=10?'Done. Double-tap for notes and a verdict.':'Wait…';this.g.style.opacity=.35;if(this.i>=10)ev('concept','probe result',{hits:this.hits,of:this.i})}
-   if(this.i<10&&!this.open&&t>=this.at){this.i++;this.got=false;this.open=t+900;this.at=t+3000;this.p.textContent='NOW: pinch';this.g.style.opacity=1;ev('concept','prompt',{n:this.i})}
- },
- sample:function(d,dt){var f=this.r.sample(d,dt);if(f.length&&this.open)this.got=true;fire(f)}
+ sample:function(d,dt){
+   var r=this.r,f=r.sample(d,dt),self=this;
+   this.g.style.opacity=r.inBand?1:.35;
+   this.m.style.width=(r.inBand?(r.fired?100:Math.min(100,r.held/8)):0)+'%';
+   this.p.textContent='forearm '+Math.round(r.lp)+'°  ·  fires between 35° and 60°';
+   f.forEach(function(e){self.n++;self.c.textContent=self.n;flash('👌 OK pose at '+e.tilt+'°')});fire(f);
+ }
 }
 ];
 

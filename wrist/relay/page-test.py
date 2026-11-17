@@ -141,14 +141,16 @@ with sync_playwright() as pw:
     check('body: an unmoving arm is timed', txt('#bStill').startswith('2') and txt('#nE') == 'still 20 s', txt('#bStill') + ' / ' + txt('#nE'))
     pg.click('#closeBtn'); time.sleep(0.5)
 
-    # ---- pinch probe: prompted, recording only
-    pg.click('.tile[data-id=pinch]')
-    pg.wait_for_function("document.querySelector('.big p').textContent==='NOW: pinch'", timeout=6000)
-    feed(0, 0, 0.12, acc=2.0); feed(0, 0, 1.1)
-    check('pinch probe: a jolt after the prompt is counted', txt('.big .count').startswith('1 of 1'), txt('.big .count'))
-    pg.wait_for_function("document.querySelector('.big p').textContent==='NOW: pinch'", timeout=6000)
-    feed(0, 0, 1.3)
-    check('pinch probe: a prompt with no jolt is not', txt('.big .count').startswith('1 of 2'), txt('.big .count'))
+    # ---- OK pose: the forearm angle, not the fingers
+    pg.click('.tile[data-id=ok]')
+    feed(0, 0, 0.6); feed(20, 0, 1.2)
+    check('ok pose: a low forearm does not fire', txt('.big .count') == '0', txt('.big .count'))
+    feed(47, 0, 1.6)
+    check('ok pose: forearm held at 47 degrees fires once', txt('.big .count') == '1', txt('.big .count'))
+    feed(47, 0, 1.0)
+    check('ok pose: still holding does not fire again', txt('.big .count') == '1', txt('.big .count'))
+    feed(0, 0, 0.6); feed(72, 0, 1.6)
+    check('ok pose: an arm raised well past 60 degrees does not fire', txt('.big .count') == '1', txt('.big .count'))
     pg.click('#closeBtn'); time.sleep(0.5)
 
     # ---- Keepers: everything rated Keep, running together

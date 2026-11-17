@@ -1,6 +1,6 @@
 # Wrist — plan (sole authority for `wrist/`)
 
-Version 5.0.0 · 2026-11-17 · Owner/device gate: Confi · Device: Galaxy Watch 9, left wrist
+Version 5.1.0 · 2026-11-17 · Owner/device gate: Confi · Device: Galaxy Watch 9, left wrist
 
 ## 0. Turn ledger
 | Date | Turn | Status | Notes |
@@ -10,6 +10,7 @@ Version 5.0.0 · 2026-11-17 · Owner/device gate: Confi · Device: Galaxy Watch 
 | 2026-11-16 | turn03 | built, device gate pending | Owner: "need to run with watch screen off, there is no way to keep it on all the time and have any reasonable battery life." Sensing moved to a background service with active and resting modes. Lab: 20/20 detector, 9/9 relay, 18/18 page. Not yet run on a watch. |
 | 2026-11-17 | turn04 | built, device gate pending | First real session read from the device log (section 8). Owner: knock "is going to exacerbate wrist problems"; wants "a proving area where multiple concepts are trialed and logged … a grid that once you tap it it becomes active and full screen … double tap it and the card flips over and you can add notes … keep or go back to the shop and refine or dump." Knock removed (G7). Practice page replaced by the Wrist Lab (G8). Watch app can stream raw sensor rows on request. Lab checks: 16/16 detector, 16/16 relay (live), 36/36 page. The Lab has not yet been used with a real watch. |
 | 2026-11-17 | turn05 (page only, `lab-r2`) | deployed, device gate pending | Owner: palm up, palm down, thumb up, thumb down are "four different gestures … I don't think in any way we should have two gestures that mean the same thing"; asked whether the OK sign can be detected; proposed a palm-down flap; wants "one of these tiles that is the representation of all the keep gestures"; "we need to be really careful that we're not just trying to design app navigation, we need to stay true to building X"; X could notice arms raised overhead, shoulder rolls, and "how long you've just sat there and not moved your watch arm". Lab grows from 7 to 12 cards; watch app unchanged (turn04-b4). Lab checks: 46/46 page, 16/16 relay. No card has been used with a real watch yet: no trial has been saved and the watch was still on turn03-b3 at 13:16 UTC. |
+| 2026-11-17 | turn05 (page only, `lab-r3`) | deployed, device gate pending | Owner corrected the OK sign: "I don't think the okay sign is supposed to be that you're seeing fingers, I think that it's just that you are holding your arm at roughly a 47° angle … hand to be about shoulder height or roughly around the height of your throat … this is not intended to be trying to detect jolts." Pinch probe buried (G11); `ok` card added: forearm between 35° and 60°, held 0.8 s. Lab checks: 48/48 page. |
 
 ## 1. Why this exists (owner's words, 2026-11-16)
 - "I really can't type using a keyboard or a mouse … or for that matter a touch screen for more than 15 minutes at a time."
@@ -61,7 +62,7 @@ One surface for trying many motion concepts. Served by the relay at `/` (`wrist/
 - **Tap the experiment**: drops an "I meant that" marker in the recording. **Double-tap** (or Notes): the card flips to what-to-try, 👍/👎, the verdict and notes (typed or spoken).
 - **Closing a card saves the trial** to the relay: every raw sensor row the watch sent, every start/stop/choice the concept decided, every touch on the page, the verdict and the notes, on one clock.
 
-Concepts in `lab-r2`. Each concept's deciding logic is a recogniser (`R.<id>`) with no screen attached, so the same code runs in its own card and in Keepers. Adding a concept that works from raw rows needs no watch update.
+Concepts in `lab-r3`. Each concept's deciding logic is a recogniser (`R.<id>`) with no screen attached, so the same code runs in its own card and in Keepers. Adding a concept that works from raw rows needs no watch update.
 
 | id | What | Gestures it fires | Decided by |
 |---|---|---|---|
@@ -76,12 +77,12 @@ Concepts in `lab-r2`. Each concept's deciding logic is a recogniser (`R.<id>`) w
 | swing2 | same swing with lower thresholds (17° in 0.7 s, more tilt allowed); a guess, no owner data behind it | swing left/right | page, raw |
 | raise | lift the hand towards the face to open the mic, lower to close | talk open/close | page, raw |
 | body | **not commands**: what X could notice. Arm still (20 s, then each minute), arm held overhead 1.5 s, shoulder rolls (four slow half-turns of tilt with the arm level) | still…, arms overhead, shoulder roll | page, raw |
-| pinch | probe only: ten prompts, counts how many were followed by a small jolt | jolt | page, raw |
+| ok | the OK pose as the owner defined it: forearm held between 35° and 60° (centre 47°), 0.8 s; records tilt and roll each time | ok pose | page, raw |
 
 Design rule from the owner (2026-11-17): **no two gestures share a meaning**, and the Lab is an interim workshop for X's interaction model, **not app navigation**. Gestures are named for what the body does; meanings are assigned later, in X.
 
 Known limits, stated to the owner:
-- A wrist motion sensor cannot see finger shapes. A held OK sign is invisible to it; the pinch card only tests whether the act of pinching leaves a readable jolt at 50 rows a second. Theory: it will be weak.
+- The OK pose is read from the forearm angle only. Raise to talk (forearm above 40° for 0.5 s) and arm overhead (above 62° for 1.5 s) use the same axis, so OK pose and raise to talk will fire together until real recordings show how to separate them (roll at the moment of firing is recorded for that).
 - "Arm still" is only timed while a Lab card is open, because that is the only time the watch streams. In X it would be timed on the watch.
 - Lab-found collisions already seen with synthetic input: thumb up fires within 0.2 s of dial choose (both are "roll to −90° and hold"); a flap drags the dial across options.
 
@@ -144,4 +145,4 @@ Changes made from this: knock removed; `tilt2` in the Lab addresses the stutter 
 
 `wrist/relay/e2e.mjs` (relay, run on every deploy against the live worker; 16/16 against the live worker on 2026-11-17).
 
-`wrist/relay/page-test.py` (the Lab in a phone-sized Chrome, driven by relay events and a synthetic raw stream; run by hand, 46/46 on 2026-11-17, four runs in a row).
+`wrist/relay/page-test.py` (the Lab in a phone-sized Chrome, driven by relay events and a synthetic raw stream; run by hand, 48/48 on 2026-11-17).
