@@ -12,6 +12,10 @@ import android.hardware.Sensor;
 import android.hardware.SensorEvent;
 import android.hardware.SensorEventListener;
 import android.hardware.SensorManager;
+import android.net.ConnectivityManager;
+import android.net.Network;
+import android.net.NetworkCapabilities;
+import android.net.NetworkRequest;
 import android.os.BatteryManager;
 import android.os.IBinder;
 import android.os.PowerManager;
@@ -47,7 +51,8 @@ public class WristService extends Service implements SensorEventListener {
     static volatile WristService inst;
 
     /* ---- status the watch face reads ---- */
-    volatile String net = "not sent yet", last = "nothing yet", mode = "starting", idleKind = "", missing = "", code = "------", build = "?";
+    volatile String netDetail = "";
+    volatile String net = "connecting", last = "nothing yet", mode = "starting", idleKind = "", missing = "", code = "------", build = "?";
     volatile int sentOk, sentErr, pages = -1, tiltStep;
     final Detector det = new Detector();
 
@@ -76,6 +81,28 @@ public class WristService extends Service implements SensorEventListener {
     private float wx, wy, wz, ax, ay, az;
     private final long startedMs = System.currentTimeMillis();
 
+    /* ---- the watch's own connection: asked for and held while active, so it is up before the first message ---- */
+    private ConnectivityManager cm;
+    private ConnectivityManager.NetworkCallback netCb;
+    volatile boolean netUp;
+
+    private void holdNetwork() {
+        if (cm == null || netCb != null) return;
+        try {
+            netCb = new ConnectivityManager.NetworkCallback() {
+                @Override public void onAvailable(Network n) { netUp = true; }
+                @Override public void onLost(Network n) { netUp = false; }
+            };
+            cm.requestNetwork(new NetworkRequest.Builder().addCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET).build(), netCb);
+        } catch (Exception e) { netCb = null; netDetail = "no network hold: " + e.getClass().getSimpleName(); }
+    }
+
+    private void releaseNetwork() {
+        if (cm == null || netCb == null) return;
+        try { cm.unregisterNetworkCallback(netCb); } catch (Exception e) { /* already gone */ }
+        netCb = null; netUp = false;
+    }
+
     static String codeFor(Context c) {
         SharedPreferences sp = c.getSharedPreferences("wrist", MODE_PRIVATE);
         String code = sp.getString("code", "");
@@ -95,6 +122,7 @@ public class WristService extends Service implements SensorEventListener {
         sm = (SensorManager) getSystemService(Context.SENSOR_SERVICE);
         vib = (Vibrator) getSystemService(Context.VIBRATOR_SERVICE);
         pm = (PowerManager) getSystemService(Context.POWER_SERVICE);
+        cm = (ConnectivityManager) getSystemService(Context.CONNECTIVITY_SERVICE);
         lock = pm.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "wrist:sense");
         lock.setReferenceCounted(false);
         try {
@@ -122,6 +150,7 @@ public class WristService extends Service implements SensorEventListener {
         running = false;
         if (sm != null) sm.unregisterListener(this);
         if (sender != null) sender.interrupt();
+        releaseNetwork();
         synchronized (lockGuard) { if (lock != null && lock.isHeld()) lock.release(); }
         if (inst == this) inst = null;
         super.onDestroy();
@@ -132,6 +161,7 @@ public class WristService extends Service implements SensorEventListener {
     private void goActive(String why) {
         synchronized (lockGuard) { if (!lock.isHeld()) lock.acquire(); active = true; }
         mode = "active";
+        holdNetwork();
         sm.unregisterListener(this);
         missing = "";
         listen(Sensor.TYPE_GRAVITY, "gravity");
@@ -254,6 +284,7 @@ public class WristService extends Service implements SensorEventListener {
         return "{\"t\":\"" + type + "\"" + extra + ",\"seq\":" + (++seq) + ",\"b\":\"" + build + "\""
                 + ",\"pose\":" + det.pose + ",\"tilt\":" + Math.round(det.pitchDeg - det.neutralPitch) + ",\"roll\":" + Math.round(det.rollDeg)
                 + ",\"up\":" + ((System.currentTimeMillis() - startedMs) / 1000L) + ",\"mode\":\"" + mode + "\",\"raw\":" + (rawWanted ? 1 : 0)
+                + ",\"err\":" + sentErr + ",\"net\":" + (netUp ? 1 : 0)
                 + ",\"bat\":" + bat + ",\"screen\":" + (screen ? 1 : 0) + ",\"exempt\":" + (exempt ? 1 : 0) + "}";
     }
 
@@ -265,7 +296,12 @@ public class WristService extends Service implements SensorEventListener {
         while (running) {
             String m;
             try { m = queue.poll(50, TimeUnit.MILLISECONDS); } catch (InterruptedException e) { break; }
-            if (m != null) post(m);
+            if (m != null && !post(m) && m.indexOf("\"t\":\"hb\"") != 1) {
+                // not delivered: keep it (a motion or a mode change must not be lost while the connection wakes) and try again shortly
+                if (queue.size() < 40) queue.offerFirst(m);
+                try { Thread.sleep(1000); } catch (InterruptedException e) { break; }
+                continue;
+            }
             long now = System.currentTimeMillis();
             int step = tiltStep;
             if (step != sentStep) { post(event("scroll", ",\"r\":" + step)); sentStep = step; lastTilt = now; }
@@ -283,7 +319,7 @@ public class WristService extends Service implements SensorEventListener {
         }
     }
 
-    private void post(String body) {
+    private boolean post(String body) {
         HttpURLConnection c = null;
         try {
             byte[] bytes = body.getBytes("UTF-8");
@@ -298,16 +334,20 @@ public class WristService extends Service implements SensorEventListener {
             String reply = "";
             if (in != null) { byte[] buf = new byte[256]; int n = in.read(buf); if (n > 0) reply = new String(buf, 0, n, "UTF-8"); while (in.read(buf) > 0) { /* drain so the connection is reused */ } in.close(); }
             if (status == 200) {
-                sentOk++; net = "ok";
+                sentOk++; net = "ok"; netDetail = "";
                 int i = reply.indexOf("\"pages\":");
                 if (i >= 0) { try { pages = Integer.parseInt(reply.substring(i + 8).replaceAll("[^0-9].*", "")); } catch (Exception e) { pages = -1; } }
                 boolean want = reply.indexOf("\"raw\":1") >= 0;
                 if (want != rawWanted) { rawWanted = want; if (!want) synchronized (rawGuard) { rawN = 0; } }
-            } else { sentErr++; net = "relay said " + status; }
+                return true;
+            }
+            sentErr++; net = "relay said " + status; netDetail = "";
         } catch (Exception e) {
-            sentErr++; net = e.getClass().getSimpleName();
+            // UnknownHost / SocketTimeout here mean the watch's own connection is not up yet, not that the relay is down
+            sentErr++; net = sentOk == 0 ? "connecting" : "reconnecting"; netDetail = e.getClass().getSimpleName().replace("Exception", "");
             if (c != null) c.disconnect();
         }
+        return false;
     }
 
     private void buzz(long[] pattern) {

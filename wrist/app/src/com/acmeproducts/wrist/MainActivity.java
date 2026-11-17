@@ -83,7 +83,11 @@ public class MainActivity extends Activity {
             p.setTextSize(6.5f * u);
             if (s == null) { p.setColor(0xFFE5534B); c.drawText(stopped ? "stopped. touch to start" : "starting", cx, 54f * u, p); }
             else if (s.missing.length() > 0) { p.setColor(0xFFE5534B); c.drawText("NO " + s.missing, cx, 54f * u, p); }
-            else if (!"ok".equals(s.net)) { p.setColor(s.sentErr > 0 ? 0xFFE5534B : 0xFFE5A23B); c.drawText(s.net, cx, 54f * u, p); }
+            else if (!"ok".equals(s.net)) {
+                boolean waking = s.net.endsWith("connecting");
+                p.setColor(waking ? 0xFFE5A23B : 0xFFE5534B); c.drawText(waking ? s.net + "\u2026" : s.net, cx, 54f * u, p);
+                if (s.netDetail.length() > 0) { p.setColor(0xFF9AA4AE); p.setTextSize(4.2f * u); c.drawText(s.netDetail, cx, 59.5f * u, p); p.setTextSize(6.5f * u); }
+            }
             else if (s.pages == 0) { p.setColor(0xFFE5A23B); c.drawText("X is not open", cx, 54f * u, p); }
             else { p.setColor(0xFF4CC38A); c.drawText("sending to X", cx, 54f * u, p); }
 

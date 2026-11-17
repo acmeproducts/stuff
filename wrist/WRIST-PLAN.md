@@ -1,6 +1,6 @@
 # Wrist — plan (sole authority for `wrist/`)
 
-Version 5.1.0 · 2026-11-17 · Owner/device gate: Confi · Device: Galaxy Watch 9, left wrist
+Version 5.2.0 · 2026-11-17 · Owner/device gate: Confi · Device: Galaxy Watch 9, left wrist
 
 ## 0. Turn ledger
 | Date | Turn | Status | Notes |
@@ -11,6 +11,7 @@ Version 5.1.0 · 2026-11-17 · Owner/device gate: Confi · Device: Galaxy Watch 
 | 2026-11-17 | turn04 | built, device gate pending | First real session read from the device log (section 8). Owner: knock "is going to exacerbate wrist problems"; wants "a proving area where multiple concepts are trialed and logged … a grid that once you tap it it becomes active and full screen … double tap it and the card flips over and you can add notes … keep or go back to the shop and refine or dump." Knock removed (G7). Practice page replaced by the Wrist Lab (G8). Watch app can stream raw sensor rows on request. Lab checks: 16/16 detector, 16/16 relay (live), 36/36 page. The Lab has not yet been used with a real watch. |
 | 2026-11-17 | turn05 (page only, `lab-r2`) | deployed, device gate pending | Owner: palm up, palm down, thumb up, thumb down are "four different gestures … I don't think in any way we should have two gestures that mean the same thing"; asked whether the OK sign can be detected; proposed a palm-down flap; wants "one of these tiles that is the representation of all the keep gestures"; "we need to be really careful that we're not just trying to design app navigation, we need to stay true to building X"; X could notice arms raised overhead, shoulder rolls, and "how long you've just sat there and not moved your watch arm". Lab grows from 7 to 12 cards; watch app unchanged (turn04-b4). Lab checks: 46/46 page, 16/16 relay. No card has been used with a real watch yet: no trial has been saved and the watch was still on turn03-b3 at 13:16 UTC. |
 | 2026-11-17 | turn05 (page only, `lab-r3`) | deployed, device gate pending | Owner corrected the OK sign: "I don't think the okay sign is supposed to be that you're seeing fingers, I think that it's just that you are holding your arm at roughly a 47° angle … hand to be about shoulder height or roughly around the height of your throat … this is not intended to be trying to detect jolts." Pinch probe buried (G11); `ok` card added: forearm between 35° and 60°, held 0.8 s. Lab checks: 48/48 page. |
+| 2026-11-17 | turn05 watch app (`turn05-b…`) | built, device gate pending | Owner: "when I first go to the app it says nothing sent, then I get a socket time out … unknown host exception, and then I finally get sending to X." Cause (from the device log): the watch's own connection is not up when the reader starts; the first messages after four restarts never arrived (the event counter resumes at 3, 8, 43 and 1). The relay answered every message that did reach it. Change: the reader asks the watch for a connection and holds it while it runs, keeps and retries any motion or mode change that was not delivered, and shows "connecting…" in place of the error name. Not yet run on the watch. |
 
 ## 1. Why this exists (owner's words, 2026-11-16)
 - "I really can't type using a keyboard or a mouse … or for that matter a touch screen for more than 15 minutes at a time."
@@ -152,6 +153,7 @@ First data through the trial channel: three trials, two with raw rows (3,823 and
 | With the screen off the watch pauses the app in 400 s blocks | six gaps of exactly 400 s on turn03 (12:36–13:16 UTC), each followed by about ten seconds of activity; the event counter carries on, so the app is suspended, not stopped |
 | The reader was restarted once | counter reset at 13:37 UTC after a 596 s gap |
 | Battery fell 41% to 35% in 24 minutes on turn04 | `bat` field |
+| The reader restarts and its first messages are lost | four counter resets in 90 minutes (13:37, 13:56, 14:37, 14:49 UTC); after three of them the first 2, 7 and 42 messages never reached the relay |
 
 Owner's notes on the trials: "Watch still keeps timing out, I think it has more to do with the overall global battery setting than anything else."
 
