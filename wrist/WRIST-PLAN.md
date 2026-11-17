@@ -8,7 +8,7 @@ Version 4.0.0 · 2026-11-17 · Owner/device gate: Confi · Device: Galaxy Watch 
 | 2026-11-16 | turn01 | **rejected by owner, buried (G5)** | Practice list drawn on the watch. Owner: "how am I supposed to read anything on a watch … it's intended to read the gestures and then have them shown on X which runs on your phone or on the desktop." |
 | 2026-11-16 | turn02 | built, device gate pending | Watch is a sensor only. Motions go through the wrist relay to the X practice page on the phone or desktop. Lab: 17/17 detector, 9/9 relay, 16/16 page. Not yet run on the owner's arm. |
 | 2026-11-16 | turn03 | built, device gate pending | Owner: "need to run with watch screen off, there is no way to keep it on all the time and have any reasonable battery life." Sensing moved to a background service with active and resting modes. Lab: 20/20 detector, 9/9 relay, 18/18 page. Not yet run on a watch. |
-| 2026-11-17 | turn04 | built, device gate pending | First real session read from the device log (section 8). Owner: knock "is going to exacerbate wrist problems"; wants "a proving area where multiple concepts are trialed and logged … a grid that once you tap it it becomes active and full screen … double tap it and the card flips over and you can add notes … keep or go back to the shop and refine or dump." Knock removed (G7). Practice page replaced by the Wrist Lab (G8). Watch app can stream raw sensor rows on request. Lab: 16/16 detector, 17/17 relay, 36/36 page. Lab not yet used with a real watch. |
+| 2026-11-17 | turn04 | built, device gate pending | First real session read from the device log (section 8). Owner: knock "is going to exacerbate wrist problems"; wants "a proving area where multiple concepts are trialed and logged … a grid that once you tap it it becomes active and full screen … double tap it and the card flips over and you can add notes … keep or go back to the shop and refine or dump." Knock removed (G7). Practice page replaced by the Wrist Lab (G8). Watch app can stream raw sensor rows on request. Lab checks: 16/16 detector, 16/16 relay (live), 36/36 page. The Lab has not yet been used with a real watch. |
 
 ## 1. Why this exists (owner's words, 2026-11-16)
 - "I really can't type using a keyboard or a mouse … or for that matter a touch screen for more than 15 minutes at a time."
@@ -122,13 +122,13 @@ First data to arrive through the log channel. 256 watch events in 10 minutes.
 | Tilt stutters at the edge of the level band | runs of `r` flipping 0/1 with tilt near 15° |
 | A lowered arm scrolls | `r:-4` held for 10–30 s with tilt −55° to −68° (the arm coming down to rest still counts as "hand flat") |
 | Knock fires during ordinary arm movement | wrist taps logged while tilt was changing |
-| Events stop at 12:36:07 with no resting event | cause unknown; the next build reports uptime in every event so a restart can be told from a pause |
+| With the screen off, sending pauses for about 400 s at a time, twice (12:36:07→12:42:48, 12:42:58→12:49:38) | the event counter carries on across each gap (264→265, 276→277), so the reader was not restarted: it was paused. Cause unproven; the watch's own power saving is the leading theory, since `exempt` is 0 |
 
 Changes made from this: knock removed; `tilt2` in the Lab addresses the stutter and the lowered arm; `swing1` kept unchanged so the Lab can record why it does not fire.
 
 ## 7. Lab checks
 `wrist/test/DetectorTest.java`, synthetic 100 Hz traces, run on every build. 2026-11-17: 16/16 pass (knock checks removed with the knock).
 
-`wrist/relay/e2e.mjs` (relay, run on every deploy against the live worker; 17/17 against a local worker on 2026-11-17).
+`wrist/relay/e2e.mjs` (relay, run on every deploy against the live worker; 16/16 against the live worker on 2026-11-17).
 
 `wrist/relay/page-test.py` (the Lab in a phone-sized Chrome, driven by relay events and a synthetic raw stream; run by hand, 36/36 on 2026-11-17).
