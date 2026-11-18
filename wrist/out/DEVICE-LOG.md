@@ -1,63 +1,8 @@
 # Wrist device log
 
-Drained 2026-11-17T23:13:02Z. Newest at the bottom. 500 lines.
+Drained 2026-11-18T00:42:28Z. Newest at the bottom. 500 lines.
 
 ```
-2026-11-17T13:53:06.411Z ****63 {"t":"hb","seq":281,"b":"turn04-b4","pose":2,"tilt":25,"roll":-78,"up":992,"mode":"active","raw":1,"bat":34,"screen":0,"exempt":0} pages=1
-2026-11-17T13:54:56.743Z ****53 {"t":"page-joined","pages":1}
-2026-11-17T13:56:26.093Z ****63 {"t":"page-joined","pages":1}
-2026-11-17T13:56:48.552Z ****63 {"t":"hb","seq":8,"b":"turn04-b4","pose":0,"tilt":48,"roll":-35,"up":48,"mode":"resting","raw":0,"bat":33,"screen":0,"exempt":0} pages=1
-2026-11-17T13:56:48.780Z ****63 {"t":"tap","how":"touch","seq":3,"b":"turn04-b4","pose":1,"tilt":0,"roll":21,"up":6,"mode":"active","raw":0,"bat":33,"screen":1,"exempt":0} pages=1
-2026-11-17T13:56:48.888Z ****63 {"t":"hb","seq":10,"b":"turn04-b4","pose":1,"tilt":2,"roll":39,"up":54,"mode":"active","raw":0,"bat":32,"screen":1,"exempt":0} pages=1
-2026-11-17T13:56:49.012Z ****63 {"t":"tap","how":"touch","seq":5,"b":"turn04-b4","pose":1,"tilt":2,"roll":17,"up":20,"mode":"active","raw":0,"bat":33,"screen":1,"exempt":0} pages=1
-2026-11-17T13:56:49.119Z ****63 {"t":"tap","how":"touch","seq":6,"b":"turn04-b4","pose":1,"tilt":1,"roll":18,"up":24,"mode":"active","raw":0,"bat":33,"screen":1,"exempt":0} pages=1
-2026-11-17T13:56:49.267Z ****63 {"t":"mode","m":"resting","why":"arm down","idle":"lock","seq":7,"b":"turn04-b4","pose":0,"tilt":48,"roll":-35,"up":43,"mode":"resting","raw":0,"bat":33,"screen":1,"exempt":0} pages=1
-2026-11-17T13:56:49.415Z ****63 {"t":"mode","m":"active","why":"arm up","seq":9,"b":"turn04-b4","pose":0,"tilt":48,"roll":-35,"up":51,"mode":"active","raw":0,"bat":32,"screen":1,"exempt":0} pages=1
-2026-11-17T13:56:51.959Z ****63 {"t":"hb","seq":11,"b":"turn04-b4","pose":1,"tilt":11,"roll":12,"up":57,"mode":"active","raw":0,"bat":32,"screen":1,"exempt":0} pages=1
-2026-11-17T13:56:52.151Z ****63 {"t":"scroll","r":1,"seq":12,"b":"turn04-b4","pose":1,"tilt":15,"roll":10,"up":57,"mode":"active","raw":0,"bat":32,"screen":1,"exempt":0} pages=1
-2026-11-17T13:56:53.529Z ****63 {"t":"scroll","r":0,"seq":13,"b":"turn04-b4","pose":1,"tilt":15,"roll":7,"up":59,"mode":"active","raw":0,"bat":32,"screen":1,"exempt":0} pages=1
-2026-11-17T13:56:55.043Z ****63 {"t":"hb","seq":14,"b":"turn04-b4","pose":1,"tilt":6,"roll":6,"up":60,"mode":"active","raw":0,"bat":32,"screen":0,"exempt":0} pages=1
-2026-11-17T13:56:57.989Z ****63 {"t":"hb","seq":15,"b":"turn04-b4","pose":1,"tilt":2,"roll":6,"up":63,"mode":"active","raw":0,"bat":32,"screen":0,"exempt":0} pages=1
-2026-11-17T13:57:00.982Z ****63 {"t":"hb","seq":16,"b":"turn04-b4","pose":1,"tilt":1,"roll":6,"up":66,"mode":"active","raw":0,"bat":32,"screen":1,"exempt":0} pages=1
-2026-11-17T13:57:03.995Z ****63 {"t":"hb","seq":17,"b":"turn04-b4","pose":1,"tilt":0,"roll":6,"up":69,"mode":"active","raw":0,"bat":32,"screen":1,"exempt":0} pages=1
-2026-11-17T13:57:07.011Z ****63 {"t":"hb","seq":18,"b":"turn04-b4","pose":1,"tilt":1,"roll":7,"up":72,"mode":"active","raw":0,"bat":32,"screen":1,"exempt":0} pages=1
-2026-11-17T13:57:10.094Z ****63 {"t":"hb","seq":19,"b":"turn04-b4","pose":1,"tilt":0,"roll":6,"up":75,"mode":"active","raw":0,"bat":32,"screen":1,"exempt":0} pages=1
-2026-11-17T13:57:13.139Z ****63 {"t":"hb","seq":20,"b":"turn04-b4","pose":1,"tilt":0,"roll":6,"up":78,"mode":"active","raw":0,"bat":32,"screen":1,"exempt":0} pages=1
-2026-11-17T13:57:16.134Z ****63 {"t":"hb","seq":21,"b":"turn04-b4","pose":1,"tilt":-12,"roll":12,"up":81,"mode":"active","raw":0,"bat":32,"screen":1,"exempt":0} pages=1
-2026-11-17T13:57:16.458Z ****63 {"t":"scroll","r":-1,"seq":22,"b":"turn04-b4","pose":1,"tilt":-15,"roll":15,"up":81,"mode":"active","raw":0,"bat":32,"screen":1,"exempt":0} pages=1
-2026-11-17T13:57:17.951Z ****63 {"t":"scroll","r":-2,"seq":23,"b":"turn04-b4","pose":1,"tilt":-22,"roll":15,"up":83,"mode":"active","raw":0,"bat":32,"screen":1,"exempt":0} pages=1
-2026-11-17T13:57:18.741Z ****63 {"t":"scroll","r":-1,"seq":24,"b":"turn04-b4","pose":1,"tilt":-21,"roll":14,"up":84,"mode":"active","raw":0,"bat":32,"screen":1,"exempt":0} pages=1
-2026-11-17T13:57:19.110Z ****63 {"t":"hb","seq":25,"b":"turn04-b4","pose":1,"tilt":-20,"roll":12,"up":84,"mode":"active","raw":0,"bat":32,"screen":1,"exempt":0} pages=1
-2026-11-17T13:57:22.129Z ****63 {"t":"hb","seq":26,"b":"turn04-b4","pose":1,"tilt":-18,"roll":4,"up":87,"mode":"active","raw":0,"bat":32,"screen":1,"exempt":0} pages=1
-2026-11-17T13:57:25.148Z ****63 {"t":"hb","seq":27,"b":"turn04-b4","pose":1,"tilt":-17,"roll":3,"up":90,"mode":"active","raw":0,"bat":32,"screen":1,"exempt":0} pages=1
-2026-11-17T13:57:28.143Z ****63 {"t":"hb","seq":28,"b":"turn04-b4","pose":1,"tilt":-16,"roll":3,"up":93,"mode":"active","raw":0,"bat":32,"screen":1,"exempt":0} pages=1
-2026-11-17T13:57:31.204Z ****63 {"t":"hb","seq":29,"b":"turn04-b4","pose":1,"tilt":-16,"roll":1,"up":96,"mode":"active","raw":0,"bat":32,"screen":1,"exempt":0} pages=1
-2026-11-17T13:57:34.223Z ****63 {"t":"hb","seq":30,"b":"turn04-b4","pose":1,"tilt":-16,"roll":1,"up":99,"mode":"active","raw":0,"bat":32,"screen":1,"exempt":0} pages=1
-2026-11-17T13:57:37.256Z ****63 {"t":"hb","seq":31,"b":"turn04-b4","pose":1,"tilt":-15,"roll":0,"up":102,"mode":"active","raw":0,"bat":32,"screen":1,"exempt":0} pages=1
-2026-11-17T13:57:38.142Z ****63 {"t":"scroll","r":0,"seq":32,"b":"turn04-b4","pose":1,"tilt":-15,"roll":0,"up":103,"mode":"active","raw":0,"bat":32,"screen":1,"exempt":0} pages=1
-2026-11-17T13:57:40.250Z ****63 {"t":"hb","seq":33,"b":"turn04-b4","pose":1,"tilt":-14,"roll":0,"up":105,"mode":"active","raw":0,"bat":32,"screen":1,"exempt":0} pages=1
-2026-11-17T13:57:43.281Z ****63 {"t":"hb","seq":34,"b":"turn04-b4","pose":1,"tilt":-14,"roll":0,"up":108,"mode":"active","raw":0,"bat":32,"screen":1,"exempt":0} pages=1
-2026-11-17T13:57:46.287Z ****63 {"t":"hb","seq":35,"b":"turn04-b4","pose":1,"tilt":-14,"roll":0,"up":111,"mode":"active","raw":0,"bat":32,"screen":1,"exempt":0} pages=1
-2026-11-17T13:57:49.332Z ****63 {"t":"hb","seq":36,"b":"turn04-b4","pose":1,"tilt":-14,"roll":0,"up":114,"mode":"active","raw":0,"bat":32,"screen":1,"exempt":0} pages=1
-2026-11-17T13:57:52.375Z ****63 {"t":"hb","seq":37,"b":"turn04-b4","pose":1,"tilt":-14,"roll":0,"up":117,"mode":"active","raw":0,"bat":32,"screen":1,"exempt":0} pages=1
-2026-11-17T13:57:55.403Z ****63 {"t":"hb","seq":38,"b":"turn04-b4","pose":1,"tilt":-14,"roll":0,"up":120,"mode":"active","raw":0,"bat":32,"screen":1,"exempt":0} pages=1
-2026-11-17T13:57:58.347Z ****63 {"t":"scroll","r":-1,"seq":39,"b":"turn04-b4","pose":1,"tilt":-15,"roll":-1,"up":123,"mode":"active","raw":0,"bat":32,"screen":1,"exempt":0} pages=1
-2026-11-17T13:57:58.523Z ****63 {"t":"scroll","r":0,"seq":40,"b":"turn04-b4","pose":1,"tilt":-15,"roll":-1,"up":124,"mode":"active","raw":0,"bat":32,"screen":1,"exempt":0} pages=1
-2026-11-17T13:57:58.640Z ****63 {"t":"hb","seq":41,"b":"turn04-b4","pose":1,"tilt":-15,"roll":-1,"up":124,"mode":"active","raw":0,"bat":32,"screen":1,"exempt":0} pages=1
-2026-11-17T13:58:01.558Z ****63 {"t":"hb","seq":42,"b":"turn04-b4","pose":1,"tilt":-15,"roll":0,"up":127,"mode":"active","raw":0,"bat":32,"screen":1,"exempt":0} pages=1
-2026-11-17T13:58:03.956Z ****63 {"t":"scroll","r":-1,"seq":43,"b":"turn04-b4","pose":1,"tilt":-15,"roll":0,"up":129,"mode":"active","raw":0,"bat":32,"screen":0,"exempt":0} pages=1
-2026-11-17T13:58:04.230Z ****63 {"t":"scroll","r":0,"seq":44,"b":"turn04-b4","pose":1,"tilt":-15,"roll":0,"up":129,"mode":"active","raw":0,"bat":32,"screen":0,"exempt":0} pages=1
-2026-11-17T13:58:04.603Z ****63 {"t":"hb","seq":45,"b":"turn04-b4","pose":1,"tilt":-15,"roll":0,"up":130,"mode":"active","raw":0,"bat":32,"screen":0,"exempt":0} pages=1
-2026-11-17T13:58:06.206Z ****63 {"t":"scroll","r":-1,"seq":46,"b":"turn04-b4","pose":1,"tilt":-15,"roll":0,"up":131,"mode":"active","raw":0,"bat":32,"screen":0,"exempt":0} pages=1
-2026-11-17T13:58:07.641Z ****63 {"t":"hb","seq":47,"b":"turn04-b4","pose":1,"tilt":-15,"roll":0,"up":133,"mode":"active","raw":0,"bat":32,"screen":0,"exempt":0} pages=1
-2026-11-17T13:58:07.990Z ****63 {"t":"scroll","r":0,"seq":48,"b":"turn04-b4","pose":1,"tilt":-15,"roll":0,"up":133,"mode":"active","raw":0,"bat":32,"screen":0,"exempt":0} pages=1
-2026-11-17T13:58:20.952Z ****63 {"t":"hb","seq":49,"b":"turn04-b4","pose":1,"tilt":-6,"roll":32,"up":146,"mode":"active","raw":0,"bat":32,"screen":1,"exempt":0} pages=1
-2026-11-17T13:58:23.960Z ****63 {"t":"hb","seq":50,"b":"turn04-b4","pose":1,"tilt":-8,"roll":6,"up":149,"mode":"active","raw":0,"bat":32,"screen":1,"exempt":0} pages=1
-2026-11-17T13:58:26.967Z ****63 {"t":"hb","seq":51,"b":"turn04-b4","pose":1,"tilt":-3,"roll":5,"up":152,"mode":"active","raw":0,"bat":32,"screen":1,"exempt":0} pages=1
-2026-11-17T13:58:29.971Z ****63 {"t":"hb","seq":52,"b":"turn04-b4","pose":1,"tilt":-1,"roll":4,"up":155,"mode":"active","raw":0,"bat":32,"screen":1,"exempt":0} pages=1
-2026-11-17T13:58:33.176Z ****63 {"t":"hb","seq":53,"b":"turn04-b4","pose":1,"tilt":0,"roll":4,"up":158,"mode":"active","raw":0,"bat":32,"screen":1,"exempt":0} pages=1
-2026-11-17T13:58:36.016Z ****63 {"t":"hb","seq":54,"b":"turn04-b4","pose":1,"tilt":1,"roll":3,"up":161,"mode":"active","raw":0,"bat":32,"screen":1,"exempt":0} pages=1
-2026-11-17T13:58:39.037Z ****63 {"t":"hb","seq":55,"b":"turn04-b4","pose":1,"tilt":0,"roll":4,"up":164,"mode":"active","raw":0,"bat":32,"screen":1,"exempt":0} pages=1
 2026-11-17T13:58:42.046Z ****63 {"t":"hb","seq":56,"b":"turn04-b4","pose":1,"tilt":0,"roll":3,"up":167,"mode":"active","raw":0,"bat":32,"screen":1,"exempt":0} pages=1
 2026-11-17T13:58:45.068Z ****63 {"t":"hb","seq":57,"b":"turn04-b4","pose":1,"tilt":2,"roll":4,"up":170,"mode":"active","raw":0,"bat":32,"screen":1,"exempt":0} pages=1
 2026-11-17T13:58:48.105Z ****63 {"t":"hb","seq":58,"b":"turn04-b4","pose":1,"tilt":0,"roll":3,"up":173,"mode":"active","raw":0,"bat":32,"screen":1,"exempt":0} pages=1
@@ -503,4 +448,59 @@ Drained 2026-11-17T23:13:02Z. Newest at the bottom. 500 lines.
 2026-11-17T22:34:42.396Z ****02 {"t":"hb","seq":273,"b":"turn04-b4","pose":1,"tilt":0,"roll":15,"up":766,"mode":"active","raw":0,"bat":84,"screen":1,"exempt":0} pages=1
 2026-11-17T22:34:45.336Z ****02 {"t":"hb","seq":274,"b":"turn04-b4","pose":1,"tilt":0,"roll":13,"up":769,"mode":"active","raw":0,"bat":84,"screen":1,"exempt":0} pages=1
 2026-11-17T23:12:57.170Z ****02 {"t":"page-joined","pages":1}
+2026-11-18T00:07:14.425Z ****55 {"t":"page-joined","pages":1}
+2026-11-18T00:07:14.425Z ****38 {"t":"page-joined","pages":1}
+2026-11-18T00:07:14.702Z ****38 {"t":"swipe","d":"left","seq":1} pages=1
+2026-11-18T00:07:14.924Z ****38 {"t":"tap","seq":2} pages=1
+2026-11-18T00:07:15.106Z ****38 {"t":"scroll","r":3,"seq":3} pages=1
+2026-11-18T00:07:19.226Z ****38 {"t":"hb","seq":5} pages=1
+2026-11-18T00:07:20.904Z ****38 {"t":"hb","seq":6} pages=1
+2026-11-18T00:37:20.424Z ****02 {"t":"mode","m":"active","why":"start","seq":1,"b":"turn06-b6","pose":0,"tilt":0,"roll":0,"up":0,"mode":"active","raw":0,"err":0,"net":1,"ln":"wifi","rtt":-1,"bat":87,"screen":1,"exempt":0} pages=0
+2026-11-18T00:37:20.684Z ****02 {"t":"diag","why":"start","ln":"wifi","valid":1,"wifiOn":1,"bat":87,"chg":0,"saver":0,"idle":0,"lightIdle":0,"restricted":0,"exempt":0,"bucket":10,"screen":1,"sens":"gya-","fw":"CP2A.260330.023.L355USQU1AZJ3","sdk":37,"restarts":1,"ok":1,"silence":0,"idleKind":"","detail":"","seq":2,"b":"turn06-b6","pose":1,"tilt":0,"roll":29,"up":1,"mode":"active","raw":0,"err":0,"net":1,"ln":"wifi","rtt":974,"bat":87,"screen":1,"exempt":0} pages=0
+2026-11-18T00:37:29.592Z ****02 {"t":"scroll","r":1,"seq":3,"b":"turn06-b6","pose":1,"tilt":17,"roll":22,"up":9,"mode":"active","raw":0,"err":0,"net":1,"ln":"wifi","rtt":173,"bat":87,"screen":1,"exempt":0} pages=0
+2026-11-18T00:37:29.923Z ****02 {"t":"hb","seq":4,"b":"turn06-b6","pose":1,"tilt":15,"roll":17,"up":10,"mode":"active","raw":0,"err":0,"net":1,"ln":"wifi","rtt":267,"bat":87,"screen":1,"exempt":0} pages=0
+2026-11-18T00:37:30.313Z ****02 {"t":"scroll","r":0,"seq":5,"b":"turn06-b6","pose":1,"tilt":7,"roll":18,"up":10,"mode":"active","raw":0,"err":0,"net":1,"ln":"wifi","rtt":333,"bat":87,"screen":1,"exempt":0} pages=0
+2026-11-18T00:37:39.981Z ****02 {"t":"hb","seq":6,"b":"turn06-b6","pose":1,"tilt":6,"roll":27,"up":20,"mode":"active","raw":0,"err":0,"net":1,"ln":"wifi","rtt":222,"bat":87,"screen":1,"exempt":0} pages=0
+2026-11-18T00:37:49.987Z ****02 {"t":"hb","seq":7,"b":"turn06-b6","pose":1,"tilt":0,"roll":28,"up":30,"mode":"active","raw":0,"err":0,"net":1,"ln":"wifi","rtt":195,"bat":87,"screen":1,"exempt":0} pages=0
+2026-11-18T00:37:59.998Z ****02 {"t":"hb","seq":8,"b":"turn06-b6","pose":1,"tilt":0,"roll":30,"up":40,"mode":"active","raw":0,"err":0,"net":1,"ln":"wifi","rtt":240,"bat":87,"screen":1,"exempt":0} pages=0
+2026-11-18T00:38:10.119Z ****02 {"t":"hb","seq":9,"b":"turn06-b6","pose":1,"tilt":0,"roll":28,"up":50,"mode":"active","raw":0,"err":0,"net":1,"ln":"wifi","rtt":153,"bat":87,"screen":1,"exempt":0} pages=0
+2026-11-18T00:38:20.084Z ****02 {"t":"hb","seq":10,"b":"turn06-b6","pose":1,"tilt":0,"roll":29,"up":60,"mode":"active","raw":0,"err":0,"net":1,"ln":"wifi","rtt":342,"bat":87,"screen":1,"exempt":0} pages=0
+2026-11-18T00:38:21.472Z ****02 {"t":"diag","why":"minute","ln":"wifi","valid":1,"wifiOn":1,"bat":87,"chg":0,"saver":0,"idle":0,"lightIdle":0,"restricted":0,"exempt":0,"bucket":10,"screen":1,"sens":"gya-","fw":"CP2A.260330.023.L355USQU1AZJ3","sdk":37,"restarts":1,"ok":10,"silence":10,"idleKind":"","detail":"","seq":11,"b":"turn06-b6","pose":1,"tilt":0,"roll":29,"up":61,"mode":"active","raw":0,"err":0,"net":1,"ln":"wifi","rtt":360,"bat":87,"screen":1,"exempt":0} pages=0
+2026-11-18T00:38:30.081Z ****02 {"t":"hb","seq":12,"b":"turn06-b6","pose":1,"tilt":1,"roll":29,"up":70,"mode":"active","raw":0,"err":0,"net":1,"ln":"wifi","rtt":200,"bat":87,"screen":1,"exempt":0} pages=0
+2026-11-18T00:38:41.314Z ****02 {"t":"hb","seq":13,"b":"turn06-b6","pose":1,"tilt":0,"roll":26,"up":80,"mode":"active","raw":0,"err":0,"net":1,"ln":"wifi","rtt":169,"bat":86,"screen":1,"exempt":0} pages=0
+2026-11-18T00:38:50.124Z ****02 {"t":"hb","seq":14,"b":"turn06-b6","pose":1,"tilt":1,"roll":31,"up":90,"mode":"active","raw":0,"err":0,"net":1,"ln":"wifi","rtt":1413,"bat":86,"screen":1,"exempt":0} pages=0
+2026-11-18T00:39:00.151Z ****02 {"t":"hb","seq":15,"b":"turn06-b6","pose":1,"tilt":-1,"roll":27,"up":100,"mode":"active","raw":0,"err":0,"net":1,"ln":"wifi","rtt":139,"bat":86,"screen":1,"exempt":0} pages=0
+2026-11-18T00:39:10.171Z ****02 {"t":"hb","seq":16,"b":"turn06-b6","pose":1,"tilt":0,"roll":28,"up":110,"mode":"active","raw":0,"err":0,"net":1,"ln":"wifi","rtt":159,"bat":86,"screen":1,"exempt":0} pages=0
+2026-11-18T00:39:20.239Z ****02 {"t":"hb","seq":17,"b":"turn06-b6","pose":1,"tilt":1,"roll":29,"up":120,"mode":"active","raw":0,"err":0,"net":1,"ln":"wifi","rtt":151,"bat":86,"screen":1,"exempt":0} pages=0
+2026-11-18T00:39:22.549Z ****02 {"t":"diag","why":"minute","ln":"wifi","valid":1,"wifiOn":1,"bat":86,"chg":0,"saver":0,"idle":0,"lightIdle":0,"restricted":0,"exempt":0,"bucket":10,"screen":1,"sens":"gya-","fw":"CP2A.260330.023.L355USQU1AZJ3","sdk":37,"restarts":1,"ok":17,"silence":11,"idleKind":"","detail":"","seq":18,"b":"turn06-b6","pose":1,"tilt":1,"roll":29,"up":122,"mode":"active","raw":0,"err":0,"net":1,"ln":"wifi","rtt":180,"bat":86,"screen":1,"exempt":0} pages=0
+2026-11-18T00:39:30.288Z ****02 {"t":"hb","seq":19,"b":"turn06-b6","pose":1,"tilt":0,"roll":30,"up":130,"mode":"active","raw":0,"err":0,"net":1,"ln":"wifi","rtt":283,"bat":86,"screen":1,"exempt":0} pages=0
+2026-11-18T00:39:40.301Z ****02 {"t":"hb","seq":20,"b":"turn06-b6","pose":1,"tilt":0,"roll":33,"up":140,"mode":"active","raw":0,"err":0,"net":1,"ln":"wifi","rtt":244,"bat":86,"screen":1,"exempt":0} pages=0
+2026-11-18T00:39:50.303Z ****02 {"t":"hb","seq":21,"b":"turn06-b6","pose":1,"tilt":-1,"roll":32,"up":150,"mode":"active","raw":0,"err":0,"net":1,"ln":"wifi","rtt":354,"bat":86,"screen":1,"exempt":0} pages=0
+2026-11-18T00:40:00.328Z ****02 {"t":"hb","seq":22,"b":"turn06-b6","pose":1,"tilt":1,"roll":31,"up":160,"mode":"active","raw":0,"err":0,"net":1,"ln":"wifi","rtt":187,"bat":86,"screen":1,"exempt":0} pages=0
+2026-11-18T00:40:10.407Z ****02 {"t":"hb","seq":23,"b":"turn06-b6","pose":1,"tilt":1,"roll":30,"up":170,"mode":"active","raw":0,"err":0,"net":1,"ln":"wifi","rtt":261,"bat":86,"screen":1,"exempt":0} pages=0
+2026-11-18T00:40:20.400Z ****02 {"t":"hb","seq":24,"b":"turn06-b6","pose":1,"tilt":0,"roll":31,"up":180,"mode":"active","raw":0,"err":0,"net":1,"ln":"wifi","rtt":239,"bat":86,"screen":1,"exempt":0} pages=0
+2026-11-18T00:40:23.643Z ****02 {"t":"diag","why":"minute","ln":"wifi","valid":1,"wifiOn":1,"bat":86,"chg":0,"saver":0,"idle":0,"lightIdle":0,"restricted":0,"exempt":0,"bucket":10,"screen":1,"sens":"gya-","fw":"CP2A.260330.023.L355USQU1AZJ3","sdk":37,"restarts":1,"ok":24,"silence":11,"idleKind":"","detail":"","seq":25,"b":"turn06-b6","pose":1,"tilt":0,"roll":31,"up":183,"mode":"active","raw":0,"err":0,"net":1,"ln":"wifi","rtt":222,"bat":86,"screen":1,"exempt":0} pages=0
+2026-11-18T00:40:30.487Z ****02 {"t":"hb","seq":26,"b":"turn06-b6","pose":1,"tilt":0,"roll":31,"up":190,"mode":"active","raw":0,"err":0,"net":1,"ln":"wifi","rtt":204,"bat":86,"screen":1,"exempt":0} pages=0
+2026-11-18T00:40:40.448Z ****02 {"t":"hb","seq":27,"b":"turn06-b6","pose":1,"tilt":0,"roll":28,"up":200,"mode":"active","raw":0,"err":0,"net":1,"ln":"wifi","rtt":301,"bat":86,"screen":1,"exempt":0} pages=0
+2026-11-18T00:40:50.448Z ****02 {"t":"hb","seq":28,"b":"turn06-b6","pose":1,"tilt":0,"roll":30,"up":210,"mode":"active","raw":0,"err":0,"net":1,"ln":"wifi","rtt":327,"bat":86,"screen":1,"exempt":0} pages=0
+2026-11-18T00:41:00.441Z ****02 {"t":"hb","seq":29,"b":"turn06-b6","pose":1,"tilt":0,"roll":31,"up":220,"mode":"active","raw":0,"err":0,"net":1,"ln":"wifi","rtt":215,"bat":86,"screen":1,"exempt":0} pages=0
+2026-11-18T00:41:10.456Z ****02 {"t":"hb","seq":30,"b":"turn06-b6","pose":1,"tilt":0,"roll":30,"up":230,"mode":"active","raw":0,"err":0,"net":1,"ln":"wifi","rtt":153,"bat":85,"screen":1,"exempt":0} pages=0
+2026-11-18T00:41:20.460Z ****02 {"t":"hb","seq":31,"b":"turn06-b6","pose":1,"tilt":-1,"roll":39,"up":240,"mode":"active","raw":0,"err":0,"net":1,"ln":"wifi","rtt":255,"bat":85,"screen":1,"exempt":0} pages=0
+2026-11-18T00:41:22.105Z ****02 {"t":"scroll","r":-1,"seq":32,"b":"turn06-b6","pose":1,"tilt":-18,"roll":26,"up":242,"mode":"active","raw":0,"err":0,"net":1,"ln":"wifi","rtt":172,"bat":85,"screen":1,"exempt":0} pages=0
+2026-11-18T00:41:22.452Z ****02 {"t":"scroll","r":-3,"seq":33,"b":"turn06-b6","pose":1,"tilt":-30,"roll":12,"up":242,"mode":"active","raw":0,"err":0,"net":1,"ln":"wifi","rtt":340,"bat":85,"screen":1,"exempt":0} pages=0
+2026-11-18T00:41:22.703Z ****02 {"t":"scroll","r":0,"seq":34,"b":"turn06-b6","pose":0,"tilt":-52,"roll":8,"up":243,"mode":"active","raw":0,"err":0,"net":1,"ln":"wifi","rtt":159,"bat":85,"screen":1,"exempt":0} pages=0
+2026-11-18T00:41:24.946Z ****02 {"t":"diag","why":"change","ln":"wifi","valid":1,"wifiOn":1,"bat":85,"chg":0,"saver":0,"idle":0,"lightIdle":0,"restricted":0,"exempt":0,"bucket":10,"screen":0,"sens":"gya-","fw":"CP2A.260330.023.L355USQU1AZJ3","sdk":37,"restarts":1,"ok":34,"silence":11,"idleKind":"","detail":"","seq":35,"b":"turn06-b6","pose":0,"tilt":-72,"roll":10,"up":245,"mode":"active","raw":0,"err":0,"net":1,"ln":"wifi","rtt":190,"bat":85,"screen":0,"exempt":0} pages=0
+2026-11-18T00:41:26.704Z ****02 {"t":"mode","m":"resting","why":"arm down","idle":"lock","seq":36,"b":"turn06-b6","pose":0,"tilt":-72,"roll":12,"up":247,"mode":"resting","raw":0,"err":0,"net":1,"ln":"wifi","rtt":127,"bat":85,"screen":0,"exempt":0} pages=0
+2026-11-18T00:41:30.479Z ****02 {"t":"hb","seq":37,"b":"turn06-b6","pose":0,"tilt":-72,"roll":12,"up":250,"mode":"resting","raw":0,"err":0,"net":1,"ln":"wifi","rtt":243,"bat":85,"screen":0,"exempt":0} pages=0
+2026-11-18T00:41:40.504Z ****02 {"t":"hb","seq":38,"b":"turn06-b6","pose":0,"tilt":-72,"roll":12,"up":260,"mode":"resting","raw":0,"err":0,"net":1,"ln":"wifi","rtt":156,"bat":85,"screen":0,"exempt":0} pages=0
+2026-11-18T00:41:50.492Z ****02 {"t":"hb","seq":39,"b":"turn06-b6","pose":0,"tilt":-72,"roll":12,"up":270,"mode":"resting","raw":0,"err":0,"net":1,"ln":"wifi","rtt":147,"bat":85,"screen":0,"exempt":0} pages=0
+2026-11-18T00:42:00.777Z ****02 {"t":"hb","seq":40,"b":"turn06-b6","pose":0,"tilt":-72,"roll":12,"up":280,"mode":"resting","raw":0,"err":0,"net":1,"ln":"wifi","rtt":345,"bat":85,"screen":0,"exempt":0} pages=0
+2026-11-18T00:42:10.592Z ****02 {"t":"hb","seq":41,"b":"turn06-b6","pose":0,"tilt":-72,"roll":12,"up":290,"mode":"resting","raw":0,"err":0,"net":1,"ln":"wifi","rtt":364,"bat":85,"screen":0,"exempt":0} pages=0
+2026-11-18T00:42:20.647Z ****02 {"t":"hb","seq":42,"b":"turn06-b6","pose":0,"tilt":-72,"roll":12,"up":300,"mode":"resting","raw":0,"err":0,"net":1,"ln":"wifi","rtt":242,"bat":85,"screen":0,"exempt":0} pages=0
+2026-11-18T00:42:25.699Z ****02 {"t":"mode","m":"active","why":"arm up","seq":43,"b":"turn06-b6","pose":0,"tilt":-72,"roll":12,"up":306,"mode":"active","raw":0,"err":0,"net":1,"ln":"wifi","rtt":169,"bat":85,"screen":1,"exempt":0} pages=0
+2026-11-18T00:42:26.053Z ****02 {"t":"diag","why":"change","ln":"wifi","valid":1,"wifiOn":1,"bat":85,"chg":0,"saver":0,"idle":0,"lightIdle":0,"restricted":0,"exempt":0,"bucket":10,"screen":1,"sens":"gya-","fw":"CP2A.260330.023.L355USQU1AZJ3","sdk":37,"restarts":1,"ok":43,"silence":11,"idleKind":"lock","detail":"","seq":44,"b":"turn06-b6","pose":1,"tilt":-5,"roll":-1,"up":306,"mode":"active","raw":0,"err":0,"net":1,"ln":"wifi","rtt":150,"bat":85,"screen":1,"exempt":0} pages=0
+2026-11-18T00:42:26.485Z ****02 {"t":"scroll","r":-1,"seq":45,"b":"turn06-b6","pose":1,"tilt":-16,"roll":16,"up":306,"mode":"active","raw":0,"err":0,"net":1,"ln":"wifi","rtt":148,"bat":85,"screen":1,"exempt":0} pages=0
+2026-11-18T00:42:27.495Z ****02 {"t":"scroll","r":0,"seq":46,"b":"turn06-b6","pose":1,"tilt":-14,"roll":23,"up":307,"mode":"active","raw":0,"err":0,"net":1,"ln":"wifi","rtt":320,"bat":85,"screen":1,"exempt":0} pages=0
+2026-11-18T00:42:27.743Z ****02 {"t":"scroll","r":-1,"seq":47,"b":"turn06-b6","pose":1,"tilt":-19,"roll":28,"up":308,"mode":"active","raw":0,"err":0,"net":1,"ln":"wifi","rtt":373,"bat":85,"screen":1,"exempt":0} pages=0
+2026-11-18T00:42:28.461Z ****02 {"t":"scroll","r":-2,"seq":48,"b":"turn06-b6","pose":1,"tilt":-22,"roll":25,"up":308,"mode":"active","raw":0,"err":0,"net":1,"ln":"wifi","rtt":195,"bat":85,"screen":1,"exempt":0} pages=0
 ```
