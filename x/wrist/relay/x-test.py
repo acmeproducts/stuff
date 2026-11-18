@@ -24,37 +24,43 @@ window.SpeechRecognition=SR;window.webkitSpeechRecognition=SR;
 window.__hear=(t)=>{const r=[{transcript:t}];r.isFinal=true;window.__sr.onresult({resultIndex:0,results:[r]})};
 """
 
-calls = []          # every model call: 'read' or 'run', and what was sent
-model_down = [False]
+calls = []          # every real model call: ('read' or 'run', what was sent)
+via = []            # which service answered it
+down = {'venice': False, 'openrouter': False, 'anthropic': False}
 repo = {'sha': 0, 'content': None, 'puts': 0}
+MODELS = {'venice': ['venice-large', 'venice-small'], 'openrouter': ['or/alpha', 'or/beta'], 'anthropic': ['claude-haiku-test', 'claude-sonnet-test']}
 
-def reply(obj, cites=True):
-    block = {'type': 'text', 'text': json.dumps(obj)}
-    if cites: block['citations'] = [{'type': 'web_search_result_location', 'url': 'https://www.weather.gov/sgx/', 'title': 'National Weather Service'}]
-    return {'content': [{'type': 'server_tool_use', 'name': 'web_search'}, block]}
-
-def model(route):
-    rq = route.request
-    if '/v1/models' in rq.url:
-        return route.fulfill(status=200, content_type='application/json', body=json.dumps({'data': [{'id': 'claude-haiku-test'}, {'id': 'claude-sonnet-test'}]}))
-    body = json.loads(rq.post_data or '{}')
-    sysm, user = body.get('system', ''), body['messages'][0]['content']
-    if model_down[0]:
-        return route.fulfill(status=529, content_type='application/json', body=json.dumps({'error': {'message': 'Overloaded'}}))
+def answer(sysm, user):
     if 'reading, gathering and composing' in sysm:
         said = json.loads(user)['said'].lower()
         calls.append(('read', user))
-        if 'what do you know' in said: o = {'kind': 'list'}
-        elif 'call it' in said: o = {'kind': 'rename', 'target': 'weather traffic', 'to': 'morning'}
-        elif 'forget' in said: o = {'kind': 'forget', 'target': 'gold'}
-        elif 'shorter' in said: o = {'kind': 'change', 'reading': 'shorter', 'name': 'weather traffic', 'ask': 'Weather today and traffic to Irvine, in one sentence', 'parts': ['Seventy, clear, twenty two minutes to Irvine.'], 'card': '70 clear · 22 min'}
-        elif 'gold' in said: o = {'kind': 'answer', 'reading': 'gold in the Central Valley', 'name': 'gold', 'ask': 'Natural occurrence of gold in the Central Valley', 'parts': ['Placer gold washed down from the Sierra.'], 'card': 'Placer gold along the east side rivers.', 'sources': [{'title': 'USGS', 'url': 'https://www.usgs.gov/x'}]}
-        else: o = {'kind': 'answer', 'reading': 'weather and traffic to Irvine', 'name': 'weather traffic', 'ask': 'Weather today and traffic to Irvine', 'parts': ['Seventy and clear. Traffic to Irvine is light, twenty two minutes.', 'Rain is likely on Friday.'], 'card': '70°F clear · Irvine 22 min · rain Friday'}
-    else:
-        calls.append(('run', user))
-        if 'Go on from there' in user: o = {'kind': 'answer', 'parts': ['The weekend looks dry.'], 'card': '70°F clear · weekend dry'}
-        else: o = {'kind': 'answer', 'parts': ['Fresh today: sixty eight and sunny, twenty minutes to Irvine.'], 'card': '68°F sunny · 20 min'}
-    route.fulfill(status=200, content_type='application/json', body=json.dumps(reply(o)))
+        if 'what do you know' in said: return {'kind': 'list'}
+        if 'call it' in said: return {'kind': 'rename', 'target': 'weather traffic', 'to': 'morning'}
+        if 'forget' in said: return {'kind': 'forget', 'target': 'gold'}
+        if 'shorter' in said: return {'kind': 'change', 'reading': 'shorter', 'name': 'weather traffic', 'ask': 'Weather today and traffic to Irvine, in one sentence', 'parts': ['Seventy, clear, twenty two minutes to Irvine.'], 'card': '70 clear · 22 min'}
+        if 'gold' in said: return {'kind': 'answer', 'reading': 'gold in the Central Valley', 'name': 'gold', 'ask': 'Natural occurrence of gold in the Central Valley', 'parts': ['Placer gold washed down from the Sierra.'], 'card': 'Placer gold along the east side rivers.', 'sources': [{'title': 'USGS', 'url': 'https://www.usgs.gov/x'}]}
+        return {'kind': 'answer', 'reading': 'weather and traffic to Irvine', 'name': 'weather traffic', 'ask': 'Weather today and traffic to Irvine', 'parts': ['Seventy and clear.[REF]0[/REF] Traffic to Irvine is light, twenty two minutes. [1]', 'Rain is likely on Friday.'], 'card': '70°F clear · Irvine 22 min · rain Friday'}
+    calls.append(('run', user))
+    if 'Go on from there' in user: return {'kind': 'answer', 'parts': ['The weekend looks dry.'], 'card': '70°F clear · weekend dry'}
+    return {'kind': 'answer', 'parts': ['Fresh today: sixty eight and sunny, twenty minutes to Irvine.'], 'card': '68°F sunny · 20 min'}
+
+def model(route):
+    rq, u = route.request, route.request.url
+    who = 'venice' if 'venice.ai' in u else 'openrouter' if 'openrouter.ai' in u else 'anthropic'
+    ok = lambda o, s=200: route.fulfill(status=s, content_type='application/json', body=json.dumps(o))
+    if u.endswith('/auth/key'): return ok({'data': {'label': 'test'}})
+    if '/models' in u: return ok({'data': [{'id': m} for m in MODELS[who]]})
+    body = json.loads(rq.post_data or '{}')
+    if body.get('max_tokens') == 1:      # the key-and-model test
+        bad = 'bad' in (rq.headers.get('authorization', '') + rq.headers.get('x-api-key', ''))
+        return ok({'error': {'message': 'bad key'}}, 401) if bad else ok({'choices': [{'message': {'content': 'p'}}], 'content': [{'type': 'text', 'text': 'p'}]})
+    if down[who]: return ok({'error': {'message': 'Overloaded'}}, 529)
+    if who == 'anthropic':
+        o = answer(body.get('system', ''), body['messages'][0]['content']); via.append(who)
+        return ok({'content': [{'type': 'server_tool_use', 'name': 'web_search'}, {'type': 'text', 'text': json.dumps(o), 'citations': [{'type': 'web_search_result_location', 'url': 'https://www.weather.gov/sgx/', 'title': 'National Weather Service'}]}]})
+    o = answer(body['messages'][0]['content'], body['messages'][1]['content']); via.append(who)
+    web = body.get('venice_parameters', {}).get('enable_web_search') if who == 'venice' else body.get('plugins')
+    ok({'choices': [{'message': {'content': json.dumps(o), 'citations': [{'url': 'https://www.weather.gov/sgx/', 'title': 'National Weather Service'}] if web else []}}]})
 
 def github(route):
     rq, u = route.request, route.request.url
@@ -84,6 +90,8 @@ with sync_playwright() as pw:
         ctx = b.new_context(viewport={'width': w, 'height': h}, device_scale_factor=2 if mobile else 1, has_touch=mobile, is_mobile=mobile)
         ctx.add_init_script(STUBS)
         ctx.route('https://api.anthropic.com/**', model)
+        ctx.route('https://api.venice.ai/**', model)
+        ctx.route('https://openrouter.ai/**', model)
         ctx.route('https://api.github.com/**', github)
         p = ctx.new_page()
         PAGES.append(p)
@@ -91,8 +99,10 @@ with sync_playwright() as pw:
         p.on('pageerror', lambda e: p.errors.append(str(e)))
         return p
 
-    def setup(p, gh=True):
-        p.fill('#fKey', 'sk-test');
+    def setup(p, gh=True, keys=('venice',), pick=None):
+        for k in keys:
+            p.fill('#k_' + k, 'key-' + k); p.locator('#k_' + k).blur(); p.wait_for_timeout(350)       # a pasted key loads its models by itself
+        for k, m in (pick or {}).items(): p.select_option('#m_' + k, m)
         if gh: p.fill('#fGh', 'ghp_test'); p.fill('#fRepo', 'acme/x-memory')
         p.click('#setTest'); p.wait_for_selector('#begin.show', timeout=8000)
 
@@ -107,8 +117,12 @@ with sync_playwright() as pw:
     pg = device()
     pg.goto(base + '/x')
     check('first visit opens setup, not a wall of tiles', pg.locator('#setup.show').count() == 1 and pg.locator('#begin.show').count() == 0)
-    setup(pg)
-    check('setup: key tested, a model picked, memory repository found', pg.input_value('#fModel') == 'claude-sonnet-test' and 'repository found' in pg.inner_text('#beginNote') and pg.locator('#setup.show').count() == 0, pg.inner_text('#beginNote'))
+    check('Venice is the default service on a fresh device', pg.input_value('#fActive') == 'venice')
+    pg.fill('#k_venice', 'key-venice'); pg.locator('#k_venice').blur(); pg.wait_for_timeout(400)
+    check('a pasted key loads that service\'s models by itself', pg.locator('#m_venice option').count() == 2 and 'models' in pg.inner_text('#st_venice'), pg.inner_text('#st_venice'))
+    setup(pg, keys=('venice', 'anthropic'), pick={'venice': 'venice-small'})
+    saved = pg.evaluate("() => JSON.parse(localStorage.getItem('x_cfg'))")
+    check('setup: each service keeps its own key and model, Venice is the default, memory repository found', saved['active'] == 'venice' and saved['venice']['model'] == 'venice-small' and saved['venice']['ok'] and saved['anthropic']['model'] == 'claude-haiku-test' and saved['anthropic']['ok'] and not saved['openrouter']['ok'] and 'Venice.ai is the default, then Anthropic' in pg.inner_text('#beginNote') and 'repository found' in pg.inner_text('#beginNote') and pg.locator('#setup.show').count() == 0, pg.inner_text('#beginNote'))
     pg.click('#beginBtn'); PAUSE(800)
     check('after the opening touch X is listening and says it is ready', 'Ready' in last(pg) and pg.inner_text('#stateText') == 'Listening', (last(pg), pg.inner_text('#stateText')))
     check('the opening touch is not counted', pg.inner_text('#meter') == 'no touches', pg.inner_text('#meter'))
@@ -116,8 +130,8 @@ with sync_playwright() as pw:
     # ---- gate 1: ask something new
     n0 = len(calls)
     hear(pg, "What's the weather and how is traffic to Irvine?")
-    check('an unknown ask makes one model call', len(calls) == n0 + 1 and calls[-1][0] == 'read', len(calls) - n0)
-    check('X says its reading in a few words, then the answer', last(pg).startswith('weather and traffic to Irvine. Seventy and clear'), last(pg))
+    check('an unknown ask makes one model call, to the default service', len(calls) == n0 + 1 and calls[-1][0] == 'read' and via[-1] == 'venice', (len(calls) - n0, via[-1:]))
+    check('X says its reading, then the answer, without the citation marks a service puts in the text', last(pg) == 'weather and traffic to Irvine. Seventy and clear. Traffic to Irvine is light, twenty two minutes.', last(pg))
     check('one card is in front, with its sources', 'Irvine 22 min' in pg.inner_text('#text') and pg.locator('#sources a').count() >= 1 and pg.inner_text('#reading') == 'weather and traffic to Irvine', pg.inner_text('#text'))
     if shot: pg.screenshot(path=shot + '-answer.png')
 
@@ -176,10 +190,15 @@ with sync_playwright() as pw:
     pg.evaluate('() => { window.__ttsDelay = 30 }')
 
     # ---- gate 5: the model failing is X's problem, said plainly
-    model_down[0] = True
+    down['venice'] = True
+    nv = len(via)
+    hear(pg, 'how is the weather and traffic')
+    check('when the default service fails, the next one that is set up answers', len(via) == nv + 1 and via[-1] == 'anthropic' and 'Seventy and clear' in last(pg), (via[nv:], last(pg)))
+    down['anthropic'] = True
     hear(pg, 'how tall is Mount Whitney')
-    check('when the AI service fails X says so and shows why', 'did not answer' in last(pg) and 'Overloaded' in pg.inner_text('#text'), pg.inner_text('#text'))
-    model_down[0] = False
+    check('when every service fails X says so and shows why, naming each', 'did not answer' in last(pg) and 'Venice.ai: Overloaded' in pg.inner_text('#text') and 'Anthropic: Overloaded' in pg.inner_text('#text'), pg.inner_text('#text'))
+    down['venice'] = down['anthropic'] = False
+    hear(pg, 'enough')
     all_said = ' '.join(said(pg)).lower()
     check('X never asks the owner to repeat or rephrase', not any(k in all_said for k in ('repeat', 'rephrase', 'say that again', "didn't catch", 'did not understand', 'pardon')), '')
 
@@ -216,16 +235,33 @@ with sync_playwright() as pw:
     PAUSE(4500)
     p2 = device()
     p2.goto(base + '/x'); setup(p2)
+    s2 = p2.evaluate("() => JSON.parse(localStorage.getItem('x_cfg'))")
     check('a second browser learns the words from GitHub at setup', '1 words known' in p2.inner_text('#beginNote'), p2.inner_text('#beginNote'))
+    check('and takes the model chosen on the first device from memory; keys never travel', s2['venice']['model'] == 'venice-small' and 'key-venice' not in json.dumps(remote_events()) and any(e['type'] == 'cfg.ai' for e in remote_events()), s2['venice'])
     p2.click('#beginBtn'); PAUSE(800)
     n3 = len(calls)
     hear(p2, 'morning')
     check('and uses the word with no reading step', len(calls) == n3 + 1 and calls[-1][0] == 'run', calls[-1][0])
     check('no script errors on the phone-sized page', not pg.errors and not p2.errors, pg.errors + p2.errors)
 
+    # ---- the switch: which service is the default
+    p2.tap('#setupBtn'); p2.wait_for_selector('#setup.show')
+    p2.fill('#k_anthropic', 'key-anthropic'); p2.locator('#k_anthropic').blur(); p2.wait_for_timeout(400)
+    p2.select_option('#fActive', 'anthropic'); p2.click('#setTest'); p2.wait_for_selector('#setup', state='hidden'); p2.wait_for_selector('#begin.show')
+    note = p2.inner_text('#beginNote')
+    p2.click('#beginBtn'); p2.wait_for_timeout(800)
+    nv = len(via)
+    hear(p2, 'morning')
+    check('switching the default service sends the next ask there', via[nv:] == ['anthropic'] and 'Anthropic is the default, then Venice.ai' in note, (via[nv:], note))
+    p2.tap('#setupBtn'); p2.wait_for_selector('#setup.show'); p2.fill('#k_openrouter', 'bad-key'); p2.locator('#k_openrouter').blur(); p2.wait_for_timeout(400)
+    p2.select_option('#fActive', 'openrouter'); p2.click('#setTest'); p2.wait_for_timeout(900)
+    check('a default service whose key does not work is refused, and says so', 'the default service, OpenRouter, is not working' in p2.inner_text('#setMsg') and p2.locator('#setup.show').count() == 1, p2.inner_text('#setMsg'))
+
     # ---- gate 7 (lab only): the same on a desktop-sized browser
     d = device(1280, 800, mobile=False)
-    d.goto(base + '/x'); setup(d); d.click('#beginBtn'); PAUSE(800)
+    d.goto(base + '/x'); setup(d)
+    check('a new device with only a Venice key: Venice stands in for the usual default, and says so', 'Venice.ai is the default on this device (Anthropic, your usual default, has no key here)' in d.inner_text('#beginNote') and [e for e in remote_events() if e['type'] == 'cfg.ai'][-1]['p']['active'] == 'anthropic', d.inner_text('#beginNote'))
+    d.click('#beginBtn'); PAUSE(800)
     hear(d, 'How is the weather and traffic to Irvine')
     box = d.locator('#text').bounding_box()
     check('desktop size: ask, answer, card in front, nothing off the screen', 'Seventy and clear' in last(d) and box and box['x'] >= 0 and box['x'] + box['width'] <= 1280, box)

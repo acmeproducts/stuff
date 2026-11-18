@@ -30,7 +30,7 @@ Stories US1, US2, US4, US5, US6, US11, US12. Requirements R01, R02, R06 to R09, 
 - **Evidence.** Every answer keeps its sources and the material it was made from, in the library (R26).
 - **Everything runs in the page.** The nine steps need no gateway and no server of ours. Steps 4 to 6 are one call from the page to the model.
 - **Memory.** Kept on the device and synced to a private GitHub repository as events (D13). The build reads it before each release (D21).
-- **Setup is honest.** Keys for the model provider and for listening, and the GitHub token, are entered once on X's address. Those touches are counted as setup and reported separately from session touches.
+- **Setup is honest.** A key for each AI service the owner uses, and the GitHub token, are entered once on X's address. Those touches are counted as setup and reported separately from session touches.
 
 ## 5. Releases
 
@@ -40,7 +40,7 @@ All nine steps in their smallest form. A newborn already learns.
 **Scope**
 1. The X page at `/x`, on phone and desktop.
 2. Session: one opening touch unlocks the microphone and the voice and starts the hand-time meter. Present sources are shown. On closing, or when the owner says he is done, X reports minutes and touches and tells the watch to sleep (W1).
-3. Listening with turn-taking. When the owner speaks, X goes quiet (H1).
+3. Listening with the browser's own engine. X speaks in short parts and listens between them (H1).
 4. The nine steps. Five commands by voice. Unknown asks answered through one model call with web search: reading, spoken answer, one card, sources.
 5. Verdicts: **yes** keeps the ask as a word X names; saying how it should differ changes it; **no** drops it.
 6. Memory on the device, synced to GitHub: words, library, journal of sessions.
@@ -75,27 +75,32 @@ All nine steps in their smallest form. A newborn already learns.
 
 **Proves or kills:** TH1, TH2, TH3.
 
-**Built 2026-11-18 as `x-r1` at `/x`. Lab only.**
+**Built 2026-11-18 at `/x`. Lab only. Now `x-r2`.**
+
+`x-r2` is the owner's correction of `x-r1`, the same day:
+> "Actually Venice is primary. You have three applications as part of our floor that show how to load the models available and then persist that model for that provider, and also then a switch to govern which provider is the default. We don't need Deepgram for transcription, we're not trying to go multi-language right now, whatever your browser is set to is fine."
 
 What is there, all of it working end to end in the lab:
-- Setup once: AI service, its key (tested, model picked from the service's own list), optional Deepgram key, optional GitHub token and memory repository (found, or created private if the token allows; a public one is warned about). Setup closes itself and Begin appears.
-- One touch on Begin. Then: listening (Deepgram if a key is set, else the browser's own engine), the nine steps, the five commands in many phrasings, unknown asks through one model call with web search, a card with sources, words kept, changed, renamed, listed and forgotten by talking, a known word run with no reading step.
-- Memory as events on the device, merged with `x-memory.json` in the repository; a memory file that cannot be read is never overwritten.
-- Hand time: touches and touch seconds counted after the opening touch, shown at the top, spoken at the end, kept in the journal. Saying you are done ends the session and tells the watch to sleep.
-- A line in the relay's log for each thing that happened, never what was said.
+- **Setup once, laid out as in prism, market-navigator and devstream.** A default-service switch (Venice unless changed). A card each for Venice.ai, OpenRouter and Anthropic direct: key, Load models, and a model kept for that service. A pasted key loads its models by itself. Test and save checks every service that has a key with a one-token call. A default chosen by hand that does not work is refused, with the reason.
+- **Fallback.** If the default service fails, the next one that is set up answers. If all fail, X says so and names each reason.
+- **GitHub memory, optional.** Token and repository (found, or created private if the token allows; a public one is warned about). Setup closes itself and Begin appears.
+- **One touch on Begin.** Then: the browser's own listening in the browser's language, the nine steps, the five commands in many phrasings, unknown asks through one model call with web search, a card with sources, words kept, changed, renamed, listed and forgotten by talking, a known word run with no reading step.
+- **Memory as events** on the device, merged with `x-memory.json` in the repository. A memory file that cannot be read is never overwritten. Which service is the default and which model each uses are events too, so a second device needs only its keys. Keys are never in the memory.
+- **Hand time.** Touches and touch seconds counted after the opening touch, shown at the top, spoken at the end, kept in the journal. Saying you are done ends the session and tells the watch to sleep.
+- **A log line** in the relay for each thing that happened (including which service answered), never what was said.
 
 | Check | Result |
 |---|---|
-| X checks, phone-sized browser and once at desktop size | 43 of 43 |
+| X checks, phone-sized browser and once at desktop size | 50 of 50 |
 | Relay checks with `/x` and the X log line | 35 of 35 |
 | On the owner's phone | **not yet run** |
 
-**Stood in for by the test, so unproven until the owner's first session:** the real model and its web search; real GitHub; the real microphone, Deepgram and the browser's voice. The page has no test path of its own: the test intercepts the network and replaces the browser's speech functions.
+**Stood in for by the test, so unproven until the owner's first session:** the three real services and their web search; real GitHub; the real microphone and the browser's listening and voice. The page has no test path of its own: the test intercepts the network and replaces the browser's speech functions.
 
 **Changed while building, and why**
-- H1 is rewritten (`X-CONCEPT.md` §5): X speaks in short parts with the microphone shut, and listens between them. A browser hears itself.
-- Two of the owner's three AI services in this pass (D09).
-- Theory, not yet seen on the S23: the browser's own listening restarts after every pause and may chime each time. Setting a Deepgram key avoids that path.
+- H1 is rewritten (`X-CONCEPT.md` §5): X speaks in short parts and ignores what the microphone hears meanwhile. A browser hears itself.
+- Citation marks that a service puts inside its text are removed before X speaks.
+- Theory, to be seen in the first session on the S23: the browser's own listening restarts after each pause, and may chime each time it does.
 
 ### X2 — Lists (walk)
 **Scope:** a word can bring many items (title, text, picture or sound, link, source). One item is in front. **more** and **back** by voice or signal; **glide** by a held posture once V3 is in. **enough** stops. Saying "more like this" or "less of this" changes the word (a change verdict).

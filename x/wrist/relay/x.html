@@ -41,6 +41,12 @@ button{background:none;border:1px solid var(--line);border-radius:12px;padding:1
 #setup .row{display:flex;gap:10px;margin-top:22px}
 #setup .row button{flex:1}
 #setup .go{border-color:var(--accent);color:var(--accent)}
+#setup .prov{border:1px solid var(--line);border-radius:12px;padding:12px 14px;margin-top:14px}
+#setup .prov h2{font-size:16px;margin:0 0 8px;display:flex;gap:10px;align-items:baseline}
+#setup .prov h2 span{font-size:13px;font-weight:400;color:var(--soft)}
+#setup .prov .line{display:flex;gap:8px;margin-top:8px}
+#setup .prov .line button{flex:none;padding:10px 12px;font-size:15px}
+#setup .prov .line select{flex:1;min-width:0}
 #setMsg{margin-top:14px;font-size:15px;min-height:24px}
 .ok{color:var(--good)}.no{color:var(--bad)}.wn{color:var(--warn)}
 </style>
@@ -59,15 +65,18 @@ button{background:none;border:1px solid var(--line);border-radius:12px;padding:1
 
 <div id="setup">
   <h1>Set X up</h1>
-  <p>Done once on this device. Keys stay in this browser; they are sent only to the service each belongs to.</p>
-  <label for="fProv">AI SERVICE</label>
-  <select id="fProv"><option value="anthropic">Anthropic</option><option value="openrouter">OpenRouter</option></select>
-  <label for="fKey">ITS KEY</label>
-  <input id="fKey" type="password" autocomplete="off" placeholder="paste the key">
-  <label for="fModel">MODEL</label>
-  <input id="fModel" list="models" autocomplete="off" placeholder="filled in when the key is tested"><datalist id="models"></datalist>
-  <label for="fDg">LISTENING KEY (DEEPGRAM). Leave empty to use this browser's own listening.</label>
-  <input id="fDg" type="password" autocomplete="off" placeholder="optional">
+  <p>Done once on this device. Keys stay in this browser and go only to the service each belongs to. Which model you chose travels with X's memory; keys never do.</p>
+  <label for="fActive">DEFAULT AI SERVICE</label>
+  <select id="fActive"><option value="venice">Venice.ai</option><option value="openrouter">OpenRouter</option><option value="anthropic">Anthropic direct</option></select>
+  <div class="prov" data-p="venice"><h2>Venice.ai <span id="st_venice"></span></h2>
+    <input id="k_venice" type="password" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="API key" aria-label="Venice API key">
+    <div class="line"><button type="button" id="load_venice">Load models</button><select id="m_venice" aria-label="Venice model"><option value="">load models first</option></select></div></div>
+  <div class="prov" data-p="openrouter"><h2>OpenRouter <span id="st_openrouter"></span></h2>
+    <input id="k_openrouter" type="password" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="API key" aria-label="OpenRouter API key">
+    <div class="line"><button type="button" id="load_openrouter">Load models</button><select id="m_openrouter" aria-label="OpenRouter model"><option value="">load models first</option></select></div></div>
+  <div class="prov" data-p="anthropic"><h2>Anthropic direct <span id="st_anthropic"></span></h2>
+    <input id="k_anthropic" type="password" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="API key" aria-label="Anthropic API key">
+    <div class="line"><button type="button" id="load_anthropic">Load models</button><select id="m_anthropic" aria-label="Anthropic model"><option value="">load models first</option></select></div></div>
   <label for="fGh">GITHUB TOKEN, so what X learns is kept and shared between your devices</label>
   <input id="fGh" type="password" autocomplete="off" placeholder="optional for now">
   <label for="fRepo">PRIVATE REPOSITORY FOR X'S MEMORY (owner/name)</label>
@@ -79,19 +88,29 @@ button{background:none;border:1px solid var(--line);border-radius:12px;padding:1
 <script>
 (function(){
 'use strict';
-var BUILD='x-r1';
+var BUILD='x-r2';
 var $=function(id){return document.getElementById(id)};
 function get(k,d){try{var v=localStorage.getItem(k);return v==null?d:JSON.parse(v)}catch(e){return d}}
 function put(k,v){try{localStorage.setItem(k,JSON.stringify(v))}catch(e){}}
 function rid(){var b=new Uint8Array(8);crypto.getRandomValues(b);return Array.prototype.map.call(b,function(x){return(x<16?'0':'')+x.toString(16)}).join('')}
-var cfg=get('x_cfg',{provider:'anthropic',key:'',model:'',dg:'',gh:'',repo:''});
+var PROV=['venice','openrouter','anthropic'],PNAME={venice:'Venice.ai',openrouter:'OpenRouter',anthropic:'Anthropic'};
+var cfg=get('x_cfg',null)||{};
+(function(){
+  // x-r1 kept one service; carry it over
+  if(cfg.provider&&cfg.key&&!cfg[cfg.provider])cfg[cfg.provider]={key:cfg.key,model:cfg.model||'',ok:!!cfg.model};
+  PROV.forEach(function(p){if(!cfg[p]||typeof cfg[p]!=='object')cfg[p]={key:'',model:'',ok:false}});
+  if(PROV.indexOf(cfg.active)<0)cfg.active=PROV.filter(function(p){return cfg[p].ok})[0]||'venice';
+  delete cfg.provider;delete cfg.key;delete cfg.model;delete cfg.dg;cfg.gh=cfg.gh||'';cfg.repo=cfg.repo||'';
+})();
+function usable(p){var c=cfg[p];return !!(c&&c.ok&&c.key&&c.model)}
+function aiOrder(){return[cfg.active].concat(PROV.filter(function(p){return p!==cfg.active})).filter(usable)}
 var device=get('x_device','');if(!device){device=rid();put('x_device',device)}
 
 /* =====================================================================
    Memory. Everything X learns is an event: id, device, time, type, payload.
    Events live in this browser and are merged with a file in a private GitHub repository.
    ===================================================================== */
-var events=get('x_events',[]),words={},library=[],journal=[],dirty=false,syncing=false,syncNote='',syncT=null;
+var events=get('x_events',[]),words={},library=[],journal=[],aiPrefs=null,dirty=false,syncing=false,syncNote='',syncT=null;
 function apply(e){
   var p=e.p||{},k;
   if(e.type==='word.keep'){words[p.name.toLowerCase()]={name:p.name,ask:p.ask,made:e.ts,used:0}}
@@ -101,8 +120,9 @@ function apply(e){
   else if(e.type==='word.used'){k=(p.name||'').toLowerCase();if(words[k])words[k].used++}
   else if(e.type==='lib.add'){library.push(p)}
   else if(e.type==='session'){journal.push(p)}
+  else if(e.type==='cfg.ai'){aiPrefs=p}      // which service is the default and which model each uses; never a key
 }
-function rebuild(){words={};library=[];journal=[];events.sort(function(a,b){return a.ts-b.ts});events.forEach(apply)}
+function rebuild(){words={};library=[];journal=[];aiPrefs=null;events.sort(function(a,b){return a.ts-b.ts});events.forEach(apply)}
 function compact(list){
   // the library and the journal keep their newest entries; words are never trimmed
   var lib=0,ses=0,keep=[];
@@ -146,27 +166,42 @@ function sync(){
 /* =====================================================================
    The AI's three steps: read, gather, compose. One call from this page, with the owner's key.
    ===================================================================== */
-function modelCall(sys,user){
-  var t0=Date.now();
-  var done=function(o){o.ms=Date.now()-t0;return o};
-  if(cfg.provider==='openrouter'){
-    return fetch('https://openrouter.ai/api/v1/chat/completions',{method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+cfg.key},
-      body:JSON.stringify({model:cfg.model,max_tokens:1500,messages:[{role:'system',content:sys},{role:'user',content:user}],plugins:[{id:'web',max_results:4}]})})
+var VENICE={enable_web_search:'auto',enable_web_citations:true,enable_web_scraping:false,include_venice_system_prompt:false};
+function callOne(p,sys,user){
+  var c=cfg[p];
+  if(p==='anthropic'){
+    return fetch('https://api.anthropic.com/v1/messages',{method:'POST',headers:{'Content-Type':'application/json','x-api-key':c.key,'anthropic-version':'2023-06-01','anthropic-dangerous-direct-browser-access':'true'},
+      body:JSON.stringify({model:c.model,max_tokens:1500,system:sys,messages:[{role:'user',content:user}],tools:[{type:'web_search_20250305',name:'web_search',max_uses:4}]})})
       .then(function(r){return r.json()}).then(function(j){
-        if(j.error)throw new Error(j.error.message||'the model refused');
-        var m=(j.choices&&j.choices[0]&&j.choices[0].message)||{},c=[];
-        (m.annotations||[]).forEach(function(a){var u=a&&a.url_citation;if(u&&u.url)c.push({title:u.title||u.url,url:u.url})});
-        return done({text:String(m.content||''),cites:c});
+        if(j.error)throw new Error(j.error.message||'refused');
+        var text='',cites=[];
+        (j.content||[]).forEach(function(b){if(b.type==='text'){text+=b.text;(b.citations||[]).forEach(function(q){if(q.url)cites.push({title:q.title||q.url,url:q.url})})}});
+        return{text:text,cites:cites};
       });
   }
-  return fetch('https://api.anthropic.com/v1/messages',{method:'POST',headers:{'Content-Type':'application/json','x-api-key':cfg.key,'anthropic-version':'2023-06-01','anthropic-dangerous-direct-browser-access':'true'},
-    body:JSON.stringify({model:cfg.model,max_tokens:1500,system:sys,messages:[{role:'user',content:user}],tools:[{type:'web_search_20250305',name:'web_search',max_uses:4}]})})
-    .then(function(r){return r.json()}).then(function(j){
-      if(j.error)throw new Error(j.error.message||'the model refused');
-      var text='',c=[];
-      (j.content||[]).forEach(function(b){if(b.type==='text'){text+=b.text;(b.citations||[]).forEach(function(q){if(q.url)c.push({title:q.title||q.url,url:q.url})})}});
-      return done({text:text,cites:c});
+  var body={model:c.model,max_tokens:1500,messages:[{role:'system',content:sys},{role:'user',content:user}]};
+  if(p==='venice')body.venice_parameters=VENICE;else body.plugins=[{id:'web',max_results:4}];
+  return fetch(p==='venice'?'https://api.venice.ai/api/v1/chat/completions':'https://openrouter.ai/api/v1/chat/completions',{method:'POST',cache:'no-store',headers:{'Content-Type':'application/json','Authorization':'Bearer '+c.key},body:JSON.stringify(body)})
+    .then(function(r){return r.json().then(function(j){
+      if(!r.ok||j.error)throw new Error((j.error&&(j.error.message||j.error))||('status '+r.status));
+      var m=(j.choices&&j.choices[0]&&j.choices[0].message)||{},cites=[];
+      (m.citations||j.citations||[]).forEach(function(q){var u=q&&(q.url||(q.source&&q.source.url));if(u)cites.push({title:q.title||(q.source&&q.source.title)||u,url:u})});
+      (m.annotations||[]).forEach(function(a){var u=a&&a.url_citation;if(u&&u.url)cites.push({title:u.title||u.url,url:u.url})});
+      return{text:String(m.content||''),cites:cites};
+    })});
+}
+function modelCall(sys,user){
+  var order=aiOrder(),t0=Date.now(),i=0,errs=[];
+  if(!order.length)return Promise.reject(new Error('no AI service is set up. Open Setup'));
+  function next(){
+    var p=order[i++];
+    return callOne(p,sys,user).then(function(o){if(!String(o.text).trim())throw new Error('empty reply');o.ms=Date.now()-t0;o.ai=p;o.fell=i-1;return o},function(e){
+      errs.push(PNAME[p]+': '+String(e&&e.message||e).slice(0,90));
+      if(i<order.length)return next();
+      throw new Error(errs.join('; '));
     });
+  }
+  return next();
 }
 var SHAPE='Reply with ONE JSON object and nothing else:\n{"kind":"answer|change|list|rename|forget|handtime","reading":"what you took them to mean, three to seven words","name":"one or two plain words X could call this if it is kept","ask":"the request restated so it can be run again another day without this conversation","parts":["first spoken part: the answer itself, at most two sentences","next part","up to five parts"],"card":"the key facts to show, plain text, at most 60 words","sources":[{"title":"","url":""}],"target":"for rename, forget or change: the word they mean","to":"for rename: the new name"}';
 function sysRead(){
@@ -186,7 +221,8 @@ function parse(text){
   if(a>=0&&b>a){try{d=JSON.parse(text.slice(a,b+1))}catch(e){d=null}}
   if(!d||typeof d!=='object')d={kind:'answer',reading:'',parts:[text.replace(/\s+/g,' ').trim().slice(0,600)],card:text.trim().slice(0,400)};
   if(!Array.isArray(d.parts))d.parts=d.parts?[String(d.parts)]:[];
-  d.parts=d.parts.map(function(x){return String(x||'').trim()}).filter(Boolean).slice(0,6);
+  var clean=function(x){return String(x||'').replace(/\[REF\][\s\S]*?\[\/REF\]/g,'').replace(/\s*\[\d+\]/g,'').replace(/\s+/g,' ').trim()};
+  d.parts=d.parts.map(clean).filter(Boolean).slice(0,6);if(d.card)d.card=clean(d.card);
   d.sources=Array.isArray(d.sources)?d.sources.filter(function(s){return s&&/^https?:\/\//.test(s.url||'')}):[];
   return d;
 }
@@ -211,74 +247,26 @@ function say(text,then){
 function hush(){sayGen++;clearTimeout(sayT);try{speechSynthesis.cancel()}catch(e){}speaking=false;L.gate=false}
 
 /* =====================================================================
-   Listening: Deepgram the way chat-test does it (16 kHz samples, finals gathered until the end of the utterance),
-   or this browser's own engine when no Deepgram key is set.
+   Listening: this browser's own engine, in whatever language the browser is set to (owner, 2026-11-18).
+   The engine stops itself after a pause; it is started again, the way chat-test's browser listening does.
    ===================================================================== */
-var L={on:false,kind:'',ws:null,ctx:null,proc:null,stream:null,sr:null,utt:[],timer:null,gate:false,err:''};
+var L={on:false,sr:null,gate:false,err:'',utt:[]};
 function interim(t){$('heard').textContent=t?'“'+t+'”':''}
-function flushUtt(){clearTimeout(L.timer);L.timer=null;if(!L.utt.length)return;var t=L.utt.splice(0).join(' ');hear(t)}
 function listenStart(){
   L.err='';
-  if(cfg.dg){
-    L.kind='deepgram';
-    return navigator.mediaDevices.getUserMedia({audio:{echoCancellation:true,noiseSuppression:true,channelCount:1}}).then(function(s){L.stream=s;dgOpen()},function(e){L.err='The microphone was not allowed ('+(e&&e.name||e)+').';paint()});
-  }
-  L.kind='browser';browserListen();return Promise.resolve();
-}
-function dgOpen(){
-  if(!L.stream||phase!=='live')return;
-  var AC=window.AudioContext||window.webkitAudioContext;
-  if(!L.ctx){try{L.ctx=new AC({sampleRate:16000})}catch(e){L.ctx=new AC()}}
-  var ws=new WebSocket('wss://api.deepgram.com/v1/listen?model=nova-3&language=en&encoding=linear16&sample_rate='+Math.round(L.ctx.sampleRate)+'&channels=1&interim_results=true&utterance_end_ms=1000&punctuate=true&endpointing=400',['token',cfg.dg]);
-  L.ws=ws;
-  ws.onopen=function(){
-    if(L.ws!==ws)return;L.on=true;L.err='';
-    if(!L.proc){
-      var src=L.ctx.createMediaStreamSource(L.stream),silent=L.ctx.createGain();silent.gain.value=0;silent.connect(L.ctx.destination);
-      L.proc=L.ctx.createScriptProcessor(4096,1,1);
-      L.proc.onaudioprocess=function(e){
-        var w=L.ws;if(!w||w.readyState!==1)return;
-        var f=e.inputBuffer.getChannelData(0),b=new Int16Array(f.length);
-        if(!L.gate)for(var i=0;i<f.length;i++){var s=Math.max(-1,Math.min(1,f[i]));b[i]=s<0?s*0x8000:s*0x7FFF}
-        w.send(b.buffer);
-      };
-      src.connect(L.proc);L.proc.connect(silent);
-    }
-    if(L.ctx.state==='suspended')L.ctx.resume();
-    paint();
-  };
-  ws.onmessage=function(e){
-    var d;try{d=JSON.parse(e.data)}catch(x){return}
-    if(d.type==='UtteranceEnd'){flushUtt();return}
-    var alt=d.channel&&d.channel.alternatives&&d.channel.alternatives[0];
-    if(!alt||!alt.transcript||L.gate)return;
-    if(!d.is_final){interim((L.utt.join(' ')+' '+alt.transcript).trim());return}
-    L.utt.push(String(alt.transcript).trim());clearTimeout(L.timer);L.timer=setTimeout(flushUtt,4000);interim(L.utt.join(' '));
-  };
-  ws.onclose=function(ev){if(L.ws!==ws)return;L.on=false;L.ws=null;if(!ev.wasClean&&!L.err)L.err='The listening service closed the line'+(ev.code?' ('+ev.code+')':'')+'. Check the Deepgram key in Setup.';paint();if(phase==='live')setTimeout(dgOpen,2500)};
-  ws.onerror=function(){};
-}
-function browserListen(){
   var R=window.SpeechRecognition||window.webkitSpeechRecognition;
-  if(!R){L.err='This browser cannot listen by itself. Add a Deepgram key in Setup.';paint();return}
+  if(!R){L.err='This browser cannot listen. Use Chrome on the phone.';paint();return}
   var rec=new R();L.sr=rec;rec.lang=navigator.language||'en-US';rec.continuous=true;rec.interimResults=true;
   rec.onstart=function(){L.on=true;L.err='';paint()};
   rec.onresult=function(e){
-    if(L.gate)return;
-    for(var i=e.resultIndex;i<e.results.length;i++){var r=e.results[i],t=String(r[0].transcript).trim();if(!t)continue;if(r.isFinal){interim(t);hear(t)}else interim(t)}
+    if(L.gate)return;      // X is speaking: what the microphone hears now is X
+    for(var i=e.resultIndex;i<e.results.length;i++){var r=e.results[i],t=String(r[0].transcript).trim();if(!t)continue;interim(t);if(r.isFinal)hear(t)}
   };
-  rec.onerror=function(e){if(e.error==='not-allowed'||e.error==='service-not-allowed'||e.error==='audio-capture'){L.err='The microphone was not allowed.';L.sr=null}};
-  rec.onend=function(){L.on=false;paint();if(phase==='live'&&L.sr===rec)setTimeout(function(){try{rec.start()}catch(e){}},300)};   // the engine stops itself after a pause; keep listening
+  rec.onerror=function(e){if(e.error==='not-allowed'||e.error==='service-not-allowed'||e.error==='audio-capture'){L.err='The microphone was not allowed. Allow it for this page and begin again.';L.sr=null;paint()}};
+  rec.onend=function(){L.on=false;paint();if(phase==='live'&&L.sr===rec)setTimeout(function(){if(phase==='live'&&L.sr===rec){try{rec.start()}catch(e){}}},300)};
   try{rec.start()}catch(e){L.err='Listening did not start.';paint()}
 }
-function listenStop(){
-  clearTimeout(L.timer);L.utt=[];
-  try{if(L.sr){var r=L.sr;L.sr=null;r.onend=null;r.stop()}}catch(e){}
-  try{if(L.ws){var w=L.ws;L.ws=null;w.close()}}catch(e){}
-  try{if(L.proc){L.proc.disconnect();L.proc=null}}catch(e){}
-  try{if(L.stream){L.stream.getTracks().forEach(function(t){t.stop()});L.stream=null}}catch(e){}
-  L.on=false;
-}
+function listenStop(){try{if(L.sr){var r=L.sr;L.sr=null;r.onend=null;r.stop()}}catch(e){}L.on=false}
 
 /* =====================================================================
    The nine steps. 1 sense (hear, or a source's signal)  2 arbitrate (one source at birth)  3 match
@@ -347,7 +335,7 @@ function unknown(text){
   var ctx={said:text,in_front:front?{reading:front.reading,ask:front.ask,kept_as:front.word||''}:null,words_x_knows:wordNames()};
   modelCall(sysRead(),JSON.stringify(ctx)).then(function(r){
     if(my!==runId)return;busy=false;
-    var d=parse(r.text);xlog({ev:'turn',path:'read',kind:d.kind||'answer',ms:r.ms,parts:d.parts.length,src:(d.sources.length||r.cites.length)});
+    var d=parse(r.text);xlog({ev:'turn',path:'read',kind:d.kind||'answer',ms:r.ms,ai:r.ai,fell:r.fell,parts:d.parts.length,src:(d.sources.length||r.cites.length)});
     handle(d,r.cites,text);drain();
   },function(e){if(my!==runId)return;busy=false;fail(e);drain()});
 }
@@ -356,7 +344,7 @@ function runWord(w){
   var my=++runId;busy=true;exchanges++;record('word.used',{name:w.name});setState('Getting '+w.name+'…');
   modelCall(sysRun(),w.ask).then(function(r){
     if(my!==runId)return;busy=false;
-    var d=parse(r.text);d.kind='answer';d.reading='';d.ask=w.ask;d.name=w.name;xlog({ev:'turn',path:'word',ms:r.ms,parts:d.parts.length});
+    var d=parse(r.text);d.kind='answer';d.reading='';d.ask=w.ask;d.name=w.name;xlog({ev:'turn',path:'word',ms:r.ms,ai:r.ai,fell:r.fell,parts:d.parts.length});
     show(d,r.cites,w.name);drain();
   },function(e){if(my!==runId)return;busy=false;fail(e);drain()});
 }
@@ -397,7 +385,8 @@ function show(d,cites,word,lead){
 /* =====================================================================
    The session: one opening touch, then hand time is counted. Closing X puts the watch to sleep.
    ===================================================================== */
-var S={start:0,touches:0,touchMs:0,downAt:0,forced:[]};
+var S={start:0,touches:0,touchMs:0,downAt:0,forced:[]},noteSaved='',noteSession='';
+function beginNote(){var t=noteSaved||noteSession;if(t)$('beginNote').textContent=t}
 function handTime(){var m=Math.max(1,Math.round((Date.now()-S.start)/60000));return m+(m===1?' minute, ':' minutes, ')+(S.touches===0?'no touches':S.touches===1?'one touch':S.touches+' touches')+'.'}
 document.addEventListener('pointerdown',function(e){
   if(phase!=='live')return;
@@ -405,22 +394,22 @@ document.addEventListener('pointerdown',function(e){
 },true);
 document.addEventListener('pointerup',function(){if(S.downAt){S.touchMs+=Date.now()-S.downAt;S.downAt=0}},true);
 function begin(){
-  phase='live';S={start:Date.now(),touches:0,touchMs:0,downAt:0,forced:[]};exchanges=0;front=null;note=null;
+  phase='live';S={start:Date.now(),touches:0,touchMs:0,downAt:0,forced:[]};exchanges=0;front=null;note=null;noteSaved='';
   $('begin').classList.remove('show');
   try{var u=new SpeechSynthesisUtterance(' ');u.volume=0;speechSynthesis.speak(u)}catch(e){}   // the opening touch is what lets a phone speak
   try{if(navigator.wakeLock)navigator.wakeLock.request('screen').catch(function(){})}catch(e){}
   listenStart();relay();sync();
-  xlog({ev:'begin',build:BUILD,listen:cfg.dg?'deepgram':'browser',ai:cfg.provider,words:wordNames().length,gh:ghOn()?1:0});
+  xlog({ev:'begin',build:BUILD,ai:aiOrder().join('>'),words:wordNames().length,gh:ghOn()?1:0});
   paint();setTimeout(function(){say(wordNames().length?'Ready.':'Ready. Ask me anything.')},400);
 }
 function endSession(){
   if(phase!=='live')return;
-  var line=handTime(),rec={start:S.start,end:Date.now(),minutes:Math.round((Date.now()-S.start)/6000)/10,touches:S.touches,touchSec:Math.round(S.touchMs/1000),exchanges:exchanges,watch:watchLive()?1:0,listen:L.kind};
+  var line=handTime(),rec={start:S.start,end:Date.now(),minutes:Math.round((Date.now()-S.start)/6000)/10,touches:S.touches,touchSec:Math.round(S.touchMs/1000),exchanges:exchanges,watch:watchLive()?1:0};
   runId++;busy=false;queued='';record('session',rec);xlog({ev:'end',min:rec.minutes,touches:rec.touches,touchSec:rec.touchSec,exchanges:exchanges,forced:S.forced.slice(0,6).join(',')});
   watchSleep();hush();front=null;note={reading:'session over',text:line};paint();
   say('Done. '+line,function(){
     listenStop();phase='ended';$('begin').classList.add('show');
-    var tell=function(){$('beginNote').textContent='Last session: '+line+' Memory: '+(ghOn()?(syncNote||'saving'):'on this device only (no GitHub token)')+'. Touch to begin again.'};
+    var tell=function(){noteSession='Last session: '+line+' Memory: '+(ghOn()?(syncNote||'saving'):'on this device only (no GitHub token)')+'. Touch to begin again.';beginNote()};
     tell();sync().then(tell);paint();
   });
 }
@@ -465,58 +454,118 @@ function paint(){
 }
 setInterval(function(){if(phase==='live')paint()},1000);
 
-/* ---------- setup: the keys, once ---------- */
-function setupOpen(){
-  $('fProv').value=cfg.provider||'anthropic';$('fKey').value=cfg.key||'';$('fModel').value=cfg.model||'';$('fDg').value=cfg.dg||'';$('fGh').value=cfg.gh||'';$('fRepo').value=cfg.repo||'';
-  $('setMsg').textContent='';$('setup').classList.add('show');
-}
-var lastMsg='';
+/* ---------- setup: a key and a model for each service, and which is the default (as prism, market-navigator and devstream do) ---------- */
+var lastMsg='',picked={};      // picked: what the owner chose by hand in this setup (it outranks what memory remembers)
 function msg(t,c){var m=$('setMsg');m.textContent=t;m.className=c||'';lastMsg=t}
-function listModels(prov,key){
-  if(prov==='openrouter')return fetch('https://openrouter.ai/api/v1/auth/key',{headers:{'Authorization':'Bearer '+key}}).then(function(r){if(!r.ok)throw new Error('OpenRouter refused the key ('+r.status+')');return fetch('https://openrouter.ai/api/v1/models')}).then(function(r){return r.json()}).then(function(j){return(j.data||[]).map(function(m){return m.id})});
-  return fetch('https://api.anthropic.com/v1/models?limit=100',{headers:{'x-api-key':key,'anthropic-version':'2023-06-01','anthropic-dangerous-direct-browser-access':'true'}}).then(function(r){return r.json().then(function(j){if(!r.ok)throw new Error((j.error&&j.error.message)||('Anthropic refused the key ('+r.status+')'));return(j.data||[]).map(function(m){return m.id})})});
+function st(p,t,c){var e=$('st_'+p);e.textContent=t;e.className=c||''}
+function fill(p,ids,want){
+  var s=$('m_'+p);s.innerHTML='';
+  if(!ids.length){var o=document.createElement('option');o.value='';o.textContent='load models first';s.appendChild(o);return}
+  ids.forEach(function(id){var o=document.createElement('option');o.value=id;o.textContent=id;s.appendChild(o)});
+  if(want&&ids.indexOf(want)>=0)s.value=want;
+}
+function jget(url,headers){return fetch(url,{cache:'no-store',headers:headers||{}}).then(function(r){return r.json().then(function(j){if(!r.ok)throw new Error((j.error&&(j.error.message||j.error))||('status '+r.status));return j},function(){throw new Error('status '+r.status)})})}
+function loadModels(p){
+  var key=$('k_'+p).value.trim();
+  if(!key){st(p,'enter the key first','no');return Promise.resolve([])}
+  st(p,'loading models…');
+  var ids=function(j){return(j.data||j.models||[]).map(function(m){return typeof m==='string'?m:(m.id||m.model)}).filter(Boolean).sort()};
+  var req=p==='venice'?jget('https://api.venice.ai/api/v1/models',{Authorization:'Bearer '+key}).then(ids):
+          p==='openrouter'?jget('https://openrouter.ai/api/v1/auth/key',{Authorization:'Bearer '+key}).then(function(){return jget('https://openrouter.ai/api/v1/models')}).then(ids):
+          jget('https://api.anthropic.com/v1/models?limit=100',{'x-api-key':key,'anthropic-version':'2023-06-01','anthropic-dangerous-direct-browser-access':'true'}).then(ids);
+  return req.then(function(list){
+    if(!list.length)throw new Error('no models returned');
+    var want=(picked[p]&&$('m_'+p).value)||cfg[p].model||(aiPrefs&&aiPrefs.models&&aiPrefs.models[p])||'';
+    fill(p,list,want);st(p,list.length+' models'+($('m_'+p).value===want&&want?' · yours is selected':' · pick one'),'');return list;
+  },function(e){st(p,'models did not load: '+String(e&&e.message||e).slice(0,80),'no');return[]});
+}
+function ping(p,key,model){
+  var one=function(url,headers,body){return fetch(url,{method:'POST',cache:'no-store',headers:headers,body:JSON.stringify(body)}).then(function(r){return r.json().catch(function(){return{}}).then(function(j){if(!r.ok)throw new Error((j.error&&(j.error.message||j.error))||('status '+r.status))})})};
+  if(p==='anthropic')return one('https://api.anthropic.com/v1/messages',{'Content-Type':'application/json','x-api-key':key,'anthropic-version':'2023-06-01','anthropic-dangerous-direct-browser-access':'true'},{model:model,max_tokens:1,messages:[{role:'user',content:'ping'}]});
+  return one(p==='venice'?'https://api.venice.ai/api/v1/chat/completions':'https://openrouter.ai/api/v1/chat/completions',{'Content-Type':'application/json','Authorization':'Bearer '+key},{model:model,max_tokens:1,messages:[{role:'user',content:'ping'}]});
+}
+function setupOpen(){
+  $('fActive').value=cfg.active;$('fGh').value=cfg.gh||'';$('fRepo').value=cfg.repo||'';
+  PROV.forEach(function(p){$('k_'+p).value=cfg[p].key||'';fill(p,cfg[p].model?[cfg[p].model]:[],cfg[p].model);st(p,usable(p)?'working':'','ok')});
+  picked={};$('setMsg').textContent='';lastMsg='';$('setup').classList.add('show');
+}
+function memoryCheck(c){
+  // the repository is found, or made private if the token may; then the memory is merged
+  return gh('GET','/repos/'+c.repo).then(function(r){
+    if(r.status===404)return gh('GET','/user').then(function(u){return u.json()}).then(function(u){
+      var parts=c.repo.split('/');if(!u.login||u.login.toLowerCase()!==parts[0].toLowerCase())throw new Error('repository '+c.repo+' was not found with this token');
+      return gh('POST','/user/repos',{name:parts[1],private:true,description:'What X has learned',auto_init:true}).then(function(r2){if(!r2.ok)throw new Error('could not create '+c.repo+' ('+r2.status+'). Create it as a private repository, or use a token that may');return{private:true,made:true}});
+    });
+    if(!r.ok)throw new Error('GitHub said '+r.status+' for '+c.repo);
+    return r.json();
+  }).then(function(repo){return sync().then(function(v){if(v==='failed')throw new Error(syncNote);return repo})});
 }
 function setupSave(){
-  var c={provider:$('fProv').value,key:$('fKey').value.trim(),model:$('fModel').value.trim(),dg:$('fDg').value.trim(),gh:$('fGh').value.trim(),repo:$('fRepo').value.trim()};
-  if(!c.key){msg('Paste the key for the AI service first.','no');return}
-  if(c.gh&&!/^[\w.-]+\/[\w.-]+$/.test(c.repo)){msg('Name the repository as owner/name.','no');return}
-  msg('Testing the AI key…');
-  listModels(c.provider,c.key).then(function(ids){
-    var dl=$('models');dl.innerHTML='';ids.forEach(function(id){var o=document.createElement('option');o.value=id;dl.appendChild(o)});
-    if(!c.model||ids.indexOf(c.model)<0){var pick=ids.filter(function(id){return /sonnet/i.test(id)})[0]||ids[0]||'';c.model=pick;$('fModel').value=pick}
-    if(!c.model)throw new Error('the service listed no models');
-    cfg=c;put('x_cfg',cfg);
-    if(!c.gh){msg('Saved. The AI key works. Without a GitHub token, what X learns stays on this device only.','wn');return ready()}
-    msg('The AI key works. Checking the repository…');
-    return gh('GET','/repos/'+c.repo).then(function(r){
-      if(r.status===404)return gh('GET','/user').then(function(u){return u.json()}).then(function(u){
-        var parts=c.repo.split('/');if(!u.login||u.login.toLowerCase()!==parts[0].toLowerCase())throw new Error('repository '+c.repo+' was not found with this token');
-        return gh('POST','/user/repos',{name:parts[1],private:true,description:'What X has learned',auto_init:true}).then(function(r2){if(!r2.ok)throw new Error('could not create '+c.repo+' ('+r2.status+'). Create it as a private repository, or use a token that may');return{private:true,made:true}});
-      });
-      if(!r.ok)throw new Error('GitHub said '+r.status+' for '+c.repo);
-      return r.json();
-    }).then(function(repo){
-      return sync().then(function(v){
-        if(v==='failed')throw new Error(syncNote);
-        msg('Saved. The AI key works. Memory '+(repo.made?'repository created (private)':'repository found')+(repo.private?'':'. WARNING: it is public, so anyone can read what X learns')+'. '+wordNames().length+' words known.',repo.private?'ok':'wn');ready();
-      });
-    });
-  }).catch(function(e){msg('Not saved: '+String(e&&e.message||e).slice(0,200),'no')});
+  var gtok=$('fGh').value.trim(),grepo=$('fRepo').value.trim();
+  if(gtok&&!/^[\w.-]+\/[\w.-]+$/.test(grepo)){msg('Name the repository as owner/name.','no');return}
+  var keyed=PROV.filter(function(p){return $('k_'+p).value.trim()});
+  if(!keyed.length){msg('Paste a key for at least one AI service.','no');return}
+  cfg.gh=gtok;cfg.repo=grepo;
+  msg(gtok?'Reading X’s memory from GitHub…':'Testing…');
+  var repoInfo=null;
+  (gtok?memoryCheck(cfg).then(function(r){repoInfo=r}):Promise.resolve()).then(function(){
+    // what X's memory remembers from another device applies wherever nothing was chosen by hand here: the default service, and each model
+    if(aiPrefs){
+      if(!picked.active&&!PROV.some(usable)&&PROV.indexOf(aiPrefs.active)>=0)$('fActive').value=aiPrefs.active;
+      keyed.forEach(function(p){var m=aiPrefs.models&&aiPrefs.models[p],s=$('m_'+p);if(m&&!picked[p]&&!cfg[p].model&&Array.prototype.some.call(s.options,function(o){return o.value===m}))s.value=m});
+    }
+    return Promise.all(keyed.map(function(p){return $('m_'+p).value?null:loadModels(p)}));
+  }).then(function(){
+    var need=keyed.filter(function(p){return !$('m_'+p).value});
+    if(need.length)throw new Error('pick a model for '+need.map(function(p){return PNAME[p]}).join(' and ')+', then press Test and save again');
+    msg('Testing '+keyed.map(function(p){return PNAME[p]}).join(', ')+'…');
+    return Promise.all(keyed.map(function(p){
+      var key=$('k_'+p).value.trim(),model=$('m_'+p).value;
+      return ping(p,key,model).then(function(){cfg[p]={key:key,model:model,ok:true,at:Date.now()};st(p,'working','ok');return''},function(e){cfg[p]={key:key,model:model,ok:false};st(p,'not working','no');return PNAME[p]+': '+String(e&&e.message||e).slice(0,100)});
+    }));
+  }).then(function(errs){
+    PROV.forEach(function(p){if(keyed.indexOf(p)<0)cfg[p]={key:'',model:'',ok:false}});
+    var want=$('fActive').value,bad=errs.filter(Boolean),usual='';
+    put('x_cfg',cfg);
+    if(!usable(want)){
+      var first=PROV.filter(usable)[0];
+      if(picked.active||!first){cfg.active=want;put('x_cfg',cfg);throw new Error('the default service, '+PNAME[want]+', is not working'+(bad.length?' ('+bad.join('; ')+')':': enter its key, or choose another default'))}
+      usual=want;want=first;$('fActive').value=first;      // the usual default has no working key on this device: the first one that works stands in
+    }
+    cfg.active=want;put('x_cfg',cfg);
+    // remembered with X's memory: the default (only when chosen here) and each service's model. Never a key.
+    var models={};if(aiPrefs&&aiPrefs.models)for(var k in aiPrefs.models)models[k]=aiPrefs.models[k];
+    PROV.forEach(function(p){if(usable(p))models[p]=cfg[p].model});
+    var remembered=usual||cfg.active;
+    if(!aiPrefs||aiPrefs.active!==remembered||JSON.stringify(aiPrefs.models)!==JSON.stringify(models))record('cfg.ai',{active:remembered,models:models});
+    var others=PROV.filter(function(p){return p!==want&&usable(p)}).map(function(p){return PNAME[p]});
+    var line='Saved. '+PNAME[want]+' is the default'+(usual?' on this device ('+PNAME[usual]+', your usual default, has no key here)':'')+(others.length?', then '+others.join(', then '):'')+'.'+(bad.length?' Not working: '+bad.join('; ')+'.':'');
+    if(!gtok)msg(line+' Without a GitHub token, what X learns stays on this device only.','wn');
+    else msg(line+' Memory '+(repoInfo&&repoInfo.made?'repository created (private)':'repository found')+(repoInfo&&repoInfo.private===false?'. WARNING: it is public, so anyone can read what X learns':'')+'. '+wordNames().length+' words known.',(repoInfo&&repoInfo.private===false)||bad.length?'wn':'ok');
+    ready();
+  }).catch(function(e){put('x_cfg',cfg);msg('Not saved: '+String(e&&e.message||e).slice(0,240),'no')});
 }
 function ready(){
   // setup is done: get out of the way, and carry what it found to the Begin screen
   $('setup').classList.remove('show');
-  if(lastMsg&&/^Saved/.test(lastMsg))$('beginNote').textContent=lastMsg+' One touch to begin; after that, talk.';
+  if(lastMsg&&/^Saved/.test(lastMsg)){noteSaved=lastMsg+' One touch to begin; after that, talk.';beginNote()}
   if(phase==='setup'||phase==='ended'){phase='ready'}
   $('begin').classList.add('show');
 }
+PROV.forEach(function(p){
+  $('load_'+p).addEventListener('click',function(){loadModels(p)});
+  $('m_'+p).addEventListener('change',function(){picked[p]=true});
+  $('k_'+p).addEventListener('change',function(){if(this.value.trim())loadModels(p)});   // a pasted key loads its models by itself
+  $('k_'+p).addEventListener('paste',function(){var el=this;setTimeout(function(){if(el.value.trim())loadModels(p)},60)});
+});
+$('fActive').addEventListener('change',function(){picked.active=true});
 $('setTest').addEventListener('click',setupSave);
-$('setClose').addEventListener('click',function(){$('setup').classList.remove('show');lastMsg='';if(cfg.key&&cfg.model)ready()});
+$('setClose').addEventListener('click',function(){$('setup').classList.remove('show');lastMsg='';if(aiOrder().length)ready()});
 $('setupBtn').addEventListener('click',function(){if(phase==='live')endSession();setupOpen()});
 $('beginBtn').addEventListener('click',function(){$('setup').classList.remove('show');begin()});
 
 rebuild();
-if(cfg.key&&cfg.model){phase='ready';$('begin').classList.add('show')}else setupOpen();
+if(aiOrder().length){phase='ready';$('begin').classList.add('show')}else setupOpen();
 })();
 </script>
 </body>

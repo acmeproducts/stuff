@@ -26,7 +26,7 @@ Version 1.0.0 · 2026-11-18 · Answers to `X-REQUIREMENTS.md` · Rules from `cla
 | Lab page | `x/wrist/relay/page-test.py` | the Lab in a phone-sized browser with a synthetic watch, including Watch off, results, camera probe (synthetic points), buzz, pairing | 73/73 |
 | Templates | new with V1 | template maker and matcher on synthetic and recorded holds | — |
 | Arbiter | new with S5 | every rule type, no rule, absent against silent | — |
-| X page | `x/wrist/relay/x-test.py` | the nine steps driven by spoken sentences, with the model, GitHub and the browser's speech stood in for by the test | 43/43 |
+| X page | `x/wrist/relay/x-test.py` | the nine steps driven by spoken sentences, with the model, GitHub and the browser's speech stood in for by the test | 50/50 |
 | Scoring | new with L2 | hit and wrong-fire arithmetic on a synthetic session with known answers | — |
 
 Paths moved to `x/wrist/` at W1 step 0 (2026-11-18).

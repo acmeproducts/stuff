@@ -38,7 +38,7 @@ History and code:
 |---|---|
 | Watch file `turn07-b8` | `https://github.com/acmeproducts/stuff/raw/wrist-turn01/x/wrist/out/wrist.apk` |
 | Lab `lab-r6` | `https://wrist-relay.myacctfortracking.workers.dev/` |
-| X `x-r1` | `https://wrist-relay.myacctfortracking.workers.dev/x` |
+| X `x-r2` | `https://wrist-relay.myacctfortracking.workers.dev/x` |
 
 ## For any session working here
 1. Read `claude-audit.md` at the repository root, then this folder's roadmap.

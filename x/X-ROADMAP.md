@@ -6,7 +6,7 @@ This is the one place that says where we are, where we are going and how we get 
 
 ## 1. Where we are (2026-11-18)
 **Built and proven on the owner's watch (facts)**
-- Watch app `turn06-b6` reads wrist motion with the screen off and sends it out. Nothing is read on the watch. (`turn07-b8`, relay `w5`, Lab `lab-r6` and X `x-r1` were built on 2026-11-18 and are lab-only until the owner runs them.)
+- Watch app `turn06-b6` reads wrist motion with the screen off and sends it out. Nothing is read on the watch. (`turn07-b8`, relay `w5`, Lab `lab-r6` and X `x-r2` were built on 2026-11-18 and are lab-only until the owner runs them.)
 - Relay `w3` carries watch events to any browser page and keeps logs and trial recordings the build can read.
 - Lab `lab-r5`: 13 concept cards, recordings, notes, Keep / Back to shop / Dump.
 - Builds and installs need no IDE.
@@ -122,4 +122,5 @@ A release is done when its device gate passes and its rows in `X-TRACE.md` show 
 | 2026-11-18 | Single pipeline page | drafted; owner corrected the reach (X is not a hub; AI) and the frame (a learning system, floor not blueprint) |
 | 2026-11-18 | Owner's research from another session: camera hand and head sources, the arbiter | recorded in `plans/S-sources-arbiter.md` |
 | 2026-11-18 | This roadmap, the five plans and their artifacts | written; nothing built from it yet |
+| 2026-11-18 | Owner's correction to X's first pass | Venice is the primary service; setup follows the three floor pages (a key and a kept model per service, a default switch); no Deepgram, the browser's own listening. Built as `x-r2`. Buried: G26, G27. |
 | 2026-11-18 | Owner's corrections the same day | "The loop" renamed the order of operations and stated to run wholly in the page (no gateway, not OpenClaw). Memory: on the device and synced with GitHub, so X learns "both in operation and in function" (D13, D21, R37); memory on the relay withdrawn. Pairing hardened in W1 (D22): "why wouldn't we just do that". Recognition on the watch explained; still awaits his yes (C1). |
