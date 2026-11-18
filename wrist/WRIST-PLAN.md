@@ -1,6 +1,8 @@
-# Wrist — plan (sole authority for `wrist/`)
+# Wrist — plan (the record for `wrist/`: watch app, relay, Lab)
 
-Version 9.0.0 · 2026-11-18 · Owner/device gate: Confi · Device: Galaxy Watch 9, left wrist
+Version 10.0.0 · 2026-11-18 · Owner/device gate: Confi · Device: Galaxy Watch 9, left wrist
+
+**From 2026-11-18 the top authority is `x/X-ROADMAP.md`.** This file stays as the record of turn01 to turn06 and of every measurement taken so far. New work is planned in `x/plans/`. Section 14 below is superseded.
 
 ## 0. Turn ledger
 | Date | Turn | Status | Notes |
@@ -17,6 +19,8 @@ Version 9.0.0 · 2026-11-18 · Owner/device gate: Confi · Device: Galaxy Watch 
 | 2026-11-18 | turn06 device gate | **passed for the panel and the connection test**; owner rated the Connection test and OK pose cards "Back to shop" | `turn06-b6` ran on the watch; panel reported to the log; connection runs recorded (section 12). |
 | 2026-11-18 | Direction change from the owner | recorded (section 13), nothing built | X expects a finite set of commands; each person registers the signals that suit them; the watch is one sensing source among several to be catalogued (rings, camera, others); the mapping may change with context. |
 | 2026-11-18 | Roadmap: five threads | recorded (section 14), nothing built | Owner named five threads: the Lab, watch client improvements, build X, 3D manipulation, and source input / teach gestures. First stage of each and the order are in section 14. |
+| 2026-11-18 | Five-thread roadmap | **rejected by the owner** ("this feels incredibly light"; then: "your overall structure is busted and you have no true north") | Replaced by one pipeline and then by `x/`. A roadmap built around one talk-to-gateway loop was also rejected (G18). |
+| 2026-11-18 | X gets its home: `x/` | written, nothing built from it | Owner: X is a learning system that is born and grows a vocabulary; not a hub (it leverages AI); the existing pages are the floor, not the blueprint; a development roadmap with plans, releases and traceable requirements. Camera hand and head sources and the arbiter recorded from the owner's other session (section 15). |
 
 ## 1. Why this exists (owner's words, 2026-11-16)
 - "I really can't type using a keyboard or a mouse … or for that matter a touch screen for more than 15 minutes at a time."
@@ -348,7 +352,9 @@ Consequences for what is already built:
 ### 13.4 Not started
 No catalogue research, no "teach a signal" card, no change to the watch app. Awaiting the owner's go on what to do first.
 
-## 14. Roadmap: five threads (owner, 2026-11-18)
+## 14. Roadmap: five threads (owner, 2026-11-18) — SUPERSEDED by `x/X-ROADMAP.md`
+Kept as the record of what was proposed and of the owner's words. The five threads became five plans and eleven streams in `x/`. The first stage of 14.1 is release W1 in `x/plans/W-watch.md`.
+
 > "it appears to me that we have a minimum of five different threads here: we have the lab thread, we have the watch client improvements, we have the build X, we have the 3D manipulation, and we have the source input / teach gestures, which really feeds what is X, how to use it, and it is fed by the labs."
 
 How they connect: the **Lab** is where signals are tried and measured. **Teach** turns a signal into something a person registers. **3D manipulation** is a Lab item that gives registered signals something rich to act on. The **watch client** is one source feeding all of it. **X** is what the registered signals, and the voice, finally talk to.
@@ -398,6 +404,9 @@ First stage: no code. A one-page definition of X assembled from the owner's own 
 2. X definition draft (14.5): cheap, and it starts the parallel track.
 3. Teach a signal (14.3).
 4. 3D object (14.4).
+
+## 15. Sources beyond the watch, and the arbiter (owner, 2026-11-18)
+From the owner's session on camera gestures, brought here by him: camera hand gestures and camera head gestures join the watch as parallel sources, and a fourth node, the arbiter, decides whose word counts by rules that are taught per context (override, fallback, exclusive). Rings are dropped (G15). Doublepoint's kit is not adopted (G16). Recorded in full, with the owner's words, in `x/plans/S-sources-arbiter.md`.
 
 ## 7. Lab checks
 `wrist/test/DetectorTest.java`, synthetic 100 Hz traces, run on every build. 2026-11-17: 16/16 pass (knock checks removed with the knock).

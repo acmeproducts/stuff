@@ -1,0 +1,80 @@
+# X — test plan
+
+Version 1.0.0 · 2026-11-18 · Answers to `X-REQUIREMENTS.md` · Rules from `claude-audit.md` B4, C5, C6, D2, A6, E2
+
+## 1. Three kinds of proof
+| Kind | What it is | Who | Counts as |
+|---|---|---|---|
+| **Lab check** | automated, run on every build; synthetic or recorded input | the build | lab-only. Never "done" by itself. |
+| **Device gate** | the owner's definition of working for a release, used on his own devices | the owner; the build reads the logs itself | passed or failed |
+| **Measurement run** | a timed session that produces numbers | the owner wears and uses; the build computes | a fact with its date and sample size |
+
+## 2. Devices
+| Device | Used for | Proof possible |
+|---|---|---|
+| Galaxy Watch 9 (SM-L355U), left wrist | watch source | device gate |
+| Galaxy S23 Ultra, Chrome | X and the Lab on the phone | device gate |
+| Tablet (used for installs and the Lab) | Lab, camera probe | device gate |
+| iPhone, its browser | X, camera probe | device gate |
+| Desktop browser | X on a desktop | **lab only**: the owner has no desktop. Run in a desktop-sized browser by the build and reported as lab-only. |
+
+## 3. Suites
+| Suite | File | Covers | Today |
+|---|---|---|---|
+| Detector | `wrist/test/DetectorTest.java` | tilt and swing on synthetic traces | 16/16 |
+| Relay, live | `wrist/relay/e2e.mjs` | every relay route against the deployed worker | 16/16 |
+| Lab page | `wrist/relay/page-test.py` | the Lab in a phone-sized browser with a synthetic watch | 54/54 |
+| Templates | new with V1 | template maker and matcher on synthetic and recorded holds | — |
+| Arbiter | new with S5 | every rule type, no rule, absent against silent | — |
+| X page | new with X1 | the loop driven by injected sentences and a recorded model reply | — |
+| Scoring | new with L2 | hit and wrong-fire arithmetic on a synthetic session with known answers | — |
+
+Paths move to `x/wrist/` at W1 step 0.
+
+## 4. Rules
+1. **The owner's definition of working is written as checks before the work starts.** Each plan's release carries it.
+2. **Failing first.** A new check is seen to fail on the current build before the change is made.
+3. **The whole suite runs before every push**, not only the new checks. Results are reported truthfully, including failures.
+4. **Recorded trials are test material.** `out/trials/` holds the owner's real raw rows; new recognisers are replayed against them.
+5. **A recorded model reply exists only in tests.** The product path always calls the real model. No test double ships.
+6. **A suspicious failure is run against the previous build** before it is called a regression or noise.
+7. **A log channel counts only after data has arrived through it.**
+8. **Lab-only results are labelled lab-only.** Desktop results always are.
+
+## 5. Measurements and their targets
+Targets are mine (D20) and are corrected by evidence.
+
+| Measurement | How | Target | Release |
+|---|---|---|---|
+| Hand time | X's meter: minutes, touches, touch seconds per session | at most 5 touches in 30 minutes, none forced by X | X1 on |
+| Hit rate | scored session: fired within 3 s of an ask | 9 in 10 | L2 |
+| Wrong fires | scored session: fired with no ask | at most 1 in 10 minutes | L2 |
+| Next-day hit rate | scored session a day after teaching, watch re-worn | 9 in 10 | V4 |
+| Watch battery | percent an hour, by link, from session summaries | at most 10% an hour | W2 |
+| Longest silence | longest gap between delivered messages in a 30-minute screen-off session | under 10 s | W2 |
+| Sleep delay | from Watch off to the watch's last message | under 5 s | W1 |
+| Camera frame rate | frames a second with the hand finder; with both finders | 15 or more on the S23 | S1, S3 |
+| Reading delay | from end of speech to first spoken word, known word and unknown ask | recorded first; target set from X1's numbers | X1 |
+| Arbiter delay | added wait when two sources fire | 250 ms | S5 |
+
+## 6. What each release must show
+The device gate for each release is written in its plan. In short:
+
+| Release | Lab checks added | Device gate in | Measurement |
+|---|---|---|---|
+| W1 | relay sleep word; page Watch off; last-logged | `plans/W-watch.md` | sleep delay |
+| L1 | relay sessions and snapshots; both tables | `plans/L-lab.md` | — |
+| X1 | X page suite | `plans/X-x.md` | hand time; reading delay |
+| S1 | probe card on a recorded clip | `plans/S-sources-arbiter.md` | camera frame rate |
+| V1 | templates suite; replay of the forearm trials | `plans/V-vocabulary-teach.md` | — |
+| W2 | summary arithmetic | `plans/W-watch.md` | battery; longest silence |
+| L2 | scoring suite | `plans/L-lab.md` | hit rate; wrong fires |
+| S2, S3 | numbers from recorded clips | `plans/S-sources-arbiter.md` | frame rate with both finders |
+| V2, V3, V4 | one-to-one rule; context separation | `plans/V-vocabulary-teach.md` | next-day hit rate |
+| S4, S5 | one event shape; arbiter suite | `plans/S-sources-arbiter.md` | arbiter delay |
+| L3 | synthetic signals finish the task | `plans/L-lab.md` | task time |
+| X2, X3 | lists; threads | `plans/X-x.md` | hand time over 30 minutes |
+| W3, W4 | page against watch on the same recordings; buzz word | `plans/W-watch.md` | battery again |
+
+## 7. Reporting
+Every release report says, in this order: what passed on the device, what failed, what is lab-only, what is unverified. The numbers go into the plan and into `X-TRACE.md` in the same commit as the change.

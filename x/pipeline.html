@@ -1,0 +1,307 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>X 1.0 Pipeline</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Archivo+Narrow:wght@500;700&family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+/* Layout idea: one vertical pipe down the middle of a phone screen, eleven streams joining at 45 degrees, then the five plans that carry them. */
+:root{
+  --bg:#f3f0ec; --panel:#fbfaf8; --ink:#2b1d16; --soft:#6f5f55; --line:#d9d0c8;
+  --done:#0b7a6b; --run:#b5630a; --todo:#8b8078; --x:#5a2d1a;
+  --display:"Archivo Narrow","Arial Narrow",Arial,sans-serif;
+  --body:"IBM Plex Sans",system-ui,-apple-system,"Segoe UI",sans-serif;
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --bg:#1a1411; --panel:#241b17; --ink:#f1e8e1; --soft:#b3a398; --line:#40332c;
+    --done:#3fc7b3; --run:#f0a04a; --todo:#8f8279; --x:#e0a078; color-scheme:dark;
+  }
+}
+:root[data-theme="dark"]{
+  --bg:#1a1411; --panel:#241b17; --ink:#f1e8e1; --soft:#b3a398; --line:#40332c;
+  --done:#3fc7b3; --run:#f0a04a; --todo:#8f8279; --x:#e0a078; color-scheme:dark;
+}
+*{box-sizing:border-box}
+html{-webkit-text-size-adjust:100%}
+body{margin:0;background:var(--bg);color:var(--ink);font-family:var(--body);font-size:16px;line-height:1.5}
+main{max-width:640px;margin:0 auto;padding:20px 16px 56px;display:flex;flex-direction:column;gap:28px}
+h1,h2,h3{font-family:var(--display);font-weight:700;margin:0;text-wrap:balance;letter-spacing:.01em}
+h1{font-size:34px;line-height:1.05}
+h2{font-size:22px;border-bottom:2px solid var(--ink);padding-bottom:4px}
+h3{font-size:18px}
+p{margin:0}
+.sub{color:var(--soft);font-size:14px;margin-top:6px}
+section{display:flex;flex-direction:column;gap:12px}
+blockquote{margin:0;padding:12px 14px;background:var(--panel);border-left:5px solid var(--x);border-radius:0 6px 6px 0;font-size:15px}
+blockquote footer{color:var(--soft);font-size:13px;margin-top:6px}
+ul,ol{margin:0;padding-left:20px;display:flex;flex-direction:column;gap:5px}
+li{font-size:15px}
+.tag{display:inline-block;font-family:var(--display);font-weight:700;font-size:12px;letter-spacing:.06em;text-transform:uppercase;padding:1px 7px;border-radius:3px;border:1.5px solid currentColor;margin-right:6px;vertical-align:1px;white-space:nowrap}
+.fact{color:var(--done)} .theory{color:var(--run)} .mine{color:var(--x)} .none{color:var(--todo)}
+figure{margin:0;display:flex;flex-direction:column;gap:8px;align-items:center}
+figure svg{width:100%;max-width:440px;height:auto;display:block}
+figcaption{font-size:13px;color:var(--soft);text-align:center}
+.pipe{stroke:var(--line);stroke-width:12;stroke-linecap:round;fill:none}
+.pipe.done{stroke:var(--done)}
+.feed{stroke-width:5;stroke-linecap:round;fill:none}
+.s-done{stroke:var(--done)} .s-run{stroke:var(--run)} .s-todo{stroke:var(--todo);stroke-dasharray:2 9}
+.dot{stroke-width:3;fill:var(--bg);stroke-dasharray:none}
+.dot.s-done{fill:var(--done)} .dot.s-run{fill:var(--run)}
+.num{font-family:var(--display);font-weight:700;font-size:13px;text-anchor:middle;fill:var(--ink)}
+.dot.s-done + .num,.dot.s-run + .num{fill:var(--bg)}
+.lbl{font-family:var(--display);font-weight:700;font-size:14px;fill:var(--ink)}
+.gate rect{fill:var(--panel);stroke:var(--ink);stroke-width:1.5}
+.gate.passed rect{fill:var(--done);stroke:var(--done)}
+.gate text{font-family:var(--display);font-weight:700;font-size:13px;text-anchor:middle;fill:var(--ink)}
+.gate.passed text{fill:var(--bg)}
+.here{font-family:var(--display);font-weight:700;font-size:12px;fill:var(--run);letter-spacing:.06em}
+.stage{font-family:var(--display);font-weight:700;font-size:11px;fill:var(--soft);letter-spacing:.08em}
+.goal circle{fill:var(--x)} .goal text{font-family:var(--display);font-weight:700;font-size:20px;text-anchor:middle;fill:var(--bg)}
+svg a{cursor:pointer} svg a:focus-visible .lbl{text-decoration:underline}
+.legend{display:flex;flex-wrap:wrap;gap:6px 16px;font-size:13px;color:var(--soft);justify-content:center}
+.legend i{display:inline-block;width:22px;height:0;border-top:4px solid;vertical-align:middle;margin-right:6px}
+.legend .ld{border-color:var(--done)} .legend .lr{border-color:var(--run)} .legend .lt{border-color:var(--todo);border-top-style:dotted}
+.gates,.loop{display:flex;flex-direction:column;gap:8px}
+.g{display:grid;grid-template-columns:34px minmax(0,1fr);gap:10px;background:var(--panel);border:1px solid var(--line);border-radius:6px;padding:10px 12px}
+.g b.n{font-family:var(--display);font-size:24px;line-height:1.1;color:var(--soft)}
+.g.passed{border-color:var(--done)} .g.passed b.n{color:var(--done)}
+.g.ai{border-color:var(--run)} .g.ai b.n{color:var(--run)}
+.g p{font-size:15px} .g .st{font-size:13px;color:var(--soft);margin-top:3px}
+.card{background:var(--panel);border:1px solid var(--line);border-left:6px solid var(--todo);border-radius:6px;padding:12px 14px;display:flex;flex-direction:column;gap:8px;scroll-margin-top:12px}
+.card.run{border-left-color:var(--run)}
+.card:target{outline:3px solid var(--x);outline-offset:2px}
+.card header{display:flex;justify-content:space-between;align-items:baseline;gap:10px;flex-wrap:wrap}
+.card .into{font-size:13px;color:var(--soft)}
+.card dl{margin:0;display:grid;grid-template-columns:74px minmax(0,1fr);gap:6px 10px;font-size:15px}
+.card dt{font-family:var(--display);font-weight:700;font-size:13px;text-transform:uppercase;letter-spacing:.05em;color:var(--soft);padding-top:2px}
+.card dd{margin:0}
+.q{font-weight:600}
+.rel{display:flex;flex-direction:column;gap:4px;font-size:15px}
+.rel b{font-family:var(--display);letter-spacing:.02em}
+.rel .now b{color:var(--run)}
+.files{font-size:14px;color:var(--soft)}
+.files code{font-family:ui-monospace,Menlo,Consolas,monospace;font-size:13px;color:var(--ink)}
+a{color:inherit}
+a:focus-visible{outline:2px solid var(--x);outline-offset:2px}
+</style>
+</head>
+<body>
+<main>
+
+<header>
+  <h1>X 1.0 Pipeline</h1>
+  <p class="sub">One pipe, six gates, eleven streams, five plans. Status as of 18 Nov 2026. The full record is in the repo under <code>x/</code>; this page is its picture.</p>
+</header>
+
+<section>
+  <h2>True north</h2>
+  <blockquote>The human talks and minimal taps or swipes X, and X talks to everything else. X is multi threaded. X eliminated the continued decimation of the human hand, wrist, and elbow because X is kind of like chocolate. Chocolate just loves you no matter what.
+    <footer>Owner, 16 Nov 2026</footer>
+  </blockquote>
+  <blockquote>Your version of X is born, and just like a child the first thing you do is develop a vocabulary that evolves. It starts with I'm crying because I'm hungry and evolves all the way to reciting Shakespeare and arguing quantum mechanics.
+    <footer>Owner, 18 Nov 2026</footer>
+  </blockquote>
+  <ul>
+    <li><b>X is a learning system.</b> Born knowing five things. It grows only by addition, from your verdicts.</li>
+    <li><b>Not a dashboard, not a chat box, not a hub.</b> One thing in front. No connectors of its own.</li>
+    <li><b>AI assists in a set order,</b> only at the edge of what X already knows.</li>
+    <li><b>No source is required.</b> Watch, hand and head are interchangeable; an arbiter you teach decides whose word counts.</li>
+    <li><b>What is built is the floor,</b> not the blueprint.</li>
+  </ul>
+</section>
+
+<section>
+  <h2>The loop inside X</h2>
+  <p class="sub" style="margin:0">Every exchange runs these nine steps. AI appears only in 4 to 6. A word X already knows skips step 4.</p>
+  <div class="loop">
+    <div class="g"><b class="n">1</b><div><p><b>Sense.</b> Voice, watch, hand or head reports.</p></div></div>
+    <div class="g"><b class="n">2</b><div><p><b>Arbitrate.</b> Whose report counts here.</p></div></div>
+    <div class="g"><b class="n">3</b><div><p><b>Match.</b> A known command or word acts at once.</p></div></div>
+    <div class="g ai"><b class="n">4</b><div><p><b>Read.</b> What did you mean? <span class="tag theory">AI</span></p></div></div>
+    <div class="g ai"><b class="n">5</b><div><p><b>Gather.</b> Fetch the material and freeze it as evidence. <span class="tag theory">AI</span></p></div></div>
+    <div class="g ai"><b class="n">6</b><div><p><b>Compose.</b> Make the answer from the evidence. <span class="tag theory">AI</span></p></div></div>
+    <div class="g"><b class="n">7</b><div><p><b>Present.</b> One thing, spoken and shown.</p></div></div>
+    <div class="g"><b class="n">8</b><div><p><b>Verdict.</b> Keep it, change it, or drop it.</p></div></div>
+    <div class="g"><b class="n">9</b><div><p><b>Learn.</b> What you keep becomes a word. Next time step 3 catches it.</p></div></div>
+  </div>
+  <p><b>Commands at birth:</b> more, enough, yes, no, again. <b>Walking adds:</b> back, glide. <b>Running adds:</b> take, turn, let go.</p>
+</section>
+
+<section>
+  <h2>The pipeline</h2>
+  <figure>
+    <svg viewBox="0 0 360 1300" role="img" aria-label="A single pipe runs from the foundation to X 1.0 through six gates. Eleven streams join it at 45 degrees. Gate 1 is passed; work stands between gate 1 and gate 2. Crawl ends at gate 3, walk ends at gate 6.">
+      <line class="pipe" x1="180" y1="120" x2="180" y2="1212"/>
+      <line class="pipe done" x1="180" y1="120" x2="180" y2="214"/>
+
+      <a href="#plan-w"><line class="feed s-run" x1="80" y1="30" x2="180" y2="130"/><circle class="dot s-run" cx="80" cy="30" r="12"/><text class="num" x="80" y="35">1</text><text class="lbl" x="100" y="26">Watch input</text></a>
+
+      <g class="gate passed"><rect x="105" y="158" width="150" height="26" rx="13"/><text x="180" y="176">1 · Foundation ✓</text></g>
+      <path d="M150 214 h60" stroke="var(--run)" stroke-width="3"/><text class="here" x="142" y="218" text-anchor="end">WE ARE HERE</text>
+
+      <a href="#plan-w"><line class="feed s-run" x1="280" y1="200" x2="180" y2="300"/><circle class="dot s-run" cx="280" cy="200" r="12"/><text class="num" x="280" y="205">2</text><text class="lbl" x="352" y="240" text-anchor="end">Watch session</text></a>
+
+      <g class="gate"><rect x="105" y="328" width="150" height="26" rx="13"/><text x="180" y="346">2 · Session</text></g>
+
+      <a href="#plan-x"><line class="feed s-todo" x1="80" y1="340" x2="180" y2="440"/><circle class="dot s-todo" cx="80" cy="340" r="12"/><text class="num" x="80" y="345">3</text><text class="lbl" x="8" y="378">Voice</text></a>
+      <a href="#plan-x"><line class="feed s-todo" x1="280" y1="390" x2="180" y2="490"/><circle class="dot s-todo" cx="280" cy="390" r="12"/><text class="num" x="280" y="395">4</text><text class="lbl" x="352" y="430" text-anchor="end">The learning</text><text class="lbl" x="352" y="446" text-anchor="end">loop</text></a>
+
+      <g class="gate"><rect x="105" y="518" width="150" height="26" rx="13"/><text x="180" y="536">3 · X is born</text></g>
+      <text class="stage" x="262" y="536">CRAWL ENDS</text>
+
+      <a href="#plan-l"><line class="feed s-run" x1="80" y1="530" x2="180" y2="630"/><circle class="dot s-run" cx="80" cy="530" r="12"/><text class="num" x="80" y="535">5</text><text class="lbl" x="8" y="568">Lab and</text><text class="lbl" x="8" y="584">evidence</text></a>
+      <a href="#plan-s"><line class="feed s-todo" x1="280" y1="580" x2="180" y2="680"/><circle class="dot s-todo" cx="280" cy="580" r="12"/><text class="num" x="280" y="585">6</text><text class="lbl" x="352" y="620" text-anchor="end">Camera: hand</text><text class="lbl" x="352" y="636" text-anchor="end">and head</text></a>
+      <a href="#plan-v"><line class="feed s-todo" x1="80" y1="650" x2="180" y2="750"/><circle class="dot s-todo" cx="80" cy="650" r="12"/><text class="num" x="80" y="655">7</text><text class="lbl" x="8" y="690">Teach</text></a>
+
+      <g class="gate"><rect x="105" y="778" width="150" height="26" rx="13"/><text x="180" y="796">4 · Proven signals</text></g>
+
+      <a href="#plan-v"><line class="feed s-todo" x1="280" y1="790" x2="180" y2="890"/><circle class="dot s-todo" cx="280" cy="790" r="12"/><text class="num" x="280" y="795">8</text><text class="lbl" x="352" y="830" text-anchor="end">Vocabulary</text></a>
+      <a href="#plan-s"><line class="feed s-todo" x1="80" y1="840" x2="180" y2="940"/><circle class="dot s-todo" cx="80" cy="840" r="12"/><text class="num" x="80" y="845">9</text><text class="lbl" x="8" y="880">The arbiter</text></a>
+
+      <g class="gate"><rect x="105" y="968" width="150" height="26" rx="13"/><text x="180" y="986">5 · Your language</text></g>
+
+      <a href="#plan-l"><line class="feed s-todo" x1="280" y1="980" x2="180" y2="1080"/><circle class="dot s-todo" cx="280" cy="980" r="12"/><text class="num" x="280" y="985">10</text><text class="lbl" x="352" y="1020" text-anchor="end">Continuous</text><text class="lbl" x="352" y="1036" text-anchor="end">control</text></a>
+      <a href="#plan-x"><line class="feed s-todo" x1="80" y1="1030" x2="180" y2="1130"/><circle class="dot s-todo" cx="80" cy="1030" r="12"/><text class="num" x="80" y="1035">11</text><text class="lbl" x="8" y="1068">Lists and</text><text class="lbl" x="8" y="1084">threads</text></a>
+
+      <g class="gate"><rect x="105" y="1158" width="150" height="26" rx="13"/><text x="180" y="1176">6 · X walks</text></g>
+      <text class="stage" x="262" y="1176">WALK ENDS</text>
+
+      <g class="goal"><circle cx="180" cy="1250" r="40"/><text x="180" y="1257">X 1.0</text></g>
+    </svg>
+    <div class="legend"><span><i class="ld"></i>built and proven</span><span><i class="lr"></i>under way</span><span><i class="lt"></i>not started</span></div>
+    <figcaption>Every stream can run now. Its position shows the gate that cannot pass without it. Tap a stream to jump to its plan. After X 1.0 comes the run stage.</figcaption>
+  </figure>
+</section>
+
+<section>
+  <h2>Where we are</h2>
+  <h3>Built</h3>
+  <ul>
+    <li><span class="tag fact">Fact</span>Watch file turn06-b6 reads wrist motion with the screen off. Nothing is read on the watch.</li>
+    <li><span class="tag fact">Fact</span>Relay w3 carries watch events to any browser page and keeps logs and recordings.</li>
+    <li><span class="tag fact">Fact</span>Lab lab-r5: 13 concept cards with notes and keep / back to shop / dump.</li>
+    <li><span class="tag fact">Fact</span>Your own pages already listen, speak, call models from the page with web search, and keep evidence.</li>
+  </ul>
+  <h3>Measured</h3>
+  <ul>
+    <li><span class="tag fact">Fact</span>Wi-Fi: 35–49 readings a second, 50–57 ms round trip, few stalls.</li>
+    <li><span class="tag fact">Fact</span>Bluetooth alone works: 26–32 readings a second, 128–154 ms, many stalls.</li>
+    <li><span class="tag fact">Fact</span>Your poses read cleanly. Three collisions found. Swing fired once in about 50 minutes.</li>
+    <li><span class="tag fact">Fact</span>With "Allow background activity" on: 13 minutes with no gap over 10 seconds.</li>
+  </ul>
+  <h3>Not known</h3>
+  <ul>
+    <li><span class="tag none">Open</span>Battery cost of a session per hour. Rough estimate only: 9–15%.</li>
+    <li><span class="tag none">Open</span>How each signal behaves while X is in use. Whether a taught signal lasts a day.</li>
+    <li><span class="tag none">Open</span>Hand time. The reason this exists has never been measured.</li>
+    <li><span class="tag none">Open</span>Anything about X itself. None of it is built. 3 of 36 requirements are met.</li>
+  </ul>
+</section>
+
+<section>
+  <h2>The six gates</h2>
+  <div class="gates">
+    <div class="g passed"><b class="n">1</b><div><p><b>Foundation.</b> Wrist motion reaches a browser page, and the logs come back to the build.</p><p class="st">Passed on the real watch, 17–18 Nov.</p></div></div>
+    <div class="g"><b class="n">2</b><div><p><b>Session.</b> Opening X starts the watch. Closing X stops it. It cannot stop by accident.</p><p class="st">Crawl. Release W1.</p></div></div>
+    <div class="g"><b class="n">3</b><div><p><b>X is born.</b> The whole loop works by voice: ask, answer, verdict, learn. Hand time is reported.</p><p class="st">Crawl ends. Release X1.</p></div></div>
+    <div class="g"><b class="n">4</b><div><p><b>Proven signals.</b> Each signal, from watch or camera, has a hit rate and a wrong-fire rate from scored use.</p><p class="st">Walk. Releases L1, L2, S1 to S3, V1, V2, W2.</p></div></div>
+    <div class="g"><b class="n">5</b><div><p><b>Your language.</b> Your taught signals steer X through the arbiter, and still work the next day.</p><p class="st">Walk. Releases S4, S5, V3, V4.</p></div></div>
+    <div class="g"><b class="n">6</b><div><p><b>X walks.</b> Lists and threads work. A 30-minute session with hands at rest, with the watch and without it.</p><p class="st">Walk ends. Releases X2, X3, L3. Passing this gate is X 1.0.</p></div></div>
+  </div>
+</section>
+
+<section>
+  <h2>The five plans</h2>
+
+  <article class="card run" id="plan-w">
+    <header><h3>W · The watch</h3><span class="into">streams 1, 2</span></header>
+    <p class="q">Does the watch live and die with X, at a cost you can afford?</p>
+    <div class="rel">
+      <span class="now"><b>W1 Session</b> · still panel, Watch off from the page, sleeps by itself, "logged at". Next.</span>
+      <span><b>W2 Battery truth</b> · percent an hour by link.</span>
+      <span><b>W3 Recognition on the watch</b> · needs your yes.</span>
+      <span><b>W4 Buzz</b> · one short vibration when X has something.</span>
+    </div>
+  </article>
+
+  <article class="card run" id="plan-l">
+    <header><h3>L · The Lab</h3><span class="into">streams 5, 10</span></header>
+    <p class="q">Is each signal good enough to steer X?</p>
+    <div class="rel">
+      <span class="now"><b>L1 Results table</b> · what the watch reported and each signal's record. Next.</span>
+      <span><b>L2 Scored session</b> · hit rate and wrong fires during X-like use.</span>
+      <span><b>L3 3D object</b> · take, turn and let go of a cup, no touch.</span>
+    </div>
+  </article>
+
+  <article class="card" id="plan-s">
+    <header><h3>S · Sources and the arbiter</h3><span class="into">streams 6, 9</span></header>
+    <p class="q">Can X work without the watch, and who wins when sources disagree?</p>
+    <div class="rel">
+      <span class="now"><b>S1 Camera probe</b> · hand found or lost, frames a second, on each device. Next.</span>
+      <span><b>S2 Hand numbers</b> · <b>S3 Head probe</b>.</span>
+      <span><b>S4 One event shape</b> · every source reports the same way.</span>
+      <span><b>S5 The arbiter</b> · override, fallback, exclusive, taught per context.</span>
+    </div>
+  </article>
+
+  <article class="card" id="plan-v">
+    <header><h3>V · Vocabulary and teaching</h3><span class="into">streams 7, 8</span></header>
+    <p class="q">Can you teach X your own signals in a minute, and do they last?</p>
+    <div class="rel">
+      <span><b>V1 Teach on the watch</b> · do it three times, name it, collision check.</span>
+      <span><b>V2 Teach by camera</b> · hand and head.</span>
+      <span><b>V3 Registration</b> · your signal, your command, per context.</span>
+      <span><b>V4 Next-day test</b>.</span>
+    </div>
+  </article>
+
+  <article class="card" id="plan-x">
+    <header><h3>X · X itself</h3><span class="into">streams 3, 4, 11</span></header>
+    <p class="q">Does X learn from you, with your hands at rest?</p>
+    <div class="rel">
+      <span class="now"><b>X1 Born</b> · listen, the nine-step loop, five commands, words kept, hand time. Next.</span>
+      <span><b>X2 Lists</b> · a word brings many items; more, back, glide.</span>
+      <span><b>X3 Threads</b> · several at once; X announces the ready.</span>
+      <span><b>After 1.0:</b> X4 sentences and contexts · X5 makes and analyses · X6 acts for you, behind an explicit yes.</span>
+    </div>
+  </article>
+</section>
+
+<section>
+  <h2>Decisions of mine you can strike</h2>
+  <ul>
+    <li><span class="tag mine">D18</span>X 1.0 is the end of the walk stage: the learning loop, lists and threads. This replaces my earlier "one use case" cut.</li>
+    <li><span class="tag mine">D14</span>The watch starts with one touch on the watch. It sleeps on a word from X, or after three minutes alone.</li>
+    <li><span class="tag mine">D13</span>X's memory stays on the device until pairing is hardened. Phone and desktop do not share it yet.</li>
+    <li><span class="tag mine">D08</span>You declare a context by saying it. X guessing the context comes at the run stage.</li>
+    <li><span class="tag mine">D20</span>Targets: 9 hits in 10, at most 1 wrong fire in 10 minutes, at most 5 touches in 30 minutes, at most 10% watch battery an hour.</li>
+    <li><span class="tag mine">D19</span>The watch, relay and Lab code moves under <code>x/</code> as step 0 of W1, when the builds run anyway.</li>
+  </ul>
+</section>
+
+<section>
+  <h2>Needs your yes before it happens</h2>
+  <ul>
+    <li>Recognition moving onto the watch (W3).</li>
+    <li>X's memory stored on the relay so devices share it.</li>
+    <li>Hardened pairing in place of the six-digit code.</li>
+  </ul>
+</section>
+
+<section>
+  <h2>Off the table</h2>
+  <p class="sub" style="margin:0">Closed and not reopened without your say: content on the watch, knock, repeated flick, wave, pinch and finger shapes, touch on the watch face as a signal, a phone companion app, Samsung's Universal gestures, two signals for one meaning, rings, Doublepoint's kit, X as a hub with its own connectors, X as a front end to OpenClaw, a dashboard, feeds chosen in advance.</p>
+</section>
+
+<section>
+  <h2>In the repo</h2>
+  <p class="files">Branch <code>wrist-turn01</code>, folder <code>x/</code>: <code>README.md</code> (the map), <code>X-NORTH-STAR.md</code>, <code>X-CONCEPT.md</code>, <code>X-REQUIREMENTS.md</code>, <code>X-DESIGN.md</code>, <code>X-ROADMAP.md</code>, <code>X-TEST-PLAN.md</code>, <code>X-TRACE.md</code>, and <code>plans/</code> with W, L, S, V and X.</p>
+</section>
+
+</main>
+</body>
+</html>
