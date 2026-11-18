@@ -579,3 +579,9 @@ A message containing any single HTML tag was routed to the raw-HTML path, so its
 # RESTORE-ALL FIX — 2026-11-18
 **Found in the owner's dry run.** Dreaming sessions were not skipped (their text starts with a time stamp), and the phone-number redaction garbled date text in labels.
 **Change.** Automated detection now looks for "Write a dream diary entry", "[cron:" and "Read HEARTBEAT.md" anywhere near the start. Labels are the first message without its time stamp plus the session date, e.g. "real question about stitching video (2026-11-09)"; redaction applies to the printed preview only.
+
+# v2.10.13 SESSION LIST LIMIT — 2026-11-18
+**Reported.** After restoring 91 sessions on the Gateway (157 total), Session Manager still showed 66.
+**Finding.** The Gateway's `sessions.list` response reports `limitApplied: 100`; the app never passed a limit, so any Gateway with more than 100 sessions silently drops the rest. This also matches the owner's first report of "125 sessions … dropped".
+**Change.** The app requests up to 5000 sessions (retrying without the limit if the Gateway rejects the parameter) and shows a warning, with the Gateway's own totals, whenever it returns fewer sessions than it has.
+**Unverified.** The `limit` parameter name is inferred from the response field and the CLI's `--limit` option; not confirmed against the Gateway.
