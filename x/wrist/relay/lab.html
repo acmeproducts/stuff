@@ -1,0 +1,945 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>X · wrist lab</title>
+<style>
+:root{--bg:#0b1016;--panel:#131b24;--panel2:#17232e;--line:#243140;--text:#e8eef4;--muted:#8a98a6;--good:#4cc38a;--bad:#e5534b;--warn:#e5a23b;--accent:#39c5cf}
+*{box-sizing:border-box}
+html,body{height:100%;margin:0;background:var(--bg);color:var(--text);font:17px/1.4 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;overflow:hidden;-webkit-text-size-adjust:100%;touch-action:manipulation}
+button{font:inherit;color:inherit;background:none;border:1px solid var(--line);border-radius:10px;padding:9px 14px}
+button:active{background:var(--panel2)}
+#offBtn{position:relative;overflow:hidden;padding:5px 10px;font-size:13px;color:var(--muted)}
+#offBtn::before{content:"";position:absolute;inset:0;background:var(--bad);opacity:.5;transform:scaleX(0);transform-origin:left}
+#offBtn.hold::before{transform:scaleX(1);transition:transform 1s linear}
+#active.nostrip #strip,#active.nostrip #hint{display:none}
+.linkbox h3{margin:6px 0 0;font-size:12.5px;color:var(--muted);letter-spacing:.06em;text-align:left;font-weight:650}
+.linkbox .scrollx{overflow-x:auto;text-align:left}
+.linkbox .kv{text-align:left;font-size:14px;color:var(--text);line-height:1.6}
+.linkbox .kv b.bad{color:var(--bad)}
+.camview{position:relative;width:100%;max-width:520px;margin:0 auto;border-radius:14px;overflow:hidden;background:#000;aspect-ratio:4/3}
+.camview video,.camview canvas{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;transform:scaleX(-1)}
+.buzzgrid{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.buzzgrid button{padding:18px 8px;font-weight:650}
+/* ---------- grid ---------- */
+#grid{height:100%;display:grid;grid-template-rows:auto minmax(0,1fr);grid-template-columns:minmax(0,1fr)}
+#top{padding:calc(12px + env(safe-area-inset-top)) 16px 10px;border-bottom:1px solid var(--line)}
+#top h1{margin:0;font-size:24px;font-weight:750}
+#statusRow{display:flex;align-items:center;gap:9px;font-size:15px;margin-top:6px}
+#lamp{width:11px;height:11px;border-radius:50%;background:var(--bad);flex:none}
+#lamp.link{background:var(--warn)}#lamp.live{background:var(--good)}
+#statusText{flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+#meta{color:var(--muted);font-size:12.5px;margin-top:4px;font-variant-numeric:tabular-nums}
+#cards{overflow-y:auto;padding:14px;display:grid;grid-template-columns:repeat(auto-fill,minmax(250px,1fr));gap:12px;align-content:start}
+.tile{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:15px;text-align:left;display:grid;gap:6px;min-height:132px;align-content:start}
+.tile b{font-size:19px;font-weight:680}
+.tile span{color:var(--muted);font-size:14.5px}
+.tile .foot{display:flex;gap:8px;align-items:center;margin-top:auto;font-size:13px;color:var(--muted)}
+.chip{border-radius:999px;padding:2px 10px;font-size:12.5px;font-weight:650;border:1px solid var(--line);color:var(--muted)}
+.chip.keep{color:#06140d;background:var(--good);border-color:var(--good)}
+.chip.shop{color:#1c1203;background:var(--warn);border-color:var(--warn)}
+.chip.dump{color:#fff;background:var(--bad);border-color:var(--bad)}
+/* ---------- active concept ---------- */
+#active{position:fixed;inset:0;background:var(--bg);display:none;perspective:1600px;z-index:3}
+#active.show{display:block}
+#flip{position:absolute;inset:0;transform-style:preserve-3d;transition:transform .45s cubic-bezier(.3,.7,.2,1)}
+#flip.back{transform:rotateY(180deg)}
+.face{position:absolute;inset:0;backface-visibility:hidden;-webkit-backface-visibility:hidden;background:var(--bg);display:grid;grid-template-columns:minmax(0,1fr)}
+#front{grid-template-rows:auto minmax(0,1fr) auto}
+#backFace{transform:rotateY(180deg);grid-template-rows:auto minmax(0,1fr);}
+.bar{display:flex;align-items:center;gap:10px;padding:calc(8px + env(safe-area-inset-top)) 12px 8px;border-bottom:1px solid var(--line)}
+.bar h2{margin:0;font-size:19px;font-weight:700;flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+#rec{font-size:13px;color:var(--bad);font-variant-numeric:tabular-nums;white-space:nowrap}
+#play{position:relative;overflow:hidden}
+#hint{position:absolute;left:0;right:0;bottom:8px;text-align:center;color:var(--muted);font-size:13px;pointer-events:none}
+#flash{position:absolute;left:50%;top:12px;transform:translateX(-50%);background:#1b2a37;border:1px solid var(--line);border-radius:999px;padding:7px 16px;font-size:16px;font-weight:650;opacity:0;transition:opacity .25s;pointer-events:none;white-space:nowrap;z-index:2}
+#flash.show{opacity:1;transition:none}
+#need{position:absolute;inset:0;display:none;place-items:center;text-align:center;padding:24px;background:rgba(11,16,22,.92);color:var(--warn);font-size:17px;z-index:1}
+#need.show{display:grid}
+#strip{border-top:1px solid var(--line);padding:6px 12px calc(6px + env(safe-area-inset-bottom))}
+#trace{width:100%;height:74px;display:block}
+#nums{display:flex;gap:14px;font:12.5px/1.3 ui-monospace,Menlo,Consolas,monospace;color:var(--muted);white-space:nowrap;overflow:hidden}
+#nums i{font-style:normal}
+#nums .p{color:#39c5cf}#nums .r{color:#e5a23b}#nums .y{color:#b38cf5}
+#backBody{overflow-y:auto;padding:14px 16px calc(18px + env(safe-area-inset-bottom));display:grid;gap:14px;align-content:start;max-width:720px;width:100%;margin:0 auto}
+#backBody h3{margin:0 0 4px;font-size:14px;color:var(--muted);font-weight:650;letter-spacing:.3px}
+#how{margin:0;font-size:16px}
+#notes{width:100%;min-height:110px;background:var(--panel);color:var(--text);border:1px solid var(--line);border-radius:12px;padding:12px;font:inherit;resize:vertical}
+.row{display:flex;gap:10px;flex-wrap:wrap}
+.row button{flex:1;min-width:92px;padding:14px 10px;font-weight:650}
+.row button.on{border-color:var(--accent);background:var(--panel2)}
+#rate button[data-v=keep].on{background:var(--good);border-color:var(--good);color:#06140d}
+#rate button[data-v=shop].on{background:var(--warn);border-color:var(--warn);color:#1c1203}
+#rate button[data-v=dump].on{background:var(--bad);border-color:var(--bad);color:#fff}
+#saved{color:var(--muted);font-size:13.5px;min-height:1.4em}
+/* ---------- playgrounds ---------- */
+.list{position:absolute;inset:0;display:grid;grid-template-rows:auto minmax(0,1fr)}
+.list .th{padding:10px 16px;font-size:21px;font-weight:720;display:flex;gap:10px;align-items:baseline}
+.list .th small{color:var(--muted);font-size:13px;font-weight:500}
+.list .sc{overflow-y:auto;padding:30vh 14px;scrollbar-width:none;position:relative}
+.list .sc::-webkit-scrollbar{display:none}
+.item{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:15px 16px;margin:0 auto 11px;max-width:640px;font-size:19px;font-weight:620;display:flex;justify-content:space-between;transition:border-color .12s,background .12s}
+.item.focus{border-color:var(--accent);background:var(--panel2)}
+.item em{font-style:normal;color:var(--good);opacity:0}.item.chosen em{opacity:1}
+.big{position:absolute;inset:0;display:grid;place-items:center;text-align:center;padding:20px}
+.big .glyph{font-size:min(34vw,180px);line-height:1}
+.big p{margin:10px 0 0;color:var(--muted);font-size:17px}
+.big .count{font-size:22px;color:var(--text);margin-top:8px;font-variant-numeric:tabular-nums}
+.dial{position:absolute;inset:0;display:grid;place-items:center;padding:14px}
+.dial .opts{display:flex;gap:8px;flex-wrap:wrap;justify-content:center;max-width:680px}
+.dial .o{width:84px;height:84px;border-radius:18px;border:2px solid var(--line);background:var(--panel);display:grid;place-items:center;font-size:17px;font-weight:650;position:relative;transition:transform .1s,border-color .1s}
+.dial .o.hot{border-color:var(--accent);transform:scale(1.12);background:var(--panel2)}
+.dial .o.picked{border-color:var(--good);background:#12301f}
+.dial .o i{position:absolute;left:0;bottom:0;height:5px;background:var(--accent);border-radius:0 0 0 16px;width:0}
+.dial p{color:var(--muted);text-align:center;margin:14px 0 0}
+.meter{height:12px;border-radius:6px;background:var(--panel);border:1px solid var(--line);width:min(70vw,360px);margin:14px auto 0;overflow:hidden}
+.meter i{display:block;height:100%;width:0;background:var(--accent)}
+#seeCanvas{position:absolute;inset:0;width:100%;height:100%}
+.pg{position:absolute;inset:0}
+.quad{position:absolute;inset:0;display:grid;grid-template-columns:1fr 1fr;grid-template-rows:1fr 1fr;gap:10px;padding:12px 12px 34px}
+.quad .q{border:2px solid var(--line);border-radius:18px;background:var(--panel);display:grid;place-items:center;align-content:center;gap:2px;position:relative;overflow:hidden;transition:border-color .12s,background .12s}
+.quad .q span{font-size:min(17vw,84px);line-height:1.1}
+.quad .q b{font-size:18px}
+.quad .q em{font-style:normal;color:var(--muted);font-variant-numeric:tabular-nums}
+.quad .q i{position:absolute;left:0;bottom:0;height:6px;background:var(--accent);width:0}
+.quad .q.in{border-color:var(--accent)}
+.quad .q.lit{background:#12301f;border-color:var(--good)}
+.linkbox{position:absolute;inset:0;overflow-y:auto;padding:16px 14px 40px;display:grid;gap:12px;align-content:start;text-align:center}
+.linkbox .lk{font-size:30px;font-weight:750}
+.linkbox .g4{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.linkbox .g4>div{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:12px 8px}
+.linkbox .g4 b{display:block;font-size:26px;font-variant-numeric:tabular-nums}
+.linkbox .g4 em{font-style:normal;color:var(--muted);font-size:13.5px}
+.linkbox .meter{width:100%;margin:2px 0 0}
+.linkbox p{margin:0;color:var(--muted);font-size:15px}
+.linkbox table{width:100%;border-collapse:collapse;font-size:13px;font-variant-numeric:tabular-nums}
+.linkbox th,.linkbox td{padding:6px 3px;border-top:1px solid var(--line)}
+.linkbox th{color:var(--muted);font-weight:600}
+.stats{position:absolute;inset:0;display:grid;gap:10px;padding:14px 14px 36px;align-content:center}
+.stats>div{background:var(--panel);border:1px solid var(--line);border-radius:16px;padding:14px 18px;display:grid;grid-template-columns:auto 1fr;column-gap:16px;align-items:center}
+.stats span{font-size:44px;grid-row:1/3}
+.stats b{font-size:30px;font-variant-numeric:tabular-nums}
+.stats em{font-style:normal;color:var(--muted)}
+.kboard{position:absolute;inset:0;overflow-y:auto;padding:12px 14px 40px;display:grid;gap:10px;align-content:start}
+.krow{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:11px 13px}
+.krow b{display:block;font-size:15px;margin-bottom:7px}
+.krow div{display:flex;flex-wrap:wrap;gap:7px}
+.kchip{border:1px solid var(--line);border-radius:999px;padding:4px 11px;font-size:14px;color:var(--muted);font-variant-numeric:tabular-nums;transition:background .15s,color .15s}
+.kchip.lit{background:var(--good);border-color:var(--good);color:#06140d}
+.kboard p{color:var(--muted);margin:4px 2px;font-size:14.5px}
+/* ---------- pairing ---------- */
+#pair{position:fixed;inset:0;background:var(--bg);display:none;place-items:center;padding:24px;z-index:5}
+#pair.show{display:grid}
+#pair div{max-width:420px;width:100%;text-align:center}
+#pair h1{font-size:26px;margin:0 0 8px}
+#pair p{color:var(--muted);margin:0 0 20px}
+#code{width:100%;font:700 44px/1.2 ui-monospace,Menlo,Consolas,monospace;letter-spacing:10px;text-align:center;background:var(--panel);color:var(--text);border:2px solid var(--line);border-radius:16px;padding:16px 8px}
+#code:focus{outline:none;border-color:var(--accent)}
+@media (prefers-reduced-motion:reduce){#flip{transition:none}}
+</style>
+</head>
+<body>
+<div id="grid">
+  <div id="top">
+    <h1>Wrist Lab</h1>
+    <div id="statusRow"><i id="lamp"></i><span id="statusText">Starting…</span><button id="offBtn" type="button" title="Hold for one second to stop the watch">Watch off</button><button id="codeBtn" type="button" style="padding:5px 10px;font-size:13px;color:var(--muted)">Code</button></div>
+    <div id="meta"></div>
+  </div>
+  <div id="cards"></div>
+</div>
+
+<div id="active">
+  <div id="flip">
+    <section class="face" id="front">
+      <div class="bar"><button id="closeBtn" type="button" aria-label="Back to the grid">←</button><h2 id="cName"></h2><span id="rec"></span><button id="notesBtn" type="button">Notes</button></div>
+      <div id="play"><div id="flash"></div><div id="need"></div><div id="hint">tap = “I meant that” · double-tap = notes and rating</div></div>
+      <div id="strip"><canvas id="trace"></canvas><div id="nums"><i class="p" id="nP">tilt –</i><i class="r" id="nR">roll –</i><i class="y" id="nY">turn –</i><i id="nE"></i></div></div>
+    </section>
+    <section class="face" id="backFace">
+      <div class="bar"><button id="frontBtn" type="button" aria-label="Back to the experiment">←</button><h2 id="cName2"></h2><button id="doneBtn" type="button">Done</button></div>
+      <div id="backBody">
+        <div><h3>WHAT TO TRY</h3><p id="how"></p></div>
+        <div><h3>HOW DID IT FEEL?</h3><div class="row" id="thumbs"><button type="button" data-v="up">👍 Good</button><button type="button" data-v="down">👎 Bad</button></div></div>
+        <div><h3>VERDICT</h3><div class="row" id="rate"><button type="button" data-v="keep">Keep</button><button type="button" data-v="shop">Back to shop</button><button type="button" data-v="dump">Dump</button></div></div>
+        <div><h3>NOTES</h3><textarea id="notes" placeholder="What worked, what didn't, what to change"></textarea><div class="row" style="margin-top:8px"><button type="button" id="dictate">🎤 Speak a note</button></div></div>
+        <div id="saved"></div>
+      </div>
+    </section>
+  </div>
+</div>
+
+<div id="pair"><div>
+  <h1>Enter the watch code</h1>
+  <p>Open Wrist on the watch. Type the 6 digits it shows. You only do this once on this device.</p>
+  <input id="code" type="tel" inputmode="numeric" autocomplete="off" maxlength="6" placeholder="······" aria-label="6-digit watch code">
+</div></div>
+
+<script>
+(function(){
+'use strict';
+var BUILD='lab-r6';
+var LINK_SECS=Number((/[?&]linksecs=(\d+)/.exec(location.search)||[])[1])||120;
+var $=function(id){return document.getElementById(id)};
+var DEG=180/Math.PI;
+var ws=null,retry=0,pingT=null,lastWatchAt=0,watchBuild='',resting=false,lastRawAt=0,watchLink='',watchRtt=-1,watchBat=-1,lastBatchAt=0;
+var LINKNAME={bt:'Bluetooth (via phone)',wifi:'Wi-Fi',cell:'Mobile',none:'no connection',other:'other'};
+var pairState='',lastDiagAt=0,asleep='',offAsked=0,offOld=false;   // pairing state, when the watch last logged its panel, why it went off, when Watch off was asked
+var cur=null;            // the open concept
+var trial=null;          // the recording in progress
+var store={};            // per concept: rating, notes, trials
+
+/* =====================================================================
+   Signals worked out from one raw row: [dt, gx,gy,gz, wx,wy,wz, ax,ay,az] (x100)
+   ===================================================================== */
+function derive(r){
+  var gx=r[1]/100,gy=r[2]/100,gz=r[3]/100,n=Math.sqrt(gx*gx+gy*gy+gz*gz)||1;
+  var wx=r[4]/100,wy=r[5]/100,wz=r[6]/100,ax=r[7]/100,ay=r[8]/100,az=r[9]/100;
+  var s=Math.max(-1,Math.min(1,gx/n));
+  return {pitch:Math.asin(s)*DEG, roll:Math.atan2(gy,gz)*DEG, yaw:(wx*gx+wy*gy+wz*gz)/n,
+          gyro:Math.sqrt(wx*wx+wy*wy+wz*wz), acc:Math.sqrt(ax*ax+ay*ay+az*az)};
+}
+
+/* =====================================================================
+   Shared playground: a list in threads (used by the scroll and swing concepts)
+   ===================================================================== */
+function makeList(root){
+  var names=['Messages','Research','Shopping','Code'],t=0,rate=0,last=0,alive=true,focused=null;
+  var el=document.createElement('div');el.className='list';
+  el.innerHTML='<div class="th"><span></span><small></small></div><div class="sc"></div>';
+  var sc=el.querySelector('.sc');root.appendChild(el);
+  function fill(){
+    el.querySelector('.th span').textContent=names[t];el.querySelector('.th small').textContent='thread '+(t+1)+' of '+names.length;
+    sc.innerHTML='';for(var i=1;i<=24;i++){var d=document.createElement('div');d.className='item';d.innerHTML='<span>'+names[t]+' · item '+i+'</span><em>✓</em>';sc.appendChild(d)}
+    sc.scrollTop=0;focused=null;
+  }
+  function focus(){
+    var mid=sc.getBoundingClientRect().top+sc.clientHeight/2,best=null,bd=1e9;
+    for(var i=0;i<sc.children.length;i++){var r=sc.children[i].getBoundingClientRect(),d=Math.abs((r.top+r.bottom)/2-mid);if(d<bd){bd=d;best=sc.children[i]}}
+    if(best!==focused){if(focused)focused.classList.remove('focus');focused=best;if(best)best.classList.add('focus')}
+    return best;
+  }
+  function frame(ts){
+    if(!alive)return;
+    var dt=last?Math.min(0.1,(ts-last)/1000):0;last=ts;
+    if(rate)sc.scrollTop-=rate*1100*dt;      /* + = hand raised = towards the top */
+    focus();requestAnimationFrame(frame);
+  }
+  fill();requestAnimationFrame(frame);
+  return {setRate:function(r){rate=r},rate:function(){return rate},
+          next:function(){t=(t+1)%names.length;fill()},prev:function(){t=(t+names.length-1)%names.length;fill()},
+          choose:function(){var f=focus();if(f)f.classList.toggle('chosen')},top:function(){return sc.scrollTop},thread:function(){return names[t]},
+          stop:function(){alive=false}};
+}
+
+/* =====================================================================
+   Recognisers: the part of each concept that decides, with no screen attached.
+   Each takes derived samples and returns the gestures it fired, so the same
+   code runs inside its own card and inside the Keepers card.
+   ===================================================================== */
+var R={};
+R.tilt2=function(){var o={lp:null,on:false,nv:false,neutral:0,rate:0};
+  o.sample=function(d){var f=[];
+    o.lp=o.lp==null?d.pitch:o.lp+(d.pitch-o.lp)*0.25;
+    var usable=Math.abs(d.roll)<35&&o.lp>-45&&o.lp<70;
+    if(!usable){if(o.on){o.on=false;f.push({g:'scroll stop',why:'arm not in scroll pose'})}o.nv=false;o.rate=0;return f}
+    if(!o.nv){o.neutral=o.lp;o.nv=true}
+    var x=o.lp-o.neutral,a=Math.abs(x);
+    if(!o.on){if(a>14){o.on=true;f.push({g:'scroll start',dir:x>0?'up':'down'})}else if(d.gyro<0.3)o.neutral+=x*0.01}
+    else if(a<8){o.on=false;f.push({g:'scroll stop',why:'level'})}
+    o.rate=o.on?(x>0?1:-1)*Math.pow(Math.min(1,(a-8)/22),1.5):0;
+    return f};
+  return o};
+R.swing2=function(){var o={acc:0,t:0,lock:0,idle:0,vertical:false};
+  o.sample=function(d,dt){var f=[];
+    o.vertical=Math.abs(d.roll)>50&&Math.abs(d.roll)<130&&Math.abs(d.pitch)<60;
+    if(o.lock>0){o.lock-=dt;o.acc=0;return f}
+    if(!o.vertical){o.acc=0;return f}
+    var a=Math.abs(d.yaw);
+    if(a>=0.7){if(o.acc!==0&&(o.acc>0)!==(d.yaw>0)){o.acc=0}if(o.acc===0)o.t=0;o.acc+=d.yaw*dt/1000;o.t+=dt;o.idle=0;
+      if(o.t>700){o.acc=0}
+      else if(Math.abs(o.acc)>=0.3){f.push({g:o.acc>0?'swing left':'swing right',swept:Math.round(Math.abs(o.acc)*DEG)});o.acc=0;o.lock=800}}
+    else if(a<0.4&&o.acc!==0){o.idle+=dt;if(o.idle>150)o.acc=0}
+    return f};
+  return o};
+R.dial=function(){var names=['Reply','Later','Call','Archive','Read','Forward','Skip'];
+  var o={names:names,idx:-1,lp:null,still:0,locked:false,level:true};
+  o.sample=function(d,dt){var f=[];
+    o.level=Math.abs(d.pitch)<=45;if(!o.level)return f;
+    o.lp=o.lp==null?d.roll:o.lp+(d.roll-o.lp)*0.2;
+    var pos=(15-Math.max(-75,Math.min(15,o.lp)))/90*6;                      /* roll +15..-75 -> 0..6 */
+    var t=o.idx<0?Math.round(pos):(Math.abs(pos-o.idx)>0.65?Math.round(pos):o.idx);
+    if(t!==o.idx){var first=o.idx<0;o.idx=t;o.still=0;o.locked=false;if(!first)f.push({g:'dial move',to:names[t]})}
+    if(!o.locked){o.still=d.gyro<0.5?o.still+dt:0;if(o.still>=1000){o.locked=true;f.push({g:'dial choose',what:names[o.idx]})}}
+    return f};
+  return o};
+/* Four hand poses, four different gestures. Palm down is also how an arm rests, so it only
+   counts when you arrive at it from one of the other three. */
+R.poses=function(){var o={band:'',held:0,fired:false,fromOther:false};
+  o.sample=function(d,dt){var f=[],b='';
+    if(Math.abs(d.pitch)<50){var r=d.roll,a=Math.abs(r);
+      if(a<25)b='palm down';else if(r<-55&&r>-130)b='thumb up';else if(r>55&&r<130)b='thumb down';else if(a>150)b='palm up'}
+    if(b!==o.band){o.band=b;o.held=0;o.fired=false;if(b&&b!=='palm down')o.fromOther=true}
+    else if(b&&!o.fired){o.held+=dt;
+      if(o.held>=800){o.fired=true;if(b!=='palm down'||o.fromOther){f.push({g:b,roll:Math.round(d.roll)});if(b==='palm down')o.fromOther=false}}}
+    return f};
+  return o};
+/* A flap: from palm down, a quick roll out and straight back. A roll that stays out is a pose, not a flap. */
+R.flap=function(){var o={base:null,state:0,dir:0,t:0,lock:0,e:0};
+  o.sample=function(d,dt){var f=[];
+    if(o.lock>0)o.lock-=dt;
+    var flat=Math.abs(d.pitch)<50;
+    if(o.base==null){if(flat&&Math.abs(d.roll)<35)o.base=d.roll;return f}
+    o.e=d.roll-o.base;
+    if(o.state===0){
+      if(d.gyro<0.6&&flat&&Math.abs(d.roll)<35)o.base+=(d.roll-o.base)*0.05;
+      if(o.lock<=0&&flat&&Math.abs(o.e)>28&&d.gyro>1.5){o.state=1;o.dir=o.e<0?-1:1;o.t=0}
+    }else{o.t+=dt;
+      if(Math.abs(o.e)<10){f.push({g:o.dir<0?'flap, thumb rising':'flap, pinky rising',ms:Math.round(o.t)});o.state=0;o.lock=500}
+      else if(o.t>700){o.state=0;o.base=null}}
+    return f};
+  return o};
+R.raise=function(){var o={lp:null,on:false,above:0};
+  o.sample=function(d,dt){var f=[];
+    o.lp=o.lp==null?d.pitch:o.lp+(d.pitch-o.lp)*0.2;
+    if(!o.on){o.above=o.lp>40?o.above+dt:0;if(o.above>=500){o.on=true;f.push({g:'talk open',tilt:Math.round(o.lp)})}}
+    else if(o.lp<20){o.on=false;o.above=0;f.push({g:'talk close'})}
+    return f};
+  return o};
+/* Things X might want to know about you. None of these is a command. */
+R.body=function(){var o={still:0,moving:false,next:20000,lp:null,up:0,overhead:false,overheads:0,slow:null,sign:0,half:0,halfMs:0,peak:0,rolls:0};
+  o.sample=function(d,dt){var f=[];
+    /* how long the watch arm has not moved */
+    if(d.gyro>0.6){o.still=0;o.next=20000}else if(d.gyro<0.25||o.still>0){o.still+=dt;if(o.still>=o.next){f.push({g:o.next===20000?'still 20 s':'still '+Math.round(o.next/60000)+' min'});o.next=o.next===20000?60000:o.next+60000}}
+    /* hand above the head: forearm pointing well up and held */
+    o.lp=o.lp==null?d.pitch:o.lp+(d.pitch-o.lp)*0.2;
+    if(!o.overhead){o.up=o.lp>62?o.up+dt:0;if(o.up>=1500){o.overhead=true;o.overheads++;f.push({g:'arms overhead',tilt:Math.round(o.lp)})}}
+    else if(o.lp<40){o.overhead=false;o.up=0}
+    /* shoulder rolls: arm out roughly level, tilt circling slowly: four half-turns in a row */
+    o.slow=o.slow==null?d.pitch:o.slow+(d.pitch-o.slow)*Math.min(1,dt/2000);
+    var hp=d.pitch-o.slow,sg=hp>3?1:hp<-3?-1:0;
+    o.halfMs+=dt;o.peak=Math.max(o.peak,Math.abs(hp));
+    if(Math.abs(o.lp)>40||o.halfMs>2500){o.half=0;o.halfMs=0;o.peak=0;o.sign=sg}
+    else if(sg!==0&&sg!==o.sign){if(o.sign!==0&&o.peak>6&&o.halfMs>400)o.half++;else o.half=0;o.sign=sg;o.halfMs=0;o.peak=0;
+      if(o.half>=4){o.half=0;o.rolls++;f.push({g:'shoulder roll'})}}
+    return f};
+  return o};
+/* The OK pose, as the owner defined it: not fingers. Forearm raised, hand about throat height, watch face up.
+   The owner's own four holds on 2026-11-17 measured 36, 38, 40 and 42 degrees with roll between -7 and +2. */
+R.ok=function(){var o={lp:null,inBand:false,held:0,fired:false};
+  o.sample=function(d,dt){var f=[];
+    o.lp=o.lp==null?d.pitch:o.lp+(d.pitch-o.lp)*0.2;
+    if(!o.inBand){if(o.lp>=30&&o.lp<=52&&Math.abs(d.roll)<30){o.inBand=true;o.held=0;o.fired=false}}
+    else if(o.lp<25||o.lp>57||Math.abs(d.roll)>40){o.inBand=false;o.held=0}
+    else if(!o.fired){o.held=d.gyro<0.8?o.held+dt:0;if(o.held>=800){o.fired=true;f.push({g:'ok pose',tilt:Math.round(o.lp),roll:Math.round(d.roll)})}}
+    return f};
+  return o};
+
+function fire(list){for(var i=0;i<list.length;i++)detect(list[i].g,list[i])}
+
+/* =====================================================================
+   The concepts. Each one is small and self-contained so more can be added.
+   needsRaw: it works from the raw stream (watch app turn04 or later).
+   g: the gestures it can fire (shown in the Keepers card).
+   ===================================================================== */
+var CONCEPTS=[
+{id:'keepers',name:'Keepers',needsRaw:true,g:[],
+ blurb:'Every gesture you rated Keep, running at once. Shows which fire, and which collide.',
+ how:'This card is the working vocabulary: every concept you have rated Keep runs here at the same time. Do the gestures in any order. A chip lights each time one fires. "Collisions" counts two different concepts firing within half a second of each other: those two cannot both stay as they are.',
+ mount:function(root){
+   var self=this,el=document.createElement('div');el.className='kboard';root.appendChild(el);
+   this.sets=[];this.last=null;this.hits=0;this.pairs=[];
+   CONCEPTS.forEach(function(c){if(c.id==='keepers'||store[c.id].rating!=='keep'||!c.g.length)return;
+     var row=document.createElement('div');row.className='krow';row.innerHTML='<b></b><div></div>';row.querySelector('b').textContent=c.name;
+     var chips={};c.g.forEach(function(n){var ch=document.createElement('span');ch.className='kchip';ch.dataset.n=0;ch.textContent=n;row.lastElementChild.appendChild(ch);chips[n]=ch});
+     el.appendChild(row);self.sets.push({c:c,r:R[c.id]?R[c.id]():null,chips:chips})});
+   this.foot=document.createElement('p');el.appendChild(this.foot);
+   if(!this.sets.length)this.foot.textContent='Nothing is rated Keep yet. Open a card, try it, flip it over and choose Keep. It will appear here.';else this.paint();
+ },
+ paint:function(){this.foot.textContent='Collisions: '+this.hits+(this.pairs.length?'  ·  '+this.pairs.slice(-3).join('  |  '):'')},
+ hit:function(set,name){
+   var ch=set.chips[name];if(!ch)return;
+   ch.dataset.n=Number(ch.dataset.n)+1;ch.textContent=name+' '+ch.dataset.n;ch.classList.add('lit');setTimeout(function(){ch.classList.remove('lit')},450);
+   var t=now();detect(set.c.id+': '+name);
+   if(this.last&&this.last.id!==set.c.id&&t-this.last.t<500){this.hits++;var p=this.last.name+' + '+name;this.pairs.push(p);ev('concept','collision',{a:this.last.id+': '+this.last.name,b:set.c.id+': '+name})}
+   this.last={id:set.c.id,name:name,t:t};this.paint();
+ },
+ sample:function(d,dt){for(var i=0;i<this.sets.length;i++){var s=this.sets[i];if(!s.r)continue;var f=s.r.sample(d,dt);for(var k=0;k<f.length;k++)this.hit(s,f[k].g)}},
+ watch:function(m){for(var i=0;i<this.sets.length;i++){var s=this.sets[i];
+   if(s.c.id==='swing1'&&m.t==='swipe')this.hit(s,'swing '+m.d);
+   if(s.c.id==='tilt1'&&m.t==='scroll'){var on=Number(m.r)!==0;if(on!==!!s.on){s.on=on;this.hit(s,on?'scroll start':'scroll stop')}}}}
+},
+{id:'results',name:'Results',needsRaw:false,noRaw:true,noTrial:true,g:[],
+ blurb:'What the watch reported, session by session, and how each signal has done so far.',
+ how:'Two tables. Watch: one row for each time the watch ran, with its link, battery at both ends, longest silence and how it ended. Signals: every Lab concept with its trials, how often it fired, and how often you marked "I meant that". Read aloud speaks the newest rows.',
+ mount:function(root){
+   var el=document.createElement('div');el.className='linkbox';
+   el.innerHTML='<h3>WATCH SESSIONS</h3><div id="resW" class="scrollx">Loading…</div><h3>PANEL, LAST LOGGED</h3><div id="resP" class="kv">–</div><h3>SIGNALS</h3><div id="resS" class="scrollx">Loading…</div><div class="row"><button type="button" id="resRead">Read aloud</button></div>';
+   root.appendChild(el);el.addEventListener('pointerup',function(e){e.stopPropagation()});
+   var self=this;self.say=[];self.alive=true;
+   fetch('/report/'+code()+'?k='+secret(code())).then(function(r){return r.json()}).then(function(j){if(self.alive)self.watchTable(j)}).catch(function(e){$('resW').textContent='Could not read the watch report: '+(e&&e.message||e)});
+   fetch('/trials').then(function(r){return r.json()}).then(function(l){if(self.alive)self.signals(l)}).catch(function(e){$('resS').textContent='Could not read the trials: '+(e&&e.message||e)});
+   $('resRead').addEventListener('click',function(){try{speechSynthesis.cancel();speechSynthesis.speak(new SpeechSynthesisUtterance(self.say.join('. ')||'Nothing to read yet'))}catch(e){}});
+ },
+ unmount:function(){this.alive=false;try{speechSynthesis.cancel()}catch(e){}},
+ esc:function(s){return String(s).replace(/[&<>]/g,function(c){return{'&':'&amp;','<':'&lt;','>':'&gt;'}[c]})},
+ when:function(ms){var d=new Date(ms),p=function(x){return(x<10?'0':'')+x};return['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'][d.getMonth()]+' '+d.getDate()+' '+p(d.getHours())+':'+p(d.getMinutes())},
+ watchTable:function(j){
+   var self=this,S=(j.sessions||[]).slice().reverse(),WHY={page:'turned off from a page',idle:'alone for 3 minutes',hold:'held on the watch'};
+   if(j.ok===false){$('resW').textContent='The relay refused: '+(j.why||'not paired');return}
+   if(!S.length){$('resW').textContent='No sessions recorded yet. Sessions are recorded from relay w4 on.'}
+   else{
+     var h='<table><tr><th>Started</th><th>Min</th><th>Link</th><th>Battery</th><th>%/h</th><th>Gap</th><th>Ended</th></tr>';
+     S.slice(0,25).forEach(function(s,i){
+       var min=(s.end-s.start)/60000,ks=Object.keys(s.ln||{}).sort(function(a,b){return s.ln[b]-s.ln[a]}),link=ks.length?(LINKNAME[ks[0]]||ks[0]).replace(' (via phone)','')+(ks.length>1?' +':''):'?';
+       var perh=(min>=10&&s.bat0>=0&&s.bat1>=0)?Math.round((s.bat0-s.bat1)/(min/60)):null;
+       var live=i===0&&!s.endWhy&&Date.now()-s.end<20000,end=s.endWhy?(WHY[s.endWhy]||s.endWhy):live?'running now':'stopped reporting';
+       h+='<tr><td>'+self.when(s.start)+'</td><td>'+min.toFixed(min<10?1:0)+'</td><td>'+self.esc(link)+'</td><td>'+(s.bat0>=0?s.bat0+'→'+s.bat1:'–')+'</td><td>'+(perh===null?'–':perh)+'</td><td>'+Math.round((s.gap||0)/1000)+'s</td><td>'+self.esc(end)+'</td></tr>';
+       if(i<3)self.say.push('Session at '+self.when(s.start)+', '+Math.round(min)+' minutes on '+link+(s.bat0>=0?', battery '+s.bat0+' to '+s.bat1:'')+', '+end);
+     });
+     $('resW').innerHTML=h+'</table>';
+   }
+   var P=(j.snaps||[]),last=P[P.length-1],d=null;
+   try{d=last?JSON.parse(last.d):null}catch(e){d=null}
+   if(!d){$('resP').textContent=last?'The last snapshot could not be read.':'The watch has not logged its panel to this relay version yet.';return}
+   var bad=function(v,t){return v?'<b class="bad">'+t+'</b>':''};
+   $('resP').innerHTML='Logged '+self.when(last.at)+' · '+P.length+' kept<br>Link: '+self.esc(LINKNAME[d.ln]||d.ln||'?')+' · round trip '+(d.rtt>=0?d.rtt+' ms':'–')+'<br>Battery '+d.bat+'%'+(d.chg?' (charging)':'')+' · background '+(d.restricted?'<b class="bad">BLOCKED</b>':'allowed')+(d.saver?' · '+bad(1,'power saving ON'):'')+
+     '<br>Pause if unused: '+(d.unused===1?'off (good)':d.unused===0?'<b class="bad">on</b>':'not reported by this watch build')+'<br>Sensors '+self.esc(d.sens||'?')+' · restarts '+(d.restarts||0)+' · longest silence '+(d.silence||0)+' s<br>Watch '+self.esc(d.b||'?')+' · '+self.esc(d.fw||'')+' · API '+(d.sdk||'?');
+ },
+ signals:function(list){
+   var self=this,heads=list.filter(function(x){return /:000$/.test(x.key)&&x.bytes<600000}),by={},done=0;
+   var names={};CONCEPTS.forEach(function(c){names[c.id]=c.name});
+   function paint(){
+     var ids=Object.keys(by).sort(function(a,b){return by[b].last-by[a].last});
+     var h='<table><tr><th>Signal card</th><th>Trials</th><th>Fired</th><th>Meant</th><th>Verdict</th><th>Last</th></tr>';
+     ids.forEach(function(id){var r=by[id],v={keep:'Keep',shop:'Back to shop',dump:'Dump'}[(store[id]||{}).rating||r.rating]||'–';
+       h+='<tr><td>'+self.esc(names[id]||id+' (removed)')+'</td><td>'+r.trials+'</td><td>'+r.fired+'</td><td>'+r.meant+'</td><td>'+v+'</td><td>'+self.when(r.last)+'</td></tr>'});
+     $('resS').innerHTML=(done<heads.length?'<div class="kv">Reading '+done+' of '+heads.length+' trials…</div>':'')+h+'</table>';
+     if(done>=heads.length){ids.slice(0,4).forEach(function(id){var r=by[id];self.say.push((names[id]||id)+': '+r.trials+' trials, fired '+r.fired+', meant '+r.meant)})}
+   }
+   if(!heads.length){$('resS').textContent='No trials saved yet.';return}
+   var q=heads.slice();
+   function next(){
+     if(!self.alive)return;var x=q.shift();if(!x)return;
+     fetch('/trial/'+encodeURIComponent(x.key)).then(function(r){return r.json()}).then(function(hd){
+       var id=hd.concept||'?',r=by[id]||(by[id]={trials:0,fired:0,meant:0,last:0,rating:''});
+       r.trials++;(hd.events||[]).forEach(function(e){if(e.src==='concept')r.fired++;else if(e.src==='touch'&&e.what==='marker')r.meant++});
+       var at=Date.parse(hd.started)||0;if(at>=r.last){r.last=at;r.rating=hd.rating||r.rating}
+     }).catch(function(){}).then(function(){done++;if(done%4===0||done>=heads.length)paint();next()});
+   }
+   paint();for(var k=0;k<4;k++)next();
+ }
+},
+{id:'camera',name:'Camera: hand probe',needsRaw:false,noRaw:true,g:['hand found','hand lost'],
+ blurb:'Opens the camera and finds your hand in the picture: 21 points, frames a second, found or lost. The picture never leaves this device; only numbers are logged.',
+ how:'Allow the camera. Hold a hand in view. Move it nearer and further, turn it, try dimmer light. Watch the frames-a-second number and whether the hand is found or lost. The card logs frame rate and found and lost times for this device. Try it on each device you own.',
+ MODEL:'https://storage.googleapis.com/mediapipe-models/hand_landmarker/hand_landmarker/float16/1/hand_landmarker.task',
+ mount:function(root){
+   var el=document.createElement('div');el.className='linkbox';
+   el.innerHTML='<div class="camview"><video playsinline muted></video><canvas></canvas></div><div class="g4"><div><b id="cmState">starting</b><em>hand</em></div><div><b id="cmFps">–</b><em>frames / s</em></div><div><b id="cmFound">–</b><em>found, % of time</em></div><div><b id="cmMs">–</b><em>ms per frame</em></div></div><p id="cmMsg"></p>';
+   root.appendChild(el);
+   var self=this;self.v=el.querySelector('video');self.c=el.querySelector('canvas');self.alive=true;self.h=null;self.s=null;self.lm=[];self.conn=[];
+   self.frames=0;self.foundFrames=0;self.t0=now();self.lastStat=now();self.statFrames=0;self.found=null;self.ms=0;self.secs=0;self.lastVT=-1;
+   var say=function(m){$('cmMsg').textContent=m};self.sayMsg=say;
+   var mp=(/[?&]mp=([^&]+)/.exec(location.search)||[])[1];mp=mp?decodeURIComponent(mp):'https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@1.2.0';
+   if(!navigator.mediaDevices||!navigator.mediaDevices.getUserMedia){say('This browser gives a page no camera.');ev('camera','failed',{why:'no getUserMedia'});return}
+   var stage='the camera';say('Asking for the camera…');
+   navigator.mediaDevices.getUserMedia({video:{facingMode:'user',width:{ideal:640},height:{ideal:480}},audio:false}).then(function(s){
+     if(!self.alive){s.getTracks().forEach(function(x){x.stop()});return null}
+     self.s=s;self.v.srcObject=s;return self.v.play();
+   }).then(function(){
+     if(!self.alive||!self.s)return null;
+     ev('camera','start',{w:self.v.videoWidth,h:self.v.videoHeight});say('Loading the hand finder. The first time takes a few seconds…');stage='the hand finder (its program did not download)';
+     return import(mp+'/vision_bundle.mjs');
+   }).then(function(m){
+     if(!m||!self.alive)return null;
+     self.conn=m.HandLandmarker.HAND_CONNECTIONS||[];stage='the hand finder (its model did not download or would not run)';
+     return m.FilesetResolver.forVisionTasks(mp+'/wasm').then(function(fs){
+       var opt=function(d){return{baseOptions:{modelAssetPath:self.MODEL,delegate:d},runningMode:'VIDEO',numHands:2}};
+       return m.HandLandmarker.createFromOptions(fs,opt('GPU')).catch(function(){self.cpu=true;return m.HandLandmarker.createFromOptions(fs,opt('CPU'))});
+     });
+   }).then(function(h){
+     if(!h)return;if(!self.alive){try{h.close()}catch(e){}return}
+     self.h=h;say(self.cpu?'Running without the graphics chip (slower).':'');ev('camera','finder ready',{ms:Math.round(now()-self.t0),cpu:self.cpu?1:0});
+   }).catch(function(e){var w=String(e&&e.message||e).slice(0,140);say('Could not start '+stage+': '+w);ev('camera','failed',{stage:stage,why:w})});
+ },
+ tick:function(){
+   var self=this,t=now(),res=null;
+   if(window.__labTestHand)res=window.__labTestHand();   // lab check only: synthetic points in place of the camera
+   else if(self.h&&self.v.readyState>=2&&self.v.currentTime!==self.lastVT){
+     self.lastVT=self.v.currentTime;
+     try{res=self.h.detectForVideo(self.v,t)}catch(e){self.sayMsg('The hand finder stopped: '+String(e&&e.message||e).slice(0,120));ev('camera','failed',{why:'detect'});self.h=null;return}
+     self.ms=self.ms?self.ms*0.9+(now()-t)*0.1:(now()-t);
+   }
+   if(!res)return;
+   self.frames++;self.statFrames++;
+   var hands=res.landmarks||[],f=hands.length>0;self.lm=hands;if(f)self.foundFrames++;
+   if(f!==self.found){
+     self.found=f;var side=f&&res.handedness&&res.handedness[0]&&res.handedness[0][0]?res.handedness[0][0].categoryName:'';
+     detect(f?'hand found':'hand lost',{hands:hands.length,side:side});
+     var b=$('cmState');b.textContent=f?'found':'lost';b.style.color=f?'var(--good)':'var(--warn)';
+   }
+   if(t-self.lastStat>=1000){
+     var fps=self.statFrames*1000/(t-self.lastStat),pct=Math.round(100*self.foundFrames/self.frames);
+     self.statFrames=0;self.lastStat=t;self.secs++;
+     $('cmFps').textContent=fps.toFixed(0);$('cmFound').textContent=pct;$('cmMs').textContent=self.ms?self.ms.toFixed(0):'–';
+     if(self.secs%5===0)ev('camera','rate',{fps:Math.round(fps),found:pct,ms:Math.round(self.ms)});
+   }
+ },
+ draw:function(){
+   var c=this.c,v=this.v,w=v.videoWidth||640,h=v.videoHeight||480;
+   if(c.width!==w||c.height!==h){c.width=w;c.height=h}
+   var x=c.getContext('2d');x.clearRect(0,0,w,h);
+   for(var i=0;i<this.lm.length;i++){
+     var L=this.lm[i];x.strokeStyle='#39c5cf';x.lineWidth=3;x.beginPath();
+     for(var k=0;k<this.conn.length;k++){var a=L[this.conn[k].start],b=L[this.conn[k].end];if(a&&b){x.moveTo(a.x*w,a.y*h);x.lineTo(b.x*w,b.y*h)}}
+     x.stroke();x.fillStyle='#fff';
+     for(var j=0;j<L.length;j++){x.beginPath();x.arc(L[j].x*w,L[j].y*h,4,0,6.283);x.fill()}
+   }
+   c.dataset.points=this.lm.length?this.lm[0].length:0;
+ },
+ unmount:function(){this.alive=false;try{if(this.s)this.s.getTracks().forEach(function(x){x.stop()})}catch(e){}try{if(this.h)this.h.close()}catch(e){}this.h=null}
+},
+{id:'buzz',name:'Buzz the watch',needsRaw:false,noRaw:true,g:[],
+ blurb:'Send a vibration pattern to the watch and feel it. For working out what a buzz should mean: connected, disconnected, something went wrong.',
+ how:'Tap a pattern. It reaches the wrist within about three seconds. Decide which patterns are easy to tell apart and say in the notes what each should mean. Needs watch app turn07 or newer.',
+ P:[['One short',[0,40]],['Two short',[0,40,90,40]],['Three quick',[0,30,60,30,60,30]],['Zigzag',[0,30,50,110,50,30,50,110]],['One long',[0,350]],['Long then short',[0,250,90,40]]],
+ mount:function(root){
+   var el=document.createElement('div'),self=this;el.className='linkbox';
+   el.innerHTML='<div class="lk" id="bzState">Pick a pattern</div><div class="buzzgrid"></div><p id="bzMsg">The watch buzzes once for each tap here.</p>';
+   root.appendChild(el);el.addEventListener('pointerup',function(e){e.stopPropagation()});
+   var g=el.querySelector('.buzzgrid');
+   this.P.forEach(function(x){var b=document.createElement('button');b.type='button';b.textContent=x[0];b.dataset.n=x[0];
+     b.addEventListener('click',function(){
+       if(!(ws&&ws.readyState===1)){$('bzState').textContent='No link';return}
+       try{ws.send(JSON.stringify({cmd:'buzz',p:x[1]}))}catch(e){}
+       self.sent=now();self.name=x[0];ev('page','buzz sent',{name:x[0],p:x[1].join(' ')});$('bzState').textContent=x[0]+': sent';
+       $('bzMsg').textContent=/^turn0[1-6]-/.test(watchBuild)?'This watch is running '+watchBuild+', which cannot buzz on request. Install turn07.':'Waiting for the watch to pick it up…';
+     });g.appendChild(b)});
+ },
+ watch:function(m){if(m.t==='buzzed'&&this.sent){var d=Math.round(now()-this.sent);$('bzState').textContent=this.name+': felt';$('bzMsg').textContent='The watch buzzed '+(d/1000).toFixed(1)+' s after the tap.';ev('concept','buzz felt',{name:this.name,ms:d});this.sent=0}}
+},
+{id:'see',name:'What the watch sees',needsRaw:true,g:[],
+ blurb:'Live tilt, roll, turn and movement from the watch. No gestures: just look.',
+ how:'Move your left arm any way you like and watch the lines. Tap the screen at the moment you do something you care about: it drops a marker in the recording so the motion can be found later.',
+ mount:function(root){var c=document.createElement('canvas');c.id='seeCanvas';root.appendChild(c);this.c=c},
+ draw:function(){drawTraces(this.c,true)}
+},
+{id:'poses',name:'Four hand poses',needsRaw:true,g:['palm down','palm up','thumb up','thumb down'],
+ blurb:'Palm down, palm up, thumb up, thumb down: four different gestures, each held briefly.',
+ how:'Hold each pose for about a second: palm down, palm up, thumb up, thumb down. Each is its own gesture and lights its own tile; none shares a meaning with another. Palm down is also how an arm rests, so it only counts when you arrive at it from one of the other three. Notice which poses strain and say so in the notes.',
+ mount:function(root){
+   var el=document.createElement('div');el.className='quad';this.r=R.poses();this.t={};var self=this;
+   [['palm down','🫳'],['palm up','🫴'],['thumb up','👍'],['thumb down','👎']].forEach(function(p){var q=document.createElement('div');q.className='q';q.innerHTML='<span>'+p[1]+'</span><b>'+p[0]+'</b><em>0</em><i></i>';el.appendChild(q);self.t[p[0]]=q});
+   root.appendChild(el);
+ },
+ sample:function(d,dt){
+   var f=this.r.sample(d,dt),self=this;
+   for(var k in this.t){var q=this.t[k],on=k===this.r.band;q.classList.toggle('in',on);q.lastElementChild.style.width=(on&&!this.r.fired?Math.min(100,this.r.held/8):0)+'%'}
+   f.forEach(function(e){var q=self.t[e.g];q.querySelector('em').textContent=Number(q.querySelector('em').textContent)+1;q.classList.add('lit');setTimeout(function(){q.classList.remove('lit')},500);flash(e.g)});
+   fire(f);
+ }
+},
+{id:'flap',name:'Flap',needsRaw:true,g:['flap, thumb rising','flap, pinky rising'],
+ blurb:'Palm down, a quick roll of the hand and straight back. Two directions, two gestures.',
+ how:'Start palm down. Roll your hand quickly so the thumb side rises, and let it fall straight back. That is one flap. Try the other direction too (pinky side rising). A roll that stays out is a pose, not a flap, and is ignored here. A flap is a quick movement: if it bothers your arm at all, rate it Dump.',
+ mount:function(root){
+   var el=document.createElement('div');el.className='big';this.r=R.flap();this.n={'flap, thumb rising':0,'flap, pinky rising':0};
+   el.innerHTML='<div><div class="glyph">🫳</div><p></p><div class="count"></div></div>';root.appendChild(el);
+   this.g=el.querySelector('.glyph');this.p=el.querySelector('p');this.c=el.querySelector('.count');this.paint();
+ },
+ paint:function(){this.c.textContent='thumb rising '+this.n['flap, thumb rising']+'   ·   pinky rising '+this.n['flap, pinky rising']},
+ sample:function(d,dt){
+   var f=this.r.sample(d,dt),self=this;
+   this.p.textContent=this.r.base==null?'Rest palm down for a moment':'roll '+Math.round(this.r.e)+'° from rest';
+   f.forEach(function(e){self.n[e.g]++;self.paint();flash(e.g)});fire(f);
+ }
+},
+{id:'dial',name:'Twist to pick, rest to choose',needsRaw:true,g:['dial move','dial choose'],
+ blurb:'Roll your forearm like a dial to move across options. Hold still to choose. No knock.',
+ how:'Hand out, palm down. Slowly roll your forearm towards thumb-up: the highlight walks across the options. Stop on one and hold still for a second: the bar fills and it is chosen. This replaces the knock: nothing strikes anything.',
+ mount:function(root){
+   var el=document.createElement('div');el.className='dial';this.r=R.dial();this.shown=-2;
+   el.innerHTML='<div><div class="opts">'+this.r.names.map(function(n){return '<div class="o">'+n+'<i></i></div>'}).join('')+'</div><p></p></div>';
+   root.appendChild(el);this.o=el.querySelectorAll('.o');this.p=el.querySelector('p');
+ },
+ sample:function(d,dt){
+   var r=this.r,f=r.sample(d,dt),self=this;
+   if(!r.level){this.p.textContent='Hold your forearm roughly level';return}
+   if(r.idx!==this.shown){this.shown=r.idx;for(var i=0;i<this.o.length;i++){this.o[i].classList.toggle('hot',i===r.idx);this.o[i].firstElementChild.style.width='0'}}
+   if(r.idx>=0)this.o[r.idx].firstElementChild.style.width=(r.locked?100:Math.min(100,r.still/10))+'%';
+   f.forEach(function(e){if(e.g==='dial choose'){for(var j=0;j<self.o.length;j++)self.o[j].classList.remove('picked');self.o[r.idx].classList.add('picked');flash('✓ '+e.what)}});
+   this.p.textContent='roll '+Math.round(r.lp)+'°';fire(f);
+ }
+},
+{id:'tilt1',name:'Tilt to scroll · v1',needsRaw:false,g:['scroll start','scroll stop'],
+ blurb:'The first version, decided on the watch. Hand flat: raise or lower and hold.',
+ how:'Hand flat. Raise the hand end and hold: the list should move one way and keep moving. Lower it for the other way. Level stops it. This is the untuned first guess, kept as the baseline to compare against.',
+ mount:function(root){this.list=makeList(root)},
+ watch:function(m){if(m.t==='scroll'){var r=Math.max(-4,Math.min(4,Number(m.r)||0))/4;if(!!r!==!!this.list.rate())detect(r?'scroll start':'scroll stop',{r:m.r});this.list.setRate(r);this.at=performance.now()}
+                   if(m.t==='mode'&&m.m==='resting')this.list.setRate(0)},
+ tick:function(){if(this.list.rate()&&performance.now()-this.at>1300){this.list.setRate(0);detect('scroll signal lost')}},
+ unmount:function(){this.list.stop()}
+},
+{id:'tilt2',name:'Tilt to scroll · v2',needsRaw:true,g:['scroll start','scroll stop'],
+ blurb:'Tuned from your first session: steadier start and stop, ignores a resting or hanging arm.',
+ how:'Same motion as v1. Three changes: it needs a clearer tilt to start and a clear return to stop (no stutter at the edge), it ignores your arm when it is hanging or resting steeply, and speed builds more gently. Compare it with v1 and rate both.',
+ mount:function(root){this.list=makeList(root);this.r=R.tilt2()},
+ sample:function(d,dt){fire(this.r.sample(d,dt));this.list.setRate(this.r.rate)},
+ unmount:function(){this.list.stop()}
+},
+{id:'swing1',name:'Swing to switch · v1',needsRaw:false,g:['swing left','swing right'],
+ blurb:'Hand vertical, swing left or right to change thread. Decided on the watch.',
+ how:'Turn your hand thumb-up, then swing it left or right once. The thread at the top should change once per swing; the return swing should not count. In your first session this fired once in fifty minutes, so the recording here matters.',
+ mount:function(root){this.list=makeList(root)},
+ watch:function(m){if(m.t==='swipe'){if(m.d==='left')this.list.prev();else this.list.next();detect('swing '+m.d);flash(m.d==='left'?'◀ previous':'next ▶')}},
+ unmount:function(){this.list.stop()}
+},
+{id:'swing2',name:'Swing to switch · v2',needsRaw:true,g:['swing left','swing right'],
+ blurb:'Same swing, decided on the page and much easier to trigger. Compare with v1.',
+ how:'Thumb-up, swing left or right once. This version needs a smaller, slower swing than v1 (about 17° instead of 26°) and allows more forearm tilt. It is a guess made without your sensor data: if it fires when you did not mean it, say so in the notes.',
+ mount:function(root){this.list=makeList(root);this.r=R.swing2()},
+ sample:function(d,dt){var f=this.r.sample(d,dt),self=this;f.forEach(function(e){if(e.g==='swing left')self.list.prev();else self.list.next();flash(e.g==='swing left'?'◀ previous':'next ▶')});fire(f)},
+ unmount:function(){this.list.stop()}
+},
+{id:'raise',name:'Raise to talk',needsRaw:true,g:['talk open','talk close'],
+ blurb:'Lift your hand towards your face to open the mic; lower it to finish. No button, no wake word.',
+ how:'Raise your left hand towards your face, as if checking the time up close, and hold: the mic opens. Speak. Lower your hand: it closes. If the browser allows it you will see your words appear. This is the candidate for starting to talk to X with no tap.',
+ mount:function(root){
+   var el=document.createElement('div');el.className='big';this.r=R.raise();
+   el.innerHTML='<div><div class="glyph">🤫</div><p>Hand down: not listening</p><div class="count" style="font-size:19px;max-width:600px"></div></div>';
+   root.appendChild(el);this.g=el.querySelector('.glyph');this.p=el.querySelector('p');this.t=el.querySelector('.count');
+   var S=window.SpeechRecognition||window.webkitSpeechRecognition,self=this;this.rec=null;
+   if(S){try{this.rec=new S();this.rec.continuous=true;this.rec.interimResults=true;
+     this.rec.onresult=function(e){var s='';for(var i=0;i<e.results.length;i++)s+=e.results[i][0].transcript;self.t.textContent=s;self.said=s};
+     this.rec.onerror=function(e){self.t.textContent='(mic: '+e.error+')';detect('mic error',{e:e.error})}}catch(e){this.rec=null}}
+ },
+ sample:function(d,dt){
+   var f=this.r.sample(d,dt),self=this;
+   f.forEach(function(e){
+     if(e.g==='talk open'){self.said='';self.g.textContent='🎙️';self.p.textContent='Listening. Lower your hand to finish.';if(self.rec){try{self.rec.start()}catch(x){}}else self.t.textContent='(this browser has no speech recognition; the raise still registers)'}
+     else{e.said=self.said||'';self.g.textContent='🤫';self.p.textContent='Hand down: not listening';if(self.rec){try{self.rec.stop()}catch(x){}}}});
+   fire(f);
+ },
+ unmount:function(){if(this.rec){try{this.rec.abort()}catch(e){}}}
+},
+{id:'link',name:'Connection test',needsRaw:true,g:[],
+ blurb:'Two-minute run that measures the watch-to-X link. Run once each for Bluetooth, Wi-Fi and mixed.',
+ how:'Run this once in each mode: Bluetooth only (Wi-Fi off on the watch), Wi-Fi only (Bluetooth off on the phone), and mixed (both on). Keep the card open for two minutes and move your arm normally. Each run is labelled with the link the watch itself reported, so the three can be compared in the table. Needs watch app turn06 or later for the link label and round-trip time.',
+ mount:function(root){
+   var el=document.createElement('div');el.className='linkbox';
+   el.innerHTML='<div class="lk">\u2013</div><div class="g4"><div><b id="lkRate">\u2013</b><em>readings / s</em></div><div><b id="lkTrip">\u2013</b><em>round trip</em></div><div><b id="lkGap">\u2013</b><em>worst gap</em></div><div><b id="lkBat">\u2013</b><em>watch battery</em></div></div><div class="meter"><i></i></div><p></p><table></table>';
+   root.appendChild(el);this.lk=el.querySelector('.lk');this.m=el.querySelector('.meter i');this.p=el.querySelector('p');this.tb=el.querySelector('table');
+   this.rows=0;this.gaps=[];this.rts=[];this.links={};this.first=0;this.lastA=0;this.recent=[];this.done=false;this.bat0=-1;this.table();
+ },
+ med:function(a){if(!a.length)return 0;var b=a.slice().sort(function(x,y){return x-y});return b[Math.floor(b.length/2)]},
+ table:function(){
+   var runs=(store.link.runs||[]).slice(-6);
+   this.tb.innerHTML=runs.length?'<tr><th>link</th><th>read/s</th><th>gap</th><th>worst</th><th>trip</th><th>stalls</th><th>batt</th></tr>'+runs.map(function(r){return '<tr><td>'+r.link+'</td><td>'+r.rate+'</td><td>'+r.gap+'</td><td>'+r.worst+'</td><td>'+(r.trip<0?'\u2013':r.trip)+'</td><td>'+r.stalls+'</td><td>'+r.bat+'</td></tr>'}).join(''):'';
+ },
+ batch:function(m){
+   var t=now();if(!this.first){this.first=t;this.bat0=watchBat}else this.gaps.push(t-this.lastA);
+   this.lastA=t;this.rows+=m.s.length;this.recent.push([t,m.s.length]);
+   if(m.rt>=0)this.rts.push(m.rt);if(m.ln)this.links[m.ln]=1;
+ },
+ tick:function(){
+   if(this.done||!this.first)return;
+   var t=now(),el=t-this.first;
+   while(this.recent.length&&t-this.recent[0][0]>5000)this.recent.shift();
+   var n=0;for(var i=0;i<this.recent.length;i++)n+=this.recent[i][1];
+   this.lk.textContent=LINKNAME[watchLink]||watchLink||'link not reported (older watch app)';
+   $('lkRate').textContent=Math.round(n/Math.min(5,Math.max(1,el/1000)));
+   $('lkTrip').textContent=this.rts.length?this.rts[this.rts.length-1]+' ms':'\u2013';
+   $('lkGap').textContent=this.gaps.length?(Math.max.apply(null,this.gaps)/1000).toFixed(1)+' s':'\u2013';
+   $('lkBat').textContent=watchBat<0?'\u2013':watchBat+'%';
+   this.m.style.width=Math.min(100,el/(LINK_SECS*10))+'%';
+   this.p.textContent='Measuring: '+Math.max(0,Math.ceil(LINK_SECS-el/1000))+' s left. Keep this card open.';
+   if(el>=LINK_SECS*1000)this.finish();
+ },
+ finish:function(){
+   this.done=true;
+   var secs=Math.max(1,(this.lastA-this.first)/1000),ks=Object.keys(this.links);
+   var r={when:new Date().toISOString(),link:ks.length?ks.join('+'):'?',rate:Math.round(this.rows/secs),gap:Math.round(this.med(this.gaps))+' ms',worst:(this.gaps.length?Math.max.apply(null,this.gaps)/1000:0).toFixed(1)+' s',
+          trip:this.rts.length?Math.round(this.med(this.rts)):-1,stalls:this.gaps.filter(function(g){return g>1000}).length,bat:(this.bat0<0||watchBat<0)?'\u2013':this.bat0+'\u2192'+watchBat+'%',secs:Math.round(secs),watch:watchBuild};
+   store.link.runs=(store.link.runs||[]).concat([r]).slice(-9);save();
+   detect('link result',r);this.table();this.m.style.width='100%';
+   this.p.textContent='Run saved: '+(LINKNAME[r.link]||r.link)+', '+r.rate+' readings a second. Change the connection and run again, or flip for notes.';flash('Run saved');
+ }
+},
+{id:'body',name:'What X could notice about you',needsRaw:true,g:['still 20 s','still 1 min','arms overhead','shoulder roll'],
+ blurb:'Not commands. How long your arm has been still, arms raised overhead, shoulder rolls.',
+ how:'Nothing here is an instruction to X. It is what X could quietly know: how long your watch arm has not moved, when you stretch your arms above your head, and when you do shoulder rolls with your arm out. Sit still, then stretch, then roll your shoulders, and see whether each is noticed. The shoulder-roll detector is a rough first guess.',
+ mount:function(root){
+   var el=document.createElement('div');el.className='stats';this.r=R.body();
+   el.innerHTML='<div><span>🪑</span><b id="bStill">0 s</b><em>arm still</em></div><div><span>🙆</span><b id="bOver">0</b><em>arms overhead</em></div><div><span>🔄</span><b id="bRoll">0</b><em>shoulder rolls</em></div>';
+   root.appendChild(el);
+ },
+ sample:function(d,dt){
+   var f=this.r.sample(d,dt),s=Math.floor(this.r.still/1000);
+   $('bStill').textContent=s<60?s+' s':Math.floor(s/60)+' min '+(s%60)+' s';$('bOver').textContent=this.r.overheads;$('bRoll').textContent=this.r.rolls;
+   f.forEach(function(e){flash(e.g)});fire(f);
+ }
+},
+{id:'ok',name:'OK pose',needsRaw:true,g:['ok pose'],
+ blurb:'Forearm raised with the hand near throat height, as when you make an OK sign. Tuned from your own holds.',
+ how:'Make an OK sign the way you naturally would, hand about throat height, and hold it for a second. The watch does not look at your fingers; it reads the angle of your forearm and that it is being held. In your last session your four holds measured 36° to 42° on the watch with the watch face up, so this fires between 30° and 52° with the wrist not rolled. The recording keeps the exact tilt and roll each time, so the pose can be told apart from raising your hand to talk, which is close to it.',
+ mount:function(root){
+   var el=document.createElement('div');el.className='big';this.r=R.ok();this.n=0;
+   el.innerHTML='<div><div class="glyph">👌</div><p></p><div class="meter"><i></i></div><div class="count">0</div></div>';root.appendChild(el);
+   this.g=el.querySelector('.glyph');this.p=el.querySelector('p');this.m=el.querySelector('.meter i');this.c=el.querySelector('.count');
+ },
+ sample:function(d,dt){
+   var r=this.r,f=r.sample(d,dt),self=this;
+   this.g.style.opacity=r.inBand?1:.35;
+   this.m.style.width=(r.inBand?(r.fired?100:Math.min(100,r.held/8)):0)+'%';
+   this.p.textContent='forearm '+Math.round(r.lp)+'°  ·  fires between 30° and 52°';
+   f.forEach(function(e){self.n++;self.c.textContent=self.n;flash('👌 OK pose at '+e.tilt+'°')});fire(f);
+ }
+}
+];
+
+/* =====================================================================
+   Recording a trial: what the watch saw + what the page decided + what you did + your verdict
+   ===================================================================== */
+var hist=[];           // derived samples for the traces: {t,pitch,roll,yaw}
+var marks=[];          // {t,kind}
+function now(){return performance.now()}
+function rel(){return trial?Math.round(now()-trial.t0):0}
+function ev(src,what,data){if(!trial)return;var e={t:rel(),src:src,what:what};if(data)for(var k in data)e[k]=data[k];trial.events.push(e)}
+function detect(what,data){ev('concept',what,data);marks.push({t:now(),kind:'d'});$('nE').textContent=what}
+function startTrial(c){
+  var d=new Date(),p=function(x){return(x<10?'0':'')+x};
+  trial={id:d.getUTCFullYear()+p(d.getUTCMonth()+1)+p(d.getUTCDate())+'T'+p(d.getUTCHours())+p(d.getUTCMinutes())+p(d.getUTCSeconds())+'-'+c.id+'-'+Math.random().toString(36).slice(2,6),
+         concept:c.id,name:c.name,page:BUILD,watch:watchBuild,started:d.toISOString(),t0:now(),events:[],raw:[],rawRows:0,thumbs:[]};
+}
+function endTrial(){
+  if(!trial)return;
+  var t=trial;trial=null;
+  var s=store[t.concept];
+  var head={id:t.id,concept:t.concept,name:t.name,page:t.page,watch:t.watch||watchBuild,started:t.started,ms:Math.round(now()-t.t0),
+            code:'****'+code().slice(-2),rating:s.rating||'',notes:s.notes||'',thumbs:t.thumbs,events:t.events,rawRows:t.rawRows,
+            rawFormat:'batches of {a: ms since trial start when the batch reached the page, w: watch clock ms of its first row, s: rows [dt,gx,gy,gz,wx,wy,wz,ax,ay,az] x100}',
+            ua:navigator.userAgent.slice(0,160),screen:innerWidth+'x'+innerHeight};
+  var parts=[JSON.stringify(head)],buf=[],size=0;
+  for(var i=0;i<t.raw.length;i++){var j=JSON.stringify(t.raw[i]);if(size+j.length>250000){parts.push('{"id":"'+t.id+'","raw":['+buf.join(',')+']}');buf=[];size=0}buf.push(j);size+=j.length}
+  if(buf.length)parts.push('{"id":"'+t.id+'","raw":['+buf.join(',')+']}');
+  s.trials=(s.trials||0)+1;save();paintGrid();
+  $('saved').textContent='Saving this trial to the lab log…';
+  var okc=0,fail='';
+  parts.reduce(function(chain,body,n){return chain.then(function(){return fetch('/t/'+code()+'/'+t.id+'/'+n,{method:'POST',body:body}).then(function(r){if(r.ok)okc++;else fail='relay said '+r.status})})},Promise.resolve())
+    .catch(function(e){fail=String(e&&e.message||e)})
+    .then(function(){$('saved').textContent=fail?('Trial NOT fully saved ('+okc+' of '+parts.length+' parts): '+fail):('Trial saved to the lab log: '+Math.round(head.ms/1000)+' s, '+head.events.length+' events, '+head.rawRows+' sensor rows.');
+                     $('meta').textContent=metaText(fail?'last trial not saved: '+fail:'last trial saved')});
+}
+
+/* =====================================================================
+   Opening, flipping and closing a concept
+   ===================================================================== */
+function open(c){
+  cur=c;hist=[];marks=[];
+  $('cName').textContent=$('cName2').textContent=c.name;$('how').textContent=c.how;
+  $('notes').value=store[c.id].notes||'';paintBack();$('saved').textContent='';
+  var play=$('play');Array.prototype.slice.call(play.querySelectorAll('.pg')).forEach(function(n){n.remove()});
+  var pg=document.createElement('div');pg.className='pg';play.insertBefore(pg,play.firstChild);
+  c.mount(pg);
+  $('flip').classList.remove('back');$('active').classList.add('show');
+  $('active').classList.toggle('nostrip',!!c.noRaw);
+  if(c.noTrial){trial=null;$('rec').textContent=''}else startTrial(c);
+  ev('page','open');wantRaw(!c.noRaw);paintNeed();
+}
+function flip(toBack){$('flip').classList.toggle('back',toBack);ev('page',toBack?'flip to notes':'flip to experiment')}
+function close(){
+  if(!cur)return;
+  store[cur.id].notes=$('notes').value;save();ev('page','close');
+  wantRaw(false);if(cur.unmount)cur.unmount();
+  $('active').classList.remove('show');
+  var c=cur;cur=null;endTrial();paintGrid();void c;
+}
+function wantRaw(on){try{if(ws&&ws.readyState===1)ws.send(JSON.stringify({cmd:'raw',on:on?1:0}))}catch(e){}}
+function paintNeed(){
+  var n=$('need'),msg='';
+  if(cur&&cur.needsRaw&&now()-lastRawAt>2500){
+    msg=!(ws&&ws.readyState===1)?'No link to the relay yet.':
+        (watchBuild&&/^turn0[1-3]-/.test(watchBuild))?'This card needs the newer watch app (turn04). The watch is running '+watchBuild+'.':
+        resting?'The watch is resting. Raise your arm.':'Waiting for the watch’s sensor stream… Open Wrist on the watch if this stays.';
+  }
+  n.textContent=msg;n.classList.toggle('show',!!msg);
+}
+function paintBack(){
+  var s=store[cur.id];
+  Array.prototype.forEach.call($('rate').children,function(b){b.classList.toggle('on',b.dataset.v===s.rating)});
+  Array.prototype.forEach.call($('thumbs').children,function(b){b.classList.toggle('on',b.dataset.v===s.thumb)});
+}
+function flash(text){var f=$('flash');f.textContent=text;f.classList.add('show');void f.offsetWidth;clearTimeout(flash.t);flash.t=setTimeout(function(){f.classList.remove('show')},700)}
+
+/* taps on the experiment: single = marker, double = flip */
+var lastTap=0,tapT=null;
+$('play').addEventListener('pointerup',function(e){
+  if(!cur)return;
+  var t=now(),x=Math.round(e.clientX),y=Math.round(e.clientY);
+  if(t-lastTap<330){clearTimeout(tapT);lastTap=0;ev('touch','double tap',{x:x,y:y});flip(true);return}
+  lastTap=t;
+  tapT=setTimeout(function(){ev('touch','marker',{x:x,y:y});marks.push({t:t,kind:'m'});flash('marked')},330);
+});
+$('notesBtn').addEventListener('click',function(){flip(true)});
+$('frontBtn').addEventListener('click',function(){flip(false)});
+$('closeBtn').addEventListener('click',close);
+$('doneBtn').addEventListener('click',close);
+$('rate').addEventListener('click',function(e){var b=e.target.closest('button');if(!b||!cur)return;var s=store[cur.id];s.rating=s.rating===b.dataset.v?'':b.dataset.v;save();paintBack();ev('page','rating',{v:s.rating})});
+$('thumbs').addEventListener('click',function(e){var b=e.target.closest('button');if(!b||!cur)return;var s=store[cur.id];s.thumb=b.dataset.v;save();paintBack();if(trial)trial.thumbs.push({t:rel(),v:b.dataset.v});ev('page','thumb',{v:b.dataset.v})});
+$('notes').addEventListener('input',function(){if(cur){store[cur.id].notes=this.value;save()}});
+(function(){
+  var R=window.SpeechRecognition||window.webkitSpeechRecognition,btn=$('dictate'),rec=null,on=false;
+  if(!R){btn.textContent='Speech notes are not available in this browser';btn.disabled=true;return}
+  btn.addEventListener('click',function(){
+    if(on){try{rec.stop()}catch(e){}return}
+    try{rec=new R();rec.interimResults=false;rec.continuous=true}catch(e){btn.textContent='Speech notes failed to start';return}
+    rec.onresult=function(e){var s='';for(var i=e.resultIndex;i<e.results.length;i++)s+=e.results[i][0].transcript;var n=$('notes');n.value=(n.value?n.value.replace(/\s+$/,'')+' ':'')+s.trim();if(cur){store[cur.id].notes=n.value;save()}};
+    rec.onend=function(){on=false;btn.textContent='🎤 Speak a note'};
+    rec.onerror=function(e){btn.textContent='🎤 Speak a note (mic: '+e.error+')'};
+    try{rec.start();on=true;btn.textContent='■ Stop listening'}catch(e){}
+  });
+})();
+
+/* =====================================================================
+   Traces
+   ===================================================================== */
+function drawTraces(c,bigMode){
+  var dpr=window.devicePixelRatio||1,w=c.clientWidth,h=c.clientHeight;
+  if(c.width!==Math.round(w*dpr)||c.height!==Math.round(h*dpr)){c.width=Math.round(w*dpr);c.height=Math.round(h*dpr)}
+  var g=c.getContext('2d');g.setTransform(dpr,0,0,dpr,0,0);g.clearRect(0,0,w,h);
+  var span=bigMode?10000:6000,t1=now(),t0=t1-span,X=function(t){return (t-t0)/span*w};
+  var rows=[['pitch',90,'#39c5cf'],['roll',180,'#e5a23b'],['yaw',6,'#b38cf5']],rh=h/rows.length;
+  g.lineWidth=bigMode?2:1.5;g.font=(bigMode?13:10)+'px ui-monospace,monospace';
+  rows.forEach(function(r,i){
+    var mid=rh*i+rh/2;g.strokeStyle='#243140';g.beginPath();g.moveTo(0,mid);g.lineTo(w,mid);g.stroke();
+    g.strokeStyle=r[2];g.beginPath();var st=false;
+    for(var k=0;k<hist.length;k++){var s=hist[k];if(s.t<t0)continue;var y=mid-Math.max(-1,Math.min(1,s[r[0]]/r[1]))*(rh/2-2);if(st)g.lineTo(X(s.t),y);else{g.moveTo(X(s.t),y);st=true}}
+    g.stroke();
+    if(bigMode){g.fillStyle=r[2];var lastS=hist[hist.length-1];g.fillText(['tilt','roll','turn'][i]+(lastS?'  '+(i===2?lastS.yaw.toFixed(1)+' rad/s':Math.round(lastS[r[0]])+'°'):''),8,rh*i+16)}
+  });
+  for(var m=0;m<marks.length;m++){if(marks[m].t<t0)continue;g.strokeStyle=marks[m].kind==='m'?'#e8eef4':'#4cc38a';g.beginPath();g.moveTo(X(marks[m].t),0);g.lineTo(X(marks[m].t),h);g.stroke()}
+}
+function frame(){
+  if(cur){
+    if(cur.tick)cur.tick();
+    if(cur.draw)cur.draw();
+    drawTraces($('trace'),false);
+    if(trial)$('rec').textContent='● '+Math.floor(rel()/1000)+'s';
+  }
+  requestAnimationFrame(frame);
+}
+
+/* =====================================================================
+   What arrives from the watch
+   ===================================================================== */
+function onRaw(m){
+  lastRawAt=now();
+  var rows=m.s||[];if(!rows.length)return;
+  var arrive=now(),lastDt=rows[rows.length-1][0],prevDt=null;
+  if(m.ln)watchLink=m.ln;if(m.rt>=0)watchRtt=m.rt;lastBatchAt=arrive;
+  if(trial&&trial.rawRows<9000){trial.raw.push({a:rel(),w:m.w,ln:m.ln,rt:m.rt,s:rows});trial.rawRows+=rows.length}
+  if(cur&&cur.batch)cur.batch(m);   /* 3 minutes at 50 a second, then stop keeping rows */
+  for(var i=0;i<rows.length;i++){
+    var d=derive(rows[i]),dt=prevDt==null?20:Math.max(1,rows[i][0]-prevDt);prevDt=rows[i][0];
+    d.t=arrive-(lastDt-rows[i][0]);hist.push(d);
+    if(cur&&cur.sample)cur.sample(d,dt);
+  }
+  if(hist.length>800)hist.splice(0,hist.length-800);
+  var L=hist[hist.length-1];$('nP').textContent='tilt '+Math.round(L.pitch)+'°';$('nR').textContent='roll '+Math.round(L.roll)+'°';$('nY').textContent='turn '+L.yaw.toFixed(1);
+  if(cur)paintNeed();
+}
+function act(m){
+  lastWatchAt=Date.now();
+  if(m.t==='raw'){resting=false;onRaw(m);return}
+  if(m.b)watchBuild=m.b;
+  if(m.t==='sleep'){asleep=m.why||'sleep';offAsked=0;ev('watch','sleep',{why:m.why});paintStatus();return}
+  asleep='';
+  if(m.t==='diag')lastDiagAt=Date.now();
+  if(m.ln)watchLink=m.ln;if(m.rtt>=0)watchRtt=m.rtt;if(m.bat>=0)watchBat=m.bat;
+  if(m.t==='mode'){resting=m.m==='resting';ev('watch','mode',{m:m.m,why:m.why});paintStatus();return}
+  resting=false;
+  if(m.t!=='hb'){var copy={};for(var k in m)if(k!=='t'&&k!=='b'&&k!=='seq')copy[k]=m[k];ev('watch',m.t,copy)}
+  if(cur&&cur.watch)cur.watch(m);
+  paintStatus();
+}
+
+/* =====================================================================
+   Link, pairing, grid
+   ===================================================================== */
+function code(){try{return localStorage.getItem('wrist_code')||''}catch(e){return ''}}
+function setCode(c){try{localStorage.setItem('wrist_code',c)}catch(e){}}
+function load(){try{store=JSON.parse(localStorage.getItem('wrist_lab')||'{}')||{}}catch(e){store={}}CONCEPTS.forEach(function(c){if(!store[c.id])store[c.id]={}})}
+function save(){try{localStorage.setItem('wrist_lab',JSON.stringify(store))}catch(e){}}
+function secret(c){try{return localStorage.getItem('wrist_k_'+c)||''}catch(e){return ''}}
+function setSecret(c,k){try{localStorage.setItem('wrist_k_'+c,k)}catch(e){}}
+/* Ask the relay to let this browser listen. An older watch build needs nothing more than the code. A watch on turn07 or
+   newer hardens its code: the relay hands this browser a secret once, while the watch has just been started. */
+function connect(){
+  var c=code();if(!/^\d{6}$/.test(c)){askCode();return}
+  if(ws){try{ws.onclose=null;ws.close()}catch(e){}ws=null}
+  clearTimeout(connect.t);
+  fetch('/pair/'+c,{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({k:secret(c)})})
+    .then(function(r){return r.json().then(function(j){return{s:r.status,j:j}},function(){return{s:r.status,j:{}}})})
+    .then(function(x){
+      if(code()!==c)return;
+      if(x.s===200){pairState='';if(x.j.k)setSecret(c,x.j.k);if(x.j.lastDiag)lastDiagAt=x.j.lastDiag;listen(c,x.j.legacy?'':(x.j.k||''));return}
+      if(x.s===404){pairState='';listen(c,'');return}       // a relay older than w4: no pairing step
+      pairState=x.s===429?'limited':'closed';paintStatus();connect.t=setTimeout(connect,x.s===429?30000:15000);
+    },function(){pairState='';paintStatus();connect.t=setTimeout(connect,Math.min(8000,500*Math.pow(2,retry++)))});
+}
+function listen(c,k){
+  var s=new WebSocket((location.protocol==='https:'?'wss://':'ws://')+location.host+'/s/'+c+(k?'?k='+k:''));ws=s;
+  s.onopen=function(){if(ws!==s)return;retry=0;paintStatus();clearInterval(pingT);pingT=setInterval(function(){try{s.send('ping')}catch(e){}},20000);if(cur)wantRaw(!cur.noRaw)};
+  s.onmessage=function(e){if(ws!==s||e.data==='pong')return;var m;try{m=JSON.parse(e.data)}catch(x){return}act(m)};
+  s.onclose=function(){if(ws!==s)return;clearInterval(pingT);ws=null;paintStatus();connect.t=setTimeout(connect,Math.min(8000,500*Math.pow(2,retry++)))};
+  s.onerror=function(){};
+  paintStatus();
+}
+function hhmm(ms){var d=new Date(ms),p=function(x){return(x<10?'0':'')+x};return p(d.getHours())+':'+p(d.getMinutes())}
+function watchOff(){
+  if(!(ws&&ws.readyState===1))return;
+  try{ws.send(JSON.stringify({cmd:'sleep'}))}catch(e){}
+  offAsked=Date.now();offOld=/^turn0[1-6]-/.test(watchBuild);ev('page','watch off');paintStatus();
+}
+(function(){
+  var b=$('offBtn'),t=null;
+  function cancel(){clearTimeout(t);t=null;b.classList.remove('hold')}
+  b.addEventListener('pointerdown',function(e){e.preventDefault();cancel();b.classList.add('hold');t=setTimeout(function(){cancel();watchOff()},1000)});
+  ['pointerup','pointerleave','pointercancel'].forEach(function(n){b.addEventListener(n,cancel)});
+  b.addEventListener('contextmenu',function(e){e.preventDefault()});
+})();
+function metaText(extra){return 'code '+(code()||'none')+' · page '+BUILD+(watchBuild?' · watch '+watchBuild:'')+(lastDiagAt?' · watch logged '+hhmm(lastDiagAt):'')+(extra?' · '+extra:'')}
+function paintStatus(){
+  var linked=ws&&ws.readyState===1,age=lastWatchAt?Math.round((Date.now()-lastWatchAt)/1000):-1,live=linked&&age>=0&&age<25&&!resting&&!asleep;
+  $('lamp').className=live?'live':linked?'link':'';
+  var WHY={page:'turned off from a page',idle:'no page was listening for three minutes',hold:'held on the watch'};
+  $('statusText').textContent=!linked?(pairState==='closed'?'Not paired yet. Open Wrist on the watch and wait a few seconds.':pairState==='limited'?'Too many pairing tries. Waiting a minute.':'No link to the relay. Retrying…'):asleep?'Watch is off: '+(WHY[asleep]||asleep)+'. Open Wrist on the watch to start it.':(offAsked&&Date.now()-offAsked<8000)?(offOld?'This watch app ('+watchBuild+') cannot be turned off from here. Install turn07.':'Telling the watch to sleep…'):resting?'Watch resting. Raise your arm to wake it.':live?'Watch connected'+(watchLink?' \u00B7 '+(LINKNAME[watchLink]||watchLink):'')+(watchRtt>=0?' \u00B7 '+watchRtt+' ms':''):age<0?'Waiting for the watch. Open Wrist on the watch once.':'Watch silent for '+age+'s.';
+  if(!/last trial/.test($('meta').textContent))$('meta').textContent=metaText('');
+  if(cur)paintNeed();
+}
+function paintGrid(){
+  var box=$('cards');box.innerHTML='';
+  CONCEPTS.forEach(function(c){
+    var s=store[c.id],b=document.createElement('button');b.type='button';b.className='tile';b.dataset.id=c.id;
+    var label={keep:'Keep',shop:'Back to shop',dump:'Dump'}[s.rating]||'Not rated';
+    b.innerHTML='<b></b><span></span><div class="foot"><i class="chip '+(s.rating||'')+'" style="font-style:normal">'+label+'</i><span>'+(s.trials||0)+' trial'+((s.trials||0)===1?'':'s')+(s.thumb?' · '+(s.thumb==='up'?'👍':'👎'):'')+(c.needsRaw?' · raw':'')+'</span></div>';
+    b.querySelector('b').textContent=c.name;b.querySelector('span').textContent=c.blurb;
+    b.addEventListener('click',function(){open(c)});box.appendChild(b);
+  });
+}
+function askCode(){var b=$('pair'),i=$('code');b.classList.add('show');i.value='';setTimeout(function(){try{i.focus()}catch(e){}},50)}
+$('code').addEventListener('input',function(){var v=this.value.replace(/\D/g,'').slice(0,6);this.value=v;if(v.length===6){setCode(v);$('pair').classList.remove('show');this.blur();connect()}});
+$('codeBtn').addEventListener('click',askCode);
+var q=/[?&]code=(\d{6})\b/.exec(location.search);if(q){setCode(q[1]);try{history.replaceState(null,'',location.pathname)}catch(e){}}
+function awake(){try{if(navigator.wakeLock&&document.visibilityState==='visible')navigator.wakeLock.request('screen').catch(function(){})}catch(e){}}
+document.addEventListener('visibilitychange',function(){awake();if(document.visibilityState==='visible'&&!ws)connect()});
+window.addEventListener('pagehide',function(){if(cur)close()});
+
+load();paintGrid();paintStatus();awake();connect();
+setInterval(paintStatus,1000);
+requestAnimationFrame(frame);
+})();
+</script>
+</body>
+</html>

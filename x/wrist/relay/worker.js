@@ -1,5 +1,7 @@
 // wrist-relay: carries wrist motions from the watch to X (a page on the phone or desktop).
-//   GET  /            the X practice page
+//   GET  /            the Lab (lab.html)
+//   GET  /x           X itself (x.html)
+//   POST /xlog        X writes one line of what happened (never what was said) to the shared log
 //   GET  /health      {"ok":true,"v":"w1"}
 //   POST /e/<code>    the watch posts one small JSON event; it is sent to every page listening on that code
 //   GET  /s/<code>    a page listens (WebSocket)
@@ -14,16 +16,24 @@
 //   {"cmd":"buzz","p":[0,40,60,40]}  vibrate this pattern (milliseconds: wait, buzz, wait, buzz ...)
 // Pairing (W1): a watch that sends the header x-wrist-key hardens its code. From then on posts need that key,
 // and a page needs a secret, which /pair hands out once per watch start while the watch says its window is open ("pw").
-import PAGE from './x.html';
+import LAB from './lab.html';
+import XPAGE from './x.html';
 
-const V = 'w4';
+const V = 'w5';
 const json = (o, status = 200) => new Response(JSON.stringify(o), { status, headers: { 'content-type': 'application/json', 'cache-control': 'no-store' } });
 
 export default {
   async fetch(req, env) {
     let p = new URL(req.url).pathname;
     try { p = decodeURIComponent(p); } catch (e) { /* leave as sent */ }
-    if (p === '/' || p === '/x') return new Response(PAGE, { headers: { 'content-type': 'text/html; charset=utf-8', 'cache-control': 'no-store' } });
+    const html = { headers: { 'content-type': 'text/html; charset=utf-8', 'cache-control': 'no-store' } };
+    if (p === '/') return new Response(LAB, html);
+    if (p === '/x') return new Response(XPAGE, html);
+    if (p === '/xlog' && req.method === 'POST') {
+      const line = (await req.text()).slice(0, 400).replace(/[\r\n]+/g, ' ');
+      await env.ROOM.get(env.ROOM.idFromName('log')).fetch('https://log/log', { method: 'POST', body: 'X ' + line });
+      return json({ ok: true });
+    }
     if (p === '/health') return json({ ok: true, v: V });
     if (p === '/log') return env.ROOM.get(env.ROOM.idFromName('log')).fetch(req);
     if (p === '/trials' || /^\/trial\/[\w.:-]{8,120}$/.test(p) || /^\/t\/\d{6}\/[\w.-]{8,80}\/\d{1,3}$/.test(p)) return env.ROOM.get(env.ROOM.idFromName('trials')).fetch(req);

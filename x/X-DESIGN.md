@@ -27,8 +27,8 @@ Three parts: the decisions, the logical design (what the pieces are), and the ph
 | D06 | A taught signal is a template: the average and the spread of a few measured numbers across three repetitions. No model is trained. | P5, P12 | Instant, personal, explainable. The same method on the watch and the camera. |
 | D07 | The arbiter runs in the page. Its rules are data per context: override, fallback, exclusive. With no rule: the first source to fire wins and agreement raises confidence. It waits 250 ms when two sources fire together. | P6, P7 | The owner's four-node picture. In the page because that is where all sources meet. |
 | D08 | Context is declared by the person (said aloud, attached to a thread). Inferring it from time or activity comes at the run stage. | P4, P7 | Declared context can be tested now. Inference before there is history would be a guess. |
-| D09 | Model calls go straight from the page with the owner's own keys, using the same three providers, key test and fallback as his existing pages. Web search is a switch on that call. | P9, P12, A7 | Proven on his phone. Nothing new to run or maintain. |
-| D10 | Listening uses the Deepgram pattern from chat-test, with the browser's own engine as fallback. Speaking uses the browser's own voice. | P2, P12 | Both already work in his pages. |
+| D09 | Model calls go straight from the page with the owner's own keys, the way his existing pages do, with a key test and the model chosen from the service's own list. Web search is on for that call. X1 carries two of his three providers (Anthropic, OpenRouter); **I'm leaving Venice and the fallback between providers out of the first pass, override me if wrong.** | P9, P12, A7 | Proven on his phone. Nothing new to run or maintain. |
+| D10 | Listening uses the Deepgram pattern from chat-test (16 kHz samples, finals gathered to the end of the utterance, silence sent while X speaks), with the browser's own engine when no Deepgram key is set. Speaking uses the browser's own voice, in short parts. | P2, P12 | Both already work in his pages. |
 | D11 | The camera sources use Google's hand finder and face finder in the page. Frames never leave the device. | A8, P12 | Off the shelf, no install, private. |
 | D12 | X is one page served by the relay at `/x`. The Lab stays at `/`. Both share one sources-and-arbiter module. | A3, P12 | Same origin as the watch feed. The Lab and X then test and use the very same code. |
 | D13 | X's memory (words, library, journal, signals, rules) lives on the device and syncs to GitHub from the page with the owner's own token: a list of events, each with a device id and a time, and an outbox for when the phone is offline. No secrets are written. It goes to a **private** repository, because `stuff` is public. | P20, P12 | The owner's direction, 2026-11-18. **Fact:** session-manager already keeps its source-of-truth file this way, and devstream and chat-test read and write the repo from the page. No new store, no new service. |
@@ -101,10 +101,10 @@ Three parts: the decisions, the logical design (what the pieces are), and the ph
 ## 5. Physical design
 | Part | Made of | Runs | State |
 |---|---|---|---|
-| Watch app | Java, Android SDK tools, package `com.acmeproducts.wrist` | Galaxy Watch 9, background service, screen off | built: `turn06-b6` |
-| Relay | one Cloudflare worker, one SQLite-backed storage class | `wrist-relay.myacctfortracking.workers.dev` | built: `w3` |
-| Lab | one HTML file served by the relay at `/` | any browser | built: `lab-r5` |
-| X | one HTML file served by the relay at `/x` | any browser, phone and desktop | not built |
+| Watch app | Java, Android SDK tools, package `com.acmeproducts.wrist` | Galaxy Watch 9, background service, screen off | built: `turn07-b8` |
+| Relay | one Cloudflare worker, one SQLite-backed storage class | `wrist-relay.myacctfortracking.workers.dev` | built: `w5` |
+| Lab | one HTML file (`x/wrist/relay/lab.html`) served by the relay at `/` | any browser | built: `lab-r6` |
+| X | one HTML file (`x/wrist/relay/x.html`) served by the relay at `/x` | any browser, phone and desktop | built: `x-r1`, lab only |
 | Sources and arbiter module | plain script shared by the Lab and X | in the page | not built |
 | Hand and face finders | Google's MediaPipe vision tasks, loaded by the page | in the page; frames stay on the device | not built |
 | 3D card | three.js, loaded by the page | in the Lab | not built |

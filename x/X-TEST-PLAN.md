@@ -22,11 +22,11 @@ Version 1.0.0 · 2026-11-18 · Answers to `X-REQUIREMENTS.md` · Rules from `cla
 | Suite | File | Covers | Today |
 |---|---|---|---|
 | Detector | `x/wrist/test/DetectorTest.java` | tilt and swing on synthetic traces | 16/16 |
-| Relay, live | `x/wrist/relay/e2e.mjs` | every relay route against the deployed worker, including sleep, buzz, pairing, reports | 33/33 |
+| Relay, live | `x/wrist/relay/e2e.mjs` | every relay route against the deployed worker, including sleep, buzz, pairing, reports, `/x` and the X log line | 35/35 |
 | Lab page | `x/wrist/relay/page-test.py` | the Lab in a phone-sized browser with a synthetic watch, including Watch off, results, camera probe (synthetic points), buzz, pairing | 73/73 |
 | Templates | new with V1 | template maker and matcher on synthetic and recorded holds | — |
 | Arbiter | new with S5 | every rule type, no rule, absent against silent | — |
-| X page | new with X1 | the nine steps driven by injected sentences and a recorded model reply | — |
+| X page | `x/wrist/relay/x-test.py` | the nine steps driven by spoken sentences, with the model, GitHub and the browser's speech stood in for by the test | 43/43 |
 | Scoring | new with L2 | hit and wrong-fire arithmetic on a synthetic session with known answers | — |
 
 Paths moved to `x/wrist/` at W1 step 0 (2026-11-18).

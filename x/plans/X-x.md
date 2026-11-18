@@ -75,6 +75,28 @@ All nine steps in their smallest form. A newborn already learns.
 
 **Proves or kills:** TH1, TH2, TH3.
 
+**Built 2026-11-18 as `x-r1` at `/x`. Lab only.**
+
+What is there, all of it working end to end in the lab:
+- Setup once: AI service, its key (tested, model picked from the service's own list), optional Deepgram key, optional GitHub token and memory repository (found, or created private if the token allows; a public one is warned about). Setup closes itself and Begin appears.
+- One touch on Begin. Then: listening (Deepgram if a key is set, else the browser's own engine), the nine steps, the five commands in many phrasings, unknown asks through one model call with web search, a card with sources, words kept, changed, renamed, listed and forgotten by talking, a known word run with no reading step.
+- Memory as events on the device, merged with `x-memory.json` in the repository; a memory file that cannot be read is never overwritten.
+- Hand time: touches and touch seconds counted after the opening touch, shown at the top, spoken at the end, kept in the journal. Saying you are done ends the session and tells the watch to sleep.
+- A line in the relay's log for each thing that happened, never what was said.
+
+| Check | Result |
+|---|---|
+| X checks, phone-sized browser and once at desktop size | 43 of 43 |
+| Relay checks with `/x` and the X log line | 35 of 35 |
+| On the owner's phone | **not yet run** |
+
+**Stood in for by the test, so unproven until the owner's first session:** the real model and its web search; real GitHub; the real microphone, Deepgram and the browser's voice. The page has no test path of its own: the test intercepts the network and replaces the browser's speech functions.
+
+**Changed while building, and why**
+- H1 is rewritten (`X-CONCEPT.md` §5): X speaks in short parts with the microphone shut, and listens between them. A browser hears itself.
+- Two of the owner's three AI services in this pass (D09).
+- Theory, not yet seen on the S23: the browser's own listening restarts after every pause and may chime each time. Setting a Deepgram key avoids that path.
+
 ### X2 — Lists (walk)
 **Scope:** a word can bring many items (title, text, picture or sound, link, source). One item is in front. **more** and **back** by voice or signal; **glide** by a held posture once V3 is in. **enough** stops. Saying "more like this" or "less of this" changes the word (a change verdict).
 

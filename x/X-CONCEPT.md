@@ -78,7 +78,7 @@ A word is something X learned from you: a name, what to gather, and how to prese
 ## 5. Heuristics X is born with
 | # | Habit | Principle |
 |---|---|---|
-| H1 | When you speak, X goes quiet. Your voice always wins. | P11 |
+| H1 | X speaks in short parts and listens between them. **more** brings the next part. (First written as "when you speak, X goes quiet". Fact: a browser hears its own voice through the microphone, so while X speaks the microphone is fed silence, the turn gate chat-test uses. Cutting X off mid-part is by a signal once signals are registered, or by a touch, which is counted.) | P11 |
 | H2 | A known word acts at once. An unknown one gets X's best reading, said back in a few words before the answer. | P8, P11 |
 | H3 | What can be undone happens without asking. What cannot waits for yes. | P11, P18 |
 | H4 | X never asks you to repeat a phrase or say it another way. If unsure, it acts on its best reading and **no** undoes it. | P11 |

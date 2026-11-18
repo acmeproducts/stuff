@@ -10,7 +10,12 @@ const post = (c, o) => fetch(base + '/e/' + c, { method: 'POST', headers: { 'con
 const h = await fetch(base + '/health').then(r => r.json());
 check('health answers', h.ok === true, JSON.stringify(h));
 const page = await fetch(base + '/').then(r => r.text());
-check('X page is served', page.includes('<title>X · wrist lab</title>'), page.length + ' bytes');
+check('the Lab is served at /', page.includes('<title>X · wrist lab</title>'), page.length + ' bytes');
+const xpage = await fetch(base + '/x').then(r => r.text());
+check('X is served at /x', xpage.includes('<title>X</title>') && !xpage.includes('wrist lab'), xpage.length + ' bytes');
+const xl = await fetch(base + '/xlog', { method: 'POST', body: JSON.stringify({ ev: 'e2e', n: 1 }) }).then(r => r.json());
+const xlog = await fetch(base + '/log').then(r => r.text());
+check('X can write a line to the log', xl.ok === true && xlog.includes('X {"ev":"e2e"'));
 check('bad code is refused', (await fetch(base + '/e/12', { method: 'POST', body: '{}' })).status === 404);
 
 const got = [], other = [];

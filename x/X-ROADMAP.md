@@ -6,7 +6,7 @@ This is the one place that says where we are, where we are going and how we get 
 
 ## 1. Where we are (2026-11-18)
 **Built and proven on the owner's watch (facts)**
-- Watch app `turn06-b6` reads wrist motion with the screen off and sends it out. Nothing is read on the watch.
+- Watch app `turn06-b6` reads wrist motion with the screen off and sends it out. Nothing is read on the watch. (`turn07-b8`, relay `w5`, Lab `lab-r6` and X `x-r1` were built on 2026-11-18 and are lab-only until the owner runs them.)
 - Relay `w3` carries watch events to any browser page and keeps logs and trial recordings the build can read.
 - Lab `lab-r5`: 13 concept cards, recordings, notes, Keep / Back to shop / Dump.
 - Builds and installs need no IDE.
@@ -66,7 +66,7 @@ A release is the smallest whole thing that can be used and judged. Status: built
 |---|---|---|---|---|---|
 | **W1** Session | still panel; sleep from the page; sleep by itself; "logged at"; hardened pairing; buzz from the page; code moved to `x/wrist/` | — | 2 | crawl | **built, lab only; awaiting the owner's watch** |
 | **L1** Results table | what the watch reported and each signal's record, in a table | W1 (shares the relay change) | 4 | crawl | **built, lab only; awaiting the owner** |
-| **X1** Born | the X page: listen, the nine steps, five commands by voice, words kept on the device and synced to GitHub, hand time | W1 for the watch's session; works without it | 3 | crawl | next |
+| **X1** Born | the X page: listen, the nine steps, five commands by voice, words kept on the device and synced to GitHub, hand time | W1 for the watch's session; works without it | 3 | crawl | **built, lab only; awaiting the owner's first session** |
 | **S1** Camera probe | camera opens, hand found or lost, frames a second, on each device | — | 4 | crawl | **built; the finder itself is unverified until it runs on the owner's phone** |
 | **V1** Teach on the watch | do it three times, name it, collision check; replaces the OK card | L1 | 4 | crawl | later |
 | W2 Battery truth | percent an hour by link, from real sessions; 30-minute freeze check; Wi-Fi-only run | W1, L1 | 2 | walk | later |

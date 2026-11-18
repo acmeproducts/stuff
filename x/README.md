@@ -30,15 +30,15 @@ History and code:
 
 ## Where things stand (2026-11-18)
 - **Gate 1 of 6 passed.** Watch to relay to browser works on the owner's watch.
-- **Nothing of X is built.** 2 of 37 requirements are met, 7 in part.
-- **Next, side by side:** W1 (the watch sleeps from X; pairing hardened), X1 (X is born), S1 (camera probe), with L1 and V1 behind them.
+- **X's first pass is built and lab-only.** 2 of 37 requirements are met on the owner's devices, 7 in part. The watch change, the Lab update and X all await the owner's first run.
+- **Next:** the owner's device gates for W1, L1, S1 and X1; then V1 (teach) and W2 (battery truth).
 
 ## Live
 | Thing | Where |
 |---|---|
-| Watch file `turn06-b6` | `https://github.com/acmeproducts/stuff/raw/wrist-turn01/x/wrist/out/wrist.apk` |
-| Lab `lab-r5` | `https://wrist-relay.myacctfortracking.workers.dev/` |
-| X | not built |
+| Watch file `turn07-b8` | `https://github.com/acmeproducts/stuff/raw/wrist-turn01/x/wrist/out/wrist.apk` |
+| Lab `lab-r6` | `https://wrist-relay.myacctfortracking.workers.dev/` |
+| X `x-r1` | `https://wrist-relay.myacctfortracking.workers.dev/x` |
 
 ## For any session working here
 1. Read `claude-audit.md` at the repository root, then this folder's roadmap.
