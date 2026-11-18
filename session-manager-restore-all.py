@@ -99,7 +99,7 @@ for u, files in cands.items():
     best = files[0]
     first, last, n = peek(best[2])
     key = by_sid.get(u) or by_ku.get(u)
-    auto = (key or "").split(":")[2:3] == ["cron"] or first.startswith(("Write a dream diary", "[cron:")) or "dreaming-narrative" in (key or "")
+    auto = (key or "").split(":")[2:3] == ["cron"] or "Write a dream diary entry" in first[:160] or "[cron:" in first[:80] or "Read HEARTBEAT.md" in first[:120] or "dreaming-narrative" in (key or "")
     if auto and not a.include_automated:
         skipped["automated"] += 1
         continue
@@ -111,7 +111,9 @@ for u, files in cands.items():
     if key in index:
         skipped["key already used"] += 1
         continue
-    label = (keymap.get(key, {}).get("label") if orig else "") or PHONE.sub("***", first)[:60]
+    day = time.strftime("%Y-%m-%d", time.localtime(last or os.path.getmtime(best[2])))
+    text = re.sub(r"^\[[A-Z][a-z]{2} \d{4}-\d\d-\d\d \d\d:\d\d [A-Z]{3,4}\]\s*", "", first)
+    label = (keymap.get(key, {}).get("label") if orig else "") or f"{text[:50].strip()} ({day})"
     plan.append({"uuid": u, "key": key, "orig": orig, "label": label, "src": best[2], "kind": best[3], "last": last or os.path.getmtime(best[2]), "lines": n})
 
 plan.sort(key=lambda x: -x["last"])
@@ -120,7 +122,7 @@ print(f"will re-add: {len(plan)} ({sum(p['orig'] for p in plan)} under their ori
 print("skipped:", skipped)
 print("by file kind:", {k: sum(1 for p in plan if p['kind'] == k) for k in RANK})
 for p in plan[:12]:
-    print(f"  {time.strftime('%Y-%m-%d', time.localtime(p['last']))} {p['kind']:8s} {'orig' if p['orig'] else 'new '} {p['lines']:5d} lines  {p['label'][:55]}")
+    print(f"  {time.strftime('%Y-%m-%d', time.localtime(p['last']))} {p['kind']:8s} {'orig' if p['orig'] else 'new '} {p['lines']:5d} lines  {PHONE.sub('***', p['label'])[:60]}")
 if len(plan) > 12:
     print(f"  ... and {len(plan) - 12} more")
 
