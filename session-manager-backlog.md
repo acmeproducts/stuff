@@ -585,3 +585,8 @@ A message containing any single HTML tag was routed to the raw-HTML path, so its
 **Finding.** The Gateway's `sessions.list` response reports `limitApplied: 100`; the app never passed a limit, so any Gateway with more than 100 sessions silently drops the rest. This also matches the owner's first report of "125 sessions … dropped".
 **Change.** The app requests up to 5000 sessions (retrying without the limit if the Gateway rejects the parameter) and shows a warning, with the Gateway's own totals, whenever it returns fewer sessions than it has.
 **Unverified.** The `limit` parameter name is inferred from the response field and the CLI's `--limit` option; not confirmed against the Gateway.
+
+# v2.10.14 NO FALSE "ABSENT" TOAST AT LOAD — 2026-11-18
+**Reported.** A toast "161 absent" appeared on every page load.
+**Cause.** Startup runs the project check before the Gateway connects, with an empty session list; the app read that as the Gateway returning zero sessions.
+**Change.** The warning toast shows only when the Gateway is connected. The log line is kept.
