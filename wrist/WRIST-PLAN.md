@@ -1,6 +1,6 @@
 # Wrist — plan (sole authority for `wrist/`)
 
-Version 7.1.0 · 2026-11-17 · Owner/device gate: Confi · Device: Galaxy Watch 9, left wrist
+Version 8.0.0 · 2026-11-18 · Owner/device gate: Confi · Device: Galaxy Watch 9, left wrist
 
 ## 0. Turn ledger
 | Date | Turn | Status | Notes |
@@ -14,6 +14,8 @@ Version 7.1.0 · 2026-11-17 · Owner/device gate: Confi · Device: Galaxy Watch 
 | 2026-11-17 | turn05 watch app (`turn05-b…`) | built, device gate pending | Owner: "when I first go to the app it says nothing sent, then I get a socket time out … unknown host exception, and then I finally get sending to X." Cause (from the device log): the watch's own connection is not up when the reader starts; the first messages after four restarts never arrived (the event counter resumes at 3, 8, 43 and 1). The relay answered every message that did reach it. Change: the reader asks the watch for a connection and holds it while it runs, keeps and retries any motion or mode change that was not delivered, and shows "connecting…" in place of the error name. Not yet run on the watch. |
 | 2026-11-17 | turn06 watch app (`turn06-b…`) + page `lab-r5` | built and deployed, device gate pending | Owner: "there should be a glyph to tap on the watch that opens diagnostic panel showing all relevant settings and making sure they are logged"; "I want to be able to use Bluetooth only as a test and also Wi-Fi as a test and then the mixed mode as a test"; Universal gestures confirmed not used. The Wrist screen is now the diagnostics panel (three self-turning pages), every message carries the link it travelled on and the round-trip time, and the Lab has a two-minute Connection test card. Touch on the watch face is no longer a gesture (G12). The in-app battery prompt is removed (G13). The "ask for Wi-Fi by name" idea is dropped until the three connection tests decide it. Lab checks: 16/16 detector, 54/54 page. Not yet run on the watch. |
 | 2026-11-17 | turn07: phone↔watch channel | **closed by the owner before it started** (section 11.6) | Recorded and scoped the same day; the owner then decided against a phone companion app. X stays browser-based on phone and desktop, the relay stays, and installs stay with Bugjaeger. |
+| 2026-11-18 | turn06 device gate | **passed for the panel and the connection test**; owner rated the Connection test and OK pose cards "Back to shop" | `turn06-b6` ran on the watch; panel reported to the log; connection runs recorded (section 12). |
+| 2026-11-18 | Direction change from the owner | recorded (section 13), nothing built | X expects a finite set of commands; each person registers the signals that suit them; the watch is one sensing source among several to be catalogued (rings, camera, others); the mapping may change with context. |
 
 ## 1. Why this exists (owner's words, 2026-11-16)
 - "I really can't type using a keyboard or a mouse … or for that matter a touch screen for more than 15 minutes at a time."
@@ -282,6 +284,68 @@ What stays open from section 11.1, because it needs no phone app:
 - **Commands and buzzes from X back to the watch.** Possible through the relay (the watch already reads the relay's reply to each message). Not built.
 
 Parked, not buried: a browser can in principle connect straight to a watch over Bluetooth (Web Bluetooth in Chrome, phone and desktop) with no companion app and no internet. Unverified on this watch, needs a tap to connect each session. Worth a probe only if the relay proves to be the limit.
+
+## 12. Connection runs, 2026-11-18 08:23–08:39 UTC (watch turn06-b6, page lab-r5, from `wrist/out/trials/`)
+Each figure is computed from the raw batches, split by the link the watch reported on each batch.
+
+| Run | Link | Seconds | Readings / s | Typical gap | Worst gap | Stalls over 1 s | Round trip (median) |
+|---|---|---|---|---|---|---|---|
+| 94c5 | Wi-Fi | 84 | 49 | 103 ms | 0.6 s | 0 | 50 ms |
+| 5a5z | Wi-Fi | 91 | 35 | 112 ms | 3.4 s | 6 | 57 ms |
+| bt8x | Bluetooth | 33 | 32 | 211 ms | 2.6 s | 2 | 138 ms |
+| ttw4 | Bluetooth | 142 | 26 | 248 ms | 2.8 s | 17 | 128 ms |
+| 5qy5 (mixed) | Wi-Fi part | 113 | 43 | 108 ms | 1.6 s | 4 | 54 ms |
+| 5qy5 (mixed) | Bluetooth part | 82 | 30 | 218 ms | 3.2 s | 12 | 147 ms |
+| ok-rsne | Bluetooth | 312 | 29 | 243 ms | 3.6 s | 36 | 154 ms |
+
+Facts:
+- Wi-Fi carries about one and a half times the readings of Bluetooth (35–49 against 26–32 a second; the target is 50), with about a third of the round trip (50–57 ms against 128–154 ms) and far fewer stalls.
+- Bluetooth alone works. Nothing failed outright on it.
+- In mixed mode the watch moved between the two links by itself inside one run.
+- The owner's note, before seeing these numbers: "there did seem to be better measurement when Wi-Fi was connected instead of Bluetooth … I have no facts to back that up." The numbers back it.
+
+Reading (theory): the raw stream is what suffers on Bluetooth. A single recognised motion needs one small message, which Bluetooth carries in about 150 ms. So the Lab, which streams raw rows, is better on Wi-Fi; X itself, once recognition runs on the watch and only results are sent, should not need Wi-Fi.
+
+Not measured: battery cost per link (each run moved the battery by at most 1%, too little to compare), and Wi-Fi only with the phone's Bluetooth off.
+
+OK pose trial (ok-rsne): eleven firings, forearm tilt 47° to 54°, roll −25° to +32°.
+
+## 13. Direction from the owner, 2026-11-18
+### 13.1 Verbatim
+From the OK pose card's notes:
+> "we don't really need to measure for the motion, rather it doesn't really need to be the okay sign, it's really just measuring the angle of the forearm, so this does sort of open up other potential gestures: a forearm at 90°, palm facing not necessarily open, a forearm flat on a table … also the forearm just being at various degrees … this particular lab card should not be for the okay sign. I think my insight is that there's going to be a finite number of commands that X is expecting, why not let the user register them so that they can do it to suit their particular needs. Maybe somebody is more comfortable only using wrist rolls with the forearm parallel to the floor, or it could be that the forearm is something that's excluded altogether depending on what gestures are registered."
+
+From the conversation:
+> "once we collect up all the gestures that we could reliably sense, perhaps we determine what are the ways that a person can choose to tell X how they're going to interact with it. … I don't want to be wedded to the watch. If for example the ring, or for that matter other rings on the market, would be good sensing devices; another avenue, which has been done to death and back from the Microsoft Kinect, is to use the camera to be able to sense gestures. So really there's a number of avenues here and I want to catalog and explore them all, because ultimately everybody's different and they're going to want to interact with X differently, and potentially even the same person interacting with X differently depending on context of time, activity or another differentiator."
+
+### 13.2 What this changes
+The Lab was choosing one fixed gesture set. That is no longer the goal. The model is four separate things:
+
+| Piece | What it is | Who decides |
+|---|---|---|
+| Commands | the finite set of things X expects to be told | X's design |
+| Signals | everything a body can do that some sensor reads reliably: a forearm angle held, a roll, a flap, a swing, a nod, a spoken word | measured, per source |
+| Sources | the devices that read signals: watch, ring, camera, microphone, others | catalogued and probed |
+| Registration | this person's mapping from signals to commands, possibly a different mapping per context (time, activity) | the person |
+
+Consequences for what is already built:
+- **Named-gesture cards (OK pose, four poses, flap, dial) become instances of one thing:** a signal the person teaches by doing it a few times. The OK band was already set this way by hand, from the owner's four holds.
+- **Keepers becomes the collision check for a person's own registered set,** not for a set chosen in advance.
+- **"No two gestures share a meaning"** (2026-11-17) still holds, per person: one registered signal, one command.
+- **Recognition should end up on the watch** (or whichever source), sending only results, so that no source depends on a fast raw link.
+
+### 13.3 Sources to catalogue (nothing here is verified beyond the watch)
+| Source | Could read | Known | To find out |
+|---|---|---|---|
+| Watch (Galaxy Watch 9) | forearm angle, roll, swings, stillness, raises | proven in the Lab | which signals stay reliable all day |
+| Ring | finger and hand motion | the owner raised it | whether any ring on the market gives an outside app its motion data at all |
+| Camera (phone, tablet, desktop) | hand shapes, finger poses, head and body pose | fits a browser-based X on any device with a camera | reliability in ordinary light, battery, how it feels to be watched, whether hands must stay in view |
+| Microphone | speech | X's main channel by design | covered by the owner's existing voice components |
+| Earbuds | head nods and shakes | some have motion sensors | whether any expose them to a browser or app |
+| The phone itself | its own tilt and motion when held or carried | every phone has the sensors, a browser can read them | whether it is useful when the phone is on a stand |
+
+### 13.4 Not started
+No catalogue research, no "teach a signal" card, no change to the watch app. Awaiting the owner's go on what to do first.
 
 ## 7. Lab checks
 `wrist/test/DetectorTest.java`, synthetic 100 Hz traces, run on every build. 2026-11-17: 16/16 pass (knock checks removed with the knock).
