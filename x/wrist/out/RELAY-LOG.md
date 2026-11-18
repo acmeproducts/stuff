@@ -1,6 +1,6 @@
 # Wrist relay deploy log
 
-Run 9, commit b0b4e9f70a31c286fc40610eae8406a295bbf920, 2026-11-18T00:07:21Z, deploy exit 0, end-to-end exit 0
+Run 10, commit dc2761fa435d40b98dd2f73469b2052e60ffc8e9, 2026-11-18T11:47:15Z, deploy exit 0, end-to-end exit 0
 
 ```
 == deploy ==
@@ -12,10 +12,10 @@ Your Worker has access to the following bindings:
 Binding              Resource            
 env.ROOM (Room)      Durable Object      
 
-Uploaded wrist-relay (3.27 sec)
-Deployed wrist-relay triggers (1.21 sec)
+Uploaded wrist-relay (2.44 sec)
+Deployed wrist-relay triggers (0.63 sec)
   https://wrist-relay.myacctfortracking.workers.dev
-Current Version ID: f072540f-757d-444b-a4cd-dc3b7847d1be
+Current Version ID: ec0514bc-0acf-40c2-b388-3f2e2432e9ca
 
 Cloudflare collects anonymous telemetry about your usage of Wrangler. Learn more at https://github.com/cloudflare/workers-sdk/tree/main/packages/wrangler/telemetry.md
 deploy exit 0
@@ -35,9 +35,9 @@ PASS page asked for raw: the watch is told · {"ok":true,"pages":1,"raw":1}
 PASS raw rows reach the page · 1 new messages
 PASS raw rows are not written to the log
 PASS page stops asking: the watch is told
-PASS trial part saved · {"ok":true,"parts":18}
-PASS trial listed · [{"key":"e2e-1794960440993-check:000","bytes":57}]
+PASS trial part saved · {"ok":true,"parts":42}
+PASS trial listed · [{"key":"e2e-1795002434563-check:000","bytes":57}]
 PASS trial read back
-round trip for first post: 6983 ms total incl. waits
+round trip for first post: 7291 ms total incl. waits
 all relay checks passed
 ```
