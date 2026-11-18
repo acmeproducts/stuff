@@ -31,7 +31,7 @@ import java.util.concurrent.LinkedBlockingDeque;
 import java.util.concurrent.TimeUnit;
 
 /**
- * Wrist turn04: reads the left wrist with the watch screen off and sends what it sees to X.
+ * Wrist turn06: reads the left wrist with the watch screen off and sends what it sees to X.
  * Two kinds of output: motions it recognises itself (tilt, swing), and, when a Lab page asks
  * for it, the raw sensor stream so new motions can be tried and tuned on the page without a new watch app.
  *
@@ -103,6 +103,20 @@ public class WristService extends Service implements SensorEventListener {
         netCb = null; netUp = false;
     }
 
+    /* ---- diagnostics: one snapshot every 2 s, drawn on the Wrist screen and logged when it changes ---- */
+    volatile Diag diag = new Diag();
+    volatile int restarts, rttMs = -1;
+    volatile long lastOkMs, longestSilenceMs;
+    private String diagKey = "";
+    private long lastDiagRead, lastDiagSent;
+
+    long upSeconds() { return (System.currentTimeMillis() - startedMs) / 1000L; }
+
+    private String diagEvent(String why) {
+        return event("diag", ",\"why\":\"" + why + "\"," + diag.json() + ",\"restarts\":" + restarts
+                + ",\"ok\":" + sentOk + ",\"silence\":" + (longestSilenceMs / 1000L) + ",\"idleKind\":\"" + idleKind + "\",\"detail\":\"" + netDetail + "\"");
+    }
+
     static String codeFor(Context c) {
         SharedPreferences sp = c.getSharedPreferences("wrist", MODE_PRIVATE);
         String code = sp.getString("code", "");
@@ -119,6 +133,12 @@ public class WristService extends Service implements SensorEventListener {
         super.onCreate();
         try { PackageInfo pi = getPackageManager().getPackageInfo(getPackageName(), 0); build = pi.versionName; } catch (Exception e) { build = "?"; }
         code = codeFor(this);
+        try {
+            SharedPreferences sp = getSharedPreferences("wrist", MODE_PRIVATE);
+            restarts = sp.getInt("starts", 0) + 1;
+            sp.edit().putInt("starts", restarts).apply();
+        } catch (Exception e) { restarts = -1; }
+        diag = Diag.read(this);
         sm = (SensorManager) getSystemService(Context.SENSOR_SERVICE);
         vib = (Vibrator) getSystemService(Context.VIBRATOR_SERVICE);
         pm = (PowerManager) getSystemService(Context.POWER_SERVICE);
@@ -239,7 +259,7 @@ public class WristService extends Service implements SensorEventListener {
         synchronized (rawGuard) {
             if (rawN == 0) return null;
             StringBuilder b = new StringBuilder(64 + rawN * 48);
-            b.append("{\"t\":\"raw\",\"w\":").append(rawBaseMs).append(",\"s\":[");
+            b.append("{\"t\":\"raw\",\"ln\":\"").append(diag.link).append("\",\"rt\":").append(rttMs).append(",\"w\":").append(rawBaseMs).append(",\"s\":[");
             for (int i = 0; i < rawN; i++) {
                 b.append(i == 0 ? "[" : ",[");
                 for (int k = 0; k < RAW_FIELDS; k++) { if (k > 0) b.append(','); b.append(rawBuf[i * RAW_FIELDS + k]); }
@@ -265,10 +285,6 @@ public class WristService extends Service implements SensorEventListener {
     void act(int ev, String how) {
         if (ev == Detector.SWIPE_LEFT) { last = "swing left"; queue.offer(event("swipe", ",\"d\":\"left\"")); buzz(new long[]{0, 35}); }
         else if (ev == Detector.SWIPE_RIGHT) { last = "swing right"; queue.offer(event("swipe", ",\"d\":\"right\"")); buzz(new long[]{0, 35}); }
-        else if (ev == Detector.TAP) {
-            last = "touch"; queue.offer(event("tap", ",\"how\":\"" + how + "\"")); buzz(new long[]{0, 25, 70, 25});
-            synchronized (lockGuard) { if (!lock.isHeld()) lock.acquire(3000); }   // a touch while resting still has to get out
-        }
     }
 
     /* ---------------- sending ---------------- */
@@ -277,14 +293,13 @@ public class WristService extends Service implements SensorEventListener {
     private String event(String type, String extra) {
         int bat = -1;
         try { bat = ((BatteryManager) getSystemService(Context.BATTERY_SERVICE)).getIntProperty(BatteryManager.BATTERY_PROPERTY_CAPACITY); } catch (Exception e) { bat = -1; }
-        boolean exempt = false;
-        try { exempt = pm.isIgnoringBatteryOptimizations(getPackageName()); } catch (Exception e) { exempt = false; }
+        boolean exempt = diag.exempt;
         boolean screen = false;
         try { screen = pm.isInteractive(); } catch (Exception e) { screen = false; }
         return "{\"t\":\"" + type + "\"" + extra + ",\"seq\":" + (++seq) + ",\"b\":\"" + build + "\""
                 + ",\"pose\":" + det.pose + ",\"tilt\":" + Math.round(det.pitchDeg - det.neutralPitch) + ",\"roll\":" + Math.round(det.rollDeg)
                 + ",\"up\":" + ((System.currentTimeMillis() - startedMs) / 1000L) + ",\"mode\":\"" + mode + "\",\"raw\":" + (rawWanted ? 1 : 0)
-                + ",\"err\":" + sentErr + ",\"net\":" + (netUp ? 1 : 0)
+                + ",\"err\":" + sentErr + ",\"net\":" + (netUp ? 1 : 0) + ",\"ln\":\"" + diag.link + "\",\"rtt\":" + rttMs
                 + ",\"bat\":" + bat + ",\"screen\":" + (screen ? 1 : 0) + ",\"exempt\":" + (exempt ? 1 : 0) + "}";
     }
 
@@ -303,6 +318,17 @@ public class WristService extends Service implements SensorEventListener {
                 continue;
             }
             long now = System.currentTimeMillis();
+            if (now - lastDiagRead > 2000) {
+                lastDiagRead = now;
+                Diag d = Diag.read(this);
+                diag = d;
+                String k = d.key();
+                boolean changed = !k.equals(diagKey);
+                if (changed || now - lastDiagSent > 60000) {
+                    queue.offer(diagEvent(diagKey.length() == 0 ? "start" : changed ? "change" : "minute"));
+                    diagKey = k; lastDiagSent = now;
+                }
+            }
             int step = tiltStep;
             if (step != sentStep) { post(event("scroll", ",\"r\":" + step)); sentStep = step; lastTilt = now; }
             else if (step != 0 && now - lastTilt > 400) { post("{\"t\":\"scroll\",\"r\":" + step + ",\"rep\":1}"); lastTilt = now; }
@@ -323,6 +349,7 @@ public class WristService extends Service implements SensorEventListener {
         HttpURLConnection c = null;
         try {
             byte[] bytes = body.getBytes("UTF-8");
+            long t0 = System.currentTimeMillis();
             c = (HttpURLConnection) new URL(RELAY + "/e/" + code).openConnection();
             c.setConnectTimeout(4000); c.setReadTimeout(4000);
             c.setRequestMethod("POST"); c.setDoOutput(true);
@@ -334,6 +361,10 @@ public class WristService extends Service implements SensorEventListener {
             String reply = "";
             if (in != null) { byte[] buf = new byte[256]; int n = in.read(buf); if (n > 0) reply = new String(buf, 0, n, "UTF-8"); while (in.read(buf) > 0) { /* drain so the connection is reused */ } in.close(); }
             if (status == 200) {
+                long t1 = System.currentTimeMillis();
+                rttMs = (int) (t1 - t0);
+                if (lastOkMs != 0 && t1 - lastOkMs > longestSilenceMs) longestSilenceMs = t1 - lastOkMs;
+                lastOkMs = t1;
                 sentOk++; net = "ok"; netDetail = "";
                 int i = reply.indexOf("\"pages\":");
                 if (i >= 0) { try { pages = Integer.parseInt(reply.substring(i + 8).replaceAll("[^0-9].*", "")); } catch (Exception e) { pages = -1; } }

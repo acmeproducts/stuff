@@ -1,6 +1,6 @@
 # Wrist — plan (sole authority for `wrist/`)
 
-Version 5.2.0 · 2026-11-17 · Owner/device gate: Confi · Device: Galaxy Watch 9, left wrist
+Version 6.0.0 · 2026-11-17 · Owner/device gate: Confi · Device: Galaxy Watch 9, left wrist
 
 ## 0. Turn ledger
 | Date | Turn | Status | Notes |
@@ -12,6 +12,7 @@ Version 5.2.0 · 2026-11-17 · Owner/device gate: Confi · Device: Galaxy Watch 
 | 2026-11-17 | turn05 (page only, `lab-r2`) | deployed, device gate pending | Owner: palm up, palm down, thumb up, thumb down are "four different gestures … I don't think in any way we should have two gestures that mean the same thing"; asked whether the OK sign can be detected; proposed a palm-down flap; wants "one of these tiles that is the representation of all the keep gestures"; "we need to be really careful that we're not just trying to design app navigation, we need to stay true to building X"; X could notice arms raised overhead, shoulder rolls, and "how long you've just sat there and not moved your watch arm". Lab grows from 7 to 12 cards; watch app unchanged (turn04-b4). Lab checks: 46/46 page, 16/16 relay. No card has been used with a real watch yet: no trial has been saved and the watch was still on turn03-b3 at 13:16 UTC. |
 | 2026-11-17 | turn05 (page only, `lab-r3`) | deployed, device gate pending | Owner corrected the OK sign: "I don't think the okay sign is supposed to be that you're seeing fingers, I think that it's just that you are holding your arm at roughly a 47° angle … hand to be about shoulder height or roughly around the height of your throat … this is not intended to be trying to detect jolts." Pinch probe buried (G11); `ok` card added: forearm between 35° and 60°, held 0.8 s. Lab checks: 48/48 page. |
 | 2026-11-17 | turn05 watch app (`turn05-b…`) | built, device gate pending | Owner: "when I first go to the app it says nothing sent, then I get a socket time out … unknown host exception, and then I finally get sending to X." Cause (from the device log): the watch's own connection is not up when the reader starts; the first messages after four restarts never arrived (the event counter resumes at 3, 8, 43 and 1). The relay answered every message that did reach it. Change: the reader asks the watch for a connection and holds it while it runs, keeps and retries any motion or mode change that was not delivered, and shows "connecting…" in place of the error name. Not yet run on the watch. |
+| 2026-11-17 | turn06 watch app (`turn06-b…`) + page `lab-r5` | built and deployed, device gate pending | Owner: "there should be a glyph to tap on the watch that opens diagnostic panel showing all relevant settings and making sure they are logged"; "I want to be able to use Bluetooth only as a test and also Wi-Fi as a test and then the mixed mode as a test"; Universal gestures confirmed not used. The Wrist screen is now the diagnostics panel (three self-turning pages), every message carries the link it travelled on and the round-trip time, and the Lab has a two-minute Connection test card. Touch on the watch face is no longer a gesture (G12). The in-app battery prompt is removed (G13). The "ask for Wi-Fi by name" idea is dropped until the three connection tests decide it. Lab checks: 16/16 detector, 54/54 page. Not yet run on the watch. |
 
 ## 1. Why this exists (owner's words, 2026-11-16)
 - "I really can't type using a keyboard or a mouse … or for that matter a touch screen for more than 15 minutes at a time."
@@ -93,6 +94,35 @@ Open assumptions (owner may override):
 - Rating a card is by buttons on its back, not by a gesture: thumb up is the same pose as "hand vertical", so it would fire during the swing concepts.
 - Raw-based cards need watch app turn04. Cards `tilt1` and `swing1` work with turn03.
 
+## 3c. Diagnostics on the watch (turn06)
+Opening Wrist shows a panel, nothing else. Three pages turn by themselves every five seconds; a touch turns the page at once; holding stops or restarts the reader. Nothing has to be read: the same snapshot goes to the log at start, whenever anything in it changes, and once a minute (`t:"diag"`).
+
+| Page | Shows | Red when |
+|---|---|---|
+| LINK | pairing code; sending state; link in use (Bluetooth via phone / Wi-Fi / mobile / none); Wi-Fi radio on or off; round trip to the relay; sent and failed counts; last error | no connection; slow round trip; more failed than sent |
+| POWER | battery; **background allowed or BLOCKED**; power saving; watch idle state; standby bucket; longest gap between delivered messages; screen | background blocked; power saving on; deep idle; bucket rare or restricted; a gap over a minute |
+| READER | state; running time; number of starts; sensors present; low-power sensor present; last motion; app build and API level | a sensor missing |
+
+What the panel cannot show: Samsung's own switches (automatic Wi-Fi in Developer options, Universal gestures). Android does not let an app read them.
+
+Every event now also carries `ln` (bt / wifi / cell / none) and `rtt` (ms), and every raw batch carries `ln` and `rt`.
+
+## 3d. Connection tests (owner request, 2026-11-17)
+Three runs of the Lab's **Connection test** card (two minutes each, results kept in a table on the card and in the trial):
+
+| Mode | How |
+|---|---|
+| Bluetooth only | Wi-Fi off on the watch |
+| Wi-Fi only | Bluetooth off on the phone |
+| Mixed | both on (the watch chooses) |
+
+Measured per run: readings a second, typical and worst gap between batches, stalls (gaps over a second), watch-to-relay round trip, battery before and after, and the link or links the watch reported. Not measured: end-to-end delay from wrist to page (the watch and tablet clocks are not synchronised).
+
+## 3e. Decisions recorded 2026-11-17
+- **Universal gestures are not used.** Samsung's feature steers the watch's own screen and is not handed to outside apps. Wear OS 7 has a Gesture API with two actions (primary, dismiss) for apps whose screen is showing; that is app navigation, which X is not. Parked, not buried: double pinch through that API as one extra signal, if Samsung has opted the Watch 9 in (unknown).
+- **Wi-Fi is not required for X.** The watch's normal path is the phone's Bluetooth link. Wi-Fi is required only to install with Bugjaeger. Longer term (theory): the watch talks straight to the phone over Bluetooth with a small phone companion app and no internet relay.
+- **"Turn off automatic Wi-Fi"** is in the watch's Developer options (Samsung developer blog). Not yet tried.
+
 ## 4. Build and delivery
 - Watch app: `.github/workflows/wrist-build.yml` runs `wrist/build.sh` (Android SDK tools only, no Gradle) and commits `wrist/out/wrist.apk` and `wrist/out/BUILD-LOG.md` to the branch.
 - Relay and page: `.github/workflows/wrist-relay.yml` deploys `wrist/relay`, runs `e2e.mjs` against the live worker and commits `wrist/out/RELAY-LOG.md`.
@@ -159,9 +189,19 @@ Owner's notes on the trials: "Watch still keeps timing out, I think it has more 
 
 Change made from this: the `ok` card's band moved from 35–60° to 30–52° and now requires the wrist not rolled (`lab-r4`).
 
+## 10. The background switch, 2026-11-17 (device log + owner)
+| Observed | Evidence |
+|---|---|
+| During all testing up to 14:23 Pacific, "Allow background activity" was **off** for Wrist in the Galaxy Wearable app, and Universal gestures were off | owner, 2026-11-17 |
+| With it off the app was frozen for long stretches whenever the screen was dark | six 400 s silences; one silence of 18,207 s (15:09–20:12 UTC) during which the event counter advanced by 191; one of 7,713 s |
+| With it on, no freeze in the 13 minutes recorded so far | 22:21–22:34 UTC: 272 events, largest gap 10 s, one unbroken screen-off stretch of 305 s; battery 86% → 84% |
+| The in-app battery prompt could never have worked | Samsung developer forum: the exemption request and the app battery setting do not exist on Wear; `exempt` stayed 0 on every event |
+
+Theory, not yet proven: the switch is the whole cause. Needs at least half an hour of screen-off wear in the log.
+
 ## 7. Lab checks
 `wrist/test/DetectorTest.java`, synthetic 100 Hz traces, run on every build. 2026-11-17: 16/16 pass (knock checks removed with the knock).
 
 `wrist/relay/e2e.mjs` (relay, run on every deploy against the live worker; 16/16 against the live worker on 2026-11-17).
 
-`wrist/relay/page-test.py` (the Lab in a phone-sized Chrome, driven by relay events and a synthetic raw stream; run by hand, 49/49 on 2026-11-17).
+`wrist/relay/page-test.py` (the Lab in a phone-sized Chrome, driven by relay events and a synthetic raw stream; run by hand, 54/54 on 2026-11-17).

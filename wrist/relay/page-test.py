@@ -19,6 +19,8 @@ def http(path, body=None):
 
 def post(o): return json.loads(http('/e/' + code, json.dumps(o)))
 
+LINK, RT = '', -1    # when set, raw batches carry the link label and round trip, as watch app turn06 sends them
+
 def feed(pitch, roll, seconds, gyro=0.0, w=None, acc=0.0):
     """Send a steady pose as raw rows: 50 a second, in batches of 5. w = turn rate [x,y,z] rad/s, acc = jolt m/s^2."""
     p, r = math.radians(pitch), math.radians(roll)
@@ -27,7 +29,9 @@ def feed(pitch, roll, seconds, gyro=0.0, w=None, acc=0.0):
     end = time.time() + seconds
     while time.time() < end:
         rows = [[i * 20] + g + wv + [round(acc * 100), 0, 0] for i in range(5)]
-        post({'t': 'raw', 'w': int(time.time() * 1000), 's': rows})
+        o = {'t': 'raw', 'w': int(time.time() * 1000), 's': rows}
+        if LINK: o['ln'] = LINK; o['rt'] = RT
+        post(o)
         time.sleep(0.085)
 
 def sweep(p0, r0, p1, r1, seconds):
@@ -44,11 +48,11 @@ with sync_playwright() as pw:
     txt = lambda sel: pg.inner_text(sel)
     ev = lambda js: pg.evaluate(js)
 
-    pg.goto(base + '/')
+    pg.goto(base + '/?linksecs=5')
     check('first visit asks for the watch code', pg.locator('#pair.show').count() == 1)
     pg.fill('#code', code)
     pg.wait_for_function("document.getElementById('statusText').textContent.indexOf('Waiting for the watch')===0", timeout=8000)
-    check('grid shows twelve concepts, Keepers first', pg.locator('.tile').count() == 12 and pg.locator('.tile').first.get_attribute('data-id') == 'keepers', pg.locator('.tile').count())
+    check('grid shows thirteen concepts, Keepers first', pg.locator('.tile').count() == 13 and pg.locator('.tile').first.get_attribute('data-id') == 'keepers', pg.locator('.tile').count())
     check('every concept starts unrated', pg.locator('.chip.keep,.chip.shop,.chip.dump').count() == 0)
     post({'t': 'hb', 'b': 'turn04-test'})
     pg.wait_for_function("document.getElementById('statusText').textContent==='Watch connected'", timeout=5000)
@@ -127,6 +131,25 @@ with sync_playwright() as pw:
     feed(0, 0, 0.4); feed(0, 0, 0.3, w=[0, 0, 3]); feed(0, 0, 0.5)
     check('swing v2: the same turn with the hand flat does nothing', th() == 'Messages', th())
     pg.click('#closeBtn'); time.sleep(0.5)
+
+    # ---- connection test: one timed run per link, compared in a table
+    post({'t': 'hb', 'b': 'turn06-test', 'ln': 'bt', 'rtt': 180, 'bat': 80}); time.sleep(0.4)
+    pg.click('.tile[data-id=link]')
+    LINK, RT = 'bt', 180
+    feed(0, 0, 2.5)
+    check('link test: shows the link the watch reports and a live rate', txt('.linkbox .lk') == 'Bluetooth (via phone)' and int(txt('#lkRate')) > 20 and txt('#lkTrip') == '180 ms', txt('.linkbox .lk') + ' ' + txt('#lkRate') + ' ' + txt('#lkTrip'))
+    post({'t': 'hb', 'b': 'turn06-test', 'ln': 'bt', 'rtt': 180, 'bat': 79})
+    feed(0, 0, 3.2)
+    check('link test: after the timed run the result is saved and listed', txt('.linkbox p').startswith('Run saved: Bluetooth') and pg.locator('.linkbox table tr').count() == 2 and '80\u219279%' in txt('.linkbox table'), txt('.linkbox p') + ' | ' + txt('.linkbox table'))
+    pg.click('#closeBtn'); time.sleep(0.5)
+    pg.click('.tile[data-id=link]')
+    LINK, RT = 'wifi', 60
+    feed(0, 0, 1.0); time.sleep(1.4); feed(0, 0, 3.4)
+    rowsT = pg.evaluate("Array.from(document.querySelectorAll('.linkbox table tr')).map(r=>r.innerText.replace(/\\s+/g,' ')).join(' / ')")
+    check('link test: a second run on Wi-Fi is listed beside the first, with its stall counted', pg.locator('.linkbox table tr').count() == 3 and ' wifi ' in (' ' + rowsT) and rowsT.rstrip().split(' / ')[-1].split(' ')[-2] == '1', rowsT)
+    pg.click('#closeBtn'); time.sleep(0.5)
+    LINK, RT = '', -1
+    check('grid status names the link and round trip', 'Wi-Fi' in txt('#statusText') and '60 ms' in txt('#statusText'), txt('#statusText'))
 
     # ---- what X could notice
     pg.click('.tile[data-id=body]')
