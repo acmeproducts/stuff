@@ -1,6 +1,6 @@
 # Wrist — plan (sole authority for `wrist/`)
 
-Version 8.0.0 · 2026-11-18 · Owner/device gate: Confi · Device: Galaxy Watch 9, left wrist
+Version 9.0.0 · 2026-11-18 · Owner/device gate: Confi · Device: Galaxy Watch 9, left wrist
 
 ## 0. Turn ledger
 | Date | Turn | Status | Notes |
@@ -16,6 +16,7 @@ Version 8.0.0 · 2026-11-18 · Owner/device gate: Confi · Device: Galaxy Watch 
 | 2026-11-17 | turn07: phone↔watch channel | **closed by the owner before it started** (section 11.6) | Recorded and scoped the same day; the owner then decided against a phone companion app. X stays browser-based on phone and desktop, the relay stays, and installs stay with Bugjaeger. |
 | 2026-11-18 | turn06 device gate | **passed for the panel and the connection test**; owner rated the Connection test and OK pose cards "Back to shop" | `turn06-b6` ran on the watch; panel reported to the log; connection runs recorded (section 12). |
 | 2026-11-18 | Direction change from the owner | recorded (section 13), nothing built | X expects a finite set of commands; each person registers the signals that suit them; the watch is one sensing source among several to be catalogued (rings, camera, others); the mapping may change with context. |
+| 2026-11-18 | Roadmap: five threads | recorded (section 14), nothing built | Owner named five threads: the Lab, watch client improvements, build X, 3D manipulation, and source input / teach gestures. First stage of each and the order are in section 14. |
 
 ## 1. Why this exists (owner's words, 2026-11-16)
 - "I really can't type using a keyboard or a mouse … or for that matter a touch screen for more than 15 minutes at a time."
@@ -346,6 +347,57 @@ Consequences for what is already built:
 
 ### 13.4 Not started
 No catalogue research, no "teach a signal" card, no change to the watch app. Awaiting the owner's go on what to do first.
+
+## 14. Roadmap: five threads (owner, 2026-11-18)
+> "it appears to me that we have a minimum of five different threads here: we have the lab thread, we have the watch client improvements, we have the build X, we have the 3D manipulation, and we have the source input / teach gestures, which really feeds what is X, how to use it, and it is fed by the labs."
+
+How they connect: the **Lab** is where signals are tried and measured. **Teach** turns a signal into something a person registers. **3D manipulation** is a Lab item that gives registered signals something rich to act on. The **watch client** is one source feeding all of it. **X** is what the registered signals, and the voice, finally talk to.
+
+### 14.1 Watch client improvements
+Owner, on `turn06-b6`:
+> "it's constantly cycling through the panels, which has a few detrimental effects: one, it doesn't really help to just keep cycling through it; two, I'm concerned about battery; and three, I don't really know if any meaningful information is being captured and logged, I see it being displayed. … we need to exit, and it can't be by accident, but we don't want to just leave it running, it depletes the watch, and ideally it would be something on X that you do."
+
+Facts behind this:
+- The cycling is a design fault of turn06 (pages turn every five seconds). It only draws while the Wrist screen is lit.
+- The battery concern is real and is about the reader, not the panel: this watch has no low-power sensor, so the reader keeps the processor awake even when "resting". Measured: 86% → 84% in 13 minutes on 2026-11-17.
+- The panel's contents **are** logged (at start, on any change, each minute); that is how the link, background state and firmware were read on 2026-11-17 and 2026-11-18. Nothing on the watch or in X shows the owner that it happened.
+- Stopping today: holding a finger on the Wrist screen stops the reader. Nothing in X can stop it.
+
+First stage (one watch build, with a small relay and page change):
+1. Panel stops cycling: one still page; a touch turns it.
+2. **Exit from X**: a control in X that puts the watch reader to sleep, delivered in the relay's reply to the watch's next message.
+3. **Sleep by itself** when no X page has been listening for a set time, so it is never left running by accident.
+4. A visible "logged at hh:mm" line on the panel, and the same confirmation in X.
+5. Add "pause if unused" exemption to the panel's power page.
+
+Open question for this thread: once asleep, the watch is not listening, so X cannot wake it instantly. Options to weigh: open Wrist on the watch to wake it (one touch), or have the sleeping watch check in with the relay every few minutes (small battery cost, wake delay up to that interval).
+
+### 14.2 The Lab
+Owner:
+> "the watch should be able to be used to look at a table of results, so this really goes back to what's being logged and how are we organizing it so that we can retrieve it."
+
+First stage: a **Watch report** card in the Lab: the watch's current panel snapshot and its recent history as a table, read from the relay. Needs the relay to keep each watch's snapshots in a retrievable form (today the log is one mixed list of 500 lines that only the build session reads).
+
+### 14.3 Source input / teach gestures
+From section 13. First stage: a **Teach a signal** card: do or hold something three times, the card learns the range from the person's own body, the person names it, it joins Keepers for a collision check. Replaces the OK pose card. Then the source catalogue (rings, camera, earbuds) as a desk study.
+
+### 14.4 3D manipulation
+Owner:
+> "have a 3D shape, maybe it's a cup or a bowl or maybe it's a toy car, but just with the gestures being able to manipulate it would open up a whole language of being able to select, drag, drop, rotate left to right, rotate up and down, rotate diagonally left and right. If you look at the explore mode of ui-v2.html there are some hints of this type of functionality, but I don't want that to be donor code, I want it to be inspiration."
+
+First stage: read ui-v2.html's explore mode for the idea only (no code taken), then one Lab card with a single 3D object driven by taught signals. Follows 14.3, because it needs registered signals to drive it.
+
+### 14.5 Build X
+Owner:
+> "We also need to start a parallel track which is to start building X. No, I don't have a spec for it, I just have the vision that I gave you early on as a starting point."
+
+First stage: no code. A one-page definition of X assembled from the owner's own words in this project (the human talks, X talks to everything else; many threads at once; nothing to learn; the burden of being understood is X's; verdicts; commands registered per person), for the owner to correct. X is not a wrist project, so it gets its own folder and its own plan file once the owner agrees to that.
+
+### 14.6 Order proposed (owner to confirm or change)
+1. Watch client first stage (14.1) together with the Watch report card (14.2): they share the question of what is logged and how it is retrieved, and the watch is draining battery now.
+2. X definition draft (14.5): cheap, and it starts the parallel track.
+3. Teach a signal (14.3).
+4. 3D object (14.4).
 
 ## 7. Lab checks
 `wrist/test/DetectorTest.java`, synthetic 100 Hz traces, run on every build. 2026-11-17: 16/16 pass (knock checks removed with the knock).
