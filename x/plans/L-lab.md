@@ -49,6 +49,8 @@ Owner, 2026-11-18:
 
 **Built 2026-11-18 in `lab-r6`, lab only so far.** The Results card shows watch sessions (start, minutes, link, battery at both ends, percent an hour once a session passes ten minutes, longest silence, how it ended), the last panel snapshot, and the Signals table read from every saved trial. Read aloud speaks the newest rows. Sessions are recorded from relay `w4` on; earlier runs are in the trials only.
 
+**Owner's trials, 2026-11-18 12:17 to 13:15 UTC (`lab-r6`):** tilt v2 rated Back to shop ("No action observed"); flap rated Back to shop ("Fail, no movement detected even though [I] roll +/- 90 degrees"; it fired once in each of two trials); raise to talk rated Back to shop. These go to teaching (V1), where the range comes from the owner's own arm, not to more hand-tuning.
+
 ### L2 — Scored session (walk)
 **Question:** what are each signal's hit rate and wrong-fire rate during X-like use?
 

@@ -74,6 +74,8 @@ The owner's five-stage camera outline from the other session maps onto S1, S2, V
 - Fact (lab): the page's calls match the real library; this was run against a local copy of it.
 - **Unverified:** the finder itself has not run here. The build machine cannot reach the address the model is downloaded from, so the first real run is on the owner's phone. If it fails the card says which part failed: the camera, the program, or the model.
 
+**First real run, 2026-11-18 13:06 UTC, owner's tablet (trial `camera-8291`): the hand finder works.** Ready 4.5 s after the camera opened, on the graphics chip. 13 to 17 frames a second, 64 to 71 ms a frame. Hand found 94% of the time over 104 s, lost and found again four times. Owner rated it Keep, thumbs up. Fact: this is just under the 15 frames a second target, on the tablet. Not yet measured on the S23 or the iPhone.
+
 ### S2 — Hand numbers (walk)
 **Scope:** a live strip of curl, facing and roll, like the Lab's tilt, roll and turn strip. Recorded with each trial.
 **Gate:** the owner holds five different hand shapes and the strip tells them apart by eye.

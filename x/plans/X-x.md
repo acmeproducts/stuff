@@ -102,6 +102,25 @@ What is there, all of it working end to end in the lab:
 - Citation marks that a service puts inside its text are removed before X speaks.
 - Theory, to be seen in the first session on the S23: the browser's own listening restarts after each pause, and may chime each time it does.
 
+**Device gate, 2026-11-18 13:19 to 13:22 UTC (`x-r2`, the owner's first session; from X's own log lines in `x/wrist/out/DEVICE-LOG.md`): FAILED.**
+
+Owner:
+> "x is just a starting point … it's basically a shell and it sends a prompt, so it's really not AI assisted, it's just a voice front end to AI. I'm not sure how to get it to change my voice to watch or what that really gives me. I'm also really unclear truly what it's supposed to do. I don't think it does anything but just basically do cosplay with AI and pretend it's doing something when you ask it. Plus the latency is ridiculous, and the number of steps, which I'm sure is directly impacting the latency. I'm not sure where the learning portion comes in yet."
+
+| Fact | Evidence |
+|---|---|
+| Every ask took about half a minute | four unknown asks: 27.6 s, 26.9 s, 32.1 s, 30.3 s; one change: 11.7 s. All answered by Venice, no fallback. |
+| No sources came back on any answer | `src:0` on all five turns. Cause not yet known. |
+| Nothing was kept; no word was ever used | 0 words at the start and at the end; 5 exchanges in 2.4 minutes |
+| The owner touched the "watch" light, expecting a switch | touch on `sWatch` 12 s into the session. It is an indicator and does nothing. |
+| The session was ended with the Setup button, not by voice | touch on `setupBtn`; 2 touches in all |
+| Ending X did put the watch to sleep | X ended 13:21:54.0; the watch logged `sleep`, why `page`, at 13:21:55 |
+| The watch gave X nothing else | signals do not steer X (V3 is not built), and the watch was silent for most of the session (plan W) |
+
+**Why he is right (my reading of my own build).** The nine steps are on paper. In the build, steps 4 to 6 are one long prompt whose whole reply X waits for before it speaks; that is the half minute. Keeping a word saves the sentence, and the next time the same slow call is made. Nothing X "learns" lets X do anything by itself. That is a voice front end to an AI, which is what the owner warned against on 2026-11-18 ("everything isn't just a question to an AI that does everything else").
+
+**Proves or kills:** TH3 as built is empty: a kept word runs no faster and no surer than asking again. TH1 and TH2 were not reached.
+
 ### X2 — Lists (walk)
 **Scope:** a word can bring many items (title, text, picture or sound, link, source). One item is in front. **more** and **back** by voice or signal; **glide** by a held posture once V3 is in. **enough** stops. Saying "more like this" or "less of this" changes the word (a change verdict).
 

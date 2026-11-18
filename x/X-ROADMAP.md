@@ -64,10 +64,10 @@ A release is the smallest whole thing that can be used and judged. Status: built
 
 | Release | Delivers | Needs first | Gate | Stage | Status |
 |---|---|---|---|---|---|
-| **W1** Session | still panel; sleep from the page; sleep by itself; "logged at"; hardened pairing; buzz from the page; code moved to `x/wrist/` | — | 2 | crawl | **built, lab only; awaiting the owner's watch** |
+| **W1** Session | still panel; sleep from the page; sleep by itself; "logged at"; hardened pairing; buzz from the page; code moved to `x/wrist/` | — | 2 | crawl | **on the watch 2026-11-18: off-from-X, pairing and buzz passed; silent for one to two and a half minutes at a time with the screen off (failed)** |
 | **L1** Results table | what the watch reported and each signal's record, in a table | W1 (shares the relay change) | 4 | crawl | **built, lab only; awaiting the owner** |
-| **X1** Born | the X page: listen, the nine steps, five commands by voice, words kept on the device and synced to GitHub, hand time | W1 for the watch's session; works without it | 3 | crawl | **built, lab only; awaiting the owner's first session** |
-| **S1** Camera probe | camera opens, hand found or lost, frames a second, on each device | — | 4 | crawl | **built; the finder itself is unverified until it runs on the owner's phone** |
+| **X1** Born | the X page: listen, the nine steps, five commands by voice, words kept on the device and synced to GitHub, hand time | W1 for the watch's session; works without it | 3 | crawl | **device gate FAILED 2026-11-18**: about 30 s an ask, nothing learned that X can do by itself; see `plans/X-x.md` |
+| **S1** Camera probe | camera opens, hand found or lost, frames a second, on each device | — | 4 | crawl | **works on the owner's tablet (13 to 17 frames a second, found 94%); S23 and iPhone not yet measured** |
 | **V1** Teach on the watch | do it three times, name it, collision check; replaces the OK card | L1 | 4 | crawl | later |
 | W2 Battery truth | percent an hour by link, from real sessions; 30-minute freeze check; Wi-Fi-only run | W1, L1 | 2 | walk | later |
 | L2 Scored session | prompted and unprompted scoring: hit rate and wrong fires per signal | V1 | 4 | walk | later |

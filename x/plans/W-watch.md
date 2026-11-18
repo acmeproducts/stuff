@@ -73,6 +73,21 @@ Owner, 2026-11-18:
 
 A real layout fault was found by the new checks and fixed: with a long status line the Watch off and Code buttons were pushed off the right edge of the phone screen. The Code button had the same fault in `lab-r5`.
 
+**Device gate, 2026-11-18 13:02 to 13:23 UTC (`turn07-b8` on the owner's watch, from `x/wrist/out/DEVICE-LOG.md` and `out/trials/`): part passed, one failure.**
+
+| Gate item | Result | Evidence |
+|---|---|---|
+| 2. Off from a page | **passed** (from X) | X ended 13:21:54; the watch logged `sleep`, why `page`, at 13:21:55, after a 1,170 s run |
+| 6. Each sleep logged with its reason | **passed** | the same line |
+| 7. Pairs by itself after a start | **passed** | started 13:02:25, paired 13:02:49 |
+| Buzz from the page | **passed**; owner rated the card Keep | nine patterns delivered, felt 0.15 to 0.8 s after the tap; two "page joined" buzzes. Owner: "Works as stated, might consider adding pauses to the pattern." |
+| 1, 3, 4, 5 (still panel, sleeps alone after three minutes, a brush does nothing, "logged" time) | **not evidenced** | nothing in the log either way |
+| Stays connected with the screen off | **FAILED** | silent stretches of 55, 63, 76, 125, 130 and 145 s with the screen off; the watch was silent for almost the whole X session. Owner: "every time the watch goes to sleep then I lose the connection again." |
+
+Other facts: battery 38% to 34% in 19.5 minutes on Wi-Fi, about 12% an hour (one sample). The panel reports "pause if unused" as on. The watch shows a new pairing code, so the app was installed fresh rather than over the old one.
+
+Theory, not proven: the fresh install reset "Allow background activity" to off. The silences look like the ones recorded before that switch was first turned on (`WRIST-PLAN.md` §10), and `turn06` ran 13 minutes without one once it was on.
+
 ### W2 — Battery truth (walk)
 **Question:** what does an X session cost the watch per hour, on each link?
 
