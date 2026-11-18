@@ -1,13 +1,13 @@
 name: Wrist device log
 # Copies the relay's recent events (motions with the sensor readings behind them, battery,
-# mode changes; pairing codes masked) into wrist/out/DEVICE-LOG.md so the build session can
-# read what the watch really did, and every saved Lab trial into wrist/out/trials/.
-# Runs when wrist/DRAIN.trigger is pushed.
+# mode changes; pairing codes masked) into x/wrist/out/DEVICE-LOG.md so the build session can
+# read what the watch really did, and every saved Lab trial into x/wrist/out/trials/.
+# Runs when x/wrist/DRAIN.trigger is pushed.
 on:
   push:
     branches: [main, 'wrist-**']
     paths:
-      - 'wrist/DRAIN.trigger'
+      - 'x/wrist/DRAIN.trigger'
   workflow_dispatch:
 permissions:
   contents: write
@@ -19,7 +19,7 @@ jobs:
       - uses: actions/checkout@v4
       - name: Drain
         run: |
-          mkdir -p wrist/out
+          mkdir -p x/wrist/out
           curl -sS --max-time 20 "https://wrist-relay.myacctfortracking.workers.dev/log" -o /tmp/wrist.log || echo "(relay unreachable)" > /tmp/wrist.log
           {
             echo "# Wrist device log"
@@ -29,18 +29,18 @@ jobs:
             echo '```'
             tail -c 300000 /tmp/wrist.log
             echo '```'
-          } > wrist/out/DEVICE-LOG.md
+          } > x/wrist/out/DEVICE-LOG.md
           # Lab trials: what the watch saw + what the owner did + the verdict, one file per saved part
-          mkdir -p wrist/out/trials
+          mkdir -p x/wrist/out/trials
           curl -sS --max-time 20 "https://wrist-relay.myacctfortracking.workers.dev/trials" -o /tmp/trials.json || echo "[]" > /tmp/trials.json
           for key in $(node -e 'try{for(const x of JSON.parse(require("fs").readFileSync("/tmp/trials.json","utf8")))console.log(x.key)}catch(e){}'); do
             case "$key" in e2e-*) continue;; esac
-            f="wrist/out/trials/$(echo "$key" | tr ':' '.').json"
+            f="x/wrist/out/trials/$(echo "$key" | tr ':' '.').json"
             [ -f "$f" ] || curl -sS --max-time 30 "https://wrist-relay.myacctfortracking.workers.dev/trial/$key" -o "$f" || rm -f "$f"
           done
           git config user.name acmeproducts
           git config user.email 182510673+acmeproducts@users.noreply.github.com
-          git add wrist/out/DEVICE-LOG.md wrist/out/trials
+          git add x/wrist/out/DEVICE-LOG.md x/wrist/out/trials
           if ! git diff --staged --quiet; then
             git commit -q -m "wrist device log [skip ci]"
             for i in 1 2 3 4; do

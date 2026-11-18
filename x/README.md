@@ -24,9 +24,9 @@ X is a learning system you raise, so that a phone can be used with hands at rest
 History and code:
 | Where | What |
 |---|---|
-| `wrist/WRIST-PLAN.md` | The record of turn01 to turn06 and every measurement so far. |
-| `wrist/WRIST-GRAVEYARD.md` | The single graveyard for all of X. Nothing in it returns without the owner's approval. |
-| `wrist/` | Watch app, relay and Lab. Moves to `x/wrist/` as step 0 of release W1. |
+| `x/wrist/WRIST-PLAN.md` | The record of turn01 to turn06 and every measurement so far. |
+| `x/wrist/WRIST-GRAVEYARD.md` | The single graveyard for all of X. Nothing in it returns without the owner's approval. |
+| `x/wrist/` | Watch app, relay and Lab. Moved here from the repository root on 2026-11-18 (W1 step 0). |
 
 ## Where things stand (2026-11-18)
 - **Gate 1 of 6 passed.** Watch to relay to browser works on the owner's watch.
@@ -36,12 +36,12 @@ History and code:
 ## Live
 | Thing | Where |
 |---|---|
-| Watch file `turn06-b6` | `https://github.com/acmeproducts/stuff/raw/wrist-turn01/wrist/out/wrist.apk` |
+| Watch file `turn06-b6` | `https://github.com/acmeproducts/stuff/raw/wrist-turn01/x/wrist/out/wrist.apk` |
 | Lab `lab-r5` | `https://wrist-relay.myacctfortracking.workers.dev/` |
 | X | not built |
 
 ## For any session working here
 1. Read `claude-audit.md` at the repository root, then this folder's roadmap.
-2. Branch `wrist-turn01`. Paths: `x/`, `wrist/` and the three `wrist-*.yml` workflows. Nothing else.
+2. Branch `wrist-turn01`. Paths: `x/` and the three `wrist-*.yml` workflows. Nothing else.
 3. No architecture change without the owner's explicit yes (`X-DESIGN.md` §1 and §3).
 4. Every release follows `X-ROADMAP.md` §4, and its record ships in the same commit.

@@ -1,12 +1,12 @@
 name: Deploy wrist relay
-# Deploys wrist/relay (the worker that carries wrist motions from the watch to X and
+# Deploys x/wrist/relay (the worker that carries wrist motions from the watch to X and
 # serves the X practice page), checks it end to end, and writes the result to
-# wrist/out/RELAY-LOG.md on the same branch so it can be read from the repo.
+# x/wrist/out/RELAY-LOG.md on the same branch so it can be read from the repo.
 on:
   push:
     branches: [main, 'wrist-**']
     paths:
-      - 'wrist/relay/**'
+      - 'x/wrist/relay/**'
       - '.github/workflows/wrist-relay.yml'
   workflow_dispatch:
 permissions:
@@ -30,7 +30,7 @@ jobs:
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
         run: |
           BASE="https://wrist-relay.myacctfortracking.workers.dev"
-          cd wrist/relay
+          cd x/wrist/relay
           set +e
           echo "== deploy ==" > /tmp/relay.txt
           npx -y wrangler@4 deploy >> /tmp/relay.txt 2>&1
@@ -54,7 +54,7 @@ jobs:
           fi
           set -e
           cd "$GITHUB_WORKSPACE"
-          mkdir -p wrist/out
+          mkdir -p x/wrist/out
           # never write credentials into the repository
           sed -e "s/${CLOUDFLARE_ACCOUNT_ID:-NO_ACCOUNT_ID}/[account]/g" -e "s/${CLOUDFLARE_API_TOKEN:-NO_API_TOKEN}/[token]/g" /tmp/relay.txt > /tmp/relay-safe.txt
           cat /tmp/relay-safe.txt
@@ -66,14 +66,14 @@ jobs:
             echo '```'
             tail -c 40000 /tmp/relay-safe.txt
             echo '```'
-          } > wrist/out/RELAY-LOG.md
+          } > x/wrist/out/RELAY-LOG.md
           echo "ok=$([ "$d" = "0" ] && [ "$e" = "0" ] && echo yes || echo no)" >> "$GITHUB_OUTPUT"
       - name: Publish the result to the branch
         if: always()
         run: |
           git config user.name acmeproducts
           git config user.email 182510673+acmeproducts@users.noreply.github.com
-          git add wrist/out/RELAY-LOG.md
+          git add x/wrist/out/RELAY-LOG.md
           if ! git diff --staged --quiet; then
             git commit -q -m "wrist relay deploy ${{ github.run_number }} [skip ci]"
             for i in 1 2 3 4; do

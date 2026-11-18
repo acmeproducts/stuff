@@ -1,6 +1,6 @@
 # Plan V — vocabulary and teaching
 
-Version 1.0.0 · 2026-11-18 · Part of `x/X-ROADMAP.md` · Earlier record: `wrist/WRIST-PLAN.md` §13, §14.3
+Version 1.0.0 · 2026-11-18 · Part of `x/X-ROADMAP.md` · Earlier record: `x/wrist/WRIST-PLAN.md` §13, §14.3
 
 ## 1. Purpose
 This is where X becomes a learning system on the body's side. The person teaches signals from their own body and says what each one means. Two streams: **teach** and **vocabulary and registration**.

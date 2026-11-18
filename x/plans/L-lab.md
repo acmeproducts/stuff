@@ -1,6 +1,6 @@
 # Plan L — the Lab
 
-Version 1.0.0 · 2026-11-18 · Part of `x/X-ROADMAP.md` · History before this date: `wrist/WRIST-PLAN.md` §3b, §9, §12
+Version 1.0.0 · 2026-11-18 · Part of `x/X-ROADMAP.md` · History before this date: `x/wrist/WRIST-PLAN.md` §3b, §9, §12
 
 ## 1. Purpose
 The Lab is the proving area. It answers one question for every signal from every source: **is it good enough to steer X?** It is a workshop for the interaction model, not app navigation and not the product (P19). Two streams: **Lab and evidence**, and **continuous control**.

@@ -11,7 +11,7 @@ This is the one place that says where we are, where we are going and how we get 
 - Lab `lab-r5`: 13 concept cards, recordings, notes, Keep / Back to shop / Dump.
 - Builds and installs need no IDE.
 
-**Measured (facts, from `wrist/out/trials/` and the device log)**
+**Measured (facts, from `x/wrist/out/trials/` and the device log)**
 - Wi-Fi: 35 to 49 readings a second, 50 to 57 ms round trip, few stalls. Bluetooth alone: 26 to 32 a second, 128 to 154 ms, many stalls. Nothing failed outright on Bluetooth.
 - The owner's poses read cleanly (thumb up, thumb down, palm up). The forearm-angle pose fired 11 times at 47° to 54°.
 - Three collisions: thumb up against dial choose; flap drags the dial; the forearm pose overlaps raise.
@@ -111,12 +111,12 @@ A release is done when its device gate passes and its rows in `X-TRACE.md` show 
 - **Requirements** change only by the owner's word; the change is quoted in `X-NORTH-STAR.md` or `X-REQUIREMENTS.md` with its date.
 - **Design decisions** (D-numbers) are mine; the owner may strike any. A struck decision goes to the graveyard.
 - **Architecture** (A-numbers, and the C-list in `X-DESIGN.md` §3) changes only with the owner's explicit yes after vetting: what, why, the principle, the evidence, what it replaces, how to undo it.
-- **Graveyard:** `wrist/WRIST-GRAVEYARD.md` stays the single graveyard for all of `x/`. Nothing in it returns without the owner's approval.
+- **Graveyard:** `x/wrist/WRIST-GRAVEYARD.md` stays the single graveyard for all of `x/`. Nothing in it returns without the owner's approval.
 
 ## 6. Ledger
 | Date | Entry | Status |
 |---|---|---|
-| 2026-11-16 to 2026-11-18 | Watch, relay and Lab, turn01 to turn06 | recorded in `wrist/WRIST-PLAN.md` §0 |
+| 2026-11-16 to 2026-11-18 | Watch, relay and Lab, turn01 to turn06 | recorded in `x/wrist/WRIST-PLAN.md` §0 |
 | 2026-11-18 | Five-thread roadmap (WRIST-PLAN §14) | rejected by the owner as "incredibly light"; replaced by this file |
 | 2026-11-18 | Roadmap built around one talk-to-gateway loop | rejected by the owner (graveyard G18) |
 | 2026-11-18 | Single pipeline page | drafted; owner corrected the reach (X is not a hub; AI) and the frame (a learning system, floor not blueprint) |

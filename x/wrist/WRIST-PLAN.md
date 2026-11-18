@@ -1,4 +1,4 @@
-# Wrist — plan (the record for `wrist/`: watch app, relay, Lab)
+# Wrist — plan (the record for `x/wrist/`: watch app, relay, Lab)
 
 Version 10.0.0 · 2026-11-18 · Owner/device gate: Confi · Device: Galaxy Watch 9, left wrist
 
@@ -44,9 +44,9 @@ Tilt is a held posture, not a repeated flick, so the left wrist does not inherit
 ## 3. turn02 scope
 The watch reads the motions; **X shows them.** Nothing is read on the watch.
 
-- **Watch app** (`wrist/app`): detects the motions and posts each one to the relay. Its face shows only the 6-digit pairing code, whether sending works, and the build name.
-- **Relay** (`wrist/relay/worker.js`, Cloudflare worker `wrist-relay`): passes each event to every page listening on the same code, and keeps the last 500 events at `/log` with codes masked.
-- **X practice page** (`wrist/relay/x.html`, served by the relay at `/`): four threads of large rows. Tilt moves the list, a swing changes thread, a knock chooses the centred row. Works on the phone and on a desktop.
+- **Watch app** (`x/wrist/app`): detects the motions and posts each one to the relay. Its face shows only the 6-digit pairing code, whether sending works, and the build name.
+- **Relay** (`x/wrist/relay/worker.js`, Cloudflare worker `wrist-relay`): passes each event to every page listening on the same code, and keeps the last 500 events at `/log` with codes masked.
+- **X practice page** (`x/wrist/relay/x.html`, served by the relay at `/`): four threads of large rows. Tilt moves the list, a swing changes thread, a knock chooses the centred row. Works on the phone and on a desktop.
 
 Out (open assumptions, owner may override):
 - The real X. This page is only the surface that proves the motions arrive and act.
@@ -65,7 +65,7 @@ Waking from rest takes the arm coming into a use pose while moving; expect up to
 Open Wrist once to start the reader; it keeps going after the screen turns off. Holding a finger on the Wrist screen stops it. On first open the watch may ask to exempt Wrist from battery optimisation: allow it, or the watch may cut its network a few minutes after the screen goes off.
 
 ## 3b. The Wrist Lab (turn04)
-One surface for trying many motion concepts. Served by the relay at `/` (`wrist/relay/x.html`, page build `lab-r1`).
+One surface for trying many motion concepts. Served by the relay at `/` (`x/wrist/relay/x.html`, page build `lab-r1`).
 
 - **Grid** of concept cards, each showing its verdict (Keep / Back to shop / Dump / not rated) and how many trials it has had.
 - **Tap a card**: it opens full screen and a trial starts recording. A strip at the bottom shows live tilt, roll and turn.
@@ -132,9 +132,9 @@ Measured per run: readings a second, typical and worst gap between batches, stal
 - **"Turn off automatic Wi-Fi"** is in the watch's Developer options (Samsung developer blog). Not yet tried.
 
 ## 4. Build and delivery
-- Watch app: `.github/workflows/wrist-build.yml` runs `wrist/build.sh` (Android SDK tools only, no Gradle) and commits `wrist/out/wrist.apk` and `wrist/out/BUILD-LOG.md` to the branch.
-- Relay and page: `.github/workflows/wrist-relay.yml` deploys `wrist/relay`, runs `e2e.mjs` against the live worker and commits `wrist/out/RELAY-LOG.md`.
-- Signing: `wrist/debug.keystore` (password `android`) is a throwaway debug key kept in the repo on purpose, so every build updates over the last one. It protects nothing.
+- Watch app: `.github/workflows/wrist-build.yml` runs `x/wrist/build.sh` (Android SDK tools only, no Gradle) and commits `x/wrist/out/wrist.apk` and `x/wrist/out/BUILD-LOG.md` to the branch.
+- Relay and page: `.github/workflows/wrist-relay.yml` deploys `x/wrist/relay`, runs `e2e.mjs` against the live worker and commits `x/wrist/out/RELAY-LOG.md`.
+- Signing: `x/wrist/debug.keystore` (password `android`) is a throwaway debug key kept in the repo on purpose, so every build updates over the last one. It protects nothing.
 - Install: wireless debugging on the watch, push the file from the phone with Bugjaeger.
 - Pairing: the watch shows a 6-digit code; X asks for it once per device and remembers it.
 
@@ -159,9 +159,9 @@ Measured per run: readings a second, typical and worst gap between batches, stal
 
 ## 6a. Diagnostics
 - X shows link state, counts and the last three events on screen.
-- Every event carries the readings behind it (tilt, roll, knock strength, threshold, noise). The relay keeps them at `/log`; pushing `wrist/DRAIN.trigger` makes `.github/workflows/wrist-log.yml` copy that into `wrist/out/DEVICE-LOG.md`, so thresholds and battery use can be tuned from real data without the owner relaying numbers. No watch data has arrived through this channel yet.
+- Every event carries the readings behind it (tilt, roll, knock strength, threshold, noise). The relay keeps them at `/log`; pushing `x/wrist/DRAIN.trigger` makes `.github/workflows/wrist-log.yml` copy that into `x/wrist/out/DEVICE-LOG.md`, so thresholds and battery use can be tuned from real data without the owner relaying numbers. No watch data has arrived through this channel yet.
 
-## 8. First real session, 2026-11-17 12:26–12:36 UTC (watch turn03-b3, read from `wrist/out/DEVICE-LOG.md`)
+## 8. First real session, 2026-11-17 12:26–12:36 UTC (watch turn03-b3, read from `x/wrist/out/DEVICE-LOG.md`)
 First data to arrive through the log channel. 256 watch events in 10 minutes.
 
 | Observed | Evidence |
@@ -179,7 +179,7 @@ First data to arrive through the log channel. 256 watch events in 10 minutes.
 
 Changes made from this: knock removed; `tilt2` in the Lab addresses the stutter and the lowered arm; `swing1` kept unchanged so the Lab can record why it does not fire.
 
-## 9. First Lab trials from the real watch, 2026-11-17 13:37–13:47 UTC (watch turn04-b4, read from `wrist/out/trials/`)
+## 9. First Lab trials from the real watch, 2026-11-17 13:37–13:47 UTC (watch turn04-b4, read from `x/wrist/out/trials/`)
 First data through the trial channel: three trials, two with raw rows (3,823 and 2,560).
 
 | Observed | Evidence |
@@ -290,7 +290,7 @@ What stays open from section 11.1, because it needs no phone app:
 
 Parked, not buried: a browser can in principle connect straight to a watch over Bluetooth (Web Bluetooth in Chrome, phone and desktop) with no companion app and no internet. Unverified on this watch, needs a tap to connect each session. Worth a probe only if the relay proves to be the limit.
 
-## 12. Connection runs, 2026-11-18 08:23–08:39 UTC (watch turn06-b6, page lab-r5, from `wrist/out/trials/`)
+## 12. Connection runs, 2026-11-18 08:23–08:39 UTC (watch turn06-b6, page lab-r5, from `x/wrist/out/trials/`)
 Each figure is computed from the raw batches, split by the link the watch reported on each batch.
 
 | Run | Link | Seconds | Readings / s | Typical gap | Worst gap | Stalls over 1 s | Round trip (median) |
@@ -409,8 +409,8 @@ First stage: no code. A one-page definition of X assembled from the owner's own 
 From the owner's session on camera gestures, brought here by him: camera hand gestures and camera head gestures join the watch as parallel sources, and a fourth node, the arbiter, decides whose word counts by rules that are taught per context (override, fallback, exclusive). Rings are dropped (G15). Doublepoint's kit is not adopted (G16). Recorded in full, with the owner's words, in `x/plans/S-sources-arbiter.md`.
 
 ## 7. Lab checks
-`wrist/test/DetectorTest.java`, synthetic 100 Hz traces, run on every build. 2026-11-17: 16/16 pass (knock checks removed with the knock).
+`x/wrist/test/DetectorTest.java`, synthetic 100 Hz traces, run on every build. 2026-11-17: 16/16 pass (knock checks removed with the knock).
 
-`wrist/relay/e2e.mjs` (relay, run on every deploy against the live worker; 16/16 against the live worker on 2026-11-17).
+`x/wrist/relay/e2e.mjs` (relay, run on every deploy against the live worker; 16/16 against the live worker on 2026-11-17).
 
-`wrist/relay/page-test.py` (the Lab in a phone-sized Chrome, driven by relay events and a synthetic raw stream; run by hand, 54/54 on 2026-11-17).
+`x/wrist/relay/page-test.py` (the Lab in a phone-sized Chrome, driven by relay events and a synthetic raw stream; run by hand, 54/54 on 2026-11-17).

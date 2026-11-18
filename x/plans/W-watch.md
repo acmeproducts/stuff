@@ -1,6 +1,6 @@
 # Plan W — the watch
 
-Version 1.0.0 · 2026-11-18 · Part of `x/X-ROADMAP.md` · History before this date: `wrist/WRIST-PLAN.md`
+Version 1.0.0 · 2026-11-18 · Part of `x/X-ROADMAP.md` · History before this date: `x/wrist/WRIST-PLAN.md`
 
 ## 1. Purpose
 The watch is one source. Its job is to read the left forearm and wrist, cost little, and live and die with X. Two streams: **watch input** (what it reads) and **watch session** (when it runs).
@@ -41,7 +41,7 @@ Owner, 2026-11-18:
 **Build sequence**
 | Step | What | Check |
 |---|---|---|
-| 0 | Move `wrist/` to `x/wrist/` and repoint the three workflows. No code change. | all three workflows green; the app built from the new path is byte-for-byte the same code; relay live checks 16/16 |
+| 0 | Move `wrist/` (repository root) to `x/wrist/` and repoint the three workflows. No code change. | all three workflows green; the app built from the new path is byte-for-byte the same code; relay live checks 16/16 |
 | 1 | Write the failing checks: relay passes "sleep" once to the watch's next post; page has a Watch off control that needs a hold; page shows last-logged time; a code cannot be used twice or after two minutes; a page without the secret is refused; the sixth wrong guess in a minute is refused | they fail on `w3` and `lab-r5` |
 | 2 | Relay `w4`: sleep word; last-logged time per watch; secrets and guess limit | relay checks pass, old 16 still pass |
 | 3 | Lab `lab-r6`: Watch off, last-logged line; keeps its secret after the first pairing | page checks pass, old 54 still pass |

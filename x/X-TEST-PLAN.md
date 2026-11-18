@@ -21,15 +21,15 @@ Version 1.0.0 · 2026-11-18 · Answers to `X-REQUIREMENTS.md` · Rules from `cla
 ## 3. Suites
 | Suite | File | Covers | Today |
 |---|---|---|---|
-| Detector | `wrist/test/DetectorTest.java` | tilt and swing on synthetic traces | 16/16 |
-| Relay, live | `wrist/relay/e2e.mjs` | every relay route against the deployed worker | 16/16 |
-| Lab page | `wrist/relay/page-test.py` | the Lab in a phone-sized browser with a synthetic watch | 54/54 |
+| Detector | `x/wrist/test/DetectorTest.java` | tilt and swing on synthetic traces | 16/16 |
+| Relay, live | `x/wrist/relay/e2e.mjs` | every relay route against the deployed worker | 16/16 |
+| Lab page | `x/wrist/relay/page-test.py` | the Lab in a phone-sized browser with a synthetic watch | 54/54 |
 | Templates | new with V1 | template maker and matcher on synthetic and recorded holds | — |
 | Arbiter | new with S5 | every rule type, no rule, absent against silent | — |
 | X page | new with X1 | the nine steps driven by injected sentences and a recorded model reply | — |
 | Scoring | new with L2 | hit and wrong-fire arithmetic on a synthetic session with known answers | — |
 
-Paths move to `x/wrist/` at W1 step 0.
+Paths moved to `x/wrist/` at W1 step 0 (2026-11-18).
 
 ## 4. Rules
 1. **The owner's definition of working is written as checks before the work starts.** Each plan's release carries it.

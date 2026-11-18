@@ -1,6 +1,6 @@
 # Plan S — sources and the arbiter
 
-Version 1.0.0 · 2026-11-18 · Part of `x/X-ROADMAP.md` · Earlier record: `wrist/WRIST-PLAN.md` §13
+Version 1.0.0 · 2026-11-18 · Part of `x/X-ROADMAP.md` · Earlier record: `x/wrist/WRIST-PLAN.md` §13
 
 ## 1. Purpose
 X must not be wedded to the watch. This plan adds the camera as two more sources (the hand and the head) and builds the fourth node: the arbiter that decides whose word counts. Two streams: **camera hand and head**, and **the arbiter**.

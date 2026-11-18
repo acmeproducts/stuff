@@ -39,7 +39,7 @@ Each is written as what the person does and what X does. Releases are in `X-ROAD
 | UC12 | Do something that cannot be undone | X states exactly what will happen and waits for **yes**. | X6 |
 
 ## 3. Requirements
-Source column: NS = `X-NORTH-STAR.md` section; WP = `wrist/WRIST-PLAN.md` section.
+Source column: NS = `X-NORTH-STAR.md` section; WP = `x/wrist/WRIST-PLAN.md` section.
 
 ### 3.1 Mission
 | # | Requirement | Source |

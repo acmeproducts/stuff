@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
-# Builds wrist/out/wrist.apk with the plain Android SDK tools: no Gradle, no downloads.
-# Usage: wrist/build.sh <version-code> <version-name>
+# Builds x/wrist/out/wrist.apk with the plain Android SDK tools: no Gradle, no downloads.
+# Usage: x/wrist/build.sh <version-code> <version-name>
 set -euo pipefail
 cd "$(dirname "$0")"
 CODE="${1:-1}"; NAME="${2:-local}"
