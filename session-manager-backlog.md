@@ -565,3 +565,8 @@ A message containing any single HTML tag was routed to the raw-HTML path, so its
 **Reported.** Opening a Missing session left the tab strip showing the Unassigned tabs.
 **Change.** While a Missing record is open, the tab strip lists the missing sessions (click one to inspect it). Choosing a project leaves the Missing view.
 **Unverified.** Syntax-checked only; not exercised in a browser.
+
+# SESSION INVENTORY SCRIPT — 2026-11-18
+**Why.** An AI-agent inventory of the owner's machine was unreliable (invented version, commands and logs). A plain script replaces it.
+**Added.** `session-manager-inventory.py`: read-only; walks one folder (default home), counts transcripts by folder and kind, lists every `sessions.json*` copy with entry counts, counts sessions with a transcript but no current entry, matches the 108 known keys by session ID, by the UUID in the key, and by first message, lists databases, prints OpenClaw version/config. Phone numbers redacted in output. Writes `inventory.json` in the current folder.
+**Tested** only on a fake folder.
