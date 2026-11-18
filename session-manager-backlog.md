@@ -560,3 +560,8 @@ A message containing any single HTML tag was routed to the raw-HTML path, so its
 **Reported.** Cron and Dreams projects did not appear after v2.10.10.
 **Cause (likely, not confirmed on device).** v2.10.10 skipped any session with a recorded position in Unassigned; reordering that list records every session, so all were skipped.
 **Change.** That skip is removed; any live cron or dreaming session no Project owns and not in the Recycle Bin is filed. Re-tested against a stub with every session listed in Unassigned order.
+
+# v2.10.12 MISSING VIEW SHOWS MISSING SESSIONS — 2026-11-18
+**Reported.** Opening a Missing session left the tab strip showing the Unassigned tabs.
+**Change.** While a Missing record is open, the tab strip lists the missing sessions (click one to inspect it). Choosing a project leaves the Missing view.
+**Unverified.** Syntax-checked only; not exercised in a browser.
