@@ -1,21 +1,21 @@
 # Wrist relay deploy log
 
-Run 8, commit abffa2053630c775ee7c71b4bd0e4e8a3066bacf, 2026-11-17T13:59:31Z, deploy exit 0, end-to-end exit 0
+Run 9, commit b0b4e9f70a31c286fc40610eae8406a295bbf920, 2026-11-18T00:07:21Z, deploy exit 0, end-to-end exit 0
 
 ```
 == deploy ==
 
  ⛅️ wrangler 4.86.0
 ───────────────────
-Total Upload: 54.57 KiB / gzip: 17.99 KiB
+Total Upload: 59.64 KiB / gzip: 19.63 KiB
 Your Worker has access to the following bindings:
 Binding              Resource            
 env.ROOM (Room)      Durable Object      
 
-Uploaded wrist-relay (2.32 sec)
-Deployed wrist-relay triggers (0.85 sec)
+Uploaded wrist-relay (3.27 sec)
+Deployed wrist-relay triggers (1.21 sec)
   https://wrist-relay.myacctfortracking.workers.dev
-Current Version ID: 4d776aba-a60e-4e55-a044-819a6ba2902c
+Current Version ID: f072540f-757d-444b-a4cd-dc3b7847d1be
 
 Cloudflare collects anonymous telemetry about your usage of Wrangler. Learn more at https://github.com/cloudflare/workers-sdk/tree/main/packages/wrangler/telemetry.md
 deploy exit 0
@@ -23,7 +23,7 @@ deploy exit 0
 {"ok":true,"v":"w3"}
 == end-to-end ==
 PASS health answers · {"ok":true,"v":"w3"}
-PASS X page is served · 50451 bytes
+PASS X page is served · 55644 bytes
 PASS bad code is refused
 PASS page connects
 PASS watch post accepted, one page listening · {"ok":true,"pages":1,"raw":0}
@@ -35,9 +35,9 @@ PASS page asked for raw: the watch is told · {"ok":true,"pages":1,"raw":1}
 PASS raw rows reach the page · 1 new messages
 PASS raw rows are not written to the log
 PASS page stops asking: the watch is told
-PASS trial part saved · {"ok":true,"parts":13}
-PASS trial listed · [{"key":"e2e-1794923970622-check:000","bytes":57}]
+PASS trial part saved · {"ok":true,"parts":18}
+PASS trial listed · [{"key":"e2e-1794960440993-check:000","bytes":57}]
 PASS trial read back
-round trip for first post: 7352 ms total incl. waits
+round trip for first post: 6983 ms total incl. waits
 all relay checks passed
 ```
