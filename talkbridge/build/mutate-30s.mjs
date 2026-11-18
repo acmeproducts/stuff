@@ -7,7 +7,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { execFileSync } from 'node:child_process';
 import { assemblePage, PARTS } from './assemble-30s.mjs';
-const P = Object.fromEntries(['bl1', 'mc1', 'ci1', 'rl1', 'rg1', 'rt1', 'gk1'].map((k, i) => [k, PARTS[i]]));
+const P = Object.fromEntries(['bl1', 'tn1', 'mc1', 'ci1', 'rl1', 'rg1', 'rt1', 'gk1'].map((k, i) => [k, PARTS[i]]));
 const once = (s, a, b) => { const n = s.split(a).length - 1; if (n !== 1) throw new Error('mutation text found ' + n + 'x: ' + a.slice(0, 70)); return s.replace(a, () => b); };
 const M = [
   { part: 'bl1', by: 'browser', catches: 'BL2', name: 'the footer is not repainted after the old painter (turn27 shows)', m: (s) => once(s, "['m-s13', 'm-s11', 'm-about']", "['m-s11', 'm-about']") },
@@ -16,10 +16,14 @@ const M = [
   { part: 'mc1', by: 'browser', catches: 'MC1', name: 'the bell is added but the X is still missing', m: (s) => once(s, '{ muted: false }', '{ muted: true }') },
   { part: 'ci1', by: 'browser', catches: 'CI1', name: 'the camera-off rule is removed (the body vanishes)', m: (s) => once(s, "var CI_CSS = '#rb-cam.off .cam-fill{display:inline}';", "var CI_CSS = '';") },
   { part: 'rl1', by: 'browser', catches: 'RL2', name: 'ev-seen is not held under the rail', m: (s) => once(s, "if (m.type === 'ev-seen') {", 'if (false) {') },
-  { part: 'rl1', by: 'browser', catches: 'RL2', name: 'read receipts go under the rail', m: (s) => once(s, "  if (rlCovering()) { rlLog('receipts_held', {}); return; }\n", '') },
+  { part: 'rl1', by: 'browser', catches: 'RL2', name: 'read receipts go under the rail', m: (s) => once(s, "  if (S.roomId && rlHolds(S.roomId)) { rlLog('receipts_held', {}); return; }\n", '') },
   { part: 'rl1', by: 'browser', catches: 'RL3', name: 'one buzz per message', m: (s) => once(s, 'now - RL.lastBuzz < RL.BUZZ_MS', 'false') },
-  { part: 'rl1', by: 'browser', catches: 'RL4', name: 'closing the rail never acknowledges the room', m: (s) => once(s, "if (was && view === 'room' && room) setTimeout", 'if (false) setTimeout') },
-  { part: 'rl1', by: 'browser', catches: 'RL5', name: 'a rail closed by leaving the room acknowledges the old room', m: (s) => once(s, "if (S.view !== 'room' || S.roomId !== room || S.panelOpen || !cr3Attended())", 'if (false)') },
+  { part: 'rl1', by: 'browser', catches: 'RL2', name: 'an arrival under the rail does not mark the room pending', m: (s) => once(s, "if (rlCovering(roomId)) { rlMark(roomId, 'arrived'); rlBuzz(roomId); }", 'if (rlCovering(roomId)) { rlBuzz(roomId); }') },
+  { part: 'rl1', by: 'browser', catches: 'RL4', name: 'a closed rail stops holding (the count clears without selection)', m: (s) => once(s, 'return !!(roomId && (RL.pending[roomId] || rlCovering(roomId)));', 'return !!(roomId && rlCovering(roomId));') },
+  { part: 'rl1', by: 'browser', catches: 'RL6', name: 'entering the room does not clear pending (stuck unread)', m: (s) => once(s, "  if (was) { delete RL.pending[id]; rlLog('selected', { room: String(id).slice(-6), how: 'enter', same: same }, 'ok'); }", '') },
+  { part: 'rl1', by: 'browser', catches: 'RL7', name: 'selecting the room on screen sends no read receipts', m: (s) => once(s, '  if (was && same) { try { sendReadReceipts(); } catch (_) {} }\n  return r;\n};\ncr3RouteEvent', '  return r;\n};\ncr3RouteEvent') },
+  { part: 'rl1', by: 'browser', catches: 'RL8', name: 'a notification for the room does not select it', m: (s) => once(s, "  if (was) { delete RL.pending[roomId]; rlLog('selected', { room: String(roomId).slice(-6), how: 'route', same: same }, 'ok'); }", '') },
+  { part: 'rl1', by: 'browser', catches: 'RL9', name: 'a projection under the rail does not mark it', m: (s) => once(s, "rlMark(roomId, 'projection');", '0;') },
   { part: 'rg1', by: 'browser', catches: 'RG1', name: 'no heal on the ring path', m: (s) => once(s, '    cr3SetAttended(true, why); RG.heals++;', '    return false;') },
   { part: 'rg1', by: 'browser', catches: 'RG3', name: 'the heal ignores focus (a blurred phone rings)', m: (s) => once(s, "if (cr3State.attended !== false || document.hidden || !document.hasFocus || !document.hasFocus()) return false;", 'if (cr3State.attended !== false) return false;') },
   { part: 'rg1', by: 'browser', catches: 'RG2', name: 'the OS call card is left up', m: (s) => once(s, '  rgCloseCallCard(d && d.callId, room && room.id);\n', '') },
@@ -33,7 +37,11 @@ const M = [
   { part: 'gk1', by: 'browser', catches: 'GK3', name: 'Thai left out (English shown)', m: (s) => once(s, '  th: { gk_until:', '  thx: { gk_until:') },
   { part: 'gk1', by: 'browser', catches: 'GK5', name: 'a tap on the key opens the room', m: (s) => once(s, 'ev.stopPropagation(); ev.preventDefault();', '') },
   { part: 'mc1', by: 'node', catches: 'E(a)', name: 'an unmuted card changes (the app\'s rendering moves)', m: (s) => once(s, 'if (!r || !r.muted) return _mcCard.apply(this, arguments);', "if (!r || !r.muted) return String(_mcCard.apply(this, arguments)).replace('rc2-name', 'rc2-name x');") },
-  { part: 'rl1', by: 'node', catches: 'W', name: 'closePanel wrapped late (inside a function: the scrim keeps the original)', m: (s) => once(s, 'closePanel = function () {', '  closePanel = function () {') },
+  { part: 'rl1', by: 'node', catches: 'W', name: 'RL-1 wraps closePanel again (c1\'s flush on close)', m: (s) => s + "\nvar _rlC = closePanel;\nclosePanel = function () { return _rlC.apply(this, arguments); };\n" },
+  { part: 'tn1', by: 'browser', catches: 'TN1', name: 'no name is cut', m: (s) => once(s, 'var TN_MAX = 14;', 'var TN_MAX = 99;') },
+  { part: 'tn1', by: 'browser', catches: 'TN1', name: 'a CJK character counted as one', m: (s) => once(s, '\\p{Extended_Pictographic}/u.test(g) ? 2 : 1', '\\p{Extended_Pictographic}/u.test(g) ? 1 : 1') },
+  { part: 'tn1', by: 'browser', catches: 'TN3', name: 'a tap on a cut name opens the room', m: (s) => once(s, "        ev.stopPropagation(); ev.preventDefault();\n        toast(roomTitle(room), 4000);", '        toast(roomTitle(room), 4000);') },
+  { part: 'tn1', by: 'browser', catches: 'TN2', name: 'the cut name is not a span (no dir=auto)', m: (s) => once(s, "'<div class=\"rc2-name\"><span class=\"rc2-nm\" dir=\"auto\">'", "'<div class=\"rc2-name\"><span class=\"rc2-nm\">'") },
   { part: 'bl1', by: 'node', catches: 'B1', name: 'something else is appended to the page', m: (s) => s, page: (h) => h.replace(/\n<\/script>\n<\/body>\n<\/html>$/, '\nvar extra = 1;\n</script>\n</body>\n</html>') }
 ];
 const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'tb30sm-'));

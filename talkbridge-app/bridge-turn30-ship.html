@@ -10332,7 +10332,7 @@ function rhOnVisible() {
 }
 
 function rhInit() {
-  try { window.TB_STAGE = { c: 'turn30-ship-c1', file: 'talkbridge-app/bridge-turn30-ship.html', built: '2026-11-16', at: '2026-11-16T16:00:00Z' }; log('build', window.TB_STAGE, 'ok'); } catch (_) {}   /* the stage names itself in the log, as every stage does */
+  try { window.TB_STAGE = { c: 'turn30-ship-c2', file: 'talkbridge-app/bridge-turn30-ship.html', built: '2026-11-18', at: '2026-11-18T18:00:00Z' }; log('build', window.TB_STAGE, 'ok'); } catch (_) {}   /* the stage names itself in the log, as every stage does */
   try {
     var st = document.createElement('style');
     st.textContent = '.rh-row{padding:10px 76px 10px 12px;border-top:1px solid var(--border,#e2ded9);background:var(--paper,#f4efe9);font-size:13px;line-height:1.35;color:var(--ink,#1A1714)}'
@@ -11316,6 +11316,69 @@ if (typeof document !== 'undefined') {
 }
 
 
+/* ═══════════ 30·ship PART · TN-1 room-name.js — THE CARD'S ROOM NAME IS CUT TO A FIXED LENGTH; A TAP SHOWS IT WHOLE (§7.25 c2) ═══════════ */
+/* @contract
+   replaces: (none)   wraps: roomCardHtmlCore (INNERMOST — MC-1 and GK-1 wrap it after), wireRoomCards (each original kept and called)
+   adds: TN, tnLog, TN_MAX, tnUnits, tnCut, _tnCard, _tnWire
+   markers (tnLog's own prefix 'tn_'): shown, failed
+
+   THE OWNER (2026-11-18, after c1): "room name can be fixed characters with truncated... and tap to show full name so mute icon
+   and key icon can be directly to the left of the room name".
+   THE CHANGE: the name is measured in display units — one per grapheme (Intl.Segmenter; else code points, a combining mark 0),
+   two for a wide one (CJK, Hangul, kana, fullwidth) or a pictograph — and a name over TN_MAX units is cut and ends in "…" (the raw
+   name is cut, then escaped). The cut name is <span class="rc2-nm" dir="auto">; the bell (MC-1) and the key (GK-1) go directly
+   before it. TN_MAX is 14: at a 320 px phone the rail leaves ≈107–131 px for the name beside both icons (review 2026-11-18).
+   A tap on the name line shows the full name in a toast and does not open the room — when the name was cut, or when the line
+   still overflows in pixels (wide letters); a name that fits opens the room as before. A card whose markup is not the expected
+   one, and a name that fits, are the original's output byte for byte. */
+var TN = { fails: 0 };
+var TN_MAX = 14;
+function tnLog(what, d, lvl) { try { log('tn_' + what, d || {}, lvl || 'info'); } catch (_) {} }
+function tnUnits(str) {
+  var out = [], s = String(str == null ? '' : str);
+  try {
+    if (typeof Intl !== 'undefined' && Intl.Segmenter) { var it = new Intl.Segmenter(undefined, { granularity: 'grapheme' }).segment(s); for (var g of it) out.push(g.segment); }
+    else { Array.from(s).forEach(function (c) { if (/\p{M}/u.test(c) && out.length) out[out.length - 1] += c; else out.push(c); }); }
+  } catch (_) { out = Array.from(s); }
+  return out.map(function (g) { return { g: g, w: /[ᄀ-ᅟ⺀-꓏가-힣豈-﫿︰-﹏＀-｠￠-￦]|\p{Extended_Pictographic}/u.test(g) ? 2 : 1 }; });
+}
+function tnCut(name) {
+  var u = tnUnits(name), total = 0; u.forEach(function (x) { total += x.w; });
+  if (total <= TN_MAX) return null;
+  var out = '', n = 0;
+  for (var i = 0; i < u.length; i++) { if (n + u[i].w > TN_MAX - 1) break; out += u[i].g; n += u[i].w; }
+  return out.replace(/\s+$/, '') + '…';
+}
+var _tnCard = roomCardHtmlCore;
+roomCardHtmlCore = function (r, where) {
+  var h = _tnCard.apply(this, arguments);
+  try {
+    if (!h || !r) return h;
+    var name = roomTitle(r), cut = tnCut(name); if (cut == null) return h;
+    var was = '<div class="rc2-name">' + esc(name) + '</div>';
+    if (h.indexOf(was) === -1) return h;
+    return h.replace(was, function () { return '<div class="rc2-name"><span class="rc2-nm" dir="auto">' + esc(cut) + '</span></div>'; });
+  } catch (e) { if (!TN.fails++) tnLog('failed', { e: String(e && e.message || e) }, 'error'); return h; }
+};
+var _tnWire = wireRoomCards;
+wireRoomCards = function (host) {
+  var r = _tnWire.apply(this, arguments);
+  try {
+    if (host) Array.prototype.forEach.call(host.querySelectorAll('.rc2 .rc2-name'), function (el) {
+      el.addEventListener('click', function (ev) {
+        var cut = !!el.querySelector('.rc2-nm'), over = el.scrollWidth > el.clientWidth + 1;
+        if (!cut && !over) return;
+        var card = el.closest('.rc2'), room = card && roomById(card.dataset.room); if (!room) return;
+        ev.stopPropagation(); ev.preventDefault();
+        toast(roomTitle(room), 4000);
+        tnLog('shown', { room: String(room.id).slice(-6), cut: cut, over: over }, 'ok');
+      });
+    });
+  } catch (e) { tnLog('failed', { e: String(e && e.message || e) }, 'error'); }
+  return r;
+};
+
+
 /* ═══════════ 30·ship PART · MC-1 mute-card.js — THE X STAYS; A MUTED ROOM'S BELL MOVES BESIDE ITS NAME (§7.25 item 2, B-9a) ═══════════ */
 /* @contract
    replaces: (none)   wraps: roomCardHtmlCore (the original is called; only a muted room's card changes)
@@ -11366,67 +11429,85 @@ function ciInit() {
 if (typeof document !== 'undefined') ciInit();
 
 
-/* ═══════════ 30·ship PART · RL-1 rail-unread.js — A MESSAGE UNDER THE OPEN RAIL IS UNREAD UNTIL THE RAIL CLOSES (§7.25 item 4, B-9c) ═══════════ */
+/* ═══════════ 30·ship PART · RL-1 rail-unread.js — A MESSAGE THAT CAME UNDER THE OPEN RAIL STAYS UNREAD UNTIL ITS ROOM IS SELECTED (§7.25 item 4, B-9c; c2) ═══════════ */
 /* @contract
-   replaces: (none)   wraps: cr3Send, sendReadReceipts, closePanel (each original kept and called)
-   adds: RL, rlLog, rlCovering, rlBuzz, rlFlush, _rlSend, _rlReceipts, _rlClose
-   markers (rlLog's own prefix 'rl_'): held, open_deferred, receipts_held, flushed, flush_skipped
+   replaces: (none)   wraps: cr3Send, sendReadReceipts, cr3Apply, enterRoom, cr3RouteEvent (each original kept and called)
+   adds: RL, rlLog, rlCovering, rlHolds, rlMark, rlBuzz, _rlSend, _rlReceipts, _rlApply, _rlEnter, _rlRoute
+   markers (rlLog's own prefix 'rl_'): held, open_deferred, receipts_held, pending, selected
 
    THE OWNER (2026-11-16): "when the left rail is open and a message is sent there's no message waiting indicator anywhere".
+   THE OWNER (2026-11-18, after c1 cleared the count when the rail closed): "the count must not clear when the left rail closes
+   the count only clears when that room is selected and therefore the delivered message indicator turns to green check mark.
+   furthermore if the rail is closed the room card should be on the home screen with the number of messages missed shown".
    THE CAUSE: a chat in the room you are in is acknowledged on arrival whenever the app is attended — `ev-seen` to the relay and
-   `chat-read` to the partner — although the rail (an overlay drawer) covers the chat. The relay then counts it seen: no count.
-   THE CHANGE, only while the rail is open over the room you are in (S.panelOpen, S.view 'room', that room):
-     · cr3Send: `ev-seen` is not sent; `ev-open` goes as `events-sync`. The relay keeps the message unseen and pushes its
-       projection, so the room's card in the open rail shows the count (the existing cr3Apply → renderPanel path).
-     · sendReadReceipts: nothing is sent (the transcript keeps readSent:false, so nothing is lost).
-     · one 120 ms vibration marks the arrival — not in a muted room, only while attended, at most once per 3 s (the iPhone has
-       no vibration: the count alone).
-     · closePanel: when the rail WAS open over a room, on the next tick, if the same room is still on screen, the rail is closed
-       and the person is attended, `ev-open` (the relay marks the room's unseen set seen) and the read receipts go. A rail closed
-       by leaving the room (another card, create, exit, a route, a call accepted elsewhere) sends nothing — entering a room
-       already sends `ev-open`, and unsent read marks are sent when that room's transcript renders again.
-   Reassigned at the top level: the scrim binds closePanel by reference when the app wires itself (DOMContentLoaded). */
-var RL = { lastBuzz: 0, BUZZ_MS: 3000 };
+   `chat-read` to the partner — although the rail (an overlay drawer) covers the chat; the relay then counts it seen: no count.
+   THE CHANGE:
+     · PENDING: a room becomes pending when, with the rail open over it, its ev-seen is held (a message arrived while watching),
+       or a relay projection shows it waiting (a message that came while away, by history or a reconnect — review 2026-11-18).
+       A rail opened and closed with nothing arriving changes nothing.
+     · While the rail is open over the room, or while it is pending (rail open or closed): its `ev-seen` is not sent, `ev-open`
+       goes as `events-sync`, read receipts wait. The relay keeps the messages unseen, so the count stays — on its card in the
+       rail and, from the home screen, on the home card (the relay's projection; a muted room shows none, as today).
+     · Closing the rail acknowledges nothing.
+     · SELECTED clears it: the room entered by the person — enterRoom(room): its card tapped in the rail or at home, a call
+       accepted from another room, an invite link, a join, a create — or a notification for it tapped — cr3RouteEvent(room). The
+       mark is cleared BEFORE the original runs, so the original's own explicit open (`ev-open`: the relay marks the room's unseen
+       set seen) goes through; for the room already on screen (the original returns early without rendering) RL-1 then sends the
+       read receipts, so the partner's ticks turn to the read check. A route held by RT-1 during a call never reaches here.
+     · Replying in a pending room does NOT clear it (owner: "only clears when that room is selected").
+     · One 120 ms buzz marks an arrival under the open rail (not in a muted room, only while attended, at most once per 3 s; the
+       iPhone has none). Not persisted: a reload clears the pending mark. */
+var RL = { lastBuzz: 0, BUZZ_MS: 3000, pending: {} };
 function rlLog(what, d, lvl) { try { log('rl_' + what, d || {}, lvl || 'info'); } catch (_) {} }
 function rlCovering(roomId) { return !!(S.panelOpen && S.view === 'room' && S.roomId && (roomId == null || roomId === S.roomId)); }
+function rlHolds(roomId) { return !!(roomId && (RL.pending[roomId] || rlCovering(roomId))); }
+function rlMark(roomId, why) {
+  if (!roomId || RL.pending[roomId]) return;
+  RL.pending[roomId] = true;
+  rlLog('pending', { room: String(roomId).slice(-6), why: why });
+}
 function rlBuzz(roomId) {
   try {
     var room = roomById(roomId), now = Date.now();
-    if (!room || room.muted || !cr3Attended() || now - RL.lastBuzz < RL.BUZZ_MS) return false;
+    if (!rlCovering(roomId) || !room || room.muted || !cr3Attended() || now - RL.lastBuzz < RL.BUZZ_MS) return false;
     RL.lastBuzz = now;
     if (navigator.vibrate) navigator.vibrate(120);
     return true;
   } catch (_) { return false; }
 }
-var _rlSend = cr3Send, _rlReceipts = sendReadReceipts, _rlClose = closePanel;
+var _rlSend = cr3Send, _rlReceipts = sendReadReceipts, _rlApply = cr3Apply, _rlEnter = enterRoom, _rlRoute = cr3RouteEvent;
 cr3Send = function (roomId, m) {
   try {
-    if (m && rlCovering(roomId)) {
-      if (m.type === 'ev-seen') { rlLog('held', { room: String(roomId).slice(-6), n: (m.ids || []).length }); rlBuzz(roomId); return false; }
+    if (m && rlHolds(roomId)) {
+      if (m.type === 'ev-seen') { if (rlCovering(roomId)) { rlMark(roomId, 'arrived'); rlBuzz(roomId); } rlLog('held', { room: String(roomId).slice(-6), n: (m.ids || []).length }); return false; }
       if (m.type === 'ev-open') { rlLog('open_deferred', { room: String(roomId).slice(-6) }); m = { type: 'events-sync' }; }
     }
   } catch (_) {}
   return _rlSend.call(this, roomId, m);
 };
 sendReadReceipts = function () {
-  if (rlCovering()) { rlLog('receipts_held', {}); return; }
+  if (S.roomId && rlHolds(S.roomId)) { rlLog('receipts_held', {}); return; }
   return _rlReceipts.apply(this, arguments);
 };
-closePanel = function () {
-  var was = !!S.panelOpen, room = S.roomId, view = S.view;
-  var r = _rlClose.apply(this, arguments);
-  if (was && view === 'room' && room) setTimeout(function () { rlFlush(room); }, 0);
+cr3Apply = function (roomId, d) {
+  var r = _rlApply.apply(this, arguments);
+  try { var room = roomById(roomId); if (rlCovering(roomId) && room && waitingTotal(room) > 0) rlMark(roomId, 'projection'); } catch (_) {}
   return r;
 };
-function rlFlush(room) {
-  try {
-    if (S.view !== 'room' || S.roomId !== room || S.panelOpen || !cr3Attended()) { rlLog('flush_skipped', { room: String(room).slice(-6), now: String(S.roomId || '').slice(-6), view: S.view }); return false; }
-    _rlSend(room, { type: 'ev-open' });
-    try { sendReadReceipts(); } catch (_) {}
-    rlLog('flushed', { room: String(room).slice(-6) }, 'ok');
-    return true;
-  } catch (e) { rlLog('flush_skipped', { e: String(e && e.message || e) }, 'error'); return false; }
-}
+enterRoom = function (id) {
+  var was = !!(id && RL.pending[id]), same = !!(id && S.view === 'room' && S.roomId === id);
+  if (was) { delete RL.pending[id]; rlLog('selected', { room: String(id).slice(-6), how: 'enter', same: same }, 'ok'); }
+  var r = _rlEnter.apply(this, arguments);
+  if (was && same) { try { sendReadReceipts(); } catch (_) {} }
+  return r;
+};
+cr3RouteEvent = function (roomId, eventId, why) {
+  var was = !!(roomId && RL.pending[roomId]), same = !!(roomId && S.view === 'room' && S.roomId === roomId);
+  if (was) { delete RL.pending[roomId]; rlLog('selected', { room: String(roomId).slice(-6), how: 'route', same: same }, 'ok'); }
+  var r = _rlRoute.apply(this, arguments);
+  if (was && same) { try { sendReadReceipts(); } catch (_) {} }
+  return r;
+};
 
 
 /* ═══════════ 30·ship PART · RG-1 ring-on-screen.js — A CALL RINGS ON SCREEN WHENEVER THE APP IS ON SCREEN (§7.25 item 5, B-9d) ═══════════ */
