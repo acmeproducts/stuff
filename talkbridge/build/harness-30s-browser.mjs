@@ -61,14 +61,14 @@ await T('BL3 the keys sheet shows the stage and its build day (18, not the 17th)
 R.mc = await p.evaluate(() => {
   openPanel();
   const c2 = document.querySelector('#left-panel .rc2[data-room="room-2"]'), c3 = document.querySelector('#left-panel .rc2[data-room="room-3"]');
-  const o = { mutedX: c2 ? c2.querySelectorAll('[data-del]').length : -1, bellInName: !!(c2 && c2.querySelector('.rc2-name > .rc2-mute')), bellFirst: !!(c2 && c2.querySelector('.rc2-name').firstElementChild && c2.querySelector('.rc2-name').firstElementChild.classList.contains('rc2-mute')),
+  const o = { mutedX: c2 ? c2.querySelectorAll('[data-del]').length : -1, bellInName: !!(c2 && c2.querySelector('.rc2-name > .rc2-mute')), bellAfter: !!(c2 && c2.querySelector('.rc2-name > .rc2-mute') && c2.querySelector('.rc2-name > .rc2-mute').previousElementSibling && /rc2-n[tm]/.test(c2.querySelector('.rc2-name > .rc2-mute').previousElementSibling.className)),
     corner: c2 ? c2.querySelectorAll('.rc2-bell').length : -1, plainMute: c3 ? c3.querySelectorAll('.rc2-mute').length : -1, plainX: c3 ? c3.querySelectorAll('[data-del]').length : -1,
     same: roomCardHtmlCore(roomById('room-3'), 'panel') === _mcCard(roomById('room-3'), 'panel'), aria: c2 && c2.querySelector('.rc2-mute') ? c2.querySelector('.rc2-mute').getAttribute('aria-hidden') : null };
   const x2 = c2 && c2.querySelector('[data-del]'); if (x2) x2.click(); o.deleted = !!roomById('room-2').deletedAt;
   const r2 = roomById('room-2'); delete r2.deletedAt; r2.sendLocked = false; saveRooms(); closePanel();
   return o;
 });
-await T('MC1 a muted room\'s card keeps its X; the bell is the first thing on its name line (aria-hidden); no corner bell', () => ok(R.mc.mutedX === 1 && R.mc.bellInName && R.mc.bellFirst && R.mc.corner === 0 && R.mc.aria === 'true', JSON.stringify(R.mc)));
+await T('MC1 a muted room\'s card keeps its X; the bell sits directly AFTER the name (aria-hidden); no corner bell', () => ok(R.mc.mutedX === 1 && R.mc.bellInName && R.mc.bellAfter && R.mc.corner === 0 && R.mc.aria === 'true', JSON.stringify(R.mc)));
 await T('MC2 an unmuted card is the original\'s output, byte for byte, with its X and no bell', () => ok(R.mc.same && R.mc.plainMute === 0 && R.mc.plainX === 1, JSON.stringify(R.mc)));
 await T('MC3 the X on a muted room\'s card deletes it (to the bin)', () => ok(R.mc.deleted, JSON.stringify(R.mc)));
 
@@ -167,7 +167,7 @@ R.tn = await p.evaluate(async () => {
   return o;
 });
 await T('TN1 a name over 14 units is cut at 13 and ends in "…" (Latin, CJK counted double, Thai not split); a name that fits is untouched', () => ok(R.tn.cutLatin === 'A very long r…' && R.tn.cutCjk === '会议室名称非…' && R.tn.fits === null && /…$/.test(R.tn.thai) && !/^[ัิ-ฺ็-๎]/.test(R.tn.thai.slice(-2)), JSON.stringify(R.tn)));
-await T('TN2 the cut name is a span (dir=auto); the key and the bell sit directly before it; a card whose name fits is the original\'s output', () => ok(R.tn.span === 'A very long r…' && R.tn.dir === 'auto' && R.tn.order2.join(',') === 'rc2-mute,rc2-nm' && R.tn.short, JSON.stringify(R.tn)));
+await T('TN2 the cut name is a span (dir=auto); the bell (and the key) sit directly after it; a card whose name fits is the original\'s output', () => ok(R.tn.span === 'A very long r…' && R.tn.dir === 'auto' && R.tn.order2.join(',') === 'rc2-nm,rc2-mute' && R.tn.short, JSON.stringify(R.tn)));
 await T('TN3 a tap on a cut name shows the whole name and does not open the room; a tap on a name that fits opens it', () => ok(R.tn.toast === 'A very long room name for testing' && R.tn.stayed === 'room-3' && R.tn.panel === true && R.tn.opened === 'room-1', JSON.stringify(R.tn)));
 
 /* RG-1 */
@@ -232,12 +232,20 @@ R.gk = await p.evaluate(async () => {
   const c1 = document.querySelector('#left-panel .rc2[data-room="room-1"]'), c2 = document.querySelector('#left-panel .rc2[data-room="room-2"]'), c3 = document.querySelector('#left-panel .rc2[data-room="room-3"]');
   o.k1 = c1 ? c1.querySelectorAll('.rc2-key').length : -1; o.k3 = c3 ? c3.querySelectorAll('.rc2-key').length : -1;
   const n2 = c2 && c2.querySelector('.rc2-name'); o.order = n2 ? Array.from(n2.children).map((x) => x.className) : [];
+  /* a name that fits by count but is wide in pixels: the icons stay whole and inside the name line; the name alone is clipped */
+  const t2 = r2.title; r2.title = 'WWWWWWWWWWWWWW'; saveRooms(); renderPanel(); await wait(30);
+  const w2 = document.querySelector('#left-panel .rc2[data-room="room-2"]'), wn = w2 && w2.querySelector('.rc2-name'), wk = w2 && w2.querySelector('.rc2-key svg'), wb = w2 && w2.querySelector('.rc2-mute'), wt = w2 && w2.querySelector('.rc2-nt');
+  const R0 = (e) => e ? e.getBoundingClientRect() : { left: 0, right: 0, width: 0 };
+  o.wide = { key: R0(wk).width > 8 && R0(wk).right <= R0(wn).right + 1, bell: R0(wb).width > 8 && R0(wb).right <= R0(wk).left + 1, clipped: wt ? wt.scrollWidth > wt.clientWidth : null };
+  if (wt) wt.click(); await wait(30); o.wideToast = $('toast').textContent; o.wideStay = S.roomId;
+  r2.title = t2; saveRooms(); renderPanel(); await wait(30);
   c1.querySelector('.rc2-key').click(); await wait(30);
   o.toast = $('toast').textContent; o.toastOn = $('toast').classList.contains('show'); o.stayed = S.roomId; o.panel = S.panelOpen;
   closePanel(); delete r1.grant; delete r1.grantExpires; delete r2.grant; delete r2.grantExpires; saveRooms();
   return o;
 });
-await T('GK1 a granted room\'s card shows the key (first on its name line, before a muted room\'s bell); an ungranted room none', () => ok(R.gk.k1 === 1 && R.gk.k3 === 0 && R.gk.order[0] === 'rc2-key' && R.gk.order[1] === 'rc2-mute', JSON.stringify(R.gk)));
+await T('GK1 a granted room\'s card shows the key directly AFTER the name (after a muted room\'s bell); an ungranted room none', () => ok(R.gk.k1 === 1 && R.gk.k3 === 0 && /^rc2-n[tm]$/.test(R.gk.order[0]) && R.gk.order[1] === 'rc2-mute' && R.gk.order[2] === 'rc2-key', JSON.stringify(R.gk)));
+await T('GK6 a wide name that fits by count: the bell and the key stay whole inside the line, the name alone is clipped, and a tap on it shows the whole name (the room does not open)', () => ok(R.gk.wide.key && R.gk.wide.bell && R.gk.wide.clipped === true && R.gk.wideToast === 'WWWWWWWWWWWWWW' && R.gk.wideStay === 'room-3', JSON.stringify([R.gk.wide, R.gk.wideToast, R.gk.wideStay])));
 await T('GK2 the toast: end date and whole days left (rounded up), singular for 1, "ended" after the date', () => ok(R.gk.en === 'Initiator status · until Dec 16, 2026 · 31 days left' && R.gk.one === 'Initiator status · until Nov 17, 2026 · 1 day left' && /^Initiator status · ended Nov 16, 2026$/.test(R.gk.ended), JSON.stringify([R.gk.en, R.gk.one, R.gk.ended])));
 await T('GK3 in Thai: the Thai words and the Buddhist year', () => ok(/^สถานะผู้ริเริ่ม · ถึง .*2569 · เหลือ 31 วัน$/.test(R.gk.th), R.gk.th));
 await T('GK4 all three strings in every one of the 21 languages', () => ok(R.gk.keys.length === 0, R.gk.keys.join(',')));

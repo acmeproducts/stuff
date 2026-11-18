@@ -13,6 +13,8 @@ const M = [
   { part: 'bl1', by: 'browser', catches: 'BL2', name: 'the footer is not repainted after the old painter (turn27 shows)', m: (s) => once(s, "['m-s13', 'm-s11', 'm-about']", "['m-s11', 'm-about']") },
   { part: 'bl1', by: 'browser', catches: 'BL1', name: 'the keys sheet keeps turn23 (BUILD_INFO not set)', m: (s) => once(s, "    BUILD_INFO = { release: s.c, builtAt: s.at };\n", '') },
   { part: 'mc1', by: 'browser', catches: 'MC1', name: 'a muted room keeps the bell in the corner (no X)', m: (s) => once(s, 'if (!r || !r.muted) return _mcCard.apply(this, arguments);', 'return _mcCard.apply(this, arguments);') },
+  { part: 'mc1', by: 'browser', catches: 'MC1', name: 'the bell before the name (c1\'s place)', m: (s) => once(s, 'return h.slice(0, a) + open + inner + icon + h.slice(c);', 'return h.slice(0, a) + open + icon + inner + h.slice(c);') },
+  { part: 'gk1', by: 'browser', catches: 'GK1', name: 'the key before the name (c1\'s place)', m: (s) => once(s, 'return h.slice(0, a) + open + inner + icon + h.slice(c);', 'return h.slice(0, a) + open + icon + inner + h.slice(c);') },
   { part: 'mc1', by: 'browser', catches: 'MC1', name: 'the bell is added but the X is still missing', m: (s) => once(s, '{ muted: false }', '{ muted: true }') },
   { part: 'ci1', by: 'browser', catches: 'CI1', name: 'the camera-off rule is removed (the body vanishes)', m: (s) => once(s, "var CI_CSS = '#rb-cam.off .cam-fill{display:inline}';", "var CI_CSS = '';") },
   { part: 'rl1', by: 'browser', catches: 'RL2', name: 'ev-seen is not held under the rail', m: (s) => once(s, "if (m.type === 'ev-seen') {", 'if (false) {') },

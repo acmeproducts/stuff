@@ -1,7 +1,7 @@
 /* ═══════════ 30·ship PART · GK-1 grant-key.js — THE CREATOR-RIGHTS INDICATOR (§7.25 item 7, B-12) ═══════════ */
 /* @contract
    replaces: (none)   wraps: roomCardHtmlCore (outermost — after MC-1), wireRoomCards (each original kept and called)
-   adds: GKEY, gkLog, GK_CSS, GK_KEY, GK_L10N, gkGranted, gkDays, gkText, _gkCard, _gkWire, gkInit
+   adds: GKEY, gkLog, GK_CSS, GK_KEY, GK_L10N, gkGranted, gkDays, gkText, gkAfterName, _gkCard, _gkWire, gkInit
    markers (gkLog's own prefix 'gk_'): shown, failed
 
    THE OWNER (2026-11-16, level 1 only — "I don't want to add more complexity"): a room that has handed on creator rights
@@ -9,13 +9,13 @@
    already sends the revoke, kept in the room's history for a phone that was offline); reinstate = restore it (the ORIGINAL end
    date — a room restored after that date reinstates nothing).
    THE CHANGE: a room this phone created with the grant (room.grant and room.grantExpires — local 23:59:59 of the end day) gets
-   a small key at the START of its card's name line (before MC-1's bell), with a padded tap area. A tap on the key shows a toast
+   a small key directly AFTER the name (after MC-1's bell; c2, owner 2026-11-18), with a padded tap area. A tap on the key shows a toast
    in the app language — "Initiator status · until {date} · {n} days left" (singular for 1), or after the date "Initiator status ·
    ended {date}"; the date in l10nLocale() (Thai shows the Buddhist year); {n} = whole days left, rounded up. The tap stops at
    the key (the card does not open). Three strings, all 21 languages, added to L10N (the app's own table). */
 var GKEY = { fails: 0 };
 function gkLog(what, d, lvl) { try { log('gk_' + what, d || {}, lvl || 'info'); } catch (_) {} }
-var GK_CSS = '.rc2-key{display:inline-block;vertical-align:-3px;margin-inline-end:4px;padding:6px 4px;margin-block:-6px;margin-inline-start:-4px;color:var(--teal);line-height:0;cursor:pointer;background:none;border:none}';
+var GK_CSS = '.rc2-name.rc2-ic{display:flex;align-items:center;min-width:0}.rc2-ic>.rc2-nt,.rc2-ic>.rc2-nm{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.rc2-ic>.rc2-mute,.rc2-ic>.rc2-key{flex:none}.rc2-key{display:inline-block;vertical-align:-3px;margin-inline-start:1px;padding:6px 4px;margin-block:-6px;margin-inline-end:-4px;color:var(--teal);line-height:0;cursor:pointer;background:none;border:none}';
 var GK_KEY = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="7.5" cy="15.5" r="4.5"/><path d="M10.7 12.3 21 2"/><path d="m16 7 3 3"/><path d="m19 4 2 2"/></svg>';
 var GK_L10N = {
   en: { gk_until: 'Initiator status · until {date} · {n} days left', gk_until_1: 'Initiator status · until {date} · 1 day left', gk_ended: 'Initiator status · ended {date}' },
@@ -50,11 +50,20 @@ function gkText(r, now) {
   var n = gkDays(r.grantExpires, now);
   return n === 1 ? l10n('gk_until_1', { date: date }) : l10n('gk_until', { date: date, n: n });
 }
+/* the icon goes directly AFTER the room name (owner 2026-11-18: "The mute bell and creator-rights key sit right AFTER the name");
+   the name line becomes a row — the name text in its own span, which alone shrinks with an ellipsis, so an icon is never clipped */
+function gkAfterName(h, icon) {
+  var a = h.indexOf('<div class="rc2-name'); if (a < 0) return h;
+  var b = h.indexOf('>', a), c = h.indexOf('</div>', b); if (b < 0 || c < 0) return h;
+  var open = h.slice(a, b + 1), inner = h.slice(b + 1, c);
+  if (open === '<div class="rc2-name">') { open = '<div class="rc2-name rc2-ic">'; if (inner.indexOf('<span class="rc2-nm"') !== 0) inner = '<span class="rc2-nt" dir="auto">' + inner + '</span>'; }
+  return h.slice(0, a) + open + inner + icon + h.slice(c);
+}
 var _gkCard = roomCardHtmlCore;
 roomCardHtmlCore = function (r, where) {
   var h = _gkCard.apply(this, arguments);
   if (!gkGranted(r) || !h) return h;
-  try { h = h.replace('<div class="rc2-name">', '<div class="rc2-name"><button class="rc2-key" data-grant="' + esc(r.id) + '" aria-label="' + esc(l10n('grant_initiator')) + '">' + GK_KEY + '</button>'); }
+  try { h = gkAfterName(h, '<button class="rc2-key" data-grant="' + esc(r.id) + '" aria-label="' + esc(l10n('grant_initiator')) + '">' + GK_KEY + '</button>'); }
   catch (e) { if (!GKEY.fails++) gkLog('failed', { e: String(e && e.message || e) }, 'error'); }
   return h;
 };

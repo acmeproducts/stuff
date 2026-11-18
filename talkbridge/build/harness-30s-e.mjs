@@ -33,7 +33,13 @@ const units = (str) => { let n = 0; for (const { segment } of new Intl.Segmenter
 const unesc = (h) => h.replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&quot;/g, '"').replace(/&#39;/g, "'").replace(/&amp;/g, '&');
 const names = (v, stageSide) => stageSide ? v.replace(/<span class="rc2-nm" dir="auto">[\s\S]*?<\/span>/g, '@CUT@') : v.replace(/<div class="rc2-name">([^<]*)<\/div>/g, (m, t) => units(unesc(t)) > 14 ? '<div class="rc2-name">@CUT@</div>' : m);
 const cards = (v, stageSide) => { if (typeof v === 'string') return cardsStr(names(v, stageSide), stageSide); if (Array.isArray(v)) return v.map((x) => cards(x, stageSide)); if (v && typeof v === 'object') return Object.fromEntries(Object.entries(v).map(([k, x]) => [k, cards(x, stageSide)])); return v; };
-const cardsStr = (v, stageSide) => { return stageSide ? v.replace(KEY_RE, '').replace(/<div class="rc2-name"><span class="rc2-mute"[^>]*>[\s\S]*?<\/span>([\s\S]*?)<\/div><button class="rc2-del"[^>]*>[\s\S]*?<\/button>/g, '<div class="rc2-name">$1</div>@MUTED@').replace(MUTE_RE, '') : v.replace(/<div class="rc2-name">([\s\S]*?)<\/div><span class="rc2-bell">[\s\S]*?<\/span>/g, '<div class="rc2-name">$1</div>@MUTED@'); };
+const cardsStr = (v, stageSide) => {
+  if (!stageSide) return v.replace(/<div class="rc2-name">([\s\S]*?)<\/div><span class="rc2-bell">[\s\S]*?<\/span>/g, '<div class="rc2-name">$1</div>@MUTED@');
+  return v.replace(KEY_RE, '')
+    .replace(/(<div class="rc2-name[^"]*">[\s\S]*?)<span class="rc2-mute"[^>]*>[\s\S]*?<\/span>([\s\S]*?<\/div>)<button class="rc2-del"[^>]*>[\s\S]*?<\/button>/g, '$1$2@MUTED@')
+    .replace(/<div class="rc2-name rc2-ic"><span class="rc2-nt" dir="auto">([\s\S]*?)<\/span><\/div>/g, '<div class="rc2-name">$1</div>')
+    .replace(/<div class="rc2-name rc2-ic">/g, '<div class="rc2-name">');
+};
 for (const side of ['X', 'Y']) { const a = strip(snapA[side]), c = strip(snapC[side]); a.render = cards(a.render, false); c.render = cards(c.render, true); for (const k of KEYS) { const out = []; diff(a[k], c[k], side + '.' + k, out); rows.push({ n: side + '.' + k + ' identical', ok: out.length === 0, m: out.slice(0, 4).join(' | ') }); } }
 rows.push({ n: 'no uncaught error on either build', ok: [RA.X, RA.Y, RC.X, RC.Y].every((I) => I.errors.length === 0), m: [RA.X, RA.Y, RC.X, RC.Y].flatMap((I) => I.errors).join(' | ').slice(0, 500) });
 const mode = (W) => { try { return W.w.TS && W.w.TS.mode; } catch (_) { return null; } };

@@ -36,12 +36,12 @@ export const OUT = { page: FOLDER + '/' + STAGE_PAGE, manifest: FOLDER + '/' + M
 export const PART_DECL = [
   { file: PARTS[0], prefix: 'bl_', wraps: [], symbols: ['BL', 'blLog', 'blStage', 'blApply', 'blWatch', 'blInit'], markers: ['bl_applied', 'bl_failed'] },
   { file: PARTS[1], prefix: 'tn_', wraps: ['roomCardHtmlCore', 'wireRoomCards'], symbols: ['TN', 'tnLog', 'TN_MAX', 'tnUnits', 'tnCut', '_tnCard', '_tnWire'], markers: ['tn_shown', 'tn_failed'] },
-  { file: PARTS[2], prefix: 'mc_', wraps: ['roomCardHtmlCore'], symbols: ['MC', 'mcLog', 'MC_CSS', 'MC_BELL', '_mcCard', 'mcInit'], markers: ['mc_failed'] },
+  { file: PARTS[2], prefix: 'mc_', wraps: ['roomCardHtmlCore'], symbols: ['MC', 'mcLog', 'MC_CSS', 'MC_BELL', 'mcAfterName', '_mcCard', 'mcInit'], markers: ['mc_failed'] },
   { file: PARTS[3], prefix: 'ci_', wraps: [], symbols: ['CI_CSS', 'ciInit'], markers: ['ci_init_failed'] },
   { file: PARTS[4], prefix: 'rl_', wraps: ['cr3Send', 'sendReadReceipts', 'cr3Apply', 'enterRoom', 'cr3RouteEvent'], symbols: ['RL', 'rlLog', 'rlCovering', 'rlHolds', 'rlMark', 'rlBuzz', '_rlSend', '_rlReceipts', '_rlApply', '_rlEnter', '_rlRoute'], markers: ['rl_held', 'rl_open_deferred', 'rl_receipts_held', 'rl_pending', 'rl_selected'] },
   { file: PARTS[5], prefix: 'rg_', wraps: ['CALL.onIncoming', 'cr3PresentCalls'], symbols: ['RG', 'rgLog', 'rgMenus', 'rgState', 'rgHeal', 'rgCloseMenus', 'rgCloseCallCard', 'rgPresented', 'rgInput', '_rgIncoming', '_rgPresent', 'rgInit'], markers: ['rg_ring_check', 'rg_healed', 'rg_presented', 'rg_menus_closed', 'rg_card_closed', 'rg_failed'] },
   { file: PARTS[6], prefix: 'rt_', wraps: ['cr3RouteEvent'], symbols: ['RT', 'rtLog', '_rtRoute'], markers: ['rt_held'] },
-  { file: PARTS[7], prefix: 'gk_', wraps: ['roomCardHtmlCore', 'wireRoomCards'], symbols: ['GKEY', 'gkLog', 'GK_CSS', 'GK_KEY', 'GK_L10N', 'gkGranted', 'gkDays', 'gkText', '_gkCard', '_gkWire', 'gkInit'], markers: ['gk_shown', 'gk_failed'] }
+  { file: PARTS[7], prefix: 'gk_', wraps: ['roomCardHtmlCore', 'wireRoomCards'], symbols: ['GKEY', 'gkLog', 'GK_CSS', 'GK_KEY', 'GK_L10N', 'gkGranted', 'gkDays', 'gkText', 'gkAfterName', '_gkCard', '_gkWire', 'gkInit'], markers: ['gk_shown', 'gk_failed'] }
 ];
 export const TAIL = '\n</script>\n</body>\n</html>';
 export const STAGE_RECORD = "window.TB_STAGE = { c: '" + STAGE_TAG + "', file: 'talkbridge-app/" + STAGE_PAGE + "', built: '" + BUILT + "', at: '" + BUILT_AT + "' }; log('build', window.TB_STAGE, 'ok');";

@@ -9,7 +9,7 @@
    THE CHANGE: the name is measured in display units — one per grapheme (Intl.Segmenter; else code points, a combining mark 0),
    two for a wide one (CJK, Hangul, kana, fullwidth) or a pictograph — and a name over TN_MAX units is cut and ends in "…" (the raw
    name is cut, then escaped). The cut name is <span class="rc2-nm" dir="auto">; the bell (MC-1) and the key (GK-1) go directly
-   before it. TN_MAX is 14: at a 320 px phone the rail leaves ≈107–131 px for the name beside both icons (review 2026-11-18).
+   after it (owner 2026-11-18). TN_MAX is 14: at a 320 px phone the rail leaves ≈107–131 px for the name beside both icons (review 2026-11-18).
    A tap on the name line shows the full name in a toast and does not open the room — when the name was cut, or when the line
    still overflows in pixels (wide letters); a name that fits opens the room as before. A card whose markup is not the expected
    one, and a name that fits, are the original's output byte for byte. */
@@ -48,7 +48,7 @@ wireRoomCards = function (host) {
   try {
     if (host) Array.prototype.forEach.call(host.querySelectorAll('.rc2 .rc2-name'), function (el) {
       el.addEventListener('click', function (ev) {
-        var cut = !!el.querySelector('.rc2-nm'), over = el.scrollWidth > el.clientWidth + 1;
+        var t = el.querySelector('.rc2-nm, .rc2-nt') || el, cut = !!el.querySelector('.rc2-nm'), over = t.scrollWidth > t.clientWidth + 1;
         if (!cut && !over) return;
         var card = el.closest('.rc2'), room = card && roomById(card.dataset.room); if (!room) return;
         ev.stopPropagation(); ev.preventDefault();
