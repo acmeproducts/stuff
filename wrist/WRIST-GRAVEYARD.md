@@ -28,3 +28,4 @@ Approaches rejected or removed. Do not bring one back without the owner's explic
 | G22 | 2026-11-18 | The five-thread roadmap as a list of tasks (WRIST-PLAN §14) | Owner: "incredibly light"; "not a feature list, not a task list, but a development plan". Replaced by `x/X-ROADMAP.md`. |
 | G23 | 2026-11-18 | Any dashboard, or a set of feeds chosen in advance | Owner: "it definitely isn't a dashboard, that's just clutter." |
 | G24 | 2026-11-18 | "X 1.0 is one use case done fully" | My cut, replaced: X 1.0 is the learning system at the end of the walk stage (`x/X-DESIGN.md` D18). |
+| G25 | 2026-11-18 | X's memory kept only on the device, or stored on the relay | Owner: "why couldn't that be passed to the device so that it can be persisted in local storage and synced with GitHub … how else is this going to become a learning application both in operation and in function". Replaced by device plus GitHub sync (`x/X-DESIGN.md` D13, D21). |

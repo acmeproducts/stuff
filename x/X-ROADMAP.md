@@ -35,6 +35,7 @@ X 1.0 is reached when gate 6 passes:
 4. A long piece of research runs while something else is in front, and X announces it.
 5. It works with the watch, and it works without it.
 6. Opening X starts the watch; closing X stops it; the battery cost per hour is known.
+7. What X learned on the S23 is there on the iPhone, and the build has read it.
 
 After 1.0 comes the run stage: sentences and contexts, making and analysing, and last, acting for the owner.
 
@@ -44,7 +45,7 @@ After 1.0 comes the run stage: sentences and contexts, making and analysing, and
 |---|---|---|---|
 | 1 | Foundation | wrist motion reaches a browser page and the logs come back to the build | **passed 2026-11-17/18** |
 | 2 | Session | opening X starts the watch, closing X stops it, it cannot stop by accident | crawl |
-| 3 | X is born | the whole loop works by voice: ask, answer, verdict, learn; hand time is reported | crawl ends |
+| 3 | X is born | all nine steps work by voice: ask, answer, verdict, learn; what it learns is kept and synced; hand time is reported | crawl ends |
 | 4 | Proven signals | each candidate signal, from watch or camera, has a hit rate and a wrong-fire rate from scored use | walk |
 | 5 | Your language | the owner's taught signals steer X through the arbiter, and still work the next day | walk |
 | 6 | X walks | lists and threads work; the six points of X 1.0 hold | walk ends = **X 1.0** |
@@ -56,16 +57,16 @@ After 1.0 comes the run stage: sentences and contexts, making and analysing, and
 | **L** Lab | `plans/L-lab.md` | Lab and evidence; continuous control | 4, 6 |
 | **S** Sources and arbiter | `plans/S-sources-arbiter.md` | camera hand and head; the arbiter | 4, 5 |
 | **V** Vocabulary and teaching | `plans/V-vocabulary-teach.md` | teach; vocabulary and registration | 4, 5 |
-| **X** X itself | `plans/X-x.md` | voice; the learning loop; lists and threads | 3, 6 |
+| **X** X itself | `plans/X-x.md` | voice; learning (the nine steps); lists and threads | 3, 6 |
 
 ### 3.3 Releases
 A release is the smallest whole thing that can be used and judged. Status: built / in build / next / later.
 
 | Release | Delivers | Needs first | Gate | Stage | Status |
 |---|---|---|---|---|---|
-| **W1** Session | still panel; sleep from the page; sleep by itself; "logged at"; code moves to `x/wrist/` | — | 2 | crawl | **next** |
+| **W1** Session | still panel; sleep from the page; sleep by itself; "logged at"; hardened pairing; code moves to `x/wrist/` | — | 2 | crawl | **next** |
 | **L1** Results table | what the watch reported and each signal's record, in a table | W1 (shares the relay change) | 4 | crawl | next |
-| **X1** Born | the X page: listen, the nine-step loop, five commands by voice, words kept, hand time | W1 for the watch's session; works without it | 3 | crawl | next |
+| **X1** Born | the X page: listen, the nine steps, five commands by voice, words kept on the device and synced to GitHub, hand time | W1 for the watch's session; works without it | 3 | crawl | next |
 | **S1** Camera probe | camera opens, hand found or lost, frames a second, on each device | — | 4 | crawl | next |
 | **V1** Teach on the watch | do it three times, name it, collision check; replaces the OK card | L1 | 4 | crawl | later |
 | W2 Battery truth | percent an hour by link, from real sessions; 30-minute freeze check; Wi-Fi-only run | W1, L1 | 2 | walk | later |
@@ -84,7 +85,7 @@ A release is the smallest whole thing that can be used and judged. Status: built
 | W4 Buzz | one short vibration when X has something | X3 | 6 | walk | later |
 | X4 Sentences and contexts | words combine; contexts with their own signals and rules; context inferred | X 1.0 | — | run | later |
 | X5 Makes and analyses | analysis on frozen evidence; building by voice; objects and games | X 1.0, L3 | — | run | later |
-| X6 Acts for you | finding and buying, with an explicit yes (**needs C3 first**) | X5, hardened pairing | — | run | later |
+| X6 Acts for you | finding and buying, with an explicit yes | X5 | — | run | later |
 
 ### 3.4 Order of work
 **Crawl, now, three tracks side by side** (the owner's call, 2026-11-18: the watch change first, Lab use cases and a first pass at X in parallel):
@@ -120,4 +121,5 @@ A release is done when its device gate passes and its rows in `X-TRACE.md` show 
 | 2026-11-18 | Roadmap built around one talk-to-gateway loop | rejected by the owner (graveyard G18) |
 | 2026-11-18 | Single pipeline page | drafted; owner corrected the reach (X is not a hub; AI) and the frame (a learning system, floor not blueprint) |
 | 2026-11-18 | Owner's research from another session: camera hand and head sources, the arbiter | recorded in `plans/S-sources-arbiter.md` |
-| 2026-11-18 | This roadmap, the five plans and their artifacts | written; nothing built from it yet; awaiting the owner's corrections |
+| 2026-11-18 | This roadmap, the five plans and their artifacts | written; nothing built from it yet |
+| 2026-11-18 | Owner's corrections the same day | "The loop" renamed the order of operations and stated to run wholly in the page (no gateway, not OpenClaw). Memory: on the device and synced with GitHub, so X learns "both in operation and in function" (D13, D21, R37); memory on the relay withdrawn. Pairing hardened in W1 (D22): "why wouldn't we just do that". Recognition on the watch explained; still awaits his yes (C1). |

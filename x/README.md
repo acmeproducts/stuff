@@ -7,9 +7,9 @@ X is a learning system you raise, so that a phone can be used with hands at rest
 ## Read in this order
 | File | What it is |
 |---|---|
-| `X-NORTH-STAR.md` | The owner's own words and the 19 principles drawn from them. Everything answers to it. |
-| `X-CONCEPT.md` | What X is and does: the nine-step loop, the vocabulary, floor to ceiling. The analysis. |
-| `X-REQUIREMENTS.md` | User stories, use cases, 36 requirements. |
+| `X-NORTH-STAR.md` | The owner's own words and the 20 principles drawn from them. Everything answers to it. |
+| `X-CONCEPT.md` | What X is and does: the nine steps (the order of operations), the vocabulary, floor to ceiling. The analysis. |
+| `X-REQUIREMENTS.md` | User stories, use cases, 37 requirements. |
 | `X-DESIGN.md` | Standing architecture, design decisions, logical and physical design, and the changes that need the owner's yes. |
 | `X-ROADMAP.md` | **Top authority.** Where we are, where we are going, six gates, five plans, every release in order. |
 | `plans/W-watch.md` | The watch: session, battery, recognition on the watch, buzz. |
@@ -30,8 +30,8 @@ History and code:
 
 ## Where things stand (2026-11-18)
 - **Gate 1 of 6 passed.** Watch to relay to browser works on the owner's watch.
-- **Nothing of X is built.** 3 of 36 requirements are met, 6 in part.
-- **Next, side by side:** W1 (the watch sleeps from X), X1 (X is born), S1 (camera probe), with L1 and V1 behind them.
+- **Nothing of X is built.** 2 of 37 requirements are met, 7 in part.
+- **Next, side by side:** W1 (the watch sleeps from X; pairing hardened), X1 (X is born), S1 (camera probe), with L1 and V1 behind them.
 
 ## Live
 | Thing | Where |

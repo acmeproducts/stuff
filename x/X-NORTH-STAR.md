@@ -22,6 +22,9 @@ This file holds the owner's own words and the principles drawn from them. Every 
 
 > "three major components: watch, AI, and gateway orchestrator / web based life. This covers many use cases: search, message, research, shop, code, analyze"
 
+On learning, 2026-11-18:
+> "why couldn't that be passed to the device so that it can be persisted in local storage and synced with GitHub … how else is this going to become a learning application both in operation and in function"
+
 The practical side:
 > "you want to be able to just not keep having to touch your phone all the time. Maybe you want to scroll through Reddit feeds, maybe you want a weather report and traffic, maybe you're doing research on the natural occurrence of gold in the Central Valley, maybe you're playing a game, maybe you're just exploring and appreciating art and music, maybe you're trying to figure out what the carry trade in Japan has to do [with] what is going on with credit squeeze"
 
@@ -86,4 +89,5 @@ Each design decision in `X-DESIGN.md` cites the principles it rests on. A decisi
 | P16 | **The watch lives and dies with X.** It runs only during an X session, screen off, at a known battery cost, and never stops by accident. | owner 2026-11-16, 2026-11-18 |
 | P17 | **Evidence.** Facts and theory are labelled. Everything measurable is logged where the build can read it. Diagnostics are in the app. | owner preferences; `claude-audit.md` A6, E1 |
 | P18 | **Explicit yes for anything that cannot be undone.** Sending, deleting and spending need the person's yes, and hardened pairing first. | WRIST-PLAN §6 |
+| P20 | **Learns in operation and in function.** What X learns stays on the device and syncs to GitHub. X keeps it everywhere, and the build reads it so X itself is improved from use. | §2 |
 | P19 | **Not app navigation.** Signals are named for what the body does; meaning is given in X. The Lab is a workshop, not the product. | §4 |

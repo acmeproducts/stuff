@@ -36,15 +36,16 @@ Owner, 2026-11-18:
 5. **Proof of logging.** The panel shows "logged hh:mm". The page shows when the watch last logged.
 6. The power page also shows whether Wrist is exempt from "pause if unused". (Theory: Android's unused-app flag is the same switch Samsung shows. To be confirmed on the watch.)
 7. Every sleep is logged with its reason: from the page, alone for three minutes, or held.
+8. **Hardened pairing (D22).** Owner, 2026-11-18: "why wouldn't we just do that". The six-digit code works once per device and only for two minutes after the watch shows it. The relay then hands the watch and that browser each a long secret, kept on each; from then on only the secrets are accepted. Wrong guesses are limited. A new device is added by showing a fresh code on the watch's link page.
 
 **Build sequence**
 | Step | What | Check |
 |---|---|---|
 | 0 | Move `wrist/` to `x/wrist/` and repoint the three workflows. No code change. | all three workflows green; the app built from the new path is byte-for-byte the same code; relay live checks 16/16 |
-| 1 | Write the failing checks: relay passes "sleep" once to the watch's next post; page has a Watch off control that needs a hold; page shows last-logged time | they fail on `w3` and `lab-r5` |
-| 2 | Relay `w4`: sleep word; last-logged time per watch | relay checks pass, old 16 still pass |
-| 3 | Lab `lab-r6`: Watch off, last-logged line | page checks pass, old 54 still pass |
-| 4 | Watch: still panel; sleep on the word; three-minute rule; one-second hold; "logged at" line; unused-pause line; sleep reason | compiles against the SDK; detector checks 16/16 unchanged |
+| 1 | Write the failing checks: relay passes "sleep" once to the watch's next post; page has a Watch off control that needs a hold; page shows last-logged time; a code cannot be used twice or after two minutes; a page without the secret is refused; the sixth wrong guess in a minute is refused | they fail on `w3` and `lab-r5` |
+| 2 | Relay `w4`: sleep word; last-logged time per watch; secrets and guess limit | relay checks pass, old 16 still pass |
+| 3 | Lab `lab-r6`: Watch off, last-logged line; keeps its secret after the first pairing | page checks pass, old 54 still pass |
+| 4 | Watch: still panel; sleep on the word; three-minute rule; one-second hold; "logged at" line; unused-pause line; sleep reason; keeps its secret; shows a fresh code on request | compiles against the SDK; detector checks 16/16 unchanged |
 | 5 | GitHub builds `turn07-b…`; one download link to the owner | build log clean |
 | 6 | Device gate, then read the device log | below |
 
@@ -55,6 +56,7 @@ Owner, 2026-11-18:
 4. Brushing the watch face does not stop it.
 5. The panel says when it last logged, and the page says the same time.
 6. The device log shows each sleep and its reason.
+7. After pairing once, the page reconnects on later days with no code. A second browser cannot join without a fresh code from the watch.
 
 **Not in W1:** waking the watch from X (D14); any change to what is recognised.
 
@@ -88,4 +90,5 @@ Owner, 2026-11-18:
 |---|---|
 | The three-minute rule sleeps the watch while the owner is still setting up | the countdown starts only after a page has listened at least once in this run, or after three minutes from start |
 | A sleep word arrives twice | the relay hands it out once per request |
+| A cleared browser loses its secret | pairing again takes the same six digits as today; nothing else is lost |
 | The move to `x/wrist/` breaks a build | step 0 is its own commit with nothing else in it |

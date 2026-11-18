@@ -26,7 +26,7 @@ Version 1.0.0 · 2026-11-18 · Answers to `X-REQUIREMENTS.md` · Rules from `cla
 | Lab page | `wrist/relay/page-test.py` | the Lab in a phone-sized browser with a synthetic watch | 54/54 |
 | Templates | new with V1 | template maker and matcher on synthetic and recorded holds | — |
 | Arbiter | new with S5 | every rule type, no rule, absent against silent | — |
-| X page | new with X1 | the loop driven by injected sentences and a recorded model reply | — |
+| X page | new with X1 | the nine steps driven by injected sentences and a recorded model reply | — |
 | Scoring | new with L2 | hit and wrong-fire arithmetic on a synthetic session with known answers | — |
 
 Paths move to `x/wrist/` at W1 step 0.
@@ -55,6 +55,7 @@ Targets are mine (D20) and are corrected by evidence.
 | Sleep delay | from Watch off to the watch's last message | under 5 s | W1 |
 | Camera frame rate | frames a second with the hand finder; with both finders | 15 or more on the S23 | S1, S3 |
 | Reading delay | from end of speech to first spoken word, known word and unknown ask | recorded first; target set from X1's numbers | X1 |
+| Sync | a word kept on one device is known on another | within a minute | X1 |
 | Arbiter delay | added wait when two sources fire | 250 ms | S5 |
 
 ## 6. What each release must show
@@ -62,7 +63,7 @@ The device gate for each release is written in its plan. In short:
 
 | Release | Lab checks added | Device gate in | Measurement |
 |---|---|---|---|
-| W1 | relay sleep word; page Watch off; last-logged | `plans/W-watch.md` | sleep delay |
+| W1 | relay sleep word; page Watch off; last-logged; pairing (code works once, guesses limited, a secret is required after) | `plans/W-watch.md` | sleep delay |
 | L1 | relay sessions and snapshots; both tables | `plans/L-lab.md` | — |
 | X1 | X page suite | `plans/X-x.md` | hand time; reading delay |
 | S1 | probe card on a recorded clip | `plans/S-sources-arbiter.md` | camera frame rate |

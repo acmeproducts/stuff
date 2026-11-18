@@ -34,7 +34,7 @@ Status words: **met** (proved on the owner's device, evidence named) · **part**
 | R24 | no connector of X's own | A7, D09 | X1 on | code review at each release: no service-specific call exists | open |
 | R25 | AI only at named steps, fixed order | D01 | X1 | check: a command makes no model call | open |
 | R26 | answers carry sources; evidence kept | D01 | X1, X3 | X1 gate 1; X3 gate | open |
-| R27 | explicit yes before send, delete, spend; pairing hardened first | D13, C3 | X6 | nothing of the kind exists before X6 | **met by absence**: no such action exists |
+| R27 | explicit yes before send, delete, spend; pairing hardened now | D22 | W1 (pairing), X6 (the yes) | W1 gate 7; nothing that sends or spends exists before X6 | part: no such action exists; pairing not yet hardened |
 | R28 | browser, phone and desktop; no phone app | A1, D12 | done for the Lab; X1 | Lab used on the S23 and tablet; desktop lab-only | part |
 | R29 | watch runs only in a session; cannot stop by accident | D14 | W1 | W1 gate 2 to 4 | open: today it runs until held |
 | R30 | screen off at a known battery cost | A2 | done (screen off); W2 (cost) | 77 screen-off events on 2026-11-17; W2 numbers | part: cost unknown |
@@ -44,9 +44,10 @@ Status words: **met** (proved on the owner's device, evidence named) · **part**
 | R34 | hand time measured each session | D15 | X1 | X1 gate 6 | open |
 | R35 | hit rate and wrong fires per signal, during X-like use | D20 | L2 | L2 gate | open |
 | R36 | fact and theory labelled | P17 | every record | review at each commit | holds so far |
+| R37 | memory on the device, synced with GitHub; learns in operation and in function | D13, D21 | X1 | X1 gate 8; each later release's plan cites what the build read | open |
 
 ## Counts
-Met: 3 (R14, R27 by absence, R31). Part: 6 (R04, R05, R18, R28, R30, R32). Holding: 2 (R33, R36). Open: 25.
+Met: 2 (R14, R31). Part: 7 (R04, R05, R18, R27, R28, R30, R32). Holding: 2 (R33, R36). Open: 26. Total 37.
 
 ## Use cases to releases
 | Use case | Releases |

@@ -59,6 +59,7 @@ Source column: NS = `X-NORTH-STAR.md` section; WP = `wrist/WRIST-PLAN.md` sectio
 | R09 | Everything X has learned can be listed, changed and removed by the person, by talking. **(added)** | NS §4 "fungible" |
 | R10 | Signals and rules can differ by context (time, activity or another differentiator). | NS §4 |
 | R11 | X ships with no content chosen in advance. Content types are acquired through use. | NS §2, §5 |
+| R37 | X's memory is kept on the device and synced with GitHub. X learns in operation (it keeps what it learned, on every device) and in function (the build reads what was learned and X is improved from it). | NS §2, owner 2026-11-18 |
 
 ### 3.3 Experience
 | # | Requirement | Source |
@@ -86,7 +87,7 @@ Source column: NS = `X-NORTH-STAR.md` section; WP = `wrist/WRIST-PLAN.md` sectio
 | R24 | X builds and maintains no connector of its own. It reaches the world through what an AI already reaches. | NS §3 |
 | R25 | AI is used only at named steps, in a fixed order. | NS §2 |
 | R26 | An answer carries its sources, and the evidence is kept with it. **(added, from the owner's own pages)** | prism, market-navigator |
-| R27 | Anything that sends, deletes or spends waits for an explicit yes, and pairing is hardened before any such thing exists. | WP §6 |
+| R27 | Anything that sends, deletes or spends waits for an explicit yes. Pairing is hardened now, not later. | WP §6; owner 2026-11-18: "why wouldn't we just do that" |
 
 ### 3.6 Platform
 | # | Requirement | Source |

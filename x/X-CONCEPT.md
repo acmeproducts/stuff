@@ -7,8 +7,10 @@ This is the analysis: a first reading of the owner's vision as one working idea.
 ## 1. In one paragraph
 X is a learning system you raise. It is born knowing five things. You talk to it in your own words and steer it with a few signals you taught it. Whatever it already knows, it does at once. Whatever it does not know, it works out with an AI's help, shows you one thing, and takes your verdict. What you keep becomes part of its vocabulary, so the next time is instant. Session by session the edge of what it knows moves outward, and your hands stay at rest the whole time.
 
-## 2. The loop
+## 2. The order of operations
 Every exchange with X runs the same nine steps. This is the "very specific order of operations where things become AI assisted".
+
+**Where it runs:** all nine steps run inside the X page. Steps 4 to 6 are one call from the page straight to an AI model with the owner's own key, the same call prism makes today. There is no gateway and no server of ours in it. It has nothing to do with OpenClaw.
 
 | # | Step | What happens | AI? |
 |---|---|---|---|
@@ -20,14 +22,14 @@ Every exchange with X runs the same nine steps. This is the "very specific order
 | 6 | Compose | The answer is made from that evidence | **yes** |
 | 7 | Present | One thing, spoken and shown | no |
 | 8 | Verdict | You keep it, say how it should change, or drop it | no |
-| 9 | Learn | A kept thing becomes a word. Next time step 3 catches it | no |
+| 9 | Learn | A kept thing becomes a word, saved on the device and synced to GitHub. Next time step 3 catches it | no |
 
 AI is used only at the edge of what X knows (steps 4 to 6). A known word skips step 4 entirely: X does not guess what you meant, it knows. This is the difference from a chat box, where every sentence starts from nothing.
 
 **Fact:** the owner's own pages already follow this order in pieces. prism and market-navigator gather material first, freeze it as evidence, then ask the model, save the result to a library and read it aloud. devstream checks a spoken sentence against its fixed commands before any model is called.
 
 ## 3. Vocabulary
-The owner's four ingredients, placed in the loop:
+The owner's four ingredients, placed in that order:
 
 | Ingredient | In X |
 |---|---|
@@ -61,6 +63,10 @@ A word is something X learned from you: a name, what to gather, and how to prese
 3. **yes** keeps it. X names it itself and says the name. You can rename it by saying so.
 4. Saying how it should differ ("shorter", "skip traffic at weekends") changes the word.
 5. **no** drops it.
+
+### 3.4 Two kinds of learning
+- **In operation.** What X learns from you (words, signals, rules, what you dropped) is kept on the device and synced to GitHub, so it is there on every device and survives a cleared browser.
+- **In function.** The same record is read by the build before each release: which words were kept or dropped, where a touch was forced, where X read you wrongly. X itself is improved from that, not from guesses.
 
 ## 4. What a session is
 **Born.** The phone is on a stand. You open X; that is the last touch. If you wear the watch you open Wrist on it; X finds whatever sources are there. You say what you want. X answers aloud and shows one card with its sources. You say or sign more, enough, yes, no, again. When you close X the watch goes to sleep. X tells you the session's hand time: minutes, and how many touches.

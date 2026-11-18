@@ -19,7 +19,7 @@ Three parts: the decisions, the logical design (what the pieces are), and the ph
 ## 2. Design decisions (mine, by principle; the owner may strike any)
 | # | Decision | Rests on | Why |
 |---|---|---|---|
-| D01 | X is one loop of nine steps (`X-CONCEPT.md` §2). AI appears only at read, gather and compose. | P3, P8 | The order of operations is the product. It is what makes a known word instant and keeps AI at the edge. |
+| D01 | Every exchange follows one order of nine steps (`X-CONCEPT.md` §2), all inside the page. AI appears only at read, gather and compose. | P3, P8 | The order of operations is the product. It is what makes a known word instant and keeps AI at the edge. |
 | D02 | Vocabulary is two things: commands (finite, steer) and words (learned, grow). Five commands at birth, ten at full growth. | P3, P4, P5 | The smallest set that can steer one thing and teach. Each later command is added only when an age needs it. |
 | D03 | Learning happens only through the three verdicts: keep, change, drop. X names what is kept. | P3, P11 | One way to learn is one thing to understand. Naming is X's burden. |
 | D04 | Every source reports one event shape: time, source, signal, command, confidence. | P6, P12 | One shape lets any source be added or removed without touching the rest. From the owner's research. |
@@ -31,21 +31,23 @@ Three parts: the decisions, the logical design (what the pieces are), and the ph
 | D10 | Listening uses the Deepgram pattern from chat-test, with the browser's own engine as fallback. Speaking uses the browser's own voice. | P2, P12 | Both already work in his pages. |
 | D11 | The camera sources use Google's hand finder and face finder in the page. Frames never leave the device. | A8, P12 | Off the shelf, no install, private. |
 | D12 | X is one page served by the relay at `/x`. The Lab stays at `/`. Both share one sources-and-arbiter module. | A3, P12 | Same origin as the watch feed. The Lab and X then test and use the very same code. |
-| D13 | X's memory (words, library, journal, signals, rules) is kept on the device. It does not go to the relay until pairing is hardened. | P18, P14 | The six-digit code is weak. Personal memory behind it would be exposed. |
+| D13 | X's memory (words, library, journal, signals, rules) lives on the device and syncs to GitHub from the page with the owner's own token: a list of events, each with a device id and a time, and an outbox for when the phone is offline. No secrets are written. It goes to a **private** repository, because `stuff` is public. | P20, P12 | The owner's direction, 2026-11-18. **Fact:** session-manager already keeps its source-of-truth file this way, and devstream and chat-test read and write the repo from the page. No new store, no new service. |
 | D14 | The watch wakes by opening Wrist on the watch (one touch). It sleeps on a word from X, or by itself after three minutes with no page listening. A brush on its face never stops it; a one-second hold does. | P16, P1 | A sleeping watch cannot listen for X without spending battery. One touch at the start of a session is the cheaper cost. |
 | D15 | Hand time is a first-class reading: every session records minutes, touches and seconds of touching, and X says them at the end. | P1, P17 | The reason X exists has to be visible in every session. |
-| D16 | X logs what happened, never what was said: step timings, which path was taken, verdicts, touches, the source obeyed. | P17 | The build needs evidence; the owner's words stay on his device. |
+| D16 | The relay's log holds what happened, never what was said: step timings, which path was taken, verdicts, touches, the source obeyed. What was said lives only in the memory (D13). | P17 | The relay's log is shared and lightly protected; the memory repository is private. |
 | D17 | X runs at most four threads at once. | P10, P12 | Enough for the owner's examples; keeps model spend and the announcements bounded. My number, to be tuned from use. |
-| D18 | X 1.0 is the end of the walk stage: the learning loop, lists and threads, with taught signals and the arbiter, hand time measured. Run-stage work comes after 1.0. | P4 | Replaces my earlier cut of "one use case". The learning loop itself is the product. |
+| D18 | X 1.0 is the end of the walk stage: the nine steps with learning, lists and threads, with taught signals and the arbiter, hand time measured. Run-stage work comes after 1.0. | P4 | Replaces my earlier cut of "one use case". The learning itself is the product. |
 | D19 | All work lives under `x/`. The watch, relay and Lab code moves from `wrist/` to `x/wrist/` as the first step of release W1, when the builds run anyway. | P12 | One self-contained home. Moving it alone would only spend build runs. |
+| D21 | The build learns from use. Each release starts by reading the synced memory and journal, and its plan says what was found. | P20, P17 | Learning in function. Otherwise only X's contents grow and X itself does not. |
+| D22 | Pairing is hardened in release W1. The six-digit code works once per device, for two minutes after the watch shows it. The relay then gives the watch and that browser each a long secret; after that only the secrets are accepted. Wrong guesses are limited. | P18 | Owner, 2026-11-18: "why wouldn't we just do that". **Fact:** today nothing limits guesses at the code. W1 already changes watch, relay and page together, so it costs no extra watch build and no extra touch. |
 | D20 | Targets: a signal is fit for X at 9 hits in 10 and at most 1 wrong fire in 10 minutes of use; a 30-minute session has at most 5 touches; the watch costs at most 10% an hour. | P17 | Numbers to argue with. Mine, to be corrected by evidence. |
 
 ## 3. Changes that would be architecture, not made, each needing the owner's explicit yes
 | # | Change | When it would come up | What vetting it needs |
 |---|---|---|---|
 | C1 | Recognition moves onto the watch; the watch sends results, not raw rows | W3 | W2's battery and link numbers; page-side and watch-side results compared on the same recordings |
-| C2 | X's memory stored on the relay so phone and desktop share it | after pairing is hardened | the hardened pairing design; what is stored; how it is erased |
-| C3 | Hardened pairing in place of the six-digit code | before C2 and before X6 | threat stated plainly; one-time setup cost in touches |
+| C2 | withdrawn: memory on the relay | replaced by D13 on the owner's direction (device plus GitHub) | — |
+| C3 | decided: hardened pairing | D22, in release W1 | — |
 | C4 | The watch talks straight to the browser over Bluetooth, no relay | only if the relay proves to be the limit | parked in WRIST-PLAN §11.6 |
 | C5 | Any new server, service or store beyond the relay | not planned | would need a reason no existing piece can meet |
 | C6 | Keys or model calls leaving the device for a server | not planned | same |
@@ -53,7 +55,7 @@ Three parts: the decisions, the logical design (what the pieces are), and the ph
 ## 4. Logical design
 ### 4.1 Pieces
 ```
- Sources            Meaning                 The loop                      Memory
+ Sources            Meaning                 The nine steps                Memory
  ───────            ───────                 ────────                      ──────
  Watch  ─┐                                  3 Match ── known ─────────┐   Words
  Hand   ─┼─ event ─► Registration ─► Arbiter ─► command                │   Library
@@ -61,6 +63,7 @@ Three parts: the decisions, the logical design (what the pieces are), and the ph
  Voice  ─┘                                  5 Gather├─ AI ─► 7 Present ─► 8 Verdict ─► 9 Learn
  Presence ─────────────────────────► Arbiter 6 Compose┘                    Signals, Rules
                                             Threads (one in front)         Hand-time meter
+                                                                           Memory <──> GitHub (private)
 ```
 
 | Piece | Does | Holds |
@@ -68,10 +71,10 @@ Three parts: the decisions, the logical design (what the pieces are), and the ph
 | Source | turns the body or the voice into events; reports whether it is present | nothing |
 | Registration | maps this person's signal to a command in this context | signal templates; the mapping |
 | Arbiter | picks whose command counts; shows and logs the winner | rules per context |
-| Loop | runs the nine steps for one exchange | the exchange in hand |
+| Exchange | runs the nine steps once | the exchange in hand |
 | Threads | keeps up to four exchanges alive; one in front; announces the ready | thread list |
 | Presenter | one thing: speaks it, shows it with its sources | nothing |
-| Memory | words, library (answers with their evidence), journal (sessions) | on the device |
+| Memory | words, library (answers with their evidence), journal (sessions), signals, rules | on the device, synced to GitHub |
 | Session | starts and stops sources; runs the hand-time meter | the session record |
 
 ### 4.2 Data shapes
@@ -85,12 +88,13 @@ Three parts: the decisions, the logical design (what the pieces are), and the ph
 | Word | name, the ask behind it, what to gather, how to present, times used, last verdict |
 | Library entry | word or ask, answer, frozen evidence with sources, made on |
 | Thread | name, state (working, ready, in front, done), started on |
+| Memory event | id, device id, time, type, payload (the unit that is synced) |
 | Session record | start, end, minutes, touches, touch seconds, exchanges, sources present, battery at start and end |
 
 ### 4.3 Rules the pieces obey
 1. A command never comes from two sources at once: the arbiter emits one.
 2. Registration refuses a second signal for a command in the same context, and a second command for a signal.
-3. The loop never calls a model for a command or a known word's reading.
+3. X never calls a model for a command or for a known word's reading.
 4. Nothing that cannot be undone runs before **yes**.
 5. Every touch goes through the meter.
 
@@ -106,14 +110,14 @@ Three parts: the decisions, the logical design (what the pieces are), and the ph
 | 3D card | three.js, loaded by the page | in the Lab | not built |
 | Model calls | the provider's own endpoints, the owner's keys kept in the page's storage | from the page | pattern proven in the owner's pages |
 | Listening and speaking | Deepgram socket with browser fallback; browser voice | in the page | pattern proven in the owner's pages |
-| Memory | the browser's own database on the device | in the page | not built |
+| Memory | the browser's own database on the device, synced to a private GitHub repository through GitHub's own API with the owner's token | in the page | not built; pattern proven in session-manager |
 | Builds and logs | three GitHub workflows; outputs committed to the branch | GitHub | built |
 
 Additions inside the standing architecture, by release (no new component in any of them):
 
 | Release | Relay | Watch | Pages |
 |---|---|---|---|
-| W1 | carries "sleep" in its reply; reports when the watch last logged | still panel; sleeps on the word or after 3 minutes alone; "logged at" line | Lab: Watch off control, last-logged line |
+| W1 | carries "sleep" in its reply; reports when the watch last logged; issues long secrets and limits guesses | still panel; sleeps on the word or after 3 minutes alone; "logged at" line; keeps its secret | Lab: Watch off control, last-logged line; keeps its secret |
 | L1 | keeps each watch's snapshots and session summaries, retrievable | none | Lab: results table |
 | X1 | serves `/x`; accepts X's event log | none | X page |
 | W3 (needs C1) | passes templates to the watch | recognises on the watch | none |
@@ -127,4 +131,5 @@ Additions inside the standing architecture, by release (no new component in any 
 | The watch has no low-power sensor | a running reader keeps the processor awake; hence P16 and D14 |
 | Wear OS has no in-app battery exemption | "Allow background activity" in the Galaxy Wearable app is the switch (WRIST-PLAN §10) |
 | A page cannot read another site's storage | keys are entered once on X's own address; counted as setup touches |
+| A page can read and write a GitHub repository with a token | fact: session-manager, devstream and chat-test do this today |
 | Model providers accept calls from a page | fact: the owner's pages do this today with three providers |
