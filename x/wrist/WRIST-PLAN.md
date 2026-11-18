@@ -20,6 +20,7 @@ Version 10.0.0 · 2026-11-18 · Owner/device gate: Confi · Device: Galaxy Watch
 | 2026-11-18 | Direction change from the owner | recorded (section 13), nothing built | X expects a finite set of commands; each person registers the signals that suit them; the watch is one sensing source among several to be catalogued (rings, camera, others); the mapping may change with context. |
 | 2026-11-18 | Roadmap: five threads | recorded (section 14), nothing built | Owner named five threads: the Lab, watch client improvements, build X, 3D manipulation, and source input / teach gestures. First stage of each and the order are in section 14. |
 | 2026-11-18 | Five-thread roadmap | **rejected by the owner** ("this feels incredibly light"; then: "your overall structure is busted and you have no true north") | Replaced by one pipeline and then by `x/`. A roadmap built around one talk-to-gateway loop was also rejected (G18). |
+| 2026-11-18 | turn07 watch app (`turn07-b…`) + relay `w4` + page `lab-r6`: release W1 with L1 and S1 (`x/plans/`) | built and deployed, device gate pending | Owner: "we need to exit, and it can't be by accident, but we don't want to just leave it running … ideally it would be something on X that you do"; "a table of results"; wants the camera gesture; felt a buzz and wants buzzes explored. Watch: still panel, sleeps on a word from the page or after three minutes alone, one-second hold, "logged" line, own key, buzz patterns. Relay: sleep and buzz words, pairing secrets, sessions and snapshots. Lab: Watch off, Results, Camera: hand probe, Buzz the watch. Lab checks: 16/16 detector, 33/33 relay, 73/73 page. Not yet run on the watch; the hand finder has not run anywhere yet. |
 | 2026-11-18 | X gets its home: `x/` | written, nothing built from it | Owner: X is a learning system that is born and grows a vocabulary; not a hub (it leverages AI); the existing pages are the floor, not the blueprint; a development roadmap with plans, releases and traceable requirements. Camera hand and head sources and the arbiter recorded from the owner's other session (section 15). |
 
 ## 1. Why this exists (owner's words, 2026-11-16)
@@ -411,6 +412,6 @@ From the owner's session on camera gestures, brought here by him: camera hand ge
 ## 7. Lab checks
 `x/wrist/test/DetectorTest.java`, synthetic 100 Hz traces, run on every build. 2026-11-17: 16/16 pass (knock checks removed with the knock).
 
-`x/wrist/relay/e2e.mjs` (relay, run on every deploy against the live worker; 16/16 against the live worker on 2026-11-17).
+`x/wrist/relay/e2e.mjs` (relay, run on every deploy against the live worker; 16/16 against the live worker on 2026-11-17; 33 checks from relay `w4`).
 
-`x/wrist/relay/page-test.py` (the Lab in a phone-sized Chrome, driven by relay events and a synthetic raw stream; run by hand, 54/54 on 2026-11-17).
+`x/wrist/relay/page-test.py` (the Lab in a phone-sized Chrome, driven by relay events and a synthetic raw stream; run by hand, 54/54 on 2026-11-17; 73/73 on `lab-r6`, 2026-11-18).

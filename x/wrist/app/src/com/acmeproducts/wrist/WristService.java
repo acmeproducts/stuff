@@ -48,12 +48,24 @@ public class WristService extends Service implements SensorEventListener {
     static final float WAKE_MOVE = 1.0f;                // m/s^2 change between slow samples that counts as movement
     static final long SETTLE_NS = 600000000L;           // ignore motions right after waking: that was the arm coming up
 
+    static final long ALONE_MS = 180000L;               // no page listening this long: sleep, so a forgotten reader does not drain the watch
+    static final long PAIR_MS = 120000L;                // after each start, a new browser may pair for this long
+    static final long[] BUZZ_JOINED = {0, 40, 90, 40}, BUZZ_LEFT = {0, 300}, BUZZ_SLEEP = {0, 250, 90, 40};
+
     static volatile WristService inst;
+    /** Why the reader last went to sleep by itself ("page", "idle"), or null. The screen closes itself when it sees this. */
+    static volatile String sleptWhy;
 
     /* ---- status the watch face reads ---- */
     volatile String netDetail = "";
     volatile String net = "connecting", last = "nothing yet", mode = "starting", idleKind = "", missing = "", code = "------", build = "?";
     volatile int sentOk, sentErr, pages = -1, tiltStep;
+    volatile long lastLoggedMs;      // when the relay last accepted this watch's panel snapshot
+    private String wk = "";          // this watch's own key: the relay accepts this code only with it
+    private long lastPageMs, pageFlipMs;
+    private boolean pageSeen, pageSaid;
+    private volatile boolean sleeping;
+    private volatile String sleepAsk;
     final Detector det = new Detector();
 
     private SensorManager sm;
@@ -127,12 +139,29 @@ public class WristService extends Service implements SensorEventListener {
         return code;
     }
 
+    /** A long random key made once and kept. Sent with every message; the relay then refuses this code from anyone else. */
+    static String keyFor(Context c) {
+        SharedPreferences sp = c.getSharedPreferences("wrist", MODE_PRIVATE);
+        String k = sp.getString("wk", "");
+        if (k.length() < 32) {
+            byte[] b = new byte[20];
+            new SecureRandom().nextBytes(b);
+            StringBuilder s = new StringBuilder();
+            for (int i = 0; i < b.length; i++) s.append(String.format("%02x", b[i] & 0xff));
+            k = s.toString();
+            sp.edit().putString("wk", k).apply();
+        }
+        return k;
+    }
+
     @Override public IBinder onBind(Intent i) { return null; }
 
     @Override public void onCreate() {
         super.onCreate();
         try { PackageInfo pi = getPackageManager().getPackageInfo(getPackageName(), 0); build = pi.versionName; } catch (Exception e) { build = "?"; }
         code = codeFor(this);
+        wk = keyFor(this);
+        sleptWhy = null;
         try {
             SharedPreferences sp = getSharedPreferences("wrist", MODE_PRIVATE);
             restarts = sp.getInt("starts", 0) + 1;
@@ -298,7 +327,8 @@ public class WristService extends Service implements SensorEventListener {
         try { screen = pm.isInteractive(); } catch (Exception e) { screen = false; }
         return "{\"t\":\"" + type + "\"" + extra + ",\"seq\":" + (++seq) + ",\"b\":\"" + build + "\""
                 + ",\"pose\":" + det.pose + ",\"tilt\":" + Math.round(det.pitchDeg - det.neutralPitch) + ",\"roll\":" + Math.round(det.rollDeg)
-                + ",\"up\":" + ((System.currentTimeMillis() - startedMs) / 1000L) + ",\"mode\":\"" + mode + "\",\"raw\":" + (rawWanted ? 1 : 0)
+                + ",\"up\":" + ((System.currentTimeMillis() - startedMs) / 1000L) + (System.currentTimeMillis() - startedMs < PAIR_MS ? ",\"pw\":" + (startedMs / 1000L) : "")
+                + ",\"mode\":\"" + mode + "\",\"raw\":" + (rawWanted ? 1 : 0)
                 + ",\"err\":" + sentErr + ",\"net\":" + (netUp ? 1 : 0) + ",\"ln\":\"" + diag.link + "\",\"rtt\":" + rttMs
                 + ",\"bat\":" + bat + ",\"screen\":" + (screen ? 1 : 0) + ",\"exempt\":" + (exempt ? 1 : 0) + "}";
     }
@@ -308,7 +338,9 @@ public class WristService extends Service implements SensorEventListener {
     private void sendLoop() {
         int sentStep = 0;
         long lastTilt = 0, lastBeat = System.currentTimeMillis();
+        lastPageMs = startedMs;
         while (running) {
+            if (sleeping) { sleep(sleepAsk != null ? sleepAsk : "page"); break; }   // asked by a page (in a reply) or by a hold on the watch
             String m;
             try { m = queue.poll(50, TimeUnit.MILLISECONDS); } catch (InterruptedException e) { break; }
             if (m != null && !post(m) && m.indexOf("\"t\":\"hb\"") != 1) {
@@ -338,6 +370,12 @@ public class WristService extends Service implements SensorEventListener {
             boolean beat = active || "lock".equals(idleKind);
             if (beat && now - lastBeat > (pages > 0 ? 3000 : 10000)) { post(event("hb", missing.length() > 0 ? ",\"missing\":\"" + missing + "\"" : "")); lastBeat = now; }
             if (rawWanted && !active) goActive("lab");
+            // a page joining or leaving is confirmed on the wrist, once it has held for six seconds (a reconnecting page does not buzz)
+            boolean has = pages > 0 && now - lastOkMs < 15000;   // a page count is only believed while the relay is answering
+            if (has) lastPageMs = now;
+            if (has != pageSeen) { pageSeen = has; pageFlipMs = now; }
+            if (pageSeen != pageSaid && now - pageFlipMs > 6000) { pageSaid = pageSeen; buzz(pageSaid ? BUZZ_JOINED : BUZZ_LEFT); queue.offer(event("buzzed", ",\"why\":\"" + (pageSaid ? "joined" : "left") + "\"")); }
+            if (now - Math.max(lastPageMs, startedMs) > ALONE_MS) { sleep("idle"); break; }
             synchronized (lockGuard) {
                 // resting with a wake-up sensor: once everything is sent, let the processor sleep
                 if (!active && queue.isEmpty() && "wakeup".equals(idleKind) && lock.isHeld()) lock.release();
@@ -354,6 +392,7 @@ public class WristService extends Service implements SensorEventListener {
             c.setConnectTimeout(4000); c.setReadTimeout(4000);
             c.setRequestMethod("POST"); c.setDoOutput(true);
             c.setRequestProperty("Content-Type", "application/json");
+            c.setRequestProperty("X-Wrist-Key", wk);
             c.setFixedLengthStreamingMode(bytes.length);
             OutputStream o = c.getOutputStream(); o.write(bytes); o.close();
             int status = c.getResponseCode();
@@ -368,6 +407,18 @@ public class WristService extends Service implements SensorEventListener {
                 sentOk++; net = "ok"; netDetail = "";
                 int i = reply.indexOf("\"pages\":");
                 if (i >= 0) { try { pages = Integer.parseInt(reply.substring(i + 8).replaceAll("[^0-9].*", "")); } catch (Exception e) { pages = -1; } }
+                if (body.startsWith("{\"t\":\"diag\"")) lastLoggedMs = t1;
+                int bz = reply.indexOf("\"buzz\":[");
+                if (bz >= 0) {
+                    // a pattern sent from a page: wait, buzz, wait, buzz ... in milliseconds, each at most 600
+                    try {
+                        String[] parts = reply.substring(bz + 8, reply.indexOf(']', bz)).split(",");
+                        long[] pat = new long[Math.min(parts.length, 12)];
+                        for (int k = 0; k < pat.length; k++) pat[k] = Math.max(0, Math.min(600, Long.parseLong(parts[k].trim())));
+                        if (pat.length >= 2) { buzz(pat); queue.offer(event("buzzed", ",\"why\":\"page\"")); }
+                    } catch (Exception e) { /* not a pattern */ }
+                }
+                if (reply.indexOf("\"sleep\":1") >= 0 && !body.startsWith("{\"t\":\"sleep\"")) sleeping = true;
                 boolean want = reply.indexOf("\"raw\":1") >= 0;
                 if (want != rawWanted) { rawWanted = want; if (!want) synchronized (rawGuard) { rawN = 0; } }
                 return true;
@@ -379,6 +430,18 @@ public class WristService extends Service implements SensorEventListener {
             if (c != null) c.disconnect();
         }
         return false;
+    }
+
+    /** From the watch's own screen: a one-second hold. */
+    void askSleep(String why) { sleepAsk = why; sleeping = true; }
+
+    /** Stop reading and let the watch rest: said to the relay first, so X and the log know why. Opening Wrist starts it again. */
+    private void sleep(String why) {
+        sleeping = true;
+        buzz(BUZZ_SLEEP);
+        post(event("sleep", ",\"why\":\"" + why + "\""));
+        if (!"hold".equals(why)) sleptWhy = why;   // after a hold the screen stays, saying it is stopped
+        new android.os.Handler(android.os.Looper.getMainLooper()).post(new Runnable() { @Override public void run() { stopSelf(); } });
     }
 
     private void buzz(long[] pattern) {

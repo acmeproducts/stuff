@@ -10,9 +10,10 @@ import android.view.MotionEvent;
 import android.view.View;
 
 /**
- * The Wrist screen is a diagnostics panel, nothing more: three pages that turn by themselves every five seconds
- * (a touch turns the page at once). Everything shown here is also sent to the log.
- * Opening Wrist starts the background reader; holding a finger on the screen stops or restarts it.
+ * The Wrist screen is a diagnostics panel, nothing more: three still pages; a touch turns the page.
+ * Everything shown here is also sent to the log, and the LINK page says when that last happened.
+ * Opening Wrist starts the background reader. Holding a finger on the screen for a second stops or restarts it;
+ * a brush never does. When X puts the watch to sleep, or no page has listened for three minutes, this screen closes itself.
  */
 public class MainActivity extends Activity {
     private static final int GOOD = 0xFF4CC38A, BAD = 0xFFE5534B, WARN = 0xFFE5A23B, TEXT = 0xFFFFFFFF, MUTED = 0xFF9AA4AE;
@@ -31,10 +32,14 @@ public class MainActivity extends Activity {
         startReader();
     }
 
-    @Override protected void onResume() { super.onResume(); page = 0; pageSince = System.currentTimeMillis(); }
+    @Override protected void onResume() {
+        super.onResume(); page = 0; pageSince = System.currentTimeMillis();
+        if (WristService.inst == null && !stopped) startReader();   // opened again after X put it to sleep: start reading
+    }
 
     private void startReader() {
         stopped = false;
+        WristService.sleptWhy = null;
         try { startForegroundService(new Intent(this, WristService.class)); } catch (Exception e) { stopped = true; }
     }
 
@@ -55,8 +60,8 @@ public class MainActivity extends Activity {
             int a = e.getActionMasked();
             if (a == MotionEvent.ACTION_DOWN) downAt = e.getEventTime();
             else if (a == MotionEvent.ACTION_UP) {
-                if (e.getEventTime() - downAt >= 900) {
-                    if (WristService.inst != null) { stopService(new Intent(MainActivity.this, WristService.class)); stopped = true; }
+                if (e.getEventTime() - downAt >= 1000) {
+                    if (WristService.inst != null) { WristService.inst.askSleep("hold"); stopped = true; }
                     else startReader();
                 } else if (WristService.inst == null) startReader();
                 else { page = (page + 1) % TITLE.length; pageSince = System.currentTimeMillis(); }
@@ -81,7 +86,6 @@ public class MainActivity extends Activity {
         @Override protected void onDraw(Canvas c) {
             cv = c; u = getHeight() / 100f; cx = getWidth() / 2f;
             long now = System.currentTimeMillis();
-            if (now - pageSince > 5000) { page = (page + 1) % TITLE.length; pageSince = now; }
             WristService s = WristService.inst;
             p.setTextAlign(Paint.Align.CENTER);
 
@@ -89,6 +93,7 @@ public class MainActivity extends Activity {
             c.drawText(TITLE[page] + "  " + (page + 1) + "/" + TITLE.length, cx, 13f * u, p);
             p.setFakeBoldText(false);
 
+            if (s == null && WristService.sleptWhy != null && !stopped) { finish(); return; }   // put to sleep by X or left alone: back to the watch face
             if (s == null) {
                 p.setColor(BAD); p.setTextSize(7f * u);
                 c.drawText(stopped ? "Reader stopped" : "Starting", cx, 46f * u, p);
@@ -107,9 +112,9 @@ public class MainActivity extends Activity {
                 boolean ok = "ok".equals(s.net);
                 row("", ok ? (s.pages == 0 ? "X is not open" : "sending to X") : s.net + (s.net.endsWith("connecting") ? "…" : ""), ok ? (s.pages == 0 ? WARN : GOOD) : (s.net.endsWith("connecting") ? WARN : BAD));
                 row("link", d.linkName(), "none".equals(d.link) ? BAD : d.validated ? GOOD : WARN);
-                row("Wi-Fi radio", d.wifiOn ? "on" : "off", TEXT);
                 row("round trip", s.rttMs < 0 ? "–" : s.rttMs + " ms", s.rttMs < 0 ? MUTED : s.rttMs < 400 ? GOOD : s.rttMs < 1200 ? WARN : BAD);
                 row("sent", s.sentOk + " ok, " + s.sentErr + " failed", s.sentErr > s.sentOk ? BAD : TEXT);
+                row("logged", s.lastLoggedMs == 0 ? "not yet" : new java.text.SimpleDateFormat("HH:mm", java.util.Locale.US).format(new java.util.Date(s.lastLoggedMs)), s.lastLoggedMs == 0 ? WARN : GOOD);
                 if (s.netDetail.length() > 0) row("", s.netDetail, WARN);
             } else if (page == 1) {
                 row("battery", d.bat + "%" + (d.charging ? " charging" : ""), d.bat >= 0 && d.bat < 15 ? BAD : TEXT);
@@ -118,7 +123,8 @@ public class MainActivity extends Activity {
                 row("watch idle", d.idle ? "deep" : d.lightIdle ? "light" : "no", d.idle ? BAD : d.lightIdle ? WARN : GOOD);
                 row("standby", d.bucketName(), d.bucket > 30 ? BAD : d.bucket > 10 ? WARN : GOOD);
                 row("longest gap", ago(s.longestSilenceMs), s.longestSilenceMs > 60000 ? BAD : s.longestSilenceMs > 20000 ? WARN : GOOD);
-                row("screen", d.screen ? "on" : "off", TEXT);
+                row("Wi-Fi radio", d.wifiOn ? "on" : "off", TEXT);
+                row("pause if unused", d.unused == 1 ? "off" : d.unused == 0 ? "ON" : "unknown", d.unused == 1 ? GOOD : d.unused == 0 ? WARN : MUTED);
             } else {
                 row("state", s.mode + (s.rawWanted ? ", streaming" : ""), TEXT);
                 row("running", ago(s.upSeconds() * 1000L), TEXT);
@@ -130,7 +136,7 @@ public class MainActivity extends Activity {
                 row("", s.build + "  ·  API " + d.sdk, MUTED);
             }
             p.setColor(MUTED); p.setTextSize(3.8f * u);
-            c.drawText("hold to stop", cx, 93f * u, p);
+            c.drawText("hold 1 s to stop", cx, 93f * u, p);
             postInvalidateDelayed(400);
         }
     }

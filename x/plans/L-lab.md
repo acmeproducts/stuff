@@ -47,6 +47,8 @@ Owner, 2026-11-18:
 
 **Device gate:** after a W1 session, the owner opens Results and sees that session, how it ended, and its battery at both ends; and the Signals table shows his past trials.
 
+**Built 2026-11-18 in `lab-r6`, lab only so far.** The Results card shows watch sessions (start, minutes, link, battery at both ends, percent an hour once a session passes ten minutes, longest silence, how it ended), the last panel snapshot, and the Signals table read from every saved trial. Read aloud speaks the newest rows. Sessions are recorded from relay `w4` on; earlier runs are in the trials only.
+
 ### L2 — Scored session (walk)
 **Question:** what are each signal's hit rate and wrong-fire rate during X-like use?
 

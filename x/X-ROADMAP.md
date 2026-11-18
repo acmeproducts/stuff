@@ -64,10 +64,10 @@ A release is the smallest whole thing that can be used and judged. Status: built
 
 | Release | Delivers | Needs first | Gate | Stage | Status |
 |---|---|---|---|---|---|
-| **W1** Session | still panel; sleep from the page; sleep by itself; "logged at"; hardened pairing; code moves to `x/wrist/` | — | 2 | crawl | **next** |
-| **L1** Results table | what the watch reported and each signal's record, in a table | W1 (shares the relay change) | 4 | crawl | next |
+| **W1** Session | still panel; sleep from the page; sleep by itself; "logged at"; hardened pairing; buzz from the page; code moved to `x/wrist/` | — | 2 | crawl | **built, lab only; awaiting the owner's watch** |
+| **L1** Results table | what the watch reported and each signal's record, in a table | W1 (shares the relay change) | 4 | crawl | **built, lab only; awaiting the owner** |
 | **X1** Born | the X page: listen, the nine steps, five commands by voice, words kept on the device and synced to GitHub, hand time | W1 for the watch's session; works without it | 3 | crawl | next |
-| **S1** Camera probe | camera opens, hand found or lost, frames a second, on each device | — | 4 | crawl | next |
+| **S1** Camera probe | camera opens, hand found or lost, frames a second, on each device | — | 4 | crawl | **built; the finder itself is unverified until it runs on the owner's phone** |
 | **V1** Teach on the watch | do it three times, name it, collision check; replaces the OK card | L1 | 4 | crawl | later |
 | W2 Battery truth | percent an hour by link, from real sessions; 30-minute freeze check; Wi-Fi-only run | W1, L1 | 2 | walk | later |
 | L2 Scored session | prompted and unprompted scoring: hit rate and wrong fires per signal | V1 | 4 | walk | later |
@@ -82,7 +82,7 @@ A release is the smallest whole thing that can be used and judged. Status: built
 | X2 Lists | a word brings many items; more, back, glide | X1, V3 | 6 | walk | later |
 | X3 Threads | several at once; announce the ready; library | X1 | 6 | walk | later |
 | W3 Recognition on the watch | the watch sends results, not raw rows (**needs the owner's yes: C1**) | W2, V1 | 6 | walk | later |
-| W4 Buzz | one short vibration when X has something | X3 | 6 | walk | later |
+| W4 Buzz language | which buzzes the owner can tell apart and what each means (carrier and Lab card built in W1) | W1 | 6 | walk | later |
 | X4 Sentences and contexts | words combine; contexts with their own signals and rules; context inferred | X 1.0 | — | run | later |
 | X5 Makes and analyses | analysis on frozen evidence; building by voice; objects and games | X 1.0, L3 | — | run | later |
 | X6 Acts for you | finding and buying, with an explicit yes | X5 | — | run | later |

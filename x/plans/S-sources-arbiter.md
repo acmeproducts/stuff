@@ -69,6 +69,11 @@ The owner's five-stage camera outline from the other session maps onto S1, S2, V
 
 **Gate:** a frame rate and a found-rate for each device in the results table. Below 15 frames a second on the S23, the camera source stops here and the plan says so.
 
+**Built 2026-11-18 in `lab-r6` as the card "Camera: hand probe".**
+- Fact (lab): the card opens the camera, loads Google's hand finder (version 1.2.0, pinned), draws 21 points and the links between them, shows found or lost, frames a second, percent of time found and milliseconds a frame, and records found and lost times and the rate in its trial. The picture is never recorded or sent.
+- Fact (lab): the page's calls match the real library; this was run against a local copy of it.
+- **Unverified:** the finder itself has not run here. The build machine cannot reach the address the model is downloaded from, so the first real run is on the owner's phone. If it fails the card says which part failed: the camera, the program, or the model.
+
 ### S2 — Hand numbers (walk)
 **Scope:** a live strip of curl, facing and roll, like the Lab's tilt, roll and turn strip. Recorded with each trial.
 **Gate:** the owner holds five different hand shapes and the strip tells them apart by eye.

@@ -26,6 +26,7 @@ final class Diag {
     /* power */
     int bat = -1; boolean charging, saver, idle, lightIdle, restricted, exempt, screen;
     int bucket = -1;
+    int unused = -1;
     /* sensors */
     boolean gravity, gyro, linear, wakeAccel;
     /* watch */
@@ -59,6 +60,8 @@ final class Diag {
             d.screen = pm.isInteractive();
         } catch (Exception e) { /* leave defaults */ }
         try { d.restricted = ((ActivityManager) c.getSystemService(Context.ACTIVITY_SERVICE)).isBackgroundRestricted(); } catch (Exception e) { d.restricted = false; }
+        // "Pause app activity if unused": 1 = Wrist is exempt (will not be paused), 0 = it may be paused, -1 = the watch would not say
+        try { d.unused = c.getPackageManager().isAutoRevokeWhitelisted() ? 1 : 0; } catch (Throwable e) { d.unused = -1; }
         try { d.bucket = ((UsageStatsManager) c.getSystemService(Context.USAGE_STATS_SERVICE)).getAppStandbyBucket(); } catch (Exception e) { d.bucket = -1; }
         try {
             SensorManager sm = (SensorManager) c.getSystemService(Context.SENSOR_SERVICE);
@@ -82,7 +85,7 @@ final class Diag {
 
     /** The part that, when it changes, is worth a fresh log line. */
     String key() {
-        return link + validated + wifiOn + charging + saver + idle + lightIdle + restricted + exempt + screen + bucket;
+        return link + validated + wifiOn + charging + saver + idle + lightIdle + restricted + exempt + screen + bucket + unused;
     }
 
     private static String s(String v) { return "\"" + v.replace("\\", "/").replace("\"", "'") + "\""; }
@@ -93,6 +96,6 @@ final class Diag {
                 + ",\"bat\":" + bat + ",\"chg\":" + i(charging) + ",\"saver\":" + i(saver) + ",\"idle\":" + i(idle) + ",\"lightIdle\":" + i(lightIdle)
                 + ",\"restricted\":" + i(restricted) + ",\"exempt\":" + i(exempt) + ",\"bucket\":" + bucket + ",\"screen\":" + i(screen)
                 + ",\"sens\":" + s((gravity ? "g" : "-") + (gyro ? "y" : "-") + (linear ? "a" : "-") + (wakeAccel ? "w" : "-"))
-                + ",\"fw\":" + s(firmware) + ",\"sdk\":" + sdk;
+                + ",\"unused\":" + unused + ",\"fw\":" + s(firmware) + ",\"sdk\":" + sdk;
     }
 }

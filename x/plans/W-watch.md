@@ -36,7 +36,8 @@ Owner, 2026-11-18:
 5. **Proof of logging.** The panel shows "logged hh:mm". The page shows when the watch last logged.
 6. The power page also shows whether Wrist is exempt from "pause if unused". (Theory: Android's unused-app flag is the same switch Samsung shows. To be confirmed on the watch.)
 7. Every sleep is logged with its reason: from the page, alone for three minutes, or held.
-8. **Hardened pairing (D22).** Owner, 2026-11-18: "why wouldn't we just do that". The six-digit code works once per device and only for two minutes after the watch shows it. The relay then hands the watch and that browser each a long secret, kept on each; from then on only the secrets are accepted. Wrong guesses are limited. A new device is added by showing a fresh code on the watch's link page.
+8. **Hardened pairing (D22).** Owner, 2026-11-18: "why wouldn't we just do that". As built: the watch makes a long key once and sends it with every message; from its first message the relay refuses that code from anyone without the key. A browser needs a secret to listen. The relay hands one out only in the two minutes after Wrist is started on the watch, to one browser per start, and only to a browser that already knows the six digits. Five wrong tries in a minute from one address are cut off. A second browser is added by stopping and starting Wrist. An older watch build (no key) keeps working as before.
+9. **Buzz from the page** (owner, 2026-11-18: "that would be a very interesting thing to explore, especially things like being able to confirm being connected to the app and disconnected … maybe three quick buzzes or a zigzag buzz means a specific kind of exception case"). A page can send any pattern; the watch plays it and reports that it did. Built in: two short when a page starts listening, one long when the last page leaves (each only after six seconds, so a reconnecting page does not buzz), long-then-short when the watch goes to sleep. Fact: before this build the only buzz was 35 ms on a recognised swing.
 
 **Build sequence**
 | Step | What | Check |
@@ -60,6 +61,18 @@ Owner, 2026-11-18:
 
 **Not in W1:** waking the watch from X (D14); any change to what is recognised.
 
+**Built 2026-11-18, lab only so far**
+| Check | Result |
+|---|---|
+| Step 0: builds from `x/wrist/` | watch build 7, relay deploy 10, 16/16 live relay checks |
+| New relay checks written first and seen to fail on `w3` | 13 failed, as expected |
+| Relay `w4`, local | 33 of 33 relay checks pass (16 old, 17 new) |
+| Lab `lab-r6`, local, phone-sized browser | 73 of 73 page checks pass (54 old, 19 new) |
+| Watch `turn07` | compiles against the SDK; detector checks 16/16 unchanged |
+| On the owner's watch | **not yet run** |
+
+A real layout fault was found by the new checks and fixed: with a long status line the Watch off and Code buttons were pushed off the right edge of the phone screen. The Code button had the same fault in `lab-r5`.
+
 ### W2 — Battery truth (walk)
 **Question:** what does an X session cost the watch per hour, on each link?
 
@@ -80,10 +93,14 @@ Owner, 2026-11-18:
 
 **Gate:** on Bluetooth alone, hit rate and wrong fires match the page's within one in twenty; battery per hour is no worse than W2's.
 
-### W4 — Buzz (walk)
-**Scope:** one short vibration when X has something ready (a thread finished). The word travels in the relay's reply like sleep does. Sparing by rule: one pattern, never repeated for the same thing.
+### W4 — Buzz language (walk)
+The carrier is built in W1: any page can send a pattern, and the Lab's **Buzz the watch** card offers six to feel (one short, two short, three quick, zigzag, one long, long then short).
 
-**Gate:** with the phone face down, the owner knows a thread finished.
+**Question:** which patterns can the owner tell apart on the wrist without looking, and what should each mean?
+
+**Scope:** from the owner's notes on the Buzz card, fix a small set: connected, disconnected, X has something ready, something went wrong. X then uses them. Sparing by rule: never repeated for the same thing.
+
+**Gate:** with the phone face down, the owner names what each of four buzzes meant, four times out of four.
 
 ## 6. Risks
 | Risk | Held by |
@@ -91,4 +108,5 @@ Owner, 2026-11-18:
 | The three-minute rule sleeps the watch while the owner is still setting up | the countdown starts only after a page has listened at least once in this run, or after three minutes from start |
 | A sleep word arrives twice | the relay hands it out once per request |
 | A cleared browser loses its secret | pairing again takes the same six digits as today; nothing else is lost |
-| The move to `x/wrist/` breaks a build | step 0 is its own commit with nothing else in it |
+| The move to `x/wrist/` breaks a build | step 0 was its own commit; all three workflows ran green from the new paths (build 7, relay deploy 10, 16/16 live) |
+| Someone posts to a code with a key of their own before the real watch ever uses it, locking that watch out | known limit, not fixed: it denies service but exposes nothing. The code is random and used from first start. |

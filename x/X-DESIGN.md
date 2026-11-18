@@ -39,7 +39,7 @@ Three parts: the decisions, the logical design (what the pieces are), and the ph
 | D18 | X 1.0 is the end of the walk stage: the nine steps with learning, lists and threads, with taught signals and the arbiter, hand time measured. Run-stage work comes after 1.0. | P4 | Replaces my earlier cut of "one use case". The learning itself is the product. |
 | D19 | All work lives under `x/`. The watch, relay and Lab code moved from `wrist/` at the repository root to `x/wrist/` as the first step of release W1 (done 2026-11-18). | P12 | One self-contained home. Moving it alone would only spend build runs. |
 | D21 | The build learns from use. Each release starts by reading the synced memory and journal, and its plan says what was found. | P20, P17 | Learning in function. Otherwise only X's contents grow and X itself does not. |
-| D22 | Pairing is hardened in release W1. The six-digit code works once per device, for two minutes after the watch shows it. The relay then gives the watch and that browser each a long secret; after that only the secrets are accepted. Wrong guesses are limited. | P18 | Owner, 2026-11-18: "why wouldn't we just do that". **Fact:** today nothing limits guesses at the code. W1 already changes watch, relay and page together, so it costs no extra watch build and no extra touch. |
+| D22 | Pairing is hardened in release W1. The watch sends a long key of its own with every message, and the relay then refuses its code from anyone else. A browser needs a secret to listen; the relay hands one out only in the two minutes after Wrist is started, to one browser per start that already knows the six digits. Wrong tries are limited. | P18 | Owner, 2026-11-18: "why wouldn't we just do that". **Fact:** today nothing limits guesses at the code. W1 already changes watch, relay and page together, so it costs no extra watch build and no extra touch. |
 | D20 | Targets: a signal is fit for X at 9 hits in 10 and at most 1 wrong fire in 10 minutes of use; a 30-minute session has at most 5 touches; the watch costs at most 10% an hour. | P17 | Numbers to argue with. Mine, to be corrected by evidence. |
 
 ## 3. Changes that would be architecture, not made, each needing the owner's explicit yes
@@ -117,7 +117,7 @@ Additions inside the standing architecture, by release (no new component in any 
 
 | Release | Relay | Watch | Pages |
 |---|---|---|---|
-| W1 | carries "sleep" in its reply; reports when the watch last logged; issues long secrets and limits guesses | still panel; sleeps on the word or after 3 minutes alone; "logged at" line; keeps its secret | Lab: Watch off control, last-logged line; keeps its secret |
+| W1 | carries "sleep" and buzz patterns in its reply; reports when the watch last logged; issues secrets and limits guesses | still panel; sleeps on the word or after 3 minutes alone; "logged at" line; sends its key; plays buzz patterns | Lab: Watch off control, last-logged line; keeps its secret; Buzz card |
 | L1 | keeps each watch's snapshots and session summaries, retrievable | none | Lab: results table |
 | X1 | serves `/x`; accepts X's event log | none | X page |
 | W3 (needs C1) | passes templates to the watch | recognises on the watch | none |

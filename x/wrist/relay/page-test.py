@@ -41,7 +41,7 @@ def sweep(p0, r0, p1, r1, seconds):
         feed(p0 + (p1 - p0) * f, r0 + (r1 - r0) * f, 0.1, gyro=1.0)
 
 with sync_playwright() as pw:
-    b = pw.chromium.launch(executable_path='/usr/bin/google-chrome', args=['--no-sandbox', '--use-fake-ui-for-media-stream'])
+    b = pw.chromium.launch(executable_path='/usr/bin/google-chrome', args=['--no-sandbox', '--use-fake-ui-for-media-stream', '--use-fake-device-for-media-stream'])
     pg = b.new_page(viewport={'width': 412, 'height': 915}, device_scale_factor=2, has_touch=True, is_mobile=True)
     errors = []
     pg.on('pageerror', lambda e: errors.append(str(e)))
@@ -52,7 +52,7 @@ with sync_playwright() as pw:
     check('first visit asks for the watch code', pg.locator('#pair.show').count() == 1)
     pg.fill('#code', code)
     pg.wait_for_function("document.getElementById('statusText').textContent.indexOf('Waiting for the watch')===0", timeout=8000)
-    check('grid shows thirteen concepts, Keepers first', pg.locator('.tile').count() == 13 and pg.locator('.tile').first.get_attribute('data-id') == 'keepers', pg.locator('.tile').count())
+    check('grid shows sixteen concepts, Keepers first', pg.locator('.tile').count() == 16 and pg.locator('.tile').first.get_attribute('data-id') == 'keepers', pg.locator('.tile').count())
     check('every concept starts unrated', pg.locator('.chip.keep,.chip.shop,.chip.dump').count() == 0)
     post({'t': 'hb', 'b': 'turn04-test'})
     pg.wait_for_function("document.getElementById('statusText').textContent==='Watch connected'", timeout=5000)
@@ -234,6 +234,51 @@ with sync_playwright() as pw:
     w2 = [(e['what'], e.get('why', e.get('dir', ''))) for e in h2.get('events', []) if e['src'] == 'concept']
     check('v2 trial records each start and stop it decided', ('scroll start', 'down') in w2 and ('scroll stop', 'level') in w2, w2)
 
+    # ---- lab-r6: last logged, Watch off, results table, camera probe, buzz
+    pg.goto(base + '/?linksecs=5'); time.sleep(0.8)
+    post({'t': 'diag', 'why': 'minute', 'b': 'turn07-test', 'up': 30, 'bat': 77, 'ln': 'bt', 'restricted': 0, 'sens': 'gya-', 'unused': 1, 'rtt': 140}); time.sleep(0.6)
+    check('page shows when the watch last logged', 'watch logged' in txt('#meta'), txt('#meta'))
+    box = pg.locator('#offBtn').bounding_box(); cx, cy = box['x'] + box['width'] / 2, box['y'] + box['height'] / 2
+    cb = pg.locator('#codeBtn').bounding_box()
+    check('Watch off and Code stay on the screen when the status line is long', cb['x'] + cb['width'] <= 412 and box['x'] > 150, (round(box['x']), round(cb['x'] + cb['width'])))
+    pg.mouse.move(cx, cy); pg.mouse.down(); time.sleep(0.3); pg.mouse.up(); time.sleep(0.4)
+    check('a brush on Watch off does nothing', post({'t': 'hb', 'b': 'turn07-test', 'up': 31, 'bat': 77, 'ln': 'bt'}).get('sleep') != 1)
+    pg.mouse.move(cx, cy); pg.mouse.down(); time.sleep(1.25); pg.mouse.up(); time.sleep(0.4)
+    r = post({'t': 'hb', 'b': 'turn07-test', 'up': 33, 'bat': 77, 'ln': 'bt'})
+    check('holding Watch off for a second tells the watch to sleep', r.get('sleep') == 1, str(r) + ' · ' + txt('#statusText'))
+    post({'t': 'sleep', 'why': 'page', 'b': 'turn07-test', 'up': 34, 'bat': 76, 'ln': 'bt'}); time.sleep(0.5)
+    check('page says the watch is off and why', 'Watch is off' in txt('#statusText') and 'from a page' in txt('#statusText'), txt('#statusText'))
+    pg.click('.tile[data-id=results]'); time.sleep(3.0)
+    check('results: the session, battery at both ends, how it ended', 'turned off from a page' in txt('#resW') and '\u219276' in txt('#resW'), txt('#resW')[:220])
+    check('results: the last panel snapshot', 'background allowed' in txt('#resP') and 'Pause if unused: off' in txt('#resP'), txt('#resP')[:220])
+    check('results: signals table lists the trials already saved', 'What the watch sees' in txt('#resS') and 'Reading' not in txt('#resS'), txt('#resS')[:200])
+    check('results card hides the sensor strip', pg.locator('#active.nostrip').count() == 1)
+    if shot: pg.screenshot(path=shot + '-results.png')
+    before = len(json.loads(http('/trials')))
+    pg.click('#closeBtn'); time.sleep(0.6)
+    check('results card saves no trial', len(json.loads(http('/trials'))) == before)
+    ev("""() => { let n = 0; window.__labTestHand = () => { n++; const on = n > 20 && n < 200; const pts = []; for (let i = 0; i < 21; i++) pts.push({x: 0.3 + 0.02 * i, y: 0.4, z: 0}); return {landmarks: on ? [pts] : [], handedness: on ? [[{categoryName: 'Left'}]] : []}; }; }""")
+    pg.click('.tile[data-id=camera]'); time.sleep(2.4)
+    check('camera card: a hand is found and its 21 points are drawn', txt('#cmState') == 'found' and pg.locator('.camview canvas').get_attribute('data-points') == '21', txt('#cmState'))
+    check('camera card: frames a second and found time are shown', txt('#cmFps').isdigit() and int(txt('#cmFps')) > 5 and txt('#cmFound').isdigit(), txt('#cmFps') + ' / ' + txt('#cmFound'))
+    if shot: pg.screenshot(path=shot + '-camera.png')
+    time.sleep(2.6)
+    check('camera card: a lost hand is noticed', txt('#cmState') == 'lost', txt('#cmState'))
+    check('camera card: says plainly which part could not start here', 'Could not start the hand finder' in txt('#cmMsg'), txt('#cmMsg')[:120])
+    pg.click('#closeBtn'); time.sleep(0.8)
+    cams = sorted(x['key'] for x in json.loads(http('/trials')) if '-camera-' in x['key'] and x['key'].endswith(':000'))
+    hcam = json.loads(http('/trial/' + cams[-1])) if cams else {}
+    wc = [e['what'] for e in hcam.get('events', []) if e['src'] == 'concept']
+    check('camera trial records found and lost, and no picture', 'hand found' in wc and 'hand lost' in wc and hcam.get('rawRows') == 0, wc)
+    ev("() => { delete window.__labTestHand }")
+    pg.click('.tile[data-id=buzz]'); time.sleep(0.4)
+    pg.click('.buzzgrid button[data-n="Three quick"]'); time.sleep(0.5)
+    r = post({'t': 'hb', 'b': 'turn07-test', 'up': 40})
+    check('buzz card: the pattern goes to the watch', r.get('buzz') == [0, 30, 60, 30, 60, 30], r)
+    post({'t': 'buzzed', 'b': 'turn07-test', 'up': 41}); time.sleep(0.5)
+    check('buzz card: shows that the watch buzzed', 'felt' in txt('#bzState'), txt('#bzState'))
+    pg.click('#closeBtn'); time.sleep(0.5)
+
     # ---- an old watch app cannot stream: the card says so
     pg.reload(); time.sleep(0.8)
     post({'t': 'hb', 'b': 'turn03-b3'}); time.sleep(0.4)
@@ -243,6 +288,24 @@ with sync_playwright() as pw:
     check('ratings survive a reload', 'Keep' in txt('.tile[data-id=see] .foot') if pg.locator('#active.show').count() == 0 else True)
     if shot:
         pg.click('#closeBtn'); time.sleep(0.4); pg.click('.tile[data-id=poses]'); feed(0, 0, 0.3); feed(0, -90, 1.1); pg.screenshot(path=shot + '-poses.png')
+    # ---- a watch on turn07 hardens its code: the page pairs by itself while the watch has just been started
+    hard = '737373'
+    def postk(o):
+        rq = urllib.request.Request(base + '/e/' + hard, data=json.dumps(o).encode(), method='POST', headers={'x-wrist-key': 'page-test-key-0123456789'})
+        return json.loads(urllib.request.urlopen(rq, timeout=10).read().decode())
+    postk({'t': 'hb', 'b': 'turn07-test', 'up': 300})
+    pg.goto(base + '/?code=' + hard); time.sleep(1.5)
+    check('hardened code, watch not just started: page says how to pair', 'Not paired yet' in txt('#statusText'), txt('#statusText'))
+    nonce = int(time.time())
+    postk({'t': 'hb', 'b': 'turn07-test', 'up': 2, 'pw': nonce})
+    pg.reload(); time.sleep(1.5)
+    postk({'t': 'hb', 'b': 'turn07-test', 'up': 4, 'pw': nonce})
+    pg.wait_for_function("document.getElementById('statusText').textContent.indexOf('Watch connected')===0", timeout=6000)
+    check('hardened code: the page paired by itself and keeps its secret', ev("() => (localStorage.getItem('wrist_k_737373') || '').length") >= 32)
+    pg.reload(); time.sleep(1.3)
+    postk({'t': 'hb', 'b': 'turn07-test', 'up': 9})
+    pg.wait_for_function("document.getElementById('statusText').textContent.indexOf('Watch connected')===0", timeout=6000)
+    check('later visit: connects with its secret, no window needed', True)
     check('no script errors on the page', not errors, errors)
     b.close()
 
