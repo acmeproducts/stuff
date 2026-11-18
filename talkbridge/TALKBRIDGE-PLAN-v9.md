@@ -1,5 +1,5 @@
-<!-- TALKBRIDGE-PLAN v21.126.0 -->
-# TALKBRIDGE MASTER PLAN v21.126.0
+<!-- TALKBRIDGE-PLAN v21.127.0 -->
+# TALKBRIDGE MASTER PLAN v21.127.0
 
 **Location:** `talkbridge/TALKBRIDGE-PLAN-v9.md` in `acmeproducts/stuff`.
 **Owner:** Confi — sole decision-maker, runs every device gate.
@@ -151,7 +151,7 @@ the directory release and IndexedDB each moved one turn later; nothing was dropp
 | 30·pre-base | byte-identical snapshot of accepted 29·post-ship | **BANKED 2026-10-22 BY REFERENCE** — the accepted `talkbridge-app/bridge-turn29-post-ship.html` (sha `c1c417e21dd1`), immutable under §0c; 30·base's assembler sha-checks it | — |
 | 30·base | **THE VIDEO BOX (§7.22)** — owner 2026-10-22: "it should be the tall 9:16 that's draggable"; then the strip you pull down (2026-10-27) | **ACCEPTED 2026-11-11 · candidate 4 · sha `a4155be904a9` · tb-sw5.js · relay v6.17 (owner: "video approved")** — the strip you pull down (VB-2), the camera back after dictation (CV-1), the room's name to the microphone (NM-1), the Android strip teal; Jenny's instance with it. Candidate history: c1 rejected (G77); c2 tested (three findings → c3); c3 "works … not crazy about it" (G79) → c4 (§7.22; changelog v21.111.0–v21.117.0) | **https://acmeproducts.github.io/stuff/talkbridge-app/bridge-turn30-base.html** (the folder's face forwards here) · Jenny: …/bridge-turn30-base-jenny.html |
 | 30·pre-ship | **chats in IndexedDB — TS-1 (§7.24)**; input: accepted 30·base | **ACCEPTED 2026-11-16 · candidate 1 · sha `4dddf3c35284` · tb-sw5.js · relay v6.17 (owner: "it seems to test alright")** — chats move from localStorage to IndexedDB under an in-memory copy; device run: both phones mode idb, no failures (v21.121.0) | **https://acmeproducts.github.io/stuff/talkbridge-app/bridge-turn30-pre-ship.html** |
-| 30·ship | beta readiness (moved from 30·pre-ship, owner 2026-10-27) — **seven separate fixes (§7.25)**: B-11 build labels, B-9 (a) room card X, (b) camera-off icon, (c) rail unread, (d) ring on screen, (e) a tap during a call, B-12 creator-rights key | **CANDIDATE 1 · BUILT 2026-11-16 · relay v6.17 (unchanged) · tb-sw5.js (unchanged) — awaiting the owner's two-phone device gate and the language sweep** | **https://acmeproducts.github.io/stuff/talkbridge-app/bridge-turn30-ship.html** |
+| 30·ship | beta readiness (moved from 30·pre-ship, owner 2026-10-27) — **seven separate fixes (§7.25)**: B-11 build labels, B-9 (a) room card X, (b) camera-off icon, (c) rail unread, (d) ring on screen, (e) a tap during a call, B-12 creator-rights key | **CANDIDATE 2 · BUILT 2026-11-18 · relay v6.17 (unchanged) · tb-sw5.js (unchanged) — c1 tested by the owner 2026-11-18: the name cut with a tap for the whole name (TN-1), the count kept until the room is selected (RL-1); awaiting the owner's two-phone device gate and the language sweep** | **https://acmeproducts.github.io/stuff/talkbridge-app/bridge-turn30-ship.html** |
 
 Every accepted or built stage carries its live address here and in the ledger; a row without a link is not built.
 
@@ -2163,6 +2163,8 @@ Green means allowed to push. It never means done.
 ---
 
 ## 10 · CHANGE LOG
+
+**v21.127.0 · 2026-11-18.** 30·ship candidate 2 (§7.25 "Candidate 2"; the owner after testing c1): TN-1 — a card's room name is cut to a fixed length ("…") and a tap shows it whole, so the bell and the key sit right after it; RL-1 — the count no longer clears when the rail closes, only when the room is selected (its card, rail or home, or a notification), when the partner's message turns to the read check; with the rail closed the home card shows the count. Delta reviewed independently before code (a projection also marks the room; 14 units, not 18; overflow tappable; dir=auto). next.html → this page.
 
 **v21.126.0 · 2026-11-16.** 30·ship candidate 1 (§7.25 "Built"; owner: "go"): seven separate parts on the accepted 30·pre-ship page — BL-1 every visible build label reads one build record; MC-1 a muted room keeps its X, the bell beside the name; CI-1 the camera-off icon keeps its body; RL-1 a message under the open rail stays unread until the rail closes over the room; RG-1 a call rings on screen whenever the app is on screen (healed on the ring path only, logged un-healed first; the OS call card and the menus close); RT-1 a notification tapped during a call never leaves it; GK-1 the creator-rights key with its end date (21 languages). Spec reviewed independently before code (RL-1's leave-path flush, RG-1's scope and double alert, BL-1's third label and date, RT-1's starting call — all corrected). next.html → this page.
 
@@ -6403,6 +6405,58 @@ clears; (5) open the room menu (…), even a colour picker, then call it: the ri
 card left; (6) in a call, tap a notification for another room: the call stays; (7) a room created with initiator status shows a
 key; tap it: the end date and days left. Then THE LANGUAGE SWEEP (the 30·ship gate since 2026-10-07): each offered language with
 English, two phones. The builder reads `rg_ring_check` / `rg_healed` / `rl_*` / `rt_held` from the device log.
+
+### Candidate 2 (owner 2026-11-18, after testing c1)
+
+**Owner:** "2+7. room name can be fixed characters with truncated... and tap to show full name so mute icon and key icon can be
+directly to the left of the room name" — "4. the count must not clear when the left rail closes the count only clears when that
+room is selected and therefore the delivered message indicator turns to green check mark. furthermore if the rail is closed the
+room card should be on the home screen with the number of messages missed shown".
+
+**TN-1 (new part, `tn1-room-name.js`, before MC-1) — the card's room name is cut to a fixed length.** Wraps `roomCardHtmlCore`
+INNERMOST (MC-1 and GK-1 wrap it after): the name `roomTitle(r)` is measured in display units — one per grapheme
+(`Intl.Segmenter` where present, else code points), two for a wide (CJK / Hangul / kana / fullwidth) one — and a name over
+14 units is cut at 13 and ends in "…". The raw name is cut, then escaped; the cut name is `<span class="rc2-nm" dir="auto">`; the bell (MC-1) and the key
+(GK-1) sit directly before it inside `.rc2-name`, so they stay beside the name whatever its length (the line's own CSS ellipsis
+stays as a safety net). CORRECTED BY THE OWNER the same day, before c2 was published: "The mute bell and creator-rights key sit
+right AFTER the name" — the bell and then the key follow the name; the name line becomes a row in which the name text alone
+shrinks (its own span), so an icon is never clipped. A tap on the name line shows the full name in a toast and does not open the room when the name was cut OR the
+line still overflows in pixels (wide letters); a name that fits opens the room as before. Wraps `wireRoomCards`. Card for a name that fits: the original's output byte for byte.
+
+**RL-1 changed — the count clears only when the room is SELECTED.** A message that arrives while the rail is open over the room
+makes the room PENDING (`RL.pending[room]`). While pending — rail open or closed — the room is treated as not looked at: its
+`ev-seen` is not sent, `ev-open` goes as `events-sync`, read receipts wait. Closing the rail acknowledges nothing (c1's flush is
+removed). The relay keeps the messages unseen, so the count stays: on the room's card in the rail and, with the rail closed, on the
+home screen's card for that room (home cards come from the relay's projection; a muted room shows none, as today). SELECTED =
+the room entered by the person: its card tapped (rail or home) — `enterRoom(room)` — or a notification for it tapped —
+`cr3RouteEvent(room)`. RL-1 wraps both: the pending mark is cleared BEFORE the original runs, so the original's own explicit open
+(`ev-open`; the relay marks the room's unseen set seen) goes through; for the room already on screen (the original returns early
+without rendering) RL-1 then runs `sendReadReceipts()` so the partner's ticks turn to the read check. A rail opened and closed
+with nothing arriving changes nothing. The buzz stays (rail open only). Not persisted: a reload clears the pending mark.
+
+**REVIEW 2026-11-18 (independent, before code):** confirmed every acknowledge path goes through `cr3Send` / `sendReadReceipts`
+(so the hold covers them), that clearing the mark before `enterRoom` / `cr3RouteEvent` puts the explicit open and the receipts on
+the wire in every case, that the cards read the relay's projection (local zeroing never shows), that the home card shows the
+room, that RT-1 is the outer route wrap and that TN-1's markup replacement is safe for MC-1, GK-1 and P6. Corrected: (1) the
+pending mark ALSO comes from a projection showing the room waiting while the rail is open (a message that arrived while the
+screen was off never produces a held `ev-seen`); (2) 18 units overflowed a 320 px rail with both icons — the limit is 14, and a
+name line that still overflows in pixels is tappable too; (3) `dir="auto"`, combining marks never split, a pictograph counts 2,
+an unexpected card markup is returned unchanged. Stated by owner ruling, not changed: replying in a pending room does not clear
+it (the reviewer recommended that a reply count as selection; the owner's words are "only clears when that room is selected").
+Selection also covers a call accepted from another room, an invite link, a join and a create (all enter the room).
+
+### Built (30·ship candidate 2, 2026-11-18)
+TN-1 `tn1-room-name.js` (new, second in the part order — the first `roomCardHtmlCore` wrap); RL-1 rewritten (wraps `cr3Send`,
+`sendReadReceipts`, `cr3Apply`, `enterRoom`, `cr3RouteEvent`; no longer `closePanel`). Tag `turn30-ship-c2`. Gates: `harness-30s.mjs`
+122 (W now: TN-1 → MC-1 → GK-1, RT-1 outside RL-1, RL-1 does not wrap closePanel; the differential declares TN-1's cut names);
+`harness-30s-browser.mjs` 35 (RL1–10: held, pending, closing acknowledges nothing, the rail and home counts stay, selected from
+home / by its rail card / by a notification, a projection marks it, leaving keeps it pending; TN1–3: Latin, CJK, Thai cuts, the
+span and the icons after it, a tap shows the whole name, a name that fits opens the room; GK6: a wide name that fits by count —
+the icons stay whole, the name alone clipped and tappable); `mutate-30s.mjs` 35/35 (c2 adds TN1–3, RL2, 4, 6–9 and the icons-before-the-name defects; c1's RL4–5 close-path defects retired with the flush).
+**Device gate (c2):** (2+7) a long room name ends in "…" with the bell / key right after it; tap the name: the whole name, the
+room does not open. (4) rail open in a room, the other phone sends: the room's card counts it; close the rail: the count STAYS
+(and the other phone's message stays "delivered"); go home: the room's card shows the count; tap the card: the count clears and
+the other phone shows the read check. The rest of c1's device gate and the language sweep stand.
 
 ---
 

@@ -23,12 +23,12 @@ const code = (t) => t.replace(/\/\*[\s\S]*?\*\//g, '').replace(/(^|[^:'"\\])\/\/
 const contractOf = (t) => { const m = /\/\* @contract([\s\S]*?)\*\//.exec(t); return m ? m[1] : ''; };
 const rx = (s) => s.replace(/[.$]/g, (c) => '\\' + c);
 
-await T('B1 the stage is the accepted 30·pre-ship page + its identity edits (its manifests ×2, the build record) + the seven parts appended in order — nothing else', () => {
+await T('B1 the stage is the accepted 30·pre-ship page + its identity edits (its manifests ×2, the build record) + the parts appended in order — nothing else', () => {
   assert(stage === assemblePage({ parts: PT }), 'the stage is not the assembled output');
   const edited = applyIdentity(base);
   for (const r of IDENTITY) { assert(base.split(r.find).length - 1 === r.n, r.id + ' not ' + r.n + 'x in the base'); assert(stage.indexOf(r.find) === -1, r.id + ' left in the stage'); }
   const head = edited.slice(0, -TAIL.length); assert(stage.startsWith(head) && stage.endsWith(TAIL), 'the edited base is not the stage\'s head');
-  assert(stage.slice(head.length, -TAIL.length) === PARTS.map((f) => '\n\n' + PT[f]).join(''), 'more than the seven parts was appended');
+  assert(stage.slice(head.length, -TAIL.length) === PARTS.map((f) => '\n\n' + PT[f]).join(''), 'more than the parts was appended');
 });
 for (const P of PART_DECL) await T('B2 ' + path.basename(P.file) + ': each symbol it adds is declared, bound once in the stage, never in the base; its markers are its own prefix, absent from the base, and logged; it replaces nothing', () => {
   const text = PT[P.file], c = contractOf(text);
@@ -44,7 +44,7 @@ for (const P of PART_DECL) await T('B2 ' + path.basename(P.file) + ': each symbo
   assert(bjs.indexOf("'" + P.prefix) === -1, P.prefix + ' already a marker prefix in the base');
   for (const mk of P.markers) { assert(mk.indexOf(P.prefix) === 0, mk + ' not ' + P.prefix); assert(text.indexOf("Log('" + mk.slice(P.prefix.length) + "'") !== -1 || text.indexOf("log('" + mk + "'") !== -1, mk + ' never logged'); }
 });
-await T('W the wraps are exactly the declared ones, each assigned once in its part, the original kept and called; roomCardHtmlCore: MC-1 inner, GK-1 outer', () => {
+await T('W the wraps are exactly the declared ones, each assigned once in its part, the original kept and called; roomCardHtmlCore: TN-1, MC-1, GK-1 in that order; RT-1 outside RL-1; RL-1 no longer wraps closePanel', () => {
   for (const P of PART_DECL) {
     const t = code(PT[P.file]), c = contractOf(PT[P.file]);
     for (const w of P.wraps) {
@@ -55,9 +55,12 @@ await T('W the wraps are exactly the declared ones, each assigned once in its pa
     const assigned = [...t.matchAll(/^([A-Za-z_$][\w$.]*) = function/mg)].map((m) => m[1]);
     assert(assigned.every((a) => P.wraps.includes(a)), path.basename(P.file) + ' reassigns undeclared ' + assigned.filter((a) => !P.wraps.includes(a)).join(','));
   }
-  const js = code(stage), mc = js.indexOf('var _mcCard = roomCardHtmlCore'), gk = js.indexOf('var _gkCard = roomCardHtmlCore');
-  assert(mc > 0 && gk > mc, 'MC-1 must wrap roomCardHtmlCore before GK-1');
-  assert(/^closePanel = function/m.test(code(PT[PARTS[3]])), 'RL-1 reassigns closePanel at the top level (the scrim binds it by reference later)');
+  const js = code(stage), tn = js.indexOf('var _tnCard = roomCardHtmlCore'), mc = js.indexOf('var _mcCard = roomCardHtmlCore'), gk = js.indexOf('var _gkCard = roomCardHtmlCore');
+  assert(tn > 0 && mc > tn && gk > mc, 'roomCardHtmlCore must be wrapped TN-1, then MC-1, then GK-1');
+  const rl = code(PT[PART_DECL.find((d) => d.prefix === 'rl_').file]);
+  assert(!/^closePanel = function/m.test(rl), 'RL-1 must not wrap closePanel (c2: closing the rail acknowledges nothing)');
+  const rlAt = js.indexOf('var _rlSend = cr3Send'), rtAt = js.indexOf('var _rtRoute = cr3RouteEvent');
+  assert(rlAt > 0 && rtAt > rlAt, 'RT-1 must be the outer cr3RouteEvent wrap (a route held in a call never selects)');
 });
 await T('I the build record: the stage records itself once (window.TB_STAGE: tag, page, date, a full ISO time with Z) and logs it; no other stage\'s tag is recorded', () => {
   const rec = "window.TB_STAGE = { c: '" + STAGE_TAG + "', file: 'talkbridge-app/" + STAGE_PAGE + "', built: '" + BUILT + "', at: '" + BUILT_AT + "' }; log('build', window.TB_STAGE, 'ok');";

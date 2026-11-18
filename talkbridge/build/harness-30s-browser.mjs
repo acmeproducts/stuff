@@ -53,22 +53,22 @@ R.bl = await p.evaluate(async () => {
   openS11(); o.keys = $('build-info').textContent; $('m-s11').classList.remove('show');
   return o;
 });
-await T('BL1 the build record is the stage\'s; VERSION and BUILD_INFO read it', () => ok(R.bl.stage.c === 'turn30-ship-c1' && R.bl.version === 'turn30-ship-c1' && R.bl.info.release === 'turn30-ship-c1' && R.bl.info.builtAt === R.bl.stage.at, JSON.stringify(R.bl)));
-await T('BL2 the settings footer shows the stage after the old painter ran (not turn27)', () => ok(R.bl.footer === 'turn30-ship-c1 · built 2026-11-16', R.bl.footer));
-await T('BL3 the keys sheet shows the stage and its build day (16, not the 15th)', () => ok(/^turn30-ship-c1 · built /.test(R.bl.keys) && /16/.test(R.bl.keys) && !/turn23/.test(R.bl.keys), R.bl.keys));
+await T('BL1 the build record is the stage\'s; VERSION and BUILD_INFO read it', () => ok(R.bl.stage.c === 'turn30-ship-c2' && R.bl.version === 'turn30-ship-c2' && R.bl.info.release === 'turn30-ship-c2' && R.bl.info.builtAt === R.bl.stage.at, JSON.stringify(R.bl)));
+await T('BL2 the settings footer shows the stage after the old painter ran (not turn27)', () => ok(R.bl.footer === 'turn30-ship-c2 · built 2026-11-18', R.bl.footer));
+await T('BL3 the keys sheet shows the stage and its build day (18, not the 17th)', () => ok(/^turn30-ship-c2 · built /.test(R.bl.keys) && /18/.test(R.bl.keys) && !/turn23/.test(R.bl.keys), R.bl.keys));
 
 /* MC-1 */
 R.mc = await p.evaluate(() => {
   openPanel();
   const c2 = document.querySelector('#left-panel .rc2[data-room="room-2"]'), c3 = document.querySelector('#left-panel .rc2[data-room="room-3"]');
-  const o = { mutedX: c2 ? c2.querySelectorAll('[data-del]').length : -1, bellInName: !!(c2 && c2.querySelector('.rc2-name > .rc2-mute')), bellFirst: !!(c2 && c2.querySelector('.rc2-name').firstElementChild && c2.querySelector('.rc2-name').firstElementChild.classList.contains('rc2-mute')),
+  const o = { mutedX: c2 ? c2.querySelectorAll('[data-del]').length : -1, bellInName: !!(c2 && c2.querySelector('.rc2-name > .rc2-mute')), bellAfter: !!(c2 && c2.querySelector('.rc2-name > .rc2-mute') && c2.querySelector('.rc2-name > .rc2-mute').previousElementSibling && /rc2-n[tm]/.test(c2.querySelector('.rc2-name > .rc2-mute').previousElementSibling.className)),
     corner: c2 ? c2.querySelectorAll('.rc2-bell').length : -1, plainMute: c3 ? c3.querySelectorAll('.rc2-mute').length : -1, plainX: c3 ? c3.querySelectorAll('[data-del]').length : -1,
     same: roomCardHtmlCore(roomById('room-3'), 'panel') === _mcCard(roomById('room-3'), 'panel'), aria: c2 && c2.querySelector('.rc2-mute') ? c2.querySelector('.rc2-mute').getAttribute('aria-hidden') : null };
   const x2 = c2 && c2.querySelector('[data-del]'); if (x2) x2.click(); o.deleted = !!roomById('room-2').deletedAt;
   const r2 = roomById('room-2'); delete r2.deletedAt; r2.sendLocked = false; saveRooms(); closePanel();
   return o;
 });
-await T('MC1 a muted room\'s card keeps its X; the bell is the first thing on its name line (aria-hidden); no corner bell', () => ok(R.mc.mutedX === 1 && R.mc.bellInName && R.mc.bellFirst && R.mc.corner === 0 && R.mc.aria === 'true', JSON.stringify(R.mc)));
+await T('MC1 a muted room\'s card keeps its X; the bell sits directly AFTER the name (aria-hidden); no corner bell', () => ok(R.mc.mutedX === 1 && R.mc.bellInName && R.mc.bellAfter && R.mc.corner === 0 && R.mc.aria === 'true', JSON.stringify(R.mc)));
 await T('MC2 an unmuted card is the original\'s output, byte for byte, with its X and no bell', () => ok(R.mc.same && R.mc.plainMute === 0 && R.mc.plainX === 1, JSON.stringify(R.mc)));
 await T('MC3 the X on a muted room\'s card deletes it (to the bin)', () => ok(R.mc.deleted, JSON.stringify(R.mc)));
 
@@ -90,30 +90,85 @@ R.rl = await p.evaluate(async () => {
   window._rlReceipts = function () { rec.push(1); };
   Object.defineProperty(navigator, 'vibrate', { configurable: true, value: function (ms) { buzz.push(ms); return true; } });
   const wait = (ms) => new Promise((r) => setTimeout(r, ms));
-  enterRoom('room-3'); await wait(60); cr3State.attended = true; RL.lastBuzz = 0;
+  const of = (room, type) => sent.filter((x) => x.room === room && x.type === type).length;
+  enterRoom('room-3'); await wait(60); cr3State.attended = true; RL.lastBuzz = 0; RL.pending = {};
   const o = {};
   sent.length = 0; rec.length = 0;
-  cr3Send('room-3', { type: 'ev-seen', ids: ['e1'] }); o.closedSeen = sent.filter((x) => x.type === 'ev-seen').length;
+  cr3Send('room-3', { type: 'ev-seen', ids: ['e1'] }); o.closedSeen = of('room-3', 'ev-seen');
+  openPanel(); closePanel(); await wait(40); sent.length = 0;
+  cr3Send('room-3', { type: 'ev-seen', ids: ['e0'] }); o.emptyRail = of('room-3', 'ev-seen') === 1 && !RL.pending['room-3'];
   openPanel(); sent.length = 0; rec.length = 0; buzz = [];
   o.ret = cr3Send('room-3', { type: 'ev-seen', ids: ['e2'] }); cr3Send('room-3', { type: 'ev-seen', ids: ['e3'] });
   cr3Send('room-3', { type: 'ev-open' }); cr3Send('room-1', { type: 'ev-seen', ids: ['o1'] }); sendReadReceipts();
-  o.held = sent.filter((x) => x.room === 'room-3' && x.type === 'ev-seen').length; o.sync = sent.filter((x) => x.room === 'room-3' && x.type === 'events-sync').length;
-  o.openWhile = sent.filter((x) => x.room === 'room-3' && x.type === 'ev-open').length; o.other = sent.filter((x) => x.room === 'room-1').length; o.recWhile = rec.length; o.buzz = buzz.slice();
+  o.held = of('room-3', 'ev-seen'); o.sync = of('room-3', 'events-sync'); o.openWhile = of('room-3', 'ev-open'); o.other = of('room-1', 'ev-seen'); o.recWhile = rec.length; o.buzz = buzz.slice();
+  o.pending = !!RL.pending['room-3'];
   sent.length = 0; rec.length = 0;
   $('left-scrim').click(); await wait(60);
-  o.afterOpen = sent.filter((x) => x.room === 'room-3' && x.type === 'ev-open').length; o.afterRec = rec.length; o.panel = S.panelOpen;
-  /* closed by leaving the room: nothing for the old room */
-  openPanel(); sent.length = 0; rec.length = 0; closePanel(); enterRoom('room-1'); await wait(60);
-  o.leaveOpen = sent.filter((x) => x.room === 'room-3' && x.type === 'ev-open').length;
+  o.afterClose = { open: of('room-3', 'ev-open'), rec: rec.length, panel: S.panelOpen, pending: !!RL.pending['room-3'] };
+  buzz = []; cr3Send('room-3', { type: 'ev-seen', ids: ['e4'] }); sendReadReceipts(); cr3Send('room-3', { type: 'ev-open' });
+  o.closedPending = { seen: of('room-3', 'ev-seen'), open: of('room-3', 'ev-open'), sync: of('room-3', 'events-sync'), rec: rec.length, buzz: buzz.length };
+  /* the count from the relay's projection stays: on the rail card, and on the home card */
+  cr3Apply('room-3', { proj: { chat: 3, voice: 0, video: 0 } }); openPanel();
+  const rc = document.querySelector('#left-panel .rc2[data-room="room-3"] .rc2-n'); o.railCount = rc ? rc.textContent : null; closePanel(); await wait(40);
+  exitToStart(); await wait(40); cr3Apply('room-3', { proj: { chat: 3, voice: 0, video: 0 } }); try { renderHome(); } catch (_) {}
+  const hc = document.querySelector('.rc2[data-where="home"][data-room="room-3"] .rc2-n'); o.homeCount = hc ? hc.textContent : null; o.homeView = S.view;
+  /* selected from home: the mark clears before the original, so its explicit open and the receipts are not held */
+  sent.length = 0; rec.length = 0;
+  const card = document.querySelector('.rc2[data-where="home"][data-room="room-3"]'); if (card) card.click(); await wait(60);
+  o.homeSelect = { pending: !!RL.pending['room-3'], room: S.roomId, open: of('room-3', 'ev-open') + (cr3State.openPending['room-3'] ? 1 : 0) };
+  sendReadReceipts(); o.homeSelect.rec = rec.length;
+  /* selected while on screen (its rail card tapped): pending clears, the receipts go at once */
+  openPanel(); cr3Send('room-3', { type: 'ev-seen', ids: ['e5'] }); closePanel(); await wait(40); rec.length = 0; sent.length = 0;
+  o.beforeSelect = !!RL.pending['room-3'];
+  openPanel(); const rcard = document.querySelector('#left-panel .rc2[data-room="room-3"]'); if (rcard) rcard.click(); await wait(60);
+  o.railSelect = { pending: !!RL.pending['room-3'], rec: rec.length, open: of('room-3', 'ev-open') + (cr3State.openPending['room-3'] ? 1 : 0), panel: S.panelOpen };
+  /* selected by a notification for the room on screen */
+  openPanel(); cr3Send('room-3', { type: 'ev-seen', ids: ['e6'] }); closePanel(); await wait(40); rec.length = 0;
+  cr3RouteEvent('room-3', 'e6', 'tap_warm'); await wait(40); o.routeSelect = { pending: !!RL.pending['room-3'], rec: rec.length };
+  /* a projection while the rail is open marks it (a message that came while away) */
+  openPanel(); RL.pending = {}; cr3Apply('room-3', { proj: { chat: 1, voice: 0, video: 0 } }); o.projMark = !!RL.pending['room-3']; closePanel(); await wait(40);
+  RL.pending = {};
+  /* closed by leaving the room: the old room stays pending and nothing is acknowledged for it */
+  openPanel(); cr3Send('room-3', { type: 'ev-seen', ids: ['e7'] }); sent.length = 0; closePanel(); enterRoom('room-1'); await wait(60);
+  o.leave = { open: of('room-3', 'ev-open'), pending: !!RL.pending['room-3'] };
   /* a muted room: held, but no buzz */
-  enterRoom('room-3'); await wait(40); roomById('room-3').muted = true; RL.lastBuzz = 0; buzz = []; openPanel(); cr3Send('room-3', { type: 'ev-seen', ids: ['m1'] }); o.mutedBuzz = buzz.length; roomById('room-3').muted = false; closePanel(); await wait(40);
+  RL.pending = {}; enterRoom('room-3'); await wait(40); roomById('room-3').muted = true; RL.lastBuzz = 0; buzz = []; openPanel(); cr3Send('room-3', { type: 'ev-seen', ids: ['m1'] }); o.mutedBuzz = buzz.length; roomById('room-3').muted = false; closePanel(); await wait(40);
+  RL.pending = {}; cr3Apply('room-3', { proj: { chat: 0, voice: 0, video: 0 } });
   return o;
 });
-await T('RL1 rail closed: the room\'s ev-seen goes as today', () => ok(R.rl.closedSeen === 1, JSON.stringify(R.rl)));
-await T('RL2 rail open over the room: its ev-seen is held (twice), ev-open goes as events-sync, read receipts wait; another room\'s words pass', () => ok(R.rl.held === 0 && R.rl.ret === false && R.rl.sync === 1 && R.rl.openWhile === 0 && R.rl.recWhile === 0 && R.rl.other === 1, JSON.stringify(R.rl)));
+await T('RL1 rail closed: the room\'s ev-seen goes as today; a rail opened and closed with nothing arriving changes nothing', () => ok(R.rl.closedSeen === 1 && R.rl.emptyRail, JSON.stringify(R.rl)));
+await T('RL2 rail open over the room: its ev-seen is held (twice) and the room marked pending, ev-open goes as events-sync, read receipts wait; another room\'s words pass', () => ok(R.rl.held === 0 && R.rl.ret === false && R.rl.pending && R.rl.sync === 1 && R.rl.openWhile === 0 && R.rl.recWhile === 0 && R.rl.other === 1, JSON.stringify(R.rl)));
 await T('RL3 one 120 ms buzz for the arrivals (not one per message); none in a muted room', () => ok(R.rl.buzz.length === 1 && R.rl.buzz[0] === 120 && R.rl.mutedBuzz === 0, JSON.stringify(R.rl)));
-await T('RL4 a tap on the scrim closes the rail and the room is acknowledged: ev-open + read receipts', () => ok(R.rl.panel === false && R.rl.afterOpen === 1 && R.rl.afterRec === 1, JSON.stringify(R.rl)));
-await T('RL5 a rail closed by entering another room acknowledges nothing for the old room', () => ok(R.rl.leaveOpen === 0, JSON.stringify(R.rl)));
+await T('RL4 closing the rail acknowledges NOTHING; the room stays pending and keeps holding (rail closed: ev-seen, ev-open, receipts all held; no buzz)', () => ok(R.rl.afterClose.panel === false && R.rl.afterClose.open === 0 && R.rl.afterClose.rec === 0 && R.rl.afterClose.pending && R.rl.closedPending.seen === 0 && R.rl.closedPending.open === 0 && R.rl.closedPending.sync === 1 && R.rl.closedPending.rec === 0 && R.rl.closedPending.buzz === 0, JSON.stringify(R.rl)));
+await T('RL5 the count stays: on the room\'s rail card and, at home, on the home card', () => ok(R.rl.railCount === '3' && R.rl.homeView !== 'room' && R.rl.homeCount === '3', JSON.stringify(R.rl)));
+await T('RL6 SELECTED from home clears it: the room entered, its explicit open goes (or waits for the socket), the receipts are not held', () => ok(R.rl.homeSelect.pending === false && R.rl.homeSelect.room === 'room-3' && R.rl.homeSelect.open >= 1 && R.rl.homeSelect.rec >= 1, JSON.stringify(R.rl.homeSelect)));
+await T('RL7 SELECTED by its rail card while on screen: pending clears and the receipts go at once (the read check)', () => ok(R.rl.beforeSelect && R.rl.railSelect.pending === false && R.rl.railSelect.rec >= 1 && R.rl.railSelect.open >= 1 && R.rl.railSelect.panel === false, JSON.stringify(R.rl.railSelect)));
+await T('RL8 SELECTED by a notification for it: pending clears, the receipts go', () => ok(R.rl.routeSelect.pending === false && R.rl.routeSelect.rec >= 1, JSON.stringify(R.rl.routeSelect)));
+await T('RL9 a projection showing the room waiting while the rail is open marks it pending (a message that came while away)', () => ok(R.rl.projMark, JSON.stringify(R.rl)));
+await T('RL10 a rail closed by entering another room: the old room stays pending, nothing acknowledged for it', () => ok(R.rl.leave.open === 0 && R.rl.leave.pending, JSON.stringify(R.rl.leave)));
+
+/* TN-1 */
+R.tn = await p.evaluate(async () => {
+  const wait = (ms) => new Promise((r) => setTimeout(r, ms));
+  const o = {};
+  const r1 = roomById('room-1'), r2 = roomById('room-2'), t1 = r1.title, t2 = r2.title;
+  r1.title = 'A very long room name for testing'; r2.title = '会议室名称非常非常长的房间'; saveRooms();
+  o.cutLatin = tnCut(r1.title); o.cutCjk = tnCut(r2.title); o.fits = tnCut('Fourteen chars'); o.thai = tnCut('ห้องประชุมใหญ่มากๆ ของเรา');
+  o.short = roomCardHtmlCore(roomById('room-3'), 'panel') === _tnCard(roomById('room-3'), 'panel');
+  enterRoom('room-3'); await wait(40); openPanel();
+  const c1 = document.querySelector('#left-panel .rc2[data-room="room-1"]'), c2 = document.querySelector('#left-panel .rc2[data-room="room-2"]');
+  const nm = c1 && c1.querySelector('.rc2-nm'); o.span = nm ? nm.textContent : null; o.dir = nm ? nm.getAttribute('dir') : null;
+  o.order2 = c2 ? Array.from(c2.querySelector('.rc2-name').children).map((x) => x.className) : [];
+  if (nm) nm.click(); await wait(30); o.toast = $('toast').textContent; o.stayed = S.roomId; o.panel = S.panelOpen;
+  const c3 = document.querySelector('#left-panel .rc2[data-room="room-3"] .rc2-name'); const c1b = document.querySelector('#left-panel .rc2[data-room="room-1"]');
+  r1.title = t1; r2.title = t2; saveRooms(); closePanel(); await wait(30);
+  openPanel(); const plain = document.querySelector('#left-panel .rc2[data-room="room-1"] .rc2-name'); if (plain) plain.click(); await wait(40); o.opened = S.roomId;
+  closePanel(); enterRoom('room-3'); await wait(40);
+  return o;
+});
+await T('TN1 a name over 14 units is cut at 13 and ends in "…" (Latin, CJK counted double, Thai not split); a name that fits is untouched', () => ok(R.tn.cutLatin === 'A very long r…' && R.tn.cutCjk === '会议室名称非…' && R.tn.fits === null && /…$/.test(R.tn.thai) && !/^[ัิ-ฺ็-๎]/.test(R.tn.thai.slice(-2)), JSON.stringify(R.tn)));
+await T('TN2 the cut name is a span (dir=auto); the bell (and the key) sit directly after it; a card whose name fits is the original\'s output', () => ok(R.tn.span === 'A very long r…' && R.tn.dir === 'auto' && R.tn.order2.join(',') === 'rc2-nm,rc2-mute' && R.tn.short, JSON.stringify(R.tn)));
+await T('TN3 a tap on a cut name shows the whole name and does not open the room; a tap on a name that fits opens it', () => ok(R.tn.toast === 'A very long room name for testing' && R.tn.stayed === 'room-3' && R.tn.panel === true && R.tn.opened === 'room-1', JSON.stringify(R.tn)));
 
 /* RG-1 */
 R.rg = await p.evaluate(async () => {
@@ -177,12 +232,20 @@ R.gk = await p.evaluate(async () => {
   const c1 = document.querySelector('#left-panel .rc2[data-room="room-1"]'), c2 = document.querySelector('#left-panel .rc2[data-room="room-2"]'), c3 = document.querySelector('#left-panel .rc2[data-room="room-3"]');
   o.k1 = c1 ? c1.querySelectorAll('.rc2-key').length : -1; o.k3 = c3 ? c3.querySelectorAll('.rc2-key').length : -1;
   const n2 = c2 && c2.querySelector('.rc2-name'); o.order = n2 ? Array.from(n2.children).map((x) => x.className) : [];
+  /* a name that fits by count but is wide in pixels: the icons stay whole and inside the name line; the name alone is clipped */
+  const t2 = r2.title; r2.title = 'WWWWWWWWWWWWWW'; saveRooms(); renderPanel(); await wait(30);
+  const w2 = document.querySelector('#left-panel .rc2[data-room="room-2"]'), wn = w2 && w2.querySelector('.rc2-name'), wk = w2 && w2.querySelector('.rc2-key svg'), wb = w2 && w2.querySelector('.rc2-mute'), wt = w2 && w2.querySelector('.rc2-nt');
+  const R0 = (e) => e ? e.getBoundingClientRect() : { left: 0, right: 0, width: 0 };
+  o.wide = { key: R0(wk).width > 8 && R0(wk).right <= R0(wn).right + 1, bell: R0(wb).width > 8 && R0(wb).right <= R0(wk).left + 1, clipped: wt ? wt.scrollWidth > wt.clientWidth : null };
+  if (wt) wt.click(); await wait(30); o.wideToast = $('toast').textContent; o.wideStay = S.roomId;
+  r2.title = t2; saveRooms(); renderPanel(); await wait(30);
   c1.querySelector('.rc2-key').click(); await wait(30);
   o.toast = $('toast').textContent; o.toastOn = $('toast').classList.contains('show'); o.stayed = S.roomId; o.panel = S.panelOpen;
   closePanel(); delete r1.grant; delete r1.grantExpires; delete r2.grant; delete r2.grantExpires; saveRooms();
   return o;
 });
-await T('GK1 a granted room\'s card shows the key (first on its name line, before a muted room\'s bell); an ungranted room none', () => ok(R.gk.k1 === 1 && R.gk.k3 === 0 && R.gk.order[0] === 'rc2-key' && R.gk.order[1] === 'rc2-mute', JSON.stringify(R.gk)));
+await T('GK1 a granted room\'s card shows the key directly AFTER the name (after a muted room\'s bell); an ungranted room none', () => ok(R.gk.k1 === 1 && R.gk.k3 === 0 && /^rc2-n[tm]$/.test(R.gk.order[0]) && R.gk.order[1] === 'rc2-mute' && R.gk.order[2] === 'rc2-key', JSON.stringify(R.gk)));
+await T('GK6 a wide name that fits by count: the bell and the key stay whole inside the line, the name alone is clipped, and a tap on it shows the whole name (the room does not open)', () => ok(R.gk.wide.key && R.gk.wide.bell && R.gk.wide.clipped === true && R.gk.wideToast === 'WWWWWWWWWWWWWW' && R.gk.wideStay === 'room-3', JSON.stringify([R.gk.wide, R.gk.wideToast, R.gk.wideStay])));
 await T('GK2 the toast: end date and whole days left (rounded up), singular for 1, "ended" after the date', () => ok(R.gk.en === 'Initiator status · until Dec 16, 2026 · 31 days left' && R.gk.one === 'Initiator status · until Nov 17, 2026 · 1 day left' && /^Initiator status · ended Nov 16, 2026$/.test(R.gk.ended), JSON.stringify([R.gk.en, R.gk.one, R.gk.ended])));
 await T('GK3 in Thai: the Thai words and the Buddhist year', () => ok(/^สถานะผู้ริเริ่ม · ถึง .*2569 · เหลือ 31 วัน$/.test(R.gk.th), R.gk.th));
 await T('GK4 all three strings in every one of the 21 languages', () => ok(R.gk.keys.length === 0, R.gk.keys.join(',')));
