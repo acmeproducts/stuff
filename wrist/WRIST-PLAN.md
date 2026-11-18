@@ -1,6 +1,6 @@
 # Wrist — plan (sole authority for `wrist/`)
 
-Version 6.0.0 · 2026-11-17 · Owner/device gate: Confi · Device: Galaxy Watch 9, left wrist
+Version 7.0.0 · 2026-11-17 · Owner/device gate: Confi · Device: Galaxy Watch 9, left wrist
 
 ## 0. Turn ledger
 | Date | Turn | Status | Notes |
@@ -13,6 +13,7 @@ Version 6.0.0 · 2026-11-17 · Owner/device gate: Confi · Device: Galaxy Watch 
 | 2026-11-17 | turn05 (page only, `lab-r3`) | deployed, device gate pending | Owner corrected the OK sign: "I don't think the okay sign is supposed to be that you're seeing fingers, I think that it's just that you are holding your arm at roughly a 47° angle … hand to be about shoulder height or roughly around the height of your throat … this is not intended to be trying to detect jolts." Pinch probe buried (G11); `ok` card added: forearm between 35° and 60°, held 0.8 s. Lab checks: 48/48 page. |
 | 2026-11-17 | turn05 watch app (`turn05-b…`) | built, device gate pending | Owner: "when I first go to the app it says nothing sent, then I get a socket time out … unknown host exception, and then I finally get sending to X." Cause (from the device log): the watch's own connection is not up when the reader starts; the first messages after four restarts never arrived (the event counter resumes at 3, 8, 43 and 1). The relay answered every message that did reach it. Change: the reader asks the watch for a connection and holds it while it runs, keeps and retries any motion or mode change that was not delivered, and shows "connecting…" in place of the error name. Not yet run on the watch. |
 | 2026-11-17 | turn06 watch app (`turn06-b…`) + page `lab-r5` | built and deployed, device gate pending | Owner: "there should be a glyph to tap on the watch that opens diagnostic panel showing all relevant settings and making sure they are logged"; "I want to be able to use Bluetooth only as a test and also Wi-Fi as a test and then the mixed mode as a test"; Universal gestures confirmed not used. The Wrist screen is now the diagnostics panel (three self-turning pages), every message carries the link it travelled on and the round-trip time, and the Lab has a two-minute Connection test card. Touch on the watch face is no longer a gesture (G12). The in-app battery prompt is removed (G13). The "ask for Wi-Fi by name" idea is dropped until the three connection tests decide it. Lab checks: 16/16 detector, 54/54 page. Not yet run on the watch. |
+| 2026-11-17 | turn07: phone↔watch channel | **recorded, not started.** Exploratory, scope open until the owner closes it. First deliverable is a findings report (section 11). | Owner's requirements recorded verbatim in section 11. Starts after the turn06 device gate and the three connection tests, which are its baseline. |
 
 ## 1. Why this exists (owner's words, 2026-11-16)
 - "I really can't type using a keyboard or a mouse … or for that matter a touch screen for more than 15 minutes at a time."
@@ -198,6 +199,72 @@ Change made from this: the `ok` card's band moved from 35–60° to 30–52° an
 | The in-app battery prompt could never have worked | Samsung developer forum: the exemption request and the app battery setting do not exist on Wear; `exempt` stayed 0 on every event |
 
 Theory, not yet proven: the switch is the whole cause. Needs at least half an hour of screen-off wear in the log.
+
+## 11. turn07: phone↔watch channel (exploratory, no fixed scope)
+
+### 11.1 Owner's requirements, verbatim (2026-11-17)
+> **Requirements: phone↔watch channel (exploratory, no fixed scope)**
+>
+> **Goal.** My own API to manage file transfer and package install between my Android phone (S23 Ultra) and my watch (Galaxy Watch 9). It should ride the durable connection the Galaxy Wearable app already keeps between them.
+>
+> **Explore first, then propose.** Find out what that standing link really is and what can ride on it. Candidates include Samsung's own link, Google's Wear OS Data Layer, and direct Bluetooth. Do not assume any one of them. An earlier claim that Samsung's link is closed to other apps was never verified; check it. Prove each finding on the actual watch with small probes. Label fact versus theory. Report what the channel can do before settling a design. Scope stays open until I close it.
+>
+> **File transfer.** Both directions: phone→watch and watch→phone. Any file type and size, with progress, integrity check, and resume after a drop. Works with the watch screen off, without Wi-Fi and without developer mode.
+>
+> **Package management.** Install, update, uninstall, and list what's installed with versions. Find the fewest taps possible per install, and the smallest one-time setup. State exactly what the watch still asks me to confirm, if anything.
+>
+> **The API.** Mine to call from X and my other components, not tied to one app. Explore how it's exposed on the phone and what operations it should offer. Every operation reports status and failure reasons in plain words.
+>
+> **What else the channel could carry (explore, don't commit).** Gesture events and raw sensor rows, replacing the Wi-Fi relay. This answers whether Wi-Fi is needed at all. Watch settings and diagnostics, feeding the diagnostic panel idea. Commands and buzzes from X back to the watch. Logs pulled from the watch on demand.
+>
+> **Constraints.** No IDE. GitHub builds; I only deploy. Mobile-only: all diagnostics shown in-app and logged. Nothing to read on the watch. Battery life must stay reasonable. Any scope cut is stated as an open assumption for me to override. Record this as a new turn in WRIST-PLAN.
+>
+> **First deliverable.** A findings report: what the channel is, what was proven on the watch, what failed, and the options that opens up.
+
+### 11.2 Where it fits
+X has three layers. This turn is the bottom one.
+
+| Layer | What it is | State |
+|---|---|---|
+| Interaction model | which body motions and signals X understands | being worked out in the Wrist Lab (turns 04–06) |
+| **Channel** | how the watch and the phone exchange anything at all: motions, sensor rows, files, app updates, settings, buzzes, logs | **this turn.** Today it is an internet relay plus Bugjaeger, both stopgaps |
+| X itself | the thing the owner talks to, which talks to everything else | not started |
+
+Five present pains trace to the stopgap channel, and each is a line in the owner's requirements:
+
+| Pain today | Evidence | Requirement that removes it |
+|---|---|---|
+| Every watch update needs developer mode, Wi-Fi and Bugjaeger | six watch builds so far, each a manual push | package management over the channel |
+| Motions travel watch → internet → phone though the two are a metre apart | relay; raw stream reached 26–40 of 50 rows a second on Wi-Fi | gesture events and sensor rows on the channel |
+| "Unknown host" and timeouts on start | first 2, 7 and 42 messages lost after restarts | a link that is already up |
+| A setting silently froze the app and nothing said so | "Allow background activity" off through the first day | settings and diagnostics on the channel |
+| The owner photographed the watch to show its settings | 2026-11-17 | logs pulled on demand |
+
+### 11.3 When
+1. turn06 device gate: install `turn06-b6`, panel reports to the log. (In progress.)
+2. The three connection tests (section 3d). Their Bluetooth-only numbers are the bar a direct channel has to beat, measured on the same card.
+3. **turn07 stage A, desk findings.** What the standing link is on a Watch 9: Samsung's link, the Wear OS Data Layer, direct Bluetooth. Sources cited, each claim marked fact or theory. No build.
+4. **turn07 stage B, probes on the watch.** One small build per question, each answering one thing and reporting in the log. Order set by stage A.
+5. **Findings report** to the owner (PDF). The owner closes or changes scope. Only then a design.
+
+The Lab continues in parallel; nothing in it waits on this turn.
+
+### 11.4 What must be verified, not assumed
+Each of these is a **theory** until a source or a probe says otherwise.
+
+| Question | Why it matters |
+|---|---|
+| Is Samsung's own phone↔watch link open to other apps? | An earlier statement that it is closed was never checked. The owner asked for it to be checked. |
+| Does the Wear OS Data Layer reach a Galaxy Watch 9 through the Galaxy Wearable pairing, with the screen off and Wi-Fi off? | It is the most likely carrier. |
+| Does the Data Layer require the phone app and the watch app to share one package name and one signing key? | Decides how the two apps are built and named. |
+| Can a watch app install another app (or update itself) from a file it received, and what does the watch ask the wearer to confirm? | Decides "fewest taps per install". A fully silent install may need rights an ordinary app cannot have. |
+| Can the watch-side piece itself be installed without developer mode, even once? | Decides "smallest one-time setup". The first install may still need Bugjaeger. |
+| What sustained speed does each carrier give, and what does it cost in battery? | Decides whether raw sensor rows can leave the relay. |
+| Does direct Bluetooth between two of the owner's own apps survive beside the Galaxy Wearable link? | Fallback if the Data Layer is restricted. |
+
+### 11.5 Known tension, raised now
+- **Graveyard G3 (no Gradle).** The Data Layer comes as a Google library. The current build compiles with bare SDK tools and no libraries. If the Data Layer is the carrier, the build needs either that library fetched and linked by hand in CI, or Gradle running on GitHub (never on the owner's side). G3 is not reopened without the owner's approval.
+- **A phone app is new.** Everything on the phone so far is a web page. The channel needs a real app on the S23 (installed once from a download; no developer mode needed on a phone). How X's pages talk to that app is part of the exploration.
 
 ## 7. Lab checks
 `wrist/test/DetectorTest.java`, synthetic 100 Hz traces, run on every build. 2026-11-17: 16/16 pass (knock checks removed with the knock).
