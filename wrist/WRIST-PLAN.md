@@ -1,6 +1,6 @@
 # Wrist — plan (sole authority for `wrist/`)
 
-Version 7.0.0 · 2026-11-17 · Owner/device gate: Confi · Device: Galaxy Watch 9, left wrist
+Version 7.1.0 · 2026-11-17 · Owner/device gate: Confi · Device: Galaxy Watch 9, left wrist
 
 ## 0. Turn ledger
 | Date | Turn | Status | Notes |
@@ -13,7 +13,7 @@ Version 7.0.0 · 2026-11-17 · Owner/device gate: Confi · Device: Galaxy Watch 
 | 2026-11-17 | turn05 (page only, `lab-r3`) | deployed, device gate pending | Owner corrected the OK sign: "I don't think the okay sign is supposed to be that you're seeing fingers, I think that it's just that you are holding your arm at roughly a 47° angle … hand to be about shoulder height or roughly around the height of your throat … this is not intended to be trying to detect jolts." Pinch probe buried (G11); `ok` card added: forearm between 35° and 60°, held 0.8 s. Lab checks: 48/48 page. |
 | 2026-11-17 | turn05 watch app (`turn05-b…`) | built, device gate pending | Owner: "when I first go to the app it says nothing sent, then I get a socket time out … unknown host exception, and then I finally get sending to X." Cause (from the device log): the watch's own connection is not up when the reader starts; the first messages after four restarts never arrived (the event counter resumes at 3, 8, 43 and 1). The relay answered every message that did reach it. Change: the reader asks the watch for a connection and holds it while it runs, keeps and retries any motion or mode change that was not delivered, and shows "connecting…" in place of the error name. Not yet run on the watch. |
 | 2026-11-17 | turn06 watch app (`turn06-b…`) + page `lab-r5` | built and deployed, device gate pending | Owner: "there should be a glyph to tap on the watch that opens diagnostic panel showing all relevant settings and making sure they are logged"; "I want to be able to use Bluetooth only as a test and also Wi-Fi as a test and then the mixed mode as a test"; Universal gestures confirmed not used. The Wrist screen is now the diagnostics panel (three self-turning pages), every message carries the link it travelled on and the round-trip time, and the Lab has a two-minute Connection test card. Touch on the watch face is no longer a gesture (G12). The in-app battery prompt is removed (G13). The "ask for Wi-Fi by name" idea is dropped until the three connection tests decide it. Lab checks: 16/16 detector, 54/54 page. Not yet run on the watch. |
-| 2026-11-17 | turn07: phone↔watch channel | **recorded, not started.** Exploratory, scope open until the owner closes it. First deliverable is a findings report (section 11). | Owner's requirements recorded verbatim in section 11. Starts after the turn06 device gate and the three connection tests, which are its baseline. |
+| 2026-11-17 | turn07: phone↔watch channel | **closed by the owner before it started** (section 11.6) | Recorded and scoped the same day; the owner then decided against a phone companion app. X stays browser-based on phone and desktop, the relay stays, and installs stay with Bugjaeger. |
 
 ## 1. Why this exists (owner's words, 2026-11-16)
 - "I really can't type using a keyboard or a mouse … or for that matter a touch screen for more than 15 minutes at a time."
@@ -265,6 +265,23 @@ Each of these is a **theory** until a source or a probe says otherwise.
 ### 11.5 Known tension, raised now
 - **Graveyard G3 (no Gradle).** The Data Layer comes as a Google library. The current build compiles with bare SDK tools and no libraries. If the Data Layer is the carrier, the build needs either that library fetched and linked by hand in CI, or Gradle running on GitHub (never on the owner's side). G3 is not reopened without the owner's approval.
 - **A phone app is new.** Everything on the phone so far is a web page. The channel needs a real app on the S23 (installed once from a download; no developer mode needed on a phone). How X's pages talk to that app is part of the exploration.
+
+### 11.6 Owner's decision, 2026-11-17: no phone companion app
+> "I don't want a companion app on the phone because this shouldn't be just phone based, this should also be able to run on a desktop as well because it's browser based. Putting a companion app in place is just adding a level of complexity, and if really the only purpose is to push a package we already have a mechanism. It's not super clean but hopefully the development cycle stabilizes out and then I can turn off the wireless debug mode permanently. If it really becomes useful other than my own personal project then I can worry about distribution channels later."
+
+What this settles:
+- **X is browser-based, on the phone and on a desktop.** No app is installed on the phone.
+- **The relay stays** as the path from the watch to X. It is the only path that reaches a browser on any device.
+- **Watch installs stay with Bugjaeger and wireless debugging** while development is active. Once the watch app stabilises, wireless debugging is turned off.
+- **Distribution is out of scope** unless the project outgrows personal use.
+- Sections 11.3 to 11.5 are withdrawn: no desk study of the Samsung or Data Layer links, no probes, no findings report. G3 (no Gradle) stands untouched.
+
+What stays open from section 11.1, because it needs no phone app:
+- **Whether Wi-Fi is needed.** Answered by the three connection tests (section 3d).
+- **Diagnostics and logs without photographing the watch.** Done through the relay in turn06.
+- **Commands and buzzes from X back to the watch.** Possible through the relay (the watch already reads the relay's reply to each message). Not built.
+
+Parked, not buried: a browser can in principle connect straight to a watch over Bluetooth (Web Bluetooth in Chrome, phone and desktop) with no companion app and no internet. Unverified on this watch, needs a tap to connect each session. Worth a probe only if the relay proves to be the limit.
 
 ## 7. Lab checks
 `wrist/test/DetectorTest.java`, synthetic 100 Hz traces, run on every build. 2026-11-17: 16/16 pass (knock checks removed with the knock).
