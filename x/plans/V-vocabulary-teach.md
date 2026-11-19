@@ -61,7 +61,7 @@ Owner: "I want to teach and have it learn commands and gestures, basic then comp
 
 V2 (teach by camera) is folded into this release: the same card, the same list.
 
-**Lab checks.** `signals-check.js` 43/43 (the engine alone). `signals-page-test.py`: a fist, a nod and a watch pose taught and fired; the same thing taught twice flagged; showing nothing refused; the name taken by voice.
+**Lab checks.** `signals-check.js` 42/42 (the engine alone). `signals-page-test.py`: a fist, a nod and a watch pose taught and fired; the same thing taught twice flagged; showing nothing refused; the name taken by voice.
 
 **Owed against the first plan (stated, not hidden).**
 - The recorded forearm trials were not replayed through it. They have no rest-and-show structure to learn from. The owner's first Teach run with the watch gives the same evidence.
