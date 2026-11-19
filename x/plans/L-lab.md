@@ -11,7 +11,7 @@ Owner, 2026-11-17:
 ## 2. State
 | | |
 |---|---|
-| Built | `lab-r5`, 13 cards: keepers, see, poses, flap, dial, tilt1, tilt2, swing1, swing2, raise, link, body, ok. Each card records every raw row, every firing, every touch, the verdict and notes on one clock. Recognisers have no screen attached, so the same code runs in a card and in Keepers. |
+| Built | `lab-r7`, 21 cards (2026-11-18, evening): the 16 of `lab-r6` plus Hand numbers, Head and face, Teach a signal, Assign and combine, Object in your hands. Before that: `lab-r5`, 13 cards: keepers, see, poses, flap, dial, tilt1, tilt2, swing1, swing2, raise, link, body, ok. Each card records every raw row, every firing, every touch, the verdict and notes on one clock. Recognisers have no screen attached, so the same code runs in a card and in Keepers. |
 | Measured | Connection runs (roadmap §1). Pose angles. 11 firings of the forearm pose at 47° to 54°. |
 | Missing | No table of results. No score per signal. Every run so far was a deliberate gesture: nothing shows how a signal behaves while the owner talks, reads and moves as he would with X. |
 
@@ -64,13 +64,27 @@ Owner, 2026-11-18:
 Owner, 2026-11-18:
 > "have a 3D shape, maybe it's a cup or a bowl or maybe it's a toy car, but just with the gestures being able to manipulate it would open up a whole language of being able to select, drag, drop, rotate left to right, rotate up and down, rotate diagonally … If you look at the explore mode of ui-v2.html there are some hints of this type of functionality, but I don't want that to be donor code, I want it to be inspiration."
 
-**Question:** can signals steer, and not only say yes or no?
+Owner, 2026-11-18 (evening): "it is imperative to have a 3D model of objects that can be handled virtually by using the hands, either one or both".
 
-**Scope:** one cup on a table (a cup shows its turn by its handle). Registered signals drive **take**, **turn** and **let go**; turning follows the forearm continuously while held. One set task: turn the handle to the right and set the cup on the marked spot. Timed, no touch. ui-v2's explore mode is read for the idea only; no code is taken.
+**Question:** can the hands handle a thing on the screen, and can signals act on it?
 
-**Build sequence:** read ui-v2 explore mode and write down the ideas worth keeping; checks that a synthetic signal stream completes the task; the card (three.js); owner's run.
+**Built 2026-11-18 (evening), lab only.** The card **Object in your hands**.
+- A cup, a bowl and a toy car on a table, each with a marked side (handle, bead, headlights).
+- The hand is shown as in a mirror; a dot follows the thumb and first finger.
+- One hand: pinch on the object to take it; it goes where the hand goes, turns as the hand turns, comes nearer as the hand does. Open the fingers and it settles on the table, upright if it was near enough upright.
+- Both hands: pinch it with the second hand too. The two move it, turn it like a steering wheel, and make it bigger or smaller by moving apart or together.
+- Signals: take, let go, turn left, turn right, tip toward me, tip away, bigger, smaller, next object, put it back. They work while it is held.
+- The task: set it on the ring, upright, marked side to the right. Timed, and touches of the screen counted.
 
-**Gate:** the owner finishes the task with no touch, and says which of the three felt natural. Those become X's run-stage commands (`X-CONCEPT.md` §3.1).
+**ui-v2 explore mode, read for ideas only (2026-11-18, evening). No code taken.** Three ideas kept: choosing is two acts (bring it to the centre, then go in), which became take, then act; two points moved apart set the size, which became two hands; a field of many things with one in front, which is for lists (X2).
+
+**Differs from the first scope (stated; override me if wrong).** Turning by the forearm through the watch is not built: the hand itself turns the object. The watch acts on it through taught signals.
+
+**Lab checks.** `signals-page-test.py`, with made-up hands: take, carry, nearer, turn, let go, two hands, each signal action, the task done with no touch, the trial in the log.
+
+**Not known until a device runs it:** whether a real pinch reads cleanly at 13 to 17 frames a second; whether the turning feels right or reversed; whether the left hand, which the owner calls fine but not dexterous, can pinch and hold comfortably. A pinch held is a posture, not a repeated motion (P1), but only his hands can say.
+
+**Gate:** the owner finishes the task with one hand and no touch, then resizes and turns it with both; he says what felt natural and what did not.
 
 ## 6. Risks
 | Risk | Held by |

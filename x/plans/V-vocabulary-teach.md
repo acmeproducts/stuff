@@ -1,6 +1,6 @@
 # Plan V — vocabulary and teaching
 
-Version 1.0.0 · 2026-11-18 · Part of `x/X-ROADMAP.md` · Earlier record: `x/wrist/WRIST-PLAN.md` §13, §14.3
+Version 1.1.0 · 2026-11-18 (evening) · Part of `x/X-ROADMAP.md` · Earlier record: `x/wrist/WRIST-PLAN.md` §13, §14.3
 
 ## 1. Purpose
 This is where X becomes a learning system on the body's side. The person teaches signals from their own body and says what each one means. Two streams: **teach** and **vocabulary and registration**.
@@ -13,7 +13,8 @@ Owner, 2026-11-18:
 ## 2. State
 | | |
 |---|---|
-| Built | Nothing as a teach function. The forearm-pose card was tuned by hand from the owner's four holds (36°, 38°, 40°, 42°), and the next day's eleven firings read 47° to 54°. Fact: a range taken from the person's own body worked. Theory: the difference between the two days is drift in how the pose is made or how the watch sits. |
+| Built (2026-11-18, evening; lab only) | Teach, Assign and Words, in the Lab (`lab-r7`), on the shared script `signals.lib.js`. One Teach card serves the right hand, the left hand, the head and the watch. No device has run it. |
+| Before that | Nothing as a teach function. The forearm-pose card was tuned by hand from the owner's four holds (36°, 38°, 40°, 42°), and the next day's eleven firings read 47° to 54°. Fact: a range taken from the person's own body worked. Theory: the difference between the two days is drift in how the pose is made or how the watch sits. |
 | Decided | Commands and words (`X-CONCEPT.md` §3). One signal, one meaning (owner). Templates, not trained models (D06). |
 | Unknown | Whether three repetitions are enough. Whether a template holds after the watch is taken off and put back, or the next day (TH5). |
 
@@ -53,28 +54,64 @@ A registration is a row: context, signal, command. The rules: one signal per com
 
 ## 5. Releases
 
-### V1 — Teach on the watch (crawl)
-**Scope:** a **Teach** card replaces the OK pose card. Hold or do something three times; the card shows the range it learned; the owner names it; the collision check runs; the signal joins Keepers and the Signals table. Works for held postures and for simple motions.
+### V1 — Teach (crawl) · built 2026-11-18 (evening), lab only
+Owner: "I want to teach and have it learn commands and gestures, basic then complex".
+
+**What was built.** The card **Teach a signal**. Pick what you will use (right hand, left hand, head and face, watch). Press Teach. It says REST, then NOW three times with BACK TO REST between, on the screen and aloud. From the three showings it decides: held is a **pose**, out-and-back is a **move** (D24). It says what it saw in a sentence, warns if it looks like a signal already taught, listens for the name, and saves on one tap. Taught signals are listed and light each time one fires. They are kept on the device.
+
+V2 (teach by camera) is folded into this release: the same card, the same list.
+
+**Lab checks.** `signals-check.js` 43/43 (the engine alone). `signals-page-test.py`: a fist, a nod and a watch pose taught and fired; the same thing taught twice flagged; showing nothing refused; the name taken by voice.
+
+**Owed against the first plan (stated, not hidden).**
+- The recorded forearm trials were not replayed through it. They have no rest-and-show structure to learn from. The owner's first Teach run with the watch gives the same evidence.
+- The OK card is still in the Lab. Nothing is removed on a lab-only result; it goes when Teach passes on a device.
+- Each signal costs two taps (Teach, Save). No typing.
+
+**Device gate:** the owner teaches three signals of his own choosing, at least one with a hand and one with his head, in under a minute each, with no help; each fires when he makes it; the card warns him if two collide.
+
+**What the build reads afterwards:** each Teach trial in `x/wrist/out/trials/` (what was learned, which numbers, what fired); frames a second with the face finder running.
+
+### V3 — Assign (crawl) · built in the Lab 2026-11-18 (evening), lab only
+Owner: "I also want to assign actions to specific hand and head movement and poses".
+
+**What was built.** The card **Assign and combine**: each taught signal has a list of actions; one signal has one action and one action has one signal (D26). "Buzz the watch" works there and then; the object actions work on the object card; the X actions wait for X.
+**Not built:** contexts (a signal meaning different things in different places), saying a change aloud, and steering X.
+**Device gate:** the owner gives actions to three of his signals and sees each fire its action; he gives one action to a second signal and sees it leave the first.
+
+### V5 — Words (crawl) · built 2026-11-18 (evening), lab only
+Owner: "by combining actions like letters make up words".
+
+**What was built.** On the same card: pick two or three signals in the order they will be made, name the result, add. The word is a signal with its own action (D27). It fires when its letters are made in order, each within 2.5 seconds of the one before; not in the other order; not when too long passes.
+**Known limit:** when a word fires, its last letter's own action has already happened. Deciding between them is the arbiter's job (plan S, S5).
+**Device gate:** the owner makes one word from two of his signals and it fires when he means it, three times out of three, and not when he makes the two the other way round.
+
+### V6 — Showing (walk) · next
+Owner: "I think it's more of a monkey see monkey do with some AI assisted interpretation of outcomes. This opens up the range of things significantly".
+
+**Question:** can X learn a whole run by watching it once?
+
+**Scope.** On the object card first (D29).
+1. Two new actions: **watch me** and **that's it**. Given to signals like any other.
+2. Between them X keeps the run: each signal that fired and what it did, each take and let go, and the object's state at the start and at the end (which object, where, which way it faces, upright or lying, how big).
+3. On "that's it", one model call (the owner's default AI service; no web search) is given the start, the end and the ordered list, and returns one sentence saying what the run achieved, a short name, and the end state as conditions the page can check.
+4. X says the sentence. The owner says yes, or says what it was instead. He names it, or takes X's name.
+5. The run is saved as a signal of a new kind, **run**. It can be given a signal or a word.
+6. Making that signal does the run on whatever object is there, then checks the end conditions and says whether it got there.
 
 **Build sequence**
 | Step | What | Check |
 |---|---|---|
-| 1 | Failing checks: three synthetic holds make a template with the right average and spread; a fourth hold inside the range fires; one outside does not; two overlapping templates are flagged | fail on the current Lab |
-| 2 | Template maker and matcher as a recogniser with no screen attached | checks pass |
-| 3 | Replay the owner's recorded forearm trials through it | it learns 36° to 42° from the first trial and reports that the next day's 47° to 54° readings fall outside that range |
-| 4 | The Teach card | page checks pass |
-| 5 | Device gate | below |
+| 1 | Failing checks: a made-up run is recorded with the right steps and states; the reader's reply (stood in for by the test) becomes a saved run; replay reaches the same end state on a different object; a replay that misses says so | fail on `lab-r7` |
+| 2 | Recorder in `signals.lib.js` | checks pass |
+| 3 | Reader: one call, the three services X's setup already holds | reply time logged |
+| 4 | Replayer and the end-state check | checks pass |
+| 5 | Card additions | page checks pass |
+| 6 | Device gate | below |
 
-**Device gate:** the owner teaches three signals of his own choosing in under a minute each, with no help; each fires when he makes it; the card warns him if two collide.
+**Device gate:** the owner shows X one run on the cup. X says back what it was for in a sentence he accepts. One signal then does it on the bowl. No touch. The reading comes back in under 5 seconds (my target; measured, to be corrected by evidence).
 
-### V2 — Teach by camera (walk)
-**Scope:** the same card with the hand or the head as the source (needs S2, S3). A template taught by camera and one taught by watch sit in the same list.
-**Gate:** the owner teaches one hand shape and one head move and each fires.
-
-### V3 — Registration (walk)
-**Scope:** the owner gives a taught signal a command, for a context he names. The one-to-one rule is enforced. In X, the registered signal now steers. He can ask X what is registered and change it by talking.
-**Build sequence:** checks for the one-to-one rule and for context separation; the registration store; wiring through the arbiter into X.
-**Gate:** the owner steers an X session (more, enough, yes, no, again) by his own signals with no spoken commands, then changes one registration by saying so.
+**After the object card:** the same recorder on other things X can see the outcome of. Which thing comes next is decided when this gate has passed, from what the owner then asks for.
 
 ### V4 — Next-day test (walk)
 **Question:** TH5. Does a signal taught today work tomorrow?
@@ -87,3 +124,5 @@ A registration is a row: context, signal, command. The rules: one signal per com
 | Templates stop matching from one day to the next, as the forearm readings suggest | V4 measures it; re-teaching is one verdict away |
 | Teaching turns into a settings screen | the card has one job; everything else is said aloud |
 | The command list grows without need | a command is added only when an age of X needs it, and is recorded in `X-CONCEPT.md` |
+| Showing becomes another prompt to an AI | the AI is called once, to read an outcome; the doing is the person's own run, replayed |
+| A real hand does not look like the made-up hand the lab checks use | the owner's first run; every trial keeps the numbers that were learned |

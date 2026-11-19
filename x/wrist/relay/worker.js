@@ -1,6 +1,7 @@
 // wrist-relay: carries wrist motions from the watch to X (a page on the phone or desktop).
 //   GET  /            the Lab (lab.html)
 //   GET  /x           X itself (x.html)
+//   GET  /signals.js  what the Lab and X share: hand, head and watch numbers; taught signals; combinations; actions (signals.lib.js)
 //   POST /xlog        X writes one line of what happened (never what was said) to the shared log
 //   GET  /health      {"ok":true,"v":"w1"}
 //   POST /e/<code>    the watch posts one small JSON event; it is sent to every page listening on that code
@@ -18,8 +19,9 @@
 // and a page needs a secret, which /pair hands out once per watch start while the watch says its window is open ("pw").
 import LAB from './lab.html';
 import XPAGE from './x.html';
+import SIGNALS from './signals.lib.js';
 
-const V = 'w5';
+const V = 'w6';
 const json = (o, status = 200) => new Response(JSON.stringify(o), { status, headers: { 'content-type': 'application/json', 'cache-control': 'no-store' } });
 
 export default {
@@ -29,6 +31,7 @@ export default {
     const html = { headers: { 'content-type': 'text/html; charset=utf-8', 'cache-control': 'no-store' } };
     if (p === '/') return new Response(LAB, html);
     if (p === '/x') return new Response(XPAGE, html);
+    if (p === '/signals.js') return new Response(SIGNALS, { headers: { 'content-type': 'text/javascript; charset=utf-8', 'cache-control': 'no-store' } });
     if (p === '/xlog' && req.method === 'POST') {
       const line = (await req.text()).slice(0, 400).replace(/[\r\n]+/g, ' ');
       await env.ROOM.get(env.ROOM.idFromName('log')).fetch('https://log/log', { method: 'POST', body: 'X ' + line });

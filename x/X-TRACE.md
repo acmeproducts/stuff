@@ -1,6 +1,6 @@
 # X — requirements traceability matrix
 
-Version 1.0.0 · 2026-11-18
+Version 1.1.0 · 2026-11-18 (evening)
 
 Every requirement in `X-REQUIREMENTS.md`, the decisions that answer it, the release that delivers it, what proves it, and where it stands. Updated in the same commit as any release.
 
@@ -45,15 +45,25 @@ Status words: **met** (proved on the owner's device, evidence named) · **part**
 | R35 | hit rate and wrong fires per signal, during X-like use | D20 | L2 | L2 gate | open |
 | R36 | fact and theory labelled | P17 | every record | review at each commit | holds so far |
 | R37 | memory on the device, synced with GitHub; learns in operation and in function | D13, D21 | X1 | X1 gate 8; each later release's plan cites what the build read | open |
+| R38 | Lab cases for hand and head recognition | D23 | S2, S3 | `signals-page-test.py` hand and head checks; the owner's run of the two cards | lab |
+| R39 | an action assigned to a hand or head movement or pose | D25, D26 | V1, V3 | `signals-check.js`, `signals-page-test.py` assign checks; the owner's run | lab |
+| R40 | basic signals, then complex ones by combining | D24, D27 | V1, V5 | combination checks; the owner's run | lab |
+| R41 | taught by being shown, with AI reading the outcome | D29 | V6 | V6 gate | open |
+| R42 | a 3D object handled by one hand or both | D28 | L3 | object checks (made-up hands); the owner's run | lab |
+| R43 | not made useful by choosing things to fetch | P9, G28 | every release | review at each commit | holds so far |
 
 ## Counts
-Met: 2 (R14, R31). Part: 7 (R04, R05, R18, R27, R28, R30, R32). Holding: 2 (R33, R36). Open: 26. Total 37.
+Met: 2 (R14, R31). Part: 7 (R04, R05, R18, R27, R28, R30, R32). Holding: 3 (R33, R36, R43). Lab only: 4 (R38, R39, R40, R42). Open: 27. Total 43.
 
 ## Use cases to releases
 | Use case | Releases |
 |---|---|
 | UC1 start and end a session | W1, X1 |
 | UC2 ask something new | X1 |
+| UC13 teach a signal | V1 |
+| UC14 give a signal an action | V3 |
+| UC15 make a word | V5 |
+| UC16 show X a run | V6 |
 | UC3 keep, change or drop | X1 |
 | UC4 use a known word | X1 |
 | UC5 move through a list | X2 |

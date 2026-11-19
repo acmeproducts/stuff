@@ -4,6 +4,25 @@ Version 1.0.0 · 2026-11-18 · Answers to `X-NORTH-STAR.md`
 
 This is the analysis: a first reading of the owner's vision as one working idea. It is the owner's to correct. Nothing here changes the built architecture.
 
+## 0. Correction, 2026-11-18 (evening): what X learns first
+**Fact.** The first pass of X (`x-r2`, a voice page) failed on the owner's devices: about 30 seconds an answer, nothing learned that X could then do by itself. His words: "a voice front end to AI", "cosplay with AI". My next proposal, two fixed things for X to fetch, was refused: "that's building connectors again". Both are in the graveyard (G21, G28).
+
+**What replaces it, in the owner's order.** X learns the way writing is learned.
+
+| Stage | What it is | Where it stands |
+|---|---|---|
+| 1. Letters | A signal the person shows three times and names. A **pose** is held; a **move** goes out and comes back. It can come from the right hand, the left hand, the head and face, or the watch. Each signal may be given one action. | built in the Lab (`lab-r7`), lab only |
+| 2. Words | Signals made one after another become a new signal with its own action. | built in the Lab, lab only |
+| 3. Showing | "Monkey see, monkey do." The person does something while X watches. X keeps the run: which of his signals he made, what each did, and what the thing looked like before and after. An AI reads the before and after and says back, in a sentence, what the run was for. He names it. From then on one signal or one word does the run. | not built; next (plan V, release V6) |
+| 4. The voice page | Parked. The parts that passed their checks stay for later use: listening, speaking in short parts, memory on the device and in GitHub, the three AI services. It returns when taught signals and shown runs give it something to do without asking a model each time. | failed its device gate |
+
+**Where showing is built first: the object card.** A cup on a table can be taken, carried, turned and set down, and whether it ended on the ring facing right can be checked by the page. Nothing has to be connected to anything. That makes it the place to prove showing before it is tried on anything else. This is my decision; override me if it is wrong.
+
+**The actions a signal can be given today** (one signal, one action; one action, one signal):
+- In X: more, enough, yes, no, again, back. These wait for X.
+- On the object: take, let go, turn left, turn right, tip toward me, tip away, bigger, smaller, next object, put it back.
+- On the watch: buzz the watch.
+
 ## 1. In one paragraph
 X is a learning system you raise. It is born knowing five things. You talk to it in your own words and steer it with a few signals you taught it. Whatever it already knows, it does at once. Whatever it does not know, it works out with an AI's help, shows you one thing, and takes your verdict. What you keep becomes part of its vocabulary, so the next time is instant. Session by session the edge of what it knows moves outward, and your hands stay at rest the whole time.
 

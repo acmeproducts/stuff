@@ -13,7 +13,8 @@ Owner, 2026-11-18:
 ## 2. State
 | | |
 |---|---|
-| Built | Nothing of X. |
+| Built | `x-r2`, a voice page. **Failed its device gate on 2026-11-18** (below) and is parked. |
+| Parked until | taught signals, words and shown runs (plan V) give X something it can do without asking a model each time. The parts that passed their checks are kept: listening, speaking in short parts, memory on the device and in GitHub, the three AI services. |
 | Floor (facts, from the owner's pages) | chat-test: listening through Deepgram with strict turn-taking. prism, market-navigator, devstream: answers read aloud by the browser's voice. All four: model calls straight from the page, three providers, key test, fallback, web search as a switch. prism and market-navigator: evidence frozen with the answer, kept in a library. devstream: eight spoken commands matched before any model call; a first touch unlocks speech. |
 | Also floor | session-manager keeps its source-of-truth file on the device and in GitHub as a list of events with an outbox; devstream and chat-test read and write the repo from the page with a token. |
 | Not the floor | session-manager's chat goes through the OpenClaw gateway. X's does not (A7). |
@@ -164,3 +165,9 @@ Finding things to buy. Flights as an acquired content type. Each step that sends
 | Model spend | one call per unknown ask; a known word costs the same call without the reading; four threads at most |
 | A feed the model cannot reach | it waits; nothing bespoke is built |
 | Music has no playable source the page may use | recorded as open; pictures and text first |
+
+## 7. Record, 2026-11-18 (evening)
+**Owner:** "it's basically a shell and it sends a prompt … just a voice front end to AI … cosplay with AI … the latency is ridiculous … not sure where the learning portion comes in yet".
+**Facts from the log:** four asks took 27.6, 26.9, 32.1 and 30.3 seconds; a change took 11.7; all on Venice; none came back with sources; nothing was kept.
+**My next proposal**, that X be given two fixed things to fetch, was refused: "that's building connectors again" (G28).
+**What happens to this plan:** X2 to X6 stand as written but none starts until V6 (showing) has passed on a device. X1's device gate stays failed; it is not re-run on this page.

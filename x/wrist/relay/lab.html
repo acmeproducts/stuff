@@ -20,6 +20,23 @@ button:active{background:var(--panel2)}
 .linkbox .kv b.bad{color:var(--bad)}
 .camview{position:relative;width:100%;max-width:520px;margin:0 auto;border-radius:14px;overflow:hidden;background:#000;aspect-ratio:4/3}
 .camview video,.camview canvas{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;transform:scaleX(-1)}
+.camview.small{max-width:230px}
+.camview.off{display:none}
+.camview.corner{position:absolute;right:8px;top:8px;width:28%;max-width:170px;margin:0;border-radius:10px;opacity:.92;border:1px solid var(--line)}
+.obj{position:relative;width:100%;max-width:760px;margin:0 auto;aspect-ratio:4/3;border-radius:14px;overflow:hidden;background:#0d141b;border:1px solid var(--line)}
+.obj>canvas{width:100%;height:100%;display:block}
+.objbox{gap:8px}
+select,input[type=text]{font:inherit;color:var(--text);background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:12px 10px;min-width:0;max-width:100%}
+.row select,.row input[type=text]{flex:1;min-width:92px}
+.sigrow{display:flex;gap:10px;align-items:center;justify-content:space-between;background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:10px 12px;text-align:left;transition:background .15s}
+.siglist{display:grid;gap:8px}
+.sigrow>div{min-width:0}
+.sigrow b{display:block;overflow-wrap:anywhere}
+.sigrow em{font-style:normal;color:var(--muted);font-size:13.5px}
+.sigrow button{padding:8px 10px;font-size:14px;color:var(--muted);flex:none}
+.sigrow select{flex:none;max-width:48%;padding:10px 8px}
+.sigrow.lit{background:var(--good);border-color:var(--good);color:#06140d}
+.sigrow.lit em{color:#06140d}
 .buzzgrid{display:grid;grid-template-columns:1fr 1fr;gap:10px}
 .buzzgrid button{padding:18px 8px;font-weight:650}
 /* ---------- grid ---------- */
@@ -105,7 +122,7 @@ button:active{background:var(--panel2)}
 .quad .q i{position:absolute;left:0;bottom:0;height:6px;background:var(--accent);width:0}
 .quad .q.in{border-color:var(--accent)}
 .quad .q.lit{background:#12301f;border-color:var(--good)}
-.linkbox{position:absolute;inset:0;overflow-y:auto;padding:16px 14px 40px;display:grid;gap:12px;align-content:start;text-align:center}
+.linkbox{position:absolute;inset:0;overflow-y:auto;padding:16px 14px 40px;display:grid;gap:12px;align-content:start;grid-auto-rows:max-content;grid-template-columns:minmax(0,1fr);text-align:center}
 .linkbox .lk{font-size:30px;font-weight:750}
 .linkbox .g4{display:grid;grid-template-columns:1fr 1fr;gap:10px}
 .linkbox .g4>div{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:12px 8px}
@@ -175,10 +192,13 @@ button:active{background:var(--panel2)}
   <input id="code" type="tel" inputmode="numeric" autocomplete="off" maxlength="6" placeholder="······" aria-label="6-digit watch code">
 </div></div>
 
+<script src="/signals.js"></script>
 <script>
 (function(){
 'use strict';
-var BUILD='lab-r6';
+var BUILD='lab-r7';
+var QUERY=location.search;          // kept, because the address is tidied once the code is read from it
+var Signals=window.Signals;
 var LINK_SECS=Number((/[?&]linksecs=(\d+)/.exec(location.search)||[])[1])||120;
 var $=function(id){return document.getElementById(id)};
 var DEG=180/Math.PI;
@@ -237,6 +257,38 @@ function makeList(root){
    Each takes derived samples and returns the gestures it fired, so the same
    code runs inside its own card and inside the Keepers card.
    ===================================================================== */
+/* the watch as numbers a signal can be taught from */
+function watchN(d){return{tilt:d.pitch,rollS:Math.sin(d.roll/DEG),rollC:Math.cos(d.roll/DEG),turn:d.yaw*DEG}}
+function taught(kind){return Signals.signals.some(function(s){return s.kind!=='combo'&&Signals.kindOf(s.src)===kind})}
+function live(kind){return Signals.signals.some(function(s){
+  if(s.kind==='combo'||Signals.kindOf(s.src)!==kind)return false;
+  return !!Signals.assign[s.id]||Signals.signals.some(function(c){return c.kind==='combo'&&Signals.assign[c.id]&&c.seq.indexOf(s.id)>=0})})}
+/* the camera and its finders, for any card that looks at hands or the head. The picture never leaves the device. */
+function camHtml(cls){return'<div class="camview'+(cls?' '+cls:'')+'"><video playsinline muted></video><canvas></canvas></div>'}
+function eyesOn(card,root,want){
+  card.el=root;card.frame=null;card.rateAt=now();card.rateN=0;
+  var box=root.querySelector('.camview'),msg=root.querySelector('.cmsg'),t0=now();
+  if(box)box.classList.remove('off');
+  Signals.eyes.start(root.querySelector('video'),want,function(m){if(msg&&cur===card)msg.textContent=m}).then(function(ok){
+    if(cur!==card)return;
+    if(ok)ev('camera','finder ready',{ms:Math.round(now()-t0),cpu:Signals.eyes.cpu?1:0,hands:want.hands?1:0,face:want.face?1:0});
+    else if(Signals.eyes.err)ev('camera','failed',{why:Signals.eyes.err.slice(0,120)});
+  });
+}
+function eyesOff(card,why){Signals.eyes.stop();card.frame=null;var b=card.el&&card.el.querySelector('.camview'),m=card.el&&card.el.querySelector('.cmsg');if(b)b.classList.add('off');if(m)m.textContent=why||''}
+function eyesTick(card){
+  var f=Signals.eyes.poll(),t=now();
+  if(f){card.frame=f;card.rateN++}
+  else if(Signals.eyes.err&&card.el){var m=card.el.querySelector('.cmsg');if(m&&m.textContent!==Signals.eyes.err)m.textContent=Signals.eyes.err}
+  if(t-card.rateAt>=5000){if(card.rateN)ev('camera','rate',{fps:Math.round(card.rateN*1000/(t-card.rateAt)),ms:Math.round(Signals.eyes.ms),hands:card.frame?card.frame.hands.length:0,face:card.frame&&card.frame.head?1:0});card.rateAt=t;card.rateN=0}
+  return f;
+}
+function eyesDraw(card){var c=card.el&&card.el.querySelector('.camview canvas');if(c&&!c.parentNode.classList.contains('off'))Signals.eyes.draw(c,card.frame)}
+/* hear one short phrase (a name), with the browser's own listening */
+function hearOnce(done){
+  var SR=window.SpeechRecognition||window.webkitSpeechRecognition,r;if(!SR)return null;
+  try{r=new SR();r.interimResults=false;r.continuous=false;r.onresult=function(e){var s='';for(var i=e.resultIndex;i<e.results.length;i++)s+=e.results[i][0].transcript;done(s.trim().replace(/[.!?]+$/,''))};r.onerror=function(){done('')};r.start();return r}catch(e){return null}
+}
 var R={};
 R.tilt2=function(){var o={lp:null,on:false,nv:false,neutral:0,rate:0};
   o.sample=function(d){var f=[];
@@ -441,7 +493,7 @@ var CONCEPTS=[
    var self=this;self.v=el.querySelector('video');self.c=el.querySelector('canvas');self.alive=true;self.h=null;self.s=null;self.lm=[];self.conn=[];
    self.frames=0;self.foundFrames=0;self.t0=now();self.lastStat=now();self.statFrames=0;self.found=null;self.ms=0;self.secs=0;self.lastVT=-1;
    var say=function(m){$('cmMsg').textContent=m};self.sayMsg=say;
-   var mp=(/[?&]mp=([^&]+)/.exec(location.search)||[])[1];mp=mp?decodeURIComponent(mp):'https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@1.2.0';
+   var mp=(/[?&]mp=([^&]+)/.exec(QUERY)||[])[1];mp=mp?decodeURIComponent(mp):'https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@1.2.0';
    if(!navigator.mediaDevices||!navigator.mediaDevices.getUserMedia){say('This browser gives a page no camera.');ev('camera','failed',{why:'no getUserMedia'});return}
    var stage='the camera';say('Asking for the camera…');
    navigator.mediaDevices.getUserMedia({video:{facingMode:'user',width:{ideal:640},height:{ideal:480}},audio:false}).then(function(s){
@@ -518,6 +570,352 @@ var CONCEPTS=[
      });g.appendChild(b)});
  },
  watch:function(m){if(m.t==='buzzed'&&this.sent){var d=Math.round(now()-this.sent);$('bzState').textContent=this.name+': felt';$('bzMsg').textContent='The watch buzzed '+(d/1000).toFixed(1)+' s after the tap.';ev('concept','buzz felt',{name:this.name,ms:d});this.sent=0}}
+},
+{id:'hands',name:'Hand numbers',needsRaw:false,noRaw:true,g:[],
+ blurb:'Each hand as numbers: how curled each finger is, how close the thumb is to a fingertip, which way the palm faces, how the hand is rolled. A taught hand signal is made of these.',
+ how:'Hold up one hand: check that its numbers appear under the right name, Left for your left hand. Say so in the notes if they are the wrong way round. Then make a fist, open it, pinch, point, turn the palm over. Watch which numbers move and which stay still. A pose that moves numbers no other pose moves is easy to teach and hard to confuse.',
+ ROWS:[['thumb curl','curlT'],['index curl','curlI'],['middle curl','curlM'],['ring curl','curlR'],['little curl','curlP'],['thumb to index','pinchI'],['thumb to middle','pinchM'],['palm faces: across','palmX'],['palm faces: up or down','palmY'],['palm faces: camera','palmZ'],['rolled, degrees','roll'],['across the picture','x'],['down the picture','y'],['looks this big','size']],
+ mount:function(root){
+   var el=document.createElement('div');el.className='linkbox';
+   el.innerHTML=camHtml('')+'<div class="g4"><div><b id="hnN">0</b><em>hands seen</em></div><div><b id="hnFps">–</b><em>frames / s</em></div><div><b id="hnMs">–</b><em>ms per frame</em></div><div><b id="hnCpu">–</b><em>running on</em></div></div><div class="scrollx"><table id="hnT"></table></div><p class="cmsg"></p>';
+   root.appendChild(el);eyesOn(this,el,{hands:true});this.painted=0;this.seen=-1;
+ },
+ tick:function(){
+   var f=eyesTick(this);if(!f)return;
+   if(f.hands.length!==this.seen){this.seen=f.hands.length;detect(this.seen===0?'no hand':this.seen===1?'one hand':'two hands',{sides:f.hands.map(function(h){return h.side}).join(' ')})}
+   if(now()-this.painted<140)return;this.painted=now();
+   var by={};f.hands.forEach(function(h){by[h.side]=h.n});
+   var cell=function(n,k){if(!n)return'<td>–</td>';var v=k==='roll'?Math.round(Math.atan2(n.rollS,n.rollC)*DEG):n[k];return'<td>'+(k==='roll'?v:(v==null?'–':v.toFixed(2)))+'</td>'};
+   var h='<tr><th></th><th>Right</th><th>Left</th></tr>';
+   this.ROWS.forEach(function(r){h+='<tr><td>'+r[0]+'</td>'+cell(by.Right,r[1])+cell(by.Left,r[1])+'</tr>'});
+   $('hnT').innerHTML=h;$('hnN').textContent=f.hands.length;$('hnFps').textContent=Signals.eyes.fps?Signals.eyes.fps.toFixed(0):'–';$('hnMs').textContent=Signals.eyes.ms?Signals.eyes.ms.toFixed(0):'–';$('hnCpu').textContent=Signals.eyes.cpu?'processor':'graphics';
+ },
+ draw:function(){eyesDraw(this)},
+ unmount:function(){Signals.eyes.stop()}
+},
+{id:'head',name:'Head and face',needsRaw:false,noRaw:true,g:[],
+ blurb:'Your head as numbers: nod, turn and lean in degrees, and blink, jaw, brows and smile from 0 to 1. A taught head signal is made of these.',
+ how:'Look at the screen. Nod, shake your head, lean it to a shoulder, blink one eye, raise your brows, open your mouth. Watch which numbers move. Also find hands shows what running both finders costs in frames a second.',
+ ROWS:[['nod, degrees','nod',0],['turn, degrees','turn',0],['lean, degrees','lean',0],['blink, left eye','blinkL',2],['blink, right eye','blinkR',2],['jaw open','jaw',2],['brows up','brows',2],['smile','smile',2],['pucker','pucker',2]],
+ mount:function(root){
+   var el=document.createElement('div'),self=this;el.className='linkbox';
+   el.innerHTML=camHtml('')+'<div class="g4"><div><b id="hdState">starting</b><em>face</em></div><div><b id="hdFps">–</b><em>frames / s</em></div><div><b id="hdMs">–</b><em>ms per frame</em></div><div><b id="hdBoth">face only</b><em>finders</em></div></div><div class="scrollx"><table id="hdT"></table></div><div class="row"><button type="button" id="hdHands">Also find hands</button></div><p class="cmsg"></p>';
+   root.appendChild(el);el.querySelector('.row').addEventListener('pointerup',function(e){e.stopPropagation()});
+   this.el=el;this.both=false;this.found=null;this.painted=0;eyesOn(this,el,{face:true});
+   $('hdHands').addEventListener('click',function(){self.both=!self.both;this.textContent=self.both?'Face only':'Also find hands';$('hdBoth').textContent=self.both?'face and hands':'face only';ev('page','finders',{both:self.both?1:0});eyesOn(self,el,{face:true,hands:self.both})});
+ },
+ tick:function(){
+   var f=eyesTick(this);if(!f)return;
+   var has=!!f.head;
+   if(has!==this.found){this.found=has;detect(has?'face found':'face lost',{});var b=$('hdState');b.textContent=has?'found':'lost';b.style.color=has?'var(--good)':'var(--warn)'}
+   if(now()-this.painted<140)return;this.painted=now();
+   var n=f.head?f.head.n:null,h='';
+   this.ROWS.forEach(function(r){var v=n?n[r[1]]:null;h+='<tr><td>'+r[0]+'</td><td>'+(v==null?'–':v.toFixed(r[2]))+'</td></tr>'});
+   $('hdT').innerHTML=h;$('hdFps').textContent=Signals.eyes.fps?Signals.eyes.fps.toFixed(0):'–';$('hdMs').textContent=Signals.eyes.ms?Signals.eyes.ms.toFixed(0):'–';
+ },
+ draw:function(){eyesDraw(this)},
+ unmount:function(){Signals.eyes.stop()}
+},
+{id:'teach',name:'Teach a signal',needsRaw:false,noRaw:true,g:[],
+ blurb:'Show X something three times and name it. A pose is something you hold. A move goes out and comes back. X works out which from what you show. These are the letters.',
+ how:'Pick what you will use: a hand, your head, or the watch. Press Teach. Stay as you are when it says REST. When it says NOW, make the pose and hold it, or make the move once and come back. It asks three times, tells you what it saw, and listens for a name: say it, then press Save. Taught signals are listed underneath and light up each time X sees one. Two taps and no typing for each signal.',
+ STEPS:[['rest',1500],['now',2200],['back',1200],['now',2200],['back',1200],['now',2200]],
+ raw:function(){return this.src==='watch'||taught('watch')},
+ mount:function(root){
+   var el=document.createElement('div'),self=this;el.className='linkbox';
+   var opts=Signals.SOURCES.map(function(s){return'<option value="'+s[0]+'">'+s[1]+'</option>'}).join('');
+   el.innerHTML='<div class="lk" id="tSay">Press Teach</div><div class="row"><select id="tSrc" aria-label="What you will use">'+opts+'</select><button type="button" id="tGo" class="on">Teach</button></div>'+camHtml('small')+'<p class="cmsg"></p><div id="tNew"></div><h3>TAUGHT ON THIS DEVICE</h3><div id="tList" class="siglist"></div>';
+   root.appendChild(el);el.addEventListener('pointerup',function(e){if(e.target.closest('select,button,input'))e.stopPropagation()});
+   this.el=el;this.phase='idle';this.pending=null;this.rec=null;this.want='';
+   var last='handR';try{last=localStorage.getItem('x_teach_src')||'handR'}catch(e){}
+   $('tSrc').value=last;this.src=$('tSrc').value||'handR';this.look();
+   $('tSrc').addEventListener('change',function(){self.src=this.value;try{localStorage.setItem('x_teach_src',self.src)}catch(e){}ev('teach','source',{src:self.src});self.look();wantRaw(self.raw())});
+   $('tGo').addEventListener('click',function(){self.begin()});
+   this.off=Signals.onFire(function(e){detect('fired: '+e.name,{src:e.src,kind:e.kind});var r=document.getElementById('sig_'+e.id);if(r){r.classList.add('lit');setTimeout(function(){r.classList.remove('lit')},700)}});
+   this.list();
+ },
+ /* which finders this card needs: the one for what is being taught, and the ones for what is already taught */
+ look:function(){
+   var want={hands:this.src==='handR'||this.src==='handL'||taught('hand'),face:this.src==='head'||taught('head')},key=(want.hands?'h':'')+(want.face?'f':'');
+   if(key===this.want)return;this.want=key;
+   if(key)eyesOn(this,this.el,want);else eyesOff(this,'The watch needs no camera. Open Wrist on the watch.');
+ },
+ say:function(big,aloud,then){
+   $('tSay').textContent=big;var done=false,go=function(){if(done)return;done=true;if(then)then()};
+   try{if(aloud&&window.speechSynthesis){speechSynthesis.cancel();var u=new SpeechSynthesisUtterance(aloud);u.rate=1.1;u.onend=go;u.onerror=go;speechSynthesis.speak(u);if(then)setTimeout(go,2500);return}}catch(e){}
+   go();
+ },
+ hush:function(){if(this.rec){try{this.rec.abort()}catch(e){}this.rec=null}},
+ begin:function(){
+   if(this.phase==='teaching')return;
+   this.hush();this.phase='teaching';this.step=0;this.rep=-1;this.stepAt=now();this.cap={rest:[],reps:[[],[],[]]};this.pending=null;$('tNew').innerHTML='';
+   ev('teach','begin',{src:this.src});this.say('REST','rest');
+ },
+ keep:function(n){
+   if(this.phase!=='teaching'||!n)return;var s=this.STEPS[this.step][0];
+   if(s==='rest')this.cap.rest.push({t:now(),n:n});else if(s==='now'&&this.rep>=0)this.cap.reps[this.rep].push({t:now(),n:n});
+ },
+ sample:function(d){if(this.src==='watch')this.keep(watchN(d))},
+ tick:function(){
+   var f=eyesTick(this),self=this;
+   if(f&&this.src!=='watch'){
+     if(this.src==='head')this.keep(f.head&&f.head.n);
+     else{var h=f.hands.filter(function(x){return x.src===self.src})[0];this.keep(h&&h.n)}
+   }
+   if(this.phase!=='teaching'||now()-this.stepAt<this.STEPS[this.step][1])return;
+   this.step++;this.stepAt=now();
+   if(this.step>=this.STEPS.length){this.finish();return}
+   if(this.STEPS[this.step][0]==='now'){this.rep++;this.say('NOW  '+(this.rep+1)+' of 3','now')}else this.say('BACK TO REST','back');
+ },
+ finish:function(){
+   var self=this,r=Signals.learn(this.src,this.cap.rest,this.cap.reps),box=$('tNew');
+   this.phase='idle';
+   if(r.error){this.say('Not learned','not learned');var p=document.createElement('p');p.id='tWhy';p.textContent=r.error+' Press Teach to try again.';box.appendChild(p);ev('teach','failed',{src:this.src,why:r.error});return}
+   var like=Signals.signals.filter(function(s){return Signals.collides(s,r)}).map(function(s){return s.name});
+   this.pending=r;
+   box.innerHTML='<p id="tWhy"></p><div class="row"><input id="tName" type="text" autocomplete="off" autocapitalize="off" placeholder="its name" aria-label="Name for this signal"><button type="button" id="tMic">🎤 Say it</button></div><div class="row"><button type="button" id="tSave" class="on">Save</button><button type="button" id="tDrop">Discard</button></div>';
+   $('tWhy').textContent='I saw '+r.why+'.'+(like.length?' Careful: it looks like “'+like.join('” and “')+'”, which you already taught. One of the two will have to change.':'');
+   ev('teach','learned',{src:r.src,kind:r.kind,feat:r.feat||Object.keys(r.feats).join(' '),like:like.join(',')});
+   var listen=function(){
+     if(self.pending!==r)return;self.hush();
+     self.rec=hearOnce(function(name){self.rec=null;if(self.pending!==r)return;if(name){$('tName').value=name.toLowerCase();$('tSay').textContent='“'+name.toLowerCase()+'”';ev('teach','name heard',{})}else $('tSay').textContent='Name it'});
+     if(self.rec)$('tSay').textContent='Say its name';else{$('tSay').textContent='Name it';$('tMic').style.display='none'}
+   };
+   $('tMic').addEventListener('click',listen);
+   this.say('Say its name','got it. say its name',listen);
+   $('tSave').addEventListener('click',function(){
+     self.hush();r.name=$('tName').value.trim()||(Signals.sourceName(r.src).toLowerCase()+' '+r.kind);delete r.why;var g=Signals.add(r);
+     ev('teach','saved',{name:g.name,src:g.src,kind:g.kind});self.pending=null;box.innerHTML='';self.say('Saved: '+g.name,'saved');self.list();wantRaw(self.raw());
+   });
+   $('tDrop').addEventListener('click',function(){self.hush();self.pending=null;box.innerHTML='';self.say('Press Teach','');ev('teach','discarded',{})});
+ },
+ list:function(){
+   var box=$('tList'),self=this;box.innerHTML='';
+   if(!Signals.signals.length){box.innerHTML='<p>Nothing taught yet.</p>';return}
+   Signals.signals.forEach(function(s){
+     var row=document.createElement('div');row.className='sigrow';row.id='sig_'+s.id;
+     var what=s.kind==='combo'?'combination: '+s.seq.map(function(id){var x=Signals.byId(id);return x?x.name:'?'}).join(' then '):Signals.sourceName(s.src)+' · '+s.kind;
+     if(Signals.assign[s.id])what+=' · does: '+Signals.actionName(Signals.assign[s.id]);
+     row.innerHTML='<div><b></b><em></em></div><button type="button">Remove</button>';
+     row.querySelector('b').textContent=s.name;row.querySelector('em').textContent=what;
+     row.querySelector('button').addEventListener('click',function(){Signals.remove(s.id);ev('teach','removed',{name:s.name});self.list();self.look();wantRaw(self.raw())});
+     box.appendChild(row);
+   });
+ },
+ draw:function(){eyesDraw(this)},
+ unmount:function(){this.phase='idle';this.pending=null;this.hush();if(this.off)this.off();Signals.eyes.stop();try{speechSynthesis.cancel()}catch(e){}}
+},
+{id:'assign',name:'Assign and combine',needsRaw:false,noRaw:true,g:[],
+ blurb:'Give each taught signal one action. Join signals into a new one: made one after another, letters become a word, and the word gets its own action.',
+ how:'Each signal has a list of actions: pick one. One signal has one action and one action has one signal, so picking an action that another signal holds moves it. To combine, pick two or three signals in the order you will make them, name the result, press Add. Then make your signals and watch what fires. The actions under On the object take effect on the card Object in your hands. Buzz the watch works here. The actions under In X wait for X.',
+ raw:function(){return taught('watch')},
+ mount:function(root){
+   var el=document.createElement('div'),self=this;el.className='linkbox';
+   el.innerHTML='<div class="lk" id="aFire">Make a signal</div>'+camHtml('small')+'<p class="cmsg"></p><h3>SIGNALS AND WHAT THEY DO</h3><div id="aList" class="siglist"></div><h3>COMBINE: ONE AFTER ANOTHER</h3><div class="row"><select id="c1" aria-label="First"></select><select id="c2" aria-label="Second"></select><select id="c3" aria-label="Third, if any"></select></div><div class="row"><input id="cbName" type="text" autocomplete="off" autocapitalize="off" placeholder="its name" aria-label="Name for the combination"><button type="button" id="cAdd" class="on">Add</button></div><h3>FIRED</h3><div id="aLog" class="kv" style="white-space:pre-line">–</div>';
+   root.appendChild(el);el.addEventListener('pointerup',function(e){if(e.target.closest('select,button,input'))e.stopPropagation()});
+   this.el=el;this.log=[];
+   if(taught('hand')||taught('head'))eyesOn(this,el,{hands:taught('hand'),face:taught('head')});
+   else eyesOff(this,Signals.signals.length?'':'Nothing is taught yet. Use the card Teach a signal first.');
+   this.off=Signals.onFire(function(e){
+     var act=Signals.actionName(e.action);detect('fired: '+e.name,{action:e.action});
+     $('aFire').textContent=e.name+(act?'  →  '+act:'');
+     self.log.unshift(hhmm(Date.now())+'  '+e.name+(act?'  →  '+act:'  (no action)'));self.log=self.log.slice(0,8);$('aLog').textContent=self.log.join('\n');
+     if(e.action==='buzz'&&ws&&ws.readyState===1){try{ws.send(JSON.stringify({cmd:'buzz',p:[0,40,90,40]}));ev('page','buzz sent',{by:e.name})}catch(x){}}
+   });
+   $('cAdd').addEventListener('click',function(){
+     var seq=[$('c1').value,$('c2').value,$('c3').value].filter(Boolean);
+     if(seq.length<2){$('aFire').textContent='Pick at least two';return}
+     var names=seq.map(function(id){return Signals.byId(id).name});
+     var g=Signals.add({kind:'combo',name:$('cbName').value.trim()||names.join(' + '),seq:seq,gap:2500});
+     ev('combine','added',{name:g.name,of:names.join(' then ')});$('cbName').value='';$('aFire').textContent='Added: '+g.name;self.list();
+   });
+   this.list();
+ },
+ list:function(){
+   var box=$('aList'),self=this;box.innerHTML='';
+   var acts='<option value="">no action</option>',grp='';
+   Signals.ACTIONS.forEach(function(a){if(a[2]!==grp){if(grp)acts+='</optgroup>';grp=a[2];acts+='<optgroup label="'+(grp==='X'?'In X':grp==='object'?'On the object':'On the watch')+'">'}acts+='<option value="'+a[0]+'">'+a[1]+'</option>'});acts+='</optgroup>';
+   if(!Signals.signals.length)box.innerHTML='<p>Nothing taught yet.</p>';
+   Signals.signals.forEach(function(s){
+     var row=document.createElement('div');row.className='sigrow';
+     var what=s.kind==='combo'?s.seq.map(function(id){var x=Signals.byId(id);return x?x.name:'?'}).join(' then '):Signals.sourceName(s.src)+' · '+s.kind;
+     row.innerHTML='<div><b></b><em></em></div><select aria-label="Action">'+acts+'</select>';
+     row.querySelector('b').textContent=s.name;row.querySelector('em').textContent=what;
+     var sel=row.querySelector('select');sel.value=Signals.assign[s.id]||'';sel.dataset.sig=s.name;
+     sel.addEventListener('change',function(){Signals.setAction(s.id,this.value);ev('assign','set',{name:s.name,action:this.value});self.list()});
+     box.appendChild(row);
+   });
+   ['c1','c2','c3'].forEach(function(id){
+     var sel=$(id);sel.innerHTML='<option value="">–</option>';
+     Signals.signals.forEach(function(s){if(s.kind==='combo')return;var o=document.createElement('option');o.value=s.id;o.textContent=s.name;sel.appendChild(o)});
+   });
+ },
+ tick:function(){eyesTick(this)},
+ draw:function(){eyesDraw(this)},
+ unmount:function(){if(this.off)this.off();Signals.eyes.stop()}
+},
+{id:'object',name:'Object in your hands',needsRaw:false,noRaw:true,g:[],
+ blurb:'A cup, a bowl or a toy car that you handle with your hands in front of the camera. One hand or both.',
+ how:'Hold a hand up: a dot follows your thumb and first finger. Bring the dot to the object and pinch to take it. Move your hand and it moves; turn your hand and it turns; bring your hand nearer and it comes nearer. Open your fingers to let it go, and it settles on the table. Pinch it with the other hand as well and the two hands turn it and make it bigger or smaller. Signals you gave object actions to (take, let go, turn left, next object and the rest) work here too. The task: set it down on the ring with its marked side to the right, without touching the screen.',
+ KINDS:['cup','bowl','car'],
+ TASK:'Task: set it on the ring, upright, marked side to the right.',
+ raw:function(){return live('watch')},
+ mount:function(root){
+   var el=document.createElement('div'),self=this,t0=now();el.className='linkbox objbox';
+   el.innerHTML='<div class="obj"><canvas id="oCan"></canvas>'+camHtml('corner')+'</div><div class="lk" id="oSay">Loading the object…</div><p id="oTask"></p><p class="cmsg"></p>';
+   root.appendChild(el);this.el=el;this.T=null;this.r=null;this.o=null;this.held=null;this.kind=0;this.pin={};this.gone={};this.hs={};this.done=false;this.t0=now();
+   $('oTask').textContent=this.TASK;
+   eyesOn(this,el,{hands:true,face:live('head')});
+   this.off=Signals.onFire(function(e){if(e.action)self.act(e.action,e)});
+   var url=(/[?&]three=([^&]+)/.exec(QUERY)||[])[1];url=url?decodeURIComponent(url):'https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.min.js';
+   var fail=function(e){var w=String(e&&e.message||e).slice(0,140);$('oSay').textContent='The object could not be drawn';el.querySelector('.cmsg').textContent=w;ev('object','failed',{why:w})};
+   import(url).then(function(T){if(cur!==self)return;self.T=T;try{self.build();$('oSay').textContent='Hold up a hand';ev('object','ready',{ms:Math.round(now()-t0)})}catch(e){self.T=null;fail(e)}},fail);
+ },
+ build:function(){
+   var T=this.T,can=$('oCan'),w=can.clientWidth||320,h=can.clientHeight||240,self=this;
+   this.r=new T.WebGLRenderer({canvas:can,antialias:true,alpha:true});this.r.setPixelRatio(Math.min(2,window.devicePixelRatio||1));this.r.setSize(w,h,false);
+   this.scene=new T.Scene();this.cam=new T.PerspectiveCamera(40,w/h,0.1,50);this.cam.position.set(0,1.7,4.4);this.cam.lookAt(0,0.5,0);this.cam.updateMatrixWorld();this.size=[w,h];
+   this.scene.add(new T.HemisphereLight(0xffffff,0x334455,1.1));var sun=new T.DirectionalLight(0xffffff,1.3);sun.position.set(2,4,3);this.scene.add(sun);
+   var table=new T.Mesh(new T.CircleGeometry(2.6,48),new T.MeshStandardMaterial({color:0x1c232c,roughness:1}));table.rotation.x=-Math.PI/2;this.scene.add(table);
+   this.ringAt=new T.Vector3(1.25,0,0.35);
+   var ring=new T.Mesh(new T.TorusGeometry(0.5,0.035,8,48),new T.MeshBasicMaterial({color:0xe5a23b}));ring.rotation.x=Math.PI/2;ring.position.copy(this.ringAt).setY(0.02);this.scene.add(ring);
+   var arrow=new T.Mesh(new T.ConeGeometry(0.09,0.22,12),new T.MeshBasicMaterial({color:0xe5a23b}));arrow.rotation.z=-Math.PI/2;arrow.position.set(this.ringAt.x+0.72,0.03,this.ringAt.z);this.scene.add(arrow);   /* which way the marked side should point */
+   this.dots={};
+   ['Right','Left'].forEach(function(s){var d=new T.Mesh(new T.SphereGeometry(0.09,16,12),new T.MeshBasicMaterial({color:s==='Left'?0xe5a23b:0x39c5cf,depthTest:false,transparent:true,opacity:0.9}));d.renderOrder=9;d.visible=false;self.scene.add(d);self.dots[s]=d});
+   this.pT=new T.Vector3();this.qT=new T.Quaternion();this.sT=1;this.make(this.kind);
+ },
+ make:function(k){
+   var T=this.T,g=new T.Group(),mat=function(c){return new T.MeshStandardMaterial({color:c,roughness:0.55,metalness:0.05,side:T.DoubleSide})},m,name=this.KINDS[k];
+   if(name==='cup'){
+     m=new T.Mesh(new T.CylinderGeometry(0.42,0.34,0.8,32,1,true),mat(0xd9a066));m.position.y=0.4;g.add(m);
+     m=new T.Mesh(new T.CircleGeometry(0.34,32),mat(0xd9a066));m.rotation.x=-Math.PI/2;m.position.y=0.01;g.add(m);
+     m=new T.Mesh(new T.TorusGeometry(0.2,0.05,10,24),mat(0xeef1f4));m.position.set(0.58,0.42,0);g.add(m);          /* the handle is the marked side */
+   }else if(name==='bowl'){
+     var pts=[];for(var i=0;i<=10;i++){var a=i/10*Math.PI/2;pts.push(new T.Vector2(0.15+0.6*Math.sin(a),0.45*(1-Math.cos(a))))}
+     m=new T.Mesh(new T.LatheGeometry(pts,40),mat(0x4cc38a));g.add(m);
+     m=new T.Mesh(new T.CircleGeometry(0.16,24),mat(0x4cc38a));m.rotation.x=-Math.PI/2;m.position.y=0.005;g.add(m);
+     m=new T.Mesh(new T.SphereGeometry(0.08,16,12),mat(0xeef1f4));m.position.set(0.75,0.45,0);g.add(m);              /* a bead on the rim is the marked side */
+   }else{
+     m=new T.Mesh(new T.BoxGeometry(1.2,0.28,0.6),mat(0xe5534b));m.position.y=0.3;g.add(m);
+     m=new T.Mesh(new T.BoxGeometry(0.6,0.24,0.5),mat(0x8b949e));m.position.set(-0.1,0.56,0);g.add(m);
+     [[0.4,0.3],[0.4,-0.3],[-0.4,0.3],[-0.4,-0.3]].forEach(function(p){var wh=new T.Mesh(new T.CylinderGeometry(0.16,0.16,0.1,20),mat(0x14181d));wh.rotation.x=Math.PI/2;wh.position.set(p[0],0.16,p[1]);g.add(wh)});
+     m=new T.Mesh(new T.BoxGeometry(0.06,0.1,0.44),mat(0xeef1f4));m.position.set(0.62,0.32,0);g.add(m);              /* the headlights are the marked side */
+   }
+   if(this.o)this.scene.remove(this.o);
+   this.o=g;this.scene.add(g);this.home();g.position.copy(this.pT);g.quaternion.copy(this.qT);
+   ev('object','shown',{kind:name});
+ },
+ home:function(){this.pT.set(-0.9,0,0.2);this.qT.setFromAxisAngle(new this.T.Vector3(0,1,0),-1.2);this.sT=1;this.held=null;this.done=false;this.t0=now();$('oTask').textContent=this.TASK},
+ /* a point in the picture, mirrored as the person sees themselves, to a place in the scene at the object's distance */
+ place:function(px,py,depth){
+   var T=this.T,dir=new T.Vector3((1-px)*2-1,1-py*2,0.5).unproject(this.cam).sub(this.cam.position).normalize(),fwd=new T.Vector3(),out=new T.Vector3();
+   this.cam.getWorldDirection(fwd);
+   return new T.Ray(this.cam.position,dir).intersectPlane(new T.Plane().setFromNormalAndCoplanarPoint(fwd,new T.Vector3(0,0.6,depth)),out)||out.set(0,0.6,depth);
+ },
+ /* how the hand is turned, as the person sees it in the mirror */
+ turnOf:function(h){
+   var T=this.T,b=Signals.handBasis(h.lm,h.wl),x=new T.Vector3(-b.x.x,-b.x.y,-b.x.z).normalize(),y=new T.Vector3(-b.y.x,-b.y.y,-b.y.z).normalize(),z=new T.Vector3().crossVectors(x,y).normalize();
+   y.crossVectors(z,x).normalize();
+   return new T.Quaternion().setFromRotationMatrix(new T.Matrix4().makeBasis(x,y,z));
+ },
+ /* tie the hold to how the hands and the object are at this moment */
+ anchor:function(){
+   var d=this.held,o=this.o,hs=this.hs;if(!d)return;
+   if(d.mode==='one'){var h=hs[d.side];if(!h)return;d.off=o.position.clone().sub(h.at);d.q0=o.quaternion.clone();d.hq0=h.q.clone().invert();d.size0=h.n.size;d.z0=o.position.z}
+   else if(hs.Left&&hs.Right){var L=hs.Left.at,R2=hs.Right.at;d.mid0=L.clone().add(R2).multiplyScalar(0.5);d.d0=Math.max(0.05,L.distanceTo(R2));d.a0=Math.atan2(R2.y-L.y,R2.x-L.x);d.p0=o.position.clone();d.q0=o.quaternion.clone();d.s0=o.scale.x}
+ },
+ take:function(side,how,quiet){
+   if(!this.hs[side]||!this.o)return false;
+   this.held={mode:'one',side:side,how:how};this.anchor();
+   if(!quiet)detect('took it',{hand:side,how:how,kind:this.KINDS[this.kind]});return true;
+ },
+ both:function(){this.held={mode:'two',how:'pinch'};this.anchor();detect('took it',{hand:'both',how:'pinch',kind:this.KINDS[this.kind]})},
+ letGo:function(why){
+   if(!this.held)return;this.held=null;
+   var T=this.T,o=this.o,up=new T.Vector3(0,1,0).applyQuaternion(o.quaternion),f=new T.Vector3(1,0,0).applyQuaternion(o.quaternion);
+   this.sT=o.scale.x;this.pT.set(Math.max(-2.1,Math.min(2.1,o.position.x)),up.y>0.7?0:0.35*this.sT,Math.max(-1.6,Math.min(1.8,o.position.z)));
+   if(up.y>0.7)this.qT.setFromAxisAngle(new T.Vector3(0,1,0),Math.atan2(-f.z,f.x));else this.qT.copy(o.quaternion);     /* set down near enough upright, it stands; otherwise it lies as it was let go */
+   detect('let it go',{why:why,x:+this.pT.x.toFixed(2),z:+this.pT.z.toFixed(2),lying:up.y>0.7?0:1});this.check();
+ },
+ check:function(){
+   if(this.done||!this.o)return;
+   var T=this.T,f=new T.Vector3(1,0,0).applyQuaternion(this.qT),up=new T.Vector3(0,1,0).applyQuaternion(this.qT);
+   var on=Math.hypot(this.pT.x-this.ringAt.x,this.pT.z-this.ringAt.z)<0.4,faces=Math.atan2(-f.z,f.x)*DEG;
+   if(on&&Math.abs(faces)<25&&up.y>0.8){
+     this.done=true;var s=Math.round((now()-this.t0)/1000),touches=trial?trial.events.filter(function(e){return e.src==='touch'}).length:0;
+     detect('task done',{s:s,kind:this.KINDS[this.kind],touches:touches});$('oTask').textContent='Done in '+s+' s, '+touches+' touch'+(touches===1?'':'es')+' of the screen.';
+   }
+ },
+ act:function(a,e){
+   if(!this.T||!this.o)return;var T=this.T,self=this,hs=this.hs,o=this.o,k;
+   var spin=function(ax,deg){var q=new T.Quaternion().setFromAxisAngle(ax,deg/DEG);if(self.held){o.quaternion.premultiply(q);self.anchor()}else self.qT.premultiply(q)};
+   var side=e&&e.src==='handL'?'Left':e&&e.src==='handR'?'Right':(hs.Right?'Right':'Left');if(!hs[side])side=hs.Right?'Right':'Left';
+   if(a==='take'){if(this.held||!this.take(side,'signal'))return}
+   else if(a==='letgo'){if(!this.held)return;this.letGo('signal')}
+   else if(a==='left'||a==='right')spin(new T.Vector3(0,1,0),a==='left'?30:-30);
+   else if(a==='toward'||a==='away')spin(new T.Vector3(1,0,0),a==='toward'?30:-30);
+   else if(a==='bigger'||a==='smaller'){k=a==='bigger'?1.25:0.8;if(this.held){o.scale.setScalar(Math.max(0.4,Math.min(2.5,o.scale.x*k)));this.anchor()}else this.sT=Math.max(0.4,Math.min(2.5,this.sT*k))}
+   else if(a==='next'){this.kind=(this.kind+1)%this.KINDS.length;this.make(this.kind)}
+   else if(a==='reset')this.home();
+   else return;
+   ev('object','action',{a:a,by:e?e.name:''});
+   if(a!=='take'&&a!=='letgo'&&!this.held)this.check();
+ },
+ tick:function(){
+   var f=eyesTick(this),T=this.T,self=this,o=this.o;if(!T||!o||!f)return;
+   var hs={},t=now();
+   f.hands.forEach(function(h){
+     if(hs[h.side])return;
+     var was=!!self.pin[h.side],p=h.n.pinchI<0.3?true:h.n.pinchI>0.45?false:was;      /* closed below 0.30, open above 0.45, unchanged between */
+     self.pin[h.side]=p;self.gone[h.side]=t;
+     var at=self.place((h.lm[4].x+h.lm[8].x)/2,(h.lm[4].y+h.lm[8].y)/2,o.position.z);
+     hs[h.side]={n:h.n,at:at,q:self.turnOf(h),pinch:p,edge:p&&!was};
+     var d=self.dots[h.side];d.visible=true;d.position.copy(at);d.scale.setScalar(p?0.6:1);
+   });
+   ['Right','Left'].forEach(function(s){if(!hs[s]){self.dots[s].visible=false;if(t-(self.gone[s]||0)>600)self.pin[s]=false}});
+   this.hs=hs;
+   /* a hand missing for a frame or two is waited for; missing for longer, it has gone */
+   var st=function(s){return hs[s]?(hs[s].pinch?'pinch':'open'):(t-(self.gone[s]||0)>600?'gone':'wait')};
+   var mid=o.position.clone();mid.y+=0.4*o.scale.x;
+   var reach=function(s){return hs[s]&&hs[s].at.distanceTo(mid)<0.95*Math.max(1,o.scale.x)};
+   var held=this.held;
+   if(!held){['Right','Left'].some(function(s){return hs[s]&&hs[s].edge&&reach(s)&&self.take(s,'pinch')})}
+   else if(held.mode==='one'){
+     var h=hs[held.side],other=held.side==='Right'?'Left':'Right',state=st(held.side);
+     if(state==='gone')this.letGo('hand left the picture');
+     else if(state==='open'&&held.how==='pinch')this.letGo('opened');
+     else if(h&&hs[other]&&hs[other].edge&&reach(other)&&h.pinch)this.both();
+     else if(h){
+       o.position.copy(h.at).add(held.off);o.position.y=Math.max(0,o.position.y);
+       o.position.z=Math.max(-1.6,Math.min(1.8,held.z0+(h.n.size-held.size0)*18));
+       o.quaternion.copy(h.q).multiply(held.hq0).multiply(held.q0);
+     }
+   }else{
+     var sr=st('Right'),sl=st('Left');
+     if(sr==='pinch'&&sl==='pinch'){
+       var L=hs.Left.at,R2=hs.Right.at,fwd=new T.Vector3();this.cam.getWorldDirection(fwd);
+       o.position.copy(held.p0).add(L.clone().add(R2).multiplyScalar(0.5).sub(held.mid0));o.position.y=Math.max(0,o.position.y);
+       o.scale.setScalar(Math.max(0.4,Math.min(2.5,held.s0*L.distanceTo(R2)/held.d0)));
+       o.quaternion.setFromAxisAngle(fwd.negate(),Math.atan2(R2.y-L.y,R2.x-L.x)-held.a0).multiply(held.q0);
+     }else if(sr!=='wait'&&sl!=='wait'){
+       var stay=sr==='pinch'?'Right':sl==='pinch'?'Left':null;
+       if(stay){this.held=null;this.take(stay,'pinch',true);detect('one hand again',{hand:stay})}else this.letGo('opened');
+     }
+   }
+   if(!this.held){o.position.lerp(this.pT,0.25);o.quaternion.slerp(this.qT,0.25);o.scale.setScalar(o.scale.x+(this.sT-o.scale.x)*0.25)}
+   var say=this.held?(this.held.mode==='two'?'Both hands have it':'In your '+this.held.side.toLowerCase()+' hand'):f.hands.length?'Pinch on the object to take it':'Hold up a hand';
+   if($('oSay').textContent!==say)$('oSay').textContent=say;
+ },
+ draw:function(){
+   eyesDraw(this);if(!this.T||!this.r||!this.o)return;
+   var can=$('oCan'),w=can.clientWidth,h=can.clientHeight,o=this.o;
+   if(w&&h&&(w!==this.size[0]||h!==this.size[1])){this.size=[w,h];this.r.setSize(w,h,false);this.cam.aspect=w/h;this.cam.updateProjectionMatrix()}
+   this.r.render(this.scene,this.cam);
+   var f=new this.T.Vector3(1,0,0).applyQuaternion(o.quaternion),up=new this.T.Vector3(0,1,0).applyQuaternion(o.quaternion);
+   var c=o.position.clone();c.y+=0.4*o.scale.x;c.project(this.cam);
+   can.dataset.state=JSON.stringify({kind:this.KINDS[this.kind],held:this.held?this.held.mode:'',px:+(1-(c.x+1)/2).toFixed(3),py:+((1-c.y)/2).toFixed(3),x:+o.position.x.toFixed(3),y:+o.position.y.toFixed(3),z:+o.position.z.toFixed(3),s:+o.scale.x.toFixed(3),faces:Math.round(Math.atan2(-f.z,f.x)*DEG),up:+up.y.toFixed(2),done:this.done});
+ },
+ unmount:function(){if(this.off)this.off();Signals.eyes.stop();try{if(this.r){this.r.dispose();this.r.forceContextLoss()}}catch(e){}this.T=null;this.r=null;this.o=null}
 },
 {id:'see',name:'What the watch sees',needsRaw:true,g:[],
  blurb:'Live tilt, roll, turn and movement from the watch. No gestures: just look.',
@@ -745,7 +1143,7 @@ function open(c){
   $('flip').classList.remove('back');$('active').classList.add('show');
   $('active').classList.toggle('nostrip',!!c.noRaw);
   if(c.noTrial){trial=null;$('rec').textContent=''}else startTrial(c);
-  ev('page','open');wantRaw(!c.noRaw);paintNeed();
+  ev('page','open');wantRaw(c.raw?c.raw():!c.noRaw);paintNeed();
 }
 function flip(toBack){$('flip').classList.toggle('back',toBack);ev('page',toBack?'flip to notes':'flip to experiment')}
 function close(){
@@ -843,6 +1241,7 @@ function onRaw(m){
   for(var i=0;i<rows.length;i++){
     var d=derive(rows[i]),dt=prevDt==null?20:Math.max(1,rows[i][0]-prevDt);prevDt=rows[i][0];
     d.t=arrive-(lastDt-rows[i][0]);hist.push(d);
+    Signals.feed('watch',d.t,watchN(d));
     if(cur&&cur.sample)cur.sample(d,dt);
   }
   if(hist.length>800)hist.splice(0,hist.length-800);
@@ -890,7 +1289,7 @@ function connect(){
 }
 function listen(c,k){
   var s=new WebSocket((location.protocol==='https:'?'wss://':'ws://')+location.host+'/s/'+c+(k?'?k='+k:''));ws=s;
-  s.onopen=function(){if(ws!==s)return;retry=0;paintStatus();clearInterval(pingT);pingT=setInterval(function(){try{s.send('ping')}catch(e){}},20000);if(cur)wantRaw(!cur.noRaw)};
+  s.onopen=function(){if(ws!==s)return;retry=0;paintStatus();clearInterval(pingT);pingT=setInterval(function(){try{s.send('ping')}catch(e){}},20000);if(cur)wantRaw(cur.raw?cur.raw():!cur.noRaw)};
   s.onmessage=function(e){if(ws!==s||e.data==='pong')return;var m;try{m=JSON.parse(e.data)}catch(x){return}act(m)};
   s.onclose=function(){if(ws!==s)return;clearInterval(pingT);ws=null;paintStatus();connect.t=setTimeout(connect,Math.min(8000,500*Math.pow(2,retry++)))};
   s.onerror=function(){};

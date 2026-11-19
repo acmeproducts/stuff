@@ -22,9 +22,10 @@ Version 1.0.0 · 2026-11-18 · Answers to `X-REQUIREMENTS.md` · Rules from `cla
 | Suite | File | Covers | Today |
 |---|---|---|---|
 | Detector | `x/wrist/test/DetectorTest.java` | tilt and swing on synthetic traces | 16/16 |
-| Relay, live | `x/wrist/relay/e2e.mjs` | every relay route against the deployed worker, including sleep, buzz, pairing, reports, `/x` and the X log line | 35/35 |
+| Relay, live | `x/wrist/relay/e2e.mjs` | every relay route against the deployed worker, including sleep, buzz, pairing, reports, `/x`, `/signals.js` and the X log line | 37/37 |
 | Lab page | `x/wrist/relay/page-test.py` | the Lab in a phone-sized browser with a synthetic watch, including Watch off, results, camera probe (synthetic points), buzz, pairing | 73/73 |
-| Templates | new with V1 | template maker and matcher on synthetic and recorded holds | — |
+| Signals engine | `x/wrist/relay/signals-check.js` | the shared script alone: hand, head and watch numbers; learning a pose or a move from three showings; firing once; going further than taught; collisions; words in order and in time; one signal, one action | 43/43 |
+| New Lab cards | `x/wrist/relay/signals-page-test.py` (with `synth.js`, a made-up hand and head) | Hand numbers, Head and face, Teach, Assign and combine, Object in your hands, in a phone-sized browser; the object task done with no touch | 70/70 |
 | Arbiter | new with S5 | every rule type, no rule, absent against silent | — |
 | X page | `x/wrist/relay/x-test.py` | the nine steps driven by spoken sentences, with the model, GitHub and the browser's speech stood in for by the test | 50/50 |
 | Scoring | new with L2 | hit and wrong-fire arithmetic on a synthetic session with known answers | — |
@@ -67,15 +68,17 @@ The device gate for each release is written in its plan. In short:
 | L1 | relay sessions and snapshots; both tables | `plans/L-lab.md` | — |
 | X1 | X page suite | `plans/X-x.md` | hand time; reading delay |
 | S1 | probe card on a recorded clip | `plans/S-sources-arbiter.md` | camera frame rate |
-| V1 | templates suite; replay of the forearm trials | `plans/V-vocabulary-teach.md` | — |
+| S2, S3, V1, V3, V5, L3 (built together, 2026-11-18 evening) | signals engine; new Lab cards | their plans | frames a second with both finders; task time; touches |
+| V6 | recorder, reader (stood in for), replayer | `plans/V-vocabulary-teach.md` | time for the reading to come back |
 | W2 | summary arithmetic | `plans/W-watch.md` | battery; longest silence |
 | L2 | scoring suite | `plans/L-lab.md` | hit rate; wrong fires |
-| S2, S3 | numbers from recorded clips | `plans/S-sources-arbiter.md` | frame rate with both finders |
-| V2, V3, V4 | one-to-one rule; context separation | `plans/V-vocabulary-teach.md` | next-day hit rate |
+| V4 | context separation; next-day scoring | `plans/V-vocabulary-teach.md` | next-day hit rate |
 | S4, S5 | one event shape; arbiter suite | `plans/S-sources-arbiter.md` | arbiter delay |
-| L3 | synthetic signals finish the task | `plans/L-lab.md` | task time |
 | X2, X3 | lists; threads | `plans/X-x.md` | hand time over 30 minutes |
 | W3, W4 | page against watch on the same recordings; buzz word | `plans/W-watch.md` | battery again |
 
 ## 7. Reporting
 Every release report says, in this order: what passed on the device, what failed, what is lab-only, what is unverified. The numbers go into the plan and into `X-TRACE.md` in the same commit as the change.
+
+## 8. What the lab cannot show (2026-11-18, evening)
+The hand and face models cannot be downloaded where the build runs. Every check of the new cards uses a made-up hand and head (`synth.js`) fed in where the finders' results would arrive. So the lab proves the arithmetic, the teaching, the recognising and the cards. It does not prove that a real hand or face produces numbers like the made-up ones. That is the owner's run, and it is the first thing the build reads afterwards.

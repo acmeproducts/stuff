@@ -41,7 +41,7 @@ Making it fungible means the rule is stored as data per context, not built in. C
 ## 3. State
 | | |
 |---|---|
-| Built | Nothing in this plan. The watch source exists (plan W). |
+| Built | S1 camera probe: runs on the owner's tablet (fact, 2026-11-18). S2 hand numbers and S3 head and face: built in `lab-r7` (2026-11-18, evening), lab only. The arbiter: not built. |
 | Known (facts from Google's documentation, read 2026-11-18) | The hand finder is available on its own, returns 21 points per hand in picture form and in real-world form, and reuses the last position between frames. A page loads it from a script and one model file. On a Pixel 6 it takes 12 to 17 ms a frame. The stock gesture classifier knows seven gestures and a new one must be trained offline. |
 | Decided by the owner | Rings are dropped. Doublepoint's kit is not adopted. No trained classifier: detect the hand, then teach. A plain web page, nothing installed. |
 | Theory | It runs smoothly on the S23 and on an iPhone's browser. Taught hand templates hold across a day's changes in light, distance and angle. The camera is a good workshop and registration source and a tiring all-day one, because a raised hand tires and the camera costs battery. |
@@ -76,13 +76,17 @@ The owner's five-stage camera outline from the other session maps onto S1, S2, V
 
 **First real run, 2026-11-18 13:06 UTC, owner's tablet (trial `camera-8291`): the hand finder works.** Ready 4.5 s after the camera opened, on the graphics chip. 13 to 17 frames a second, 64 to 71 ms a frame. Hand found 94% of the time over 104 s, lost and found again four times. Owner rated it Keep, thumbs up. Fact: this is just under the 15 frames a second target, on the tablet. Not yet measured on the S23 or the iPhone.
 
-### S2 — Hand numbers (walk)
-**Scope:** a live strip of curl, facing and roll, like the Lab's tilt, roll and turn strip. Recorded with each trial.
-**Gate:** the owner holds five different hand shapes and the strip tells them apart by eye.
+### S2 — Hand numbers (crawl) · built 2026-11-18 (evening), lab only
+Owner: "I want more lab cases for the hand and head recognition".
 
-### S3 — Head probe (walk)
-**Scope:** face found or lost; nod, shake and tilt as live numbers; frame rate with the hand finder running at the same time.
-**Gate:** TH6 answered with a number. A nod while listening and a deliberate held nod are recorded so the difference can be measured.
+**What was built.** The card **Hand numbers**: a table for the right hand and the left, updated live: curl of each finger, thumb to index and to middle, which way the palm faces, roll, place in the picture, nearness; with frames a second. The numbers are made so that moving the hand about the picture does not change the shape numbers (lab check).
+**Fact from Google's guide (read 2026-11-18):** Left and Right are the person's own hands when the picture is not mirrored; the page gives the finder the unmirrored picture. **Not yet seen on a device.**
+**Device gate:** the owner holds five different hand shapes and tells them apart by the numbers; his left hand shows under Left.
+
+### S3 — Head and face (crawl) · built 2026-11-18 (evening), lab only
+**What was built.** The card **Head and face**: nod, turn and lean in degrees; blink of each eye, jaw, brows, smile, pucker from 0 to 1; a button that runs the hand finder at the same time and shows what that costs in frames a second.
+**Never run on a device.** The face model could not be downloaded in the build's sandbox; the card was checked with a made-up head. Which way each number goes when the owner nods or turns is not known until he runs it; teaching does not depend on it, because a taught signal learns its direction from what is shown.
+**Gate:** TH6 answered with a number (frames a second with both finders on the tablet and on the S23). The numbers move when he nods, turns, raises his brows.
 
 ### S4 — One event shape (walk)
 **Scope:** watch, hand, head and voice all report the same event (time, source, signal, command, confidence) and their presence. The Lab's See card shows all sources on one timeline.

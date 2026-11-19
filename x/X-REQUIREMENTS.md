@@ -19,6 +19,10 @@ The owner stated the what. This file keeps it in a form that can be traced and t
 | US10 | I can see what my watch reported and how well each signal works, in a table. |
 | US11 | X never does something I cannot take back without my yes. |
 | US12 | I use the same X on my phone and on a desktop. |
+| US13 | I show X a pose or a move three times, say its name, and it is mine. (2026-11-18, evening) |
+| US14 | I join signals I have taught into a new one, the way letters make a word. |
+| US15 | I pick up a cup on the screen with my hand, or with both, and put it down where I want it. |
+| US16 | I do something once while X watches, and after that one signal does it. |
 
 ## 2. Use cases
 Each is written as what the person does and what X does. Releases are in `X-ROADMAP.md`.
@@ -37,6 +41,10 @@ Each is written as what the person does and what X does. Releases are in `X-ROAD
 | UC10 | Read the evidence | Open the results table. See what the watch reported, and each signal's hit rate and wrong fires. | L1, L2 |
 | UC11 | Handle an object | Take, turn and let go of a 3D object with signals alone. | L3 |
 | UC12 | Do something that cannot be undone | X states exactly what will happen and waits for **yes**. | X6 |
+| UC13 | Teach a signal | Pick hand, head or watch. Show it three times when asked. Say its name. Save. | V1 |
+| UC14 | Give a signal an action | Pick one action for a signal. An action another signal held moves to this one. | V3 |
+| UC15 | Make a word | Pick two or three signals in order, name the result, give it an action. | V5 |
+| UC16 | Show X a run | Do a task while X watches. Hear what X took it to be. Name it. Make it happen again with one signal. | V6 |
 
 ## 3. Requirements
 Source column: NS = `X-NORTH-STAR.md` section; WP = `x/wrist/WRIST-PLAN.md` section.
@@ -105,6 +113,16 @@ Source column: NS = `X-NORTH-STAR.md` section; WP = `x/wrist/WRIST-PLAN.md` sect
 | R34 | Hand time is measured in every session: minutes, touches, seconds of touching. | NS §1 |
 | R35 | Each signal has a hit rate and a wrong-fire rate, measured during X-like use, since the watch is off outside a session. | owner 2026-11-18 |
 | R36 | Every record labels fact and theory. | owner preference |
+
+### 3.8 Teaching and handling (owner, 2026-11-18, evening)
+| # | Requirement | Source |
+|---|---|---|
+| R38 | The Lab has cases for hand recognition and for head recognition that show what the camera reads. | NS §2 (evening) |
+| R39 | An action can be assigned to a specific hand or head movement or pose. | NS §2 (evening) |
+| R40 | X is taught commands and gestures, basic first, then complex ones made by combining basic ones, "like letters make up words". | NS §2 (evening) |
+| R41 | X can be taught by being shown: "monkey see monkey do with some AI assisted interpretation of outcomes". | NS §2 (evening) |
+| R42 | A 3D model of objects can be handled virtually with the hands, one or both. "Imperative." | NS §2 (evening) |
+| R43 | X is not made useful by choosing things for it to fetch. No connectors of our own, by any name. | NS §2, §3 (evening) |
 
 ## 4. Out of scope until the owner says otherwise
 - An administrative assistant (mail, calendar). The owner ranked it last.

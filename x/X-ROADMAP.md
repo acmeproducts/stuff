@@ -1,10 +1,17 @@
 # X — development roadmap (top authority for everything under `x/`)
 
-Version 1.0.0 · 2026-11-18 · Owner and device gate: Confi
+Version 1.1.0 · 2026-11-18 (evening) · Owner and device gate: Confi
 
 This is the one place that says where we are, where we are going and how we get there. It points to five plans. Each plan has releases; each release has a build sequence, checks and a device gate. The picture of this file is `pipeline.html`.
 
-## 1. Where we are (2026-11-18)
+## 1. Where we are (2026-11-18, evening)
+**Changed this evening (facts)**
+- X's first pass failed on the owner's devices and is parked. He set a new order: more hand and head cases, actions assigned to them, teaching "basic then complex … like letters make up words", then teaching by showing, and a 3D object handled by the hands (`X-NORTH-STAR.md` §2).
+- Built the same evening, lab only until he runs it: Lab `lab-r7` with five new cards (Hand numbers, Head and face, Teach a signal, Assign and combine, Object in your hands), the shared signals script, relay `w6`.
+- Proven on his devices earlier in the day: the hand finder runs on the tablet at 13 to 17 frames a second; the watch pairs by itself, buzzes on request and sleeps when X ends. Failed: the watch goes silent for one to two and a half minutes at a time with the screen off.
+
+**What follows is the record as of the morning.**
+
 **Built and proven on the owner's watch (facts)**
 - Watch app `turn06-b6` reads wrist motion with the screen off and sends it out. Nothing is read on the watch. (`turn07-b8`, relay `w5`, Lab `lab-r6` and X `x-r2` were built on 2026-11-18 and are lab-only until the owner runs them.)
 - Relay `w3` carries watch events to any browser page and keeps logs and trial recordings the build can read.
@@ -45,7 +52,7 @@ After 1.0 comes the run stage: sentences and contexts, making and analysing, and
 |---|---|---|---|
 | 1 | Foundation | wrist motion reaches a browser page and the logs come back to the build | **passed 2026-11-17/18** |
 | 2 | Session | opening X starts the watch, closing X stops it, it cannot stop by accident | crawl |
-| 3 | X is born | all nine steps work by voice: ask, answer, verdict, learn; what it learns is kept and synced; hand time is reported | crawl ends |
+| 3 | X is born | X does something it was taught or shown, by a signal or a word of the owner's, without asking a model; what it learned is kept and synced; hand time is reported. *(Reworded 2026-11-18, evening, after the voice page failed this gate as first written: "all nine steps work by voice". My rewording; the owner may strike it.)* | crawl ends |
 | 4 | Proven signals | each candidate signal, from watch or camera, has a hit rate and a wrong-fire rate from scored use | walk |
 | 5 | Your language | the owner's taught signals steer X through the arbiter, and still work the next day | walk |
 | 6 | X walks | lists and threads work; the six points of X 1.0 hold | walk ends = **X 1.0** |
@@ -68,17 +75,18 @@ A release is the smallest whole thing that can be used and judged. Status: built
 | **L1** Results table | what the watch reported and each signal's record, in a table | W1 (shares the relay change) | 4 | crawl | **built, lab only; awaiting the owner** |
 | **X1** Born | the X page: listen, the nine steps, five commands by voice, words kept on the device and synced to GitHub, hand time | W1 for the watch's session; works without it | 3 | crawl | **device gate FAILED 2026-11-18**: about 30 s an ask, nothing learned that X can do by itself; see `plans/X-x.md` |
 | **S1** Camera probe | camera opens, hand found or lost, frames a second, on each device | — | 4 | crawl | **works on the owner's tablet (13 to 17 frames a second, found 94%); S23 and iPhone not yet measured** |
-| **V1** Teach on the watch | do it three times, name it, collision check; replaces the OK card | L1 | 4 | crawl | later |
+| **S2** Hand numbers | each hand as live numbers: curl, thumb to fingertip, palm facing, roll, place, nearness | S1 | 4 | crawl | **built in `lab-r7`, lab only; awaiting the owner** |
+| **S3** Head and face | nod, turn, lean, blink, jaw, brows, smile as live numbers; both finders together | S1 | 4 | crawl | **built, lab only; the face finder has never run on a device** |
+| **V1** Teach | show it three times, say its name, collision warning; one card for the right hand, left hand, head and watch (V2 folded in) | S2, S3 | 4 | crawl | **built, lab only** |
+| **V3** Assign | one action for each signal, one signal for each action; kept on the device | V1 | 5 | crawl | **built in the Lab, lab only; contexts and X not yet** |
+| **V5** Words | signals made one after another become a signal with its own action | V1 | 5 | crawl | **built, lab only** |
+| **L3** 3D object | a cup, a bowl and a toy car taken, carried, turned and resized by one hand or both; a timed task; actions from signals | S2 | 6 | crawl | **built, lab only** |
+| **V6** Showing | do a run while X watches; AI says what it was for; name it; one signal does it again. First on the object card | V1, V3, V5, L3 passed on a device | 5 | walk | **next** |
 | W2 Battery truth | percent an hour by link, from real sessions; 30-minute freeze check; Wi-Fi-only run | W1, L1 | 2 | walk | later |
 | L2 Scored session | prompted and unprompted scoring: hit rate and wrong fires per signal | V1 | 4 | walk | later |
-| S2 Hand numbers | live curl, facing and roll from the hand finder | S1 | 4 | walk | later |
-| S3 Head probe | face found, nod, shake, tilt numbers; both finders together | S1 | 4 | walk | later |
-| V2 Teach by camera | hand and head templates, same teach card | S2, S3, V1 | 4 | walk | later |
 | S4 One event shape | every source reports the same shape, with presence | V1, V2 | 5 | walk | later |
-| V3 Registration | signal to command, per context, one-to-one | S4, X1 | 5 | walk | later |
 | S5 Arbiter | rules as data per context; winner shown and logged | S4, V3 | 5 | walk | later |
 | V4 Next-day test | taught yesterday, scored today | V3, L2 | 5 | walk | later |
-| L3 3D object | take, turn, let go of one object by signal; a timed task | V3 | 6 | walk | later |
 | X2 Lists | a word brings many items; more, back, glide | X1, V3 | 6 | walk | later |
 | X3 Threads | several at once; announce the ready; library | X1 | 6 | walk | later |
 | W3 Recognition on the watch | the watch sends results, not raw rows (**needs the owner's yes: C1**) | W2, V1 | 6 | walk | later |
@@ -88,6 +96,14 @@ A release is the smallest whole thing that can be used and judged. Status: built
 | X6 Acts for you | finding and buying, with an explicit yes | X5 | — | run | later |
 
 ### 3.4 Order of work
+**From 2026-11-18, evening (the owner's order):**
+1. The owner runs the five new Lab cards. The build reads his trials and fixes what the real hand and head show that the made-up ones did not.
+2. **V6 Showing**, on the object card.
+3. Then S4 and S5 (one event shape, the arbiter), because words and shown runs make more than one thing fire at once.
+4. The X page comes back when there is something taught for it to do. W2 (battery, the silent watch) runs alongside whenever the watch is on.
+
+*The order below is the morning's, kept as the record.*
+
 **Crawl, now, three tracks side by side** (the owner's call, 2026-11-18: the watch change first, Lab use cases and a first pass at X in parallel):
 1. **W1**, then L1 on the same relay change.
 2. **X1**, starting with its checks and its page, joined to W1's session when W1 passes.
@@ -124,3 +140,6 @@ A release is done when its device gate passes and its rows in `X-TRACE.md` show 
 | 2026-11-18 | This roadmap, the five plans and their artifacts | written; nothing built from it yet |
 | 2026-11-18 | Owner's correction to X's first pass | Venice is the primary service; setup follows the three floor pages (a key and a kept model per service, a default switch); no Deepgram, the browser's own listening. Built as `x-r2`. Buried: G26, G27. |
 | 2026-11-18 | Owner's corrections the same day | "The loop" renamed the order of operations and stated to run wholly in the page (no gateway, not OpenClaw). Memory: on the device and synced with GitHub, so X learns "both in operation and in function" (D13, D21, R37); memory on the relay withdrawn. Pairing hardened in W1 (D22): "why wouldn't we just do that". Recognition on the watch explained; still awaits his yes (C1). |
+| 2026-11-18 (evening) | Owner's verdict on X's first pass: "a voice front end to AI … cosplay with AI … latency is ridiculous". My next proposal (X fetches two fixed things) refused: "that's building connectors again". | X1 parked as failed. G28. |
+| 2026-11-18 (evening) | Owner's new order: more hand and head cases; actions assigned to poses and movements; teach basic then complex "like letters make up words"; then "monkey see monkey do with some AI assisted interpretation of outcomes"; a 3D object handled by one hand or both. | Recorded: north star §2, requirements R38 to R43, decisions D23 to D30. |
+| 2026-11-18 (evening) | Built: `signals.lib.js`, Lab `lab-r7` (five new cards), relay `w6`. Lab checks: engine 43/43, new cards 70/70, older Lab 73/73, relay 37/37, X page 50/50. | **Lab only.** The made-up hand and head stand in for the finders; the models cannot run in the build's sandbox. No device has run any of it. |

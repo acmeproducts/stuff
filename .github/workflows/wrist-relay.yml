@@ -52,6 +52,13 @@ jobs:
             node e2e.mjs "$BASE" >> /tmp/relay.txt 2>&1
             e=$?
           fi
+          # the shared signals script, checked by itself (no browser, no network)
+          echo "== signals engine ==" >> /tmp/relay.txt
+          node signals-check.js > /tmp/signals.txt 2>&1
+          g=$?
+          grep -v '^PASS' /tmp/signals.txt | cut -c1-300 >> /tmp/relay.txt
+          echo "signals engine: $(grep -c '^PASS' /tmp/signals.txt) passed, exit $g" >> /tmp/relay.txt
+          [ "$g" = "0" ] || e=1
           set -e
           cd "$GITHUB_WORKSPACE"
           mkdir -p x/wrist/out
@@ -61,7 +68,7 @@ jobs:
           {
             echo "# Wrist relay deploy log"
             echo ""
-            echo "Run ${{ github.run_number }}, commit ${GITHUB_SHA}, $(date -u +%FT%TZ), deploy exit $d, end-to-end exit $e"
+            echo "Run ${{ github.run_number }}, commit ${GITHUB_SHA}, $(date -u +%FT%TZ), deploy exit $d, end-to-end and signals exit $e"
             echo ""
             echo '```'
             tail -c 40000 /tmp/relay-safe.txt

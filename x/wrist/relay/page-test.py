@@ -52,7 +52,7 @@ with sync_playwright() as pw:
     check('first visit asks for the watch code', pg.locator('#pair.show').count() == 1)
     pg.fill('#code', code)
     pg.wait_for_function("document.getElementById('statusText').textContent.indexOf('Waiting for the watch')===0", timeout=8000)
-    check('grid shows sixteen concepts, Keepers first', pg.locator('.tile').count() == 16 and pg.locator('.tile').first.get_attribute('data-id') == 'keepers', pg.locator('.tile').count())
+    check('grid shows twenty-one concepts, Keepers first', pg.locator('.tile').count() == 21 and pg.locator('.tile').first.get_attribute('data-id') == 'keepers', pg.locator('.tile').count())
     check('every concept starts unrated', pg.locator('.chip.keep,.chip.shop,.chip.dump').count() == 0)
     post({'t': 'hb', 'b': 'turn04-test'})
     pg.wait_for_function("document.getElementById('statusText').textContent==='Watch connected'", timeout=5000)

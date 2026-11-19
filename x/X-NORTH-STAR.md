@@ -1,6 +1,6 @@
 # X — north star
 
-Version 1.0.0 · 2026-11-18 · Owner: Confi
+Version 1.1.0 · 2026-11-18 (evening) · Owner: Confi
 
 This file holds the owner's own words and the principles drawn from them. Every other file in `x/` answers to it. Quotes are the owner's words; only punctuation is added and dictation slips are fixed. Anything not in quotes is a reading of them.
 
@@ -25,6 +25,17 @@ This file holds the owner's own words and the principles drawn from them. Every 
 On learning, 2026-11-18:
 > "why couldn't that be passed to the device so that it can be persisted in local storage and synced with GitHub … how else is this going to become a learning application both in operation and in function"
 
+On X's first pass, and what comes instead, 2026-11-18 (evening):
+> "it's basically a shell and it sends a prompt, so it's really not AI assisted, it's just a voice front end to AI … I don't think it does anything but just basically do cosplay with AI and pretend it's doing something when you ask it, plus the latency is ridiculous … I'm not sure where the learning portion comes in yet"
+
+> "X is highly ineffective and doesn't just help by trying to pick two things to do, that's building connectors again."
+
+> "I want to teach and have it learn commands and gestures, basic then complex, by combining actions like letters make up words. Then I want to be able to teach skills, even though I have misgivings about that word, because I don't think it is just a question of a skill in the context of how Claude teaches a skill. I think it's more of a monkey see monkey do with some AI assisted interpretation of outcomes. This opens up the range of things significantly that can be conceived of."
+
+> "it is imperative to have a 3D model of objects that can be handled virtually by using the hands, either one or both"
+
+> "I want more lab cases for the hand and head recognition. I also want to assign actions to specific hand and head movement and poses"
+
 The practical side:
 > "you want to be able to just not keep having to touch your phone all the time. Maybe you want to scroll through Reddit feeds, maybe you want a weather report and traffic, maybe you're doing research on the natural occurrence of gold in the Central Valley, maybe you're playing a game, maybe you're just exploring and appreciating art and music, maybe you're trying to figure out what the carry trade in Japan has to do [with] what is going on with credit squeeze"
 
@@ -37,6 +48,8 @@ The practical side:
 - Not a composite of what is already built:
   > "use this as a floor and to find the various stair steps to get to the ceiling"
 - Not a copy of something on the market: "don't just replicate something that's already out there".
+- Not a voice front end to an AI (2026-11-18, evening): "cosplay with AI".
+- Not helped along by a list of things chosen for it to do: "that's building connectors again" (2026-11-18, evening).
 - Not an administrative assistant: "the whole administrative assistant [thing] I think is the last use case that I'm interested in. I think AI assisted shopping would be cool and helping you find stuff that you want."
 
 ## 4. How the body talks to X
@@ -90,4 +103,7 @@ Each design decision in `X-DESIGN.md` cites the principles it rests on. A decisi
 | P17 | **Evidence.** Facts and theory are labelled. Everything measurable is logged where the build can read it. Diagnostics are in the app. | owner preferences; `claude-audit.md` A6, E1 |
 | P18 | **Explicit yes for anything that cannot be undone.** Sending, deleting and spending need the person's yes, and hardened pairing first. | WRIST-PLAN §6 |
 | P20 | **Learns in operation and in function.** What X learns stays on the device and syncs to GitHub. X keeps it everywhere, and the build reads it so X itself is improved from use. | §2 |
+| P21 | **Letters, then words, then showing.** X is taught basic signals first, then signals made from signals, then whole runs it is shown. Each stage is made from the one before it. | §2 (evening) |
+| P22 | **Shown, not told.** What X learns to do, it learns by watching the person do it. AI's part is to read what came of it. | §2 (evening) |
+| P23 | **Things are handled.** An object on the screen is taken, moved and turned by the hands themselves, one or both. | §2 (evening) |
 | P19 | **Not app navigation.** Signals are named for what the body does; meaning is given in X. The Lab is a workshop, not the product. | §4 |
