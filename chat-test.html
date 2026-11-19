@@ -1781,7 +1781,7 @@ function dgLangParam(room) {
     /* r13: live bubble. While someone talks, their words show at once in a faded bubble on both panes,
        with a rough translation of what is already settled. The settled text is translated in the
        background, so the real message usually finds its translation cached when the turn ends. */
-    var LIVE={},liveShown=null,liveSpec={};
+    var LIVE={},liveShown=null,liveSpec={},liveCand=null,liveSettleT=null,LIVE_SETTLE=350;   // a preview may appear, or move to the other side, only after that side has led for LIVE_SETTLE ms
     window.clLive=function(pipe,committed,interim,conf){
         committed=norm(committed||'');var text=norm(committed+' '+(interim||''));
         if(!text){delete LIVE[pipe];delete liveSpec[pipe];pickLive();return}
@@ -1792,7 +1792,13 @@ function dgLangParam(room) {
         ['south','north'].forEach(function(p){var l=LIVE[p];if(!l||Date.now()-l.ts>3000)return;
             var ss=window.audioTurn.scriptSide(l.text),sc=l.conf+(ss===p?0.3:ss?-0.6:0);
             if(!best||sc>best.sc)best={p:p,sc:sc,l:l}});
-        if(!best||best.sc<0.5){if(liveShown){liveShown=null;paintLive()}return}
+        if(!best||best.sc<0.5){liveCand=null;if(liveShown){liveShown=null;paintLive()}return}
+        if(!liveShown||liveShown.side!==best.p){      // starting, or about to switch sides: the other channel's guess at the same sounds often arrives first, so wait and see who leads
+            if(!liveCand||liveCand.side!==best.p)liveCand={side:best.p,since:Date.now()};
+            var waited=Date.now()-liveCand.since;
+            if(waited<LIVE_SETTLE){clearTimeout(liveSettleT);liveSettleT=setTimeout(pickLive,LIVE_SETTLE-waited+15);return}
+        }
+        liveCand=null;
         var keepTr=liveShown&&liveShown.side===best.p?liveShown.tr:'';
         liveShown={side:best.p,text:best.l.text,tr:keepTr};
         var c=best.l.committed;
