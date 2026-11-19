@@ -66,13 +66,13 @@ with sync_playwright() as pw:
     state = lambda: json.loads(pg.get_attribute('#oCan', 'data-state') or '{}')
     def close(): pg.click('#closeBtn'); wait(700)
 
-    pg.goto(base + '/?linksecs=5&three=' + urllib.request.quote(three, safe=''))
+    pg.goto(base + '/?linksecs=5&linger=2&three=' + urllib.request.quote(three, safe=''))
     pg.fill('#code', code)
     pg.wait_for_function("document.getElementById('statusText').textContent.indexOf('Waiting for the watch')===0", timeout=8000)
     post({'t': 'hb', 'b': 'turn07-test'})
     ids = ev("() => Array.from(document.querySelectorAll('.tile')).map(t => t.dataset.id)")
     check('the five new cards follow the buzz card', ids[ids.index('buzz') + 1: ids.index('buzz') + 6] == ['hands', 'head', 'teach', 'assign', 'object'], ids)
-    check('the page says which build it is', 'lab-r7' in txt('#meta'), txt('#meta'))
+    check('the page says which build it is', 'lab-r8' in txt('#meta'), txt('#meta'))
 
     # ---- hand numbers
     pg.click('.tile[data-id=hands]'); wait(900)
@@ -155,7 +155,8 @@ with sync_playwright() as pw:
     check('teach: three signals listed, each with what it is', txt('#tList').count('Remove') == 3 and 'Head and face · move' in txt('#tList') and 'Watch · pose' in txt('#tList'), txt('#tList'))
     if shot: pg.screenshot(path=shot + '-teach.png')
     close()
-    check('teach: closing stops the request for the watch stream', post({'t': 'hb'}).get('raw') == 0)
+    wait(3600)
+    check('teach: a while after closing, the watch stream is no longer asked for', post({'t': 'hb'}).get('raw') == 0)
 
     # ---- assign and combine
     pg.click('.tile[data-id=assign]'); wait(700)
@@ -203,14 +204,21 @@ with sync_playwright() as pw:
     s1 = state()
     check('object: it goes where the hand goes, mirrored like a mirror', s1['x'] > s0['x'] + 0.4 and s1['y'] > 0.2, s1)
     hand(x=HX - 0.15, y=HY - 0.12, pinch=1, size=0.25); wait(400)
-    check('object: a hand brought nearer brings it nearer', state()['z'] > s1['z'] + 0.5, (s1['z'], state()['z']))
+    check('object: a hand pushed toward the screen sends it away from you', state()['z'] < s1['z'] - 0.5, (s1['z'], state()['z']))
+    hand(x=HX - 0.15, y=HY - 0.12, pinch=0.5, size=0.25); wait(120); hand(x=HX - 0.15, y=HY - 0.12, pinch=1, size=0.25); wait(400)
+    check('object: a pinch that flickers open for an instant does not drop it', state()['held'] == 'one', state())
+    key = [x['key'] for x in json.loads(http('/trials')) if '-object-' in x['key'] and x['key'].endswith(':000')]
+    wait(16000)
+    key = [x['key'] for x in json.loads(http('/trials')) if '-object-' in x['key'] and x['key'].endswith(':000')]
+    body = http('/trial/' + sorted(key)[-1]) if key else ''
+    check('object: the record is in the lab log while the card is still open', '"open":1' in body and 'took it' in body, len(body))
     hand(x=HX - 0.15, y=HY - 0.12, pinch=1, yaw=40); wait(400)
     s2 = state()
     check('object: turning the hand turns it', abs(s2['faces'] - s1['faces']) > 25, (s1['faces'], s2['faces']))
     if shot: pg.screenshot(path=shot + '-object-held.png')
-    hand(x=HX - 0.15, y=HY - 0.12, pinch=0, yaw=40); wait(900)
+    hand(x=HX - 0.15, y=HY - 0.12, pinch=0.5, yaw=40); wait(900)      # fingers opened (the made-up hand's fingertips shift as they part, so the place is checked loosely)
     s3 = state()
-    check('object: opening the fingers lets it go, and it settles upright on the table', s3['held'] == '' and abs(s3['y']) < 0.03 and s3['up'] > 0.98 and abs(s3['x'] - s2['x']) < 0.1, s3)
+    check('object: opening the fingers lets it go, and it settles upright on the table', s3['held'] == '' and abs(s3['y']) < 0.03 and s3['up'] > 0.98 and abs(s3['x'] - s2['x']) < 0.3, (s2['x'], s3))
     # both hands
     two = lambda lx, rx, ly=0.0, pl=1, pr=1: pg.evaluate("(a) => { __puppet.rest = { hands: [{ x: a[1], y: a[5], pinch: a[4] }, { side: 'Left', x: a[0], y: a[5] + a[2], pinch: a[3] }], face: {} } }", [lx, rx, ly, pl, pr, s3['py'] + 0.28])
     cx = state()['px']
@@ -226,7 +234,7 @@ with sync_playwright() as pw:
     sC = state()
     check('object: one hand raised above the other tips it over, like a steering wheel', sC['up'] < 0.9 and sA['up'] > 0.98, (sA['up'], sC['up']))
     if shot: pg.screenshot(path=shot + '-object-two.png')
-    two(cx - 0.10, cx + 0.22, pl=0); wait(350)
+    two(cx - 0.10, cx + 0.22, pl=0); wait(600)
     check('object: one hand opening leaves it in the other', state()['held'] == 'one', state())
     two(cx - 0.10, cx + 0.22, pl=0, pr=0); wait(900)
     check('object: both open, it is let go', state()['held'] == '' and abs(state()['y']) < 0.4, state())
@@ -265,7 +273,7 @@ with sync_playwright() as pw:
     close()
     key = sorted(x['key'] for x in json.loads(http('/trials')) if '-object-' in x['key'] and x['key'].endswith(':000'))
     body = http('/trial/' + key[-1]) if key else ''
-    check('object: the trial is in the lab log with what happened, in order', all(w in body for w in ['took it', 'let it go', 'task done', '"a":"next"', 'one hand again']) and 'landmarks' not in body, len(body))
+    check('object: closed, the record is whole and no longer marked open', all(w in body for w in ['took it', 'let it go', 'task done', '"a":"next"', 'one hand again']) and 'landmarks' not in body and '"open":1' not in body, len(body))
 
     # ---- the rest of the Lab still stands
     pg.click('.tile[data-id=teach]'); wait(500); pg.click('#notesBtn'); wait(300); pg.click('#rate button[data-v=keep]'); pg.click('#doneBtn'); wait(700)

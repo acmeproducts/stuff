@@ -33,10 +33,15 @@ jobs:
           # Lab trials: what the watch saw + what the owner did + the verdict, one file per saved part
           mkdir -p x/wrist/out/trials
           curl -sS --max-time 20 "https://wrist-relay.myacctfortracking.workers.dev/trials" -o /tmp/trials.json || echo "[]" > /tmp/trials.json
-          for key in $(node -e 'try{for(const x of JSON.parse(require("fs").readFileSync("/tmp/trials.json","utf8")))console.log(x.key)}catch(e){}'); do
+          # A card's record is saved while the card is still open, and grows. So a part is fetched when the repo has no copy
+          # of it, or when the relay's copy is a different size from the repo's. A failed fetch never replaces a good copy.
+          for row in $(node -e 'try{for(const x of JSON.parse(require("fs").readFileSync("/tmp/trials.json","utf8")))console.log(x.key+"="+x.bytes)}catch(e){}'); do
+            key="${row%=*}"; want="${row##*=}"
             case "$key" in e2e-*) continue;; esac
             f="x/wrist/out/trials/$(echo "$key" | tr ':' '.').json"
-            [ -f "$f" ] || curl -sS --max-time 30 "https://wrist-relay.myacctfortracking.workers.dev/trial/$key" -o "$f" || rm -f "$f"
+            have=""; [ -f "$f" ] && have="$(LC_ALL=C.UTF-8 wc -m < "$f" | tr -d ' ')"
+            [ "$have" = "$want" ] && continue
+            curl -fsS --max-time 30 "https://wrist-relay.myacctfortracking.workers.dev/trial/$key" -o /tmp/part.json && mv /tmp/part.json "$f" || true
           done
           git config user.name acmeproducts
           git config user.email 182510673+acmeproducts@users.noreply.github.com

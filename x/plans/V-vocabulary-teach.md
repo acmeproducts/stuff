@@ -113,6 +113,21 @@ Owner: "I think it's more of a monkey see monkey do with some AI assisted interp
 
 **After the object card:** the same recorder on other things X can see the outcome of. Which thing comes next is decided when this gate has passed, from what the owner then asks for.
 
+### V7 — Calibrate (crawl) · next, with L5
+Owner, 2026-11-19: "we could focus more on calibration and interpretation and learning".
+
+**Scope.** In the Learn tab, ahead of Teach. About a minute per source; the person shows their own range and everything that reads that source uses it.
+| Source | What is learned |
+|---|---|
+| Hand | how the pinch reads open and closed; how big the hand looks near and far |
+| Head | where it rests; how far it turns, nods and leans in comfort |
+| Eyes | how each eye reads open and closed; blink left, right and both become three signals, each needing a hold longer than a natural blink |
+| Watch | the rest position |
+
+**Theory, to be shown by the card:** the person's own eye values plus the longer hold make blink reliable. His first run found blink "can't get … very correct" with the build's fixed scale.
+
+**Gate:** after calibrating, the owner takes and holds the cup ten times with no drop he did not mean; a deliberate blink of each eye fires, and two minutes of ordinary blinking fires nothing.
+
 ### V4 — Next-day test (walk)
 **Question:** TH5. Does a signal taught today work tomorrow?
 **Scope:** a scored session (L2) the day after teaching, with the watch taken off and put back in between. If a template has drifted, the card offers to widen it from the new repetitions (keep, change, drop: the same verdicts).

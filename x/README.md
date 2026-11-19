@@ -7,9 +7,9 @@ X is a learning system you raise, so that a phone can be used with hands at rest
 ## Read in this order
 | File | What it is |
 |---|---|
-| `X-NORTH-STAR.md` | The owner's own words and the 23 principles drawn from them. Everything answers to it. |
+| `X-NORTH-STAR.md` | The owner's own words and the 25 principles drawn from them. Everything answers to it. |
 | `X-CONCEPT.md` | What X is and does: the nine steps (the order of operations), the vocabulary, floor to ceiling. The analysis. |
-| `X-REQUIREMENTS.md` | User stories, use cases, 43 requirements. |
+| `X-REQUIREMENTS.md` | User stories, use cases, 56 requirements. |
 | `X-DESIGN.md` | Standing architecture, design decisions, logical and physical design, and the changes that need the owner's yes. |
 | `X-ROADMAP.md` | **Top authority.** Where we are, where we are going, six gates, five plans, every release in order. |
 | `plans/W-watch.md` | The watch: session, battery, recognition on the watch, buzz. |
@@ -37,7 +37,7 @@ History and code:
 | Thing | Where |
 |---|---|
 | Watch file `turn07-b8` | `https://github.com/acmeproducts/stuff/raw/wrist-turn01/x/wrist/out/wrist.apk` |
-| Lab `lab-r7` | `https://wrist-relay.myacctfortracking.workers.dev/` |
+| Lab `lab-r8` | `https://wrist-relay.myacctfortracking.workers.dev/` |
 | X `x-r2` | `https://wrist-relay.myacctfortracking.workers.dev/x` |
 
 ## For any session working here

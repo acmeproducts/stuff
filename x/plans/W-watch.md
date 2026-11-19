@@ -96,9 +96,9 @@ Theory, not proven: the fresh install reset "Allow background activity" to off. 
 | After the change it keeps talking with the screen off | 09:46:30 to 09:49:24: 60 reports, every one with the screen off, largest gap 3.3 s. Three minutes only; a longer run is still owed |
 | The watch cannot see either setting | `exempt` has read 0 on every report from every build, including the good 13 minutes on 17 Nov; `restricted` read 0 and `bucket` 10 while Wrist was on the Sleeping apps list |
 
-**Both settings are required: Allow background activity on, and Wrist not a sleeping app.** Because the watch cannot read either, the Lab can only warn on the symptom (silent with the screen off).
+**Both settings are required: Allow background activity on, and Wrist not a sleeping app.** Because the watch cannot read either, the Lab can only warn on the symptom (silent with the screen off). Built in `lab-r8` (2026-11-19): after 15 s of silence following a report with the screen off, the status line names both settings.
 
-**Card entry waits for the stream (owner, same message):** "every single time I enter a card it has to wait for the stream". Fact: the page asks for the sensor stream only when a card opens, and the watch hears the request at its next check-in, every 3 s. Measured wait from opening a card to the first rows: 0.2 to 3.1 s on turn06 (14 trials); 2.6 to 10.4 s on turn07 while it was being put to sleep (8 trials). Not yet changed.
+**Card entry waits for the stream (owner, same message):** "every single time I enter a card it has to wait for the stream". Fact: the page asks for the sensor stream only when a card opens, and the watch hears the request at its next check-in, every 3 s. Measured wait from opening a card to the first rows: 0.2 to 3.1 s on turn06 (14 trials); 2.6 to 10.4 s on turn07 while it was being put to sleep (8 trials). Changed in `lab-r8` (2026-11-19): the stream stays on between cards and for two minutes after the last card that needed it.
 
 Other facts from the same night: on Bluetooth the link card measured 44 rows a second, 157 ms round trip, one stall, worst gap 13.7 s (before the change). The watch's own battery page shows Wrist at 2.9% of the charge used over 13 h 22 m.
 

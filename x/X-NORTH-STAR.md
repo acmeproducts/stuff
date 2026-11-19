@@ -1,6 +1,6 @@
 # X — north star
 
-Version 1.1.0 · 2026-11-18 (evening) · Owner: Confi
+Version 1.2.0 · 2026-11-19 · Owner: Confi
 
 This file holds the owner's own words and the principles drawn from them. Every other file in `x/` answers to it. Quotes are the owner's words; only punctuation is added and dictation slips are fixed. Anything not in quotes is a reading of them.
 
@@ -35,6 +35,23 @@ On X's first pass, and what comes instead, 2026-11-18 (evening):
 > "it is imperative to have a 3D model of objects that can be handled virtually by using the hands, either one or both"
 
 > "I want more lab cases for the hand and head recognition. I also want to assign actions to specific hand and head movement and poses"
+
+After his first run of the new cards, 2026-11-19:
+> "when you use your hand to move the cup around it's reversed: when you move towards the screen the cup moves closer to you into the foreground, and when you move away from the screen it moves into the background. It should be reversed so it feels more natural"
+
+> "it would be really cool to be able to use your second hand to hand the cup from one hand to the other. Ideally you actually have a hand that is moving and acting just like your regular hand. I'd like there to be multiple objects and multiple tasks or goals. One fun one would need to have the equivalent of like a silly putty that you just pull and stretch with both hands, or you can press it together and flatten it, or flat onto the table."
+
+> "one major change I want to make to the lab is to have an overall dashboard and combine/learn tab, then a camera tab, a watch tab and a voice tab, so that we're not commingling everything. I wanted to confirm that for example you could use the camera tab and wouldn't need a watch connected, you wouldn't even need Wi-Fi or Bluetooth, you just need a camera."
+
+> "just for talking alone you could have the voice one that chat-test does which takes turns, and you could even try to experiment with interruptions, you could experiment with a hot word and a cold word to turn off and on listening when voice is the context. When context is camera you could have a gesture, you could teach it to listen and stop listening instead of a hot word."
+
+> "on the face tracking I did in fact confirm that it reads the face and shows things like nods and tilts; it really can't get eye blinking very correct. But I'd like to build a simple app that's part of that lab that is like go on a journey: if you want to turn left, kind of name your adventure, look to the left; if you want to go down the ladder look down; if you want to go up the ladder, look up."
+
+> "every single time I enter a card it has to wait for the stream"
+
+> "both places have to be set correctly: the app has to run in the background, and in the battery it cannot be a sleeping app. Now it seems to work consistently when the screen turns off, so we could focus more on calibration and interpretation and learning"
+
+> "keep blink left right both"
 
 The practical side:
 > "you want to be able to just not keep having to touch your phone all the time. Maybe you want to scroll through Reddit feeds, maybe you want a weather report and traffic, maybe you're doing research on the natural occurrence of gold in the Central Valley, maybe you're playing a game, maybe you're just exploring and appreciating art and music, maybe you're trying to figure out what the carry trade in Japan has to do [with] what is going on with credit squeeze"
@@ -106,4 +123,6 @@ Each design decision in `X-DESIGN.md` cites the principles it rests on. A decisi
 | P21 | **Letters, then words, then showing.** X is taught basic signals first, then signals made from signals, then whole runs it is shown. Each stage is made from the one before it. | §2 (evening) |
 | P22 | **Shown, not told.** What X learns to do, it learns by watching the person do it. AI's part is to read what came of it. | §2 (evening) |
 | P23 | **Things are handled.** An object on the screen is taken, moved and turned by the hands themselves, one or both. | §2 (evening) |
+| P24 | **Calibrated to the person.** Ranges come from the person's own body: how their pinch reads, how far they reach, where their head rests, how each eye reads. Fixed numbers of the build's are a stopgap. | §2 (2026-11-19) |
+| P25 | **Sources are kept apart.** The camera works with only a camera, the watch with only the watch, the voice with only the mic. They meet where the person teaches and combines. | §2 (2026-11-19) |
 | P19 | **Not app navigation.** Signals are named for what the body does; meaning is given in X. The Lab is a workshop, not the product. | §4 |

@@ -49,6 +49,16 @@ Three parts: the decisions, the logical design (what the pieces are), and the ph
 | D28 | The 3D object is drawn with three.js, loaded by the page from the same public host as the hand finder. The hand is shown as in a mirror. A pinch on the object takes it; it follows the hand, turns as the hand turns, comes nearer as the hand does; opening lets it go and it settles on the table. Two pinching hands move, turn and resize it. Actions given to signals work on it too, including while it is held. | P23, P12, P1 | three.js is off the shelf and was already named in this design. A pinch held is a posture, not a repeated motion. |
 | D29 | Showing (V6) is built first on the object card: the run is kept as the person's own signals and what each did, with the state before and after; one model call reads before and after and says what the run was for. | P22, P8, P9 | The outcome on the object card can be checked by the page with no connection to anything. AI is used at one named step. |
 | D30 | Naming a taught signal is by voice (the browser's own listening), with a box to correct it. Two taps and no typing for each signal. | P1, P2 | Teaching must not cost the hands it is meant to save. |
+| D31 | Object depth follows how big the hand looks, as a ratio, with the sign the owner asked for: hand toward the screen, object away. Strength 3 until calibration gives the person's own reach. | R44, P24 | A ratio behaves the same near and far. His first run jammed the cup against the walls 32 times in 59. |
+| D32 | A held object is let go only after the fingers have read open for 0.18 s. | P11, R55 | His run: 14 of 59 holds dropped within 0.4 s. A flicker is not a decision. |
+| D33 | A card's record is sent every 15 s while the card is open, when the page is hidden, and at close. The head is sent again each time; sensor rows go in parts, the last part re-sent as it grows. The drain re-fetches any part whose size changed. Records with no watch code are filed under 000000. | P17 | His object run reached the build two hours late because it was only sent on close. |
+| D34 | Once a card asks for the watch's stream it stays on between cards and for two minutes after the last card that needed it; it stops when the page is hidden. (With tabs: on while the Watch tab is open.) | R51 | The watch hears a request only at its next check-in, every 3 s; measured waits were 0.2 to 10 s per card. |
+| D35 | The quiet-watch warning is driven by the symptom: 15 s of silence after a report with the screen off. It names both settings. | R56 | The watch can read neither setting (`exempt`, `restricted` and `bucket` never changed). |
+| D36 | Calibrate (next): about a minute per source, the person shows their own range; everything that reads that source then uses it. Hand: pinch open and closed, near and far. Head: centre and comfortable turn. Eyes: each open and closed. Watch: rest. | P24, R55 | Fixed numbers failed on the first real hand. |
+| D37 | Tabs are one page; each tab starts only what it needs. The camera tab never asks for a watch code. | R49, R50, P25, P12 | One page keeps one set of taught signals. |
+| D38 | A hot word and a cold word are taught voice signals given the actions "start listening" and "stop listening". Any taught signal can be given those actions, so a gesture does the same job in the camera context. | R52, P5 | One mechanism, no special case. |
+
+**Calls made by the build and put to the owner on 2026-11-19 (he overrode one: blink stays).** Hands drawn as joints, bones and a palm, not lifelike skin. No physics engine. Putty does not tear or rejoin in its first pass. The journey is a small hand-written world with four built-in looks and no AI. The voice tab has no AI. No start without any connection. No new watch build this round. Showing (V6) waits behind this round.
 
 ## 3. Changes that would be architecture, not made, each needing the owner's explicit yes
 | # | Change | When it would come up | What vetting it needs |
@@ -110,8 +120,8 @@ Three parts: the decisions, the logical design (what the pieces are), and the ph
 | Part | Made of | Runs | State |
 |---|---|---|---|
 | Watch app | Java, Android SDK tools, package `com.acmeproducts.wrist` | Galaxy Watch 9, background service, screen off | built: `turn07-b8` |
-| Relay | one Cloudflare worker, one SQLite-backed storage class | `wrist-relay.myacctfortracking.workers.dev` | built: `w6` (adds `/signals.js`) |
-| Lab | one HTML file (`x/wrist/relay/lab.html`) served by the relay at `/` | any browser | built: `lab-r7`, 21 cards |
+| Relay | one Cloudflare worker, one SQLite-backed storage class | `wrist-relay.myacctfortracking.workers.dev` | built: `w7` (same routes as `w6`; the number moves with every deploy so the check knows the new page is being served) |
+| Lab | one HTML file (`x/wrist/relay/lab.html`) served by the relay at `/` | any browser | built: `lab-r8`, 21 cards |
 | X | one HTML file (`x/wrist/relay/x.html`) served by the relay at `/x` | any browser, phone and desktop | built: `x-r2`, lab only |
 | Sources module | `x/wrist/relay/signals.lib.js`, a plain script served by the relay at `/signals.js`, shared by the Lab and X: numbers, teaching, recognition, words, actions | in the page | built in `lab-r7`, lab only. The arbiter is not built |
 | Hand and face finders | Google's MediaPipe vision tasks (`@mediapipe/tasks-vision@1.2.0`), loaded by the page | in the page; frames stay on the device | hand finder proven on the owner's tablet (S1); face finder built, not yet run on a device |

@@ -48,7 +48,7 @@ with sync_playwright() as pw:
     txt = lambda sel: pg.inner_text(sel)
     ev = lambda js: pg.evaluate(js)
 
-    pg.goto(base + '/?linksecs=5')
+    pg.goto(base + '/?linksecs=5&linger=2')
     check('first visit asks for the watch code', pg.locator('#pair.show').count() == 1)
     pg.fill('#code', code)
     pg.wait_for_function("document.getElementById('statusText').textContent.indexOf('Waiting for the watch')===0", timeout=8000)
@@ -71,7 +71,9 @@ with sync_playwright() as pw:
     check('an open card asks the watch for its raw stream', r.get('raw') == 1, r)
     pg.click('#closeBtn'); time.sleep(0.8)
     check('closing returns to the grid and counts the trial', pg.locator('#active.show').count() == 0 and '1 trial' in txt('.tile[data-id=tilt1] .foot'))
-    check('closing stops the raw request', post({'t': 'hb'}).get('raw') == 0)
+    check('the stream stays on for a while after closing, so the next card does not wait', post({'t': 'hb'}).get('raw') == 1)
+    time.sleep(3.6)
+    check('and stops once no card has needed it for that while', post({'t': 'hb'}).get('raw') == 0)
 
     # ---- v2 scroll: decided on the page from raw rows
     pg.click('.tile[data-id=tilt2]')
@@ -306,6 +308,13 @@ with sync_playwright() as pw:
     postk({'t': 'hb', 'b': 'turn07-test', 'up': 9})
     pg.wait_for_function("document.getElementById('statusText').textContent.indexOf('Watch connected')===0", timeout=6000)
     check('later visit: connects with its secret, no window needed', True)
+    # ---- a watch that goes quiet with its screen off (the owner's watch did this while Wrist was a "sleeping app")
+    postk({'t': 'hb', 'b': 'turn07-test', 'up': 12, 'screen': 0}); time.sleep(1.0)
+    check('a watch that has just reported is not called quiet', 'Sleeping apps' not in txt('#statusText'), txt('#statusText'))
+    time.sleep(15.5)
+    check('silent for 15 seconds after reporting its screen off: the page names the two settings to check', 'Sleeping apps' in txt('#statusText') and 'Allow background activity' in txt('#statusText'), txt('#statusText'))
+    postk({'t': 'hb', 'b': 'turn07-test', 'up': 30, 'screen': 0}); time.sleep(1.2)
+    check('and it says connected again when the watch reports', txt('#statusText').startswith('Watch connected'), txt('#statusText'))
     check('no script errors on the page', not errors, errors)
     b.close()
 

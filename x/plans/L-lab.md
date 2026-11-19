@@ -96,7 +96,29 @@ Owner, 2026-11-18 (evening): "it is imperative to have a 3D model of objects tha
 | The task was never finished | 1 of 59 let-gos landed near the ring; 17 ended lying on its side |
 | The record arrived late | the card stayed open for 2 h 8 min; a trial is only sent when the card is closed |
 
-Owner's requests from this run are in `X-NORTH-STAR.md` once the scope is agreed (not built: he said "don't code yet").
+Owner's requests from this run are in `X-NORTH-STAR.md` §2 (2026-11-19) and requirements R44 to R56.
+
+### L4 — Fixes from the first real run (crawl) · built 2026-11-19 in `lab-r8`, lab only
+| Change | Why (fact from his run) | Lab check |
+|---|---|---|
+| Hand toward the screen sends the object away; pulling back brings it nearer. Follows the ratio of how big the hand looks, strength 3 | "it should be reversed"; 32 of 59 let-gos jammed against a wall | object depth check |
+| A pinch that reads open for less than 0.18 s is still a pinch | 14 of 59 holds dropped within 0.4 s | flicker check |
+| The second hand can join whenever it pinches on the object | no two-handed hold in 59 takes | two-hand checks |
+| Each take and let-go records how big the hand looked and how closed the pinch read | numbers for calibration (V7) | in the trial |
+| A card's record is sent every 15 s, on hide, and at close; no watch code needed | his object record arrived two hours late | record-while-open check |
+| The watch's stream stays on between cards and for two minutes after | "every single time I enter a card it has to wait for the stream" | stream checks |
+| When the watch is silent 15 s after reporting its screen off, the status line names both settings | the Sleeping apps finding (plan W) | quiet-watch checks |
+
+**Gate:** the owner carries the cup to the ring and sets it down, pushing and pulling in depth the way he expects; moving between watch cards does not wait; his record is in the repo without his closing the card.
+
+### L5 — Tabs (walk) · next
+Dashboard, Learn, Camera, Watch, Voice, on one page. Each tab starts only what it needs: the camera tab never asks for a watch code. Built together with V7 (Calibrate).
+
+### L6 — Hands and things (walk) · after L5
+Hands in the scene as joints, bones and a palm; hand to hand; several objects with goals (cup on the ring, pass it, stack blocks, ball in the bowl, park the car); putty that stretches, squashes, flattens and reforms. No physics engine.
+
+### L7 — Journey (walk) · after L6
+A spoken choose-your-path story of about 15 places. Look left or right to turn, up or down for ladders; hold the look about a second. Hand-written, no AI.
 
 ## 6. Risks
 | Risk | Held by |

@@ -124,6 +124,23 @@ Source column: NS = `X-NORTH-STAR.md` section; WP = `x/wrist/WRIST-PLAN.md` sect
 | R42 | A 3D model of objects can be handled virtually with the hands, one or both. "Imperative." | NS §2 (evening) |
 | R43 | X is not made useful by choosing things for it to fetch. No connectors of our own, by any name. | NS §2, §3 (evening) |
 
+### 3.9 After the first run of the new cards (owner, 2026-11-19)
+| # | Requirement | Source |
+|---|---|---|
+| R44 | Pushing the hand toward the screen moves the object away; pulling back brings it nearer. | NS §2 (11-19) |
+| R45 | An object can be handed from one hand to the other. | NS §2 (11-19) |
+| R46 | The person's hands appear in the scene, moving and acting like their own. "Ideally." | NS §2 (11-19) |
+| R47 | Several objects, and several tasks or goals. | NS §2 (11-19) |
+| R48 | A putty: pulled and stretched with both hands, pressed together, flattened onto the table. | NS §2 (11-19) |
+| R49 | The Lab is in tabs: dashboard, learn and combine, camera, watch, voice. Sources are not commingled. | NS §2 (11-19) |
+| R50 | The camera tab needs only a camera: no watch, no Bluetooth. (Stated to the owner: a connection is needed to open the page and fetch the finders; after that nothing leaves the device.) | NS §2 (11-19) |
+| R51 | Entering a card does not wait for the watch's stream every time. | NS §2 (11-19) |
+| R52 | Voice: taking turns as chat-test does; interruptions; a hot word and a cold word turn listening on and off in the voice context; in the camera context a taught gesture does. | NS §2 (11-19) |
+| R53 | A journey steered by the head: look left or right to turn, down or up for the ladders. | NS §2 (11-19) |
+| R54 | Blink stays as a signal: left, right, both. | NS §2 (11-19) |
+| R55 | The work turns to calibration, interpretation and learning. | NS §2 (11-19) |
+| R56 | The watch needs both settings right (background activity allowed; not a sleeping app). When the watch goes quiet the Lab says which settings to check. | NS §2 (11-19) |
+
 ## 4. Out of scope until the owner says otherwise
 - An administrative assistant (mail, calendar). The owner ranked it last.
 - Distribution to other people. Personal use first (WP §11.6).

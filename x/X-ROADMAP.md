@@ -1,6 +1,6 @@
 # X — development roadmap (top authority for everything under `x/`)
 
-Version 1.1.0 · 2026-11-18 (evening) · Owner and device gate: Confi
+Version 1.2.0 · 2026-11-19 · Owner and device gate: Confi
 
 This is the one place that says where we are, where we are going and how we get there. It points to five plans. Each plan has releases; each release has a build sequence, checks and a device gate. The picture of this file is `pipeline.html`.
 
@@ -96,6 +96,18 @@ A release is the smallest whole thing that can be used and judged. Status: built
 | X6 Acts for you | finding and buying, with an explicit yes | X5 | — | run | later |
 
 ### 3.4 Order of work
+**Round 2, agreed with the owner 2026-11-19 ("go"). Each stage goes live for him to try before the next.**
+| Stage | Release | What | Requirements | State |
+|---|---|---|---|---|
+| 1 | **L4** Fixes from the first real run | depth the right way round and gentler; a pinch that flickers is still a pinch; records saved as you go; the watch's stream stays on between cards; a warning naming both watch settings when the watch goes quiet | R44, R51, R56 | **built in `lab-r8`, lab only** |
+| 2 | **L5** Tabs, **V7** Calibrate | dashboard, learn, camera, watch, voice; calibration of hand, head, eyes and watch to the person; blink left, right, both | R49, R50, R54, R55 | next |
+| 3 | **L6** Hands and things | hands in the scene; hand to hand; several objects and goals; putty | R45 to R48 | after 2 |
+| 4 | **L7** Journey | a spoken choose-your-path story steered by the head | R53 | after 3 |
+| 5 | **S6** Voice | turns, interruptions, hot word and cold word; "start listening" and "stop listening" as actions | R52 | after 4 |
+
+V6 (showing) follows this round. No watch build is in this round.
+
+*What follows is the order as of 2026-11-18, evening, kept as the record.*
 **From 2026-11-18, evening (the owner's order):**
 1. The owner runs the five new Lab cards. The build reads his trials and fixes what the real hand and head show that the made-up ones did not.
 2. **V6 Showing**, on the object card.
@@ -143,3 +155,7 @@ A release is done when its device gate passes and its rows in `X-TRACE.md` show 
 | 2026-11-18 (evening) | Owner's verdict on X's first pass: "a voice front end to AI … cosplay with AI … latency is ridiculous". My next proposal (X fetches two fixed things) refused: "that's building connectors again". | X1 parked as failed. G28. |
 | 2026-11-18 (evening) | Owner's new order: more hand and head cases; actions assigned to poses and movements; teach basic then complex "like letters make up words"; then "monkey see monkey do with some AI assisted interpretation of outcomes"; a 3D object handled by one hand or both. | Recorded: north star §2, requirements R38 to R43, decisions D23 to D30. |
 | 2026-11-18 (evening) | Built: `signals.lib.js`, Lab `lab-r7` (five new cards), relay `w6`. Lab checks: engine 42/42, new cards 70/70, older Lab 73/73, relay 37/37, X page 50/50. | **Lab only.** The made-up hand and head stand in for the finders; the models cannot run in the build's sandbox. No device has run any of it. |
+| 2026-11-19 | Owner's first run of the new cards (phone). Facts: hand finder 21 to 45 frames a second, face finder 32 to 35; object card 59 pinch takes, 14 dropped within 0.4 s, 32 against the walls, no two-handed hold, task never finished; nods and tilts read, blink "can't get … very correct". | Recorded in plans L and S. Gates for S2, S3, L3 not passed; V1, V3, V5 not yet run. |
+| 2026-11-19 | Watch silence: my theory (the background switch was reset) was **wrong**. The switch was on; Wrist was on the watch's Sleeping apps list. After he removed it: three minutes with the screen off, largest gap 3.3 s. | Both settings required (R56). Plan W. |
+| 2026-11-19 | Owner set Round 2: tabs; camera with only a camera; depth reversed; hand to hand; hands in the scene; several objects and goals; putty; a journey by head; voice turns, interruptions, hot and cold word; "focus more on calibration and interpretation and learning"; "keep blink left right both". He said "don't code yet", read the scope, overrode one call, then "go". | R44 to R56, D31 to D38, §3.4. |
+| 2026-11-19 | Stage 1 built: Lab `lab-r8`. Lab checks: engine 42, new cards 72, older Lab 77, relay 37, X page 50. | **Lab only.** |

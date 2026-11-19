@@ -88,6 +88,14 @@ Owner: "I want more lab cases for the hand and head recognition".
 **Never run on a device.** The face model could not be downloaded in the build's sandbox; the card was checked with a made-up head. Which way each number goes when the owner nods or turns is not known until he runs it; teaching does not depend on it, because a taught signal learns its direction from what is shown.
 **Gate:** TH6 answered with a number (frames a second with both finders on the tablet and on the S23). The numbers move when he nods, turns, raises his brows.
 
+**First device run of S2 and S3 (owner's phone, 2026-11-19).** Facts: the hand finder was ready in 1.3 s and ran at 21 to 45 frames a second; the face finder was ready in 1.6 s and ran at 32 to 35. Owner: "it reads the face and shows things like nods and tilts; it really can't get eye blinking very correct". Blink stays (his call) and goes to calibration (plan V, V7). Whether his left hand shows under Left is not yet reported.
+
+### S6 — Voice as a source (walk) · stage 5 of Round 2
+Owner, 2026-11-19: turns "that chat-test does", interruptions, "a hot word and a cold word to turn off and on listening".
+- Turns: tones mark whose turn it is; the mic is ignored while the page speaks. It answers by saying back what it heard. No AI.
+- Interruptions: cut in by voice or by a taught signal; the card counts the times the page wrongly interrupts itself.
+- Hot word and cold word are taught voice signals given the actions "start listening" and "stop listening" (D38); a gesture can be given the same actions.
+
 ### S4 — One event shape (walk)
 **Scope:** watch, hand, head and voice all report the same event (time, source, signal, command, confidence) and their presence. The Lab's See card shows all sources on one timeline.
 **Build sequence:** checks that recorded events from each source parse to the one shape; adapters; timeline.

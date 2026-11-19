@@ -196,12 +196,13 @@ select,input[type=text]{font:inherit;color:var(--text);background:var(--panel);b
 <script>
 (function(){
 'use strict';
-var BUILD='lab-r7';
+var BUILD='lab-r8';
 var QUERY=location.search;          // kept, because the address is tidied once the code is read from it
 var Signals=window.Signals;
 var LINK_SECS=Number((/[?&]linksecs=(\d+)/.exec(location.search)||[])[1])||120;
 var $=function(id){return document.getElementById(id)};
 var DEG=180/Math.PI;
+var quietSince=0,lastScreen=-1;
 var ws=null,retry=0,pingT=null,lastWatchAt=0,watchBuild='',resting=false,lastRawAt=0,watchLink='',watchRtt=-1,watchBat=-1,lastBatchAt=0;
 var LINKNAME={bt:'Bluetooth (via phone)',wifi:'Wi-Fi',cell:'Mobile',none:'no connection',other:'other'};
 var pairState='',lastDiagAt=0,asleep='',offAsked=0,offOld=false;   // pairing state, when the watch last logged its panel, why it went off, when Watch off was asked
@@ -756,14 +757,14 @@ var CONCEPTS=[
 },
 {id:'object',name:'Object in your hands',needsRaw:false,noRaw:true,g:[],
  blurb:'A cup, a bowl or a toy car that you handle with your hands in front of the camera. One hand or both.',
- how:'Hold a hand up: a dot follows your thumb and first finger. Bring the dot to the object and pinch to take it. Move your hand and it moves; turn your hand and it turns; bring your hand nearer and it comes nearer. Open your fingers to let it go, and it settles on the table. Pinch it with the other hand as well and the two hands turn it and make it bigger or smaller. Signals you gave object actions to (take, let go, turn left, next object and the rest) work here too. The task: set it down on the ring with its marked side to the right, without touching the screen.',
+ how:'Hold a hand up: a dot follows your thumb and first finger. Bring the dot to the object and pinch to take it. Move your hand and it moves; turn your hand and it turns; push your hand toward the screen and it goes away from you, pull back and it comes toward you. Open your fingers to let it go, and it settles on the table. Pinch it with the other hand as well and the two hands turn it and make it bigger or smaller. Signals you gave object actions to (take, let go, turn left, next object and the rest) work here too. The task: set it down on the ring with its marked side to the right, without touching the screen.',
  KINDS:['cup','bowl','car'],
  TASK:'Task: set it on the ring, upright, marked side to the right.',
  raw:function(){return live('watch')},
  mount:function(root){
    var el=document.createElement('div'),self=this,t0=now();el.className='linkbox objbox';
    el.innerHTML='<div class="obj"><canvas id="oCan"></canvas>'+camHtml('corner')+'</div><div class="lk" id="oSay">Loading the object…</div><p id="oTask"></p><p class="cmsg"></p>';
-   root.appendChild(el);this.el=el;this.T=null;this.r=null;this.o=null;this.held=null;this.kind=0;this.pin={};this.gone={};this.hs={};this.done=false;this.t0=now();
+   root.appendChild(el);this.el=el;this.T=null;this.r=null;this.o=null;this.held=null;this.kind=0;this.pin={};this.gone={};this.openAt={};this.seen={};this.hs={};this.done=false;this.t0=now();
    $('oTask').textContent=this.TASK;
    eyesOn(this,el,{hands:true,face:live('head')});
    this.off=Signals.onFire(function(e){if(e.action)self.act(e.action,e)});
@@ -827,15 +828,15 @@ var CONCEPTS=[
  take:function(side,how,quiet){
    if(!this.hs[side]||!this.o)return false;
    this.held={mode:'one',side:side,how:how};this.anchor();
-   if(!quiet)detect('took it',{hand:side,how:how,kind:this.KINDS[this.kind]});return true;
+   if(!quiet)detect('took it',{hand:side,how:how,kind:this.KINDS[this.kind],size:+this.hs[side].n.size.toFixed(3),pinch:+this.hs[side].n.pinchI.toFixed(2)});return true;
  },
  both:function(){this.held={mode:'two',how:'pinch'};this.anchor();detect('took it',{hand:'both',how:'pinch',kind:this.KINDS[this.kind]})},
  letGo:function(why){
-   if(!this.held)return;this.held=null;
+   if(!this.held)return;var was=this.held,seen=this.seen[was.side||'Right']||{};this.held=null;
    var T=this.T,o=this.o,up=new T.Vector3(0,1,0).applyQuaternion(o.quaternion),f=new T.Vector3(1,0,0).applyQuaternion(o.quaternion);
    this.sT=o.scale.x;this.pT.set(Math.max(-2.1,Math.min(2.1,o.position.x)),up.y>0.7?0:0.35*this.sT,Math.max(-1.6,Math.min(1.8,o.position.z)));
    if(up.y>0.7)this.qT.setFromAxisAngle(new T.Vector3(0,1,0),Math.atan2(-f.z,f.x));else this.qT.copy(o.quaternion);     /* set down near enough upright, it stands; otherwise it lies as it was let go */
-   detect('let it go',{why:why,x:+this.pT.x.toFixed(2),z:+this.pT.z.toFixed(2),lying:up.y>0.7?0:1});this.check();
+   detect('let it go',{why:why,x:+this.pT.x.toFixed(2),z:+this.pT.z.toFixed(2),lying:up.y>0.7?0:1,size0:was.size0?+was.size0.toFixed(3):0,size:seen.size||0,pinch:seen.pinch||0});this.check();
  },
  check:function(){
    if(this.done||!this.o)return;
@@ -868,7 +869,8 @@ var CONCEPTS=[
    f.hands.forEach(function(h){
      if(hs[h.side])return;
      var was=!!self.pin[h.side],p=h.n.pinchI<0.3?true:h.n.pinchI>0.45?false:was;      /* closed below 0.30, open above 0.45, unchanged between */
-     self.pin[h.side]=p;self.gone[h.side]=t;
+     self.pin[h.side]=p;self.gone[h.side]=t;if(p)self.openAt[h.side]=0;else if(!self.openAt[h.side])self.openAt[h.side]=t;
+     self.seen[h.side]={size:+h.n.size.toFixed(3),pinch:+h.n.pinchI.toFixed(2)};
      var at=self.place((h.lm[4].x+h.lm[8].x)/2,(h.lm[4].y+h.lm[8].y)/2,o.position.z);
      hs[h.side]={n:h.n,at:at,q:self.turnOf(h),pinch:p,edge:p&&!was};
      var d=self.dots[h.side];d.visible=true;d.position.copy(at);d.scale.setScalar(p?0.6:1);
@@ -876,7 +878,8 @@ var CONCEPTS=[
    ['Right','Left'].forEach(function(s){if(!hs[s]){self.dots[s].visible=false;if(t-(self.gone[s]||0)>600)self.pin[s]=false}});
    this.hs=hs;
    /* a hand missing for a frame or two is waited for; missing for longer, it has gone */
-   var st=function(s){return hs[s]?(hs[s].pinch?'pinch':'open'):(t-(self.gone[s]||0)>600?'gone':'wait')};
+   /* open only counts once the fingers have stayed open for a moment: a pinch that flickers for a frame or two is still a pinch */
+   var st=function(s){return hs[s]?(hs[s].pinch||t-self.openAt[s]<180?'pinch':'open'):(t-(self.gone[s]||0)>600?'gone':'wait')};
    var mid=o.position.clone();mid.y+=0.4*o.scale.x;
    var reach=function(s){return hs[s]&&hs[s].at.distanceTo(mid)<0.95*Math.max(1,o.scale.x)};
    var held=this.held;
@@ -885,15 +888,15 @@ var CONCEPTS=[
      var h=hs[held.side],other=held.side==='Right'?'Left':'Right',state=st(held.side);
      if(state==='gone')this.letGo('hand left the picture');
      else if(state==='open'&&held.how==='pinch')this.letGo('opened');
-     else if(h&&hs[other]&&hs[other].edge&&reach(other)&&h.pinch)this.both();
+     else if(h&&hs[other]&&hs[other].edge&&reach(other))this.both();
      else if(h){
        o.position.copy(h.at).add(held.off);o.position.y=Math.max(0,o.position.y);
-       o.position.z=Math.max(-1.6,Math.min(1.8,held.z0+(h.n.size-held.size0)*18));
+       o.position.z=Math.max(-1.6,Math.min(1.8,held.z0-3*Math.log(h.n.size/held.size0)));      /* push toward the screen and it goes away from you */
        o.quaternion.copy(h.q).multiply(held.hq0).multiply(held.q0);
      }
    }else{
      var sr=st('Right'),sl=st('Left');
-     if(sr==='pinch'&&sl==='pinch'){
+     if(sr==='pinch'&&sl==='pinch'&&hs.Right&&hs.Left){
        var L=hs.Left.at,R2=hs.Right.at,fwd=new T.Vector3();this.cam.getWorldDirection(fwd);
        o.position.copy(held.p0).add(L.clone().add(R2).multiplyScalar(0.5).sub(held.mid0));o.position.y=Math.max(0,o.position.y);
        o.scale.setScalar(Math.max(0.4,Math.min(2.5,held.s0*L.distanceTo(R2)/held.d0)));
@@ -1110,26 +1113,55 @@ function detect(what,data){ev('concept',what,data);marks.push({t:now(),kind:'d'}
 function startTrial(c){
   var d=new Date(),p=function(x){return(x<10?'0':'')+x};
   trial={id:d.getUTCFullYear()+p(d.getUTCMonth()+1)+p(d.getUTCDate())+'T'+p(d.getUTCHours())+p(d.getUTCMinutes())+p(d.getUTCSeconds())+'-'+c.id+'-'+Math.random().toString(36).slice(2,6),
-         concept:c.id,name:c.name,page:BUILD,watch:watchBuild,started:d.toISOString(),t0:now(),events:[],raw:[],rawRows:0,thumbs:[]};
+         concept:c.id,name:c.name,page:BUILD,watch:watchBuild,started:d.toISOString(),t0:now(),events:[],raw:[],rawRows:0,thumbs:[],rawSent:0,rawParts:0,sentEvents:0,sentRows:0};
 }
+/* The record of a card is sent to the lab log every 15 seconds while the card is open, when the page is hidden, and when the
+   card is closed. Part 0 is the head (what happened, in order) and is sent again each time. Sensor rows go in parts of their
+   own: a full part is sent once; the part still filling is sent again as it grows. */
+function trialHead(t,open){
+  var s=store[t.concept],h={id:t.id,concept:t.concept,name:t.name,page:t.page,watch:t.watch||watchBuild,started:t.started,ms:Math.round(now()-t.t0),
+            code:code()?'****'+code().slice(-2):'none',rating:s.rating||'',notes:s.notes||'',thumbs:t.thumbs,events:t.events,rawRows:t.rawRows,
+            rawFormat:'batches of {a: ms since trial start when the batch reached the page, w: watch clock ms of its first row, s: rows [dt,gx,gy,gz,wx,wy,wz,ax,ay,az] x100}',
+            ua:navigator.userAgent.slice(0,160),screen:innerWidth+'x'+innerHeight};
+  if(open)h.open=1;
+  var body=JSON.stringify(h);
+  while(body.length>380000&&h.events.length>50){h.eventsDropped=(h.eventsDropped||0)+50;h.events=h.events.slice(50);body=JSON.stringify(h)}
+  return{head:h,body:body};
+}
+function saveTrial(t,final,hurry){
+  if(t.saving){t.again=true;if(final){t.finalWanted=true;return new Promise(function(res){t.onFinal=res})}return Promise.resolve()}
+  t.saving=true;
+  var hd=trialHead(t,!final),jobs=[[0,hd.body]],buf=[],size=0,i,j;
+  for(i=t.rawSent;i<t.raw.length;i++){
+    j=JSON.stringify(t.raw[i]);
+    if(size+j.length>250000&&buf.length){jobs.push([t.rawParts+1,'{"id":"'+t.id+'","raw":['+buf.join(',')+']}']);t.rawParts++;t.rawSent=i;buf=[];size=0}
+    buf.push(j);size+=j.length;
+  }
+  if(buf.length)jobs.push([t.rawParts+1,'{"id":"'+t.id+'","raw":['+buf.join(',')+']}']);     // still filling: sent again next time under the same number
+  var okc=0,fail='',where='/t/'+(code()||'000000')+'/'+t.id+'/';
+  t.sentEvents=t.events.length;t.sentRows=t.rawRows;
+  return jobs.reduce(function(chain,job){return chain.then(function(){return fetch(where+job[0],{method:'POST',body:job[1],keepalive:!!hurry&&job[1].length<60000}).then(function(r){if(r.ok)okc++;else fail='relay said '+r.status})})},Promise.resolve())
+    .catch(function(e){fail=String(e&&e.message||e)})
+    .then(function(){
+      t.saving=false;
+      var out={ok:!fail,fail:fail,parts:jobs.length,okc:okc,head:hd.head};
+      if(t.again){t.again=false;var f=final||t.finalWanted;t.finalWanted=false;return saveTrial(t,f)}
+      if(final&&t.onFinal){var cb=t.onFinal;t.onFinal=null;cb(out)}
+      return out;
+    });
+}
+function saveSoon(hurry){if(trial&&(hurry||trial.events.length!==trial.sentEvents||trial.rawRows!==trial.sentRows))saveTrial(trial,false,hurry)}
 function endTrial(){
   if(!trial)return;
   var t=trial;trial=null;
   var s=store[t.concept];
-  var head={id:t.id,concept:t.concept,name:t.name,page:t.page,watch:t.watch||watchBuild,started:t.started,ms:Math.round(now()-t.t0),
-            code:'****'+code().slice(-2),rating:s.rating||'',notes:s.notes||'',thumbs:t.thumbs,events:t.events,rawRows:t.rawRows,
-            rawFormat:'batches of {a: ms since trial start when the batch reached the page, w: watch clock ms of its first row, s: rows [dt,gx,gy,gz,wx,wy,wz,ax,ay,az] x100}',
-            ua:navigator.userAgent.slice(0,160),screen:innerWidth+'x'+innerHeight};
-  var parts=[JSON.stringify(head)],buf=[],size=0;
-  for(var i=0;i<t.raw.length;i++){var j=JSON.stringify(t.raw[i]);if(size+j.length>250000){parts.push('{"id":"'+t.id+'","raw":['+buf.join(',')+']}');buf=[];size=0}buf.push(j);size+=j.length}
-  if(buf.length)parts.push('{"id":"'+t.id+'","raw":['+buf.join(',')+']}');
   s.trials=(s.trials||0)+1;save();paintGrid();
-  $('saved').textContent='Saving this trial to the lab log…';
-  var okc=0,fail='';
-  parts.reduce(function(chain,body,n){return chain.then(function(){return fetch('/t/'+code()+'/'+t.id+'/'+n,{method:'POST',body:body}).then(function(r){if(r.ok)okc++;else fail='relay said '+r.status})})},Promise.resolve())
-    .catch(function(e){fail=String(e&&e.message||e)})
-    .then(function(){$('saved').textContent=fail?('Trial NOT fully saved ('+okc+' of '+parts.length+' parts): '+fail):('Trial saved to the lab log: '+Math.round(head.ms/1000)+' s, '+head.events.length+' events, '+head.rawRows+' sensor rows.');
-                     $('meta').textContent=metaText(fail?'last trial not saved: '+fail:'last trial saved')});
+  $('saved').textContent='Saving this trial to the lab log\u2026';
+  saveTrial(t,true).then(function(r){
+    if(!r)return;
+    $('saved').textContent=r.fail?('Trial NOT fully saved ('+r.okc+' of '+r.parts+' parts): '+r.fail):('Trial saved to the lab log: '+Math.round(r.head.ms/1000)+' s, '+r.head.events.length+' events, '+r.head.rawRows+' sensor rows.');
+    $('meta').textContent=metaText(r.fail?'last trial not saved: '+r.fail:'last trial saved');
+  });
 }
 
 /* =====================================================================
@@ -1155,7 +1187,19 @@ function close(){
   $('active').classList.remove('show');
   var c=cur;cur=null;endTrial();paintGrid();void c;
 }
-function wantRaw(on){try{if(ws&&ws.readyState===1)ws.send(JSON.stringify({cmd:'raw',on:on?1:0}))}catch(e){}}
+/* The watch's sensor stream. A card says whether it needs it. Once asked for, it stays on between cards and for a while after
+   the last card that needed it, so that entering a card does not wait for the watch each time. It stops when the page is hidden. */
+var rawUntil=0,rawSent=-1,RAW_LINGER=(+((/[?&]linger=(\d+)/.exec(QUERY)||[])[1])||120)*1000;
+function wantRaw(on){
+  if(on)rawUntil=Infinity;else if(rawUntil===Infinity)rawUntil=Date.now()+RAW_LINGER;
+  syncRaw();
+}
+function syncRaw(force){
+  var want=document.visibilityState==='visible'&&Date.now()<rawUntil?1:0;
+  if(!(ws&&ws.readyState===1)){rawSent=-1;return}
+  if(want===rawSent&&!force)return;
+  try{ws.send(JSON.stringify({cmd:'raw',on:want}));rawSent=want}catch(e){}
+}
 function paintNeed(){
   var n=$('need'),msg='';
   if(cur&&cur.needsRaw&&now()-lastRawAt>2500){
@@ -1251,7 +1295,8 @@ function onRaw(m){
   if(cur)paintNeed();
 }
 function act(m){
-  lastWatchAt=Date.now();
+  if(quietSince){ev('page','watch back',{after:Math.round((Date.now()-lastWatchAt)/1000)});quietSince=0}
+  lastWatchAt=Date.now();if(m.screen===0||m.screen===1)lastScreen=m.screen;
   if(m.t==='raw'){resting=false;onRaw(m);return}
   if(m.b)watchBuild=m.b;
   if(m.t==='sleep'){asleep=m.why||'sleep';offAsked=0;ev('watch','sleep',{why:m.why});paintStatus();return}
@@ -1291,7 +1336,7 @@ function connect(){
 }
 function listen(c,k){
   var s=new WebSocket((location.protocol==='https:'?'wss://':'ws://')+location.host+'/s/'+c+(k?'?k='+k:''));ws=s;
-  s.onopen=function(){if(ws!==s)return;retry=0;paintStatus();clearInterval(pingT);pingT=setInterval(function(){try{s.send('ping')}catch(e){}},20000);if(cur)wantRaw(cur.raw?cur.raw():!cur.noRaw)};
+  s.onopen=function(){if(ws!==s)return;retry=0;paintStatus();clearInterval(pingT);pingT=setInterval(function(){try{s.send('ping')}catch(e){}},20000);rawSent=-1;if(cur)wantRaw(cur.raw?cur.raw():!cur.noRaw);else syncRaw(true)};
   s.onmessage=function(e){if(ws!==s||e.data==='pong')return;var m;try{m=JSON.parse(e.data)}catch(x){return}act(m)};
   s.onclose=function(){if(ws!==s)return;clearInterval(pingT);ws=null;paintStatus();connect.t=setTimeout(connect,Math.min(8000,500*Math.pow(2,retry++)))};
   s.onerror=function(){};
@@ -1312,10 +1357,11 @@ function watchOff(){
 })();
 function metaText(extra){return 'code '+(code()||'none')+' · page '+BUILD+(watchBuild?' · watch '+watchBuild:'')+(lastDiagAt?' · watch logged '+hhmm(lastDiagAt):'')+(extra?' · '+extra:'')}
 function paintStatus(){
-  var linked=ws&&ws.readyState===1,age=lastWatchAt?Math.round((Date.now()-lastWatchAt)/1000):-1,live=linked&&age>=0&&age<25&&!resting&&!asleep;
+  var linked=ws&&ws.readyState===1,age=lastWatchAt?Math.round((Date.now()-lastWatchAt)/1000):-1,quiet=linked&&!asleep&&lastScreen===0&&age>=15,live=linked&&age>=0&&age<25&&!resting&&!asleep&&!quiet;
   $('lamp').className=live?'live':linked?'link':'';
   var WHY={page:'turned off from a page',idle:'no page was listening for three minutes',hold:'held on the watch'};
-  $('statusText').textContent=!linked?(pairState==='closed'?'Not paired yet. Open Wrist on the watch and wait a few seconds.':pairState==='limited'?'Too many pairing tries. Waiting a minute.':'No link to the relay. Retrying…'):asleep?'Watch is off: '+(WHY[asleep]||asleep)+'. Open Wrist on the watch to start it.':(offAsked&&Date.now()-offAsked<8000)?(offOld?'This watch app ('+watchBuild+') cannot be turned off from here. Install turn07.':'Telling the watch to sleep…'):resting?'Watch resting. Raise your arm to wake it.':live?'Watch connected'+(watchLink?' \u00B7 '+(LINKNAME[watchLink]||watchLink):'')+(watchRtt>=0?' \u00B7 '+watchRtt+' ms':''):age<0?'Waiting for the watch. Open Wrist on the watch once.':'Watch silent for '+age+'s.';
+  $('statusText').textContent=!linked?(pairState==='closed'?'Not paired yet. Open Wrist on the watch and wait a few seconds.':pairState==='limited'?'Too many pairing tries. Waiting a minute.':'No link to the relay. Retrying…'):asleep?'Watch is off: '+(WHY[asleep]||asleep)+'. Open Wrist on the watch to start it.':(offAsked&&Date.now()-offAsked<8000)?(offOld?'This watch app ('+watchBuild+') cannot be turned off from here. Install turn07.':'Telling the watch to sleep…'):resting?'Watch resting. Raise your arm to wake it.':live?'Watch connected'+(watchLink?' \u00B7 '+(LINKNAME[watchLink]||watchLink):'')+(watchRtt>=0?' \u00B7 '+watchRtt+' ms':''):age<0?'Waiting for the watch. Open Wrist on the watch once.':quiet?'Watch quiet for '+age+'s with its screen off. On the watch\u2019s Battery page, take Wrist out of Sleeping apps, and keep Allow background activity on.':'Watch silent for '+age+'s.';
+  if(quiet&&!quietSince){quietSince=Date.now();ev('page','watch quiet',{})}
   if(!/last trial/.test($('meta').textContent))$('meta').textContent=metaText('');
   if(cur)paintNeed();
 }
@@ -1334,11 +1380,12 @@ $('code').addEventListener('input',function(){var v=this.value.replace(/\D/g,'')
 $('codeBtn').addEventListener('click',askCode);
 var q=/[?&]code=(\d{6})\b/.exec(location.search);if(q){setCode(q[1]);try{history.replaceState(null,'',location.pathname)}catch(e){}}
 function awake(){try{if(navigator.wakeLock&&document.visibilityState==='visible')navigator.wakeLock.request('screen').catch(function(){})}catch(e){}}
-document.addEventListener('visibilitychange',function(){awake();if(document.visibilityState==='visible'&&!ws)connect()});
+document.addEventListener('visibilitychange',function(){awake();syncRaw();if(document.visibilityState==='hidden')saveSoon(true);else if(!ws)connect()});
 window.addEventListener('pagehide',function(){if(cur)close()});
 
 load();paintGrid();paintStatus();awake();connect();
-setInterval(paintStatus,1000);
+setInterval(function(){paintStatus();syncRaw();},1000);
+setInterval(function(){saveSoon()},15000);
 requestAnimationFrame(frame);
 })();
 </script>
