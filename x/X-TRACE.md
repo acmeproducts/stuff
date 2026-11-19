@@ -64,9 +64,14 @@ Status words: **met** (proved on the owner's device, evidence named) · **part**
 | R54 | blink left, right, both | D36, D40 | V7 | blink checks; the owner's run | lab |
 | R55 | calibration, interpretation, learning | D32, D36, D39 | L4, V7 | calibration checks; the owner's run | lab |
 | R56 | both watch settings; the Lab says so | D35 | L4 | quiet-watch checks; the owner's watch | lab; the settings themselves proven on his watch for 3 minutes |
+| R57 | tilt from the desk, raising as plus | D45 | L8 | watch calibration checks; the owner's run | lab |
+| R58 | scroll by roll, change from a baseline, at any tilt | D42 | L8 | roll checks; the owner's run | lab |
+| R59 | a sensitivity slider | D44 | L8 | sensitivity check; the owner's run | lab |
+| R60 | swing at any angle; the way back never fires | D43 | L8 | swing checks; the owner's run | lab |
+| R61 | watch on the left wrist | D43 | L8 | stated on the card | holds; customising is later |
 
 ## Counts
-Met: 2 (R14, R31). Part: 7 (R04, R05, R18, R27, R28, R30, R32). Holding: 3 (R33, R36, R43). Lab only: 11 (R38, R39, R40, R42, R44, R49, R50, R51, R54, R55, R56). Open: 33. Total 56.
+Met: 2 (R14, R31). Part: 7 (R04, R05, R18, R27, R28, R30, R32). Holding: 3 (R33, R36, R43). Lab only: 15 (R38, R39, R40, R42, R44, R49, R50, R51, R54, R55, R56, R57, R58, R59, R60). Holding: R61 as well. Open: 33. Total 61.
 
 ## Use cases to releases
 | Use case | Releases |

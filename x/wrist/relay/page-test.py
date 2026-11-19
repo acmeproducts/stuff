@@ -68,25 +68,43 @@ with sync_playwright() as pw:
     pg.click('#tabs button[data-tab=watch]'); time.sleep(0.3)
     pg.fill('#code', code)
     pg.wait_for_function("document.getElementById('statusText').textContent.indexOf('Waiting for the watch')===0", timeout=8000)
-    check('the Watch tab shows its fifteen cards, Keepers first', pg.locator('.tile').count() == 15 and pg.locator('.tile').first.get_attribute('data-id') == 'keepers', pg.locator('.tile').count())
+    check('the Watch tab shows its thirteen cards, Keepers first', pg.locator('.tile').count() == 13 and pg.locator('.tile').first.get_attribute('data-id') == 'keepers', pg.locator('.tile').count())
     check('every concept starts unrated', pg.locator('.chip.keep,.chip.shop,.chip.dump').count() == 0)
     post({'t': 'hb', 'b': 'turn04-test'})
     pg.wait_for_function("document.getElementById('statusText').textContent==='Watch connected'", timeout=5000)
     if shot: pg.screenshot(path=shot + '-grid.png')
 
-    # ---- v1 scroll: driven by the watch's own events
-    card(pg, 'tilt1')
-    check('tapping a card opens it full screen', pg.locator('#active.show').count() == 1 and txt('#cName') == 'Tilt to scroll · v1')
+    # ---- roll to scroll: measured as change from where the arm rests. The owner's arm rests with the watch rolled well over (about -125).
+    card(pg, 'roll3')
+    check('tapping a card opens it full screen', pg.locator('#active.show').count() == 1 and txt('#cName') == 'Roll to scroll')
     top = lambda: ev("document.querySelector('#play .sc').scrollTop")
-    post({'t': 'scroll', 'r': -4}); time.sleep(0.5)
+    feed(-7, -125, 0.9)
+    check('roll: at rest, wherever rest is, the list is still', top() == 0, top())
+    sweep(-7, -125, -7, -95, 0.4); feed(-7, -95, 1.0)
     t1 = top()
-    check('v1: watch says hand lowered, list moves down', t1 > 150, t1)
-    post({'t': 'scroll', 'r': 0}); time.sleep(0.3); t2 = top(); time.sleep(0.3)
-    check('v1: level stops it', abs(top() - t2) < 2)
+    check('roll: rolled one way and held, the list moves down', t1 > 150, t1)
+    sweep(-7, -95, -7, -125, 0.4); feed(-7, -125, 0.5); t2 = top(); feed(-7, -125, 0.4)
+    check('roll: back at rest stops it', abs(top() - t2) < 2, '%d -> %d' % (t2, top()))
+    sweep(-7, -125, -7, -155, 0.4); feed(-7, -155, 0.8)
+    check('roll: rolled the other way, it moves back up', top() < t2 - 100, '%d -> %d' % (t2, top()))
+    sweep(-7, -155, -7, -125, 0.4); feed(-7, -125, 0.4)
+    sweep(-7, -125, 40, -125, 0.5); feed(40, -125, 0.6); t3 = top(); feed(40, -125, 0.5)
+    check('roll: raising the arm without rolling moves nothing', abs(top() - t3) < 2, '%d -> %d' % (t3, top()))
+    sweep(40, -125, 40, -95, 0.4); feed(40, -95, 0.8)
+    check('roll: it works the same with the arm raised', top() > t3 + 100, '%d -> %d' % (t3, top()))
+    sweep(40, -95, 40, -125, 0.4); feed(40, -125, 0.5); t4 = top()
+    sweep(40, -125, 40, -116, 0.3); feed(40, -116, 0.8)
+    check('roll: a small roll does nothing at the standard sensitivity', abs(top() - t4) < 2, '%d -> %d' % (t4, top()))
+    sweep(40, -116, 40, -125, 0.3); feed(40, -125, 0.3)
+    ev("(() => { const i = document.querySelector('.sens input'); i.value = 250; i.dispatchEvent(new Event('input')); i.dispatchEvent(new Event('change')) })()")
+    sweep(40, -125, 40, -116, 0.3); feed(40, -116, 0.8)
+    check('roll: the same small roll scrolls once sensitivity is turned up, and the setting is kept', top() > t4 + 60 and ev("localStorage.getItem('x_sens_roll3')") == '250' and '2.5' in txt('.sens label'), ('%d -> %d' % (t4, top()), txt('.sens label')))
+    sweep(40, -116, 40, -125, 0.3); feed(40, -125, 0.3)
+    check('roll: shows live numbers, from rest', 'from rest' in txt('#r3n') and 'starts at' in txt('#r3n'), txt('#r3n'))
     r = post({'t': 'hb', 'b': 'turn04-test'})
     check('an open card asks the watch for its raw stream', r.get('raw') == 1, r)
     pg.click('#closeBtn'); time.sleep(0.8)
-    check('closing returns to the grid and counts the trial', pg.locator('#active.show').count() == 0 and '1 trial' in txt('.tile[data-id=tilt1] .foot'))
+    check('closing returns to the grid and counts the trial', pg.locator('#active.show').count() == 0 and '1 trial' in txt('.tile[data-id=roll3] .foot'))
     check('in the Watch tab the stream stays on between cards, so the next card does not wait', post({'t': 'hb'}).get('raw') == 1)
     time.sleep(3.6)
     check('and is still on after a while, because the Watch tab is open', post({'t': 'hb'}).get('raw') == 1)
@@ -98,20 +116,6 @@ with sync_playwright() as pw:
     tabto(pg, 'watch'); time.sleep(1.2)
     r = post({'t': 'hb'})
     check('back in the Watch tab the stream comes back before any card is opened', r.get('raw') == 1 and r.get('pages') == 1, r)
-
-    # ---- v2 scroll: decided on the page from raw rows
-    card(pg, 'tilt2')
-    feed(0, 0, 0.8)
-    check('v2: level, list is still', top() == 0, top())
-    sweep(0, 0, -30, 0, 0.4); feed(-30, 0, 1.0)
-    t1 = top()
-    check('v2: hand lowered and held, list moves down', t1 > 150, t1)
-    sweep(-30, 0, 0, 0, 0.4); feed(0, 0, 0.5); t2 = top(); feed(0, 0, 0.4)
-    check('v2: level stops it', abs(top() - t2) < 2, '%d -> %d' % (t2, top()))
-    sweep(0, 0, -62, 0, 0.5); feed(-62, 0, 0.6); t3 = top(); feed(-62, 0, 0.8)
-    check('v2: arm hanging steeply does not scroll (v1 scrolled here in the first session)', abs(top() - t3) < 2, '%d -> %d' % (t3, top()))
-    check('v2: shows live numbers', txt('#nP').startswith('tilt -6'), txt('#nP'))
-    pg.click('#closeBtn'); time.sleep(0.5)
 
     # ---- dial
     card(pg, 'dial')
@@ -146,16 +150,25 @@ with sync_playwright() as pw:
     check('flap: the other direction is its own gesture', 'pinky rising 1' in txt('.big .count'), txt('.big .count'))
     pg.click('#closeBtn'); time.sleep(0.5)
 
-    # ---- swing v2, decided on the page
-    card(pg, 'swing2')
+    # ---- swing v3: at any angle of the arm; the way back never counts
+    card(pg, 'swing3')
     th = lambda: txt('#play .th span')
-    feed(0, -90, 0.5)
-    feed(0, -90, 0.3, w=[0, -3, 0]); feed(0, -90, 0.3, w=[0, 3, 0]); feed(0, -90, 0.6)
-    check('swing v2: one swing left and back changes thread once', th() == 'Code', th())
-    feed(0, -90, 0.3, w=[0, 3, 0]); feed(0, -90, 0.3, w=[0, -3, 0]); feed(0, -90, 0.6)
-    check('swing v2: one swing right and back returns', th() == 'Messages', th())
-    feed(0, 0, 0.4); feed(0, 0, 0.3, w=[0, 0, 3]); feed(0, 0, 0.5)
-    check('swing v2: the same turn with the hand flat does nothing', th() == 'Messages', th())
+    for label, pose in (('arm flat', (0, 0, [0, 0, 3])), ('arm rolled over, as the owner rests it', (-7, -125, None))):
+        p, r, w = pose
+        if w is None:      # a turn about the vertical, whatever way the watch is facing
+            g = [math.sin(math.radians(p)), math.cos(math.radians(p)) * math.sin(math.radians(r)), math.cos(math.radians(p)) * math.cos(math.radians(r))]
+            w = [3 * g[0], 3 * g[1], 3 * g[2]]
+        neg = [-v for v in w]
+        feed(p, r, 0.6); t0 = th()
+        feed(p, r, 0.25, w=w); feed(p, r, 0.5, w=neg); feed(p, r, 0.7)
+        t1 = th()
+        check('swing v3, %s: a short swing changes thread once, and the longer way back does not count' % label, t1 != t0 and th() == t1, (t0, t1))
+        feed(p, r, 0.25, w=neg); feed(p, r, 0.5, w=w); feed(p, r, 0.7)
+        check('swing v3, %s: a swing the other way returns' % label, th() == t0, th())
+    feed(0, 0, 0.3, w=[0, 0, 0.5]); feed(0, 0, 0.5)
+    check('swing v3: a slow drift of the arm changes nothing', th() == t0, th())
+    feed(0, 0, 0.6); feed(0, 0, 0.2, w=[0, 0, 3]); feed(0, 0, 0.9); t5 = th(); feed(0, 0, 0.25, w=[0, 0, -3]); feed(0, 0, 0.6)
+    check('swing v3: a pause at the far end before coming back still does not count the way back', t5 != t0 and th() == t5, (t0, t5, th()))
     pg.click('#closeBtn'); time.sleep(0.5)
 
     # ---- connection test: one timed run per link, compared in a table
@@ -255,10 +268,10 @@ with sync_playwright() as pw:
     check('saved trial has what the owner did on the screen', 'marker' in whats and 'double tap' in whats and 'rating' in whats, whats)
     check('saved trial has what the watch saw', head.get('rawRows', 0) > 20 and len(rawpart.get('raw', [])) > 3 and len(rawpart['raw'][0]['s'][0]) == 10, head.get('rawRows'))
     check('saved trial does not carry the pairing code', code not in json.dumps(head))
-    t2 = [x['key'] for x in listing if '-tilt2-' in x['key'] and x['key'].endswith(':000')]
+    t2 = [x['key'] for x in listing if '-roll3-' in x['key'] and x['key'].endswith(':000')]
     h2 = json.loads(http('/trial/' + sorted(t2)[-1])) if t2 else {}
     w2 = [(e['what'], e.get('why', e.get('dir', ''))) for e in h2.get('events', []) if e['src'] == 'concept']
-    check('v2 trial records each start and stop it decided', ('scroll start', 'down') in w2 and ('scroll stop', 'level') in w2, w2)
+    check('the roll trial records each start and stop it decided, and the change of sensitivity', ('scroll start', 'down') in w2 and ('scroll start', 'up') in w2 and ('scroll stop', 'back at rest') in w2 and any(e['what'] == 'sensitivity' for e in h2.get('events', [])), w2)
 
     # ---- lab-r6: last logged, Watch off, results table, camera probe, buzz
     pg.goto(base + '/?linksecs=5'); time.sleep(0.8); tabto(pg, 'watch'); time.sleep(0.8)

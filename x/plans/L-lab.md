@@ -111,6 +111,20 @@ Owner's requests from this run are in `X-NORTH-STAR.md` §2 (2026-11-19) and req
 
 **Gate:** the owner carries the cup to the ring and sets it down, pushing and pulling in depth the way he expects; moving between watch cards does not wait; his record is in the repo without his closing the card.
 
+### L8 — Watch cards reworked from the owner's notes (crawl) · built 2026-11-19 in `lab-r10`, lab only
+**Facts from his run of `lab-r9` (2026-11-19, 11:46 to 12:14 UTC).**
+| Card | His rating and words | What his recording shows |
+|---|---|---|
+| Tilt to scroll v1 | Dump, three times: "barely scrolls down never scrolls up … remove". Then Back to shop: "instead let's measure roll" | — |
+| Tilt to scroll v2 | Back to shop: tilt "relative to desktop with elbow on desktop. Elevate is +"; "a slider to calibrate sensitivity" | His arm rested with the watch rolled to about −122°. v2 only worked within 35° of palm-down, so it was switched off for most of the run |
+| Swing v1, v2 | Back to shop: "decent"; v2 "a bit better"; "tilt should not be a requirement"; the way back "may be confused with a full swipe" | v2 fired three times in 71 s |
+| Flap | Back to shop: "complete washout" | — |
+| Twist to pick; Buzz | Keep | — |
+
+**What was built.** Roll to scroll (D42) and Swing to switch v3 (D43) replace the four cards. Each has a sensitivity slider (D44); Roll has Flip for the direction; Raise to talk has the slider too and measures from the desk once the watch is calibrated. The watch joins Calibrate (D45). The record no longer mislabels an event whose detail was also called "src".
+**Left as it is, stated:** Flap. He gave no direction beyond "washout"; its rework is to teach it as a move in Learn. Override me if it should simply go.
+**Gate:** with his arm resting as it does, the owner scrolls a list down and up by roll, stops it at will, and changes thread by swing with no false change on the way back.
+
 ### L5 — Tabs (walk) · built 2026-11-19 in `lab-r9`, lab only
 Owner: "an overall dashboard and combine/learn tab, then a camera tab, a watch tab and a voice tab, so that we're not commingling everything".
 

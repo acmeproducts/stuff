@@ -185,5 +185,17 @@ S.setCal('eyes', S.calEyes({ open: es(0.05, 0.08), both: es(0.7, 0.75), left: es
 check('someone who cannot close one eye alone gets blink both only, and the others are taken away with their actions', S.signals.map(x => x.name).join() === 'blink both' && Object.keys(S.assign).length === 0 && S.cal.eyes.wink === false, S.signals.map(x => x.name));
 check('eyes that read alike open and closed are refused', /too alike/.test(S.calEyes({ open: es(0.3, 0.3), both: es(0.4, 0.4) }).error || ''));
 
+/* ---- the watch, calibrated: this person's arm rests with the watch rolled well over (the owner's reads about -125 degrees) ---- */
+const wr = (pitch, roll) => many(40, () => ({ pitch: pitch, roll: roll }));
+check('before watch calibration tilt and roll are the watch\'s own', S.ownWatch(-7, -125).tilt === -7 && S.ownWatch(-7, -125).roll === -125 && S.rollStart() === 16);
+let cw = S.calWatch({ rest: wr(-7, -125), up: wr(48, -30), rollA: wr(-7, -170), rollB: wr(-7, -85) });
+check('watch calibration learns the rest, the raise and the roll each way', near(cw.pitch0, -7, 0.2) && near(cw.roll0, -125, 0.2) && near(cw.up, 55, 0.5) && near(cw.rollA, -45, 0.5) && near(cw.rollB, 40, 0.5), cw);
+S.setCal('watch', cw);
+check('after it, tilt is the forearm\'s angle from the desk, raising as plus', near(S.ownWatch(-7, -125).tilt, 0, 0.2) && near(S.ownWatch(48, -125).tilt, 55, 0.2));
+check('and roll is the change from their rest, the short way round', near(S.ownWatch(-7, -125).roll, 0, 0.2) && near(S.ownWatch(-7, 175).roll, -60, 0.2) && near(S.ownWatch(-7, -85).roll, 40, 0.2), S.ownWatch(-7, 175));
+check('how much roll starts a scroll comes from their own range', near(S.rollStart(), 13.2, 0.3), S.rollStart());
+check('a watch that sent too little is refused', /too little/.test(S.calWatch({ rest: wr(0, 0).slice(0, 5) }).error || ''));
+check('rolls that read as the same direction leave the roll range out, and keep the rest', (() => { const c = S.calWatch({ rest: wr(-7, -125), rollA: wr(-7, -100), rollB: wr(-7, -90) }); return c.rollA === undefined && near(c.roll0, -125, 0.2); })());
+
 console.log(fails ? '\n' + fails + ' FAILED' : '\nall passed');
 process.exit(fails ? 1 : 0);

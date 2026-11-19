@@ -82,7 +82,7 @@ with sync_playwright() as pw:
     tiles = lambda: [x.get_attribute('data-id') for x in pg.locator('.tile').all()]
     tabto(pg, 'camera'); cam = tiles(); tabto(pg, 'learn'); learn = tiles()
     check('the Camera tab holds the camera cards and the Learn tab holds calibrate, teach and assign', cam == ['camera', 'hands', 'head', 'object'] and learn == ['calibrate', 'teach', 'assign'], (cam, learn))
-    check('the page says which build it is', 'lab-r9' in txt('#meta'), txt('#meta'))
+    check('the page says which build it is', 'lab-r10' in txt('#meta'), txt('#meta'))
 
     # ---- hand numbers
     card(pg, 'hands'); wait(900)
@@ -301,9 +301,9 @@ with sync_playwright() as pw:
 
     # ---- calibrate: the person's own pinch, reach, head and eyes
     tabto(pg, 'dash'); wait(300)
-    check('dashboard: nothing is calibrated yet, and what was taught is listed', txt('.dash').count('not yet') == 4 and 'TAUGHT (2)' in txt('.dash') and 'wrist down' in txt('.dash'), txt('.dash')[:300])
+    check('dashboard: nothing is calibrated yet, and what was taught is listed', txt('.dash').count('not yet') == 5 and 'TAUGHT (2)' in txt('.dash') and 'wrist down' in txt('.dash'), txt('.dash')[:300])
     card(pg, 'calibrate'); wait(500)
-    check('calibrate: four things to calibrate, none done', pg.locator('#kList .calrow').count() == 4 and txt('#kList').count('not yet') == 4, txt('#kList'))
+    check('calibrate: five things to calibrate, none done', pg.locator('#kList .calrow').count() == 5 and txt('#kList').count('not yet') == 5, txt('#kList'))
     def calibrate(key, secs):
         pg.click('#kList button[data-k=%s]' % key)
         pg.wait_for_function("/^(Saved|Not saved)/.test(document.getElementById('kSay').textContent)", timeout=secs * 1000); wait(300)
@@ -324,10 +324,22 @@ with sync_playwright() as pw:
       __puppet.react = s => /BOTH/.test(s) ? f(0.7, 0.75) : /LEFT/.test(s) ? f(0.15, 0.75) : /RIGHT/.test(s) ? f(0.7, 0.2) : f(0.05, 0.08) }""")
     calibrate('eyes', 30)
     check('calibrate eyes: three blink signals are made, and which eye is which was learned', txt('#kSay') == 'Saved' and 'Blink left, blink right and blink both are ready' in txt('#kOut') and ev("() => Signals.signals.filter(s => /^blink /.test(s.name)).length") == 3 and ev("() => Signals.cal.eyes.swap") is True, txt('#kOut'))
+    # the watch arm: rests rolled well over, as the owner's does
+    pg.click('#kList button[data-k=watch]')
+    end = time.time() + 30
+    while time.time() < end:
+        s = txt('#kSay')
+        if s.startswith('Saved') or s.startswith('Not saved'): break
+        if 'RAISE' in s: feed(48, -30, 0.17)
+        elif 'ROLL your' in s: feed(-7, -170, 0.17)
+        elif 'ROLL it' in s: feed(-7, -85, 0.17)
+        else: feed(-7, -125, 0.17)
+    wait(300)
+    check('calibrate watch: it learns the rest, the raise and the roll each way', txt('#kSay') == 'Saved' and 'forearm is 55\u00B0 from the desk' in txt('#kOut') and '45\u00B0 one way and 40\u00B0 the other' in txt('#kOut'), txt('#kOut'))
     if shot: pg.screenshot(path=shot + '-calibrate.png')
     close()
     body = http('/trial/' + sorted(x['key'] for x in json.loads(http('/trials')) if '-calibrate-' in x['key'] and x['key'].endswith(':000'))[-1])
-    check('calibrate: the record holds the numbers learned, and no picture', body.count('"what":"saved"') == 3 and '"closed":0.4' in body and '"swap":true' in body and 'landmarks' not in body, len(body))
+    check('calibrate: the record holds the numbers learned, and no picture', body.count('"what":"saved"') == 4 and '"from":"watch"' in body and '"closed":0.4' in body and '"swap":true' in body and 'landmarks' not in body, len(body))
     # what the calibration changes
     ev("() => { __puppet.react = null; __puppet.rest = __puppet.eyes(0.05, 0.08); __puppet.rest.face.turn = 23 }")
     card(pg, 'head'); wait(900)

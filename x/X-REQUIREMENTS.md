@@ -141,6 +141,15 @@ Source column: NS = `X-NORTH-STAR.md` section; WP = `x/wrist/WRIST-PLAN.md` sect
 | R55 | The work turns to calibration, interpretation and learning. | NS §2 (11-19) |
 | R56 | The watch needs both settings right (background activity allowed; not a sleeping app). When the watch goes quiet the Lab says which settings to check. | NS §2 (11-19) |
 
+### 3.10 The watch cards, from the owner's notes (2026-11-19)
+| # | Requirement | Source |
+|---|---|---|
+| R57 | Tilt is the forearm's angle from the desk with the elbow on the desk; raising is plus. | NS §2 (watch notes) |
+| R58 | Scrolling is by roll: the change from a baseline, plus or minus, with the arm at any angle of tilt. | NS §2 (watch notes) |
+| R59 | Each such card has a slider for sensitivity. | NS §2 (watch notes) |
+| R60 | A swing works with the arm at any angle. A short travel fires; a longer travel back is allowed, and never fires, before the next. | NS §2 (watch notes) |
+| R61 | The watch is taken to be on the left wrist. Customising that may come later. | NS §2 (watch notes) |
+
 ## 4. Out of scope until the owner says otherwise
 - An administrative assistant (mail, calendar). The owner ranked it last.
 - Distribution to other people. Personal use first (WP §11.6).

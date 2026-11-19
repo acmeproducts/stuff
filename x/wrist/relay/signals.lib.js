@@ -214,6 +214,26 @@
     return best;
   };
 
+  /* watch: steps = {rest, up, rollA, rollB}, each a list of {pitch, roll} in degrees as the watch reports them.
+     rest = forearm on the desk, elbow down. Tilt is then the forearm's angle from the desk, raising as plus; roll is the change from this rest. */
+  function wrap(x) { x = ((x + 180) % 360 + 360) % 360 - 180; return x; }
+  S.wrap = wrap;
+  function midAngle(a) { var sx = 0, sy = 0; a.forEach(function (v) { sx += Math.cos(v * Math.PI / 180); sy += Math.sin(v * Math.PI / 180); }); return Math.atan2(sy, sx) * 180 / Math.PI; }
+  S.calWatch = function (steps) {
+    if (!steps.rest || steps.rest.length < 20) return { error: 'The watch sent too little. Open Wrist on the watch and try again.' };
+    var out = { pitch0: pct(steps.rest.map(function (r) { return r.pitch; }), 0.5), roll0: midAngle(steps.rest.map(function (r) { return r.roll; })) };
+    if (steps.up && steps.up.length >= 20) { var u = pct(steps.up.map(function (r) { return r.pitch - out.pitch0; }), 0.8); if (u >= 10) out.up = u; }
+    var turn = function (k) { return steps[k] && steps[k].length >= 20 ? pct(steps[k].map(function (r) { return wrap(r.roll - out.roll0); }), 0.5) : 0; };
+    var a = turn('rollA'), b = turn('rollB');
+    if (a * b < 0 && Math.abs(a) >= 10 && Math.abs(b) >= 10) { out.rollA = a; out.rollB = b; }
+    for (var k in out) out[k] = +out[k].toFixed(1);
+    return out;
+  };
+  /* the watch's own tilt and roll to the person's: tilt from the desk, roll from their rest */
+  S.ownWatch = function (pitch, roll) { var k = S.cal.watch; return k ? { tilt: pitch - k.pitch0, roll: wrap(roll - k.roll0) } : { tilt: pitch, roll: roll }; };
+  /* how many degrees of roll start a scroll for this person: a third of the smaller of their two comfortable rolls, within sensible limits */
+  S.rollStart = function () { var k = S.cal.watch; return k && k.rollA ? clamp(Math.min(Math.abs(k.rollA), Math.abs(k.rollB)) * 0.33, 8, 24) : 16; };
+
   /* eyes: steps = {open, both, left, right}; left and right (one eye closed) may be missing if the person cannot wink */
   S.calEyes = function (steps) {
     if (!steps.open || steps.open.length < 8 || !steps.both || steps.both.length < 8) return { error: 'I lost sight of your face. Stay in the picture and try again.' };

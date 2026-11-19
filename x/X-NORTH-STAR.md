@@ -1,6 +1,6 @@
 # X — north star
 
-Version 1.2.0 · 2026-11-19 · Owner: Confi
+Version 1.3.0 · 2026-11-19 · Owner: Confi
 
 This file holds the owner's own words and the principles drawn from them. Every other file in `x/` answers to it. Quotes are the owner's words; only punctuation is added and dictation slips are fixed. Anything not in quotes is a reading of them.
 
@@ -52,6 +52,17 @@ After his first run of the new cards, 2026-11-19:
 > "both places have to be set correctly: the app has to run in the background, and in the battery it cannot be a sleeping app. Now it seems to work consistently when the screen turns off, so we could focus more on calibration and interpretation and learning"
 
 > "keep blink left right both"
+
+His notes on the watch cards, 2026-11-19 (written in the Lab):
+> Tilt: "tilt needs to be defined as the angle of forearm relative to desktop with elbow on desktop. Elevate is +. There needs to be a slider to calibrate sensitivity."
+
+> Scroll: "tilt is being measured; instead let's measure roll, [which] needs to be defined as the degree of change relative to baseline +/-, with arm at any angle of tilt."
+
+> Swing: "assume watch is on left hand, but make a note we may want to allow customization later. The travel back to start … may be confused with a full swipe. It seems as though the relative travel space is what's critical: swipe left means a short travel left to activate swipe, and a longer travel to right is granted to allow back to reset before next command is issued." … "tilt should not be a requirement, so the swipe back and forward can happen at any angle."
+
+> Flap: "complete washout". Tilt v1: "barely scrolls down, never scrolls up … remove".
+
+Then: "please complete the entire body of development".
 
 The practical side:
 > "you want to be able to just not keep having to touch your phone all the time. Maybe you want to scroll through Reddit feeds, maybe you want a weather report and traffic, maybe you're doing research on the natural occurrence of gold in the Central Valley, maybe you're playing a game, maybe you're just exploring and appreciating art and music, maybe you're trying to figure out what the carry trade in Japan has to do [with] what is going on with credit squeeze"
@@ -125,4 +136,5 @@ Each design decision in `X-DESIGN.md` cites the principles it rests on. A decisi
 | P23 | **Things are handled.** An object on the screen is taken, moved and turned by the hands themselves, one or both. | §2 (evening) |
 | P24 | **Calibrated to the person.** Ranges come from the person's own body: how their pinch reads, how far they reach, where their head rests, how each eye reads. Fixed numbers of the build's are a stopgap. | §2 (2026-11-19) |
 | P25 | **Sources are kept apart.** The camera works with only a camera, the watch with only the watch, the voice with only the mic. They meet where the person teaches and combines. | §2 (2026-11-19) |
+| P26 | **Measured from the person's rest, not from a posture the build expects.** A signal is a change from where their arm, hand or head already is, at whatever angle that is. | §2 (2026-11-19, watch notes) |
 | P19 | **Not app navigation.** Signals are named for what the body does; meaning is given in X. The Lab is a workshop, not the product. | §4 |

@@ -56,6 +56,15 @@ body:not(.t-watch) #statusRow{display:none}
 .dash .ln span:first-child{flex:none}
 .dash .ln span:last-child{color:var(--muted);text-align:right;min-width:0;overflow-wrap:anywhere}
 .dash .ln.bad span:last-child{color:var(--warn)}
+.sens{position:absolute;left:10px;right:10px;bottom:32px;display:flex;gap:10px;align-items:center;background:#0d141b;border:1px solid var(--line);border-radius:12px;padding:8px 12px;z-index:3;font-size:14.5px}
+.sens label{flex:none;color:var(--muted)}
+.sens label b{color:var(--text);margin-left:4px}
+.sens input{flex:1;min-width:0;height:34px;accent-color:var(--accent)}
+.sens button{flex:none;padding:8px 12px}
+.rollbar{position:absolute;left:10px;right:10px;bottom:92px;height:38px;border:1px solid var(--line);border-radius:10px;background:#0d141b;z-index:3;overflow:hidden}
+.rollbar .mz{position:absolute;top:0;bottom:0;background:rgba(139,148,158,.22)}
+.rollbar .mk{position:absolute;top:4px;bottom:4px;width:5px;margin-left:-2px;border-radius:3px;background:var(--accent)}
+.rollbar span{position:absolute;left:8px;right:8px;top:9px;font-size:13px;color:var(--text);text-align:center;white-space:nowrap;overflow:hidden}
 .calrow{display:grid;grid-template-columns:1fr auto;gap:10px;align-items:center;background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:10px 12px;text-align:left}
 .calrow em{display:block;font-style:normal;color:var(--muted);font-size:13.5px}
 #lamp{width:11px;height:11px;border-radius:50%;background:var(--bad);flex:none}
@@ -213,7 +222,7 @@ body:not(.t-watch) #statusRow{display:none}
 <script>
 (function(){
 'use strict';
-var BUILD='lab-r9';
+var BUILD='lab-r10';
 var QUERY=location.search;          // kept, because the address is tidied once the code is read from it
 var Signals=window.Signals;
 var LINK_SECS=Number((/[?&]linksecs=(\d+)/.exec(location.search)||[])[1])||120;
@@ -276,7 +285,7 @@ function makeList(root){
    code runs inside its own card and inside the Keepers card.
    ===================================================================== */
 /* the watch as numbers a signal can be taught from */
-function watchN(d){return{tilt:d.pitch,rollS:Math.sin(d.roll/DEG),rollC:Math.cos(d.roll/DEG),turn:d.yaw*DEG}}
+function watchN(d){var o=Signals.ownWatch(d.pitch,d.roll);return{tilt:o.tilt,rollS:Math.sin(o.roll/DEG),rollC:Math.cos(o.roll/DEG),turn:d.yaw*DEG}}
 function taught(kind){return Signals.signals.some(function(s){return s.kind!=='combo'&&Signals.kindOf(s.src)===kind})}
 function live(kind){return Signals.signals.some(function(s){
   if(s.kind==='combo'||Signals.kindOf(s.src)!==kind)return false;
@@ -323,29 +332,53 @@ function setTab(t){
   if(t==='watch'&&!/^\d{6}$/.test(code()))askCode();
   linkTick();paintStatus();
 }
+/* Sensitivity for a watch card: 0.5 (large movements needed) to 2.5 (small ones are enough). Kept on the device per card. */
+function sensRow(card,root,extra){
+  var v=100;try{v=Number(localStorage.getItem('x_sens_'+card.id))||100}catch(e){}
+  var row=document.createElement('div');row.className='sens';
+  row.innerHTML='<label>Sensitivity <b></b></label><input type="range" min="50" max="250" step="10" aria-label="Sensitivity">'+(extra||'');
+  var inp=row.querySelector('input'),out=row.querySelector('b'),set=function(x,log){card.r.sens=x/100;out.textContent=(x/100).toFixed(1)+'\u00D7';if(log){try{localStorage.setItem('x_sens_'+card.id,String(x))}catch(e){}ev('page','sensitivity',{v:x/100})}};
+  inp.value=v;set(v,false);
+  inp.addEventListener('input',function(){set(Number(inp.value),false)});inp.addEventListener('change',function(){set(Number(inp.value),true)});
+  ['pointerdown','pointerup','click'].forEach(function(n){row.addEventListener(n,function(e){e.stopPropagation()})});
+  root.appendChild(row);return row;
+}
 var R={};
-R.tilt2=function(){var o={lp:null,on:false,nv:false,neutral:0,rate:0};
-  o.sample=function(d){var f=[];
-    o.lp=o.lp==null?d.pitch:o.lp+(d.pitch-o.lp)*0.25;
-    var usable=Math.abs(d.roll)<35&&o.lp>-45&&o.lp<70;
-    if(!usable){if(o.on){o.on=false;f.push({g:'scroll stop',why:'arm not in scroll pose'})}o.nv=false;o.rate=0;return f}
-    if(!o.nv){o.neutral=o.lp;o.nv=true}
-    var x=o.lp-o.neutral,a=Math.abs(x);
-    if(!o.on){if(a>14){o.on=true;f.push({g:'scroll start',dir:x>0?'up':'down'})}else if(d.gyro<0.3)o.neutral+=x*0.01}
-    else if(a<8){o.on=false;f.push({g:'scroll stop',why:'level'})}
-    o.rate=o.on?(x>0?1:-1)*Math.pow(Math.min(1,(a-8)/22),1.5):0;
+/* Roll to scroll. Owner: "let's measure roll ... the degree of change relative to baseline +/- with arm at any angle of tilt".
+   The baseline is where the arm is when the card opens, and follows the arm whenever it lies still inside the quiet zone. */
+R.roll3=function(){var o={base:null,still:0,on:false,rate:0,delta:0,tilt:0,sens:1,flip:1};
+  o.sample=function(d,dt){var f=[],own=Signals.ownWatch(d.pitch,d.roll);
+    if(o.base==null)o.base=own.roll;
+    var x=Signals.wrap(own.roll-o.base),a=Math.abs(x),start=Signals.rollStart()/o.sens,stop=start/2,full=start*2.6;
+    o.delta=x;o.tilt=own.tilt;o.start=start;
+    if(Math.abs(d.pitch)>72){if(o.on){o.on=false;f.push({g:'scroll stop',why:'forearm upright'})}o.rate=0;return f}     /* upright, roll cannot be told from gravity */
+    if(!o.on){
+      if(a>start){o.on=true;o.still=0;f.push({g:'scroll start',dir:x*o.flip>0?'down':'up',by:Math.round(x)})}
+      else{o.still=d.gyro<0.25?o.still+dt:0;if(o.still>1500)o.base=Signals.wrap(o.base+x*0.02)}
+    }else if(a<stop){o.on=false;f.push({g:'scroll stop',why:'back at rest'})}
+    o.rate=o.on?(x*o.flip>0?-1:1)*Math.pow(Math.min(1,(a-stop)/(full-stop)),1.4):0;      /* the list's own rate runs the other way: minus is down the list */
     return f};
   return o};
-R.swing2=function(){var o={acc:0,t:0,lock:0,idle:0,vertical:false};
-  o.sample=function(d,dt){var f=[];
-    o.vertical=Math.abs(d.roll)>50&&Math.abs(d.roll)<130&&Math.abs(d.pitch)<60;
-    if(o.lock>0){o.lock-=dt;o.acc=0;return f}
-    if(!o.vertical){o.acc=0;return f}
-    var a=Math.abs(d.yaw);
-    if(a>=0.7){if(o.acc!==0&&(o.acc>0)!==(d.yaw>0)){o.acc=0}if(o.acc===0)o.t=0;o.acc+=d.yaw*dt/1000;o.t+=dt;o.idle=0;
-      if(o.t>700){o.acc=0}
-      else if(Math.abs(o.acc)>=0.3){f.push({g:o.acc>0?'swing left':'swing right',swept:Math.round(Math.abs(o.acc)*DEG)});o.acc=0;o.lock=800}}
-    else if(a<0.4&&o.acc!==0){o.idle+=dt;if(o.idle>150)o.acc=0}
+/* Swing v3. Owner: "tilt should not be a requirement so the swipe back and forward can happen at any angle"; "a short travel ... to
+   activate swipe and a longer travel [back] is granted to allow back to reset before next command". Travel is the turn about the
+   vertical, so the arm may be at any angle. After a swing the way back never fires; it is armed again once the hand has settled. */
+R.swing3=function(){var o={x:0,t:0,state:'ready',dir:0,out:0,back:0,quiet:0,rt:0,sens:1};
+  o.sample=function(d,dt){var f=[],w=d.yaw,T=(15/o.sens)/DEG,step=Math.abs(w)*dt/1000;
+    if(o.state==='ready'){
+      if(Math.abs(w)>=0.6){
+        if(o.x!==0&&(o.x>0)!==(w>0))o.x=0;if(o.x===0)o.t=0;
+        o.x+=w*dt/1000;o.t+=dt;o.quiet=0;
+        if(o.t>700)o.x=0;
+        else if(Math.abs(o.x)>=T){f.push({g:o.x>0?'swing left':'swing right',swept:Math.round(Math.abs(o.x)*DEG)});o.dir=o.x>0?1:-1;o.out=Math.abs(o.x);o.x=0;o.back=0;o.quiet=0;o.rt=0;o.state='return'}
+      }else if(o.x!==0){o.quiet+=dt;if(o.quiet>150)o.x=0}
+    }else{
+      /* After a swing the hand is out to one side. Coming back is expected and never fires, even if it travels further than the swing
+         did, and even after a pause out there. Armed again when the hand has come most of the way back and settled; or after two and
+         a half seconds, when wherever the hand is counts as the new start; or if it goes on far past where it began. */
+      o.rt+=dt;if(w*o.dir>0)o.out+=step;else o.back+=step;
+      o.quiet=Math.abs(w)<0.35?o.quiet+dt:0;
+      if((o.back>=0.6*o.out&&o.quiet>=200)||o.rt>2500||o.back>2.5*o.out+0.3){o.state='ready';o.x=0;o.quiet=0}
+    }
     return f};
   return o};
 R.dial=function(){var names=['Reply','Later','Call','Archive','Read','Forward','Skip'];
@@ -387,9 +420,10 @@ R.flap=function(){var o={base:null,state:0,dir:0,t:0,lock:0,e:0};
   return o};
 R.raise=function(){var o={lp:null,on:false,above:0};
   o.sample=function(d,dt){var f=[];
-    o.lp=o.lp==null?d.pitch:o.lp+(d.pitch-o.lp)*0.2;
-    if(!o.on){o.above=o.lp>40?o.above+dt:0;if(o.above>=500){o.on=true;f.push({g:'talk open',tilt:Math.round(o.lp)})}}
-    else if(o.lp<20){o.on=false;o.above=0;f.push({g:'talk close'})}
+    var tilt=Signals.ownWatch(d.pitch,d.roll).tilt,s=o.sens||1;                 /* the forearm's angle from the desk once the watch is calibrated; raising is plus */
+    o.lp=o.lp==null?tilt:o.lp+(tilt-o.lp)*0.2;
+    if(!o.on){o.above=o.lp>40/s?o.above+dt:0;if(o.above>=500){o.on=true;f.push({g:'talk open',tilt:Math.round(o.lp)})}}
+    else if(o.lp<20/s){o.on=false;o.above=0;f.push({g:'talk close'})}
     return f};
   return o};
 /* Things X might want to know about you. None of these is a command. */
@@ -450,10 +484,7 @@ var CONCEPTS=[
    if(this.last&&this.last.id!==set.c.id&&t-this.last.t<500){this.hits++;var p=this.last.name+' + '+name;this.pairs.push(p);ev('concept','collision',{a:this.last.id+': '+this.last.name,b:set.c.id+': '+name})}
    this.last={id:set.c.id,name:name,t:t};this.paint();
  },
- sample:function(d,dt){for(var i=0;i<this.sets.length;i++){var s=this.sets[i];if(!s.r)continue;var f=s.r.sample(d,dt);for(var k=0;k<f.length;k++)this.hit(s,f[k].g)}},
- watch:function(m){for(var i=0;i<this.sets.length;i++){var s=this.sets[i];
-   if(s.c.id==='swing1'&&m.t==='swipe')this.hit(s,'swing '+m.d);
-   if(s.c.id==='tilt1'&&m.t==='scroll'){var on=Number(m.r)!==0;if(on!==!!s.on){s.on=on;this.hit(s,on?'scroll start':'scroll stop')}}}}
+ sample:function(d,dt){for(var i=0;i<this.sets.length;i++){var s=this.sets[i];if(!s.r)continue;var f=s.r.sample(d,dt);for(var k=0;k<f.length;k++)this.hit(s,f[k].g)}}
 },
 {id:'results',name:'Results',needsRaw:false,noRaw:true,noTrial:true,g:[],
  blurb:'What the watch reported, session by session, and how each signal has done so far.',
@@ -655,7 +686,7 @@ var CONCEPTS=[
  unmount:function(){Signals.eyes.stop()}
 },
 {id:'calibrate',name:'Calibrate',needsRaw:false,noRaw:true,g:[],
- blurb:'Under a minute each: your pinch and your reach, where your head rests and how far it turns, how each eye reads. Everything else then uses your numbers instead of the build’s.',
+ blurb:'Under a minute each: your pinch and your reach, where your head rests and how far it turns, how each eye reads, how your watch arm rests, raises and rolls. Everything else then uses your numbers instead of the build’s.',
  how:'Pick one and press its button. It asks for a few positions, two or three seconds each, on the screen and aloud. For the eyes it sounds a tone when you may open them. Then it says what it learned and where that is used. Do the hand you will use on the object card first. You can redo any of them at any time; the new numbers replace the old.',
  FLOWS:{
   hand:[['','Hold your hand up, open','hold your hand up, open',1600],['open','OPEN','open',2500],['closed','PINCH','pinch',2500],['open','OPEN','open',2000],['closed','PINCH, and keep pinching','pinch, and keep pinching',2000],
@@ -664,8 +695,12 @@ var CONCEPTS=[
         ['up','Look UP, and hold','look up',2800],['','Back to the middle','middle',1500],['down','Look DOWN, and hold','look down',2800]],
   eyes:[['open','Eyes open. Look at the screen','eyes open. look at the screen',3000],['both','Close BOTH eyes until the tone','close both eyes until the tone',3200,1],['','Open','',1500],
         ['left','Close only your LEFT eye until the tone','close only your left eye until the tone',3200,1],['','Open','',1500],['right','Close only your RIGHT eye until the tone','close only your right eye until the tone',3200,1]]
+  ,watch:[['rest','Rest your forearm on the desk, elbow down','rest your forearm on the desk, elbow down',3500],['up','RAISE your hand, elbow still down','raise your hand, elbow still down',2800],['','Back down','back down',1800],
+         ['rollA','ROLL your wrist one way, and hold','roll your wrist one way, and hold',2800],['','Back to rest','back to rest',1800],['rollB','ROLL it the other way, and hold','roll it the other way, and hold',2800]]
  },
- WHO:[['handRight','Right hand','hand','Right'],['handLeft','Left hand','hand','Left'],['head','Head','head',''],['eyes','Eyes: blink left, right, both','eyes','']],
+ raw:function(){return !!(this.run&&this.run.who[2]==='watch')},
+ sample:function(d){this.wn={t:now(),pitch:d.pitch,roll:d.roll}},
+ WHO:[['handRight','Right hand','hand','Right'],['handLeft','Left hand','hand','Left'],['head','Head','head',''],['eyes','Eyes: blink left, right, both','eyes',''],['watch','Watch: rest, raise and roll','watch','']],
  mount:function(root){
    var el=document.createElement('div'),self=this;el.className='linkbox';
    el.innerHTML='<div class="lk" id="kSay">Pick one</div>'+camHtml('small')+'<p class="cmsg"></p><p id="kOut"></p><div id="kList" class="siglist"></div>';
@@ -690,12 +725,14 @@ var CONCEPTS=[
    try{var A=window.AudioContext||window.webkitAudioContext;if(A&&!this.audio)this.audio=new A();if(this.audio&&this.audio.resume)this.audio.resume()}catch(e){}
    this.run={who:w,flow:this.FLOWS[w[2]],step:-1,at:now(),got:{},seenAt:0,asked:now()};
    $('kOut').textContent='';ev('calibrate','begin',{src:w[0]});
-   eyesOn(this,this.el,w[2]==='hand'?{hands:true}:{face:true});
-   this.say(w[2]==='hand'?'Hold up your '+w[3].toLowerCase()+' hand':'Look at the screen','');
+   if(w[2]==='watch'){eyesOff(this,'Open Wrist on the watch.');this.wn=null;wantRaw(needRaw());this.say('Rest your forearm on the desk','')}
+   else{eyesOn(this,this.el,w[2]==='hand'?{hands:true}:{face:true});this.say(w[2]==='hand'?'Hold up your '+w[3].toLowerCase()+' hand':'Look at the screen','')}
  },
  /* the numbers this flow reads, as the finder reports them (never the calibrated ones) */
  reading:function(f){
-   var r=this.run;if(!f)return null;
+   var r=this.run;
+   if(r.who[2]==='watch')return this.wn&&now()-this.wn.t<400?{pitch:this.wn.pitch,roll:this.wn.roll}:null;
+   if(!f)return null;
    if(r.who[2]==='hand'){var h=f.hands.filter(function(x){return x.side===r.who[3]})[0];return h?h.n:null}
    return f.head?f.head.raw:null;
  },
@@ -704,7 +741,7 @@ var CONCEPTS=[
    var n=this.reading(f);
    if(r.step<0){                                   /* wait until the hand or the face is actually in the picture */
      if(n){r.step=0;r.at=t;this.say(r.flow[0][1],r.flow[0][2])}
-     else if(t-r.asked>15000)this.fail(r.who[2]==='hand'?'I could not see your '+r.who[3].toLowerCase()+' hand.':'I could not see your face.');
+     else if(t-r.asked>15000)this.fail(r.who[2]==='hand'?'I could not see your '+r.who[3].toLowerCase()+' hand.':r.who[2]==='watch'?'I heard nothing from the watch.':'I could not see your face.');
      return;
    }
    var st=r.flow[r.step];
@@ -715,17 +752,18 @@ var CONCEPTS=[
    if(r.step>=r.flow.length){this.finish();return}
    this.say(r.flow[r.step][1],r.flow[r.step][2]);
  },
- fail:function(why){var r=this.run;this.run=null;this.say('Not saved','not saved');$('kOut').textContent=why+' Nothing was changed.';ev('calibrate','failed',{src:r.who[0],why:why.slice(0,140)});eyesOff(this,'')},
+ fail:function(why){var r=this.run;this.run=null;this.say('Not saved','not saved');$('kOut').textContent=why+' Nothing was changed.';ev('calibrate','failed',{src:r.who[0],why:why.slice(0,140)});eyesOff(this,'');wantRaw(needRaw())},
  finish:function(){
    var r=this.run,w=r.who,out,msg,g=r.got;
-   out=w[2]==='hand'?Signals.calHand(g):w[2]==='head'?Signals.calHead(g):Signals.calEyes(g);
+   out=w[2]==='hand'?Signals.calHand(g):w[2]==='head'?Signals.calHead(g):w[2]==='watch'?Signals.calWatch(g):Signals.calEyes(g);
    if(out.error){this.fail(out.error);return}
    this.run=null;out.at=Date.now();Signals.setCal(w[0],out);
    if(w[2]==='hand')msg='Your pinch reads '+out.closed.toFixed(2)+' closed and '+out.open.toFixed(2)+' open. '+(out.near?'Pushed forward, your hand looks '+(out.near/out.far).toFixed(1)+' times bigger than pulled back.':'Your reach did not read clearly, so depth keeps its standard strength.')+' The object card now uses these.';
    else if(w[2]==='head')msg='Your head turns '+Math.abs(Math.round(out.left))+'° left and '+Math.abs(Math.round(out.right))+'° right, '+Math.abs(Math.round(out.up))+'° up and '+Math.abs(Math.round(out.down))+'° down. Head numbers and head signals are now measured from where your head rests.';
+   else if(w[2]==='watch')msg='At rest your watch reads '+Math.round(out.pitch0)+'\u00B0 of tilt and '+Math.round(out.roll0)+'\u00B0 of roll. '+(out.up?'Raised, your forearm is '+Math.round(out.up)+'\u00B0 from the desk. ':'')+(out.rollA?'Rolled, it turns '+Math.abs(Math.round(out.rollA))+'\u00B0 one way and '+Math.abs(Math.round(out.rollB))+'\u00B0 the other. ':'The two rolls did not read as different, so roll keeps its standard strength. ')+'Tilt is now measured from the desk, raising as plus, and roll from this rest. Roll to scroll, Raise to talk and taught watch signals use these.';
    else{var made=Signals.blinkSignals().map(function(x){return x.name});msg='Open reads '+out.openL.toFixed(2)+', closed '+out.closedL.toFixed(2)+'. '+(out.wink?'Blink left, blink right and blink both are':'I could not tell one closed eye from the other, so only blink both is')+' ready in Assign to be given an action. Each needs holding a little longer than a natural blink.';void made}
    var log={src:w[0]};for(var k in out)if(k!=='at')log[k]=out[k];ev('calibrate','saved',log);
-   this.say('Saved','saved');$('kOut').textContent=msg;eyesOff(this,'');this.list();
+   this.say('Saved','saved');$('kOut').textContent=msg;eyesOff(this,'');wantRaw(needRaw());this.list();
  },
  draw:function(){eyesDraw(this)},
  unmount:function(){this.run=null;Signals.eyes.stop();try{speechSynthesis.cancel()}catch(e){}try{if(this.audio)this.audio.close()}catch(e){}this.audio=null}
@@ -1088,41 +1126,37 @@ var CONCEPTS=[
    this.p.textContent='roll '+Math.round(r.lp)+'°';fire(f);
  }
 },
-{id:'tilt1',name:'Tilt to scroll · v1',needsRaw:false,g:['scroll start','scroll stop'],
- blurb:'The first version, decided on the watch. Hand flat: raise or lower and hold.',
- how:'Hand flat. Raise the hand end and hold: the list should move one way and keep moving. Lower it for the other way. Level stops it. This is the untuned first guess, kept as the baseline to compare against.',
- mount:function(root){this.list=makeList(root)},
- watch:function(m){if(m.t==='scroll'){var r=Math.max(-4,Math.min(4,Number(m.r)||0))/4;if(!!r!==!!this.list.rate())detect(r?'scroll start':'scroll stop',{r:m.r});this.list.setRate(r);this.at=performance.now()}
-                   if(m.t==='mode'&&m.m==='resting')this.list.setRate(0)},
- tick:function(){if(this.list.rate()&&performance.now()-this.at>1300){this.list.setRate(0);detect('scroll signal lost')}},
- unmount:function(){this.list.stop()}
-},
-{id:'tilt2',name:'Tilt to scroll · v2',needsRaw:true,g:['scroll start','scroll stop'],
- blurb:'Tuned from your first session: steadier start and stop, ignores a resting or hanging arm.',
- how:'Same motion as v1. Three changes: it needs a clearer tilt to start and a clear return to stop (no stutter at the edge), it ignores your arm when it is hanging or resting steeply, and speed builds more gently. Compare it with v1 and rate both.',
- mount:function(root){this.list=makeList(root);this.r=R.tilt2()},
+{id:'roll3',name:'Roll to scroll',needsRaw:true,g:['scroll start','scroll stop'],
+ blurb:'Roll your forearm one way and the list moves; the other way and it moves back. Measured as change from where your arm rests, at any angle of tilt.',
+ how:'Rest your arm however is comfortable: flat, propped on the elbow, or raised. Roll the forearm a little one way and hold: the list moves and keeps moving, faster the further you roll. Come back to rest and it stops. Roll the other way for the other direction. The number shows your roll from rest; the marks show where scrolling starts. Sensitivity sets how far you must roll. Flip swaps the two directions. If your arm settles somewhere new, lie still for two seconds and that becomes rest.',
+ mount:function(root){
+   this.list=makeList(root);this.r=R.roll3();
+   var self=this,bar=document.createElement('div');bar.className='rollbar';bar.innerHTML='<div class="mz"></div><div class="mk"></div><span id="r3n"></span>';root.appendChild(bar);this.bar=bar;
+   try{this.r.flip=localStorage.getItem('x_flip_roll3')==='-1'?-1:1}catch(e){}
+   sensRow(this,root,'<button type="button" id="r3flip">Flip</button>');
+   $('r3flip').addEventListener('click',function(){self.r.flip=-self.r.flip;try{localStorage.setItem('x_flip_roll3',String(self.r.flip))}catch(e){}ev('page','flip',{v:self.r.flip});flash(self.r.flip>0?'direction: as it was':'direction: flipped')});
+ },
  sample:function(d,dt){fire(this.r.sample(d,dt));this.list.setRate(this.r.rate)},
+ draw:function(){
+   var r=this.r,span=Math.max(40,r.start*3.2),pc=function(v){return Math.max(0,Math.min(100,50+v/span*50))};
+   this.bar.querySelector('.mz').style.left=pc(-r.start)+'%';this.bar.querySelector('.mz').style.width=(pc(r.start)-pc(-r.start))+'%';
+   this.bar.querySelector('.mk').style.left=pc(r.delta)+'%';this.bar.querySelector('.mk').style.background=r.on?'var(--good)':'var(--accent)';
+   $('r3n').textContent='roll '+(r.delta>0?'+':'')+Math.round(r.delta)+'\u00B0 from rest \u00B7 starts at \u00B1'+Math.round(r.start||0)+'\u00B0 \u00B7 tilt '+Math.round(r.tilt)+'\u00B0'+(Signals.cal.watch?' from the desk':'');
+ },
  unmount:function(){this.list.stop()}
 },
-{id:'swing1',name:'Swing to switch · v1',needsRaw:false,g:['swing left','swing right'],
- blurb:'Hand vertical, swing left or right to change thread. Decided on the watch.',
- how:'Turn your hand thumb-up, then swing it left or right once. The thread at the top should change once per swing; the return swing should not count. In your first session this fired once in fifty minutes, so the recording here matters.',
- mount:function(root){this.list=makeList(root)},
- watch:function(m){if(m.t==='swipe'){if(m.d==='left')this.list.prev();else this.list.next();detect('swing '+m.d);flash(m.d==='left'?'◀ previous':'next ▶')}},
- unmount:function(){this.list.stop()}
-},
-{id:'swing2',name:'Swing to switch · v2',needsRaw:true,g:['swing left','swing right'],
- blurb:'Same swing, decided on the page and much easier to trigger. Compare with v1.',
- how:'Thumb-up, swing left or right once. This version needs a smaller, slower swing than v1 (about 17° instead of 26°) and allows more forearm tilt. It is a guess made without your sensor data: if it fires when you did not mean it, say so in the notes.',
- mount:function(root){this.list=makeList(root);this.r=R.swing2()},
- sample:function(d,dt){var f=this.r.sample(d,dt),self=this;f.forEach(function(e){if(e.g==='swing left')self.list.prev();else self.list.next();flash(e.g==='swing left'?'◀ previous':'next ▶')});fire(f)},
+{id:'swing3',name:'Swing to switch',needsRaw:true,g:['swing left','swing right'],
+ blurb:'A short swing of the forearm left or right changes thread. The way back never counts. Works with the arm at any angle.',
+ how:'With your arm however is comfortable, swing the hand a short way left or right. The thread at the top changes once. Bring the hand back in your own time: the way back is ignored, even if it is longer than the swing, and the next swing counts once your hand has settled. Sensitivity sets how far a swing must travel. The watch is taken to be on your left wrist.',
+ mount:function(root){this.list=makeList(root);this.r=R.swing3();sensRow(this,root,'')},
+ sample:function(d,dt){var f=this.r.sample(d,dt),self=this;f.forEach(function(e){if(e.g==='swing left')self.list.prev();else self.list.next();flash(e.g==='swing left'?'\u25C0 previous':'next \u25B6')});fire(f)},
  unmount:function(){this.list.stop()}
 },
 {id:'raise',name:'Raise to talk',needsRaw:true,g:['talk open','talk close'],
  blurb:'Lift your hand towards your face to open the mic; lower it to finish. No button, no wake word.',
  how:'Raise your left hand towards your face, as if checking the time up close, and hold: the mic opens. Speak. Lower your hand: it closes. If the browser allows it you will see your words appear. This is the candidate for starting to talk to X with no tap.',
  mount:function(root){
-   var el=document.createElement('div');el.className='big';this.r=R.raise();
+   var el=document.createElement('div');el.className='big';this.r=R.raise();sensRow(this,root,'');
    el.innerHTML='<div><div class="glyph">🤫</div><p>Hand down: not listening</p><div class="count" style="font-size:19px;max-width:600px"></div></div>';
    root.appendChild(el);this.g=el.querySelector('.glyph');this.p=el.querySelector('p');this.t=el.querySelector('.count');
    var S=window.SpeechRecognition||window.webkitSpeechRecognition,self=this;this.rec=null;
@@ -1221,7 +1255,7 @@ var hist=[];           // derived samples for the traces: {t,pitch,roll,yaw}
 var marks=[];          // {t,kind}
 function now(){return performance.now()}
 function rel(){return trial?Math.round(now()-trial.t0):0}
-function ev(src,what,data){if(!trial)return;var e={t:rel(),src:src,what:what};if(data)for(var k in data)e[k]=data[k];trial.events.push(e)}
+function ev(src,what,data){if(!trial)return;var e={t:rel(),src:src,what:what};if(data)for(var k in data)e[k==='src'?'from':k==='what'||k==='t'?k+'_':k]=data[k];trial.events.push(e)}
 function detect(what,data){ev('concept',what,data);marks.push({t:now(),kind:'d'});$('nE').textContent=what}
 function startTrial(c){
   var d=new Date(),p=function(x){return(x<10?'0':'')+x};
@@ -1507,6 +1541,7 @@ function calLine(key){
   var d=new Date(k.at),p=function(x){return(x<10?'0':'')+x},when=(d.getMonth()+1)+'/'+d.getDate()+' '+p(d.getHours())+':'+p(d.getMinutes());
   if(key==='head')return when+' \u00B7 turns '+Math.abs(Math.round(k.left))+'\u00B0 left, '+Math.abs(Math.round(k.right))+'\u00B0 right';
   if(key==='eyes')return when+' \u00B7 '+(k.wink?'left, right and both':'both only');
+  if(key==='watch')return when+' \u00B7 rest '+Math.round(k.pitch0)+'\u00B0 tilt, '+Math.round(k.roll0)+'\u00B0 roll'+(k.rollA?' \u00B7 rolls '+Math.abs(Math.round(k.rollA))+'\u00B0 and '+Math.abs(Math.round(k.rollB))+'\u00B0':'');
   return when+' \u00B7 pinch '+k.closed.toFixed(2)+' to '+k.open.toFixed(2)+(k.near?' \u00B7 reach \u00D7'+(k.near/k.far).toFixed(1):'');
 }
 function paintDash(box){
@@ -1514,7 +1549,7 @@ function paintDash(box){
   var sec=function(title,lines){var h='<section><h3>'+title+'</h3>';lines.forEach(function(l){h+='<div class="ln'+(l[3]?' bad':'')+'"><span></span><span'+(l[2]?' id="'+l[2]+'"':'')+'></span></div>'});var el=document.createElement('section');el.innerHTML=h.slice(9)+'';
     var rows=el.querySelectorAll('.ln');lines.forEach(function(l,i){rows[i].children[0].textContent=l[0];rows[i].children[1].textContent=l[1]});d.appendChild(el)};
   sec('WHAT IS ON',[['Camera',camInfo.state,'dCam',camInfo.bad],['Watch',code()?$('statusText').textContent:'no watch code on this device','dWatch']]);
-  sec('CALIBRATED TO YOU',[['Right hand',calLine('handRight')],['Left hand',calLine('handLeft')],['Head',calLine('head')],['Eyes',calLine('eyes')]]);
+  sec('CALIBRATED TO YOU',[['Right hand',calLine('handRight')],['Left hand',calLine('handLeft')],['Head',calLine('head')],['Eyes',calLine('eyes')],['Watch',calLine('watch')]]);
   var sig=Signals.signals,lines=sig.map(function(g){
     var what=g.kind==='combo'?'word: '+g.seq.map(function(id){var x=Signals.byId(id);return x?x.name:'?'}).join(' then '):Signals.sourceName(g.src)+', '+g.kind;
     return[g.name,what+(Signals.assign[g.id]?' \u2192 '+Signals.actionName(Signals.assign[g.id]):'')]});

@@ -130,7 +130,9 @@ Owner, 2026-11-19: "we could focus more on calibration and interpretation and le
 - **Eyes** (about 16 s; a tone says when to open): open, both closed, left closed, right closed. Each eye then reads 0 (their open) to 1 (their closed), named for their own left and right whichever way the camera names them. Three signals are made, **blink left, blink right, blink both**, each needing 0.4 s, longer than a natural blink. Someone who cannot close one eye alone gets blink both only.
 - The numbers learned go into the record (numbers only), so the build can read them.
 
-**Left out, stated:** the watch. Nothing yet uses a rest position for it, and a calibration with no use would be a stub. Override me if wrong.
+**The watch** (added in `lab-r10`, about 15 s): forearm on the desk, raised, rolled one way, rolled the other. See D45.
+
+**First device run (owner's phone, 2026-11-19, 11:20 UTC).** Right hand: pinch reads 0.435 closed and 1.041 open; near 0.262, far 0.173 (reach ×1.5). The build's fixed "closed below 0.30" was below his closed reading, which is why his grip dropped in the first object run. Head: rests at nod −17°, turn −5°; turns 27° left and 31° right; up reads −16, down +15. Eyes, left hand and watch: not yet calibrated. He has not yet run the object card with the calibration.
 
 **Lab checks.** `signals-check.js` 65 (23 of them calibration). `signals-page-test.py`: a made-up person whose pinch never quite closes cannot take the cup before calibrating and can after; reach, head rest, eye naming the other way round, the three blinks, a natural blink firing nothing.
 
