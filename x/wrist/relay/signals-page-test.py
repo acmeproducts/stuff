@@ -22,7 +22,7 @@ def http(path, body=None):
     return urllib.request.urlopen(req, timeout=10).read().decode()
 
 # which tab a card lives in; every card not named here is a Watch card
-TAB = {'calibrate': 'learn', 'teach': 'learn', 'assign': 'learn', 'hands': 'camera', 'head': 'camera', 'camera': 'camera', 'object': 'camera'}
+TAB = {'calibrate': 'learn', 'teach': 'learn', 'assign': 'learn', 'hands': 'camera', 'head': 'camera', 'camera': 'camera', 'object': 'camera', 'journey': 'camera'}
 def tabto(pg, t):
     if pg.get_attribute('#tabs button.on', 'data-tab') != t:
         pg.click('#tabs button[data-tab=%s]' % t); pg.wait_for_timeout(200)
@@ -81,8 +81,8 @@ with sync_playwright() as pw:
     post({'t': 'hb', 'b': 'turn07-test'})
     tiles = lambda: [x.get_attribute('data-id') for x in pg.locator('.tile').all()]
     tabto(pg, 'camera'); cam = tiles(); tabto(pg, 'learn'); learn = tiles()
-    check('the Camera tab holds the camera cards and the Learn tab holds calibrate, teach and assign', cam == ['camera', 'hands', 'head', 'object'] and learn == ['calibrate', 'teach', 'assign'], (cam, learn))
-    check('the page says which build it is', 'lab-r10' in txt('#meta'), txt('#meta'))
+    check('the Camera tab holds the camera cards and the Learn tab holds calibrate, teach and assign', cam == ['camera', 'hands', 'head', 'object', 'journey'] and learn == ['calibrate', 'teach', 'assign'], (cam, learn))
+    check('the page says which build it is', 'lab-r11' in txt('#meta'), txt('#meta'))
 
     # ---- hand numbers
     card(pg, 'hands'); wait(900)
@@ -193,99 +193,191 @@ with sync_playwright() as pw:
     pg.select_option(sel('wrist down'), 'next'); wait(150)
     close()
 
-    # ---- the object
+    # ---- hands and things
     ev("() => { __puppet.rest = { hands: [], face: {} } }")
     card(pg, 'object')
     pg.wait_for_function("document.getElementById('oCan').dataset.state", timeout=15000); wait(600)
-    s0 = state()
-    check('object: a cup stands on the table, to the left, turned away from the task', s0['kind'] == 'cup' and abs(s0['x'] + 0.9) < 0.05 and abs(s0['faces'] + 69) < 3 and s0['held'] == '' and txt('#oSay') == 'Hold up a hand', (s0, txt('#oSay')))
-    check('object: the task is stated', 'on the ring' in txt('#oTask'), txt('#oTask'))
-    check('object: an assigned watch signal keeps the watch stream on', post({'t': 'hb', 'b': 'turn07-test'}).get('raw') == 1)
-    # where a hand has to be in the picture for its thumb and finger to be on the object (the made-up hand's fingertips sit up and to one side of its palm)
-    HX, HY = s0['px'] + 0.07, s0['py'] + 0.28
-    hand = lambda x=None, y=None, pinch=0, **k: pg.evaluate("(o) => { __puppet.rest = { hands: [o], face: {} } }", dict(k, x=HX if x is None else x, y=HY if y is None else y, pinch=pinch))
-    hand(x=0.2, y=0.35); wait(400)
-    check('object: a hand in view is told what to do', txt('#oSay') == 'Pinch on the object to take it', txt('#oSay'))
-    hand(x=0.2, y=0.35, pinch=1); wait(400)
-    check('object: a pinch away from the object takes nothing', state()['held'] == '', state())
-    hand(x=0.2, y=0.35); wait(300); hand(); wait(300); hand(pinch=0.6); wait(400)
-    check('object: before calibration, a weak pinch (thumb and finger not quite touching) takes nothing', state()['held'] == '', state())
-    hand(x=0.2, y=0.35); wait(300); hand(); wait(300); hand(pinch=1); wait(400)
-    check('object: a pinch on the object takes it', state()['held'] == 'one' and txt('#oSay') == 'In your right hand', (state(), txt('#oSay')))
-    hand(x=HX - 0.15, y=HY - 0.12, pinch=1); wait(400)
-    s1 = state()
-    check('object: it goes where the hand goes, mirrored like a mirror', s1['x'] > s0['x'] + 0.4 and s1['y'] > 0.2, s1)
-    hand(x=HX - 0.15, y=HY - 0.12, pinch=1, size=0.25); wait(400)
-    check('object: a hand pushed toward the screen sends it away from you', state()['z'] < s1['z'] - 0.5, (s1['z'], state()['z']))
-    hand(x=HX - 0.15, y=HY - 0.12, pinch=0.5, size=0.25); wait(120); hand(x=HX - 0.15, y=HY - 0.12, pinch=1, size=0.25); wait(400)
-    check('object: a pinch that flickers open for an instant does not drop it', state()['held'] == 'one', state())
-    key = [x['key'] for x in json.loads(http('/trials')) if '-object-' in x['key'] and x['key'].endswith(':000')]
-    wait(16000)
-    key = [x['key'] for x in json.loads(http('/trials')) if '-object-' in x['key'] and x['key'].endswith(':000')]
-    body = http('/trial/' + sorted(key)[-1]) if key else ''
-    check('object: the record is in the lab log while the card is still open', '"open":1' in body and 'took it' in body, len(body))
-    hand(x=HX - 0.15, y=HY - 0.12, pinch=1, yaw=40); wait(400)
-    s2 = state()
-    check('object: turning the hand turns it', abs(s2['faces'] - s1['faces']) > 25, (s1['faces'], s2['faces']))
-    if shot: pg.screenshot(path=shot + '-object-held.png')
-    hand(x=HX - 0.15, y=HY - 0.12, pinch=0.5, yaw=40); wait(900)      # fingers opened (the made-up hand's fingertips shift as they part, so the place is checked loosely)
-    s3 = state()
-    check('object: opening the fingers lets it go, and it settles upright on the table', s3['held'] == '' and abs(s3['y']) < 0.03 and s3['up'] > 0.98 and abs(s3['x'] - s2['x']) < 0.3, (s2['x'], s3))
-    # both hands
-    two = lambda lx, rx, ly=0.0, pl=1, pr=1: pg.evaluate("(a) => { __puppet.rest = { hands: [{ x: a[1], y: a[5], pinch: a[4] }, { side: 'Left', x: a[0], y: a[5] + a[2], pinch: a[3] }], face: {} } }", [lx, rx, ly, pl, pr, s3['py'] + 0.28])
-    cx = state()['px']
-    two(cx - 0.02, cx + 0.14, pl=0, pr=0); wait(300); two(cx - 0.02, cx + 0.14, pl=0, pr=1); wait(350)
-    check('object: taken again with the right hand', state()['held'] == 'one', state())
-    two(cx - 0.02, cx + 0.14); wait(350)
-    sA = state()
-    check('object: the left hand pinching it as well makes it two-handed', sA['held'] == 'two' and txt('#oSay') == 'Both hands have it', (sA, txt('#oSay')))
-    two(cx - 0.10, cx + 0.22); wait(350)
-    sB = state()
-    check('object: hands moved apart make it bigger', sB['s'] > sA['s'] * 1.5, (sA['s'], sB['s']))
-    two(cx - 0.10, cx + 0.22, ly=-0.2); wait(350)
-    sC = state()
-    check('object: one hand raised above the other tips it over, like a steering wheel', sC['up'] < 0.9 and sA['up'] > 0.98, (sA['up'], sC['up']))
-    if shot: pg.screenshot(path=shot + '-object-two.png')
-    two(cx - 0.10, cx + 0.22, pl=0); wait(600)
-    check('object: one hand opening leaves it in the other', state()['held'] == 'one', state())
-    two(cx - 0.10, cx + 0.22, pl=0, pr=0); wait(900)
-    check('object: both open, it is let go', state()['held'] == '' and abs(state()['y']) < 0.4, state())
-    # signals on the object: the word puts it back, the nod turns it, the fist takes it, the watch pose brings the next object
-    ev("() => __act(%s)" % FIST_NOD); wait(3400); ev("() => __act(null)"); wait(900)
-    sH = state()
-    check('object: the combination given "put it back" puts it back', abs(sH['x'] + 0.9) < 0.05 and abs(sH['faces'] + 69) < 3 and abs(sH['s'] - 1) < 0.05, sH)
-    n0 = fires('nod')
-    ev("() => __act(%s)" % NOD); wait(2600); ev("() => __act(%s)" % NOD); wait(2600); ev("() => __act(null)"); wait(700)
-    sT = state()
-    check('object: two nods given "turn left" turn the marked side to the right', fires('nod') == n0 + 2 and abs(sT['faces'] + 9) < 3, (fires('nod') - n0, sT['faces']))
-    hand(x=0.2, y=0.35); wait(300); hand(); wait(300); hand(pinch=1); wait(400)
-    xs = []
-    for i in range(8):                       # carry it to the ring: nudge the hand until the object is over it
-        st = state(); xs.append(st['x'])
-        if abs(st['x'] - 1.25) < 0.12: break
-        HX2 = ev("() => __puppet.rest.hands[0].x") - (1.25 - st['x']) * 0.2
-        hand(x=HX2, pinch=1); wait(350)
-    check('object: carried across to the ring', abs(state()['x'] - 1.25) < 0.2 and state()['held'] == 'one', xs)
-    hx = ev("() => __puppet.rest.hands[0].x"); hand(x=hx, pinch=0); wait(900)
-    sD = state()
-    check('object: set down on the ring with the marked side to the right, the task is done', sD['done'] is True and 'Done in' in txt('#oTask'), (sD, txt('#oTask')))
-    check('object: and the screen was not touched to do it', '0 touches' in txt('#oTask'), txt('#oTask'))
-    if shot: pg.screenshot(path=shot + '-object-done.png')
+    st = lambda: json.loads(pg.get_attribute('#oCan', 'data-state') or '{}')
+    thing = lambda kind, i=0: [o for o in st()['objs'] if o['k'] == kind][i]
+    size_for = lambda z: 0.15 * 2 ** ((1.9 - z) / 3.2)       # how big a hand must look to be at depth z, over the standard reach
+    HANDS = {}
+    def show(): pg.evaluate("(hs) => { __puppet.rest = { hands: hs, face: {} } }", list(HANDS.values()))
+    def hand(side, **k): HANDS[side] = dict(HANDS.get(side, {'side': side, 'x': 0.5, 'y': 0.5}), **k); show()
+    def away(side): HANDS.pop(side, None); show()
+    def aim(side, tx, ty, tz, mid=False, tries=9):
+        """Move the made-up hand until its thumb and finger (or, with mid, its palm) are at a place in the scene."""
+        hand(side, size=size_for(tz))
+        for i in range(tries):
+            wait(230); h = st()['hands'].get(side)
+            if not h: continue
+            dx, dy = tx - h['mx' if mid else 'x'], ty - h['my' if mid else 'y']
+            if abs(dx) < 0.1 and abs(dy) < 0.1: return True
+            hand(side, x=HANDS[side]['x'] - dx * 0.2, y=HANDS[side]['y'] - dy * 0.26)
+        return False
+    def grab(side, kind, i=0, pinch=1):
+        o = thing(kind, i); aim(side, o['x'], o['cy'], o['z']); hand(side, pinch=pinch); wait(380)
+    def drop(side): hand(side, pinch=0); wait(1000)
+    s0 = st()
+    check('things: the first goal is the cup, said on the screen and aloud', s0['goal'] == 'cup' and s0['n'] == 1 and txt('#oTask').startswith('1 of 6: Set the cup on the ring') and 'Set the cup on the ring, handle to the right.' in pg.evaluate("() => __puppet.spoken"), txt('#oTask'))
+    check('things: with no hand in view it asks for one', txt('#oSay') == 'Hold up a hand' and s0['hands'] == {}, txt('#oSay'))
+    hand('Right', x=0.3, y=0.4, size=0.2); wait(500)
+    h1 = st()['hands'].get('Right', {})
+    check('hands: a hand in view appears in the scene as a jointed hand, on its own side', h1.get('joints') == 21 and h1['mx'] > 0.3 and txt('#oSay') == 'Bring your hand to a thing', h1)
+    hand('Right', size=0.27); wait(500); h2 = st()['hands']['Right']
+    hand('Right', size=0.16); wait(500); h3 = st()['hands']['Right']
+    check('hands: pushed toward the screen the hand goes deeper into the scene; pulled back it comes nearer', h2['mz'] < h1['mz'] - 0.8 and h3['mz'] > h1['mz'] + 0.5, (h1['mz'], h2['mz'], h3['mz']))
+    hand('Right', size=0.2, yaw=45, roll=30); wait(500); h4 = st()['hands']['Right']
+    check('hands: turning and rolling the hand does not move it in depth', abs(h4['mz'] - h1['mz']) < 0.12, (h1['mz'], h4['mz']))
+    hand('Right', yaw=0, roll=0)
+    c = thing('cup'); aim('Right', c['x'], c['cy'], c['z']); wait(250)
+    check('things: a thing within reach glows, and the hand is told what to do', st()['glow'] is True and txt('#oSay') == 'Close thumb and finger to take it', (st()['glow'], txt('#oSay')))
+    hand('Right', pinch=0.6); wait(400)
+    check('things: before calibration, a weak pinch (thumb and finger not quite touching) takes nothing', st()['held'] is None, st()['held'])
+    hand('Right', pinch=0); wait(300); hand('Right', pinch=1); wait(400)
+    check('things: closing thumb and finger on it takes it', st()['held'] == {'mode': 'one', 'kind': 'cup', 'side': 'Right'} and txt('#oSay') == 'In your right hand', (st()['held'], txt('#oSay')))
+    hand('Right', pinch=0.5); wait(110); hand('Right', pinch=1); wait(300)
+    check('things: a pinch that reads open for an instant does not drop it', st()['held'] is not None, st()['held'])
+    aim('Right', 0.2, 1.1, 0.3); c1 = thing('cup')
+    check('things: it goes where the hand goes, and can be lifted', abs(c1['x'] - 0.2) < 0.45 and c1['y'] > 0.4, c1)
+    hand('Right', size=size_for(-0.5)); wait(600); c2 = thing('cup')
+    check('things: pushed toward the screen it goes away; depth is the hand\'s own', c2['z'] < c1['z'] - 0.5, (c1['z'], c2['z']))
+    hand('Right', size=size_for(0.3), yaw=40); wait(600); c3 = thing('cup')
+    check('things: turning the hand turns it', abs(c3['faces'] - c1['faces']) > 25, (c1['faces'], c3['faces']))
+    if shot: pg.screenshot(path=shot + '-things-held.png')
+    hand('Right', yaw=0); wait(300); drop('Right'); c4 = thing('cup')
+    check('things: opening the fingers sets it down, upright on the table', st()['held'] is None and abs(c4['y']) < 0.03 and c4['up'] > 0.98, c4)
+    away('Right'); wait(800)
+    # the cup faces away; two nods (given "turn left") bring the handle round, then it is carried to the ring
+    ev("() => __act(%s)" % NOD); wait(2600); ev("() => __act(%s)" % NOD); wait(2600); ev("() => __act(null)"); wait(600)
+    f0 = thing('cup')['faces']
+    hand('Right', x=0.4, y=0.4, size=0.2, pinch=0); wait(300)
+    grab('Right', 'cup'); aim('Right', 1.1, 0.5, 0.3); drop('Right')
+    sD = st()
+    check('goal 1: two nods given "turn left" turn the handle, and the cup set on the ring finishes the goal', sD['done'] is True and 'Done in' in txt('#oTask'), (f0, thing('cup'), txt('#oTask')))
+    wait(3200)
+    check('goals: the next goal follows by itself and is said aloud', st()['goal'] == 'pass' and st()['n'] == 2 and 'pass it to your other hand' in pg.evaluate("() => __puppet.spoken.slice(-1)[0]"), st()['goal'])
+    # goal 2: hand to hand
+    grab('Right', 'ball'); aim('Right', -0.2, 0.9, 0.4)
+    b0 = thing('ball'); hand('Left', x=0.8, y=0.4, size=0.2, pinch=0); aim('Left', b0['x'], b0['cy'], b0['z']); hand('Left', pinch=1); wait(450)
+    check('hand to hand: the other hand taking hold makes it two-handed', st()['held'] == {'mode': 'two', 'kind': 'ball', 'side': ''} and txt('#oSay') == 'Both hands have it', (st()['held'], txt('#oSay')))
+    if shot: pg.screenshot(path=shot + '-things-two.png')
+    hand('Right', pinch=0); wait(500)
+    check('hand to hand: the first hand letting go leaves it in the other, and that counts as passed', st()['held'] == {'mode': 'one', 'kind': 'ball', 'side': 'Left'} and thing('ball')['passed'] is True, (st()['held'], thing('ball')))
+    away('Right'); aim('Left', 1.2, 0.5, 0.4); drop('Left')
+    check('goal 2: passed and set on the mat', st()['done'] is True, (thing('ball'), txt('#oTask')))
+    away('Left'); wait(3200)
+    # goal 3: ball in the bowl
+    hand('Right', x=0.6, y=0.4, size=0.2, pinch=0); grab('Right', 'ball'); bw = thing('bowl'); aim('Right', bw['x'], 0.9, bw['z']); drop('Right')
+    check('goal 3: the ball let go over the bowl lands in it', thing('ball')['on'] == 'bowl' and st()['done'] is True, thing('ball'))
+    wait(3200)
+    # goal 4: three blocks
+    grab('Right', 'block', 0); b1 = thing('block', 1); aim('Right', b1['x'], 1.0, b1['z']); drop('Right')
+    check('stack: a block let go over another sits on it', thing('block', 0)['on'] == 'block' and abs(thing('block', 0)['y'] - 0.5) < 0.05 and st()['done'] is False, thing('block', 0))
+    grab('Right', 'block', 2); aim('Right', b1['x'], 1.5, b1['z']); drop('Right')
+    check('goal 4: the third on top makes the tower', abs(thing('block', 2)['y'] - 1.0) < 0.05 and st()['done'] is True, thing('block', 2))
+    if shot: pg.screenshot(path=shot + '-things-stack.png')
+    away('Right'); wait(3200)
+    # goal 5: park the car (two nods turn its nose to the right)
+    ev("() => __act(%s)" % NOD); wait(2600); ev("() => __act(%s)" % NOD); wait(2600); ev("() => __act(null)"); wait(500)
+    hand('Right', x=0.6, y=0.4, size=0.2, pinch=0); grab('Right', 'car'); aim('Right', 1.0, 0.5, 0.1); drop('Right')
+    check('goal 5: the car set down in the bay, nose to the right', st()['done'] is True and abs(thing('car')['faces']) < 25, thing('car'))
+    wait(3200)
+    # goal 6: putty
+    pu = thing('putty')
+    check('putty: it starts as a ball', st()['goal'] == 'putty' and abs(pu['s'] - 1) < 0.01, pu)
+    aim('Right', pu['x'] + 0.2, pu['cy'], pu['z']); hand('Right', pinch=1); wait(400)
+    hand('Left', x=0.75, y=0.45, size=0.2, pinch=0); aim('Left', pu['x'] - 0.2, pu['cy'], pu['z']); hand('Left', pinch=1); wait(450)
+    check('putty: both hands take it', st()['held'] == {'mode': 'two', 'kind': 'putty', 'side': ''}, st()['held'])
+    out = 0
+    for i in range(7):
+        if thing('putty')['s'] >= 2.3: break
+        hand('Right', x=HANDS['Right']['x'] - 0.04); hand('Left', x=HANDS['Left']['x'] + 0.04); wait(450); out += 1
+    p1 = thing('putty')
+    check('putty: pulled apart with both hands it stretches long, and the next step is asked for', p1['s'] >= 2.2 and abs(p1['uy']) < 0.4 and st()['stage'] == 1 and 'press it flat' in txt('#oTask'), (p1, txt('#oTask')))
+    if shot: pg.screenshot(path=shot + '-putty-long.png')
+    for i in range(max(1, out - 1)):
+        hand('Right', x=HANDS['Right']['x'] + 0.04); hand('Left', x=HANDS['Left']['x'] - 0.04); wait(450)
+    check('putty: pushed together it shortens again', thing('putty')['s'] < p1['s'] - 0.6, (p1['s'], thing('putty')['s'], out))
+    hand('Right', pinch=0); hand('Left', pinch=0); wait(900); away('Left'); wait(700)
+    check('putty: let go, it keeps its shape', st()['held'] is None and abs(thing('putty')['s'] - 1) > 0.05, thing('putty'))
+    pu = thing('putty'); hand('Right', pinch=0, pitch=80, x=0.5, y=0.3)
+    aim('Right', pu['x'], 0.9, pu['z'], mid=True); wait(300); s_before = thing('putty')['s']
+    for i in range(8):
+        hand('Right', y=HANDS['Right']['y'] + 0.045); wait(280)
+        if st()['stage'] == 2: break
+    p2s = thing('putty')
+    check('putty: an open hand pressed down on it flattens it onto the table', p2s['uy'] > 0.9 and p2s['s'] <= 0.42 and st()['stage'] == 2 and 'close your fist' in txt('#oTask'), (s_before, p2s, st()['hands'].get('Right')))
+    if shot: pg.screenshot(path=shot + '-putty-flat.png')
+    hand('Right', pitch=0, curl=1, y=HANDS['Right']['y'] - 0.05); wait(2600)
+    check('goal 6: a fist closed on it rolls it back into a ball, and that finishes the six', abs(thing('putty')['s'] - 1) <= 0.15 and st()['done'] is True and st()['doneN'] == 6, (thing('putty'), st()['doneN']))
+    check('goals: all six were done without touching the screen', 'Done in' in txt('#oTask'), txt('#oTask'))
+    away('Right'); wait(3200)
+    check('goals: after the last, it goes back to the first', st()['goal'] == 'cup', st()['goal'])
+    # signals act here too
     feed(0, 0, 0.8); feed(-45, 0, 1.2); feed(0, 0, 0.2); wait(500)
-    check('object: the watch pose given "next object" brings the bowl', state()['kind'] == 'bowl' and state()['done'] is False, state())
-    hand(x=0.75, y=0.4, curl=0); wait(500); hand(x=0.75, y=0.4, curl=1); wait(900)
-    sF = state()
-    check('object: a fist given "take" takes it from where the hand is', sF['held'] == 'one', sF)
-    hand(x=0.6, y=0.4, curl=1); wait(400)
-    check('object: and it follows that hand', abs(state()['x'] - sF['x']) > 0.3, (sF['x'], state()['x']))
-    ev("() => __act(%s)" % NOD.replace("hands: [{}]", "hands: [{ x: 0.6, y: 0.4, curl: 1 }]")); wait(2600); ev("() => __act(null)"); wait(300)
-    check('object: a nod while it is held turns it without dropping it', state()['held'] == 'one' and abs(state()['faces'] - sF['faces']) > 20, (sF['faces'], state()))
-    ev("() => { __puppet.rest = { hands: [], face: {} } }"); wait(1400)
-    check('object: the hand leaving the picture lets it go', state()['held'] == '' and txt('#oSay') == 'Hold up a hand', (state(), txt('#oSay')))
+    check('signals: the watch pose given "next object" moves to the next goal', st()['goal'] == 'pass', st()['goal'])
+    hand('Right', x=0.75, y=0.45, size=0.2, curl=0, pinch=0); wait(500); hand('Right', curl=1); wait(900)
+    check('signals: a fist given "take" takes the nearest thing from where the hand is', st()['held'] == {'mode': 'one', 'kind': 'ball', 'side': 'Right'}, st()['held'])
+    away('Right'); wait(1400)
+    check('signals: the hand leaving the picture lets it go', st()['held'] is None and txt('#oSay') == 'Hold up a hand', (st()['held'], txt('#oSay')))
+    ev("() => __act(%s)" % FIST_NOD); wait(3400); ev("() => __act(null)"); ev("() => { __puppet.rest = { hands: [], face: {} } }"); wait(900)
+    check('signals: the combination given "put it back" starts the goal again', st()['goal'] == 'pass' and abs(thing('ball')['x'] + 1.2) < 0.05, thing('ball'))
+    pg.click('#oSkip'); wait(500)
+    check('things: a tap on "Next goal" is there for when no signal has been taught', st()['goal'] == 'bowl', st()['goal'])
     close()
     key = sorted(x['key'] for x in json.loads(http('/trials')) if '-object-' in x['key'] and x['key'].endswith(':000'))
     body = http('/trial/' + key[-1]) if key else ''
-    check('object: closed, the record is whole and no longer marked open', all(w in body for w in ['took it', 'let it go', 'task done', '"a":"next"', 'one hand again']) and 'landmarks' not in body and '"open":1' not in body, len(body))
+    check('things: the record has each goal done, the pass, the putty steps, and no picture', body.count('"what":"goal done"') == 6 and '"passed":1' in body and body.count('"what":"putty step"') == 2 and 'landmarks' not in body, len(body))
+
+    # ---- journey: a story steered by the head. Not calibrated yet, so it takes the first second as straight ahead.
+    FACE = {'turn': 3, 'nod': -8}
+    def face(**k): pg.evaluate("(f) => { __puppet.rest = { hands: [], face: f } }", dict(FACE, **k))
+    LOOKS = {'left': {'turn': 23}, 'right': {'turn': -17}, 'up': {'nod': -20}, 'down': {'nod': 4}}       # the camera's own signs: left +, up -
+    def lookto(d, ms=1250): face(**LOOKS[d]); wait(ms); face(); wait(850)
+    jst = lambda: json.loads(pg.get_attribute('#jDot', 'data-state') or '{}')
+    jbtn = lambda d: pg.inner_text('.jr button[data-d=%s]' % d)
+    face(); card(pg, 'journey'); wait(150)
+    check('journey: with no head calibration it asks you to look straight first', txt('#jName') == 'Look straight at the screen', txt('#jName'))
+    pg.wait_for_function("document.getElementById('jName').textContent === 'The beach'", timeout=8000); wait(900)
+    check('journey: it starts on the beach, read on the screen and aloud', 'pebble beach' in txt('#jText') and any('pebble beach' in s for s in pg.evaluate("() => __puppet.spoken")), txt('#jText')[:60])
+    check('journey: the arrows say where each way leads, and a way that does not exist is off', jbtn('left') == '← lighthouse hall' and jbtn('right') == '→ boathouse' and jbtn('down') == '↓ tide pools' and pg.is_disabled('.jr button[data-d=up]'), [jbtn(d) for d in ('left', 'right', 'up', 'down')])
+    check('journey: looking straight ahead, the dot sits in the middle', abs(jst()['x']) < 0.15 and abs(jst()['y']) < 0.15 and jst()['armed'] is True, jst())
+    face(turn=-17); wait(380); face(); wait(700)
+    check('journey: a glance does not move you', jst()['at'] == 'beach' and jst()['moves'] == 0, jst())
+    face(turn=-5); wait(1500); face(); wait(600)
+    check('journey: a look less than half way does not move you', jst()['at'] == 'beach', jst())
+    face(**LOOKS['right']); wait(500); mid = jst(); wait(750); face(); wait(850)
+    check('journey: the dot follows the look and the choice shows while it is held', mid['dir'] == 'right' and mid['x'] > 0.6 and mid['at'] == 'beach', mid)
+    check('journey: a look to the right held about a second goes right', jst()['at'] == 'boathouse' and jst()['moves'] == 1 and txt('#jName') == 'The boathouse', jst())
+    face(turn=23); wait(2900)
+    check('journey: one long look is one move, not two', jst()['at'] == 'beach', jst())
+    face(); wait(850)
+    lookto('up')
+    check('journey: a way that does not exist says so and you stay', jst()['at'] == 'beach' and txt('#jText') == 'No way up from here.' and pg.evaluate("() => __puppet.spoken.slice(-1)[0]") == 'No way up from here.', txt('#jText'))
+    face(**LOOKS['left']); wait(450); pg.evaluate("() => { __puppet.rest = { hands: [], face: null } }"); wait(900)
+    check('journey: losing sight of the face mid-look moves nothing and says so', jst()['at'] == 'beach' and txt('#jSee') == 'I cannot see your face.', txt('#jSee'))
+    face(); wait(900)
+    for d in ('left', 'down'): lookto(d)
+    check('journey: the cellar is dark without the lantern, and only the ways you can feel are open', jst()['at'] == 'cellar' and 'pitch dark' in txt('#jText') and pg.is_disabled('.jr button[data-d=left]'), txt('#jText')[:50])
+    for d in ('up', 'right', 'right', 'up'): lookto(d)
+    check('journey: looking up the ladder climbs it, and the lantern is taken', jst()['at'] == 'loft' and jst()['inv'] == ['lantern'] and txt('#jInv') == 'Carrying: lantern', (jst(), txt('#jInv')))
+    for d in ('down', 'left', 'left', 'down'): lookto(d)
+    check('journey: with the lantern the cellar can be seen', 'By lantern light' in txt('#jText') and jbtn('left') == '← store room', txt('#jText')[:40])
+    lookto('left')
+    check('journey: the locked store says what is missing', jst()['at'] == 'cellar' and txt('#jText') == 'The store room is locked. You need a key.', txt('#jText'))
+    for d in ('up', 'up', 'left'): lookto(d)
+    check('journey: the key is in the keeper\'s room', jst()['at'] == 'keeper' and 'key' in jst()['inv'], jst())
+    for d in ('right', 'down', 'down', 'left'): lookto(d)
+    check('journey: the key opens the store and the oil is taken', jst()['at'] == 'store' and 'oil' in jst()['inv'], jst())
+    if shot: pg.screenshot(path=shot + '-journey.png')
+    for d in ('right', 'up', 'up', 'up'): lookto(d)
+    check('journey: with the oil, the lamp is lit and the story ends with how many moves it took', jst()['won'] is True and txt('#jName') == 'The lamp is lit' and 'in 23 moves' in txt('#jText'), (jst(), txt('#jText')[-60:]))
+    pg.click('.jr button[data-d=up]'); wait(500)
+    check('journey: the arrows can be tapped too, and up starts it again', jst()['at'] == 'beach' and jst()['moves'] == 0 and jst()['inv'] == [], jst())
+    close()
+    key = sorted(x['key'] for x in json.loads(http('/trials')) if '-journey-' in x['key'] and x['key'].endswith(':000'))
+    body = http('/trial/' + key[-1]) if key else ''
+    check('journey: the record has each move, the dead ends, what was taken and the ending, and no picture', body.count('"what":"went ') == 23 and '"what":"no way"' in body and '"what":"locked"' in body and '"what":"took lantern"' in body and '"what":"journey done"' in body and 'landmarks' not in body, len(body))
 
     # ---- the rest of the Lab still stands
     card(pg, 'teach'); wait(500); pg.click('#notesBtn'); wait(300); pg.click('#rate button[data-v=keep]'); pg.click('#doneBtn'); wait(700)
@@ -356,14 +448,18 @@ with sync_playwright() as pw:
     ev("() => { __puppet.rest = { hands: [], face: {} } }")
     card(pg, 'object')
     pg.wait_for_function("document.getElementById('oCan').dataset.state", timeout=15000); wait(600)
-    sq = state(); QX, QY = sq['px'] + 0.07, sq['py'] + 0.28
-    weak = lambda **k: pg.evaluate("(o) => { __puppet.rest = { hands: [o], face: {} } }", dict(dict(x=QX, y=QY), **k))
-    weak(x=0.2, y=0.35); wait(300); weak(); wait(300); weak(pinch=0.6); wait(450)
-    check('object, after calibration: their weak pinch now takes it', state()['held'] == 'one', state())
-    z0 = state()['z']; weak(pinch=0.6, size=0.3); wait(450)
-    check('object, after calibration: their reach carries it further than the standard strength did', state()['z'] < z0 - 1.6, (z0, state()['z']))
-    weak(pinch=0, size=0.3); wait(700)
-    check('object, after calibration: an open hand still lets it go', state()['held'] == '', state())
+    HANDS.clear(); hand('Right', x=0.4, y=0.4, size=0.2, pinch=0); wait(300)
+    grab('Right', 'cup', pinch=0.6)
+    check('things, after calibration: their weak pinch now takes it', st()['held'] == {'mode': 'one', 'kind': 'cup', 'side': 'Right'}, st()['held'])
+    hand('Right', pinch=0); wait(800)
+    check('things, after calibration: an open hand still lets it go', st()['held'] is None, st()['held'])
+    close()
+    face(turn=3, nod=-5); card(pg, 'journey'); wait(1200)
+    check('journey, after calibration: it starts at once, measured from their own rest', txt('#jName') == 'The beach' and jst()['armed'] is True, (txt('#jName'), jst()))
+    face(turn=3 - 18, nod=-5); wait(1300); face(turn=3, nod=-5); wait(700)
+    check('journey, after calibration: half of their own turn is enough', jst()['at'] == 'boathouse', jst())
+    face(turn=3, nod=-5 + 9); wait(1300); face(turn=3, nod=-5); wait(700)
+    check('journey, after calibration: up is whichever way their own head went for up', jst()['at'] == 'loft', jst())
     close()
     tabto(pg, 'dash'); wait(400)
     check('dashboard: shows what is calibrated, with their numbers, and how the camera is doing', 'pinch 0.4' in txt('.dash') and 'reach \u00D72.0' in txt('.dash') and 'left, right and both' in txt('.dash') and txt('.dash').count('not yet') == 1 and 'not used' not in txt('#dCam'), txt('.dash')[:400].replace('\n', ' | '))
@@ -373,7 +469,7 @@ with sync_playwright() as pw:
     p2 = ctx.new_page(); p2.goto(base + '/?three=' + urllib.request.quote('http://127.0.0.1:9/none.js', safe='')); p2.wait_for_timeout(700)
     check('a visit that has not needed the watch keeps no link to it, even with a code on the device', 'not in use' in p2.inner_text('#dWatch'), p2.inner_text('#dWatch'))
     card(p2, 'object'); p2.wait_for_timeout(1500)
-    check('object: when the 3D program does not arrive, the card says so', p2.inner_text('#oSay') == 'The object could not be drawn' and len(p2.inner_text('.cmsg')) > 5, p2.inner_text('#oSay'))
+    check('object: when the 3D program does not arrive, the card says so', p2.inner_text('#oSay') == 'The scene could not be drawn' and len(p2.inner_text('.cmsg')) > 5, p2.inner_text('#oSay'))
     p2.close()
     check('no script errors on the page', not errors, errors[:3])
     b.close()

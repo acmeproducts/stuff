@@ -102,9 +102,9 @@ A release is the smallest whole thing that can be used and judged. Status: built
 | 1 | **L4** Fixes from the first real run | depth the right way round and gentler; a pinch that flickers is still a pinch; records saved as you go; the watch's stream stays on between cards; a warning naming both watch settings when the watch goes quiet | R44, R51, R56 | **built in `lab-r8`, lab only** |
 | 2 | **L5** Tabs, **V7** Calibrate | dashboard, learn, camera, watch (voice arrives with stage 5); calibration of each hand, the head and the eyes to the person; blink left, right, both | R49, R50, R54, R55 | **built in `lab-r9`, lab only** |
 | 2b | **L8** Watch cards from his notes | roll to scroll; swing at any angle; sensitivity; the watch in Calibrate | R57 to R61 | **built in `lab-r10`, lab only** |
-| 3 | **L6** Hands and things | hands in the scene; hand to hand; several objects and goals; putty | R45 to R48 | next |
-| 4 | **L7** Journey | a spoken choose-your-path story steered by the head | R53 | after 3 |
-| 5 | **S6** Voice | turns, interruptions, hot word and cold word; "start listening" and "stop listening" as actions | R52 | after 4 |
+| 3 | **L6** Hands and things | hands in the scene; hand to hand; several objects and goals; putty | R45 to R48 | **built in `lab-r11`, lab only** |
+| 4 | **L7** Journey | a spoken choose-your-path story steered by the head | R53 | **built in `lab-r11`, lab only** |
+| 5 | **S6** Voice | turns, interruptions, hot word and cold word; "start listening" and "stop listening" as actions | R52 | next |
 
 V6 (showing) follows this round. No watch build is in this round.
 
@@ -162,3 +162,4 @@ A release is done when its device gate passes and its rows in `X-TRACE.md` show 
 | 2026-11-19 | Stage 1 built: Lab `lab-r8`. Lab checks: engine 42, new cards 72, older Lab 77, relay 37, X page 50. | **Lab only.** |
 | 2026-11-19 | Stage 2 built: Lab `lab-r9`: four tabs and Calibrate. Lab checks: engine 65, new cards 90, older Lab 84, relay 37, X page 50. | **Lab only.** Two calls put to the owner: the Voice tab is not shown until it has something in it; the watch is left out of Calibrate until a card uses a rest position. |
 | 2026-11-19 | Owner ran `lab-r9`: calibrated his right hand and head; rated and wrote notes on the watch cards; then "please complete the entire body of development". | R57 to R61, P26, D42 to D46, G29. Plan L (L8). |
+| 2026-11-19 | Stages 3 and 4 built: Lab `lab-r11`, relay `w10`. Hands and things (hands in the scene, hand to hand, six goals, putty) replaces the object card; Journey added. Lab checks: engine 74, new cards 120, older Lab 89, relay 37, X page 50. | **Lab only.** No real hand or head has run them. D47 to D51. |

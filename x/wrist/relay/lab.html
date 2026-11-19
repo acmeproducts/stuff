@@ -46,6 +46,12 @@ select,input[type=text]{font:inherit;color:var(--text);background:var(--panel);b
 #statusRow{display:flex;align-items:center;gap:9px;font-size:15px;margin-top:6px}
 body:not(.t-watch) #statusRow{display:none}
 #tabs{display:flex;gap:6px;margin-top:9px}
+.jr{display:grid;grid-template-columns:minmax(0,1fr) 124px minmax(0,1fr);gap:8px;align-items:center}
+.jr button{padding:12px 6px;min-height:58px;font-weight:650;border-radius:12px;overflow-wrap:anywhere}
+.jr button:disabled{opacity:.3}
+.jr .up,.jr .down{grid-column:1/4}
+.jr canvas{width:124px;height:124px;display:block}
+#jText{font-size:17px;line-height:1.45;color:var(--text);margin:0}
 #tabs button{flex:1;padding:9px 2px;font-size:14.5px;border-radius:10px;color:var(--muted);min-width:0}
 #tabs button.on{color:var(--text);border-color:var(--accent);background:#132231}
 .dash{grid-column:1/-1;display:grid;gap:12px;min-width:0;grid-template-columns:minmax(0,1fr)}
@@ -222,7 +228,7 @@ body:not(.t-watch) #statusRow{display:none}
 <script>
 (function(){
 'use strict';
-var BUILD='lab-r10';
+var BUILD='lab-r11';
 var QUERY=location.search;          // kept, because the address is tidied once the code is read from it
 var Signals=window.Signals;
 var LINK_SECS=Number((/[?&]linksecs=(\d+)/.exec(location.search)||[])[1])||120;
@@ -311,13 +317,22 @@ function eyesTick(card){
   return f;
 }
 function eyesDraw(card){var c=card.el&&card.el.querySelector('.camview canvas');if(c&&!c.parentNode.classList.contains('off'))Signals.eyes.draw(c,card.frame)}
+/* say something aloud. then() runs when it has finished being said, never when it was cut off. */
+var talk={n:0,on:false,text:'',endAt:0,timer:0};
+function sayAloud(t,then,rate){
+  var my=++talk.n,fin=function(){if(my!==talk.n)return;clearTimeout(talk.timer);talk.on=false;talk.endAt=now();if(then)then()};
+  clearTimeout(talk.timer);talk.text=t;
+  try{if(window.speechSynthesis&&t){speechSynthesis.cancel();var u=new SpeechSynthesisUtterance(t);u.rate=rate||1.05;u.onend=fin;u.onerror=fin;talk.on=true;speechSynthesis.speak(u);talk.timer=setTimeout(fin,2500+t.length*95);return}}catch(e){}
+  talk.on=false;talk.timer=setTimeout(fin,0);
+}
+function hush(){talk.n++;clearTimeout(talk.timer);if(talk.on)talk.endAt=now();talk.on=false;try{speechSynthesis.cancel()}catch(e){}}
 /* hear one short phrase (a name), with the browser's own listening */
 function hearOnce(done){
   var SR=window.SpeechRecognition||window.webkitSpeechRecognition,r;if(!SR)return null;
   try{r=new SR();r.interimResults=false;r.continuous=false;r.onresult=function(e){var s='';for(var i=e.resultIndex;i<e.results.length;i++)s+=e.results[i][0].transcript;done(s.trim().replace(/[.!?]+$/,''))};r.onerror=function(){done('')};r.start();return r}catch(e){return null}
 }
 /* ---------- tabs: sources are kept apart. Each tab starts only what it needs. ---------- */
-var TABS={learn:['calibrate','teach','assign'],camera:['hands','head','camera','object']};       /* every other card is a Watch card */
+var TABS={learn:['calibrate','teach','assign'],camera:['hands','head','camera','object','journey']};       /* every other card is a Watch card */
 var TABNAME={dash:'Dashboard',learn:'Learn',camera:'Camera',watch:'Watch'};
 var tab='dash';try{tab=localStorage.getItem('x_lab_tab')||'dash'}catch(e){}
 if(!TABNAME[tab])tab='dash';
@@ -906,172 +921,339 @@ var CONCEPTS=[
  draw:function(){eyesDraw(this)},
  unmount:function(){if(this.off)this.off();Signals.eyes.stop()}
 },
-{id:'object',name:'Object in your hands',needsRaw:false,noRaw:true,g:[],
- blurb:'A cup, a bowl or a toy car that you handle with your hands in front of the camera. One hand or both.',
- how:'Hold a hand up: a dot follows your thumb and first finger. Bring the dot to the object and pinch to take it. Move your hand and it moves; turn your hand and it turns; push your hand toward the screen and it goes away from you, pull back and it comes toward you. Open your fingers to let it go, and it settles on the table. Pinch it with the other hand as well and the two hands turn it and make it bigger or smaller. Signals you gave object actions to (take, let go, turn left, next object and the rest) work here too. The task: set it down on the ring with its marked side to the right, without touching the screen.',
- KINDS:['cup','bowl','car'],
- TASK:'Task: set it on the ring, upright, marked side to the right.',
+{id:'object',name:'Hands and things',needsRaw:false,noRaw:true,g:[],
+ blurb:'Your hands, in the scene, taking hold of things: a cup, a ball, blocks, a toy car, a lump of putty. Six goals. One hand or both.',
+ how:'Hold up a hand: it appears in the scene, jointed like yours, and moves, turns and curls as yours does. Push toward the screen and it goes deeper; pull back and it comes toward you. When a thing can be taken it glows: close thumb and finger on it. It goes where your hand goes and turns as your hand turns. Open your fingers to set it down. To pass it, take hold with the other hand as well, then let go with the first. Both hands on a thing turn it and resize it; on the putty they pull it long or press it short. An open hand pressed down on the putty flattens it; a fist closed on it rolls it back into a ball. Each goal is said aloud and timed, and the next follows by itself. Signals you gave actions to work here too: next object moves to the next goal, put it back starts the goal again. Calibrate your hand first (Learn tab) so the grip and the reach are yours.',
+ KIND:{cup:'cup',ball:'ball',bowl:'bowl',block:'block',car:'car',putty:'putty'},
+ GOALS:[
+  {id:'cup',say:'Set the cup on the ring, handle to the right.',make:[['cup',-0.9,0.3,-1.2]],ring:[1.1,0.3]},
+  {id:'pass',say:'Pick up the ball, pass it to your other hand, and set it on the mat.',make:[['ball',-1.2,0.4,0]],mat:[1.2,0.4]},
+  {id:'bowl',say:'Put the ball in the bowl.',make:[['ball',-0.9,0.5,0],['bowl',0.8,0.2,0]]},
+  {id:'stack',say:'Stack the three blocks.',make:[['block',-1.1,0.5,0],['block',0,0.7,0.4],['block',1.1,0.5,0.8]]},
+  {id:'park',say:'Park the car in the bay, nose to the right.',make:[['car',-1.0,0.6,-1.0]],bay:[1.0,0.1]},
+  {id:'putty',say:'Putty. Take it in both hands and pull it long.',make:[['putty',0,0.5,0]],steps:['Now press it flat with an open hand.','Now close your fist on it to roll it back into a ball.']}
+ ],
+ BONES:[[0,1],[1,2],[2,3],[3,4],[0,5],[5,6],[6,7],[7,8],[5,9],[9,10],[10,11],[11,12],[9,13],[13,14],[14,15],[15,16],[13,17],[17,18],[18,19],[19,20],[0,17]],
+ ZF:1.9,ZB:-1.3,K:5.5,PR:0.38,                  /* where a pulled-back and a pushed-forward hand sit in the scene; scene units per metre of hand; putty radius */
  raw:function(){return live('watch')},
  mount:function(root){
    var el=document.createElement('div'),self=this,t0=now();el.className='linkbox objbox';
-   el.innerHTML='<div class="obj"><canvas id="oCan"></canvas>'+camHtml('corner')+'</div><div class="lk" id="oSay">Loading the object…</div><p id="oTask"></p><p class="cmsg"></p>';
-   root.appendChild(el);this.el=el;this.T=null;this.r=null;this.o=null;this.held=null;this.kind=0;this.pin={};this.gone={};this.openAt={};this.seen={};this.hs={};this.done=false;this.t0=now();
-   $('oTask').textContent=this.TASK;
+   el.innerHTML='<div class="obj"><canvas id="oCan"></canvas>'+camHtml('corner')+'</div><div class="lk" id="oSay">Loading…</div><p id="oTask"></p><div class="row"><button id="oSkip">Next goal</button><button id="oAgain">Start this one again</button></div><p class="cmsg"></p>';
+   root.appendChild(el);this.el=el;$('oSkip').onclick=function(){ev('object','tap',{what:'next'});self.act('next',{})};$('oAgain').onclick=function(){ev('object','tap',{what:'reset'});self.act('reset',{})};this.T=null;this.r=null;this.objs=[];this.held=null;this.gi=0;this.pin={};this.pinAt={};this.gone={};this.openAt={};this.hs={};this.done=false;this.doneN=0;this.focus=null;this.next=0;
    eyesOn(this,el,{hands:true,face:live('head')});
    this.off=Signals.onFire(function(e){if(e.action)self.act(e.action,e)});
    var url=(/[?&]three=([^&]+)/.exec(QUERY)||[])[1];url=url?decodeURIComponent(url):'https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.min.js';
-   var fail=function(e){var w=String(e&&e.message||e).slice(0,140);$('oSay').textContent='The object could not be drawn';el.querySelector('.cmsg').textContent=w;ev('object','failed',{why:w})};
-   import(url).then(function(T){if(cur!==self)return;self.T=T;try{self.build();$('oSay').textContent='Hold up a hand';ev('object','ready',{ms:Math.round(now()-t0)})}catch(e){self.T=null;fail(e)}},fail);
+   var fail=function(e){var w=String(e&&e.message||e).slice(0,140);$('oSay').textContent='The scene could not be drawn';el.querySelector('.cmsg').textContent=w;ev('object','failed',{why:w})};
+   import(url).then(function(T){if(cur!==self)return;self.T=T;try{self.build();ev('object','ready',{ms:Math.round(now()-t0),cal:Signals.cal.handRight||Signals.cal.handLeft?1:0})}catch(e){self.T=null;fail(e)}},fail);
  },
+ speak:function(t){try{if(window.speechSynthesis){speechSynthesis.cancel();var u=new SpeechSynthesisUtterance(t);u.rate=1.05;speechSynthesis.speak(u)}}catch(e){}},
  build:function(){
    var T=this.T,can=$('oCan'),w=can.clientWidth||320,h=can.clientHeight||240,self=this;
    this.r=new T.WebGLRenderer({canvas:can,antialias:true,alpha:true});this.r.setPixelRatio(Math.min(2,window.devicePixelRatio||1));this.r.setSize(w,h,false);
-   this.scene=new T.Scene();this.cam=new T.PerspectiveCamera(40,w/h,0.1,50);this.cam.position.set(0,1.7,4.4);this.cam.lookAt(0,0.5,0);this.cam.updateMatrixWorld();this.size=[w,h];
+   this.scene=new T.Scene();this.cam=new T.PerspectiveCamera(40,w/h,0.1,50);this.cam.position.set(0,1.9,4.6);this.cam.lookAt(0,0.45,0);this.cam.updateMatrixWorld();this.size=[w,h];
    this.scene.add(new T.HemisphereLight(0xffffff,0x334455,1.1));var sun=new T.DirectionalLight(0xffffff,1.3);sun.position.set(2,4,3);this.scene.add(sun);
-   var table=new T.Mesh(new T.CircleGeometry(2.6,48),new T.MeshStandardMaterial({color:0x1c232c,roughness:1}));table.rotation.x=-Math.PI/2;this.scene.add(table);
-   this.ringAt=new T.Vector3(1.25,0,0.35);
-   var ring=new T.Mesh(new T.TorusGeometry(0.5,0.035,8,48),new T.MeshBasicMaterial({color:0xe5a23b}));ring.rotation.x=Math.PI/2;ring.position.copy(this.ringAt).setY(0.02);this.scene.add(ring);
-   var arrow=new T.Mesh(new T.ConeGeometry(0.09,0.22,12),new T.MeshBasicMaterial({color:0xe5a23b}));arrow.rotation.z=-Math.PI/2;arrow.position.set(this.ringAt.x+0.72,0.03,this.ringAt.z);this.scene.add(arrow);   /* which way the marked side should point */
-   this.dots={};
-   ['Right','Left'].forEach(function(s){var d=new T.Mesh(new T.SphereGeometry(0.09,16,12),new T.MeshBasicMaterial({color:s==='Left'?0xe5a23b:0x39c5cf,depthTest:false,transparent:true,opacity:0.9}));d.renderOrder=9;d.visible=false;self.scene.add(d);self.dots[s]=d});
-   this.pT=new T.Vector3();this.qT=new T.Quaternion();this.sT=1;this.make(this.kind);
+   var table=new T.Mesh(new T.CircleGeometry(2.7,48),new T.MeshStandardMaterial({color:0x1c232c,roughness:1}));table.rotation.x=-Math.PI/2;this.scene.add(table);
+   this.marks=new T.Group();this.scene.add(this.marks);
+   this.gSph=new T.SphereGeometry(1,12,10);this.gCyl=new T.CylinderGeometry(1,1,1,8);
+   this.rigs={Right:this.rig(0x7cc7ff),Left:this.rig(0xffc27a)};
+   this.halo=new T.Mesh(new T.SphereGeometry(1,20,14),new T.MeshBasicMaterial({color:0xffffff,transparent:true,opacity:0.16,depthWrite:false}));this.halo.visible=false;this.scene.add(this.halo);
+   this.goal(0);
  },
- make:function(k){
-   var T=this.T,g=new T.Group(),mat=function(c){return new T.MeshStandardMaterial({color:c,roughness:0.55,metalness:0.05,side:T.DoubleSide})},m,name=this.KINDS[k];
-   if(name==='cup'){
+ /* one hand: 21 joints, the bones between them, and a palm */
+ rig:function(color){
+   var T=this.T,g=new T.Group(),m=new T.MeshStandardMaterial({color:color,roughness:0.6}),self=this,j=[],b=[],p=[];
+   for(var i=0;i<21;i++){var s=new T.Mesh(this.gSph,m);s.scale.setScalar(i===0?0.07:(i%4===0?0.045:0.05));g.add(s);j.push(s);p.push(new T.Vector3())}
+   this.BONES.forEach(function(){var c=new T.Mesh(self.gCyl,m);g.add(c);b.push(c)});
+   var pg=new T.BufferGeometry();pg.setAttribute('position',new T.BufferAttribute(new Float32Array(15),3));pg.setIndex([0,1,2,0,2,3,0,3,4]);
+   var palm=new T.Mesh(pg,new T.MeshStandardMaterial({color:color,roughness:0.7,side:T.DoubleSide,transparent:true,opacity:0.85}));g.add(palm);
+   g.visible=false;this.scene.add(g);
+   return{g:g,j:j,b:b,p:p,palm:palm,z:null,a:null,at:new T.Vector3(),mid:new T.Vector3(),q:new T.Quaternion()};
+ },
+ /* a point in the picture (as the person sees themselves) to the place in the scene at depth z */
+ onPlane:function(px,py,z){
+   var T=this.T,d=new T.Vector3((1-px)*2-1,1-py*2,0.5).unproject(this.cam).sub(this.cam.position).normalize(),t=(z-this.cam.position.z)/d.z;
+   return this.cam.position.clone().addScaledVector(d,t);
+ },
+ /* put the rig where the real hand is. The scene is entered, not mirrored in depth: toward the screen is deeper into it. */
+ pose:function(h){
+   var T=this.T,rig=this.rigs[h.side],wl=h.wl,K=this.K,i,up=new T.Vector3(0,1,0);
+   var cx=(wl[0].x+wl[5].x+wl[17].x)/3,cy=(wl[0].y+wl[5].y+wl[17].y)/3,cz=(wl[0].z+wl[5].z+wl[17].z)/3;
+   var z=this.ZF+(this.ZB-this.ZF)*Signals.handDepth(h.side,h.n.size);rig.z=rig.z==null?z:rig.z+(z-rig.z)*0.35;
+   var a=this.onPlane((h.lm[0].x+h.lm[5].x+h.lm[17].x)/3,(h.lm[0].y+h.lm[5].y+h.lm[17].y)/3,rig.z);
+   if(rig.a)rig.a.lerp(a,0.6);else rig.a=a;
+   for(i=0;i<21;i++){rig.p[i].set(rig.a.x-(wl[i].x-cx)*K,Math.max(0.03,rig.a.y-(wl[i].y-cy)*K),rig.a.z+(wl[i].z-cz)*K);rig.j[i].position.copy(rig.p[i])}
+   this.BONES.forEach(function(bn,k){var A=rig.p[bn[0]],B=rig.p[bn[1]],c=rig.b[k],d=B.clone().sub(A),len=d.length()||1e-4;c.position.copy(A).addScaledVector(d,0.5);c.scale.set(0.03,len,0.03);c.quaternion.setFromUnitVectors(up,d.multiplyScalar(1/len))});
+   var pa=rig.palm.geometry.attributes.position;[0,5,9,13,17].forEach(function(n,k){pa.setXYZ(k,rig.p[n].x,rig.p[n].y,rig.p[n].z)});pa.needsUpdate=true;rig.palm.geometry.computeVertexNormals();
+   rig.at.copy(rig.p[4]).add(rig.p[8]).multiplyScalar(0.5);rig.mid.copy(rig.p[0]).add(rig.p[5]).add(rig.p[17]).multiplyScalar(1/3);
+   var b=Signals.handBasis(h.lm,h.wl),X=new T.Vector3(-b.x.x,-b.x.y,b.x.z).normalize(),Y=new T.Vector3(-b.y.x,-b.y.y,b.y.z),Z=new T.Vector3().crossVectors(X,Y).normalize();Y.crossVectors(Z,X).normalize();
+   rig.q.setFromRotationMatrix(new T.Matrix4().makeBasis(X,Y,Z));rig.g.visible=true;
+ },
+ /* ---------- the things ---------- */
+ shape:function(kind){
+   var T=this.T,g=new T.Group(),mat=function(c){return new T.MeshStandardMaterial({color:c,roughness:0.55,metalness:0.05,side:T.DoubleSide})},m;
+   if(kind==='cup'){
      m=new T.Mesh(new T.CylinderGeometry(0.42,0.34,0.8,32,1,true),mat(0xd9a066));m.position.y=0.4;g.add(m);
      m=new T.Mesh(new T.CircleGeometry(0.34,32),mat(0xd9a066));m.rotation.x=-Math.PI/2;m.position.y=0.01;g.add(m);
-     m=new T.Mesh(new T.TorusGeometry(0.2,0.05,10,24),mat(0xeef1f4));m.position.set(0.58,0.42,0);g.add(m);          /* the handle is the marked side */
-   }else if(name==='bowl'){
+     m=new T.Mesh(new T.TorusGeometry(0.2,0.05,10,24),mat(0xeef1f4));m.position.set(0.58,0.42,0);g.add(m);
+   }else if(kind==='bowl'){
      var pts=[];for(var i=0;i<=10;i++){var a=i/10*Math.PI/2;pts.push(new T.Vector2(0.15+0.6*Math.sin(a),0.45*(1-Math.cos(a))))}
-     m=new T.Mesh(new T.LatheGeometry(pts,40),mat(0x4cc38a));g.add(m);
+     g.add(new T.Mesh(new T.LatheGeometry(pts,40),mat(0x4cc38a)));
      m=new T.Mesh(new T.CircleGeometry(0.16,24),mat(0x4cc38a));m.rotation.x=-Math.PI/2;m.position.y=0.005;g.add(m);
-     m=new T.Mesh(new T.SphereGeometry(0.08,16,12),mat(0xeef1f4));m.position.set(0.75,0.45,0);g.add(m);              /* a bead on the rim is the marked side */
-   }else{
+   }else if(kind==='ball'){
+     m=new T.Mesh(new T.SphereGeometry(0.26,24,16),mat(0xe5534b));m.position.y=0.26;g.add(m);
+     m=new T.Mesh(new T.TorusGeometry(0.262,0.022,8,32),mat(0xeef1f4));m.position.y=0.26;g.add(m);
+   }else if(kind==='block'){
+     m=new T.Mesh(new T.BoxGeometry(0.5,0.5,0.5),mat([0x39c5cf,0xe5a23b,0xb38cf5][this.objs.filter(function(o){return o.kind==='block'}).length%3]));m.position.y=0.25;g.add(m);
+   }else if(kind==='car'){
      m=new T.Mesh(new T.BoxGeometry(1.2,0.28,0.6),mat(0xe5534b));m.position.y=0.3;g.add(m);
      m=new T.Mesh(new T.BoxGeometry(0.6,0.24,0.5),mat(0x8b949e));m.position.set(-0.1,0.56,0);g.add(m);
      [[0.4,0.3],[0.4,-0.3],[-0.4,0.3],[-0.4,-0.3]].forEach(function(p){var wh=new T.Mesh(new T.CylinderGeometry(0.16,0.16,0.1,20),mat(0x14181d));wh.rotation.x=Math.PI/2;wh.position.set(p[0],0.16,p[1]);g.add(wh)});
-     m=new T.Mesh(new T.BoxGeometry(0.06,0.1,0.44),mat(0xeef1f4));m.position.set(0.62,0.32,0);g.add(m);              /* the headlights are the marked side */
+     m=new T.Mesh(new T.BoxGeometry(0.06,0.1,0.44),mat(0xeef1f4));m.position.set(0.62,0.32,0);g.add(m);
+   }else{
+     g.add(new T.Mesh(new T.SphereGeometry(this.PR,28,20),mat(0xf2a7c3)));
    }
-   if(this.o)this.scene.remove(this.o);
-   this.o=g;this.scene.add(g);this.home();g.position.copy(this.pT);g.quaternion.copy(this.qT);
-   ev('object','shown',{kind:name});
+   return g;
  },
- home:function(){this.pT.set(-0.9,0,0.2);this.qT.setFromAxisAngle(new this.T.Vector3(0,1,0),-1.2);this.sT=1;this.held=null;this.done=false;this.t0=now();$('oTask').textContent=this.TASK},
- /* a point in the picture, mirrored as the person sees themselves, to a place in the scene at the object's distance */
- place:function(px,py,depth){
-   var T=this.T,dir=new T.Vector3((1-px)*2-1,1-py*2,0.5).unproject(this.cam).sub(this.cam.position).normalize(),fwd=new T.Vector3(),out=new T.Vector3();
-   this.cam.getWorldDirection(fwd);
-   return new T.Ray(this.cam.position,dir).intersectPlane(new T.Plane().setFromNormalAndCoplanarPoint(fwd,new T.Vector3(0,0.6,depth)),out)||out.set(0,0.6,depth);
+ goal:function(i){
+   var T=this.T,self=this,G=this.GOALS[i],m;this.gi=i;this.G=G;this.done=false;this.stage=0;this.t0=now();this.held=null;this.focus=null;this.next=0;
+   this.objs.forEach(function(o){self.scene.remove(o.g)});this.objs=[];
+   while(this.marks.children.length)this.marks.remove(this.marks.children[0]);
+   var flat=function(mesh,x,z){mesh.rotation.x=-Math.PI/2;mesh.position.set(x,0.02,z);self.marks.add(mesh)},amber=new T.MeshBasicMaterial({color:0xe5a23b,side:T.DoubleSide});
+   if(G.ring){flat(new T.Mesh(new T.RingGeometry(0.47,0.53,48),amber),G.ring[0],G.ring[1]);m=new T.Mesh(new T.ConeGeometry(0.09,0.22,12),amber);m.rotation.z=-Math.PI/2;m.position.set(G.ring[0]+0.74,0.03,G.ring[1]);this.marks.add(m)}
+   if(G.mat)flat(new T.Mesh(new T.CircleGeometry(0.5,40),new T.MeshBasicMaterial({color:0x2a6f4a})),G.mat[0],G.mat[1]);
+   if(G.bay){flat(new T.Mesh(new T.RingGeometry(0.62,0.7,4,1,Math.PI/4),amber),G.bay[0],G.bay[1]);this.marks.children[this.marks.children.length-1].scale.set(1.35,0.8,1);m=new T.Mesh(new T.ConeGeometry(0.09,0.22,12),amber);m.rotation.z=-Math.PI/2;m.position.set(G.bay[0]+1.15,0.03,G.bay[1]);this.marks.add(m)}
+   G.make.forEach(function(k){
+     var o={kind:k[0],g:null,pT:new T.Vector3(k[1],0,k[2]),qT:new T.Quaternion().setFromAxisAngle(new T.Vector3(0,1,0),k[3]),sT:1,on:null,by:'',passed:false,s:1,u:new T.Vector3(0,1,0),worked:false};
+     o.g=self.shape(k[0]);self.objs.push(o);if(o.kind==='putty')o.pT.y=self.PR;o.g.position.copy(o.pT);o.g.quaternion.copy(o.qT);self.scene.add(o.g)});
+   $('oTask').textContent=(i+1)+' of '+this.GOALS.length+': '+G.say;this.speak(G.say);ev('object','goal',{goal:G.id,n:i+1});
  },
- /* how the hand is turned, as the person sees it in the mirror */
- turnOf:function(h){
-   var T=this.T,b=Signals.handBasis(h.lm,h.wl),x=new T.Vector3(-b.x.x,-b.x.y,-b.x.z).normalize(),y=new T.Vector3(-b.y.x,-b.y.y,-b.y.z).normalize(),z=new T.Vector3().crossVectors(x,y).normalize();
-   y.crossVectors(z,x).normalize();
-   return new T.Quaternion().setFromRotationMatrix(new T.Matrix4().makeBasis(x,y,z));
+ centre:function(o){var c=o.g.position.clone();if(o.kind!=='putty')c.y+=0.35*o.g.scale.x;return c},
+ /* how far a point is from a thing, for taking it: depth counts half, because depth from a camera is the least sure */
+ far:function(p,o){
+   var c=this.centre(o),d;
+   if(o.kind==='putty'){var L=this.PR*Math.max(0,o.s-1),t=Math.max(-L,Math.min(L,p.clone().sub(c).dot(o.u)));c.addScaledVector(o.u,t)}
+   d=p.clone().sub(c);d.z*=0.5;return d.length();
  },
- /* tie the hold to how the hands and the object are at this moment */
+ reach:function(o){return o.kind==='putty'?0.62:0.72*Math.max(1,o.g.scale.x)},
+ nearest:function(p,slack){var self=this,best=null,bd=1e9;this.objs.forEach(function(o){var d=self.far(p,o)/(self.reach(o)*(slack||1));if(d<1&&d<bd){bd=d;best=o}});return best},
  anchor:function(){
-   var d=this.held,o=this.o,hs=this.hs;if(!d)return;
-   if(d.mode==='one'){var h=hs[d.side];if(!h)return;d.off=o.position.clone().sub(h.at);d.q0=o.quaternion.clone();d.hq0=h.q.clone().invert();d.size0=h.n.size;d.z0=o.position.z}
-   else if(hs.Left&&hs.Right){var L=hs.Left.at,R2=hs.Right.at;d.mid0=L.clone().add(R2).multiplyScalar(0.5);d.d0=Math.max(0.05,L.distanceTo(R2));d.a0=Math.atan2(R2.y-L.y,R2.x-L.x);d.p0=o.position.clone();d.q0=o.quaternion.clone();d.s0=o.scale.x}
+   var d=this.held,o,hs=this.hs;if(!d)return;o=d.o.g;
+   if(d.mode==='one'){var h=hs[d.side];if(!h)return;d.off=o.position.clone().sub(h.at);d.q0=o.quaternion.clone();d.hq0=h.q.clone().invert()}
+   else if(hs.Left&&hs.Right){var L=hs.Left.at,R2=hs.Right.at;d.mid0=L.clone().add(R2).multiplyScalar(0.5);d.d0=Math.max(0.08,L.distanceTo(R2));d.a0=Math.atan2(R2.y-L.y,R2.x-L.x);d.p0=o.position.clone();d.q0=o.quaternion.clone();d.s0=d.o.kind==='putty'?d.o.s:o.scale.x}
  },
- take:function(side,how,quiet){
-   if(!this.hs[side]||!this.o)return false;
-   this.held={mode:'one',side:side,how:how};this.anchor();
-   if(!quiet)detect('took it',{hand:side,how:how,kind:this.KINDS[this.kind],size:+this.hs[side].n.size.toFixed(3),pinch:+this.hs[side].n.pinchI.toFixed(2)});return true;
+ take:function(side,o,how,quiet){
+   if(!this.hs[side]||!o)return false;
+   var self=this;this.objs.forEach(function(b){if(b.on===o){b.on=o.on;b.pT.y=Math.max(0,b.pT.y-0.5)}});     /* what stood on it comes down a step */
+   o.on=null;if(!o.by)o.by=side;this.held={o:o,mode:'one',side:side,how:how};this.focus=o;this.anchor();
+   if(!quiet)detect('took it',{hand:side,how:how,kind:o.kind,size:+this.hs[side].n.size.toFixed(3),pinch:+this.hs[side].n.pinchI.toFixed(2)});return true;
  },
- both:function(){this.held={mode:'two',how:'pinch'};this.anchor();detect('took it',{hand:'both',how:'pinch',kind:this.KINDS[this.kind]})},
+ both:function(){var o=this.held.o;this.held={o:o,mode:'two',how:'pinch',first:this.held.side};this.anchor();detect('took it',{hand:'both',how:'pinch',kind:o.kind})},
  letGo:function(why){
-   if(!this.held)return;var was=this.held,seen=this.seen[was.side||'Right']||{};this.held=null;
-   var T=this.T,o=this.o,up=new T.Vector3(0,1,0).applyQuaternion(o.quaternion),f=new T.Vector3(1,0,0).applyQuaternion(o.quaternion);
-   this.sT=o.scale.x;this.pT.set(Math.max(-2.1,Math.min(2.1,o.position.x)),up.y>0.7?0:0.35*this.sT,Math.max(-1.6,Math.min(1.8,o.position.z)));
-   if(up.y>0.7)this.qT.setFromAxisAngle(new T.Vector3(0,1,0),Math.atan2(-f.z,f.x));else this.qT.copy(o.quaternion);     /* set down near enough upright, it stands; otherwise it lies as it was let go */
-   detect('let it go',{why:why,x:+this.pT.x.toFixed(2),z:+this.pT.z.toFixed(2),lying:up.y>0.7?0:1,size0:was.size0?+was.size0.toFixed(3):0,size:seen.size||0,pinch:seen.pinch||0});this.check();
- },
- check:function(){
-   if(this.done||!this.o)return;
-   var T=this.T,f=new T.Vector3(1,0,0).applyQuaternion(this.qT),up=new T.Vector3(0,1,0).applyQuaternion(this.qT);
-   var on=Math.hypot(this.pT.x-this.ringAt.x,this.pT.z-this.ringAt.z)<0.4,faces=Math.atan2(-f.z,f.x)*DEG;
-   if(on&&Math.abs(faces)<25&&up.y>0.8){
-     this.done=true;var s=Math.round((now()-this.t0)/1000),touches=trial?trial.events.filter(function(e){return e.src==='touch'}).length:0;
-     detect('task done',{s:s,kind:this.KINDS[this.kind],touches:touches});$('oTask').textContent='Done in '+s+' s, '+touches+' touch'+(touches===1?'':'es')+' of the screen.';
+   if(!this.held)return;var T=this.T,o=this.held.o,g=o.g,self=this,was=this.held;this.held=null;
+   var up=new T.Vector3(0,1,0).applyQuaternion(g.quaternion),f=new T.Vector3(1,0,0).applyQuaternion(g.quaternion),x=Math.max(-2.2,Math.min(2.2,g.position.x)),z=Math.max(-1.5,Math.min(1.9,g.position.z)),y=0;
+   o.sT=g.scale.x;o.on=null;
+   if(o.kind==='putty'){y=this.half(o);o.qT.copy(g.quaternion)}
+   else{
+     if(o.kind==='ball')this.objs.forEach(function(b){if(b.kind==='bowl'&&Math.hypot(b.pT.x-x,b.pT.z-z)<0.5*b.sT){x=b.pT.x;z=b.pT.z;y=0.12*b.sT;o.on=b}});
+     if(o.kind==='block'){var top=null;this.objs.forEach(function(b){if(b!==o&&b.kind==='block'&&Math.hypot(b.pT.x-x,b.pT.z-z)<0.42&&(!top||b.pT.y>top.pT.y))top=b});if(top){x=top.pT.x;z=top.pT.z;y=top.pT.y+0.5*top.sT;o.on=top}}
+     if(up.y>0.7||o.kind==='ball'||o.kind==='block')o.qT.setFromAxisAngle(new T.Vector3(0,1,0),Math.atan2(-f.z,f.x));else{o.qT.copy(g.quaternion);y=0.35*o.sT}
    }
+   o.pT.set(x,y,z);
+   detect('let it go',{why:why,kind:o.kind,x:+x.toFixed(2),z:+z.toFixed(2),on:o.on?o.on.kind:'',lying:o.kind!=='putty'&&o.kind!=='ball'&&o.kind!=='block'&&up.y<=0.7?1:0});void was;this.check();
+ },
+ /* putty: how high its middle sits when it rests */
+ half:function(o){var r=this.PR,a=r*o.s*o.u.y,b=r/Math.sqrt(o.s);return Math.max(0.05,Math.sqrt(a*a+b*b*(1-o.u.y*o.u.y)))},
+ ball:function(p,k){if(Math.abs(p.s-1)>0.02||p.u.y<0.99){p.s+=(1-p.s)*k;if(Math.abs(p.s-1)<0.03)p.s=1;p.u.lerp(new this.T.Vector3(0,1,0),k).normalize();p.worked=true;this.mould(p)}},
+ mould:function(o){var r=1/Math.sqrt(o.s);o.g.scale.set(r,o.s,r);o.g.quaternion.setFromUnitVectors(new this.T.Vector3(0,1,0),o.u);o.qT.copy(o.g.quaternion)},
+ check:function(){
+   if(this.done||!this.objs.length)return;
+   var T=this.T,G=this.G,self=this,ok=false,o=this.objs[0],f,up,on=function(o,at,r){return Math.hypot(o.pT.x-at[0],o.pT.z-at[1])<r};
+   var faces=function(o){f=new T.Vector3(1,0,0).applyQuaternion(o.qT);up=new T.Vector3(0,1,0).applyQuaternion(o.qT);return Math.abs(Math.atan2(-f.z,f.x)*DEG)<25&&up.y>0.8};
+   if(this.held&&G.id!=='putty')return;
+   if(G.id==='cup')ok=on(o,G.ring,0.4)&&faces(o);
+   else if(G.id==='pass')ok=o.passed&&on(o,G.mat,0.5);
+   else if(G.id==='bowl')ok=!!o.on&&o.on.kind==='bowl';
+   else if(G.id==='stack')ok=this.objs.some(function(b){return b.on&&b.on.on});
+   else if(G.id==='park')ok=Math.abs(o.pT.x-G.bay[0])<0.45&&Math.abs(o.pT.z-G.bay[1])<0.35&&faces(o);
+   else{
+     var st=this.stage,hit=st===0?(o.s>=2.2&&Math.abs(o.u.y)<0.6):st===1?(o.s<=0.42&&Math.abs(o.u.y)>0.9):(Math.abs(o.s-1)<=0.15);
+     if(hit&&st<2){this.stage++;detect('putty step',{step:st+1,s:+o.s.toFixed(2)});$('oTask').textContent=(this.gi+1)+' of '+this.GOALS.length+': '+G.steps[st];this.speak(G.steps[st]);return}
+     ok=hit&&st===2;
+   }
+   if(!ok)return;
+   this.done=true;this.doneN++;var s=Math.round((now()-this.t0)/1000),touches=trial?trial.events.filter(function(e){return e.src==='touch'}).length:0;
+   detect('goal done',{goal:G.id,s:s,touches:touches});$('oTask').textContent='Done in '+s+' s. '+(this.gi+1<this.GOALS.length?'Next in a moment.':'That was the last one; back to the first.');this.speak('Done');this.next=now()+2800;
  },
  act:function(a,e){
-   if(!this.T||!this.o)return;var T=this.T,self=this,hs=this.hs,o=this.o,k;
-   var spin=function(ax,deg){var q=new T.Quaternion().setFromAxisAngle(ax,deg/DEG);if(self.held){o.quaternion.premultiply(q);self.anchor()}else self.qT.premultiply(q)};
+   if(!this.T||!this.objs.length)return;var T=this.T,self=this,hs=this.hs,o=this.held?this.held.o:this.focus||this.objs[0],k;
+   var spin=function(ax,deg){var q=new T.Quaternion().setFromAxisAngle(ax,deg/DEG);if(o.kind==='putty')return;if(self.held){o.g.quaternion.premultiply(q);self.anchor()}else o.qT.premultiply(q)};
    var side=e&&e.src==='handL'?'Left':e&&e.src==='handR'?'Right':(hs.Right?'Right':'Left');if(!hs[side])side=hs.Right?'Right':'Left';
-   if(a==='take'){if(this.held||!this.take(side,'signal'))return}
+   if(a==='take'){if(this.held||!hs[side]||!this.take(side,this.nearest(hs[side].at,2.2)||this.objs[0],'signal'))return}
    else if(a==='letgo'){if(!this.held)return;this.letGo('signal')}
    else if(a==='left'||a==='right')spin(new T.Vector3(0,1,0),a==='left'?30:-30);
    else if(a==='toward'||a==='away')spin(new T.Vector3(1,0,0),a==='toward'?30:-30);
-   else if(a==='bigger'||a==='smaller'){k=a==='bigger'?1.25:0.8;if(this.held){o.scale.setScalar(Math.max(0.4,Math.min(2.5,o.scale.x*k)));this.anchor()}else this.sT=Math.max(0.4,Math.min(2.5,this.sT*k))}
-   else if(a==='next'){this.kind=(this.kind+1)%this.KINDS.length;this.make(this.kind)}
-   else if(a==='reset')this.home();
+   else if(a==='bigger'||a==='smaller'){if(o.kind==='putty')return;k=a==='bigger'?1.25:0.8;if(this.held){o.g.scale.setScalar(Math.max(0.4,Math.min(2.5,o.g.scale.x*k)));this.anchor()}else o.sT=Math.max(0.4,Math.min(2.5,o.sT*k))}
+   else if(a==='next')this.goal((this.gi+1)%this.GOALS.length);
+   else if(a==='reset')this.goal(this.gi);
    else return;
    ev('object','action',{a:a,by:e?e.name:''});
-   if(a!=='take'&&a!=='letgo'&&!this.held)this.check();
+   if(a!=='take'&&a!=='letgo'&&a!=='next'&&a!=='reset'&&!this.held)this.check();
  },
+ settle:function(k){this.objs.forEach(function(o){if(this.held&&this.held.o===o)return;o.g.position.lerp(o.pT,k);if(o.kind==='putty')return;o.g.quaternion.slerp(o.qT,k);o.g.scale.setScalar(o.g.scale.x+(o.sT-o.g.scale.x)*k)},this)},
  tick:function(){
-   var f=eyesTick(this),T=this.T,self=this,o=this.o;if(!T||!o)return;
-   if(!f){if(!this.held)this.settle(0.12);return}          /* between pictures from the camera, it still settles to where it was put */
-   var hs={},t=now();
+   var f=eyesTick(this),T=this.T,self=this,t=now();if(!T||!this.objs.length)return;
+   if(this.next&&t>this.next){this.goal((this.gi+1)%this.GOALS.length);return}
+   if(!f){this.settle(0.12);return}
+   var hs={};
    f.hands.forEach(function(h){
-     if(hs[h.side])return;
-     var was=!!self.pin[h.side],p=Signals.pinching(h.side,h.n,was);      /* by their own calibration; the build's numbers until then */
-     self.pin[h.side]=p;self.gone[h.side]=t;if(p)self.openAt[h.side]=0;else if(!self.openAt[h.side])self.openAt[h.side]=t;
-     self.seen[h.side]={size:+h.n.size.toFixed(3),pinch:+h.n.pinchI.toFixed(2)};
-     var at=self.place((h.lm[4].x+h.lm[8].x)/2,(h.lm[4].y+h.lm[8].y)/2,o.position.z);
-     hs[h.side]={n:h.n,at:at,q:self.turnOf(h),pinch:p,edge:p&&!was};
-     var d=self.dots[h.side];d.visible=true;d.position.copy(at);d.scale.setScalar(p?0.6:1);
+     if(hs[h.side]||!h.wl)return;
+     var was=!!self.pin[h.side],p=Signals.pinching(h.side,h.n,was);
+     self.pin[h.side]=p;self.gone[h.side]=t;if(p)self.openAt[h.side]=0;else if(!self.openAt[h.side])self.openAt[h.side]=t;if(p&&!was)self.pinAt[h.side]=t;
+     self.pose(h);var rig=self.rigs[h.side];
+     hs[h.side]={n:h.n,at:rig.at.clone(),mid:rig.mid.clone(),q:rig.q.clone(),pinch:p,edge:p&&t-(self.pinAt[h.side]||0)<500,fist:h.n.curlI+h.n.curlM+h.n.curlR+h.n.curlP>2.8};
    });
-   ['Right','Left'].forEach(function(s){if(!hs[s]){self.dots[s].visible=false;if(t-(self.gone[s]||0)>600)self.pin[s]=false}});
+   ['Right','Left'].forEach(function(s){if(!hs[s]){if(t-(self.gone[s]||0)>600){self.pin[s]=false;self.rigs[s].g.visible=false;self.rigs[s].a=null;self.rigs[s].z=null}}});
    this.hs=hs;
-   /* a hand missing for a frame or two is waited for; missing for longer, it has gone */
-   /* open only counts once the fingers have stayed open for a moment: a pinch that flickers for a frame or two is still a pinch */
-   var st=function(s){return hs[s]?(hs[s].pinch||t-self.openAt[s]<180?'pinch':'open'):(t-(self.gone[s]||0)>600?'gone':'wait')};
-   var mid=o.position.clone();mid.y+=0.4*o.scale.x;
-   var reach=function(s){return hs[s]&&hs[s].at.distanceTo(mid)<0.95*Math.max(1,o.scale.x)};
-   var held=this.held;
-   if(!held){['Right','Left'].some(function(s){return hs[s]&&hs[s].edge&&reach(s)&&self.take(s,'pinch')})}
-   else if(held.mode==='one'){
-     var h=hs[held.side],other=held.side==='Right'?'Left':'Right',state=st(held.side);
+   var kk=1-Math.exp(-Math.min(200,t-(this.lastT||t))/300);this.lastT=t;   /* by the clock, not by the frame: a slow phone moulds as fast as a quick one */
+   var st=function(s){return hs[s]?(hs[s].pinch||t-(self.openAt[s]||t)<180?'pinch':'open'):(t-(self.gone[s]||0)>600?'gone':'wait')};
+   var held=this.held,glow=null;
+   if(!held){
+     ['Right','Left'].forEach(function(s){if(!hs[s]||self.held)return;var o=self.nearest(hs[s].at);if(o){glow=glow||o;if(hs[s].edge)self.take(s,o,'pinch')}});
+     /* putty, not held: an open hand pressing down flattens it; a fist closed on it rolls it back into a ball */
+     var p=this.objs.filter(function(o){return o.kind==='putty'})[0];
+     if(p&&!this.held)['Right','Left'].forEach(function(s){
+       var h=hs[s];if(!h)return;var c=p.g.position,dx=h.mid.x-c.x,dz=(h.mid.z-c.z)*0.5,top=c.y+self.half(p);
+       if(h.fist&&Math.hypot(dx,dz,h.mid.y-c.y)<0.8){self.ball(p,kk);p.pT.y=self.half(p);self.focus=p}
+       else if(!h.fist&&!h.pinch&&Math.abs(h.n.palmY)>0.55&&Math.hypot(dx,dz)<0.6&&h.mid.y<top+0.06){var want=Math.max(0.12,h.mid.y)/self.PR;if(Math.abs(p.u.y)<0.9){p.u.set(0,1,0);p.s=Math.min(1,want)}else p.s=Math.min(p.s,want);p.s=Math.max(0.18,p.s);p.worked=true;self.mould(p);p.pT.y=self.half(p);self.focus=p}
+     });
+   }else if(held.mode==='one'){
+     var h=hs[held.side],other=held.side==='Right'?'Left':'Right',state=st(held.side),o=held.o;
      if(state==='gone')this.letGo('hand left the picture');
      else if(state==='open'&&held.how==='pinch')this.letGo('opened');
-     else if(h&&hs[other]&&hs[other].edge&&reach(other))this.both();
-     else if(h){
-       o.position.copy(h.at).add(held.off);o.position.y=Math.max(0,o.position.y);
-       o.position.z=Math.max(-1.6,Math.min(1.8,held.z0-Signals.reachGain(held.side,3.4)*Math.log(h.n.size/held.size0)));      /* push toward the screen and it goes away from you; their whole reach crosses the whole table */
-       o.quaternion.copy(h.q).multiply(held.hq0).multiply(held.q0);
-     }
+     else if(h&&hs[other]&&hs[other].pinch&&this.far(hs[other].at,o)<this.reach(o)*1.25&&st(held.side)==='pinch')this.both();
+     else if(h){if(o.kind==='putty'&&h.fist)this.ball(o,kk);o.g.position.copy(h.at).add(held.off);o.g.position.y=Math.max(o.kind==='putty'?this.half(o):0,o.g.position.y);if(o.kind!=='putty')o.g.quaternion.copy(h.q).multiply(held.hq0).multiply(held.q0)}
    }else{
-     var sr=st('Right'),sl=st('Left');
-     if(sr==='pinch'&&sl==='pinch'&&hs.Right&&hs.Left){
-       var L=hs.Left.at,R2=hs.Right.at,fwd=new T.Vector3();this.cam.getWorldDirection(fwd);
-       o.position.copy(held.p0).add(L.clone().add(R2).multiplyScalar(0.5).sub(held.mid0));o.position.y=Math.max(0,o.position.y);
-       o.scale.setScalar(Math.max(0.4,Math.min(2.5,held.s0*L.distanceTo(R2)/held.d0)));
-       o.quaternion.setFromAxisAngle(fwd.negate(),Math.atan2(R2.y-L.y,R2.x-L.x)-held.a0).multiply(held.q0);
+     var sr=st('Right'),sl=st('Left'),o2=held.o;
+     if(sr==='pinch'&&sl==='pinch'&&hs.Left&&hs.Right){
+       var L=hs.Left.at,R2=hs.Right.at,fwd=new T.Vector3(),gap=L.distanceTo(R2),ratio=(gap+0.6)/(held.d0+0.6);this.cam.getWorldDirection(fwd);
+       o2.g.position.copy(held.p0).add(L.clone().add(R2).multiplyScalar(0.5).sub(held.mid0));
+       if(o2.kind==='putty'){o2.s=Math.max(0.3,Math.min(4,held.s0+(gap-held.d0)/(2*this.PR)));   /* its ends follow the hands: a hand's width apart is a hand's width longer */o2.u.copy(R2).sub(L).normalize();if(o2.u.y<0)o2.u.negate();o2.worked=true;this.mould(o2);o2.g.position.y=Math.max(this.half(o2),o2.g.position.y)}
+       else{o2.g.position.y=Math.max(0,o2.g.position.y);o2.g.scale.setScalar(Math.max(0.4,Math.min(2.5,held.s0*ratio)));o2.g.quaternion.setFromAxisAngle(fwd.negate(),Math.atan2(R2.y-L.y,R2.x-L.x)-held.a0).multiply(held.q0)}
      }else if(sr!=='wait'&&sl!=='wait'){
        var stay=sr==='pinch'?'Right':sl==='pinch'?'Left':null;
-       if(stay){this.held=null;this.take(stay,'pinch',true);detect('one hand again',{hand:stay})}else this.letGo('opened');
+       if(stay){if(stay!==held.first)o2.passed=true;this.held=null;this.take(stay,o2,'pinch',true);detect('one hand again',{hand:stay,passed:o2.passed?1:0})}else{this.held=held;this.letGo('opened')}
      }
    }
-   if(!this.held)this.settle(0.25);
-   var say=this.held?(this.held.mode==='two'?'Both hands have it':'In your '+this.held.side.toLowerCase()+' hand'):f.hands.length?'Pinch on the object to take it':'Hold up a hand';
+   if(this.held)glow=null;
+   this.halo.visible=!!glow;if(glow){this.halo.position.copy(this.centre(glow));this.halo.scale.setScalar(this.reach(glow)*0.95)}
+   this.settle(0.25);if(this.G.id==='putty')this.check();
+   var n=f.hands.length,say=this.held?(this.held.mode==='two'?'Both hands have it':'In your '+this.held.side.toLowerCase()+' hand'):glow?'Close thumb and finger to take it':n?'Bring your hand to a thing':'Hold up a hand';
    if($('oSay').textContent!==say)$('oSay').textContent=say;
  },
- settle:function(k){var o=this.o;o.position.lerp(this.pT,k);o.quaternion.slerp(this.qT,k);o.scale.setScalar(o.scale.x+(this.sT-o.scale.x)*k)},
  draw:function(){
-   eyesDraw(this);if(!this.T||!this.r||!this.o)return;
-   var can=$('oCan'),w=can.clientWidth,h=can.clientHeight,o=this.o;
+   eyesDraw(this);if(!this.T||!this.r||!this.objs.length)return;
+   var T=this.T,can=$('oCan'),w=can.clientWidth,h=can.clientHeight,self=this;
    if(w&&h&&(w!==this.size[0]||h!==this.size[1])){this.size=[w,h];this.r.setSize(w,h,false);this.cam.aspect=w/h;this.cam.updateProjectionMatrix()}
    this.r.render(this.scene,this.cam);
-   var f=new this.T.Vector3(1,0,0).applyQuaternion(o.quaternion),up=new this.T.Vector3(0,1,0).applyQuaternion(o.quaternion);
-   var c=o.position.clone();c.y+=0.4*o.scale.x;c.project(this.cam);
-   can.dataset.state=JSON.stringify({kind:this.KINDS[this.kind],held:this.held?this.held.mode:'',px:+(1-(c.x+1)/2).toFixed(3),py:+((1-c.y)/2).toFixed(3),x:+o.position.x.toFixed(3),y:+o.position.y.toFixed(3),z:+o.position.z.toFixed(3),s:+o.scale.x.toFixed(3),faces:Math.round(Math.atan2(-f.z,f.x)*DEG),up:+up.y.toFixed(2),done:this.done});
+   var st={goal:this.G.id,n:this.gi+1,stage:this.stage,done:this.done,doneN:this.doneN,held:this.held?{mode:this.held.mode,kind:this.held.o.kind,side:this.held.side||''}:null,glow:this.halo.visible,objs:[],hands:{}};
+   this.objs.forEach(function(o){var f=new T.Vector3(1,0,0).applyQuaternion(o.g.quaternion),up=new T.Vector3(0,1,0).applyQuaternion(o.g.quaternion),c=self.centre(o);
+     st.objs.push({k:o.kind,x:+o.g.position.x.toFixed(2),y:+o.g.position.y.toFixed(2),z:+o.g.position.z.toFixed(2),cy:+c.y.toFixed(2),s:+(o.kind==='putty'?o.s:o.g.scale.x).toFixed(2),uy:+o.u.y.toFixed(2),faces:Math.round(Math.atan2(-f.z,f.x)*DEG),up:+up.y.toFixed(2),on:o.on?o.on.kind:'',passed:o.passed})});
+   ['Right','Left'].forEach(function(s){var r=self.rigs[s];if(r.g.visible)st.hands[s]={x:+r.at.x.toFixed(2),y:+r.at.y.toFixed(2),z:+r.at.z.toFixed(2),my:+r.mid.y.toFixed(2),mx:+r.mid.x.toFixed(2),mz:+r.mid.z.toFixed(2),joints:r.j.length}});
+   can.dataset.state=JSON.stringify(st);
  },
- unmount:function(){if(this.off)this.off();Signals.eyes.stop();try{if(this.r){this.r.dispose();this.r.forceContextLoss()}}catch(e){}this.T=null;this.r=null;this.o=null}
+ unmount:function(){if(this.off)this.off();Signals.eyes.stop();try{speechSynthesis.cancel()}catch(e){}try{if(this.r){this.r.dispose();this.r.forceContextLoss()}}catch(e){}this.T=null;this.r=null;this.objs=[]}
+},
+{id:'journey',name:'Journey',needsRaw:false,noRaw:true,g:[],
+ blurb:'A short spoken story you steer with your head. Look left or right to turn, up or down for ladders, and hold the look about a second.',
+ how:'It reads where you are, on the screen and aloud. Look the way you want to go and hold it until the bar fills, then come back to the middle. The dot in the ring shows where it thinks you are looking; past the inner ring counts. The lighthouse is dark and a ship is coming in: find a way to light the lamp. If you have calibrated your head it uses your own range. If not, it takes the first second as straight ahead. The arrows can also be tapped.',
+ HOLD:900,
+ STD:{left:22,right:-22,up:-13,down:13},          /* degrees from straight ahead, for a head that has not been calibrated */
+ WAY:{left:'to your left',right:'to your right',up:'up',down:'down'},
+ MAP:{
+  beach:{n:'The beach',t:'You are on a pebble beach at dusk. The lighthouse above you is dark, and out at sea a ship is coming in. The lighthouse is to your left. A boathouse is to your right. Steps go down to the tide pools.',x:{left:'hall',right:'boathouse',down:'pools'}},
+  boathouse:{n:'The boathouse',t:'The boathouse. A rowing boat hangs from the beams. A ladder goes up to a loft. A jetty is to your right, and the beach is to your left.',x:{up:'loft',right:'jetty',left:'beach'}},
+  loft:{n:'The loft',t:'The loft smells of rope and tar. Among the nets is a storm lantern.',get:'lantern',got:'You take the lantern.',after:'The loft. Nets, rope, and the nail where the lantern hung.',end:'The ladder goes down.',x:{down:'boathouse'}},
+  jetty:{n:'The jetty',t:'The jetty runs out over black water. At its end a bell hangs on a post. You ring it, and it carries a long way. Nobody answers. The boathouse is to your left.',x:{left:'boathouse'}},
+  pools:{n:'The tide pools',t:'Tide pools, bright with anemones. A sea cave opens to your left. The steps go up to the beach.',x:{left:'cave',up:'beach'}},
+  cave:{n:'The sea cave',t:'The cave is cold and loud with the sea. At the back, iron rungs go up into the rock. The tide pools are to your right.',x:{up:'cellar',right:'pools'}},
+  hall:{n:'The lighthouse hall',t:'The foot of the lighthouse. A spiral stair goes up. A hatch in the floor goes down. A garden gate is to your left, and the beach is to your right.',x:{up:'landing',down:'cellar',left:'garden',right:'beach'}},
+  cellar:{n:'The cellar',needs:'lantern',dark:'The cellar is pitch dark. You can feel a ladder going up and iron rungs going down, and nothing else. You need a light.',dx:{up:'hall',down:'cave'},
+          t:'By lantern light, the cellar. A store room is to your left. A ladder goes up to the hall. Iron rungs go down to the sea cave.',x:{up:'hall',down:'cave',left:'store'}},
+  store:{n:'The store room',key:'key',locked:'The store room is locked. You need a key.',t:'The brass key turns. Shelves of lamp oil.',get:'oil',got:'You take a can.',after:'The store room. Shelves of lamp oil.',end:'The cellar is to your right.',x:{right:'cellar'}},
+  garden:{n:'The garden',t:'A walled garden gone wild. An old well is to your left. The lighthouse hall is to your right.',x:{left:'well',right:'hall'}},
+  well:{n:'The well',t:'The well. A rope ladder goes down into the dark, and you can hear the sea at the bottom. The garden is to your right.',x:{down:'cave',right:'garden'}},
+  landing:{n:'The landing',t:'Half way up, a landing with a round window. The keeper’s room is to your left. The stair goes on up, and back down.',x:{left:'keeper',up:'lamp',down:'hall'}},
+  keeper:{n:'The keeper’s room',t:'The keeper’s room. A desk, a logbook open at last night, and a brass key on a hook.',get:'key',got:'You take the key.',after:'The keeper’s room. A desk, a logbook, an empty hook.',end:'The landing is to your right.',x:{right:'landing'}},
+  lamp:{n:'The lamp room',t:'The lamp room. The great lamp is dark and its oil is dry. A ladder goes up to the gallery outside. The stair goes down.',win:'oil',x:{up:'gallery',down:'landing'}},
+  gallery:{n:'The gallery',t:'The gallery, high outside. Wind and gulls. Below, the ship has no lights and is drifting toward the rocks. The lamp must be lit. The ladder goes down.',x:{down:'lamp'}}
+ },
+ mount:function(root){
+   var el=document.createElement('div'),self=this;el.className='linkbox';
+   el.innerHTML=camHtml('small')+'<div class="lk" id="jName">Journey</div><p id="jText"></p><div class="jr"><button type="button" class="up" data-d="up"></button><button type="button" data-d="left"></button><canvas id="jDot" width="248" height="248"></canvas><button type="button" data-d="right"></button><button type="button" class="down" data-d="down"></button></div><p id="jInv"></p><p id="jSee"></p><p class="cmsg"></p>';
+   root.appendChild(el);el.addEventListener('pointerup',function(e){if(e.target.closest('button'))e.stopPropagation()});
+   this.el=el;this.at='';this.inv={};this.moves=0;this.walls=0;this.seen={};this.zero=null;this.zbuf=[];this.p=null;this.dir='';this.since=0;this.armed=false;this.mid=0;this.won=false;this.t0=now();this.face=null;
+   Array.prototype.forEach.call(el.querySelectorAll('.jr button'),function(b){b.addEventListener('click',function(){if(!this.disabled)self.go(this.dataset.d,'tap',0)})});
+   eyesOn(this,el,{face:true});
+   ev('journey','start',{own:Signals.cal.head?1:0});
+   if(Signals.cal.head)this.arrive('beach');else{$('jName').textContent='Look straight at the screen';$('jText').textContent='It takes where you are looking now as straight ahead.';sayAloud('Look straight at the screen.')}
+ },
+ exits:function(){var m=this.MAP[this.at];if(this.won)return{up:'beach'};return m.needs&&!this.inv[m.needs]?m.dx:m.x},
+ arrive:function(id){
+   var m=this.MAP[id],say,first=!this.seen[id],x,self=this;this.at=id;this.seen[id]=1;
+   if(m.needs&&!this.inv[m.needs])say=m.dark;
+   else if(m.win&&this.inv[m.win]){this.won=true;var secs=Math.round((now()-this.t0)/1000);say='You fill the great lamp and light it from the lantern. The beam swings out over the sea, and the ship turns away from the rocks. You did it, in '+this.moves+' moves. Look up to play again.';detect('journey done',{moves:this.moves,secs:secs,walls:this.walls})}
+   else if(m.get){if(!this.inv[m.get]){this.inv[m.get]=1;say=m.t+' '+m.got+' '+m.end;detect('took '+m.get,{at:id})}else say=m.after+' '+m.end}
+   else say=m.t;
+   $('jName').textContent=this.won?'The lamp is lit':m.n;$('jText').textContent=say;
+   var have=Object.keys(this.inv);$('jInv').textContent=have.length?'Carrying: '+have.join(', '):'Carrying nothing';
+   x=this.exits();
+   Array.prototype.forEach.call(this.el.querySelectorAll('.jr button'),function(b){var d=b.dataset.d,to=x[d],arrow={left:'←',right:'→',up:'↑',down:'↓'}[d];b.disabled=!to;b.style.background='';b.textContent=arrow+(to?' '+(self.won?'again':self.MAP[to].n.replace(/^The /,'')):'')});
+   this.armed=false;this.mid=0;this.dir='';this.since=0;this.landed=now();
+   ev('journey','place',{at:id,first:first?1:0});sayAloud(say);
+ },
+ go:function(d,how,held){
+   var x=this.exits(),to=x[d],from=this.at,m;
+   this.armed=false;this.mid=0;this.dir='';this.since=0;this.bar(d,0);
+   if(!to){this.walls++;detect('no way',{at:from,dir:d,how:how});$('jText').textContent='No way '+(d==='up'||d==='down'?d:'to the '+d)+' from here.';sayAloud('No way '+(d==='up'||d==='down'?d:'to the '+d)+' from here.');this.landed=now();return}
+   if(this.won){this.inv={};this.moves=0;this.walls=0;this.seen={};this.won=false;this.t0=now();detect('again',{how:how});this.arrive('beach');return}
+   m=this.MAP[to];
+   if(m.key&&!this.inv[m.key]){this.walls++;detect('locked',{at:from,dir:d,how:how});$('jText').textContent=m.locked;sayAloud(m.locked);this.landed=now();return}
+   this.moves++;detect('went '+d,{from:from,to:to,how:how,held:Math.round(held)});this.arrive(to);
+ },
+ bar:function(d,f){var b=this.el.querySelector('.jr button[data-d='+d+']');if(b)b.style.background=f>0?'linear-gradient(90deg,#1f4a6e '+Math.round(f*100)+'%,transparent '+Math.round(f*100)+'%)':''},
+ tick:function(){
+   var f=eyesTick(this),t=now();if(!f)return;
+   var has=!!f.head;if(has!==this.face){this.face=has;ev('journey',has?'face found':'face lost',{});$('jSee').textContent=has?'':'I cannot see your face.';if(!has){if(this.dir)this.bar(this.dir,0);this.dir='';this.since=0;this.p=null}}
+   if(!has)return;
+   var n=f.head.n,k=Signals.cal.head,z;
+   if(!k){
+     if(!this.zero){this.zbuf.push(n);if(this.zbuf.length<12)return;this.zero={turn:Signals.pct(this.zbuf.map(function(a){return a.turn}),0.5),nod:Signals.pct(this.zbuf.map(function(a){return a.nod}),0.5)};ev('journey','straight ahead',{turn:+this.zero.turn.toFixed(1),nod:+this.zero.nod.toFixed(1)});this.arrive('beach');return}
+     k=this.STD;z=this.zero;n={turn:n.turn-z.turn,nod:n.nod-z.nod};
+   }
+   var rr=n.turn/k.right,rl=n.turn/k.left,ru=n.nod/k.up,rd=n.nod/k.down;
+   this.p={x:Math.max(-1.25,Math.min(1.25,rr>0?rr:-rl)),y:Math.max(-1.25,Math.min(1.25,rd>0?rd:-ru))};
+   var d=Signals.look(n,k);
+   if(!this.at)return;
+   if(!this.armed){            /* a new choice needs the head back in the middle first, so one long look is one move */
+     if(d===''&&t-this.landed>500){if(!this.mid)this.mid=t;if(t-this.mid>=150)this.armed=true}else this.mid=0;
+     return;
+   }
+   if(d!==this.dir){if(this.dir)this.bar(this.dir,0);this.dir=d;this.since=t}
+   if(!d)return;
+   var held=t-this.since;this.bar(d,Math.min(1,held/this.HOLD));
+   if(held>=this.HOLD)this.go(d,'look',held);
+ },
+ draw:function(){
+   eyesDraw(this);var c=$('jDot');if(!c)return;var g=c.getContext('2d'),w=c.width,cx=w/2,R=w*0.38;g.clearRect(0,0,w,w);
+   g.lineWidth=3;g.strokeStyle='#2a3b4d';g.beginPath();g.arc(cx,cx,R,0,6.3);g.stroke();
+   g.strokeStyle=this.armed?'#3d83b8':'#2a3b4d';g.beginPath();g.arc(cx,cx,R*0.5,0,6.3);g.stroke();
+   if(!this.p)return;
+   var x=cx+this.p.x*R,y=cx+this.p.y*R;
+   if(this.dir&&this.since){g.strokeStyle='#7fd18b';g.lineWidth=6;g.beginPath();g.arc(x,y,20,-1.57,-1.57+6.283*Math.min(1,(now()-this.since)/this.HOLD));g.stroke()}
+   g.fillStyle=this.dir?'#7fd18b':'#e6edf3';g.beginPath();g.arc(x,y,11,0,6.3);g.fill();
+   c.dataset.state=JSON.stringify({at:this.at,dir:this.dir,armed:this.armed,won:this.won,moves:this.moves,inv:Object.keys(this.inv),x:+this.p.x.toFixed(2),y:+this.p.y.toFixed(2)});
+ },
+ unmount:function(){hush();Signals.eyes.stop()}
 },
 {id:'see',name:'What the watch sees',needsRaw:true,g:[],
  blurb:'Live tilt, roll, turn and movement from the watch. No gestures: just look.',

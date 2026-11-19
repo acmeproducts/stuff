@@ -21,6 +21,10 @@ check('fist: every finger reads folded', ['curlI', 'curlM', 'curlR', 'curlP'].ev
 n = N({ curl: [1, 0, 1, 1, 1] });
 check('pointing: index straight, the rest folded', n.curlI < 0.1 && n.curlM > 0.9 && n.curlP > 0.9, n);
 check('pinch: thumb to index goes from far to touching', N({}).pinchI > 0.6 && N({ pinch: 1 }).pinchI < 0.05, [N({}).pinchI, N({ pinch: 1 }).pinchI]);
+const sz = o => N(o).size;
+check('how big the hand looks does not change when it is rolled, turned or tipped, only when it moves nearer', near(sz({ size: 0.2 }), 0.2, 0.004) && near(sz({ size: 0.2, roll: 90 }), 0.2, 0.004) && near(sz({ size: 0.2, yaw: 50 }), 0.2, 0.004) && near(sz({ size: 0.2, pitch: 40 }), 0.2, 0.004) && near(sz({ size: 0.26 }), 0.26, 0.005), [sz({ size: 0.2 }), sz({ size: 0.2, roll: 90 }), sz({ size: 0.2, yaw: 50 }), sz({ size: 0.2, pitch: 40 })]);
+{ const h = Synth.hand({ size: 0.2, roll: 90 }); h.lm.forEach(p => { p.x = 0.5 + (p.x - 0.5) / 0.75; });      // a tall phone picture: three wide, four high
+  check('nor in a tall picture, where across and down are measured on different scales', near(S.handNumbers(h.lm, h.wl, 0.75).size, 0.2, 0.004), S.handNumbers(h.lm, h.wl, 0.75).size); }
 const a = N({ x: 0.3, y: 0.4, size: 0.15 }), b = N({ x: 0.7, y: 0.6, size: 0.25 });
 check('moving the hand around the picture leaves its shape numbers alone', ['curlI', 'pinchI', 'palmZ', 'rollC'].every(k => near(a[k], b[k], 0.02)) && near(b.x - a.x, 0.4, 0.03) && b.size > a.size, [a.curlI, b.curlI]);
 check('rolling the hand a quarter turn shows in the roll numbers only', near(Math.abs(N({ roll: 90 }).rollS), 1, 0.05) && near(N({ roll: 90 }).curlI, 0, 0.1), N({ roll: 90 }).rollS);
@@ -140,12 +144,12 @@ const many = (k, fn) => Array.from({ length: k }, (_, i) => fn(i));
 const weak = { open: many(20, () => N({})), closed: many(20, () => N({ pinch: 0.6 })), near: many(20, () => N({ pinch: 0.6, size: 0.3 })), far: many(20, () => N({ pinch: 0.6, size: 0.15 })) };
 const weakPinch = N({ pinch: 0.6 });
 check('before calibration a weak pinch (thumb and finger not quite touching) does not count', S.pinching('Right', weakPinch, false) === false && S.pinching('Right', N({ pinch: 1 }), false) === true, weakPinch.pinchI);
-check('before calibration depth has the standard strength', S.reachGain('Right', 3.4) === 3);
+check('before calibration depth runs over a standard reach: a hand twice as big is the whole way in', near(S.handDepth('Right', 0.15), 0, 0.01) && near(S.handDepth('Right', 0.30), 1, 0.01) && near(S.handDepth('Right', 0.2121), 0.5, 0.01));
 let ch = S.calHand(weak);
 check('hand calibration learns this person\'s open, closed and reach', near(ch.closed, weakPinch.pinchI, 0.02) && ch.open > 1 && near(ch.near / ch.far, 2, 0.1), ch);
 S.setCal('handRight', ch);
 check('after it, their weak pinch counts, and an open hand does not', S.pinching('Right', weakPinch, false) === true && S.pinching('Right', N({}), true) === false);
-check('and their whole reach carries an object across the whole table', near(S.reachGain('Right', 3.4), 3.4 / Math.log(2), 0.3) && S.reachGain('Left', 3.4) === 3, S.reachGain('Right', 3.4));
+check('and depth runs over their own reach, from pulled back to pushed forward', near(S.handDepth('Right', ch.far), 0, 0.01) && near(S.handDepth('Right', ch.near), 1, 0.01), [ch.far, ch.near]);
 check('the other hand is not touched by it', S.pinching('Left', weakPinch, false) === false);
 check('open and pinched reading alike is refused in plain words', /too alike/.test(S.calHand({ open: weak.open, closed: weak.open }).error || ''), S.calHand({ open: weak.open, closed: weak.open }).error);
 check('losing sight of the hand is refused', /lost sight/.test(S.calHand({ open: weak.open.slice(0, 3), closed: weak.closed }).error || ''));

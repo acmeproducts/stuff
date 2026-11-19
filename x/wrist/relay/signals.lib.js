@@ -26,7 +26,7 @@
 
   /* ---------- a hand, as numbers that do not change when the hand moves around the picture ---------- */
   var FINGERS = { T: [1, 2, 3, 4], I: [5, 6, 7, 8], M: [9, 10, 11, 12], R: [13, 14, 15, 16], P: [17, 18, 19, 20] };
-  S.handNumbers = function (lm, wl) {
+  S.handNumbers = function (lm, wl, aspect) {
     var P = (wl && wl.length === 21) ? wl : lm, palm = dist(P[0], P[9]) || 1e-6, n = {}, k, f;
     for (k in FINGERS) {            // how curled each finger is: 0 straight, 1 folded
       f = FINGERS[k];
@@ -42,7 +42,16 @@
     var up = sub(lm[9], lm[0]), a = Math.atan2(up.x, -up.y);     // how the hand is rolled in the picture (kept as two numbers so it never jumps)
     n.rollS = Math.sin(a); n.rollC = Math.cos(a);
     n.x = (lm[0].x + lm[9].x) / 2; n.y = (lm[0].y + lm[9].y) / 2;   // where it is in the picture, and how big it looks (nearer is bigger)
-    n.size = Math.sqrt((lm[9].x - lm[0].x) * (lm[9].x - lm[0].x) + (lm[9].y - lm[0].y) * (lm[9].y - lm[0].y));
+    /* How big the hand looks: how long a 9 cm palm would be in the picture, as a fraction of the picture's height. Measured against
+       the hand's own shape, so turning or rolling the hand does not change it; only moving it nearer or further does. */
+    var asp = aspect || 1, edges = [[0, 5], [0, 17], [5, 17], [0, 9]], r = [], i;
+    if (wl && wl.length === 21) for (i = 0; i < edges.length; i++) {
+      var A = edges[i][0], B = edges[i][1], flat = Math.sqrt((wl[A].x - wl[B].x) * (wl[A].x - wl[B].x) + (wl[A].y - wl[B].y) * (wl[A].y - wl[B].y));
+      if (flat > 0.02) r.push(Math.sqrt((lm[A].x - lm[B].x) * asp * (lm[A].x - lm[B].x) * asp + (lm[A].y - lm[B].y) * (lm[A].y - lm[B].y)) / flat);
+    }
+    r.sort(function (p, q) { return p - q; });
+    n.size = r.length ? 0.09 * (r.length % 2 ? r[(r.length - 1) / 2] : (r[r.length / 2 - 1] + r[r.length / 2]) / 2)
+                      : Math.sqrt((lm[9].x - lm[0].x) * asp * (lm[9].x - lm[0].x) * asp + (lm[9].y - lm[0].y) * (lm[9].y - lm[0].y));
     return n;
   };
   /* the hand's own three directions, for turning an object the way the hand turns */
@@ -189,8 +198,8 @@
     if (k) { lo = k.closed + 0.35 * (k.open - k.closed); hi = k.closed + 0.6 * (k.open - k.closed); }
     return n.pinchI < lo ? true : n.pinchI > hi ? false : !!was;
   };
-  /* how far an object moves in depth for the hand looking e times bigger: their whole comfortable reach crosses the whole table */
-  S.reachGain = function (side, span) { var k = S.cal['hand' + side]; return k && k.near ? clamp(span / Math.log(k.near / k.far), 1.5, 8) : 3; };
+  /* where a hand is between pulled back (0) and pushed toward the screen (1), by how big it looks, over their own reach */
+  S.handDepth = function (side, size) { var k = S.cal['hand' + side], far = 0.15, near = 0.30; if (k && k.near) { far = k.far; near = k.near; } return clamp(Math.log(size / far) / Math.log(near / far), -0.15, 1.15); };
 
   /* head: steps = {rest, left, right, up, down}, each a list of raw head numbers */
   S.calHead = function (steps) {
@@ -206,8 +215,8 @@
     return out;
   };
   /* which way is the head looking, by their own range: half way to their comfortable limit counts */
-  S.look = function (n) {
-    var k = S.cal.head; if (!k || !n || n.turn == null) return '';
+  S.look = function (n, range) {
+    var k = range || S.cal.head; if (!k || !n || n.turn == null) return '';
     var t = n.turn / k.left, u = n.nod / k.up, best = '', top = 0.5;       // n is already measured from their rest
     if (t > top) { best = 'left'; top = t; } if (n.turn / k.right > top) { best = 'right'; top = n.turn / k.right; }
     if (u > top) { best = 'up'; top = u; } if (n.nod / k.down > top) { best = 'down'; top = n.nod / k.down; }
@@ -392,9 +401,11 @@
      {t, hands:[{side, src, lm, wl, n}], head:{n} or null, ms} */
   E.poll = function () {
     var t = performance.now(), hr = null, fr = null, got = false;
+    E.aspect = 1;
     if (window.__labTestEyes && E.on) { var x = window.__labTestEyes(t); if (x) { hr = E.want.hands ? x.hands || null : null; fr = E.want.face ? x.face || null : null; got = true; } }   // lab check only: made-up points in place of the camera
     else if (E.on && E.video && E.video.readyState >= 2 && E.video.currentTime !== E._vt && (E.hand || E.face)) {
       E._vt = E.video.currentTime;
+      if (E.video.videoWidth && E.video.videoHeight) E.aspect = E.video.videoWidth / E.video.videoHeight;
       try { if (E.hand && E.want.hands) hr = E.hand.detectForVideo(E.video, t); if (E.face && E.want.face) fr = E.face.detectForVideo(E.video, t); got = true; }
       catch (e) { E.err = 'The finder stopped: ' + String(e && e.message || e).slice(0, 120); E.hand = E.face = null; return null; }
       var took = performance.now() - t; E.ms = E.ms ? E.ms * 0.9 + took * 0.1 : took;
@@ -403,7 +414,7 @@
     var frame = { t: t, hands: [], head: null, ms: E.ms };
     if (hr && hr.landmarks) for (var i = 0; i < hr.landmarks.length; i++) {
       var side = hr.handedness && hr.handedness[i] && hr.handedness[i][0] ? hr.handedness[i][0].categoryName : 'Right';
-      var wl = hr.worldLandmarks && hr.worldLandmarks[i], h = { side: side, src: side === 'Left' ? 'handL' : 'handR', lm: hr.landmarks[i], wl: wl, n: S.handNumbers(hr.landmarks[i], wl) };
+      var wl = hr.worldLandmarks && hr.worldLandmarks[i], h = { side: side, src: side === 'Left' ? 'handL' : 'handR', lm: hr.landmarks[i], wl: wl, n: S.handNumbers(hr.landmarks[i], wl, E.aspect) };
       frame.hands.push(h); S.feed(h.src, t, h.n);
     }
     if (fr && ((fr.facialTransformationMatrixes && fr.facialTransformationMatrixes.length) || (fr.faceBlendshapes && fr.faceBlendshapes.length))) {

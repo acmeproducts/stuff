@@ -52,15 +52,15 @@ Status words: **met** (proved on the owner's device, evidence named) · **part**
 | R42 | a 3D object handled by one hand or both | D28 | L3 | object checks (made-up hands); the owner's run | lab |
 | R43 | not made useful by choosing things to fetch | P9, G28 | every release | review at each commit | holds so far |
 | R44 | hand toward the screen, object away | D31 | L4 | object depth check; the owner's run | lab |
-| R45 | hand to hand | D28 | L6 | L6 gate | open |
-| R46 | hands in the scene | — | L6 | L6 gate | open |
-| R47 | several objects and goals | — | L6 | L6 gate | open |
-| R48 | putty | — | L6 | L6 gate | open |
+| R45 | hand to hand | D28, D47 | L6 | signals-page-test "hand to hand" | lab only |
+| R46 | hands in the scene | D47, D48 | L6 | signals-page-test "hands:" | lab only |
+| R47 | several objects and goals | D49 | L6 | signals-page-test "goal 1" to "goal 6" | lab only |
+| R48 | putty | D50 | L6 | signals-page-test "putty:" | lab only |
 | R49 | tabs | D37 | L5 | tab checks; the owner's run | lab (voice tab with S6) |
 | R50 | camera tab needs only a camera | D37, D33, D41 | L5 | "asks for no code" checks; the owner's run on a device with no code | lab |
 | R51 | no wait for the stream on each card | D34 | L4 | stream checks; the owner's run | lab |
 | R52 | voice: turns, interruptions, hot and cold word | D38 | S6 | S6 gate | open |
-| R53 | journey by head | — | L7 | L7 gate | open |
+| R53 | journey by head | D51 | L7 | signals-page-test "journey:" | lab only |
 | R54 | blink left, right, both | D36, D40 | V7 | blink checks; the owner's run | lab |
 | R55 | calibration, interpretation, learning | D32, D36, D39 | L4, V7 | calibration checks; the owner's run | lab |
 | R56 | both watch settings; the Lab says so | D35 | L4 | quiet-watch checks; the owner's watch | lab; the settings themselves proven on his watch for 3 minutes |

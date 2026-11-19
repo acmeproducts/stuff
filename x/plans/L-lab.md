@@ -144,11 +144,38 @@ Owner: "an overall dashboard and combine/learn tab, then a camera tab, a watch t
 
 **Gate:** on a device that has never had the watch code, the owner opens the Camera tab and runs Hand numbers with nothing else connected; in the Watch tab he moves between cards with no wait.
 
-### L6 — Hands and things (walk) · after L5
-Hands in the scene as joints, bones and a palm; hand to hand; several objects with goals (cup on the ring, pass it, stack blocks, ball in the bowl, park the car); putty that stretches, squashes, flattens and reforms. No physics engine.
+### L6 — Hands and things (walk) · built 2026-11-19 in `lab-r11`, lab only
+Hands in the scene as joints, bones and a palm; hand to hand; several objects with goals; putty that stretches, squashes, flattens and reforms. No physics engine. It replaces the card "Object in your hands" (same card id, so its ratings and records carry over).
 
-### L7 — Journey (walk) · after L6
-A spoken choose-your-path story of about 15 places. Look left or right to turn, up or down for ladders; hold the look about a second. Hand-written, no AI.
+**What was built**
+| Part | How it works |
+|---|---|
+| Your hands | Each hand the camera finds is drawn from its 21 points: joints, bones, a palm. Where it is in the picture puts it left, right, up or down; how big it looks, over your own reach, puts it near or far (toward the screen is deeper); its shape is the finder's own. (D47) |
+| Depth that holds still | The size of the hand is measured across the palm against its true size, so turning, rolling or tipping the hand does not move it in depth. (D48) |
+| Taking and letting go | Thumb and finger closed on a thing takes it; opened, it is set down upright where it is. A pinch that reads open for under 0.2 s is still a pinch. A signal given "take" or "let go" does the same. |
+| Hand to hand | The other hand closing on a held thing makes it two-handed; the first hand opening leaves it in the second. |
+| Six goals | 1 cup on the ring, handle to the right. 2 ball passed to the other hand and set on the mat. 3 ball in the bowl. 4 three blocks stacked. 5 car parked in the bay, nose to the right. 6 putty. Each is said aloud; the next follows by itself. (D49) |
+| Putty | Pulled with both hands it grows as far as the hands part, and thins. An open hand pressed down on it flattens it onto the table. A fist closed on it rolls it back into a ball. (D50) |
+| Signals | Turn, tip, bigger, smaller, next object and put it back act on whatever is held or was last touched. "Next goal" and "Start this one again" can also be tapped. |
+
+**Proven in the lab (fact):** with a made-up hand, all six goals are finished with no touch; a hand turned or rolled does not move in depth; a weak pinch takes nothing before calibration and takes after it. 120/120 with the rest of the new cards.
+**Not proven (unverified):** that a real hand can do any of it. The made-up hand has no tremor, never leaves the picture by accident and is found every frame. The first real run decides the reach distances and whether stacking is too fiddly.
+
+### L7 — Journey (walk) · built 2026-11-19 in `lab-r11`, lab only
+A spoken choose-your-path story of 15 places. Look left or right to turn, up or down for ladders; hold the look about a second. Hand-written, no AI. (D51)
+
+**What was built**
+| Part | How it works |
+|---|---|
+| The story | A dark lighthouse and a ship coming in. Fifteen places, three things to find (a lantern, a key, a can of oil), one ending. The shortest way is 15 moves. |
+| A look | Past half of your own range counts (from Calibrate). With no calibration it takes the first second as straight ahead and uses a standard range. |
+| A choice | The look held 0.9 s. The bar on that arrow fills while you hold. The head must come back to the middle before the next choice, so one long look is one move. |
+| What you see | The place, read on the screen and aloud; four arrows naming where each way leads; a dot in a ring showing where it thinks you are looking; what you carry. |
+| Dead ends | A way that is not there, a dark cellar and a locked door each say so, aloud. |
+| Tap | The arrows can be tapped. |
+
+**Proven in the lab (fact):** with a made-up head the story is played to its end by looks alone; a glance and a half look do nothing; losing the face mid-look moves nothing.
+**Not proven (unverified):** real head movement. The owner's own range (left 27°, right 31°, up 16°, down 15°) says half is 8° to 15°, which a nod while listening may reach.
 
 ## 6. Risks
 | Risk | Held by |
