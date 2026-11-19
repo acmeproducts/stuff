@@ -192,6 +192,26 @@ body.cl-empty-room .half{visibility:hidden}.kb.open,.kbin{max-height:calc(50dvh 
 .cl-bt-sec{margin:8px 0}.cl-bt-lbl{font-size:11px;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:.05em;margin-bottom:3px}
 .cl-bt-verdict{display:inline-block;border-radius:999px;padding:3px 10px;font-weight:700;font-size:12px}
 .cl-bt-verdict.match{background:#dcfce7;color:#166534}.cl-bt-verdict.partial{background:#fef9c3;color:#854d0e}.cl-bt-verdict.miss{background:#fee2e2;color:#991b1b}.cl-bt-verdict.wait{background:#e2e8f0;color:#334155}
+/* side by side (SBS): one transcript and one composer. The composer is the South or the North strip and keyboard, one at a time, so the other language is one tap away. */
+body.sbs .half.south{order:1}
+body.sbs .half.north{order:2;transform:none;flex:0 0 auto}
+body.sbs .half.north .tx{display:none}
+body.sbs:not(.sbs-n) .half.north{display:none}
+body.sbs.sbs-n .half.south .cmp{display:none}
+.cmp{display:contents}
+/* SBS look: the transcript and the composer are two separate rounded cards; the composer card keeps the same height for every language so the compose line never jumps */
+body.sbs .half .shell{background:transparent;border:0;box-shadow:none;overflow:visible;gap:6px}
+body.sbs .half .tx{background:#fff;border:2px solid rgba(59,130,246,.45);border-radius:18px;box-shadow:0 2px 10px rgba(15,23,42,.10)}
+body.sbs .cmp{display:flex;flex-direction:column;background:#fff;border-radius:18px;overflow:hidden;box-shadow:0 2px 10px rgba(15,23,42,.10)}
+body.sbs .half.south .cmp{border:2px solid rgba(59,130,246,.45)}body.sbs .half.north .cmp{border:2px solid rgba(16,185,129,.45)}
+body.sbs .kb.open{height:min(55vh,372px)}body.sbs .kb .kbin{height:100%;max-height:none}
+/* the keys share whatever room the composer has, so a hidden suggestion row makes them taller instead of leaving a blank band */
+body.sbs .kb .kkeys{flex:1 1 auto;display:flex;flex-direction:column;min-height:0}
+body.sbs .kb .krow{flex:1 1 0;min-height:44px}
+body.sbs .kb .key{height:auto}
+.klang{position:relative}.ktoggle{position:absolute;left:50%;top:0;transform:translateX(-50%);width:min(320px,62%);min-height:42px;padding:6px 12px;border-radius:999px;border:1px solid rgba(59,130,246,.55);background:#fff;color:#1d4ed8;font-weight:700;font-size:16px;z-index:2}.ktoggle:active{background:#dbeafe}
+body.sbs .klang{min-height:46px}
+#cl-rail .cl-layout{flex:0 0 auto;min-width:52px;min-height:38px;border-radius:10px;font-weight:700;font-size:12px}
 .cl-jump.show{display:flex}
 .bsaid{font-size:11px;color:#64748b;margin-top:4px;font-style:italic}
 .cl-live-bub{opacity:.7;border:1px dashed rgba(16,185,129,.6)}.bub.s.cl-live-bub{border-color:rgba(59,130,246,.6)}
@@ -203,8 +223,10 @@ body.cl-empty-room .half{visibility:hidden}.kb.open,.kbin{max-height:calc(50dvh 
 <div class="half north">
   <div class="shell" style="position:relative">
     <div class="tx" id="tx-north"></div>
+    <div class="cmp" id="cmp-north">
     <div class="strip" id="strip-north"></div>
     <div class="kb" id="kb-north"><div class="kbin"><div class="klang"></div><div class="kcands"></div><div class="kkeys"><svg class="swype-trail" id="trail-north"></svg></div></div></div>
+    </div>
     <div class="ask" id="ask-north"><div class="askcard">
       <div class="ask-msg"></div><div class="askbtns"><button type="button" class="ask-no"></button><button type="button" class="ask-ok"></button></div>
     </div></div>
@@ -214,8 +236,10 @@ body.cl-empty-room .half{visibility:hidden}.kb.open,.kbin{max-height:calc(50dvh 
 <div class="half south">
   <div class="shell" style="position:relative">
     <div class="tx" id="tx-south"></div>
+    <div class="cmp" id="cmp-south">
     <div class="strip" id="strip-south"></div>
     <div class="kb" id="kb-south"><div class="kbin"><div class="klang"></div><div class="kcands"></div><div class="kkeys"><svg class="swype-trail" id="trail-south"></svg></div></div></div>
+    </div>
     <div class="ask" id="ask-south"><div class="askcard">
       <div class="ask-msg"></div><div class="askbtns"><button type="button" class="ask-no"></button><button type="button" class="ask-ok"></button></div>
     </div></div>
@@ -1436,6 +1460,7 @@ function dgLangParam(room) {
     /* The only entry point any UI control may call. */
     function requestInput(side,mode){
         if(INPUT.owner===side&&INPUT.mode===mode){teardown('self-toggle-off');return}
+        if(isSbs()){sbsSide=side;syncLayout();acquire(side,mode,'sbs');return}      // one person at one screen: nobody to ask
         if(INPUT.owner===null){acquire(side,mode,'free');return}
         if(INPUT.owner===side){acquire(side,mode,'switch-mode');return}
         askFor(side,mode);
@@ -1464,6 +1489,14 @@ function dgLangParam(room) {
     function readRoomFromUrl(){return {id:'',label:'Chatlink',southLang:'en',northLang:'th'}}
     function langOf(side){if(!ROOM)return'en';return side==='south'?ROOM.southLang:ROOM.northLang}
     function otherSide(s){return s==='south'?'north':'south'}
+    /* side by side: which side's strip and keyboard is the composer. Follows the side that spoke or typed last, unless the keyboard or mic is in use. */
+    var sbsSide='south';
+    function isSbs(){return !!(ROOM&&ROOM.layout==='sbs')}
+    function syncLayout(){
+        var on=isSbs();
+        if(on&&!INPUT.owner)sbsSide=HIST&&HIST.length?(HIST[HIST.length-1].side||'south'):'south';
+        document.body.classList.toggle('sbs',on);document.body.classList.toggle('sbs-n',on&&sbsSide==='north');
+    }
     function sideAsRoom(side){
         return{myLang:langOf(side),theirLang:langOf(otherSide(side)),myLangMode:'fixed'};
     }
@@ -1590,7 +1623,7 @@ function dgLangParam(room) {
     function sendFrom(side,textOverride,keepMic){return portal.submit(side,textOverride,keepMic)}
 
     function speakIfOn(fromSide,text,lang){
-        var listenerWants=(fromSide==='south')?sessionTts.north:sessionTts.south;
+        var listenerWants=isSbs()?(sessionTts.south||sessionTts.north):((fromSide==='south')?sessionTts.north:sessionTts.south);
         if(listenerWants&&text)speakText(text,lang);
     }
 
@@ -1608,6 +1641,7 @@ function dgLangParam(room) {
     var SEND_SVG='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>';
 
     function renderAll(){
+        syncLayout();
         ['south','north'].forEach(function(panel){renderPanel(panel)});
     }
     function renderPanel(panel){
@@ -1920,6 +1954,7 @@ function dgLangParam(room) {
         zhPrev[side]='';resetComposition(side);
         var ta=inputEl(side);ta.value='';ta.setSelectionRange(0,0);
         changedDraft(side);updateClear(side);
+        if(INPUT.owner===side&&INPUT.mode==='kb')updateAutocomplete(side);      // the word suggestions come back on an empty box
     }
     function offerCandidates(side,words,kind,start,end){
         invalidateCandidates(side);
@@ -1995,6 +2030,10 @@ function dgLangParam(room) {
         el.querySelector('.kkeys').innerHTML=html+'<svg class="swype-trail" id="trail-'+side+'"></svg><div class="kpop" id="kpop-'+side+'"></div>';
         el.querySelector('.klang').textContent=(LANG_NAMES[langOf(side)]||langOf(side))+
             (langOf(side)==='ja'?' · romaji→kana':(langOf(side)==='ko'?' · 두벌식':(langOf(side)==='zh'&&pyMap?' · pinyin':'')));
+        if(isSbs()){var tg=document.createElement('button');tg.type='button';tg.className='ktoggle';tg.setAttribute('aria-label','Switch typing language');
+            tg.textContent=langOf(side).toUpperCase()+' \u21c4 '+langOf(otherSide(side)).toUpperCase();
+            tg.addEventListener('click',function(){var to=otherSide(side);sbsSide=to;syncLayout();acquire(to,'kb','sbs-switch')});
+            el.querySelector('.klang').appendChild(tg)}
         wireKeyboard(side);
         paintCands(side);
     }
@@ -2718,6 +2757,7 @@ function dgLangParam(room) {
         strip.querySelectorAll('.tts').forEach(function(btn){
             btn.addEventListener('click',function(){
                 sessionTts[side]=!sessionTts[side];
+                if(isSbs()){sessionTts[otherSide(side)]=sessionTts[side];paintTts(otherSide(side))}
                 remoteLog('tts_toggle',{side:side,on:sessionTts[side]});
                 paintTts(side);
             });
@@ -2859,9 +2899,10 @@ var portal=(function(){
  // Read/modify/write within one transaction preserves a pending result and a draft save.
  function change(store,key,fn){requireWriter();return new Promise(function(resolve,reject){var result,t=db.transaction(store,'readwrite'),s=t.objectStore(store),q=s.get(key);q.onsuccess=function(){try{result=fn(q.result);if(result===null)s.delete(key);else if(result!==undefined)s.put(result)}catch(e){reject(e);t.abort()}};t.oncomplete=function(){resolve(result)};t.onabort=function(){reject(t.error||new Error('Storage transaction was interrupted'))};t.onerror=function(){};});}
  function state(key,value){return change('state',key,function(){return {key:key,value:value}})}
- function defaults(){return {southLang:'en',northLang:'th',southBg:'#eff6ff',northBg:'#f0fdf4',fontColor:'#0f172a',fontSize:15}}
+ function defaults(){return {layout:'h2h',southLang:'en',northLang:'th',southBg:'#eff6ff',northBg:'#f0fdf4',fontColor:'#0f172a',fontSize:15}}
  function title(r){return r.label||(LANG_NAMES[r.southLang]||r.southLang)+' ↔ '+(LANG_NAMES[r.northLang]||r.northLang)}
  function pair(r){return 'South: '+(LANG_NAMES[r.southLang]||r.southLang)+' · North: '+(LANG_NAMES[r.northLang]||r.northLang)}
+ async function toggleLayout(r){teardown('layout');var next=r.layout==='sbs'?'h2h':'sbs';await change('rooms',r.id,function(old){if(!old||old.trashedAt)return;old.layout=next;old.updatedAt=Date.now();old.revision++;return old});await refresh(r.id)}
  function fresh(fields){return Object.assign(defaults(),fields,{id:crypto.randomUUID(),createdAt:Date.now(),updatedAt:Date.now(),messages:[],drafts:{},scroll:{},revision:1})}
  function setActive(r){active=r;ROOM=r||Object.assign(defaults(),{id:'',label:'Chatlink'});HIST=r?r.messages:[];window.ROOM=ROOM;document.body.classList.toggle('cl-empty-room',!r);$('cl-welcome').hidden=!!r;$('cl-room-title').textContent=r?title(r):'Chatlink';$('cl-room-pair').textContent=r?pair(r):'Device owner · South';applyRoomStyle();sessionTts={south:false,north:false};['south','north'].forEach(function(s){paintTts(s);resetComposition(s);shifted[s]=false;numMode[s]=false;var d=r&&r.drafts&&r.drafts[s];var i=inputEl(s);i.value=d?d.text:'';var a=Math.min(d?d.start:0,i.value.length),b=Math.min(d?d.end:0,i.value.length);i.setSelectionRange(a,b);updateClear(s);});pages={south:100,north:100};renderAll();if(r){['south','north'].forEach(function(s){if(r.scroll&&r.scroll[s]!=null)$('tx-'+s).scrollTop=r.scroll[s]});loadAssets(r);}freeze();}
  function freeze(){document.querySelectorAll('.half').forEach(function(e){e.inert=opened||!active||!writer});$('cl-rail').inert=!opened;$('cl-rail').setAttribute('aria-hidden',String(!opened));}
@@ -2872,10 +2913,10 @@ var portal=(function(){
  async function open(){if(busy)return;opened=true;document.body.classList.add('cl-open');$('cl-menu').setAttribute('aria-expanded','true');teardown('owner portal');freeze();clearError();await action(flush);await list();$('cl-close').focus();}
  function close(){if(busy)return;opened=false;document.body.classList.remove('cl-open');$('cl-menu').setAttribute('aria-expanded','false');freeze();$('cl-menu').focus();}
  async function select(id,historyMode){requireWriter();if(busy)return;busy=true;try{await flush();teardown('room switch');var r=id?await read('rooms',id):null;if(id&&(!r||r.trashedAt))throw new Error('This conversation is not available. Select another conversation.');await state('activeRoomId',id||null);generation++;setActive(r);if(historyMode!=='none'){var u=new URL(location.href);u.search='';if(id)u.searchParams.set('room',id);history[historyMode==='replace'?'replaceState':'pushState']({},'',u);}clearError();}finally{busy=false;}close();}
- async function refresh(id){var r=await read('rooms',id);if(r&&active&&active.id===id&&!r.trashedAt){active=r;ROOM=r;HIST=r.messages;renderAll();}if(opened&&view==='list')await list();}
+ async function refresh(id){var r=await read('rooms',id);if(r&&active&&active.id===id&&!r.trashedAt){active=r;ROOM=r;window.ROOM=r;HIST=r.messages;renderAll();}if(opened&&view==='list')await list();}
  async function list(trash){view=trash?'trash':'list';$('cl-heading').textContent=trash?'Trash':'Conversations';$('cl-body').replaceChildren();rooms=await read('rooms');var visible=rooms.filter(function(r){return !!r.trashedAt===!!trash}).sort(function(a,b){return (b.updatedAt||b.createdAt)-(a.updatedAt||a.createdAt)});var host=$('cl-body');if(!writer)host.appendChild(node('p','This page is read-only while another Chatlink tab is open. Close the other tab and reload.','cl-banner'));
   if(!visible.length){var empty=node('div',null,'cl-empty');empty.append(node('h2',trash?'Nothing in Trash':'A place for every conversation'),node('p',trash?'Removed conversations can be restored here.':'Tap + to start. Choose a language for each side.'));host.appendChild(empty);}
-  visible.forEach(function(r){var row=node('div',null,'cl-room'+(active&&r.id===active.id?' active':''));var go=button('',function(){return trash?restore(r):select(r.id)},'cl-room-open');go.dataset.roomId=r.id;go.disabled=!writer;go.append(node('span',title(r),'cl-room-name'),node('span',pair(r)+'\n'+(r.messages||[]).length+' messages','cl-room-sub'));if(active&&r.id===active.id)go.setAttribute('aria-current','true');row.appendChild(go);var edit=button(trash?'Restore':'⋯',function(){return trash?restore(r):editRoom(r)},'cl-icon');edit.setAttribute('aria-label',(trash?'Restore ':'Edit ')+title(r));edit.disabled=!writer;row.appendChild(edit);if(trash){var purge=button('Delete',function(){return purgeRoom(r)},'cl-danger');purge.disabled=!writer;row.appendChild(purge)}host.appendChild(row);});
+  visible.forEach(function(r){var row=node('div',null,'cl-room'+(active&&r.id===active.id?' active':''));var go=button('',function(){return trash?restore(r):select(r.id)},'cl-room-open');go.dataset.roomId=r.id;go.disabled=!writer;go.append(node('span',title(r),'cl-room-name'),node('span',pair(r)+'\n'+(r.messages||[]).length+' messages','cl-room-sub'));if(active&&r.id===active.id)go.setAttribute('aria-current','true');row.appendChild(go);var edit=button(trash?'Restore':'⋯',function(){return trash?restore(r):editRoom(r)},'cl-icon');edit.setAttribute('aria-label',(trash?'Restore ':'Edit ')+title(r));edit.disabled=!writer;if(!trash){var lay=button(r.layout==='sbs'?'SBS':'H2H',function(){return toggleLayout(r)},'cl-layout');lay.setAttribute('aria-label','Layout: '+(r.layout==='sbs'?'side by side':'head to head')+'. Tap to change.');lay.disabled=!writer;row.appendChild(lay)}row.appendChild(edit);if(trash){var purge=button('Delete',function(){return purgeRoom(r)},'cl-danger');purge.disabled=!writer;row.appendChild(purge)}host.appendChild(row);});
   if(trash)host.appendChild(button('Back to conversations',function(){return list()}));
  }
  /* r16: API keys are masked text fields, not password fields, so the browser never offers to save them as passwords. */

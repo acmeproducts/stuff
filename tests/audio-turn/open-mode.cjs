@@ -189,3 +189,73 @@ test('usage log: offline events wait on the phone and are sent once when back on
  const evs=usageEvents(got);assert.equal(evs.filter(e=>e.kind==='message').length,1,'sent once, no duplicates');
  assert.ok(evs.some(e=>e.kind==='room'));
 });
+async function setLayout(page,name,want){await menu(page);const btn=page.locator('.cl-room',{hasText:name}).locator('.cl-layout');if((await btn.textContent()).trim().toLowerCase()!==want){await btn.click();await page.waitForFunction(w=>window.ROOM&&window.ROOM.layout===w,want)}await page.locator('#cl-close').click();await page.waitForFunction(()=>!document.body.classList.contains('cl-open'))}
+test('layout: a chat card toggles H2H and SBS; SBS shows one transcript and one composer; it survives a reload',async({page})=>{
+ await create(page,'Layout');await menu(page);
+ const btn=()=>page.locator('.cl-room',{hasText:'Layout'}).locator('.cl-layout');
+ assert.equal((await btn().textContent()).trim(),'H2H');assert.equal(await page.evaluate(()=>document.body.classList.contains('sbs')),false);
+ await btn().click();await page.waitForFunction(()=>document.body.classList.contains('sbs'));
+ assert.equal((await records(page)).find(r=>r.label==='Layout').layout,'sbs');assert.equal((await btn().textContent()).trim(),'SBS');
+ await page.locator('#cl-close').click();await page.waitForFunction(()=>!document.body.classList.contains('cl-open'));
+ assert.equal(await page.locator('#tx-north').isHidden(),true,'one transcript only');assert.equal(await page.locator('#tx-south').isVisible(),true);
+ assert.equal(await page.locator('#strip-south').isVisible(),true,'one composer');assert.equal(await page.locator('#strip-north').isHidden(),true);
+ await page.reload();await page.waitForFunction(()=>document.documentElement.dataset.chatlinkReady==='true');
+ assert.equal(await page.evaluate(()=>document.body.classList.contains('sbs')),true,'layout kept after reload');
+ await menu(page);await btn().click();await page.waitForFunction(()=>!document.body.classList.contains('sbs'));
+ assert.equal((await records(page)).find(r=>r.label==='Layout').layout,'h2h','and it can go back');
+});
+test('SBS: tapping the compose opens the keyboard at once, and the language switch moves the keyboard with no permission step',async({page})=>{
+ await create(page,'Sbs2');await setLayout(page,'Sbs2','sbs');
+ await page.locator('#in-south').focus();await page.waitForFunction(()=>INPUT.owner==='south'&&INPUT.mode==='kb');
+ assert.equal(await page.locator('.ask.show').count(),0,'no permission card');
+ await page.waitForTimeout(450);
+ const stripY1=(await page.locator('#strip-south').boundingBox()).y,radius1=await page.evaluate(()=>parseFloat(getComputedStyle(document.getElementById('cmp-south')).borderTopLeftRadius));
+ const t=page.locator('#kb-south .ktoggle');assert.match((await t.textContent()).replace(/\s+/g,''),/^EN.?TH$|^EN.TH$|EN.*TH/);
+ const tb=await t.boundingBox(),kbb=await page.locator('#kb-south').boundingBox();
+ assert.ok(Math.abs((tb.x+tb.width/2)-(kbb.x+kbb.width/2))<=3,'language chip is centred on the keyboard');
+ assert.ok(tb.width>=Math.min(300,kbb.width*0.55)&&tb.height>=36,'language chip is wide and tall enough to tap');
+ await t.click();await page.waitForFunction(()=>INPUT.owner==='north'&&INPUT.mode==='kb');
+ assert.equal(await page.locator('.ask.show').count(),0,'still no permission card');
+ await page.waitForTimeout(450);
+ const stripY2=(await page.locator('#strip-north').boundingBox()).y,radius2=await page.evaluate(()=>parseFloat(getComputedStyle(document.getElementById('cmp-north')).borderTopLeftRadius));
+ assert.ok(Math.abs(stripY1-stripY2)<=2,'the compose line does not jump when the language switches ('+stripY1+' vs '+stripY2+')');
+ assert.ok(radius1>=12&&radius2>=12,'both languages use the same rounded composer card ('+radius1+', '+radius2+')');
+ assert.equal(await page.evaluate(()=>document.body.classList.contains('sbs-n')),true);
+ assert.equal(await page.locator('#kb-north').isVisible(),true);assert.match(await page.locator('#kb-north .klang').textContent(),/ไทย|Thai/);
+ assert.equal(await page.locator('#kb-north .ktoggle').count(),1,'and it switches back');
+ await page.locator('#kb-north .ktoggle').click();await page.waitForFunction(()=>INPUT.owner==='south'&&INPUT.mode==='kb');
+});
+test('SBS: a message typed in the other language is recorded for that language and shown in the one transcript as the other speaker',async({page})=>{
+ await create(page,'Sbs3');await setLayout(page,'Sbs3','sbs');
+ await page.locator('#in-south').focus();await page.waitForFunction(()=>INPUT.owner==='south'&&INPUT.mode==='kb');
+ await page.locator('#kb-south .ktoggle').click();await page.waitForFunction(()=>INPUT.owner==='north');
+ await send(page,'north','สวัสดี');await settled(page,1);
+ const m=await page.evaluate(()=>({side:HIST[0].side,src:HIST[0].src,tgt:HIST[0].tgt}));
+ assert.deepEqual(m,{side:'north',src:'th',tgt:'en'});
+ assert.equal(await page.locator('#tx-south .row.them').count(),1,'shown in the single transcript as the other speaker');
+});
+test('SBS: the composer defaults to the language last spoken',async({page})=>{
+ await openRoom(page,'LastLang');await setLayout(page,'LastLang','sbs');
+ await page.waitForFunction(()=>mic.south.active&&mic.north.active);await page.waitForTimeout(400);
+ const byLang=l=>page.testSockets.filter(w=>w.url().includes('language='+l)).slice(-1)[0],s={south:byLang('en-US'),north:byLang('th')};
+ assert.equal(await page.evaluate(()=>document.body.classList.contains('sbs-n')),false,'starts on the device owner language');
+ final(s.north,'เฮลโล เฟรนด์',.95);await page.waitForFunction(()=>HIST.length===1&&HIST[0].side==='north');
+ await page.waitForFunction(()=>document.body.classList.contains('sbs-n'));
+ final(s.south,'hello friend',.95);await page.waitForFunction(()=>HIST.length===2&&HIST[1].side==='south');
+ await page.waitForFunction(()=>!document.body.classList.contains('sbs-n'));
+});
+test('keyboard: clearing the draft with the X brings the word suggestions back',async({page})=>{
+ await create(page,'PredClear');
+ await page.locator('#in-south').focus();await page.waitForFunction(()=>INPUT.owner==='south'&&INPUT.mode==='kb');
+ const chips=()=>page.locator('#kb-south .kpredictions:visible .kcand').count();
+ await page.waitForFunction(()=>document.querySelectorAll('#kb-south .kpredictions .kcand').length===3);assert.equal(await chips(),3,'suggestions show on an empty box');
+ await page.evaluate(()=>{press('south','h');press('south','i')});await page.waitForTimeout(200);
+ await page.locator('#strip-south .clearbtn').click();await page.waitForTimeout(300);
+ assert.equal(await page.locator('#in-south').inputValue(),'');assert.equal(await chips(),3,'suggestions are back after the X');
+});
+test('SBS: the keys use the spare room, so there is no empty band under the last row',async({page})=>{
+ await create(page,'Fill');await setLayout(page,'Fill','sbs');
+ await page.locator('#in-south').focus();await page.waitForFunction(()=>INPUT.owner==='south'&&INPUT.mode==='kb');await page.waitForTimeout(450);
+ const gap=await page.evaluate(()=>{const kb=document.getElementById('kb-south').getBoundingClientRect(),rows=document.querySelectorAll('#kb-south .krow'),last=rows[rows.length-1].getBoundingClientRect(),q=document.querySelector('#kb-south .key').getBoundingClientRect();return{gap:kb.bottom-last.bottom,key:q.height}});
+ assert.ok(gap.gap<=14,'no blank band under the last row ('+Math.round(gap.gap)+'px)');assert.ok(gap.key>=50,'keys are taller than before ('+Math.round(gap.key)+'px)');
+});
