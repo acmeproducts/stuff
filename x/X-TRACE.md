@@ -59,7 +59,7 @@ Status words: **met** (proved on the owner's device, evidence named) · **part**
 | R49 | tabs | D37 | L5 | tab checks; the owner's run | lab (voice tab with S6) |
 | R50 | camera tab needs only a camera | D37, D33, D41 | L5 | "asks for no code" checks; the owner's run on a device with no code | lab |
 | R51 | no wait for the stream on each card | D34 | L4 | stream checks; the owner's run | lab |
-| R52 | voice: turns, interruptions, hot and cold word | D38 | S6 | S6 gate | open |
+| R52 | voice: turns, interruptions, hot and cold word | D38, D52 to D56 | S6 | signals-check "voice"; signals-page-test "gate:", "turns:", "cut in:" | lab only |
 | R53 | journey by head | D51 | L7 | signals-page-test "journey:" | lab only |
 | R54 | blink left, right, both | D36, D40 | V7 | blink checks; the owner's run | lab |
 | R55 | calibration, interpretation, learning | D32, D36, D39 | L4, V7 | calibration checks; the owner's run | lab |

@@ -90,11 +90,27 @@ Owner: "I want more lab cases for the hand and head recognition".
 
 **First device run of S2 and S3 (owner's phone, 2026-11-19).** Facts: the hand finder was ready in 1.3 s and ran at 21 to 45 frames a second; the face finder was ready in 1.6 s and ran at 32 to 35. Owner: "it reads the face and shows things like nods and tilts; it really can't get eye blinking very correct". Blink stays (his call) and goes to calibration (plan V, V7). Whether his left hand shows under Left is not yet reported.
 
-### S6 — Voice as a source (walk) · stage 5 of Round 2
+### S6 — Voice as a source (walk) · built 2026-11-19 in `lab-r12`, lab only
 Owner, 2026-11-19: turns "that chat-test does", interruptions, "a hot word and a cold word to turn off and on listening".
 - Turns: tones mark whose turn it is; the mic is ignored while the page speaks. It answers by saying back what it heard. No AI.
 - Interruptions: cut in by voice or by a taught signal; the card counts the times the page wrongly interrupts itself.
 - Hot word and cold word are taught voice signals given the actions "start listening" and "stop listening" (D38); a gesture can be given the same actions.
+
+**What was built: a Voice tab with three cards**
+| Card | What it does | What it counts |
+|---|---|---|
+| Take turns | You speak; falling tone; it says back what it heard; rising tone; your turn. The microphone is ignored while it speaks. The cold word stops it listening, the hot word brings it back. | turns; phrases ignored while it spoke |
+| Interrupt | It reads a ten-sentence passage. Speak over it, or make a signal given "start listening", and it stops at once and listens; then goes on from the sentence it was in. | cut in by voice; cut in by signal; stopped for nothing; own voice ignored |
+| Hot word, cold word | Starts not listening. The hot word opens it and what you say is taken down on the screen; the cold word shuts it. Two buttons teach the two words: say each three times. | opened; shut; phrases taken down; phrases let pass |
+
+- A word is taught by saying it three times; it is listened for as the recogniser heard it (D52). Voice is also a source in Learn → Teach.
+- In the camera context: give a taught gesture "start listening" in Assign. The Voice card then turns the camera on, and the microphone stays off until that gesture (D53).
+- One signal per action still holds, so the gesture takes "start listening" from the word (D56).
+- The record keeps counts and lengths, never what was said.
+
+**Proven in the lab (fact):** with a made-up recogniser and a made-up voice, all of the above. Engine 93/93; the Voice checks are part of the new-cards suite.
+**Known about the phone (fact, from the browser's documentation):** Chrome's recogniser sends the audio to Google's servers while it listens; on Chrome for Android it does not stay open across a pause, so the page reopens it after each phrase.
+**Not proven (unverified):** everything about a real voice on the phone: how much of its own speech it hears through the speaker, whether the gap while the recogniser reopens loses the start of a phrase, whether the phone sounds its own tone each time the recogniser opens, how well a short hot word is recognised. Those are the experiment.
 
 ### S4 — One event shape (walk)
 **Scope:** watch, hand, head and voice all report the same event (time, source, signal, command, confidence) and their presence. The Lab's See card shows all sources on one timeline.

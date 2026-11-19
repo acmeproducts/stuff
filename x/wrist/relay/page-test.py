@@ -18,7 +18,7 @@ def http(path, body=None):
     return urllib.request.urlopen(req, timeout=10).read().decode()
 
 # which tab a card lives in; every card not named here is a Watch card
-TAB = {'calibrate': 'learn', 'teach': 'learn', 'assign': 'learn', 'hands': 'camera', 'head': 'camera', 'camera': 'camera', 'object': 'camera', 'journey': 'camera'}
+TAB = {'calibrate': 'learn', 'teach': 'learn', 'assign': 'learn', 'hands': 'camera', 'head': 'camera', 'camera': 'camera', 'object': 'camera', 'journey': 'camera', 'turns': 'voice', 'cutin': 'voice', 'gate': 'voice'}
 def tabto(pg, t):
     if pg.get_attribute('#tabs button.on', 'data-tab') != t:
         pg.click('#tabs button[data-tab=%s]' % t); pg.wait_for_timeout(200)

@@ -55,6 +55,7 @@ A registration is a row: context, signal, command. The rules: one signal per com
 ## 5. Releases
 
 ### V1 — Teach (crawl) · built 2026-11-18 (evening), lab only
+*Added in `lab-r12`:* Voice is a fifth source. A word is taught by saying it three times after a tone; it is saved under what was heard, with no naming step, and is listened for in the Voice tab (D52).
 Owner: "I want to teach and have it learn commands and gestures, basic then complex".
 
 **What was built.** The card **Teach a signal**. Pick what you will use (right hand, left hand, head and face, watch). Press Teach. It says REST, then NOW three times with BACK TO REST between, on the screen and aloud. From the three showings it decides: held is a **pose**, out-and-back is a **move** (D24). It says what it saw in a sentence, warns if it looks like a signal already taught, listens for the name, and saves on one tap. Taught signals are listed and light each time one fires. They are kept on the device.

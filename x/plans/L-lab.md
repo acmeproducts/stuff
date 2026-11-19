@@ -128,13 +128,14 @@ Owner's requests from this run are in `X-NORTH-STAR.md` §2 (2026-11-19) and req
 ### L5 — Tabs (walk) · built 2026-11-19 in `lab-r9`, lab only
 Owner: "an overall dashboard and combine/learn tab, then a camera tab, a watch tab and a voice tab, so that we're not commingling everything".
 
-**What was built.** One page, four tabs.
+**What was built.** One page, four tabs; five from `lab-r12`.
 | Tab | Holds | Starts |
 |---|---|---|
 | Dashboard | what is on (camera, watch); what is calibrated to the owner, with his numbers; what has been taught, with its action; how the cards have been judged | nothing |
 | Learn | Calibrate, Teach a signal, Assign and combine | the camera when a card needs it; the watch only when the watch is chosen or a taught watch signal exists |
-| Camera | hand probe, Hand numbers, Head and face, Object in your hands | the camera only. No watch code is asked for; records are filed without one |
+| Camera | hand probe, Hand numbers, Head and face, Hands and things (`lab-r11`), Journey (`lab-r11`) | the camera only. No watch code is asked for; records are filed without one |
 | Watch | link, results, the pose and motion cards, buzz, Keepers | the watch link and its stream, as soon as the tab opens |
+| Voice (added in `lab-r12`, plan S6) | Take turns, Interrupt, Hot word and cold word | the microphone only when a card is listening or a taught word must be heard; the camera or the watch only if a signal from them starts or stops the listening |
 
 - The watch code is asked for only in the Watch tab, with a "Not now".
 - The page links to the relay the first time something needs the watch, and keeps that link for the visit, so the watch does not fall asleep while the owner is in another tab. A visit that only uses the camera never links; the dashboard then says the watch is not in use. The stream itself is on while the Watch tab is open and for two minutes after.

@@ -96,7 +96,7 @@
     palmX: 'palm across', palmY: 'palm up or down', palmZ: 'palm to camera', rollS: 'roll', rollC: 'roll', x: 'place across', y: 'place up or down', size: 'nearness',
     nod: 'nod', turn: 'turn', lean: 'lean', blinkL: 'left blink', blinkR: 'right blink', jaw: 'jaw', brows: 'brows', smile: 'smile', pucker: 'pucker', tilt: 'tilt' };
   S.FEATS = FEATS; S.kindOf = kindOf; S.NAMES = NAMES;
-  S.SOURCES = [['handR', 'Right hand'], ['handL', 'Left hand'], ['head', 'Head and face'], ['watch', 'Watch']];
+  S.SOURCES = [['handR', 'Right hand'], ['handL', 'Left hand'], ['head', 'Head and face'], ['watch', 'Watch'], ['voice', 'Voice']];
   S.sourceName = function (s) { for (var i = 0; i < S.SOURCES.length; i++) if (S.SOURCES[i][0] === s) return S.SOURCES[i][1]; return s; };
 
   /* ---------- learning a signal from three showings ----------
@@ -162,6 +162,7 @@
   /* would two taught signals be mistaken for each other? */
   S.collides = function (a, b) {
     if (a.src !== b.src || a.kind === 'combo' || b.kind === 'combo') return false;
+    if (a.kind === 'word' || b.kind === 'word') return a.kind === b.kind && a.says.some(function (x) { return b.says.some(function (y) { return (' ' + x + ' ').indexOf(' ' + y + ' ') >= 0 || (' ' + y + ' ').indexOf(' ' + x + ' ') >= 0; }); });
     if (a.kind !== b.kind) { var mv = a.kind === 'move' ? a : b, ps = a.kind === 'move' ? b : a; return !!(ps.feats[mv.feat] && ps.feats[mv.feat].d === mv.dir); }
     if (a.kind === 'move') return a.feat === b.feat && a.dir === b.dir;
     if (a.kind === 'pose') { for (var f in a.feats) { if (!b.feats[f]) continue; if (Math.abs(a.feats[f].m - b.feats[f].m) > tol(a.src, f, a.feats[f].s) + tol(b.src, f, b.feats[f].s)) return false; } return true; }
@@ -308,7 +309,8 @@
   S.ACTIONS = [
     ['more', 'more', 'X'], ['enough', 'enough', 'X'], ['yes', 'yes', 'X'], ['no', 'no', 'X'], ['again', 'again', 'X'], ['back', 'back', 'X'],
     ['take', 'take', 'object'], ['letgo', 'let go', 'object'], ['left', 'turn left', 'object'], ['right', 'turn right', 'object'], ['toward', 'tip toward me', 'object'], ['away', 'tip away', 'object'],
-    ['bigger', 'bigger', 'object'], ['smaller', 'smaller', 'object'], ['next', 'next object', 'object'], ['reset', 'put it back', 'object'], ['buzz', 'buzz the watch', 'watch']
+    ['bigger', 'bigger', 'object'], ['smaller', 'smaller', 'object'], ['next', 'next object', 'object'], ['reset', 'put it back', 'object'], ['buzz', 'buzz the watch', 'watch'],
+    ['listen', 'start listening', 'voice'], ['deaf', 'stop listening', 'voice']
   ];
   S.actionName = function (id) { for (var i = 0; i < S.ACTIONS.length; i++) if (S.ACTIONS[i][0] === id) return S.ACTIONS[i][1]; return ''; };
 
@@ -351,6 +353,30 @@
         else if (t - st.out > 2 * (g.dur || 1200) + 1200) st.out = 0;   // it went and stayed: that is a pose change, not this move
       }
     }
+  };
+  /* ---------- voice: a word is a signal like any other. It is taught by saying it; what the recogniser heard is what is listened for. ---------- */
+  S.norm = function (t) { return String(t || '').toLowerCase().replace(/[^a-z0-9\u00c0-\uffff' ]+/g, ' ').replace(/\s+/g, ' ').trim(); };
+  S.learnWord = function (heard) {
+    var got = heard.map(S.norm).filter(Boolean), says = [], count = {}, i;
+    if (got.length < 2) return { error: 'I heard it ' + (got.length ? 'only once' : 'not at all') + '. Say it after each tone, a little louder.' };
+    got.forEach(function (g) { count[g] = (count[g] || 0) + 1; if (says.indexOf(g) < 0) says.push(g); });
+    for (i = 0; i < says.length; i++) if (says[i].split(' ').length > 4) return { error: 'That was more than four words. A short word or two works best.' };
+    says.sort(function (a, b) { return count[b] - count[a]; });
+    return { src: 'voice', kind: 'word', says: says, name: says[0], why: says.map(function (s) { return '\u201c' + s + '\u201d'; }).join(', ') };
+  };
+  /* some words were heard (still being said, or final). Each taught word in them fires once for the phrase. Returns the taught words found in it. */
+  var said = {};
+  S.heard = function (text, final, t) {
+    var n = ' ' + S.norm(text) + ' ', out = [];
+    S.signals.slice().forEach(function (g) {
+      if (g.src !== 'voice' || !g.says) return;
+      if (!g.says.some(function (p) { return n.indexOf(' ' + p + ' ') >= 0; })) return;
+      out.push(g);
+      if (said[g.id] && t - said[g.id] < 4000) return;
+      said[g.id] = t; fire(g, t);
+    });
+    if (final) said = {};
+    return out;
   };
   S.recent = function (src) { return recent[src] || []; };
   S.resetRecognisers = function () { state = {}; recent = {}; lastT = {}; };
@@ -440,6 +466,34 @@
     if (frame.head && frame.head.lm) { x.fillStyle = '#b38cf5'; for (var k = 0; k < frame.head.lm.length; k += 5) { var p = frame.head.lm[k]; x.fillRect(p.x * w - 1.5, p.y * h - 1.5, 3, 3); } }
     canvas.dataset.hands = frame.hands.length; canvas.dataset.face = frame.head ? 1 : 0;
   };
+
+  /* ---------- the ears: the browser's own speech recogniser, kept open, and opened again when it stops itself ---------- */
+  var A = S.ears = { on: false, rec: null, err: '', last: '', starts: 0, cb: null };
+  A.supported = function () { return !!(window.SpeechRecognition || window.webkitSpeechRecognition); };
+  function openEars() {
+    if (!A.on || A.rec) return;
+    var SR = window.SpeechRecognition || window.webkitSpeechRecognition, r;
+    try { r = new SR(); r.continuous = true; r.interimResults = true; } catch (e) { A.err = 'Speech recognition would not start: ' + (e && e.message || e); A.on = false; return; }
+    A.rec = r; A.starts++;
+    r.onresult = function (e) {
+      if (A.rec !== r || !A.cb) return;
+      for (var i = e.resultIndex; i < e.results.length; i++) { var x = e.results[i], a = x && x[0]; if (a && a.transcript && String(a.transcript).trim()) A.cb(String(a.transcript).trim(), !!x.isFinal); }
+    };
+    r.onerror = function (e) {
+      var c = e && e.error; A.last = c || '';
+      if (c === 'not-allowed' || c === 'service-not-allowed') { A.err = 'The microphone is not allowed for this page.'; A.on = false; }
+      else if (c === 'audio-capture') { A.err = 'No microphone was found.'; A.on = false; }
+      else if (c === 'language-not-supported') { A.err = 'This browser cannot recognise speech in this language.'; A.on = false; }
+    };
+    r.onend = function () { if (A.rec !== r) return; A.rec = null; if (A.on) setTimeout(openEars, 250); };   // it stops itself after a pause; keep listening
+    try { r.start(); } catch (e2) { A.rec = null; A.err = 'Speech recognition would not start: ' + (e2 && e2.message || e2); A.on = false; }
+  }
+  A.start = function (cb) {
+    A.cb = cb; A.err = '';
+    if (!A.supported()) { A.err = 'This browser has no speech recognition.'; A.on = false; return false; }
+    A.on = true; openEars(); return A.on;
+  };
+  A.stop = function () { A.on = false; A.cb = null; var r = A.rec; A.rec = null; if (r) { r.onend = null; r.onresult = null; r.onerror = null; try { r.abort(); } catch (e) { /* already stopped */ } } };
 
   window.Signals = S;
 })();

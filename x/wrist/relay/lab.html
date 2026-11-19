@@ -46,13 +46,19 @@ select,input[type=text]{font:inherit;color:var(--text);background:var(--panel);b
 #statusRow{display:flex;align-items:center;gap:9px;font-size:15px;margin-top:6px}
 body:not(.t-watch) #statusRow{display:none}
 #tabs{display:flex;gap:6px;margin-top:9px}
+.vlive{font-size:19px!important;color:var(--text)!important;min-height:28px}
+.vread{font-size:17px!important;line-height:1.5;color:var(--muted);text-align:left}
+.vread .on{color:var(--text);background:#132231;border-radius:4px}
+.vread .done{opacity:.55}
+.vmsg{color:var(--warn)!important}
 .jr{display:grid;grid-template-columns:minmax(0,1fr) 124px minmax(0,1fr);gap:8px;align-items:center}
 .jr button{padding:12px 6px;min-height:58px;font-weight:650;border-radius:12px;overflow-wrap:anywhere}
 .jr button:disabled{opacity:.3}
 .jr .up,.jr .down{grid-column:1/4}
 .jr canvas{width:124px;height:124px;display:block}
 #jText{font-size:17px;line-height:1.45;color:var(--text);margin:0}
-#tabs button{flex:1;padding:9px 2px;font-size:14.5px;border-radius:10px;color:var(--muted);min-width:0}
+#tabs button{flex:1;padding:9px 1px;font-size:13.5px;border-radius:10px;color:var(--muted);min-width:0}
+#tabs button[data-tab=dash]{flex:1.4}
 #tabs button.on{color:var(--text);border-color:var(--accent);background:#132231}
 .dash{grid-column:1/-1;display:grid;gap:12px;min-width:0;grid-template-columns:minmax(0,1fr)}
 .dash section{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:12px 15px}
@@ -189,7 +195,7 @@ body:not(.t-watch) #statusRow{display:none}
 <div id="grid">
   <div id="top">
     <h1>X Lab</h1>
-    <div id="tabs" role="tablist"><button type="button" data-tab="dash">Dashboard</button><button type="button" data-tab="learn">Learn</button><button type="button" data-tab="camera">Camera</button><button type="button" data-tab="watch">Watch</button></div>
+    <div id="tabs" role="tablist"><button type="button" data-tab="dash">Dashboard</button><button type="button" data-tab="learn">Learn</button><button type="button" data-tab="camera">Camera</button><button type="button" data-tab="watch">Watch</button><button type="button" data-tab="voice">Voice</button></div>
     <div id="statusRow"><i id="lamp"></i><span id="statusText">Starting…</span><button id="offBtn" type="button" title="Hold for one second to stop the watch">Watch off</button><button id="codeBtn" type="button" style="padding:5px 10px;font-size:13px;color:var(--muted)">Code</button></div>
     <div id="meta"></div>
   </div>
@@ -228,7 +234,7 @@ body:not(.t-watch) #statusRow{display:none}
 <script>
 (function(){
 'use strict';
-var BUILD='lab-r11';
+var BUILD='lab-r12';
 var QUERY=location.search;          // kept, because the address is tidied once the code is read from it
 var Signals=window.Signals;
 var LINK_SECS=Number((/[?&]linksecs=(\d+)/.exec(location.search)||[])[1])||120;
@@ -331,12 +337,57 @@ function hearOnce(done){
   var SR=window.SpeechRecognition||window.webkitSpeechRecognition,r;if(!SR)return null;
   try{r=new SR();r.interimResults=false;r.continuous=false;r.onresult=function(e){var s='';for(var i=e.resultIndex;i<e.results.length;i++)s+=e.results[i][0].transcript;done(s.trim().replace(/[.!?]+$/,''))};r.onerror=function(){done('')};r.start();return r}catch(e){return null}
 }
+/* ---------- voice: tones, the listening gate, and teaching a word ---------- */
+var actx=null;
+function tone(kind){
+  ev('voice','tone',{kind:kind});
+  try{var AC=window.AudioContext||window.webkitAudioContext;if(!AC)return;actx=actx||new AC();if(actx.state==='suspended')actx.resume();
+    var notes=kind==='rise'?[440,660]:[660,440],t=actx.currentTime+0.02;
+    notes.forEach(function(f){var o=actx.createOscillator(),g=actx.createGain();o.frequency.value=f;g.gain.setValueAtTime(0,t);g.gain.linearRampToValueAtTime(0.2,t+0.02);g.gain.exponentialRampToValueAtTime(0.0001,t+0.16);o.connect(g);g.connect(actx.destination);o.start(t);o.stop(t+0.18);t+=0.18})}catch(e){}
+}
+/* does a signal from this source open or shut the listening? Then a Voice card needs that source running. */
+function gates(kind){return Signals.signals.some(function(s){var a=Signals.assign[s.id];if(a!=='listen'&&a!=='deaf')return false;return(s.kind==='combo'?s.seq:[s.id]).some(function(id){var x=Signals.byId(id);return!!x&&Signals.kindOf(x.src)===kind})})}
+function gateNames(action){return Signals.signals.filter(function(s){return Signals.assign[s.id]===action}).map(function(s){return s.name})}
+/* teach a word: say it three times, each after the tone. What the recogniser heard is what will be listened for. */
+function teachWord(say,done){
+  var heard=[],i=0,rec=null,dead=false,to=0;
+  function ask(){
+    if(dead)return;
+    if(i>=3){done(Signals.learnWord(heard));return}
+    say('SAY IT  '+(i+1)+' of 3',i?'':'say it, after each tone',function(){
+      if(dead)return;var got=false;tone('rise');
+      var take=function(t){if(got||dead)return;got=true;clearTimeout(to);heard.push(t||'');i++;setTimeout(ask,350)};
+      rec=hearOnce(take);
+      if(!rec){dead=true;done({error:'This browser has no speech recognition.'});return}
+      to=setTimeout(function(){var r=rec;try{r.abort()}catch(e){}take('')},5000);
+    });
+  }
+  ask();
+  return{stop:function(){dead=true;clearTimeout(to);if(rec){try{rec.abort()}catch(e){}}}};
+}
+/* what every Voice card shares. A card gives text(text,final,t) and gate(open,e); step(t) if it needs the clock. */
+var VOICE={
+  base:function(card,el){
+    card.el=el;card.open=true;card.errShown=0;
+    var cam={hands:gates('hand'),face:gates('head')};card.cam=cam.hands||cam.face;
+    if(card.cam)eyesOn(card,el,cam);else el.querySelector('.camview').classList.add('off');
+    card.off=Signals.onFire(function(e){ev('voice','fired',{name:e.name,action:e.action,from:e.src});if(e.action==='listen')card.gate(true,e);else if(e.action==='deaf')card.gate(false,e)});
+  },
+  ears:function(card){
+    var ok=Signals.ears.start(function(text,final){if(cur===card)card.text(text,final,now())});
+    ev('voice','ears',{ok:ok?1:0});if(ok)micInfo={state:'working',bad:false};else VOICE.fail(card);return ok;
+  },
+  fail:function(card){if(card.errShown)return;card.errShown=1;micInfo={state:Signals.ears.err,bad:true};$('vSay').textContent='No listening here';card.el.querySelector('.vmsg').textContent=Signals.ears.err;ev('voice','failed',{why:Signals.ears.err.slice(0,80)})},
+  tick:function(card){if(card.cam)eyesTick(card);if(Signals.ears.err)VOICE.fail(card);if(card.step)card.step(now())},
+  draw:function(card){if(card.cam)eyesDraw(card)},
+  end:function(card){if(card.off)card.off();hush();Signals.ears.stop();Signals.eyes.stop()}
+};
 /* ---------- tabs: sources are kept apart. Each tab starts only what it needs. ---------- */
-var TABS={learn:['calibrate','teach','assign'],camera:['hands','head','camera','object','journey']};       /* every other card is a Watch card */
-var TABNAME={dash:'Dashboard',learn:'Learn',camera:'Camera',watch:'Watch'};
+var TABS={learn:['calibrate','teach','assign'],camera:['hands','head','camera','object','journey'],voice:['turns','cutin','gate']};       /* every other card is a Watch card */
+var TABNAME={dash:'Dashboard',learn:'Learn',camera:'Camera',watch:'Watch',voice:'Voice'};
 var tab='dash';try{tab=localStorage.getItem('x_lab_tab')||'dash'}catch(e){}
 if(!TABNAME[tab])tab='dash';
-var camInfo={state:'not used on this visit',bad:false};
+var camInfo={state:'not used on this visit',bad:false},micInfo={state:'not used on this visit',bad:false};
 function tabOf(c){for(var t in TABS)if(TABS[t].indexOf(c.id)>=0)return t;return'watch'}
 function needRaw(){return tab==='watch'||!!(cur&&(cur.raw?cur.raw():!cur.noRaw))}      /* in the Watch tab the stream is on before any card asks */
 function setTab(t){
@@ -805,7 +856,7 @@ var CONCEPTS=[
  look:function(){
    var want={hands:this.src==='handR'||this.src==='handL'||taught('hand'),face:this.src==='head'||taught('head')},key=(want.hands?'h':'')+(want.face?'f':'');
    if(key===this.want)return;this.want=key;
-   if(key)eyesOn(this,this.el,want);else eyesOff(this,'The watch needs no camera. Open Wrist on the watch.');
+   if(key)eyesOn(this,this.el,want);else eyesOff(this,this.src==='voice'?'A word needs no camera. Say it after each tone.':'The watch needs no camera. Open Wrist on the watch.');
  },
  say:function(big,aloud,then){
    $('tSay').textContent=big;var done=false,go=function(){if(done)return;done=true;if(then)then()};
@@ -815,8 +866,21 @@ var CONCEPTS=[
  hush:function(){if(this.rec){try{this.rec.abort()}catch(e){}this.rec=null}},
  begin:function(){
    if(this.phase==='teaching')return;
-   this.hush();this.phase='teaching';this.step=0;this.rep=-1;this.stepAt=now();this.cap={rest:[],reps:[[],[],[]]};this.pending=null;$('tNew').innerHTML='';
-   ev('teach','begin',{src:this.src});this.say('REST','rest');
+   this.hush();this.pending=null;$('tNew').innerHTML='';ev('teach','begin',{src:this.src});
+   if(this.src==='voice'){this.word();return}
+   this.phase='teaching';this.step=0;this.rep=-1;this.stepAt=now();this.cap={rest:[],reps:[[],[],[]]};
+   this.say('REST','rest');
+ },
+ /* a word: said three times, saved under what was heard. It is listened for in the Voice tab. */
+ word:function(){
+   var self=this,box=$('tNew');this.phase='word';
+   this.job=teachWord(function(big,aloud,then){self.say(big,aloud,then)},function(r){
+     self.phase='idle';self.job=null;if(cur!==self)return;
+     var like=r.error?[]:Signals.signals.filter(function(s){return Signals.collides(s,r)}).map(function(s){return s.name});
+     if(r.error||like.length){var why=r.error||('That sounds like “'+like[0]+'”, which you already taught.');self.say('Not learned','not learned');var p=document.createElement('p');p.id='tWhy';p.textContent=why+' Press Teach to try again.';box.appendChild(p);ev('teach','failed',{src:'voice',why:why.slice(0,60)});return}
+     delete r.why;var g=Signals.add(r);ev('teach','saved',{name:g.name,src:g.src,kind:g.kind});self.say('Saved: '+g.name,'saved');
+     var q=document.createElement('p');q.id='tWhy';q.textContent='It is listened for in the Voice tab. Give it start listening or stop listening in Assign and combine.';box.appendChild(q);self.list();
+   });
  },
  keep:function(n){
    if(this.phase!=='teaching'||!n)return;var s=this.STEPS[this.step][0];
@@ -870,7 +934,7 @@ var CONCEPTS=[
    });
  },
  draw:function(){eyesDraw(this)},
- unmount:function(){this.phase='idle';this.pending=null;this.hush();if(this.off)this.off();Signals.eyes.stop();try{speechSynthesis.cancel()}catch(e){}}
+ unmount:function(){this.phase='idle';this.pending=null;this.hush();if(this.job){this.job.stop();this.job=null}if(this.off)this.off();Signals.eyes.stop();try{speechSynthesis.cancel()}catch(e){}}
 },
 {id:'assign',name:'Assign and combine',needsRaw:false,noRaw:true,g:[],
  blurb:'Give each taught signal one action. Join signals into a new one: made one after another, letters become a word, and the word gets its own action.',
@@ -901,7 +965,7 @@ var CONCEPTS=[
  list:function(){
    var box=$('aList'),self=this;box.innerHTML='';
    var acts='<option value="">no action</option>',grp='';
-   Signals.ACTIONS.forEach(function(a){if(a[2]!==grp){if(grp)acts+='</optgroup>';grp=a[2];acts+='<optgroup label="'+(grp==='X'?'In X':grp==='object'?'On the object':'On the watch')+'">'}acts+='<option value="'+a[0]+'">'+a[1]+'</option>'});acts+='</optgroup>';
+   Signals.ACTIONS.forEach(function(a){if(a[2]!==grp){if(grp)acts+='</optgroup>';grp=a[2];acts+='<optgroup label="'+(grp==='X'?'In X':grp==='object'?'On the object':grp==='voice'?'Listening (Voice tab)':'On the watch')+'">'}acts+='<option value="'+a[0]+'">'+a[1]+'</option>'});acts+='</optgroup>';
    if(!Signals.signals.length)box.innerHTML='<p>Nothing taught yet.</p>';
    Signals.signals.forEach(function(s){
      var row=document.createElement('div');row.className='sigrow';
@@ -1254,6 +1318,144 @@ var CONCEPTS=[
    c.dataset.state=JSON.stringify({at:this.at,dir:this.dir,armed:this.armed,won:this.won,moves:this.moves,inv:Object.keys(this.inv),x:+this.p.x.toFixed(2),y:+this.p.y.toFixed(2)});
  },
  unmount:function(){hush();Signals.eyes.stop()}
+},
+{id:'turns',name:'Take turns',needsRaw:false,noRaw:true,g:[],
+ blurb:'You speak, it says back what it heard, then it is your turn again. A rising tone means your turn; a falling tone means it heard you. While it speaks, the microphone is ignored.',
+ how:'Say a sentence and stop. It sounds the falling tone, says back what it heard, sounds the rising tone and listens again. Try speaking while it is still talking: that should be ignored and counted. If you have taught a cold word or given a signal the action stop listening, use it here, and the hot word or start listening to come back. What you say is shown on this screen only; the record keeps counts and lengths, never the words.',
+ raw:function(){return gates('watch')},
+ mount:function(root){
+   var el=document.createElement('div');el.className='linkbox';
+   el.innerHTML='<div class="lk" id="vSay">Starting</div><p id="vLive" class="vlive"></p><div class="g4"><div><b id="vN">0</b><em>turns</em></div><div><b id="vDrop">0</b><em>ignored while it spoke</em></div><div><b id="vGap">–</b><em>ms to answer</em></div><div><b id="vGate">open</b><em>listening</em></div></div><div id="vLog" class="kv" style="white-space:pre-line">–</div>'+camHtml('small')+'<p class="vmsg"></p><p class="cmsg"></p>';
+   root.appendChild(el);this.n=0;this.drop=0;this.log=[];this.state='';VOICE.base(this,el);
+   if(VOICE.ears(this))this.yours();
+ },
+ yours:function(){this.state='you';$('vSay').textContent='Your turn';$('vLive').textContent='';tone('rise')},
+ gate:function(open,e){
+   if(open===this.open)return;this.open=open;$('vGate').textContent=open?'open':'shut';detect(open?'listening':'not listening',{by:e.name});
+   if(open){hush();this.yours()}else{hush();this.state='deaf';$('vSay').textContent='Not listening';$('vLive').textContent='';tone('fall')}
+ },
+ text:function(text,final,t){
+   var self=this;
+   if(this.state==='it'||t-talk.endAt<300){if(final){this.drop++;$('vDrop').textContent=this.drop;ev('voice','ignored',{why:'it was speaking',words:text.split(' ').length})}return}
+   var fired=Signals.heard(text,final,t);
+   if(this.state!=='you')return;
+   if(fired.length){$('vLive').textContent='';return}
+   $('vLive').textContent=text;
+   if(!final)return;
+   this.n++;$('vN').textContent=this.n;this.state='it';$('vSay').textContent='I heard you';tone('fall');
+   this.log.unshift('you: '+text);this.log=this.log.slice(0,6);$('vLog').textContent=this.log.join('\n');
+   detect('turn',{words:text.split(' ').length,chars:text.length});var t0=now();
+   setTimeout(function(){if(cur!==self||self.state!=='it')return;$('vGap').textContent=Math.round(now()-t0);sayAloud('You said: '+text,function(){setTimeout(function(){if(cur===self&&self.state==='it')self.yours()},300)})},380);
+ },
+ tick:function(){VOICE.tick(this)},draw:function(){VOICE.draw(this)},unmount:function(){VOICE.end(this)}
+},
+{id:'cutin',name:'Interrupt',needsRaw:false,noRaw:true,g:[],
+ blurb:'It reads a passage aloud. Cut in by speaking, or with a signal given the action start listening. It counts the times it stopped for nothing and the times it heard its own voice and carried on.',
+ how:'Let it read, then speak over it: say anything. It should stop at once, sound the rising tone and listen. When you have finished it goes on from the sentence it was in. If it stops and nobody spoke, that is counted as stopped for nothing. Its own words coming back through the microphone are recognised as its own and ignored; that is counted too. Try it with the phone’s speaker and with earphones: the two counts are the comparison.',
+ TEXT:['The sea rises and falls twice a day, and the moon does most of the work.','Its pull draws the water on the near side of the earth into a bulge.','On the far side a second bulge forms, because the earth is pulled away from the water there.','As the earth turns, each shore passes through both bulges, and so most places see two high tides a day.','The sun pulls as well, though less than half as hard.','When sun and moon line up, at new moon and full moon, their pulls add together. These are the spring tides.','When they pull at right angles, at the half moons, the range is small. These are the neap tides.','The shape of the coast matters as much as the sky.','A wide bay that narrows will pile the water up, and in a few such bays the sea climbs higher than a house.','That is the whole of it: the moon, the sun, the turning earth, and the shape of the shore.'],
+ raw:function(){return gates('watch')},
+ mount:function(root){
+   var el=document.createElement('div'),self=this;el.className='linkbox';
+   el.innerHTML='<div class="lk" id="vSay">Starting</div><p id="vText" class="vread"></p><p id="vLive" class="vlive"></p><div class="g4"><div><b id="vVoice">0</b><em>cut in by voice</em></div><div><b id="vSig">0</b><em>cut in by signal</em></div><div><b id="vFalse">0</b><em>stopped for nothing</em></div><div><b id="vOwn">0</b><em>own voice ignored</em></div></div><div class="row"><button type="button" id="vAgain">Read it again</button></div>'+camHtml('small')+'<p class="vmsg"></p><p class="cmsg"></p>';
+   root.appendChild(el);el.querySelector('.row').addEventListener('pointerup',function(e){e.stopPropagation()});
+   this.c={voice:0,sig:0,none:0,own:0};this.i=0;this.state='';this.cutAt=0;this.lastHeard=0;this.ownHold=0;VOICE.base(this,el);
+   $('vAgain').addEventListener('click',function(){ev('voice','again',{});self.i=0;self.read()});
+   if(VOICE.ears(this))this.read();
+ },
+ paint:function(){var self=this;$('vText').innerHTML='';this.TEXT.forEach(function(s,k){var sp=document.createElement('span');sp.textContent=s+' ';if(k===self.i&&self.state!=='end')sp.className='on';else if(k<self.i||self.state==='end')sp.className='done';$('vText').appendChild(sp)})},
+ read:function(){
+   var self=this;
+   if(this.i>=this.TEXT.length){this.state='end';$('vSay').textContent='The end';this.paint();detect('read to the end',{voice:this.c.voice,signal:this.c.sig,nothing:this.c.none,own:this.c.own});return}
+   this.state='reading';$('vSay').textContent='Reading';$('vLive').textContent='';this.paint();
+   sayAloud(this.TEXT[this.i],function(){if(cur!==self||self.state!=='reading')return;self.i++;self.read()},1);
+ },
+ /* are these words its own, coming back through the microphone? Most of them are in the sentence being read or the one before. */
+ own:function(text){
+   var w=Signals.norm(text).split(' ').filter(Boolean),pool=' '+Signals.norm((this.TEXT[this.i-1]||'')+' '+(this.TEXT[this.i]||'')+' '+(this.TEXT[this.i+1]||''))+' ',hit=0;
+   if(!w.length)return true;w.forEach(function(x){if(pool.indexOf(' '+x+' ')>=0)hit++});return hit/w.length>=0.6;
+ },
+ cut:function(how,name){
+   if(this.state!=='reading')return;hush();this.state='cut';this.cutAt=now();this.lastHeard=how==='voice'?now():0;this.how=how;this.said=false;
+   this.c[how==='voice'?'voice':'sig']++;$('vVoice').textContent=this.c.voice;$('vSig').textContent=this.c.sig;
+   $('vSay').textContent='You cut in';tone('rise');detect('cut in',{by:how,name:name||'',at:this.i});
+ },
+ resume:function(why){
+   var self=this;if(this.state!=='cut')return;this.state='back';
+   if(why==='nothing'){this.c.none++;$('vFalse').textContent=this.c.none;detect('stopped for nothing',{by:this.how,at:this.i})}
+   $('vSay').textContent='Going on';tone('fall');sayAloud('Going on.',function(){if(cur===self&&self.state==='back')self.read()});
+ },
+ gate:function(open,e){
+   this.open=open;detect(open?'listening':'not listening',{by:e.name});
+   if(open)this.cut('signal',e.name);
+ },
+ text:function(text,final,t){
+   if(this.state==='reading'){
+     if(this.own(text)){if(t-this.ownHold>1500){this.c.own++;$('vOwn').textContent=this.c.own;ev('voice','own voice',{words:text.split(' ').length,at:this.i})}this.ownHold=t;return}
+     var fired=Signals.heard(text,final,t);
+     if(this.state==='reading'&&this.open&&!fired.length){this.cut('voice','');$('vLive').textContent=text;this.said=final}
+     return;
+   }
+   if(this.state==='cut'){
+     if(!this.said&&this.own(text)){if(final&&this.how==='voice')this.resume('nothing');return}      /* what stopped it was its own sentence, misheard at first */
+     Signals.heard(text,final,t);$('vLive').textContent=text;this.lastHeard=t;if(final)this.said=true;
+   }
+ },
+ step:function(t){
+   if(this.state!=='cut')return;
+   if(this.said&&t-this.lastHeard>900){detect('heard out',{by:this.how,ms:Math.round(t-this.cutAt)});this.resume('heard')}
+   else if(!this.said&&t-this.cutAt>5000&&t-Math.max(this.lastHeard,this.cutAt)>2500)this.resume(this.how==='voice'?'nothing':'heard');   /* it stopped and nobody spoke */
+ },
+ tick:function(){VOICE.tick(this)},draw:function(){VOICE.draw(this)},unmount:function(){VOICE.end(this)}
+},
+{id:'gate',name:'Hot word, cold word',needsRaw:false,noRaw:true,g:[],
+ blurb:'A word that starts the listening and a word that stops it. Or a gesture: any taught signal can be given start listening or stop listening.',
+ how:'Press Teach a hot word and say it after each of three tones. Do the same for a cold word. Then say other things: nothing is taken down. Say the hot word: the rising tone sounds and what you say is taken down on the screen. Say the cold word: the falling tone, and it stops. To use a gesture instead, teach it in Learn and give it the action start listening or stop listening in Assign and combine; a signal moved there takes the action from the word. When only a gesture opens it, the microphone is off until that gesture. What is taken down stays on this screen; the record keeps counts only.',
+ raw:function(){return gates('watch')},
+ mount:function(root){
+   var el=document.createElement('div'),self=this;el.className='linkbox';
+   el.innerHTML='<div class="lk" id="vSay">Starting</div><p id="vMic"></p><p id="vText" class="vread"></p><div class="g4"><div><b id="vOpen">0</b><em>opened</em></div><div><b id="vShut">0</b><em>shut</em></div><div><b id="vTook">0</b><em>phrases taken down</em></div><div><b id="vPass">0</b><em>let pass, not listening</em></div></div><div class="sigrow"><div><b>Opens with</b><em id="vHot"></em></div><button type="button" id="vTHot">Teach a hot word</button></div><div class="sigrow"><div><b>Shuts with</b><em id="vCold"></em></div><button type="button" id="vTCold">Teach a cold word</button></div>'+camHtml('small')+'<p class="vmsg"></p><p class="cmsg"></p>';
+   root.appendChild(el);el.addEventListener('pointerup',function(e){if(e.target.closest('button'))e.stopPropagation()});
+   this.c={open:0,shut:0,took:0,pass:0};this.lines=[];this.teaching=null;VOICE.base(this,el);this.open=false;
+   $('vTHot').addEventListener('click',function(){self.teach('listen')});$('vTCold').addEventListener('click',function(){self.teach('deaf')});
+   this.show();this.mic();
+ },
+ show:function(){
+   var hot=gateNames('listen'),cold=gateNames('deaf');
+   $('vHot').textContent=hot.length?hot.join(', '):'nothing yet';$('vCold').textContent=cold.length?cold.join(', '):'nothing yet';
+   $('vSay').textContent=this.teaching?$('vSay').textContent:this.open?'LISTENING':'NOT LISTENING';
+   $('vText').textContent=this.lines.join(' ');
+ },
+ /* the microphone is on when it is listening, or when a word has to be heard to start it. Otherwise it is off. */
+ mic:function(){
+   var self=this,word=Signals.signals.some(function(s){return s.src==='voice'&&Signals.assign[s.id]==='listen'}),want=!this.teaching&&(this.open||word);
+   if(want&&!Signals.ears.on){if(!VOICE.ears(this))return}
+   else if(!want&&Signals.ears.on)Signals.ears.stop();
+   var hot=gateNames('listen');
+   $('vMic').textContent=this.teaching?'Microphone: on, to learn the word':this.open?'Microphone: on, taking down what you say':word?'Microphone: on, waiting only for the hot word':hot.length?'Microphone: off until “'+hot[0]+'”':'Microphone: off. Nothing opens it yet.';
+ },
+ teach:function(action){
+   var self=this;if(this.teaching)return;Signals.ears.stop();this.teaching=action;this.el.querySelector('.vmsg').textContent='';this.mic();ev('voice','teach word',{as:action});
+   this.job=teachWord(function(big,aloud,then){$('vSay').textContent=big;if(aloud)sayAloud(aloud,then);else if(then)then()},function(r){
+     self.teaching=null;self.job=null;
+     if(r.error){$('vSay').textContent='Not learned';self.el.querySelector('.vmsg').textContent=r.error;ev('voice','word failed',{why:r.error.slice(0,60)})}
+     else{var like=Signals.signals.filter(function(s){return Signals.collides(s,r)}).map(function(s){return s.name});
+       if(like.length){$('vSay').textContent='Not learned';self.el.querySelector('.vmsg').textContent='That sounds like “'+like[0]+'”, which you already taught. Pick a different word, or remove that one in Learn.';ev('voice','word failed',{why:'collides'})}
+       else{delete r.why;var g=Signals.add(r);Signals.setAction(g.id,action);self.el.querySelector('.vmsg').textContent='Learned “'+g.name+'”'+(g.says.length>1?' (also heard as '+g.says.slice(1).map(function(s){return'“'+s+'”'}).join(', ')+')':'')+'. It '+(action==='listen'?'starts':'stops')+' the listening.';ev('voice','word saved',{name:g.name,as:action,heard:g.says.length});sayAloud('learned')}}
+     self.show();self.mic();
+   });
+ },
+ gate:function(open,e){
+   if(this.teaching||open===this.open)return;this.open=open;this.c[open?'open':'shut']++;$('vOpen').textContent=this.c.open;$('vShut').textContent=this.c.shut;
+   detect(open?'listening':'not listening',{by:e.name,from:e.src});tone(open?'rise':'fall');this.el.querySelector('.vmsg').textContent='';this.show();this.mic();
+ },
+ text:function(text,final,t){
+   if(this.teaching)return;
+   var was=this.open,fired=Signals.heard(text,final,t);
+   if(!final||fired.length)return;
+   if(was&&this.open){this.c.took++;$('vTook').textContent=this.c.took;this.lines.push(text+'.');this.lines=this.lines.slice(-6);ev('voice','taken down',{words:text.split(' ').length});this.show()}
+   else if(!was&&!this.open){this.c.pass++;$('vPass').textContent=this.c.pass;ev('voice','let pass',{words:text.split(' ').length})}
+ },
+ tick:function(){VOICE.tick(this)},draw:function(){VOICE.draw(this)},unmount:function(){if(this.job)this.job.stop();VOICE.end(this)}
 },
 {id:'see',name:'What the watch sees',needsRaw:true,g:[],
  blurb:'Live tilt, roll, turn and movement from the watch. No gestures: just look.',
@@ -1730,7 +1932,7 @@ function paintDash(box){
   var d=document.createElement('div');d.className='dash';
   var sec=function(title,lines){var h='<section><h3>'+title+'</h3>';lines.forEach(function(l){h+='<div class="ln'+(l[3]?' bad':'')+'"><span></span><span'+(l[2]?' id="'+l[2]+'"':'')+'></span></div>'});var el=document.createElement('section');el.innerHTML=h.slice(9)+'';
     var rows=el.querySelectorAll('.ln');lines.forEach(function(l,i){rows[i].children[0].textContent=l[0];rows[i].children[1].textContent=l[1]});d.appendChild(el)};
-  sec('WHAT IS ON',[['Camera',camInfo.state,'dCam',camInfo.bad],['Watch',code()?$('statusText').textContent:'no watch code on this device','dWatch']]);
+  sec('WHAT IS ON',[['Camera',camInfo.state,'dCam',camInfo.bad],['Microphone',micInfo.state,'dMic',micInfo.bad],['Watch',code()?$('statusText').textContent:'no watch code on this device','dWatch']]);
   sec('CALIBRATED TO YOU',[['Right hand',calLine('handRight')],['Left hand',calLine('handLeft')],['Head',calLine('head')],['Eyes',calLine('eyes')],['Watch',calLine('watch')]]);
   var sig=Signals.signals,lines=sig.map(function(g){
     var what=g.kind==='combo'?'word: '+g.seq.map(function(id){var x=Signals.byId(id);return x?x.name:'?'}).join(' then '):Signals.sourceName(g.src)+', '+g.kind;

@@ -22,7 +22,7 @@ def http(path, body=None):
     return urllib.request.urlopen(req, timeout=10).read().decode()
 
 # which tab a card lives in; every card not named here is a Watch card
-TAB = {'calibrate': 'learn', 'teach': 'learn', 'assign': 'learn', 'hands': 'camera', 'head': 'camera', 'camera': 'camera', 'object': 'camera', 'journey': 'camera'}
+TAB = {'calibrate': 'learn', 'teach': 'learn', 'assign': 'learn', 'hands': 'camera', 'head': 'camera', 'camera': 'camera', 'object': 'camera', 'journey': 'camera', 'turns': 'voice', 'cutin': 'voice', 'gate': 'voice'}
 def tabto(pg, t):
     if pg.get_attribute('#tabs button.on', 'data-tab') != t:
         pg.click('#tabs button[data-tab=%s]' % t); pg.wait_for_timeout(200)
@@ -55,9 +55,12 @@ window.__labTestEyes = function (t) {
   return Synth.seen((b.hands || []).map(Synth.hand), b.face ? Synth.face(b.face) : null);
 };
 window.speechSynthesis = undefined;
-Object.defineProperty(window, 'speechSynthesis', { value: { cancel: function () {}, speak: function (u) { __puppet.spoken.push(u.text); setTimeout(function () { if (u.onend) u.onend(); }, 60); } } });
+Object.defineProperty(window, 'speechSynthesis', { value: { cancel: function () { clearTimeout(__puppet.talkT); }, speak: function (u) { __puppet.spoken.push(u.text); __puppet.talkT = setTimeout(function () { if (u.onend) u.onend(); }, __puppet.talkMs || 60); } } });
 window.SpeechSynthesisUtterance = function (t) { this.text = t; };
-window.SpeechRecognition = function () { __puppet.heard.push(this); }; window.SpeechRecognition.prototype.start = function () {}; window.SpeechRecognition.prototype.abort = function () {};
+window.SpeechRecognition = function () { __puppet.heard.push(this); }; window.SpeechRecognition.prototype.start = function () { this._on = true; }; window.SpeechRecognition.prototype.abort = function () { this._on = false; };
+/* the made-up voice: __hear(text, final) is what the recogniser reports; __mics() is how many recognisers are open */
+window.__hear = function (text, final) { var r = __puppet.heard.filter(function (x) { return x._on && x.onresult; }).pop(); if (!r) return false; var a = [{ transcript: text, confidence: 0.9 }]; a.isFinal = final !== false; if (!r.continuous) r._on = false; r.onresult({ resultIndex: 0, results: [a] }); return true; };
+window.__mics = function () { return __puppet.heard.filter(function (x) { return x._on; }).length; };
 """
 
 with sync_playwright() as pw:
@@ -82,7 +85,7 @@ with sync_playwright() as pw:
     tiles = lambda: [x.get_attribute('data-id') for x in pg.locator('.tile').all()]
     tabto(pg, 'camera'); cam = tiles(); tabto(pg, 'learn'); learn = tiles()
     check('the Camera tab holds the camera cards and the Learn tab holds calibrate, teach and assign', cam == ['camera', 'hands', 'head', 'object', 'journey'] and learn == ['calibrate', 'teach', 'assign'], (cam, learn))
-    check('the page says which build it is', 'lab-r11' in txt('#meta'), txt('#meta'))
+    check('the page says which build it is', 'lab-r12' in txt('#meta'), txt('#meta'))
 
     # ---- hand numbers
     card(pg, 'hands'); wait(900)
@@ -171,7 +174,7 @@ with sync_playwright() as pw:
     # ---- assign and combine
     card(pg, 'assign'); wait(700)
     sel = lambda n: '#aList select[data-sig="%s"]' % n
-    check('assign: each taught signal has a list of actions', pg.locator('#aList select').count() == 3 and pg.locator(sel('fist') + ' option').count() == 18, pg.locator(sel('fist') + ' option').count())
+    check('assign: each taught signal has a list of actions', pg.locator('#aList select').count() == 3 and pg.locator(sel('fist') + ' option').count() == 20, pg.locator(sel('fist') + ' option').count())
     pg.select_option(sel('fist'), 'next'); wait(150)
     pg.select_option(sel('nod'), 'next'); wait(150)
     check('assign: an action given to a second signal leaves the first', pg.input_value(sel('nod')) == 'next' and pg.input_value(sel('fist')) == '', (pg.input_value(sel('fist')), pg.input_value(sel('nod'))))
@@ -379,6 +382,120 @@ with sync_playwright() as pw:
     body = http('/trial/' + key[-1]) if key else ''
     check('journey: the record has each move, the dead ends, what was taken and the ending, and no picture', body.count('"what":"went ') == 23 and '"what":"no way"' in body and '"what":"locked"' in body and '"what":"took lantern"' in body and '"what":"journey done"' in body and 'landmarks' not in body, len(body))
 
+    # ---- voice: hot word and cold word, turns, cutting in. The recogniser is made up: __hear(text, final) is what it reports.
+    hear = lambda text, final=True: pg.evaluate("([t, f]) => __hear(t, f)", [text, final])
+    mics = lambda: pg.evaluate("() => __mics()")
+    spoken = lambda: pg.evaluate("() => __puppet.spoken")
+    camoff = lambda: 'off' in (pg.get_attribute('.linkbox .camview', 'class') or '')
+    sigid = lambda name: pg.evaluate("(n) => Signals.signals.filter(s => s.name === n)[0].id", name)
+    ev("() => { __puppet.rest = { hands: [{}], face: {} }; __puppet.heard.forEach(x => { x._on = false }) }")
+    tabto(pg, 'voice'); wait(200)
+    check('the Voice tab holds the three voice cards and asks for no watch code', tiles() == ['turns', 'cutin', 'gate'] and pg.locator('#pair.show').count() == 0, tiles())
+    card(pg, 'gate'); wait(400)
+    check('gate: it starts not listening, with nothing to open it, the microphone off and the camera off', txt('#vSay') == 'NOT LISTENING' and 'Nothing opens it yet' in txt('#vMic') and mics() == 0 and camoff() and txt('#vHot') == 'nothing yet', (txt('#vSay'), txt('#vMic'), mics()))
+    pg.click('#vTHot'); wait(450)
+    check('gate: teaching a word asks for it three times, each after a tone', txt('#vSay') == 'SAY IT 1 of 3' and mics() == 1, (txt('#vSay'), mics()))
+    hear('Hey lab.'); wait(550); hear('hey lab'); wait(550); hear('a lab'); wait(700)
+    check('gate: the word is learned as it was heard, and now opens the listening', txt('#vHot') == 'hey lab' and 'Learned “hey lab”' in txt('.vmsg') and 'also heard as “a lab”' in txt('.vmsg') and 'It starts the listening' in txt('.vmsg'), txt('.vmsg'))
+    check('gate: with a hot word taught, the microphone is on and waits only for it', 'waiting only for the hot word' in txt('#vMic') and mics() == 1 and txt('#vSay') == 'NOT LISTENING', (txt('#vMic'), mics()))
+    pg.click('#vTCold'); wait(450); hear('that is all'); wait(550); hear('that is all'); wait(550); hear('That is all.'); wait(700)
+    check('gate: a cold word is learned the same way', txt('#vCold') == 'that is all' and 'It stops the listening' in txt('.vmsg'), (txt('#vCold'), txt('.vmsg')))
+    pg.click('#vTCold'); wait(450); hear('hey lab'); wait(550); hear('hey lab'); wait(550); hear('hey lab'); wait(700)
+    check('gate: a word that sounds like one already taught is refused', 'already taught' in txt('.vmsg') and txt('#vCold') == 'that is all' and txt('#vHot') == 'hey lab', txt('.vmsg'))
+    hear('what a lovely day'); wait(120)
+    check('gate: while not listening, what is said is let pass and not shown', txt('#vPass') == '1' and txt('#vText') == '' and txt('#vSay') == 'NOT LISTENING', (txt('#vPass'), txt('#vText')))
+    hear('hey lab', False); wait(150)
+    check('gate: the hot word opens it while it is still being said', txt('#vSay') == 'LISTENING' and txt('#vOpen') == '1' and 'taking down what you say' in txt('#vMic'), (txt('#vSay'), txt('#vMic')))
+    hear('hey lab'); hear('buy milk and eggs'); wait(120)
+    if shot: pg.screenshot(path=shot + '-gate.png')
+    check('gate: while listening, what is said is taken down, and the hot word itself is not', txt('#vText') == 'buy milk and eggs.' and txt('#vTook') == '1', (txt('#vText'), txt('#vTook')))
+    hear('that is all'); wait(150)
+    check('gate: the cold word shuts it', txt('#vSay') == 'NOT LISTENING' and txt('#vShut') == '1', txt('#vSay'))
+    hear('one more thing'); wait(120)
+    check('gate: and nothing more is taken down', txt('#vText') == 'buy milk and eggs.' and txt('#vPass') == '2', (txt('#vText'), txt('#vPass')))
+    close()
+    # a gesture instead of the hot word: the fist is given "start listening". One action has one signal, so the word gives it up.
+    pg.evaluate("(id) => Signals.setAction(id, 'listen')", sigid('fist'))
+    card(pg, 'gate'); wait(900)
+    check('gate, by gesture: the camera is on, and the microphone is off until the gesture', (not camoff()) and mics() == 0 and 'off until “fist”' in txt('#vMic') and txt('#vHot') == 'fist', (camoff(), mics(), txt('#vMic')))
+    ev("() => { __puppet.rest = { hands: [{ curl: 1 }], face: {} } }"); wait(1300)
+    check('gate, by gesture: the fist opens the listening and only then is the microphone on', txt('#vSay') == 'LISTENING' and mics() == 1, (txt('#vSay'), mics()))
+    ev("() => { __puppet.rest = { hands: [{}], face: {} } }"); hear('write this down'); wait(120); hear('that is all'); wait(200)
+    check('gate, by gesture: the cold word still shuts it, and the microphone goes off again', txt('#vTook') == '1' and txt('#vSay') == 'NOT LISTENING' and mics() == 0, (txt('#vTook'), txt('#vSay'), mics()))
+    close()
+    key = sorted(x['key'] for x in json.loads(http('/trials')) if '-gate-' in x['key'] and x['key'].endswith(':000'))
+    body = ''.join(http('/trial/' + k) for k in key[-2:])
+    check('gate: the record has the openings, the shuttings and counts of words, and none of what was said', '"what":"listening"' in body and '"what":"not listening"' in body and '"what":"taken down"' in body and 'milk' not in body and 'lovely' not in body and 'write this' not in body, len(body))
+    pg.evaluate("(id) => Signals.setAction(id, 'listen')", sigid('hey lab'))
+    pg.evaluate("(id) => Signals.setAction(id, 'take')", sigid('fist'))
+    # taking turns
+    ev("() => { __puppet.talkMs = 700 }")
+    card(pg, 'turns'); wait(400)
+    check('turns: it opens on your turn, the microphone on and the camera off', txt('#vSay') == 'Your turn' and mics() == 1 and camoff(), (txt('#vSay'), mics()))
+    hear('good morn', False); wait(100)
+    check('turns: words show as they are said', txt('#vLive') == 'good morn' and txt('#vN') == '0', txt('#vLive'))
+    hear('good morning everyone'); wait(150)
+    check('turns: a finished phrase is one turn', txt('#vSay') == 'I heard you' and txt('#vN') == '1', (txt('#vSay'), txt('#vN')))
+    wait(500)
+    check('turns: it says back what it heard', spoken()[-1] == 'You said: good morning everyone', spoken()[-1])
+    hear('you said good morning everyone'); wait(100)
+    if shot: pg.screenshot(path=shot + '-turns.png')
+    check('turns: what the microphone hears while it speaks is ignored and counted', txt('#vDrop') == '1' and txt('#vN') == '1', (txt('#vDrop'), txt('#vN')))
+    wait(1100)
+    check('turns: then it is your turn again', txt('#vSay') == 'Your turn', txt('#vSay'))
+    hear('that is all'); wait(150)
+    check('turns: the cold word stops the listening and is not said back', txt('#vSay') == 'Not listening' and txt('#vGate') == 'shut' and txt('#vN') == '1', (txt('#vSay'), txt('#vGate')))
+    hear('is anyone there'); wait(150)
+    check('turns: while not listening nothing is a turn', txt('#vN') == '1' and txt('#vSay') == 'Not listening', txt('#vN'))
+    hear('hey lab'); wait(150)
+    check('turns: the hot word brings it back', txt('#vSay') == 'Your turn' and txt('#vGate') == 'open', (txt('#vSay'), txt('#vGate')))
+    close()
+    key = sorted(x['key'] for x in json.loads(http('/trials')) if '-turns-' in x['key'] and x['key'].endswith(':000'))
+    body = http('/trial/' + key[-1]) if key else ''
+    check('turns: the record has the tones, the turn and what was ignored, and none of what was said', '"kind":"rise"' in body and '"kind":"fall"' in body and '"what":"turn"' in body and '"what":"ignored"' in body and 'morning' not in body and 'anyone' not in body, len(body))
+    # cutting in
+    ev("() => { __puppet.talkMs = 1500 }")
+    card(pg, 'cutin'); wait(500)
+    check('cut in: it starts reading the first sentence aloud and marks it', txt('#vSay') == 'Reading' and spoken()[-1].startswith('The sea rises') and pg.inner_text('#vText .on').startswith('The sea rises'), (txt('#vSay'), spoken()[-1][:30]))
+    hear('rises and falls twice a day', False); wait(150)
+    check('cut in: its own words coming back are known as its own, counted, and it reads on', txt('#vSay') == 'Reading' and txt('#vOwn') == '1' and txt('#vVoice') == '0', (txt('#vSay'), txt('#vOwn')))
+    hear('hang on a second', False); wait(150); said_n = len(spoken())
+    check('cut in: other words stop it at once', txt('#vSay') == 'You cut in' and txt('#vVoice') == '1' and txt('#vLive') == 'hang on a second', (txt('#vSay'), txt('#vVoice')))
+    wait(1700)
+    if shot: pg.screenshot(path=shot + '-cutin.png')
+    check('cut in: it stays quiet while you speak', len(spoken()) == said_n and txt('#vSay') == 'You cut in', spoken()[-1][:30])
+    hear('hang on a second what is a bulge'); wait(1300)
+    check('cut in: when you have finished it says so', txt('#vSay') == 'Going on' and spoken()[-1] == 'Going on.', (txt('#vSay'), spoken()[-1]))
+    wait(1800)
+    check('cut in: and goes on from the sentence it was in', txt('#vSay') == 'Reading' and spoken()[-1].startswith('The sea rises'), spoken()[-1][:30])
+    hear('the see rice is', False); wait(150)
+    check('cut in: its own voice misheard does stop it', txt('#vSay') == 'You cut in' and txt('#vVoice') == '2', (txt('#vSay'), txt('#vVoice')))
+    hear('the sea rises and falls twice a day'); wait(200)
+    check('cut in: but when the words turn out to be its own, that is counted as stopped for nothing and it goes on', txt('#vFalse') == '1' and txt('#vSay') == 'Going on', (txt('#vFalse'), txt('#vSay')))
+    wait(1800); hear('hey lab', False); wait(200)
+    check('cut in: a signal given "start listening" cuts in too', txt('#vSay') == 'You cut in' and txt('#vSig') == '1', (txt('#vSay'), txt('#vSig')))
+    wait(5600)
+    check('cut in: cut in by a signal and then silence, it goes on without counting it against itself', txt('#vFalse') == '1' and txt('#vSay') in ('Going on', 'Reading'), (txt('#vFalse'), txt('#vSay')))
+    ev("() => { __puppet.talkMs = 40 }"); wait(3200)
+    check('cut in: left alone it reads to the end', txt('#vSay') == 'The end' and pg.locator('#vText .done').count() == 10, txt('#vSay'))
+    pg.click('#vAgain'); wait(200)
+    check('cut in: Read it again starts over', spoken()[-1].startswith('The sea rises') or txt('#vSay') in ('Reading', 'The end'), txt('#vSay'))
+    close()
+    key = sorted(x['key'] for x in json.loads(http('/trials')) if '-cutin-' in x['key'] and x['key'].endswith(':000'))
+    body = http('/trial/' + key[-1]) if key else ''
+    check('cut in: the record has each cut-in, how, the false stop and the own-voice count, and none of what was said', body.count('"what":"cut in"') == 3 and '"what":"stopped for nothing"' in body and '"what":"own voice"' in body and '"what":"read to the end"' in body and 'bulge mean' not in body and 'hang on' not in body, len(body))
+    # a word can be taught in Learn as well
+    ev("() => { __puppet.talkMs = 60 }")
+    card(pg, 'teach'); wait(300); pg.select_option('#tSrc', 'voice'); wait(200); pg.click('#tGo'); wait(500)
+    check('teach: Voice is a source; a word is asked for three times', txt('#tSay') == 'SAY IT 1 of 3', txt('#tSay'))
+    hear('next please'); wait(550); hear('next please'); wait(550); hear('next please'); wait(700)
+    check('teach: the word is saved under what was heard, and listed', txt('#tSay') == 'Saved: next please' and 'next please' in txt('#tList') and 'Voice · word' in txt('#tList'), (txt('#tSay'), txt('#tList')[-80:]))
+    pg.evaluate("(id) => Signals.remove(id)", sigid('next please'))
+    pg.select_option('#tSrc', 'handR'); close()
+    tabto(pg, 'dash'); wait(300)
+    check('dashboard: says how the microphone did on this visit', txt('#dMic') == 'working', txt('#dMic'))
+    ev("() => { __puppet.rest = { hands: [{}] } }")
+
     # ---- the rest of the Lab still stands
     card(pg, 'teach'); wait(500); pg.click('#notesBtn'); wait(300); pg.click('#rate button[data-v=keep]'); pg.click('#doneBtn'); wait(700)
     card(pg, 'keepers'); wait(500)
@@ -386,14 +503,14 @@ with sync_playwright() as pw:
     close()
     pg.reload(); wait(900)
     card(pg, 'teach'); wait(600)
-    check('after a reload, everything taught is still there', txt('#tList').count('Remove') == 4 and 'combination: fist then nod' in txt('#tList') and 'does: take' in txt('#tList'), txt('#tList'))
+    check('after a reload, everything taught is still there', txt('#tList').count('Remove') == 6 and 'combination: fist then nod' in txt('#tList') and 'Voice · word · does: start listening' in txt('#tList') and 'does: take' in txt('#tList'), txt('#tList'))
     pg.locator('#sig_' + ev("() => Signals.signals.find(s => s.name === 'fist').id") + ' button').click(); wait(200)
-    check('removing a letter removes the word made with it', txt('#tList').count('Remove') == 2 and 'fist' not in txt('#tList'), txt('#tList'))
+    check('removing a letter removes the word made with it', txt('#tList').count('Remove') == 4 and 'fist' not in txt('#tList'), txt('#tList'))
     close()
 
     # ---- calibrate: the person's own pinch, reach, head and eyes
     tabto(pg, 'dash'); wait(300)
-    check('dashboard: nothing is calibrated yet, and what was taught is listed', txt('.dash').count('not yet') == 5 and 'TAUGHT (2)' in txt('.dash') and 'wrist down' in txt('.dash'), txt('.dash')[:300])
+    check('dashboard: nothing is calibrated yet, and what was taught is listed', txt('.dash').count('not yet') == 5 and 'TAUGHT (4)' in txt('.dash') and 'wrist down' in txt('.dash'), txt('.dash')[:300])
     card(pg, 'calibrate'); wait(500)
     check('calibrate: five things to calibrate, none done', pg.locator('#kList .calrow').count() == 5 and txt('#kList').count('not yet') == 5, txt('#kList'))
     def calibrate(key, secs):
@@ -462,6 +579,7 @@ with sync_playwright() as pw:
     check('journey, after calibration: up is whichever way their own head went for up', jst()['at'] == 'loft', jst())
     close()
     tabto(pg, 'dash'); wait(400)
+    check('dashboard: lists the taught words with what they do', 'Voice, word → start listening' in txt('.dash') and 'Voice, word → stop listening' in txt('.dash'), txt('.dash')[-300:])
     check('dashboard: shows what is calibrated, with their numbers, and how the camera is doing', 'pinch 0.4' in txt('.dash') and 'reach \u00D72.0' in txt('.dash') and 'left, right and both' in txt('.dash') and txt('.dash').count('not yet') == 1 and 'not used' not in txt('#dCam'), txt('.dash')[:400].replace('\n', ' | '))
     if shot: pg.screenshot(path=shot + '-dash.png')
 

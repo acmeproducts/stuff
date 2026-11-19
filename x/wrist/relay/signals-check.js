@@ -201,5 +201,51 @@ check('how much roll starts a scroll comes from their own range', near(S.rollSta
 check('a watch that sent too little is refused', /too little/.test(S.calWatch({ rest: wr(0, 0).slice(0, 5) }).error || ''));
 check('rolls that read as the same direction leave the roll range out, and keep the rest', (() => { const c = S.calWatch({ rest: wr(-7, -125), rollA: wr(-7, -100), rollB: wr(-7, -90) }); return c.rollA === undefined && near(c.roll0, -125, 0.2); })());
 
+/* ---- voice: a word is taught by saying it, and fires like any other signal ---- */
+S.signals.length = 0; S.assign = {}; S.save(); fired.length = 0;
+check('voice is a source that can be taught', S.SOURCES.some(s => s[0] === 'voice') && S.actionName('listen') === 'start listening' && S.actionName('deaf') === 'stop listening');
+let hw = S.learnWord(['Hey lab.', 'hey Lab', 'a lab']);
+check('a word said three times is learned as what was heard, the commonest first', hw.src === 'voice' && hw.kind === 'word' && hw.name === 'hey lab' && hw.says.join('|') === 'hey lab|a lab', hw);
+check('heard once is not enough', /only once/.test(S.learnWord(['', 'hey lab', '']).error || '') && /not at all/.test(S.learnWord(['', '', '']).error || ''));
+check('more than four words is refused', /four words/.test(S.learnWord(['one two three four five', 'one two three four five']).error || ''));
+const hot = S.add(hw), cold = S.add(S.learnWord(['that is all', 'that is all', 'that is all']));
+S.setAction(hot.id, 'listen'); S.setAction(cold.id, 'deaf');
+check('a word that contains a taught word is seen as too alike', S.collides(S.learnWord(['hey lab now', 'hey lab now']), hot) && !S.collides(S.learnWord(['good morning', 'good morning']), hot));
+const acts = []; S.onFire(e => acts.push(e.name + ':' + e.action + ':' + e.src));
+let vg = S.heard('so I said hey', false, 1000);
+check('other words fire nothing', vg.length === 0 && acts.length === 0);
+vg = S.heard('so I said hey lab', false, 1200);
+check('the word fires as it is being said, with its action', vg.length === 1 && acts.join() === 'hey lab:listen:voice', acts);
+S.heard('so I said hey lab what', false, 1500); S.heard('So I said, hey lab! What time is it?', true, 1900);
+check('and once for the phrase, however long the phrase runs', acts.length === 1, acts);
+S.heard('hey lab', true, 2400);
+check('said again in a new phrase it fires again', acts.length === 2, acts);
+S.heard('a lab', true, 9000);
+check('what the recogniser mis-heard during teaching counts too', acts.length === 3, acts);
+S.heard('heyday laboratory', true, 15000);
+check('part of a longer word does not count', acts.length === 3, acts);
+S.heard('That is all.', true, 20000);
+check('the cold word fires with its own action', acts[3] === 'that is all:deaf:voice', acts);
+S.heard('hey lab', false, 30000); S.heard('hey lab', false, 35000);
+check('a phrase that never ends does not hold the word for ever', acts.length === 6, acts);
+const two = S.add({ kind: 'combo', name: 'wake and sleep', seq: [hot.id, cold.id], gap: 2500 }); acts.length = 0;
+S.heard('hey lab', true, 40000); S.heard('that is all', true, 41000);
+check('words join into combinations like any other signals', acts.join() === 'hey lab:listen:voice,that is all:deaf:voice,wake and sleep::combo', acts);
+check('with no recogniser in the browser the ears say so and stay off', S.ears.start(() => {}) === false && /no speech recognition/.test(S.ears.err) && S.ears.on === false);
+{
+  const made = []; global.window.SpeechRecognition = function () { made.push(this); }; global.window.SpeechRecognition.prototype = { start() { this.on = true; }, abort() { this.on = false; } };
+  const txt = []; const ok = S.ears.start((t, f) => txt.push(t + (f ? '.' : '…')));
+  const res = (t, f) => { const a = [{ transcript: t }]; a.isFinal = f; return { resultIndex: 0, results: [a] }; };
+  made[0].onresult(res(' hello ', false)); made[0].onresult(res('hello there', true)); made[0].onresult(res('  ', true));
+  check('the ears open the recogniser, kept open, and pass on what is heard, trimmed, empty results dropped', ok && made.length === 1 && made[0].continuous === true && made[0].interimResults === true && txt.join('|') === 'hello…|hello there.', txt);
+  made[0].onerror({ error: 'no-speech' }); const first = made[0]; first.onend();
+  check('a pause that ends the recogniser is not an error', S.ears.on === true && S.ears.err === '');
+  S.ears.stop();
+  check('stopped, it lets go of the recogniser and listens to nothing', first.on === true && S.ears.on === false && S.ears.rec === null);
+  S.ears.start(() => {}); made[made.length - 1].onerror({ error: 'not-allowed' });
+  check('a refused microphone is said plainly and it stops trying', S.ears.on === false && /not allowed/.test(S.ears.err), S.ears.err);
+  S.ears.stop(); delete global.window.SpeechRecognition;
+}
+
 console.log(fails ? '\n' + fails + ' FAILED' : '\nall passed');
 process.exit(fails ? 1 : 0);
