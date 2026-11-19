@@ -259,3 +259,29 @@ test('SBS: the keys use the spare room, so there is no empty band under the last
  const gap=await page.evaluate(()=>{const kb=document.getElementById('kb-south').getBoundingClientRect(),rows=document.querySelectorAll('#kb-south .krow'),last=rows[rows.length-1].getBoundingClientRect(),q=document.querySelector('#kb-south .key').getBoundingClientRect();return{gap:kb.bottom-last.bottom,key:q.height}});
  assert.ok(gap.gap<=14,'no blank band under the last row ('+Math.round(gap.gap)+'px)');assert.ok(gap.key>=50,'keys are taller than before ('+Math.round(gap.key)+'px)');
 });
+test('SBS: while you speak, the bubble is already there in the final two-column form and fills in as you go',async({page})=>{
+ await create(page,'LiveBub');await setLayout(page,'LiveBub','sbs');
+ await page.evaluate(()=>window.clLive('south','hello friend','',.9));
+ await page.waitForSelector('#tx-south .row.cl-live .bcols');
+ const cols=()=>page.locator('#tx-south .row.cl-live .bcol');
+ assert.equal(await cols().count(),2,'two columns from the first word, like the finished bubble');
+ assert.equal(await page.locator('#tx-south .row.cl-live .bsaid').count(),0,'no separate line underneath');
+ assert.match(await cols().first().innerText(),/hello friend/);
+ await page.waitForFunction(()=>{const c=document.querySelectorAll('#tx-south .row.cl-live .bcol');return c.length===2&&!/^…/.test(c[1].innerText.trim())&&c[1].innerText.trim().length>0},null,{timeout:8000});
+ await page.evaluate(()=>window.clLive('south','hello friend how are','you',.9));
+ await page.waitForFunction(()=>/how are you/.test(document.querySelector('#tx-south .row.cl-live .bcol').innerText));
+ assert.equal(await page.locator('#tx-south .row.cl-live').count(),1,'one live bubble, not two');
+});
+test('SBS: when the turn ends, the bubble keeps the translation it already showed while the final one is fetched',async({page})=>{
+ await create(page,'Carry');await setLayout(page,'Carry','sbs');
+ await page.evaluate(()=>window.clLive('south','hello friend','',.9));
+ await page.waitForFunction(()=>{const c=document.querySelectorAll('#tx-south .row.cl-live .bcol');return c.length===2&&c[1].innerText.trim().length>0&&!/^…/.test(c[1].innerText.trim())},null,{timeout:8000});
+ const shown=(await page.locator('#tx-south .row.cl-live .bcol').nth(1).innerText()).trim();
+ let release;const held=new Promise(r=>release=r);let arrived;const ready=new Promise(r=>arrived=r);
+ await page.route('**/get?**',async route=>{arrived();await held;await route.fulfill({json:{responseStatus:200,responseData:{translatedText:'สวัสดีเพื่อน'}}})});
+ await send(page,'south','hello friend how are you');await page.evaluate(()=>window.clLive('south','',''));await ready;
+ await page.waitForFunction(()=>HIST.length===1&&HIST[0].status==='pending');
+ const mid=(await page.locator('#tx-south .row[data-msg-id]:not(.cl-live) .bcol').nth(1).innerText()).trim();
+ assert.equal(mid,shown,'the translation does not drop back to … while the final one is fetched');
+ release();await settled(page,1);
+});
