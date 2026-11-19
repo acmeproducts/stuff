@@ -285,3 +285,28 @@ test('SBS: when the turn ends, the bubble keeps the translation it already showe
  assert.equal(mid,shown,'the translation does not drop back to … while the final one is fetched');
  release();await settled(page,1);
 });
+test('SBS: the bubble never disappears between speaking and the finished translation',async({page})=>{
+ await openRoom(page,'NoGap');await setLayout(page,'NoGap','sbs');
+ await page.waitForFunction(()=>mic.south.active&&mic.north.active);await page.waitForTimeout(400);
+ const byLang=l=>page.testSockets.filter(w=>w.url().includes('language='+l)).slice(-1)[0],s={south:byLang('en-US'),north:byLang('th')};
+ await page.route('**/get?**',async route=>{await new Promise(r=>setTimeout(r,1200));await route.fulfill({json:{responseStatus:200,responseData:{translatedText:'สวัสดีเพื่อน'}}})});
+ await page.evaluate(()=>{window.__rows=[];const h=document.getElementById('tx-south'),snap=()=>window.__rows.push(h.querySelectorAll('.row').length);new MutationObserver(snap).observe(h,{childList:true,subtree:true});window.__iv=setInterval(snap,25)});
+ s.south.send(JSON.stringify({is_final:false,channel:{alternatives:[{transcript:'hello fri',confidence:.9}]}}));await page.waitForTimeout(300);
+ s.south.send(JSON.stringify({is_final:true,channel:{alternatives:[{transcript:'hello friend',confidence:.93}]}}));s.south.send(JSON.stringify({type:'UtteranceEnd'}));
+ await page.waitForFunction(()=>HIST.length===1&&HIST[0].status==='complete',null,{timeout:9000});await page.waitForTimeout(200);
+ const rows=await page.evaluate(()=>{clearInterval(window.__iv);return window.__rows});const first=rows.findIndex(n=>n>0);
+ assert.ok(first>=0,'a bubble appeared');assert.equal(rows.slice(first).filter(n=>n===0).length,0,'a bubble is on screen the whole time');assert.equal(rows[rows.length-1],1,'and it ends as exactly one bubble');
+});
+test('chat width and text size are set per conversation, and in SBS the bubbles sit flush left and right',async({page})=>{
+ await create(page,'Wide');await menu(page);await page.getByRole('button',{name:'Edit Wide',exact:true}).click();
+ await page.locator('summary',{hasText:'Appearance'}).click();await page.getByLabel('Chat width',{exact:false}).fill('70');await page.getByRole('button',{name:'Save changes',exact:true}).click();
+ await page.waitForFunction(()=>getComputedStyle(document.documentElement).getPropertyValue('--cw').trim()==='70%');
+ assert.equal((await records(page)).find(r=>r.label==='Wide').chatWidth,70,'saved with the conversation');
+ await setLayout(page,'Wide','sbs');
+ await send(page,'south','hello friend');await settled(page,1);
+ await page.locator('#in-south').focus();await page.waitForFunction(()=>INPUT.owner==='south'&&INPUT.mode==='kb');await page.locator('#kb-south .ktoggle').click();await page.waitForFunction(()=>INPUT.owner==='north');
+ await send(page,'north','สวัสดี');await settled(page,2);await page.waitForTimeout(300);
+ const g=await page.evaluate(()=>{const tx=document.getElementById('tx-south'),r=tx.getBoundingClientRect(),l=r.left+tx.clientLeft,rt=r.right-tx.clientLeft,own=document.querySelector('#tx-south .row.own .bub').getBoundingClientRect(),them=document.querySelector('#tx-south .row.them .bub').getBoundingClientRect();return{inner:rt-l,ownGap:rt-own.right,themGap:them.left-l,ownW:own.width,themW:them.width}});
+ assert.ok(g.ownGap<=4,'the South bubble is flush right ('+g.ownGap+'px)');assert.ok(g.themGap<=4,'the North bubble is flush left ('+g.themGap+'px)');
+ assert.ok(Math.abs(g.ownW-g.inner*0.7)<=5&&Math.abs(g.themW-g.inner*0.7)<=5,'bubbles take the chosen width ('+Math.round(g.ownW)+' / '+Math.round(g.inner)+')');
+});
