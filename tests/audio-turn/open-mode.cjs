@@ -297,3 +297,38 @@ test('live preview: real Korean speech still shows, and an already shown preview
  await page.waitForFunction(()=>[...document.querySelectorAll('.cl-live')].some(r=>/저는 학생/.test(r.innerText)),null,{timeout:2500});
  assert.ok(Date.now()-t0<400,'an update to a shown preview is immediate ('+(Date.now()-t0)+' ms)');
 });
+test('one bubble per turn: from the first words it is the real two-column bubble, transcript first, then the translation',async({page})=>{
+ await create(page,'OneBubble');
+ await page.evaluate(()=>window.clLive('south','hello friend','',.9));
+ await page.waitForSelector('#tx-south .row.cl-live .bcols',{timeout:3000});
+ assert.equal(await page.locator('#tx-south .row.cl-live .bcol').count(),2,'two columns, like the finished bubble');
+ assert.equal(await page.locator('#tx-south .row.cl-live .bsaid').count(),0,'no separate line underneath');
+ assert.match(await page.locator('#tx-south .row.cl-live .bcol').first().innerText(),/hello friend/,'the transcript is in the first column');
+ await page.waitForFunction(()=>{const c=document.querySelectorAll('#tx-south .row.cl-live .bcol');return c.length===2&&c[1].innerText.trim().length>0&&!/^…/.test(c[1].innerText.trim())},null,{timeout:8000});
+ await page.evaluate(()=>window.clLive('south','hello friend how are','you',.9));
+ await page.waitForFunction(()=>/how are you/.test(document.querySelector('#tx-south .row.cl-live .bcol').innerText));
+ assert.equal(await page.locator('#tx-south .row.cl-live').count(),1,'only one live bubble');
+});
+test('one bubble per turn: it stays on screen from speaking until the finished translation, with no gap',async({page})=>{
+ const s=await openRoom(page,'NoGapH2h');
+ await page.route('**/get?**',async route=>{await new Promise(r=>setTimeout(r,1200));await route.fulfill({json:{responseStatus:200,responseData:{translatedText:'สวัสดีเพื่อน'}}})});
+ await page.evaluate(()=>{window.__rows=[];const h=document.getElementById('tx-south'),snap=()=>window.__rows.push(h.querySelectorAll('.row').length);new MutationObserver(snap).observe(h,{childList:true,subtree:true});window.__iv=setInterval(snap,25)});
+ s.south.send(JSON.stringify({is_final:false,channel:{alternatives:[{transcript:'hello fri',confidence:.9}]}}));await page.waitForTimeout(500);
+ s.south.send(JSON.stringify({is_final:true,channel:{alternatives:[{transcript:'hello friend',confidence:.93}]}}));s.south.send(JSON.stringify({type:'UtteranceEnd'}));
+ await page.waitForFunction(()=>HIST.length===1&&HIST[0].status==='complete',null,{timeout:9000});await page.waitForTimeout(200);
+ const rows=await page.evaluate(()=>{clearInterval(window.__iv);return window.__rows}),first=rows.findIndex(n=>n>0);
+ assert.ok(first>=0,'a bubble appeared');assert.equal(rows.slice(first).filter(n=>n===0).length,0,'a bubble is on screen the whole time');assert.equal(rows[rows.length-1],1,'and it ends as exactly one bubble');
+});
+test('one bubble per turn: the finished bubble keeps the translation already shown until its own arrives',async({page})=>{
+ await create(page,'CarryH2h');
+ await page.evaluate(()=>window.clLive('south','hello friend','',.9));
+ await page.waitForFunction(()=>{const c=document.querySelectorAll('#tx-south .row.cl-live .bcol');return c.length===2&&c[1].innerText.trim().length>0&&!/^…/.test(c[1].innerText.trim())},null,{timeout:8000});
+ const shown=(await page.locator('#tx-south .row.cl-live .bcol').nth(1).innerText()).trim();
+ let release;const held=new Promise(r=>release=r);let arrived;const ready=new Promise(r=>arrived=r);
+ await page.route('**/get?**',async route=>{arrived();await held;await route.fulfill({json:{responseStatus:200,responseData:{translatedText:'สวัสดีเพื่อน'}}})});
+ await send(page,'south','hello friend how are you');await page.evaluate(()=>window.clLive('south','',''));await ready;
+ await page.waitForFunction(()=>HIST.length===1&&HIST[0].status==='pending');
+ const mid=(await page.locator('#tx-south .row[data-msg-id]:not(.cl-live) .bcol').nth(1).innerText()).trim();
+ assert.equal(mid,shown,'the translation does not drop back to … while the final one is fetched');
+ release();await settled(page,1);
+});

@@ -1781,7 +1781,7 @@ function dgLangParam(room) {
     /* r13: live bubble. While someone talks, their words show at once in a faded bubble on both panes,
        with a rough translation of what is already settled. The settled text is translated in the
        background, so the real message usually finds its translation cached when the turn ends. */
-    var LIVE={},liveShown=null,liveSpec={},liveCand=null,liveSettleT=null,LIVE_SETTLE=350;   // a preview may appear, or move to the other side, only after that side has led for LIVE_SETTLE ms
+    var LIVE={},liveShown=null,liveSpec={},liveCand=null,liveSettleT=null,LIVE_SETTLE=250,liveHold=null,lastLiveTr=null;   // a preview may appear, or move to the other side, only after that side has led for LIVE_SETTLE ms
     window.clLive=function(pipe,committed,interim,conf){
         committed=norm(committed||'');var text=norm(committed+' '+(interim||''));
         if(!text){delete LIVE[pipe];delete liveSpec[pipe];pickLive();return}
@@ -1792,31 +1792,33 @@ function dgLangParam(room) {
         ['south','north'].forEach(function(p){var l=LIVE[p];if(!l||Date.now()-l.ts>3000)return;
             var ss=window.audioTurn.scriptSide(l.text),sc=l.conf+(ss===p?0.3:ss?-0.6:0);
             if(!best||sc>best.sc)best={p:p,sc:sc,l:l}});
-        if(!best||best.sc<0.5){liveCand=null;if(liveShown){liveShown=null;paintLive()}return}
+        if(!best||best.sc<0.5){liveCand=null;if(liveShown){if(liveShown.text){liveHold={side:liveShown.side,text:liveShown.text,tr:liveShown.tr,began:liveShown.began,frozen:Date.now()};setTimeout(paintLive,4100)}liveShown=null;paintLive()}return}   // speech ended: the bubble stays until the finished message's bubble is drawn in its place
         if(!liveShown||liveShown.side!==best.p){      // starting, or about to switch sides: the other channel's guess at the same sounds often arrives first, so wait and see who leads
             if(!liveCand||liveCand.side!==best.p)liveCand={side:best.p,since:Date.now()};
             var waited=Date.now()-liveCand.since;
             if(waited<LIVE_SETTLE){clearTimeout(liveSettleT);liveSettleT=setTimeout(pickLive,LIVE_SETTLE-waited+15);return}
         }
         liveCand=null;
-        var keepTr=liveShown&&liveShown.side===best.p?liveShown.tr:'';
-        liveShown={side:best.p,text:best.l.text,tr:keepTr};
+        var keepTr=liveShown&&liveShown.side===best.p?liveShown.tr:'',began=liveShown&&liveShown.side===best.p?liveShown.began:Date.now();
+        liveHold=null;
+        liveShown={side:best.p,text:best.l.text,tr:keepTr,began:began};
         var c=best.l.committed;
         if(c&&liveSpec[best.p]!==c){liveSpec[best.p]=c;var sd=best.p,src=langOf(sd),tgt=langOf(otherSide(sd));
-            if(src!==tgt)translateWithRetry(c,src,tgt,0).then(function(r){if(r&&r.ok&&liveShown&&liveShown.side===sd){liveShown.tr=r.text;paintLive()}});}
+            if(src!==tgt)translateWithRetry(c,src,tgt,0).then(function(r){if(r&&r.ok&&liveShown&&liveShown.side===sd){liveShown.tr=r.text;lastLiveTr={src:c,tr:r.text,side:sd,ts:Date.now()};paintLive()}});}
         paintLive();
     }
     function paintLive(){['south','north'].forEach(paintLiveIn)}
     function paintLiveIn(panel){
         var host=document.getElementById('tx-'+panel);if(!host)return;
         var old=host.querySelector('.cl-live');if(old)old.remove();
-        if(!liveShown)return;
+        /* one bubble per turn: the live bubble is drawn with the very same builder as a finished message, so the words fill the first column and the translation the second.
+           When speech ends it is kept (liveHold) until the finished message's bubble exists; it is dropped in the same pass that draws that bubble, so there is never a gap or a second look. */
+        if(!liveShown&&liveHold&&(Date.now()-liveHold.frozen>4000||HIST.some(function(e){return e.side===liveHold.side&&e.ts>=liveHold.began-50})))liveHold=null;
+        var LV=liveShown||liveHold;if(!LV)return;
         var atBottom=host.scrollHeight-host.scrollTop-host.clientHeight<160;
-        var own=liveShown.side===panel,row=document.createElement('div');row.className='row cl-live '+(own?'own':'them');
-        var b=document.createElement('div');b.className='bub cl-live-bub '+(liveShown.side==='south'?'s':'n');
-        var main=document.createElement('div');main.className='btxt';main.textContent=own?liveShown.text:(liveShown.tr||'…');
-        var sub=document.createElement('div');sub.className='bsaid';sub.textContent=own?(liveShown.tr||''):liveShown.text;
-        b.append(main);if(sub.textContent)b.append(sub);row.appendChild(b);host.appendChild(row);
+        var le={id:'live',side:LV.side,src:langOf(LV.side),tgt:langOf(otherSide(LV.side)),text:LV.text,original:LV.text,tr:LV.tr||null,ts:Date.now()};
+        var row=bubbleFor(le,panel);row.classList.add('cl-live');row.querySelectorAll('.bdel,.bacts').forEach(function(x){x.remove()});
+        host.appendChild(row);
         if(atBottom)host.scrollTop=host.scrollHeight;
     }
     function bubbleFor(e,panel){
@@ -1835,9 +1837,10 @@ function dgLangParam(room) {
 
         var cols=document.createElement('div');cols.className='bcols';
         // this panel's own language always sits LEFT for the person reading it
-        var mine={text:e.side===panel?e.text:(e.tr||'…'),lang:e.side===panel?e.src:e.tgt};
+        var carried=(!e.tr&&e.status==='pending'&&lastLiveTr&&lastLiveTr.side===e.side&&Date.now()-lastLiveTr.ts<20000&&norm(e.text).toLowerCase().indexOf(norm(lastLiveTr.src).toLowerCase())===0)?lastLiveTr.tr:'';   // keep the translation already on screen until the final one arrives
+        var mine={text:e.side===panel?e.text:(e.tr||carried||'…'),lang:e.side===panel?e.src:e.tgt};
         if(e.side===panel&&e.original&&norm(e.original).toLowerCase()!==norm(e.text).toLowerCase())mine.said=e.original;
-        var theirs={text:e.side===panel?(e.tr||'…'):e.text,lang:e.side===panel?e.tgt:e.src};
+        var theirs={text:e.side===panel?(e.tr||carried||'…'):e.text,lang:e.side===panel?e.tgt:e.src};
         cols.appendChild(colFor(mine,panel));
         if(e.src!==e.tgt)cols.appendChild(colFor(theirs,panel));
         else b.classList.add('single');
