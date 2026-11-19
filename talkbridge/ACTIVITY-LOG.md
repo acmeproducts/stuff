@@ -1,6 +1,6 @@
 # TalkBridge activity log
 
-Who created, joined, called and chatted, one line per event, no message text (§7.21; relay v6.14). Drained 2026-11-19T08:58:06Z. Newest at the bottom. Person = the name typed in the app, letters and digits only (no name: Guest 1, Guest 2 … per room); room = its short id. Live view: https://acmeproducts.github.io/stuff/talkbridge/dash.html
+Who created, joined, called and chatted, one line per event, no message text (§7.21; relay v6.14). Drained 2026-11-19T17:58:37Z. Newest at the bottom. Person = the name typed in the app, letters and digits only (no name: Guest 1, Guest 2 … per room); room = its short id. Live view: https://acmeproducts.github.io/stuff/talkbridge/dash.html
 
 ```
 2026-10-19 07:05:25  room wvshos  voice call from miko — answered by text
@@ -342,4 +342,21 @@ Who created, joined, called and chatted, one line per event, no message text (§
 2026-11-16 13:40:15  room pvo42n  moko chat
 2026-11-16 13:40:24  room pvo42n  moko chat
 2026-11-16 13:40:28  room pvo42n  moko chat
-2026-11-16 13:40:33  room pvo42n  moko chat```
+2026-11-16 13:40:33  room pvo42n  moko chat
+2026-11-19 10:10:33  room 63vz5n Test  Lolo created  en → th
+2026-11-19 10:10:57  room 63vz5n Test  mike joined  th → en
+2026-11-19 10:11:13  room 63vz5n  voice call from mike — missed
+2026-11-19 10:12:52  room 63vz5n  voice call from mike — missed
+2026-11-19 10:13:31  room 6wyjxz  voice call from Unknown — answered by mike  started 10:13:17  ended 10:13:31  lasted 14s
+2026-11-19 10:14:11  room 6wyjxz  voice call from mike — missed
+2026-11-19 10:14:19  room 6wyjxz  voice call from Lolo — missed
+2026-11-19 10:14:29  room 6wyjxz  Lolo chat
+2026-11-19 10:14:37  room 6wyjxz  Lolo chat
+2026-11-19 10:27:26  room 63vz5n  mike chat
+2026-11-19 10:28:19  room 6wyjxz  Lolo chat
+2026-11-19 10:28:36  room 6wyjxz  Lolo chat
+2026-11-19 10:28:36  room 6wyjxz  Lolo chat
+2026-11-19 10:30:42  room 6wyjxz  mike chat
+2026-11-19 10:30:51  room 6wyjxz  mike chat
+2026-11-19 10:32:51  room 6wyjxz  voice call from mike — answered by Unknown  started 10:31:12  ended 10:32:51  lasted 1m 39s
+2026-11-19 16:46:15  room 9p8edn  hoho joined  zh → en```
