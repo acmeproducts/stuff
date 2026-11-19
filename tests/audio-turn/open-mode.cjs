@@ -278,3 +278,22 @@ test('head to head keeps its bubble placement: the writer on the right, nothing 
  const g=await page.evaluate(()=>{const tx=document.getElementById('tx-south'),r=tx.getBoundingClientRect(),b=document.querySelector('#tx-south .row.own .bub').getBoundingClientRect();return{left:b.left-r.left,right:r.right-b.right}});
  assert.ok(g.right<=14&&g.left>20,'own bubble stays on the right as before ('+Math.round(g.left)+' / '+Math.round(g.right)+')');
 });
+const liveWatch=page=>page.evaluate(()=>{window.__seen=[];window.__iv=setInterval(()=>{document.querySelectorAll('.cl-live').forEach(r=>window.__seen.push(r.innerText.replace(/\s+/g,' ').trim()))},20)});
+test('live preview: a wrong-language guess that arrives first never flashes up while English is being spoken',async({page})=>{
+ await create(page,'Ghost','en','ko');await liveWatch(page);
+ await page.evaluate(()=>window.clLive('north','','어떻게 해서 그냥',.85));            // the Korean channel guesses at English sounds, a moment ahead of the English channel
+ await page.waitForTimeout(150);
+ await page.evaluate(()=>window.clLive('south','','hello how are you',.9));
+ await page.waitForTimeout(900);
+ const seen=await page.evaluate(()=>{clearInterval(window.__iv);return window.__seen});
+ assert.ok(!seen.some(t=>/[가-힯]/.test(t)),'no Korean bubble was ever shown ('+JSON.stringify(seen.filter(t=>/[가-힯]/.test(t))[0])+')');
+ assert.ok(seen.some(t=>/hello how are you/.test(t)),'the English preview is shown');
+});
+test('live preview: real Korean speech still shows, and an already shown preview updates at once',async({page})=>{
+ await create(page,'Korean','en','ko');await liveWatch(page);
+ await page.evaluate(()=>window.clLive('north','','안녕하세요',.9));
+ await page.waitForFunction(()=>[...document.querySelectorAll('.cl-live')].some(r=>/안녕하세요/.test(r.innerText)),null,{timeout:2500});
+ const t0=Date.now();await page.evaluate(()=>window.clLive('north','안녕하세요','저는 학생입니다',.9));
+ await page.waitForFunction(()=>[...document.querySelectorAll('.cl-live')].some(r=>/저는 학생/.test(r.innerText)),null,{timeout:2500});
+ assert.ok(Date.now()-t0<400,'an update to a shown preview is immediate ('+(Date.now()-t0)+' ms)');
+});
