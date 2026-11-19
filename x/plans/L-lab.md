@@ -111,8 +111,24 @@ Owner's requests from this run are in `X-NORTH-STAR.md` §2 (2026-11-19) and req
 
 **Gate:** the owner carries the cup to the ring and sets it down, pushing and pulling in depth the way he expects; moving between watch cards does not wait; his record is in the repo without his closing the card.
 
-### L5 — Tabs (walk) · next
-Dashboard, Learn, Camera, Watch, Voice, on one page. Each tab starts only what it needs: the camera tab never asks for a watch code. Built together with V7 (Calibrate).
+### L5 — Tabs (walk) · built 2026-11-19 in `lab-r9`, lab only
+Owner: "an overall dashboard and combine/learn tab, then a camera tab, a watch tab and a voice tab, so that we're not commingling everything".
+
+**What was built.** One page, four tabs.
+| Tab | Holds | Starts |
+|---|---|---|
+| Dashboard | what is on (camera, watch); what is calibrated to the owner, with his numbers; what has been taught, with its action; how the cards have been judged | nothing |
+| Learn | Calibrate, Teach a signal, Assign and combine | the camera when a card needs it; the watch only when the watch is chosen or a taught watch signal exists |
+| Camera | hand probe, Hand numbers, Head and face, Object in your hands | the camera only. No watch code is asked for; records are filed without one |
+| Watch | link, results, the pose and motion cards, buzz, Keepers | the watch link and its stream, as soon as the tab opens |
+
+- The watch code is asked for only in the Watch tab, with a "Not now".
+- The page links to the relay the first time something needs the watch, and keeps that link for the visit, so the watch does not fall asleep while the owner is in another tab. A visit that only uses the camera never links; the dashboard then says the watch is not in use. The stream itself is on while the Watch tab is open and for two minutes after.
+- **Not shown: the Voice tab.** It has nothing in it until stage 5, and an empty tab would be a stub. Override me if you want the tab visible now.
+
+**Stated limit (told to the owner):** a connection, Wi-Fi or mobile data, is needed to open the page and to fetch the hand and face finders. After that the camera work runs on the device.
+
+**Gate:** on a device that has never had the watch code, the owner opens the Camera tab and runs Hand numbers with nothing else connected; in the Watch tab he moves between cards with no wait.
 
 ### L6 — Hands and things (walk) · after L5
 Hands in the scene as joints, bones and a palm; hand to hand; several objects with goals (cup on the ring, pass it, stack blocks, ball in the bowl, park the car); putty that stretches, squashes, flattens and reforms. No physics engine.

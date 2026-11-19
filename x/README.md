@@ -37,7 +37,7 @@ History and code:
 | Thing | Where |
 |---|---|
 | Watch file `turn07-b8` | `https://github.com/acmeproducts/stuff/raw/wrist-turn01/x/wrist/out/wrist.apk` |
-| Lab `lab-r8` | `https://wrist-relay.myacctfortracking.workers.dev/` |
+| Lab `lab-r9` | `https://wrist-relay.myacctfortracking.workers.dev/` |
 | X `x-r2` | `https://wrist-relay.myacctfortracking.workers.dev/x` |
 
 ## For any session working here

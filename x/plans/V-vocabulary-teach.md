@@ -113,7 +113,7 @@ Owner: "I think it's more of a monkey see monkey do with some AI assisted interp
 
 **After the object card:** the same recorder on other things X can see the outcome of. Which thing comes next is decided when this gate has passed, from what the owner then asks for.
 
-### V7 — Calibrate (crawl) · next, with L5
+### V7 — Calibrate (crawl) · built 2026-11-19 in `lab-r9`, lab only
 Owner, 2026-11-19: "we could focus more on calibration and interpretation and learning".
 
 **Scope.** In the Learn tab, ahead of Teach. About a minute per source; the person shows their own range and everything that reads that source uses it.
@@ -123,6 +123,16 @@ Owner, 2026-11-19: "we could focus more on calibration and interpretation and le
 | Head | where it rests; how far it turns, nods and leans in comfort |
 | Eyes | how each eye reads open and closed; blink left, right and both become three signals, each needing a hold longer than a natural blink |
 | Watch | the rest position |
+
+**What was built.** The card **Calibrate**, first in the Learn tab. Each flow asks for a few positions on the screen and aloud, two or three seconds each, then says what it learned in the person's own numbers.
+- **Each hand** (about 17 s): open, pinch, open, pinch, push toward the screen, pull back. The object card then uses their pinch (closed below a third of the way from their closed reading to their open one, open above six tenths) and their reach (their whole comfortable reach carries an object across the whole table).
+- **Head** (about 19 s): rest, left, right, up, down. Head numbers and taught head signals are then measured from where the head rests, and "looking left, right, up, down" is told by their own range. Which way the numbers run is learned, not assumed.
+- **Eyes** (about 16 s; a tone says when to open): open, both closed, left closed, right closed. Each eye then reads 0 (their open) to 1 (their closed), named for their own left and right whichever way the camera names them. Three signals are made, **blink left, blink right, blink both**, each needing 0.4 s, longer than a natural blink. Someone who cannot close one eye alone gets blink both only.
+- The numbers learned go into the record (numbers only), so the build can read them.
+
+**Left out, stated:** the watch. Nothing yet uses a rest position for it, and a calibration with no use would be a stub. Override me if wrong.
+
+**Lab checks.** `signals-check.js` 65 (23 of them calibration). `signals-page-test.py`: a made-up person whose pinch never quite closes cannot take the cup before calibrating and can after; reach, head rest, eye naming the other way round, the three blinks, a natural blink firing nothing.
 
 **Theory, to be shown by the card:** the person's own eye values plus the longer hold make blink reliable. His first run found blink "can't get … very correct" with the build's fixed scale.
 

@@ -75,15 +75,15 @@
   var HAND_SHAPE = ['curlT', 'curlI', 'curlM', 'curlR', 'curlP', 'pinchI', 'pinchM', 'palmX', 'palmY', 'palmZ', 'rollS', 'rollC'];
   var FEATS = {
     hand: { pose: HAND_SHAPE, move: HAND_SHAPE.concat(['x', 'y', 'size']) },
-    head: { pose: ['nod', 'turn', 'lean', 'blinkL', 'blinkR', 'jaw', 'brows', 'smile', 'pucker'], move: ['nod', 'turn', 'lean', 'blinkL', 'blinkR', 'jaw', 'brows', 'smile', 'pucker'] },
+    head: { pose: ['nod', 'turn', 'lean', 'blinkL', 'blinkR', 'wink', 'both', 'jaw', 'brows', 'smile', 'pucker'], move: ['nod', 'turn', 'lean', 'blinkL', 'blinkR', 'wink', 'both', 'jaw', 'brows', 'smile', 'pucker'] },
     watch: { pose: ['tilt', 'rollS', 'rollC'], move: ['tilt', 'rollS', 'rollC', 'turn'] }
   };
   var FLOOR = { curlT: 0.18, curlI: 0.18, curlM: 0.18, curlR: 0.18, curlP: 0.18, pinchI: 0.16, pinchM: 0.18, pinchR: 0.2, pinchP: 0.2, palmX: 0.3, palmY: 0.3, palmZ: 0.3, rollS: 0.3, rollC: 0.3,
-    x: 0.07, y: 0.07, size: 0.03, nod: 7, turn: 8, lean: 7, blinkL: 0.25, blinkR: 0.25, jaw: 0.2, brows: 0.2, smile: 0.25, pucker: 0.25, tilt: 10, turn_w: 60 };
+    x: 0.07, y: 0.07, size: 0.03, nod: 7, turn: 8, lean: 7, blinkL: 0.25, blinkR: 0.25, wink: 0.2, both: 0.3, jaw: 0.2, brows: 0.2, smile: 0.25, pucker: 0.25, tilt: 10, turn_w: 60 };
   var ALWAYS = { hand: ['curlT', 'curlI', 'curlM', 'curlR', 'curlP', 'pinchI', 'pinchM'], head: [], watch: ['tilt', 'rollS', 'rollC'] };
   function floorOf(src, f) { return (src === 'watch' && f === 'turn') ? FLOOR.turn_w : (FLOOR[f] || 0.2); }
   function kindOf(src) { return src === 'handL' || src === 'handR' ? 'hand' : src; }
-  var NAMES = { curlT: 'thumb curl', curlI: 'index curl', curlM: 'middle curl', curlR: 'ring curl', curlP: 'little curl', pinchI: 'thumb to index', pinchM: 'thumb to middle',
+  var NAMES = { wink: 'one eye closed', both: 'both eyes closed', curlT: 'thumb curl', curlI: 'index curl', curlM: 'middle curl', curlR: 'ring curl', curlP: 'little curl', pinchI: 'thumb to index', pinchM: 'thumb to middle',
     palmX: 'palm across', palmY: 'palm up or down', palmZ: 'palm to camera', rollS: 'roll', rollC: 'roll', x: 'place across', y: 'place up or down', size: 'nearness',
     nod: 'nod', turn: 'turn', lean: 'lean', blinkL: 'left blink', blinkR: 'right blink', jaw: 'jaw', brows: 'brows', smile: 'smile', pucker: 'pucker', tilt: 'tilt' };
   S.FEATS = FEATS; S.kindOf = kindOf; S.NAMES = NAMES;
@@ -162,6 +162,102 @@
   /* ---------- what has been taught, and what each signal is given to do (kept on this device) ---------- */
   function load(k, d) { try { var v = localStorage.getItem(k); return v ? JSON.parse(v) : d; } catch (e) { return d; } }
   function store(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch (e) { /* private mode */ } }
+
+  /* ---------- calibrated to the person ----------
+     Their own ranges, kept on the device (x_cal): how their pinch reads open and closed and how big the hand looks near and far;
+     where their head rests and how far it goes each way; how each eye reads open and closed, and which number is which eye.
+     Until a source is calibrated the build's own numbers stand in. */
+  S.cal = load('x_cal', {});
+  S.setCal = function (key, value) { if (value == null) delete S.cal[key]; else S.cal[key] = value; store('x_cal', S.cal); };
+  function pct(a, q) { if (!a.length) return NaN; var b = a.slice().sort(function (x, y) { return x - y; }); return b[Math.min(b.length - 1, Math.max(0, Math.round(q * (b.length - 1))))]; }
+  S.pct = pct;
+
+  /* hand: steps = {open: [numbers], closed: [...], near: [...], far: [...]} as the Calibrate card collected them */
+  S.calHand = function (steps) {
+    var open = (steps.open || []).map(function (n) { return n.pinchI; }), closed = (steps.closed || []).map(function (n) { return n.pinchI; });
+    if (open.length < 8 || closed.length < 8) return { error: 'I lost sight of your hand. Keep it in the picture and try again.' };
+    var o = pct(open, 0.5), c = pct(closed, 0.5);
+    if (o - c < 0.25) return { error: 'Open and pinched read too alike (' + o.toFixed(2) + ' and ' + c.toFixed(2) + '). Open wider, pinch firmly, and try again.' };
+    var out = { open: +o.toFixed(3), closed: +c.toFixed(3) };
+    var near = (steps.near || []).map(function (n) { return n.size; }), far = (steps.far || []).map(function (n) { return n.size; });
+    if (near.length >= 8 && far.length >= 8) { var a = pct(near, 0.9), b = pct(far, 0.1); if (a / b >= 1.15) { out.near = +a.toFixed(3); out.far = +b.toFixed(3); } }
+    return out;
+  };
+  /* is this hand pinching? closed below a third of the way from their closed reading to their open one, open above six tenths, unchanged between */
+  S.pinching = function (side, n, was) {
+    var k = S.cal['hand' + side], lo = 0.30, hi = 0.45;
+    if (k) { lo = k.closed + 0.35 * (k.open - k.closed); hi = k.closed + 0.6 * (k.open - k.closed); }
+    return n.pinchI < lo ? true : n.pinchI > hi ? false : !!was;
+  };
+  /* how far an object moves in depth for the hand looking e times bigger: their whole comfortable reach crosses the whole table */
+  S.reachGain = function (side, span) { var k = S.cal['hand' + side]; return k && k.near ? clamp(span / Math.log(k.near / k.far), 1.5, 8) : 3; };
+
+  /* head: steps = {rest, left, right, up, down}, each a list of raw head numbers */
+  S.calHead = function (steps) {
+    var need = ['rest', 'left', 'right', 'up', 'down'], i;
+    for (i = 0; i < need.length; i++) if (!steps[need[i]] || steps[need[i]].length < 8) return { error: 'I lost sight of your face. Stay in the picture and try again.' };
+    var col = function (k, f) { return steps[k].map(function (n) { return n[f]; }); };
+    var out = { nod0: pct(col('rest', 'nod'), 0.5), turn0: pct(col('rest', 'turn'), 0.5), lean0: pct(col('rest', 'lean'), 0.5) };
+    var far = function (k, f, zero) { var v = col(k, f).map(function (x) { return x - zero; }), hi = pct(v, 0.85), lo = pct(v, 0.15); return Math.abs(hi) > Math.abs(lo) ? hi : lo; };
+    out.left = far('left', 'turn', out.turn0); out.right = far('right', 'turn', out.turn0); out.up = far('up', 'nod', out.nod0); out.down = far('down', 'nod', out.nod0);
+    if (Math.abs(out.left) < 8 || Math.abs(out.right) < 8 || out.left * out.right > 0) return { error: 'Left and right did not read as two different turns. Turn a little further each way and try again.' };
+    if (Math.abs(out.up) < 6 || Math.abs(out.down) < 6 || out.up * out.down > 0) return { error: 'Up and down did not read as two different looks. Go a little further each way and try again.' };
+    for (var k in out) out[k] = +out[k].toFixed(1);
+    return out;
+  };
+  /* which way is the head looking, by their own range: half way to their comfortable limit counts */
+  S.look = function (n) {
+    var k = S.cal.head; if (!k || !n || n.turn == null) return '';
+    var t = n.turn / k.left, u = n.nod / k.up, best = '', top = 0.5;       // n is already measured from their rest
+    if (t > top) { best = 'left'; top = t; } if (n.turn / k.right > top) { best = 'right'; top = n.turn / k.right; }
+    if (u > top) { best = 'up'; top = u; } if (n.nod / k.down > top) { best = 'down'; top = n.nod / k.down; }
+    return best;
+  };
+
+  /* eyes: steps = {open, both, left, right}; left and right (one eye closed) may be missing if the person cannot wink */
+  S.calEyes = function (steps) {
+    if (!steps.open || steps.open.length < 8 || !steps.both || steps.both.length < 8) return { error: 'I lost sight of your face. Stay in the picture and try again.' };
+    var col = function (k, f) { return steps[k].map(function (n) { return n[f]; }); };
+    var out = { openL: pct(col('open', 'blinkL'), 0.3), openR: pct(col('open', 'blinkR'), 0.3), closedL: pct(col('both', 'blinkL'), 0.7), closedR: pct(col('both', 'blinkR'), 0.7), swap: false, wink: false };
+    if (out.closedL - out.openL < 0.2 || out.closedR - out.openR < 0.2) return { error: 'Open and closed read too alike (' + out.openL.toFixed(2) + ' open, ' + out.closedL.toFixed(2) + ' closed). Try in better light, facing the camera.' };
+    var norm = function (v, o, c) { return (v - o) / (c - o); };
+    if (steps.left && steps.left.length >= 8 && steps.right && steps.right.length >= 8) {
+      var dl = pct(col('left', 'blinkL'), 0.6), dr = pct(col('left', 'blinkR'), 0.6), el = pct(col('right', 'blinkL'), 0.6), er = pct(col('right', 'blinkR'), 0.6);
+      var a = norm(dl, out.openL, out.closedL) - norm(dr, out.openR, out.closedR), b = norm(el, out.openL, out.closedL) - norm(er, out.openR, out.closedR);
+      // closing the left eye should push one number up and closing the right the other; which is which is learned, not assumed
+      if (a * b < 0 && Math.abs(a) > 0.45 && Math.abs(b) > 0.45) { out.swap = a < 0; out.wink = true; out.winkL = +Math.abs(a).toFixed(2); out.winkR = +Math.abs(b).toFixed(2); }
+    }
+    ['openL', 'openR', 'closedL', 'closedR'].forEach(function (k) { out[k] = +out[k].toFixed(3); });
+    return out;
+  };
+
+  /* raw head numbers to the person's own: measured from their rest; each eye from 0 (their open) to 1 (their closed), named for their own left and right */
+  S.ownHead = function (raw) {
+    var n = {}, k, h = S.cal.head, e = S.cal.eyes;
+    for (k in raw) n[k] = raw[k];
+    if (h) { if (n.nod != null) n.nod -= h.nod0; if (n.turn != null) n.turn -= h.turn0; if (n.lean != null) n.lean -= h.lean0; }
+    if (raw.blinkL != null && raw.blinkR != null) {
+      var l = raw.blinkL, r = raw.blinkR;
+      if (e) { l = clamp((raw.blinkL - e.openL) / (e.closedL - e.openL), 0, 1.3); r = clamp((raw.blinkR - e.openR) / (e.closedR - e.openR), 0, 1.3); if (e.swap) { var t = l; l = r; r = t; } }
+      n.blinkL = l; n.blinkR = r; n.wink = l - r; n.both = Math.min(l, r);
+    }
+    return n;
+  };
+  /* the three blink signals, made from the eye calibration: both eyes closed, or one eye closed, held longer than a natural blink */
+  S.blinkSignals = function () {
+    var e = S.cal.eyes, made = [], want = [['blink both', { both: { m: 1, s: 0.16, d: 1 } }]];
+    if (!e) return made;
+    if (e.wink) { want.push(['blink left', { wink: { m: e.winkL, s: 0.16 * e.winkL, d: 1 } }]); want.push(['blink right', { wink: { m: -e.winkR, s: 0.16 * e.winkR, d: -1 } }]); }
+    ['blink both', 'blink left', 'blink right'].forEach(function (name) {
+      var old = S.signals.filter(function (g) { return g.name === name && g.from === 'eyes'; })[0], w = want.filter(function (x) { return x[0] === name; })[0];
+      if (old && !w) { S.remove(old.id); return; }
+      if (!w) return;
+      if (old) { old.feats = w[1]; S.save(); made.push(old); }
+      else made.push(S.add({ kind: 'pose', src: 'head', name: name, feats: w[1], hold: 400, from: 'eyes' }));
+    });
+    state = {};
+    return made;
+  };
   S.signals = load('x_signals', []);
   S.assign = load('x_assign', {});
   S.save = function () { store('x_signals', S.signals); store('x_assign', S.assign); };
@@ -265,7 +361,7 @@
       E.stage = ''; say(E.cpu ? 'Running without the graphics chip (slower).' : ''); return true;
     }).catch(function (e) { E.err = 'Could not start ' + E.stage + ': ' + String(e && e.message || e).slice(0, 140); say(E.err); return false; });
   };
-  E.stop = function () {
+  E.stop = function () { E.err = '';
     E.on = false;
     try { if (E.stream) E.stream.getTracks().forEach(function (x) { x.stop(); }); } catch (e) { /* gone */ }
     try { if (E.hand) E.hand.close(); } catch (e) { /* gone */ }
@@ -291,7 +387,8 @@
       frame.hands.push(h); S.feed(h.src, t, h.n);
     }
     if (fr && ((fr.facialTransformationMatrixes && fr.facialTransformationMatrixes.length) || (fr.faceBlendshapes && fr.faceBlendshapes.length))) {
-      frame.head = { n: S.headNumbers(fr.facialTransformationMatrixes && fr.facialTransformationMatrixes[0], fr.faceBlendshapes && fr.faceBlendshapes[0]), lm: fr.faceLandmarks && fr.faceLandmarks[0] };
+      var rawHead = S.headNumbers(fr.facialTransformationMatrixes && fr.facialTransformationMatrixes[0], fr.faceBlendshapes && fr.faceBlendshapes[0]);
+      frame.head = { raw: rawHead, n: S.ownHead(rawHead), lm: fr.faceLandmarks && fr.faceLandmarks[0] };   // raw = as the finder reports; n = measured from the person's own rest and eyes
       S.feed('head', t, frame.head.n);
     }
     E._n++; if (t - E._t >= 1000) { E.fps = E._n * 1000 / (t - E._t); E._n = 0; E._t = t; }

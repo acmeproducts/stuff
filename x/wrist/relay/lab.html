@@ -44,6 +44,20 @@ select,input[type=text]{font:inherit;color:var(--text);background:var(--panel);b
 #top{padding:calc(12px + env(safe-area-inset-top)) 16px 10px;border-bottom:1px solid var(--line)}
 #top h1{margin:0;font-size:24px;font-weight:750}
 #statusRow{display:flex;align-items:center;gap:9px;font-size:15px;margin-top:6px}
+body:not(.t-watch) #statusRow{display:none}
+#tabs{display:flex;gap:6px;margin-top:9px}
+#tabs button{flex:1;padding:9px 2px;font-size:14.5px;border-radius:10px;color:var(--muted);min-width:0}
+#tabs button.on{color:var(--text);border-color:var(--accent);background:#132231}
+.dash{grid-column:1/-1;display:grid;gap:12px;min-width:0;grid-template-columns:minmax(0,1fr)}
+.dash section{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:12px 15px}
+.dash h3{margin:0 0 4px;font-size:12.5px;letter-spacing:.06em;color:var(--muted)}
+.dash .ln{display:flex;justify-content:space-between;gap:12px;padding:6px 0;border-top:1px solid var(--line);font-size:15px}
+.dash .ln:first-of-type{border-top:0}
+.dash .ln span:first-child{flex:none}
+.dash .ln span:last-child{color:var(--muted);text-align:right;min-width:0;overflow-wrap:anywhere}
+.dash .ln.bad span:last-child{color:var(--warn)}
+.calrow{display:grid;grid-template-columns:1fr auto;gap:10px;align-items:center;background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:10px 12px;text-align:left}
+.calrow em{display:block;font-style:normal;color:var(--muted);font-size:13.5px}
 #lamp{width:11px;height:11px;border-radius:50%;background:var(--bad);flex:none}
 #lamp.link{background:var(--warn)}#lamp.live{background:var(--good)}
 #statusText{flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
@@ -159,7 +173,8 @@ select,input[type=text]{font:inherit;color:var(--text);background:var(--panel);b
 <body>
 <div id="grid">
   <div id="top">
-    <h1>Wrist Lab</h1>
+    <h1>X Lab</h1>
+    <div id="tabs" role="tablist"><button type="button" data-tab="dash">Dashboard</button><button type="button" data-tab="learn">Learn</button><button type="button" data-tab="camera">Camera</button><button type="button" data-tab="watch">Watch</button></div>
     <div id="statusRow"><i id="lamp"></i><span id="statusText">Starting…</span><button id="offBtn" type="button" title="Hold for one second to stop the watch">Watch off</button><button id="codeBtn" type="button" style="padding:5px 10px;font-size:13px;color:var(--muted)">Code</button></div>
     <div id="meta"></div>
   </div>
@@ -190,13 +205,15 @@ select,input[type=text]{font:inherit;color:var(--text);background:var(--panel);b
   <h1>Enter the watch code</h1>
   <p>Open Wrist on the watch. Type the 6 digits it shows. You only do this once on this device.</p>
   <input id="code" type="tel" inputmode="numeric" autocomplete="off" maxlength="6" placeholder="······" aria-label="6-digit watch code">
+  <p style="margin-top:18px"><button type="button" id="pairNo">Not now</button></p>
+  <p>Only the Watch tab needs the watch.</p>
 </div></div>
 
 <script src="/signals.js"></script>
 <script>
 (function(){
 'use strict';
-var BUILD='lab-r8';
+var BUILD='lab-r9';
 var QUERY=location.search;          // kept, because the address is tidied once the code is read from it
 var Signals=window.Signals;
 var LINK_SECS=Number((/[?&]linksecs=(\d+)/.exec(location.search)||[])[1])||120;
@@ -272,8 +289,8 @@ function eyesOn(card,root,want){
   if(box)box.classList.remove('off');
   Signals.eyes.start(root.querySelector('video'),want,function(m){if(msg&&cur===card)msg.textContent=m}).then(function(ok){
     if(cur!==card)return;
-    if(ok)ev('camera','finder ready',{ms:Math.round(now()-t0),cpu:Signals.eyes.cpu?1:0,hands:want.hands?1:0,face:want.face?1:0});
-    else if(Signals.eyes.err)ev('camera','failed',{why:Signals.eyes.err.slice(0,120)});
+    if(ok){ev('camera','finder ready',{ms:Math.round(now()-t0),cpu:Signals.eyes.cpu?1:0,hands:want.hands?1:0,face:want.face?1:0});camInfo={state:'working',bad:false}}
+    else if(Signals.eyes.err){ev('camera','failed',{why:Signals.eyes.err.slice(0,120)});camInfo={state:Signals.eyes.err.split(':')[0],bad:true}}
   });
 }
 function eyesOff(card,why){Signals.eyes.stop();card.frame=null;var b=card.el&&card.el.querySelector('.camview'),m=card.el&&card.el.querySelector('.cmsg');if(b)b.classList.add('off');if(m)m.textContent=why||''}
@@ -281,7 +298,7 @@ function eyesTick(card){
   var f=Signals.eyes.poll(),t=now();
   if(f){card.frame=f;card.rateN++}
   else if(Signals.eyes.err&&card.el){var m=card.el.querySelector('.cmsg');if(m&&m.textContent!==Signals.eyes.err)m.textContent=Signals.eyes.err}
-  if(t-card.rateAt>=5000){if(card.rateN)ev('camera','rate',{fps:Math.round(card.rateN*1000/(t-card.rateAt)),ms:Math.round(Signals.eyes.ms),hands:card.frame?card.frame.hands.length:0,face:card.frame&&card.frame.head?1:0});card.rateAt=t;card.rateN=0}
+  if(t-card.rateAt>=5000){if(card.rateN)camInfo={state:'working, '+Math.round(card.rateN*1000/(t-card.rateAt))+' pictures a second',bad:false};if(card.rateN)ev('camera','rate',{fps:Math.round(card.rateN*1000/(t-card.rateAt)),ms:Math.round(Signals.eyes.ms),hands:card.frame?card.frame.hands.length:0,face:card.frame&&card.frame.head?1:0});card.rateAt=t;card.rateN=0}
   return f;
 }
 function eyesDraw(card){var c=card.el&&card.el.querySelector('.camview canvas');if(c&&!c.parentNode.classList.contains('off'))Signals.eyes.draw(c,card.frame)}
@@ -289,6 +306,22 @@ function eyesDraw(card){var c=card.el&&card.el.querySelector('.camview canvas');
 function hearOnce(done){
   var SR=window.SpeechRecognition||window.webkitSpeechRecognition,r;if(!SR)return null;
   try{r=new SR();r.interimResults=false;r.continuous=false;r.onresult=function(e){var s='';for(var i=e.resultIndex;i<e.results.length;i++)s+=e.results[i][0].transcript;done(s.trim().replace(/[.!?]+$/,''))};r.onerror=function(){done('')};r.start();return r}catch(e){return null}
+}
+/* ---------- tabs: sources are kept apart. Each tab starts only what it needs. ---------- */
+var TABS={learn:['calibrate','teach','assign'],camera:['hands','head','camera','object']};       /* every other card is a Watch card */
+var TABNAME={dash:'Dashboard',learn:'Learn',camera:'Camera',watch:'Watch'};
+var tab='dash';try{tab=localStorage.getItem('x_lab_tab')||'dash'}catch(e){}
+if(!TABNAME[tab])tab='dash';
+var camInfo={state:'not used on this visit',bad:false};
+function tabOf(c){for(var t in TABS)if(TABS[t].indexOf(c.id)>=0)return t;return'watch'}
+function needRaw(){return tab==='watch'||!!(cur&&(cur.raw?cur.raw():!cur.noRaw))}      /* in the Watch tab the stream is on before any card asks */
+function setTab(t){
+  tab=t;try{localStorage.setItem('x_lab_tab',t)}catch(e){}
+  document.body.className='t-'+t;
+  Array.prototype.forEach.call($('tabs').children,function(b){b.classList.toggle('on',b.dataset.tab===t);b.setAttribute('aria-selected',b.dataset.tab===t?'true':'false')});
+  paintGrid();wantRaw(needRaw());
+  if(t==='watch'&&!/^\d{6}$/.test(code()))askCode();
+  linkTick();paintStatus();
 }
 var R={};
 R.tilt2=function(){var o={lp:null,on:false,nv:false,neutral:0,rate:0};
@@ -589,6 +622,8 @@ var CONCEPTS=[
    var cell=function(n,k){if(!n)return'<td>–</td>';var v=k==='roll'?Math.round(Math.atan2(n.rollS,n.rollC)*DEG):n[k];return'<td>'+(k==='roll'?v:(v==null?'–':v.toFixed(2)))+'</td>'};
    var h='<tr><th></th><th>Right</th><th>Left</th></tr>';
    this.ROWS.forEach(function(r){h+='<tr><td>'+r[0]+'</td>'+cell(by.Right,r[1])+cell(by.Left,r[1])+'</tr>'});
+   var pin=function(sd){return by[sd]?(Signals.pinching(sd,by[sd],false)?'pinching':'open'):'\u2013'};
+   h+='<tr><td>pinch, '+(Signals.cal.handRight||Signals.cal.handLeft?'by your calibration':'not yet calibrated')+'</td><td>'+pin('Right')+'</td><td>'+pin('Left')+'</td></tr>';
    $('hnT').innerHTML=h;$('hnN').textContent=f.hands.length;$('hnFps').textContent=Signals.eyes.fps?Signals.eyes.fps.toFixed(0):'–';$('hnMs').textContent=Signals.eyes.ms?Signals.eyes.ms.toFixed(0):'–';$('hnCpu').textContent=Signals.eyes.cpu?'processor':'graphics';
  },
  draw:function(){eyesDraw(this)},
@@ -597,7 +632,7 @@ var CONCEPTS=[
 {id:'head',name:'Head and face',needsRaw:false,noRaw:true,g:[],
  blurb:'Your head as numbers: nod, turn and lean in degrees, and blink, jaw, brows and smile from 0 to 1. A taught head signal is made of these.',
  how:'Look at the screen. Nod, shake your head, lean it to a shoulder, blink one eye, raise your brows, open your mouth. Watch which numbers move. Also find hands shows what running both finders costs in frames a second.',
- ROWS:[['nod, degrees','nod',0],['turn, degrees','turn',0],['lean, degrees','lean',0],['blink, left eye','blinkL',2],['blink, right eye','blinkR',2],['jaw open','jaw',2],['brows up','brows',2],['smile','smile',2],['pucker','pucker',2]],
+ ROWS:[['nod, degrees','nod',0],['turn, degrees','turn',0],['lean, degrees','lean',0],['left eye closed','blinkL',2],['right eye closed','blinkR',2],['one eye closed (left +, right \u2212)','wink',2],['both eyes closed','both',2],['jaw open','jaw',2],['brows up','brows',2],['smile','smile',2],['pucker','pucker',2]],
  mount:function(root){
    var el=document.createElement('div'),self=this;el.className='linkbox';
    el.innerHTML=camHtml('')+'<div class="g4"><div><b id="hdState">starting</b><em>face</em></div><div><b id="hdFps">–</b><em>frames / s</em></div><div><b id="hdMs">–</b><em>ms per frame</em></div><div><b id="hdBoth">face only</b><em>finders</em></div></div><div class="scrollx"><table id="hdT"></table></div><div class="row"><button type="button" id="hdHands">Also find hands</button></div><p class="cmsg"></p>';
@@ -612,10 +647,88 @@ var CONCEPTS=[
    if(now()-this.painted<140)return;this.painted=now();
    var n=f.head?f.head.n:null,h='';
    this.ROWS.forEach(function(r){var v=n?n[r[1]]:null;h+='<tr><td>'+r[0]+'</td><td>'+(v==null?'–':v.toFixed(r[2]))+'</td></tr>'});
+   h+='<tr><td>looking</td><td>'+(Signals.cal.head?(n?Signals.look(n)||'ahead':'\u2013'):'calibrate your head to see this')+'</td></tr>';
+   h+='<tr><td>measured from</td><td>'+(Signals.cal.head?'your rest':'the camera')+(Signals.cal.eyes?', your eyes':'')+'</td></tr>';
    $('hdT').innerHTML=h;$('hdFps').textContent=Signals.eyes.fps?Signals.eyes.fps.toFixed(0):'–';$('hdMs').textContent=Signals.eyes.ms?Signals.eyes.ms.toFixed(0):'–';
  },
  draw:function(){eyesDraw(this)},
  unmount:function(){Signals.eyes.stop()}
+},
+{id:'calibrate',name:'Calibrate',needsRaw:false,noRaw:true,g:[],
+ blurb:'Under a minute each: your pinch and your reach, where your head rests and how far it turns, how each eye reads. Everything else then uses your numbers instead of the build’s.',
+ how:'Pick one and press its button. It asks for a few positions, two or three seconds each, on the screen and aloud. For the eyes it sounds a tone when you may open them. Then it says what it learned and where that is used. Do the hand you will use on the object card first. You can redo any of them at any time; the new numbers replace the old.',
+ FLOWS:{
+  hand:[['','Hold your hand up, open','hold your hand up, open',1600],['open','OPEN','open',2500],['closed','PINCH','pinch',2500],['open','OPEN','open',2000],['closed','PINCH, and keep pinching','pinch, and keep pinching',2000],
+        ['near','Still pinching: PUSH toward the screen','push toward the screen',3000],['far','Still pinching: PULL BACK toward you','pull back toward you',3000]],
+  head:[['rest','Look at the screen','look at the screen',3000],['left','Turn LEFT, and hold','turn left',2800],['','Back to the middle','middle',1500],['right','Turn RIGHT, and hold','turn right',2800],['','Back to the middle','middle',1500],
+        ['up','Look UP, and hold','look up',2800],['','Back to the middle','middle',1500],['down','Look DOWN, and hold','look down',2800]],
+  eyes:[['open','Eyes open. Look at the screen','eyes open. look at the screen',3000],['both','Close BOTH eyes until the tone','close both eyes until the tone',3200,1],['','Open','',1500],
+        ['left','Close only your LEFT eye until the tone','close only your left eye until the tone',3200,1],['','Open','',1500],['right','Close only your RIGHT eye until the tone','close only your right eye until the tone',3200,1]]
+ },
+ WHO:[['handRight','Right hand','hand','Right'],['handLeft','Left hand','hand','Left'],['head','Head','head',''],['eyes','Eyes: blink left, right, both','eyes','']],
+ mount:function(root){
+   var el=document.createElement('div'),self=this;el.className='linkbox';
+   el.innerHTML='<div class="lk" id="kSay">Pick one</div>'+camHtml('small')+'<p class="cmsg"></p><p id="kOut"></p><div id="kList" class="siglist"></div>';
+   root.appendChild(el);el.addEventListener('pointerup',function(e){if(e.target.closest('button'))e.stopPropagation()});
+   this.el=el;this.run=null;this.audio=null;
+   eyesOff(this,'');this.list();
+ },
+ list:function(){
+   var box=$('kList'),self=this;box.innerHTML='';
+   this.WHO.forEach(function(w){
+     var row=document.createElement('div');row.className='calrow';
+     row.innerHTML='<div><b></b><em></em></div><button type="button" class="on" data-k="'+w[0]+'">'+(Signals.cal[w[0]]?'Redo':'Calibrate')+'</button>';
+     row.querySelector('b').textContent=w[1];row.querySelector('em').textContent=calLine(w[0]);
+     row.querySelector('button').addEventListener('click',function(){self.begin(w)});
+     box.appendChild(row);
+   });
+ },
+ say:function(big,aloud){$('kSay').textContent=big;try{if(aloud&&window.speechSynthesis){speechSynthesis.cancel();var u=new SpeechSynthesisUtterance(aloud);u.rate=1.1;speechSynthesis.speak(u)}}catch(e){}},
+ tone:function(){try{var a=this.audio;if(!a)return;var o=a.createOscillator(),g=a.createGain();o.frequency.value=880;g.gain.value=0.15;o.connect(g);g.connect(a.destination);o.start();o.stop(a.currentTime+0.25)}catch(e){}},
+ begin:function(w){
+   if(this.run)return;
+   try{var A=window.AudioContext||window.webkitAudioContext;if(A&&!this.audio)this.audio=new A();if(this.audio&&this.audio.resume)this.audio.resume()}catch(e){}
+   this.run={who:w,flow:this.FLOWS[w[2]],step:-1,at:now(),got:{},seenAt:0,asked:now()};
+   $('kOut').textContent='';ev('calibrate','begin',{src:w[0]});
+   eyesOn(this,this.el,w[2]==='hand'?{hands:true}:{face:true});
+   this.say(w[2]==='hand'?'Hold up your '+w[3].toLowerCase()+' hand':'Look at the screen','');
+ },
+ /* the numbers this flow reads, as the finder reports them (never the calibrated ones) */
+ reading:function(f){
+   var r=this.run;if(!f)return null;
+   if(r.who[2]==='hand'){var h=f.hands.filter(function(x){return x.side===r.who[3]})[0];return h?h.n:null}
+   return f.head?f.head.raw:null;
+ },
+ tick:function(){
+   var f=eyesTick(this),r=this.run,t=now();if(!r)return;
+   var n=this.reading(f);
+   if(r.step<0){                                   /* wait until the hand or the face is actually in the picture */
+     if(n){r.step=0;r.at=t;this.say(r.flow[0][1],r.flow[0][2])}
+     else if(t-r.asked>15000)this.fail(r.who[2]==='hand'?'I could not see your '+r.who[3].toLowerCase()+' hand.':'I could not see your face.');
+     return;
+   }
+   var st=r.flow[r.step];
+   if(n&&st[0]&&t-r.at>700)(r.got[st[0]]=r.got[st[0]]||[]).push(n);       /* the first moments of each position are the person getting there */
+   if(t-r.at<st[3])return;
+   if(st[4])this.tone();
+   r.step++;r.at=t;
+   if(r.step>=r.flow.length){this.finish();return}
+   this.say(r.flow[r.step][1],r.flow[r.step][2]);
+ },
+ fail:function(why){var r=this.run;this.run=null;this.say('Not saved','not saved');$('kOut').textContent=why+' Nothing was changed.';ev('calibrate','failed',{src:r.who[0],why:why.slice(0,140)});eyesOff(this,'')},
+ finish:function(){
+   var r=this.run,w=r.who,out,msg,g=r.got;
+   out=w[2]==='hand'?Signals.calHand(g):w[2]==='head'?Signals.calHead(g):Signals.calEyes(g);
+   if(out.error){this.fail(out.error);return}
+   this.run=null;out.at=Date.now();Signals.setCal(w[0],out);
+   if(w[2]==='hand')msg='Your pinch reads '+out.closed.toFixed(2)+' closed and '+out.open.toFixed(2)+' open. '+(out.near?'Pushed forward, your hand looks '+(out.near/out.far).toFixed(1)+' times bigger than pulled back.':'Your reach did not read clearly, so depth keeps its standard strength.')+' The object card now uses these.';
+   else if(w[2]==='head')msg='Your head turns '+Math.abs(Math.round(out.left))+'° left and '+Math.abs(Math.round(out.right))+'° right, '+Math.abs(Math.round(out.up))+'° up and '+Math.abs(Math.round(out.down))+'° down. Head numbers and head signals are now measured from where your head rests.';
+   else{var made=Signals.blinkSignals().map(function(x){return x.name});msg='Open reads '+out.openL.toFixed(2)+', closed '+out.closedL.toFixed(2)+'. '+(out.wink?'Blink left, blink right and blink both are':'I could not tell one closed eye from the other, so only blink both is')+' ready in Assign to be given an action. Each needs holding a little longer than a natural blink.';void made}
+   var log={src:w[0]};for(var k in out)if(k!=='at')log[k]=out[k];ev('calibrate','saved',log);
+   this.say('Saved','saved');$('kOut').textContent=msg;eyesOff(this,'');this.list();
+ },
+ draw:function(){eyesDraw(this)},
+ unmount:function(){this.run=null;Signals.eyes.stop();try{speechSynthesis.cancel()}catch(e){}try{if(this.audio)this.audio.close()}catch(e){}this.audio=null}
 },
 {id:'teach',name:'Teach a signal',needsRaw:false,noRaw:true,g:[],
  blurb:'Show X something three times and name it. A pose is something you hold. A move goes out and comes back. X works out which from what you show. These are the letters.',
@@ -868,7 +981,7 @@ var CONCEPTS=[
    var hs={},t=now();
    f.hands.forEach(function(h){
      if(hs[h.side])return;
-     var was=!!self.pin[h.side],p=h.n.pinchI<0.3?true:h.n.pinchI>0.45?false:was;      /* closed below 0.30, open above 0.45, unchanged between */
+     var was=!!self.pin[h.side],p=Signals.pinching(h.side,h.n,was);      /* by their own calibration; the build's numbers until then */
      self.pin[h.side]=p;self.gone[h.side]=t;if(p)self.openAt[h.side]=0;else if(!self.openAt[h.side])self.openAt[h.side]=t;
      self.seen[h.side]={size:+h.n.size.toFixed(3),pinch:+h.n.pinchI.toFixed(2)};
      var at=self.place((h.lm[4].x+h.lm[8].x)/2,(h.lm[4].y+h.lm[8].y)/2,o.position.z);
@@ -891,7 +1004,7 @@ var CONCEPTS=[
      else if(h&&hs[other]&&hs[other].edge&&reach(other))this.both();
      else if(h){
        o.position.copy(h.at).add(held.off);o.position.y=Math.max(0,o.position.y);
-       o.position.z=Math.max(-1.6,Math.min(1.8,held.z0-3*Math.log(h.n.size/held.size0)));      /* push toward the screen and it goes away from you */
+       o.position.z=Math.max(-1.6,Math.min(1.8,held.z0-Signals.reachGain(held.side,3.4)*Math.log(h.n.size/held.size0)));      /* push toward the screen and it goes away from you; their whole reach crosses the whole table */
        o.quaternion.copy(h.q).multiply(held.hq0).multiply(held.q0);
      }
    }else{
@@ -1177,22 +1290,30 @@ function open(c){
   $('flip').classList.remove('back');$('active').classList.add('show');
   $('active').classList.toggle('nostrip',!!c.noRaw);
   if(c.noTrial){trial=null;$('rec').textContent=''}else startTrial(c);
-  ev('page','open');wantRaw(c.raw?c.raw():!c.noRaw);paintNeed();
+  ev('page','open');wantRaw(needRaw());paintNeed();
 }
 function flip(toBack){$('flip').classList.toggle('back',toBack);ev('page',toBack?'flip to notes':'flip to experiment')}
 function close(){
   if(!cur)return;
   store[cur.id].notes=$('notes').value;save();ev('page','close');
-  wantRaw(false);if(cur.unmount)cur.unmount();
+  if(cur.unmount)cur.unmount();
   $('active').classList.remove('show');
-  var c=cur;cur=null;endTrial();paintGrid();void c;
+  var c=cur;cur=null;wantRaw(needRaw());endTrial();paintGrid();void c;
 }
 /* The watch's sensor stream. A card says whether it needs it. Once asked for, it stays on between cards and for a while after
    the last card that needed it, so that entering a card does not wait for the watch each time. It stops when the page is hidden. */
 var rawUntil=0,rawSent=-1,RAW_LINGER=(+((/[?&]linger=(\d+)/.exec(QUERY)||[])[1])||120)*1000;
 function wantRaw(on){
   if(on)rawUntil=Infinity;else if(rawUntil===Infinity)rawUntil=Date.now()+RAW_LINGER;
-  syncRaw();
+  linkTick();syncRaw();
+}
+/* The link to the relay starts the first time something needs the watch (the Watch tab, or a card that uses the watch) and then
+   stays for this visit: a watch that fell asleep while its owner taught a hand signal would have to be started again by touch. */
+var linkUsed=false;
+function wantLink(){if(tab==='watch'||Date.now()<rawUntil)linkUsed=true;return linkUsed}
+function linkTick(){
+  if(wantLink()){if(!ws&&/^\d{6}$/.test(code())&&Date.now()-(connect.at||0)>4000)connect()}
+  else if(ws){try{ws.onclose=null;ws.close()}catch(e){}ws=null;clearInterval(pingT);clearTimeout(connect.t);rawSent=-1;paintStatus()}
 }
 function syncRaw(force){
   var want=document.visibilityState==='visible'&&Date.now()<rawUntil?1:0;
@@ -1322,7 +1443,9 @@ function setSecret(c,k){try{localStorage.setItem('wrist_k_'+c,k)}catch(e){}}
 /* Ask the relay to let this browser listen. An older watch build needs nothing more than the code. A watch on turn07 or
    newer hardens its code: the relay hands this browser a secret once, while the watch has just been started. */
 function connect(){
-  var c=code();if(!/^\d{6}$/.test(c)){askCode();return}
+  var c=code();if(!/^\d{6}$/.test(c)){if(tab==='watch')askCode();return}      // no watch code: only the Watch tab asks for one
+  if(!wantLink()){paintStatus();return}                                          // nothing has needed the watch on this visit: no link
+  connect.at=Date.now();
   if(ws){try{ws.onclose=null;ws.close()}catch(e){}ws=null}
   clearTimeout(connect.t);
   fetch('/pair/'+c,{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({k:secret(c)})})
@@ -1336,7 +1459,7 @@ function connect(){
 }
 function listen(c,k){
   var s=new WebSocket((location.protocol==='https:'?'wss://':'ws://')+location.host+'/s/'+c+(k?'?k='+k:''));ws=s;
-  s.onopen=function(){if(ws!==s)return;retry=0;paintStatus();clearInterval(pingT);pingT=setInterval(function(){try{s.send('ping')}catch(e){}},20000);rawSent=-1;if(cur)wantRaw(cur.raw?cur.raw():!cur.noRaw);else syncRaw(true)};
+  s.onopen=function(){if(ws!==s)return;retry=0;paintStatus();clearInterval(pingT);pingT=setInterval(function(){try{s.send('ping')}catch(e){}},20000);rawSent=-1;wantRaw(needRaw());syncRaw(true)};
   s.onmessage=function(e){if(ws!==s||e.data==='pong')return;var m;try{m=JSON.parse(e.data)}catch(x){return}act(m)};
   s.onclose=function(){if(ws!==s)return;clearInterval(pingT);ws=null;paintStatus();connect.t=setTimeout(connect,Math.min(8000,500*Math.pow(2,retry++)))};
   s.onerror=function(){};
@@ -1360,14 +1483,17 @@ function paintStatus(){
   var linked=ws&&ws.readyState===1,age=lastWatchAt?Math.round((Date.now()-lastWatchAt)/1000):-1,quiet=linked&&!asleep&&lastScreen===0&&age>=15,live=linked&&age>=0&&age<25&&!resting&&!asleep&&!quiet;
   $('lamp').className=live?'live':linked?'link':'';
   var WHY={page:'turned off from a page',idle:'no page was listening for three minutes',hold:'held on the watch'};
-  $('statusText').textContent=!linked?(pairState==='closed'?'Not paired yet. Open Wrist on the watch and wait a few seconds.':pairState==='limited'?'Too many pairing tries. Waiting a minute.':'No link to the relay. Retrying…'):asleep?'Watch is off: '+(WHY[asleep]||asleep)+'. Open Wrist on the watch to start it.':(offAsked&&Date.now()-offAsked<8000)?(offOld?'This watch app ('+watchBuild+') cannot be turned off from here. Install turn07.':'Telling the watch to sleep…'):resting?'Watch resting. Raise your arm to wake it.':live?'Watch connected'+(watchLink?' \u00B7 '+(LINKNAME[watchLink]||watchLink):'')+(watchRtt>=0?' \u00B7 '+watchRtt+' ms':''):age<0?'Waiting for the watch. Open Wrist on the watch once.':quiet?'Watch quiet for '+age+'s with its screen off. On the watch\u2019s Battery page, take Wrist out of Sleeping apps, and keep Allow background activity on.':'Watch silent for '+age+'s.';
+  $('statusText').textContent=!code()?'No watch code on this device.':(!linked&&!wantLink())?'Watch not in use on this visit.':!linked?(pairState==='closed'?'Not paired yet. Open Wrist on the watch and wait a few seconds.':pairState==='limited'?'Too many pairing tries. Waiting a minute.':'No link to the relay. Retrying…'):asleep?'Watch is off: '+(WHY[asleep]||asleep)+'. Open Wrist on the watch to start it.':(offAsked&&Date.now()-offAsked<8000)?(offOld?'This watch app ('+watchBuild+') cannot be turned off from here. Install turn07.':'Telling the watch to sleep…'):resting?'Watch resting. Raise your arm to wake it.':live?'Watch connected'+(watchLink?' \u00B7 '+(LINKNAME[watchLink]||watchLink):'')+(watchRtt>=0?' \u00B7 '+watchRtt+' ms':''):age<0?'Waiting for the watch. Open Wrist on the watch once.':quiet?'Watch quiet for '+age+'s with its screen off. On the watch\u2019s Battery page, take Wrist out of Sleeping apps, and keep Allow background activity on.':'Watch silent for '+age+'s.';
   if(quiet&&!quietSince){quietSince=Date.now();ev('page','watch quiet',{})}
+  var dw=$('dWatch');if(dw){dw.textContent=code()?$('statusText').textContent:'no watch code on this device';dw.parentNode.classList.toggle('bad',!!quiet);$('dCam').textContent=camInfo.state;$('dCam').parentNode.classList.toggle('bad',camInfo.bad)}
   if(!/last trial/.test($('meta').textContent))$('meta').textContent=metaText('');
   if(cur)paintNeed();
 }
 function paintGrid(){
   var box=$('cards');box.innerHTML='';
+  if(tab==='dash'){paintDash(box);return}
   CONCEPTS.forEach(function(c){
+    if(tabOf(c)!==tab)return;
     var s=store[c.id],b=document.createElement('button');b.type='button';b.className='tile';b.dataset.id=c.id;
     var label={keep:'Keep',shop:'Back to shop',dump:'Dump'}[s.rating]||'Not rated';
     b.innerHTML='<b></b><span></span><div class="foot"><i class="chip '+(s.rating||'')+'" style="font-style:normal">'+label+'</i><span>'+(s.trials||0)+' trial'+((s.trials||0)===1?'':'s')+(s.thumb?' · '+(s.thumb==='up'?'👍':'👎'):'')+(c.needsRaw?' · raw':'')+'</span></div>';
@@ -1375,16 +1501,41 @@ function paintGrid(){
     b.addEventListener('click',function(){open(c)});box.appendChild(b);
   });
 }
+/* the dashboard: what is on, what is calibrated to this person, what has been taught, how the cards have been judged */
+function calLine(key){
+  var k=Signals.cal[key];if(!k)return'not yet';
+  var d=new Date(k.at),p=function(x){return(x<10?'0':'')+x},when=(d.getMonth()+1)+'/'+d.getDate()+' '+p(d.getHours())+':'+p(d.getMinutes());
+  if(key==='head')return when+' \u00B7 turns '+Math.abs(Math.round(k.left))+'\u00B0 left, '+Math.abs(Math.round(k.right))+'\u00B0 right';
+  if(key==='eyes')return when+' \u00B7 '+(k.wink?'left, right and both':'both only');
+  return when+' \u00B7 pinch '+k.closed.toFixed(2)+' to '+k.open.toFixed(2)+(k.near?' \u00B7 reach \u00D7'+(k.near/k.far).toFixed(1):'');
+}
+function paintDash(box){
+  var d=document.createElement('div');d.className='dash';
+  var sec=function(title,lines){var h='<section><h3>'+title+'</h3>';lines.forEach(function(l){h+='<div class="ln'+(l[3]?' bad':'')+'"><span></span><span'+(l[2]?' id="'+l[2]+'"':'')+'></span></div>'});var el=document.createElement('section');el.innerHTML=h.slice(9)+'';
+    var rows=el.querySelectorAll('.ln');lines.forEach(function(l,i){rows[i].children[0].textContent=l[0];rows[i].children[1].textContent=l[1]});d.appendChild(el)};
+  sec('WHAT IS ON',[['Camera',camInfo.state,'dCam',camInfo.bad],['Watch',code()?$('statusText').textContent:'no watch code on this device','dWatch']]);
+  sec('CALIBRATED TO YOU',[['Right hand',calLine('handRight')],['Left hand',calLine('handLeft')],['Head',calLine('head')],['Eyes',calLine('eyes')]]);
+  var sig=Signals.signals,lines=sig.map(function(g){
+    var what=g.kind==='combo'?'word: '+g.seq.map(function(id){var x=Signals.byId(id);return x?x.name:'?'}).join(' then '):Signals.sourceName(g.src)+', '+g.kind;
+    return[g.name,what+(Signals.assign[g.id]?' \u2192 '+Signals.actionName(Signals.assign[g.id]):'')]});
+  sec('TAUGHT ('+sig.length+')',lines.length?lines:[['Nothing yet','Learn \u2192 Teach a signal']]);
+  var by={keep:[],shop:[],dump:[],none:0};
+  CONCEPTS.forEach(function(c){var r=store[c.id].rating;if(by[r])by[r].push(c.name);else by.none++});
+  sec('CARDS',[['Keep',by.keep.join(', ')||'none'],['Back to shop',by.shop.join(', ')||'none'],['Dump',by.dump.join(', ')||'none'],['Not rated',String(by.none)]]);
+  box.appendChild(d);
+}
 function askCode(){var b=$('pair'),i=$('code');b.classList.add('show');i.value='';setTimeout(function(){try{i.focus()}catch(e){}},50)}
 $('code').addEventListener('input',function(){var v=this.value.replace(/\D/g,'').slice(0,6);this.value=v;if(v.length===6){setCode(v);$('pair').classList.remove('show');this.blur();connect()}});
 $('codeBtn').addEventListener('click',askCode);
+$('pairNo').addEventListener('click',function(){$('pair').classList.remove('show');if(tab==='watch'&&!/^\d{6}$/.test(code()))setTab('dash')});
+Array.prototype.forEach.call($('tabs').children,function(b){b.addEventListener('click',function(){setTab(b.dataset.tab)})});
 var q=/[?&]code=(\d{6})\b/.exec(location.search);if(q){setCode(q[1]);try{history.replaceState(null,'',location.pathname)}catch(e){}}
 function awake(){try{if(navigator.wakeLock&&document.visibilityState==='visible')navigator.wakeLock.request('screen').catch(function(){})}catch(e){}}
-document.addEventListener('visibilitychange',function(){awake();syncRaw();if(document.visibilityState==='hidden')saveSoon(true);else if(!ws)connect()});
+document.addEventListener('visibilitychange',function(){awake();syncRaw();if(document.visibilityState==='hidden')saveSoon(true);else linkTick()});
 window.addEventListener('pagehide',function(){if(cur)close()});
 
-load();paintGrid();paintStatus();awake();connect();
-setInterval(function(){paintStatus();syncRaw();},1000);
+load();setTab(tab);awake();
+setInterval(function(){paintStatus();syncRaw();linkTick();},1000);
 setInterval(function(){saveSoon()},15000);
 requestAnimationFrame(frame);
 })();

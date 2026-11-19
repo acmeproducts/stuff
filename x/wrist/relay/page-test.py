@@ -17,6 +17,14 @@ def http(path, body=None):
     req = urllib.request.Request(base + path, data=None if body is None else body.encode(), method='GET' if body is None else 'POST')
     return urllib.request.urlopen(req, timeout=10).read().decode()
 
+# which tab a card lives in; every card not named here is a Watch card
+TAB = {'calibrate': 'learn', 'teach': 'learn', 'assign': 'learn', 'hands': 'camera', 'head': 'camera', 'camera': 'camera', 'object': 'camera'}
+def tabto(pg, t):
+    if pg.get_attribute('#tabs button.on', 'data-tab') != t:
+        pg.click('#tabs button[data-tab=%s]' % t); pg.wait_for_timeout(200)
+def card(pg, cid):
+    tabto(pg, TAB.get(cid, 'watch')); pg.click('.tile[data-id=%s]' % cid)
+
 def post(o): return json.loads(http('/e/' + code, json.dumps(o)))
 
 LINK, RT = '', -1    # when set, raw batches carry the link label and round trip, as watch app turn06 sends them
@@ -48,18 +56,26 @@ with sync_playwright() as pw:
     txt = lambda sel: pg.inner_text(sel)
     ev = lambda js: pg.evaluate(js)
 
-    pg.goto(base + '/?linksecs=5&linger=2')
-    check('first visit asks for the watch code', pg.locator('#pair.show').count() == 1)
+    pg.goto(base + '/?linksecs=5&linger=2'); time.sleep(0.5)
+    check('first visit opens on the dashboard and asks for no watch code', pg.locator('#pair.show').count() == 0 and pg.locator('.dash').count() == 1 and pg.get_attribute('#tabs button.on', 'data-tab') == 'dash')
+    check('with no watch code the page keeps no link to the relay', 'no watch code' in txt('#dWatch'), txt('#dWatch'))
+    pg.click('#tabs button[data-tab=camera]'); time.sleep(0.3)
+    check('the Camera tab shows the camera cards and still asks for no code', pg.locator('#pair.show').count() == 0 and [x.get_attribute('data-id') for x in pg.locator('.tile').all()] == ['camera', 'hands', 'head', 'object'], [x.get_attribute('data-id') for x in pg.locator('.tile').all()])
+    pg.click('#tabs button[data-tab=watch]'); time.sleep(0.3)
+    check('the Watch tab asks for the watch code', pg.locator('#pair.show').count() == 1)
+    pg.click('#pairNo'); time.sleep(0.3)
+    check('Not now leaves the Watch tab without a code', pg.locator('#pair.show').count() == 0 and pg.get_attribute('#tabs button.on', 'data-tab') == 'dash')
+    pg.click('#tabs button[data-tab=watch]'); time.sleep(0.3)
     pg.fill('#code', code)
     pg.wait_for_function("document.getElementById('statusText').textContent.indexOf('Waiting for the watch')===0", timeout=8000)
-    check('grid shows twenty-one concepts, Keepers first', pg.locator('.tile').count() == 21 and pg.locator('.tile').first.get_attribute('data-id') == 'keepers', pg.locator('.tile').count())
+    check('the Watch tab shows its fifteen cards, Keepers first', pg.locator('.tile').count() == 15 and pg.locator('.tile').first.get_attribute('data-id') == 'keepers', pg.locator('.tile').count())
     check('every concept starts unrated', pg.locator('.chip.keep,.chip.shop,.chip.dump').count() == 0)
     post({'t': 'hb', 'b': 'turn04-test'})
     pg.wait_for_function("document.getElementById('statusText').textContent==='Watch connected'", timeout=5000)
     if shot: pg.screenshot(path=shot + '-grid.png')
 
     # ---- v1 scroll: driven by the watch's own events
-    pg.click('.tile[data-id=tilt1]')
+    card(pg, 'tilt1')
     check('tapping a card opens it full screen', pg.locator('#active.show').count() == 1 and txt('#cName') == 'Tilt to scroll · v1')
     top = lambda: ev("document.querySelector('#play .sc').scrollTop")
     post({'t': 'scroll', 'r': -4}); time.sleep(0.5)
@@ -71,12 +87,20 @@ with sync_playwright() as pw:
     check('an open card asks the watch for its raw stream', r.get('raw') == 1, r)
     pg.click('#closeBtn'); time.sleep(0.8)
     check('closing returns to the grid and counts the trial', pg.locator('#active.show').count() == 0 and '1 trial' in txt('.tile[data-id=tilt1] .foot'))
-    check('the stream stays on for a while after closing, so the next card does not wait', post({'t': 'hb'}).get('raw') == 1)
+    check('in the Watch tab the stream stays on between cards, so the next card does not wait', post({'t': 'hb'}).get('raw') == 1)
     time.sleep(3.6)
-    check('and stops once no card has needed it for that while', post({'t': 'hb'}).get('raw') == 0)
+    check('and is still on after a while, because the Watch tab is open', post({'t': 'hb'}).get('raw') == 1)
+    tabto(pg, 'dash'); time.sleep(0.6)
+    check('leaving the Watch tab: the dashboard shows the watch and the camera', 'Watch connected' in txt('#dWatch') and 'not used' in txt('#dCam'), (txt('#dWatch'), txt('#dCam')))
+    time.sleep(3.2)
+    r = post({'t': 'hb'})
+    check('a while after leaving the Watch tab the stream stops, and the watch is still linked so it does not fall asleep', r.get('raw') == 0 and r.get('pages') == 1, r)
+    tabto(pg, 'watch'); time.sleep(1.2)
+    r = post({'t': 'hb'})
+    check('back in the Watch tab the stream comes back before any card is opened', r.get('raw') == 1 and r.get('pages') == 1, r)
 
     # ---- v2 scroll: decided on the page from raw rows
-    pg.click('.tile[data-id=tilt2]')
+    card(pg, 'tilt2')
     feed(0, 0, 0.8)
     check('v2: level, list is still', top() == 0, top())
     sweep(0, 0, -30, 0, 0.4); feed(-30, 0, 1.0)
@@ -90,7 +114,7 @@ with sync_playwright() as pw:
     pg.click('#closeBtn'); time.sleep(0.5)
 
     # ---- dial
-    pg.click('.tile[data-id=dial]')
+    card(pg, 'dial')
     feed(0, 5, 0.5)
     hot = lambda: ev("Array.from(document.querySelectorAll('.dial .o')).findIndex(o=>o.classList.contains('hot'))")
     h0 = hot()
@@ -103,7 +127,7 @@ with sync_playwright() as pw:
     pg.click('#closeBtn'); time.sleep(0.5)
 
     # ---- four poses: four different gestures
-    pg.click('.tile[data-id=poses]')
+    card(pg, 'poses')
     n = lambda k: ev("Array.from(document.querySelectorAll('.quad .q')).map(q=>q.querySelector('b').textContent+'='+q.querySelector('em').textContent).join(',')")
     feed(0, 0, 1.2)
     check('poses: resting palm down is not counted on its own', 'palm down=0' in n(0), n(0))
@@ -112,7 +136,7 @@ with sync_playwright() as pw:
     pg.click('#closeBtn'); time.sleep(0.5)
 
     # ---- flap
-    pg.click('.tile[data-id=flap]')
+    card(pg, 'flap')
     feed(0, 0, 0.8)
     feed(0, -40, 0.16, gyro=3.0); feed(0, 0, 0.5, gyro=0.2)
     check('flap: quick roll out and back = one flap, thumb rising', txt('.big .count').startswith('thumb rising 1') and 'pinky rising 0' in txt('.big .count'), txt('.big .count'))
@@ -123,7 +147,7 @@ with sync_playwright() as pw:
     pg.click('#closeBtn'); time.sleep(0.5)
 
     # ---- swing v2, decided on the page
-    pg.click('.tile[data-id=swing2]')
+    card(pg, 'swing2')
     th = lambda: txt('#play .th span')
     feed(0, -90, 0.5)
     feed(0, -90, 0.3, w=[0, -3, 0]); feed(0, -90, 0.3, w=[0, 3, 0]); feed(0, -90, 0.6)
@@ -136,7 +160,7 @@ with sync_playwright() as pw:
 
     # ---- connection test: one timed run per link, compared in a table
     post({'t': 'hb', 'b': 'turn06-test', 'ln': 'bt', 'rtt': 180, 'bat': 80}); time.sleep(0.4)
-    pg.click('.tile[data-id=link]')
+    card(pg, 'link')
     LINK, RT = 'bt', 180
     feed(0, 0, 2.5)
     check('link test: shows the link the watch reports and a live rate', txt('.linkbox .lk') == 'Bluetooth (via phone)' and int(txt('#lkRate')) > 20 and txt('#lkTrip') == '180 ms', txt('.linkbox .lk') + ' ' + txt('#lkRate') + ' ' + txt('#lkTrip'))
@@ -144,7 +168,7 @@ with sync_playwright() as pw:
     feed(0, 0, 3.2)
     check('link test: after the timed run the result is saved and listed', txt('.linkbox p').startswith('Run saved: Bluetooth') and pg.locator('.linkbox table tr').count() == 2 and '80\u219279%' in txt('.linkbox table'), txt('.linkbox p') + ' | ' + txt('.linkbox table'))
     pg.click('#closeBtn'); time.sleep(0.5)
-    pg.click('.tile[data-id=link]')
+    card(pg, 'link')
     LINK, RT = 'wifi', 60
     feed(0, 0, 1.0); time.sleep(1.4); feed(0, 0, 3.4)
     rowsT = pg.evaluate("Array.from(document.querySelectorAll('.linkbox table tr')).map(r=>r.innerText.replace(/\\s+/g,' ')).join(' / ')")
@@ -154,7 +178,7 @@ with sync_playwright() as pw:
     check('grid status names the link and round trip', 'Wi-Fi' in txt('#statusText') and '60 ms' in txt('#statusText'), txt('#statusText'))
 
     # ---- what X could notice
-    pg.click('.tile[data-id=body]')
+    card(pg, 'body')
     feed(0, 0, 0.5, gyro=1.0); feed(70, 0, 2.2)
     check('body: arm held overhead is noticed once', txt('#bOver') == '1', txt('#bOver'))
     feed(0, 0, 3.0, gyro=1.0)          # let the slow baseline settle after the big overhead move
@@ -167,7 +191,7 @@ with sync_playwright() as pw:
     pg.click('#closeBtn'); time.sleep(0.5)
 
     # ---- OK pose: the forearm angle, not the fingers
-    pg.click('.tile[data-id=ok]')
+    card(pg, 'ok')
     feed(0, 0, 0.6); feed(20, 0, 1.2)
     check('ok pose: a low forearm does not fire', txt('.big .count') == '0', txt('.big .count'))
     feed(39, -4, 1.6)
@@ -181,12 +205,12 @@ with sync_playwright() as pw:
     pg.click('#closeBtn'); time.sleep(0.5)
 
     # ---- Keepers: everything rated Keep, running together
-    pg.click('.tile[data-id=keepers]')
+    card(pg, 'keepers')
     check('keepers: says so when nothing is rated Keep', 'Nothing is rated Keep yet' in txt('.kboard p'))
     pg.click('#closeBtn'); time.sleep(0.4)
     ev("(function(){var s=JSON.parse(localStorage.getItem('wrist_lab'));s.poses.rating='keep';s.dial.rating='keep';s.flap.rating='keep';localStorage.setItem('wrist_lab',JSON.stringify(s))})()")
     pg.reload(); time.sleep(0.8)
-    pg.click('.tile[data-id=keepers]')
+    card(pg, 'keepers')
     check('keepers: shows one row per kept concept', pg.locator('.krow').count() == 3, pg.locator('.krow').count())
     feed(0, 0, 0.6); feed(0, -40, 0.16, gyro=3.0); feed(0, 0, 0.6, gyro=0.2)
     chips = lambda: ev("Array.from(document.querySelectorAll('.kchip')).map(c=>c.textContent).filter(t=>/ \\d+$/.test(t)).join(',')")
@@ -198,7 +222,7 @@ with sync_playwright() as pw:
     pg.click('#closeBtn'); time.sleep(0.5)
 
     # ---- raise to talk
-    pg.click('.tile[data-id=raise]')
+    card(pg, 'raise')
     feed(0, 0, 0.4); feed(58, 0, 1.2)
     check('raise: hand lifted and held opens the mic state', txt('.big .glyph') == '🎙️', txt('.big p'))
     feed(0, 0, 0.8)
@@ -206,7 +230,7 @@ with sync_playwright() as pw:
     pg.click('#closeBtn'); time.sleep(0.5)
 
     # ---- raw viewer, marker, flip, notes, rating
-    pg.click('.tile[data-id=see]')
+    card(pg, 'see')
     feed(10, -20, 0.6)
     pg.tap('#play'); time.sleep(0.6)
     check('one tap drops a marker', txt('#flash') == 'marked')
@@ -237,7 +261,7 @@ with sync_playwright() as pw:
     check('v2 trial records each start and stop it decided', ('scroll start', 'down') in w2 and ('scroll stop', 'level') in w2, w2)
 
     # ---- lab-r6: last logged, Watch off, results table, camera probe, buzz
-    pg.goto(base + '/?linksecs=5'); time.sleep(0.8)
+    pg.goto(base + '/?linksecs=5'); time.sleep(0.8); tabto(pg, 'watch'); time.sleep(0.8)
     post({'t': 'diag', 'why': 'minute', 'b': 'turn07-test', 'up': 30, 'bat': 77, 'ln': 'bt', 'restricted': 0, 'sens': 'gya-', 'unused': 1, 'rtt': 140}); time.sleep(0.6)
     check('page shows when the watch last logged', 'watch logged' in txt('#meta'), txt('#meta'))
     box = pg.locator('#offBtn').bounding_box(); cx, cy = box['x'] + box['width'] / 2, box['y'] + box['height'] / 2
@@ -250,7 +274,7 @@ with sync_playwright() as pw:
     check('holding Watch off for a second tells the watch to sleep', r.get('sleep') == 1, str(r) + ' · ' + txt('#statusText'))
     post({'t': 'sleep', 'why': 'page', 'b': 'turn07-test', 'up': 34, 'bat': 76, 'ln': 'bt'}); time.sleep(0.5)
     check('page says the watch is off and why', 'Watch is off' in txt('#statusText') and 'from a page' in txt('#statusText'), txt('#statusText'))
-    pg.click('.tile[data-id=results]'); time.sleep(3.0)
+    card(pg, 'results'); time.sleep(3.0)
     check('results: the session, battery at both ends, how it ended', 'turned off from a page' in txt('#resW') and '\u219276' in txt('#resW'), txt('#resW')[:220])
     check('results: the last panel snapshot', 'background allowed' in txt('#resP') and 'Pause if unused: off' in txt('#resP'), txt('#resP')[:220])
     check('results: signals table lists the trials already saved', 'What the watch sees' in txt('#resS') and 'Reading' not in txt('#resS'), txt('#resS')[:200])
@@ -260,7 +284,7 @@ with sync_playwright() as pw:
     pg.click('#closeBtn'); time.sleep(0.6)
     check('results card saves no trial', len(json.loads(http('/trials'))) == before)
     ev("""() => { let n = 0; window.__labTestHand = () => { n++; const on = n > 20 && n < 200; const pts = []; for (let i = 0; i < 21; i++) pts.push({x: 0.3 + 0.02 * i, y: 0.4, z: 0}); return {landmarks: on ? [pts] : [], handedness: on ? [[{categoryName: 'Left'}]] : []}; }; }""")
-    pg.click('.tile[data-id=camera]'); time.sleep(2.4)
+    card(pg, 'camera'); time.sleep(2.4)
     check('camera card: a hand is found and its 21 points are drawn', txt('#cmState') == 'found' and pg.locator('.camview canvas').get_attribute('data-points') == '21', txt('#cmState'))
     check('camera card: frames a second and found time are shown', txt('#cmFps').isdigit() and int(txt('#cmFps')) > 5 and txt('#cmFound').isdigit(), txt('#cmFps') + ' / ' + txt('#cmFound'))
     if shot: pg.screenshot(path=shot + '-camera.png')
@@ -273,7 +297,7 @@ with sync_playwright() as pw:
     wc = [e['what'] for e in hcam.get('events', []) if e['src'] == 'concept']
     check('camera trial records found and lost, and no picture', 'hand found' in wc and 'hand lost' in wc and hcam.get('rawRows') == 0, wc)
     ev("() => { delete window.__labTestHand }")
-    pg.click('.tile[data-id=buzz]'); time.sleep(0.4)
+    card(pg, 'buzz'); time.sleep(0.4)
     pg.click('.buzzgrid button[data-n="Three quick"]'); time.sleep(0.5)
     r = post({'t': 'hb', 'b': 'turn07-test', 'up': 40})
     check('buzz card: the pattern goes to the watch', r.get('buzz') == [0, 30, 60, 30, 60, 30], r)
@@ -284,19 +308,19 @@ with sync_playwright() as pw:
     # ---- an old watch app cannot stream: the card says so
     pg.reload(); time.sleep(0.8)
     post({'t': 'hb', 'b': 'turn03-b3'}); time.sleep(0.4)
-    pg.click('.tile[data-id=dial]'); time.sleep(3.0)
+    card(pg, 'dial'); time.sleep(3.0)
     post({'t': 'hb', 'b': 'turn03-b3'}); time.sleep(0.5)
     check('card that needs the raw stream says the watch app is too old', 'needs the newer watch app' in txt('#need'), txt('#need'))
     check('ratings survive a reload', 'Keep' in txt('.tile[data-id=see] .foot') if pg.locator('#active.show').count() == 0 else True)
     if shot:
-        pg.click('#closeBtn'); time.sleep(0.4); pg.click('.tile[data-id=poses]'); feed(0, 0, 0.3); feed(0, -90, 1.1); pg.screenshot(path=shot + '-poses.png')
+        pg.click('#closeBtn'); time.sleep(0.4); card(pg, 'poses'); feed(0, 0, 0.3); feed(0, -90, 1.1); pg.screenshot(path=shot + '-poses.png')
     # ---- a watch on turn07 hardens its code: the page pairs by itself while the watch has just been started
     hard = '737373'
     def postk(o):
         rq = urllib.request.Request(base + '/e/' + hard, data=json.dumps(o).encode(), method='POST', headers={'x-wrist-key': 'page-test-key-0123456789'})
         return json.loads(urllib.request.urlopen(rq, timeout=10).read().decode())
     postk({'t': 'hb', 'b': 'turn07-test', 'up': 300})
-    pg.goto(base + '/?code=' + hard); time.sleep(1.5)
+    pg.goto(base + '/?code=' + hard); time.sleep(0.5); tabto(pg, 'watch'); time.sleep(1.3)
     check('hardened code, watch not just started: page says how to pair', 'Not paired yet' in txt('#statusText'), txt('#statusText'))
     nonce = int(time.time())
     postk({'t': 'hb', 'b': 'turn07-test', 'up': 2, 'pw': nonce})

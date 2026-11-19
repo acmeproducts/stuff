@@ -134,5 +134,56 @@ S.remove(id('fist'));
 check('removing a signal removes the combinations made with it and their actions', !S.signals.some(s => s.kind === 'combo') && !S.assign[word.id] && S.signals.length === 6, S.signals.map(s => s.name));
 check('a slow move and a pose on the same number are flagged', S.collides({ kind: 'move', src: 'head', feat: 'nod', dir: -1 }, { kind: 'pose', src: 'head', feats: { nod: { m: -20, s: 1, d: -1 } } }) === true);
 
+/* ---- calibrated to the person ---- */
+S.signals.slice().forEach(s => S.remove(s.id)); fired.length = 0;
+const many = (k, fn) => Array.from({ length: k }, (_, i) => fn(i));
+const weak = { open: many(20, () => N({})), closed: many(20, () => N({ pinch: 0.6 })), near: many(20, () => N({ pinch: 0.6, size: 0.3 })), far: many(20, () => N({ pinch: 0.6, size: 0.15 })) };
+const weakPinch = N({ pinch: 0.6 });
+check('before calibration a weak pinch (thumb and finger not quite touching) does not count', S.pinching('Right', weakPinch, false) === false && S.pinching('Right', N({ pinch: 1 }), false) === true, weakPinch.pinchI);
+check('before calibration depth has the standard strength', S.reachGain('Right', 3.4) === 3);
+let ch = S.calHand(weak);
+check('hand calibration learns this person\'s open, closed and reach', near(ch.closed, weakPinch.pinchI, 0.02) && ch.open > 1 && near(ch.near / ch.far, 2, 0.1), ch);
+S.setCal('handRight', ch);
+check('after it, their weak pinch counts, and an open hand does not', S.pinching('Right', weakPinch, false) === true && S.pinching('Right', N({}), true) === false);
+check('and their whole reach carries an object across the whole table', near(S.reachGain('Right', 3.4), 3.4 / Math.log(2), 0.3) && S.reachGain('Left', 3.4) === 3, S.reachGain('Right', 3.4));
+check('the other hand is not touched by it', S.pinching('Left', weakPinch, false) === false);
+check('open and pinched reading alike is refused in plain words', /too alike/.test(S.calHand({ open: weak.open, closed: weak.open }).error || ''), S.calHand({ open: weak.open, closed: weak.open }).error);
+check('losing sight of the hand is refused', /lost sight/.test(S.calHand({ open: weak.open.slice(0, 3), closed: weak.closed }).error || ''));
+check('calibration is kept on the device', JSON.parse(mem.x_cal).handRight.closed === ch.closed, mem.x_cal);
+
+const R0 = { nod: -5, turn: 3, lean: 1 }, hs = (o) => many(20, () => H(Object.assign({}, R0, o)));
+let hh = S.calHead({ rest: hs({}), left: hs({ turn: 33 }), right: hs({ turn: -25 }), up: hs({ nod: 11 }), down: hs({ nod: -25 }) });
+check('head calibration learns the rest position and how far each way', near(hh.turn0, 3, 0.5) && near(hh.left, 30, 1) && near(hh.right, -28, 1) && near(hh.up, 16, 1) && near(hh.down, -20, 1), hh);
+check('before head calibration there is no "looking" direction', S.look(S.ownHead(H(R0))) === '');
+S.setCal('head', hh);
+const own = o => S.ownHead(H(Object.assign({}, R0, o)));
+check('after it, head numbers are measured from their rest', near(own({}).turn, 0, 0.5) && near(own({ turn: 23 }).turn, 20, 0.5) && near(own({}).nod, 0, 0.5), own({ turn: 23 }));
+check('looking is told by their own range: past half way counts, less does not', S.look(own({ turn: 23 })) === 'left' && S.look(own({ turn: -15 })) === 'right' && S.look(own({ nod: 5 })) === 'up' && S.look(own({ nod: -18 })) === 'down' && S.look(own({ turn: 12 })) === '' && S.look(own({})) === '', [S.look(own({ turn: 23 })), S.look(own({ turn: 12 }))]);
+check('turns that read as the same direction are refused', /two different turns/.test(S.calHead({ rest: hs({}), left: hs({ turn: 33 }), right: hs({ turn: 30 }), up: hs({ nod: 11 }), down: hs({ nod: -25 }) }).error || ''));
+
+// this camera names the eyes the other way round from the person: closing their LEFT eye raises the number called "right"
+const E = (l, r) => H(Object.assign({}, R0, { blend: { eyeBlinkLeft: l, eyeBlinkRight: r } })), es = (l, r) => many(20, () => E(l, r));
+let ee = S.calEyes({ open: es(0.05, 0.08), both: es(0.7, 0.75), left: es(0.15, 0.75), right: es(0.7, 0.2) });
+check('eye calibration learns open, closed, and which number is which eye', near(ee.openL, 0.05, 0.01) && near(ee.closedR, 0.75, 0.01) && ee.swap === true && ee.wink === true, ee);
+S.setCal('eyes', ee);
+const o1 = S.ownHead(E(0.15, 0.75)), o2 = S.ownHead(E(0.7, 0.75)), o3 = S.ownHead(E(0.05, 0.08));
+check('after it, each eye reads 0 open to 1 closed, named for the person\'s own left and right', o1.blinkL > 0.9 && o1.blinkR < 0.25 && o1.wink > 0.7 && near(o2.both, 1, 0.05) && near(o3.both, 0, 0.05) && near(o3.wink, 0, 0.05), [o1, o2.both]);
+let made = S.blinkSignals().map(x => x.name).sort().join();
+check('the three blink signals are made: left, right, both', made === 'blink both,blink left,blink right' && S.signals.length === 3, made);
+const eyesFor = (ms, l, r) => play('head', ms, () => S.ownHead(E(l, r)));
+eyesFor(1200, 0.05, 0.08); fired.length = 0;
+eyesFor(200, 0.7, 0.75); eyesFor(800, 0.05, 0.08);
+check('a natural blink fires nothing', fired.length === 0, fired);
+eyesFor(700, 0.7, 0.75); eyesFor(600, 0.05, 0.08);
+check('both eyes held closed fires blink both, once, and neither of the others', fired.join() === 'blink both', fired);
+fired.length = 0; eyesFor(700, 0.15, 0.75); eyesFor(600, 0.05, 0.08);
+check('their left eye held closed fires blink left only', fired.join() === 'blink left', fired);
+fired.length = 0; eyesFor(700, 0.7, 0.2); eyesFor(600, 0.05, 0.08);
+check('their right eye held closed fires blink right only', fired.join() === 'blink right', fired);
+S.setAction(id('blink left'), 'take');
+S.setCal('eyes', S.calEyes({ open: es(0.05, 0.08), both: es(0.7, 0.75), left: es(0.7, 0.75), right: es(0.7, 0.75) })); S.blinkSignals();
+check('someone who cannot close one eye alone gets blink both only, and the others are taken away with their actions', S.signals.map(x => x.name).join() === 'blink both' && Object.keys(S.assign).length === 0 && S.cal.eyes.wink === false, S.signals.map(x => x.name));
+check('eyes that read alike open and closed are refused', /too alike/.test(S.calEyes({ open: es(0.3, 0.3), both: es(0.4, 0.4) }).error || ''));
+
 console.log(fails ? '\n' + fails + ' FAILED' : '\nall passed');
 process.exit(fails ? 1 : 0);

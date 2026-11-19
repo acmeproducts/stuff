@@ -56,17 +56,17 @@ Status words: **met** (proved on the owner's device, evidence named) · **part**
 | R46 | hands in the scene | — | L6 | L6 gate | open |
 | R47 | several objects and goals | — | L6 | L6 gate | open |
 | R48 | putty | — | L6 | L6 gate | open |
-| R49 | tabs | D37 | L5 | L5 gate | open |
-| R50 | camera tab needs only a camera | D37, D33 | L5 | L5 gate | part: records now save with no watch code |
+| R49 | tabs | D37 | L5 | tab checks; the owner's run | lab (voice tab with S6) |
+| R50 | camera tab needs only a camera | D37, D33, D41 | L5 | "asks for no code" checks; the owner's run on a device with no code | lab |
 | R51 | no wait for the stream on each card | D34 | L4 | stream checks; the owner's run | lab |
 | R52 | voice: turns, interruptions, hot and cold word | D38 | S6 | S6 gate | open |
 | R53 | journey by head | — | L7 | L7 gate | open |
-| R54 | blink left, right, both | D36 | V7 | V7 gate | open |
-| R55 | calibration, interpretation, learning | D32, D36 | L4, V7 | pinch-flicker check; V7 gate | part |
+| R54 | blink left, right, both | D36, D40 | V7 | blink checks; the owner's run | lab |
+| R55 | calibration, interpretation, learning | D32, D36, D39 | L4, V7 | calibration checks; the owner's run | lab |
 | R56 | both watch settings; the Lab says so | D35 | L4 | quiet-watch checks; the owner's watch | lab; the settings themselves proven on his watch for 3 minutes |
 
 ## Counts
-Met: 2 (R14, R31). Part: 9 (R04, R05, R18, R27, R28, R30, R32, R50, R55). Holding: 3 (R33, R36, R43). Lab only: 7 (R38, R39, R40, R42, R44, R51, R56). Open: 35. Total 56.
+Met: 2 (R14, R31). Part: 7 (R04, R05, R18, R27, R28, R30, R32). Holding: 3 (R33, R36, R43). Lab only: 11 (R38, R39, R40, R42, R44, R49, R50, R51, R54, R55, R56). Open: 33. Total 56.
 
 ## Use cases to releases
 | Use case | Releases |

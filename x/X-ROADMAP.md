@@ -100,8 +100,8 @@ A release is the smallest whole thing that can be used and judged. Status: built
 | Stage | Release | What | Requirements | State |
 |---|---|---|---|---|
 | 1 | **L4** Fixes from the first real run | depth the right way round and gentler; a pinch that flickers is still a pinch; records saved as you go; the watch's stream stays on between cards; a warning naming both watch settings when the watch goes quiet | R44, R51, R56 | **built in `lab-r8`, lab only** |
-| 2 | **L5** Tabs, **V7** Calibrate | dashboard, learn, camera, watch, voice; calibration of hand, head, eyes and watch to the person; blink left, right, both | R49, R50, R54, R55 | next |
-| 3 | **L6** Hands and things | hands in the scene; hand to hand; several objects and goals; putty | R45 to R48 | after 2 |
+| 2 | **L5** Tabs, **V7** Calibrate | dashboard, learn, camera, watch (voice arrives with stage 5); calibration of each hand, the head and the eyes to the person; blink left, right, both | R49, R50, R54, R55 | **built in `lab-r9`, lab only** |
+| 3 | **L6** Hands and things | hands in the scene; hand to hand; several objects and goals; putty | R45 to R48 | next |
 | 4 | **L7** Journey | a spoken choose-your-path story steered by the head | R53 | after 3 |
 | 5 | **S6** Voice | turns, interruptions, hot word and cold word; "start listening" and "stop listening" as actions | R52 | after 4 |
 
@@ -159,3 +159,4 @@ A release is done when its device gate passes and its rows in `X-TRACE.md` show 
 | 2026-11-19 | Watch silence: my theory (the background switch was reset) was **wrong**. The switch was on; Wrist was on the watch's Sleeping apps list. After he removed it: three minutes with the screen off, largest gap 3.3 s. | Both settings required (R56). Plan W. |
 | 2026-11-19 | Owner set Round 2: tabs; camera with only a camera; depth reversed; hand to hand; hands in the scene; several objects and goals; putty; a journey by head; voice turns, interruptions, hot and cold word; "focus more on calibration and interpretation and learning"; "keep blink left right both". He said "don't code yet", read the scope, overrode one call, then "go". | R44 to R56, D31 to D38, §3.4. |
 | 2026-11-19 | Stage 1 built: Lab `lab-r8`. Lab checks: engine 42, new cards 72, older Lab 77, relay 37, X page 50. | **Lab only.** |
+| 2026-11-19 | Stage 2 built: Lab `lab-r9`: four tabs and Calibrate. Lab checks: engine 65, new cards 90, older Lab 84, relay 37, X page 50. | **Lab only.** Two calls put to the owner: the Voice tab is not shown until it has something in it; the watch is left out of Calibrate until a card uses a rest position. |

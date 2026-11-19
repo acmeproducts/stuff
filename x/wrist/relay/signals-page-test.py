@@ -21,6 +21,14 @@ def http(path, body=None):
     req = urllib.request.Request(base + path, data=None if body is None else body.encode(), method='GET' if body is None else 'POST')
     return urllib.request.urlopen(req, timeout=10).read().decode()
 
+# which tab a card lives in; every card not named here is a Watch card
+TAB = {'calibrate': 'learn', 'teach': 'learn', 'assign': 'learn', 'hands': 'camera', 'head': 'camera', 'camera': 'camera', 'object': 'camera'}
+def tabto(pg, t):
+    if pg.get_attribute('#tabs button.on', 'data-tab') != t:
+        pg.click('#tabs button[data-tab=%s]' % t); pg.wait_for_timeout(200)
+def card(pg, cid):
+    tabto(pg, TAB.get(cid, 'watch')); pg.click('.tile[data-id=%s]' % cid)
+
 def post(o): return json.loads(http('/e/' + code, json.dumps(o)))
 
 def feed(pitch, roll, seconds):
@@ -36,13 +44,14 @@ def feed(pitch, roll, seconds):
 # the made-up body. rest = what it does when nothing is asked; show(f) = what it does f seconds into each NOW of the Teach card;
 # __act(fn) = do fn(seconds since now) until told otherwise; __act(null) = back to rest.
 PUPPET = """
-window.__puppet = { rest: { hands: [{}] }, show: null, free: null, freeAt: 0, last: 0, wasNow: false, nowAt: 0, heard: [], spoken: [] };
+window.__puppet = { rest: { hands: [{}] }, show: null, react: null, free: null, freeAt: 0, last: 0, wasNow: false, nowAt: 0, heard: [], spoken: [] };
 window.__act = function (fn) { __puppet.free = fn; __puppet.freeAt = performance.now(); };
 window.__labTestEyes = function (t) {
   var P = window.__puppet; if (t - P.last < 45) return null; P.last = t;
   var say = (document.getElementById('tSay') || {}).textContent || '', isNow = /^NOW/.test(say);
   if (isNow && !P.wasNow) P.nowAt = t; P.wasNow = isNow;
-  var b = P.free ? P.free((t - P.freeAt) / 1000) : (isNow && P.show ? P.show((t - P.nowAt) / 1000) : P.rest);
+  var ask = (document.getElementById('kSay') || {}).textContent || '';
+  var b = P.free ? P.free((t - P.freeAt) / 1000) : (P.react && P.react(ask)) || (isNow && P.show ? P.show((t - P.nowAt) / 1000) : P.rest);
   return Synth.seen((b.hands || []).map(Synth.hand), b.face ? Synth.face(b.face) : null);
 };
 window.speechSynthesis = undefined;
@@ -67,15 +76,16 @@ with sync_playwright() as pw:
     def close(): pg.click('#closeBtn'); wait(700)
 
     pg.goto(base + '/?linksecs=5&linger=2&three=' + urllib.request.quote(three, safe=''))
-    pg.fill('#code', code)
+    tabto(pg, 'watch'); pg.fill('#code', code)
     pg.wait_for_function("document.getElementById('statusText').textContent.indexOf('Waiting for the watch')===0", timeout=8000)
     post({'t': 'hb', 'b': 'turn07-test'})
-    ids = ev("() => Array.from(document.querySelectorAll('.tile')).map(t => t.dataset.id)")
-    check('the five new cards follow the buzz card', ids[ids.index('buzz') + 1: ids.index('buzz') + 6] == ['hands', 'head', 'teach', 'assign', 'object'], ids)
-    check('the page says which build it is', 'lab-r8' in txt('#meta'), txt('#meta'))
+    tiles = lambda: [x.get_attribute('data-id') for x in pg.locator('.tile').all()]
+    tabto(pg, 'camera'); cam = tiles(); tabto(pg, 'learn'); learn = tiles()
+    check('the Camera tab holds the camera cards and the Learn tab holds calibrate, teach and assign', cam == ['camera', 'hands', 'head', 'object'] and learn == ['calibrate', 'teach', 'assign'], (cam, learn))
+    check('the page says which build it is', 'lab-r9' in txt('#meta'), txt('#meta'))
 
     # ---- hand numbers
-    pg.click('.tile[data-id=hands]'); wait(900)
+    card(pg, 'hands'); wait(900)
     row = lambda label: pg.evaluate("(l) => { const r = Array.from(document.querySelectorAll('#hnT tr, #hdT tr')).find(r => r.cells[0].textContent === l); return r ? Array.from(r.cells).slice(1).map(c => c.textContent) : null }", label)
     check('hand numbers: an open right hand reads straight, and the left column is empty', txt('#hnN') == '1' and row('index curl') == ['0.00', '–'], (txt('#hnN'), row('index curl')))
     ev("() => { __puppet.rest = { hands: [{ curl: 1 }] } }"); wait(500)
@@ -89,7 +99,7 @@ with sync_playwright() as pw:
 
     # ---- head and face
     ev("() => { __puppet.rest = { hands: [{}], face: { turn: 20, nod: -10, blend: { jawOpen: 0.8 } } } }")
-    pg.click('.tile[data-id=head]'); wait(900)
+    card(pg, 'head'); wait(900)
     check('head: turn, nod and jaw are shown', txt('#hdState') == 'found' and row('turn, degrees') == ['20'] and row('nod, degrees') == ['-10'] and row('jaw open') == ['0.80'], (txt('#hdState'), row('turn, degrees'), row('jaw open')))
     check('head: with the face finder alone, no hand is looked for', pg.locator('.camview canvas').get_attribute('data-hands') == '0' and pg.locator('.camview canvas').get_attribute('data-face') == '1')
     pg.click('#hdHands'); wait(900)
@@ -107,7 +117,7 @@ with sync_playwright() as pw:
     def name_it(n):
         pg.fill('#tName', n); pg.click('#tSave'); wait(300)
     ev("() => { __puppet.rest = { hands: [{}], face: {} }; __puppet.show = f => ({ hands: [{ curl: f > 0.45 ? 1 : 0 }], face: {} }) }")
-    pg.click('.tile[data-id=teach]'); wait(700)
+    card(pg, 'teach'); wait(700)
     check('teach: starts with the right hand and nothing taught', pg.input_value('#tSrc') == 'handR' and 'Nothing taught yet' in txt('#tList'), txt('#tList'))
     pg.click('#tGo'); wait(400)
     check('teach: it says REST first, on the screen and aloud', txt('#tSay') == 'REST' and ev("() => __puppet.spoken.join()") == 'rest', txt('#tSay'))
@@ -139,7 +149,7 @@ with sync_playwright() as pw:
     teach()
     check('teach: a nod and back is seen as a head move', 'I saw a move: nod' in txt('#tWhy') and 'comes back' in txt('#tWhy'), txt('#tWhy'))
     name_it('nod')
-    pg.select_option('#tSrc', 'watch'); wait(400)
+    pg.select_option('#tSrc', 'watch'); wait(1200)
     check('teach: choosing the watch asks it for its sensor stream', post({'t': 'hb', 'b': 'turn07-test'}).get('raw') == 1)
     pg.click('#tGo')
     end = time.time() + 20
@@ -159,7 +169,7 @@ with sync_playwright() as pw:
     check('teach: a while after closing, the watch stream is no longer asked for', post({'t': 'hb'}).get('raw') == 0)
 
     # ---- assign and combine
-    pg.click('.tile[data-id=assign]'); wait(700)
+    card(pg, 'assign'); wait(700)
     sel = lambda n: '#aList select[data-sig="%s"]' % n
     check('assign: each taught signal has a list of actions', pg.locator('#aList select').count() == 3 and pg.locator(sel('fist') + ' option').count() == 18, pg.locator(sel('fist') + ' option').count())
     pg.select_option(sel('fist'), 'next'); wait(150)
@@ -185,7 +195,7 @@ with sync_playwright() as pw:
 
     # ---- the object
     ev("() => { __puppet.rest = { hands: [], face: {} } }")
-    pg.click('.tile[data-id=object]')
+    card(pg, 'object')
     pg.wait_for_function("document.getElementById('oCan').dataset.state", timeout=15000); wait(600)
     s0 = state()
     check('object: a cup stands on the table, to the left, turned away from the task', s0['kind'] == 'cup' and abs(s0['x'] + 0.9) < 0.05 and abs(s0['faces'] + 69) < 3 and s0['held'] == '' and txt('#oSay') == 'Hold up a hand', (s0, txt('#oSay')))
@@ -198,6 +208,8 @@ with sync_playwright() as pw:
     check('object: a hand in view is told what to do', txt('#oSay') == 'Pinch on the object to take it', txt('#oSay'))
     hand(x=0.2, y=0.35, pinch=1); wait(400)
     check('object: a pinch away from the object takes nothing', state()['held'] == '', state())
+    hand(x=0.2, y=0.35); wait(300); hand(); wait(300); hand(pinch=0.6); wait(400)
+    check('object: before calibration, a weak pinch (thumb and finger not quite touching) takes nothing', state()['held'] == '', state())
     hand(x=0.2, y=0.35); wait(300); hand(); wait(300); hand(pinch=1); wait(400)
     check('object: a pinch on the object takes it', state()['held'] == 'one' and txt('#oSay') == 'In your right hand', (state(), txt('#oSay')))
     hand(x=HX - 0.15, y=HY - 0.12, pinch=1); wait(400)
@@ -276,20 +288,79 @@ with sync_playwright() as pw:
     check('object: closed, the record is whole and no longer marked open', all(w in body for w in ['took it', 'let it go', 'task done', '"a":"next"', 'one hand again']) and 'landmarks' not in body and '"open":1' not in body, len(body))
 
     # ---- the rest of the Lab still stands
-    pg.click('.tile[data-id=teach]'); wait(500); pg.click('#notesBtn'); wait(300); pg.click('#rate button[data-v=keep]'); pg.click('#doneBtn'); wait(700)
-    pg.click('.tile[data-id=keepers]'); wait(500)
+    card(pg, 'teach'); wait(500); pg.click('#notesBtn'); wait(300); pg.click('#rate button[data-v=keep]'); pg.click('#doneBtn'); wait(700)
+    card(pg, 'keepers'); wait(500)
     check('keepers: a kept card that has no watch gesture does not break the Keepers card', pg.locator('.kboard').count() == 1 and 'Nothing is rated Keep' in txt('.kboard'), txt('.kboard')[:80])
     close()
     pg.reload(); wait(900)
-    pg.click('.tile[data-id=teach]'); wait(600)
+    card(pg, 'teach'); wait(600)
     check('after a reload, everything taught is still there', txt('#tList').count('Remove') == 4 and 'combination: fist then nod' in txt('#tList') and 'does: take' in txt('#tList'), txt('#tList'))
     pg.locator('#sig_' + ev("() => Signals.signals.find(s => s.name === 'fist').id") + ' button').click(); wait(200)
     check('removing a letter removes the word made with it', txt('#tList').count('Remove') == 2 and 'fist' not in txt('#tList'), txt('#tList'))
     close()
 
+    # ---- calibrate: the person's own pinch, reach, head and eyes
+    tabto(pg, 'dash'); wait(300)
+    check('dashboard: nothing is calibrated yet, and what was taught is listed', txt('.dash').count('not yet') == 4 and 'TAUGHT (2)' in txt('.dash') and 'wrist down' in txt('.dash'), txt('.dash')[:300])
+    card(pg, 'calibrate'); wait(500)
+    check('calibrate: four things to calibrate, none done', pg.locator('#kList .calrow').count() == 4 and txt('#kList').count('not yet') == 4, txt('#kList'))
+    def calibrate(key, secs):
+        pg.click('#kList button[data-k=%s]' % key)
+        pg.wait_for_function("/^(Saved|Not saved)/.test(document.getElementById('kSay').textContent)", timeout=secs * 1000); wait(300)
+    # a person whose pinch never quite closes, and whose hand looks twice as big pushed forward as pulled back
+    ev("""() => { __puppet.react = s => /PUSH/.test(s) ? { hands: [{ pinch: 0.6, size: 0.3 }] } : /PULL/.test(s) ? { hands: [{ pinch: 0.6, size: 0.15 }] } : /^PINCH/.test(s) ? { hands: [{ pinch: 0.6 }] } : { hands: [{}] } }""")
+    spoken0 = ev("() => __puppet.spoken.length")
+    calibrate('handRight', 30)
+    said = pg.evaluate("(n) => __puppet.spoken.slice(n).join('|')", spoken0)
+    check('calibrate hand: it asks for each position on the screen and aloud', said.startswith('hold your hand up, open|open|pinch|open|pinch, and keep pinching|push toward the screen|pull back toward you'), said)
+    check('calibrate hand: it says what it learned, in their numbers', txt('#kSay') == 'Saved' and 'Your pinch reads 0.4' in txt('#kOut') and '2.0 times bigger' in txt('#kOut'), txt('#kOut'))
+    check('calibrate hand: the row shows it done, and it is kept on the device', 'Redo' in txt('#kList .calrow:nth-child(1)') and 'reach' in txt('#kList .calrow:nth-child(1)') and 'handRight' in ev("() => localStorage.getItem('x_cal')"), txt('#kList .calrow:nth-child(1)'))
+    # a head that rests a little off centre
+    ev("""() => { const R = { nod: -5, turn: 3 }, f = o => ({ hands: [], face: Object.assign({}, R, o) }); __puppet.react = s => /LEFT/.test(s) ? f({ turn: 33 }) : /RIGHT/.test(s) ? f({ turn: -25 }) : /UP/.test(s) ? f({ nod: 11 }) : /DOWN/.test(s) ? f({ nod: -25 }) : f({}) }""")
+    calibrate('head', 30)
+    check('calibrate head: it learns how far each way', txt('#kSay') == 'Saved' and '30\u00B0 left and 28\u00B0 right' in txt('#kOut') and '16\u00B0 up and 20\u00B0 down' in txt('#kOut'), txt('#kOut'))
+    # eyes the camera names the other way round: closing the person's LEFT eye raises the number called "right"
+    ev("""() => { const R = { nod: -5, turn: 3 }, f = (l, r) => ({ hands: [], face: Object.assign({}, R, { blend: { eyeBlinkLeft: l, eyeBlinkRight: r } }) }); __puppet.eyes = f;
+      __puppet.react = s => /BOTH/.test(s) ? f(0.7, 0.75) : /LEFT/.test(s) ? f(0.15, 0.75) : /RIGHT/.test(s) ? f(0.7, 0.2) : f(0.05, 0.08) }""")
+    calibrate('eyes', 30)
+    check('calibrate eyes: three blink signals are made, and which eye is which was learned', txt('#kSay') == 'Saved' and 'Blink left, blink right and blink both are ready' in txt('#kOut') and ev("() => Signals.signals.filter(s => /^blink /.test(s.name)).length") == 3 and ev("() => Signals.cal.eyes.swap") is True, txt('#kOut'))
+    if shot: pg.screenshot(path=shot + '-calibrate.png')
+    close()
+    body = http('/trial/' + sorted(x['key'] for x in json.loads(http('/trials')) if '-calibrate-' in x['key'] and x['key'].endswith(':000'))[-1])
+    check('calibrate: the record holds the numbers learned, and no picture', body.count('"what":"saved"') == 3 and '"closed":0.4' in body and '"swap":true' in body and 'landmarks' not in body, len(body))
+    # what the calibration changes
+    ev("() => { __puppet.react = null; __puppet.rest = __puppet.eyes(0.05, 0.08); __puppet.rest.face.turn = 23 }")
+    card(pg, 'head'); wait(900)
+    check('head card: numbers are now measured from their rest, and it says which way they look', row('turn, degrees') == ['20'] and row('looking') == ['left'] and 'your rest' in row('measured from')[0], (row('turn, degrees'), row('looking'), row('measured from')))
+    ev("() => { __puppet.rest = __puppet.eyes(0.05, 0.08) }"); wait(900)
+    n0 = ev("() => Signals.fires.length")
+    ev("() => __act(t => t > 0.2 && t < 0.4 ? __puppet.eyes(0.7, 0.75) : __puppet.eyes(0.05, 0.08))"); wait(1300)
+    check('blink: a natural blink fires nothing', ev("() => Signals.fires.length") == n0, ev("() => Signals.fires.slice(-2).map(e => e.name)"))
+    ev("() => __act(t => t > 0.2 && t < 1.0 ? __puppet.eyes(0.15, 0.75) : __puppet.eyes(0.05, 0.08))"); wait(1700)
+    check('blink: their left eye held closed fires blink left, and only that', fires('blink left') == 1 and fires('blink right') == 0 and fires('blink both') == 0, ev("() => Signals.fires.slice(-3).map(e => e.name)"))
+    ev("() => __act(t => t > 0.2 && t < 1.0 ? __puppet.eyes(0.7, 0.75) : __puppet.eyes(0.05, 0.08))"); wait(1700); ev("() => __act(null)")
+    check('blink: both eyes held closed fires blink both', fires('blink both') == 1 and fires('blink left') == 1, ev("() => Signals.fires.slice(-3).map(e => e.name)"))
+    close()
+    ev("() => { __puppet.rest = { hands: [], face: {} } }")
+    card(pg, 'object')
+    pg.wait_for_function("document.getElementById('oCan').dataset.state", timeout=15000); wait(600)
+    sq = state(); QX, QY = sq['px'] + 0.07, sq['py'] + 0.28
+    weak = lambda **k: pg.evaluate("(o) => { __puppet.rest = { hands: [o], face: {} } }", dict(dict(x=QX, y=QY), **k))
+    weak(x=0.2, y=0.35); wait(300); weak(); wait(300); weak(pinch=0.6); wait(450)
+    check('object, after calibration: their weak pinch now takes it', state()['held'] == 'one', state())
+    z0 = state()['z']; weak(pinch=0.6, size=0.3); wait(450)
+    check('object, after calibration: their reach carries it further than the standard strength did', state()['z'] < z0 - 1.6, (z0, state()['z']))
+    weak(pinch=0, size=0.3); wait(700)
+    check('object, after calibration: an open hand still lets it go', state()['held'] == '', state())
+    close()
+    tabto(pg, 'dash'); wait(400)
+    check('dashboard: shows what is calibrated, with their numbers, and how the camera is doing', 'pinch 0.4' in txt('.dash') and 'reach \u00D72.0' in txt('.dash') and 'left, right and both' in txt('.dash') and txt('.dash').count('not yet') == 1 and 'not used' not in txt('#dCam'), txt('.dash')[:400].replace('\n', ' | '))
+    if shot: pg.screenshot(path=shot + '-dash.png')
+
     # ---- the 3D program not arriving is said plainly
     p2 = ctx.new_page(); p2.goto(base + '/?three=' + urllib.request.quote('http://127.0.0.1:9/none.js', safe='')); p2.wait_for_timeout(700)
-    p2.click('.tile[data-id=object]'); p2.wait_for_timeout(1500)
+    check('a visit that has not needed the watch keeps no link to it, even with a code on the device', 'not in use' in p2.inner_text('#dWatch'), p2.inner_text('#dWatch'))
+    card(p2, 'object'); p2.wait_for_timeout(1500)
     check('object: when the 3D program does not arrive, the card says so', p2.inner_text('#oSay') == 'The object could not be drawn' and len(p2.inner_text('.cmsg')) > 5, p2.inner_text('#oSay'))
     p2.close()
     check('no script errors on the page', not errors, errors[:3])

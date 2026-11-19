@@ -23,9 +23,9 @@ Version 1.0.0 · 2026-11-18 · Answers to `X-REQUIREMENTS.md` · Rules from `cla
 |---|---|---|---|
 | Detector | `x/wrist/test/DetectorTest.java` | tilt and swing on synthetic traces | 16/16 |
 | Relay, live | `x/wrist/relay/e2e.mjs` | every relay route against the deployed worker, including sleep, buzz, pairing, reports, `/x`, `/signals.js` and the X log line | 37/37 |
-| Lab page | `x/wrist/relay/page-test.py` | the Lab in a phone-sized browser with a synthetic watch, including Watch off, results, camera probe (synthetic points), buzz, pairing, the stream staying on between cards, the quiet-watch warning | 77/77 |
-| Signals engine | `x/wrist/relay/signals-check.js` | the shared script alone: hand, head and watch numbers; learning a pose or a move from three showings; firing once; going further than taught; collisions; words in order and in time; one signal, one action | 42/42 |
-| New Lab cards | `x/wrist/relay/signals-page-test.py` (with `synth.js`, a made-up hand and head) | Hand numbers, Head and face, Teach, Assign and combine, Object in your hands, in a phone-sized browser; the object task done with no touch; depth the right way round; a flickering pinch held; the record saved while the card is open | 72/72 |
+| Lab page | `x/wrist/relay/page-test.py` | the Lab in a phone-sized browser with a synthetic watch, including Watch off, results, camera probe (synthetic points), buzz, pairing, tabs, the watch link held only while needed, the quiet-watch warning | 84/84 |
+| Signals engine | `x/wrist/relay/signals-check.js` | the shared script alone: hand, head and watch numbers; learning a pose or a move from three showings; firing once; going further than taught; collisions; words in order and in time; one signal, one action; calibration of hand, head and eyes; the three blinks | 65/65 |
+| New Lab cards | `x/wrist/relay/signals-page-test.py` (with `synth.js`, a made-up hand and head) | Hand numbers, Head and face, Teach, Assign and combine, Object in your hands, in a phone-sized browser; the object task done with no touch; depth the right way round; a flickering pinch held; the record saved while the card is open; tabs; the dashboard; Calibrate and what it changes | 90/90 |
 | Arbiter | new with S5 | every rule type, no rule, absent against silent | — |
 | X page | `x/wrist/relay/x-test.py` | the nine steps driven by spoken sentences, with the model, GitHub and the browser's speech stood in for by the test | 50/50 |
 | Scoring | new with L2 | hit and wrong-fire arithmetic on a synthetic session with known answers | — |

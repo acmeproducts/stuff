@@ -16,7 +16,7 @@ const sig = await fetch(base + '/signals.js');
 const sigText = await sig.text();
 check('the shared signals file is served as JavaScript', /javascript/.test(sig.headers.get('content-type') || '') && sigText.includes('window.Signals = S') && sigText.length > 15000, sig.headers.get('content-type') + ' ' + sigText.length + ' bytes');
 const lab = await fetch(base + '/').then(r => r.text());
-check('the Lab loads the shared signals file before its own script', lab.indexOf('<script src="/signals.js"></script>') > 0 && lab.indexOf('<script src="/signals.js"></script>') < lab.indexOf("var BUILD='lab-r8'"), lab.length + ' bytes');
+check('the Lab loads the shared signals file before its own script', lab.indexOf('<script src="/signals.js"></script>') > 0 && lab.indexOf('<script src="/signals.js"></script>') < lab.indexOf("var BUILD='lab-r9'"), lab.length + ' bytes');
 check('X is served at /x', xpage.includes('<title>X</title>') && !xpage.includes('wrist lab'), xpage.length + ' bytes');
 const xl = await fetch(base + '/xlog', { method: 'POST', body: JSON.stringify({ ev: 'e2e', n: 1 }) }).then(r => r.json());
 const xlog = await fetch(base + '/log').then(r => r.text());
