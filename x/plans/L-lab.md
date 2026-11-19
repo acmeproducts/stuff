@@ -86,6 +86,18 @@ Owner, 2026-11-18 (evening): "it is imperative to have a 3D model of objects tha
 
 **Gate:** the owner finishes the task with one hand and no touch, then resizes and turns it with both; he says what felt natural and what did not.
 
+**First device run (owner's phone, 2026-11-19 UTC, trial `20261119T072604-object-lyqp`; about 7 minutes of use). Gate not passed.**
+| Fact | Evidence |
+|---|---|
+| A real pinch takes the object | 59 takes, all by pinch: 31 right hand, 28 left. 17 to 33 frames a second with a hand in view |
+| The pinch reading flickers | 14 of 59 holds ended within 0.4 s, 23 within 1 s |
+| Depth is wrong twice over | Owner: toward the screen brings it nearer, "it should be reversed". And 32 of 59 let-gos ended against the back wall (26) or the front (6): the scale is too strong for his reach |
+| Two hands never held it | no two-handed take in the run; owner asks to pass it from hand to hand |
+| The task was never finished | 1 of 59 let-gos landed near the ring; 17 ended lying on its side |
+| The record arrived late | the card stayed open for 2 h 8 min; a trial is only sent when the card is closed |
+
+Owner's requests from this run are in `X-NORTH-STAR.md` once the scope is agreed (not built: he said "don't code yet").
+
 ## 6. Risks
 | Risk | Held by |
 |---|---|

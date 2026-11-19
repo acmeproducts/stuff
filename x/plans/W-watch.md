@@ -88,6 +88,20 @@ Other facts: battery 38% to 34% in 19.5 minutes on Wi-Fi, about 12% an hour (one
 
 Theory, not proven: the fresh install reset "Allow background activity" to off. The silences look like the ones recorded before that switch was first turned on (`WRIST-PLAN.md` §10), and `turn06` ran 13 minutes without one once it was on.
 
+**That theory was wrong (owner, 2026-11-19, 01:30 to 01:46 Pacific).** "Allow background activity" was on the whole time (his screenshot of the watch's App info for Wrist, turn07-b8). The cause was a second setting: Wrist was on the watch's **Sleeping apps** list, on the watch's Battery page. He does not know how it got there. He removed it.
+
+| Fact (device log, 2026-11-19 UTC) | Evidence |
+|---|---|
+| Before the change the watch went silent whenever its screen was off | 07:12 to 07:47: a dozen silences of 20 s to 9 min (the watch's own count: 533 s), each ending when the screen woke. 09:34 to 09:45: five more, 16 s to 145 s |
+| After the change it keeps talking with the screen off | 09:46:30 to 09:49:24: 60 reports, every one with the screen off, largest gap 3.3 s. Three minutes only; a longer run is still owed |
+| The watch cannot see either setting | `exempt` has read 0 on every report from every build, including the good 13 minutes on 17 Nov; `restricted` read 0 and `bucket` 10 while Wrist was on the Sleeping apps list |
+
+**Both settings are required: Allow background activity on, and Wrist not a sleeping app.** Because the watch cannot read either, the Lab can only warn on the symptom (silent with the screen off).
+
+**Card entry waits for the stream (owner, same message):** "every single time I enter a card it has to wait for the stream". Fact: the page asks for the sensor stream only when a card opens, and the watch hears the request at its next check-in, every 3 s. Measured wait from opening a card to the first rows: 0.2 to 3.1 s on turn06 (14 trials); 2.6 to 10.4 s on turn07 while it was being put to sleep (8 trials). Not yet changed.
+
+Other facts from the same night: on Bluetooth the link card measured 44 rows a second, 157 ms round trip, one stall, worst gap 13.7 s (before the change). The watch's own battery page shows Wrist at 2.9% of the charge used over 13 h 22 m.
+
 ### W2 — Battery truth (walk)
 **Question:** what does an X session cost the watch per hour, on each link?
 
