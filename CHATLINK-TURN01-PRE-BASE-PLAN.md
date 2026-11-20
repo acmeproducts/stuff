@@ -940,3 +940,8 @@ Owner: "Go" on the plan: roll back, then re-implement side by side and the impro
 4. The one-bubble paint (the bubble is the real two-column bubble from the first words and stays until the finished bubble replaces it, no gap).
 5. The weak-final deferral (a separate real defect seen in the first pasted log), only if the owner still wants it.
 **Checks on this base.** Open mode 55/55, keyboard 32/32, guest link 15/15. The proof episodes B, C and D fail on this base by design.
+
+### 2026-11-20 — re-implementation step 1: the side by side layout
+On the rolled-back base (pre-SBS plus the device log): the H2H / SBS button on each conversation card (saved with the conversation, survives a reload); one transcript (the South panel, drawn exactly as H2H draws it); one composer (South or North strip and keyboard) that follows the language last spoken or typed; the centred EN ⇄ TH chip; transcript and composer as two rounded cards with a fixed-height keyboard whose keys share the room; no permission card for the keyboard; one read-aloud switch; suggestions return after the X (also in H2H). Same code the owner already tried on a phone after PR #989; nothing here touches how bubbles or the preview are drawn.
+**Checks.** Open mode 61/61, keyboard 32/32, guest link 15/15. (A merge slip dropped one closing line in the test file; caught by a syntax check and fixed before the run.)
+**Next.** Step 2: width, text size and flush left/right as styling only.
