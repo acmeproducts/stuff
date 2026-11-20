@@ -1,6 +1,6 @@
 /* PROOF of the "phantom Korean bubble": replays the owner's real log (lengths, scripts and confidences only, no words) through the real app on a controlled clock.
-   Not part of the normal suite. Run: GHOST_PROOF=1 CASE='GHOST PROOF' AUDIO_MODE=open node tests/audio-turn/regression.cjs
-   On a build with the fault, B, C and D FAIL (a Korean preview is drawn while only English was spoken); A (a healthy turn from the same log) passes. */
+   Part of the normal suite since the preview fix (it failed on every build before it). Run alone: CASE='GHOST PROOF' AUDIO_MODE=open node tests/audio-turn/regression.cjs
+   Episodes B, C and D must draw no Korean while only English was spoken; A (a healthy turn from the same log) must still draw English. */
 const GHOST_FX=JSON.parse(require('node:fs').readFileSync(require('node:path').join(root,'tests/audio-turn/fixtures/ghost-log-2026-11-20.json'),'utf8'));
 async function ghostReplay(page,events,tailMs){
  await create(page,'GhostProof','en','ko');await page.waitForTimeout(300);

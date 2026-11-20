@@ -307,3 +307,28 @@ test('head to head keeps its bubble placement: the writer on the right, nothing 
  const g=await page.evaluate(()=>{const tx=document.getElementById('tx-south'),r=tx.getBoundingClientRect(),b=document.querySelector('#tx-south .row.own .bub').getBoundingClientRect();return{left:b.left-r.left,right:r.right-b.right}});
  assert.ok(g.right<=14&&g.left>20,'own bubble stays on the right as before ('+Math.round(g.left)+' / '+Math.round(g.right)+')');
 });
+test('live preview: real Korean speech is shown by itself, with nobody else speaking',async({page})=>{
+ await create(page,'KoreanOnly','en','ko');
+ await page.evaluate(()=>window.clLive('north','','안녕하세요 반갑습니다',.9));
+ await page.waitForFunction(()=>[...document.querySelectorAll('.cl-live')].some(r=>/안녕하세요/.test(r.innerText)),null,{timeout:1500});
+});
+test('live preview: a preview whose speech simply stops clears itself, with no other event needed',async({page})=>{
+ await create(page,'Stale','en','ko');
+ await page.evaluate(()=>window.clLive('north','','안녕하세요 반갑습니다',.9));
+ await page.waitForFunction(()=>document.querySelectorAll('.cl-live').length>0,null,{timeout:1500});
+ await page.waitForFunction(()=>document.querySelectorAll('.cl-live').length===0,null,{timeout:4000});
+});
+test('live preview: when one listener ends its turn, the other listener\'s unfinished guess is dropped',async({page})=>{
+ await create(page,'Cleanup','en','ko');
+ await page.evaluate(()=>{window.clLive('south','','hello how are you doing today',.9);window.clLive('north','','어떻게 해서 그냥 어떻게',.5)});
+ await page.evaluate(()=>window.clLive('south','','',0));
+ await page.waitForTimeout(600);
+ assert.equal(await page.locator('.cl-live').count(),0,'nothing is left on screen after the English turn ends');
+});
+test('live preview: a weak few-character guess from the other language is not shown, even when the English reading is still short',async({page})=>{
+ await create(page,'Weak','en','ko');
+ await page.evaluate(()=>{window.clLive('north','','네요',.95);window.clLive('south','','hel',.9)});
+ await page.waitForTimeout(500);
+ const korean=await page.evaluate(()=>[...document.querySelectorAll('.cl-live')].some(r=>/[\uAC00-\uD7AF]/.test(r.innerText)));
+ assert.equal(korean,false,'no Korean preview');
+});
