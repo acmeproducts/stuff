@@ -372,7 +372,7 @@ function speakText(text,lang){
 (function(){
  const W=window,synth=W.speechSynthesis,cancelNative=synth?synth.cancel.bind(synth):function(){};
  const SIDES=['south','north'],CFG_KEY='chat_test_audio';
- const DEF={mode:'open',tones:true,startTone:'rise',doneTone:'fall',volume:0.12,resumeMs:300,threshold:0.55,margin:0.12,windowMs:700,lockMs:1500,turnMs:60000,echoMs:20000};
+ const DEF={mode:'open',tones:true,startTone:'rise',doneTone:'fall',volume:0.12,resumeMs:300,threshold:0.55,margin:0.12,windowMs:700,deferMs:700,deferBelow:0.85,lockMs:1500,turnMs:60000,echoMs:20000};
  const LIFECYCLE=/^(owner portal|room switch|trash room|storage changed|hidden|pagehide|mic denied)$/;
  const SCRIPT={th:'thai',zh:'han',ja:'kana',ko:'hangul',ar:'arabic',hi:'devanagari',ru:'cyrillic'};
  const SCRIPT_RE={thai:/[฀-๿]/g,kana:/[぀-ヿ]/g,han:/[一-鿿]/g,hangul:/[가-힯ᄀ-ᇿ]/g,arabic:/[؀-ۿ]/g,devanagari:/[ऀ-ॿ]/g,cyrillic:/[Ѐ-ӿ]/g,latin:/[A-Za-zÀ-ɏ]/g};
@@ -510,6 +510,15 @@ function speakText(text,lang){
   pend.items.push(item);
  }
  function decide(){
+  /* A lone, weak result from one listener while the other listener is still hearing speech is usually that listener guessing at the same sounds (English heard as Korean) and finishing first.
+     Wait a little (twice at most) for the other listener to finish, so both can be compared; otherwise the guess is delivered as a message of its own, then the real one follows. */
+  if(pend&&pend.gen===gen&&(pend.defers||0)<2){
+   const pipes=[...new Set(pend.items.map(i=>i.pipe))];
+   if(pipes.length===1&&pend.items.every(i=>i.conf<cfg().deferBelow)){
+    const other=pipes[0]==='south'?'north':'south';
+    if(hooks&&hooks.liveActive&&hooks.liveActive(other)){pend.defers=(pend.defers||0)+1;rec('decision-deferred','ok',{only:pipes[0],other:other,defers:pend.defers});pend.timer=setTimeout(decide,cfg().deferMs);return}
+   }
+  }
   const p=pend;pend=null;if(!p)return;
   if(p.gen!==gen){rec('stale-session','blocked',{reason:'discarded',items:p.items.length});return}
   if(p.items.some(i=>isEcho(i.text))){rec('transcript-rejected','blocked',{reason:'echo',items:p.items.length});return}
@@ -1528,7 +1537,7 @@ function dgLangParam(room) {
     function remoteLog(kind,data){
         try{
             if(window.clIsGuest&&window.clIsGuest())return;
-            if(!localStorage.getItem('duck_gh_pat'))return;
+            if(!(localStorage.getItem('duck_gh_pat')||localStorage.getItem('cl_owner_pat')))return;      // either saved token: the older one or the Share tab's
             remoteLogBuf.push({t:new Date().toISOString(),k:kind,d:logScrub(data||{},0)});
             if(remoteLogBuf.length>600)remoteLogBuf.shift();
             if(!remoteLogTimer)remoteLogTimer=setTimeout(function(){remoteLogTimer=null;flushRemoteLog()},15000);
@@ -1537,7 +1546,7 @@ function dgLangParam(room) {
     window.clRemoteLog=remoteLog;
     function flushRemoteLog(){
         if(!remoteLogBuf.length||remoteLogBusy)return;
-        var pat=null;try{pat=localStorage.getItem('duck_gh_pat')}catch(e){}
+        var pat=null;try{pat=localStorage.getItem('duck_gh_pat')||localStorage.getItem('cl_owner_pat')}catch(e){}
         if(!pat){remoteLogBuf=[];return}
         var batch=remoteLogBuf.slice();remoteLogBuf=[];remoteLogBusy=true;
         var lines=batch.map(function(e){return JSON.stringify(e)}).join('\n')+'\n';
@@ -2856,6 +2865,7 @@ function dgLangParam(room) {
         var wordSets={};
         window.audioTurn.bind({mic:mic,langOf:langOf,diag:diag,toast:toastMsg,
             words:function(lang){var d=getDict(lang);if(!d||!d.length)return null;if(!wordSets[lang]||wordSets[lang].n!==d.length)wordSets[lang]={n:d.length,set:new Set(d.map(function(w){return String(w).toLowerCase()}))};return wordSets[lang].set},
+            liveActive:function(side){var l=LIVE[side];return !!(l&&Date.now()-l.ts<1500)},      // has this listener reported words in the last 1.5 s
             send:function(side,text,via){window.__clVia=via||null;try{sendFrom(side,text,true)}finally{window.__clVia=null}},
             ownsMic:function(side){return INPUT.owner===side&&INPUT.mode==='mic'},
             paint:function(side,on){if(on)paintActive(side,'mic');else{var m=document.querySelector('#strip-'+side+' .micbtn');if(m){m.classList.add('off');m.dataset.on='false';m.dataset.owned='false'}}},
