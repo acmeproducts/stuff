@@ -33,7 +33,7 @@ test('TTS start blocks both sides; resume exactly once after decay and speak ton
  t.advance(1);assert.equal(t.a.state().phase,'cue');assert.equal(t.a.admit('north'),false,'tone never reaches STT');
  t.advance(500);assert.equal(t.a.state().phase,'idle');assert.equal(t.a.admit('south'),true);assert.equal(t.a.admit('north'),true);
  assert.equal(t.ev('stt-submit-resumed').filter(x=>x.d.outcome==='ok').length,1);
- assert.deepEqual(t.ev('cue-played').map(x=>x.d.cue),['wait','speak']);
+ assert.deepEqual(t.ev('cue-played').map(x=>x.d.cue),['speak']);
 });
 test('Cancel during playback resumes immediately with no speak tone; stale end ignored',()=>{
  const t=world();t.a.speak('hello there','en');t.advance(500);const u=t.spoken[0];
@@ -50,7 +50,7 @@ test('New playback during decay supersedes the old resume timer',()=>{
 });
 test('No tones when turned off; no audio device logs cue-unavailable',()=>{
  const t=world();t.store.chat_test_audio=JSON.stringify({tones:false});t.a.speak('hi there','en');t.advance(1);assert.equal(t.spoken.length,1);assert.equal(t.ev('cue-played').length,0);
- const u=world({noAudio:true});u.a.speak('hi there','en');assert.equal(u.ev('cue-played')[0].d.reason,'cue-unavailable');assert.equal(u.spoken.length,1);
+ const u=world({noAudio:true});u.a.speak('hi there','en');assert.equal(u.spoken.length,1,'speech starts at once, with no tone before it');assert.equal(u.ev('cue-played').length,0);u.spoken[0].onend();u.advance(300);assert.equal(u.ev('cue-played')[0].d.reason,'cue-unavailable','the tone that follows speech reports no audio device');
 });
 test('Echo of read-aloud text is rejected before routing (ask mode too)',()=>{
  const t=world();t.store.chat_test_audio=JSON.stringify({mode:'ask'});t.a.speak('Where is the train station?','en');t.advance(500);t.spoken[0].onend();t.advance(1000);
