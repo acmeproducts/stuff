@@ -18,6 +18,9 @@ Authority: this file only.
 | 2026-11-05 | Add synthetic tape hiss & deck‑engage thunk (fallback) | Done | Implemented WebAudio synthesis and hooked into transport buttons. |
 | 2026-11-05 | **Open Questions – Visual Config** | **Planned** | Need detailed specs for three visual modes: (1) Walkman‑style 80s cassette (fixed horizontal in landscape, vertical in portrait), (2) Reel‑to‑reel unit, (3) Full‑screen big cassette that occupies the whole screen with minimal floating controls. |
 | 2026-11-05 | **Next build step** | **Planned** | Add a configuration UI (e.g., a toggle or dropdown) to switch between the three visual modes and implement the corresponding CSS/HTML changes. |
+| 2026-11-12 | **Open Questions – Playback Sources** | **Planned** | Expand playback sources: integrate public streaming APIs (Icecast directories, TuneIn, Radio Garden, Internet Archive audio, KOCI Radio 88.5, NPR, BBC). |
+| 2026-11-12 | **Open Questions – Music Selector UI** | **Planned** | Design a discreet way to select music (e.g., hidden drawer, swipe gesture, or minimal overlay). |
+| 2026-11-12 | **Open Questions – Realism Enhancements** | **Planned** | Add realistic animations (reel spin speed, wobble, tape flutter), motor hum, optional haptic feedback. |
 
 ## 1) RELEASES
 1. R1 — First playable tape (shipped).  
@@ -25,7 +28,8 @@ Authority: this file only.
 3. R3 — Library pull‑down (planned).  
 4. R4 — Polish (planned).  
 5. R5 — Adaptive form factor (shipped).  
-6. R6 — Visual mode selector & refined realism (next).
+6. R6 — Visual mode selector & refined realism (next).  
+7. R7 — Expanded playback sources & discreet selector (next).
 
 ## 1b) OPEN QUESTIONS
 1. **Walkman look** – exact color palette, button style, cassette label design, and whether the cassette should be centered with a small “handle” or fully fill the screen?  
@@ -34,6 +38,16 @@ Authority: this file only.
 4. **Animation realism** – how fast should reels spin, should there be wobble, tape flutter, or motor hum?  
 5. **Configuration UI** – preferred control (dropdown, segmented button, swipe gesture) and where to place it (e.g., in the drawer, top bar, or a hidden gesture)?  
 6. **Branding** – confirm no Sony/Walkman logos, just generic styling.  
+7. **Playback sources** – which of the following should be added?  
+   - Icecast directory (e.g., dir.xiph.org)  
+   - TuneIn API (categories, news, podcasts)  
+   - Radio Garden (global stations)  
+   - Internet Archive audio collections (e.g., live concerts)  
+   - KOCI Radio 88.5 (Southern California)  
+   - NPR (news)  
+   - BBC (world news)  
+8. **Music selector UI** – how discreet should it be? Options: hidden drawer (current), swipe‑up panel, tap‑to‑show overlay, or a small floating button.  
+9. **Realism tweaks** – add reel wobble CSS animation, tape flutter overlay, motor hum via WebAudio, optional vibration on button press.  
 
 ## 2) PER‑RELEASE SECTIONS
 ### R6 — Visual mode selector & realism
@@ -42,6 +56,12 @@ Authority: this file only.
 - Add realistic animations (reel spin, tape flutter, motor hum) using CSS and WebAudio.  
 - Ensure controls appear only when needed (e.g., overlay for full‑screen mode).  
 - Backlog: fine‑tune sound files, add optional haptic feedback.
+
+### R7 — Expanded playback sources & discreet selector
+- Integrate streaming APIs (Icecast, TuneIn, Radio Garden, Internet Archive, KOCI 88.5, NPR, BBC).  
+- Provide a simple JSON list of stations with name + stream URL; load via `audio.src`.  
+- Add a discreet UI for source selection (e.g., hidden drawer or tap‑overlay).  
+- Update diagnostics to show current source type.  
 
 ## 3) FUTURE IDEAS
 - Cassette label editor, skins, wow‑flutter toggle, mixtape side A/B, Bluetooth media‑key support, PWA install, widget.
@@ -56,6 +76,8 @@ Authority: this file only.
 | 2026-10-30 | Walkman portrait lock | "walkman always displays vertical regardless of phone orientation" |
 | 2026-11-05 | Synthetic audio fallback | "implement tape hiss and deck‑engage thunk now; real files later" |
 | 2026-11-05 | Visual mode question | Owner asked for realistic 80s cassette look and multiple configurations |
+| 2026-11-12 | Playback source expansion | Owner wants more streaming sources (Icecast, TuneIn, Radio Garden, etc.) |
+| 2026-11-12 | Discreet selector | Owner wants a less intrusive music selection UI |
 
 ## 6) APPENDIX
 Authority order: 1) This plan, 2) Owner’s latest explicit request, 3) Referenced files, 4) Chat history.
