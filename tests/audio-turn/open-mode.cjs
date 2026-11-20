@@ -368,3 +368,13 @@ test('one bubble per turn: the finished bubble keeps the translation already sho
  assert.equal(mid,shown,'the translation does not drop back to … while the final one is fetched');
  release();await settled(page,1);
 });
+test('device log: paint timings are recorded (first paint of the live bubble, and when a message is complete)',async({page})=>{
+ await page.evaluate(()=>localStorage.setItem('duck_gh_pat','ghp_test'));const puts=await captureGh(page);
+ await create(page,'Timing','en','ko');
+ await page.evaluate(()=>window.clLive('south','','hello friend how are you',.9));await page.waitForFunction(()=>document.querySelectorAll('.cl-live').length>0,null,{timeout:2000});
+ await send(page,'south','hello friend');await settled(page,1);
+ await page.evaluate(()=>window.clRemoteFlush());await page.waitForTimeout(600);
+ const rows=Buffer.from(puts[0].body.content,'base64').toString('utf8').trim().split('\n').map(l=>JSON.parse(l));
+ const live=rows.find(r=>r.k==='paint_live');assert.ok(live&&typeof live.d.ms==='number'&&live.d.side==='south','first paint of the live bubble is recorded with its delay');
+ const done=rows.find(r=>r.k==='msg_complete');assert.ok(done&&typeof done.d.pendingMs==='number'&&done.d.side==='south','message completion is recorded with how long it was pending');
+});

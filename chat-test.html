@@ -1797,14 +1797,20 @@ function dgLangParam(room) {
     /* r13: live bubble. While someone talks, their words show at once in a faded bubble on both panes,
        with a rough translation of what is already settled. The settled text is translated in the
        background, so the real message usually finds its translation cached when the turn ends. */
-    var LIVE={},liveShown=null,liveSpec={},liveHold=null,lastLiveTr=null;      // liveHold: when the turn ends the bubble stays until the finished message's own bubble is drawn in its place; lastLiveTr: the translation last shown for the words being spoken
+    var LIVE={},liveShown=null,liveSpec={},liveHold=null,lastLiveTr=null,livePaintLogged=0;      // liveHold: when the turn ends the bubble stays until the finished message's own bubble is drawn in its place; lastLiveTr: the translation last shown for the words being spoken
     function scriptName(t){return /[\uAC00-\uD7AF]/.test(t)?'hangul':/[\u0E00-\u0E7F]/.test(t)?'thai':/[\u3040-\u30FF]/.test(t)?'kana':/[\u4E00-\u9FFF]/.test(t)?'han':/[\u0600-\u06FF]/.test(t)?'arabic':/[\u0400-\u04FF]/.test(t)?'cyrillic':/[A-Za-z]/.test(t)?'latin':'other'}
     var liveLogAt={},liveLastPick='';
     window.clLive=function(pipe,committed,interim,conf){
         committed=norm(committed||'');var text=norm(committed+' '+(interim||''));
         if(text&&Date.now()-(liveLogAt[pipe]||0)>200){liveLogAt[pipe]=Date.now();remoteLog('live',{pipe:pipe,len:text.length,committed:committed.length,conf:typeof conf==='number'?+conf.toFixed(2):null,script:scriptName(text),ss:window.audioTurn.scriptSide(text)})}
-        if(!text){delete LIVE[pipe];delete liveSpec[pipe];var oth=pipe==='south'?'north':'south';if(LIVE[oth]&&!LIVE[oth].committed){delete LIVE[oth];delete liveSpec[oth]}pickLive();return}      // this listener's turn ended: the other one's unfinished guess at the same sounds goes too
-        LIVE[pipe]={text:text,committed:committed,conf:typeof conf==='number'?conf:0.5,ts:Date.now()};pickLive();
+        if(!text){
+            /* this listener's turn ended. The other listener heard the same sounds: its guess goes too when it is unfinished, or when it was updated during this turn and is no stronger
+               (a Korean listener that FINISHED a weak guess while English was spoken used to survive this and be drawn, then held, as a phantom bubble) */
+            var oth=pipe==='south'?'north':'south',mine=LIVE[pipe],other=LIVE[oth];
+            delete LIVE[pipe];delete liveSpec[pipe];
+            if(other&&(!other.committed||(mine&&other.ts>=mine.since&&liveEv(oth,other)<=liveEv(pipe,mine)))){delete LIVE[oth];delete liveSpec[oth]}
+            pickLive();return}
+        LIVE[pipe]={text:text,committed:committed,conf:typeof conf==='number'?conf:0.5,ts:Date.now(),since:LIVE[pipe]?LIVE[pipe].since:Date.now()};pickLive();
     };
     /* ===== which listener's words does the preview show? (proven on the owner's log: the listener for the OTHER language keeps guessing at the same sounds) =====
        Rules: (1) evidence = confidence x characters, and text in the wrong script for its own listener counts a quarter; nothing is shown until it reaches LIVE_MIN_EV;
@@ -1840,8 +1846,9 @@ function dgLangParam(room) {
         var old=host.querySelector('.cl-live');if(old)old.remove();
         /* one bubble per turn: the live bubble is drawn with the very same builder as a finished message, so the words fill the first column and the translation the second.
            When the turn ends it is kept (liveHold) until the finished message's bubble exists; it is dropped in the same pass that draws that bubble, so there is never a gap or a second look. */
-        if(!liveShown&&liveHold&&(Date.now()-liveHold.frozen>4000||HIST.some(function(e){return e.side===liveHold.side&&e.ts>=liveHold.began-50})))liveHold=null;
+        if(!liveShown&&liveHold&&(Date.now()-liveHold.frozen>4000||HIST.some(function(e){return e.side===liveHold.side&&e.ts>=liveHold.began-50}))){var adopted=HIST.some(function(e){return e.side===liveHold.side&&e.ts>=liveHold.began-50});remoteLog('live_end',{side:liveHold.side,heldMs:Date.now()-liveHold.frozen,sinceFirstMs:Date.now()-liveHold.began,adopted:adopted});liveHold=null}
         var LV=liveShown||liveHold;if(!LV)return;
+        if(LV.began&&livePaintLogged!==LV.began&&panel==='south'){livePaintLogged=LV.began;remoteLog('paint_live',{side:LV.side,ms:Date.now()-LV.began,held:!liveShown})}      // timing: the first preview paint of this turn
         var atBottom=host.scrollHeight-host.scrollTop-host.clientHeight<160;
         var le={id:'live',side:LV.side,src:langOf(LV.side),tgt:langOf(otherSide(LV.side)),text:LV.text,original:LV.text,tr:LV.tr||null,ts:Date.now()};
         var row=bubbleFor(le,panel);row.classList.add('cl-live');row.querySelectorAll('.bdel,.bacts').forEach(function(x){x.remove()});
@@ -3073,7 +3080,7 @@ var portal=(function(){
    if(!await track(saveNormalized(),saveNormalized))return;await refresh(ctx.roomId);
    var tr=normalized.lang===ctx.tgt?{ok:true,text:normalized.text}:await translateWithRetry(normalized.text,normalized.lang,ctx.tgt,2);window.audioTurn.note(tr&&tr.ok?'translation-completed':'translation-failed',tr&&tr.ok?'ok':'error',{side:ctx.side,tgt:ctx.tgt});
    var update=function(){return change('rooms',ctx.roomId,function(r){if(!r||r.trashedAt)return;var m=r.messages.find(function(m){return m.id===id});if(!m)return;m.tr=tr&&tr.ok?norm(tr.text):null;m.status=m.tr?'complete':'failed';return r})};
-   if(!await track(update(),update))return;await refresh(ctx.roomId);window.clUsage.add('message',{room:active&&active.id===ctx.roomId?active.label:'',pair:ctx.src+'>'+ctx.tgt,side:ctx.side,mode:entry.via&&entry.via.input==='voice'?'spoken':'typed',trOk:!!(tr&&tr.ok),stt:entry.via&&entry.via.input==='voice'?String(entry.via.pipe||'speech'):undefined});if(active&&active.id===ctx.roomId&&generation===ctx.gen&&!opened&&tr.ok)speakIfOn(ctx.side,norm(tr.text),ctx.tgt);
+   if(!await track(update(),update))return;await refresh(ctx.roomId);remoteLog('msg_complete',{side:ctx.side,pendingMs:Date.now()-entry.ts,trOk:!!(tr&&tr.ok),via:entry.via&&entry.via.input});window.clUsage.add('message',{room:active&&active.id===ctx.roomId?active.label:'',pair:ctx.src+'>'+ctx.tgt,side:ctx.side,mode:entry.via&&entry.via.input==='voice'?'spoken':'typed',trOk:!!(tr&&tr.ok),stt:entry.via&&entry.via.input==='voice'?String(entry.via.pipe||'speech'):undefined});if(active&&active.id===ctx.roomId&&generation===ctx.gen&&!opened&&tr.ok)speakIfOn(ctx.side,norm(tr.text),ctx.tgt);
   }finally{jobs.delete(job);if(active&&active.id===ctx.roomId)renderAll();}
  }
  function retryMessage(id){if(!visible())return;var m=HIST.find(function(x){return x.id===id});if(!m)return;return action(function(){return processMessage({roomId:active.id,side:m.side,src:m.ownerLang||m.src,tgt:m.tgt,gen:generation},id)})}
