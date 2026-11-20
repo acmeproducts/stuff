@@ -11,7 +11,7 @@ if(process.env.AUDIO_MODE==='open'){
  // These two scenarios tap the mic to talk (ask mode). They pass in the ask-mode run; open mode is covered below.
  const askOnly=["test('speech, translation, normalization and portal audio teardown'","test('late microphone permission cannot start in a different room'"];
  askOnly.forEach(a=>swap(a,a.replace("test(","skip(")));
- swap("(async()=>{const server=",""+fs.readFileSync(path.join(__dirname,'open-mode.cjs'),'utf8')+"\n(async()=>{const server=");
+ swap("(async()=>{const server=",""+fs.readFileSync(path.join(__dirname,'open-mode.cjs'),'utf8')+(process.env.GHOST_PROOF?"\n"+fs.readFileSync(path.join(__dirname,'ghost-proof.cjs'),'utf8'):'')+"\n(async()=>{const server=");
 }
 // r4: the footer and its menu button are gone; the rail opens with a double tap on the South transcript outside a bubble.
 swap("if(await page.locator('#cl-menu').getAttribute('aria-expanded')!=='true')await page.locator('#cl-menu').click();",
