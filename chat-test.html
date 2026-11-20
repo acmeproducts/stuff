@@ -281,7 +281,7 @@ function norm(s){return(s||'').replace(/\s+/g,' ').trim()}
 function uid(){return Date.now().toString(36)+Math.random().toString(36).slice(2,8)}
 /* ===== bridge27: log ===== */
 var debugLog=[];
-function log(ev,d,lvl){debugLog.push({ts:new Date().toISOString(),ev:ev,d:d||{},lvl:lvl||'info'});if(debugLog.length>400)debugLog.shift()}
+function log(ev,d,lvl){debugLog.push({ts:new Date().toISOString(),ev:ev,d:d||{},lvl:lvl||'info'});if(debugLog.length>400)debugLog.shift();if(window.clRemoteLog)window.clRemoteLog('ev:'+ev,d)}
 function toast(m,dur){var e=$('toast');e.textContent=m;e.classList.add('show');clearTimeout(toast._t);toast._t=setTimeout(function(){e.classList.remove('show')},dur||2600)}
 function lsGet(k,f){try{var r=localStorage.getItem(k);return r==null?f:JSON.parse(r)}catch(_){return f}}
 /* ===== bridge27: LANGS ===== */
@@ -1513,37 +1513,53 @@ function dgLangParam(room) {
 
     /* ================= DIAGNOSTICS ================= */
     var diagLines=[];
-    var remoteLogBuf=[];
-    /* was computed here at script-init, before boot() assigns ROOM, so every
-       room logged to logs/unknown.jsonl. Resolve it at flush time instead. */
-    function remoteLogPath(){return 'logs/'+((ROOM&&ROOM.id)?ROOM.id:'unknown')+'.jsonl'}
-    function remoteLog(kind,data){}
+    /* ===== device log: speech and preview events go to the repo (logs/chat-test/<hour>-<device>.jsonl) so they can be read without anyone copying them.
+       Only when this is the owner's device (a GitHub token is saved; a guest device never writes). No words are ever written: text-like fields are stripped,
+       only sides, scripts, lengths, confidences and decisions. Commits carry [skip ci] so a log write never starts a site build. Flushed every 15 s and when the page is hidden. ===== */
+    var remoteLogBuf=[],remoteLogTimer=null,remoteLogBusy=false,LOG_STRIP={text:1,transcript:1,original:1,tr:1,said:1,words:1,q:1,message:1,msg:1};
+    function remoteLogPath(){var dev='dev';try{dev=window.clUsage&&window.clUsage.dev?window.clUsage.dev():'dev'}catch(e){}return 'logs/chat-test/'+new Date().toISOString().slice(0,13)+'-'+dev}      // one file per hour per device (+ '.jsonl'), far below the 1 MB the repo API can read back
+    function logScrub(v,depth){
+        if(v==null||typeof v==='number'||typeof v==='boolean')return v;
+        if(typeof v==='string')return v.length>80?v.slice(0,80)+'…':v;
+        if(depth>2)return undefined;
+        if(Array.isArray(v))return v.slice(0,20).map(function(x){return logScrub(x,depth+1)});
+        var o={};Object.keys(v).forEach(function(k){if(LOG_STRIP[k])return;var x=logScrub(v[k],depth+1);if(x!==undefined)o[k]=x});return o;
+    }
+    function remoteLog(kind,data){
+        try{
+            if(window.clIsGuest&&window.clIsGuest())return;
+            if(!localStorage.getItem('duck_gh_pat'))return;
+            remoteLogBuf.push({t:new Date().toISOString(),k:kind,d:logScrub(data||{},0)});
+            if(remoteLogBuf.length>600)remoteLogBuf.shift();
+            if(!remoteLogTimer)remoteLogTimer=setTimeout(function(){remoteLogTimer=null;flushRemoteLog()},15000);
+        }catch(e){}
+    }
+    window.clRemoteLog=remoteLog;
     function flushRemoteLog(){
-        if(!remoteLogBuf.length)return;
+        if(!remoteLogBuf.length||remoteLogBusy)return;
         var pat=null;try{pat=localStorage.getItem('duck_gh_pat')}catch(e){}
         if(!pat){remoteLogBuf=[];return}
-        var batch=remoteLogBuf.slice();remoteLogBuf=[];
+        var batch=remoteLogBuf.slice();remoteLogBuf=[];remoteLogBusy=true;
         var lines=batch.map(function(e){return JSON.stringify(e)}).join('\n')+'\n';
-        var apiUrl='https://api.github.com/repos/acmeproducts/stuff/contents/'+remoteLogPath();
-        fetch(apiUrl,{headers:{'Authorization':'Bearer '+pat}})
-            .then(function(r){return r.ok?r.json():null})
-            .then(function(existing){
-                var content,sha;
-                if(existing&&existing.content){
-                    /* FIX: atob() alone returns a raw byte string (one char per byte).
-                       The write side encodes with encodeURIComponent+unescape+btoa
-                       (UTF-8-safe). Decoding must use the exact inverse
-                       (escape+decodeURIComponent) or every non-ASCII byte gets
-                       reinterpreted and mangled a little more on each append —
-                       which is why the log got progressively more corrupted. */
-                    content=decodeURIComponent(escape(atob(existing.content.replace(/\n/g,''))))+lines;
-                    sha=existing.sha;
-                }else{content=lines;sha=undefined}
-                var body={message:'log '+batch.length+' events',content:btoa(unescape(encodeURIComponent(content)))};
+        var base='https://api.github.com/repos/acmeproducts/stuff/contents/'+remoteLogPath(),H={'Authorization':'Bearer '+pat},PARTS=['','-b','-c'];
+        function put(tryAgain,part){
+            var apiUrl=base+PARTS[part||0]+'.jsonl';
+            return fetch(apiUrl,{headers:H}).then(function(r){return r.ok?r.json():null}).then(function(existing){
+                if(existing&&!existing.content&&existing.size>0){if((part||0)<PARTS.length-1)return put(tryAgain,(part||0)+1);throw new Error('log file too big')}   // never overwrite a file the API would not give back
+                var content=lines,sha;
+                if(existing&&existing.content){content=decodeURIComponent(escape(atob(existing.content.replace(/\n/g,''))))+lines;sha=existing.sha}   // atob + escape/decodeURIComponent is the UTF-8-safe inverse of the write side below
+                var body={message:'chat-test log '+batch.length+' events [skip ci]',content:btoa(unescape(encodeURIComponent(content)))};
                 if(sha)body.sha=sha;
-                return fetch(apiUrl,{method:'PUT',headers:{'Authorization':'Bearer '+pat,'Content-Type':'application/json'},body:JSON.stringify(body)});
-            }).catch(function(){});
+                return fetch(apiUrl,{method:'PUT',headers:Object.assign({'Content-Type':'application/json'},H),body:JSON.stringify(body)}).then(function(r){
+                    if(!r.ok&&tryAgain&&(r.status===409||r.status===422))return put(false,part);       // the file moved under us: read it again once
+                    if(!r.ok)throw new Error('log '+r.status);
+                });
+            });
+        }
+        put(true,0).catch(function(){remoteLogBuf=batch.concat(remoteLogBuf).slice(-600)}).then(function(){remoteLogBusy=false});
     }
+    window.clRemoteFlush=flushRemoteLog;
+    document.addEventListener('visibilitychange',function(){if(document.visibilityState==='hidden')flushRemoteLog()});
     function diag(msg,err){
         diagLines.push((err?'! ':'· ')+new Date().toTimeString().slice(0,8)+' '+msg);
         if(diagLines.length>300)diagLines=diagLines.slice(-300);
@@ -1782,8 +1798,11 @@ function dgLangParam(room) {
        with a rough translation of what is already settled. The settled text is translated in the
        background, so the real message usually finds its translation cached when the turn ends. */
     var LIVE={},liveShown=null,liveSpec={},liveCand=null,liveSettleT=null,LIVE_SETTLE=250,liveHold=null,lastLiveTr=null;   // a preview may appear, or move to the other side, only after that side has led for LIVE_SETTLE ms
+    function scriptName(t){return /[\uAC00-\uD7AF]/.test(t)?'hangul':/[\u0E00-\u0E7F]/.test(t)?'thai':/[\u3040-\u30FF]/.test(t)?'kana':/[\u4E00-\u9FFF]/.test(t)?'han':/[\u0600-\u06FF]/.test(t)?'arabic':/[\u0400-\u04FF]/.test(t)?'cyrillic':/[A-Za-z]/.test(t)?'latin':'other'}
+    var liveLogAt={},liveLastPick='';
     window.clLive=function(pipe,committed,interim,conf){
         committed=norm(committed||'');var text=norm(committed+' '+(interim||''));
+        if(text&&Date.now()-(liveLogAt[pipe]||0)>200){liveLogAt[pipe]=Date.now();remoteLog('live',{pipe:pipe,len:text.length,committed:committed.length,conf:typeof conf==='number'?+conf.toFixed(2):null,script:scriptName(text),ss:window.audioTurn.scriptSide(text)})}
         if(!text){delete LIVE[pipe];delete liveSpec[pipe];pickLive();return}
         LIVE[pipe]={text:text,committed:committed,conf:typeof conf==='number'?conf:0.5,ts:Date.now()};pickLive();
     };
@@ -1792,6 +1811,8 @@ function dgLangParam(room) {
         ['south','north'].forEach(function(p){var l=LIVE[p];if(!l||Date.now()-l.ts>3000)return;
             var ss=window.audioTurn.scriptSide(l.text),sc=l.conf+(ss===p?0.3:ss?-0.6:0);
             if(!best||sc>best.sc)best={p:p,sc:sc,l:l}});
+        var pickKey=(best?best.p+':'+(best.sc>=0.5?'ok':'low'):'none')+'|'+(liveShown?liveShown.side:'-');
+        if(pickKey!==liveLastPick){liveLastPick=pickKey;var scs={};['south','north'].forEach(function(p){var l=LIVE[p];if(l&&Date.now()-l.ts<=3000){var ss=window.audioTurn.scriptSide(l.text);scs[p]=+(l.conf+(ss===p?0.3:ss?-0.6:0)).toFixed(2)}});remoteLog('live_pick',{best:best?best.p:null,scores:scs,shown:liveShown?liveShown.side:null,held:!!liveHold})}
         if(!best||best.sc<0.5){liveCand=null;if(liveShown){if(liveShown.text){liveHold={side:liveShown.side,text:liveShown.text,tr:liveShown.tr,began:liveShown.began,frozen:Date.now()};setTimeout(paintLive,4100)}liveShown=null;paintLive()}return}   // speech ended: the bubble stays until the finished message's bubble is drawn in its place
         if(!liveShown||liveShown.side!==best.p){      // starting, or about to switch sides: the other channel's guess at the same sounds often arrives first, so wait and see who leads
             if(!liveCand||liveCand.side!==best.p)liveCand={side:best.p,since:Date.now()};
@@ -1813,7 +1834,7 @@ function dgLangParam(room) {
         var old=host.querySelector('.cl-live');if(old)old.remove();
         /* one bubble per turn: the live bubble is drawn with the very same builder as a finished message, so the words fill the first column and the translation the second.
            When speech ends it is kept (liveHold) until the finished message's bubble exists; it is dropped in the same pass that draws that bubble, so there is never a gap or a second look. */
-        if(!liveShown&&liveHold&&(Date.now()-liveHold.frozen>4000||HIST.some(function(e){return e.side===liveHold.side&&e.ts>=liveHold.began-50})))liveHold=null;
+        if(!liveShown&&liveHold&&(Date.now()-liveHold.frozen>4000||HIST.some(function(e){return e.side===liveHold.side&&e.ts>=liveHold.began-50}))){remoteLog('live_end',{side:liveHold.side,heldMs:Date.now()-liveHold.frozen,adopted:HIST.some(function(e){return e.side===liveHold.side&&e.ts>=liveHold.began-50})});liveHold=null}
         var LV=liveShown||liveHold;if(!LV)return;
         var atBottom=host.scrollHeight-host.scrollTop-host.clientHeight<160;
         var le={id:'live',side:LV.side,src:langOf(LV.side),tgt:langOf(otherSide(LV.side)),text:LV.text,original:LV.text,tr:LV.tr||null,ts:Date.now()};
@@ -1929,7 +1950,7 @@ function dgLangParam(room) {
             clearTimeout(timer);timer=setTimeout(flush,1500);
         }
         window.addEventListener('online',flush);document.addEventListener('visibilitychange',function(){if(document.visibilityState==='hidden')flush()});
-        return{add:add,flush:flush,pending:function(){return queue().length}};
+        return{add:add,flush:flush,dev:dev,pending:function(){return queue().length}};
     })();
     var UNDO_LABEL={en:'Undo',th:'เลิกทำ',es:'Deshacer',fr:'Annuler',de:'Rückgängig',
         it:'Annulla',pt:'Desfazer',nl:'Ongedaan maken',sv:'Ångra',pl:'Cofnij',tr:'Geri al',
