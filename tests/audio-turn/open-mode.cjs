@@ -316,14 +316,15 @@ test('live preview: a preview whose speech simply stops clears itself, with no o
  await create(page,'Stale','en','ko');
  await page.evaluate(()=>window.clLive('north','','안녕하세요 반갑습니다',.9));
  await page.waitForFunction(()=>document.querySelectorAll('.cl-live').length>0,null,{timeout:1500});
- await page.waitForFunction(()=>document.querySelectorAll('.cl-live').length===0,null,{timeout:4000});
+ await page.waitForFunction(()=>document.querySelectorAll('.cl-live').length===0,null,{timeout:8000});      // the sweep ends the preview after 1.5 s, then the bubble is held at most 4 s waiting for a finished message that never comes
 });
 test('live preview: when one listener ends its turn, the other listener\'s unfinished guess is dropped',async({page})=>{
  await create(page,'Cleanup','en','ko');
  await page.evaluate(()=>{window.clLive('south','','hello how are you doing today',.9);window.clLive('north','','어떻게 해서 그냥 어떻게',.5)});
  await page.evaluate(()=>window.clLive('south','','',0));
  await page.waitForTimeout(600);
- assert.equal(await page.locator('.cl-live').count(),0,'nothing is left on screen after the English turn ends');
+ const left=await page.evaluate(()=>[...document.querySelectorAll('.cl-live')].map(r=>r.innerText));
+ assert.ok(!left.some(t=>/[\uAC00-\uD7AF]/.test(t)),'the Korean guess is gone; only the English bubble (held until its message exists) may remain');
 });
 test('live preview: a weak few-character guess from the other language is not shown, even when the English reading is still short',async({page})=>{
  await create(page,'Weak','en','ko');
@@ -331,4 +332,39 @@ test('live preview: a weak few-character guess from the other language is not sh
  await page.waitForTimeout(500);
  const korean=await page.evaluate(()=>[...document.querySelectorAll('.cl-live')].some(r=>/[\uAC00-\uD7AF]/.test(r.innerText)));
  assert.equal(korean,false,'no Korean preview');
+});
+test('one bubble per turn: from the first words it is the real two-column bubble, transcript first, then the translation',async({page})=>{
+ await create(page,'OneBubble');
+ await page.evaluate(()=>window.clLive('south','hello friend','',.9));
+ await page.waitForSelector('#tx-south .row.cl-live .bcols',{timeout:3000});
+ assert.equal(await page.locator('#tx-south .row.cl-live .bcol').count(),2,'two columns, like the finished bubble');
+ assert.equal(await page.locator('#tx-south .row.cl-live .bsaid').count(),0,'no separate line underneath');
+ assert.match(await page.locator('#tx-south .row.cl-live .bcol').first().innerText(),/hello friend/,'the transcript is in the first column');
+ await page.waitForFunction(()=>{const c=document.querySelectorAll('#tx-south .row.cl-live .bcol');return c.length===2&&c[1].innerText.trim().length>0&&!/^…/.test(c[1].innerText.trim())},null,{timeout:8000});
+ await page.evaluate(()=>window.clLive('south','hello friend how are','you',.9));
+ await page.waitForFunction(()=>/how are you/.test(document.querySelector('#tx-south .row.cl-live .bcol').innerText));
+ assert.equal(await page.locator('#tx-south .row.cl-live').count(),1,'only one live bubble');
+});
+test('one bubble per turn: it stays on screen from speaking until the finished translation, with no gap',async({page})=>{
+ const s=await openRoom(page,'NoGapH2h');
+ await page.route('**/get?**',async route=>{await new Promise(r=>setTimeout(r,1200));await route.fulfill({json:{responseStatus:200,responseData:{translatedText:'สวัสดีเพื่อน'}}})});
+ await page.evaluate(()=>{window.__rows=[];const h=document.getElementById('tx-south'),snap=()=>window.__rows.push(h.querySelectorAll('.row').length);new MutationObserver(snap).observe(h,{childList:true,subtree:true});window.__iv=setInterval(snap,25)});
+ s.south.send(JSON.stringify({is_final:false,channel:{alternatives:[{transcript:'hello fri',confidence:.9}]}}));await page.waitForTimeout(500);
+ s.south.send(JSON.stringify({is_final:true,channel:{alternatives:[{transcript:'hello friend',confidence:.93}]}}));s.south.send(JSON.stringify({type:'UtteranceEnd'}));
+ await page.waitForFunction(()=>HIST.length===1&&HIST[0].status==='complete',null,{timeout:9000});await page.waitForTimeout(200);
+ const rows=await page.evaluate(()=>{clearInterval(window.__iv);return window.__rows}),first=rows.findIndex(n=>n>0);
+ assert.ok(first>=0,'a bubble appeared');assert.equal(rows.slice(first).filter(n=>n===0).length,0,'a bubble is on screen the whole time');assert.equal(rows[rows.length-1],1,'and it ends as exactly one bubble');
+});
+test('one bubble per turn: the finished bubble keeps the translation already shown until its own arrives',async({page})=>{
+ await create(page,'CarryH2h');
+ await page.evaluate(()=>window.clLive('south','hello friend','',.9));
+ await page.waitForFunction(()=>{const c=document.querySelectorAll('#tx-south .row.cl-live .bcol');return c.length===2&&c[1].innerText.trim().length>0&&!/^…/.test(c[1].innerText.trim())},null,{timeout:8000});
+ const shown=(await page.locator('#tx-south .row.cl-live .bcol').nth(1).innerText()).trim();
+ let release;const held=new Promise(r=>release=r);let arrived;const ready=new Promise(r=>arrived=r);
+ await page.route('**/get?**',async route=>{arrived();await held;await route.fulfill({json:{responseStatus:200,responseData:{translatedText:'สวัสดีเพื่อน'}}})});
+ await send(page,'south','hello friend how are you');await page.evaluate(()=>window.clLive('south','',''));await ready;
+ await page.waitForFunction(()=>HIST.length===1&&HIST[0].status==='pending');
+ const mid=(await page.locator('#tx-south .row[data-msg-id]:not(.cl-live) .bcol').nth(1).innerText()).trim();
+ assert.equal(mid,shown,'the translation does not drop back to … while the final one is fetched');
+ release();await settled(page,1);
 });
