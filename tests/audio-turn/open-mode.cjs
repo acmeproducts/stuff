@@ -454,3 +454,12 @@ test('mic indicator: both microphones keep showing that they are listening (the 
  await page.locator('#in-south').focus();await page.waitForFunction(()=>INPUT.owner==='south');await page.waitForTimeout(500);await moves('SBS, South keyboard open');
  await page.locator('#kb-south .ktoggle').click();await page.waitForFunction(()=>INPUT.owner==='north');await page.waitForTimeout(500);await moves('SBS, North keyboard open');
 });
+test('a device with no speech key says so on screen, once, and says where to put it',async({page})=>{
+ await create(page,'NoKey','en','ko');
+ await page.evaluate(()=>{localStorage.removeItem('tb_dg_key')});
+ await page.reload();await page.waitForFunction(()=>document.documentElement.dataset.chatlinkReady==='true');
+ await page.waitForFunction(()=>document.getElementById('toast').classList.contains('show')&&/speech key/i.test(document.getElementById('toast').textContent),null,{timeout:6000});
+ const t=await page.evaluate(()=>document.getElementById('toast').textContent);
+ assert.match(t,/Settings/);assert.match(t,/Deepgram|AI keys/);
+ assert.ok(!/Calling & Sync Keys/.test(await page.evaluate(()=>document.getElementById('diag-lines').textContent)),'the old, wrong place name is gone from the log');
+});
