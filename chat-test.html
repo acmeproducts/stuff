@@ -23,7 +23,7 @@ body{display:flex;flex-direction:column}
 .row{display:flex}
 .row.own{justify-content:flex-end}
 .row.them{justify-content:flex-start}
-.bub{max-width:82%;border-radius:14px;padding:8px 10px;box-shadow:0 1px 3px rgba(15,23,42,.10)}
+.bub{max-width:var(--cw,82%);border-radius:14px;padding:8px 10px;box-shadow:0 1px 3px rgba(15,23,42,.10)}
 .bub.s{background:var(--sbg,#eff6ff);border-left:3px solid rgba(59,130,246,.75)}
 .bub.n{background:var(--nbg,#f0fdf4);border-left:3px solid rgba(16,185,129,.7)}
 .bhdr{display:flex;align-items:center;justify-content:flex-end;gap:6px;
@@ -200,6 +200,8 @@ body.sbs:not(.sbs-n) .half.north{display:none}
 body.sbs.sbs-n .half.south .cmp{display:none}
 .cmp{display:contents}
 /* SBS look: the transcript and the composer are two separate rounded cards; the composer card keeps the same height for every language so the compose line never jumps */
+/* SBS placement, styling only (the transcript is drawn exactly as in H2H): the initiator's bubbles flush left, the other participant's flush right, each exactly the chosen chat width so the frame never changes size as it fills in */
+body.sbs .tx{padding-left:0;padding-right:0}body.sbs .row.own{justify-content:flex-start}body.sbs .row.them{justify-content:flex-end}body.sbs .bub{width:var(--cw,82%)}
 body.sbs .half .shell{background:transparent;border:0;box-shadow:none;overflow:visible;gap:6px}
 body.sbs .half .tx{background:#fff;border:2px solid rgba(59,130,246,.45);border-radius:18px;box-shadow:0 2px 10px rgba(15,23,42,.10)}
 body.sbs .cmp{display:flex;flex-direction:column;background:#fff;border-radius:18px;overflow:hidden;box-shadow:0 2px 10px rgba(15,23,42,.10)}
@@ -2815,6 +2817,7 @@ function dgLangParam(room) {
         s.setProperty('--nbg',ROOM.northBg||'#f0fdf4');
         s.setProperty('--txt',ROOM.fontColor||'#0f172a');
         s.setProperty('--fsz',(ROOM.fontSize||15)+'px');
+        s.setProperty('--cw',(Math.max(50,Math.min(100,Number(ROOM.chatWidth)||82)))+'%');
     }
 
     /* ================= BOOT ================= */
@@ -2920,7 +2923,7 @@ var portal=(function(){
  // Read/modify/write within one transaction preserves a pending result and a draft save.
  function change(store,key,fn){requireWriter();return new Promise(function(resolve,reject){var result,t=db.transaction(store,'readwrite'),s=t.objectStore(store),q=s.get(key);q.onsuccess=function(){try{result=fn(q.result);if(result===null)s.delete(key);else if(result!==undefined)s.put(result)}catch(e){reject(e);t.abort()}};t.oncomplete=function(){resolve(result)};t.onabort=function(){reject(t.error||new Error('Storage transaction was interrupted'))};t.onerror=function(){};});}
  function state(key,value){return change('state',key,function(){return {key:key,value:value}})}
- function defaults(){return {layout:'h2h',southLang:'en',northLang:'th',southBg:'#eff6ff',northBg:'#f0fdf4',fontColor:'#0f172a',fontSize:15}}
+ function defaults(){return {layout:'h2h',southLang:'en',northLang:'th',southBg:'#eff6ff',northBg:'#f0fdf4',fontColor:'#0f172a',fontSize:15,chatWidth:82}}
  function title(r){return r.label||(LANG_NAMES[r.southLang]||r.southLang)+' ↔ '+(LANG_NAMES[r.northLang]||r.northLang)}
  function pair(r){return 'South: '+(LANG_NAMES[r.southLang]||r.southLang)+' · North: '+(LANG_NAMES[r.northLang]||r.northLang)}
  async function toggleLayout(r){teardown('layout');var next=r.layout==='sbs'?'h2h':'sbs';await change('rooms',r.id,function(old){if(!old||old.trashedAt)return;old.layout=next;old.updatedAt=Date.now();old.revision++;return old});await refresh(r.id)}
@@ -2945,9 +2948,9 @@ var portal=(function(){
  function field(form,label,value,type){var l=node('label',label,'cl-field'),i=node('input');i.type=type||'text';i.value=value||'';l.appendChild(i);form.appendChild(l);return i}
  function language(form,label,value){var l=node('label',label,'cl-field'),s=node('select');Object.keys(LANG_NAMES).forEach(function(k){var o=node('option',LANG_NAMES[k]);o.value=k;s.appendChild(o)});s.value=value;s.setAttribute('aria-label',label);l.appendChild(s);form.appendChild(l);return s}
  async function editRoom(r){view='edit';requireWriter();clearError();$('cl-heading').textContent=r?'Conversation settings':'New conversation';var f=node('form');$('cl-body').replaceChildren(f);var prefs=await read('state','defaults'),seed=r||Object.assign(defaults(),prefs&&prefs.value);var name=field(f,'Conversation name',seed.label||'');name.maxLength=100;name.placeholder='Optional name';var south=language(f,'Device owner · South',seed.southLang),north=language(f,'Partner · North',seed.northLang);if(r&&r.messages.length){f.appendChild(node('p','You can change languages at any time (for example with a third language). Earlier messages keep the languages they were spoken in.','cl-note'));}
-  var appearance=node('details');appearance.appendChild(node('summary','Appearance'));f.appendChild(appearance);var sb=field(appearance,'South bubble colour',seed.southBg,'color'),nb=field(appearance,'North bubble colour',seed.northBg,'color'),fc=field(appearance,'Text colour',seed.fontColor,'color'),size=field(appearance,'Text size',seed.fontSize,'number');size.min=12;size.max=24;
+  var appearance=node('details');appearance.appendChild(node('summary','Appearance'));f.appendChild(appearance);var sb=field(appearance,'South bubble colour',seed.southBg,'color'),nb=field(appearance,'North bubble colour',seed.northBg,'color'),fc=field(appearance,'Text colour',seed.fontColor,'color'),size=field(appearance,'Text size',seed.fontSize,'number');size.min=10;size.max=32;var cw=field(appearance,'Chat width (%)',seed.chatWidth||82,'number');cw.min=50;cw.max=100;cw.step=1;
   var actions=node('div',null,'cl-actions'),save=node('button',r?'Save changes':'Create conversation','cl-primary');save.type='submit';actions.append(save,button('Cancel',function(){return list()}));if(r)actions.appendChild(button('Export conversation',async function(){var room=await read('rooms',r.id);if(!room)throw new Error('Conversation no longer exists.');var data=JSON.stringify({format:'chatlink-audio-test',version:1,exportedAt:new Date().toISOString(),rooms:[room]},null,2);var a=node('a');a.href=URL.createObjectURL(new Blob([data],{type:'application/json'}));a.download='chatlink-'+(title(room).replace(/[^\w\-]+/g,'-').replace(/^-+|-+$/g,'')||'conversation')+'-'+new Date().toISOString().slice(0,10)+'.json';a.click();setTimeout(function(){URL.revokeObjectURL(a.href)},1000);log('room_export',{messages:(room.messages||[]).length},'ok')}));if(r)actions.appendChild(button('Move to Trash',function(){return trashRoom(r)},'cl-danger'));f.appendChild(actions);
-  f.onsubmit=function(e){e.preventDefault();action(async function(){if(save.disabled)return;save.disabled=true;try{var fields={label:name.value.trim(),southLang:south.value,northLang:north.value,southBg:sb.value,northBg:nb.value,fontColor:fc.value,fontSize:Math.max(12,Math.min(24,Number(size.value)||15))};await flush();var saved=await change('rooms',r?r.id:'',function(old){if(r&&!old)throw new Error('Conversation no longer exists.');if(r){Object.assign(old,fields);old.updatedAt=Date.now();old.revision++;return old;}return fresh(fields)});await state('defaults',{southLang:fields.southLang,northLang:fields.northLang});if(!r)window.clUsage.add('room',{room:fields.label,pair:fields.southLang+'>'+fields.northLang});await select(saved.id); }finally{save.disabled=false;}})};
+  f.onsubmit=function(e){e.preventDefault();action(async function(){if(save.disabled)return;save.disabled=true;try{var fields={label:name.value.trim(),southLang:south.value,northLang:north.value,southBg:sb.value,northBg:nb.value,fontColor:fc.value,fontSize:Math.max(10,Math.min(32,Number(size.value)||15)),chatWidth:Math.max(50,Math.min(100,Number(cw.value)||82))};await flush();var saved=await change('rooms',r?r.id:'',function(old){if(r&&!old)throw new Error('Conversation no longer exists.');if(r){Object.assign(old,fields);old.updatedAt=Date.now();old.revision++;return old;}return fresh(fields)});await state('defaults',{southLang:fields.southLang,northLang:fields.northLang});if(!r)window.clUsage.add('room',{room:fields.label,pair:fields.southLang+'>'+fields.northLang});await select(saved.id); }finally{save.disabled=false;}})};
  }
  async function trashRoom(r){if(!confirm('Move “'+title(r)+'” to Trash? Its history will be retained.'))return;await flush();if(active&&active.id===r.id){teardown('trash room');generation++;setActive(null);await state('activeRoomId',null);history.replaceState({},'',location.pathname);}await change('rooms',r.id,function(x){if(!x)return;x.trashedAt=Date.now();return x});await list();}
  async function restore(r){await change('rooms',r.id,function(x){if(!x)return;delete x.trashedAt;return x});await list()}

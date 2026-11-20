@@ -288,3 +288,22 @@ test('SBS: the keys use the spare room, so there is no empty band under the last
  const gap=await page.evaluate(()=>{const kb=document.getElementById('kb-south').getBoundingClientRect(),rows=document.querySelectorAll('#kb-south .krow'),last=rows[rows.length-1].getBoundingClientRect(),q=document.querySelector('#kb-south .key').getBoundingClientRect();return{gap:kb.bottom-last.bottom,key:q.height}});
  assert.ok(gap.gap<=14,'no blank band under the last row ('+Math.round(gap.gap)+'px)');assert.ok(gap.key>=50,'keys are taller than before ('+Math.round(gap.key)+'px)');
 });
+test('chat width and text size are set per conversation; in SBS the initiator sits flush left and the other participant flush right',async({page})=>{
+ await create(page,'Wide');await menu(page);await page.getByRole('button',{name:'Edit Wide',exact:true}).click();
+ await page.locator('summary',{hasText:'Appearance'}).click();await page.getByLabel('Chat width',{exact:false}).fill('70');await page.getByLabel('Text size',{exact:true}).fill('20');await page.getByRole('button',{name:'Save changes',exact:true}).click();
+ await page.waitForFunction(()=>getComputedStyle(document.documentElement).getPropertyValue('--cw').trim()==='70%');
+ assert.equal(await page.evaluate(()=>getComputedStyle(document.documentElement).getPropertyValue('--fsz').trim()),'20px');
+ const rec=(await records(page)).find(r=>r.label==='Wide');assert.equal(rec.chatWidth,70,'width saved with the conversation');assert.equal(rec.fontSize,20,'size saved with the conversation');
+ await setLayout(page,'Wide','sbs');
+ await send(page,'south','hello friend');await settled(page,1);
+ await page.locator('#in-south').focus();await page.waitForFunction(()=>INPUT.owner==='south'&&INPUT.mode==='kb');await page.locator('#kb-south .ktoggle').click();await page.waitForFunction(()=>INPUT.owner==='north');
+ await send(page,'north','สวัสดี');await settled(page,2);await page.waitForTimeout(300);
+ const g=await page.evaluate(()=>{const tx=document.getElementById('tx-south'),r=tx.getBoundingClientRect(),l=r.left+tx.clientLeft,rt=r.right-tx.clientLeft,init=document.querySelector('#tx-south .row.own .bub').getBoundingClientRect(),other=document.querySelector('#tx-south .row.them .bub').getBoundingClientRect();return{inner:rt-l,initGap:init.left-l,otherGap:rt-other.right,initW:init.width,otherW:other.width}});
+ assert.ok(g.initGap<=4,'the initiator bubble is flush left ('+g.initGap+'px)');assert.ok(g.otherGap<=4,'the other participant bubble is flush right ('+g.otherGap+'px)');
+ assert.ok(Math.abs(g.initW-g.inner*0.7)<=5&&Math.abs(g.otherW-g.inner*0.7)<=5,'bubbles take the chosen width ('+Math.round(g.initW)+' of '+Math.round(g.inner)+')');
+});
+test('head to head keeps its bubble placement: the writer on the right, nothing flush-left',async({page})=>{
+ await create(page,'H2hPlace');await send(page,'south','hello friend');await settled(page,1);
+ const g=await page.evaluate(()=>{const tx=document.getElementById('tx-south'),r=tx.getBoundingClientRect(),b=document.querySelector('#tx-south .row.own .bub').getBoundingClientRect();return{left:b.left-r.left,right:r.right-b.right}});
+ assert.ok(g.right<=14&&g.left>20,'own bubble stays on the right as before ('+Math.round(g.left)+' / '+Math.round(g.right)+')');
+});
