@@ -355,3 +355,21 @@ test('device log: a guest device, or a device with no token, writes nothing',asy
  await page.evaluate(()=>window.clLive('south','','hello again',.9));await page.waitForTimeout(500);await page.evaluate(()=>window.clRemoteFlush());await page.waitForTimeout(500);
  assert.equal(puts.length,0,'a guest device never writes to the repo');
 });
+test('open mode: a low-confidence guess from the other language that finishes first does not become a message while the real speaker is still being heard',async({page})=>{
+ await page.evaluate(()=>{localStorage.setItem('tb_dg_key','synthetic-key');localStorage.setItem('chat_test_audio',JSON.stringify({mode:'open',tones:true,resumeMs:300}))});
+ await create(page,'GhostFinal','en','ko');await page.waitForFunction(()=>mic.south.active&&mic.north.active);await page.waitForTimeout(300);
+ const byLang=l=>page.testSockets.filter(w=>w.url().includes('language='+l)).slice(-1)[0],s={south:byLang('en-US'),north:byLang('ko')};
+ s.south.send(JSON.stringify({is_final:false,channel:{alternatives:[{transcript:'hello how are',confidence:.9}]}}));await page.waitForTimeout(200);   // English is being heard
+ final(s.north,'어떻게 해',.68);                                                    // the Korean channel finishes first with a weak guess at the same sounds
+ await page.waitForTimeout(1000);                                                    // the English channel finishes about a second later, as in the owner's log
+ final(s.south,'hello how are you doing today',.97);
+ await page.waitForFunction(()=>HIST.length>=1,null,{timeout:6000});await page.waitForTimeout(2500);
+ const got=await page.evaluate(()=>HIST.map(m=>m.side));
+ assert.deepEqual(got,['south'],'only the English message exists, no Korean message from the weak guess');
+});
+test('device log: the token saved on the Share tab is enough to write the log',async({page})=>{
+ await page.evaluate(()=>localStorage.setItem('cl_owner_pat','ghp_share'));const puts=await captureGh(page);
+ await create(page,'ShareTok','en','ko');await page.evaluate(()=>window.clLive('south','','hello',.9));await page.waitForTimeout(400);
+ await page.evaluate(()=>window.clRemoteFlush());await page.waitForTimeout(600);
+ assert.ok(puts.length>=1&&puts[0].auth==='Bearer ghp_share','the log is written with the Share-tab token');
+});
