@@ -400,3 +400,48 @@ test('translation calls: only the new part of a growing turn is translated, and 
  assert.equal(calls.length,before,'the finished message used the combined translation already held: no further call');
  const tr=await page.evaluate(()=>HIST[0].tr);assert.match(tr,/EN:first sentence here/);assert.match(tr,/EN:and then the second one/);
 });
+test('open mode: a low-confidence guess from the other language that finishes first does not become a message while the real speaker is still being heard',async({page})=>{
+ await page.evaluate(()=>{localStorage.setItem('tb_dg_key','synthetic-key');localStorage.setItem('chat_test_audio',JSON.stringify({mode:'open',tones:true,resumeMs:300}))});
+ await create(page,'GhostFinal','en','ko');await page.waitForFunction(()=>mic.south.active&&mic.north.active);await page.waitForTimeout(300);
+ const byLang=l=>page.testSockets.filter(w=>w.url().includes('language='+l)).slice(-1)[0],s={south:byLang('en-US'),north:byLang('ko')};
+ s.south.send(JSON.stringify({is_final:false,channel:{alternatives:[{transcript:'hello how are',confidence:.9}]}}));await page.waitForTimeout(200);   // English is being heard
+ final(s.north,'어떻게 해',.68);                                                    // the Korean channel finishes first with a weak guess at the same sounds
+ await page.waitForTimeout(1000);                                                    // the English channel finishes about a second later, as in the owner's log
+ final(s.south,'hello how are you doing today',.97);
+ await page.waitForFunction(()=>HIST.length>=1,null,{timeout:6000});await page.waitForTimeout(2500);
+ const got=await page.evaluate(()=>HIST.map(m=>m.side));
+ assert.deepEqual(got,['south'],'only the English message exists, no Korean message from the weak guess');
+});
+test('open mode: when the other listener is silent the two listeners are not made to wait for each other (a message appears quickly after the turn ends)',async({page})=>{
+ await page.evaluate(()=>{localStorage.setItem('tb_dg_key','synthetic-key');localStorage.setItem('chat_test_audio',JSON.stringify({mode:'open',tones:true,resumeMs:300}))});
+ await create(page,'Quick','en','ko');await page.waitForFunction(()=>mic.south.active&&mic.north.active);await page.waitForTimeout(300);
+ const byLang=l=>page.testSockets.filter(w=>w.url().includes('language='+l)).slice(-1)[0],s={south:byLang('en-US'),north:byLang('ko')};
+ s.south.send(JSON.stringify({is_final:true,channel:{alternatives:[{transcript:'hello how are you doing today',confidence:.97}]}}));
+ await page.waitForTimeout(200);
+ const t0=Date.now();s.south.send(JSON.stringify({type:'UtteranceEnd'}));
+ await page.waitForFunction(()=>HIST.length>=1,null,{timeout:3000});const ms=Date.now()-t0;
+ assert.ok(ms<550,'the message exists '+ms+' ms after the turn ended (was about 700 ms or more)');
+});
+test('open mode: a weak guess from the other listener that arrives just AFTER a delivery is dropped, not made into a message',async({page})=>{
+ await page.evaluate(()=>{localStorage.setItem('tb_dg_key','synthetic-key');localStorage.setItem('chat_test_audio',JSON.stringify({mode:'open',tones:true,resumeMs:300}))});
+ await create(page,'Straggler','en','ko');await page.waitForFunction(()=>mic.south.active&&mic.north.active);await page.waitForTimeout(300);
+ const byLang=l=>page.testSockets.filter(w=>w.url().includes('language='+l)).slice(-1)[0],s={south:byLang('en-US'),north:byLang('ko')};
+ s.south.send(JSON.stringify({is_final:false,channel:{alternatives:[{transcript:'hello how are you',confidence:.95}]}}));await page.waitForTimeout(100);
+ s.north.send(JSON.stringify({is_final:false,channel:{alternatives:[{transcript:'어떻게 해서',confidence:.65}]}}));await page.waitForTimeout(500);   // the Korean listener starts guessing DURING the English turn, as in the owner's second log
+ final(s.south,'hello how are you doing today',.97);
+ await page.waitForTimeout(600);                                              // the English message is delivered
+ final(s.north,'어떻게 해서 그냥',.54);                                         // and the Korean listener finishes its guess late
+ await page.waitForTimeout(2500);
+ assert.deepEqual(await page.evaluate(()=>HIST.map(m=>m.side)),['south'],'only the English message exists');
+});
+test('open mode: a real quick reply from the other side (its words start after the turn ended) is kept, even if weaker than the message before it',async({page})=>{
+ await page.evaluate(()=>{localStorage.setItem('tb_dg_key','synthetic-key');localStorage.setItem('chat_test_audio',JSON.stringify({mode:'open',tones:true,resumeMs:300}))});
+ await create(page,'Reply','en','ko');await page.waitForFunction(()=>mic.south.active&&mic.north.active);await page.waitForTimeout(300);
+ const byLang=l=>page.testSockets.filter(w=>w.url().includes('language='+l)).slice(-1)[0],s={south:byLang('en-US'),north:byLang('ko')};
+ final(s.south,'hello how are you doing today',.97);
+ await page.waitForFunction(()=>HIST.length>=1,null,{timeout:3000});
+ s.north.send(JSON.stringify({is_final:false,channel:{alternatives:[{transcript:'네 잘 지내요',confidence:.7}]}}));await page.waitForTimeout(300);   // the reply starts after the first turn ended
+ final(s.north,'네 잘 지내요 고마워요',.6);
+ await page.waitForFunction(()=>HIST.length>=2,null,{timeout:4000});
+ assert.deepEqual(await page.evaluate(()=>HIST.map(m=>m.side)),['south','north'],'the reply is kept');
+});
