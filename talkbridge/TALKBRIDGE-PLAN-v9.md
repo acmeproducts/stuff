@@ -1,5 +1,5 @@
-<!-- TALKBRIDGE-PLAN v21.128.0 -->
-# TALKBRIDGE MASTER PLAN v21.128.0
+<!-- TALKBRIDGE-PLAN v21.129.0 -->
+# TALKBRIDGE MASTER PLAN v21.129.0
 
 **Location:** `talkbridge/TALKBRIDGE-PLAN-v9.md` in `acmeproducts/stuff`.
 **Owner:** Confi — sole decision-maker, runs every device gate.
@@ -2163,6 +2163,8 @@ Green means allowed to push. It never means done.
 ---
 
 ## 10 · CHANGE LOG
+
+**v21.129.0 · 2026-11-20.** §7.26's five review questions answered by the owner ("yes on all recommendations"): transcription only while speaking; keys on the link accepted for now; seats by the call's kind; the creator's delete closes the conference for everyone; the conference room is also a group chat. §7.26 is ready to schedule; each build stage gets its own spec and independent review before code.
 
 **v21.128.0 · 2026-11-20.** §7.26 CONFERENCE CALLS written from the owner's design (doc reviewed with the owner 2026-11-19/20): a joinable call with a link (WhatsApp / Zoom), walk in and out, closes when the last leaves; join with name and language; each phone transcribes its own speaker and each listener translates; the speaker live on a big screen with the four previous speakers in a row (live, small, still fallback) and "+ more"; video capped at 8, voice only at 12, phone to phone, no running cost; a crosstalk bubble; nine rough edges kept smooth; five build stages. §7.8's model superseded; its October build retired (decision 6). Unscheduled: after beta unless the owner moves it. Independent review (2026-11-20): corrections applied in §7.26; five owner questions open (Q1–Q5).
 
@@ -6482,7 +6484,7 @@ person speaking … rotate into the big screen who is speaking and when they are
 A conference call is a live room that anyone with its link can enter and leave while it runs; it closes when the last
 person leaves. Everyone hears the others' voices and reads what each person says in their own language. The screen shows
 the person speaking live on a big screen and the last four speakers in a row above it. The first version holds 8 people
-on video and 12 on voice only, phone to phone, at no cost.
+on video and 12 on voice only, phone to phone, with no media server; transcription runs only while someone is speaking (Q1).
 
 ### What it is
 A joinable call with a link, the way WhatsApp call links and Zoom meetings work — not a phone call from one person to
@@ -6605,7 +6607,7 @@ carry.
 | Phone locked or app switched mid-call | The camera and mic stop in the background (the app already mutes on leaving, R8 8.7; iOS ends the mic, G70); the others' phones detect it (frames stop) and show your still with an "away" mark, never a frozen picture. |
 | Two phones in the same physical room | No detection; when the call already has people, the join screen shows "In the same room as someone? Use headphones." |
 | Typing during a conference | Same path as speech: sent once, translated by each reader's phone. |
-| How long the link works | As long as the room exists; deleting the room ends it; no expiry settings. |
+| How long the link works | As long as the room exists; the creator's delete closes the conference for everyone and ends the link (Q4); anyone else's delete removes it from their phone; no expiry settings. |
 | Left by accident | For 2 minutes the room shows a large "Rejoin": one tap, no join screen. |
 | A phone with an older TalkBridge opens the link | The link opens the current version, as invites do; an older installed copy reloads first. |
 | Rejoining after a full app restart, from the room list | The borrowed keys are gone from memory; the join screen asks for one tap on the link again. |
@@ -6680,7 +6682,10 @@ Build facts recorded for the stage specs (not owner choices):
 - L1 Layouts for 1 ("waiting for others") and the 2→3 switch mid-call; a conference of 2 uses the conference engine.
 - L4 Every new string in all 21 languages with gates (GK-1's pattern); no behaviour keyed on English text (G72).
 - L5 Stills over each connection's data channel, not the relay. L6 iPhone links never open the installed copy.
-OWNER QUESTIONS (open):
+OWNER QUESTIONS — ALL FIVE ANSWERED 2026-11-20 (owner: "yes on all recommendations"): Q1 transcription only while
+the person is speaking (billed to the key's account); Q2 keys on the link accepted for now, short-lived keys later; Q3
+seats by the call's kind; Q4 the creator's delete closes the conference for everyone, anyone else's removes it from
+their phone; Q5 the conference room is also a group chat. The questions as asked:
 - Q1 Cost (H6): transcription bills the Deepgram account whose key is used — the creator's, for every joiner without a
   key — at roughly $0.008 per stream-minute (to verify; Thai, Chinese, Korean, Arabic run two streams): an 8-person hour
   ≈ $4. Recommended: stream to Deepgram only while the person is speaking.
