@@ -121,7 +121,7 @@ test('r13: live bubble while speaking; translation is ready (cached) when the tu
  const ko=page.testSockets.filter(w=>w.url().includes('language=ko')).slice(-1)[0];
  const say=(t,final)=>ko.send(JSON.stringify({is_final:!!final,channel:{alternatives:[{transcript:t,confidence:.95}]}}));
  say('하마터면');await page.locator('#tx-north .cl-live').waitFor({timeout:2000});await page.locator('#tx-south .cl-live').waitFor({timeout:2000});
- assert.equal(await page.locator('#tx-north .cl-live .btxt').first().textContent(),'하마터면','speaker sees own words at once');
+ assert.equal(await page.locator('#tx-north .cl-live .btxt').textContent(),'하마터면','speaker sees own words at once');
  say('하마터면 잠들 뻔했어요.',true);await page.waitForFunction(()=>/EN:하마터면 잠들 뻔했어요\./.test(document.querySelector('#tx-south .cl-live .btxt').textContent),null,{timeout:3000});
  say('하지만 이제');await page.waitForFunction(()=>/하지만 이제/.test(document.querySelector('#tx-north .cl-live .btxt').textContent));
  say('하지만 이제 출근할 시간이에요.',true);await page.waitForTimeout(400);ko.send(JSON.stringify({type:'UtteranceEnd'}));

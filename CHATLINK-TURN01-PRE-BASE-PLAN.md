@@ -929,3 +929,14 @@ Owner: not comfortable with how this performs; wants it diagnosed and the diagno
 The proof test is not in the normal suite (it fails on the current build by design). It becomes an acceptance test for the re-implementation.
 **What this changes about earlier fixes.** The 250/350 ms settle wait and the "defer a weak lone result" change did not address this and should not be carried forward as the answer. The deferral addressed a different problem seen in the first pasted log (a weak Korean final routed as a message); that case was not present in this log.
 **Plan the owner described (not started).** Roll back, then re-implement side by side and the improvements on top of the diagnosis, with the proof episodes as acceptance tests.
+
+### 2026-11-20 — ROLLBACK to before side by side, keeping the device log (step 0 of the re-implementation)
+Owner: "Go" on the plan: roll back, then re-implement side by side and the improvements on top of the proven diagnosis.
+**Done.** `chat-test.html` and the tests are back to the version before side by side (before PR #986), with only the device log kept: the repo log (hourly file per device, no words, Share-tab token accepted, `[skip ci]`), the engine event hook, the per-listener `live` events and the `live_pick` decisions. Everything else added since is out for now: the H2H/SBS layout, the composer switch and chip, the rounded cards, keys filling the keyboard, suggestions after the X, chat width and text size 10–32, flush placement, the one-bubble paint and hold, the 250 ms settle, and the weak-final deferral.
+**Re-implementation order, one pull request per step, each tested before the next.**
+1. Layout (card toggle, composer, language chip, rounded cards, keys fill the keyboard, suggestions after the X).
+2. Width, text size and flush left/right (initiator left, other participant right), as styling only.
+3. The preview fix built on the diagnosis. Its acceptance test is the replay proof (episodes B, C and D must draw no Korean; A must still draw English), plus new tests for the three causes.
+4. The one-bubble paint (the bubble is the real two-column bubble from the first words and stays until the finished bubble replaces it, no gap).
+5. The weak-final deferral (a separate real defect seen in the first pasted log), only if the owner still wants it.
+**Checks on this base.** Open mode 55/55, keyboard 32/32, guest link 15/15. The proof episodes B, C and D fail on this base by design.
