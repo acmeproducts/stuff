@@ -332,3 +332,26 @@ test('one bubble per turn: the finished bubble keeps the translation already sho
  assert.equal(mid,shown,'the translation does not drop back to … while the final one is fetched');
  release();await settled(page,1);
 });
+const GH_LOG=/api\.github\.com\/repos\/acmeproducts\/stuff\/contents\/logs\/chat-test\//;
+async function captureGh(page){const puts=[];await page.route(GH_LOG,async route=>{const rq=route.request();if(rq.method()==='PUT'){puts.push({url:rq.url(),auth:rq.headers().authorization,body:JSON.parse(rq.postData())});return route.fulfill({status:201,contentType:'application/json',headers:{'access-control-allow-origin':'*'},body:'{}'})}return route.fulfill({status:404,contentType:'application/json',headers:{'access-control-allow-origin':'*'},body:'{}'})});return puts}
+test('device log: speech events are written to the repo, hourly file per device, no words, no CI run',async({page})=>{
+ await page.evaluate(()=>localStorage.setItem('duck_gh_pat','ghp_test'));const puts=await captureGh(page);
+ await create(page,'LogRoom','en','ko');
+ await page.evaluate(()=>{window.clLive('south','','hello friend how are you',.9);window.clLive('north','','어떻게 해서 그냥',.8)});
+ await page.waitForTimeout(700);await page.evaluate(()=>window.clLive('south','','',0));
+ await page.evaluate(()=>window.clRemoteFlush());await page.waitForFunction(()=>true);await page.waitForTimeout(600);
+ assert.ok(puts.length>=1,'a log file was written to the repo');
+ const p=puts[0];assert.match(p.url,/logs\/chat-test\/\d{4}-\d\d-\d\dT\d\d-[a-z0-9]+\.jsonl$/,'one file per hour per device');assert.equal(p.auth,'Bearer ghp_test');assert.match(p.body.message,/\[skip ci\]/,'a log commit does not start the site build');
+ const text=Buffer.from(p.body.content,'base64').toString('utf8');const rows=text.trim().split('\n').map(l=>JSON.parse(l));
+ const live=rows.filter(r=>r.k==='live');assert.ok(live.length>=2,'live events from both listeners');assert.ok(live.some(r=>r.d.pipe==='north'&&r.d.script==='hangul'||r.d.pipe==='north'&&r.d.ss==='north'),'the Korean listener is recorded with its script');
+ assert.ok(rows.some(r=>r.k==='live_pick'),'which side the preview chose is recorded');
+ assert.ok(!/hello friend|어떻게|how are you/.test(text),'no words are written to the log');
+});
+test('device log: a guest device, or a device with no token, writes nothing',async({page})=>{
+ const puts=await captureGh(page);
+ await create(page,'NoLog','en','ko');await page.evaluate(()=>window.clLive('south','','hello',.9));await page.waitForTimeout(500);await page.evaluate(()=>window.clRemoteFlush());await page.waitForTimeout(500);
+ assert.equal(puts.length,0,'no token: nothing sent');
+ await page.evaluate(()=>{localStorage.setItem('duck_gh_pat','ghp_test');localStorage.setItem('cl_guest',JSON.stringify({name:'Sam',at:Date.now()}))});
+ await page.evaluate(()=>window.clLive('south','','hello again',.9));await page.waitForTimeout(500);await page.evaluate(()=>window.clRemoteFlush());await page.waitForTimeout(500);
+ assert.equal(puts.length,0,'a guest device never writes to the repo');
+});
