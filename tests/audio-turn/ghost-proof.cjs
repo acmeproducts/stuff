@@ -30,3 +30,9 @@ for(const [k,tail,what] of [['B',9000,'a 1-character Korean guess that never fin
   const line=await ghostReplay(page,GHOST_FX[k],tail),bad=shownHangul(line);
   assert.equal(bad.length,0,'a Korean preview was on screen for '+bad.length*50+' ms (first at +'+(bad[0]&&bad[0].t)+' ms, last at +'+(bad.length&&bad[bad.length-1].t)+' ms) while only English was spoken. What was drawn: '+runs(line));
  });
+/* Episode E (second device log, 08:16:01): the Korean listener FINISHED a 7-character guess (confidence 0.54) before the English turn ended, so the turn-end clean-up (which only drops unfinished guesses) kept it;
+   when the English cleared it was the only entry left, was drawn as a Korean preview, then frozen and held by the one-bubble hold (nothing adopts it, so it stays up to 4 s). Off until the fix: GHOST_PROOF_E=1. */
+(process.env.GHOST_PROOF_E?test:skip)('GHOST PROOF E: a Korean guess that FINISHED during the English turn is never drawn, and never held',async({page})=>{
+ const line=await ghostReplay(page,GHOST_FX.E,6000),bad=shownHangul(line);
+ assert.equal(bad.length,0,'a Korean preview was on screen for '+bad.length*50+' ms (first at +'+(bad[0]&&bad[0].t)+' ms, last at +'+(bad.length&&bad[bad.length-1].t)+' ms) while only English was spoken. What was drawn: '+runs(line));
+});
