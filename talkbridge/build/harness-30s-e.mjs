@@ -40,10 +40,12 @@ const cardsStr = (v, stageSide) => {
     .replace(/<div class="rc2-name rc2-ic"><span class="rc2-nt" dir="auto">([\s\S]*?)<\/span><\/div>/g, '<div class="rc2-name">$1</div>')
     .replace(/<div class="rc2-name rc2-ic">/g, '<div class="rc2-name">');
 };
-for (const side of ['X', 'Y']) { const a = strip(snapA[side]), c = strip(snapC[side]); a.render = cards(a.render, false); c.render = cards(c.render, true); for (const k of KEYS) { const out = []; diff(a[k], c[k], side + '.' + k, out); rows.push({ n: side + '.' + k + ' identical', ok: out.length === 0, m: out.slice(0, 4).join(' | ') }); } }
+/* declared (c3, PW): the old sweep's autocomplete="new-password" is "off" on the stage, which also adds data-form-type="other" */
+const pwNorm = (v) => typeof v === 'string' ? v.split('autocomplete="new-password"').join('autocomplete="off"').split(' data-form-type="other"').join('') : Array.isArray(v) ? v.map(pwNorm) : (v && typeof v === 'object') ? Object.fromEntries(Object.entries(v).map(([k, x]) => [k, pwNorm(x)])) : v;
+for (const side of ['X', 'Y']) { const a = pwNorm(strip(snapA[side])), c = pwNorm(strip(snapC[side])); a.render = cards(a.render, false); c.render = cards(c.render, true); for (const k of KEYS) { const out = []; diff(a[k], c[k], side + '.' + k, out); rows.push({ n: side + '.' + k + ' identical', ok: out.length === 0, m: out.slice(0, 4).join(' | ') }); } }
 rows.push({ n: 'no uncaught error on either build', ok: [RA.X, RA.Y, RC.X, RC.Y].every((I) => I.errors.length === 0), m: [RA.X, RA.Y, RC.X, RC.Y].flatMap((I) => I.errors).join(' | ').slice(0, 500) });
 const mode = (W) => { try { return W.w.TS && W.w.TS.mode; } catch (_) { return null; } };
 rows.push({ n: 'both builds ran the chat store in mode ' + (process.env.TB_RIG_IDB ? 'idb' : 'ls') + ' on both phones', ok: [RA.X, RA.Y, RC.X, RC.Y].every((W) => mode(W) === (process.env.TB_RIG_IDB ? 'idb' : 'ls')), m: [RA.X, RA.Y, RC.X, RC.Y].map(mode).join(',') });
-rows.push({ n: 'the stage records itself (TB_STAGE) and the base does not', ok: !!(RC.X.w.TB_STAGE && RC.X.w.TB_STAGE.c === 'turn30-ship-c2') && !RA.X.w.TB_STAGE, m: JSON.stringify(RC.X.w.TB_STAGE || null) });
+rows.push({ n: 'the stage records itself (TB_STAGE) and the base does not', ok: !!(RC.X.w.TB_STAGE && RC.X.w.TB_STAGE.c === 'turn30-ship-c3') && !RA.X.w.TB_STAGE, m: JSON.stringify(RC.X.w.TB_STAGE || null) });
 fs.writeFileSync(process.env.TB_30S_OUT, JSON.stringify({ rows }));
 process.exit(0);

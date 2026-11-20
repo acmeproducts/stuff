@@ -1,5 +1,5 @@
-<!-- TALKBRIDGE-PLAN v21.129.0 -->
-# TALKBRIDGE MASTER PLAN v21.129.0
+<!-- TALKBRIDGE-PLAN v21.130.0 -->
+# TALKBRIDGE MASTER PLAN v21.130.0
 
 **Location:** `talkbridge/TALKBRIDGE-PLAN-v9.md` in `acmeproducts/stuff`.
 **Owner:** Confi — sole decision-maker, runs every device gate.
@@ -151,7 +151,7 @@ the directory release and IndexedDB each moved one turn later; nothing was dropp
 | 30·pre-base | byte-identical snapshot of accepted 29·post-ship | **BANKED 2026-10-22 BY REFERENCE** — the accepted `talkbridge-app/bridge-turn29-post-ship.html` (sha `c1c417e21dd1`), immutable under §0c; 30·base's assembler sha-checks it | — |
 | 30·base | **THE VIDEO BOX (§7.22)** — owner 2026-10-22: "it should be the tall 9:16 that's draggable"; then the strip you pull down (2026-10-27) | **ACCEPTED 2026-11-11 · candidate 4 · sha `a4155be904a9` · tb-sw5.js · relay v6.17 (owner: "video approved")** — the strip you pull down (VB-2), the camera back after dictation (CV-1), the room's name to the microphone (NM-1), the Android strip teal; Jenny's instance with it. Candidate history: c1 rejected (G77); c2 tested (three findings → c3); c3 "works … not crazy about it" (G79) → c4 (§7.22; changelog v21.111.0–v21.117.0) | **https://acmeproducts.github.io/stuff/talkbridge-app/bridge-turn30-base.html** (the folder's face forwards here) · Jenny: …/bridge-turn30-base-jenny.html |
 | 30·pre-ship | **chats in IndexedDB — TS-1 (§7.24)**; input: accepted 30·base | **ACCEPTED 2026-11-16 · candidate 1 · sha `4dddf3c35284` · tb-sw5.js · relay v6.17 (owner: "it seems to test alright")** — chats move from localStorage to IndexedDB under an in-memory copy; device run: both phones mode idb, no failures (v21.121.0) | **https://acmeproducts.github.io/stuff/talkbridge-app/bridge-turn30-pre-ship.html** |
-| 30·ship | beta readiness (moved from 30·pre-ship, owner 2026-10-27) — **seven separate fixes (§7.25)**: B-11 build labels, B-9 (a) room card X, (b) camera-off icon, (c) rail unread, (d) ring on screen, (e) a tap during a call, B-12 creator-rights key | **CANDIDATE 2 · BUILT 2026-11-18 · relay v6.17 (unchanged) · tb-sw5.js (unchanged) — c1 tested by the owner 2026-11-18: the name cut with a tap for the whole name (TN-1), the count kept until the room is selected (RL-1); awaiting the owner's two-phone device gate and the language sweep** | **https://acmeproducts.github.io/stuff/talkbridge-app/bridge-turn30-ship.html** |
+| 30·ship | beta readiness (moved from 30·pre-ship, owner 2026-10-27) — **seven separate fixes (§7.25)**: B-11 build labels, B-9 (a) room card X, (b) camera-off icon, (c) rail unread, (d) ring on screen, (e) a tap during a call, B-12 creator-rights key | **CANDIDATE 3 · BUILT 2026-11-20 · relay v6.17 (unchanged) · tb-sw5.js (unchanged) — c2 plus no field is a password (the key fields' markup, the old sweep's new-password); awaiting the owner's two-phone device gate and the language sweep** | **https://acmeproducts.github.io/stuff/talkbridge-app/bridge-turn30-ship.html** |
 
 Every accepted or built stage carries its live address here and in the ledger; a row without a link is not built.
 
@@ -2163,6 +2163,8 @@ Green means allowed to push. It never means done.
 ---
 
 ## 10 · CHANGE LOG
+
+**v21.130.0 · 2026-11-20.** 30·ship candidate 3 (§7.25 "Candidate 3"; owner: the name field "is set as a password … garbage up my password manager"): no field is a password. Two causes, both fixed at the source: the old no-password sweep stamped `autocomplete="new-password"` on every field, names included; and the four key fields were `type="password"` in the markup, remembered as passwords by the browsers after the sweep changed them, which made the nearest name the "username". Spec reviewed independently before code (the second cause found there). next.html → this page.
 
 **v21.129.0 · 2026-11-20.** §7.26's five review questions answered by the owner ("yes on all recommendations"): transcription only while speaking; keys on the link accepted for now; seats by the call's kind; the creator's delete closes the conference for everyone; the conference room is also a group chat. §7.26 is ready to schedule; each build stage gets its own spec and independent review before code.
 
@@ -6697,6 +6699,48 @@ their phone; Q5 the conference room is also a group chat. The questions as asked
   and the link lives on. Recommended: the creator's delete closes the conference for everyone (the one creator power).
 - Q5 Is the conference room also a group chat when no call is live (L3)? Recommended: yes — typed messages reach every
   member, each in their own language.
+
+### Candidate 3 (owner 2026-11-20) — PW-1: no field is a password
+Owner: "go through every input field and make sure that it is trying to save it as a password if it is in fact only a
+password … I strongly suspect that the onboarding field where you enter your name is set as a password … it's garbage up
+my password manager."
+CAUSE (read in code): the old GAP part NP-no-password's `suppressPasswordUI` runs on load (0/400/1200 ms), on every DOM
+insertion (MutationObserver, childList, subtree) and on every focusin, and sets `autocomplete="new-password"` on EVERY
+input and textarea — the name fields included. `new-password` is the value browsers and managers read as "a new password
+field": Chrome's and iOS Keychain's save / strong-password offers and managers' save prompts. It also turns
+`type=password` into `type=text` + a CSS mask (`.nopw-mask`) and sets ignore flags (data-1p-ignore, data-lpignore,
+data-bwignore), which are right.
+THE APP HAS NO PASSWORDS. Inventory: names (s0-name onboarding, s10-name joiner, s4b-name, s3-myname, p6-name thread),
+titles/text (s4b-title, chat-input, clar-inp, pb-search, phrasebook tag and clarify inputs, s13j-url invite paste),
+a date (s3-exp), four API keys (k-dg Deepgram, k-tid / k-tok TURN, k-pat GitHub PAT), and non-text inputs (file, color,
+range, radio — untouched).
+PLANNED (before review) — PW-1 (new part, wraps `suppressPasswordUI`): after the original sweep, every text-entry input and textarea gets
+`autocomplete="off"` (never `new-password`), keeps the ignore flags, gains `data-form-type="other"` (Dashlane); no input
+is `type=password`; the four key fields stay masked on screen (`.nopw-mask`). Because the original's own timers hold the
+unwrapped function, PW-1 also runs at its own 0/450/1300 ms and on focusin (registered after the original's, so it runs
+last). Gates (Chromium): after load, after the create sheet / thread name / invite paste / phrasebook inputs appear and
+after a focus, no element has `autocomplete="new-password"` or `type="password"`; every text input has `autocomplete="off"`
+and the ignore flags; the key fields are masked; non-text inputs untouched. Planted: wrap removed; key fields unmasked;
+focusin re-stamp left.
+
+**REVIEW 2026-11-20 (independent, before code):** confirmed `new-password` on a text field makes it a password field on
+both engines (Chrome's autofill reads the autocomplete value whatever the type; iOS passes it to the keyboard as the
+new-password content type — "Use Strong Password" and the save prompt). Found a SECOND cause the spec missed: the four key
+fields are `type="password"` in the page's own markup and only turned to text later by the sweep; Chrome and WebKit
+remember a field that was ever a password field, so the masked keys stayed passwords to the managers, and with no `<form>`
+the nearest text field before them — the joiner's name, the room-menu name, the onboarding name — became the "username":
+"save password?" with the person's NAME and an API key. A later sweep cannot clear that memory. Also: wrapping the sweep
+would flip every field between `new-password` and `off` on each DOM insertion; `s3-name` (the create sheet's room name)
+was missing from the inventory; radios and the date field were stamped too.
+**BUILT (candidate 3, 2026-11-20) — fixed at the source, no new part:** six find/replace edits in the assembler's identity
+list — the four key fields become `type="text"` with the `nopw-mask` class and every manager's ignore flag in the markup
+itself (never a password field, so nothing to remember), and the old sweep stamps `autocomplete="off"` where it stamped
+`new-password`, plus `data-form-type="other"`. Tag `turn30-ship-c3`. Gates: `harness-30s.mjs` 123 (PW0: no `type=password`
+in the shipped page, no `new-password` outside comments, the four key fields exactly as written; the differential declares
+the changed labels), browser 39 (PW1 no field is a password field, across every input and textarea, after the create
+sheet and thread fields appear and a focus; PW2 every text field `off` with the ignore flags; PW3 the keys masked),
+mutations 40/40 (c3 adds five PW defects; a key field that is `type="password"` in the markup is caught by PW0 only — the live page hides it, the browser remembers it). NOT provable in the lab: what the owner's own password manager does — the device check is: delete the
+bad TalkBridge entries, open the new link, type a name, open Calling & sync keys: no save prompt anywhere.
 
 ---
 

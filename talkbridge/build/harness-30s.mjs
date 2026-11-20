@@ -23,10 +23,10 @@ const code = (t) => t.replace(/\/\*[\s\S]*?\*\//g, '').replace(/(^|[^:'"\\])\/\/
 const contractOf = (t) => { const m = /\/\* @contract([\s\S]*?)\*\//.exec(t); return m ? m[1] : ''; };
 const rx = (s) => s.replace(/[.$]/g, (c) => '\\' + c);
 
-await T('B1 the stage is the accepted 30·pre-ship page + its identity edits (its manifests ×2, the build record) + the parts appended in order — nothing else', () => {
+await T('B1 the stage is the accepted 30·pre-ship page + its identity edits (its manifests ×2, the build record, the six PW edits of c3) + the parts appended in order — nothing else', () => {
   assert(stage === assemblePage({ parts: PT }), 'the stage is not the assembled output');
   const edited = applyIdentity(base);
-  for (const r of IDENTITY) { assert(base.split(r.find).length - 1 === r.n, r.id + ' not ' + r.n + 'x in the base'); assert(stage.indexOf(r.find) === -1, r.id + ' left in the stage'); }
+  for (const r of IDENTITY) { assert(base.split(r.find).length - 1 === r.n, r.id + ' not ' + r.n + 'x in the base'); assert(r.replace.indexOf(r.find) !== -1 ? stage.split(r.replace).length - 1 === r.n : stage.indexOf(r.find) === -1, r.id + ' left in the stage'); }
   const head = edited.slice(0, -TAIL.length); assert(stage.startsWith(head) && stage.endsWith(TAIL), 'the edited base is not the stage\'s head');
   assert(stage.slice(head.length, -TAIL.length) === PARTS.map((f) => '\n\n' + PT[f]).join(''), 'more than the parts was appended');
 });
@@ -61,6 +61,12 @@ await T('W the wraps are exactly the declared ones, each assigned once in its pa
   assert(!/^closePanel = function/m.test(rl), 'RL-1 must not wrap closePanel (c2: closing the rail acknowledges nothing)');
   const rlAt = js.indexOf('var _rlSend = cr3Send'), rtAt = js.indexOf('var _rtRoute = cr3RouteEvent');
   assert(rlAt > 0 && rtAt > rlAt, 'RT-1 must be the outer cr3RouteEvent wrap (a route held in a call never selects)');
+});
+await T('PW0 no field is a password in the shipped code: no type=password anywhere, no "new-password" outside comments; the four key fields are masked text with the managers\' ignore flags (c3)', () => {
+  const js = code(stage);
+  assert(!/type\s*=\s*["']password["']/i.test(stage), 'a type=password is left in the page');
+  assert(js.indexOf('new-password') === -1, '"new-password" is still set somewhere');
+  for (const k of ['k-dg', 'k-tid', 'k-tok', 'k-pat']) assert(stage.indexOf('<input class="field-input nopw-mask" type="text" id="' + k + '" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" data-1p-ignore data-lpignore="true" data-bwignore data-form-type="other">') !== -1, k + ' is not the masked text field');
 });
 await T('I the build record: the stage records itself once (window.TB_STAGE: tag, page, date, a full ISO time with Z) and logs it; no other stage\'s tag is recorded', () => {
   const rec = "window.TB_STAGE = { c: '" + STAGE_TAG + "', file: 'talkbridge-app/" + STAGE_PAGE + "', built: '" + BUILT + "', at: '" + BUILT_AT + "' }; log('build', window.TB_STAGE, 'ok');";

@@ -3,6 +3,9 @@
    (e) RT-1, B-12 GK-1. Beta readiness (the language sweep) is this stage's device gate.
    CANDIDATE 2 (owner 2026-11-18, after testing c1): TN-1 (new, first of the card wraps) cuts a card's room name to a fixed length
    with a tap for the whole name; RL-1 keeps the count until the room is SELECTED (closing the rail acknowledges nothing).
+   CANDIDATE 3 (owner 2026-11-20: the name field "is set as a password … garbage up my password manager"): PW edits, in the
+   same find/replace list as the identity — the four key fields are never password fields (type=text, masked by CSS, the
+   managers' ignore flags), and the old no-password sweep stamps autocomplete="off" where it stamped "new-password".
 
    Input (sha-checked): the ACCEPTED 30·pre-ship page — immutable under §0c.
    Outputs, in talkbridge-app/ (nothing hand-written; no accepted file touched):
@@ -26,9 +29,9 @@ export const BASE_MANIFEST = FOLDER + '/tb-manifest-turn30-pre-ship.webmanifest'
 export const BASE_MANIFEST_IOS = FOLDER + '/tb-manifest-turn30-pre-ship-ios.webmanifest';
 export const PARTS = ['bl1-build-label', 'tn1-room-name', 'mc1-mute-card', 'ci1-camera-icon', 'rl1-rail-unread', 'rg1-ring-on-screen', 'rt1-route-in-call', 'gk1-grant-key'].map((p) => 'talkbridge/parts/' + p + '.js');
 export const STAGE_PAGE = 'bridge-turn30-ship.html';
-export const STAGE_TAG = 'turn30-ship-c2';
-export const BUILT = '2026-11-18';
-export const BUILT_AT = '2026-11-18T18:00:00Z';
+export const STAGE_TAG = 'turn30-ship-c3';
+export const BUILT = '2026-11-20';
+export const BUILT_AT = '2026-11-20T18:00:00Z';
 export const MANIFEST_NAME = 'tb-manifest-turn30-ship.webmanifest';
 export const MANIFEST_IOS_NAME = 'tb-manifest-turn30-ship-ios.webmanifest';
 export const OUT = { page: FOLDER + '/' + STAGE_PAGE, manifest: FOLDER + '/' + MANIFEST_NAME, manifestIos: FOLDER + '/' + MANIFEST_IOS_NAME };
@@ -48,7 +51,14 @@ export const STAGE_RECORD = "window.TB_STAGE = { c: '" + STAGE_TAG + "', file: '
 /* the stage's identity — each find occurs exactly n times in the accepted page */
 export const IDENTITY = [
   { id: 'I-manifest', n: 2, find: "'tb-manifest-turn30-pre-ship-ios.webmanifest' : 'tb-manifest-turn30-pre-ship.webmanifest'", replace: "'" + MANIFEST_IOS_NAME + "' : '" + MANIFEST_NAME + "'" },
-  { id: 'I-build', n: 1, find: "log('build', { c: 'turn30-pre-ship-c1', file: 'talkbridge-app/bridge-turn30-pre-ship.html', built: '2026-11-11' }, 'ok');", replace: STAGE_RECORD }
+  { id: 'I-build', n: 1, find: "log('build', { c: 'turn30-pre-ship-c1', file: 'talkbridge-app/bridge-turn30-pre-ship.html', built: '2026-11-11' }, 'ok');", replace: STAGE_RECORD },
+  /* PW (c3): no field is a password — owner 2026-11-20 */
+  { id: 'PW-k-dg', n: 1, find: '<input class="field-input" type="password" id="k-dg" autocomplete="off">', replace: '<input class="field-input nopw-mask" type="text" id="k-dg" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" data-1p-ignore data-lpignore="true" data-bwignore data-form-type="other">' },
+  { id: 'PW-k-tid', n: 1, find: '<input class="field-input" type="password" id="k-tid" autocomplete="off">', replace: '<input class="field-input nopw-mask" type="text" id="k-tid" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" data-1p-ignore data-lpignore="true" data-bwignore data-form-type="other">' },
+  { id: 'PW-k-tok', n: 1, find: '<input class="field-input" type="password" id="k-tok" autocomplete="off">', replace: '<input class="field-input nopw-mask" type="text" id="k-tok" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" data-1p-ignore data-lpignore="true" data-bwignore data-form-type="other">' },
+  { id: 'PW-k-pat', n: 1, find: '<input class="field-input" type="password" id="k-pat" autocomplete="off">', replace: '<input class="field-input nopw-mask" type="text" id="k-pat" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" data-1p-ignore data-lpignore="true" data-bwignore data-form-type="other">' },
+  { id: 'PW-sweep', n: 1, find: "      if (el.getAttribute('autocomplete') !== 'new-password') {\n        el.setAttribute('autocomplete', 'new-password');", replace: "      if (el.getAttribute('autocomplete') !== 'off') {\n        el.setAttribute('autocomplete', 'off');" },
+  { id: 'PW-formtype', n: 1, find: "      if (!el.hasAttribute('data-bwignore')) el.setAttribute('data-bwignore', '');", replace: "      if (!el.hasAttribute('data-bwignore')) el.setAttribute('data-bwignore', '');\n      if (!el.hasAttribute('data-form-type')) el.setAttribute('data-form-type', 'other');" }
 ];
 export function basePage() { const b = fs.readFileSync(path.join(root, BASE_PAGE)); if (sha(b) !== BASE_PAGE_SHA256) throw new Error('assemble-30s: ' + BASE_PAGE + ' is not the accepted 30·pre-ship page (' + sha(b).slice(0, 12) + ')'); return b.toString('utf8'); }
 export function applyIdentity(out) {

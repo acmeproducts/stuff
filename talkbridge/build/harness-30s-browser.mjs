@@ -53,9 +53,9 @@ R.bl = await p.evaluate(async () => {
   openS11(); o.keys = $('build-info').textContent; $('m-s11').classList.remove('show');
   return o;
 });
-await T('BL1 the build record is the stage\'s; VERSION and BUILD_INFO read it', () => ok(R.bl.stage.c === 'turn30-ship-c2' && R.bl.version === 'turn30-ship-c2' && R.bl.info.release === 'turn30-ship-c2' && R.bl.info.builtAt === R.bl.stage.at, JSON.stringify(R.bl)));
-await T('BL2 the settings footer shows the stage after the old painter ran (not turn27)', () => ok(R.bl.footer === 'turn30-ship-c2 · built 2026-11-18', R.bl.footer));
-await T('BL3 the keys sheet shows the stage and its build day (18, not the 17th)', () => ok(/^turn30-ship-c2 · built /.test(R.bl.keys) && /18/.test(R.bl.keys) && !/turn23/.test(R.bl.keys), R.bl.keys));
+await T('BL1 the build record is the stage\'s; VERSION and BUILD_INFO read it', () => ok(R.bl.stage.c === 'turn30-ship-c3' && R.bl.version === 'turn30-ship-c3' && R.bl.info.release === 'turn30-ship-c3' && R.bl.info.builtAt === R.bl.stage.at, JSON.stringify(R.bl)));
+await T('BL2 the settings footer shows the stage after the old painter ran (not turn27)', () => ok(R.bl.footer === 'turn30-ship-c3 · built 2026-11-20', R.bl.footer));
+await T('BL3 the keys sheet shows the stage and its build day (20, not the 19th)', () => ok(/^turn30-ship-c3 · built /.test(R.bl.keys) && /20/.test(R.bl.keys) && !/turn23/.test(R.bl.keys), R.bl.keys));
 
 /* MC-1 */
 R.mc = await p.evaluate(() => {
@@ -250,6 +250,34 @@ await T('GK2 the toast: end date and whole days left (rounded up), singular for 
 await T('GK3 in Thai: the Thai words and the Buddhist year', () => ok(/^สถานะผู้ริเริ่ม · ถึง .*2569 · เหลือ 31 วัน$/.test(R.gk.th), R.gk.th));
 await T('GK4 all three strings in every one of the 21 languages', () => ok(R.gk.keys.length === 0, R.gk.keys.join(',')));
 await T('GK5 a tap on the key shows the toast and does NOT open that room (the rail stays, the room on screen stays)', () => ok(R.gk.toastOn && /^Initiator status · until /.test(R.gk.toast) && R.gk.stayed === 'room-3' && R.gk.panel === true, JSON.stringify(R.gk)));
+
+/* PW (c3): every field, as the browser has it — after load, after the runtime-built ones appear, after a focus */
+R.pw = await p.evaluate(async () => {
+  const wait = (ms) => new Promise((r) => setTimeout(r, ms));
+  try { openS3(); } catch (_) {} await wait(80);
+  try { if (typeof p6AskName === 'function') p6AskName('room-3'); } catch (_) {} await wait(80);
+  const s0 = $('s0-name'); if (s0) { s0.focus(); s0.blur(); }
+  await wait(1500);
+  const TEXT = /^(text|search|url|email|tel|number|date|)$/;
+  const all = Array.from(document.querySelectorAll('input, textarea'));
+  const o = { n: all.length, pw: [], np: [], notOff: [], noFlags: [], keys: {} };
+  for (const el of all) {
+    const t = (el.getAttribute('type') || '').toLowerCase(), id = el.id || el.className || el.tagName;
+    if (t === 'password') o.pw.push(id);
+    if (/password/.test(el.getAttribute('autocomplete') || '')) o.np.push(id);
+    if (el.tagName === 'TEXTAREA' || TEXT.test(t)) {
+      if (el.getAttribute('autocomplete') !== 'off') o.notOff.push(id + '=' + el.getAttribute('autocomplete'));
+      if (!el.hasAttribute('data-1p-ignore') || el.getAttribute('data-lpignore') !== 'true' || !el.hasAttribute('data-bwignore') || el.getAttribute('data-form-type') !== 'other') o.noFlags.push(id);
+    }
+  }
+  for (const k of ['k-dg', 'k-tid', 'k-tok', 'k-pat']) { const el = $(k); o.keys[k] = el ? { type: el.type, mask: getComputedStyle(el).webkitTextSecurity || getComputedStyle(el).getPropertyValue('-webkit-text-security') } : null; }
+  o.seen = ['s0-name', 's10-name', 's4b-name', 's4b-title', 'chat-input', 's3-name', 's3-myname', 'k-dg'].filter((id) => !!$(id));
+  try { $('m-s3').classList.remove('show'); } catch (_) {}
+  return o;
+});
+await T('PW1 no field is a password field: none is type=password and none is marked new-password or current-password, across every input and textarea (' + R.pw.n + ')', () => ok(R.pw.pw.length === 0 && R.pw.np.length === 0, JSON.stringify(R.pw)));
+await T('PW2 every text field (names included, the create sheet\'s and thread fields included) says autocomplete="off" and carries the managers\' ignore flags', () => ok(R.pw.notOff.length === 0 && R.pw.noFlags.length === 0 && R.pw.seen.length >= 7, JSON.stringify(R.pw)));
+await T('PW3 the four key fields stay hidden on screen: text fields masked with dots', () => ok(Object.values(R.pw.keys).every((k) => k && k.type === 'text' && k.mask === 'disc'), JSON.stringify(R.pw.keys)));
 
 await T('X no uncaught page error in the whole run', () => ok(errs.length === 0, errs.join(' | ').slice(0, 600)));
 await browser.close(); server.close();
