@@ -23,17 +23,17 @@ function world(opts){
 }
 const tests=[];const test=(n,f)=>tests.push([n,f]);
 
-test('TTS start blocks both sides; resume exactly once after decay and speak tone',async()=>{
+test('TTS start blocks both sides; resume exactly once after the decay pause, with no tone',async()=>{
  const t=world();t.a.speak('สวัสดี','th');
  assert.equal(t.a.admit('south'),false);assert.equal(t.a.admit('north'),false);
- t.advance(500);assert.equal(t.spoken.length,1,'speech starts after wait tone');
+ assert.equal(t.spoken.length,1,'speech starts at once, no tone first');t.advance(500);
  t.spoken[0].onstart();t.spoken[0].onend();t.spoken[0].onend();t.spoken[0].onerror({error:'interrupted'});
  assert.equal(t.ev('tts-completed').length,1);assert.ok(t.ev('tts-end').every(x=>x.d.outcome==='blocked'),'duplicate callbacks are blocked, not repeated');
  t.advance(299);assert.equal(t.a.admit('south'),false,'still in decay');
- t.advance(1);assert.equal(t.a.state().phase,'cue');assert.equal(t.a.admit('north'),false,'tone never reaches STT');
+ t.advance(1);assert.equal(t.a.state().phase,'idle','listening resumes when the pause ends, with no tone');assert.equal(t.a.admit('north'),true);
  t.advance(500);assert.equal(t.a.state().phase,'idle');assert.equal(t.a.admit('south'),true);assert.equal(t.a.admit('north'),true);
  assert.equal(t.ev('stt-submit-resumed').filter(x=>x.d.outcome==='ok').length,1);
- assert.deepEqual(t.ev('cue-played').map(x=>x.d.cue),['speak']);
+ assert.deepEqual(t.ev('cue-played').map(x=>x.d.cue),[],'no tone before or after read-aloud');
 });
 test('Cancel during playback resumes immediately with no speak tone; stale end ignored',()=>{
  const t=world();t.a.speak('hello there','en');t.advance(500);const u=t.spoken[0];
@@ -50,7 +50,7 @@ test('New playback during decay supersedes the old resume timer',()=>{
 });
 test('No tones when turned off; no audio device logs cue-unavailable',()=>{
  const t=world();t.store.chat_test_audio=JSON.stringify({tones:false});t.a.speak('hi there','en');t.advance(1);assert.equal(t.spoken.length,1);assert.equal(t.ev('cue-played').length,0);
- const u=world({noAudio:true});u.a.speak('hi there','en');assert.equal(u.spoken.length,1,'speech starts at once, with no tone before it');assert.equal(u.ev('cue-played').length,0);u.spoken[0].onend();u.advance(300);assert.equal(u.ev('cue-played')[0].d.reason,'cue-unavailable','the tone that follows speech reports no audio device');
+ const u=world({noAudio:true});u.a.speak('hi there','en');assert.equal(u.spoken.length,1,'speech starts at once, with no tone before it');assert.equal(u.ev('cue-played').length,0);u.spoken[0].onend();u.advance(300);assert.equal(u.ev('cue-played').length,0,'no tone after speech either');assert.equal(u.a.state().phase,'idle','listening resumes after the pause');
 });
 test('Echo of read-aloud text is rejected before routing (ask mode too)',()=>{
  const t=world();t.store.chat_test_audio=JSON.stringify({mode:'ask'});t.a.speak('Where is the train station?','en');t.advance(500);t.spoken[0].onend();t.advance(1000);
@@ -110,16 +110,16 @@ test('Every record carries outcome and generation; no key-like values',async()=>
 test('Playback that never ends times out and resumes',()=>{
  const t=world();t.a.speak('hi','en');t.advance(500);t.advance(3000);assert.equal(t.ev('tts-failed')[0].d.reason,'tts-timeout');t.advance(1000);assert.equal(t.a.state().phase,'idle');
 });
-test('Tone presets: chosen preset plays, "No tone" skips, gain raised 50%',()=>{
+test('Chosen tones never play around read-aloud (only the compose-box bong still sounds); gain raised 50%',()=>{
  const t=world();t.store.chat_test_audio=JSON.stringify({startTone:'chime',doneTone:'none',volume:0.2});
  t.a.speak('hi there','en');assert.equal(t.spoken.length,1,'no Done Speaking tone: speech starts at once');assert.equal(t.ev('cue-played').length,0);
- t.spoken[0].onend();t.advance(300);assert.equal(t.ev('cue-played')[0].d.cue,'speak');t.advance(2000);assert.equal(t.a.state().phase,'idle');
+ t.spoken[0].onend();t.advance(300);assert.equal(t.ev('cue-played').length,0,'no tone after speech');t.advance(2000);assert.equal(t.a.state().phase,'idle');
  assert.ok(/GAIN=1\.5/.test(code));
 });
-test('Custom tone that cannot be decoded falls back to the default and still resumes',async()=>{
+test('A custom tone setting changes nothing about read-aloud: it still resumes',async()=>{
  const t=world();t.store.chat_test_audio=JSON.stringify({startTone:'custom'});t.store.chat_test_tone_start='data:audio/mpeg;base64,AAAA';
  t.a.speak('hi there','en');t.advance(500);t.spoken[0].onend();t.advance(300);await t.tick();await t.tick();t.advance(1000);
- assert.ok(t.ev('cue-played').some(x=>x.d.reason==='custom-tone-unplayable'));assert.equal(t.a.state().phase,'idle');
+ assert.equal(t.ev('cue-played').length,0,'no tone to fail to decode: read-aloud has none');assert.equal(t.a.state().phase,'idle');
 });
 test('Settings persist mode, tones, delay',()=>{
  const t=world();const ui={mode:{value:'ask'},tones:{value:'off'},volume:{value:'0.2'},resume:{value:'450'}};t.a.saveSettings(ui);

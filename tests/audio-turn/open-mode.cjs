@@ -16,7 +16,7 @@ test('open mode: both listen, speaker routed, read-aloud silences the mic, echo 
 assert.ok((await events(page,'transcript-rejected')).some(d=>d.reason==='echo'));
  await page.evaluate(()=>window.finishTTS());await page.waitForFunction(()=>audioTurn.state().phase==='idle');
  const after=page.testZero.length;await page.waitForTimeout(600);assert.ok(page.testZero.slice(after).some(z=>!z),'real audio flows after resume');
- const cues=(await events(page,'cue-played')).map(d=>d.cue);assert.deepEqual(cues,['speak']);
+ const cues=(await events(page,'cue-played')).map(d=>d.cue);assert.deepEqual(cues,[],'no tone before or after read-aloud');
  assert.equal((await events(page,'stt-submit-resumed')).filter(d=>d.outcome==='ok').length,1);
  assert.equal(await page.locator('#audio-test-controls').count(),0,'old experiment removed');
 });
