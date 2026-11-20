@@ -445,3 +445,12 @@ test('open mode: a real quick reply from the other side (its words start after t
  await page.waitForFunction(()=>HIST.length>=2,null,{timeout:4000});
  assert.deepEqual(await page.evaluate(()=>HIST.map(m=>m.side)),['south','north'],'the reply is kept');
 });
+test('mic indicator: both microphones keep showing that they are listening (the level moves) after the keyboard is opened, in H2H and in SBS',async({page})=>{
+ await openRoom(page,'MeterLive');
+ const moves=async label=>{const a=[];for(let i=0;i<20;i++){a.push(await page.evaluate(()=>({s:+document.getElementById('mic-fill-south').getAttribute('height'),n:+document.getElementById('mic-fill-north').getAttribute('height')})));await page.waitForTimeout(100)}
+  const rng=k=>Math.max(...a.map(x=>x[k]))-Math.min(...a.map(x=>x[k]));assert.ok(rng('s')>0.4,label+': the South level meter moves ('+rng('s').toFixed(2)+')');assert.ok(rng('n')>0.4,label+': the North level meter moves ('+rng('n').toFixed(2)+')')};
+ await page.locator('#in-south').focus();await page.waitForFunction(()=>INPUT.owner==='south');await page.waitForTimeout(500);await moves('H2H, South keyboard open');
+ await setLayout(page,'MeterLive','sbs');await page.waitForTimeout(800);
+ await page.locator('#in-south').focus();await page.waitForFunction(()=>INPUT.owner==='south');await page.waitForTimeout(500);await moves('SBS, South keyboard open');
+ await page.locator('#kb-south .ktoggle').click();await page.waitForFunction(()=>INPUT.owner==='north');await page.waitForTimeout(500);await moves('SBS, North keyboard open');
+});
