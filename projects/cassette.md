@@ -19,8 +19,12 @@ Authority: this file only.
 | 2026-11-05 | **Open Questions – Visual Config** | **Planned** | Need detailed specs for three visual modes: (1) Walkman‑style 80s cassette (fixed horizontal in landscape, vertical in portrait), (2) Reel‑to‑reel unit, (3) Full‑screen big cassette that occupies the whole screen with minimal floating controls. |
 | 2026-11-05 | **Next build step** | **Planned** | Add a configuration UI (e.g., a toggle or dropdown) to switch between the three visual modes and implement the corresponding CSS/HTML changes. |
 | 2026-11-12 | **Open Questions – Playback Sources** | **Planned** | Expand playback sources: integrate public streaming APIs (Icecast directories, TuneIn, Radio Garden, Internet Archive audio, KOCI Radio 88.5, NPR, BBC). |
-| 2026-11-12 | **Open Questions – Music Selector UI** | **Planned** | Design a discreet way to select music (e.g., hidden drawer, swipe gesture, or minimal overlay). |
+| 2026-11-12 | **Open Questions – Music Selector UI** | **Planned** | Design a discreet way to select music (e.g., hidden drawer, swipe‑up panel, tap‑to‑show overlay, or a small floating button). |
 | 2026-11-12 | **Open Questions – Realism Enhancements** | **Planned** | Add realistic animations (reel spin speed, wobble, tape flutter), motor hum, optional haptic feedback. |
+| 2026-11-20 | **New Tasks – Playback Sources Integration** | **Planned** | 1. Add Icecast preset list. 2. Add TuneIn placeholder (future API). 3. Add Radio Garden placeholder. 4. Add Internet Archive collection list. 5. Add KOCI Radio 88.5 preset. 6. Add NPR and BBC presets. |
+| 2026-11-20 | **New Tasks – Skinning / Visual Modes** | **Planned** | 1. Keep existing three skins (Walkman, Reel‑to‑Reel, Full‑Screen). 2. Add “Custom Skin” toggle allowing user to upload a PNG overlay. 3. Add “Skin Picker” button in hidden UI that cycles through preset skins. |
+| 2026-11-20 | **New Tasks – Configuration Persistence** | **Planned** | Store selected visual mode, selected skin (including custom PNG data URL), and last used source in `localStorage`. Restore on app launch. |
+| 2026-11-20 | **Next build step** | **Planned** | Update plan with detailed subtasks for each new feature (playback source integration, skinning UI, persistence). |
 
 ## 1) RELEASES
 1. R1 — First playable tape (shipped).  
@@ -29,7 +33,8 @@ Authority: this file only.
 4. R4 — Polish (planned).  
 5. R5 — Adaptive form factor (shipped).  
 6. R6 — Visual mode selector & refined realism (next).  
-7. R7 — Expanded playback sources & discreet selector (next).
+7. R7 — Expanded playback sources & discreet selector (next).  
+8. R8 — Skinning & persistence (next).
 
 ## 1b) OPEN QUESTIONS
 1. **Walkman look** – exact color palette, button style, cassette label design, and whether the cassette should be centered with a small “handle” or fully fill the screen?  
@@ -61,7 +66,13 @@ Authority: this file only.
 - Integrate streaming APIs (Icecast, TuneIn, Radio Garden, Internet Archive, KOCI 88.5, NPR, BBC).  
 - Provide a simple JSON list of stations with name + stream URL; load via `audio.src`.  
 - Add a discreet UI for source selection (e.g., hidden drawer or tap‑overlay).  
-- Update diagnostics to show current source type.  
+- Update diagnostics to show current source type.
+
+### R8 — Skinning & persistence
+- Keep three existing skins; add “Custom Skin” toggle allowing PNG overlay upload.  
+- Add “Skin Picker” button in hidden UI to cycle through preset skins.  
+- Store selected visual mode, skin choice, and last used source in `localStorage`.  
+- On launch, read from `localStorage` and restore state.
 
 ## 3) FUTURE IDEAS
 - Cassette label editor, skins, wow‑flutter toggle, mixtape side A/B, Bluetooth media‑key support, PWA install, widget.
@@ -78,6 +89,7 @@ Authority: this file only.
 | 2026-11-05 | Visual mode question | Owner asked for realistic 80s cassette look and multiple configurations |
 | 2026-11-12 | Playback source expansion | Owner wants more streaming sources (Icecast, TuneIn, Radio Garden, etc.) |
 | 2026-11-12 | Discreet selector | Owner wants a less intrusive music selection UI |
+| 2026-11-20 | Skinning & persistence | Owner requested custom skin upload and localStorage persistence |
 
 ## 6) APPENDIX
 Authority order: 1) This plan, 2) Owner’s latest explicit request, 3) Referenced files, 4) Chat history.
