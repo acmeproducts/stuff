@@ -1,5 +1,5 @@
-<!-- TALKBRIDGE-PLAN v21.127.0 -->
-# TALKBRIDGE MASTER PLAN v21.127.0
+<!-- TALKBRIDGE-PLAN v21.128.0 -->
+# TALKBRIDGE MASTER PLAN v21.128.0
 
 **Location:** `talkbridge/TALKBRIDGE-PLAN-v9.md` in `acmeproducts/stuff`.
 **Owner:** Confi — sole decision-maker, runs every device gate.
@@ -2163,6 +2163,8 @@ Green means allowed to push. It never means done.
 ---
 
 ## 10 · CHANGE LOG
+
+**v21.128.0 · 2026-11-20.** §7.26 CONFERENCE CALLS written from the owner's design (doc reviewed with the owner 2026-11-19/20): a joinable call with a link (WhatsApp / Zoom), walk in and out, closes when the last leaves; join with name and language; each phone transcribes its own speaker and each listener translates; the speaker live on a big screen with the four previous speakers in a row (live, small, still fallback) and "+ more"; video capped at 8, voice only at 12, phone to phone, no running cost; a crosstalk bubble; nine rough edges kept smooth; five build stages. §7.8's model superseded; its October build retired (decision 6). Unscheduled: after beta unless the owner moves it. Independent review (2026-11-20): corrections applied in §7.26; five owner questions open (Q1–Q5).
 
 **v21.127.0 · 2026-11-18.** 30·ship candidate 2 (§7.25 "Candidate 2"; the owner after testing c1): TN-1 — a card's room name is cut to a fixed length ("…") and a tap shows it whole, so the bell and the key sit right after it; RL-1 — the count no longer clears when the rail closes, only when the room is selected (its card, rail or home, or a notification), when the partner's message turns to the read check; with the rail closed the home card shows the count. Delta reviewed independently before code (a projection also marks the room; 14 units, not 18; overflow tappable; dir=auto). next.html → this page.
 
@@ -4703,6 +4705,7 @@ names all present, `c3_evict_survived` in the log. G3 20 messages parity.
 
 ────────────────────────────────────────────────────────────────────────
 ## §7.8 BUILDER SPEC — MULTI-USER (turn 29; rewritten 2026-10-09 from the owner's design)
+**SUPERSEDED 2026-11-20 by §7.26 (conference calls). The candidate-1 build in warm storage (`bridge-turn29-multi-user-v1.html`) is RETIRED by the owner's decision 6 — kept on disk as history, never in the rotation.**
 ────────────────────────────────────────────────────────────────────────
 **WITHDRAWN 2026-10-09 (owner), after candidate 1's three-device gate. The
 call model below (a 1:1 call inside a group; the chat broadcast to the rest)
@@ -6457,6 +6460,238 @@ the icons stay whole, the name alone clipped and tappable); `mutate-30s.mjs` 35/
 room does not open. (4) rail open in a room, the other phone sends: the room's card counts it; close the rail: the count STAYS
 (and the other phone's message stays "delivered"); go home: the room's card shows the count; tap the card: the count clears and
 the other phone shows the read check. The rest of c1's device gate and the language sweep stand.
+
+---
+
+## §7.26 BUILDER SPEC — CONFERENCE CALLS (owner 2026-11-18/20; replaces §7.8's model) — FOR APPROVAL, NO CODE
+
+**Source of record:** the owner's reviewed doc "TalkBridge Conference Calls — Spec"
+(https://claude.ai/artifact/1Aa4cdKzHoe7RVDHoQ37cV), settled with the owner 2026-11-19 and 2026-11-20. This section is
+its text; the doc's three drawings are described in words here.
+
+**The owner's words (2026-11-18):** "write spec for a conference call style video for multi-user. utilize how WhatsApp
+works and zoom works … the challenge is going to be in having people on board their name is already asked for but then
+you would have a default language that they could choose to join the call with … a b and c a construct the call share it
+with B and c then I can hang up and d can join the call. and B and C can hang up and A can join the call again … if
+multiple people are talking there just has to be a different color bubble". 2026-11-19: "you can have unlimited people
+joining the call it's just that a maximum of four screens showing video and then a screen underneath that which is the
+person speaking … rotate into the big screen who is speaking and when they are done they go back to the queue of 4".
+2026-11-20: "I don't want to spend any money … i think we just keep it simple and cap video at 8"; the row may be live;
+"keeping it simple defined as adding as little friction as possible".
+
+A conference call is a live room that anyone with its link can enter and leave while it runs; it closes when the last
+person leaves. Everyone hears the others' voices and reads what each person says in their own language. The screen shows
+the person speaking live on a big screen and the last four speakers in a row above it. The first version holds 8 people
+on video and 12 on voice only, phone to phone, at no cost.
+
+### What it is
+A joinable call with a link, the way WhatsApp call links and Zoom meetings work — not a phone call from one person to
+another.
+- It lives while anyone is in it: the first person in opens it; it closes when the last person leaves.
+- Nobody owns it: whoever started it can leave and the call carries on. No host in the first version.
+- Anyone with the link can walk in at any time while it runs, up to the cap. Leaving is one tap; rejoining is the same link.
+- It has its own room in the list, marked as a conference, with its own transcript (everything said and typed, each line
+  under the speaker's name, in the reader's language).
+- It is separate from today's two-person rooms, which stay exactly as they are.
+Taken from WhatsApp: the call link, join and rejoin while it runs, leave without ending it for others, closes when empty,
+ringing the room's members when it starts. Taken from Zoom: the join screen with name and camera/mic choice, the speaker
+view, the participants list.
+
+### Use cases (each walked by the build's tests)
+| # | Who | What happens | What they see |
+| --- | --- | --- | --- |
+| 1 | A, B, C | A creates a conference and shares the link with B and C; they give name and language and join. | The speaker on the big screen, the other in the row; each person's words in their own language. |
+| 2 | A, D | A hangs up; B and C carry on. D opens the same link and joins. | The call never stopped. Pills: "A left", "D joined". |
+| 3 | B, C, A | B and C hang up; D is alone. A opens the link again and rejoins. | D sees "waiting for others" until A arrives. |
+| 4 | Everyone | The last person leaves. | The call closes. The room keeps its transcript and a summary pill: length and who took part. |
+| 5 | Late joiner | E joins 20 minutes in. | Everything said since the call started is in E's transcript, in E's language. |
+| 6 | Camera off | F joins with the camera off, or on a weak connection. | F shows as a name chip, never a picture; others still hear and read F. |
+| 7 | Full | A 9th person tries a video call, or a 13th a voice-only call. | "This call is full (8 of 8)" and a retry button; nobody inside is disturbed. |
+| 8 | Members ring | The call had closed; A opens the conference room's call again. | Everyone who has been in this conference gets a ring "A started the call" with Join / Not now; a missed ring leaves "Call in progress · Join" on the room. |
+| 9 | Dropped | B's network drops. | B's tile shows "reconnecting" up to 30 s, then B is shown as left; B rejoins with the same link. |
+| 10 | Crosstalk | Two or more people talk at once. | Their words land together in one crosstalk bubble. |
+| 11 | Mixed languages | Thai, Spanish, Japanese and English speakers. | Each reads everyone in their own language; a tap on any line shows the original. |
+| 12 | Never speaks | Hal is in a call of 8 and never speaks. | Before anyone speaks Hal may sit in the row by join order; once four others have spoken he leaves the row for "+ more" (name chip, or his last still). The moment he speaks he takes the big screen. |
+| 13 | Speaks once | Ann and Bo talk constantly; Cy speaks once. | Ann and Bo trade the big screen and slot 1; Cy's turn puts him on the big screen, then he settles at slot 2 while only Ann and Bo talk (corrected by the review from slot 3). |
+| 14 | Now and then | As 13, plus Dee and Eli speaking now and then. | Each takes the big screen when they speak, then drops to slot 1 and drifts down; once Dee and Eli have both spoken Cy is at slot 4, and the next new speaker pushes him into "+ more"; he is back the next time he speaks (corrected by the review). |
+
+### Coming and going (drawing in the doc: lanes A–D over seven moments)
+A opens the call → B and C join → A hangs up → D joins → B and C hang up → A rejoins → the last one leaves. Each person is a
+bar while in the call; the call itself is one bar from the first join to the last leave. When the last person leaves the
+call closes; the room and its transcript stay, and the next person to join opens a new call in the same room.
+
+### Joining (one screen, three choices, one button)
+1. The link opens the join screen, no install needed (as invite links today): the conference's name and who is in it now
+   ("Ann and Bo are in the call"), or "Nobody is in the call yet".
+2. Your name: prefilled with this phone's name; asked once if none.
+3. Your language (speak and read): default the app's language on this phone (or the link's suggestion for a first-time
+   joiner, as invites today); one tap changes it; remembered for this conference.
+4. Camera and microphone: two switches over a live self-preview, both on by default for video.
+5. Join: permissions asked here, first time only. Others see "Bo joined".
+Rejoining from the room list skips 2 and 3 (shown, not asked). Language can be changed in the call from the participants
+list. Keys: transcription and translation run on each phone, as today. A joiner without keys uses the creator's keys,
+carried by the link and held in the joiner's memory for that session only, never written to storage (as today's join
+links — `S.joinerKeys`, in-memory only); no end date. After a full app restart the joiner rejoins through the link; the
+join screen says so in one line if they come back from the room list without it.
+
+### Languages (drawing in the doc: Bo's phone → relay → Ann's, Cy's, Dee's phones)
+Each phone transcribes only its own speaker, once, and translates the line once into each distinct language in the call
+(as today's speaker-side translation does for one language); the line goes out once, as text, with all its translations;
+a receiver translates only if its language is missing (review H2). Today's rooms hold one language pair; a conference holds one
+language per person, chosen at join. A line in your own language is shown as said. Cost grows with listeners, not pairs
+(4 people: each line translated at most 3 times). The transcript is the same everywhere, each line in the reader's
+language; a tap shows the original. Voices and pictures go phone to phone.
+
+### Talking at once
+- Trigger: two or more people's speech overlaps by at least 1 second (each phone marks its own speaker's start and stop;
+  that start/stop rides with every line).
+- One bubble in a distinct colour (amber, labelled "Talking at once") holds every overlapping line, each under its
+  speaker's name, in start order, each translated. It grows while the overlap continues and closes 2 s after only one
+  person speaks. It signals crowding; it does not correct transcription. Conferences only.
+
+### The call screen (drawing in the doc: phones at 3, 4 and 8 people)
+| In the call | Big screen | Row | + more |
+| --- | --- | --- | --- |
+| 2 | Today's layout, unchanged | — | — |
+| 3 | The speaker, live | 1 | — |
+| 4 | The speaker, live | 2 | — |
+| 5 | The speaker, live | 3 | — |
+| 6 | The speaker, live | 4 (full) | — |
+| 7–8 | The speaker, live | 4 | +1 to +2 |
+| up to 12, voice only | The speaker's name chip, large | 4 name chips | up to +6 |
+- Who is big: the most recent speaker other than you; a turn takes it after ~1.5 s of steady speech (a cough never flips
+  it); in silence the last speaker stays; when you speak, the big screen keeps the person before you.
+- The row: everyone except the speaker and you, in the order they last spoke; a new speaker sends the previous one to
+  slot 1, everyone shifts, the fifth drops into "+ more". It stretches to fill its width when it has fewer than four.
+- Live or still: the big screen is always live. The row is live too, sent small; each tile falls back to a still on its
+  own when its sender's phone or connection can't keep up, the sender has battery saver on, or your connection is weak,
+  and goes live again on recovery. A still is a photo the speaker's phone takes when their turn starts.
+- "+ more": everyone else; a still if they spoke with the camera on, else a name chip; a tap does nothing yet (private
+  chat later).
+- Camera off: a name chip everywhere, the big screen included. At the start: the first joiner big, the row in join order.
+- Each tile: name, language flag, muted mark; the speaker's tile has a coloured ring. Your own picture is a small corner
+  view on the big screen, never a row slot.
+- Controls (top bar, as today): mic, camera, flip, leave (never ends it for others); the people icon opens the
+  participants list (language, mic/camera, "Copy link"). The transcript stays below, as today's pull-down strip.
+
+### How it connects
+Every phone links directly to every other (a mesh), no media server, no running cost; the caps keep it inside what phones
+carry.
+| What each phone does | Video call of 8 | Voice-only call of 12 |
+| --- | --- | --- |
+| Links kept | 7 | 11 |
+| Video sent | Only while big or in the row: one picture to each other phone (normal when big, small in the row) | None |
+| Video received | 1 normal + up to 4 small | None |
+| Voice | To and from everyone | To and from everyone |
+- Up to six phones send video at once (the row excludes the viewer, and while you speak your big screen is the previous
+  speaker), sizes chosen per receiver from one shared order; each to up to 7 others; the speaker's phone encodes once per receiver (the
+  heaviest load); at 6+ people the big-screen picture is sent smaller. Voice is ~a tenth of video, so voice-only goes to
+  12; past 12–15 links older phones struggle.
+- The relay (v6.17: per-room size limit, refuses the phone over it, addresses a message to one phone) gains the
+  conference's live state — who is in, name, language, mic/camera, the speaking order (the same on every phone) — sent to
+  everyone at each change, kept while anyone is in it; and it carries the stills (one small photo per speaking turn).
+- Each pair links the way two phones do today; on a join, everyone already in links to the newcomer. TURN per link as
+  today, on its free allowance.
+- Words: each phone sends its speaker's lines (original language, start/stop time) once, to everyone; each receiver
+  translates into its own language.
+- Bigger calls later, only if wanted: Cloudflare's media server (1,000 GB/month free shared with TURN, then $0.05/GB —
+  developers.cloudflare.com/realtime/sfu/platform/pricing/); not in the first version.
+
+### Rough edges, kept smooth (never a dead end, never an extra step)
+| Situation | What happens |
+| --- | --- |
+| Camera or mic permission refused | Join anyway as listener and reader; the tile shows "Turn on microphone" (or camera), one tap to ask again. |
+| Already on a two-person call when a conference link or ring arrives | Stay on the call; the conference waits as "Call in progress · Join" on its room. |
+| Phone locked or app switched mid-call | The camera and mic stop in the background (the app already mutes on leaving, R8 8.7; iOS ends the mic, G70); the others' phones detect it (frames stop) and show your still with an "away" mark, never a frozen picture. |
+| Two phones in the same physical room | No detection; when the call already has people, the join screen shows "In the same room as someone? Use headphones." |
+| Typing during a conference | Same path as speech: sent once, translated by each reader's phone. |
+| How long the link works | As long as the room exists; deleting the room ends it; no expiry settings. |
+| Left by accident | For 2 minutes the room shows a large "Rejoin": one tap, no join screen. |
+| A phone with an older TalkBridge opens the link | The link opens the current version, as invites do; an older installed copy reloads first. |
+| Rejoining after a full app restart, from the room list | The borrowed keys are gone from memory; the join screen asks for one tap on the link again. |
+Not added (friction): muting the mic on join, a waiting room, a host, a password on the link.
+
+### Not in the first version
+More than 8 on video or 12 on voice; a media server or any running cost; private chat from "+ more" (later); a host
+(end for all, remove, mute, waiting room); screen sharing, hand raising, reactions, recording; turning a two-person room
+into a conference or adding a third person to a two-person call; read-aloud of everyone by default (each person can turn
+it on for themselves).
+
+### Build stages (each tested before the next)
+1. Relay: the conference's live state (who is in, join, leave, close when empty, caps 8 and 12, speaking order, stills),
+   tested with up to 13 simulated phones before any app change.
+2. Join and leave, voice only: the conference room, the join screen with name and language, voice links up to 12, each
+   person's words in each listener's language, name chips. Owner test: 3 phones, use cases 1–5.
+3. Video with stills: big screen live; row and "+ more" as stills; speaker rotation. Owner test: 4 phones (3 minimum),
+   use cases 6, 7, 9, 12–14.
+4. Live row: small live tiles with per-tile still fallback, only after stage 3 shows the phones keep up. Owner test: 6–8
+   phones.
+5. Crosstalk bubble, ringing members, the summary pill: use cases 8 and 10.
+Each stage: an independent review of its spec before code; the automatic gates (today's two-person call shown unchanged,
+end to end); the owner's phone test. A failed stage returns as a new candidate, never patched in place.
+
+### Decisions (settled with the owner 2026-11-19 and 2026-11-20)
+1. Size and layout: video capped at 8, voice only at 12, phone to phone, no running cost; the speaker live on a big
+   screen, the four previous speakers in a row (live, small, still as fallback), everyone else in "+ more". Larger calls
+   only if people need them.
+2. Ringing: reopening a conference's call rings everyone who has been in it; a muted room never rings.
+3. Keys for joiners: the creator's keys from the link, in memory for that session only, never stored; no end date.
+4. Where a conference starts: a new "Conference" choice on the create screen, its own room and link; two-person rooms
+   unchanged.
+5. Crosstalk threshold: 1 second of overlap; tuned from the logs after the first test.
+6. The October group-room build (warm storage, `bridge-turn29-multi-user-v1.html`): retired; this spec replaces its model.
+Still open: the voice cap of 12, to be confirmed by a 12-phone test before it is promised; private chat from "+ more" in a
+later release.
+
+---
+
+### REVIEW 2026-11-20 (independent, before any code) — corrections and owner questions
+Corrected in the text above: use cases 13–14 (slot 2; a fifth more recent speaker pushes Cy off); up to six senders,
+not five; translation is the speaker's phone, once per distinct language in the call (today's code translates on the
+speaker's side: `subtitle` / `subtitle-update`, `chat-msg` `tgtText`); "away" means muted and marked by the receivers.
+Build facts recorded for the stage specs (not owner choices):
+- H1 The relay keeps NO history (v6.17, G76: codes only; `MAX_HISTORY` is dead). A late joiner's backlog comes phone to
+  phone: today's `history-sync`, addressed to the newcomer, sent by one member the relay names; each line with its
+  original, its translations and a speaker id; the two-party `who` me/partner flip replaced; translate visible lines
+  first.
+- H3 Today's call words end a call for everyone (`_applyCallWord` call-end; `_routeByCall` pairs caller and one callee):
+  the conference gets its own words (join, leave, state) with seats held by the relay; ringing can still use a record so
+  the push and muted paths apply.
+- H4 The cap today counts room sockets (1..8, default 4) including every member's background listener, and the app has
+  no `full` handler: the relay must cap CALL SEATS (8 video / 12 voice, by the call's kind) apart from room sockets, and
+  the app must handle `full` (the retired MU-1 build's 20 s hold is the model).
+- H5 Live state must survive the Durable Object's hibernation (G69/G74): name, language, mic/camera on each socket's
+  attachment; seats and speaking order (ids only) in storage; the 30 s reconnect hold on an alarm; the join screen's
+  "who is in" needs a read that takes no seat and registers no device.
+- M1 Mesh: N−1 connections (today `CALL.pc` is one), every signal addressed, a tie rule for simultaneous joins; one video
+  sender per connection fed by the camera track; size by `setParameters` (`scaleResolutionDownBy`, `maxBitrate`,
+  `maxFramerate`), pause by `encodings[0].active=false` — never `track.enabled` (blacks out every connection) nor
+  direction changes (renegotiation). Pinned: normal ≈480×270 15 fps ≤400 kbps; small ≈160×90 10 fps ≤80 kbps; VP8. Up to 7
+  software encodes on the speaker's phone (heat). iOS: verify `scaleResolutionDownBy`/`active` in stage 3; audio of a
+  listen-only joiner and many remote audio elements need a device test.
+- M4 The relay is the authority for who is big: each phone's voice-activity check sends a turn word after 1.5 s; the
+  relay orders by arrival, stores and broadcasts with a sequence number. Crosstalk from relay-stamped start/stop words,
+  not phone clocks (B-8a); lines arrive after the speaker pauses, so the bubble is assembled as lines land.
+- M5 Today's code assumes one language pair (`dgUseMulti`/`dgLangParam`, the invite, translation read `theirLang`): a
+  conference room record carries per-person languages, a member directory (device → name from hello), speaker ids on
+  lines; the ring push needs a `from` code.
+- M6 The conference sets the same call guards as `CALL` (RT-1 `active`/`_starting`, RG-1 `onIncoming`) or a tapped
+  notification hangs it up; a two-person ring during a conference does not ring (B-9e).
+- L1 Layouts for 1 ("waiting for others") and the 2→3 switch mid-call; a conference of 2 uses the conference engine.
+- L4 Every new string in all 21 languages with gates (GK-1's pattern); no behaviour keyed on English text (G72).
+- L5 Stills over each connection's data channel, not the relay. L6 iPhone links never open the installed copy.
+OWNER QUESTIONS (open):
+- Q1 Cost (H6): transcription bills the Deepgram account whose key is used — the creator's, for every joiner without a
+  key — at roughly $0.008 per stream-minute (to verify; Thai, Chinese, Korean, Arabic run two streams): an 8-person hour
+  ≈ $4. Recommended: stream to Deepgram only while the person is speaking.
+- Q2 Keys on a forwardable link (H6): the link carries the creator's Deepgram key and TURN token; forwarded, anyone holds
+  them, and deleting the room does not revoke a key in a URL. Accept (as today's invites), or hand out short-lived
+  credentials from the creator's phone through the relay.
+- Q3 Does a video call with cameras off still count against the 8 (H4)? Recommended: seats by the call's kind.
+- Q4 What "delete the room" does for the others (L2): with no host, delete can only mean leave-and-forget on that phone,
+  and the link lives on. Recommended: the creator's delete closes the conference for everyone (the one creator power).
+- Q5 Is the conference room also a group chat when no call is live (L3)? Recommended: yes — typed messages reach every
+  member, each in their own language.
 
 ---
 
