@@ -1803,17 +1803,29 @@ function dgLangParam(room) {
     window.clLive=function(pipe,committed,interim,conf){
         committed=norm(committed||'');var text=norm(committed+' '+(interim||''));
         if(text&&Date.now()-(liveLogAt[pipe]||0)>200){liveLogAt[pipe]=Date.now();remoteLog('live',{pipe:pipe,len:text.length,committed:committed.length,conf:typeof conf==='number'?+conf.toFixed(2):null,script:scriptName(text),ss:window.audioTurn.scriptSide(text)})}
-        if(!text){delete LIVE[pipe];delete liveSpec[pipe];pickLive();return}
+        if(!text){delete LIVE[pipe];delete liveSpec[pipe];var oth=pipe==='south'?'north':'south';if(LIVE[oth]&&!LIVE[oth].committed){delete LIVE[oth];delete liveSpec[oth]}pickLive();return}      // this listener's turn ended: the other one's unfinished guess at the same sounds goes too
         LIVE[pipe]={text:text,committed:committed,conf:typeof conf==='number'?conf:0.5,ts:Date.now()};pickLive();
     };
+    /* ===== which listener's words does the preview show? (proven on the owner's log: the listener for the OTHER language keeps guessing at the same sounds) =====
+       Rules: (1) evidence = confidence x characters, and text in the wrong script for its own listener counts a quarter; nothing is shown until it reaches LIVE_MIN_EV;
+       (2) the leader must beat any other fresh entry by LIVE_LEAD times, otherwise nothing is decided yet (a side already shown is kept);
+       (3) an entry that has not been updated for LIVE_FRESH ms no longer counts, and a sweep runs when that happens, so a preview whose speech simply stopped clears itself;
+       (4) when one listener ends its turn, the other listener's unfinished guess (never finalised) is dropped. */
+    var LIVE_MIN_EV=3,LIVE_LEAD=1.5,LIVE_FRESH=1500,liveSweepT=null;
+    function liveEv(p,l){var ss=window.audioTurn.scriptSide(l.text);return l.conf*l.text.length*(ss&&ss!==p?0.25:1)}
     function pickLive(){
-        var best=null;
-        ['south','north'].forEach(function(p){var l=LIVE[p];if(!l||Date.now()-l.ts>3000)return;
-            var ss=window.audioTurn.scriptSide(l.text),sc=l.conf+(ss===p?0.3:ss?-0.6:0);
-            if(!best||sc>best.sc)best={p:p,sc:sc,l:l}});
-        var pickKey=(best?best.p+':'+(best.sc>=0.5?'ok':'low'):'none')+'|'+(liveShown?liveShown.side:'-');
-        if(pickKey!==liveLastPick){liveLastPick=pickKey;var scs={};['south','north'].forEach(function(p){var l=LIVE[p];if(l&&Date.now()-l.ts<=3000){var ss=window.audioTurn.scriptSide(l.text);scs[p]=+(l.conf+(ss===p?0.3:ss?-0.6:0)).toFixed(2)}});remoteLog('live_pick',{best:best?best.p:null,scores:scs,shown:liveShown?liveShown.side:null,held:false})}
-        if(!best||best.sc<0.5){if(liveShown){liveShown=null;paintLive()}return}
+        var now=Date.now(),cands=[];
+        ['south','north'].forEach(function(p){var l=LIVE[p];if(l&&now-l.ts<=LIVE_FRESH)cands.push({p:p,l:l,ev:liveEv(p,l)})});
+        cands.sort(function(a,b){return b.ev-a.ev});
+        var top=cands[0],second=cands[1],best=null;
+        if(top&&top.ev>=LIVE_MIN_EV){
+            if(!second||top.ev>=LIVE_LEAD*second.ev)best=top;
+            else if(liveShown){best=cands.filter(function(c){return c.p===liveShown.side})[0]||null}      // undecided: keep what is on screen
+        }
+        clearTimeout(liveSweepT);if(cands.length)liveSweepT=setTimeout(pickLive,LIVE_FRESH+50);
+        var pickKey=(best?best.p:'none')+'|'+(liveShown?liveShown.side:'-')+'|'+cands.map(function(c){return c.p}).join(',');
+        if(pickKey!==liveLastPick){liveLastPick=pickKey;var evs={};cands.forEach(function(c){evs[c.p]=+c.ev.toFixed(2)});remoteLog('live_pick',{best:best?best.p:null,ev:evs,shown:liveShown?liveShown.side:null,held:false})}
+        if(!best){if(liveShown){liveShown=null;paintLive()}return}
         var keepTr=liveShown&&liveShown.side===best.p?liveShown.tr:'';
         liveShown={side:best.p,text:best.l.text,tr:keepTr};
         var c=best.l.committed;
