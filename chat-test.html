@@ -1798,7 +1798,7 @@ function dgLangParam(room) {
     /* r13: live bubble. While someone talks, their words show at once in a faded bubble on both panes,
        with a rough translation of what is already settled. The settled text is translated in the
        background, so the real message usually finds its translation cached when the turn ends. */
-    var LIVE={},liveShown=null,liveSpec={},liveHold=null,lastLiveTr=null,livePaintLogged=0;      // liveHold: when the turn ends the bubble stays until the finished message's own bubble is drawn in its place; lastLiveTr: the translation last shown for the words being spoken
+    var LIVE={},liveShown=null,liveSpec={},liveHold=null,lastLiveTr=null,livePaintLogged=0,liveTrDone={};      // liveHold: when the turn ends the bubble stays until the finished message's own bubble is drawn in its place; lastLiveTr: the translation last shown for the words being spoken
     function scriptName(t){return /[\uAC00-\uD7AF]/.test(t)?'hangul':/[\u0E00-\u0E7F]/.test(t)?'thai':/[\u3040-\u30FF]/.test(t)?'kana':/[\u4E00-\u9FFF]/.test(t)?'han':/[\u0600-\u06FF]/.test(t)?'arabic':/[\u0400-\u04FF]/.test(t)?'cyrillic':/[A-Za-z]/.test(t)?'latin':'other'}
     var liveLogAt={},liveLastPick='';
     window.clLive=function(pipe,committed,interim,conf){
@@ -1808,7 +1808,7 @@ function dgLangParam(room) {
             /* this listener's turn ended. The other listener heard the same sounds: its guess goes too when it is unfinished, or when it was updated during this turn and is no stronger
                (a Korean listener that FINISHED a weak guess while English was spoken used to survive this and be drawn, then held, as a phantom bubble) */
             var oth=pipe==='south'?'north':'south',mine=LIVE[pipe],other=LIVE[oth];
-            delete LIVE[pipe];delete liveSpec[pipe];
+            delete LIVE[pipe];delete liveSpec[pipe];delete liveTrDone[pipe];
             if(other&&(!other.committed||(mine&&other.ts>=mine.since&&liveEv(oth,other)<=liveEv(pipe,mine)))){delete LIVE[oth];delete liveSpec[oth]}
             pickLive();return}
         LIVE[pipe]={text:text,committed:committed,conf:typeof conf==='number'?conf:0.5,ts:Date.now(),since:LIVE[pipe]?LIVE[pipe].since:Date.now()};pickLive();
@@ -1838,7 +1838,15 @@ function dgLangParam(room) {
         liveShown={side:best.p,text:best.l.text,tr:keepTr,began:began};
         var c=best.l.committed;
         if(c&&liveSpec[best.p]!==c){liveSpec[best.p]=c;var sd=best.p,src=langOf(sd),tgt=langOf(otherSide(sd));
-            if(src!==tgt)translateWithRetry(c,src,tgt,0).then(function(r){if(r&&r.ok&&liveShown&&liveShown.side===sd){liveShown.tr=r.text;lastLiveTr={src:c,tr:r.text,side:sd,ts:Date.now()};paintLive()}});}
+            if(src!==tgt){
+                /* a growing turn: translate only the part that is new and join it to what was already translated, instead of sending the whole text again each time.
+                   The joined result is stored in the translation cache under the whole text, so the finished message finds it ready and makes no call of its own. */
+                var prev=liveTrDone[sd],done=function(text){if(liveShown&&liveShown.side===sd&&liveSpec[sd]===c){liveShown.tr=text;lastLiveTr={src:c,tr:text,side:sd,ts:Date.now()};paintLive()}};
+                if(prev&&prev.tgt===tgt&&c.indexOf(prev.src)===0&&c.length>prev.src.length){
+                    var rest=norm(c.slice(prev.src.length));
+                    translateWithRetry(rest,src,tgt,0).then(function(r){if(r&&r.ok){var joined=norm(prev.tr+' '+r.text);trCache.set(src+'|'+tgt+'|'+c,joined);liveTrDone[sd]={src:c,tgt:tgt,tr:joined};done(joined)}});
+                }else translateWithRetry(c,src,tgt,0).then(function(r){if(r&&r.ok){liveTrDone[sd]={src:c,tgt:tgt,tr:r.text};done(r.text)}});
+            }}
         paintLive();
     }
     function paintLive(){['south','north'].forEach(paintLiveIn)}

@@ -387,3 +387,16 @@ test('icons are painted with the very first paint of the bubble: the speaker wor
  assert.deepEqual(info[0].off,[false,true],'source column: speaker active (it has words), use inactive until the message exists');
  if(info[1].txt==='…')assert.deepEqual(info[1].off,[true,true],'translation column: both inactive while it has no words yet');
 });
+test('translation calls: only the new part of a growing turn is translated, and the finished message finds the combined translation ready',async({page})=>{
+ const calls=[];await page.route('https://translate.googleapis.com/**',route=>{const q=new URL(route.request().url()).searchParams.get('q');calls.push(q);return route.fulfill({json:[[['EN:'+q,q]]]})});
+ await create(page,'Delta','en','ko');
+ await page.evaluate(()=>window.clLive('south','first sentence here','',.9));
+ await page.waitForFunction(()=>/EN:first sentence here/.test(document.querySelector('#tx-south .row.cl-live')?.innerText||''),null,{timeout:4000});
+ await page.evaluate(()=>window.clLive('south','first sentence here and then the second one','',.9));
+ await page.waitForFunction(()=>/EN:and then the second one/.test(document.querySelector('#tx-south .row.cl-live')?.innerText||''),null,{timeout:4000});
+ assert.ok(calls.includes('and then the second one'),'only the new part was sent ('+JSON.stringify(calls)+')');
+ assert.ok(!calls.includes('first sentence here and then the second one'),'the whole growing text was not sent again');
+ const before=calls.length;await send(page,'south','first sentence here and then the second one');await settled(page,1);
+ assert.equal(calls.length,before,'the finished message used the combined translation already held: no further call');
+ const tr=await page.evaluate(()=>HIST[0].tr);assert.match(tr,/EN:first sentence here/);assert.match(tr,/EN:and then the second one/);
+});

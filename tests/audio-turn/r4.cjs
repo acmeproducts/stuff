@@ -128,7 +128,9 @@ test('r13: live bubble while speaking; translation is ready (cached) when the tu
  await page.waitForFunction(()=>HIST.length===1&&HIST[0].status==='complete',null,{timeout:4000});
  assert.equal(await page.locator('.cl-live').count(),0,'live bubble removed when the message lands');
  const full='하마터면 잠들 뻔했어요. 하지만 이제 출근할 시간이에요.';
- assert.equal(await page.evaluate(()=>HIST[0].tr),'EN:'+full);assert.equal(calls[full],1,'full turn translated once, in the background, then reused');
+ const p1='하마터면 잠들 뻔했어요.',p2='하지만 이제 출근할 시간이에요.';
+ assert.equal(await page.evaluate(()=>HIST[0].tr),'EN:'+p1+' EN:'+p2,'the two parts were translated separately and joined');
+ assert.equal(calls[p1],1,'the first part translated once, in the background');assert.equal(calls[p2],1,'only the new part translated, once');assert.equal(calls[full],undefined,'the whole turn was never sent again; the joined translation was reused');
 });
 test('r14: double TAP (touch) opens the rail and it stays open',async({page})=>{
  await create(page,'Touch');await page.evaluate(()=>{for(let i=0;i<6;i++)HIST.push({id:'t'+i,side:i%2?'north':'south',text:'message '+i,src:'en',tgt:'th',ts:Date.now(),tr:'x '+i,status:'complete'});renderAll()});
