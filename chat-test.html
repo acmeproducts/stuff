@@ -373,7 +373,7 @@ function speakText(text,lang){
 (function(){
  const W=window,synth=W.speechSynthesis,cancelNative=synth?synth.cancel.bind(synth):function(){};
  const SIDES=['south','north'],CFG_KEY='chat_test_audio';
- const DEF={mode:'open',tones:true,startTone:'rise',doneTone:'fall',volume:0.12,resumeMs:300,threshold:0.55,margin:0.12,windowMs:700,lockMs:1500,turnMs:60000,echoMs:20000};
+ const DEF={mode:'open',tones:true,startTone:'rise',doneTone:'fall',volume:0.12,resumeMs:300,threshold:0.55,margin:0.12,windowMs:700,quickMs:400,deferMs:700,deferBelow:0.85,shadowMs:2500,lockMs:1500,turnMs:60000,echoMs:20000};
  const LIFECYCLE=/^(owner portal|room switch|trash room|storage changed|hidden|pagehide|mic denied)$/;
  const SCRIPT={th:'thai',zh:'han',ja:'kana',ko:'hangul',ar:'arabic',hi:'devanagari',ru:'cyrillic'};
  const SCRIPT_RE={thai:/[฀-๿]/g,kana:/[぀-ヿ]/g,han:/[一-鿿]/g,hangul:/[가-힯ᄀ-ᇿ]/g,arabic:/[؀-ۿ]/g,devanagari:/[ऀ-ॿ]/g,cyrillic:/[Ѐ-ӿ]/g,latin:/[A-Za-zÀ-ɏ]/g};
@@ -507,10 +507,21 @@ function speakText(text,lang){
    if(isEcho(text)){rec('transcript-rejected','blocked',{side:pipe,reason:'echo'});return}
    deliver(pipe,item,'only-open-side');return;
   }
-  if(!pend)pend={gen:gen,items:[],timer:setTimeout(decide,cfg().windowMs)};
+  /* The other listener hears the same sounds and often finishes a little later. A result from the other side that is no stronger AND whose first words came before the delivered turn ended
+     is that listener's guess at the same sounds, not a new message. (A real reply starts after the turn ended, so its first words are later and it is kept.) */
+  const startedAt=hooks&&hooks.turnStart?hooks.turnStart(pipe):0;
+  if(lastDel&&lastDel.side!==pipe&&now()-lastDel.at<cfg().shadowMs&&item.conf<=lastDel.conf&&startedAt&&startedAt<lastDel.itemTs){rec('transcript-rejected','blocked',{side:pipe,reason:'straggler',conf:+item.conf.toFixed(2),after:lastDel.side});return}
+  /* Only compare the two listeners for the full window when the other one has actually been hearing words during this turn; when it has been silent there is nothing to wait for. */
+  const contested=!!(hooks&&hooks.liveAge&&hooks.liveAge(pipe==='south'?'north':'south')<2500);
+  if(!pend)pend={gen:gen,items:[],contested:contested,timer:setTimeout(decide,contested?cfg().windowMs:cfg().quickMs)};
   pend.items.push(item);
  }
  function decide(){
+  /* A lone, weak result from one listener while the other listener is still hearing words is usually that listener guessing at the same sounds and finishing first. Wait a little (twice at most) so both can be compared. */
+  if(pend&&pend.gen===gen&&(pend.defers||0)<2){
+   const pipes=[...new Set(pend.items.map(i=>i.pipe))];
+   if(pipes.length===1&&pend.items.every(i=>i.conf<cfg().deferBelow)&&hooks&&hooks.liveAge&&hooks.liveAge(pipes[0]==='south'?'north':'south')<1500){pend.defers=(pend.defers||0)+1;rec('decision-deferred','ok',{only:pipes[0],defers:pend.defers});pend.timer=setTimeout(decide,cfg().deferMs);return}
+  }
   const p=pend;pend=null;if(!p)return;
   if(p.gen!==gen){rec('stale-session','blocked',{reason:'discarded',items:p.items.length});return}
   if(p.items.some(i=>isEcho(i.text))){rec('transcript-rejected','blocked',{reason:'echo',items:p.items.length});return}
@@ -534,11 +545,12 @@ function speakText(text,lang){
   if(hooks)hooks.compose(side,item.text);
   cue('bong');
  }
+ let lastDel=null;   // the last message delivered: its side, confidence and time (a weak result from the other listener right after it is a straggler)
  function deliver(side,item,reason,extra){
   if(item.gen!==gen){rec('stale-session','blocked',{side:side,reason:'discarded'});return}
   const l=langs();
   rec('transcript-routed','ok',Object.assign({side:side,reason:reason,src:l[side],tgt:l[side==='south'?'north':'south'],conf:+item.conf.toFixed(2),tts:item.tts},extra||{}));
-  last={side:side,ts:now()};
+  last={side:side,ts:now()};lastDel={side:side,conf:item.conf,at:now(),itemTs:item.ts};
   send(side,item.text,Object.assign({input:'voice',mode:openMode()?'open':'ask',pipe:item.pipe,heardAs:item.lang||'?',conf:+item.conf.toFixed(2),reason:reason,tts:item.tts},extra||{}));
  }
  function send(side,text,via){if(hooks)hooks.send(side,text,via)}
@@ -1800,9 +1812,10 @@ function dgLangParam(room) {
        background, so the real message usually finds its translation cached when the turn ends. */
     var LIVE={},liveShown=null,liveSpec={},liveHold=null,lastLiveTr=null,livePaintLogged=0,liveTrDone={};      // liveHold: when the turn ends the bubble stays until the finished message's own bubble is drawn in its place; lastLiveTr: the translation last shown for the words being spoken
     function scriptName(t){return /[\uAC00-\uD7AF]/.test(t)?'hangul':/[\u0E00-\u0E7F]/.test(t)?'thai':/[\u3040-\u30FF]/.test(t)?'kana':/[\u4E00-\u9FFF]/.test(t)?'han':/[\u0600-\u06FF]/.test(t)?'arabic':/[\u0400-\u04FF]/.test(t)?'cyrillic':/[A-Za-z]/.test(t)?'latin':'other'}
-    var liveLogAt={},liveLastPick='';
+    var liveLogAt={},liveLastPick='',liveSeen={},liveFirst={};
     window.clLive=function(pipe,committed,interim,conf){
         committed=norm(committed||'');var text=norm(committed+' '+(interim||''));
+        if(text){liveSeen[pipe]=Date.now();if(!LIVE[pipe])liveFirst[pipe]=Date.now()}
         if(text&&Date.now()-(liveLogAt[pipe]||0)>200){liveLogAt[pipe]=Date.now();remoteLog('live',{pipe:pipe,len:text.length,committed:committed.length,conf:typeof conf==='number'?+conf.toFixed(2):null,script:scriptName(text),ss:window.audioTurn.scriptSide(text)})}
         if(!text){
             /* this listener's turn ended. The other listener heard the same sounds: its guess goes too when it is unfinished, or when it was updated during this turn and is no stronger
@@ -2880,6 +2893,8 @@ function dgLangParam(room) {
         var wordSets={};
         window.audioTurn.bind({mic:mic,langOf:langOf,diag:diag,toast:toastMsg,
             words:function(lang){var d=getDict(lang);if(!d||!d.length)return null;if(!wordSets[lang]||wordSets[lang].n!==d.length)wordSets[lang]={n:d.length,set:new Set(d.map(function(w){return String(w).toLowerCase()}))};return wordSets[lang].set},
+            turnStart:function(side){return liveFirst[side]||0},      // when this listener's current utterance first reported words
+            liveAge:function(side){return liveSeen[side]?Date.now()-liveSeen[side]:Infinity},      // ms since this listener last reported words
             send:function(side,text,via){window.__clVia=via||null;try{sendFrom(side,text,true)}finally{window.__clVia=null}},
             ownsMic:function(side){return INPUT.owner===side&&INPUT.mode==='mic'},
             paint:function(side,on){if(on)paintActive(side,'mic');else{var m=document.querySelector('#strip-'+side+' .micbtn');if(m){m.classList.add('off');m.dataset.on='false';m.dataset.owned='false'}}},
