@@ -378,3 +378,12 @@ test('device log: paint timings are recorded (first paint of the live bubble, an
  const live=rows.find(r=>r.k==='paint_live');assert.ok(live&&typeof live.d.ms==='number'&&live.d.side==='south','first paint of the live bubble is recorded with its delay');
  const done=rows.find(r=>r.k==='msg_complete');assert.ok(done&&typeof done.d.pendingMs==='number'&&done.d.side==='south','message completion is recorded with how long it was pending');
 });
+test('icons are painted with the very first paint of the bubble: the speaker works as soon as its column has words, "use" waits for the message',async({page})=>{
+ await create(page,'Icons');
+ await page.evaluate(()=>window.clLive('south','','hello friend how are you',.9));
+ await page.waitForSelector('#tx-south .row.cl-live .bcols',{timeout:2000});
+ const info=await page.evaluate(()=>[...document.querySelectorAll('#tx-south .row.cl-live .bcol')].map(c=>({btn:c.querySelectorAll('.bact').length,off:[...c.querySelectorAll('.bact')].map(b=>b.disabled),txt:c.querySelector('.btxt').textContent.trim()})));
+ assert.equal(info.length,2);assert.ok(info.every(c=>c.btn===2),'both columns have both icons from the first paint');
+ assert.deepEqual(info[0].off,[false,true],'source column: speaker active (it has words), use inactive until the message exists');
+ if(info[1].txt==='…')assert.deepEqual(info[1].off,[true,true],'translation column: both inactive while it has no words yet');
+});

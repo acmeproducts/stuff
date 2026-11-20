@@ -41,6 +41,7 @@ body{display:flex;flex-direction:column}
   background:rgba(255,255,255,.85);color:#475569;padding:5px;display:inline-flex;align-items:center;justify-content:center}
 .bact svg{width:100%;height:100%}
 .bact:active{background:#dbeafe;color:#1d4ed8}
+.bact:disabled{opacity:.35;pointer-events:none}
 
 .strip{display:flex;align-items:center;gap:5px;padding:6px;border-top:1px solid rgba(226,232,240,.9);background:#fff}
 .ctl{flex:0 0 38px;width:38px;height:38px;border-radius:999px;border:1px solid rgba(226,232,240,.95);
@@ -1850,8 +1851,8 @@ function dgLangParam(room) {
         var LV=liveShown||liveHold;if(!LV)return;
         if(LV.began&&livePaintLogged!==LV.began&&panel==='south'){livePaintLogged=LV.began;remoteLog('paint_live',{side:LV.side,ms:Date.now()-LV.began,held:!liveShown})}      // timing: the first preview paint of this turn
         var atBottom=host.scrollHeight-host.scrollTop-host.clientHeight<160;
-        var le={id:'live',side:LV.side,src:langOf(LV.side),tgt:langOf(otherSide(LV.side)),text:LV.text,original:LV.text,tr:LV.tr||null,ts:Date.now()};
-        var row=bubbleFor(le,panel);row.classList.add('cl-live');row.querySelectorAll('.bdel,.bacts').forEach(function(x){x.remove()});
+        var le={id:'live',live:true,side:LV.side,src:langOf(LV.side),tgt:langOf(otherSide(LV.side)),text:LV.text,original:LV.text,tr:LV.tr||null,ts:Date.now()};
+        var row=bubbleFor(le,panel);row.classList.add('cl-live');row.querySelectorAll('.bdel').forEach(function(x){x.remove()});
         host.appendChild(row);
         if(atBottom)host.scrollTop=host.scrollHeight;
     }
@@ -1872,9 +1873,9 @@ function dgLangParam(room) {
         var cols=document.createElement('div');cols.className='bcols';
         // this panel's own language always sits LEFT for the person reading it
         var carried=(!e.tr&&e.status==='pending'&&lastLiveTr&&lastLiveTr.side===e.side&&Date.now()-lastLiveTr.ts<20000&&norm(e.text).toLowerCase().indexOf(norm(lastLiveTr.src).toLowerCase())===0)?lastLiveTr.tr:'';   // keep the translation already on screen until the final one arrives
-        var mine={text:e.side===panel?e.text:(e.tr||carried||'…'),lang:e.side===panel?e.src:e.tgt};
+        var mine={text:e.side===panel?e.text:(e.tr||carried||'…'),lang:e.side===panel?e.src:e.tgt,live:!!e.live};
         if(e.side===panel&&e.original&&norm(e.original).toLowerCase()!==norm(e.text).toLowerCase())mine.said=e.original;
-        var theirs={text:e.side===panel?(e.tr||carried||'…'):e.text,lang:e.side===panel?e.tgt:e.src};
+        var theirs={text:e.side===panel?(e.tr||carried||'…'):e.text,lang:e.side===panel?e.tgt:e.src,live:!!e.live};
         cols.appendChild(colFor(mine,panel));
         if(e.src!==e.tgt)cols.appendChild(colFor(theirs,panel));
         else b.classList.add('single');
@@ -1890,9 +1891,11 @@ function dgLangParam(room) {
         var acts=document.createElement('div');acts.className='bacts';
         var spk=document.createElement('button');spk.type='button';spk.className='bact';spk.innerHTML=TTS_SVG;
         spk.addEventListener('click',function(ev){ev.stopPropagation();if(d.text&&d.text!=='…')speakText(d.text,d.lang)});
+        if(!d.text||d.text==='…')spk.disabled=true;      // painted at once, active as soon as its column holds words
         var snd=document.createElement('button');snd.type='button';snd.className='bact';snd.innerHTML=SEND_SVG;
         snd.addEventListener('click',function(ev){ev.stopPropagation();
             if(d.text&&d.text!=='…')sendFrom(panel,d.text)});
+        if(d.live||!d.text||d.text==='…')snd.disabled=true;      // 'use' waits until the message exists
         acts.appendChild(spk);acts.appendChild(snd);
         c.appendChild(acts);
         c.addEventListener('click',function(ev){
