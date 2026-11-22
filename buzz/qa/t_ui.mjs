@@ -1,0 +1,46 @@
+import { open } from './run.mjs';
+const { page, errors, close } = await open({ touch: true, viewport: { width: 915, height: 412 }, dpr: 2 });
+const log = [];
+const st = () => page.evaluate(() => __buzz.G.state);
+await page.evaluate(() => { const b = __buzz; b.save.season = 'summer'; b.save.tod = 'day'; b.save.weather = 'clear'; b.applyEnv(); b.setState('menu'); });
+await page.waitForTimeout(600); await page.screenshot({ path: 'shots/ui_1_menu.png' });
+await page.tap('#mMissions'); log.push('missions -> ' + await st()); await page.waitForTimeout(300); await page.screenshot({ path: 'shots/ui_2_missions.png' });
+await page.tap('#misList .mis:nth-child(1)'); log.push('brief -> ' + await st()); await page.waitForTimeout(300); await page.screenshot({ path: 'shots/ui_3_brief.png' });
+await page.tap('#brGo'); await page.waitForTimeout(1500); log.push('start -> ' + await st()); await page.screenshot({ path: 'shots/ui_4_play.png' });
+// touch stick
+const cdp = await page.context().newCDPSession(page);
+const touch = (type, pts) => cdp.send('Input.dispatchTouchEvent', { type, touchPoints: pts });
+await touch('touchStart', [{ x: 200, y: 250, id: 1 }]); await touch('touchMove', [{ x: 250, y: 215, id: 1 }]);
+await page.waitForTimeout(400);
+log.push('stick input ' + JSON.stringify(await page.evaluate(() => ({ x: +__buzz.input.x.toFixed(2), y: +__buzz.input.y.toFixed(2) }))));
+await touch('touchStart', [{ x: 250, y: 215, id: 1 }, { x: 850, y: 345, id: 2 }]); await page.waitForTimeout(300);
+log.push('turbo while steering ' + await page.evaluate(() => __buzz.input.turbo + ' x=' + __buzz.input.x.toFixed(2)));
+await page.screenshot({ path: 'shots/ui_5_stick.png' });
+await touch('touchEnd', [{ x: 250, y: 215, id: 1 }]); await page.waitForTimeout(200);
+log.push('after release turbo=' + await page.evaluate(() => __buzz.input.turbo + ' x=' + __buzz.input.x));
+await touch('touchEnd', []); await page.waitForTimeout(200);
+log.push('after all up turbo=' + await page.evaluate(() => __buzz.input.turbo + ' x=' + __buzz.input.x));
+await page.tap('#map'); await page.waitForTimeout(600); log.push('map big ' + await page.evaluate(() => __buzz.G.mapBig)); await page.screenshot({ path: 'shots/ui_6_map.png' });
+await page.tap('#map'); await page.waitForTimeout(200);
+await page.tap('#btnPulse'); await page.waitForTimeout(200); log.push('pulse cd ' + await page.evaluate(() => __buzz.G.pulseCD.toFixed(1)));
+await page.tap('#btnPause'); await page.waitForTimeout(300); log.push('pause -> ' + await st()); await page.screenshot({ path: 'shots/ui_7_pause.png' });
+await page.tap('#pause [data-env="weather"]'); await page.waitForTimeout(300); log.push('weather -> ' + await page.evaluate(() => __buzz.save.weather + ' / ' + __buzz.env.label));
+await page.tap('#pHangar'); await page.waitForTimeout(500); log.push('hangar -> ' + await st());
+await page.tap('#hNext'); await page.tap('#hNext'); await page.waitForTimeout(900); await page.screenshot({ path: 'shots/ui_8_hangar.png' });
+await page.tap('#hPick'); log.push('pick locked -> ' + await st() + ' plane ' + await page.evaluate(() => __buzz.save.plane));
+await page.tap('#hBack'); log.push('hangar back -> ' + await st());
+await page.tap('#pResume'); log.push('resume -> ' + await st());
+// finish the mission with a known result
+await page.evaluate(() => { const b = __buzz; b.G.counts.car = 30; b.finishMission(); });
+await page.waitForTimeout(300); log.push('result -> ' + await st() + ' stars ' + JSON.stringify(await page.evaluate(() => __buzz.save.stars))); await page.screenshot({ path: 'shots/ui_9_result.png' });
+await page.tap('#rNext'); log.push('next -> ' + await st() + ' ' + await page.evaluate(() => document.getElementById('brName').textContent));
+await page.tap('#brBack'); log.push('brief back -> ' + await st());
+await page.tap('#mEscape'); log.push('escape -> ' + await st() + ' ' + await page.evaluate(() => document.getElementById('brName').textContent));
+await page.tap('#brGo'); await page.waitForTimeout(1500); await page.screenshot({ path: 'shots/ui_10_escape.png' });
+await page.tap('#map'); await page.waitForTimeout(700); await page.screenshot({ path: 'shots/ui_11_escape_map.png' });
+// persistence across reload
+await page.reload(); await page.waitForFunction(() => window.__buzz && __buzz.G.state === 'menu');
+log.push('after reload stars ' + JSON.stringify(await page.evaluate(() => __buzz.save.stars)) + ' menu ' + await page.evaluate(() => document.getElementById('mStars').textContent));
+console.log(log.join('\n'));
+console.log('errors:', errors.filter((e) => !e.includes('ReadPixels')).join('\n') || 'none');
+await close();
