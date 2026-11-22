@@ -1,0 +1,23 @@
+import { open } from './run.mjs';
+const tag = process.argv[2] || 'day';
+const envs = { day: ['summer', 'day', 'clear'], dusk: ['autumn', 'dusk', 'clear'], storm: ['spring', 'day', 'storm'], snow: ['winter', 'day', 'snow'], night: ['summer', 'night', 'clear'] };
+const { page, errors, close } = await open({ viewport: { width: 915, height: 412 } });
+const [season, tod, weather] = envs[tag];
+const info = await page.evaluate(([season, tod, weather]) => { const b = window.__buzz; b.save.season = season; b.save.tod = tod; b.save.weather = weather; b.save.zen = true; b.startRun('free', null); return b.W.pads.map((p) => `${p.id}@${p.x.toFixed(0)},${p.y.toFixed(1)},${p.z.toFixed(0)}`).join(' '); }, [season, tod, weather]);
+console.log(info);
+const shot = async (name, pos, yaw, pitch) => {
+  await page.evaluate(([pos, yaw, pitch]) => { const b = window.__buzz; b.P.landed = null; b.P.pos.set(pos[0], pos[1], pos[2]); b.P.yaw = yaw; b.P.pitch = pitch || 0; b.P.roll = 0; b.P.mesh.position.copy(b.P.pos); b.P.mesh.rotation.set(b.P.pitch, yaw, 0); b.P.loc = null; b.openModal('envm'); b.updateCamera(0, true); document.getElementById('envm').classList.add('hide'); }, [pos, yaw, pitch]);
+  await page.waitForTimeout(1100);
+  await page.screenshot({ path: `shots/nat_${tag}_${name}.png` });
+};
+await shot('1_north', [0, 60, 120], 0, -0.1);
+await shot('2_south', [0, 40, 40], Math.PI, -0.15);
+await shot('3_beach', [-20, 4, 118], Math.PI + 0.5, 0.0);
+await shot('4_pier', [30, 6, 190], Math.PI - 0.5, -0.1);
+await shot('5_light', [120, 22, 380], Math.PI - 0.7, 0);
+await shot('6_park', [-150, 14, 30], Math.PI / 2, -0.1);
+await shot('7_mount', [-60, 70, -230], 0.2, 0.1);
+await shot('8_summit', [40, 240, -380], 0.3, -0.3);
+await shot('9_city', [-260, 60, -160], -2.2, -0.15);
+console.log('errors:', errors.filter((e) => !e.includes('ReadPixels')).join('\n') || 'none');
+await close();

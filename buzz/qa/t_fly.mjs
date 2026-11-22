@@ -1,7 +1,7 @@
 import { open } from './run.mjs';
 const portrait = process.argv[2] === 'portrait';
 const { page, errors, close } = await open({ touch: true, viewport: portrait ? { width: 412, height: 915 } : { width: 915, height: 412 }, dpr: 1 });
-await page.evaluate(() => { const b = __buzz; b.save.season = 'autumn'; b.save.tod = 'day'; b.save.weather = 'clear'; b.applyEnv(); b.setState('menu'); });
+await page.evaluate(() => { const b = __buzz; b.save.season = 'autumn'; b.save.tod = 'day'; b.save.weather = 'clear'; b.save.upDives = false; b.applyEnv(); b.setState('menu'); });
 if (portrait) { await page.waitForTimeout(500); await page.screenshot({ path: 'shots/p_menu.png' }); }
 await page.tap('#mFly'); await page.waitForTimeout(300);
 const fly = async (name, secs, x, y, turbo) => {

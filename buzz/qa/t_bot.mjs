@@ -2,7 +2,7 @@
 import { open } from './run.mjs';
 const { page, errors, close } = await open({});
 const out = await page.evaluate(async () => {
-  const b = window.__buzz; const res = [];
+  const b = window.__buzz; const res = []; b.save.upDives = false;
   const plan = (W, start, B, clr) => {
     const S = 0.5, x0 = B.x0 - 4, z0 = B.z0 - 4, y0 = 0.25; const nx = Math.ceil((B.x1 - B.x0 + 8) / S), nz = Math.ceil((B.z1 - B.z0 + 8) / S), ny = Math.ceil((B.y1 + 2) / S);
     const par = new Int32Array(nx * ny * nz).fill(-2); const id = (i, j, k) => (j * nz + k) * nx + i;
@@ -28,7 +28,7 @@ const out = await page.evaluate(async () => {
       const path = plan(W, P.pos, B, 0.6) || plan(W, P.pos, B, 0.45) || plan(W, P.pos, B, 0.34);
       if (!path) { times.push('NOPATH'); continue; }
       let pi = 0, t = 0, hits = 0, lastH = 100; const tv = P.pos.clone();
-      while (b.G.state === 'play' && t < 150) {
+      while (b.ui() === 'play' && t < 150) {
         // advance along the path to the point ~2.2 m ahead
         while (pi < path.length - 1 && Math.hypot(path[pi][0] - P.pos.x, path[pi][1] - P.pos.y, path[pi][2] - P.pos.z) < 1.4) pi++;
         // aim at the furthest path point within 5 m that is in clear view
@@ -44,7 +44,7 @@ const out = await page.evaluate(async () => {
       }
       b.input.x = b.input.y = 0;
       times.push(b.G.escaped ? `${b.G.elapsed.toFixed(0)}s/${hits}hit/${path.length / 2 | 0}m` : `FAIL(t=${t.toFixed(0)} hp=${b.G.health | 0} at ${P.pos.x | 0},${P.pos.y | 0},${P.pos.z | 0})`);
-      if (b.G.state !== 'play') b.setState('menu');
+      b.setState('menu');
     }
     res.push(id + ': ' + times.join('  '));
   }

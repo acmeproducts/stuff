@@ -1,7 +1,7 @@
 import { open } from './run.mjs';
 const { page, errors, close } = await open({});
 const out = await page.evaluate(async () => {
-  const b = window.__buzz; const res = { escape: [], fuzz: [], build: [] };
+  const b = window.__buzz; const res = { escape: [], fuzz: [], build: [] }; b.save.upDives = false;
   // ---- A. hotel escape reachability by flood fill (0.5 m voxels, 0.34 m clearance), several seeds per mission
   const flood = (W, start, B) => {
     const S = 0.5, x0 = B.x0 - 3, z0 = B.z0 - 3, y0 = 0.25; const nx = Math.ceil((B.x1 - B.x0 + 6) / S), nz = Math.ceil((B.z1 - B.z0 + 6) / S), ny = Math.ceil((B.y1 + 2) / S);
@@ -42,11 +42,11 @@ const out = await page.evaluate(async () => {
       if (i % 25 === 0) { b.input.x = rnd() * 2 - 1; b.input.y = (rnd() * 2 - 1) * (rnd() < 0.5 ? 0.3 : 1); b.input.turbo = rnd() < 0.3; }
       b.G.health = 100; b.stepSim(1 / 60);
       if (!isFinite(P.pos.x + P.pos.y + P.pos.z + P.yaw + P.pitch)) { nan++; break; }
-      if (W.solid(P.pos.x, P.pos.y, P.pos.z, 0.12)) bad++;
+      if (W.solid(P.pos.x, P.pos.y, P.pos.z, 0.12) && !P.landed) bad++;
       maxStep = Math.max(maxStep, P.pos.distanceTo(prev)); prev.copy(P.pos); minY = Math.min(minY, P.pos.y); if (P.loc) inside++;
     }
     b.input.x = b.input.y = 0; b.input.turbo = false;
-    res.fuzz.push({ kind, bad, nan, maxStep: +maxStep.toFixed(2), minY: +minY.toFixed(2), insideFrames: inside, havoc: b.G.unbanked + b.G.banked, counts: JSON.stringify(b.G.counts), lit: b.G.lit, state: b.G.state });
+    res.fuzz.push({ kind, bad, nan, maxStep: +maxStep.toFixed(2), minY: +minY.toFixed(2), insideFrames: inside, havoc: b.G.unbanked + b.G.banked, counts: JSON.stringify(b.G.counts), lit: b.G.lit, state: b.ui() });
   }
   // ---- C. world stats
   const W = b.W; res.build = { boxes: W.instCount, colliders: W.cf.length, reactives: W.reactives.length, perBuilding: W.buildings.map((B) => ({ k: B.kind, floors: B.floors, react: B.rTot.join(',') })), exits: W.exits.length };
