@@ -14,7 +14,7 @@ This is the analysis: a first reading of the owner's vision as one working idea.
 | 1. Letters | A signal the person shows three times and names. A **pose** is held; a **move** goes out and comes back. It can come from the right hand, the left hand, the head and face, or the watch. Each signal may be given one action. | built in the Lab (`lab-r7`), lab only |
 | 2. Words | Signals made one after another become a new signal with its own action. | built in the Lab, lab only |
 | 3. Habits (was "Showing") | "Monkey see, monkey do." X sees what the person keeps using it for. In time it gets that without being asked, reads what came back, keeps and indexes it, and says what matters: what changed, what is new, or that nothing did. It is not a recording of steps and nothing is replayed. | not built, not yet planned. The earlier reading (do a run once, replay it with one signal) was wrong: the owner, 2026-11-22, "you just described recording a macro". |
-| 4. The voice page | Parked. The parts that passed their checks stay for later use: listening, speaking in short parts, memory on the device and in GitHub, the three AI services. It returns when taught signals and shown runs give it something to do without asking a model each time. | failed its device gate |
+| 4. The voice page | Failed 18 Nov and parked. **Planned to return as X7** (plan X, section 8; 2026-11-22; not built): streamed answers, and a record of every ask and result that X can be asked about. Habits (row 3) are built on that record. |
 
 **Withdrawn 2026-11-22.** This section used to say showing would be built first on the object card, as a run recorded and replayed on the cup. That was the macro reading and it is not what the owner meant. Habits come from real use of X, so they are built where X is used for real things, which is the X page (parked since 18 Nov). Where and how is to be planned with the owner; it decides what X keeps about him, which is his to decide.
 
@@ -139,3 +139,7 @@ None of these is proven. Each names the release that proves or kills it.
 | TH6 | Hand and face finders run together on the S23 at a usable rate | S3 |
 | TH7 | An X session costs the watch little enough battery to wear for two hours | W2 |
 | TH8 | Recognition on the watch makes Bluetooth alone enough | W3 |
+| TH9 | Streamed, with search on, X's first words come inside 5 seconds on at least one of the owner's services | X7, step 1 (the speed probe) |
+| TH10 | A model given a subject's earlier points says correctly what is different | X7 |
+| TH11 | Three days in seven finds his real habits and not false ones | V6 |
+| TH12 | Rounds when X is opened are enough; he does not need them while it is closed | V6 |

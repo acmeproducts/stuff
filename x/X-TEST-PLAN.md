@@ -69,7 +69,8 @@ The device gate for each release is written in its plan. In short:
 | X1 | X page suite | `plans/X-x.md` | hand time; reading delay |
 | S1 | probe card on a recorded clip | `plans/S-sources-arbiter.md` | camera frame rate |
 | S2, S3, V1, V3, V5, L3 (built together, 2026-11-18 evening) | signals engine; new Lab cards | their plans | frames a second with both finders; task time; touches |
-| V6 | not yet planned (the recorder and replayer listed here until 2026-11-22 were a wrong reading; see R62) | `plans/V-vocabulary-teach.md` | — |
+| X7 | X page suite, rewritten: streaming and first words; the record and its index; "different since last time"; record questions with no model call; signals steering X; no words in the log | `plans/X-x.md` §8 | seconds to first words; sources per answer |
+| V6 | habits suite on a made-up record with made-up days: noticing, rhythm, rounds, the cap, unchanged against changed, fading, the count of unasked calls | `plans/V-vocabulary-teach.md` | unasked calls a week; how often "unchanged" was right |
 | W2 | summary arithmetic | `plans/W-watch.md` | battery; longest silence |
 | L2 | scoring suite | `plans/L-lab.md` | hit rate; wrong fires |
 | V4 | context separation; next-day scoring | `plans/V-vocabulary-teach.md` | next-day hit rate |

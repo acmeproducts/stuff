@@ -1,6 +1,6 @@
 # Plan X — X itself
 
-Version 1.0.0 · 2026-11-18 · Part of `x/X-ROADMAP.md` · Concept: `x/X-CONCEPT.md`
+Version 1.1.0 · 2026-11-22 · Part of `x/X-ROADMAP.md` · Concept: `x/X-CONCEPT.md`
 
 ## 1. Purpose
 Build the learning system. Three streams: **voice** (X listens and speaks), **learning** (the nine steps, verdicts, words), and **lists and threads** (many items, many things at once).
@@ -172,4 +172,95 @@ Finding things to buy. Flights as an acquired content type. Each step that sends
 **My next proposal**, that X be given two fixed things to fetch, was refused: "that's building connectors again" (G28).
 **Open since 2026-11-22, for the owner:** this plan was parked until "showing" passed. The owner has since said what that learning is (R62): X learns from what it is used for. That cannot happen while X is not in use, so the order below no longer holds together: X has to be in daily use before V6 can exist. The new order is his to set.
 
+**Answered 2026-11-22 by section 8 below**, planned on the owner's "go": X7 first, then V6.
+
 **What happens to this plan (as written 2026-11-18):** X2 to X6 stand as written but none starts until V6 (showing) has passed on a device. X1's device gate stays failed; it is not re-run on this page.
+
+## 8. X returns (planned 2026-11-22 on the owner's "go"; **not built; building waits for his go**)
+The owner, 2026-11-22: X "learns stuff, then does it … consuming the result and cataloging it and indexing it … whatever I use it for all the time, eventually it just knows that's what I want" (R62). That needs X in daily use and a record of that use. This section is the plan for both. V6 (plan V) sits on top of it.
+
+### 8.1 Words used here
+| Word | Meaning |
+|---|---|
+| Ask | one thing he asks X |
+| Result | what came back: the spoken answer, its sources, and up to five **points**: short lines stating what could be different next time |
+| Subject | what an ask is about, as a short label. Subjects have no kinds and no code of their own |
+| Record | every ask and result, by subject and by day |
+| Standing subject | one he keeps coming back to, which X now checks by itself (V6) |
+| Round | X checking its standing subjects without being asked (V6) |
+
+### 8.2 What failed on 18 Nov, and what this plan does about each
+| What failed (fact) | Cause | In this plan |
+|---|---|---|
+| About 30 s an answer | fact: `x-r2` waits for the whole reply (up to 1500 tokens) before it says a word | the reply is streamed; X speaks the first sentence when it arrives; short answer first, **more** for the rest. Whether that is fast enough is **theory** until step 1 below |
+| No sources on any answer | fact: `x-r2` set Venice's web search to `auto`; Venice's documentation says `auto` leaves the search to the model's discretion. **Theory:** that is why none came back | search is switched on for every gather; the probe counts sources |
+| "Not sure where the learning comes in" | fact: keeping a word saved a sentence and re-ran the same slow call | everything is kept without a "yes"; from the second ask on a subject X says what is different; from the third day X brings it unasked (V6) |
+| "Just a voice front end to AI" | fact: nothing X had could act by itself | X answers questions about its own record with no model; taught signals steer it; rounds are X's own doing |
+| The watch gave X nothing | fact: signals did not reach X | a taught signal with an X action works in X |
+
+### X7 — X returns (crawl)
+**Question:** can X answer fast enough to be used every day, and is the second ask about a thing better than the first?
+
+**Scope**
+1. The X page, `x-r3`, at `/x`. Kept from `x-r2` because it passed its checks: setup for the three services with the default switch and fallback; memory as events on the device, merged with the private GitHub repository; hand time; log lines with no words; the watch sleeping when X ends.
+2. **The order of operations for an ask.** No model is called before step 3.
+   | # | Step | Model? |
+   |---|---|---|
+   | 1 | Sense: his voice (the same ears and turn tones as the Lab's Voice tab) and any taught signal that has an X action | no |
+   | 2 | Match on the device: a command; a question about X's own record; a subject already in the record | no |
+   | 3 | One call, streamed, web search on. If the subject is known the call carries that subject's last points, and the answer begins with what is different since then | **yes** |
+   | 4 | Present: spoken as it arrives; one card with its sources | no |
+   | 5 | File: the ask, its subject, the points, the sources, the answer. Nothing has to be said to keep it. **no** drops it | no |
+3. The subject and the points come back in the same call, after the spoken part, and are not spoken (D58).
+4. **The record can be asked.** "What have I asked about this week?", "what did you tell me about that on Tuesday?": answered from the record, at once, with no model.
+5. **Steering.** more, enough, again, back, yes, no by voice or by any signal he taught and gave that action (the file the Lab already uses). The camera or the watch runs in X only if such a signal exists.
+
+**Cut, and why (override me if wrong)**
+| Cut | Why |
+|---|---|
+| X saying its reading back before it answers (H2) | a step and a delay; the answer itself now starts at once |
+| "Say yes to keep it; X names the word" | he should not have to tell it. X keeps everything; what he returns to is the word |
+| Lists and threads on screen (X2, X3) | not needed to prove this; rounds (V6) use up to four calls at once behind the scenes |
+
+**Build sequence**
+| Step | What | Check |
+|---|---|---|
+| 1 | **Speed probe**, in X's setup, on the owner's phone: one tap runs one streamed ask with web search on each service that has a key. Shown and logged: seconds to the first words, seconds in all, how many sources | written into this plan as fact, whichever way it falls. If no service gives first words inside 8 s, X7 stops and this plan is revised |
+| 2 | The device gate below, written as checks | they fail on `x-r2` |
+| 3 | Streaming, speaking as it arrives, search on | the first sentence is spoken before the reply has ended |
+| 4 | The record and its index | an ask is filed under a subject with points and sources; it is there after a reload; two browsers merge |
+| 5 | "Different since last time" | the second ask on a subject carries the earlier points and no other subject's |
+| 6 | Questions about the record | answered with no model call |
+| 7 | Taught signals steer X | a made-up signal given "more" brings the next part |
+| 8 | The log | no line holds a word that was said |
+| 9 | All lab checks; deploy; one link | — |
+| 10 | Device gate | below |
+
+**Device gate (on the owner's phone)**
+1. He asks something in his own words. X's first words come inside 5 seconds (my target; the probe sets the real number). The card has its sources.
+2. The next day he asks about the same thing. X begins with what is different since yesterday, and it is right.
+3. He asks what he has asked about this week. X says it from its record, at once.
+4. more, enough and again each work by voice and by a signal he taught.
+5. Ten minutes with no touch after the first. Hand time is reported.
+6. What X kept on the S23 is there on the iPhone.
+
+**Proves or kills:** TH9, TH10, TH1.
+**Depends on:** the owner's run of the Voice tab (`lab-r12`), which is the first evidence of how the phone's recogniser behaves with turns. It does not block step 1.
+
+### 8.3 Facts this plan rests on
+| Fact | Consequence |
+|---|---|
+| A web page runs only while it is open | rounds happen when X is opened and while it stays open. Nothing happens while it is closed |
+| Rounds on a server would need his AI keys off the phone | not proposed: the standing rule keeps keys in the browser only |
+| A web page cannot see what he does in other apps or sites | X learns only from what he does through X |
+| What was said may live only in X's memory (D13), never in the relay's log (D16) or the public repository | the record is in the memory: the phone, and his private repository if he has set one up |
+| Web search on Venice is charged by use | unasked calls are capped and counted (V6) |
+| ChatGPT Pulse (September 2025) makes proactive updates from a person's chats, inside ChatGPT's own app | the idea exists on the market. It is not a part X can use: it is another company's app and models, read by touch. X's are his own services, his own record and his own signals |
+
+### 8.4 For the owner to authorise before anything is built
+| # | What | Why it is his |
+|---|---|---|
+| A1 | X's memory holds every ask and what came back, words included, on the phone and in his private repository | it is what X keeps about him (extends D13) |
+| A2 | X spends on his AI keys without being asked, inside a cap (V6) | his money |
+| A3 | The two cuts above | they change the concept he approved (§3.3, H2) |
+| A4 | Gate 3 and point 2 of X 1.0 reworded (roadmap §2, §3.1) | they are his definition of done |

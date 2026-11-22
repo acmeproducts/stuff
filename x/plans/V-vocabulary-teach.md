@@ -87,7 +87,7 @@ Owner: "by combining actions like letters make up words".
 **Known limit:** when a word fires, its last letter's own action has already happened. Deciding between them is the arbiter's job (plan S, S5).
 **Device gate:** the owner makes one word from two of his signals and it fires when he means it, three times out of three, and not when he makes the two the other way round.
 
-### V6 — Habits (was "Showing") · not yet planned
+### V6 — Habits (was "Showing") (walk) · planned 2026-11-22, not built
 **The plan that stood here until 2026-11-22 was wrong and is withdrawn.** It read "monkey see, monkey do" as: two actions, "watch me" and "that's it"; X records the run between them on the object card; a model says what it was for; one signal replays it. The owner: "that's exactly what it is not. You just described recording a macro." Nothing of it was built. (G30)
 
 **What it is, in his words (R62):** "X learns stuff, then does it. Not … replaying as a glorified macro, but it's actually consuming the result and cataloging it and indexing it … whatever I use it for all the time, eventually it just knows that's what I want. I don't have to tell it to go get it."
@@ -100,8 +100,39 @@ Owner: "by combining actions like letters make up words".
 | Does | X gets it without being asked, reads the result, files it with the earlier ones, and says what matters: changed, new, or nothing. |
 | Is not | A recording of steps. A list of things chosen by the build to fetch (G28). A widget for any one example (P27). |
 
-**Known (fact):** this needs X in real daily use, and X's first page failed on his devices on 18 Nov and is parked (plan X, X1). It also decides what X keeps about him and where, which is architecture and his to authorise.
-**No release, sequence or gate is written yet.** They follow his go-ahead.
+**Planned 2026-11-22 on the owner's "go". Not built; building waits for his go, and for X7 (plan X, section 8) to pass on his phone.**
+
+**Question:** does X come to know what he wants without being told?
+
+**Scope** (the words ask, result, points, subject, record, standing, round are defined in plan X, 8.1)
+1. **Notice, with no model.** A subject he has asked about on 3 separate days inside 7 becomes standing. X takes its rhythm from the gaps between his asks (daily, weekdays, weekly) and the time of day.
+2. **X says so, once.** "You have asked about that three days running. I will look myself from now on." **no** undoes it. Nothing is confirmed, declared or set up.
+3. **Rounds.** When X is opened, and on each subject's rhythm while X stays open, X checks the standing subjects that are due, up to four at once (D17). Each result is filed like any other and read against that subject's record.
+4. **X says what matters.** One short sentence a subject. What changed comes first. What did not is said in one breath. Anything new around the subject is added ("there is news in telecom"). **more** opens one.
+5. **Fading.** A standing subject he cuts short three rounds running, or has not asked more about in 14 days, is no longer checked. X says so once. Asking about it again brings it back.
+6. "What are you watching?" is answered from the record, with no model.
+7. **Cap.** At most 6 standing subjects are checked in one opening, each no more often than its rhythm. Every unasked call is counted and the count is reported with hand time.
+
+**Not in it:** kinds of subject, a screen to manage subjects, anything chosen by the build to fetch (G28, P27), rounds while X is closed (plan X, 8.3).
+
+**Build sequence**
+| Step | What | Check |
+|---|---|---|
+| 1 | The device gate below as checks, on a made-up record with made-up days | they fail on `x-r3` |
+| 2 | Noticing and rhythm | 3 days in 7 becomes standing; 2 does not; 3 asks in one day do not |
+| 3 | Rounds on opening and while open, four at once, capped | a due subject is checked once; one not due is not; a seventh waits |
+| 4 | What changed, what is new, what is not | a result equal in its points to the last is said as unchanged |
+| 5 | Fading and coming back | per scope 5 |
+| 6 | Counting unasked calls | the report matches the calls made |
+| 7 | Device gate | below |
+
+**Device gate: one week of the owner's ordinary use, with nothing set up**
+1. At least one subject becomes standing by itself, and X says so.
+2. The next day X opens with it unasked, says whether it changed, and is right.
+3. A subject he has stopped caring about fades without him managing anything.
+4. The week's unasked calls are reported, and he finds the number acceptable.
+
+**Proves or kills:** TH11, TH12.
 
 ### V7 — Calibrate (crawl) · built 2026-11-19 in `lab-r9`, lab only
 Owner, 2026-11-19: "we could focus more on calibration and interpretation and learning".

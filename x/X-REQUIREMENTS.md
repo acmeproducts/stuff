@@ -22,7 +22,7 @@ The owner stated the what. This file keeps it in a form that can be traced and t
 | US13 | I show X a pose or a move three times, say its name, and it is mine. (2026-11-18, evening) |
 | US14 | I join signals I have taught into a new one, the way letters make a word. |
 | US15 | I pick up a cup on the screen with my hand, or with both, and put it down where I want it. |
-| US16 | I do something once while X watches, and after that one signal does it. |
+| US16 | Whatever I use X for all the time, it comes to know, and gets it without my telling it. *(Until 2026-11-22: "I do something once while X watches, and after that one signal does it", a wrong reading.)* |
 
 ## 2. Use cases
 Each is written as what the person does and what X does. Releases are in `X-ROADMAP.md`.
@@ -122,6 +122,16 @@ Source column: NS = `X-NORTH-STAR.md` section; WP = `x/wrist/WRIST-PLAN.md` sect
 | R40 | X is taught commands and gestures, basic first, then complex ones made by combining basic ones, "like letters make up words". | NS §2 (evening) |
 | R41 | X can be taught by being shown: "monkey see monkey do with some AI assisted interpretation of outcomes". | NS §2 (evening) |
 | R62 | What R41 means, in the owner's words: "X learns stuff, then does it. Not … replaying as a glorified macro, but it's actually consuming the result and cataloging it and indexing it … whatever I use it for all the time, eventually it just knows that's what I want. I don't have to tell it to go get it." No widget is implied by any example. | NS §2 (2026-11-22) |
+| R63 | Every ask and what came back is kept, catalogued by subject and indexed by subject and by day. Nothing has to be said to keep it. | NS §2 (2026-11-22): "consuming the result and cataloging it and indexing it" |
+| R64 | From the second ask about a subject, X says what is different since the last time. | NS §2 (2026-11-22): "AT&T is unchanged this afternoon" |
+| R65 | X answers questions about its own record without calling a model. | NS §2: "everything isn't just a question to an AI" |
+| R66 | X's first words come within seconds of an ask. | NS §2 (2026-11-18, evening): "the latency is ridiculous" |
+| R67 | A subject the owner keeps coming back to becomes standing by itself. Nothing is declared or set up. | NS §2 (2026-11-22): "I don't have to tell it to go get it"; NS §2: not "the stuff that he already told me is important" |
+| R68 | X checks its standing subjects without being asked and says what matters: what changed, what is new around it, or that nothing did. | NS §2 (2026-11-22) |
+| R69 | A standing subject he no longer cares about fades by itself. | P27; NS §5 (subtraction) |
+| R70 | No kind of subject has code of its own. | NS §2 (2026-11-22): no "stock widget thingy"; P9, P27 |
+| R71 | Calls X makes unasked are capped, counted and reported. | P12, P17 |
+| R72 | A taught signal that has an X action steers X. | NS §4; R62 |
 | R42 | A 3D model of objects can be handled virtually with the hands, one or both. "Imperative." | NS §2 (evening) |
 | R43 | X is not made useful by choosing things for it to fetch. No connectors of our own, by any name. | NS §2, §3 (evening) |
 

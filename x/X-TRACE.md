@@ -49,7 +49,17 @@ Status words: **met** (proved on the owner's device, evidence named) · **part**
 | R39 | an action assigned to a hand or head movement or pose | D25, D26 | V1, V3 | `signals-check.js`, `signals-page-test.py` assign checks; the owner's run | lab |
 | R40 | basic signals, then complex ones by combining | D24, D27 | V1, V5 | combination checks; the owner's run | lab |
 | R41 | learns by "monkey see, monkey do", with AI reading the outcome | — (D29 withdrawn) | V6 | not yet planned | open |
-| R62 | learns from use, does it unasked, keeps and indexes the result; not a replay | — | V6 | not yet planned | open |
+| R62 | learns from use, does it unasked, keeps and indexes the result; not a replay | D57 to D63 (proposed) | X7, V6 | X7 and V6 gates | open |
+| R63 | every ask and result kept, catalogued, indexed | D57, D58 (proposed) | X7 | X7 gate 2, 3 | open |
+| R64 | "different since last time" | D59 (proposed) | X7 | X7 gate 2 | open |
+| R65 | the record can be asked, no model | D59 (proposed) | X7 | X7 gate 3 | open |
+| R66 | first words within seconds | D60 (proposed) | X7 | speed probe; X7 gate 1 | open |
+| R67 | standing by itself, nothing set up | D61 (proposed) | V6 | V6 gate 1 | open |
+| R68 | checks unasked and says what matters | D61 (proposed) | V6 | V6 gate 2 | open |
+| R69 | fades by itself | D62 (proposed) | V6 | V6 gate 3 | open |
+| R70 | no kind of subject has its own code | D57 (proposed) | X7, V6 | review of the build | open |
+| R71 | unasked calls capped, counted, reported | D61 (proposed) | V6 | V6 gate 4 | open |
+| R72 | taught signals steer X | — | X7 | X7 gate 4 | open |
 | R42 | a 3D object handled by one hand or both | D28 | L3 | object checks (made-up hands); the owner's run | lab |
 | R43 | not made useful by choosing things to fetch | P9, G28 | every release | review at each commit | holds so far |
 | R44 | hand toward the screen, object away | D31 | L4 | object depth check; the owner's run | lab |
@@ -72,7 +82,7 @@ Status words: **met** (proved on the owner's device, evidence named) · **part**
 | R61 | watch on the left wrist | D43 | L8 | stated on the card | holds; customising is later |
 
 ## Counts
-Met: 2 (R14, R31). Part: 7 (R04, R05, R18, R27, R28, R30, R32). Holding: 4 (R33, R36, R43, R61). Lab only: 21 (R38, R39, R40, R42, R44 to R60). Open: 28, R41 and R62 among them. Total 62. *(Counted from the table on 2026-11-22.)*
+Met: 2 (R14, R31). Part: 7 (R04, R05, R18, R27, R28, R30, R32). Holding: 4 (R33, R36, R43, R61). Lab only: 21 (R38, R39, R40, R42, R44 to R60). Open: 38, R41 and R62 to R72 among them. Total 72. *(Counted from the table on 2026-11-22.)*
 
 ## Use cases to releases
 | Use case | Releases |
@@ -82,7 +92,7 @@ Met: 2 (R14, R31). Part: 7 (R04, R05, R18, R27, R28, R30, R32). Holding: 4 (R33,
 | UC13 teach a signal | V1 |
 | UC14 give a signal an action | V3 |
 | UC15 make a word | V5 |
-| UC16 X picks up a habit | V6 |
+| UC16 X picks up a habit | X7, V6 |
 | UC3 keep, change or drop | X1 |
 | UC4 use a known word | X1 |
 | UC5 move through a list | X2 |
