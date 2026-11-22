@@ -9,13 +9,13 @@ X is a learning system you raise, so that a phone can be used with hands at rest
 |---|---|
 | `X-NORTH-STAR.md` | The owner's own words and the 26 principles drawn from them. Everything answers to it. |
 | `X-CONCEPT.md` | What X is and does: the nine steps (the order of operations), the vocabulary, floor to ceiling. The analysis. |
-| `X-REQUIREMENTS.md` | User stories, use cases, 61 requirements. |
+| `X-REQUIREMENTS.md` | User stories, use cases, 62 requirements. |
 | `X-DESIGN.md` | Standing architecture, design decisions, logical and physical design, and the changes that need the owner's yes. |
 | `X-ROADMAP.md` | **Top authority.** Where we are, where we are going, six gates, five plans, every release in order. |
 | `plans/W-watch.md` | The watch: session, battery, recognition on the watch, buzz. |
 | `plans/L-lab.md` | The Lab: results table, scored session, the 3D object handled by the hands. |
 | `plans/S-sources-arbiter.md` | Camera hand and head as numbers, and the arbiter. |
-| `plans/V-vocabulary-teach.md` | Teaching: letters (signals), actions, words (combinations), then showing. The next-day test. |
+| `plans/V-vocabulary-teach.md` | Teaching: letters (signals), actions, words (combinations), then habits (learned from use; not yet planned). The next-day test. |
 | `plans/X-x.md` | X itself. Its first pass failed on the owner's devices and is parked; the record is here. |
 | `X-TEST-PLAN.md` | Kinds of proof, suites, measurements and targets. |
 | `X-TRACE.md` | Every requirement traced to decision, release, proof and status. |

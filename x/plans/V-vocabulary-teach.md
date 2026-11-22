@@ -87,32 +87,21 @@ Owner: "by combining actions like letters make up words".
 **Known limit:** when a word fires, its last letter's own action has already happened. Deciding between them is the arbiter's job (plan S, S5).
 **Device gate:** the owner makes one word from two of his signals and it fires when he means it, three times out of three, and not when he makes the two the other way round.
 
-### V6 — Showing (walk) · next
-Owner: "I think it's more of a monkey see monkey do with some AI assisted interpretation of outcomes. This opens up the range of things significantly".
+### V6 — Habits (was "Showing") · not yet planned
+**The plan that stood here until 2026-11-22 was wrong and is withdrawn.** It read "monkey see, monkey do" as: two actions, "watch me" and "that's it"; X records the run between them on the object card; a model says what it was for; one signal replays it. The owner: "that's exactly what it is not. You just described recording a macro." Nothing of it was built. (G30)
 
-**Question:** can X learn a whole run by watching it once?
+**What it is, in his words (R62):** "X learns stuff, then does it. Not … replaying as a glorified macro, but it's actually consuming the result and cataloging it and indexing it … whatever I use it for all the time, eventually it just knows that's what I want. I don't have to tell it to go get it."
 
-**Scope.** On the object card first (D29).
-1. Two new actions: **watch me** and **that's it**. Given to signals like any other.
-2. Between them X keeps the run: each signal that fired and what it did, each take and let go, and the object's state at the start and at the end (which object, where, which way it faces, upright or lying, how big).
-3. On "that's it", one model call (the owner's default AI service; no web search) is given the start, the end and the ordered list, and returns one sentence saying what the run achieved, a short name, and the end state as conditions the page can check.
-4. X says the sentence. The owner says yes, or says what it was instead. He names it, or takes X's name.
-5. The run is saved as a signal of a new kind, **run**. It can be given a signal or a word.
-6. Making that signal does the run on whatever object is there, then checks the end conditions and says whether it got there.
+**What that means for the plan (the build's reading, to be confirmed by him):**
+| Part | Meaning |
+|---|---|
+| Sees | X keeps what he asks of it and what came back. No "watch me" step. |
+| Learns | When the same kind of ask keeps coming, X takes it as standing. |
+| Does | X gets it without being asked, reads the result, files it with the earlier ones, and says what matters: changed, new, or nothing. |
+| Is not | A recording of steps. A list of things chosen by the build to fetch (G28). A widget for any one example (P27). |
 
-**Build sequence**
-| Step | What | Check |
-|---|---|---|
-| 1 | Failing checks: a made-up run is recorded with the right steps and states; the reader's reply (stood in for by the test) becomes a saved run; replay reaches the same end state on a different object; a replay that misses says so | fail on `lab-r7` |
-| 2 | Recorder in `signals.lib.js` | checks pass |
-| 3 | Reader: one call, the three services X's setup already holds | reply time logged |
-| 4 | Replayer and the end-state check | checks pass |
-| 5 | Card additions | page checks pass |
-| 6 | Device gate | below |
-
-**Device gate:** the owner shows X one run on the cup. X says back what it was for in a sentence he accepts. One signal then does it on the bowl. No touch. The reading comes back in under 5 seconds (my target; measured, to be corrected by evidence).
-
-**After the object card:** the same recorder on other things X can see the outcome of. Which thing comes next is decided when this gate has passed, from what the owner then asks for.
+**Known (fact):** this needs X in real daily use, and X's first page failed on his devices on 18 Nov and is parked (plan X, X1). It also decides what X keeps about him and where, which is architecture and his to authorise.
+**No release, sequence or gate is written yet.** They follow his go-ahead.
 
 ### V7 — Calibrate (crawl) · built 2026-11-19 in `lab-r9`, lab only
 Owner, 2026-11-19: "we could focus more on calibration and interpretation and learning".

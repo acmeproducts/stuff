@@ -81,7 +81,7 @@ A release is the smallest whole thing that can be used and judged. Status: built
 | **V3** Assign | one action for each signal, one signal for each action; kept on the device | V1 | 5 | crawl | **built in the Lab, lab only; contexts and X not yet** |
 | **V5** Words | signals made one after another become a signal with its own action | V1 | 5 | crawl | **built, lab only** |
 | **L3** 3D object | a cup, a bowl and a toy car taken, carried, turned and resized by one hand or both; a timed task; actions from signals | S2 | 6 | crawl | **built, lab only** |
-| **V6** Showing | do a run while X watches; AI says what it was for; name it; one signal does it again. First on the object card | V1, V3, V5, L3 passed on a device | 5 | walk | **next** |
+| **V6** Habits (was "Showing") | X learns from what it is used for, then does it unasked, keeps and indexes what came back, and says what matters. Not a replay (R62) | X in real daily use, so the X page first | — | — | **not yet planned**; the earlier plan was a wrong reading, withdrawn 2026-11-22 |
 | W2 Battery truth | percent an hour by link, from real sessions; 30-minute freeze check; Wi-Fi-only run | W1, L1 | 2 | walk | later |
 | L2 Scored session | prompted and unprompted scoring: hit rate and wrong fires per signal | V1 | 4 | walk | later |
 | S4 One event shape | every source reports the same shape, with presence | V1, V2 | 5 | walk | later |
@@ -106,12 +106,12 @@ A release is the smallest whole thing that can be used and judged. Status: built
 | 4 | **L7** Journey | a spoken choose-your-path story steered by the head | R53 | **built in `lab-r11`, lab only** |
 | 5 | **S6** Voice | turns, interruptions, hot word and cold word; "start listening" and "stop listening" as actions | R52 | **built in `lab-r12`, lab only** |
 
-V6 (showing) follows this round. No watch build is in this round.
+V6 was to follow this round as "showing" on the object card. Withdrawn 2026-11-22: that was a macro recorder, which is not what the owner meant (R62). What comes next is to be agreed with him. No watch build is in this round.
 
 *What follows is the order as of 2026-11-18, evening, kept as the record.*
 **From 2026-11-18, evening (the owner's order):**
 1. The owner runs the five new Lab cards. The build reads his trials and fixes what the real hand and head show that the made-up ones did not.
-2. **V6 Showing**, on the object card.
+2. ~~**V6 Showing**, on the object card.~~ Withdrawn 2026-11-22 (wrong reading; see R62).
 3. Then S4 and S5 (one event shape, the arbiter), because words and shown runs make more than one thing fire at once.
 4. The X page comes back when there is something taught for it to do. W2 (battery, the silent watch) runs alongside whenever the watch is on.
 
@@ -164,3 +164,4 @@ A release is done when its device gate passes and its rows in `X-TRACE.md` show 
 | 2026-11-19 | Owner ran `lab-r9`: calibrated his right hand and head; rated and wrote notes on the watch cards; then "please complete the entire body of development". | R57 to R61, P26, D42 to D46, G29. Plan L (L8). |
 | 2026-11-19 | Stages 3 and 4 built: Lab `lab-r11`, relay `w10`. Hands and things (hands in the scene, hand to hand, six goals, putty) replaces the object card; Journey added. Lab checks: engine 74, new cards 120, older Lab 89, relay 37, X page 50. | **Lab only.** No real hand or head has run them. D47 to D51. |
 | 2026-11-19 | Stage 5 built: Lab `lab-r12`, relay `w11`. A fifth tab, Voice: Take turns, Interrupt, Hot word and cold word. Voice is a source in Teach; "start listening" and "stop listening" are actions. Lab checks: engine 93, new cards 163, older Lab 89, relay 37, X page 50. Round 2 is built. | **Lab only.** The recogniser in the checks is made up; no real voice has run it. D52 to D56. One call put to the owner: D56. |
+| 2026-11-22 | The owner corrected what "monkey see, monkey do" means: not a run recorded and replayed ("a glorified macro"), but X learning from what he keeps using it for, then doing it unasked, consuming, cataloguing and indexing the result and giving the insight. | V6 as planned is withdrawn; D29 withdrawn; G30. P21 and P22 reworded, P27 and R62 added. Nothing had been built. V6 is to be planned with him. |

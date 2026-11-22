@@ -48,7 +48,8 @@ Status words: **met** (proved on the owner's device, evidence named) · **part**
 | R38 | Lab cases for hand and head recognition | D23 | S2, S3 | `signals-page-test.py` hand and head checks; the owner's run of the two cards | lab |
 | R39 | an action assigned to a hand or head movement or pose | D25, D26 | V1, V3 | `signals-check.js`, `signals-page-test.py` assign checks; the owner's run | lab |
 | R40 | basic signals, then complex ones by combining | D24, D27 | V1, V5 | combination checks; the owner's run | lab |
-| R41 | taught by being shown, with AI reading the outcome | D29 | V6 | V6 gate | open |
+| R41 | learns by "monkey see, monkey do", with AI reading the outcome | — (D29 withdrawn) | V6 | not yet planned | open |
+| R62 | learns from use, does it unasked, keeps and indexes the result; not a replay | — | V6 | not yet planned | open |
 | R42 | a 3D object handled by one hand or both | D28 | L3 | object checks (made-up hands); the owner's run | lab |
 | R43 | not made useful by choosing things to fetch | P9, G28 | every release | review at each commit | holds so far |
 | R44 | hand toward the screen, object away | D31 | L4 | object depth check; the owner's run | lab |
@@ -71,7 +72,7 @@ Status words: **met** (proved on the owner's device, evidence named) · **part**
 | R61 | watch on the left wrist | D43 | L8 | stated on the card | holds; customising is later |
 
 ## Counts
-Met: 2 (R14, R31). Part: 7 (R04, R05, R18, R27, R28, R30, R32). Holding: 3 (R33, R36, R43). Lab only: 15 (R38, R39, R40, R42, R44, R49, R50, R51, R54, R55, R56, R57, R58, R59, R60). Holding: R61 as well. Open: 33. Total 61.
+Met: 2 (R14, R31). Part: 7 (R04, R05, R18, R27, R28, R30, R32). Holding: 4 (R33, R36, R43, R61). Lab only: 21 (R38, R39, R40, R42, R44 to R60). Open: 28, R41 and R62 among them. Total 62. *(Counted from the table on 2026-11-22.)*
 
 ## Use cases to releases
 | Use case | Releases |
@@ -81,7 +82,7 @@ Met: 2 (R14, R31). Part: 7 (R04, R05, R18, R27, R28, R30, R32). Holding: 3 (R33,
 | UC13 teach a signal | V1 |
 | UC14 give a signal an action | V3 |
 | UC15 make a word | V5 |
-| UC16 show X a run | V6 |
+| UC16 X picks up a habit | V6 |
 | UC3 keep, change or drop | X1 |
 | UC4 use a known word | X1 |
 | UC5 move through a list | X2 |

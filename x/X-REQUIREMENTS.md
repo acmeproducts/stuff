@@ -44,7 +44,7 @@ Each is written as what the person does and what X does. Releases are in `X-ROAD
 | UC13 | Teach a signal | Pick hand, head or watch. Show it three times when asked. Say its name. Save. | V1 |
 | UC14 | Give a signal an action | Pick one action for a signal. An action another signal held moves to this one. | V3 |
 | UC15 | Make a word | Pick two or three signals in order, name the result, give it an action. | V5 |
-| UC16 | Show X a run | Do a task while X watches. Hear what X took it to be. Name it. Make it happen again with one signal. | V6 |
+| UC16 | X picks up a habit | Use X for the same kind of thing several times. X begins to get it unasked, and says only what matters. *(Until 2026-11-22: "Show X a run", a wrong reading.)* | V6 |
 
 ## 3. Requirements
 Source column: NS = `X-NORTH-STAR.md` section; WP = `x/wrist/WRIST-PLAN.md` section.
@@ -121,6 +121,7 @@ Source column: NS = `X-NORTH-STAR.md` section; WP = `x/wrist/WRIST-PLAN.md` sect
 | R39 | An action can be assigned to a specific hand or head movement or pose. | NS §2 (evening) |
 | R40 | X is taught commands and gestures, basic first, then complex ones made by combining basic ones, "like letters make up words". | NS §2 (evening) |
 | R41 | X can be taught by being shown: "monkey see monkey do with some AI assisted interpretation of outcomes". | NS §2 (evening) |
+| R62 | What R41 means, in the owner's words: "X learns stuff, then does it. Not … replaying as a glorified macro, but it's actually consuming the result and cataloging it and indexing it … whatever I use it for all the time, eventually it just knows that's what I want. I don't have to tell it to go get it." No widget is implied by any example. | NS §2 (2026-11-22) |
 | R42 | A 3D model of objects can be handled virtually with the hands, one or both. "Imperative." | NS §2 (evening) |
 | R43 | X is not made useful by choosing things for it to fetch. No connectors of our own, by any name. | NS §2, §3 (evening) |
 

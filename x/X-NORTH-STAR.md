@@ -1,6 +1,6 @@
 # X — north star
 
-Version 1.3.0 · 2026-11-19 · Owner: Confi
+Version 1.4.0 · 2026-11-22 · Owner: Confi
 
 This file holds the owner's own words and the principles drawn from them. Every other file in `x/` answers to it. Quotes are the owner's words; only punctuation is added and dictation slips are fixed. Anything not in quotes is a reading of them.
 
@@ -67,6 +67,11 @@ Then: "please complete the entire body of development".
 The practical side:
 > "you want to be able to just not keep having to touch your phone all the time. Maybe you want to scroll through Reddit feeds, maybe you want a weather report and traffic, maybe you're doing research on the natural occurrence of gold in the Central Valley, maybe you're playing a game, maybe you're just exploring and appreciating art and music, maybe you're trying to figure out what the carry trade in Japan has to do [with] what is going on with credit squeeze"
 
+**2026-11-22. What "monkey see, monkey do" means.** The build had read it as: do a run once while X watches, and one signal replays it. The owner:
+> "that's exactly what it is not. You just described recording a macro. What it is, is constantly going and looking up information to monitor it, and then it can repeat that loop. The goal basically is that X learns stuff, then does it. Not so we're replaying as a glorified macro, but it's actually consuming the result and cataloging it and indexing it. It can start to provide you insights, like: you checked Yahoo Finance for AT&T stock every day for 5 days, and now it knows to just tell you AT&T is unchanged this afternoon, however there's some news in the telecom arena. I actually hate that example because it makes you think that I want some sort of stock widget thingy, but I don't. I'm just saying whatever I use it for all the time, eventually it just knows that's what I want. I don't have to tell it to go get it."
+
+So: it is not shown on request and it is not a replay. X learns from what he keeps using it for, then gets it without being asked, reads what came back, keeps and indexes it, and says what matters.
+
 ## 3. What X is not
 - Not an agent, not a distilled UI, not an accessibility fix, not voice commands like "click here" (2026-11-16).
 - Not a dashboard, not a fixed set of feeds chosen in advance (2026-11-18).
@@ -131,10 +136,11 @@ Each design decision in `X-DESIGN.md` cites the principles it rests on. A decisi
 | P17 | **Evidence.** Facts and theory are labelled. Everything measurable is logged where the build can read it. Diagnostics are in the app. | owner preferences; `claude-audit.md` A6, E1 |
 | P18 | **Explicit yes for anything that cannot be undone.** Sending, deleting and spending need the person's yes, and hardened pairing first. | WRIST-PLAN §6 |
 | P20 | **Learns in operation and in function.** What X learns stays on the device and syncs to GitHub. X keeps it everywhere, and the build reads it so X itself is improved from use. | §2 |
-| P21 | **Letters, then words, then showing.** X is taught basic signals first, then signals made from signals, then whole runs it is shown. Each stage is made from the one before it. | §2 (evening) |
-| P22 | **Shown, not told.** What X learns to do, it learns by watching the person do it. AI's part is to read what came of it. | §2 (evening) |
+| P21 | **Letters, then words, then habits.** X is taught basic signals first, then signals made from signals. After that it learns from use: what the person keeps asking of it. *(Until 2026-11-22 this read "then whole runs it is shown". That reading was wrong.)* | §2 (evening; 2026-11-22) |
+| P22 | **Learned from use, not recorded.** What X comes to do, it learns from what the person keeps using it for. It then does it unasked, consumes the result, catalogues and indexes it, and says what matters. It is never a replay of steps. AI's part is to read what came back. *(Until 2026-11-22: "Shown, not told".)* | §2 (2026-11-22) |
 | P23 | **Things are handled.** An object on the screen is taken, moved and turned by the hands themselves, one or both. | §2 (evening) |
 | P24 | **Calibrated to the person.** Ranges come from the person's own body: how their pinch reads, how far they reach, where their head rests, how each eye reads. Fixed numbers of the build's are a stopgap. | §2 (2026-11-19) |
 | P25 | **Sources are kept apart.** The camera works with only a camera, the watch with only the watch, the voice with only the mic. They meet where the person teaches and combines. | §2 (2026-11-19) |
 | P26 | **Measured from the person's rest, not from a posture the build expects.** A signal is a change from where their arm, hand or head already is, at whatever angle that is. | §2 (2026-11-19, watch notes) |
+| P27 | **No widgets.** An example of a habit is an example, not a feature. X is not given things to fetch; whatever the person uses it for all the time is what it comes to know. | §2 (2026-11-22); G28 |
 | P19 | **Not app navigation.** Signals are named for what the body does; meaning is given in X. The Lab is a workshop, not the product. | §4 |
