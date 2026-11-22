@@ -49,13 +49,13 @@ await page.tap('#rowGlide'); log.push('glide switch thr=' + await page.evaluate(
 log.push('quick X -> ' + (await tapX('quick'), await ui()));
 await page.tap('#btnPause'); log.push('pause button -> ' + await ui()); await tapX('quick');
 await page.evaluate(() => { const b = __buzz; b.G.counts.car = 30; b.finishMission(); });
-await page.waitForTimeout(200); log.push('result -> ' + await ui() + ' stars ' + JSON.stringify(await page.evaluate(() => __buzz.save.stars))); await page.screenshot({ path: 'shots/ui_9_result.png' });
+await page.waitForTimeout(200); log.push('result -> ' + await ui() + ' timed ' + await page.evaluate(() => !!__buzz.save.times.m1 && __buzz.save.times.m1.runs === 1)); await page.screenshot({ path: 'shots/ui_9_result.png' });
 await page.tap('#rNext'); log.push('next -> ' + await ui() + ' ' + await page.evaluate(() => document.getElementById('brName').textContent)); await tapX('brief'); log.push('brief X -> ' + await ui());
 await page.evaluate(() => { const b = __buzz; b.startRun('mission', b.MISSIONS[0]); b.finishMission(); }); log.push('result X -> ' + (await tapX('result'), await ui()));
 await page.tap('#mEscape'); log.push('escape -> ' + await ui() + ' ' + await page.evaluate(() => document.getElementById('brName').textContent));
 await page.tap('#brGo'); await page.waitForTimeout(1200); await page.screenshot({ path: 'shots/ui_10_escape.png' });
 await page.reload(); await page.waitForFunction(() => window.__buzz && __buzz.G.state === 'menu');
-log.push('after reload stars ' + JSON.stringify(await page.evaluate(() => __buzz.save.stars)) + ' menu ' + await page.evaluate(() => document.getElementById('mStars').textContent));
+log.push('after reload runs ' + await page.evaluate(() => __buzz.save.times.m1.runs) + ' menu ' + await page.evaluate(() => document.getElementById('mStars').textContent));
 console.log(log.join('\n'));
 console.log('errors:', errors.filter((e) => !e.includes('ReadPixels')).join('\n') || 'none');
 await close();

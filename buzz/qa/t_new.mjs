@@ -17,22 +17,17 @@ const out = await page.evaluate(async () => {
   place(gar.x0 + 8, 4.4, gar.z0 + 8.75, -Math.PI / 2); for (let i = 0; i < 400; i++) { b.input.x = Math.sin(i / 30) * 0.4; b.stepSim(1 / 60); }
   const cars = W.reactives.filter((o) => o.type === 'car' && o.done).length; const tree = W.reactives.find((o) => o.type === 'tree'); place(tree.x - 6, tree.y, tree.z, -Math.PI / 2); step(1.5);
   G.unbanked = 5000; P.pos.set(0, 30, 0); for (let i = 0; i < 600; i++) b.stepSim(1 / 60); const h0 = G.health; P.pos.set(gar.x0 + 30, 4.4, gar.z0 + 8); P.pitch = -1; step(1);
-  res.push(`zen: G.zen=${G.zen} cruise ${zenV.toFixed(0)} km/h, car alarms ${cars}, tree rustled ${tree.done}, havoc ${G.unbanked + G.banked}, drones ${b.drones.filter((d) => d.state !== 'off').length}, health ${G.health}, hudZen ${document.getElementById('hud').classList.contains('zen')}`);
+  res.push(`zen: G.zen=${G.zen} cruise ${zenV.toFixed(0)} km/h, car alarms ${cars}, tree rustled ${tree.done}, havoc ${G.unbanked + G.banked}, health ${G.health}, hudZen ${document.getElementById('hud').classList.contains('zen')}`);
   b.save.zen = false;
   // D. glide: engine off, sinks, leaves no trail, nothing reacts, drones cannot track and give up
   b.startRun('free', null); const W2 = b.W; const g2 = W2.buildings.find((q) => q.kind === 'garage');
   place(0, 250, 300, Math.PI); b.setThrottle(0, true); step(1); const y0 = P.pos.y, x0 = P.pos.x, z0 = P.pos.z; G.trail.length = 0; let t = 0, dist = 0; const prev = P.pos.clone();
   while (!P.landed && t < 400 && P.pos.y > 40) { b.stepSim(1 / 60); t += 1 / 60; dist += Math.hypot(P.pos.x - prev.x, P.pos.z - prev.z); prev.copy(P.pos); }
   res.push(`glide: G.glide=${G.glide}, sank ${(y0 - P.pos.y).toFixed(0)} m in ${t.toFixed(0)} s over ${dist.toFixed(0)} m (ratio ${(dist / (y0 - P.pos.y)).toFixed(1)}:1), trail points ${G.trail.length}`);
-  b.setThrottle(0.5, true); place(g2.x0 + 8, 4.4, g2.z0 + 8.75, -Math.PI / 2); for (let i = 0; i < 60 * 25 && b.drones.filter((d) => d.state === 'trail').length < 2; i++) { G.unbanked = 800; if (!P.loc || P.loc.B !== g2) place(g2.x0 + 8, 4.4, g2.z0 + 8.75, -Math.PI / 2); b.input.x = Math.sin(i / 50) * 0.3; G.health = 100; b.stepSim(1 / 60); }
-  const dBefore = b.drones.filter((d) => d.state === 'trail').length; const dpos = b.drones.map((d) => d.pos.clone()); const dst = b.drones.map((d) => d.state === 'trail' && d.stun <= 0);
-  const car = W2.reactives.find((o) => o.type === 'car' && !o.done && o.f === 2);
-  b.setThrottle(0, true); b.input.x = 0; P.landed = null; P.pos.set(car.x, car.y + 1.2, car.z); P.yaw = 0; P.pitch = 0; P.speed = 4; step(0.4); const silent = !car.done;
-  step(2.6); let moved = 0; b.drones.forEach((d, i) => { if (dst[i] && d.state === 'trail') moved = Math.max(moved, Math.hypot(d.pos.x - dpos[i].x, d.pos.z - dpos[i].z)); });
-  const parked = !!P.landed; step(6);
-  const gone = b.drones.filter((d) => d.state === 'trail').length;
-  b.setThrottle(0.5, true); P.landed = null; P.pos.set(car.x, car.y + 1.2, car.z); P.speed = 4; G.unbanked = 0; step(0.3);
-  res.push(`glide stealth: drones tracking before ${dBefore}; gliding over a parked car sets it off: ${!silent}; drones moved while engine off ${moved.toFixed(2)} m (parked on the floor: ${parked}); drones still tracking after 9 s ${gone}; same car with engine on reacts: ${car.done}`);
+  { const car = W2.reactives.find((o) => o.type === 'car' && !o.done && o.f === 2);
+    b.setThrottle(0, true); b.input.x = 0; P.landed = null; P.pos.set(car.x, car.y + 1.2, car.z); P.yaw = 0; P.pitch = 0; P.speed = 4; step(0.4); const silent = !car.done; step(3); const parked = !!P.landed;
+    b.setThrottle(0.5, true); P.landed = null; P.pos.set(car.x, car.y + 1.2, car.z); P.speed = 4; step(0.3);
+    res.push(`glide silence: gliding over a parked car sets it off: ${!silent}; rolled to a stop on the floor: ${parked}; same car with engine on reacts: ${car.done}`); }
   b.setThrottle(0.5, true);
   // E. landing spots: low and slow lands, gives the bonus once, saved; fast does not land; take-off is vertical
   b.startRun('free', null); const W3 = b.W; const rows = [];
@@ -61,12 +56,19 @@ const out = await page.evaluate(async () => {
   for (const s of starts) { place(s[0], s[1], s[2], s[3]); for (let i = 0; i < 5400; i++) { if (i % 30 === 0) { b.input.x = rnd() * 2 - 1; b.input.y = (rnd() * 2 - 1) * 0.6; } G.health = 100; b.stepSim(1 / 60); if (!isFinite(P.pos.x + P.pos.y + P.pos.z)) { nan++; break; } if (P.pos.y < b.groundY(P.pos.x, P.pos.z) + 0.05 && !P.landed) under++; if (P.landed) b.takeOff(); if (i % 60 === 0) seen[document.getElementById('loc').textContent.split(' ·')[0]] = 1; } }
   b.input.x = b.input.y = 0;
   res.push(`terrain fuzz 7.5 min: under ground ${under}, NaN ${nan}`);
+  // T. levels are timed: best is kept, the log is newest first, planes unlock by levels done, old stars still count
+  { const m = b.MISSIONS[0]; const run = (secs) => { b.startRun('mission', m); for (let i = 0; i < secs * 60; i++) b.stepSim(1 / 60); G.counts.car = m.goal; b.stepSim(1 / 60); return document.getElementById('rKind').textContent + ' | ' + document.getElementById('rTime').textContent + ' | ' + document.getElementById('rText').textContent; };
+    const locked0 = b.PLANES.filter((p, i) => p.unlock > b.levelsDone()).length;
+    const a1 = run(5), a2 = run(3), a3 = run(4); const r = b.save.times[m.id];
+    res.push(`timed: [${a1}] [${a2}] [${a3}]`); res.push(`time log: best ${r.best} runs ${r.runs} log ${r.log.join(',')}; levels done ${b.levelsDone()}; planes locked ${locked0} -> ${b.PLANES.filter((p) => p.unlock > b.levelsDone()).length}`);
+    b.save.stars.m2 = 2; res.push(`old star counts as done: ${b.levelsDone()}`); delete b.save.stars.m2;
+    b.startRun('mission', m); for (let i = 0; i < 200; i++) b.stepSim(1 / 60); res.push(`no time limit: after 3 s without doing the task ui=${b.ui()}, hud "${(b.stepSim(1 / 60), document.getElementById('pTime').textContent || 'pending hud')}"`); b.setState('menu'); }
   // H. save everything, reload, check
   b.save.upDives = false; b.save.zen = true; b.save.sound = false; b.save.fps = false; b.save.season = 'winter'; b.save.tod = 'dusk'; b.save.weather = 'snow'; b.save.plane = 0; b.setThrottle(0.31, true); b.persist();
   return res;
 });
 console.log(out.join('\n'));
 await page.reload(); await page.waitForFunction(() => window.__buzz && __buzz.G.state === 'menu');
-console.log('after reload: ' + await page.evaluate(() => { const b = __buzz, s = b.save; return `upDives=${s.upDives} zen=${s.zen} sound=${s.sound} fps=${s.fps} env=${s.season}/${s.tod}/${s.weather} plane=${s.plane} throttle=${s.throttle} lever=${b.input.thr} pads=${Object.keys(s.pads).length} menuZen=${document.getElementById('mZen').checked} menuPads=${document.getElementById('mPads').textContent} label=${b.env.label}`; }));
+console.log('after reload: ' + await page.evaluate(() => { const b = __buzz, s = b.save; return `upDives=${s.upDives} zen=${s.zen} sound=${s.sound} fps=${s.fps} env=${s.season}/${s.tod}/${s.weather} plane=${s.plane} throttle=${s.throttle} lever=${b.input.thr} pads=${Object.keys(s.pads).length} times=${JSON.stringify(s.times.m1)} menuLevels=${document.getElementById('mStars').textContent} menuZen=${document.getElementById('mZen').checked} menuPads=${document.getElementById('mPads').textContent} label=${b.env.label}`; }));
 console.log('errors:', errors.filter((e) => !e.includes('ReadPixels')).join('\n') || 'none');
 await close();

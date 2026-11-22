@@ -24,7 +24,7 @@ const out = await page.evaluate(async () => {
   for (const id of ['m3', 'm7', 'm11']) {
     const m = b.MISSIONS.find((q) => q.id === id); const times = [];
     for (let n = 0; n < 8; n++) {
-      b.startRun('mission', Object.assign({}, m, { drones: 0 })); const W = b.W, P = b.P; const B = W.buildings.find((q) => q.kind === 'hotel');
+      b.startRun('mission', m); const W = b.W, P = b.P; const B = W.buildings.find((q) => q.kind === 'hotel');
       const path = plan(W, P.pos, B, 0.6) || plan(W, P.pos, B, 0.45) || plan(W, P.pos, B, 0.34);
       if (!path) { times.push('NOPATH'); continue; }
       let pi = 0, t = 0, hits = 0, lastH = 100; const tv = P.pos.clone();
@@ -50,7 +50,7 @@ const out = await page.evaluate(async () => {
   }
   // clean starts: no impact in the first second of any mission
   const starts = [];
-  for (const m of b.MISSIONS) { let bad = 0; for (let n = 0; n < 6; n++) { b.startRun('mission', Object.assign({}, m, { drones: 0 })); const y0 = b.P.yaw; for (let i = 0; i < 70; i++) b.stepSim(1 / 60); if (b.G.health < 100 || Math.abs(b.P.yaw - y0) > 0.01) bad++; } starts.push(m.id + ':' + bad); }
+  for (const m of b.MISSIONS) { let bad = 0; for (let n = 0; n < 6; n++) { b.startRun('mission', m); const y0 = b.P.yaw; for (let i = 0; i < 70; i++) b.stepSim(1 / 60); if (b.G.health < 100 || Math.abs(b.P.yaw - y0) > 0.01) bad++; } starts.push(m.id + ':' + bad); }
   res.push('bad starts of 6 -> ' + starts.join(' '));
   return res;
 });

@@ -35,8 +35,8 @@ has 'single tap -> play' && has 'double tap -> quick ; switches untouched=true' 
 check "double tap opens the quick menu without pressing a switch under the finger; single tap does nothing" $r "$(echo "$out" | grep 'tap ->' | tr '\n' ' ')"
 has 'lever while steering thr=0.8' && has 'lever bottom glide=true saved=0' && has 'after all up x=0' && has 'glide switch thr=0' && has 'glide off thr=0.50' && r=ok || r=no
 check "speed lever works while steering (two thumbs); bottom of the lever and the Glide switch both cut the engine" $r "$(echo "$out" | grep 'lever\|glide' | tr '\n' ' ')"
-has 'start -> play' && has 'map big true' && has 'locked plane not taken: plane 1' && has 'result -> result' && has 'after reload stars {"m1":2}' && has 'errors: none' && r=ok || r=no
-check "missions start, map enlarges, locked plane cannot be picked, stars survive a reload" $r ""
+has 'start -> play' && has 'map big true' && has 'locked plane not taken: plane 1' && has 'result -> result timed true' && has 'after reload runs 2 menu 1 / 12 done' && has 'errors: none' && r=ok || r=no
+check "levels start, map enlarges, locked plane cannot be picked, times survive a reload, no page errors (sound start included)" $r ""
 
 out=$(timeout 290 node t_new.mjs 2>&1)
 has 'fresh defaults: upDives=true' && has 'dives by default (pitch -1.' && has 'climbs when switched (pitch 1.' && r=ok || r=no
@@ -44,10 +44,14 @@ check "stick up dives by default and the switch flips it" $r "$(echo "$out" | gr
 sp=$(echo "$out" | grep 'lever 15' | grep -o '[0-9]* / [0-9]* / [0-9]*'); a=$(echo $sp | cut -d/ -f1); b=$(echo $sp | cut -d/ -f2); c=$(echo $sp | cut -d/ -f3)
 [ -n "$a" ] && [ $a -lt $b ] && [ $b -lt $c ] && r=ok || r=no
 check "speed lever: 15 / 50 / 100 % -> $sp km/h" $r ""
-has 'zen: G.zen=true' && has 'car alarms 0, tree rustled true, havoc 0, drones 0, health 100, hudZen true' && r=ok || r=no
-check "Zen: slower, nothing scores, no alarms, no drones, no damage; quiet things still react" $r "$(echo "$out" | grep '^zen')"
-has 'trail points 0' && has 'sets it off: false' && has 'drones moved while engine off 0.00 m' && has 'still tracking after 9 s 0' && has 'engine on reacts: true' && r=ok || r=no
-check "glide: sinks slowly ($(echo "$out" | grep -o 'ratio [0-9.]*:1')), leaves no trail, sets nothing off, drones hold then give up" $r "$(echo "$out" | grep '^glide')"
+has 'zen: G.zen=true' && has 'car alarms 0, tree rustled true, havoc 0, health 100, hudZen true' && r=ok || r=no
+check "Zen: slower, nothing scores, no alarms, no damage; quiet things still react" $r "$(echo "$out" | grep '^zen')"
+has 'G.glide=true' && has 'sets it off: false' && has 'rolled to a stop on the floor: true' && has 'engine on reacts: true' && r=ok || r=no
+check "glide: sinks slowly ($(echo "$out" | grep -o 'ratio [0-9.]*:1')), sets nothing off; the same car reacts with the engine on" $r "$(echo "$out" | grep '^glide')"
+has 'First time on the board' && has 'NEW BEST TIME | 3.0 s | 2.0 s faster than your old best of 5.0 s.' && has '1.0 s off your best of 3.0 s.' && has 'time log: best 3 runs 3 log 4,3,5' && r=ok || r=no
+check "levels are timed: first run sets the time, a faster run becomes the best, a slower one is logged against it, newest first" $r "$(echo "$out" | grep '^time')"
+has 'planes locked 8 -> 7' && has 'old star counts as done: 2' && has 'no time limit: after 3 s without doing the task ui=play' && r=ok || r=no
+check "finishing a level unlocks a plane; a star from the first release still counts; there is no time limit" $r "$(echo "$out" | grep 'planes locked\|old star\|no time')"
 n=$(echo "$out" | grep '^pads ' | grep -o ':L+' | wc -l); bad=$(echo "$out" | grep '^pads ' | grep -c 'fast\|stuck')
 [ "$n" = "10" ] && [ "$bad" = "0" ] && has 'pads saved 10 of 10; menu shows 10 / 10' && has 'repeat landing bonus 150' && r=ok || r=no
 check "all 10 landing spots: low and slow lands (+500 first, +150 after), fast does not, take-off lifts clear" $r "$(echo "$out" | grep '^pads')"
@@ -56,14 +60,16 @@ n=$(echo "$out" | grep 'engine-off touchdown' | grep -o ':down' | wc -l); bad=$(
 check "engine-off touchdown on open ground, then vertical take-off, with each of the 10 planes" $r ""
 has 'terrain fuzz 7.5 min: under ground 0, NaN 0' && r=ok || r=no
 check "7.5 min of random flight over mountains, park and sea never goes under the ground or water" $r "$(echo "$out" | grep 'terrain')"
-has 'after reload: upDives=false zen=true sound=false fps=false env=winter/dusk/snow plane=0 throttle=0.31 lever=0.31 pads=10 menuZen=true menuPads=10 / 10' && has 'errors: none' && r=ok || r=no
-check "every setting and all progress survive a reload (stick, Zen, sound, counter, season/time/weather, plane, lever, spots)" $r "$(echo "$out" | grep 'after reload')"
+has 'after reload: upDives=false zen=true sound=false fps=false env=winter/dusk/snow plane=0 throttle=0.31 lever=0.31 pads=10 times={"best":3,"runs":3,"log":[4,3,5]} menuLevels=1 / 12 done menuZen=true menuPads=10 / 10' && has 'errors: none' && r=ok || r=no
+check "every setting and all progress survive a reload (stick, Zen, sound, counter, season/time/weather, plane, lever, spots, level times)" $r "$(echo "$out" | grep 'after reload')"
 
 out=$(timeout 280 node t_misc.mjs 2>&1)
-has 'environment combinations applied: 200' && has 'timeout -> result' && [ "$(echo "$out" | grep -o '=result:3' | wc -l)" = "12" ] && has 'errors: none' && r=ok || r=no
-check "all reactions fire, 200 season/time/weather combinations apply, all 12 missions finish" $r "$(echo "$out" | tail -3 | tr '\n' ' ')"
-echo "$out" | grep -q 'drones active peak [1-9]' && echo "$out" | grep -q 'after 3 s outside: banked [1-9]' && r=ok || r=no
-check "drones appear with heat; banking outside works" $r ""
+has 'environment combinations applied: 200' && has 'errors: none' && r=ok || r=no
+check "all reactions fire, 200 season/time/weather combinations apply" $r "$(echo "$out" | tail -3 | tr '\n' ' ')"
+[ "$(echo "$out" | grep '^levels:' | grep -o '=result:timed' | wc -l)" = "12" ] && ! echo "$out" | grep '^levels:' | grep -q 'early' && has 'levels done 12 of 12' && r=ok || r=no
+check "each of the 12 levels stays open one short of its task and finishes, with a time logged, when the task is met" $r "$(echo "$out" | grep '^levels')"
+has 'drone objects none, heat field none' && echo "$out" | grep -q 'after 3 s outside: banked [1-9]' && r=ok || r=no
+check "no drones and no heat exist any more; banking outside works" $r "$(echo "$out" | grep 'inside\|outside')"
 
 out=$(timeout 200 node t_mem.mjs 2>&1)
 first=$(echo "$out" | grep -o '[0-9]*/[0-9]*/[0-9]*' | head -1); last=$(echo "$out" | grep -o '[0-9]*/[0-9]*/[0-9]*' | tail -1)
