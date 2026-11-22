@@ -176,7 +176,9 @@ Finding things to buy. Flights as an acquired content type. Each step that sends
 
 **What happens to this plan (as written 2026-11-18):** X2 to X6 stand as written but none starts until V6 (showing) has passed on a device. X1's device gate stays failed; it is not re-run on this page.
 
-## 8. X returns (planned 2026-11-22 on the owner's "go"; **not built; building waits for his go**)
+## 8. X returns (planned 2026-11-22 on the owner's "go"; **on hold the same day; not built**)
+**On hold, 2026-11-22 (later).** The owner read the summary of this section and said: "I still think there's something missing … the repetitive things is just a substitute for not having to look things up. But ultimately I'm trying to use Lab gestures to use a smartphone to exist in the modern world." This section is centred on asking and looking up, with his signals as an extra. That is off-centre (P28, P29): it is the old thing, asking an AI, reached by voice. It is not to be built as it stands. A1 to A4 are withdrawn until the centre is defined. What may survive as parts: streaming, the record, the speed probe.
+
 The owner, 2026-11-22: X "learns stuff, then does it … consuming the result and cataloging it and indexing it … whatever I use it for all the time, eventually it just knows that's what I want" (R62). That needs X in daily use and a record of that use. This section is the plan for both. V6 (plan V) sits on top of it.
 
 ### 8.1 Words used here

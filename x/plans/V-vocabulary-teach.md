@@ -87,7 +87,7 @@ Owner: "by combining actions like letters make up words".
 **Known limit:** when a word fires, its last letter's own action has already happened. Deciding between them is the arbiter's job (plan S, S5).
 **Device gate:** the owner makes one word from two of his signals and it fires when he means it, three times out of three, and not when he makes the two the other way round.
 
-### V6 — Habits (was "Showing") (walk) · planned 2026-11-22, not built
+### V6 — Habits (was "Showing") (walk) · planned 2026-11-22, on hold the same day, not built
 **The plan that stood here until 2026-11-22 was wrong and is withdrawn.** It read "monkey see, monkey do" as: two actions, "watch me" and "that's it"; X records the run between them on the object card; a model says what it was for; one signal replays it. The owner: "that's exactly what it is not. You just described recording a macro." Nothing of it was built. (G30)
 
 **What it is, in his words (R62):** "X learns stuff, then does it. Not … replaying as a glorified macro, but it's actually consuming the result and cataloging it and indexing it … whatever I use it for all the time, eventually it just knows that's what I want. I don't have to tell it to go get it."
@@ -99,6 +99,8 @@ Owner: "by combining actions like letters make up words".
 | Learns | When the same kind of ask keeps coming, X takes it as standing. |
 | Does | X gets it without being asked, reads the result, files it with the earlier ones, and says what matters: changed, new, or nothing. |
 | Is not | A recording of steps. A list of things chosen by the build to fetch (G28). A widget for any one example (P27). |
+
+**On hold, 2026-11-22 (later).** The owner: "the repetitive things is just a substitute for not having to look things up". Habits are a convenience, not the centre (P29). This release waits until the centre is defined.
 
 **Planned 2026-11-22 on the owner's "go". Not built; building waits for his go, and for X7 (plan X, section 8) to pass on his phone.**
 

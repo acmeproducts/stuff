@@ -81,8 +81,8 @@ A release is the smallest whole thing that can be used and judged. Status: built
 | **V3** Assign | one action for each signal, one signal for each action; kept on the device | V1 | 5 | crawl | **built in the Lab, lab only; contexts and X not yet** |
 | **V5** Words | signals made one after another become a signal with its own action | V1 | 5 | crawl | **built, lab only** |
 | **L3** 3D object | a cup, a bowl and a toy car taken, carried, turned and resized by one hand or both; a timed task; actions from signals | S2 | 6 | crawl | **built, lab only** |
-| **V6** Habits (was "Showing") | X learns from what it is used for, then does it unasked, keeps and indexes what came back, and says what matters. Not a replay (R62) | X7 passed on the owner's phone | 3 | walk | **planned 2026-11-22, not built** |
-| **X7** X returns | streamed answers; the record of every ask and result; "different since last time"; the record can be asked; taught signals steer X | A1, A3; the speed probe | 3 | crawl | **planned 2026-11-22, not built** |
+| **V6** Habits (was "Showing") | X learns from what it is used for, then does it unasked, keeps and indexes what came back, and says what matters. Not a replay (R62) | X7 passed on the owner's phone | 3 | walk | **on hold 2026-11-22**, not built |
+| **X7** X returns | streamed answers; the record of every ask and result; "different since last time"; the record can be asked; taught signals steer X | A1, A3; the speed probe | 3 | crawl | **on hold 2026-11-22**, not built |
 | W2 Battery truth | percent an hour by link, from real sessions; 30-minute freeze check; Wi-Fi-only run | W1, L1 | 2 | walk | later |
 | L2 Scored session | prompted and unprompted scoring: hit rate and wrong fires per signal | V1 | 4 | walk | later |
 | S4 One event shape | every source reports the same shape, with presence | V1, V2 | 5 | walk | later |
@@ -97,7 +97,9 @@ A release is the smallest whole thing that can be used and judged. Status: built
 | X6 Acts for you | finding and buying, with an explicit yes | X5 | — | run | later |
 
 ### 3.4 Order of work
-**Round 3, planned 2026-11-22 on the owner's "go" to plan. Not built; building waits for his go and for A1 to A4 (plan X, 8.4).**
+**Round 3 is on hold (2026-11-22, later).** The owner: "something missing … ultimately I'm trying to use Lab gestures to use a smartphone to exist in the modern world". The round below is centred on asking and looking up. Nothing in it is built or to be built until the centre is defined with him. No next build is scheduled.
+
+*As planned earlier the same day:* Round 3, planned on the owner's "go" to plan.
 | Stage | Release | What | Requirements | State |
 |---|---|---|---|---|
 | 1 | **X7** step 1: speed probe | on his phone: seconds to X's first words, and how many sources, for each of his AI services | R66 | planned |
@@ -176,3 +178,4 @@ A release is done when its device gate passes and its rows in `X-TRACE.md` show 
 | 2026-11-19 | Stage 5 built: Lab `lab-r12`, relay `w11`. A fifth tab, Voice: Take turns, Interrupt, Hot word and cold word. Voice is a source in Teach; "start listening" and "stop listening" are actions. Lab checks: engine 93, new cards 163, older Lab 89, relay 37, X page 50. Round 2 is built. | **Lab only.** The recogniser in the checks is made up; no real voice has run it. D52 to D56. One call put to the owner: D56. |
 | 2026-11-22 | The owner corrected what "monkey see, monkey do" means: not a run recorded and replayed ("a glorified macro"), but X learning from what he keeps using it for, then doing it unasked, consuming, cataloguing and indexing the result and giving the insight. | V6 as planned is withdrawn; D29 withdrawn; G30. P21 and P22 reworded, P27 and R62 added. Nothing had been built. V6 is to be planned with him. |
 | 2026-11-22 | Owner: "go" (to plan X's return with the record built in). Planned: X7 (plan X, section 8) and V6 Habits (plan V). Vetted against the 18 Nov failure, the standing rules and what is on the market. | **Planned, not built.** R63 to R72, D57 to D63 (proposed), TH9 to TH12. Four things are put to him to authorise (A1 to A4). The first build step is a speed probe on his phone. |
+| 2026-11-22 (later) | Owner, on that plan: "I still think there's something missing … the repetitive things is just a substitute for not having to look things up … I'm trying to use Lab gestures to use a smartphone to exist in the modern world … like when iPad first came out … it just became a Citrix client … maybe it's just a command bar with 4 chips … maybe it's a room metaphor … go and do". | X7 and V6 on hold; A1 to A4 withdrawn. North star 1.5.0: his words, "not a Citrix client", P28 and P29 (the build's, his to strike). The definition is open and is his; no build is scheduled. |

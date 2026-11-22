@@ -1,6 +1,6 @@
 # X — north star
 
-Version 1.4.0 · 2026-11-22 · Owner: Confi
+Version 1.5.0 · 2026-11-22 · Owner: Confi
 
 This file holds the owner's own words and the principles drawn from them. Every other file in `x/` answers to it. Quotes are the owner's words; only punctuation is added and dictation slips are fixed. Anything not in quotes is a reading of them.
 
@@ -72,6 +72,11 @@ The practical side:
 
 So: it is not shown on request and it is not a replay. X learns from what he keeps using it for, then gets it without being asked, reads what came back, keeps and indexes it, and says what matters.
 
+**2026-11-22 (later). Something is still missing.** After the build planned X's return around asking and looking things up (X7, V6):
+> "I still think there's something missing. Reminder: the repetitive things is just a substitute for not having to look things up. But ultimately I'm trying to use Lab gestures to use a smartphone to exist in the modern world. I'm struggling with how to define it without getting tangled up in architecture, tech stack, complexity. It's like when iPad first came out and people thought "I can ditch my PC", but really it just became a Citrix client. Huge fail. This is to rethink everything. Even if a UI is needed, maybe it's just a command bar with 4 chips on it, something like that. Maybe it's a room metaphor: I'm going to room abc to do xyz. That's go and do. Then there's more specialized tasks."
+
+So: learning what he keeps asking for is a convenience, not the centre. The centre is the body's own vocabulary, taught in the Lab, as the way he lives on a phone. Two shapes he offers, both with "maybe": a command bar with four chips; rooms, where he goes to a room to do a thing ("go and do"), with more specialised tasks beyond. He is still defining it, and wants it defined without architecture.
+
 ## 3. What X is not
 - Not an agent, not a distilled UI, not an accessibility fix, not voice commands like "click here" (2026-11-16).
 - Not a dashboard, not a fixed set of feeds chosen in advance (2026-11-18).
@@ -82,6 +87,7 @@ So: it is not shown on request and it is not a replay. X learns from what he kee
   > "use this as a floor and to find the various stair steps to get to the ceiling"
 - Not a copy of something on the market: "don't just replicate something that's already out there".
 - Not a voice front end to an AI (2026-11-18, evening): "cosplay with AI".
+- Not a Citrix client (2026-11-22): not the old way of working reached through a new device. "When iPad first came out … people thought I can ditch my PC, but really it just became a Citrix client. Huge fail. This is to rethink everything."
 - Not helped along by a list of things chosen for it to do: "that's building connectors again" (2026-11-18, evening).
 - Not an administrative assistant: "the whole administrative assistant [thing] I think is the last use case that I'm interested in. I think AI assisted shopping would be cool and helping you find stuff that you want."
 
@@ -143,4 +149,6 @@ Each design decision in `X-DESIGN.md` cites the principles it rests on. A decisi
 | P25 | **Sources are kept apart.** The camera works with only a camera, the watch with only the watch, the voice with only the mic. They meet where the person teaches and combines. | §2 (2026-11-19) |
 | P26 | **Measured from the person's rest, not from a posture the build expects.** A signal is a change from where their arm, hand or head already is, at whatever angle that is. | §2 (2026-11-19, watch notes) |
 | P27 | **No widgets.** An example of a habit is an example, not a feature. X is not given things to fetch; whatever the person uses it for all the time is what it comes to know. | §2 (2026-11-22); G28 |
+| P28 | **Not a window onto the old thing.** X is not the existing phone reached by new means: not its apps driven by gesture, and not an AI asked by voice. *(Drawn by the build from the Citrix remark; his to strike.)* | §2, §3 (2026-11-22, later) |
+| P29 | **The body's vocabulary is the centre.** What is taught in the Lab is how he lives on the phone. Everything else, habits included, serves that. *(Drawn by the build; his to strike.)* | §2 (2026-11-22, later) |
 | P19 | **Not app navigation.** Signals are named for what the body does; meaning is given in X. The Lab is a workshop, not the product. | §4 |
