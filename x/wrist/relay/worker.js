@@ -21,7 +21,7 @@ import LAB from './lab.html';
 import XPAGE from './x.html';
 import SIGNALS from './signals.lib.js';
 
-const V = 'w11';
+const V = 'w12';
 const json = (o, status = 200) => new Response(JSON.stringify(o), { status, headers: { 'content-type': 'application/json', 'cache-control': 'no-store' } });
 
 export default {

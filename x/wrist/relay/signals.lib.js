@@ -389,7 +389,7 @@
     var gen = E._gen = (E._gen || 0) + 1, alive = function () { return E.on && E._gen === gen; };
     if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) { E.err = 'This browser gives a page no camera.'; say(E.err); return Promise.resolve(false); }
     E.stage = 'the camera'; say('Asking for the camera…');
-    return navigator.mediaDevices.getUserMedia({ video: { facingMode: 'user', width: { ideal: 640 }, height: { ideal: 480 } }, audio: false }).then(function (s) {
+    return navigator.mediaDevices.getUserMedia({ video: { facingMode: 'user', width: { ideal: (E.want.size || [640, 480])[0] }, height: { ideal: (E.want.size || [640, 480])[1] } }, audio: false }).then(function (s) {
       if (!alive()) { s.getTracks().forEach(function (x) { x.stop(); }); return null; }
       E.stream = s; video.srcObject = s; return video.play();
     }).then(function () {
@@ -406,7 +406,7 @@
           return cls.createFromOptions(fs, opt('GPU')).catch(function () { E.cpu = true; return cls.createFromOptions(fs, opt('CPU')); });
         };
         var jobs = [];
-        if (E.want.hands) jobs.push(make(m.HandLandmarker, HAND_MODEL, { numHands: 2 }).then(function (h) { E.hand = h; }));
+        if (E.want.hands) jobs.push(make(m.HandLandmarker, HAND_MODEL, { numHands: E.want.max || 2 }).then(function (h) { E.hand = h; }));
         if (E.want.face) jobs.push(make(m.FaceLandmarker, FACE_MODEL, { numFaces: 1, outputFaceBlendshapes: true, outputFacialTransformationMatrixes: true }).then(function (f) { E.face = f; }));
         return Promise.all(jobs);
       });
@@ -424,7 +424,8 @@
     E.stream = null; E.hand = null; E.face = null; E.last = null;
   };
   /* Call once per screen refresh. Returns what was seen in a new picture, or null when there is no new picture yet.
-     {t, hands:[{side, src, lm, wl, n}], head:{n} or null, ms} */
+     {t, hands:[{side, src, lm, wl, n}], head:{n} or null, ms}
+     want: {hands, face, max: how many hands to look for (2 unless said), size: [wide, high] to ask the camera for} */
   E.poll = function () {
     var t = performance.now(), hr = null, fr = null, got = false;
     E.aspect = 1;
@@ -437,11 +438,11 @@
       var took = performance.now() - t; E.ms = E.ms ? E.ms * 0.9 + took * 0.1 : took;
     }
     if (!got) return null;
-    var frame = { t: t, hands: [], head: null, ms: E.ms };
+    var frame = { t: t, hands: [], head: null, ms: E.ms }, fed = {};
     if (hr && hr.landmarks) for (var i = 0; i < hr.landmarks.length; i++) {
       var side = hr.handedness && hr.handedness[i] && hr.handedness[i][0] ? hr.handedness[i][0].categoryName : 'Right';
       var wl = hr.worldLandmarks && hr.worldLandmarks[i], h = { side: side, src: side === 'Left' ? 'handL' : 'handR', lm: hr.landmarks[i], wl: wl, n: S.handNumbers(hr.landmarks[i], wl, E.aspect) };
-      frame.hands.push(h); S.feed(h.src, t, h.n);
+      frame.hands.push(h); if (!fed[h.src]) { fed[h.src] = 1; S.feed(h.src, t, h.n); }   // every hand is reported; a taught signal is read from one hand a side
     }
     if (fr && ((fr.facialTransformationMatrixes && fr.facialTransformationMatrixes.length) || (fr.faceBlendshapes && fr.faceBlendshapes.length))) {
       var rawHead = S.headNumbers(fr.facialTransformationMatrixes && fr.facialTransformationMatrixes[0], fr.faceBlendshapes && fr.faceBlendshapes[0]);

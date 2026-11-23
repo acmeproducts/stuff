@@ -18,7 +18,7 @@ def http(path, body=None):
     return urllib.request.urlopen(req, timeout=10).read().decode()
 
 # which tab a card lives in; every card not named here is a Watch card
-TAB = {'calibrate': 'learn', 'teach': 'learn', 'assign': 'learn', 'hands': 'camera', 'head': 'camera', 'camera': 'camera', 'object': 'camera', 'journey': 'camera', 'turns': 'voice', 'cutin': 'voice', 'gate': 'voice'}
+TAB = {'calibrate': 'learn', 'teach': 'learn', 'assign': 'learn', 'hands': 'camera', 'head': 'camera', 'camera': 'camera', 'object': 'camera', 'journey': 'camera', 'strum': 'camera', 'turns': 'voice', 'cutin': 'voice', 'gate': 'voice'}
 def tabto(pg, t):
     if pg.get_attribute('#tabs button.on', 'data-tab') != t:
         pg.click('#tabs button[data-tab=%s]' % t); pg.wait_for_timeout(200)
@@ -60,7 +60,7 @@ with sync_playwright() as pw:
     check('first visit opens on the dashboard and asks for no watch code', pg.locator('#pair.show').count() == 0 and pg.locator('.dash').count() == 1 and pg.get_attribute('#tabs button.on', 'data-tab') == 'dash')
     check('with no watch code the page keeps no link to the relay', 'no watch code' in txt('#dWatch'), txt('#dWatch'))
     pg.click('#tabs button[data-tab=camera]'); time.sleep(0.3)
-    check('the Camera tab shows the camera cards and still asks for no code', pg.locator('#pair.show').count() == 0 and [x.get_attribute('data-id') for x in pg.locator('.tile').all()] == ['camera', 'hands', 'head', 'object', 'journey'], [x.get_attribute('data-id') for x in pg.locator('.tile').all()])
+    check('the Camera tab shows the camera cards and still asks for no code', pg.locator('#pair.show').count() == 0 and [x.get_attribute('data-id') for x in pg.locator('.tile').all()] == ['strum', 'camera', 'hands', 'head', 'object', 'journey'], [x.get_attribute('data-id') for x in pg.locator('.tile').all()])
     pg.click('#tabs button[data-tab=watch]'); time.sleep(0.3)
     check('the Watch tab asks for the watch code', pg.locator('#pair.show').count() == 1)
     pg.click('#pairNo'); time.sleep(0.3)

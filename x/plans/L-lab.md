@@ -125,6 +125,24 @@ Owner's requests from this run are in `X-NORTH-STAR.md` §2 (2026-11-19) and req
 **Left as it is, stated:** Flap. He gave no direction beyond "washout"; its rework is to teach it as a move in Learn. Override me if it should simply go.
 **Gate:** with his arm resting as it does, the owner scrolls a list down and up by roll, stops it at will, and changes thread by swing with no false change on the way back.
 
+
+### L9 — Strum (crawl) · built 2026-11-22 in `lab-r13`, lab only
+The owner, 2026-11-22: "create a quick app that lets you strum virtual strings using the camera with left, right and a third hand make the camera capture frame larger than the other examples this should be the first card in the camera tab". (R73; D64, D65)
+
+**What was built**
+| Part | How it works |
+|---|---|
+| Where | The first card in the Camera tab. It needs only the camera. |
+| The picture | As wide as the screen and shown whole, in its own shape: on the phone held upright, about twice the area of the other cards' pictures. The camera is asked for 960 by 720 where the others ask for 640 by 480. |
+| The strings | Six, across the picture. The index fingertip is the pick. Drawn down it plucks low to high; drawn up, high to low. Fast is loud, slow is soft. A plucked string shakes and takes the colour of the hand that plucked it. |
+| Three hands | The finder is asked for three. Left is amber, right is blue, the third is green, each marked on its fingertip (L, R, 3) and each with its own sound; the third plays an octave above. |
+| Chords *(the build's addition)* | The picture is split into four, named above the strings: G, C, D, E minor. Where a hand strums picks the chord. |
+| Sound | Made in the page. Nothing is downloaded or recorded. |
+| The record | Every four seconds of playing: how many plucks each hand made and the pictures a second. Never a picture. |
+
+**Proven in the lab (fact):** with made-up hands: a strum down and up plucks all six in order; a fingertip trembling beside a string does not pluck it again; the chord follows the place across the picture; three hands are told apart and play at once, two of them named "Right" by the finder; a hand arriving plucks nothing.
+**Not proven (unverified):** whether the phone's finder holds three real hands at a usable rate; how long after a pluck the sound comes; whether a real fingertip is steady enough for six strings 8% of the picture apart.
+
 ### L5 — Tabs (walk) · built 2026-11-19 in `lab-r9`, lab only
 Owner: "an overall dashboard and combine/learn tab, then a camera tab, a watch tab and a voice tab, so that we're not commingling everything".
 

@@ -132,6 +132,7 @@ Source column: NS = `X-NORTH-STAR.md` section; WP = `x/wrist/WRIST-PLAN.md` sect
 | R70 | No kind of subject has code of its own. | NS §2 (2026-11-22): no "stock widget thingy"; P9, P27 |
 | R71 | Calls X makes unasked are capped, counted and reported. | P12, P17 |
 | R72 | A taught signal that has an X action steers X. | NS §4; R62 |
+| R73 | A Lab card in the Camera tab to strum virtual strings by camera, with the left hand, the right hand and a third hand. Its camera picture is larger than the other cards'. It is the first card in the Camera tab. | Owner, 2026-11-22: "x lab camera create a quick app that lets you strum virtual strings using the camera with left, right and a third hand make the camera capture frame larger than the other examples this should be the first card in the camera tab" |
 | R42 | A 3D model of objects can be handled virtually with the hands, one or both. "Imperative." | NS §2 (evening) |
 | R43 | X is not made useful by choosing things for it to fetch. No connectors of our own, by any name. | NS §2, §3 (evening) |
 
