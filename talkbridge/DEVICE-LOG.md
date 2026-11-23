@@ -1,6 +1,6 @@
 # TalkBridge device log
 
-Both handsets write here. Drained 2026-11-23T08:00:47Z, every 30s. Newest at the bottom.
+Both handsets write here. Drained 2026-11-23T08:01:19Z, every 30s. Newest at the bottom.
 
 ```
 10:11:15.958 [android-v0m] cr3_missed_pill {"room":"f848c7a1-mwne38b063vz5n","callId":"call-start-4-1795083067055"}
