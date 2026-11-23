@@ -26,6 +26,10 @@ canvas#gl{position:fixed;inset:0;width:100%;height:100%;display:block}
 #pill .mul{color:var(--acc2);font-weight:700}
 #score{right:60px;top:8px;text-align:right;font-weight:800;font-size:22px;font-variant-numeric:tabular-nums;text-shadow:0 1px 3px #000}
 #score small{display:block;font-size:9px;font-weight:600;color:var(--dim);letter-spacing:.12em}
+#score.g small{visibility:hidden}
+#gain{position:absolute;right:0;bottom:-5px;font-style:normal;font-size:14px;font-weight:800;color:var(--acc);opacity:0;white-space:nowrap;text-shadow:0 1px 3px #000;z-index:6}
+#gain.on{animation:gain 1.7s ease-out}
+@keyframes gain{0%{opacity:0;transform:translateY(10px) scale(1.4)}14%{opacity:1;transform:none}78%{opacity:1}100%{opacity:0}}
 #btnPause{right:10px;top:8px;width:40px;height:40px;border-radius:10px;background:var(--panel);border:1px solid var(--line);pointer-events:auto;display:grid;place-items:center}
 #btnPause:before{content:"";width:12px;height:14px;border-left:4px solid #fff;border-right:4px solid #fff}
 #map{right:10px;top:56px;width:124px;height:124px;border-radius:14px;background:rgba(8,12,18,.72);border:1px solid var(--line);pointer-events:auto}
@@ -123,7 +127,7 @@ button:active{filter:brightness(1.25)}
   <div id="loc"></div>
   <div id="pill"><span id="pMode">Free roam</span><span>Havoc <b id="pHavoc">0</b> <span class="mul" id="pMul"></span></span><span id="pTime"></span></div>
   <div id="goal" class="hide"></div>
-  <div id="score"><span id="sBank">0</span><small>BANKED</small></div>
+  <div id="score"><span id="sBank">0</span><small>POINTS</small><i id="gain"></i></div>
   <div id="btnPause"></div>
   <canvas id="map" width="248" height="248"></canvas>
   <div id="mapHint">TAP MAP · DOUBLE TAP SCREEN FOR MENU</div>
@@ -165,6 +169,7 @@ button:active{filter:brightness(1.25)}
 
 <div id="quick" class="ov shade modal hide">
   <div class="card"><button class="x" aria-label="Close">✕</button><h2>Quick menu</h2>
+    <div class="row" style="margin:0 0 4px"><button id="qSpeed" style="padding:10px">Top speed</button></div>
     <label class="sw" id="rowZen"><span><b>Zen</b><small>Slower, no scoring, no damage</small></span><input type="checkbox" id="qZen"><i></i></label>
     <label class="sw" id="rowGlide"><span><b>Glide</b><small>Engine off. Silent: nothing reacts as you pass. You sink slowly.</small></span><input type="checkbox" id="qGlide"><i></i></label>
     <label class="sw"><span><b>Stick up dives</b><small>Off = stick up climbs</small></span><input type="checkbox" id="qUp"><i></i></label>
@@ -184,6 +189,20 @@ button:active{filter:brightness(1.25)}
       <button class="chip" data-env="weather"><small>WEATHER</small><span></span></button>
     </div>
     <div class="tiny" id="envNote">Tap to change. Auto follows this phone's date and clock; auto weather is a seasonal pick, not a forecast.</div>
+  </div>
+</div>
+
+<div id="speed" class="ov shade modal hide">
+  <div class="card"><button class="x" aria-label="Close">✕</button><h2>Top speed</h2>
+    <div style="display:flex;align-items:center;gap:10px">
+      <button id="spMinus" style="padding:12px 20px;font-size:22px">−</button>
+      <div style="flex:1;text-align:center"><div id="spNow" style="font-size:36px;font-weight:900;color:var(--acc);line-height:1.1;font-variant-numeric:tabular-nums"></div><div class="tiny" id="spLv" style="margin-top:2px"></div></div>
+      <button id="spPlus" style="padding:12px 20px;font-size:22px">+</button>
+    </div>
+    <div class="stat"><span>Bought</span><div class="bar"><i id="spBar"></i></div></div>
+    <div class="row"><button id="spMax">Buy all I can afford</button></div>
+    <div class="tiny" id="spNote"></div>
+    <div class="tiny">Points raise the top of the speed lever, 10% of cruise a step. Only the upper part of the lever gets faster, so slow flying feels the same. A step back returns its points. The submersible gets the same share.</div>
   </div>
 </div>
 
@@ -239,7 +258,7 @@ button:active{filter:brightness(1.25)}
 import * as THREE from 'three';
 
 /* ============================================================ core */
-const VERSION = 'buzz 1.4.0';
+const VERSION = 'buzz 1.5.0';
 const QS = new URLSearchParams(location.search);
 const DEBUG = QS.has('debug');
 const TAU = Math.PI * 2;
@@ -267,7 +286,7 @@ class RNG {
 
 /* ---- saved state (per browser; wrapped because storage can throw) */
 const SAVE_KEY = 'buzz.v1';
-const save = { ver: 2, stars: {}, times: {}, pads: {}, finds: {}, points: 0, unlockAll: false, plane: 1, best: 0, sound: true, upDives: true, zen: false, throttle: 0.5, fps: true, season: 'auto', tod: 'auto', weather: 'auto' };
+const save = { ver: 2, stars: {}, times: {}, pads: {}, finds: {}, points: 0, speedLv: 0, unlockAll: false, plane: 1, best: 0, sound: true, upDives: true, zen: false, throttle: 0.5, fps: true, season: 'auto', tod: 'auto', weather: 'auto' };
 try { const old = JSON.parse(localStorage.getItem(SAVE_KEY) || '{}'); Object.assign(save, old); if (old.ver !== 2) { save.ver = 2; save.upDives = true; delete save.invert; } } catch (e) { /* fresh */ }
 function persist() { try { localStorage.setItem(SAVE_KEY, JSON.stringify(save)); } catch (e) { /* private mode */ } }
 
@@ -2328,7 +2347,22 @@ function setForward() { const cp = Math.cos(P.pitch); fwd.set(-Math.sin(P.yaw) *
 
 /* ---- speed: a throttle lever. Bottom of the lever = engine off (glide) */
 const GLIDE_T = 0.07, LAND_V = 10.5;
-const thrFactor = (t) => lerp(0.35, 1.6, clamp((t - GLIDE_T) / (1 - GLIDE_T), 0, 1));
+/* ---- points buy a higher top to the lever: +10% of cruise a step, step n costs 500 x n, a step back gives it back.
+   Only the upper part of the lever stretches, so slow flying feels the same however much is bought */
+const SPEED_MAX = 20;
+const speedCost = (lv) => 500 * lv;
+const speedSpent = (lv) => 250 * lv * (lv + 1);
+const wallet = () => Math.max(0, Math.round((save.points || 0) - speedSpent(save.speedLv || 0)));
+const speedTop = () => 1.6 + 0.1 * (save.speedLv || 0);
+function buySpeed(n) {
+  let did = 0; save.speedLv = clamp(Math.round(+save.speedLv || 0), 0, SPEED_MAX);
+  if (n > 0) while (did < n && save.speedLv < SPEED_MAX && wallet() >= speedCost(save.speedLv + 1)) { save.speedLv++; did++; }
+  else while (did < -n && save.speedLv > 0) { save.speedLv--; did++; }
+  if (did) { persist(); drawThrottle(); }
+  return did;
+}
+const thrK = (t) => clamp((t - GLIDE_T) / (1 - GLIDE_T), 0, 1);
+const thrFactor = (t) => lerp(0.35, 1.6, thrK(t)) + (speedTop() - 1.6) * ss(0.6, 1, thrK(t));
 const isGlide = () => input.thr <= GLIDE_T && !input.turbo && !input.kt;
 function setThrottle(t, keep) { input.thr = clamp(t, 0, 1); if (input.thr > GLIDE_T) save.thrCruise = input.thr; save.throttle = input.thr; if (!keep) persist(); drawThrottle(); }
 
@@ -2339,7 +2373,7 @@ function land(pad) {
   else { sfx.thud(.4, 140); toast('LANDED', 'Push the throttle up or tap TAKE OFF', 2); }
   resetTrails();
 }
-function addPoints(n) { if (G.zen) return; G.banked += n; save.points = (save.points || 0) + n; }
+function addPoints(n) { if (G.zen) return; G.banked += n; save.points = (save.points || 0) + n; gainPop(n); }
 function onPadLanding(pad) {
   const first = !save.pads[pad.id]; save.pads[pad.id] = (save.pads[pad.id] || 0) + 1; padColors(W); G.landings++;
   const n = PAD_LIST.filter((q) => save.pads[q[0]]).length; G.health = 100;
@@ -2382,7 +2416,7 @@ function collectFind(f) {
 function updateSub(dt) {
   const sx = clamp(input.x + input.kx, -1, 1), syRaw = clamp(input.y + input.ky, -1, 1), sy = save.upDives ? -syRaw : syRaw;
   /* the lever is forward speed; the bottom of it is a full stop. The sub neither sinks nor floats */
-  const v = input.thr <= GLIDE_T ? 0 : lerp(1.2, 7, (input.thr - GLIDE_T) / (1 - GLIDE_T)); P.speed += (v - P.speed) * Math.min(1, dt * 2.2);
+  const v = input.thr <= GLIDE_T ? 0 : lerp(1.2, 7, thrK(input.thr)) + 7 * (speedTop() / 1.6 - 1) * ss(0.6, 1, thrK(input.thr)); P.speed += (v - P.speed) * Math.min(1, dt * 2.2);
   P.yaw -= sx * 1.75 * dt; P.pitch += (sy * 0.95 - P.pitch) * Math.min(1, dt * 3.2); P.roll += (-sx * 0.28 - P.roll) * Math.min(1, dt * 4);
   G.glide = false; P.turbo = false; P.loc = null;
   let bump = 0; const steps = Math.max(1, Math.ceil(P.speed * dt / 0.2)); const h = dt / steps;
@@ -2438,7 +2472,7 @@ function updatePlane(dt) {
     const tgt = clamp(9.5 - Math.sin(P.pitch) * 12, 3.5, 26); P.speed += (tgt - P.speed) * Math.min(1, dt * 0.9);
   } else {
     /* indoors the plane slows more in a hard turn and turns quicker, so corridor corners are flyable */
-    const target = cruise * (boost ? 1.6 : thrFactor(input.thr)) * (1 - (inside ? 0.6 : 0.3) * Math.abs(sx));
+    const target = cruise * (boost ? speedTop() : thrFactor(input.thr)) * (1 - (inside ? 0.6 : 0.3) * Math.abs(sx));
     P.speed += (target - P.speed) * Math.min(1, dt * (target < P.speed ? 3.5 : 2.2));
   }
   P.yaw -= sx * P.def.agi * (inside ? 1.25 : 1) * (P.turbo ? 0.85 : 1) * dt;
@@ -2607,7 +2641,7 @@ function startRun(mode, mission) {
 function goalText(m) { const b = save.times[m.id]; return (m.kind === 'escape' ? 'Get outside' : `${cap(m.unit)}: ${m.goal}`) + (b ? ` · your best ${fmtT(b.best)}` : ' · the clock is running'); }
 
 function bank() {
-  const amt = G.unbanked; G.banked += amt; save.points = (save.points || 0) + amt; G.unbanked = 0; G.bankT = 0; G.combo = 0;
+  const amt = G.unbanked; G.banked += amt; save.points = (save.points || 0) + amt; gainPop(amt); G.unbanked = 0; G.bankT = 0; G.combo = 0;
   toast('BANKED', `+${amt}`, 1.8); sfx.bank(); haptic(40);
   if (!G.mission && amt > save.best) { save.best = amt; persist(); toast('NEW BEST BANK', `+${amt}`, 2.2); }
 }
@@ -2974,7 +3008,7 @@ atmo.onThunder = () => sfx.thunder();
 function haptic(ms) { try { if (navigator.vibrate) navigator.vibrate(ms); } catch (e) { /* not supported */ } }
 
 /* ============================================================ UI: one base screen (menu or play) plus a stack of modals, each closed by its X */
-const MODALS = ['quick', 'envm', 'missions', 'ranges', 'brief', 'spots', 'hangar', 'result'];
+const MODALS = ['quick', 'envm', 'speed', 'missions', 'ranges', 'brief', 'spots', 'hangar', 'result'];
 const stack = [];
 let hIdx = 0, briefM = null;
 const paused = () => stack.length > 0;
@@ -2990,7 +3024,7 @@ function syncUi() {
   if (t || G.state !== 'play') { input.x = input.y = 0; input.turbo = false; input.fire = false; stickId = null; $('stick').style.transform = 'translate(-999px,-999px)'; }
   refreshAll();
 }
-function openModal(id) { if (top() === id) return; stack.push(id); if (id === 'hangar') enterHangar(); if (id === 'missions') renderMissions(); if (id === 'ranges') renderRanges(); if (id === 'spots') renderSpots(); syncUi(); }
+function openModal(id) { if (top() === id) return; stack.push(id); if (id === 'hangar') enterHangar(); if (id === 'missions') renderMissions(); if (id === 'ranges') renderRanges(); if (id === 'speed') renderSpeed(); if (id === 'spots') renderSpots(); syncUi(); }
 function closeModal() {
   const id = stack.pop(); if (!id) return;
   if (id === 'hangar') leaveHangar();
@@ -3012,7 +3046,7 @@ const fmtN = (n) => String(Math.round(n)).replace(/\B(?=(\d{3})+(?!\d))/g, ',');
 function refreshAll() {
   $('mStars').textContent = `${levelsDone()} / ${MISSIONS.length} done`;
   $('mPads').textContent = `${padsFound() + Object.keys(save.finds).length} / ${PAD_LIST.length + FINDS.length}`;
-  $('mBest').textContent = `${save.points ? fmtN(save.points) + ' points · ' : ''}${save.unlockAll ? 'treasure map complete · ' : ''}${env.label} · ${VERSION}`;
+  $('mBest').textContent = `${save.points ? fmtN(wallet()) + ' points · ' : ''}${save.speedLv ? 'top speed ' + Math.round(speedTop() * 100) + '% · ' : ''}${save.unlockAll ? 'treasure map complete · ' : ''}${env.label} · ${VERSION}`;
   document.querySelectorAll('[data-env]').forEach((b) => { const k = b.dataset.env; const v = save[k]; b.querySelector('span').textContent = v === 'auto' ? `Auto · ${cap(env[k])}` : cap(v); });
   $('envNote').textContent = G.state === 'play' && G.mission && G.mission.env ? 'This mission sets its own conditions; your choice applies everywhere else.' : 'Tap to change. Auto follows this phone\'s date and clock; auto weather is a seasonal pick, not a forecast.';
   $('mZen').checked = !!save.zen; $('qZen').checked = G.state === 'play' ? G.zen : !!save.zen;
@@ -3021,6 +3055,7 @@ function refreshAll() {
   $('rowGlide').classList.toggle('hide', !inRun); $('rowRun').classList.toggle('hide', !inRun);
   $('rowZen').classList.toggle('off', inRun && (!!G.mission || G.target));
   $('fps').classList.toggle('hide', !save.fps);
+  $('qSpeed').innerHTML = `Top speed <b style="color:var(--acc)">${Math.round(speedTop() * 100)}%</b> · ${fmtN(wallet())} points to spend`;
   syncActs();
   drawThrottle();
 }
@@ -3045,6 +3080,25 @@ on('mEscape', () => { const m = ['m3', 'm7', 'm11'].map((id) => MISSIONS.find((q
 on('mHangar', () => openModal('hangar')); on('mSpots', () => openModal('spots')); on('mEnv', () => openModal('envm')); on('mSet', () => openModal('quick'));
 on('qEnv', () => openModal('envm')); on('qPlanes', () => openModal('hangar')); on('qSpots', () => openModal('spots')); on('qMissions', () => openModal('missions'));
 on('qRestart', () => startRun(G.mode, G.target ? G.range : G.mission));
+on('qSpeed', () => openModal('speed'));
+on('spPlus', () => { if (buySpeed(1)) sfx.bank(); renderSpeed(); }); on('spMinus', () => { if (buySpeed(-1)) sfx.blip(.6, 420); renderSpeed(); }); on('spMax', () => { if (buySpeed(99)) sfx.bank(); renderSpeed(); });
+function renderSpeed() {
+  const lv = save.speedLv || 0, w = wallet(), next = lv < SPEED_MAX ? speedCost(lv + 1) : 0; let can = 0, left = w; while (lv + can < SPEED_MAX && left >= speedCost(lv + can + 1)) { left -= speedCost(lv + can + 1); can++; }
+  $('spNow').textContent = Math.round(speedTop() * 100) + '%'; $('spLv').textContent = `of cruise at the top of the lever · step ${lv} of ${SPEED_MAX}`;
+  $('spBar').style.width = (lv / SPEED_MAX * 100) + '%';
+  $('spPlus').style.opacity = can ? 1 : .35; $('spMinus').style.opacity = lv ? 1 : .35; $('spMax').style.opacity = can ? 1 : .35; $('spMax').textContent = can ? `Buy all I can afford: ${can} step${can > 1 ? 's' : ''}, to ${Math.round((speedTop() + can * 0.1) * 100)}%` : 'Buy all I can afford';
+  $('spNote').textContent = `You have ${fmtN(w)} points. ` + (lv >= SPEED_MAX ? 'That is the top step.' : `Next step: +10% for ${fmtN(next)}` + (w < next ? ` (${fmtN(next - w)} short).` : '.')) + (lv ? ` Step back: ${fmtN(speedCost(lv))} returned.` : '');
+  refreshAll();
+}
+/* ---- the points counter climbs to its total instead of jumping, and each gain flashes beside it */
+let shownPts = -1, shownTxt = '', hudT = 0, gainAcc = 0, gainT = 0;
+function gainPop(n) { if (!(n > 0)) return; const now = performance.now(); gainAcc = now - gainT < 1700 ? gainAcc + n : n; gainT = now; const el = $('gain'); el.textContent = '+' + fmtN(gainAcc); el.classList.remove('on'); void el.offsetWidth; el.classList.add('on'); $('score').classList.add('g'); }
+$('gain').addEventListener('animationend', () => $('score').classList.remove('g'));
+function drawPoints() {
+  const now = performance.now(), dt = Math.min(0.5, (now - hudT) / 1000), tgt = wallet(); hudT = now;
+  if (shownPts < 0 || shownPts > tgt) shownPts = tgt; else if (shownPts < tgt) shownPts = Math.min(tgt, shownPts + Math.max(1, Math.ceil((tgt - shownPts) * (1 - Math.exp(-dt * 3.5)))));
+  const t = fmtN(shownPts); if (t !== shownTxt) { shownTxt = t; $('sBank').textContent = t; }
+}
 on('mTarget', () => openModal('ranges')); on('qTargets', () => openModal('ranges'));
 on('qMenu', () => setState('menu'));
 on('brGo', () => { goFullscreen(); if (briefM.free) startRun('target', null); else if (briefM.dom) startRun('target', briefM); else startRun('mission', briefM); });
@@ -3058,7 +3112,7 @@ on('btnDive', () => { if (P.landed && P.landed.pad && P.landed.pad.site) { enter
 function syncActs() {
   const live = G.state === 'play'; $('btnTO').classList.toggle('hide', !(live && (P.landed || G.sub))); $('btnTO').textContent = G.sub ? 'SURFACE' : 'TAKE OFF';
   $('btnDive').classList.toggle('hide', !(live && !G.sub && P.landed && P.landed.pad && P.landed.pad.site));
-  thrEl.querySelector('.gl').textContent = G.sub ? 'STOP' : 'GLIDE';
+  thrEl.querySelector('.gl').textContent = G.sub ? 'STOP' : 'GLIDE'; thrEl.querySelector('.tl').textContent = save.speedLv ? Math.round(speedTop() * 100) + '%' : 'FAST';
   $('btnFire').classList.toggle('hide', !(live && G.target && !P.landed)); $('btnFire').classList.toggle('on', !!input.fire);
 }
 $('btnPause').addEventListener('pointerdown', (e) => { e.stopPropagation(); if (G.state === 'play' && !paused()) openModal('quick'); });
@@ -3181,13 +3235,13 @@ function updateHud() {
   $('bPulse').firstElementChild.style.transform = `scaleX(${clamp(1 - G.pulseCD / 7, 0, 1)})`;
   $('btnPulse').classList.toggle('cd', G.pulseCD > 0);
   $('pHavoc').textContent = G.unbanked; $('pMul').textContent = G.combo > 3 ? '×' + (1 + Math.min(4, Math.floor((G.combo - 1) / 3) * 0.5)) : '';
-  $('sBank').textContent = G.banked;
+  drawPoints();
   { const r = G.mission && save.times[G.mission.id]; const rr = G.range && save.times[G.range.id]; $('pTime').textContent = G.mission ? fmtT(G.elapsed) + (r ? ' · best ' + fmtT(r.best) : '') : rr ? 'best ' + fmtT(rr.best) : ''; }
   $('hud').classList.toggle('tgt', G.target);
   if (G.target) { const gl = $('goal'), n = W.targets.length; gl.classList.remove('hide'); gl.innerHTML = `Targets <b>${n - tgtLeft()}</b> / ${n}` + (G.range ? ` · ${fmtT(G.rangeDone ? G.rangeT : G.elapsed)}` : ''); }
   if (G.sub) {
     $('loc').textContent = `${G.site.name} · ${(SEA - P.pos.y).toFixed(0)} m down · found ${findCount(false)}/${FINDS.length - 3} · map ${findCount(true)}/3`;
-    $('spd').innerHTML = `${(P.speed * 3.6).toFixed(0)} km/h<small>SUBMERSIBLE</small>`; $('sBank').textContent = G.banked; syncActs(); $('hud').classList.add('sub'); $('subFrame').classList.remove('hide'); return;
+    $('spd').innerHTML = `${(P.speed * 3.6).toFixed(0)} km/h<small>SUBMERSIBLE</small>`; syncActs(); $('hud').classList.add('sub'); $('subFrame').classList.remove('hide'); return;
   }
   $('hud').classList.remove('sub'); $('subFrame').classList.add('hide');
   const alt = Math.max(0, P.pos.y - groundY(P.pos.x, P.pos.z));
@@ -3224,7 +3278,7 @@ function loop(now) {
     G.t += d; for (const u of W.updaters) u(d);
     updatePlane(d); updateWake(d); updateTargets(d); updateRun(d);
     if (!paused()) updateCamera(dt, false);
-    drawAim();
+    drawAim(); drawPoints();
     if (frame % 3 === 0) updateHud();
     if (frame % 3 === 1) drawMap();
   } else if (t === 'hangar') {
@@ -3266,7 +3320,7 @@ function boot() {
   requestAnimationFrame(loop);
 }
 function stepSim(dt) { if (G.state !== 'play' || paused()) return; G.t += dt; for (const u of W.updaters) u(dt); updatePlane(dt); updateWake(dt); updateTargets(dt); updateRun(dt); }
-window.__buzz = { updateParts, RANGES, FREE_FIRE, fire, destroyTarget, updateAim, drawAim, waterY, enterSub, exitSub, collectFind, FINDS, DIVE_SITES, SEA_PADS, SEA, updateHud,
+window.__buzz = { wallet, speedTop, speedCost, buySpeed, updateParts, RANGES, FREE_FIRE, fire, destroyTarget, updateAim, drawAim, waterY, enterSub, exitSub, collectFind, FINDS, DIVE_SITES, SEA_PADS, SEA, updateHud,
   stepSim, updateCamera, damage, finishMission, levelsDone, G, P, save, MISSIONS, PLANES, PAD_LIST, get W() { return W; }, get env() { return env; }, ui, startRun, setState, openModal, closeModal, trigger, pulse, input, applyEnv, bank, renderer, scene, camera, computeEnv, setFloorLight, setThrottle, takeOff, groundY, landH, isWater, persist };
 try { boot(); } catch (e) { showError(e && e.stack ? e.stack : String(e)); }
 </script>

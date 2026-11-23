@@ -107,6 +107,18 @@ check "3 min of random flying and shooting, in the air and in the sub: no bad po
 has 'levels done still 0 of 12; range times 6' && has 'after reload: range times kept 6; list shows a best time on 6 rows' && has 'errors: none' && r=ok || r=no
 check "range times are saved apart from the levels, survive a reload and show in the list; no page errors" $r "$(echo "$out" | grep '^levels done\|^after reload\|^errors' | tr '\n' ' ')"
 
+out=$(timeout 200 node t_pts.mjs 2>&1)
+has 'counter at the start: "0" label "POINTS"' && has 'after a +500 landing: gain shown "+500", counter passed through several values and ended at 500, never above 500 true, never went down true' && r=ok || r=no
+check "the points counter is on screen: it climbs to the new total instead of jumping, and the gain flashes beside it" $r "$(echo "$out" | grep '^counter\|^after a')"
+has 'buy with 499 points 0; buy with 1700 points 1: level 1, wallet 1200, top 170%' && has 'step back refunds: 1, level 0, wallet 1700' && has 'buy all with 5200 points: bought 4 steps, level 4, wallet 200, top 200%' && r=ok || r=no
+check "top speed: step 1 costs 500 and is refused with 499; a step back returns its points; buy-all takes as many steps as the points cover" $r "$(echo "$out" | grep '^buy\|^step back' | tr '\n' ' ')"
+has 'lower part of the lever unchanged true; top faster by 6.' && r=ok || r=no
+check "a bought step makes the top of the lever faster and leaves the lower part as it was ($(echo "$out" | grep -o 'lever 100% [0-9]* -> [0-9]* km/h'))" $r "$(echo "$out" | grep '^lever')"
+has 'unlimited points: stops at level 20, one more 0, top 360%' && has 'inside something solid 0, NaN 0' && has 'sub flat out: 25 km/h at level 0, 33 km/h at level 5' && r=ok || r=no
+check "top speed stops at step 20 ($(echo "$out" | grep -o '360% = [0-9]* km/h')); 90 s of random flight flat out at that speed never ends inside anything; the sub gets the same share" $r "$(echo "$out" | grep '^unlimited\|^sub flat')"
+has 'top speed screen: opened=true xTopRight=true back=quick; start level 2 wallet 1500; plus -> 3/0; minus twice -> 1/2500; max -> 3/0; shows "190%"; lever label "190%"' && has 'after reload: level 3 wallet 0 top 190%' && has 'errors: none' && r=ok || r=no
+check "the Top speed screen opens from the quick menu, closes with its X, its plus, minus and buy-all buttons work, and the step bought survives a reload" $r "$(echo "$out" | grep '^top speed\|^after reload\|^errors' | tr '\n' ' ')"
+
 out=$(timeout 280 node t_misc.mjs 2>&1)
 has 'environment combinations applied: 200' && has 'errors: none' && r=ok || r=no
 check "all reactions fire, 200 season/time/weather combinations apply" $r "$(echo "$out" | tail -3 | tr '\n' ' ')"

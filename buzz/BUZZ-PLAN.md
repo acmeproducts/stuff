@@ -19,7 +19,9 @@ Paths owned by this project: `buzz/` only.
 
 - After 1.3.0 (2026-11-23): "I like all your assumptions I'd also like you to incorporate weapons in Target mode both in the air and under the water we've got ourselves a full-fledged game the only thing left on the backlog is to improve the graphics and to also allow some degree of customization that we can talk through in more detail maybe it's a gaussian splat of a photograph for example"
 
-## 2. What the app is (1.4.0)
+- After 1.4.0 (2026-11-23): "need to show score accumulating also I want to figure out a scheme as if you as you accumulate points you could use them to an even higher degree of speed in other words the speed bar just keeps getting higher and higher and higher but I'm not sure how to make it a choice I suppose it could be a modal within the settings to increase the speed bar by a certain amount based on how much you've accumulated that might be the short version"
+
+## 2. What the app is (1.5.0)
 
 - **City block.** Procedural, new every run: a 6-level parking structure, a 9-floor office tower with an atrium, a 7-floor hotel with open stair shafts. Skyline continues to the east.
 - **Nature (fixed, the same every run).** Mountains to the north (highest peak about 250 m), a park and lake to the west, a beach, surf and open sea to the south with a pier and a lighthouse island. Terrain is one height grid used for both drawing and collision; sea and lake are a wave shader (swell in the vertices, ripples, sun glint, surf bands and a lapping swash line at the beach; swell and surf grow with wind). The world is about 1.5 km across.
@@ -35,7 +37,8 @@ Paths owned by this project: `buzz/` only.
 - **Submersible.** First person. The stick steers, the lever is forward speed and its bottom is a dead stop; it neither sinks nor floats, has no air limit and takes no damage. It cannot break the surface, leave deep water or pass through rock. SURFACE returns to the plane, which lifts straight off the water. The map becomes a sonar: walls at your depth, and gold dots for anything still to find.
 - **Under water.** The sea floor now drops to 40 m. The Arches (about 18 m): a run of rock arches over kelp, with a small grotto. The Wreck (about 25 m): a holed hull with a cabin, two holds, a deck hatch and a fallen mast. The Deep Caves (40 m): a rock massif with a tunnel network and a hole in its roof. Fish schools, kelp, coral, drifting specks, blue-green haze that darkens with depth, a headlight.
 - **Finds.** 18 things, six per site (amphora, anchor, diver's helmet, message in a bottle, stone idol, giant pearl; ship's bell, sextant, lantern, chest of coins, cannon, figurehead; crown, crystal skull, trident, goblet, telescope, black pearl): +300 each. Three treasure-map pieces, one per site: +1000 each, and the third unlocks every plane. Found things are saved and do not come back.
-- **Points.** A lifetime total is kept and shown on the menu: banked Havoc, landing bonuses and finds.
+- **Points.** Banked Havoc, landing bonuses, finds and targets all add to one saved total. The top right of the screen shows the points you have to spend. When points come in, the gain flashes under it ("+500") and the number climbs to the new total over about a second instead of jumping. The menu shows the same figure.
+- **Top speed (spending points).** The first button in the quick menu (Settings on the main menu, or double tap in flight) opens "Top speed". Plus buys a step, minus takes one back and returns its points, "Buy all I can afford" takes as many as the points cover. Each step adds 10% of cruise to the top of the speed lever: 160% with nothing bought, 360% at step 20, the last. Step n costs 500 × n (500, 1,000, 1,500 …; 105,000 for all 20). Only the upper 40% of the lever stretches, so the lower part flies exactly as before. The lever's top label shows the figure once a step is bought. The submersible's top speed rises by the same share.
 - **Target mode.** A red TARGET button on the menu (and "Target mode" in the quick menu) opens a list: Free fire and six ranges. Weapons exist only here; every other mode builds the world without targets, exactly as before.
   - **Weapons.** FIRE sits where PULSE was. One shot per tap; it keeps firing while held. In the air it launches rockets from alternate wings (3 a second, about 90 m/s, 2.5 s of flight). In the submersible it launches torpedoes (16 m/s, 4.5 s). No ammunition count, no damage to yourself.
   - **The sight.** The nearest standing target within about 20° of the nose (28° under water) gets a red square; the shot leans toward it. A small white ring shows where the nose points. Rockets cannot reach sea targets and torpedoes cannot reach air ones.
@@ -59,7 +62,7 @@ Paths owned by this project: `buzz/` only.
 
 `buzz/qa/suite.sh` — run before every push. Lab only (headless Chrome, software rendering).
 
-| Check | 1.4.0 |
+| Check | 1.5.0 |
 |---|---|
 | Boots to the menu with no page errors | PASS |
 | Random flight, 2.5 min in each building, never ends inside a wall | PASS |
@@ -102,15 +105,21 @@ Paths owned by this project: `buzz/` only.
 | Free fire has all 40 targets and no clock; the sight picks the target ahead; a retry stands every target up again | PASS |
 | 3 min of random flying and shooting, in the air and in the sub: no bad positions, never more than 8 shots alive | PASS |
 | Range times are saved apart from the levels, survive a reload and show in the list; no page errors | PASS |
+| The points counter is on screen: it climbs to the new total instead of jumping, and the gain flashes beside it | PASS |
+| Top speed: step 1 costs 500 and is refused with 499; a step back returns its points; buy-all takes as many steps as the points cover | PASS |
+| A bought step makes the top of the lever faster and leaves the lower part as it was | PASS (86 → 92 km/h at the top; 50% and 60% unchanged) |
+| Top speed stops at step 20; 90 s of random flight flat out at that speed never ends inside anything; the sub gets the same share | PASS (360% = 194 km/h; sub 25 → 33 km/h at step 5) |
+| The Top speed screen opens from the quick menu, closes with its X, its plus, minus and buy-all buttons work, and the step bought survives a reload | PASS |
 | GPU objects do not grow across 7 rebuilt blocks; knock-down recovers | PASS |
 
-The ten Target-mode checks were written first and failed on 1.3.0 (no TARGET button; the test could not start). Also measured by hand in the lab, not in the suite: the same Target run rebuilt six times holds GPU objects level (47/6/21, 36/6/22, 43/6/25 for a sea range, an air range and free fire); with the sight on a target, shots hit from 15 m to 170 m with the nose up to 18° off.
+The five points and top-speed checks were written first and failed on 1.4.0 (label read BANKED, no gain shown, no speed steps). The ten Target-mode checks were written first and failed on 1.3.0 (no TARGET button; the test could not start). Also measured by hand in the lab, not in the suite: the same Target run rebuilt six times holds GPU objects level (47/6/21, 36/6/22, 43/6/25 for a sea range, an air range and free fire); with the sight on a target, shots hit from 15 m to 170 m with the nose up to 18° off.
 
-1.3.0 passed its 32 checks, 1.2.0 passed its 23 checks, 1.1.0 its 20 and 1.0.0 passed its 9 checks (see ledger).
+1.4.0 passed its 42 checks, 1.3.0 passed its 32 checks, 1.2.0 passed its 23 checks, 1.1.0 its 20 and 1.0.0 passed its 9 checks (see ledger).
 
 ## 4. Not verified (say so, do not assume)
 
-- **1.4.0 has not run on a real phone.** Target mode is new and untested by hand: whether the sight is too forgiving or not forgiving enough, whether FIRE sits well under the right thumb next to the speed lever, how the explosions and the pier collapse look and sound, haptics, and frame rate while shooting are all unknown. In the lab Target mode adds 2 draw calls and at most 8 shots, 110 falling pieces and 6 flashes.
+- **1.5.0 has not run on a real phone.** Whether the counter and its flash are easy to see while flying, and whether 194 km/h at step 20 is flyable or just a blur on a phone, are unknown. The lab only shows the plane never ends up inside anything at that speed.
+- **1.4.0 has not run on a real phone either.** Target mode is new and untested by hand: whether the sight is too forgiving or not forgiving enough, whether FIRE sits well under the right thumb next to the speed lever, how the explosions and the pier collapse look and sound, haptics, and frame rate while shooting are all unknown. In the lab Target mode adds 2 draw calls and at most 8 shots, 110 falling pieces and 6 flashes.
 - **1.3.0 never ran on a real phone either, as far as I know.** The owner approved its assumptions ("I like all your assumptions") but reported nothing about how it ran.
 - Earlier note, still true: The owner played 1.0.0 ("initially very cool") and gave feedback on 1.1.0 that implies it ran, but no frame-rate figure has come back. Since 1.1.0 the app draws about twice the triangles (334k against 174k in the menu view, 190 draw calls: terrain, water, pines). Frame rate on the S23 Ultra, the water shader on a mobile GPU, touch feel of the lever, double-tap timing, sound, haptics, fullscreen and iPhone Safari are unverified. The lab renders in software at 3–12 fps and says nothing about speed.
 - **Under water is judged from lab screenshots only.** How readable the caves are on a phone screen, how the sub feels to steer, and whether the finds are too easy or too hard to spot are unknown.
@@ -121,6 +130,15 @@ The ten Target-mode checks were written first and failed on 1.3.0 (no TARGET but
 ## 5. Open assumptions (owner can override)
 
 Approved by the owner on 2026-11-23 ("I like all your assumptions"): the 1.3.0 list below, down to "The sea floats are on the map but nameless".
+
+New in 1.5.0, mine to be overridden (the owner asked to "figure out a scheme" and gave "the short version"; these are the numbers I filled in):
+
+- The counter on screen shows points available to spend, not the run's banked score. A run's banked figure still shows in the goal line of the three bank levels.
+- Buying is in steps with a way back: minus returns the step's points in full, so nothing is ever lost by trying.
+- +10% of cruise a step, 500 × n points for step n, 20 steps. The owner said "higher and higher and higher"; I stopped at 20 (360%) — say so and I raise or remove the stop.
+- Only the upper part of the lever gets faster. The alternative (the whole lever scales) would make slow flying indoors twitchy.
+- The screen lives at the top of the quick menu, which is what the main menu's Settings button opens.
+- The sub's top speed rises by the same share.
 
 New in 1.4.0, mine to be overridden:
 
@@ -192,6 +210,7 @@ Found and fixed while building 1.4.0 (kept here so they are not reintroduced):
 
 - G21 The afterburner line had been swallowed by a comment since 1.2.0: at the top of the speed lever there was no engine glow, no wingtip trails, no change in engine note and no 15% wider turn. Restored to what 1.1.0 did. Nobody had reported it.
 - G22 Particles under water were pinned to a height just above sea level, so the sub's bubbles and the sparkle of a find were drawn above the surface where the sub cannot see them. Particles now rest on the real ground or sea floor, and bubbles stop at the surface. This also means leaves and sparks settle on hillsides instead of sinking into them.
+- G24 The top-right figure labelled BANKED (the current run's banked score, reset every run). Owner: "need to show score accumulating". Replaced by the saved points total, counting up.
 - G23 Blocked mine: one Cave Buster mine was first placed inside a rock column. The placement check in the suite caught it; it was moved.
 
 Found and fixed while building 1.1.0 (kept here so they are not reintroduced):
@@ -202,6 +221,7 @@ Found and fixed while building 1.1.0 (kept here so they are not reintroduced):
 
 ## 7. Release ledger
 
+- 1.5.0 — 2026-11-23 — points counter on screen that climbs and flashes each gain; Top speed screen in the quick menu where points buy up to 20 steps of +10% at the top of the speed lever, refundable. Suite 47/47 PASS in the lab. Page 260 KB. Phone unverified.
 - 1.4.0 — 2026-11-23 — Target mode: rockets in the air and torpedoes under water, a sight that picks the target ahead, 40 red-X targets in six timed ranges plus free fire, the pier that collapses, rigged trees and palms, balloons, mines, a keystone, powder kegs and a breakable cave wall. Afterburner restored; under-water particles fixed. Suite 42/42 PASS in the lab. Page 255 KB. Phone unverified.
 - 1.3.0 — 2026-11-23 — palms; six unmarked sea floats; three violet dive platforms with dive entries; first-person submersible; arches, wreck and caves under water; 18 finds and a three-piece treasure map that unlocks every plane; lifetime points. Suite 32/32 PASS in the lab. Page 220 KB. Phone unverified.
 - 1.2.0 — 2026-11-22 — drones, heat and the lighthouse beam removed; levels are timed tasks with a best time and a log; planes unlock by levels finished. Suite 23/23 PASS in the lab. Page 186 KB. Phone unverified.
