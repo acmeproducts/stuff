@@ -7,7 +7,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { execFileSync } from 'node:child_process';
 import { assemblePage, PARTS } from './assemble-30s.mjs';
-const P = Object.fromEntries(['bl1', 'tn1', 'mc1', 'ci1', 'rl1', 'rg1', 'rt1', 'gk1'].map((k, i) => [k, PARTS[i]]));
+const P = Object.fromEntries(['bl1', 'tn1', 'mc1', 'ci1', 'rl1', 'rg1', 'rt1', 'gk1', 'il1'].map((k, i) => [k, PARTS[i]]));
 const once = (s, a, b) => { const n = s.split(a).length - 1; if (n !== 1) throw new Error('mutation text found ' + n + 'x: ' + a.slice(0, 70)); return s.replace(a, () => b); };
 const M = [
   { part: 'bl1', by: 'browser', catches: 'BL2', name: 'the footer is not repainted after the old painter (turn27 shows)', m: (s) => once(s, "['m-s13', 'm-s11', 'm-about']", "['m-s11', 'm-about']") },
@@ -49,6 +49,12 @@ const M = [
   { part: 'bl1', by: 'browser', catches: 'PW2', name: 'the sweep stops adding data-form-type', m: (s) => s, page: (h) => h.replace("\n      if (!el.hasAttribute('data-form-type')) el.setAttribute('data-form-type', 'other');", '') },
   { part: 'bl1', by: 'browser', catches: 'PW3', name: 'a key field shows its key in clear', m: (s) => s, page: (h) => h.replace('<input class="field-input nopw-mask" type="text" id="k-tok"', '<input class="field-input" type="text" id="k-tok"') },
   { part: 'bl1', by: 'node', catches: 'PW0', name: 'a type=password is shipped', m: (s) => s, page: (h) => h.replace('<input class="field-input nopw-mask" type="text" id="k-pat" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" data-1p-ignore data-lpignore="true" data-bwignore data-form-type="other">', '<input class="field-input" type="password" id="k-pat" autocomplete="off">') },
+  { part: 'il1', by: 'browser', catches: 'IL1', name: 'invites keep the page address (no door)', m: (s) => once(s, 'invUrl = function (room) { return ilRewrite(_ilInv.apply(this, arguments)); };', 'invUrl = function (room) { return _ilInv.apply(this, arguments); };') },
+  { part: 'il1', by: 'browser', catches: 'IL1', name: 'the payload is lost on the way through the door', m: (s) => once(s, 'IL.door + url.slice(own.length)', "IL.door + '#j='") },
+  { part: 'il1', by: 'browser', catches: 'IL2', name: 'the iPhone carry goes through the door', m: (s) => once(s, 'rhCarryUrl = function (room) { IL.raw++; try { return _ilCarry.apply(this, arguments); } finally { IL.raw--; } };', 'rhCarryUrl = function (room) { return _ilCarry.apply(this, arguments); };') },
+  { part: 'il1', by: 'browser', catches: 'IL4', name: 'a page neither door forwards to sends partners to next.html', m: (s) => once(s, "(a[1] === own) ? 'next.html' : null", "'next.html'") },
+  { part: 'il1', by: 'browser', catches: 'IL5', name: 'an invite already on screen keeps the old link', m: (s) => once(s, "why: why }, 'ok'); ilRedraw(); }", "why: why }, 'ok'); }") },
+  { part: 'il1', by: 'node', catches: 'IL0', name: 'the doors are read through the HTTP cache (stale after an acceptance)', m: (s) => once(s, "fetch(door, { cache: 'no-store' })", 'fetch(door)') },
   { part: 'bl1', by: 'node', catches: 'B1', name: 'something else is appended to the page', m: (s) => s, page: (h) => h.replace(/\n<\/script>\n<\/body>\n<\/html>$/, '\nvar extra = 1;\n</script>\n</body>\n</html>') }
 ];
 const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'tb30sm-'));

@@ -12,7 +12,7 @@ const rows = [];
 let snapA, snapC, RA, RC;
 try { ({ snapA, snapC, RA, RC } = await runBoth(force(basePage()), force(stage))); }
 catch (e) { rows.push({ n: 'the run', ok: false, m: String(e && e.stack || e).slice(0, 500) }); fs.writeFileSync(process.env.TB_30S_OUT, JSON.stringify({ rows })); process.exit(0); }
-const OURS = /^(bl|tn|mc|ci|rl|rg|rt|gk)_/;
+const OURS = /^(bl|tn|mc|ci|rl|rg|rt|gk|il)_/;
 const strip = (s) => {
   const c = JSON.parse(JSON.stringify(s));
   c.log = (c.log || []).map((l) => { if (l && l.d && 'dropped' in l.d) { const d = { ...l.d }; delete d.dropped; return { ...l, d }; } return l; })
@@ -46,6 +46,6 @@ for (const side of ['X', 'Y']) { const a = pwNorm(strip(snapA[side])), c = pwNor
 rows.push({ n: 'no uncaught error on either build', ok: [RA.X, RA.Y, RC.X, RC.Y].every((I) => I.errors.length === 0), m: [RA.X, RA.Y, RC.X, RC.Y].flatMap((I) => I.errors).join(' | ').slice(0, 500) });
 const mode = (W) => { try { return W.w.TS && W.w.TS.mode; } catch (_) { return null; } };
 rows.push({ n: 'both builds ran the chat store in mode ' + (process.env.TB_RIG_IDB ? 'idb' : 'ls') + ' on both phones', ok: [RA.X, RA.Y, RC.X, RC.Y].every((W) => mode(W) === (process.env.TB_RIG_IDB ? 'idb' : 'ls')), m: [RA.X, RA.Y, RC.X, RC.Y].map(mode).join(',') });
-rows.push({ n: 'the stage records itself (TB_STAGE) and the base does not', ok: !!(RC.X.w.TB_STAGE && RC.X.w.TB_STAGE.c === 'turn30-ship-c3') && !RA.X.w.TB_STAGE, m: JSON.stringify(RC.X.w.TB_STAGE || null) });
+rows.push({ n: 'the stage records itself (TB_STAGE) and the base does not', ok: !!(RC.X.w.TB_STAGE && RC.X.w.TB_STAGE.c === 'turn30-ship-c4') && !RA.X.w.TB_STAGE, m: JSON.stringify(RC.X.w.TB_STAGE || null) });
 fs.writeFileSync(process.env.TB_30S_OUT, JSON.stringify({ rows }));
 process.exit(0);

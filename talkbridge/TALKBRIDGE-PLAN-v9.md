@@ -1,5 +1,5 @@
-<!-- TALKBRIDGE-PLAN v21.130.0 -->
-# TALKBRIDGE MASTER PLAN v21.130.0
+<!-- TALKBRIDGE-PLAN v21.131.0 -->
+# TALKBRIDGE MASTER PLAN v21.131.0
 
 **Location:** `talkbridge/TALKBRIDGE-PLAN-v9.md` in `acmeproducts/stuff`.
 **Owner:** Confi — sole decision-maker, runs every device gate.
@@ -151,7 +151,7 @@ the directory release and IndexedDB each moved one turn later; nothing was dropp
 | 30·pre-base | byte-identical snapshot of accepted 29·post-ship | **BANKED 2026-10-22 BY REFERENCE** — the accepted `talkbridge-app/bridge-turn29-post-ship.html` (sha `c1c417e21dd1`), immutable under §0c; 30·base's assembler sha-checks it | — |
 | 30·base | **THE VIDEO BOX (§7.22)** — owner 2026-10-22: "it should be the tall 9:16 that's draggable"; then the strip you pull down (2026-10-27) | **ACCEPTED 2026-11-11 · candidate 4 · sha `a4155be904a9` · tb-sw5.js · relay v6.17 (owner: "video approved")** — the strip you pull down (VB-2), the camera back after dictation (CV-1), the room's name to the microphone (NM-1), the Android strip teal; Jenny's instance with it. Candidate history: c1 rejected (G77); c2 tested (three findings → c3); c3 "works … not crazy about it" (G79) → c4 (§7.22; changelog v21.111.0–v21.117.0) | **https://acmeproducts.github.io/stuff/talkbridge-app/bridge-turn30-base.html** (the folder's face forwards here) · Jenny: …/bridge-turn30-base-jenny.html |
 | 30·pre-ship | **chats in IndexedDB — TS-1 (§7.24)**; input: accepted 30·base | **ACCEPTED 2026-11-16 · candidate 1 · sha `4dddf3c35284` · tb-sw5.js · relay v6.17 (owner: "it seems to test alright")** — chats move from localStorage to IndexedDB under an in-memory copy; device run: both phones mode idb, no failures (v21.121.0) | **https://acmeproducts.github.io/stuff/talkbridge-app/bridge-turn30-pre-ship.html** |
-| 30·ship | beta readiness (moved from 30·pre-ship, owner 2026-10-27) — **seven separate fixes (§7.25)**: B-11 build labels, B-9 (a) room card X, (b) camera-off icon, (c) rail unread, (d) ring on screen, (e) a tap during a call, B-12 creator-rights key | **CANDIDATE 3 · BUILT 2026-11-20 · relay v6.17 (unchanged) · tb-sw5.js (unchanged) — c2 plus no field is a password (the key fields' markup, the old sweep's new-password); awaiting the owner's two-phone device gate and the language sweep** | **https://acmeproducts.github.io/stuff/talkbridge-app/bridge-turn30-ship.html** |
+| 30·ship | beta readiness (moved from 30·pre-ship, owner 2026-10-27) — **seven separate fixes (§7.25)**: B-11 build labels, B-9 (a) room card X, (b) camera-off icon, (c) rail unread, (d) ring on screen, (e) a tap during a call, B-12 creator-rights key | **CANDIDATE 4 · BUILT 2026-11-23 · relay v6.17 (unchanged) · tb-sw5.js (unchanged) — c3 (owner 2026-11-23: no password prompts, video call fine) plus IL-1, links name the door; awaiting the rest of the owner's two-phone device gate and the language sweep** | **https://acmeproducts.github.io/stuff/talkbridge-app/bridge-turn30-ship.html** |
 
 Every accepted or built stage carries its live address here and in the ledger; a row without a link is not built.
 
@@ -2163,6 +2163,8 @@ Green means allowed to push. It never means done.
 ---
 
 ## 10 · CHANGE LOG
+
+**v21.131.0 · 2026-11-23.** 30·ship candidate 4 (owner: "let's just add the invite link fix to the same release"; builder's call: a new candidate, the normal path — every candidate is rebuilt from the accepted page, nothing patched in place). c3's device result recorded (owner: "I do not get prompted anymore and video call was successful"; the log shows GK-1's key tapped, 24 days left). IL-1: a link that leaves the phone names the door that forwards to this page, so invites always open the current version; the S20 had opened a 30·base invite. Spec reviewed independently before code (the carry, the three-way rule, strict parsing, no-store, redraw). next.html → this page.
 
 **v21.130.0 · 2026-11-20.** 30·ship candidate 3 (§7.25 "Candidate 3"; owner: the name field "is set as a password … garbage up my password manager"): no field is a password. Two causes, both fixed at the source: the old no-password sweep stamped `autocomplete="new-password"` on every field, names included; and the four key fields were `type="password"` in the markup, remembered as passwords by the browsers after the sweep changed them, which made the nearest name the "username". Spec reviewed independently before code (the second cause found there). next.html → this page.
 
@@ -6741,6 +6743,41 @@ the changed labels), browser 39 (PW1 no field is a password field, across every 
 sheet and thread fields appear and a focus; PW2 every text field `off` with the ignore flags; PW3 the keys masked),
 mutations 40/40 (c3 adds five PW defects; a key field that is `type="password"` in the markup is caught by PW0 only — the live page hides it, the browser remembers it). NOT provable in the lab: what the owner's own password manager does — the device check is: delete the
 bad TalkBridge entries, open the new link, type a name, open Calling & sync keys: no save prompt anywhere.
+
+### Candidate 4 (owner 2026-11-23) — IL-1: a link always opens the current version
+Owner: "let's just add the invite link fix to the same release" (after the S20 opened an old invite and ran 30·base).
+CAUSE (read in code + the device log): `invUrlCore` and `linkDeviceUrlCore` build every link on `location.href` — the
+stage page the creator is on (`…/bridge-turn30-base.html#j=…`). Stage pages are immutable, so a link made on an older
+version opens that version forever, and an install started from it opens it too (device m66: `p2_tab_boot {invite:true}`
+→ `build turn30-base-c4`).
+IL-1 (new part, wraps `invUrl` and `linkDeviceUrl`, the outermost link builders; grant links go through `invUrl`): the
+link's page part is replaced by the folder's DOOR that this page is served behind — `index.html` (forwards to the accepted
+stage) when this page IS the accepted stage, else `next.html` (forwards to the newest candidate). Both doors forward with
+`location.search + location.hash`, so `#j=` arrives intact. The page learns which it is at start: it fetches `index.html`
+and reads the page that door forwards to; equal to its own file → `index.html`, otherwise `next.html`. Until that answer
+arrives, or if it fails (offline), links are built exactly as today (no regression). Logged `il_door {door, accepted}`.
+Old links already sent still open their old pages (those pages are immutable); a fresh "Share room" link fixes a tester.
+Gates (Chromium): on a candidate page an invite, a grant invite and a link-a-device link start with `…/next.html#j=` and
+carry the same payload as today; when `index.html` forwards to this page they start with `…/index.html#j=`; with
+`index.html` unreachable they are today's links; opening the door link lands on the page with the payload applied.
+Planted: no rewrite; door always next; payload lost.
+
+**REVIEW 2026-11-23 (independent, before code):** confirmed every outgoing link goes through `invUrl` or
+`linkDeviceUrl` (grant links via `invUrl`; P6 thread invites carry no URL) and that the doors keep the hash. Corrected:
+(H1) `rhCarryUrl` — the iPhone tab reloading itself — is built on `linkDeviceUrl`; it keeps this page's own address, never
+the door; (H2) "otherwise next.html" would have sent Jenny's partners and the users of a superseded page to the newest
+candidate — the rule is three-way: index forwards here → index.html, next forwards here → next.html, neither → today's
+link; (M1) the door is parsed strictly (the forward line only, in the folder), an unreadable door = today's link; (M2) the
+worker caches the doors and Pages serves them with max-age, so the fetch is `cache:'no-store'`, repeated on every return
+to the app; (M3) an invite card or drawer QR drawn before the answer is redrawn. IL-1 changes what a LINK opens, not what
+an install opens (an install still opens the page it was installed from).
+**BUILT (candidate 4, 2026-11-23):** `il1-invite-door.js` (ninth part; wraps `invUrl`, `linkDeviceUrl`, `rhCarryUrl`).
+Tag `turn30-ship-c4`. Gates: `harness-30s.mjs` 125 (IL0: no-store, folder-only, both doors still carry the exact forward
+line the part reads); browser 45 (IL1 candidate → next.html with today's payload, grant and link-a-device too; IL2 the carry
+keeps its own address; IL3 accepted → index.html; IL4 neither door / an unreadable door → today's link; IL5 the card
+redrawn; IL6 a door link lands on the stage page with the payload); mutations 46/46 (c4 adds six IL defects). The new machine also cloned only recent history, which the earlier stages' byte checks need (`git fetch --unshallow`). Its newer Chrome (153) also failed 30·base's B8/B9 (a tap after dragging the small picture did not swap): the page is unchanged; Chrome 153 sends no click at the end of a touch drag, so VB-2's 400 ms "a drag never swaps" window runs its full length, and the harness tapped 420 ms after the drag. Proven: with 900 ms the same page passes 18/18. The harness waits 900 ms; the behaviour it gates is unchanged (a tap within 0.4 s of a drag is ignored, by design). Found while building: the test
+machine was replaced — the browser now lives at `chrome-linux64` (the harness finds both) and the gate dependencies had to
+be reinstalled (`npm ci`).
 
 ---
 
