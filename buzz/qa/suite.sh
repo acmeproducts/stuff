@@ -53,15 +53,35 @@ check "levels are timed: first run sets the time, a faster run becomes the best,
 has 'planes locked 8 -> 7' && has 'old star counts as done: 2' && has 'no time limit: after 3 s without doing the task ui=play' && r=ok || r=no
 check "finishing a level unlocks a plane; a star from the first release still counts; there is no time limit" $r "$(echo "$out" | grep 'planes locked\|old star\|no time')"
 n=$(echo "$out" | grep '^pads ' | grep -o ':L+' | wc -l); bad=$(echo "$out" | grep '^pads ' | grep -c 'fast\|stuck')
-[ "$n" = "10" ] && [ "$bad" = "0" ] && has 'pads saved 10 of 10; menu shows 10 / 10' && has 'repeat landing bonus 150' && r=ok || r=no
-check "all 10 landing spots: low and slow lands (+500 first, +150 after), fast does not, take-off lifts clear" $r "$(echo "$out" | grep '^pads')"
+[ "$n" = "10" ] && [ "$bad" = "0" ] && has 'land spots saved 10 of 10; menu shows 10 / 40' && has 'repeat landing bonus 150' && r=ok || r=no
+check "all 10 lit landing spots: low and slow lands (+500 first, +150 after), fast does not, take-off lifts clear" $r "$(echo "$out" | grep '^pads')"
 n=$(echo "$out" | grep 'engine-off touchdown' | grep -o ':down' | wc -l); bad=$(echo "$out" | grep 'engine-off touchdown' | grep -c 'NOLAND\|stuck')
 [ "$n" = "10" ] && [ "$bad" = "0" ] && r=ok || r=no
 check "engine-off touchdown on open ground, then vertical take-off, with each of the 10 planes" $r ""
 has 'terrain fuzz 7.5 min: under ground 0, NaN 0' && r=ok || r=no
 check "7.5 min of random flight over mountains, park and sea never goes under the ground or water" $r "$(echo "$out" | grep 'terrain')"
-has 'after reload: upDives=false zen=true sound=false fps=false env=winter/dusk/snow plane=0 throttle=0.31 lever=0.31 pads=10 times={"best":3,"runs":3,"log":[4,3,5]} menuLevels=1 / 12 done menuZen=true menuPads=10 / 10' && has 'errors: none' && r=ok || r=no
+has 'after reload: upDives=false zen=true sound=false fps=false env=winter/dusk/snow plane=0 throttle=0.31 lever=0.31 pads=10 times={"best":3,"runs":3,"log":[4,3,5]} menuLevels=1 / 12 done menuZen=true menuPads=10 / 40' && has 'errors: none' && r=ok || r=no
 check "every setting and all progress survive a reload (stick, Zen, sound, counter, season/time/weather, plane, lever, spots, level times)" $r "$(echo "$out" | grep 'after reload')"
+
+out=$(timeout 295 node t_sub.mjs 2>&1)
+has 'pads 19 (land 10, sea 6, dive 3), portals 3, finds 21' && [ "$(echo "$out" | grep -o 'palms [0-9]*' | head -1 | cut -d' ' -f2)" -ge 20 ] && r=ok || r=no
+check "the sea has $(echo "$out" | grep -o 'palms [0-9]*' | head -1) on shore, 6 unmarked floats, 3 violet dive platforms, 3 dive entries, 21 things to find" $r "$(echo "$out" | grep '^world')"
+has 'sea floats: beams 0, lit marks 0' && has 'dive platforms with a beam 3' && [ "$(echo "$out" | grep -o 'sea:L+200+200' | wc -l)" = "6" ] && [ "$(echo "$out" | grep -o 'dive:L+1000+400' | wc -l)" = "3" ] && r=ok || r=no
+check "unmarked floats have no light and pay +200 on every landing; dive platforms pay +1000 then +400" $r "$(echo "$out" | grep '^sea')"
+has 'reachable from the dive entry: 21 of 21' && r=ok || r=no
+check "every one of the 21 finds can be reached by the sub from its dive entry (flood fill at the sub's size)" $r "$(echo "$out" | grep '^reachable')"
+has 'touching water outside the disc dives: false; flying into the disc dives: true' && has 'under=true, plane hidden=true' && has 'DIVE button on a violet platform shown true; pressing it dives true' && r=ok || r=no
+check "only the glowing disc takes the plane under; the DIVE button on a violet platform also works" $r "$(echo "$out" | grep 'disc\|DIVE')"
+has 'stopped drift 0.00 m' && has 'reaches y -1.75 (surface -1)' && has 'sits 0.55 m above the floor' && has 'in rock or out of the water 0, NaN 0' && r=ok || r=no
+check "sub: lever bottom is a dead stop, it cannot break the surface or the floor, 6 min of random driving never enters rock" $r "$(echo "$out" | grep 'stopped\|random sub')"
+has 'SURFACE: back in the plane true, airborne true, plane shown true, haze back to true, did not fall straight back in true' && has 'sky back after leaving for the menu: under=false sub=false' && r=ok || r=no
+check "SURFACE returns to the plane and the sky; leaving for the menu from under water also restores it" $r "$(echo "$out" | grep 'SURFACE\|sky back')"
+has 'collected by the plane from above: false; collected by the sub 21 of 21; saved 21; points gained 8400' && r=ok || r=no
+check "finds: only the sub collects them; +300 each, +1000 per map piece, all saved" $r "$(echo "$out" | grep '^collected')"
+has 'treasure map: unlockAll true' && has 'TREASURE MAP COMPLETE' && has 'hangar after the treasure map: locked planes 0' && has 'new run after finding everything: finds left in the water 0' && r=ok || r=no
+check "three map pieces complete the treasure map and unlock every plane; found things do not come back" $r "$(echo "$out" | grep 'treasure\|hangar\|new run')"
+has 'after reload: finds=21 unlockAll=true points=true seaPads=6 divePads=3' && has 'spots and finds list rows 40, done 30, menu count 30 / 40' && has 'errors: none' && r=ok || r=no
+check "finds, the treasure map, points and sea landings survive a reload; the list shows them" $r "$(echo "$out" | grep 'after reload\|list rows')"
 
 out=$(timeout 280 node t_misc.mjs 2>&1)
 has 'environment combinations applied: 200' && has 'errors: none' && r=ok || r=no

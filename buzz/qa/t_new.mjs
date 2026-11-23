@@ -31,7 +31,7 @@ const out = await page.evaluate(async () => {
   b.setThrottle(0.5, true);
   // E. landing spots: low and slow lands, gives the bonus once, saved; fast does not land; take-off is vertical
   b.startRun('free', null); const W3 = b.W; const rows = [];
-  for (const pad of W3.pads) {
+  for (const pad of W3.pads.filter((p) => p.kind === 'land')) {
     const bank0 = G.banked; b.setThrottle(1, true); place(pad.x, pad.y + 0.7, pad.z + 12, 0); P.speed = 20; step(1.2); const fastLanded = !!P.landed; const warn = document.getElementById('warn').textContent;
     if (P.landed) { b.takeOff(); step(3); } pad.cool = 0;
     b.setThrottle(0.2, true); place(pad.x, pad.y + 1.6, pad.z + 10, 0); P.speed = 5; let tt = 0; while (!P.landed && tt < 9) { b.stepSim(1 / 60); tt += 1 / 60; }
@@ -39,7 +39,7 @@ const out = await page.evaluate(async () => {
     b.takeOff(); step(1.4); const rose = P.pos.y - y1; const air = !P.landed;
     rows.push(`${pad.id}:${landed ? 'L' : 'x'}${fastLanded ? '!fast' : ''}+${bonus}/up${rose.toFixed(1)}${air ? '' : '!stuck'}${/SLOW/.test(warn) ? '' : '(nowarn)'}`);
   }
-  res.push('pads ' + rows.join(' ')); res.push(`pads saved ${Object.keys(b.save.pads).length} of ${b.PAD_LIST.length}; menu shows ${(b.setState('menu'), document.getElementById('mPads').textContent)}`);
+  res.push('pads ' + rows.join(' ')); res.push(`land spots saved ${Object.keys(b.save.pads).length} of ${b.PAD_LIST.filter((q) => q[2] === 'land').length}; menu shows ${(b.setState('menu'), document.getElementById('mPads').textContent)}`);
   // second landing gives the smaller bonus
   b.startRun('free', null); { const pad = b.W.pads.find((p) => p.id === 'plaza'); b.setThrottle(0.2, true); place(pad.x, pad.y + 0.7, pad.z + 10, 0); P.speed = 5; let tt = 0; while (!P.landed && tt < 9) { b.stepSim(1 / 60); tt += 1 / 60; } res.push(`repeat landing bonus ${G.banked}; TAKE OFF button shown ${(b.stepSim(1 / 60), !document.getElementById('btnTO').classList.contains('hide') || 'after hud refresh')}`); }
   // F. engine-off touchdown anywhere, then vertical take-off with every plane

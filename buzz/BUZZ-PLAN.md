@@ -15,7 +15,9 @@ Paths owned by this project: `buzz/` only.
 
 - After 1.1.0: "the lighthouse Beam is unnecessary . I don't really care for the drone attacks, I think the goal is to just get through the levels tasks and log the time and just keep learning to beat your time we will improve the goal setting and so forth as far as being able to fire weapons I can't think of it right now maybe it's at some separate mode where you actually tried to hit targets maybe it could be something cool like you hit the pillar of a pier that's marked with a red x and the pier collapses or a tree and it explodes because it. had hidden explosives"
 
-## 2. What the app is (1.2.0)
+- After 1.2.0: "add  the palm trees put some unmarked landing sites out on the water that accumulate points but there's no beam even though they are on the map so you can put them out for and make some of the landing pads a different color that allow you to get higher points they also indicate in a large radius around those specific landing pads and entry point to where you're playing now becomes a first person submersible and you can move around underneath the water and go through caves and other obstacles like arches and other items the idea is to actually accumulate points by finding certain articles I'll leave that to your imagination what that is it would be even cooler if you found the equivalent of like a treasure map that successfully would just unlock everything in the game"
+
+## 2. What the app is (1.3.0)
 
 - **City block.** Procedural, new every run: a 6-level parking structure, a 9-floor office tower with an atrium, a 7-floor hotel with open stair shafts. Skyline continues to the east.
 - **Nature (fixed, the same every run).** Mountains to the north (highest peak about 250 m), a park and lake to the west, a beach, surf and open sea to the south with a pier and a lighthouse island. Terrain is one height grid used for both drawing and collision; sea and lake are a wave shader (swell in the vertices, ripples, sun glint, surf bands and a lapping swash line at the beach; swell and surf grow with wind). The world is about 1.5 km across.
@@ -25,22 +27,29 @@ Paths owned by this project: `buzz/` only.
 - **Stick direction.** Stick up dives by default (as the owner asked). Switch "Stick up dives" in the quick menu flips it.
 - **Speed.** A lever on the right: 35% to 160% of the plane's cruise. Bottom of the lever = engine off.
 - **Glide.** Engine off (lever bottom, or the Glide switch). The plane sinks about 0.75 m/s (13:1 in the lab), speed follows the nose angle. Silent: nothing reacts as the plane passes, in the air or parked.
+- **Palms.** 22 along the back of the beach and 7 on the lighthouse island: curved trunks in segments, 14 drooping fronds each with a folded, serrated blade.
+- **Unmarked sea floats.** Six timber floats 200 to 500 m offshore. No H, no light, no column; shown on the map in cyan (and on the map rim when you are over the sea). +200 on every landing.
+- **Dive platforms.** Three violet platforms with a violet column: +1000 the first landing, then +400. Each sits in a 42 m ring of violet buoys; inside the ring a glowing disc on the water is the way down. Touch the water inside the disc, or land on the platform and tap DIVE.
+- **Submersible.** First person. The stick steers, the lever is forward speed and its bottom is a dead stop; it neither sinks nor floats, has no air limit and takes no damage. It cannot break the surface, leave deep water or pass through rock. SURFACE returns to the plane, which lifts straight off the water. The map becomes a sonar: walls at your depth, and gold dots for anything still to find.
+- **Under water.** The sea floor now drops to 40 m. The Arches (about 18 m): a run of rock arches over kelp, with a small grotto. The Wreck (about 25 m): a holed hull with a cabin, two holds, a deck hatch and a fallen mast. The Deep Caves (40 m): a rock massif with a tunnel network and a hole in its roof. Fish schools, kelp, coral, drifting specks, blue-green haze that darkens with depth, a headlight.
+- **Finds.** 18 things, six per site (amphora, anchor, diver's helmet, message in a bottle, stone idol, giant pearl; ship's bell, sextant, lantern, chest of coins, cannon, figurehead; crown, crystal skull, trident, goblet, telescope, black pearl): +300 each. Three treasure-map pieces, one per site: +1000 each, and the third unlocks every plane. Found things are saved and do not come back.
+- **Points.** A lifetime total is kept and shown on the menu: banked Havoc, landing bonuses and finds.
 - **Landing spots.** Ten fixed spots, each a lit H with a column of light: Plaza, Garage roof deck, Office roof, Hotel roof, Park bandstand, Lake dock, Pier, Lighthouse island, Ridge camp, Summit. Come in under 38 km/h within 2.2 m of the pad to land. First landing +500, later +150; landing banks carried Havoc and restores health. Spots found are saved and listed. With the engine off the plane can also roll to a stop on any ground.
 - **Take-off.** Vertical and immediate with every plane: TAKE OFF button, pushing the lever up, or a firm push on the stick.
 - **Quick menu.** Double tap the screen (or the pause button). Switches: Zen, Glide, Stick up dives, Sound, Frame counter. Buttons open further modals: Season/time/weather, Planes, Landing spots, Levels; plus Restart and Main menu. Every modal closes with the X in its top right and returns to where it was opened.
-- **Saved in local storage** (`buzz.v1`): level times, landing spots, best bank, plane, stick direction, Zen, lever position, sound, frame counter, season, time, weather.
+- **Saved in local storage** (`buzz.v1`): level times, finds, map pieces, the unlock, lifetime points, landing spots (all three kinds), best bank, plane, stick direction, Zen, lever position, sound, frame counter, season, time, weather.
 - 10 planes, hotel escapes by map, season/time/weather, Pulse (a shockwave that sets off everything within 6 m), on-screen frame counter and `?debug=1`.
 
 ## 3. Acceptance checks
 
 `buzz/qa/suite.sh` — run before every push. Lab only (headless Chrome, software rendering).
 
-| Check | 1.2.0 |
+| Check | 1.3.0 |
 |---|---|
 | Boots to the menu with no page errors | PASS |
 | Random flight, 2.5 min in each building, never ends inside a wall | PASS |
 | Every hotel escape start has a route outside (18 hotels) | PASS |
-| Autopilot flies out of the hotel with the real flight model | PASS (22 of 24 on the release run; 22–24 across runs) |
+| Autopilot flies out of the hotel with the real flight model | PASS (23 of 24 on the release run; 22–24 across runs) |
 | No level starts with a collision in the first second | PASS |
 | Every modal opens, has its X in the top right, and closes with it (13 cases) | PASS |
 | Double tap opens the quick menu without pressing a switch under the finger; single tap does nothing | PASS |
@@ -49,29 +58,44 @@ Paths owned by this project: `buzz/` only.
 | Stick up dives by default and the switch flips it | PASS |
 | Speed lever 15 / 50 / 100% gives rising speed | PASS (25 / 50 / 86 km/h) |
 | Zen: slower, nothing scores, no alarms, no damage; quiet things still react | PASS |
-| Glide: sinks slowly, sets nothing off; the same car reacts with the engine on | PASS (13.1:1) |
+| Glide: sinks slowly, sets nothing off; the same car reacts with the engine on | PASS (13.2:1) |
 | Levels are timed: first run sets the time, a faster run becomes the best, a slower one is logged against it, newest first | PASS |
 | Finishing a level unlocks a plane; a star from the first release still counts; there is no time limit | PASS |
-| All 10 landing spots: low and slow lands (+500, then +150), fast does not, take-off lifts clear | PASS |
+| All 10 lit landing spots: low and slow lands (+500, then +150), fast does not, take-off lifts clear | PASS |
 | Engine-off touchdown on open ground, then vertical take-off, with each of the 10 planes | PASS |
 | 7.5 min of random flight over mountains, park and sea never goes under ground or water | PASS |
 | Every setting and all progress survive a reload, level times included | PASS |
 | All reactions fire; 200 season/time/weather combinations apply | PASS |
 | Each of the 12 levels stays open one short of its task and finishes, with a time logged, when the task is met | PASS |
 | No drones and no heat exist any more; banking outside works | PASS |
+| 29 palms, 6 unmarked floats, 3 violet dive platforms, 3 dive entries, 21 things to find exist | PASS |
+| Unmarked floats have no light and pay +200 on every landing; dive platforms pay +1000 then +400 | PASS |
+| Every one of the 21 finds can be reached by the sub from its dive entry (flood fill at the sub's size) | PASS |
+| Only the glowing disc takes the plane under; the DIVE button on a violet platform also works | PASS |
+| Sub: lever bottom is a dead stop; it cannot break the surface or the floor; 6 min of random driving never enters rock | PASS |
+| SURFACE returns to the plane and the sky; leaving for the menu from under water also restores it | PASS |
+| Finds: only the sub collects them; +300 each, +1000 per map piece, all saved | PASS |
+| Three map pieces complete the treasure map and unlock every plane; found things do not come back | PASS |
+| Finds, the treasure map, points and sea landings survive a reload; the list shows them | PASS |
 | GPU objects do not grow across 7 rebuilt blocks; knock-down recovers | PASS |
 
-1.1.0 passed its 20 checks and 1.0.0 passed its 9 checks (see ledger).
+1.2.0 passed its 23 checks, 1.1.0 its 20 and 1.0.0 passed its 9 checks (see ledger).
 
 ## 4. Not verified (say so, do not assume)
 
-- **1.2.0 has not run on a real phone.** The owner played 1.0.0 ("initially very cool") and gave feedback on 1.1.0 that implies it ran, but no frame-rate figure has come back. Since 1.1.0 the app draws about twice the triangles (334k against 174k in the menu view, 190 draw calls: terrain, water, pines). Frame rate on the S23 Ultra, the water shader on a mobile GPU, touch feel of the lever, double-tap timing, sound, haptics, fullscreen and iPhone Safari are unverified. The lab renders in software at 3–12 fps and says nothing about speed.
-- **Tuning is a first guess**, not play-tested: level task sizes, landing speed and height window, glide sink rate, Zen speed, lever range, bonuses. The owner has said goal setting will be improved later.
+- **1.3.0 has not run on a real phone.** The owner played 1.0.0 ("initially very cool") and gave feedback on 1.1.0 that implies it ran, but no frame-rate figure has come back. Since 1.1.0 the app draws about twice the triangles (334k against 174k in the menu view, 190 draw calls: terrain, water, pines). Frame rate on the S23 Ultra, the water shader on a mobile GPU, touch feel of the lever, double-tap timing, sound, haptics, fullscreen and iPhone Safari are unverified. The lab renders in software at 3–12 fps and says nothing about speed.
+- **Under water is judged from lab screenshots only.** How readable the caves are on a phone screen, how the sub feels to steer, and whether the finds are too easy or too hard to spot are unknown.
+- **Tuning is a first guess**, not play-tested: point values, sub speed and turn rate, level task sizes, landing speed and height window, glide sink rate, Zen speed, lever range, bonuses. The owner has said goal setting will be improved later.
 - Looks were judged from lab screenshots only.
 - No log channel exists from the phone back to the repo for this project. The frame counter and `?debug=1` are on screen only.
 
 ## 5. Open assumptions (owner can override)
 
+- The dive entry is a glowing disc on the water inside a ring of buoys around each violet platform. The sub has no air limit and takes no damage.
+- What there is to find, and that the treasure map is three pieces (one per site), are my choices; the owner left them open.
+- "Unlock everything" means every plane, the only locked things in the game.
+- Finds stay found for good; there is no reset.
+- The sea floats are on the map but nameless in the list until landed on.
 - Zen keeps quiet reactions (leaves, pigeons, chimes, lights) and drops loud ones; landing spots still count in Zen, without points.
 - Glide is the bottom of the speed lever rather than a separate mode. With drones gone, "not detectable" now only means nothing reacts as the plane passes.
 - Each level's task is the old two-star target. Wall hits, health and knock-downs stay. Pulse stays as a shockwave.
@@ -79,7 +103,7 @@ Paths owned by this project: `buzz/` only.
 - The speed lever replaces the Turbo button (top of the lever is the old Turbo speed).
 - Landing banks carried Havoc.
 - Nature is fixed rather than procedural so landing spots stay in the same places; the city block is still new each run.
-- No palm trees or boats on the beach.
+- No boats.
 - Hotel "stairs" are open shafts; escape missions seal the upper floors; multiplayer later; clean low-poly look.
 
 ## 6. Graveyard
@@ -108,6 +132,11 @@ Removed in 1.2.0 at the owner's request:
 - G17 The lighthouse's rotating beam. Owner: "the lighthouse Beam is unnecessary". The lighthouse and its lamp stay.
 - G18 Star ratings, per-level countdowns and "out of time". Owner: "get through the levels tasks and log the time and just keep learning to beat your time". Replaced by one task per level, a count-up clock and a time log. Planes unlock by levels finished, not stars.
 
+Replaced in 1.3.0 at the owner's request:
+
+- G19 "No palm trees on the beach" (my 1.1.0 choice). Owner: "add the palm trees".
+- G20 The 14 m sea floor. Now drops to 40 m so there is room to dive.
+
 Parked, not built (owner: "I can't think of it right now"):
 
 - P1 A separate target mode with weapons. The owner's examples: hit a pier pillar marked with a red X and the pier collapses; a tree that explodes because it had hidden explosives. Wait for the owner to pick this up.
@@ -120,6 +149,7 @@ Found and fixed while building 1.1.0 (kept here so they are not reintroduced):
 
 ## 7. Release ledger
 
+- 1.3.0 — 2026-11-23 — palms; six unmarked sea floats; three violet dive platforms with dive entries; first-person submersible; arches, wreck and caves under water; 18 finds and a three-piece treasure map that unlocks every plane; lifetime points. Suite 32/32 PASS in the lab. Page 220 KB. Phone unverified.
 - 1.2.0 — 2026-11-22 — drones, heat and the lighthouse beam removed; levels are timed tasks with a best time and a log; planes unlock by levels finished. Suite 23/23 PASS in the lab. Page 186 KB. Phone unverified.
 - 1.1.0 — 2026-11-21 — Zen, stick-up-dives default, speed lever, glide, ten landing spots with vertical take-off, mountains/park/lake/beach/sea, quick menu and X-closing modals, everything saved. Suite 20/20 PASS in the lab. Page 193 KB. Phone unverified.
 - 1.0.0 — 2026-11-21 — first release. Suite 9/9 PASS in the lab. Owner on phone: "initially very cool".
