@@ -62,6 +62,12 @@ canvas#gl{position:fixed;inset:0;width:100%;height:100%;display:block}
 #hud.sub #bars,#hud.sub #btnPulse,#hud.sub #bank,#hud.sub #goal,#hud.sub #pill{display:none}
 #hud.zen #bars,#hud.zen #pill,#hud.zen #score,#hud.zen #btnPulse,#hud.zen #bank,#hud.zen #goal{display:none}
 #btnPulse.cd{opacity:.35}
+#btnFire{right:86px;bottom:22px;width:68px;height:68px;background:rgba(255,77,94,.62);font-size:12px;touch-action:none}
+#hud.tgt #btnPulse,#hud.tgt #bPulse{display:none}
+#hud.sub.tgt #goal{display:block}
+#lock{left:0;top:0;width:40px;height:40px;margin:-20px 0 0 -20px;border:2px solid #ff4d5e;border-radius:5px;box-shadow:0 0 6px rgba(255,77,94,.8),inset 0 0 6px rgba(255,77,94,.5);transform:translate(-999px,-999px)}
+#aim{left:0;top:0;width:12px;height:12px;margin:-6px 0 0 -6px;border:1.5px solid rgba(255,255,255,.75);border-radius:50%;box-shadow:0 0 3px #000;transform:translate(-999px,-999px)}
+button.tgt{background:linear-gradient(90deg,#c22a3a,#ff4d5e);color:#fff;border:0;font-size:15px;line-height:1.15}button.tgt small{display:block;font-size:9px;font-weight:600;letter-spacing:.14em;opacity:.85}
 .gbtn.on{filter:brightness(1.5);transform:scale(.94)}
 .ov{position:fixed;inset:0;display:flex;align-items:center;justify-content:center;padding:14px;z-index:10}
 .ov.shade{background:rgba(4,7,12,.55);backdrop-filter:blur(3px);-webkit-backdrop-filter:blur(3px)}
@@ -126,7 +132,9 @@ button:active{filter:brightness(1.25)}
   <div id="bank" class="hide"><span id="bankTxt">BANKING</span><div class="bar"><i id="bankBar"></i></div></div>
   <div id="stick"><i></i></div>
   <div id="stickHint">DRAG ANYWHERE<br>TO STEER</div>
+  <div id="lock"></div><div id="aim"></div>
   <div id="btnPulse" class="gbtn">PULSE</div>
+  <div id="btnFire" class="gbtn hide">FIRE</div>
   <div id="spd"></div>
   <div id="thr"><div class="fill"></div><div class="knob"></div><div class="tl">FAST</div><div class="gl">GLIDE</div></div>
   <div id="acts"><button id="btnTO" class="pri hide">TAKE OFF</button><button id="btnDive" class="pri hide">DIVE</button></div>
@@ -139,7 +147,7 @@ button:active{filter:brightness(1.25)}
   <div class="card">
     <h1>BU<span>ZZ</span></h1>
     <div class="sub">FINISH THE TASK. BEAT YOUR TIME. OR JUST FLY.</div>
-    <button class="pri" id="mFly" style="width:100%">FLY</button>
+    <div class="row" style="margin-top:0"><button class="pri" id="mFly" style="flex:2.2">FLY</button><button class="tgt" id="mTarget">TARGET<small>WEAPONS LIVE</small></button></div>
     <label class="sw"><span><b>Zen</b><small>Slower, no scoring, no damage. Just fly.</small></span><input type="checkbox" id="mZen"><i></i></label>
     <div class="row">
       <button id="mMissions">Levels<br><span class="stars" id="mStars"></span></button>
@@ -163,8 +171,8 @@ button:active{filter:brightness(1.25)}
     <label class="sw"><span><b>Sound</b></span><input type="checkbox" id="qSound"><i></i></label>
     <label class="sw"><span><b>Frame counter</b></span><input type="checkbox" id="qFps"><i></i></label>
     <div class="row"><button id="qEnv">Season, time, weather</button><button id="qPlanes">Planes</button><button id="qSpots">Spots and finds</button></div>
-    <div class="row" id="rowRun"><button id="qMissions">Levels</button><button id="qRestart">Restart</button><button id="qMenu">Main menu</button></div>
-    <div class="tiny">Drag anywhere to steer. The lever on the right sets speed; pull it to the bottom to glide. Come in low and slow over a lit H to land; push the lever up or tap TAKE OFF to lift straight off. PULSE sets off everything close by. Under water the lever is your speed and its bottom is a full stop; SURFACE takes you back to the air. Tap the map to enlarge it. Double tap the screen for this menu.</div>
+    <div class="row" id="rowRun"><button id="qMissions">Levels</button><button id="qTargets">Target mode</button><button id="qRestart">Restart</button><button id="qMenu">Main menu</button></div>
+    <div class="tiny">Drag anywhere to steer. The lever on the right sets speed; pull it to the bottom to glide. Come in low and slow over a lit H to land; push the lever up or tap TAKE OFF to lift straight off. PULSE sets off everything close by. Under water the lever is your speed and its bottom is a full stop; SURFACE takes you back to the air. In Target mode FIRE launches a rocket, or a torpedo under water; hold it to keep firing. The red square is the target your shot will lean toward. Tap the map to enlarge it. Double tap the screen for this menu.</div>
   </div>
 </div>
 
@@ -181,6 +189,11 @@ button:active{filter:brightness(1.25)}
 
 <div id="missions" class="ov shade modal hide">
   <div class="card"><button class="x" aria-label="Close">✕</button><h2>Levels</h2><div id="misList"></div></div>
+</div>
+
+<div id="ranges" class="ov shade modal hide">
+  <div class="card"><button class="x" aria-label="Close">✕</button><h2>Target mode</h2><div id="rngList"></div>
+  <div class="tiny">Weapons are live only here. Rockets in the air, torpedoes under water. Everything marked with a red X can be destroyed; a range is cleared when its last target is down, and the clock stops there. Targets stand again on every new run.</div></div>
 </div>
 
 <div id="brief" class="ov shade modal hide">
@@ -226,7 +239,7 @@ button:active{filter:brightness(1.25)}
 import * as THREE from 'three';
 
 /* ============================================================ core */
-const VERSION = 'buzz 1.3.0';
+const VERSION = 'buzz 1.4.0';
 const QS = new URLSearchParams(location.search);
 const DEBUG = QS.has('debug');
 const TAU = Math.PI * 2;
@@ -538,7 +551,7 @@ class World {
     this.c = []; this.cf = []; this.en = null; this.stampArr = null; this.stamp = 1;
     this.hash = new Map(); this.rhash = new Map();
     this.layers = []; this.buildings = []; this.reactives = []; this.exits = []; this.verts = [];
-    this.ramps = []; this.dyn = []; this.updaters = []; this.lamps = []; this.pools = []; this.movers = []; this.pads = []; this.pines = []; this.touchedWater = false; this.under = false; this.palms = []; this.fish = []; this.portals = []; this.finds = [];
+    this.ramps = []; this.dyn = []; this.updaters = []; this.lamps = []; this.pools = []; this.movers = []; this.pads = []; this.pines = []; this.touchedWater = false; this.under = false; this.palms = []; this.fish = []; this.portals = []; this.finds = []; this.targets = []; this.archs = []; this.tSph = [];
     this.group = new THREE.Group();
     this.mats = {
       ext: new THREE.MeshLambertMaterial({ color: 0xffffff }),
@@ -1403,10 +1416,10 @@ function addPine(W, rng, x, z, s) {
 /* a landing spot: dark slab with a lit outline and an H. y is the surface it sits on */
 function addPad(W, id, name, x, y, z, kind) {
   kind = kind || 'land'; const L = W.out, c = kind === 'dive' ? 0xc070ff : 0x3dff8a, t = y + 0.1; const hs = [];
-  W.S(L, 'o', x - 3, y, z - 3, 6, 0.1, 6, kind === 'sea' ? 0x7d6244 : 0x2b3038);
+  const slab = W.S(L, 'o', x - 3, y, z - 3, 6, 0.1, 6, kind === 'sea' ? 0x7d6244 : 0x2b3038);
   if (kind !== 'sea') hs.push(W.D(L, 'e', x - 3, t, z - 3, 6, 0.02, 0.2, c), W.D(L, 'e', x - 3, t, z + 2.8, 6, 0.02, 0.2, c), W.D(L, 'e', x - 3, t, z - 3, 0.2, 0.02, 6, c), W.D(L, 'e', x + 2.8, t, z - 3, 0.2, 0.02, 6, c),
     W.D(L, 'e', x - 1.15, t, z - 1.3, 0.36, 0.02, 2.6, c), W.D(L, 'e', x + 0.79, t, z - 1.3, 0.36, 0.02, 2.6, c), W.D(L, 'e', x - 1.15, t, z - 0.18, 2.3, 0.02, 0.36, c));
-  const pad = { id, name, kind, x, y: t, z, r: 3.3, hs, cool: 0 }; W.pads.push(pad); return pad;
+  const pad = { id, name, kind, x, y: t, z, r: 3.3, hs, slab, cool: 0 }; W.pads.push(pad); return pad;
 }
 
 /* mountains, park, lake, beach, pier, lighthouse: the same every run */
@@ -1446,12 +1459,12 @@ function buildNature(W) {
     for (const [ax, az] of [[0, 0], [2.4, 0], [0, 2.4], [2.4, 2.4]]) W.S(O, 'o', x + ax, y - 0.3, z + az, 0.2, 2.6, 0.2, 0xf1f0ea);
     W.S(O, 'o', x - 0.3, y + 2.3, z - 0.3, 3.2, 0.2, 3.2, 0xf1f0ea); W.S(O, 'o', x, y + 2.5, z, 2.6, 1.9, 2.6, 0xd8322a); W.D(O, 'o', x - 0.4, y + 4.4, z - 0.4, 3.4, 0.16, 3.4, 0xf1f0ea);
   }
-  { const px = 40, top = 1.9;
-    for (let z = 104; z < 208; z += 13) { W.S(O, 'o', px, top - 0.25, z, 4, 0.25, 13, 0x8a6a48); W.S(O, 'o', px + 0.2, -8, z + 6, 0.35, 8 + top - 0.25, 0.35, 0x4f3d2c); W.S(O, 'o', px + 3.45, -8, z + 6, 0.35, 8 + top - 0.25, 0.35, 0x4f3d2c); }
-    W.S(O, 'o', px - 2.5, top - 0.25, 208, 9, 0.25, 9, 0x8a6a48);
-    for (const [ax, az] of [[-2.3, 208.2], [6, 208.2], [-2.3, 216.5], [6, 216.5]]) W.S(O, 'o', px + ax, -8, az, 0.35, 8 + top - 0.25, 0.35, 0x4f3d2c);
-    for (let z = 110; z < 206; z += 16) { W.S(O, 'o', px - 0.05, top, z, 0.12, 2.6, 0.12, 0x33373d); W.lamps.push(W.D(O, 'e', px - 0.2, top + 2.6, z - 0.15, 0.42, 0.14, 0.42, 0x222222)); }
-    addPad(W, 'pier', 'Pier', px + 2, top, 212.5);
+  { const px = 40, top = 1.9; const pier = W.pier = { px, top, secs: [], head: [], posts: [] };   // the handles are kept so Target mode can bring it down
+    for (let z = 104; z < 208; z += 13) pier.secs.push({ z: z + 6.5, hs: [W.S(O, 'o', px, top - 0.25, z, 4, 0.25, 13, 0x8a6a48), W.S(O, 'o', px + 0.2, -8, z + 6, 0.35, 8 + top - 0.25, 0.35, 0x4f3d2c), W.S(O, 'o', px + 3.45, -8, z + 6, 0.35, 8 + top - 0.25, 0.35, 0x4f3d2c)] });
+    pier.head.push(W.S(O, 'o', px - 2.5, top - 0.25, 208, 9, 0.25, 9, 0x8a6a48));
+    for (const [ax, az] of [[-2.3, 208.2], [6, 208.2], [-2.3, 216.5], [6, 216.5]]) pier.head.push(W.S(O, 'o', px + ax, -8, az, 0.35, 8 + top - 0.25, 0.35, 0x4f3d2c));
+    for (let z = 110; z < 206; z += 16) { const post = W.S(O, 'o', px - 0.05, top, z, 0.12, 2.6, 0.12, 0x33373d), lamp = W.D(O, 'e', px - 0.2, top + 2.6, z - 0.15, 0.42, 0.14, 0.42, 0x222222); W.lamps.push(lamp); pier.posts.push({ z, hs: [post, lamp] }); }
+    pier.pad = addPad(W, 'pier', 'Pier', px + 2, top, 212.5);
   }
   /* lighthouse on the island */
   { const lx = ISLE_C[0] + 6, lz = ISLE_C[1] - 6, ly = landH(lx, lz);
@@ -1557,6 +1570,7 @@ function buildWorld(seed, opt) {
   buildOutdoors(W, rng);
   buildNature(W);
   buildSea(W);
+  if (opt && opt.targets) buildTargets(W, opt.targets);
   W.finalize();
   finishSea(W);
   /* foliage */
@@ -1579,6 +1593,7 @@ function buildWorld(seed, opt) {
   const pm = new THREE.InstancedMesh(new THREE.PlaneGeometry(1, 1), new THREE.MeshBasicMaterial({ map: pt, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, toneMapped: false }), W.pools.length);
   W.pools.forEach((p, i) => { _e.set(-Math.PI / 2, 0, 0); _q.setFromEuler(_e); _m4.compose(_v.set(p[0], 0.07, p[1]), _q, _s.set(13, 13, 1)); pm.setMatrixAt(i, _m4); });
   pm.computeBoundingSphere(); W.group.add(pm); W.poolMesh = pm;
+  if (W.targets.length) finishTargets(W);
   return W;
 }
 
@@ -1745,11 +1760,11 @@ function buildSea(W) {
   /* ---- palms along the back of the beach and on the island */
   const palm = (x, z) => {
     const y = landH(x, z); if (y < SEA + 0.55) return;
-    W.palms.push({ x, y, z, h: rng.r(6, 9.5), lean: rng.r(0.12, 0.42), a: rng.r(0, TAU), seed: rng.n() });
-    W.collider(x - 0.25, y - 0.5, z - 0.25, x + 0.25, y + 2.4, z + 0.25, 0);       // the foot of the trunk is solid; it is drawn by the palm mesh
+    const pm = { x, y, z, h: rng.r(6, 9.5), lean: rng.r(0.12, 0.42), a: rng.r(0, TAU), seed: rng.n() }; W.palms.push(pm);
+    pm.ci = W.collider(x - 0.25, y - 0.5, z - 0.25, x + 0.25, y + 2.4, z + 0.25, 0);       // the foot of the trunk is solid; it is drawn by the palm mesh
   };
   for (let i = 0; i < 160 && W.palms.length < 22; i++) { const x = rng.r(-118, 118), z = rng.r(104.5, 119); if (Math.abs(x - 42) < 7 || Math.abs(x + 33) < 6) continue; if (W.palms.some((p) => Math.hypot(p.x - x, p.z - z) < 7)) continue; palm(x, z); }
-  const beachPalms = W.palms.length;
+  const beachPalms = W.beachPalms = W.palms.length;
   for (let i = 0; i < 120 && W.palms.length < beachPalms + 7; i++) { const a = rng.r(0, TAU), d = rng.r(9, 26); const x = ISLE_C[0] + Math.cos(a) * d, z = ISLE_C[1] + Math.sin(a) * d; if (Math.hypot(x - 158, z - 438) < 8 || Math.hypot(x - 176, z - 424) < 6) continue; if (W.palms.some((p) => Math.hypot(p.x - x, p.z - z) < 6)) continue; palm(x, z); }
 
   /* ---- a float: timber deck on drums, with a mooring line to the sea floor */
@@ -1780,8 +1795,10 @@ function buildSea(W) {
   const arch = (cx, cz, gap, h, ax) => {
     const leg = rng.r(1.6, 2.4), th = rng.r(1.4, 2.2); const fl = Math.min(landH(cx - gap, cz), landH(cx + gap, cz), landH(cx, cz - gap), landH(cx, cz + gap)) - 2;
     const top = landH(cx, cz) + h;
-    if (ax) { rock(cx - gap / 2 - leg, fl, cz - leg / 2, leg, top - fl, leg); rock(cx + gap / 2, fl, cz - leg / 2, leg, top - fl, leg); rock(cx - gap / 2 - leg - 0.4, top, cz - leg / 2 - 0.3, gap + 2 * leg + 0.8, th, leg + 0.6); }
-    else { rock(cx - leg / 2, fl, cz - gap / 2 - leg, leg, top - fl, leg); rock(cx - leg / 2, fl, cz + gap / 2, leg, top - fl, leg); rock(cx - leg / 2 - 0.3, top, cz - gap / 2 - leg - 0.4, leg + 0.6, th, gap + 2 * leg + 0.8); }
+    let lintel;
+    if (ax) { rock(cx - gap / 2 - leg, fl, cz - leg / 2, leg, top - fl, leg); rock(cx + gap / 2, fl, cz - leg / 2, leg, top - fl, leg); lintel = rock(cx - gap / 2 - leg - 0.4, top, cz - leg / 2 - 0.3, gap + 2 * leg + 0.8, th, leg + 0.6); }
+    else { rock(cx - leg / 2, fl, cz - gap / 2 - leg, leg, top - fl, leg); rock(cx - leg / 2, fl, cz + gap / 2, leg, top - fl, leg); lintel = rock(cx - leg / 2 - 0.3, top, cz - gap / 2 - leg - 0.4, leg + 0.6, th, gap + 2 * leg + 0.8); }
+    W.archs.push({ cx, cz, top, th, leg, gap, ax, lintel });
     return top;
   };
   /* a cave from a character map: # rock, . open, o open with a hole in the roof, E entrance, letters = finds */
@@ -1791,7 +1808,7 @@ function buildSea(W) {
     const top = hi + hgt; const holes = [];
     for (let r = 0; r < nR; r++) for (let c = 0; c < nC; c++) {
       const ch = rows[r][c], x = x0 + c * CS, z = z0 + r * CS;
-      if (ch === '#') { rock(x, lo - 3, z, CS, top - lo + 3, CS); continue; }
+      if (ch === '#' || ch === 'X') { const h = rock(x, lo - 3, z, CS, top - lo + 3, CS); if (ch === 'X') W.caveX = { h, x: x + CS / 2, z: z + CS / 2, CS, y: landH(x + CS / 2, z + CS / 2) + hgt / 2, floor: landH(x + CS / 2, z + CS / 2), hgt }; continue; }
       if (ch === 'o') holes.push([x + 0.4, z + 0.4, x + CS - 0.4, z + CS - 0.4]);
       const fl = landH(x + CS / 2, z + CS / 2);
       if (marks[ch]) find(marks[ch], x + CS / 2, fl + 1.3, z + CS / 2);
@@ -1844,6 +1861,7 @@ function buildSea(W) {
     W.S(O, 'o', x0 + 14.6, dk + 0.4, z0 + 4.2, 0.6, Math.min(12, SEA - 2.5 - dk), 0.6, wood); W.S(O, 'o', x0 + 30, dk + 0.4, z0 + 4.2, 0.55, 3.2, 0.55, wood);
     W.S(O, 'o', x0 + 13.6, dk + 6, z0 + 3.2, 2.6, 0.3, 2.6, woodL);
     W.S(O, 'o', x0 + 22, landH(x0 + 22, z0 - 6) - 0.2, z0 - 6.6, 15, 0.6, 0.6, wood);                // fallen mast on the sand
+    W.wreck = { x0, z0, k, dk, L, Wd };
     keep = [[x0 + 20, z0 + Wd + 6], [x0 + L + 9, z0 + 4.5], [x0 + 10.8, z0 - 3], [x0 + 25.7, z0 - 3], [x0 + 10.8, z0 + Wd + 3], [x0 + 25.7, z0 + Wd + 3], [x0 - 3, z0 + 4.5], [S.x + S.px, S.z + S.pz], [S.x, S.z]];
     for (let i = 0; i < 14; i++) { const x = x0 + rng.r(-10, L + 10), z = z0 + (rng.p(.5) ? rng.r(-16, -4) : rng.r(Wd + 3, Wd + 16)), s = rng.r(0.8, 2); if (!free(x + s / 2, z + s / 2, 5)) continue; W.S(O, 'o', x, landH(x, z) - 0.4, z, s, s * rng.r(0.5, 1), s, rng.pick([wood, woodL, 0x6f5a3a])); }
     kelp(x0 + 6, z0 + Wd + 12, 26, 9); coral(x0 + 18, z0 + 4, 50, 30);
@@ -1859,7 +1877,7 @@ function buildSea(W) {
 
   /* ---- C. The Deep Caves: a rock massif with a tunnel network, 40 m down */
   { const S = DIVE_SITES[2];
-    const map = ['#####E#######', '#a..#.#...b.#', '###.#.#.###.#', '#...#...#...#', '#.#####.#.###', '#.#c..#...#d#', '#.#.#.###.#.#', '#...#..o..#.#', '#####.###...#', '#e.......f#M#', '#############'];
+    const map = ['#####E#######', '#a..#.#...b.#', '###.#.#.###.#', '#...X...#...#', '#.#####.#.###', '#.#c..#...#d#', '#.#.#.###.#.#', '#...#..o..#.#', '#####.###...#', '#e.......f#M#', '#############'];
     cave(S.x - 32.5, S.z + 16, map, 5, 5.6, { a: 'crown', b: 'skull', c: 'trident', d: 'goblet', e: 'scope', f: 'bpearl', M: 'map3' }, 0.7);
     arch(S.x - 5, S.z + 9, 7, 7, 1);                                                                 // a gate in front of the entrance
     keep = [[S.x - 5, S.z + 9], [S.x - 5, S.z + 14], [S.x - 5, S.z + 3], [S.x + S.px, S.z + S.pz], [S.x, S.z]];
@@ -1897,7 +1915,7 @@ function finishSea(W) {
     }
     W.react({ type: 'tree', x: pos.x, y: pos.y, z: pos.z, r: 3.2, val: 5, palm: 1 });
   });
-  trunks.computeBoundingSphere(); fronds.computeBoundingSphere(); W.group.add(trunks, fronds); W.palmFronds = fronds; W.palmSeeds = W.palms.map((p) => p.seed);
+  trunks.computeBoundingSphere(); fronds.computeBoundingSphere(); W.group.add(trunks, fronds); W.palmFronds = fronds; W.palmTrunks = trunks; W.palmSegs = segs; W.palmFR = FR; W.palmSeeds = W.palms.map((p) => p.seed);
   /* fish: small schools circling a point */
   const total = W.fish.reduce((a, f) => a + f.n, 0);
   const fm = new THREE.InstancedMesh(BOX, new THREE.MeshLambertMaterial({ color: 0xffffff }), Math.max(1, total)); fm.frustumCulled = false; let k = 0;
@@ -1922,6 +1940,107 @@ function finishSea(W) {
     const big = new THREE.Mesh(rg, new THREE.MeshBasicMaterial({ color: 0xc070ff, transparent: true, opacity: 0.5, toneMapped: false, fog: false })); big.rotation.x = Math.PI / 2; big.position.set(p.site.x, SEA + 0.3, p.site.z); big.scale.setScalar(42); W.group.add(big);
     p.disc = d; let pt = Math.random() * 6; W.updaters.push((dt) => { pt += dt; d.material.opacity = 0.26 + 0.12 * Math.sin(pt * 2.2); d.visible = t.visible = big.visible = !W.under; });
   }
+}
+
+/* ============================================================ Target mode: ranges and the red-X targets that stand in them.
+   Targets exist only in a Target run; every other mode builds the world without them. They stand again on every new run. */
+const RANGES = [
+  { id: 't1', name: 'Pier Pressure', dom: 'air', n: 7, spawn: { x: 0, y: 22, z: 62, yaw: Math.PI }, text: 'The beach. Hit the pier pillar marked with a red X and the whole pier comes down. Then three rigged palms, the fuel drums on the boardwalk and the barge offshore.' },
+  { id: 't2', name: 'Timber', dom: 'air', n: 7, spawn: { x: -112, y: 24, z: -12, yaw: Math.PI / 2 }, text: 'The park. Five trees have charges hidden at the foot. There are fuel drums on the lake dock and on a raft out on the lake.' },
+  { id: 't3', name: 'Sky High', dom: 'air', n: 8, spawn: { x: 0, y: 18, z: 82, yaw: 0 }, text: 'Eight tethered balloons over the block: three above the roofs, four over the streets and one high above the plaza.' },
+  { id: 't4', name: 'Arch Enemy', dom: 'sea', site: 'A', n: 6, text: 'You start in the submersible at the Arches. Five mines, and a red X on the keystone of the great arch.' },
+  { id: 't5', name: 'Wreck Breaker', dom: 'sea', site: 'B', n: 6, text: 'You start in the submersible at the Wreck. Four mines around the hull, powder kegs on the stern deck and more in the hold under the hatch.' },
+  { id: 't6', name: 'Cave Buster', dom: 'sea', site: 'C', n: 6, text: 'You start in the submersible at the Deep Caves. Three mines outside, two inside, and a marked rock wall that opens a short cut.' },
+];
+const FREE_FIRE = { id: 't0', free: true, name: 'Free fire', n: RANGES.reduce((a, r) => a + r.n, 0), text: 'Every target in the world is live, above and below the water. No clock. Fly into a glowing disc to hunt under water.' };
+
+function buildTargets(W, which) {
+  const O = W.out, rng = new RNG(5151); const on = (id) => which === 'all' || which === id;
+  const T = (range, dom, kind, name, x, y, z, r, pts, o) => {
+    const t = Object.assign({ id: range + '.' + kind + (W.targets.filter((q) => q.range === range && q.kind === kind).length + 1), range, dom, kind, name, x, y, z, r, pts, done: false, hs: [], sph: [], marks: [[x, y, z]], off: 0.6 }, o || {});
+    W.targets.push(t); return t;
+  };
+  const sph = (x, y, z, s, col) => { W.tSph.push({ x, y, z, s, col }); return W.tSph.length - 1; };
+  const barrels = (x, y, z, cols, band) => { const hs = []; [[-0.75, -0.3], [0.05, -0.38], [-0.35, 0.36]].forEach(([ax, az], i) => { hs.push(W.S(O, 'o', x + ax, y, z + az, 0.7, 1.0, 0.7, cols[i % cols.length])); hs.push(W.D(O, 'o', x + ax - 0.01, y + 0.42, z + az - 0.01, 0.72, 0.14, 0.72, band)); }); return hs; };
+  const drums = (x, y, z) => barrels(x, y, z, [0xb5332a, 0xc0392b, 0xa82e26], 0xf2c230);
+  const charge = (x, y, z) => [W.D(O, 'o', x + 0.25, y - 0.05, z - 0.2, 0.34, 0.36, 0.34, 0x2b2b2b), W.D(O, 'e', x + 0.36, y + 0.31, z - 0.1, 0.1, 0.1, 0.1, 0xff3020)];
+
+  /* ---- 1. the beach: the pier, rigged palms, fuel on the boardwalk, a barge */
+  if (on('t1')) {
+    const pr = W.pier, sec = pr.secs[4], pz = sec.z - 0.33;
+    const hs = [W.D(O, 'o', pr.px + 0.15, -0.7, pz - 0.23, 0.45, 1.7, 0.45, 0xd8322a), W.D(O, 'o', pr.px + 3.4, -0.7, pz - 0.23, 0.45, 1.7, 0.45, 0xd8322a)];
+    T('t1', 'air', 'pier', 'Pier pillar', pr.px + 2, 0.2, pz, 2.3, 1000, { hs, marks: [[pr.px - 0.2, 0.35, pz], [pr.px + 4.2, 0.35, pz]], off: 0.45 });
+    const bp = W.palms.slice(0, W.beachPalms).map((p, i) => ({ p, i })).sort((a, b) => a.p.x - b.p.x);
+    for (const k of [0.12, 0.5, 0.88]) { const e = bp[Math.floor(k * (bp.length - 1))]; if (!e) continue; const p = e.p; T('t1', 'air', 'palm', 'Rigged palm', p.x, p.y + 1.6, p.z, 1.5, 250, { hs: charge(p.x, p.y, p.z), pi: e.i, top: p.y + p.h }); }
+    for (const x of [-70, 84]) T('t1', 'air', 'drums', 'Fuel drums', x, 0.74, 101, 1.5, 250, { hs: drums(x, 0.14, 101), marks: [[x, 2.5, 101]], off: 0 });
+    { const x = 96, z = 176; const h2 = [W.S(O, 'o', x - 4, SEA - 0.45, z - 2.6, 8, 0.8, 5.2, 0x5a5f66), W.D(O, 'o', x - 4.15, SEA + 0.35, z - 2.75, 8.3, 0.16, 0.16, 0x3a3d42), W.D(O, 'o', x - 4.15, SEA + 0.35, z + 2.6, 8.3, 0.16, 0.16, 0x3a3d42), W.D(O, 'o', x + 2.2, SEA + 0.35, z - 1, 1.4, 1.5, 2, 0xe8e8e6)].concat(drums(x - 1, SEA + 0.35, z));
+      T('t1', 'air', 'barge', 'Fuel barge', x, SEA + 1.0, z, 2.7, 500, { hs: h2, marks: [[x - 1, SEA + 3.0, z]], off: 0 }); }
+  }
+  /* ---- 2. the park: rigged trees, drums on the dock, a raft on the lake */
+  if (on('t2')) {
+    for (const [x, z, s] of [[-165, -62, 1.4], [-178, 34, 1.5], [-232, -88, 1.3], [-246, 70, 1.6], [-420, -20, 1.5]]) {
+      const y = landH(x, z); const hs = [W.S(O, 'o', x - 0.18, y - 0.4, z - 0.18, 0.36, 2.9 * s + 0.4, 0.36, 0x5b4636)].concat(charge(x, y, z)); const fol = [];
+      for (let i = 0; i < 4; i++) { fol.push(W.foliage.length); W.foliage.push({ x: x + rng.r(-.9, .9) * s, y: y + (3.4 + rng.r(0, 1.9)) * s, z: z + rng.r(-.9, .9) * s, s: rng.r(1.2, 1.9) * s, k: rng.n() }); }
+      T('t2', 'air', 'tree', 'Rigged tree', x, y + 1.5, z, 1.5, 250, { hs, fol, top: y + 4.2 * s });
+    }
+    T('t2', 'air', 'drums', 'Fuel drums', -266, LAKE + 1.6, LAKE_C[1], 1.5, 250, { hs: drums(-266, LAKE + 1.0, LAKE_C[1]), marks: [[-266, LAKE + 3.4, LAKE_C[1]]], off: 0 });
+    { const x = -352, z = 24; const h2 = [W.S(O, 'o', x - 3, LAKE - 0.4, z - 3, 6, 0.75, 6, 0x8a6a48)].concat(drums(x, LAKE + 0.35, z)); T('t2', 'air', 'raft', 'Fuel raft', x, LAKE + 0.95, z, 2.4, 500, { hs: h2, marks: [[x, LAKE + 2.9, z]], off: 0 }); }
+  }
+  /* ---- 3. over the block: tethered balloons */
+  if (on('t3')) {
+    const balloon = (x, y, z, base) => { const hs = [W.D(O, 'o', x - 0.03, base, z - 0.03, 0.06, y - 2.4 - base, 0.06, 0xd9d9d9), W.D(O, 'o', x - 0.35, y - 2.5, z - 0.35, 0.7, 0.6, 0.7, 0x7a5a3c), W.D(O, 'o', x - 0.5, y - 1.85, z - 0.5, 1.0, 0.16, 1.0, 0xf2f2ee)]; T('t3', 'air', 'balloon', 'Balloon', x, y, z, 1.9, 300, { hs, sph: [sph(x, y, z, 1.8, 0xd8322a)], off: 2.1 }); };
+    for (const B of W.buildings) balloon((B.x0 + B.x1) / 2 + 6, B.y1 + 11, (B.z0 + B.z1) / 2 - 6, B.y1);
+    for (const [x, y, z] of [[-60, 18, -86], [60, 34, 66], [94, 26, -20], [-94, 40, 30], [0, 72, -12]]) balloon(x, y, z, 0);
+  }
+  /* ---- under water: a mine is a sphere on a chain; touching it or hitting it sets it off */
+  const mine = (range, x, z, up) => {
+    const fl = landH(x, z), y = Math.min(fl + up, SEA - 4); const hs = [W.D(O, 'o', x - 0.03, fl, z - 0.03, 0.06, Math.max(0.1, y - 0.8 - fl), 0.06, 0x3a3d42), W.D(O, 'e', x - 0.07, y + 0.78, z - 0.07, 0.14, 0.14, 0.14, 0xff3020)];
+    for (const [ax, ay, az] of [[1, 0, 0], [-1, 0, 0], [0, 0, 1], [0, 0, -1], [0, -1, 0], [0.7, 0.7, 0], [-0.7, 0.7, 0], [0, 0.7, 0.7], [0, 0.7, -0.7]]) hs.push(W.D(O, 'o', x + ax * 0.84 - 0.08, y + ay * 0.84 - 0.08, z + az * 0.84 - 0.08, 0.16, 0.16, 0.16, 0x1c2026));
+    return T(range, 'sea', 'mine', 'Mine', x, y, z, 1.15, 350, { hs, sph: [sph(x, y, z, 0.8, 0x47505a)], off: 1.25 });
+  };
+  const kegs = (range, x, y, z) => T(range, 'sea', 'kegs', 'Powder kegs', x, y + 0.6, z, 1.5, 600, { hs: barrels(x, y, z, [0x6f5a3a, 0x7a6240, 0x66522f], 0x2b2b2b), marks: [[x, y + 2.1, z]], off: 0 });
+  if (on('t4')) {
+    const S = DIVE_SITES[0], cx = S.x, cz = S.z + 38;
+    for (const [dx, dz, up] of [[-28, 12, 5], [8, -16, 5], [34, 16, 4.5], [-12, 38, 5], [-42, -4, 6]]) mine('t4', cx + dx, cz + dz, up);
+    const A = W.archs.find((a) => a.gap === 11);
+    T('t4', 'sea', 'key', 'Keystone', A.cx, A.top + A.th / 2, A.cz, 2.2, 1000, { hs: [A.lintel], marks: [[A.cx, A.top + A.th / 2, A.cz - A.leg / 2 - 0.6], [A.cx, A.top + A.th / 2, A.cz + A.leg / 2 + 0.6]], off: 0.3, arch: A });
+  }
+  if (on('t5')) {
+    const K = W.wreck;
+    for (const [dx, dz] of [[-10, 4.5], [18, -13], [18, K.Wd + 15], [K.L + 18, 4.5]]) mine('t5', K.x0 + dx, K.z0 + dz, 5);
+    kegs('t5', K.x0 + 4, K.dk + 0.4, K.z0 + 4.5); kegs('t5', K.x0 + 21.8, K.k, K.z0 + 4.5);
+  }
+  if (on('t6')) {
+    const S = DIVE_SITES[2], cx0 = S.x - 32.5, cz0 = S.z + 16;
+    for (const [dx, dz] of [[-22, -2], [30, -8], [-5, -18]]) mine('t6', S.x + dx, S.z + dz, 5);
+    mine('t6', cx0 + 2 * 5 + 2.5, cz0 + 3 * 5 + 2.5, 2.7); mine('t6', cx0 + 4 * 5 + 2.5, cz0 + 9 * 5 + 2.5, 2.7);
+    const X = W.caveX;
+    T('t6', 'sea', 'wall', 'Rock wall', X.x, X.y, X.z, 2.6, 1000, { hs: [X.h], marks: [[X.x - X.CS / 2 - 0.3, X.y, X.z], [X.x + X.CS / 2 + 0.3, X.y, X.z]], off: 0.2 });
+  }
+}
+
+/* meshes: one instanced sphere mesh for balloons and mines, one instanced set of red X marks that always face the camera */
+function finishTargets(W) {
+  const sm = new THREE.InstancedMesh(G_SPH, new THREE.MeshLambertMaterial({ color: 0xffffff }), Math.max(1, W.tSph.length));
+  sm.setMatrixAt(0, ZERO_M); sm.setColorAt(0, _c.setHex(0xffffff));
+  W.tSph.forEach((s, i) => { _m4.compose(_v.set(s.x, s.y, s.z), _q.set(0, 0, 0, 1), _s.set(s.s, s.s, s.s)); sm.setMatrixAt(i, _m4); sm.setColorAt(i, _c.setHex(s.col)); });
+  sm.instanceMatrix.needsUpdate = true; sm.instanceColor.needsUpdate = true; sm.frustumCulled = false; W.group.add(sm); W.tSphMesh = sm;
+  const cv = document.createElement('canvas'); cv.width = cv.height = 64; const g = cv.getContext('2d'); g.lineCap = 'round';
+  for (const [w, c] of [[17, 'rgba(40,0,0,.92)'], [10, '#ff2a2a']]) { g.strokeStyle = c; g.lineWidth = w; g.beginPath(); g.moveTo(13, 13); g.lineTo(51, 51); g.moveTo(51, 13); g.lineTo(13, 51); g.stroke(); }
+  const tx = new THREE.CanvasTexture(cv); tx.colorSpace = THREE.SRGBColorSpace;
+  const list = []; for (const t of W.targets) for (const m of t.marks) list.push({ t, x: m[0], y: m[1], z: m[2] });
+  const mm = new THREE.InstancedMesh(new THREE.PlaneGeometry(1, 1), new THREE.MeshBasicMaterial({ map: tx, transparent: true, depthWrite: false, fog: false, toneMapped: false, alphaTest: 0.04 }), list.length);
+  mm.frustumCulled = false; mm.renderOrder = 6; W.group.add(mm); W.markMesh = mm; const dir = new THREE.Vector3();
+  W.updaters.push(() => {
+    const cp = camera.position;
+    for (let i = 0; i < list.length; i++) {
+      const m = list[i], t = m.t; if (t.done || (t.dom === 'sea') !== W.under) { mm.setMatrixAt(i, ZERO_M); continue; }
+      _v.set(m.x, m.y, m.z); const d = _v.distanceTo(cp); const s = W.under ? clamp(d * 0.05, 0.9, 2.6) : clamp(d * 0.04, 1.5, 8);
+      if (d > 0.01) _v.addScaledVector(dir.copy(cp).sub(_v).multiplyScalar(1 / d), Math.min(t.off, d * 0.5));
+      _m4.compose(_v, camera.quaternion, _s.set(s, s, 1)); mm.setMatrixAt(i, _m4);
+    }
+    mm.instanceMatrix.needsUpdate = true;
+  });
 }
 
 /* ============================================================ planes (ten original designs, built from primitives) */
@@ -2099,7 +2218,8 @@ function updateParts(dt) {
     q.life -= dt;
     if (q.life <= 0) { parts.mesh.setMatrixAt(i, ZERO_M); continue; }
     const d = Math.exp(-q.drag * dt); q.vx *= d; q.vz *= d; q.vy = q.vy * d - q.g * dt;
-    q.x += q.vx * dt; q.y += q.vy * dt; q.z += q.vz * dt; if (q.y < 0.04) { q.y = 0.04; q.vy = 0; q.vx *= .8; q.vz *= .8; q.sp *= .9; }
+    q.x += q.vx * dt; q.y += q.vy * dt; q.z += q.vz * dt;
+    { const fy = (W.under ? landH(q.x, q.z) : groundY(q.x, q.z)) + 0.04; if (q.y < fy) { q.y = fy; q.vy = 0; q.vx *= .8; q.vz *= .8; q.sp *= .9; } if (W.under && q.y > SEA - 0.3) q.life = Math.min(q.life, 0.02); }
     q.rx += q.sp * dt; q.rz += q.sp * .7 * dt;
     const s = q.s * Math.min(1, q.life * 2.5) * (q.flap ? (0.5 + 0.5 * Math.abs(Math.sin(q.life * q.flap))) : 1);
     _e.set(q.rx, q.ry, q.rz); _q.setFromEuler(_e); _m4.compose(_v.set(q.x, q.y, q.z), _q, _s.set(q.s, s, 1)); parts.mesh.setMatrixAt(i, _m4);
@@ -2188,7 +2308,7 @@ function updateWake(dt) {
 
 /* ---- pulse: a shockwave that sets off everything close by */
 function pulse() {
-  if (G.pulseCD > 0 || G.state !== 'play' || G.zen || paused()) return;
+  if (G.pulseCD > 0 || G.state !== 'play' || G.zen || G.target || paused()) return;
   G.pulseCD = 7; ringT = 0; ring.position.copy(P.pos); sfx.pulse(); haptic(30);
   for (const o of W.reactives) if (!o.done) { const dx = o.x - P.pos.x, dy = o.y - P.pos.y, dz = o.z - P.pos.z; if (dx * dx + dy * dy + dz * dz < 36) pending.push({ o, t: Math.sqrt(dx * dx + dz * dz) * 0.05, hop: 0 }); }
 }
@@ -2234,16 +2354,16 @@ function onPadLanding(pad) {
 /* ---- the submersible: enter through a glowing disc beside a violet platform, first person, no clock on your air */
 function enterSub(site) {
   const pt = W.portals.find((q) => q.site === site); if (!pt || G.sub) return;
-  G.sub = true; G.site = site; W.under = true; P.landed = null; P.liftT = 0; P.loc = null;
+  clearShots(); G.sub = true; G.site = site; W.under = true; P.landed = null; P.liftT = 0; P.loc = null;
   P.pos.set(pt.x, SEA - 3.2, pt.z); P.pitch = -0.3; P.roll = 0; P.speed = 1.5; subSafe.copy(P.pos);
   P.mesh.visible = false; shadow.visible = false; for (const l of trails) l.material.opacity = 0; showWarn('');
   planeLight.intensity = 15; planeLight.distance = 42; planeLight.decay = 1.15; planeLight.color.setHex(0xd8f0ff);
-  atmo.under(2); sfx.splash(1); haptic(40); burst(P.pos.x, P.pos.y, P.pos.z, 16, [0xd8f4ff, 0xffffff], { size: .1, g: -2.5, drag: .8, speed: 2, life: 2 });
+  atmo.under(2); sfx.splash(1); haptic(40); setForward(); burst(P.pos.x + fwd.x * 3, P.pos.y - 0.5, P.pos.z + fwd.z * 3, 16, [0xd8f4ff, 0xffffff], { size: .06, g: -2.5, drag: .8, speed: 1.6, life: 2, spread: 2.5 });
   toast('SUBMERSIBLE', `${site.name} · find what is hidden down here`, 3);
 }
 function exitSub() {
   if (!G.sub) return;
-  G.sub = false; W.under = false; P.pos.y = SEA + 0.7; P.landed = null; P.liftT = 1.3; P.speed = 3; P.pitch = 0.22; P.roll = 0; P.lockT = 3.5; P.mesh.visible = true;
+  clearShots(); G.sub = false; W.under = false; P.pos.y = SEA + 0.7; P.landed = null; P.liftT = 1.3; P.speed = 3; P.pitch = 0.22; P.roll = 0; P.lockT = 3.5; P.mesh.visible = true;
   if (input.thr <= GLIDE_T) setThrottle(save.thrCruise || 0.5, true);
   planeLight.distance = 16; planeLight.decay = 1.6; planeLight.color.setHex(0xfff0d8); planeLight.intensity = env.night ? 9 : 1.6;
   atmo.surface(W); resetTrails(); sfx.splash(.8); haptic(30); toast('SURFACED', 'Back in the air', 1.6);
@@ -2295,7 +2415,8 @@ function takeOff() {
 function updatePlane(dt) {
   if (G.sub) { updateSub(dt); return; }
   const sx = clamp(input.x + input.kx, -1, 1), syRaw = clamp(input.y + input.ky, -1, 1), sy = save.upDives ? -syRaw : syRaw;
-  const boost = input.turbo || input.kt; const glide = isGlide(); G.glide = glide;    // engine off = silent, in the air or parked P.turbo = !glide && (boost || input.thr > 0.86);
+  const boost = input.turbo || input.kt; const glide = isGlide(); G.glide = glide;    // engine off = silent, in the air or parked
+  P.turbo = !glide && (boost || input.thr > 0.86);
   const inside = !!P.loc; const m = P.mesh;
   if (P.lockT > 0) P.lockT -= dt;
   for (const pad of W.pads) if (pad.cool > 0) pad.cool -= dt;
@@ -2451,7 +2572,7 @@ const levelsDone = () => MISSIONS.filter((m) => levelDone(m.id)).length;
 
 function newWorld(opt) {
   if (W) { scene.remove(W.group); W.dispose(); }
-  alarms.length = 0; pending.length = 0;
+  alarms.length = 0; pending.length = 0; resetFx();
   W = buildWorld((Math.random() * 2 ** 31) | 0, opt); scene.add(W.group);
   for (const B of W.buildings) for (let f = 0; f < B.floors; f++) B.level[f] = 0;
   atmo.apply(env, W);
@@ -2460,23 +2581,28 @@ function newWorld(opt) {
 function applyEnv(force) { env = computeEnv(force || (G.mission && G.mission.env)); atmo.apply(env, W); planeLight.intensity = env.night ? 9 : 1.6; sfx.weather(env); }
 
 function startRun(mode, mission) {
-  G.mode = mode; G.mission = mission || null;
+  /* a Target run is given a range, or nothing for free fire */
+  const range = mode === 'target' ? (mission || null) : null; if (mode === 'target') mission = null;
+  G.mode = mode; G.mission = mission || null; G.range = range; G.target = mode === 'target';
   env = computeEnv(mission && mission.env);
-  newWorld(mission && mission.hotel ? { hotel: mission.hotel } : null);
-  Object.assign(G, { t: 0, elapsed: 0, unbanked: 0, banked: 0, combo: 0, comboT: 0, bestCombo: 0, health: 100, pulseCD: 0, bankT: 0, counts: {}, lit: 0, mapBig: false, trailT: 0, escaped: false, downs: 0, shake: 0, glide: false, landings: 0, zen: !mission && !!save.zen });
+  newWorld(G.target ? { targets: range ? range.id : 'all' } : mission && mission.hotel ? { hotel: mission.hotel } : null);
+  Object.assign(G, { t: 0, elapsed: 0, unbanked: 0, banked: 0, combo: 0, comboT: 0, bestCombo: 0, health: 100, pulseCD: 0, bankT: 0, counts: {}, lit: 0, mapBig: false, trailT: 0, escaped: false, downs: 0, shake: 0, glide: false, landings: 0, zen: !mission && !G.target && !!save.zen,
+    kills: 0, fired: 0, fireCD: 0, lock: null, rangeDone: false, rangeT: 0, rangeEnd: 0 });
   G.bldHit = new Set(); G.trail.length = 0; G.sub = false; G.site = null; atmo.surface(null);
   planeLight.distance = 16; planeLight.decay = 1.6; planeLight.color.setHex(0xfff0d8);
-  let sp = { x: 0, y: 18, z: 82, yaw: 0 };
+  let sp = { x: 0, y: 18, z: 82, yaw: 0 }; if (range && range.spawn) sp = range.spawn;
   if (mission && mission.b) { const B = W.buildings.find((b) => b.kind === mission.b); sp = mission.kind === 'escape' ? B.deep(mission.floor) : B.spawn(); }
   P.pos.set(sp.x, sp.y, sp.z); P.yaw = sp.yaw; P.pitch = 0; P.roll = 0; P.speed = P.def.spd * (mission && mission.kind === 'escape' ? .5 : .9); P.inv = 1.2; P.blink = 0; P.landed = null; P.liftT = 0; P.lockT = 0;
   if (input.thr <= GLIDE_T) setThrottle(save.thrCruise || 0.5, true);
   P.loc = W.locate(P.pos.x, P.pos.y, P.pos.z, 0);
   if (mission && mission.kind === 'escape') { const B = P.loc.B; for (let f = 0; f < B.floors; f++) { B.level[f] = 0.55; setFloorLight(W, B, f, env); } }
   resetTrails(); updateCamera(0, true); sfx.weather(env);
-  $('pMode').textContent = mission ? mission.name : 'Free roam';
+  $('pMode').textContent = mission ? mission.name : G.target ? (range ? range.name : 'Free fire') : 'Free roam';
   $('map').classList.remove('big');
   setState('play');
-  toast(mission ? mission.name : G.zen ? 'ZEN' : 'FREE ROAM', mission ? goalText(mission) : env.label, 2.4);
+  if (range && range.dom === 'sea') enterSub(DIVE_SITES.find((s) => s.key === range.site));
+  if (G.target) { const b = range && save.times[range.id]; toast(range ? range.name : 'FREE FIRE', `${W.targets.length} targets` + (range ? (b ? ` · your best ${fmtT(b.best)}` : ' · the clock is running') : ' · no clock'), 2.8); }
+  else toast(mission ? mission.name : G.zen ? 'ZEN' : 'FREE ROAM', mission ? goalText(mission) : env.label, 2.4);
 }
 function goalText(m) { const b = save.times[m.id]; return (m.kind === 'escape' ? 'Get outside' : `${cap(m.unit)}: ${m.goal}`) + (b ? ` · your best ${fmtT(b.best)}` : ' · the clock is running'); }
 
@@ -2486,17 +2612,20 @@ function bank() {
   if (!G.mission && amt > save.best) { save.best = amt; persist(); toast('NEW BEST BANK', `+${amt}`, 2.2); }
 }
 
-function finishMission() {
-  const m = G.mission; const t = Math.round(G.elapsed * 10) / 10; const before = levelsDone();
-  const rec = save.times[m.id] || (save.times[m.id] = { best: 0, runs: 0, log: [] }); const old = rec.best;
+/* log a time against a level or a range, and show it against the best */
+function logResult(id, name, t, word, extra) {
+  const rec = save.times[id] || (save.times[id] = { best: 0, runs: 0, log: [] }); const old = rec.best;
   rec.runs++; rec.log.unshift(t); rec.log.length = Math.min(rec.log.length, 8); if (!old || t < old) rec.best = t; persist();
-  const unlocked = PLANES.filter((p, i) => p.unlock > before && p.unlock <= levelsDone()).map((p) => p.name);
-  $('rKind').textContent = !old ? 'LEVEL COMPLETE' : t < old ? 'NEW BEST TIME' : 'LEVEL COMPLETE';
-  $('rName').textContent = m.name; $('rTime').textContent = fmtT(t);
+  $('rKind').textContent = !old ? word : t < old ? 'NEW BEST TIME' : word;
+  $('rName').textContent = name; $('rTime').textContent = fmtT(t);
   $('rText').textContent = !old ? 'First time on the board. That is the time to beat.' : t < old ? `${(old - t).toFixed(1)} s faster than your old best of ${fmtT(old)}.` : t === old ? `Level with your best of ${fmtT(old)}.` : `${(t - old).toFixed(1)} s off your best of ${fmtT(old)}.`;
   $('rLog').textContent = rec.log.length > 1 ? 'Recent runs, newest first: ' + rec.log.map((x) => fmtT(x)).join(' · ') : '';
-  $('rUnlock').textContent = unlocked.length ? `New plane unlocked: ${unlocked.join(', ')}` : '';
+  $('rUnlock').textContent = extra();
   openModal('result'); sfx.chord(1);
+}
+function finishMission() {
+  const m = G.mission; const before = levelsDone();
+  logResult(m.id, m.name, Math.round(G.elapsed * 10) / 10, 'LEVEL COMPLETE', () => { const unlocked = PLANES.filter((p) => p.unlock > before && p.unlock <= levelsDone()).map((p) => p.name); return unlocked.length ? `New plane unlocked: ${unlocked.join(', ')}` : ''; });
 }
 
 function updateRun(dt) {
@@ -2511,6 +2640,216 @@ function updateRun(dt) {
     if (m.kind === 'escape' && !P.loc && !W.locate(P.pos.x, P.pos.y, P.pos.z, 1.5)) G.escaped = true;
     if (missionDone(m)) finishMission();
   }
+  if (G.range && !G.rangeDone && tgtLeft() === 0) { G.rangeDone = true; G.rangeT = G.elapsed; G.rangeEnd = 1.8; }
+  if (G.rangeDone && G.rangeEnd > 0) { G.rangeEnd -= dt; if (G.rangeEnd <= 0) finishRange(); }
+}
+
+/* ============================================================ Target mode: rockets in the air, torpedoes under water, and what a hit does */
+const SHOT_N = 8, BOOM_N = 6, DN = 110;
+const shotMeshes = [];
+for (let i = 0; i < SHOT_N; i++) { const m = new THREE.Mesh(BOX, new THREE.MeshBasicMaterial({ color: 0xffd27a, toneMapped: false, fog: false })); m.visible = false; scene.add(m); shotMeshes.push(m); }
+const G_BOOM = new THREE.IcosahedronGeometry(1, 2); G_BOOM.userData.shared = true;
+const booms = []; let boomNext = 0;
+for (let i = 0; i < BOOM_N; i++) { const m = new THREE.Mesh(G_BOOM, new THREE.MeshBasicMaterial({ color: 0xffc860, transparent: true, opacity: 0, depthWrite: false, blending: THREE.AdditiveBlending, fog: false, toneMapped: false })); m.visible = false; scene.add(m); booms.push({ m, t: 1, s: 1 }); }
+/* falling pieces: planks, trunks, rock */
+const debris = { mesh: new THREE.InstancedMesh(BOX, new THREE.MeshLambertMaterial({ color: 0xffffff }), DN), p: [], next: 0 };
+for (let i = 0; i < DN; i++) { debris.p.push({ life: 0, x: 0, y: 0, z: 0, vx: 0, vy: 0, vz: 0, rx: 0, ry: 0, rz: 0, wx: 0, wz: 0, sx: 1, sy: 1, sz: 1, wet: false }); debris.mesh.setMatrixAt(i, ZERO_M); debris.mesh.setColorAt(i, _c.setHex(0xffffff)); }
+debris.mesh.frustumCulled = false; scene.add(debris.mesh);
+const later = []; const after = (t, fn) => later.push({ t, fn });
+const rnd = (a, b) => a + (b - a) * Math.random();
+let splashBudget = 0;
+G.shots = []; G.target = false; G.range = null; G.lock = null; G.fired = 0; G.kills = 0; G.fireCD = 0; G.rangeDone = false; G.rangeT = 0; G.rangeEnd = 0; G.side = 1;
+
+function chunk(x, y, z, sx, sy, sz, col, vx, vy, vz, life) {
+  const i = debris.next; debris.next = (debris.next + 1) % DN; const q = debris.p[i];
+  q.life = life || 4; q.x = x; q.y = y; q.z = z; q.vx = vx; q.vy = vy; q.vz = vz; q.sx = sx; q.sy = sy; q.sz = sz; q.wet = false;
+  q.rx = Math.random() * 0.4; q.ry = Math.random() * 6; q.rz = Math.random() * 0.4; q.wx = rnd(-4, 4); q.wz = rnd(-4, 4);
+  debris.mesh.setColorAt(i, _c.setHex(col)); debris.mesh.instanceColor.needsUpdate = true;
+}
+function updateDebris(dt) {
+  let any = false;
+  for (let i = 0; i < DN; i++) {
+    const q = debris.p[i]; if (q.life <= 0) continue; any = true; q.life -= dt;
+    if (q.life <= 0) { debris.mesh.setMatrixAt(i, ZERO_M); continue; }
+    const wet = W.under || q.wet, dr = Math.exp(-(wet ? 1.7 : 0.15) * dt);
+    q.vx *= dr; q.vz *= dr; q.vy = q.vy * dr - (wet ? 2.6 : 15) * dt; q.x += q.vx * dt; q.y += q.vy * dt; q.z += q.vz * dt; q.rx += q.wx * dt; q.rz += q.wz * dt;
+    const ly = landH(q.x, q.z);
+    if (!wet && waterY(q.x, q.z) > ly && q.y < waterY(q.x, q.z)) {         // into the water: a splash, then it sinks out of sight
+      q.wet = true; q.vy *= 0.25; q.wx *= .3; q.wz *= .3; q.life = Math.min(q.life, 2.4);
+      if (splashBudget > 0) { splashBudget--; burst(q.x, waterY(q.x, q.z) + 0.15, q.z, 5, [0xbfe6ff, 0xffffff], { size: .16, g: 9, speed: 4.5, up: 1.6, life: .9 }); }
+    } else if (q.y < ly + q.sy * 0.5) { q.y = ly + q.sy * 0.5; q.vy = 0; q.vx *= .4; q.vz *= .4; q.wx = q.wz = 0; if (!wet) q.life = Math.min(q.life, 2.6); }
+    const k = Math.min(1, q.life * 2.5); _e.set(q.rx, q.ry, q.rz); _q.setFromEuler(_e); _m4.compose(_v.set(q.x, q.y, q.z), _q, _s.set(q.sx * k, q.sy * k, q.sz * k)); debris.mesh.setMatrixAt(i, _m4);
+  }
+  if (any) debris.mesh.instanceMatrix.needsUpdate = true;
+}
+function clearShots() { for (const s of G.shots) s.m.visible = false; G.shots.length = 0; G.lock = null; input.fire = false; }
+function resetFx() {
+  later.length = 0; clearShots(); for (const b of booms) { b.t = 1; b.m.visible = false; }
+  for (let i = 0; i < DN; i++) { debris.p[i].life = 0; debris.mesh.setMatrixAt(i, ZERO_M); } debris.mesh.instanceMatrix.needsUpdate = true;
+}
+
+/* ---- an explosion: flash, fire and smoke in the air; flash and bubbles under water */
+function boom(x, y, z, size, o) {
+  o = o || {}; const under = W.under; const b = booms[boomNext]; boomNext = (boomNext + 1) % BOOM_N;
+  b.t = 0; b.s = size; b.m.position.set(x, y, z); b.m.visible = true; b.m.material.color.setHex(under ? 0xbfe8ff : 0xffc860);
+  if (under) {
+    burst(x, y, z, Math.round(18 * size), [0xd8f4ff, 0xffffff, 0xa8dcf0], { size: .13 * size, g: -3.2, drag: 1.4, speed: 5 * size, up: .5, life: 2.2, spread: size });
+    burst(x, y, z, Math.round(8 * size), [0xffd27a, 0xff8a30], { size: .18 * size, g: -0.6, drag: 3, speed: 4 * size, life: .5, spread: size * .6 });
+  } else {
+    burst(x, y, z, Math.round(16 * size), [0xffd27a, 0xff8a30, 0xfff2c8, 0xff5a3c], { size: .34 * size, g: -1.5, drag: 2.4, speed: 9 * size, up: .7, life: .8, spread: size });
+    burst(x, y + 0.4, z, Math.round(9 * size), [0x3a3a3a, 0x555555, 0x2b2b2b], { size: .6 * size, g: -2.2, drag: 1.6, speed: 3 * size, up: 1, life: 2.6, spread: size * 1.4, spin: 2 });
+  }
+  const d = Math.hypot(x - P.pos.x, y - P.pos.y, z - P.pos.z);
+  if (!o.quiet) sfx.boom(clamp(1.25 - d / (under ? 45 : 140), 0.12, 1) * Math.min(1, size), under);
+  G.shake = Math.max(G.shake, clamp(1 - d / (under ? 30 : 70), 0, 1) * 0.4 * Math.min(1.3, size)); if (d < 60 && !o.quiet) haptic(Math.round(40 * size));
+}
+
+/* ---- firing. Rockets leave from alternate wings; torpedoes from under the nose. Both lean toward the target the sight has picked */
+function fire() {
+  if (!G.target || G.state !== 'play' || paused() || P.landed || G.fireCD > 0 || G.shots.length >= SHOT_N || G.rangeDone) return false;
+  const m = shotMeshes.find((q) => !q.visible); if (!m) return false;
+  const sub = G.sub; setForward(); G.fireCD = sub ? 0.75 : 0.3; G.fired++; G.side = -G.side;
+  const s = { m, sub, p: P.pos.clone(), d: fwd.clone(), v: sub ? 16 : P.speed + 72, life: sub ? 4.5 : 2.5, tgt: G.lock, tr: 0 };
+  tmpV.set(Math.cos(P.yaw), 0, -Math.sin(P.yaw)); s.p.addScaledVector(tmpV, sub ? 0 : 0.34 * G.side).addScaledVector(fwd, sub ? 0.8 : 0.5); s.p.y -= sub ? 0.25 : 0.06;
+  m.visible = true; m.material.color.setHex(sub ? 0xbfe8ff : 0xffd27a); m.scale.set(sub ? 0.16 : 0.07, sub ? 0.16 : 0.07, sub ? 0.7 : 0.5); m.position.copy(s.p);
+  G.shots.push(s); if (sub) sfx.torp(); else sfx.fire(); haptic(10); return true;
+}
+function detonate(p, hit, sub) {
+  boom(p.x, p.y, p.z, 1);
+  if (!sub && isWater(p.x, p.z) && p.y < waterY(p.x, p.z) + 0.6) { burst(p.x, waterY(p.x, p.z) + 0.2, p.z, 22, [0xbfe6ff, 0xffffff, 0x8fd0f0], { size: .2, g: 9, speed: 7, up: 1.8, life: 1.3, spread: 1.2 }); sfx.splash(.6); }
+  for (const q of W.targets.slice()) { if (q.done || (q.dom === 'sea') !== sub) continue; if (q === hit || Math.hypot(q.x - p.x, q.y - p.y, q.z - p.z) < q.r + 2.2) destroyTarget(q); }
+  /* in the air the blast also sets off whatever is close by, the way the pulse does */
+  if (!sub) for (const o of W.reactives) if (!o.done) { const dx = o.x - p.x, dy = o.y - p.y, dz = o.z - p.z, d2 = dx * dx + dy * dy + dz * dz; if (d2 < 42) pending.push({ o, t: Math.sqrt(d2) * 0.04, hop: 0 }); }
+}
+function updateShots(dt) {
+  for (let i = G.shots.length - 1; i >= 0; i--) {
+    const s = G.shots[i]; s.life -= dt; let hit = null, dead = s.life <= 0; const t = s.tgt;
+    if (t && !t.done) {
+      tmpV.set(t.x - s.p.x, t.y - s.p.y, t.z - s.p.z); const d = tmpV.length();
+      if (d > 0.01) { tmpV.multiplyScalar(1 / d); const ang = Math.acos(clamp(tmpV.dot(s.d), -1, 1)); if (ang < 1.3 && ang > 1e-4) s.d.lerp(tmpV, Math.min(1, (s.sub ? 2.0 : 2.6) * dt / ang)).normalize(); }
+    }
+    const dist = s.v * dt, n = Math.max(1, Math.ceil(dist / 0.45)), h = dist / n;
+    for (let k = 0; k < n && !dead; k++) {
+      s.p.addScaledVector(s.d, h);
+      for (const q of W.targets) { if (q.done || (q.dom === 'sea') !== s.sub) continue; const dx = q.x - s.p.x, dy = q.y - s.p.y, dz = q.z - s.p.z; if (dx * dx + dy * dy + dz * dz < q.r * q.r) { hit = q; break; } }
+      if (hit || W.solid(s.p.x, s.p.y, s.p.z, 0.1) || Math.abs(s.p.x) > BOUND + 40 || Math.abs(s.p.z) > BOUND + 40) dead = true;
+    }
+    if (dead) { s.m.visible = false; G.shots.splice(i, 1); if (hit || s.life > 0) detonate(s.p, hit, s.sub); else burst(s.p.x, s.p.y, s.p.z, 5, s.sub ? [0xd8f4ff, 0xffffff] : [0xcfcfcf, 0x9a9a9a], { size: .16, g: s.sub ? -2 : -0.6, drag: 2, speed: 1.5, life: .8 }); continue; }
+    s.m.position.copy(s.p); tmpV.copy(s.p).add(s.d); s.m.lookAt(tmpV);
+    s.tr -= dt;
+    if (s.tr <= 0) {
+      s.tr = s.sub ? 0.05 : 0.025;
+      if (s.sub) burst(s.p.x, s.p.y, s.p.z, 1, [0xd8f4ff, 0xffffff], { size: .08, g: -1.8, drag: 1.5, speed: .5, life: 1.3, spread: .15 });
+      else burst(s.p.x, s.p.y, s.p.z, 1, [0xe6e6e6, 0xbdbdbd, 0xffd27a], { size: .17, g: -0.5, drag: 1.5, speed: .5, life: .55, spread: .08 });
+    }
+  }
+}
+
+/* ---- the sight: the nearest live target close to where the nose points */
+function updateAim() {
+  let best = null, bs = 1e9; setForward(); const maxD = G.sub ? 55 : 190, cone = G.sub ? 0.5 : 0.36;
+  if (!P.landed) for (const t of W.targets) {
+    if (t.done || (t.dom === 'sea') !== G.sub) continue;
+    tmpV.set(t.x - P.pos.x, t.y - P.pos.y, t.z - P.pos.z); const d = tmpV.length(); if (d > maxD || d < 1) continue;
+    const ang = Math.acos(clamp(tmpV.dot(fwd) / d, -1, 1)); if (ang > cone) continue;
+    const sc = ang + d / maxD * 0.15; if (sc < bs) { bs = sc; best = t; }
+  }
+  G.lock = best;
+}
+const lockEl = $('lock'), aimEl = $('aim'); let hudRect = { left: 0, top: 0 };
+const OFF = 'translate(-999px,-999px)';
+function hudPt(v, el, rot) {
+  v.project(camera);
+  if (v.z > 1 || Math.abs(v.x) > 1.05 || Math.abs(v.y) > 1.05) { el.style.transform = OFF; return; }
+  el.style.transform = `translate(${((v.x + 1) / 2 * window.innerWidth - hudRect.left).toFixed(1)}px,${((1 - v.y) / 2 * window.innerHeight - hudRect.top).toFixed(1)}px)` + (rot || '');
+}
+function drawAim() {
+  if (!G.target || P.landed || G.state !== 'play') { lockEl.style.transform = OFF; aimEl.style.transform = OFF; return; }
+  camera.updateMatrixWorld();
+  if (G.lock) hudPt(tmpV.set(G.lock.x, G.lock.y, G.lock.z), lockEl, ' rotate(45deg)'); else lockEl.style.transform = OFF;
+  if (!G.sub) { setForward(); hudPt(tmpV.copy(P.pos).addScaledVector(fwd, 90), aimEl); } else aimEl.style.transform = OFF;
+}
+
+/* ---- what a hit does */
+const tgtLeft = () => W.targets.reduce((a, t) => a + (t.done ? 0 : 1), 0);
+const KILL = { pier: 'PIER DOWN', tree: 'TIMBER', palm: 'TIMBER', drums: 'BOOM', barge: 'BARGE SUNK', raft: 'RAFT SUNK', balloon: 'POP', mine: 'MINE CLEARED', key: 'KEYSTONE OUT', kegs: 'KEGS GONE', wall: 'WALL BREACHED' };
+const WOOD = [0x8a6a48, 0x4f3d2c, 0x7a5a3c];
+function destroyTarget(t) {
+  if (t.done) return; t.done = true;
+  for (const h of t.hs) W.hideInst(h);
+  if (t.sph.length) { for (const i of t.sph) W.tSphMesh.setMatrixAt(i, ZERO_M); W.tSphMesh.instanceMatrix.needsUpdate = true; }
+  G.kills++; addPoints(t.pts); persist(); splashBudget = 14;
+  const tot = W.targets.length, left = tgtLeft(); toast(KILL[t.kind] || 'TARGET DOWN', `${t.name} · +${t.pts} · ${tot - left} of ${tot}`, 2);
+  const x = t.x, y = t.y, z = t.z;
+  switch (t.kind) {
+    case 'pier': collapsePier(t); break;
+    case 'tree':
+      boom(x, y - 0.8, z, 1.3); for (const i of t.fol) W.foliageMesh.setMatrixAt(i, ZERO_M); W.foliageMesh.instanceMatrix.needsUpdate = true;
+      burst(x, t.top, z, 40, env.foliage, { size: .28, g: 1.6, drag: 1.1, speed: 9, up: 1.2, life: 3.4, spread: 2.5 });
+      for (let i = 0; i < 6; i++) chunk(x, y - 1 + i * 0.6, z, 0.32, 0.8, 0.32, 0x5b4636, rnd(-5, 5), rnd(4, 10), rnd(-5, 5), 4);
+      after(0.22, () => boom(x, t.top - 1, z, 1.1, { quiet: true })); break;
+    case 'palm': {
+      const p = W.palms[t.pi]; W.en[p.ci] = 0;
+      for (let i = 0; i < W.palmSegs; i++) W.palmTrunks.setMatrixAt(t.pi * W.palmSegs + i, ZERO_M); for (let i = 0; i < W.palmFR; i++) W.palmFronds.setMatrixAt(t.pi * W.palmFR + i, ZERO_M);
+      W.palmTrunks.instanceMatrix.needsUpdate = true; W.palmFronds.instanceMatrix.needsUpdate = true;
+      for (const o of W.reactives) if (o.palm && Math.hypot(o.x - p.x, o.z - p.z) < 5) o.done = true;
+      boom(x, y - 0.8, z, 1.3); burst(x, t.top, z, 30, [0x3f7a34, 0x4f8a3a, 0x9a8a4a], { size: .5, g: 2.2, drag: 1.2, speed: 8, up: 1.2, life: 3, spread: 2, flap: 6 });
+      for (let i = 0; i < 7; i++) chunk(x, y - 1 + i * 1.0, z, 0.3, 1.0, 0.3, i % 2 ? 0x8f7d66 : 0x7d6c57, rnd(-5, 5), rnd(3, 9), rnd(-5, 5), 4);
+      break; }
+    case 'drums': case 'kegs':
+      boom(x, y, z, 1.5); after(0.16, () => boom(x + 0.6, y + 0.8, z - 0.3, 1.1, { quiet: true }));
+      for (let i = 0; i < 7; i++) chunk(x + rnd(-.5, .5), y, z + rnd(-.5, .5), 0.5, 0.3, 0.6, t.kind === 'kegs' ? WOOD[i % 3] : 0xb5332a, rnd(-6, 6), rnd(3, 11), rnd(-6, 6), 4); break;
+    case 'barge': case 'raft':
+      boom(x, y, z, 1.8); after(0.2, () => boom(x - 1.5, y + 0.5, z + 0.8, 1.3, { quiet: true })); after(0.42, () => boom(x + 1.6, y, z - 0.6, 1.2));
+      for (let i = 0; i < 11; i++) chunk(x + rnd(-3, 3), y, z + rnd(-2, 2), rnd(1, 2.6), 0.25, rnd(0.6, 1.6), t.kind === 'raft' ? WOOD[i % 3] : i % 3 ? 0x5a5f66 : 0xb5332a, rnd(-6, 6), rnd(3, 12), rnd(-6, 6), 5);
+      burst(x, y - 0.6, z, 30, [0xbfe6ff, 0xffffff, 0x8fd0f0], { size: .22, g: 9, speed: 8, up: 1.8, life: 1.4, spread: 4 }); break;
+    case 'balloon':
+      boom(x, y, z, 0.9); burst(x, y, z, 28, [0xd8322a, 0xb5332a, 0xf2f2ee], { size: .34, g: 2.4, drag: 1.4, speed: 7, life: 2.6, spread: 1.6, flap: 9 });
+      chunk(x, y - 2.2, z, 0.7, 0.6, 0.7, 0x7a5a3c, rnd(-1, 1), 1, rnd(-1, 1), 6); break;
+    case 'mine': boom(x, y, z, 1.7); after(0.12, () => boom(x, y, z, 1.0, { quiet: true })); break;
+    case 'key': {
+      const A = t.arch, half = A.gap / 2 + A.leg; boom(x, y, z, 1.5); after(0.15, () => boom(x - half * 0.5, y, z, 1.1, { quiet: true })); after(0.3, () => boom(x + half * 0.5, y, z, 1.1, { quiet: true }));
+      for (let i = 0; i < 10; i++) chunk(x + rnd(-half, half), y, z + rnd(-.6, .6), rnd(1, 2.2), rnd(.8, 1.6), rnd(1, 1.8), ROCK[i % 4], rnd(-1.2, 1.2), rnd(-.5, 1.5), rnd(-1.2, 1.2), 9);
+      break; }
+    case 'wall': {
+      const X = W.caveX; boom(x, y, z, 1.6); after(0.18, () => boom(x, y - 1, z, 1.2, { quiet: true }));
+      for (let i = 0; i < 12; i++) chunk(x + rnd(-2, 2), X.floor + rnd(.5, X.hgt - .5), z + rnd(-2, 2), rnd(.7, 1.6), rnd(.6, 1.3), rnd(.7, 1.6), ROCK[i % 4], rnd(-2, 2), rnd(-.5, 2), rnd(-2, 2), 9);
+      break; }
+  }
+  haptic(60);
+  if (!G.range && left === 0) after(1.4, () => toast('ALL TARGETS DOWN', 'Restart to stand them up again', 4));
+}
+/* the pier goes section by section, outward from the pillar that was hit */
+function collapsePier(t) {
+  const pr = W.pier, z0 = t.z, cx = pr.px + 2;
+  boom(pr.px + 0.4, 0.3, z0, 1.5); after(0.1, () => boom(pr.px + 3.6, 0.3, z0, 1.4, { quiet: true }));
+  const drop = (hs, z, w, d, dl) => after(dl, () => {
+    for (const h of hs) W.hideInst(h); splashBudget = 14;
+    for (let i = 0; i < 5; i++) chunk(cx + rnd(-w / 2, w / 2), pr.top - 0.1, z + rnd(-d / 2, d / 2), rnd(1.2, 3.2), 0.22, rnd(0.8, 2.2), WOOD[i % 3], rnd(-1.5, 1.5), rnd(-1, 2.5), rnd(-1.5, 1.5), 5);
+    for (const sx of [-w / 2 + 0.4, w / 2 - 0.4]) chunk(cx + sx, 0.2, z, 0.35, 2.6, 0.35, 0x4f3d2c, rnd(-1, 1), rnd(0, 1.5), rnd(-1, 1), 5);
+    const d2 = Math.hypot(cx - P.pos.x, z - P.pos.z); sfx.thud(clamp(1.1 - d2 / 110, .15, .8), 60 + Math.random() * 50); G.shake = Math.max(G.shake, clamp(1 - d2 / 60, 0, 1) * 0.25);
+  });
+  for (const s of pr.secs) drop(s.hs, s.z, 4, 13, Math.abs(s.z - z0) * 0.02 + 0.05);
+  for (const p of pr.posts) after(Math.abs(p.z - z0) * 0.02 + 0.05, () => { for (const h of p.hs) W.hideInst(h); chunk(pr.px, pr.top + 1.3, p.z, 0.12, 2.6, 0.12, 0x33373d, rnd(-1, 1), 1, rnd(-1, 1), 4); });
+  const hd = Math.abs(212.5 - z0) * 0.02 + 0.1; drop(pr.head, 212.5, 9, 9, hd);
+  after(hd, () => { const pad = pr.pad, i = W.pads.indexOf(pad); if (i >= 0) W.pads.splice(i, 1); W.hideInst(pad.slab); for (const h of pad.hs) W.hideInst(h); if (pad.beam) pad.beam.visible = false; if (P.landed && P.landed.pad === pad) takeOff(); });
+}
+
+function updateTargets(dt) {
+  for (let i = later.length - 1; i >= 0; i--) { later[i].t -= dt; if (later[i].t <= 0) { const f = later[i].fn; later.splice(i, 1); f(); } }
+  updateDebris(dt);
+  for (const b of booms) if (b.t < 1) { b.t += dt * 2.8; const s = b.s * (0.5 + b.t * 3.4); b.m.scale.set(s, s, s); b.m.material.opacity = (1 - b.t) * (1 - b.t) * 0.9; if (b.t >= 1) b.m.visible = false; }
+  if (!G.target) return;
+  if (G.fireCD > 0) G.fireCD -= dt;
+  updateAim(); if (input.fire) fire();
+  updateShots(dt);
+  /* the submersible sets a mine off by touching it */
+  if (G.sub) for (const t of W.targets) if (!t.done && t.kind === 'mine') { const dx = t.x - P.pos.x, dy = t.y - P.pos.y, dz = t.z - P.pos.z; if (dx * dx + dy * dy + dz * dz < 2.3) { destroyTarget(t); P.speed *= 0.2; } }
+}
+
+/* a range is cleared when its last target is down; the clock stops at that moment */
+function finishRange() {
+  const R = G.range; logResult(R.id, R.name, Math.round(G.rangeT * 10) / 10, 'RANGE CLEARED', () => `${G.fired} shot${G.fired === 1 ? '' : 's'} for ${W.targets.length} targets`);
 }
 
 /* ============================================================ map: a slice of the building at your height */
@@ -2542,6 +2881,12 @@ function drawMap() {
   for (const pt of W.portals) { mctx.strokeStyle = '#c070ff'; mctx.lineWidth = 1.5 * px; mctx.beginPath(); mctx.arc(pt.x, pt.z, pt.r, 0, TAU); mctx.stroke(); mctx.beginPath(); mctx.arc(pt.site.x, pt.site.z, 42, 0, TAU); mctx.stroke(); }
   /* under water the map is a sonar: anything still to find within range shows as a gold dot */
   if (G.sub) for (const f of W.finds) if (!f.done && Math.abs(f.y - P.pos.y) < 9) { mctx.fillStyle = f.map ? '#fff2c8' : '#ffc83c'; mctx.beginPath(); mctx.arc(f.x, f.z, 0.9, 0, TAU); mctx.fill(); if (big) edge.push([f.x, f.z, '#ffc83c']); }
+  /* Target mode: every standing target you can shoot from where you are is a red X */
+  if (G.target) for (const t of W.targets) {
+    if (t.done || (t.dom === 'sea') !== G.sub) continue; const k = Math.max(1.5, 4.5 * px);
+    mctx.strokeStyle = '#ff3b3b'; mctx.lineWidth = Math.max(0.5, 2.4 * px); mctx.beginPath(); mctx.moveTo(t.x - k, t.z - k); mctx.lineTo(t.x + k, t.z + k); mctx.moveTo(t.x + k, t.z - k); mctx.lineTo(t.x - k, t.z + k); mctx.stroke();
+    if (big || Math.hypot(t.x - P.pos.x, t.z - P.pos.z) < 520) edge.push([t.x, t.z, '#ff3b3b']);
+  }
   if (loc) {
     const B = loc.B, fh = B.fh;
     for (const v of W.verts) if (v.B === B && P.pos.y > v.y0 - 1 && P.pos.y < v.y1 + 1) { mctx.fillStyle = '#4aa3ff'; mctx.fillRect(v.x - 1.1, v.z - 1.1, 2.2, 2.2); edge.push([v.x, v.z, '#4aa3ff']); }
@@ -2556,7 +2901,7 @@ function drawMap() {
     mctx.fillStyle = col; mctx.beginPath(); mctx.arc(S / 2 + rx * R, S / 2 + ry * R, 4.5, 0, TAU); mctx.fill();
   }
   mctx.fillStyle = '#ffb020'; mctx.beginPath(); mctx.moveTo(S / 2, S / 2 - 9); mctx.lineTo(S / 2 + 6, S / 2 + 7); mctx.lineTo(S / 2, S / 2 + 3); mctx.lineTo(S / 2 - 6, S / 2 + 7); mctx.closePath(); mctx.fill();
-  if (big) { mctx.fillStyle = 'rgba(255,255,255,.75)'; mctx.font = '600 15px system-ui'; mctx.textAlign = 'center'; mctx.fillText(G.sub ? 'gold = something to find · violet ring = where you came in' : 'green = exit · blue = shaft · orange = closed door · yellow, cyan, violet = landing spots', S / 2, S - 12); }
+  if (big) { mctx.fillStyle = 'rgba(255,255,255,.75)'; mctx.font = '600 15px system-ui'; mctx.textAlign = 'center'; mctx.fillText((G.target ? 'red X = target · ' : '') + (G.sub ? 'gold = something to find · violet ring = where you came in' : G.target ? 'yellow, cyan, violet = landing spots' : 'green = exit · blue = shaft · orange = closed door · yellow, cyan, violet = landing spots'), S / 2, S - 12); }
 }
 function toggleMap() { G.mapBig = !G.mapBig; mapCv.classList.toggle('big', G.mapBig); mapCv.width = mapCv.height = G.mapBig ? 620 : 248; $('mapHint').classList.add('hide'); drawMap(); }
 
@@ -2619,6 +2964,9 @@ const sfx = (() => {
     pulse() { tone('sine', 220, 1500, 0, 0.35, 0.25); noise(0, 0.4, 0.15, 'bandpass', 900, 0.5); },
     bank() { [523, 659, 784, 1047].forEach((f, i) => tone('triangle', f, f, i * 0.07, 0.35, 0.2)); },
     chord(vol) { [392, 494, 587].forEach((f, i) => tone('triangle', f, f, i * 0.03, 0.7, vol * 0.13)); },
+    fire() { noise(0, 0.28, 0.2, 'bandpass', 1800, 0.7); tone('sawtooth', 520, 160, 0, 0.22, 0.06); },
+    torp() { tone('sine', 150, 60, 0, 0.3, 0.28); noise(0, 0.5, 0.13, 'lowpass', 500, 0.6); },
+    boom(vol, under) { tone('sine', under ? 70 : 95, 28, 0, under ? 0.9 : 0.6, vol * 0.75); noise(0, under ? 1.0 : 0.7, vol * (under ? 0.3 : 0.55), 'lowpass', under ? 260 : 900, 0.5); if (!under) noise(0.02, 0.25, vol * 0.28, 'bandpass', 2400, 0.6); },
     thunder() { noise(0.15, 2.4, 0.5, 'lowpass', 160, 0.5); noise(0.1, 0.5, 0.3, 'lowpass', 700, 0.5); },
   };
 })();
@@ -2626,7 +2974,7 @@ atmo.onThunder = () => sfx.thunder();
 function haptic(ms) { try { if (navigator.vibrate) navigator.vibrate(ms); } catch (e) { /* not supported */ } }
 
 /* ============================================================ UI: one base screen (menu or play) plus a stack of modals, each closed by its X */
-const MODALS = ['quick', 'envm', 'missions', 'brief', 'spots', 'hangar', 'result'];
+const MODALS = ['quick', 'envm', 'missions', 'ranges', 'brief', 'spots', 'hangar', 'result'];
 const stack = [];
 let hIdx = 0, briefM = null;
 const paused = () => stack.length > 0;
@@ -2637,12 +2985,12 @@ function syncUi() {
   for (const id of MODALS) $(id).classList.toggle('hide', id !== t);
   $('menu').classList.toggle('hide', !(G.state === 'menu' && !t));
   $('hud').classList.toggle('hide', !(G.state === 'play' && (!t || t === 'quick')));
-  $('hud').classList.toggle('zen', G.zen); $('hud').classList.toggle('sub', G.sub); $('subFrame').classList.toggle('hide', !G.sub);
-  $('load').classList.add('hide');
-  if (t || G.state !== 'play') { input.x = input.y = 0; input.turbo = false; stickId = null; $('stick').style.transform = 'translate(-999px,-999px)'; }
+  $('hud').classList.toggle('zen', G.zen); $('hud').classList.toggle('sub', G.sub); $('hud').classList.toggle('tgt', G.target && G.state === 'play'); $('subFrame').classList.toggle('hide', !G.sub);
+  $('load').classList.add('hide'); hudRect = $('hud').getBoundingClientRect();
+  if (t || G.state !== 'play') { input.x = input.y = 0; input.turbo = false; input.fire = false; stickId = null; $('stick').style.transform = 'translate(-999px,-999px)'; }
   refreshAll();
 }
-function openModal(id) { if (top() === id) return; stack.push(id); if (id === 'hangar') enterHangar(); if (id === 'missions') renderMissions(); if (id === 'spots') renderSpots(); syncUi(); }
+function openModal(id) { if (top() === id) return; stack.push(id); if (id === 'hangar') enterHangar(); if (id === 'missions') renderMissions(); if (id === 'ranges') renderRanges(); if (id === 'spots') renderSpots(); syncUi(); }
 function closeModal() {
   const id = stack.pop(); if (!id) return;
   if (id === 'hangar') leaveHangar();
@@ -2652,9 +3000,10 @@ function closeModal() {
 function setState(s) {
   stack.length = 0; G.state = s;
   if (s === 'menu' && G.sub) { G.sub = false; W.under = false; atmo.surface(W); planeLight.distance = 16; planeLight.decay = 1.6; planeLight.color.setHex(0xfff0d8); planeLight.intensity = env.night ? 9 : 1.6; }
-  if (s === 'menu') { if (P.mesh) P.mesh.visible = false; shadow.visible = false; for (const l of trails) l.material.opacity = 0; showWarn(''); }
+  if (s === 'menu') { clearShots(); if (P.mesh) P.mesh.visible = false; shadow.visible = false; for (const l of trails) l.material.opacity = 0; showWarn(''); }
   syncUi();
 }
+window.addEventListener('resize', () => { hudRect = $('hud').getBoundingClientRect(); });
 document.querySelectorAll('button.x').forEach((b) => b.addEventListener('click', () => closeModal()));
 
 function starStr(n) { return '★'.repeat(n) + `<i>${'★'.repeat(3 - n)}</i>`; }
@@ -2670,7 +3019,7 @@ function refreshAll() {
   $('qGlide').checked = input.thr <= GLIDE_T; $('qUp').checked = !!save.upDives; $('qSound').checked = !!save.sound; $('qFps').checked = !!save.fps;
   const inRun = G.state === 'play';
   $('rowGlide').classList.toggle('hide', !inRun); $('rowRun').classList.toggle('hide', !inRun);
-  $('rowZen').classList.toggle('off', inRun && !!G.mission);
+  $('rowZen').classList.toggle('off', inRun && (!!G.mission || G.target));
   $('fps').classList.toggle('hide', !save.fps);
   syncActs();
   drawThrottle();
@@ -2683,7 +3032,7 @@ const sw = (id, fn) => $(id).addEventListener('change', (e) => { sfx.init(); sfx
 function goFullscreen() { try { const el = document.documentElement; if (!document.fullscreenElement && el.requestFullscreen) el.requestFullscreen({ navigationUI: 'hide' }).catch(() => { }); } catch (e) { /* not allowed */ } }
 function setZen(v) {
   save.zen = v;
-  if (G.state === 'play' && !G.mission) { G.zen = v; if (v) { G.unbanked = 0; G.combo = 0; } }
+  if (G.state === 'play' && !G.mission && !G.target) { G.zen = v; if (v) { G.unbanked = 0; G.combo = 0; } }
 }
 on('mFly', () => { goFullscreen(); startRun('free', null); });
 sw('mZen', setZen); sw('qZen', setZen);
@@ -2695,11 +3044,12 @@ on('mMissions', () => openModal('missions'));
 on('mEscape', () => { const m = ['m3', 'm7', 'm11'].map((id) => MISSIONS.find((q) => q.id === id)).find((q) => !levelDone(q.id)) || MISSIONS[2]; openBrief(m); });
 on('mHangar', () => openModal('hangar')); on('mSpots', () => openModal('spots')); on('mEnv', () => openModal('envm')); on('mSet', () => openModal('quick'));
 on('qEnv', () => openModal('envm')); on('qPlanes', () => openModal('hangar')); on('qSpots', () => openModal('spots')); on('qMissions', () => openModal('missions'));
-on('qRestart', () => startRun(G.mode, G.mission));
+on('qRestart', () => startRun(G.mode, G.target ? G.range : G.mission));
+on('mTarget', () => openModal('ranges')); on('qTargets', () => openModal('ranges'));
 on('qMenu', () => setState('menu'));
-on('brGo', () => { goFullscreen(); startRun('mission', briefM); });
-on('rRetry', () => startRun('mission', G.mission));
-on('rNext', () => { const i = MISSIONS.indexOf(G.mission); stack.length = 0; G.state = 'menu'; if (P.mesh) P.mesh.visible = false; openBrief(MISSIONS[(i + 1) % MISSIONS.length]); });
+on('brGo', () => { goFullscreen(); if (briefM.free) startRun('target', null); else if (briefM.dom) startRun('target', briefM); else startRun('mission', briefM); });
+on('rRetry', () => { if (G.target) startRun('target', G.range); else startRun('mission', G.mission); });
+on('rNext', () => { const list = G.target ? RANGES : MISSIONS, i = list.indexOf(G.target ? G.range : G.mission); setState('menu'); openBrief(list[(i + 1) % list.length]); });
 on('hPrev', () => showHangar((hIdx + PLANES.length - 1) % PLANES.length));
 on('hNext', () => showHangar((hIdx + 1) % PLANES.length));
 on('hPick', () => { if (!planeUnlocked(hIdx)) return; save.plane = hIdx; persist(); closeModal(); });
@@ -2709,10 +3059,15 @@ function syncActs() {
   const live = G.state === 'play'; $('btnTO').classList.toggle('hide', !(live && (P.landed || G.sub))); $('btnTO').textContent = G.sub ? 'SURFACE' : 'TAKE OFF';
   $('btnDive').classList.toggle('hide', !(live && !G.sub && P.landed && P.landed.pad && P.landed.pad.site));
   thrEl.querySelector('.gl').textContent = G.sub ? 'STOP' : 'GLIDE';
+  $('btnFire').classList.toggle('hide', !(live && G.target && !P.landed)); $('btnFire').classList.toggle('on', !!input.fire);
 }
 $('btnPause').addEventListener('pointerdown', (e) => { e.stopPropagation(); if (G.state === 'play' && !paused()) openModal('quick'); });
 $('map').addEventListener('pointerdown', (e) => { e.stopPropagation(); if (G.state === 'play' && !paused()) toggleMap(); });
 $('btnPulse').addEventListener('pointerdown', (e) => { e.stopPropagation(); pulse(); });
+/* FIRE: one shot per tap, and it keeps firing while the thumb stays down */
+let fireId = null;
+$('btnFire').addEventListener('pointerdown', (e) => { e.stopPropagation(); e.preventDefault(); sfx.init(); sfx.resume(); if (G.state !== 'play' || paused()) return; fireId = e.pointerId; input.fire = true; fire(); });
+for (const ev of ['pointerup', 'pointercancel']) window.addEventListener(ev, (e) => { if (e.pointerId === fireId) { fireId = null; input.fire = false; } });
 $('btnTO').addEventListener('pointerdown', (e) => e.stopPropagation()); $('btnDive').addEventListener('pointerdown', (e) => e.stopPropagation());
 
 function renderMissions() {
@@ -2720,6 +3075,14 @@ function renderMissions() {
   MISSIONS.forEach((m, i) => {
     const d = document.createElement('div'); d.className = 'mis'; const r = save.times[m.id];
     d.innerHTML = `<b>${i + 1}. ${m.name}<small>${m.kind === 'escape' ? 'Hotel escape' : cap(m.unit) + ': ' + m.goal}</small></b><span class="stars">${r ? fmtT(r.best) : levelDone(m.id) ? 'done' : '<i>no time yet</i>'}</span>`;
+    d.addEventListener('click', () => { sfx.init(); openBrief(m); }); el.appendChild(d);
+  });
+}
+function renderRanges() {
+  const el = $('rngList'); el.innerHTML = '';
+  [FREE_FIRE].concat(RANGES).forEach((m) => {
+    const d = document.createElement('div'); d.className = 'mis'; const r = save.times[m.id];
+    d.innerHTML = `<b>${m.name}<small>${m.free ? 'Air and sea · no clock' : m.dom === 'air' ? 'Air · rockets' : 'Submersible · torpedoes'} · ${m.n} targets</small></b><span class="stars">${m.free ? '' : r ? fmtT(r.best) : '<i>no time yet</i>'}</span>`;
     d.addEventListener('click', () => { sfx.init(); openBrief(m); }); el.appendChild(d);
   });
 }
@@ -2739,9 +3102,9 @@ function renderSpots() {
 }
 function openBrief(m) {
   briefM = m;
-  $('brKind').textContent = m.kind === 'escape' ? 'HOTEL ESCAPE' : 'LEVEL'; $('brName').textContent = m.name; $('brText').textContent = m.text;
+  $('brKind').textContent = m.free ? 'TARGET MODE' : m.dom ? (m.dom === 'air' ? 'TARGET RANGE · AIR' : 'TARGET RANGE · SUBMERSIBLE') : m.kind === 'escape' ? 'HOTEL ESCAPE' : 'LEVEL'; $('brName').textContent = m.name; $('brText').textContent = m.text;
   const r = save.times[m.id];
-  $('brStars').textContent = (r ? `Your best ${fmtT(r.best)} over ${r.runs} run${r.runs > 1 ? 's' : ''}. Recent: ${r.log.map((x) => fmtT(x)).join(' · ')}` : 'No time yet. The clock starts when you do and stops when the task is done.') + (m.env ? ` Conditions: ${Object.values(m.env).map(cap).join(', ')}.` : '');
+  $('brStars').textContent = m.free ? 'Points count; no time is logged.' : (r ? `Your best ${fmtT(r.best)} over ${r.runs} run${r.runs > 1 ? 's' : ''}. Recent: ${r.log.map((x) => fmtT(x)).join(' · ')}` : 'No time yet. The clock starts when you do and stops when the task is done.') + (m.env ? ` Conditions: ${Object.values(m.env).map(cap).join(', ')}.` : '');
   openModal('brief');
 }
 function enterHangar() {
@@ -2804,7 +3167,7 @@ const keys = {};
 const keySync = () => { input.kx = (keys.ArrowRight || keys.KeyD ? 1 : 0) - (keys.ArrowLeft || keys.KeyA ? 1 : 0); input.ky = (keys.ArrowUp || keys.KeyW ? 1 : 0) - (keys.ArrowDown || keys.KeyS ? 1 : 0); input.kt = !!keys.ShiftLeft; };
 window.addEventListener('keydown', (e) => {
   keys[e.code] = true; keySync();
-  if (e.code === 'KeyE') pulse(); if (e.code === 'KeyM' && G.state === 'play' && !paused()) toggleMap();
+  if (e.code === 'KeyE') { if (G.target) fire(); else pulse(); } if (e.code === 'KeyM' && G.state === 'play' && !paused()) toggleMap();
   if (e.code === 'KeyR') setThrottle(Math.max(input.thr, GLIDE_T + 0.01) + 0.08); if (e.code === 'KeyF') setThrottle(input.thr - 0.08 < 0.12 ? 0 : input.thr - 0.08);
   if (e.code === 'KeyG') setThrottle(input.thr <= GLIDE_T ? (save.thrCruise || 0.5) : 0); if (e.code === 'Space') takeOff();
   if (e.code === 'Escape' || e.code === 'KeyP') { if (paused()) closeModal(); else if (G.state === 'play') openModal('quick'); }
@@ -2819,7 +3182,9 @@ function updateHud() {
   $('btnPulse').classList.toggle('cd', G.pulseCD > 0);
   $('pHavoc').textContent = G.unbanked; $('pMul').textContent = G.combo > 3 ? '×' + (1 + Math.min(4, Math.floor((G.combo - 1) / 3) * 0.5)) : '';
   $('sBank').textContent = G.banked;
-  { const r = G.mission && save.times[G.mission.id]; $('pTime').textContent = G.mission ? fmtT(G.elapsed) + (r ? ' · best ' + fmtT(r.best) : '') : ''; }
+  { const r = G.mission && save.times[G.mission.id]; const rr = G.range && save.times[G.range.id]; $('pTime').textContent = G.mission ? fmtT(G.elapsed) + (r ? ' · best ' + fmtT(r.best) : '') : rr ? 'best ' + fmtT(rr.best) : ''; }
+  $('hud').classList.toggle('tgt', G.target);
+  if (G.target) { const gl = $('goal'), n = W.targets.length; gl.classList.remove('hide'); gl.innerHTML = `Targets <b>${n - tgtLeft()}</b> / ${n}` + (G.range ? ` · ${fmtT(G.rangeDone ? G.rangeT : G.elapsed)}` : ''); }
   if (G.sub) {
     $('loc').textContent = `${G.site.name} · ${(SEA - P.pos.y).toFixed(0)} m down · found ${findCount(false)}/${FINDS.length - 3} · map ${findCount(true)}/3`;
     $('spd').innerHTML = `${(P.speed * 3.6).toFixed(0)} km/h<small>SUBMERSIBLE</small>`; $('sBank').textContent = G.banked; syncActs(); $('hud').classList.add('sub'); $('subFrame').classList.remove('hide'); return;
@@ -2833,6 +3198,7 @@ function updateHud() {
   const bk = $('bank'); const showBank = !P.loc && G.unbanked > 0; const needBank = G.mission && (G.mission.kind === 'bank' || G.mission.kind === 'bank3'); bk.classList.toggle('hide', !showBank && !(P.loc && G.unbanked > 0 && needBank));
   if (showBank) { $('bankTxt').textContent = 'BANKING'; $('bankBar').style.width = clamp(G.bankT / 2.2, 0, 1) * 100 + '%'; }
   else { $('bankTxt').textContent = 'GET OUTSIDE TO BANK'; $('bankBar').style.width = '0%'; }
+  if (G.target) return;
   const m = G.mission, gl = $('goal'); const hint = !m && !G.zen && G.banked === 0 && G.unbanked === 0;
   gl.classList.toggle('hide', !(hint || m));
   if (hint) gl.textContent = 'Fly into a building and buzz past things';
@@ -2856,8 +3222,9 @@ function loop(now) {
   const slow = live && G.mapBig ? 0.3 : 1; const d = dt * slow;
   if (live) {
     G.t += d; for (const u of W.updaters) u(d);
-    updatePlane(d); updateWake(d); updateRun(d);
+    updatePlane(d); updateWake(d); updateTargets(d); updateRun(d);
     if (!paused()) updateCamera(dt, false);
+    drawAim();
     if (frame % 3 === 0) updateHud();
     if (frame % 3 === 1) drawMap();
   } else if (t === 'hangar') {
@@ -2898,8 +3265,8 @@ function boot() {
   setState('menu');
   requestAnimationFrame(loop);
 }
-function stepSim(dt) { if (G.state !== 'play' || paused()) return; G.t += dt; for (const u of W.updaters) u(dt); updatePlane(dt); updateWake(dt); updateRun(dt); }
-window.__buzz = { enterSub, exitSub, collectFind, FINDS, DIVE_SITES, SEA_PADS, SEA, updateHud,
+function stepSim(dt) { if (G.state !== 'play' || paused()) return; G.t += dt; for (const u of W.updaters) u(dt); updatePlane(dt); updateWake(dt); updateTargets(dt); updateRun(dt); }
+window.__buzz = { updateParts, RANGES, FREE_FIRE, fire, destroyTarget, updateAim, drawAim, waterY, enterSub, exitSub, collectFind, FINDS, DIVE_SITES, SEA_PADS, SEA, updateHud,
   stepSim, updateCamera, damage, finishMission, levelsDone, G, P, save, MISSIONS, PLANES, PAD_LIST, get W() { return W; }, get env() { return env; }, ui, startRun, setState, openModal, closeModal, trigger, pulse, input, applyEnv, bank, renderer, scene, camera, computeEnv, setFloorLight, setThrottle, takeOff, groundY, landH, isWater, persist };
 try { boot(); } catch (e) { showError(e && e.stack ? e.stack : String(e)); }
 </script>

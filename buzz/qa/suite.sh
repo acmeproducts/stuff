@@ -83,6 +83,30 @@ check "three map pieces complete the treasure map and unlock every plane; found 
 has 'after reload: finds=21 unlockAll=true points=true seaPads=6 divePads=3' && has 'spots and finds list rows 40, done 30, menu count 30 / 40' && has 'errors: none' && r=ok || r=no
 check "finds, the treasure map, points and sea landings survive a reload; the list shows them" $r "$(echo "$out" | grep 'after reload\|list rows')"
 
+out=$(timeout 295 node t_tgt.mjs 2>&1)
+has 'ranges modal: opened=true rows=7 xTopRight=true closed=menu' && has 'range brief: ui=brief kind="TARGET RANGE · AIR"' && has 'range start: ui=play target=true FIRE shown=true PULSE shown=false' && has 'FIRE button held 0.7 s: shots fired yes' && has 'quick -> ranges: opened=true back=quick' && r=ok || r=no
+check "Target mode: the menu button lists free fire and 6 ranges, the modal closes with its X, a range starts with FIRE in place of PULSE, holding FIRE keeps firing" $r "$(echo "$out" | grep '^range\|^ranges modal\|^FIRE\|^quick' | tr '\n' ' ')"
+has 'free roam: targets 0, weapons false, fire() false, FIRE hidden true, pier pad true' && r=ok || r=no
+check "an ordinary run has no targets and no weapons" $r "$(echo "$out" | grep '^free roam')"
+has 'placement: 40 targets, inside something solid 0 ,' && has 'trees in water 0, sea targets too shallow 0; counts match the list true' && r=ok || r=no
+check "all 40 targets stand in the open: balloons and mines clear of anything solid, trees on dry land, sea targets under water" $r "$(echo "$out" | grep '^placement')"
+hits=$(echo "$out" | grep '^air range' | grep -o ':hit' | wc -l); bad=$(echo "$out" | grep '^air range' | grep -c 'MISS\|NOLINE'); done3=$(echo "$out" | grep '^air range' | grep -c 'before the last hit ui=play | after ui=result "RANGE CLEARED" time saved true')
+[ "$hits" = "22" ] && [ "$bad" = "0" ] && [ "$done3" = "3" ] && r=ok || r=no
+check "air ranges: each of the 22 targets is destroyed by one rocket from a clear line ($hits of 22); each of the 3 ranges ends with a time only when its last target is down" $r "$(echo "$out" | grep '^air range' | grep -o '[a-z0-9.]*:MISS\|[a-z0-9.]*:NOLINE' | tr '\n' ' ')"
+has 'pier before: deck solid true, pier pad true, marked pillar target true' && has 'pier after the marked pillar is hit: deck solid false, head solid false, pier pad false' && r=ok || r=no
+check "hitting the pillar marked with a red X brings the whole pier down, and its landing spot with it" $r "$(echo "$out" | grep '^pier')"
+hits=$(echo "$out" | grep '^sea range' | grep -o ':hit' | wc -l); bad=$(echo "$out" | grep '^sea range' | grep -c 'MISS\|NOLINE'); done3=$(echo "$out" | grep '^sea range' | grep -c 'started under water true.*after ui=result "RANGE CLEARED" time saved true')
+[ "$hits" = "18" ] && [ "$bad" = "0" ] && [ "$done3" = "3" ] && r=ok || r=no
+check "sea ranges start in the submersible; each of the 18 targets is destroyed by one torpedo from a spot the sub can swim to ($hits of 18); each of the 3 ranges ends with a time" $r "$(echo "$out" | grep '^sea range' | grep -o '[a-z0-9.]*:MISS\|[a-z0-9.]*:NOLINE' | tr '\n' ' ')"
+has 'cave wall: solid before true, solid after false' && has 'ramming a mine sets it off: true' && r=ok || r=no
+check "the marked cave wall is rock until it is hit and open water after; touching a mine with the sub sets it off" $r "$(echo "$out" | grep '^cave\|^ramming')"
+has 'free fire: 40 targets (22 air, 18 sea), goal "Targets 0 / 40", lock-on picks the target ahead true, all destroyed -> ui=play' && has 'retry: ui=play range t3 targets standing 8 of 8' && r=ok || r=no
+check "free fire has all 40 targets and no clock; the sight picks the target ahead; a retry stands every target up again" $r "$(echo "$out" | grep '^free fire\|^retry')"
+has 'shooting fuzz 3 min: NaN 0, sub in rock 0, most shots alive at once within 8, fired true' && r=ok || r=no
+check "3 min of random flying and shooting, in the air and in the sub: no bad positions, never more than 8 shots alive" $r "$(echo "$out" | grep '^shooting')"
+has 'levels done still 0 of 12; range times 6' && has 'after reload: range times kept 6; list shows a best time on 6 rows' && has 'errors: none' && r=ok || r=no
+check "range times are saved apart from the levels, survive a reload and show in the list; no page errors" $r "$(echo "$out" | grep '^levels done\|^after reload\|^errors' | tr '\n' ' ')"
+
 out=$(timeout 280 node t_misc.mjs 2>&1)
 has 'environment combinations applied: 200' && has 'errors: none' && r=ok || r=no
 check "all reactions fire, 200 season/time/weather combinations apply" $r "$(echo "$out" | tail -3 | tr '\n' ' ')"
