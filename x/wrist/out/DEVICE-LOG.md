@@ -1,6 +1,6 @@
 # Wrist device log
 
-Drained 2026-11-23T04:06:19Z. Newest at the bottom. 500 lines.
+Drained 2026-11-23T04:38:13Z. Newest at the bottom. 500 lines.
 
 ```
 2026-11-19T14:06:02.447Z ****09 {"t":"hb","seq":291,"b":"turn07-b8","pose":0,"tilt":10,"roll":-46,"up":683,"mode":"active","raw":1,"err":0,"net":1,"ln":"bt","rtt":277,"bat":20,"screen":0,"exempt":0} pages=1
