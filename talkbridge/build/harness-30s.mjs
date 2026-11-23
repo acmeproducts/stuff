@@ -68,6 +68,13 @@ await T('PW0 no field is a password in the shipped code: no type=password anywhe
   assert(js.indexOf('new-password') === -1, '"new-password" is still set somewhere');
   for (const k of ['k-dg', 'k-tid', 'k-tok', 'k-pat']) assert(stage.indexOf('<input class="field-input nopw-mask" type="text" id="' + k + '" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" data-1p-ignore data-lpignore="true" data-bwignore data-form-type="other">') !== -1, k + ' is not the masked text field');
 });
+await T('IL0 the doors are read fresh (cache no-store), strictly (the forward line only, in the folder), and the door files still have that exact forward line', () => {
+  const t = PT[PARTS.find((f) => /il1-invite-door/.test(f))];
+  assert(/fetch\(door, \{ cache: 'no-store' \}\)/.test(t), 'not no-store');
+  assert(t.indexOf('/\\/talkbridge-app\\/$/.test(ilDir())') !== -1, 'not limited to the folder');
+  const re = /location\.replace\('\.\/(bridge-[A-Za-z0-9-]+\.html)'\s*\+\s*location\.search\s*\+\s*location\.hash\)/;
+  for (const d of ['index.html', 'next.html']) assert(re.test(fs.readFileSync(path.join(root, 'talkbridge-app', d), 'utf8')), d + ' no longer has the forward line IL-1 reads');
+});
 await T('I the build record: the stage records itself once (window.TB_STAGE: tag, page, date, a full ISO time with Z) and logs it; no other stage\'s tag is recorded', () => {
   const rec = "window.TB_STAGE = { c: '" + STAGE_TAG + "', file: 'talkbridge-app/" + STAGE_PAGE + "', built: '" + BUILT + "', at: '" + BUILT_AT + "' }; log('build', window.TB_STAGE, 'ok');";
   assert(stage.split(rec).length - 1 === 1, 'the record');

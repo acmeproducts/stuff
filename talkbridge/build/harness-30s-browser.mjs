@@ -13,7 +13,7 @@ const args = process.argv.slice(2); const quiet = args.includes('--quiet');
 const pageArg = args.indexOf('--page') >= 0 ? args[args.indexOf('--page') + 1] : (process.env.TB_30S_PAGE || null);
 const STAGE = '/stuff/talkbridge-app/bridge-turn30-ship.html';
 const html = fs.readFileSync(pageArg || path.join(root, 'talkbridge-app/bridge-turn30-ship.html'), 'utf8');
-const CHROME = process.env.TB_CHROME || (() => { const base = '/opt/pw-browsers'; try { const d = fs.readdirSync(base).filter((x) => /^chromium-\d+$/.test(x)).sort().pop(); if (d) return path.join(base, d, 'chrome-linux', 'chrome'); } catch (_) {} return undefined; })();
+const CHROME = process.env.TB_CHROME || (() => { const base = '/opt/pw-browsers'; try { const d = fs.readdirSync(base).filter((x) => /^chromium-\d+$/.test(x)).sort().pop(); if (d) { for (const sub of ['chrome-linux', 'chrome-linux64']) { const c = path.join(base, d, sub, 'chrome'); if (fs.existsSync(c)) return c; } } } catch (_) {} return undefined; })();
 const pw = process.env.TB_PLAYWRIGHT || path.join(execFileSync('npm', ['root', '-g'], { encoding: 'utf8' }).trim(), 'playwright', 'index.mjs');
 const { chromium } = await import(pw);
 const server = http.createServer((q, s) => {
@@ -53,9 +53,9 @@ R.bl = await p.evaluate(async () => {
   openS11(); o.keys = $('build-info').textContent; $('m-s11').classList.remove('show');
   return o;
 });
-await T('BL1 the build record is the stage\'s; VERSION and BUILD_INFO read it', () => ok(R.bl.stage.c === 'turn30-ship-c3' && R.bl.version === 'turn30-ship-c3' && R.bl.info.release === 'turn30-ship-c3' && R.bl.info.builtAt === R.bl.stage.at, JSON.stringify(R.bl)));
-await T('BL2 the settings footer shows the stage after the old painter ran (not turn27)', () => ok(R.bl.footer === 'turn30-ship-c3 · built 2026-11-20', R.bl.footer));
-await T('BL3 the keys sheet shows the stage and its build day (20, not the 19th)', () => ok(/^turn30-ship-c3 · built /.test(R.bl.keys) && /20/.test(R.bl.keys) && !/turn23/.test(R.bl.keys), R.bl.keys));
+await T('BL1 the build record is the stage\'s; VERSION and BUILD_INFO read it', () => ok(R.bl.stage.c === 'turn30-ship-c4' && R.bl.version === 'turn30-ship-c4' && R.bl.info.release === 'turn30-ship-c4' && R.bl.info.builtAt === R.bl.stage.at, JSON.stringify(R.bl)));
+await T('BL2 the settings footer shows the stage after the old painter ran (not turn27)', () => ok(R.bl.footer === 'turn30-ship-c4 · built 2026-11-23', R.bl.footer));
+await T('BL3 the keys sheet shows the stage and its build day (23, not the 22nd)', () => ok(/^turn30-ship-c4 · built /.test(R.bl.keys) && /23/.test(R.bl.keys) && !/turn23/.test(R.bl.keys), R.bl.keys));
 
 /* MC-1 */
 R.mc = await p.evaluate(() => {
@@ -278,6 +278,51 @@ R.pw = await p.evaluate(async () => {
 await T('PW1 no field is a password field: none is type=password and none is marked new-password or current-password, across every input and textarea (' + R.pw.n + ')', () => ok(R.pw.pw.length === 0 && R.pw.np.length === 0, JSON.stringify(R.pw)));
 await T('PW2 every text field (names included, the create sheet\'s and thread fields included) says autocomplete="off" and carries the managers\' ignore flags', () => ok(R.pw.notOff.length === 0 && R.pw.noFlags.length === 0 && R.pw.seen.length >= 7, JSON.stringify(R.pw)));
 await T('PW3 the four key fields stay hidden on screen: text fields masked with dots', () => ok(Object.values(R.pw.keys).every((k) => k && k.type === 'text' && k.mask === 'disc'), JSON.stringify(R.pw.keys)));
+
+/* IL-1 (c4): links name the door that forwards to this page */
+const DOOR = (target) => '<script>location.replace(\'./' + target + '\' + location.search + location.hash);</script>';
+const ilProbe = () => p.evaluate(async () => {
+  const r3 = roomById('room-3'), r1 = roomById('room-1');
+  await ilAsk('test');
+  r1.grant = true; r1.grantExpires = Date.now() + 864e6;
+  const o = { door: IL.door, inv: invUrl(r3), raw: _ilInv(r3), dev: linkDeviceUrl(r3), devRaw: _ilDev(r3), grant: invUrl(r1), carry: rhCarryUrl(r3), path: location.pathname, origin: location.origin };
+  delete r1.grant; delete r1.grantExpires;
+  return o;
+});
+R.il = {};
+R.il.cand = await ilProbe();
+await p.route('**/talkbridge-app/index.html', (r) => r.fulfill({ status: 200, contentType: 'text/html', body: DOOR('bridge-turn30-ship.html') }));
+R.il.acc = await ilProbe();
+await p.unroute('**/talkbridge-app/index.html');
+await p.route('**/talkbridge-app/index.html', (r) => r.fulfill({ status: 200, contentType: 'text/html', body: DOOR('bridge-turn29-post-ship.html') }));
+await p.route('**/talkbridge-app/next.html', (r) => r.fulfill({ status: 200, contentType: 'text/html', body: DOOR('bridge-turn30-ship-jenny.html') }));
+R.il.neither = await ilProbe();
+await p.unroute('**/talkbridge-app/index.html'); await p.unroute('**/talkbridge-app/next.html');
+await p.route('**/talkbridge-app/*.html', (r) => { const u = r.request().url(); if (/\/(index|next)\.html/.test(u)) return r.fulfill({ status: 200, contentType: 'text/html', body: '<script>location.replace("https://example.com/")</script>' }); return r.continue(); });
+R.il.garbage = await ilProbe();
+await p.unroute('**/talkbridge-app/*.html');
+/* an invite card drawn before the answer is redrawn with the door link */
+R.il.card = await p.evaluate(async () => {
+  const r3 = roomById('room-3'), was = r3.joined; r3.joined = false; enterRoom('room-3'); await new Promise((r) => setTimeout(r, 40));
+  IL.door = null; try { sessionStorage.removeItem('tb_il_door_' + ilOwn()); } catch (_) {} renderInviteCard();
+  const before = ($('inv-link') || {}).textContent || ''; await ilAsk('test'); const after = ($('inv-link') || {}).textContent || '';
+  r3.joined = was; document.querySelectorAll('.invite-card').forEach((x) => x.remove());
+  return { before, after };
+});
+/* opening a door link lands on the stage page with the payload */
+{
+  const pg = await ctx.newPage(); const errs2 = []; pg.on('pageerror', (e) => errs2.push(String(e)));
+  await pg.goto(R.il.cand.inv); await pg.waitForFunction(() => window.TS && TS.mode !== 'loading', null, { timeout: 20000 }); await pg.waitForTimeout(400);
+  R.il.land = await pg.evaluate(() => ({ path: location.pathname, invite: (window.debugLog || []).some((l) => l.ev === 'p2_tab_boot' && l.d && l.d.invite === true), room: S.roomId }));
+  R.il.landErr = errs2; await pg.close();
+}
+const hashOf = (u) => u.slice(u.indexOf('#'));
+await T('IL1 on a candidate page (next.html forwards here): the invite, a grant invite and a link-a-device link name next.html, with today\'s payload', () => { const c = R.il.cand, door = c.origin + '/stuff/talkbridge-app/next.html#j='; ok(c.door === 'next.html' && c.inv.startsWith(door) && c.dev.startsWith(door) && c.grant.startsWith(door) && hashOf(c.inv) === hashOf(c.raw) && hashOf(c.dev) === hashOf(c.devRaw) && c.raw.startsWith(c.origin + c.path + '#j='), JSON.stringify(c).slice(0, 600)); });
+await T('IL2 the iPhone carry keeps this page\'s own address (never the door)', () => ok(R.il.cand.carry.startsWith(R.il.cand.origin + R.il.cand.path + '#j='), R.il.cand.carry.slice(0, 160)));
+await T('IL3 when index.html forwards here (accepted), links name index.html', () => ok(R.il.acc.door === 'index.html' && R.il.acc.inv.startsWith(R.il.acc.origin + '/stuff/talkbridge-app/index.html#j='), JSON.stringify(R.il.acc).slice(0, 300)));
+await T('IL4 a page neither door forwards to (Jenny, a superseded page), and a door that can\'t be read, build today\'s links', () => ok(R.il.neither.door === null && R.il.neither.inv === R.il.neither.raw && R.il.garbage.door === null && R.il.garbage.inv === R.il.garbage.raw, JSON.stringify([R.il.neither.door, R.il.garbage.door])));
+await T('IL5 an invite card drawn before the answer is redrawn with the door link', () => ok(/\/talkbridge-app\/bridge-turn30-ship\.html#j=/.test(R.il.card.before) && /\/talkbridge-app\/next\.html#j=/.test(R.il.card.after), JSON.stringify(R.il.card).slice(0, 300)));
+await T('IL6 opening the door link lands on the stage page with the payload applied, no page error', () => ok(R.il.land.path === STAGE && R.il.land.invite && R.il.landErr.length === 0, JSON.stringify(R.il.land) + R.il.landErr.join('|')));
 
 await T('X no uncaught page error in the whole run', () => ok(errs.length === 0, errs.join(' | ').slice(0, 600)));
 await browser.close(); server.close();

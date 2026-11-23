@@ -6,6 +6,8 @@
    CANDIDATE 3 (owner 2026-11-20: the name field "is set as a password … garbage up my password manager"): PW edits, in the
    same find/replace list as the identity — the four key fields are never password fields (type=text, masked by CSS, the
    managers' ignore flags), and the old no-password sweep stamps autocomplete="off" where it stamped "new-password".
+   CANDIDATE 4 (owner 2026-11-23: "add the invite link fix to the same release"): IL-1 — a link that leaves the phone names
+   the folder's door (index.html / next.html) that forwards to this page, so it always opens the current version.
 
    Input (sha-checked): the ACCEPTED 30·pre-ship page — immutable under §0c.
    Outputs, in talkbridge-app/ (nothing hand-written; no accepted file touched):
@@ -27,11 +29,11 @@ export const BASE_PAGE = FOLDER + '/bridge-turn30-pre-ship.html';
 export const BASE_PAGE_SHA256 = '4dddf3c35284dfc59e6681f7eb97e314f793bb5a9a144efb51d167b91f703c60';
 export const BASE_MANIFEST = FOLDER + '/tb-manifest-turn30-pre-ship.webmanifest';
 export const BASE_MANIFEST_IOS = FOLDER + '/tb-manifest-turn30-pre-ship-ios.webmanifest';
-export const PARTS = ['bl1-build-label', 'tn1-room-name', 'mc1-mute-card', 'ci1-camera-icon', 'rl1-rail-unread', 'rg1-ring-on-screen', 'rt1-route-in-call', 'gk1-grant-key'].map((p) => 'talkbridge/parts/' + p + '.js');
+export const PARTS = ['bl1-build-label', 'tn1-room-name', 'mc1-mute-card', 'ci1-camera-icon', 'rl1-rail-unread', 'rg1-ring-on-screen', 'rt1-route-in-call', 'gk1-grant-key', 'il1-invite-door'].map((p) => 'talkbridge/parts/' + p + '.js');
 export const STAGE_PAGE = 'bridge-turn30-ship.html';
-export const STAGE_TAG = 'turn30-ship-c3';
-export const BUILT = '2026-11-20';
-export const BUILT_AT = '2026-11-20T18:00:00Z';
+export const STAGE_TAG = 'turn30-ship-c4';
+export const BUILT = '2026-11-23';
+export const BUILT_AT = '2026-11-23T18:00:00Z';
 export const MANIFEST_NAME = 'tb-manifest-turn30-ship.webmanifest';
 export const MANIFEST_IOS_NAME = 'tb-manifest-turn30-ship-ios.webmanifest';
 export const OUT = { page: FOLDER + '/' + STAGE_PAGE, manifest: FOLDER + '/' + MANIFEST_NAME, manifestIos: FOLDER + '/' + MANIFEST_IOS_NAME };
@@ -44,7 +46,8 @@ export const PART_DECL = [
   { file: PARTS[4], prefix: 'rl_', wraps: ['cr3Send', 'sendReadReceipts', 'cr3Apply', 'enterRoom', 'cr3RouteEvent'], symbols: ['RL', 'rlLog', 'rlCovering', 'rlHolds', 'rlMark', 'rlBuzz', '_rlSend', '_rlReceipts', '_rlApply', '_rlEnter', '_rlRoute'], markers: ['rl_held', 'rl_open_deferred', 'rl_receipts_held', 'rl_pending', 'rl_selected'] },
   { file: PARTS[5], prefix: 'rg_', wraps: ['CALL.onIncoming', 'cr3PresentCalls'], symbols: ['RG', 'rgLog', 'rgMenus', 'rgState', 'rgHeal', 'rgCloseMenus', 'rgCloseCallCard', 'rgPresented', 'rgInput', '_rgIncoming', '_rgPresent', 'rgInit'], markers: ['rg_ring_check', 'rg_healed', 'rg_presented', 'rg_menus_closed', 'rg_card_closed', 'rg_failed'] },
   { file: PARTS[6], prefix: 'rt_', wraps: ['cr3RouteEvent'], symbols: ['RT', 'rtLog', '_rtRoute'], markers: ['rt_held'] },
-  { file: PARTS[7], prefix: 'gk_', wraps: ['roomCardHtmlCore', 'wireRoomCards'], symbols: ['GKEY', 'gkLog', 'GK_CSS', 'GK_KEY', 'GK_L10N', 'gkGranted', 'gkDays', 'gkText', 'gkAfterName', '_gkCard', '_gkWire', 'gkInit'], markers: ['gk_shown', 'gk_failed'] }
+  { file: PARTS[7], prefix: 'gk_', wraps: ['roomCardHtmlCore', 'wireRoomCards'], symbols: ['GKEY', 'gkLog', 'GK_CSS', 'GK_KEY', 'GK_L10N', 'gkGranted', 'gkDays', 'gkText', 'gkAfterName', '_gkCard', '_gkWire', 'gkInit'], markers: ['gk_shown', 'gk_failed'] },
+  { file: PARTS[8], prefix: 'il_', wraps: ['invUrl', 'linkDeviceUrl', 'rhCarryUrl'], symbols: ['IL', 'ilLog', 'IL_DOOR_RE', 'ilDir', 'ilOwn', 'ilTarget', 'ilAsk', 'ilRewrite', 'ilRedraw', '_ilInv', '_ilDev', '_ilCarry'], markers: ['il_door', 'il_failed'] }
 ];
 export const TAIL = '\n</script>\n</body>\n</html>';
 export const STAGE_RECORD = "window.TB_STAGE = { c: '" + STAGE_TAG + "', file: 'talkbridge-app/" + STAGE_PAGE + "', built: '" + BUILT + "', at: '" + BUILT_AT + "' }; log('build', window.TB_STAGE, 'ok');";

@@ -122,8 +122,8 @@ async function runStrip(w, h, partner) {
     /* a swipe on the chat scrolls the chat and never resizes */
     const t = out.cur.transcript; await p.evaluate(() => { document.getElementById('transcript').scrollTop = 0; }); out.cur = await M();
     await drag(t.x + t.w / 2, t.y + t.h - 20, t.x + t.w / 2, t.y + 20); out.chatSwipe = out.cur = await M();
-    /* the small picture dragged to the top-left snaps there; a drag never swaps */
-    const s0 = out.cur.small, v0 = out.cur.videos; await drag(s0.x + s0.w / 2, s0.y + s0.h / 2, v0.x + 30, v0.y + 30); await wait(300); out.inset = out.cur = await M();
+    /* the small picture dragged to the top-left snaps there; a drag never swaps (wait past the 400 ms swallow window: Chrome 153 sends no click after a touch drag, so the window runs its full length — 2026-11-23) */
+    const s0 = out.cur.small, v0 = out.cur.videos; await drag(s0.x + s0.w / 2, s0.y + s0.h / 2, v0.x + 30, v0.y + 30); await wait(900); out.inset = out.cur = await M();
     /* a tap on it swaps; after the shape poll the inset is the partner's tall picture */
     const s1 = out.cur.small; await tap(s1.x + s1.w / 2, s1.y + s1.h / 2); await wait(1600); out.swap = out.cur = await M();
     /* a press on the flip button that moves is never a drag or a resize */
