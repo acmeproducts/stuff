@@ -83,6 +83,8 @@ Owner: "I want more lab cases for the hand and head recognition".
 **Fact from Google's guide (read 2026-11-18):** Left and Right are the person's own hands when the picture is not mirrored; the page gives the finder the unmirrored picture. **Not yet seen on a device.**
 **Device gate:** the owner holds five different hand shapes and tells them apart by the numbers; his left hand shows under Left.
 
+**Measured on the owner's phone, 2026-11-20, `lab-r12`, finder asked for two hands (fact).** With no hand in view: 17 to 19 ms a picture. With one hand: 39 to 41 ms. With two: 35 to 44 ms. Pictures looked at each second: about 37 to 41 with no hand, 24 with one, 23 to 25 with two. Face alone (Journey): 25 ms, 36 a second. Reading: searching for a hand costs about 17 ms and reading one about 22; while fewer hands are in view than were asked for, both are paid on every picture.
+
 ### S3 — Head and face (crawl) · built 2026-11-18 (evening), lab only
 **What was built.** The card **Head and face**: nod, turn and lean in degrees; blink of each eye, jaw, brows, smile, pucker from 0 to 1; a button that runs the hand finder at the same time and shows what that costs in frames a second.
 **Never run on a device.** The face model could not be downloaded in the build's sandbox; the card was checked with a made-up head. Which way each number goes when the owner nods or turns is not known until he runs it; teaching does not depend on it, because a taught signal learns its direction from what is shown.
@@ -111,6 +113,15 @@ Owner, 2026-11-19: turns "that chat-test does", interruptions, "a hot word and a
 **Proven in the lab (fact):** with a made-up recogniser and a made-up voice, all of the above. Engine 93/93; the Voice checks are part of the new-cards suite.
 **Known about the phone (fact, from the browser's documentation):** Chrome's recogniser sends the audio to Google's servers while it listens; on Chrome for Android it does not stay open across a pause, so the page reopens it after each phrase.
 **Not proven (unverified):** everything about a real voice on the phone: how much of its own speech it hears through the speaker, whether the gap while the recogniser reopens loses the start of a phrase, whether the phone sounds its own tone each time the recogniser opens, how well a short hot word is recognised. Those are the experiment.
+
+**First runs on the owner's phone, 2026-11-20 and 21, `lab-r12` (fact, from his trials; read by the build on 22 Nov).**
+| Card | What happened | His verdict |
+|---|---|---|
+| Interrupt | 20 Nov: 6 cut-ins, 4 of them "stopped for nothing", 3 times its own voice recognised and ignored. 21 Nov: 2 cut-ins, both "stopped for nothing" | **Back to shop**, twice. "it's imagining that I'm cutting over it because I'm not even saying anything" |
+| Take turns | two short runs, two turns each | none given |
+| Hot word, cold word | three tries at teaching a word: two saved, one failed. Listening opened once and shut once | none given |
+
+So TH (the page can tell its own voice from his) is **failed as built**: through the phone's speaker it hears itself and stops. The own-voice test by matching words is not enough. Not yet reworked.
 
 ### S4 — One event shape (walk)
 **Scope:** watch, hand, head and voice all report the same event (time, source, signal, command, confidence) and their presence. The Lab's See card shows all sources on one timeline.

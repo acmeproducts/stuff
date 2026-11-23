@@ -235,7 +235,7 @@ body:not(.t-watch) #statusRow{display:none}
 <script>
 (function(){
 'use strict';
-var BUILD='lab-r13';
+var BUILD='lab-r14';
 var QUERY=location.search;          // kept, because the address is tidied once the code is read from it
 var Signals=window.Signals;
 var LINK_SECS=Number((/[?&]linksecs=(\d+)/.exec(location.search)||[])[1])||120;
@@ -615,107 +615,117 @@ var CONCEPTS=[
  }
 },
 {id:'strum',name:'Strum',needsRaw:false,noRaw:true,g:[],
- blurb:'Six strings across the camera picture. Strum them with your left hand, your right hand, or a third hand. Where you strum across the picture picks the chord.',
- how:'Hold a hand up so the camera sees it. Your index fingertip is the pick: draw it down or up across the strings. Fast is loud, slow is soft. The picture is split into four chords, named above the strings: G, C, D and E minor, left to right. Each hand has its own sound and colour: your left, your right, and a third hand if someone joins you. Turn the phone’s volume up.',
- N:6,TOP:0.34,GAP:0.08,DEAD:0.012,
+ blurb:'Six strings across the camera picture, strummed with one hand. Built to be quick: one hand is looked for and nothing else. Where you strum across the picture picks the chord.',
+ how:'Hold one hand up so the camera sees it; either hand. Your index fingertip is the pick: draw it down or up across the strings. Fast is loud, slow is soft. The picture is split into four chords, named above the strings: G, C, D and E minor, left to right. Under the picture are four numbers that say how quick it is on this phone: pictures looked at each second, the time to find the hand in one, how old a picture is when it arrives, and how long the phone takes to sound a note. Turn the volume up.',
+ N:6,TOP:0.34,GAP:0.08,DEAD:0.012,FAST:1.0,UP:2,COL:'#e5a23b',          /* UP: a phone's speaker has no low notes, so everything is raised an octave */
  CHORDS:[['G',[98.00,123.47,146.83,196.00,246.94,392.00]],['C',[98.00,130.81,164.81,196.00,261.63,329.63]],['D',[110.00,146.83,220.00,293.66,369.99,440.00]],['Em',[82.41,123.47,164.81,196.00,246.94,329.63]]],
- SLOTS:{Left:{c:'#e5a23b',w:'square',mark:'L',up:2},Right:{c:'#39c5cf',w:'sawtooth',mark:'R',up:2},Third:{c:'#7fd18b',w:'triangle',mark:'3',up:4}},   /* up: a phone's speaker has no low notes, so everything is raised an octave, and the third hand two */
  ys:function(i){return this.TOP+this.GAP*i},
  mount:function(root){
    var el=document.createElement('div'),i;el.className='linkbox';
-   el.innerHTML=camHtml('full')+'<div class="lk" id="sSay">Hold up a hand</div><div class="g4"><div><b id="sL">0</b><em>left hand</em></div><div><b id="sR">0</b><em>right hand</em></div><div><b id="s3">0</b><em>third hand</em></div><div><b id="sFps">–</b><em>pictures / s</em></div></div><p class="cmsg"></p>';
+   el.innerHTML=camHtml('full')+'<div class="lk" id="sSay">Hold up a hand</div><div class="g4"><div><b id="sFps">–</b><em>pictures / s</em></div><div><b id="sMs">–</b><em>ms to find the hand</em></div><div><b id="sCam">–</b><em>ms old, each picture</em></div><div><b id="sSnd">–</b><em>ms to sound a note</em></div></div><p class="cmsg"></p>';
    root.appendChild(el);
-   this.hands={};this.n={Left:0,Right:0,Third:0};this.told={Left:0,Right:0,Third:0};this.toldAt=now();this.amp=[];this.hue=[];for(i=0;i<this.N;i++){this.amp.push(0);this.hue.push('')}
-   this.voices={};this.last=null;this.seq=[];this.seen=0;this.painted=0;this.drawn=now();this.out=null;this.master=null;
+   this.h=null;this.n=0;this.told=0;this.toldAt=now();this.early={n:0,missed:0};this.amp=[];for(i=0;i<this.N;i++)this.amp.push(0);
+   this.voices=[];this.last=null;this.seq=[];this.seen=false;this.painted=0;this.drawn=now();this.out=null;this.master=null;
    try{var AC=window.AudioContext||window.webkitAudioContext;if(AC){actx=actx||new AC();if(actx.state==='suspended')actx.resume();var comp=actx.createDynamicsCompressor(),g=actx.createGain();g.gain.value=0.9;comp.connect(g);g.connect(actx.destination);this.out=comp;this.master=g}}catch(e){this.out=null}
    ev('strum','start',{sound:this.out?1:0});
-   eyesOn(this,el,{hands:true,max:3,size:[960,720]});
+   eyesOn(this,el,{hands:true,max:1,fps:60,exact:true,lean:true,keep:true});
  },
- /* which hand is which. A hand keeps its place from one picture to the next by being nearest to where it was;
-    a new hand takes the place the finder names it, and a hand left over, whatever it was named, is the third. */
- assign:function(f,t){
-   var self=this,out={},cand=f.hands.map(function(h){var p=h.lm[8];return{side:h.side,x:1-p.x,y:p.y,lm:h.lm,used:false}});
-   cand.forEach(function(c){c.alone=cand.filter(function(o){return o.side===c.side}).length===1});
-   var ok=function(k,c){return k==='Third'||c.side===k};
-   ['Left','Right','Third'].forEach(function(k){
-     var p=self.hands[k],best=null,bd=0.35;if(!p||t-p.t>500)return;
-     cand.forEach(function(c){if(c.used||!ok(k,c))return;var d=Math.hypot(c.x-p.x,c.y-p.y);if(d<bd){bd=d;best=c}});
-     if(best){best.used=true;out[k]=best}
-   });
-   cand.forEach(function(c){if(c.used)return;var k=!out[c.side]?c.side:!out.Third?'Third':'';if(k){c.used=true;out[k]=c}});
-   return out;
- },
- pluck:function(slot,i,zone,vel,delay){
-   var ch=this.CHORDS[zone],S=this.SLOTS[slot],hz=ch[1][i]*S.up;
-   this.n[slot]++;this.told[slot]++;this.amp[i]=Math.max(this.amp[i],0.35+0.65*vel);this.hue[i]=S.c;
-   this.last={slot:slot,string:i,chord:ch[0],hz:+hz.toFixed(2),vel:+vel.toFixed(2),wave:S.w};this.seq.push(S.mark+i);if(this.seq.length>24)this.seq.shift();
+ pluck:function(i,zone,vel,delay){
+   var ch=this.CHORDS[zone],hz=ch[1][i]*this.UP;
+   this.n++;this.told++;this.amp[i]=Math.max(this.amp[i],0.35+0.65*vel);
+   this.last={string:i,chord:ch[0],hz:+hz.toFixed(2),vel:+vel.toFixed(2),early:delay>0?1:0};this.seq.push(i);if(this.seq.length>24)this.seq.shift();
    if(!this.out||!actx)return;
    try{
-     var t=actx.currentTime+0.004+(delay||0),key=slot+i,old=this.voices[key],long=slot==='Third'?2.4:1.8,peak=0.07+0.2*vel;
+     var t=actx.currentTime+(delay||0),old=this.voices[i],long=1.8,peak=0.08+0.22*vel;
      if(old){try{old.g.gain.cancelScheduledValues(t);old.g.gain.setTargetAtTime(0.0001,t,0.012);old.o.stop(t+0.1)}catch(e){}}     /* a string plucked again starts again */
      var o=actx.createOscillator(),f=actx.createBiquadFilter(),g=actx.createGain();
-     o.type=S.w;o.frequency.value=hz;
+     o.type='sawtooth';o.frequency.value=hz;
      f.type='lowpass';f.Q.value=0.6;f.frequency.setValueAtTime(Math.min(11000,hz*(4+8*vel)),t);f.frequency.exponentialRampToValueAtTime(Math.max(500,hz*1.5),t+0.6);
-     g.gain.setValueAtTime(0.0001,t);g.gain.exponentialRampToValueAtTime(peak,t+0.005);g.gain.exponentialRampToValueAtTime(0.0001,t+long);
-     o.connect(f);f.connect(g);g.connect(this.out);o.start(t);o.stop(t+long+0.05);this.voices[key]={o:o,g:g};
+     g.gain.setValueAtTime(0.0001,t);g.gain.exponentialRampToValueAtTime(peak,t+0.004);g.gain.exponentialRampToValueAtTime(0.0001,t+long);
+     o.connect(f);f.connect(g);g.connect(this.out);o.start(t);o.stop(t+long+0.05);this.voices[i]={o:o,g:g};
    }catch(e){}
  },
- tick:function(){
-   var f=eyesTick(this),t=now(),self=this;
-   if(t-this.toldAt>=4000){if(this.told.Left+this.told.Right+this.told.Third)detect('played',{left:this.told.Left,right:this.told.Right,third:this.told.Third,fps:Math.round(Signals.eyes.fps||0)});this.told={Left:0,Right:0,Third:0};this.toldAt=t}
-   if(!f)return;
-   var got=this.assign(f,t),seen=0;
-   ['Left','Right','Third'].forEach(function(k){
-     var c=got[k],h=self.hands[k],i;
-     if(!c){if(h&&t-h.t>500)delete self.hands[k];else if(h)seen++;return}
-     seen++;
-     if(!h||t-h.t>300||Math.hypot(c.x-h.x,c.y-h.y)>(c.alone&&k!=='Third'?0.6:0.3)){h=self.hands[k]={side:[]};for(i=0;i<self.N;i++)h.side[i]=c.y<self.ys(i)?-1:1}      /* just arrived: nothing is plucked by arriving */
-     else{
-       var dt=Math.max(8,t-h.t),v=Math.abs(c.y-h.y)/(dt/1000),hit=[];
-       for(i=0;i<self.N;i++){var y=self.ys(i),s=c.y<y-self.DEAD?-1:c.y>y+self.DEAD?1:0;if(s&&s!==h.side[i]){h.side[i]=s;hit.push(i)}}      /* past a string by a clear margin, so a trembling fingertip does not pluck twice */
-       if(hit.length){var vel=Math.max(0.08,Math.min(1,(v-0.1)/2.2)),zone=Math.max(0,Math.min(3,Math.floor(c.x*4)));if(c.y<h.y)hit.reverse();
-         hit.forEach(function(s,j){self.pluck(k,s,zone,vel,Math.min(0.06,dt/1000)*j/hit.length)})}
+ /* the fingertip is at (x across the screen, y down the picture) in this picture.
+    A string sounds when the fingertip has passed it by a clear margin, so a trembling fingertip does not pluck twice.
+    At speed, a string the fingertip will reach before the next picture is sounded now, timed for when it gets there:
+    waiting for the next picture to show it would make every note one picture late. */
+ play:function(x,y,t){
+   var h=this.h,i,N=this.N,D=this.DEAD;
+   if(!h||t-h.t>300||Math.hypot(x-h.x,y-h.y)>0.6){h=this.h={side:[],wait:[],x:x,y:y,t:t,v:0};for(i=0;i<N;i++){h.side[i]=y<this.ys(i)?-1:1;h.wait[i]=0}return}     /* just arrived: nothing is plucked by arriving */
+   var dt=Math.max(4,t-h.t),v=(y-h.y)/(dt/1000),sp=Math.abs(v),dir=v>0?1:-1,look=Math.min(dt,45)/1000,now0=[],soon=[];
+   /* how far it will have gone by the next picture: its speed, and whether it is slowing (the end of a strum) or still gathering.
+      Only believed when the last two pictures agree it is moving fast the same way, so one bad reading sounds nothing. */
+   var acc=(v-h.v)/(dt/1000),reach=0;
+   if(sp>this.FAST&&h.v*v>0&&Math.abs(h.v)>this.FAST*0.5){
+     var slowing=acc*dir<0,stopIn=slowing?sp/Math.abs(acc):9;
+     reach=stopIn<look?sp*sp/(2*Math.abs(acc)):sp*look+0.5*acc*dir*look*look;reach=Math.max(0,Math.min(0.1,reach));
+   }
+   for(i=0;i<N;i++){
+     var sy=this.ys(i),s=y<sy-D?-1:y>sy+D?1:0;
+     if(h.wait[i]){                                        /* sounded early: is the fingertip there yet? */
+       if(s===h.side[i])h.wait[i]=0;
+       else if(t>h.wait[i]){h.wait[i]=0;h.side[i]=-h.side[i];this.early.missed++}       /* it never came: the string is put back, quietly */
+       continue;
      }
-     h.x=c.x;h.y=c.y;h.t=t;h.lm=c.lm;h.zone=Math.max(0,Math.min(3,Math.floor(c.x*4)));
-   });
-   if(seen!==this.seen){this.seen=seen;ev('strum','hands',{n:seen,which:Object.keys(this.hands).join(' ')});$('sSay').textContent=seen?'Strum across the strings':'Hold up a hand'}
-   if(t-this.painted>200){this.painted=t;$('sL').textContent=this.n.Left;$('sR').textContent=this.n.Right;$('s3').textContent=this.n.Third;$('sFps').textContent=Signals.eyes.fps?Signals.eyes.fps.toFixed(0):'–'}
+     if(s&&s!==h.side[i]){h.side[i]=s;now0.push(i)}
+     else if(reach>0&&h.side[i]===-dir){var far=(sy+dir*D-y)*dir;if(far>0&&far<=reach){var gap=look*far/reach;h.side[i]=dir;h.wait[i]=t+gap*1000+120;soon.push([i,gap]);this.early.n++}}
+   }
+   if(now0.length||soon.length){
+     var self=this,vel=Math.max(0.08,Math.min(1,(sp-0.1)/2.2)),zone=Math.max(0,Math.min(3,Math.floor(x*4)));
+     if(dir<0)now0.reverse();
+     now0.forEach(function(s,j){self.pluck(s,zone,vel,0)});
+     soon.sort(function(a,b){return a[1]-b[1]}).forEach(function(q){self.pluck(q[0],zone,vel,q[1])});
+   }
+   h.x=x;h.y=y;h.t=t;h.v=v;h.zone=Math.max(0,Math.min(3,Math.floor(x*4)));
+ },
+ tick:function(){
+   var f=eyesTick(this),t=now(),E=Signals.eyes;
+   if(t-this.toldAt>=4000){if(this.told)detect('played',{n:this.told,early:this.early.n,missed:this.early.missed,fps:Math.round(E.fps||0),ms:Math.round(E.ms||0),cam:Math.round(E.delay||0)});this.told=0;this.toldAt=t}
+   if(f){
+     var hd=f.hands[0],p=hd&&hd.lm[8];
+     if(p){this.play(1-p.x,p.y,f.t);this.h.lm=hd.lm;this.h.name=hd.side}
+     else if(this.h&&t-this.h.t>500)this.h=null;
+     var seen=!!this.h;
+     if(seen!==this.seen){this.seen=seen;ev('strum','hand',{seen:seen?1:0});$('sSay').textContent=seen?'Strum across the strings':'Hold up a hand'}
+   }
+   if(t-this.painted>400){this.painted=t;
+     $('sFps').textContent=E.fps?E.fps.toFixed(0):'–';$('sMs').textContent=E.ms?E.ms.toFixed(0):(E.fps?'0':'–');$('sCam').textContent=E.delay?E.delay.toFixed(0):'–';
+     var lag=actx&&this.out?((actx.baseLatency||0)+(actx.outputLatency||0))*1000:0;$('sSnd').textContent=lag?lag.toFixed(0):(actx&&this.out?'0':'–')}
  },
  draw:function(){
    var box=this.el&&this.el.querySelector('.camview'),c=box&&box.querySelector('canvas'),v=Signals.eyes.video;if(!c)return;
-   var w=(v&&v.videoWidth)||640,h=(v&&v.videoHeight)||480,self=this,t=now(),dt=Math.min(100,t-this.drawn),i,z;this.drawn=t;
+   var w=(v&&v.videoWidth)||640,h=(v&&v.videoHeight)||480,t=now(),dt=Math.min(100,t-this.drawn),i,z,hd=this.h;this.drawn=t;
    if(c.width!==w||c.height!==h){c.width=w;c.height=h}
    var bw=box.clientWidth,shape=w+'x'+h+'@'+bw;
    if(box.dataset.shape!==shape){box.dataset.shape=shape;box.style.height=Math.round(bw*h/w)+'px'}          /* the whole picture, in its own shape, as wide as the screen */
    var x=c.getContext('2d'),u=Math.max(w,h)/640;x.clearRect(0,0,w,h);
    /* the picture is shown mirrored, so words are written mirrored here to read the right way round */
    var word=function(s,px,py,size,col){x.save();x.translate(px,py);x.scale(-1,1);x.font='700 '+Math.round(size*u)+'px system-ui,sans-serif';x.textAlign='center';x.textBaseline='middle';x.lineWidth=4*u;x.strokeStyle='rgba(5,10,16,0.8)';x.strokeText(s,0,0);x.fillStyle=col;x.fillText(s,0,0);x.restore()};
-   var busy={},top=(this.TOP-0.1)*h,bot=(this.ys(this.N-1)+0.06)*h;Object.keys(this.hands).forEach(function(k){busy[self.hands[k].zone]=self.SLOTS[k].c});
+   var top=(this.TOP-0.1)*h,bot=(this.ys(this.N-1)+0.06)*h,at=hd&&t-hd.t<400?hd.zone:-1;
    x.fillStyle='rgba(5,10,16,0.28)';x.fillRect(0,top,w,bot-top);
    for(z=0;z<4;z++){
      if(z){x.strokeStyle='rgba(230,237,243,0.35)';x.lineWidth=1.5*u;x.beginPath();x.moveTo(w*(1-z/4),top);x.lineTo(w*(1-z/4),bot);x.stroke()}
-     word(this.CHORDS[z][0],w*(1-(z+0.5)/4),top+0.045*h,busy[z]?30:22,busy[z]||'rgba(230,237,243,0.85)');
+     word(this.CHORDS[z][0],w*(1-(z+0.5)/4),top+0.045*h,z===at?30:22,z===at?this.COL:'rgba(230,237,243,0.85)');
    }
    for(i=0;i<this.N;i++){
      var y=this.ys(i)*h,a=this.amp[i]=this.amp[i]*Math.exp(-dt/380),px;
-     x.lineWidth=(4.2-i*0.45)*u;x.strokeStyle=a>0.04?this.hue[i]:'rgba(230,237,243,0.9)';x.beginPath();
-     for(px=0;px<=w;px+=w/48){var yy=y+(a>0.02?a*7*u*Math.sin(px/w*9.42+t/16)*Math.sin(px/w*3.1416):0);if(px)x.lineTo(px,yy);else x.moveTo(px,yy)}
+     x.lineWidth=(4.2-i*0.45)*u;x.strokeStyle=a>0.04?this.COL:'rgba(230,237,243,0.9)';x.beginPath();
+     if(a>0.02){for(px=0;px<=w;px+=w/40){var yy=y+a*7*u*Math.sin(px/w*9.42+t/16)*Math.sin(px/w*3.1416);if(px)x.lineTo(px,yy);else x.moveTo(px,yy)}}
+     else{x.moveTo(0,y);x.lineTo(w,y)}
      x.stroke();
    }
-   var conn=Signals.eyes.conn||[];
-   Object.keys(this.hands).forEach(function(k){
-     var hd=self.hands[k],L=hd.lm,col=self.SLOTS[k].c,p;if(!L||t-hd.t>400)return;p=L[8];
-     x.strokeStyle=col;x.globalAlpha=0.55;x.lineWidth=2.5*u;x.beginPath();conn.forEach(function(e){var a=L[e.start],b=L[e.end];if(a&&b){x.moveTo(a.x*w,a.y*h);x.lineTo(b.x*w,b.y*h)}});x.stroke();x.globalAlpha=1;
-     x.fillStyle=col;x.beginPath();x.arc(p.x*w,p.y*h,11*u,0,6.3);x.fill();x.strokeStyle='#fff';x.lineWidth=2.5*u;x.stroke();
-     word(self.SLOTS[k].mark,p.x*w,p.y*h-26*u,20,'#fff');
-   });
-   var hs={};Object.keys(this.hands).forEach(function(k){var hd=self.hands[k];hs[k]={x:+hd.x.toFixed(3),y:+hd.y.toFixed(3),zone:hd.zone}});
-   var ys=[];for(i=0;i<this.N;i++)ys.push(+this.ys(i).toFixed(3));
-   c.dataset.state=JSON.stringify({hands:hs,n:this.n,last:this.last,seq:this.seq,ys:ys,chords:this.CHORDS.map(function(q){return q[0]}),audio:actx&&this.out?actx.state:'none'});
+   if(hd&&hd.lm&&t-hd.t<400){
+     var L=hd.lm,p=L[8],conn=Signals.eyes.conn||[];
+     x.strokeStyle=this.COL;x.globalAlpha=0.55;x.lineWidth=2.5*u;x.beginPath();conn.forEach(function(e){var a=L[e.start],b=L[e.end];if(a&&b){x.moveTo(a.x*w,a.y*h);x.lineTo(b.x*w,b.y*h)}});x.stroke();x.globalAlpha=1;
+     x.fillStyle=this.COL;x.beginPath();x.arc(p.x*w,p.y*h,11*u,0,6.3);x.fill();x.strokeStyle='#fff';x.lineWidth=2.5*u;x.stroke();
+   }
+   if(t-(this.stated||0)>90){this.stated=t;       /* what the checks read */
+     var ys=[];for(i=0;i<this.N;i++)ys.push(+this.ys(i).toFixed(3));
+     c.dataset.state=JSON.stringify({hand:hd?{x:+hd.x.toFixed(3),y:+hd.y.toFixed(3),zone:hd.zone,side:hd.name||''}:null,n:this.n,last:this.last,seq:this.seq,early:this.early,ys:ys,chords:this.CHORDS.map(function(q){return q[0]}),audio:actx&&this.out?actx.state:'none'})}
  },
  unmount:function(){
-   var all=this.n.Left+this.n.Right+this.n.Third;if(all)ev('strum','total',{left:this.n.Left,right:this.n.Right,third:this.n.Third});
-   Signals.eyes.stop();try{if(this.master)this.master.disconnect()}catch(e){}this.out=null;this.voices={};
+   if(this.n)ev('strum','total',{n:this.n,early:this.early.n,missed:this.early.missed,fps:Math.round(Signals.eyes.fps||0),ms:Math.round(Signals.eyes.ms||0),cam:Math.round(Signals.eyes.delay||0)});
+   Signals.eyes.stop();try{if(this.master)this.master.disconnect()}catch(e){}this.out=null;this.voices=[];
  }
 },
 {id:'camera',name:'Camera: hand probe',needsRaw:false,noRaw:true,g:['hand found','hand lost'],

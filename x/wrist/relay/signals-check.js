@@ -247,5 +247,24 @@ check('with no recogniser in the browser the ears say so and stay off', S.ears.s
   S.ears.stop(); delete global.window.SpeechRecognition;
 }
 
+/* ---- the eyes: each picture is looked at once, and a lean look does no more than find the hand ---- */
+{
+  const E = S.eyes, calls = [], lm = Array.from({ length: 21 }, (_, i) => ({ x: 0.5, y: 0.3 + i * 0.01, z: 0 }));
+  E.stop(); S.resetRecognisers(); E.on = true; E.want = { hands: true, max: 1, lean: true, exact: true };
+  E.hand = { detectForVideo: (v, t) => { calls.push(t); return { landmarks: [lm, lm], worldLandmarks: [lm, lm], handedness: [[{ categoryName: 'Right' }], [{ categoryName: 'Left' }]] }; }, close() {} };
+  E.video = { readyState: 4, currentTime: 1, videoWidth: 640, videoHeight: 480 };
+  E._rv = true; E._rvSeen = true; E._fresh = false;
+  check('told by the camera of each new picture, it looks at nothing until one comes', E.poll() === null && calls.length === 0);
+  E._fresh = true; const f1 = E.poll(), again = E.poll();
+  check('a new picture is looked at once, not again on the next screen refresh', !!f1 && again === null && calls.length === 1, calls.length);
+  check('asked for one hand, one is reported; a lean look works out no numbers and feeds no taught signal', !!f1 && f1.hands.length === 1 && f1.hands[0].n === null && f1.hands[0].lm === lm && S.recent('handR').length === 0, f1 && f1.hands.length);
+  E._rvSeen = false; E._rvAt = performance.now() - 2000; E._fresh = false; E.video.currentTime = 2;
+  const f2 = E.poll();
+  check('if the camera never tells it, it goes back to watching the clock, so the card is not left blind', E._rv === false && !!f2, E._rv);
+  E.want = { hands: true }; E.video.currentTime = 3; const f3 = E.poll();
+  check('an ordinary look still reports every hand with its numbers', !!f3 && f3.hands.length === 2 && f3.hands[0].n && typeof f3.hands[0].n.size === 'number');
+  E.hand = null; E.on = false; E.video = null; S.resetRecognisers();
+}
+
 console.log(fails ? '\n' + fails + ' FAILED' : '\nall passed');
 process.exit(fails ? 1 : 0);

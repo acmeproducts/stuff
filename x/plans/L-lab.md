@@ -126,7 +126,7 @@ Owner's requests from this run are in `X-NORTH-STAR.md` §2 (2026-11-19) and req
 **Gate:** with his arm resting as it does, the owner scrolls a list down and up by roll, stops it at will, and changes thread by swing with no false change on the way back.
 
 
-### L9 — Strum (crawl) · built 2026-11-22 in `lab-r13`, lab only
+### L9 — Strum (crawl) · built 2026-11-22 in `lab-r13`, reworked for one hand in `lab-r14`, lab only
 The owner, 2026-11-22: "create a quick app that lets you strum virtual strings using the camera with left, right and a third hand make the camera capture frame larger than the other examples this should be the first card in the camera tab". (R73; D64, D65)
 
 **What was built**
@@ -142,6 +142,20 @@ The owner, 2026-11-22: "create a quick app that lets you strum virtual strings u
 
 **Proven in the lab (fact):** with made-up hands: a strum down and up plucks all six in order; a fingertip trembling beside a string does not pluck it again; the chord follows the place across the picture; three hands are told apart and play at once, two of them named "Right" by the finder; a hand arriving plucks nothing.
 **Not proven (unverified):** whether the phone's finder holds three real hands at a usable rate; how long after a pluck the sound comes; whether a real fingertip is steady enough for six strings 8% of the picture apart.
+
+**Reworked the same day for one hand (`lab-r14`, R74, D66).** The owner: "let's revamp and rethink to one hand so that performance is exceptional". No run of the three-hand card came back from his phone, so its speed there is not known.
+| Change | Why |
+|---|---|
+| One hand, either one. No left, right and third; one sound, one colour | his instruction |
+| The finder is asked for one hand | fact from his phone (20 Nov, two hands asked): 17 ms a picture with no hand in view, 39 ms with one, 44 ms with two. Searching for a further hand costs about as much as reading one |
+| Each picture is looked at once, as the camera delivers it | before, the page asked at every screen refresh and could read the same picture twice |
+| 60 pictures a second asked of the camera; the picture asked for is 640 by 480 again | speed over sharpness. The picture on the screen is as large as before |
+| Nothing but the fingertip is worked out | the hand numbers and taught signals are not needed here |
+| A string is sounded as the fingertip reaches it | waiting for the next picture to show the crossing made every note a picture late |
+| Four numbers under the picture | so the speed can be read on the phone: pictures a second, ms to find the hand, ms old each picture is, ms to sound a note |
+
+**Proven in the lab (fact):** a strum down and up plucks all six, once each, at any speed tried; quick strums up and down never double or drop a string; a strum that slows to a stop short of the next string does not sound it; one wild reading of the fingertip sounds nothing; a dead stop at speed just short of a string has already sounded it, and it is put back.
+**Not proven (unverified):** the speed itself. The lab has no real camera or finder. The estimate is about 22 ms a picture in place of 39. Whether the phone's camera gives more than 30 pictures a second, and whether sounding early is right or gives stray notes, are for his phone.
 
 ### L5 — Tabs (walk) · built 2026-11-19 in `lab-r9`, lab only
 Owner: "an overall dashboard and combine/learn tab, then a camera tab, a watch tab and a voice tab, so that we're not commingling everything".
@@ -180,6 +194,8 @@ Hands in the scene as joints, bones and a palm; hand to hand; several objects wi
 **Proven in the lab (fact):** with a made-up hand, all six goals are finished with no touch; a hand turned or rolled does not move in depth; a weak pinch takes nothing before calibration and takes after it. 120/120 with the rest of the new cards.
 **Not proven (unverified):** that a real hand can do any of it. The made-up hand has no tremor, never leaves the picture by accident and is found every frame. The first real run decides the reach distances and whether stacking is too fiddly.
 
+**First run on the owner's phone, 2026-11-20, `lab-r12` (fact, from his trial; read by the build on 22 Nov).** 2 minutes 16 seconds. Seven takes, six let-gos. Goal 1 (cup on the ring) was not finished: he skipped it by tap after 98 seconds. In goal 2, three takes in a row were dropped again within 0.3 to 1.2 seconds. No goal was finished. Finder: 24 pictures a second with one hand in view (41 ms each). No rating, no notes. So: a real hand can take things; it cannot yet keep hold or finish a goal.
+
 ### L7 — Journey (walk) · built 2026-11-19 in `lab-r11`, lab only
 A spoken choose-your-path story of 15 places. Look left or right to turn, up or down for ladders; hold the look about a second. Hand-written, no AI. (D51)
 
@@ -195,6 +211,8 @@ A spoken choose-your-path story of 15 places. Look left or right to turn, up or 
 
 **Proven in the lab (fact):** with a made-up head the story is played to its end by looks alone; a glance and a half look do nothing; losing the face mid-look moves nothing.
 **Not proven (unverified):** real head movement. The owner's own range (left 27°, right 31°, up 16°, down 15°) says half is 8° to 15°, which a nod while listening may reach.
+
+**First run on the owner's phone, 2026-11-20, `lab-r12` (fact, from his trial).** 35 seconds. Six moves by looks (down, left, right, left, up, down): the first after 14.5 seconds, the other five within the next 17.5; then one "no way". Face found in 1.5 seconds; 36 pictures a second. No rating, no notes. So: looks do move him through the story. Whether the moves were the ones he meant is not known.
 
 ## 6. Risks
 | Risk | Held by |

@@ -384,16 +384,30 @@
   /* ---------- the eyes: the camera and the two finders ---------- */
   var E = S.eyes = { on: false, video: null, stream: null, hand: null, face: null, want: {}, stage: '', err: '', fps: 0, ms: 0, last: null, cpu: false, _n: 0, _t: 0, _vt: -1 };
   E.start = function (video, want, say) {
-    E.stop(); E.video = video; E.want = want || { hands: true }; E.err = ''; E.cpu = false; E.fps = 0; E.ms = 0; E.on = true; E._n = 0; E._t = performance.now(); E._vt = -1;
+    E.stop(); E.video = video; E.want = want || { hands: true }; E.err = ''; E.cpu = false; E.fps = 0; E.ms = 0; E.delay = 0; E.on = true; E._n = 0; E._t = performance.now(); E._vt = -1; E._rv = false; E._rvSeen = false; E._fresh = false;
     say = say || function () {};
     var gen = E._gen = (E._gen || 0) + 1, alive = function () { return E.on && E._gen === gen; };
     if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) { E.err = 'This browser gives a page no camera.'; say(E.err); return Promise.resolve(false); }
     E.stage = 'the camera'; say('Asking for the camera…');
-    return navigator.mediaDevices.getUserMedia({ video: { facingMode: 'user', width: { ideal: (E.want.size || [640, 480])[0] }, height: { ideal: (E.want.size || [640, 480])[1] } }, audio: false }).then(function (s) {
+    var sz = E.want.size || [640, 480], cam = { facingMode: 'user', width: { ideal: sz[0] }, height: { ideal: sz[1] } };
+    if (E.want.fps) cam.frameRate = { ideal: E.want.fps };
+    return navigator.mediaDevices.getUserMedia({ video: cam, audio: false }).then(function (s) {
       if (!alive()) { s.getTracks().forEach(function (x) { x.stop(); }); return null; }
       E.stream = s; video.srcObject = s; return video.play();
     }).then(function () {
       if (!alive() || !E.stream) return null;
+      /* exact: the camera says when each new picture is there, so each is looked at once and at once.
+         It also says when the picture was taken, which gives the camera's own delay. */
+      if (E.want.exact && video.requestVideoFrameCallback) {
+        E._rv = true; E._rvAt = performance.now();
+        var each = function (now, md) {
+          if (!alive() || E.video !== video) return;
+          E._fresh = true; E._rvSeen = true;
+          if (md && md.captureTime) { var d = now - md.captureTime; if (d >= 0 && d < 2000) E.delay = E.delay ? E.delay * 0.9 + d * 0.1 : d; }
+          video.requestVideoFrameCallback(each);
+        };
+        video.requestVideoFrameCallback(each);
+      }
       E.stage = 'the finder (its program did not download)'; say('Loading the finder. The first time takes a few seconds…');
       return import(MP + '/vision_bundle.mjs');
     }).then(function (m) {
@@ -406,7 +420,7 @@
           return cls.createFromOptions(fs, opt('GPU')).catch(function () { E.cpu = true; return cls.createFromOptions(fs, opt('CPU')); });
         };
         var jobs = [];
-        if (E.want.hands) jobs.push(make(m.HandLandmarker, HAND_MODEL, { numHands: E.want.max || 2 }).then(function (h) { E.hand = h; }));
+        if (E.want.hands) jobs.push(make(m.HandLandmarker, HAND_MODEL, E.want.keep ? { numHands: E.want.max || 2, minHandPresenceConfidence: 0.3, minTrackingConfidence: 0.3 } : { numHands: E.want.max || 2 }).then(function (h) { E.hand = h; }));
         if (E.want.face) jobs.push(make(m.FaceLandmarker, FACE_MODEL, { numFaces: 1, outputFaceBlendshapes: true, outputFacialTransformationMatrixes: true }).then(function (f) { E.face = f; }));
         return Promise.all(jobs);
       });
@@ -421,17 +435,21 @@
     try { if (E.stream) E.stream.getTracks().forEach(function (x) { x.stop(); }); } catch (e) { /* gone */ }
     try { if (E.hand) E.hand.close(); } catch (e) { /* gone */ }
     try { if (E.face) E.face.close(); } catch (e) { /* gone */ }
-    E.stream = null; E.hand = null; E.face = null; E.last = null;
+    E.stream = null; E.hand = null; E.face = null; E.last = null; E._rv = false;
   };
   /* Call once per screen refresh. Returns what was seen in a new picture, or null when there is no new picture yet.
      {t, hands:[{side, src, lm, wl, n}], head:{n} or null, ms}
-     want: {hands, face, max: how many hands to look for (2 unless said), size: [wide, high] to ask the camera for} */
+     want: {hands, face, max: how many hands to look for (2 unless said), size: [wide, high] to ask the camera for,
+            fps: pictures a second to ask the camera for, exact: look at each picture once, as it comes,
+            lean: find the hand and nothing more, keep: hold on to a hand through a blur} */
   E.poll = function () {
     var t = performance.now(), hr = null, fr = null, got = false;
     E.aspect = 1;
     if (window.__labTestEyes && E.on) { var x = window.__labTestEyes(t); if (x) { hr = E.want.hands ? x.hands || null : null; fr = E.want.face ? x.face || null : null; got = true; } }   // lab check only: made-up points in place of the camera
-    else if (E.on && E.video && E.video.readyState >= 2 && E.video.currentTime !== E._vt && (E.hand || E.face)) {
-      E._vt = E.video.currentTime;
+    else if (E.on && E.video && E.video.readyState >= 2 && (E.hand || E.face)) {
+      if (E._rv && !E._rvSeen && t - E._rvAt > 1500) E._rv = false;      // the camera never said: watch the clock instead
+      if (E._rv ? !E._fresh : E.video.currentTime === E._vt) return null;
+      E._fresh = false; E._vt = E.video.currentTime;
       if (E.video.videoWidth && E.video.videoHeight) E.aspect = E.video.videoWidth / E.video.videoHeight;
       try { if (E.hand && E.want.hands) hr = E.hand.detectForVideo(E.video, t); if (E.face && E.want.face) fr = E.face.detectForVideo(E.video, t); got = true; }
       catch (e) { E.err = 'The finder stopped: ' + String(e && e.message || e).slice(0, 120); E.hand = E.face = null; return null; }
@@ -439,10 +457,11 @@
     }
     if (!got) return null;
     var frame = { t: t, hands: [], head: null, ms: E.ms }, fed = {};
-    if (hr && hr.landmarks) for (var i = 0; i < hr.landmarks.length; i++) {
+    var lean = !!E.want.lean, most = E.want.max || 99;
+    if (hr && hr.landmarks) for (var i = 0; i < hr.landmarks.length && i < most; i++) {
       var side = hr.handedness && hr.handedness[i] && hr.handedness[i][0] ? hr.handedness[i][0].categoryName : 'Right';
-      var wl = hr.worldLandmarks && hr.worldLandmarks[i], h = { side: side, src: side === 'Left' ? 'handL' : 'handR', lm: hr.landmarks[i], wl: wl, n: S.handNumbers(hr.landmarks[i], wl, E.aspect) };
-      frame.hands.push(h); if (!fed[h.src]) { fed[h.src] = 1; S.feed(h.src, t, h.n); }   // every hand is reported; a taught signal is read from one hand a side
+      var wl = hr.worldLandmarks && hr.worldLandmarks[i], h = { side: side, src: side === 'Left' ? 'handL' : 'handR', lm: hr.landmarks[i], wl: wl, n: lean ? null : S.handNumbers(hr.landmarks[i], wl, E.aspect) };
+      frame.hands.push(h); if (!lean && !fed[h.src]) { fed[h.src] = 1; S.feed(h.src, t, h.n); }   // every hand is reported; a taught signal is read from one hand a side; a lean look only finds the hand
     }
     if (fr && ((fr.facialTransformationMatrixes && fr.facialTransformationMatrixes.length) || (fr.faceBlendshapes && fr.faceBlendshapes.length))) {
       var rawHead = S.headNumbers(fr.facialTransformationMatrixes && fr.facialTransformationMatrixes[0], fr.faceBlendshapes && fr.faceBlendshapes[0]);

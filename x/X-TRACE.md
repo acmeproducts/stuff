@@ -60,7 +60,8 @@ Status words: **met** (proved on the owner's device, evidence named) · **part**
 | R70 | no kind of subject has its own code | D57 (proposed) | X7, V6 | review of the build | open |
 | R71 | unasked calls capped, counted, reported | D61 (proposed) | V6 | V6 gate 4 | open |
 | R72 | taught signals steer X | — | X7 | X7 gate 4 | open |
-| R73 | strum by camera, three hands, larger picture, first in the tab | D64, D65 | L9 | signals-page-test "strum:" | lab only |
+| R73 | strum by camera, larger picture, first in the tab (three hands replaced by R74) | D64, D65 | L9 | signals-page-test "strum:" | lab only |
+| R74 | strum for one hand, made quick | D66 | L9 | signals-check "the eyes"; signals-page-test "strum:" | lab only |
 | R42 | a 3D object handled by one hand or both | D28 | L3 | object checks (made-up hands); the owner's run | lab |
 | R43 | not made useful by choosing things to fetch | P9, G28 | every release | review at each commit | holds so far |
 | R44 | hand toward the screen, object away | D31 | L4 | object depth check; the owner's run | lab |
@@ -83,7 +84,7 @@ Status words: **met** (proved on the owner's device, evidence named) · **part**
 | R61 | watch on the left wrist | D43 | L8 | stated on the card | holds; customising is later |
 
 ## Counts
-Met: 2 (R14, R31). Part: 7 (R04, R05, R18, R27, R28, R30, R32). Holding: 4 (R33, R36, R43, R61). Lab only: 22 (R38, R39, R40, R42, R44 to R60, R73). Open: 38, R41 and R62 to R72 among them. Total 73. *(Counted from the table on 2026-11-22.)*
+Met: 2 (R14, R31). Part: 7 (R04, R05, R18, R27, R28, R30, R32). Holding: 4 (R33, R36, R43, R61). Lab only: 23 (R38, R39, R40, R42, R44 to R60, R73, R74). Open: 38, R41 and R62 to R72 among them. Total 74. *(Counted from the table on 2026-11-22.)*
 
 ## Use cases to releases
 | Use case | Releases |

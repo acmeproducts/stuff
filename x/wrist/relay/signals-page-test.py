@@ -85,7 +85,7 @@ with sync_playwright() as pw:
     tiles = lambda: [x.get_attribute('data-id') for x in pg.locator('.tile').all()]
     tabto(pg, 'camera'); cam = tiles(); tabto(pg, 'learn'); learn = tiles()
     check('the Camera tab holds the camera cards and the Learn tab holds calibrate, teach and assign', cam == ['strum', 'camera', 'hands', 'head', 'object', 'journey'] and learn == ['calibrate', 'teach', 'assign'], (cam, learn))
-    check('the page says which build it is', 'lab-r13' in txt('#meta'), txt('#meta'))
+    check('the page says which build it is', 'lab-r14' in txt('#meta'), txt('#meta'))
 
     # ---- hand numbers
     card(pg, 'hands'); wait(900)
@@ -196,73 +196,81 @@ with sync_playwright() as pw:
     pg.select_option(sel('wrist down'), 'next'); wait(150)
     close()
 
-    # ---- strum: strings across the camera picture, for the left hand, the right hand and a third hand
-    ev("() => { __puppet.rest = { hands: [], face: {} } }")
+    # ---- strum: strings across the camera picture, played by one hand, made to be quick
+    ev("() => { __act(null); __puppet.rest = { hands: [], face: {} } }")
     tabto(pg, 'camera'); wait(200)
     check('strum: it is the first card in the Camera tab', tiles()[0] == 'strum', tiles())
-    card(pg, 'hands'); wait(500); small = pg.locator('.linkbox .camview').bounding_box(); small_px = pg.evaluate("() => document.querySelector('.linkbox video').videoWidth * document.querySelector('.linkbox video').videoHeight"); close()
-    card(pg, 'strum'); wait(900); big = pg.locator('.linkbox .camview').bounding_box(); big_px = pg.evaluate("() => document.querySelector('.linkbox video').videoWidth * document.querySelector('.linkbox video').videoHeight")
+    card(pg, 'hands'); wait(500); small = pg.locator('.linkbox .camview').bounding_box(); close()
+    card(pg, 'strum'); wait(900); big = pg.locator('.linkbox .camview').bounding_box()
     check('strum: its camera picture is larger on the screen than the other cards\', edge to edge', big['width'] > small['width'] and big['height'] > small['height'] and big['x'] <= 1 and big['width'] >= 411, (small, big))
-    check('strum: the camera is asked for a larger picture too, and the finder for three hands', big_px > small_px and pg.evaluate("() => Signals.eyes.want.max") == 3, (small_px, big_px))
+    w = pg.evaluate("() => Signals.eyes.want")
+    check('strum: the finder is asked for one hand and nothing more, each picture looked at once, 60 a second asked of the camera', w.get('max') == 1 and w.get('lean') is True and w.get('exact') is True and w.get('fps') == 60 and w.get('keep') is True and 'size' not in w, w)
     sst = lambda: json.loads(pg.get_attribute('.linkbox .camview canvas', 'data-state') or '{}')
     s0 = sst()
-    check('strum: six strings, four chords across the picture, and it asks for a hand', len(s0['ys']) == 6 and s0['chords'] == ['G', 'C', 'D', 'Em'] and txt('#sSay') == 'Hold up a hand', (s0.get('ys'), txt('#sSay')))
-    SH = {}
-    def sshow(): pg.evaluate("(hs) => { __puppet.rest = { hands: hs, face: {} } }", list(SH.values()))
-    def shand(k, **o): SH[k] = dict(SH.get(k, {'side': 'Right' if k == 'Third' else k, 'x': 0.5, 'y': 0.22, 'size': 0.13}), **o); sshow()
-    def sgone(k): SH.pop(k, None); sshow()
-    def smove(k, slot, y=None, x=None):       # one move of that hand so its fingertip lands at this height, or this far across the screen
-        h = sst()['hands'][slot]
-        shand(k, y=SH[k]['y'] + (0 if y is None else y - h['y']), x=SH[k]['x'] - (0 if x is None else x - h['x'])); wait(260)
+    check('strum: six strings, four chords across the picture, and it asks for a hand', len(s0['ys']) == 6 and s0['chords'] == ['G', 'C', 'D', 'Em'] and s0['hand'] is None and txt('#sSay') == 'Hold up a hand', (s0.get('ys'), txt('#sSay')))
+    # where the made-up hand's fingertip is, against where the hand is put
+    ev("() => { __puppet.rest = { hands: [{ side: 'Right', x: 0.5, y: 0.25, size: 0.13 }], face: {} } }"); wait(500)
+    h0 = sst()['hand']; OY = h0['y'] - 0.25; OX = (1 - h0['x']) - 0.5
     TOPY, BOTY = s0['ys'][0] - 0.07, s0['ys'][5] + 0.07
-    def sweep(k, slot, y):                     # a strum: the fingertip carried to that height in three quick moves
-        y0 = sst()['hands'][slot]['y']
-        for i in (1, 2, 3): smove(k, slot, y=y0 + (y - y0) * i / 3)
-    shand('Left', x=0.85); wait(500)
-    l0 = sst()
-    check('strum: a hand held up is seen as itself and nothing sounds yet', list(l0['hands'].keys()) == ['Left'] and l0['n'] == {'Left': 0, 'Right': 0, 'Third': 0} and txt('#sSay') == 'Strum across the strings', (l0['hands'], l0['n']))
-    smove('Left', 'Left', y=TOPY, x=0.12); n0 = sst()['n']['Left']
-    sweep('Left', 'Left', BOTY)
+    POSE = {'side': 'Right', 'x': 0.5, 'y': 0.25}
+    def glide(y=None, x=None, secs=0.45, side=None, hold=450):
+        """The fingertip carried smoothly to a height (and a place across the screen), as an arm moves it."""
+        y1 = POSE['y'] if y is None else y - OY
+        if x is not None: POSE['x'] = 1 - x - OX
+        if side: POSE['side'] = side
+        pg.evaluate("([s, x, a, b, T]) => __act(t => { var k = Math.min(1, t / T), e = (1 - Math.cos(Math.PI * k)) / 2; return { hands: [{ side: s, x: x, y: a + (b - a) * e, size: 0.13 }], face: {} } })", [POSE['side'], POSE['x'], POSE['y'], y1, secs])
+        POSE['y'] = y1; wait(int(secs * 1000) + hold)
+    check('strum: a hand held up is seen and nothing sounds yet', h0 is not None and sst()['n'] == 0 and txt('#sSay') == 'Strum across the strings', (h0, sst()['n']))
+    glide(y=TOPY, x=0.12, secs=0.3); n0 = sst()['n']
+    glide(y=BOTY)
     d = sst()
-    check('strum: the fingertip drawn down across the strings plucks all six, low to high', d['n']['Left'] - n0 == 6 and d['seq'][-6:] == ['L0', 'L1', 'L2', 'L3', 'L4', 'L5'], (d['n'], d['seq'][-6:]))
+    check('strum: the fingertip drawn down across the strings plucks all six, once each, low to high', d['n'] - n0 == 6 and d['seq'][-6:] == [0, 1, 2, 3, 4, 5], (d['n'] - n0, d['seq'][-8:]))
     check('strum: strummed at the left of the picture, the chord is G, and the sound is running', d['last']['chord'] == 'G' and abs(d['last']['hz'] - 784.0) < 0.5 and d['audio'] == 'running', d['last'])
-    fast = d['last']['vel']
-    sweep('Left', 'Left', TOPY)
+    check('strum: at speed, a string is sounded as the fingertip reaches it, not a picture later', d['early']['n'] >= 2 and d['early']['missed'] == 0, d['early'])
+    glide(y=TOPY)
     u = sst()
-    check('strum: drawn back up it plucks them again, high to low', u['n']['Left'] - d['n']['Left'] == 6 and u['seq'][-6:] == ['L5', 'L4', 'L3', 'L2', 'L1', 'L0'], u['seq'][-6:])
-    y2 = s0['ys'][0]
-    smove('Left', 'Left', y=y2 + 0.03); n1 = sst()['n']['Left']
-    for i in range(5): smove('Left', 'Left', y=y2 + 0.004); smove('Left', 'Left', y=y2 + 0.03)
-    check('strum: a fingertip trembling beside a string does not pluck it again', sst()['n']['Left'] == n1, (n1, sst()['n']['Left']))
-    slow = sst()['last']['vel']
-    check('strum: a slow pluck is softer than a fast one', slow < fast and fast > 0.8, (slow, fast))
-    smove('Left', 'Left', y=TOPY, x=0.62); sweep('Left', 'Left', BOTY)
+    check('strum: drawn back up it plucks them again, high to low', u['n'] - d['n'] == 6 and u['seq'][-6:] == [5, 4, 3, 2, 1, 0], u['seq'][-8:])
+    for i in range(4): glide(y=BOTY, secs=0.22, hold=200); glide(y=TOPY, secs=0.22, hold=200)
+    q = sst()
+    check('strum: strummed quickly up and down, every string still sounds exactly once a pass', q['n'] - u['n'] == 48 and q['early']['missed'] == 0, (q['n'] - u['n'], q['early']))
+    fast = max(sst()['last']['vel'], d['last']['vel'])
+    glide(y=s0['ys'][0] + 0.03, secs=1.6); slow = sst()['last']['vel']; n1 = sst()['n']
+    for i in range(5): glide(y=s0['ys'][0] + 0.004, secs=0.12, hold=120); glide(y=s0['ys'][0] + 0.03, secs=0.12, hold=120)
+    check('strum: a fingertip trembling beside a string does not pluck it again', sst()['n'] == n1, (n1, sst()['n']))
+    check('strum: a slow pluck is softer than a fast one', slow < 0.5 and slow < fast, (slow, fast))
+    glide(y=TOPY, x=0.62, secs=0.3); glide(y=BOTY)
     check('strum: further across the picture the same strings play another chord', sst()['last']['chord'] == 'D' and abs(sst()['last']['hz'] - 880.0) < 0.5, sst()['last'])
-    shand('Right', x=0.4, y=0.2); wait(500); smove('Right', 'Right', y=TOPY, x=0.88); r0 = sst()['n']
-    sweep('Right', 'Right', BOTY); r1 = sst()
-    check('strum: the right hand plays too, counted apart, with its own sound', r1['n']['Right'] - r0['Right'] == 6 and r1['n']['Left'] == r0['Left'] and r1['last']['slot'] == 'Right' and r1['last']['chord'] == 'Em' and r1['last']['wave'] != d['last']['wave'], (r1['n'], r1['last']))
-    shand('Third', x=0.5, y=0.2); wait(600)
-    t0 = sst()
-    check('strum: a third hand in the picture is seen as the third hand', sorted(t0['hands'].keys()) == ['Left', 'Right', 'Third'] and txt('#sSay') == 'Strum across the strings', list(t0['hands'].keys()))
-    smove('Third', 'Third', y=TOPY, x=0.38); sweep('Third', 'Third', BOTY); t1 = sst()
-    check('strum: the third hand plays an octave above, counted apart', t1['n']['Third'] == 6 and t1['n']['Right'] == r1['n']['Right'] and t1['last']['slot'] == 'Third' and t1['last']['chord'] == 'C' and abs(t1['last']['hz'] - 1318.52) < 0.5, (t1['n'], t1['last']))
-    sweep('Right', 'Right', TOPY); t2 = sst()
-    check('strum: with two hands the finder calls "Right", each keeps its own place', t2['n']['Right'] - t1['n']['Right'] == 6 and t2['n']['Third'] == 6, t2['n'])
+    glide(y=TOPY, secs=0.3, side='Left'); nl = sst()['n']; glide(y=BOTY)
+    check('strum: either hand plays; the finder calling it left or right makes no difference', sst()['n'] - nl == 6 and sst()['hand']['side'] == 'Left', (sst()['n'] - nl, sst()['hand']))
+    # a second hand in the picture: one hand plays, the other is not looked for
+    ev("() => { var r = __puppet.free; __act(t => { var b = r(99); b.hands.push({ side: 'Right', x: 0.2, y: 0.5, size: 0.13 }); return b }) }"); wait(500)
+    check('strum: with a second hand in the picture, still one hand plays', pg.evaluate("() => Signals.eyes.last.hands.length") == 1 and sst()['hand'] is not None, sst()['hand'])
+    # stopped dead just short of a string, at speed: the string ahead has already sounded. It is put back quietly and not sounded again by mistake.
+    glide(y=s0['ys'][2] - 0.236, x=0.38, secs=0.3, side='Right'); e0 = sst()
+    stop = s0['ys'][2] - 0.02 - OY
+    # three pictures at full speed, the same step each, then nothing: no arm can do it, which is the point
+    pg.evaluate("([x, a, b]) => { var k = 0; __act(t => ({ hands: [{ side: 'Right', x: x, y: Math.min(b, a + 0.072 * (++k)), size: 0.13 }], face: {} })) }", [POSE['x'], POSE['y'], stop]); POSE['y'] = stop; wait(800)
+    e1 = sst()
+    check('strum: the cost of sounding on time: a dead stop just short of a string has sounded it, once, and it is put back', e1['early']['missed'] - e0['early']['missed'] == 1 and e1['seq'][-3:] == [0, 1, 2] and e1['n'] - e0['n'] == 3, (e0['early'], e1['early'], e1['seq'][-4:], e1['n'] - e0['n']))
+    glide(y=s0['ys'][2] + 0.03, secs=0.8); e2 = sst()
+    check('strum: carried on across that string it sounds, once', e2['n'] - e1['n'] == 1 and e2['seq'][-1] == 2, (e2['n'] - e1['n'], e2['seq'][-3:]))
+    glide(y=TOPY, secs=0.3); m0 = sst()
+    for i in range(3): glide(y=s0['ys'][3] + 0.025, secs=0.3, hold=300); glide(y=TOPY, secs=0.3, hold=300)
+    m1 = sst()
+    check('strum: a strum that slows to a stop short of the next string does not sound that string', m1['early']['missed'] == m0['early']['missed'] and m1['n'] - m0['n'] == 24, (m1['n'] - m0['n'], m0['early'], m1['early'], m1['seq'][-8:]))
+    ev("() => { __act(null); __puppet.rest = { hands: [{ side: 'Right', x: 0.5, y: 0.2, size: 0.13 }], face: {} } }"); wait(400); j0 = sst()
+    ev("() => { __puppet.rest = { hands: [{ side: 'Right', x: 0.5, y: 0.46, size: 0.13 }], face: {} } }"); wait(500); j1 = sst()
+    check('strum: one wild reading of the fingertip sounds nothing ahead of it', j1['early']['n'] == j0['early']['n'] and j1['early']['missed'] == j0['early']['missed'], (j0['early'], j1['early']))
     if shot: pg.screenshot(path=shot + '-strum.png')
-    sweep('Left', 'Left', TOPY); sweep('Third', 'Third', TOPY); b3 = sst()['n']; now3 = sst()['hands']
-    for i in (1, 2):
-        for k in ('Left', 'Right', 'Third'): SH[k] = dict(SH[k], y=SH[k]['y'] + (BOTY - now3[k]['y']) / 2)
-        sshow(); wait(300)
-    a3 = sst()['n']
-    check('strum: all three hands strum at once', a3['Left'] - b3['Left'] == 6 and a3['Right'] - b3['Right'] == 6 and a3['Third'] - b3['Third'] == 6, (b3, a3))
-    sgone('Third'); sgone('Right'); sgone('Left'); wait(900)
-    check('strum: with the hands gone it asks for one again', sst()['hands'] == {} and txt('#sSay') == 'Hold up a hand', sst()['hands'])
-    shand('Left', x=0.5, y=0.2); wait(500); g0 = sst()['n']['Left']
-    check('strum: a hand coming back into the picture does not pluck by arriving', g0 == a3['Left'], (g0, a3['Left']))
-    wait(4800); close()
+    check('strum: the card shows how fast it is: pictures a second, and the time to find the hand', txt('#sFps').isdigit() and int(txt('#sFps')) >= 10 and txt('#sMs') != '' and txt('#sSnd') != '', (txt('#sFps'), txt('#sMs'), txt('#sCam'), txt('#sSnd')))
+    ev("() => { __act(null); __puppet.rest = { hands: [], face: {} } }"); wait(900)
+    check('strum: with the hand gone it asks for one again', sst()['hand'] is None and txt('#sSay') == 'Hold up a hand', sst()['hand'])
+    g0 = sst()['n']; ev("() => { __puppet.rest = { hands: [{ side: 'Right', x: 0.5, y: 0.75, size: 0.13 }], face: {} } }"); wait(600)
+    check('strum: a hand coming into the picture does not pluck by arriving', sst()['n'] == g0 and sst()['hand'] is not None, (g0, sst()['n']))
+    wait(4200); close()
     key = sorted(x['key'] for x in json.loads(http('/trials')) if '-strum-' in x['key'] and x['key'].endswith(':000'))
     body = http('/trial/' + key[-1]) if key else ''
-    check('strum: the record has how much each hand played and how many hands were seen, and no picture', '"what":"played"' in body and '"third":' in body and '"what":"hands"' in body and 'landmarks' not in body, len(body))
+    check('strum: the record has how much was played, how many strings were sounded early and put back, and the speed; no picture', '"what":"played"' in body and '"early":' in body and '"missed":' in body and '"fps":' in body and '"what":"hand"' in body and 'landmarks' not in body, len(body))
 
     # ---- hands and things
     ev("() => { __puppet.rest = { hands: [], face: {} } }")
