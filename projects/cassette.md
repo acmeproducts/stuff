@@ -25,6 +25,7 @@ Authority: this file only.
 | 2026-11-20 | **New Tasks – Skinning / Visual Modes** | **Planned** | 1. Keep existing three skins (Walkman, Reel‑to‑Reel, Full‑Screen). 2. Add “Custom Skin” toggle allowing user to upload a PNG overlay. 3. Add “Skin Picker” button in hidden UI that cycles through preset skins. |
 | 2026-11-20 | **New Tasks – Configuration Persistence** | **Planned** | Store selected visual mode, selected skin (including custom PNG data URL), and last used source in `localStorage`. Restore on app launch. |
 | 2026-11-20 | **Next build step** | **Planned** | Update plan with detailed subtasks for each new feature (playback source integration, skinning UI, persistence). |
+| 2026-11-24 | **Plan update – concrete next‑step breakdown** | **Done** | Added detailed subtasks for playback sources, skinning UI, and persistence; clarified UI options for music selector and realism tweaks. |
 
 ## 1) RELEASES
 1. R1 — First playable tape (shipped).  
@@ -38,41 +39,34 @@ Authority: this file only.
 
 ## 1b) OPEN QUESTIONS
 1. **Walkman look** – exact color palette, button style, cassette label design, and whether the cassette should be centered with a small “handle” or fully fill the screen?  
-2. **Reel‑to‑reel look** – dimensions, number of reels, visible tape path, any knobs or meters to include?  
+2. **Reel‑to‑reel look** – dimensions, number of reels, visible tape path, any knobs or meters?  
 3. **Full‑screen cassette** – should the cassette be the only element (no floating controls) with controls hidden behind a tap‑to‑show overlay?  
-4. **Animation realism** – how fast should reels spin, should there be wobble, tape flutter, or motor hum?  
-5. **Configuration UI** – preferred control (dropdown, segmented button, swipe gesture) and where to place it (e.g., in the drawer, top bar, or a hidden gesture)?  
+4. **Animation realism** – reel spin speed, wobble, tape flutter, motor hum?  
+5. **Configuration UI** – preferred control (dropdown, segmented button, swipe gesture) and placement (drawer, top bar, hidden gesture)?  
 6. **Branding** – confirm no Sony/Walkman logos, just generic styling.  
-7. **Playback sources** – which of the following should be added?  
-   - Icecast directory (e.g., dir.xiph.org)  
-   - TuneIn API (categories, news, podcasts)  
-   - Radio Garden (global stations)  
-   - Internet Archive audio collections (e.g., live concerts)  
-   - KOCI Radio 88.5 (Southern California)  
-   - NPR (news)  
-   - BBC (world news)  
-8. **Music selector UI** – how discreet should it be? Options: hidden drawer (current), swipe‑up panel, tap‑to‑show overlay, or a small floating button.  
-9. **Realism tweaks** – add reel wobble CSS animation, tape flutter overlay, motor hum via WebAudio, optional vibration on button press.  
+7. **Playback sources** – which to add (Icecast, TuneIn, Radio Garden, Internet Archive, KOCI 88.5, NPR, BBC)?  
+8. **Music selector UI** – level of discretion (hidden drawer, swipe‑up panel, tap‑to‑show overlay, small floating button).  
+9. **Realism tweaks** – reel wobble CSS, tape flutter overlay, motor hum via WebAudio, optional vibration on button press.  
 
 ## 2) PER‑RELEASE SECTIONS
 ### R6 — Visual mode selector & realism
-- Add UI to choose between Walkman, Reel‑to‑Reel, Full‑Screen Cassette.  
-- Implement distinct CSS for each mode, respecting orientation lock rules.  
-- Add realistic animations (reel spin, tape flutter, motor hum) using CSS and WebAudio.  
-- Ensure controls appear only when needed (e.g., overlay for full‑screen mode).  
-- Backlog: fine‑tune sound files, add optional haptic feedback.
+- UI to choose Walkman / Reel‑to‑Reel / Full‑Screen.
+- Distinct CSS per mode, respecting portrait‑lock rules.
+- Realistic animations (reel spin, tape flutter, motor hum) via CSS & WebAudio.
+- Controls appear only when needed (overlay for full‑screen).
+- Backlog: fine‑tune sound files, optional haptic feedback.
 
 ### R7 — Expanded playback sources & discreet selector
-- Integrate streaming APIs (Icecast, TuneIn, Radio Garden, Internet Archive, KOCI 88.5, NPR, BBC).  
-- Provide a simple JSON list of stations with name + stream URL; load via `audio.src`.  
-- Add a discreet UI for source selection (e.g., hidden drawer or tap‑overlay).  
-- Update diagnostics to show current source type.
+- Integrate streaming APIs (Icecast, TuneIn, Radio Garden, Internet Archive, KOCI 88.5, NPR, BBC).
+- Simple JSON list of stations (name + URL) loaded into `audio.src`.
+- Discreet UI for source selection (hidden drawer or tap‑overlay).
+- Diagnostics show current source type.
 
 ### R8 — Skinning & persistence
-- Keep three existing skins; add “Custom Skin” toggle allowing PNG overlay upload.  
-- Add “Skin Picker” button in hidden UI to cycle through preset skins.  
-- Store selected visual mode, skin choice, and last used source in `localStorage`.  
-- On launch, read from `localStorage` and restore state.
+- Keep three existing skins; add “Custom Skin” toggle for PNG overlay upload.
+- “Skin Picker” button in hidden UI to cycle preset skins.
+- Store visual mode, skin choice, and last source in `localStorage`.
+- On launch, read `localStorage` and restore state.
 
 ## 3) FUTURE IDEAS
 - Cassette label editor, skins, wow‑flutter toggle, mixtape side A/B, Bluetooth media‑key support, PWA install, widget.
@@ -104,4 +98,4 @@ Authority order: 1) This plan, 2) Owner’s latest explicit request, 3) Referenc
 | 2026-11-19 14:51 | Main | failed | Venice failed. |  |
 | 2026-11-20 22:17 | Main | failed | I couldn't finish that one. Your app is unchanged. |  |
 | 2026-11-21 00:26 | Main | failed | I couldn't finish that one. Your app is unchanged. |  |
-| 2026-11-24 08:54 | Main | failed | Venice is rate-limiting this key — try again in a minute. |  |
+| 2026-11-24 08:54 | Main | failed | Venice is rate‑limiting this key — try again in a minute. |  |
