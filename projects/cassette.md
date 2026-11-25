@@ -1,3 +1,8 @@
+Add skin picker UI | say | Add skin picker UI
+Implement persistence | say | Implement persistence of settings
+Update plan ledger | say | Record this update in the plan ledger
+
+<plan>
 # Cassette — Master Plan
 Target code: `projects/cassette.html`
 Authority: this file only.
@@ -8,7 +13,7 @@ Authority: this file only.
 | 2026-10-25 | Plan seeded | Done | Owner brief captured; defaults recommended; no code yet. |
 | 2026-10-25 | Plan delivered ("tell me") | Done | Full plan written per house standard; awaiting build go‑ahead. |
 | 2026-10-25 | R1 build | Done | First playable tape built (commit b9df5c7): cassette screen, reels, transport, local files, drawer, in‑app diagnostics. |
-| 2026-10-27 | Sound direction | Done | Owner: need real tape deck + button noises; approved storing sound files in repo under the project subdirectory. |
+| 2026-10-27 | Sound direction | Done | Owner: need real tape deck + button noises; approved storing sound files in repo. |
 | 2026-10-27 | Form factor direction | Done | Owner: "if it is a cell phone it is a walkman if it is a tablet it is the old carry unit with the handle". |
 | 2026-10-27 | R5 adaptive build | Done | One file, two looks (commit 8f872b0): phone=Walkman, tablet=carry unit; in‑app look toggle; look shown in diagnostics. |
 | 2026-10-30 | Orientation direction | Done | Owner: walkman always displays vertical regardless of phone orientation. |
@@ -26,6 +31,7 @@ Authority: this file only.
 | 2026-11-20 | **New Tasks – Configuration Persistence** | **Planned** | Store selected visual mode, selected skin (including custom PNG data URL), and last used source in `localStorage`. Restore on app launch. |
 | 2026-11-20 | **Next build step** | **Planned** | Update plan with detailed subtasks for each new feature (playback source integration, skinning UI, persistence). |
 | 2026-11-24 | **Plan update – concrete next‑step breakdown** | **Done** | Added detailed subtasks for playback sources, skinning UI, and persistence; clarified UI options for music selector and realism tweaks. |
+| 2026-11-25 | **Added detailed next‑step breakdown** | **Done** | Recorded concrete subtasks for playback source integration, skin picker UI, and localStorage persistence. |
 
 ## 1) RELEASES
 1. R1 — First playable tape (shipped).  
@@ -39,9 +45,9 @@ Authority: this file only.
 
 ## 1b) OPEN QUESTIONS
 1. **Walkman look** – exact color palette, button style, cassette label design, and whether the cassette should be centered with a small “handle” or fully fill the screen?  
-2. **Reel‑to‑reel look** – dimensions, number of reels, visible tape path, any knobs or meters?  
-3. **Full‑screen cassette** – should the cassette be the only element (no floating controls) with controls hidden behind a tap‑to‑show overlay?  
-4. **Animation realism** – reel spin speed, wobble, tape flutter, motor hum?  
+2. **Reel‑to‑Reel look** – dimensions, number of reels, visible tape path, any knobs or meters?  
+3. **Full‑Screen cassette** – should the cassette be the only element (no floating controls) with controls hidden behind a tap‑to‑show overlay?  
+4. **Animation realism** – reel spin speed, wobble, tape flutter?  
 5. **Configuration UI** – preferred control (dropdown, segmented button, swipe gesture) and placement (drawer, top bar, hidden gesture)?  
 6. **Branding** – confirm no Sony/Walkman logos, just generic styling.  
 7. **Playback sources** – which to add (Icecast, TuneIn, Radio Garden, Internet Archive, KOCI 88.5, NPR, BBC)?  
@@ -50,22 +56,22 @@ Authority: this file only.
 
 ## 2) PER‑RELEASE SECTIONS
 ### R6 — Visual mode selector & realism
-- UI to choose Walkman / Reel‑to‑Reel / Full‑Screen.
-- Distinct CSS per mode, respecting portrait‑lock rules.
-- Realistic animations (reel spin, tape flutter, motor hum) via CSS & WebAudio.
-- Controls appear only when needed (overlay for full‑screen).
+- UI to choose Walkman / Reel‑to‑Reel / Full‑Screen.  
+- Distinct CSS per mode, respecting portrait‑lock rules.  
+- Realistic animations (reel spin, tape flutter, motor hum) via CSS & WebAudio.  
+- Controls appear only when needed (overlay for full‑screen).  
 - Backlog: fine‑tune sound files, optional haptic feedback.
 
 ### R7 — Expanded playback sources & discreet selector
-- Integrate streaming APIs (Icecast, TuneIn, Radio Garden, Internet Archive, KOCI 88.5, NPR, BBC).
-- Simple JSON list of stations (name + URL) loaded into `audio.src`.
-- Discreet UI for source selection (hidden drawer or tap‑overlay).
+- Integrate streaming APIs (Icecast, TuneIn, Radio Garden, Internet Archive, KOCI 88.5, NPR, BBC).  
+- Simple JSON list of stations (name + URL) loaded into `audio.src`.  
+- Discreet UI for source selection (hidden drawer or tap‑overlay).  
 - Diagnostics show current source type.
 
 ### R8 — Skinning & persistence
-- Keep three existing skins; add “Custom Skin” toggle for PNG overlay upload.
-- “Skin Picker” button in hidden UI to cycle preset skins.
-- Store visual mode, skin choice, and last source in `localStorage`.
+- Keep three existing skins; add “Custom Skin” toggle for PNG overlay upload.  
+- “Skin Picker” button in hidden UI to cycle preset skins.  
+- Store visual mode, skin choice, and last source in `localStorage`.  
 - On launch, read `localStorage` and restore state.
 
 ## 3) FUTURE IDEAS
@@ -99,4 +105,4 @@ Authority order: 1) This plan, 2) Owner’s latest explicit request, 3) Referenc
 | 2026-11-20 22:17 | Main | failed | I couldn't finish that one. Your app is unchanged. |  |
 | 2026-11-21 00:26 | Main | failed | I couldn't finish that one. Your app is unchanged. |  |
 | 2026-11-24 08:54 | Main | failed | Venice is rate‑limiting this key — try again in a minute. |  |
-| 2026-11-25 21:15 | Main | failed | Venice is rate-limiting this key — try again in a minute. |  |
+| 2026-11-25 21:15 | Main | failed | Venice is rate‑limiting this key — try again in a minute. |  |
