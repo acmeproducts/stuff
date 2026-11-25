@@ -14,6 +14,7 @@ export function engineReason(eng, msg) {
   if (/spend limit/i.test(msg)) return n + ': this API key has reached its own spending limit (your account may still have balance) — raise the key’s limit in ' + n + ' under API keys, or paste a new key';
   if (/402|insufficient credit|never purchased|out of credit|balance (is )?empty/i.test(msg)) return n + ' has no credits left';
   if (/401|authentication|key.*(rejected|invalid)|invalid.*key/i.test(msg)) return n + ' rejected the key';
+  if (/overload/i.test(msg)) return n + ' is overloaded right now (not a credit problem) — try again in a minute';
   if (/429|rate limit/i.test(msg)) return n + ' is rate-limiting this key — try again in a minute';
   if (/timeout|time limit|stalled/i.test(msg)) return n + ' took too long';
   if (/Failed to fetch|network/i.test(msg)) return 'could not reach ' + n;
@@ -211,6 +212,13 @@ async function callEngine(io, ctl, cfg, eng, model, system, history, user, image
   if (eng === 'venice' && webSearch) payload.venice_parameters = { enable_web_search: 'auto', include_search_results_in_stream: false };
   const budget = Math.max(15000, Math.min(budgetMs || 600000, 600000));
   let res = await streamChat(io, ctl, M.url, M.key, payload, 90000, budget, onText);
+  for (const wait of [6000, 15000, 30000]) {
+    if (res.ok || !(res.status === 429 || res.status === 503 || res.status === 529)) break;
+    const m0 = String(((res.j || {}).error && ((res.j || {}).error.message || (res.j || {}).error)) || '');
+    if (!/overload|busy|try again/i.test(m0)) break;
+    await new Promise(r => setTimeout(r, wait));
+    res = await streamChat(io, ctl, M.url, M.key, payload, 90000, budget, onText);
+  }
   if (!res.ok) {
     const j = res.j || {}, msg = String((j.error && (j.error.message || j.error)) || '');
     const cap = msg.match(/maximum allowed is (\d+)/);

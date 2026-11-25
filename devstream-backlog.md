@@ -6,8 +6,8 @@ Deploy target: `https://acmeproducts.github.io/stuff/devstream.html`
 Test target: `https://acmeproducts.github.io/stuff/devstream-test.html`
 
 ## Status
-- Current release: v1.0 b82 on devstream-test.html (2026-10-22)
-- Stage: TEST (b82)
+- Current release: v1.0 b83 on devstream-test.html (2026-10-22)
+- Stage: TEST (b83)
 
 ## Release Rules (inherited, proven)
 1. Mobile-first. All diagnostics in-app. No DevTools ever.
@@ -257,6 +257,10 @@ b39 incorrectly changed stationary hold into context-menu activation. Devstream 
 - **G-DS-14 — Legacy generic #tabContext button styling:** rejected; it corrupts the donor context-menu appearance.
 
 ---
+
+# 2026-11-25 — b83 retry when Venice is overloaded
+- Finding: "venice 429: model is currently overloaded" is Venice being busy, not credits (account shows 645 credits, API active). The app gave up at once.
+- Plan: on an overloaded/busy reply, wait 6s, 15s, 30s and retry the same AI before failing; message says "overloaded, not a credit problem".
 
 # 2026-10-22 — b82 longer wait for slow AI answers
 - Finding: the OpenRouter "no credits" text on redboard was left over from an earlier run (the project is on Venice and switching is off). The live problem is Venice taking over 4 minutes per answer on big files.
