@@ -25,7 +25,46 @@ with sync_playwright() as pw:
         errors=[]
         page.on("pageerror",lambda e:errors.append(str(e)))
         page.goto(url)
-        assert page.get_by_role("link",name="Open Wi-Fi setup").get_attribute("href")=="http://192.168.4.1/config"
+        assert page.get_by_role("heading", name="Setup overview").is_visible(), "Missing six-step wizard"
+        assert page.locator("#stepList button").count() == 6
+        page.get_by_role("button", name="Start setup").click()
+        page.select_option("#wizardSlot", "4")
+        page.locator("#nextStep").click()
+        assert "tiny-05" in page.locator("#wifiName").inner_text()
+        assert page.get_by_role("link", name="Open Wi-Fi setup", exact=True).get_attribute("href") == "http://192.168.4.1/config"
+        page.reload()
+        assert page.locator("#wifiName").is_visible()
+        page.locator("#nextStep").click()
+        page.select_option("#controller", "mobile")
+        page.fill("#wizardAddress", "https://example.org/")
+        page.locator("#nextStep").click()
+        assert page.locator("#addressError").is_visible()
+        page.fill("#wizardAddress", "192.168.13.42")
+        page.locator("#nextStep").click()
+        page.locator("#androidBacklog summary").click()
+        assert page.get_by_role("link", name="Android companion backlog").get_attribute("href").endswith("/issues/1033")
+        for integration in ["manual", "claude", "codex"]:
+            page.select_option("#integration", integration)
+            page.locator("#nextStep").click()
+            assert page.locator("#map-" + integration).is_visible()
+            if integration == "codex":
+                page.select_option("#onPrompt", "thinking")
+                page.select_option("#onFinish", "typing")
+                assert page.locator("#install").is_visible()
+            page.locator("#nextStep").click()
+            assert page.locator("#testAnimations").get_attribute("href") == "http://192.168.13.42/animations"
+            if integration == "codex":
+                assert "Thinking" in page.locator("#reactionTest").inner_text()
+                assert "Typing" in page.locator("#reactionTest").inner_text()
+            page.get_by_role("button", name="No response").click()
+            assert page.locator("#testTrouble").is_visible()
+            page.get_by_role("button", name="It worked").click()
+            assert "confirmed" in page.locator("#testResult").inner_text().lower()
+            assert page.evaluate("document.documentElement.scrollWidth <= innerWidth")
+            page.locator("#backStep").click()
+            page.locator("#backStep").click()
+        page.locator("#overviewButton").click()
+        assert page.get_by_role("heading", name="Setup overview").is_visible()
         page.get_by_role("button",name="My robots",exact=True).click()
         page.select_option("#slot","4")
         page.fill("#address","192.168.13.42")
@@ -78,6 +117,26 @@ with sync_playwright() as pw:
         env.pop("TINY_ENGINEER_DESK_05_TOKEN")
         resp=subprocess.run(command,shell=True,timeout=8,env=env,capture_output=True,text=True)
         assert resp.returncode and "401" in resp.stderr
+    page.get_by_role("button", name="Setup wizard").click()
+    page.locator('[data-step="4"]').click()
+    page.select_option("#integration", "codex")
+    page.locator("#nextStep").click()
+    page.select_option("#onPrompt", "thinking")
+    page.select_option("#onFinish", "welcome")
+    page.evaluate("Object.defineProperty(navigator, 'clipboard', {value:{writeText:async s=>{window.copied=s}},configurable:true})")
+    page.locator("#copyCodex").click()
+    page.wait_for_function("typeof window.copied === 'string'")
+    assert "Thinking" in page.evaluate("window.copied") and "Welcome" in page.evaluate("window.copied")
+    install("Installed in")
+    install("already point")
+    custom=page.evaluate("async()=>JSON.parse(await (await file.getFile()).text())")
+    assert len(custom["hooks"]["Stop"])==2 and len(custom["hooks"]["UserPromptSubmit"])==1
+    assert custom["hooks"]["Stop"][0]["hooks"][0]["command"]=="echo keep"
+    for event, pose in [("UserPromptSubmit","thinking"),("Stop","welcome")]:
+        handler=custom["hooks"][event][-1]["hooks"][0]
+        command=handler["command"].replace("tiny-05.local",f"127.0.0.1:{device.server_port}")
+        subprocess.run(command,shell=True,env=dict(os.environ,TINY_ENGINEER_DESK_05_TOKEN="demo-token"),check=True,timeout=8)
+        assert events[-1][0] == "/anim?name=" + pose
     awaitable="async()=>await (await file.getFile()).text()"
     page.evaluate("()=>setFile('broken JSON')")
     install("could not be parsed")
@@ -85,7 +144,17 @@ with sync_playwright() as pw:
     page.evaluate("()=>setFile('false')")
     install("unexpected structure")
     assert page.evaluate(awaitable)=="false"
+    page.reload()
+    assert page.locator("#onPrompt").input_value()=="thinking"
+    page.get_by_role("button", name="My robots", exact=True).click()
+    page.select_option("#slot","0")
+    page.get_by_role("button", name="Setup wizard").click()
+    assert page.locator("#onPrompt").input_value()=="reading"
+    assert page.locator("#onFinish").input_value()=="ring"
+    page.get_by_role("button", name="Coding apps",exact=True).click()
+    page.get_by_role("button", name="Codex",exact=True).click()
+    assert page.locator("#install").is_visible()
     print("PASS: folder installer, unrelated hooks preserved, repeat install, retarget, invalid files preserved, both event commands, authenticated requests and 401 reporting")
     browser.close()
 for server in [device,web]: server.shutdown()
-print("PASS: first use, five-unit selection, local address validation, persistence, per-unit AI setup, three widths")
+print("PASS: six-step overview, three working branches, Android backlog link, editable Codex gestures, unit isolation, tablet handoff controls, and three screen widths")
