@@ -6,8 +6,8 @@ Deploy target: `https://acmeproducts.github.io/stuff/devstream.html`
 Test target: `https://acmeproducts.github.io/stuff/devstream-test.html`
 
 ## Status
-- Current release: v1.0 b83 on devstream-test.html (2026-10-22)
-- Stage: TEST (b83)
+- Current release: v1.0 b84 on devstream-test.html (2026-10-22)
+- Stage: TEST (b84)
 
 ## Release Rules (inherited, proven)
 1. Mobile-first. All diagnostics in-app. No DevTools ever.
@@ -257,6 +257,10 @@ b39 incorrectly changed stationary hold into context-menu activation. Devstream 
 - **G-DS-14 — Legacy generic #tabContext button styling:** rejected; it corrupts the donor context-menu appearance.
 
 ---
+
+# 2026-11-25 — b84 model list shows price, cheapest first, flags removed models
+- Owner: the saved model may be gone; unsure which is cheap; Kimi drains DIEM fast.
+- Plan: Venice model dropdown sorted cheapest first, each with price per 1M tokens, offline/non-text models hidden, warning if the project's current model is no longer offered.
 
 # 2026-11-25 — b83 retry when Venice is overloaded
 - Finding: "venice 429: model is currently overloaded" is Venice being busy, not credits (account shows 645 credits, API active). The app gave up at once.
