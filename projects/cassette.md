@@ -104,3 +104,4 @@ Authority order: 1) This plan, 2) Owner’s latest explicit request, 3) Referenc
 | 2026-11-24 08:54 | Main | failed | Venice is rate‑limiting this key — try again in a minute. |  |
 | 2026-11-25 21:15 | Main | failed | Venice is rate‑limiting this key — try again in a minute. |  |
 | 2026-11-26 10:02 | Main | done | Added skin picker UI, custom skin upload, and persistence; updated plan ledger. |  |
+| 2026-11-26 08:30 | Main | built projects/cassette.html | Added a “Launch App” button that opens the cassette player and starts playback, and updated the plan with this new task. | 38734d9 |
