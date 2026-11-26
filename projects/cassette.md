@@ -1,8 +1,3 @@
-Add skin picker UI | say | Add skin picker UI
-Implement persistence | say | Implement persistence of settings
-Update plan ledger | say | Record this update in the plan ledger
-
-<plan>
 # Cassette — Master Plan
 Target code: `projects/cassette.html`
 Authority: this file only.
@@ -32,6 +27,7 @@ Authority: this file only.
 | 2026-11-20 | **Next build step** | **Planned** | Update plan with detailed subtasks for each new feature (playback source integration, skinning UI, persistence). |
 | 2026-11-24 | **Plan update – concrete next‑step breakdown** | **Done** | Added detailed subtasks for playback sources, skinning UI, and persistence; clarified UI options for music selector and realism tweaks. |
 | 2026-11-25 | **Added detailed next‑step breakdown** | **Done** | Recorded concrete subtasks for playback source integration, skin picker UI, and localStorage persistence. |
+| 2026-11-26 | **Added skin picker UI and persistence** | **Done** | Implemented skin picker button, custom skin upload, and saved selections in localStorage; updated UI to reflect current skin; added ledger entry. |
 
 ## 1) RELEASES
 1. R1 — First playable tape (shipped).  
@@ -90,6 +86,7 @@ Authority: this file only.
 | 2026-11-12 | Playback source expansion | Owner wants more streaming sources (Icecast, TuneIn, Radio Garden, etc.) |
 | 2026-11-12 | Discreet selector | Owner wants a less intrusive music selection UI |
 | 2026-11-20 | Skinning & persistence | Owner requested custom skin upload and localStorage persistence |
+| 2026-11-26 | Skin picker UI | Implemented skin picker button, custom skin upload, and persistence. |
 
 ## 6) APPENDIX
 Authority order: 1) This plan, 2) Owner’s latest explicit request, 3) Referenced files, 4) Chat history.
@@ -106,3 +103,4 @@ Authority order: 1) This plan, 2) Owner’s latest explicit request, 3) Referenc
 | 2026-11-21 00:26 | Main | failed | I couldn't finish that one. Your app is unchanged. |  |
 | 2026-11-24 08:54 | Main | failed | Venice is rate‑limiting this key — try again in a minute. |  |
 | 2026-11-25 21:15 | Main | failed | Venice is rate‑limiting this key — try again in a minute. |  |
+| 2026-11-26 10:02 | Main | done | Added skin picker UI, custom skin upload, and persistence; updated plan ledger. |  |
