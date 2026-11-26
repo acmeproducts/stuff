@@ -3,6 +3,7 @@ import json, sys, os, subprocess, threading
 from http.server import BaseHTTPRequestHandler, SimpleHTTPRequestHandler, ThreadingHTTPServer
 from functools import partial
 from playwright.sync_api import sync_playwright
+from test_mobile import check_mobile
 
 source=Path(sys.argv[1]).resolve()
 assert source.is_file(), "Missing single-file setup guide"
@@ -20,6 +21,7 @@ for server in [web,device]:
 url=os.environ.get("GUIDE_URL",f"http://127.0.0.1:{web.server_port}/{source.name}")
 with sync_playwright() as pw:
     browser=pw.chromium.launch(executable_path=os.environ.get("CHROME_BIN"),args=["--no-sandbox"])
+    check_mobile(browser, url)
     for w,h in [(360,800),(800,1280),(1366,850)]:
         page=browser.new_page(viewport={"width":w,"height":h})
         errors=[]
