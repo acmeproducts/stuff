@@ -21,7 +21,11 @@ def check_studio(browser, url):
         path = urlsplit(req.url).path
         if req.method == "OPTIONS":
             return respond(route, {})
+        if path == state.get("fail"):
+            return route.abort("addressunreachable")
         if path == "/auth":
+            if state.get("setup"):
+                return respond(route, {"ok":True,"required":False,"provisioning":True,"wifi_configured":False})
             return respond(route, {"ok": True, "required": True, "provisioning": False, "wifi_configured": True})
         assert req.headers.get("authorization") == "Bearer robot-secret"
         if path == "/health":
@@ -69,6 +73,41 @@ def check_studio(browser, url):
     page.route("https://api.github.com/repos/acmeproducts/stuff/contents/tiny-engineer/gestures**",github)
     page.goto(url)
     assert page.get_by_role("heading", name="Gesture studio", exact=True).is_visible(), "Separate gesture studio missing"
+    assert page.locator("#homeSetup").count() == 1, "Missing home Wi-Fi setup path"
+    state["fail"]="/auth"
+    page.evaluate("window.testPermission='granted'; Object.defineProperty(navigator.permissions,'query',{value:async()=>({state:window.testPermission})})")
+    page.locator("#connect").click()
+    expect(page.locator("#directTest")).to_be_visible()
+    assert page.locator("#directTest").get_attribute("href")=="http://tiny-engineer.local/animations"
+    expect(page.locator("#linkStatus")).to_contain_text("tiny-engineer.local")
+    page.locator("#directWorked").click()
+    expect(page.locator("#diagAdvice")).to_contain_text("Chrome")
+    page.locator("#directFailed").click()
+    expect(page.locator("#diagAdvice")).to_contain_text("router")
+    page.evaluate("window.testPermission='denied'")
+    page.locator("#connect").click()
+    expect(page.locator("#linkStatus")).to_contain_text("blocked")
+    state.pop("fail")
+    page.evaluate("window.testPermission='granted'")
+    state["setup"]=True
+    page.locator("#connect").click()
+    expect(page.locator("#homeSetup")).to_be_visible()
+    expect(page.locator("#linkStatus")).to_contain_text("setup mode")
+    state.pop("setup")
+    state["fail"]="/anim"
+    page.locator("#connect").click()
+    page.locator("#robotToken").fill("robot-secret")
+    page.locator("#connect").click()
+    expect(page.locator("#linkStatus")).to_contain_text("gesture status")
+    assert "robot-secret" not in page.locator("#history").inner_text()
+    state["fail"]="/settings"
+    page.locator("#connect").click()
+    expect(page.locator("#runTest")).to_be_enabled()
+    expect(page.locator("#linkStatus")).to_contain_text("joint limits")
+    page.locator("#connection").evaluate("(n)=>n.open=true")
+    state.pop("fail")
+    page.locator("#host").fill("tiny-01.local")
+    assert page.locator("#directTest").get_attribute("href")=="http://tiny-01.local/animations"
     page.locator("#connect").click()
     page.locator("#robotToken").fill("robot-secret")
     page.locator("#connect").click()
