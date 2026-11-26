@@ -1172,7 +1172,7 @@
         const headers = { Accept: "application/vnd.github+json" };
         if (token) headers.Authorization = "Bearer " + token;
         if (write) headers["Content-Type"] = "application/json";
-        const url = api + (file ? "/" + file : "") + (write ? "" : "?ref=" + branch);
+        const url = api + (file ? "/" + file : "") + (write ? "" : "?ref=" + branch + "&t=" + Date.now());
         const response = await fetch(url, {
           method: write ? "PUT" : "GET",
           headers,
@@ -1181,7 +1181,7 @@
           redirect: "error",
           cache: "no-store",
           referrerPolicy: "no-referrer",
-          signal: AbortSignal.timeout(18000),
+          signal: AbortSignal.timeout(write ? 45000 : 18000),
         });
         if (!response.ok) {
           const e = Error(
@@ -1387,14 +1387,26 @@
           const data = getDraft(),
             revision = editorRevision;
           if (!el("ghToken").value.trim()) throw Error("Enter a GitHub token, or use Save with GitHub.");
-          const filename = editingFile || newFile(data.name);
+          const content = encode(data);
+          const retryFile =
+            pending?.mode === "direct" && pending.content === content && validFile(pending.file)
+              ? pending.file
+              : "";
+          const filename = editingFile || retryFile || newFile(data.name);
+          pending = { file: filename, content, mode: "direct" };
+          persist("te.studio.pending", pending);
+          msg("libStatus", "Saving to GitHub…");
           libraryBusy = true;
           el("saveDirect").disabled = true;
-          const body = { message: "Save Tiny Engineer routine " + data.name, branch, content: encode(data) };
+          const body = { message: "Save Tiny Engineer routine " + data.name, branch, content };
           if (editingFile) body.sha = editingSha;
           const reply = await gh(filename, { method: "PUT", body: JSON.stringify(body) });
           if (!reply.content?.sha) throw Error("GitHub did not confirm the save. Refresh before retrying.");
           const sha = reply.content.sha;
+          if (pending?.file === filename && pending.content === content) {
+            pending = null;
+            persist("te.studio.pending", null);
+          }
           cache.set(filename, { routine: data, sha });
           files.set(filename, sha);
           renderListing();
@@ -1407,6 +1419,17 @@
           msg("libStatus", "Saved to GitHub · " + data.name + ".");
         } catch (e) {
           msg("libStatus", e.message);
+          if (libraryBusy && (!e.status || e.status >= 500 || [409, 422].includes(e.status))) {
+            msg("libStatus", "Checking the saved routine on GitHub…");
+            const verified = await checkPending();
+            if (!verified)
+              msg(
+                "libStatus",
+                e.status === 409 || e.status === 422
+                  ? e.message
+                  : "Save not yet confirmed. Your draft is preserved. Refresh to verify, or retry the same file.",
+              );
+          }
         } finally {
           libraryBusy = false;
           el("saveDirect").disabled = false;
@@ -1417,7 +1440,7 @@
           const data = getDraft();
           const encoded = encode(data);
           const filename =
-            pending && pending.content === encoded && validFile(pending.file)
+            pending && pending.mode !== "direct" && pending.content === encoded && validFile(pending.file)
               ? pending.file
               : newFile(data.name);
           const serialized = JSON.stringify(data, null, 2) + "\n";
@@ -1431,7 +1454,7 @@
             "Save with GitHub creates a new library entry. In the GitHub editor tap Commit changes and confirm. If the editor is empty, paste this routine first. Return here to verify the save.",
           );
           show("handoff", true);
-          pending = { file: filename, content: encoded };
+          pending = { file: filename, content: encoded, mode: "web" };
           persist("te.studio.pending", pending);
           window.open(link.href, "_blank", "noopener,noreferrer");
           navigator.clipboard?.writeText(serialized).catch(() => {});
@@ -1476,6 +1499,7 @@
           } catch {}
           msg("libStatus", "Saved to GitHub · " + saved.routine.name + ".");
           show("handoff", false);
+          return true;
         } catch (e) {
           if (e.status !== 404) msg("libStatus", "Could not verify the commit. " + e.message);
         } finally {
