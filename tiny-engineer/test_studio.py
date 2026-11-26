@@ -59,6 +59,9 @@ def check_studio(browser, url):
             if name in files and body.get("sha") != files[name]["sha"]:
                 return respond(route,{"message":"Conflict"},409)
             files[name] = {"sha": str(len(files)+1).zfill(40), "content": body["content"], "type":"file"}
+            if state.pop("drop_reply",False):
+                route.abort("connectionreset")
+                return
             return respond(route, {"content":files[name]},201)
         return respond(route, files.get(name,{}),200 if name in files else 404)
 
@@ -145,10 +148,20 @@ def check_studio(browser, url):
     page.locator("#load").click()
     expect(page.locator("#name")).to_have_value("Gentle nod")
     files[filename]["sha"]="f"*40
+    files[filename]["content"]=base64.b64encode(json.dumps({"version":1,"name":"Another edit","steps":[{"kind":"pose","value":"reading"}]}).encode()).decode()
     page.locator("#publishOptions").evaluate("(n)=>n.open=true")
     page.locator("#ghToken").fill("writer-secret")
     page.locator("#saveDirect").click()
     expect(page.locator("#libStatus")).to_contain_text("draft is preserved")
+    page.locator("#new").click()
+    page.locator("#name").fill("Slow connection")
+    page.select_option("#kind","pose")
+    page.locator("#add").click()
+    prior = len(files)
+    state["drop_reply"]=True
+    page.locator("#saveDirect").click()
+    expect(page.locator("#libStatus")).to_contain_text("Saved to GitHub",timeout=5000)
+    assert len(files)==prior+1
     for width in (360,800,1366):
         page.set_viewport_size({"width":width,"height":830})
         for tab in ("testTab","libraryTab","contextTab"):
