@@ -372,8 +372,23 @@
           </div>
         </form>
         <p id="linkStatus" role="status" class="small">
-          Power the robot and join the same Wi-Fi or phone hotspot. Use its address from setup.
+          Enter the numeric address shown by your robot at startup or by your router. The suggested name is only a starting point.
         </p>
+        <details id="homeGuide">
+          <summary>Connect the robot to home Wi-Fi</summary>
+          <ol>
+            <li>Power the assembled robot through its main USB-C port. If it already shows a home-network IP, put your phone on that same home network and enter the IP above.</li>
+            <li>For first setup, open <b>Settings → Connections → Wi-Fi</b> on your Samsung. Join <b>TinyEngineer-XXXX</b> and stay connected if Android reports no internet.</li>
+            <li>While joined to the robot, open <a id="homeSetup" target="_blank" rel="noopener noreferrer" href="http://192.168.4.1/config">the robot’s Wi-Fi setup</a>. Keep the builder’s calibration. At <b>Connection</b> or <b>Network</b>, choose Wi-Fi and enter your <b>2.4 GHz home Wi-Fi</b> name and password. Note the numeric address shown when it connects.</li>
+            <li>Return your phone to your normal home Wi-Fi. Power-cycle the robot if the wizard requests it. Enter its home-network address above and tap <b>Connect</b>. If no setup network appears, check your router’s connected devices for the robot’s IP.</li>
+          </ol>
+        </details>
+        <div id="diagnosis" hidden>
+          <a class="button" id="directTest" target="_blank" rel="noopener noreferrer">Open robot controls directly</a>
+          <p class="small">Return here after trying that link.</p>
+          <div class="actions"><button id="directWorked" type="button">Controls opened</button><button id="directFailed" type="button">Didn’t open</button></div>
+          <p id="diagAdvice" class="small" role="status"></p>
+        </div>
       </details>
       <nav class="tabs" aria-label="Studio">
         <button id="testTab" aria-pressed="true">Test bench</button
@@ -726,10 +741,11 @@
         throw Error("Enter the robot’s private Wi-Fi IP or its .local name.");
       }
       function previousHost(i) {
+        const suggested = i === 0 ? "tiny-engineer.local" : "tiny-0" + (i + 1) + ".local";
         try {
-          return localStorage.getItem("tiny-engineer.v1.host." + i) || "tiny-0" + (i + 1) + ".local";
+          return localStorage.getItem("tiny-engineer.v1.host." + i) || suggested;
         } catch {
-          return "tiny-0" + (i + 1) + ".local";
+          return suggested;
         }
       }
       el("slot").replaceChildren(...Array.from({ length: 5 }, (_, i) => option(i, "Robot 0" + (i + 1))));
@@ -764,8 +780,10 @@
         const native = el("native");
         try {
           native.href = "http://" + localHost(el("host").value) + "/animations";
+          el("directTest").href = native.href;
         } catch {
           native.removeAttribute("href");
+          el("directTest").removeAttribute("href");
         }
       }
       function cancelRun() {
@@ -791,6 +809,8 @@
         el("robotToken").value = "";
         show("authBox", false);
         msg("badge", "Offline");
+        show("diagnosis", false);
+        msg("diagAdvice", "");
         msg("linkStatus", "Check the address and tap Connect.");
         updateUi();
       }
@@ -800,11 +820,25 @@
         resetLink();
         restoreMappings();
       };
+      el("directWorked").onclick = () => {
+        msg("diagAdvice", "If you see Tiny Engineer’s controls, the address works. Try Animations → Bell there. For the studio, open it in full Chrome, check this site’s Local network permission, then retry Connect.");
+      };
+      el("directFailed").onclick = () => {
+        msg("diagAdvice", "Check that your phone is on your main home Wi-Fi and use the robot’s numeric IP from startup or your router’s connected-device list. If TinyEngineer-XXXX appears in Wi-Fi settings, use the home Wi-Fi setup above.");
+        el("homeGuide").open = true;
+      };
+      async function networkPermission() {
+        for (const name of ["local-network", "local-network-access"]) {
+          try { return (await navigator.permissions.query({ name })).state; }
+          catch { /* Older Chrome versions use the other name or do not expose permission status. */ }
+        }
+        return "unknown";
+      }
       async function packet(unit, path, options = {}) {
         const headers = { ...(options.type ? { "Content-Type": options.type } : {}) };
         if (unit.token) headers.Authorization = "Bearer " + unit.token;
         const c = new AbortController(),
-          timeout = setTimeout(() => c.abort(), 25000);
+          timeout = setTimeout(() => c.abort(), options.timeout ?? 25000);
         try {
           const r = await fetch("http://" + unit.host + path, {
             method: options.method || "GET",
@@ -833,12 +867,13 @@
           }
           return json;
         } catch (e) {
-          if (e.name === "AbortError" || e instanceof TypeError)
-            throw Error(
-              options.method === "POST"
-                ? "No acknowledgement. Check the robot before trying again."
-                : "Could not reach the robot. Check the network, address and Chrome’s local network permission.",
-            );
+          if (e.name === "AbortError" || e instanceof TypeError) {
+            const failure = Error(options.method === "POST"
+              ? "No acknowledgement. Check the robot before trying again."
+              : c.signal.aborted ? "The request timed out." : "No response reached this page.");
+            failure.network = true;
+            throw failure;
+          }
           throw e;
         } finally {
           clearTimeout(timeout);
@@ -853,37 +888,54 @@
         disableContext();
         connecting = true;
         updateUi();
-        msg("linkStatus", "Connecting…");
+        show("diagnosis", false);
+        msg("diagAdvice", "");
+        let host, identified = false, stage = "robot identification";
         try {
-          const unit = { host: localHost(el("host").value), token: "" };
+          host = localHost(el("host").value);
+          msg("linkStatus", "Looking for Tiny Engineer at " + host + "…");
+          const unit = { host, token: "" };
           const auth = await packet(unit, "/auth");
           if (gen !== linkGeneration) return;
           if (typeof auth.required !== "boolean" || typeof auth.provisioning !== "boolean")
-            throw Error("The address did not identify a Tiny Engineer.");
-          if (auth.provisioning || auth.wifi_configured === false)
-            throw Error("Finish the robot’s Wi-Fi setup first.");
+            throw Error("This address answered, but its response did not identify a Tiny Engineer.");
+          identified = true;
+          if (auth.provisioning || auth.wifi_configured === false) {
+            el("homeGuide").open = true;
+            throw Error("The robot is in setup mode. Finish home Wi-Fi setup below, then reconnect using its home-network IP.");
+          }
           show("authBox", auth.required);
           if (auth.required && !el("robotToken").value) {
-            msg("linkStatus", "Enter the robot token, then tap Connect.");
+            msg("badge", "Robot found");
+            msg("linkStatus", host + " answered. Enter the robot access token, then tap Connect.");
             return;
           }
           unit.token = auth.required ? el("robotToken").value : "";
-          const health = await packet(unit, "/health");
-          if (gen !== linkGeneration) return;
+          stage = "gesture status";
           const state = await packet(unit, "/anim");
           if (gen !== linkGeneration) return;
           if (typeof state.animation !== "string") throw Error("Invalid animation status from the robot.");
-          unit.version = String(health.version || "unknown");
-          unit.legacy = /^v?0\.[12]\.\d+(?:-dirty)?$/.test(unit.version);
-          const cfg = await packet(unit, "/settings");
+          const warnings = [];
+          // Only identification and gesture control are required for stock tests.
+          // Optional features stay unavailable until the robot confirms their capabilities.
+          unit.version = typeof auth.version === "string" ? auth.version : "unknown";
+          if (unit.version === "unknown") {
+            try { unit.version = String((await packet(unit, "/health", {timeout: 3500})).version || "unknown"); }
+            catch { warnings.push("firmware version unavailable"); }
+          }
           if (gen !== linkGeneration) return;
-          unit.min = cfg.servo_mins;
-          unit.max = cfg.servo_maxs;
-          unit.audio = false;
+          unit.legacy = /^v?0\.[12]\.\d+(?:-dirty)?$/.test(unit.version);
           try {
-            await packet(unit, "/play");
-          } catch (probe) {
+            const cfg = await packet(unit, "/settings", {timeout: 3500});
+            unit.min = cfg.servo_mins;
+            unit.max = cfg.servo_maxs;
+          } catch { warnings.push("custom joint limits unavailable"); }
+          if (gen !== linkGeneration) return;
+          unit.audio = false;
+          try { await packet(unit, "/play", {timeout: 3500}); }
+          catch (probe) {
             unit.audio = probe.status === 405;
+            if (probe.status !== 405 && probe.status !== 404) warnings.push("streamed audio unconfirmed");
           }
           if (gen !== linkGeneration) return;
           robot = unit;
@@ -896,17 +948,33 @@
             "linkStatus",
             unit.host +
               " · streamed chimes " +
-              (unit.audio ? "supported" : "unavailable on this build") +
-              ".",
+              (unit.audio ? "supported" : "unavailable") +
+              (warnings.length ? " · " + warnings.join("; ") : "") + ".",
           );
-          log("Connected to " + unit.host + ". Choose Bell strike for the first test.");
+          log("Connected to " + unit.host + ". Choose Bell strike for the first test." +
+            (warnings.length ? " Connection details: " + warnings.join("; ") + "." : ""));
           el("connection").open = false;
         } catch (error) {
-          if (gen === linkGeneration) {
-            msg("badge", "Offline");
-            msg("linkStatus", error.message);
-            log(error.message);
+          if (gen !== linkGeneration) return;
+          let message = error.message;
+          if (error.network) {
+            const permission = await networkPermission();
+            if (gen !== linkGeneration) return;
+            if (permission === "denied") {
+              message = "Chrome reports local network access is blocked for this page. Open Chrome’s site permissions for this studio, allow Local network, then tap Connect.";
+            } else {
+              message = identified ? host + " identified itself as Tiny Engineer, but the " + stage + " check failed. " :
+                "No robot reply reached the studio from " + host + ". ";
+              message += "Open the robot controls directly below to check this address.";
+            }
+          } else if (identified && error.status === 401) {
+            show("authBox", true);
+            message = host + " rejected the access token. Enter the robot token from the builder and reconnect.";
           }
+          msg("badge", identified ? "Robot found" : "Offline");
+          show("diagnosis", !!host && (error.network === true || !identified));
+          msg("linkStatus", message);
+          log(message);
         } finally {
           if (gen === linkGeneration) {
             connecting = false;
