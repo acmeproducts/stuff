@@ -5,7 +5,7 @@
   'use strict';
   const CK = 'mp.cfg.v1';
   const PROV = {
-    venice: { name: 'Venice', url: 'https://api.venice.ai/api/v1/chat/completions', models: 'https://api.venice.ai/api/v1/models', model: 'llama-3.3-70b' },
+    venice: { name: 'Venice', url: 'https://api.venice.ai/api/v1/chat/completions', models: 'https://api.venice.ai/api/v1/models', model: 'openai-gpt-oss-120b' },
     openrouter: { name: 'OpenRouter', url: 'https://openrouter.ai/api/v1/chat/completions', models: 'https://openrouter.ai/api/v1/models', model: 'anthropic/claude-sonnet-4.5' },
     anthropic: { name: 'Claude', url: 'https://api.anthropic.com/v1/messages', models: 'https://api.anthropic.com/v1/models', model: 'claude-sonnet-4-5' },
   };
