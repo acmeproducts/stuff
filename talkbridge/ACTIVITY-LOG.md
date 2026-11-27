@@ -1,6 +1,6 @@
 # TalkBridge activity log
 
-Who created, joined, called and chatted, one line per event, no message text (§7.21; relay v6.14). Drained 2026-11-27T02:44:25Z. Newest at the bottom. Person = the name typed in the app, letters and digits only (no name: Guest 1, Guest 2 … per room); room = its short id. Live view: https://acmeproducts.github.io/stuff/talkbridge/dash.html
+Who created, joined, called and chatted, one line per event, no message text (§7.21; relay v6.14). Drained 2026-11-27T11:26:31Z. Newest at the bottom. Person = the name typed in the app, letters and digits only (no name: Guest 1, Guest 2 … per room); room = its short id. Live view: https://acmeproducts.github.io/stuff/talkbridge/dash.html
 
 ```
 2026-10-19 07:05:25  room wvshos  voice call from miko — answered by text
@@ -364,4 +364,9 @@ Who created, joined, called and chatted, one line per event, no message text (§
 2026-11-23 09:37:04  room 4yihls  Mike joined  th → unknown
 2026-11-23 20:54:35  room 6wyjxz  voice call from mike — missed
 2026-11-23 20:56:44  room 6wyjxz  voice call from text — answered by mike  started 20:56:11  ended 20:56:44  lasted 33s
-2026-11-23 21:03:28  room 6wyjxz  voice call from text — answered by mike  started 21:03:23  ended 21:03:28  lasted 4s```
+2026-11-23 21:03:28  room 6wyjxz  voice call from text — answered by mike  started 21:03:23  ended 21:03:28  lasted 4s
+2026-11-27 05:18:27  room hwuxm9 Mark and Mike  Mark joined  es → en
+2026-11-27 05:36:37  room 6s17ol  Mike chat
+2026-11-27 05:38:11  room fj4d34  momo chat
+2026-11-27 05:38:52  room q4hv8e  mike chat
+2026-11-27 05:40:43  room hwuxm9  mike chat```
