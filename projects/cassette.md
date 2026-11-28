@@ -109,3 +109,4 @@ Authority order: 1) This plan, 2) Owner’s latest explicit request, 3) Referenc
 | 2026-11-27 11:44 | Main | built projects/cassette.html | Removed any leftover launch button and added two new radio presets for KOCI 88.5 and 101.5. | 88fa396 |
 | 2026-11-27 14:54 | Main | failed | I couldn't finish that one. Your app is unchanged. |  |
 | 2026-11-27 20:23 | Main | failed | Venice took too long. |  |
+| 2026-11-28 07:01 | Main | built projects/cassette.html | Added real streaming URLs for KOCI 88.5 and 101.5 via Radio Browser API and removed any stray launch button code. | 95c25d6 |
