@@ -1,6 +1,6 @@
 # TalkBridge device log
 
-Both handsets write here. Drained 2026-11-28T10:57:00Z, every 30s. Newest at the bottom.
+Both handsets write here. Drained 2026-11-28T10:57:33Z, every 30s. Newest at the bottom.
 
 ```
 13:32:13.849 [android-flz] r8_flag_bands {"dressed":2}
